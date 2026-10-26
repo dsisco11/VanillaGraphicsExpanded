@@ -18,14 +18,10 @@ internal sealed partial class GpuResourceManager
         /// <inheritdoc />
         public GpuResourceKind Kind => GpuResourceKind.MemoryObject;
         /// <inheritdoc />
-        public void Validate(in GpuMemoryObjectInitialization initialization)
-        {
-            if (!GpuSupport.Graphics.SupportsExtMemoryObject)
-                throw new System.NotSupportedException("GL_EXT_memory_object is not supported by the current context.");
-        }
+        public void Validate(in GpuMemoryObjectInitialization initialization) { }
         /// <inheritdoc />
         public GpuMemoryObjectMetadata? Initialize(StateCache cache, in GpuMemoryObjectInitialization initialization, out nint id)
-            => cache.CreateMemoryObject(out id);
+            => RHI.RHICommandContext.Current.OpenGL.InitializeMemoryObject(out id);
         #endregion
     }
     #endregion

@@ -30,10 +30,10 @@ Resource wrappers retain growth/sampling policy, attachment selection and upload
 It retains the typed resource wrapper without exposing ownership or mutation methods. Conversion
 operators live on `GpuTexture`, `GpuBufferView` and `GpuTextureView`; manager-certified published metadata supplies
 binding and attachment validation without native discovery during reference construction or access.
-Buffer/image/renderbuffer/sampler creation uses RHICommandContext descriptions and typed ready-owner
+Buffer/image/renderbuffer/sampler and auxiliary resource creation uses RHICommandContext descriptions and typed ready-owner
 results, privately lowering to manager initialization records. The OpenGL backend executes these native
 operations; the manager publishes complete snapshots. Wrappers retain growth, upload and sampling policy.
-Other families retain StateCache execution and the same manager publication authority.
+Framebuffer, vertex-array and executable families retain StateCache execution and the same manager publication authority.
 
 Buffer creation privately uses the manager handoff; image-texture, renderbuffer, buffer-texture and texture-view wrappers use the manager's
 `CreateBuffer`, `CreateTexture`, `CreateRenderbuffer`, `CreateBufferTexture` and `CreateTextureView`
@@ -45,12 +45,12 @@ renderbuffer and multisample-texture allocation without those capabilities reads
 Known source metadata supplies view geometry and backing ranges without object rediscovery. Buffer
 realization uses core `CreateBuffers`; reserved-name realization is retained only for exact external calls.
 
-Vertex arrays, program pipelines, queries, sync fences, transform feedback objects,
-semaphores and memory objects also use resource-specific manager creation entry points and empty
-initialization records. StateCache performs native creation; the common handoff publishes their empty
-canonical schemas without descriptor or status queries. VAO/pipeline fallback realization restores
-the previous binding. Samplers use core named creation without binding or parameter queries. Query and transform-feedback creation retain
-generated-name semantics; empty metadata does not certify realization. Fence handles remain native-width.
+Vertex arrays and program pipelines retain StateCache creation and empty manager initialization.
+Queries declare their category in GpuQueryInitialization and use core CreateQueries; transform feedback
+uses core CreateTransformFeedbacks. Fences and optional external memory/semaphore objects also execute
+through the RHI backend with the same private manager handoff. Their canonical schemas stay empty,
+without creation-time descriptor or status queries. Exact external generated names retain their distinct
+unrealized semantics; managed named creation is realized. Fence handles remain native-width.
 Semaphore/memory-object capability checks precede allocation; imports, handle ownership, waits,
 sampling policy and configuration remain separate wrapper operations.
 
@@ -67,9 +67,9 @@ sampling policy and configuration remain separate wrapper operations.
 | VertexArray | `GpuVao.Create` | Wrapper retains ID/debug name, not a complete attribute mirror. `GpuVertexAttribBinding` is a value configuration helper holding VAO/index/buffer/offset/stride/divisor. Preserve authored geometry descriptions; make stale helper reuse detectable by owning-wrapper identity and manager-owned revision, or resolve current facts before fallback use. No invented global VAO layout cache. |
 | Program | `GpuProgramObject.Create` / `Adopt`, `GpuComputePipeline` | Binding cache/layout and executable revision/context. Compute declarations can begin without an executable and later install one; acquire on installation in its actual context. Relink/binary replacement invalidates prepared executable metadata; existing owner preparation must establish a usable layout again. `Shaders/GpuProgram` and `GpuComputeProgram` are composition owners, not additional GpuResource subclasses. |
 | Shader | `GpuShaderModule` | Adopt/compile/load shader, fixed shader type and authored binding contract. Shader compilation data is not a mutable storage descriptor; program link preparation remains responsible for reflected interfaces. Fixed shader type becomes canonical metadata; no mutable storage refresh. |
-| Query | `GpuQuery` | Generated name; results are queried on demand. No retained mutable resource metadata. |
+| Query | `GpuQuery` | Core named target-specific creation; results are queried on demand. No retained mutable resource metadata. |
 | Sync | `GpuFence` | FenceSync creates pointer-shaped native identity; signal/wait result is queried, not cached storage metadata. |
-| TransformFeedback | `GpuTransformFeedback` | Generated object; no retained binding/configuration snapshot in wrapper. StateCache binding state remains separate. |
+| TransformFeedback | `GpuTransformFeedback` | Core named object; no retained binding/configuration snapshot in wrapper. StateCache binding state remains separate. |
 | Sampler | `GpuSampler` | Generated name; setters do not retain a complete parameter snapshot. No mutable wrapper metadata to refresh. |
 | ProgramPipeline | `GpuProgramPipeline` | Generated name; stage/program calls and validation query native state, no retained stage mirror. |
 | Semaphore / MemoryObject | `GpuSemaphore`, `GpuMemoryObject` | EXT creation/import, capability gated. No represented mutable metadata; importing handles does not change ownership semantics. |
@@ -82,7 +82,8 @@ base property would leave bypasses. Debug labels and authored policies remain wr
 `GpuResource.Dispose` checks retirement, clears the local ID, invokes hooks and schedules owned deletion.
 `Detach` performs the same existing guard check, clears local state and transfers the ID without deletion.
 `GpuResourceManager` queues kind/ID/context and retains the original registration when present. Both
-immediate and queued deletion use the owning backend for buffers/images/samplers and StateCache for the remaining kinds. Drain rejects a registration
+immediate and queued deletion use the owning backend for buffers/images/samplers and auxiliary resources;
+framebuffer, vertex-array and executable kinds retain StateCache. Drain rejects a registration
 replaced under the same numeric ID. Exact GL/Core, EXT and ARB deletion adapters preserve native signatures
 and per-object outcomes through the same notification route.
 

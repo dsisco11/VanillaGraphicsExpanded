@@ -19,15 +19,17 @@ subresources remain with their existing wrappers and helpers.
 
 Resource-specific initialization records expose legal inputs and automatically record assigned fields,
 including explicit zero and false values. Manager creation methods validate those requests and use
-the OpenGL backend through `RHICommandContext` for buffer, image, renderbuffer and sampler allocation;
-other resource families use StateCache to allocate and configure native objects. A nullable metadata result reports detected failure;
+the OpenGL backend through `RHICommandContext` for buffers, images, samplers, queries, fences, transform
+feedback, semaphores and memory objects. Framebuffer, vertex-array and executable allocation still use
+StateCache. A nullable metadata result reports detected failure;
 identity and a complete initial snapshot are handed to the wrapper only after successful initialization.
 Partial allocation cleanup preserves the original exception and the originating deletion context.
 
 ## Command results and queries
 
-The OpenGL RHI backend owns buffer, image, renderbuffer and sampler native dispatch; StateCache retains
-its selector knowledge and operation guards. Other resource families dispatch through StateCache. Controlled operations publish inputs,
+The OpenGL RHI backend owns buffer/image, synchronization, query-result, readback, capture and optional
+external-object native dispatch; StateCache retains selector knowledge and operation guards. Framebuffer,
+vertex-array and executable operations retain their existing StateCache execution. Controlled operations publish inputs,
 guaranteed defaults and derived facts. Existing failure handling remains authoritative: reported failure
 does not publish success, and interruption withdraws affected knowledge. No universal post-command query,
 error drain or separate requested/actual metadata cache is used. Available covered aliases reuse canonical
@@ -104,6 +106,50 @@ and image deletion overloads share the backend lifetime boundary. Each external 
 original signature and native errors, executes once, and uses the existing observation/publication service.
 External selectors never use managed duplicate suppression; uncertain binding facts recover lazily.
 
+## Synchronization, results and auxiliary execution
+
+Explicit RHI access barriers order visibility without inferring hazards or adding implicit fences.
+Fence insertion creates the existing native-width owner through private manager handoff; polling and
+CPU/GPU waits validate its original association. Pending or failed waits do not release staging or
+uniform storage for reuse. CPU submission is not GPU completion.
+
+Queries declare their category before core named realization. Timestamp, elapsed, occlusion and primitive
+queries use the baseline; pipeline statistics require their cached optional capability. Result tickets
+retain one issued execution revision, reject later reissue and distinguish Pending, Ready, Failed and
+Cancelled. These are request states, not canonical metadata or another resource registry. CPU result
+reads preserve external query-buffer binding and retrieve unsigned 64-bit values. Conditional rendering
+consumes issued occlusion queries without CPU result readback.
+
+Readback descriptions select a buffer interval or view-relative image region and explicit pixel pitches.
+The request privately owns staging plus its completion fence. Mapping requires readiness and is exclusive;
+its scoped read-only bytes remain tied to the original context. Synchronous callers use
+`RHIReadbackTicket.Wait()` with the shared `DefaultWaitTimeout`; callers can also supply an explicit
+timeout or poll without blocking. Cancellation retires native storage
+without putting in-flight ranges into a reusable CPU pool. Registered-context retirement cancels pending
+requests and abandons native cleanup rather than issuing it into a replacement namespace. Existing queues
+may retain and map their own fenced output storage through the same backend instead of adding a copy.
+
+Transform-feedback creation configures named output ranges from frozen authored descriptions. Capture
+retains the object selection and output lifetime guards across begin/end, pause/resume and scope unwind;
+per-method scopes never restore a binding during active capture. Canonical capture metadata stays empty.
+Optional memory/semaphore descriptions make platform-handle kind and ownership explicit: successful FD
+imports transfer their descriptor to GL, while Win32 handles remain caller-owned. The pinned OpenTK
+package exposes these optional entry points only through GL.Ext, confined to backend modules. No payload
+state is invented in canonical metadata. Native external-producer import qualification remains separate
+from object creation and capability-rejection tests.
+
+Sparse buffer allocation uses explicit sparse storage intent and cached page alignment. It rejects
+mapping and initial bytes before commitment; commitment changes residency, not allocation metadata.
+Typed sparse-image commitment supports explicitly configured native integration storage without inventing
+an allocation descriptor or querying unrepresented sparse page facts on each call. Exact native error
+behavior remains authoritative for those integration facts.
+
+`GpuSyncRef`, `GpuQueryRef`, `GpuTransformFeedbackRef`, `GpuSemaphoreRef` and `GpuMemoryObjectRef`
+retain existing owners through wrapper-owned conversions. The manager certifies published usability;
+references expose no disposal, handle-transfer or native execution methods. Exact auxiliary deletion
+adapters preserve their original loader/signatures and per-name outcomes before shared retirement
+publication. Managed deletion uses the admitted backend after original-context queue admission.
+
 ## Binding knowledge and retirement
 
 `GpuTextureRef` is a readonly consumer value holding one private `GpuResource<GpuTextureMetadata>`
@@ -135,7 +181,7 @@ run in its originating context. Weak recipients are pruned during acquisition, p
 ## External coverage and consumers
 
 Compiler-checked adapters redirect supported calls discovered in the built-in engine assemblies through
-backend buffer/image modules or the remaining StateCache operation families. Allowed OpenTK owners are GL (also named Core by adapters), GL.Ext and GL.Arb. Other auxiliary
+backend resource modules or the remaining StateCache operation families. Allowed OpenTK owners are GL (also named Core by adapters), GL.Ext and GL.Arb. Other auxiliary
 owners and legacy fixed-function facilities are outside interception. Generic discovery handles concrete
 value-type instantiations from built-in assembly references; arbitrary mods and dynamic callers are outside
 that boundary. A registry entry does not extend interception to unsupported callers.

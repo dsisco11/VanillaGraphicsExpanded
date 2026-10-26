@@ -260,7 +260,7 @@ internal sealed partial class LumonSceneRelightUpdateRenderer : IRenderer, ISurf
                 if (seeded.Contains(item.PhysicalPageId))
                     feedback.TryClearNearPageFlagsMip0(item.ChunkSlot, (int)item.VirtualPageIndex, LumonScenePageTableEntryPacking.Flags.NeedsRelight);
             }
-            GL.MemoryBarrier(MemoryBarrierFlags.TextureUpdateBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit | MemoryBarrierFlags.ShaderStorageBarrierBit);
+            RHICommandContext.Current.Barrier(new(RHIAccess.TextureUpdate | RHIAccess.TextureFetch | RHIAccess.ShaderStorage));
             snapshot = snapshot with { OutgoingRadiance = resources.PublishedOutgoing, Generation = resources.LightingGeneration };
             published = true;
         }

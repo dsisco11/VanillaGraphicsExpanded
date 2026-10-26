@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Collections.Immutable;
 using System.Diagnostics;
 using System.Numerics;
@@ -251,8 +252,8 @@ public sealed class AtmosphereCelestialPublicationTests(HeadlessGLFixture fixtur
             if (backend.PendingCpu is { } pending) pending.WaitAsync(TimeSpan.FromSeconds(30)).GetAwaiter().GetResult();
             else
             {
-                using var fence = GpuFence.Insert();
-                Assert.Contains(fence.Wait(TimeSpan.FromSeconds(5)), new[] {WaitSyncStatus.AlreadySignaled, WaitSyncStatus.ConditionSatisfied});
+                using var fence = RHICommandContext.Current.InsertFence();
+                Assert.Contains(RHICommandContext.Current.WaitCpu(fence, TimeSpan.FromSeconds(5)), new[] {RHICompletionStatus.Ready, RHICompletionStatus.Ready});
             }
         }
         throw new TimeoutException("Celestial pair did not complete.");

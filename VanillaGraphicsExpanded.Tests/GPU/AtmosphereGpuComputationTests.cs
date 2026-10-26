@@ -173,10 +173,10 @@ public sealed class AtmosphereGpuComputationTests(HeadlessGLFixture fixture, ITe
         using var gpu = AtmosphereGpuComputation.Create(assets.Api);
         Complete(gpu, Vector3.UnitY, 0, 0);
         Assert.Null(gpu.Update(Vector3.UnitX, 0, .01f, 32, 24));
-        using (var fence = GpuFence.Insert()) fence.Wait(TimeSpan.FromSeconds(5));
+        using (var fence = RHICommandContext.Current.InsertFence()) RHICommandContext.Current.WaitCpu(fence, TimeSpan.FromSeconds(5));
         Assert.NotNull(gpu.Update(Vector3.UnitX, 0, .01f, 32, 24));
         Assert.Null(gpu.Update(Vector3.UnitX, 0, .1f, 32, 24));
-        using (var fence = GpuFence.Insert()) fence.Wait(TimeSpan.FromSeconds(5));
+        using (var fence = RHICommandContext.Current.InsertFence()) RHICommandContext.Current.WaitCpu(fence, TimeSpan.FromSeconds(5));
         Assert.Null(gpu.Update(Vector3.UnitX, 0, .1f, 32, 24));
         Assert.Equal(Vector3.UnitX, Complete(gpu, Vector3.UnitX, 0, .1f).Sun);
     }
@@ -282,8 +282,8 @@ public sealed class AtmosphereGpuComputationTests(HeadlessGLFixture fixture, ITe
         {
             var result = gpu.Update(sun, altitude, clouds, width, height, quality, groundAlbedo);
             if (result is not null) return result;
-            using var fence = GpuFence.Insert();
-            Assert.Contains(fence.Wait(TimeSpan.FromSeconds(5)), new[] { WaitSyncStatus.AlreadySignaled, WaitSyncStatus.ConditionSatisfied });
+            using var fence = RHICommandContext.Current.InsertFence();
+            Assert.Contains(RHICommandContext.Current.WaitCpu(fence, TimeSpan.FromSeconds(5)), new[] { RHICompletionStatus.Ready, RHICompletionStatus.Ready });
         }
         throw new TimeoutException("Atmosphere GPU publication did not complete.");
     }

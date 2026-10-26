@@ -108,12 +108,7 @@ internal static partial class EngineStateCalls
         CurrentCache.BindImageTexture(unit, texture, level, layered, layer, access, format);
     /// <summary>Publishes a separable shader pipeline binding.</summary>
     public static void BindProgramPipeline(int pipeline) => CurrentCache.ExecuteCoreBindProgramPipeline(pipeline);
-    /// <summary>Publishes transform-feedback binding without changing unsupported enum behavior.</summary>
-    public static void BindTransformFeedback(TransformFeedbackTarget target, int feedback)
-    {
-        if (target == TransformFeedbackTarget.TransformFeedback) CurrentCache.BindTransformFeedback(feedback);
-        else GL.BindTransformFeedback(target, feedback);
-    }
+
     #endregion
 
     #region Resource retirement

@@ -3,7 +3,7 @@ RHI commands and command lists — implementation plan
 
 Source proposal: [Rendering.GpuCommands.Proposal.md](Rendering.GpuCommands.Proposal.md).
 Parent design task: Rendering.GpuResourceHandles.todo, Phase 8.
-Status: Phases 1–3 complete; runtime migration and qualification in Phases 4–8 remain outstanding.
+Status: Phases 1–4 complete; rendering, recording and integrated qualification in Phases 5–8 remain outstanding.
 
 Goal
   Implement the approved semantic RHI boundary, immediate execution and optional single-use recorded
@@ -168,22 +168,32 @@ Phase 4: Replace synchronization, queries and remaining non-draw resource operat
   Depends on Phase 3.
   Outcome: final immediate completion and auxiliary-resource operations are ready for render submission.
 
-  ☐ Implement semantic access barriers, fence insertion, GPU waits and explicit immediate CPU polling/waits.
+  ☑ Implement semantic access barriers, fence insertion, GPU waits and explicit immediate CPU polling/waits.
     Preserve ordering and existing retirement; do not infer hazards/render graphs or fence every operation.
-  ☐ Implement query creation, timestamp/statistics operations and owned-staging readback requests with
+  ☑ Implement query creation, timestamp/statistics operations and owned-staging readback requests with
     Pending/Ready/Failed/Cancelled outcomes. Mapping requires readiness; CPU dispatch is not GPU completion.
     Retain staging/mapped ownership through actual completion, including errors and context retirement.
-  ☐ Implement supported semaphore/memory-object creation/import/configuration and synchronization with
+  ☑ Implement supported semaphore/memory-object creation/import/configuration and synchronization with
     explicit optional feature checks and handle ownership. Reject unsupported requests before dispatch.
-  ☐ Replace transform-feedback resource creation/configuration and other remaining non-draw operations
+  ☑ Replace transform-feedback resource creation/configuration and other remaining non-draw operations
     identified by Phase 1. Coordinate execution-dependent work with Phase 5; merge a unit if dependency
     inspection shows its caller closure requires draw execution. Do not declare a partial family complete.
-  ☐ Move corresponding exact adapters, acquisition, helpers and deletion paths into their final backend
+  ☑ Move corresponding exact adapters, acquisition, helpers and deletion paths into their final backend
     modules. Preserve kind-specific deletion outcomes and original-context queue admission.
-  ☐ Test ready/pending/failure/cancellation, staging reuse, explicit waits, context loss and unsupported
+  ☑ Test ready/pending/failure/cancellation, staging reuse, explicit waits, context loss and unsupported
     optional requests. Mark unavailable hardware cases as evidence gaps, not successful execution.
-  ☐ Completion: each accepted unit meets mandatory receipts; all Phase 5 synchronization/transfer
+  ☑ Completion: each accepted unit meets mandatory receipts; all Phase 5 synchronization/transfer
     dependencies use final operations with no temporary bridge to old StateCache execution methods.
+
+  Evidence: second review and independent stage audit completed against the linked authority.
+    [Auxiliary migration qualification](Rendering.GpuCommands.Migrations.md#auxiliary-migration-qualification-phase-4)
+    records final routes, source closure, exact adapters, package identity and native coverage limits.
+    Frozen Debug and controlled Release focused: 55 passed; generator: 180 passed. Canonical package
+    and 761 shader identities passed. Ordinary Release broad: 1,106 passed/23 failed; the same binaries
+    with process-only JIT controls: 1,124 passed/5 particle fixture ordering failures. That particle class
+    passed 12/12 in a fresh ordinary Release process; particle integration passed 3/3 separately.
+    Broad Release is not reported as green. External-producer import/exchange remains unqualified;
+    no installed-game, visual or performance acceptance is claimed. Phases 5–8 remain unchecked.
 
 Phase 5: Replace shader, pipeline and immediate rendering as one integration unit
   Depends on Phases 2–4 and Phase 1's final shader/PSO contracts.

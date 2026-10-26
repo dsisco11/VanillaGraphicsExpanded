@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using OpenTK.Graphics.OpenGL;
 
@@ -19,18 +20,12 @@ public sealed class DepthTexture : DynamicTexture2D
         GL.Clear(ClearBufferMask.DepthBufferBit);
     }
 
-    /// <inheritdoc />
-    protected override void AttachForReadback(GpuFramebuffer framebuffer, int mipLevel)
-    {
-        framebuffer.Attach(this, mipLevel);
-        StateCache.Current.SetDrawBuffer(DrawBufferMode.None);
-    }
+
 
     /// <inheritdoc />
     protected override PixelFormat ReadbackFormat => PixelFormat.DepthComponent;
 
-    /// <inheritdoc />
-    protected override ReadBufferMode ReadbackBuffer => ReadBufferMode.None;
+
 
     /// <summary>Rejects formats that do not contain depth-only storage.</summary>
     private static PixelInternalFormat ValidateFormat(PixelInternalFormat format)

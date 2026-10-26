@@ -18,9 +18,15 @@ internal sealed class FramebufferBmpCapture(int width, int height) : IDisposable
             throw new ArgumentException("Framebuffer dimensions do not match the capture buffer.", nameof(framebuffer));
         int byteCount = width * height * 4;
         readback.AllocateOrphan(byteCount);
-        using var binding = StateCache.Current.BindFramebufferScope(FramebufferTarget.ReadFramebuffer, framebuffer.FboId);
-        GL.ReadBuffer(ReadBufferMode.ColorAttachment0);
-        readback.ReadPixels(0, 0, width, height, PixelFormat.Bgra, PixelType.UnsignedByte);
+        var attachment = framebuffer.GetAttachment(FramebufferAttachment.ColorAttachment0)
+            ?? throw new InvalidOperationException("No color image is available for capture.");
+        using var texture = new BorrowedTexture(attachment.TextureId);
+        RHICommandContext.Current.TransferTextureToBuffer(texture, new(readback, 0,
+            new(new(attachment.MipLevel, attachment.Layer ?? 0), 0, 0, 0, width, height, 1),
+            new(RHIPixelChannels.Bgra, RHIPixelType.UnsignedByte)));
+        using var fence = RHICommandContext.Current.InsertFence();
+        if (RHICommandContext.Current.WaitCpu(fence, TimeSpan.FromSeconds(60)) != RHICompletionStatus.Ready)
+            throw new InvalidOperationException("Framebuffer capture did not complete.");
         IntPtr mapped = readback.MapRange(0, byteCount, RHIBufferMapAccess.Read);
         if (mapped == IntPtr.Zero) throw new InvalidOperationException("Could not map framebuffer readback buffer.");
         byte[] pixels = new byte[byteCount];

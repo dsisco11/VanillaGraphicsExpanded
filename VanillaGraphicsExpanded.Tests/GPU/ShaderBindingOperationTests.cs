@@ -28,7 +28,7 @@ public sealed class ShaderBindingOperationTests(HeadlessGLFixture fixture, ITest
         shader.Scalar = 7;
         shader.Output = new(result, TextureAccess.WriteOnly);
         shader.Dispatch(1);
-        GpuComputePipeline.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit);
+        RHICommandContext.Current.Barrier(new(RHIAccess.Image));
         var cache = StateCache.Current;
         var prepared = pipeline.ProgramLayout.BinaryInterface!.PreparedBindings;
 #if DEBUG
@@ -52,7 +52,7 @@ public sealed class ShaderBindingOperationTests(HeadlessGLFixture fixture, ITest
             shader.Values = [2, 3];
             shader.Output = new(result, TextureAccess.WriteOnly);
             shader.Dispatch(1);
-            GpuComputePipeline.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit);
+            RHICommandContext.Current.Barrier(new(RHIAccess.Image));
         }
         Assert.Equal(revision, Revision(shader));
 #if DEBUG
@@ -69,7 +69,7 @@ public sealed class ShaderBindingOperationTests(HeadlessGLFixture fixture, ITest
         Assert.Equal(1, validation.EntryResolutions);
         Assert.Equal(1, validation.CompatibilityChecks);
 #endif
-        GpuComputePipeline.MemoryBarrier(MemoryBarrierFlags.FramebufferBarrierBit);
+        RHICommandContext.Current.Barrier(new(RHIAccess.Framebuffer));
         Assert.Equal(new float[] { 7, 5, 0, 0 }, result.ReadPixels());
 #if DEBUG
         output.WriteLine($"Generated owner: {repeats * 3} assignment attempts/skips; 0 revision changes; preparation reflection queries {reflection}; steady-state reflection/name resolutions 0; {repeats} submissions/image cache checks; entry resolutions 1; compatibility checks 1; numeric GL uploads 0; repeated block copies/allocations 0; repeated image or UBO range binds 0.");
@@ -113,7 +113,7 @@ public sealed class ShaderBindingOperationTests(HeadlessGLFixture fixture, ITest
         Assert.Equal(interfaceNames, arrays.ProgramLayout.BinaryInterface.UniformNameResolutions);
 #endif
         arrays.Dispatch(1);
-        GpuComputePipeline.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.FramebufferBarrierBit);
+        RHICommandContext.Current.Barrier(new(RHIAccess.Image | RHIAccess.Framebuffer));
         Assert.Equal(new float[] { 11, 22, 33, 44 }, result.ReadPixels());
 #if DEBUG
         output.WriteLine($"Managed array: preparation reflection queries {reflection}; {repeats} full-set validations/publications; {repeats * 2} texture cache checks; {repeats * 2} sampler cache checks; {repeats} image cache checks; steady-state reflection/name resolutions 0; texture/sampler/image binds 0.");

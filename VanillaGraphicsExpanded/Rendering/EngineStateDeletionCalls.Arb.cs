@@ -33,81 +33,21 @@ internal static partial class EngineStateDeletionCalls
             cache.CompleteResourceDeletion(kind, unchecked((int)id));
         }
 
-        /// <summary>Executes Arb.DeleteQueries and reconciles each successful name deletion.</summary>
-        public static void DeleteQueries(int count, ref int ids)
-        {
-            var cache = EngineStateCalls.CurrentCache;
-            GL.Arb.DeleteQueries(count, ref ids);
-            if (count <= 0) return;
-            foreach (var value in MemoryMarshal.CreateReadOnlySpan(ref ids, count))
-                cache.CompleteResourceDeletion(GpuResourceKind.Query, unchecked((int)value));
-        }
 
-        /// <summary>Executes Arb.DeleteQueries and reconciles each successful name deletion.</summary>
-        public static void DeleteQueries(int count, int[] ids)
-        {
-            var cache = EngineStateCalls.CurrentCache;
-            GL.Arb.DeleteQueries(count, ids);
-            if (count <= 0) return;
-            foreach (var value in ids.AsSpan(0, Math.Min(count, ids.Length)))
-                cache.CompleteResourceDeletion(GpuResourceKind.Query, unchecked((int)value));
-        }
 
-        /// <summary>Executes Arb.DeleteQueries and reconciles each successful name deletion.</summary>
-        public static void DeleteQueries(int count, int* ids)
-        {
-            var cache = EngineStateCalls.CurrentCache;
-            GL.Arb.DeleteQueries(count, ids);
-            if (count <= 0) return;
-            foreach (var value in new ReadOnlySpan<int>(ids, count))
-                cache.CompleteResourceDeletion(GpuResourceKind.Query, unchecked((int)value));
-        }
 
-        /// <summary>Executes Arb.DeleteQueries and reconciles each successful name deletion.</summary>
-        public static void DeleteQueries(int count, ref uint ids)
-        {
-            var cache = EngineStateCalls.CurrentCache;
-            GL.Arb.DeleteQueries(count, ref ids);
-            if (count <= 0) return;
-            foreach (var value in MemoryMarshal.CreateReadOnlySpan(ref ids, count))
-                cache.CompleteResourceDeletion(GpuResourceKind.Query, unchecked((int)value));
-        }
 
-        /// <summary>Executes Arb.DeleteQueries and reconciles each successful name deletion.</summary>
-        public static void DeleteQueries(int count, uint[] ids)
-        {
-            var cache = EngineStateCalls.CurrentCache;
-            GL.Arb.DeleteQueries(count, ids);
-            if (count <= 0) return;
-            foreach (var value in ids.AsSpan(0, Math.Min(count, ids.Length)))
-                cache.CompleteResourceDeletion(GpuResourceKind.Query, unchecked((int)value));
-        }
 
-        /// <summary>Executes Arb.DeleteQueries and reconciles each successful name deletion.</summary>
-        public static void DeleteQueries(int count, uint* ids)
-        {
-            var cache = EngineStateCalls.CurrentCache;
-            GL.Arb.DeleteQueries(count, ids);
-            if (count <= 0) return;
-            foreach (var value in new ReadOnlySpan<uint>(ids, count))
-                cache.CompleteResourceDeletion(GpuResourceKind.Query, unchecked((int)value));
-        }
 
-        /// <summary>Executes Arb.DeleteQuery and reconciles each successful name deletion.</summary>
-        public static void DeleteQuery(int id)
-        {
-            var cache = EngineStateCalls.CurrentCache;
-            GL.Arb.DeleteQuery(id);
-            cache.CompleteResourceDeletion(GpuResourceKind.Query, unchecked((int)id));
-        }
 
-        /// <summary>Executes Arb.DeleteQuery and reconciles each successful name deletion.</summary>
-        public static void DeleteQuery(uint id)
-        {
-            var cache = EngineStateCalls.CurrentCache;
-            GL.Arb.DeleteQuery(id);
-            cache.CompleteResourceDeletion(GpuResourceKind.Query, unchecked((int)id));
-        }
+
+
+
+
+
+
+
+
 
         #endregion
     }

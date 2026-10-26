@@ -411,55 +411,6 @@ internal sealed partial class StateCache
         }
     }
 
-    public int GetCurrentTransformFeedback()
-    {
-        if (currentTransformFeedback.HasValue) return currentTransformFeedback.Value;
-
-        try { currentTransformFeedback = GL.GetInteger(GetPName.TransformFeedbackBinding); }
-        catch when (!restoringBoundary && !resolvingBoundary && activeBoundary is null)
-        { currentTransformFeedback = 0; }
-
-        return currentTransformFeedback.Value;
-    }
-
-    public void BindTransformFeedback(int transformFeedbackId)
-    {
-        try
-        {
-            GL.BindTransformFeedback(TransformFeedbackTarget.TransformFeedback, transformFeedbackId);
-            currentTransformFeedback = transformFeedbackId;
-        }
-        catch when (!restoringBoundary && !resolvingBoundary && activeBoundary is null)
-        {
-        }
-    }
-
-    public void UnbindTransformFeedback()
-    {
-        BindTransformFeedback(0);
-    }
-
-    public TransformFeedbackScope BindTransformFeedbackScope(int transformFeedbackId)
-    {
-        int previous = TransformFeedbackScopeTracker.Begin(transformFeedbackId);
-        return new TransformFeedbackScope(previous);
-    }
-
-    public readonly struct TransformFeedbackScope : IDisposable
-    {
-        private readonly int previous;
-
-        public TransformFeedbackScope(int previous)
-        {
-            this.previous = previous;
-        }
-
-        public void Dispose()
-        {
-            TransformFeedbackScopeTracker.End(previous);
-        }
-    }
-
     private sealed class VaoScopeTracker : BindScopeTracker<VaoScopeTracker>
     {
         protected override int GetCurrent() => StateCache.Current.GetCurrentVao();
@@ -481,12 +432,7 @@ internal sealed partial class StateCache
         protected override void Bind(int id) => OpenGLImageBindings.BindRenderbuffer(StateCache.Current, id);
     }
 
-    private sealed class TransformFeedbackScopeTracker : BindScopeTracker<TransformFeedbackScopeTracker>
-    {
-        protected override int GetCurrent() => StateCache.Current.GetCurrentTransformFeedback();
 
-        protected override void Bind(int id) => StateCache.Current.BindTransformFeedback(id);
-    }
 
     public int GetActiveTextureUnit()
     {

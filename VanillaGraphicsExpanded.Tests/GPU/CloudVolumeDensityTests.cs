@@ -160,7 +160,7 @@ public sealed class CloudVolumeDensityTests(HeadlessGLFixture fixture):LumOnShad
     private static float Sample(CloudVolumeProbeProgram probe,CloudVolumeFields fields,GpuShaderStorageBuffer output,Vector3 point)
     {
         probe.Capture(fields,point);probe.Density=fields.Density;probe.Direct=fields.Direct;probe.Diffuse=fields.Diffuse;probe.Result=output;
-        probe.Dispatch(1);GpuComputePipeline.MemoryBarrier(MemoryBarrierFlags.BufferUpdateBarrierBit|MemoryBarrierFlags.ShaderStorageBarrierBit);
+        probe.Dispatch(1);RHICommandContext.Current.Barrier(new(RHIAccess.BufferUpdate|RHIAccess.ShaderStorage));
         using var read=output.MapScope<Vector4>(0,2,RHIBufferMapAccess.Read);return read.Span[0].X;
     }
     #endregion

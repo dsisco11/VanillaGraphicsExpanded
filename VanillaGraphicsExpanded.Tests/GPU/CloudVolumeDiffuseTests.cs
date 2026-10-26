@@ -49,7 +49,7 @@ public sealed class CloudVolumeDiffuseTests(HeadlessGLFixture fixture,Xunit.ITes
                 {Assert.Equal(1u,args.Span[0]);Assert.Equal((uint)profile.Directions,args.Span[1]);Assert.Equal(1u,args.Span[2]);}
                 timer.Begin();Assert.True(solver.Update(storage,work,()=>true,deferStatus:true),solver.Failure);timer.End();
                 work.SubmitCompletion(storage,()=>true);
-                using(var fence=GpuFence.Insert())Assert.NotEqual(WaitSyncStatus.WaitFailed,fence.Wait(TimeSpan.FromSeconds(5)));
+                using(var fence=RHICommandContext.Current.InsertFence())Assert.NotEqual(RHICompletionStatus.Failed,RHICommandContext.Current.WaitCpu(fence, TimeSpan.FromSeconds(5)));
                 Assert.True(solver.Complete(storage,work,()=>true),solver.Failure);
                 Assert.Equal(1,solver.LastJobs);Assert.Equal((uint)(256*profile.Directions),work.Statistics.DiffuseRays);
                 Assert.True(work.Statistics.DiffuseRays<=work.Statistics.DiffuseAllowance);
@@ -91,7 +91,7 @@ public sealed class CloudVolumeDiffuseTests(HeadlessGLFixture fixture,Xunit.ITes
         Assert.True(solver.Update(storage,work,()=>true,deferStatus:true),solver.Failure);
         Assert.Same(unchanged,fields.Diffuse);Assert.Equal(initial,fields.Encoding);Assert.Null(fields.LightingBounds);
         work.SubmitCompletion(storage,()=>true);
-        using(var fence=GpuFence.Insert())Assert.NotEqual(WaitSyncStatus.WaitFailed,fence.Wait(TimeSpan.FromSeconds(5)));
+        using(var fence=RHICommandContext.Current.InsertFence())Assert.NotEqual(RHICompletionStatus.Failed,RHICommandContext.Current.WaitCpu(fence, TimeSpan.FromSeconds(5)));
         Assert.True(solver.Complete(storage,work,()=>true),solver.Failure);
         Assert.Equal(32,solver.LastJobs);Assert.Equal(d.CopyBytes,solver.LastCopyBytes);
         Assert.NotSame(unchanged,fields.Diffuse);Assert.True(fields.Encoding.Scale>initial.Scale);
@@ -143,7 +143,7 @@ public sealed class CloudVolumeDiffuseTests(HeadlessGLFixture fixture,Xunit.ITes
             poison%d.BlocksX*8,(poison/d.BlocksX)%d.BlocksY*4,poison/(d.BlocksX*d.BlocksY)*8,1,1,1);
         Assert.True(solver.Update(storage,work,()=>true,deferStatus:true));
         work.SubmitCompletion(storage,()=>true);
-        using(var fence=GpuFence.Insert())Assert.NotEqual(WaitSyncStatus.WaitFailed,fence.Wait(TimeSpan.FromSeconds(5)));
+        using(var fence=RHICommandContext.Current.InsertFence())Assert.NotEqual(RHICompletionStatus.Failed,RHICommandContext.Current.WaitCpu(fence, TimeSpan.FromSeconds(5)));
         Assert.True(solver.Complete(storage,work,()=>true));Assert.Equal(0,solver.LastCopyBytes);
         Assert.Same(coherent,fields.Diffuse);Assert.Equal(encoding,fields.Encoding);
         Assert.Equal(repairHistory,ReadWords(fields,CloudVolumeWork.RepairListWord,32));
@@ -167,7 +167,7 @@ public sealed class CloudVolumeDiffuseTests(HeadlessGLFixture fixture,Xunit.ITes
         Array.Fill(density,float.NaN);fields.Density.UploadDataImmediate(density,0,0,0,d.Size,66,d.Size);
         Assert.True(solver.Update(storage,work,()=>true,deferStatus:true));
         work.SubmitCompletion(storage,()=>true);
-        using(var fence=GpuFence.Insert())Assert.NotEqual(WaitSyncStatus.WaitFailed,fence.Wait(TimeSpan.FromSeconds(5)));
+        using(var fence=RHICommandContext.Current.InsertFence())Assert.NotEqual(RHICompletionStatus.Failed,RHICommandContext.Current.WaitCpu(fence, TimeSpan.FromSeconds(5)));
         Assert.False(solver.Complete(storage,work,()=>true));Assert.False(storage.Ready);
         Assert.Same(coherent,fields.Diffuse);Assert.Equal(encoding,fields.Encoding);Assert.Equal(revision,fields.Revision);
         Assert.Same(bounds,fields.LightingBounds);Assert.Equal(stamps,Completed(fields));
@@ -192,7 +192,7 @@ public sealed class CloudVolumeDiffuseTests(HeadlessGLFixture fixture,Xunit.ITes
     private static Vector4 Query(CloudVolumeProbeProgram p,CloudVolumeFields fields,GpuShaderStorageBuffer result,Vector3 point)
     {
         p.Capture(fields,point);p.Density=fields.Density;p.Direct=fields.Direct;p.Diffuse=fields.Diffuse;p.Result=result;p.Dispatch(1);
-        GpuComputePipeline.MemoryBarrier(MemoryBarrierFlags.ShaderStorageBarrierBit|MemoryBarrierFlags.BufferUpdateBarrierBit);
+        RHICommandContext.Current.Barrier(new(RHIAccess.ShaderStorage|RHIAccess.BufferUpdate));
         using var read=result.MapScope<Vector4>(0,2,RHIBufferMapAccess.Read);return read.Span[1];
     }
     /// <summary>Inspects exact completed frames to detect any publication of a failed prefix.</summary>

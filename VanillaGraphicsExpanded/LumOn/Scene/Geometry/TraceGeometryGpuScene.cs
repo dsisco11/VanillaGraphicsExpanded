@@ -140,7 +140,7 @@ internal sealed partial class TraceGeometryGpuScene : ITraceGeometryBackend
         Legacy.UploadDataImmediate(cell.Legacy.ToArray(), x, y, z, 16, 16, 16);
         Light.UploadDataImmediate(cell.Light.ToArray(), x, y, z, 16, 16, 16);
         UploadedBytes += TraceGeometryCell.UploadBytes;
-        GL.MemoryBarrier(MemoryBarrierFlags.TextureUpdateBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
+        RHICommandContext.Current.Barrier(new(RHIAccess.TextureUpdate | RHIAccess.TextureFetch));
         if (request.Cancellation.IsCancellationRequested || owners[slot] != request) return false;
         Readiness.UploadDataImmediate(new byte[] { 1 }, Wrap(c.X), Wrap(c.Y), Wrap(c.Z), 1, 1, 1);
         geometryCells[slot] = cell.GeometrySnapshot;

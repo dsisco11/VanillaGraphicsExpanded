@@ -82,8 +82,9 @@ code bypassing the StateCache is not silently tracked.
 
 Metadata adapters are ordinary C# methods under `HarmonyPatches/NativeAdapters`, grouped by command
 family and native owner. Adapters forward the exact signature to explicit StateCache
-execution methods in their owning modules; buffers and images use `Rendering/RHI/Backends/OpenGL`
-external modules, while other families use `Rendering/Commands`. Those methods own native dispatch and completion together.
+execution methods in their owning modules; buffers, images and auxiliary deletion use
+`Rendering/RHI/Backends/OpenGL` external modules, while remaining metadata families use `Rendering/Commands`.
+Those methods own native dispatch and completion together.
 Observation tokens remain internal to those execution paths, including vertex revision publication. `MetadataAdapterCatalog` declares owner pairs; initialization matches exact method
 names, return/parameter types and generic constraints. Closed generic calls instantiate those compiled
 adapter definitions with the caller's types. No runtime adapter IL emission, command-name pattern
@@ -100,9 +101,9 @@ helper assumptions; it does not introduce a full layout mirror. P1 refreshes nat
 invalidates derived preparation. L1 retires entries/aliases and reconciles affected dependencies. I1
 applies those same destinations only where their execution has a represented metadata effect.
 
-Buffer, texture, buffer-texture, renderbuffer and sampler dispatch live under the focused
+Buffer, texture, buffer-texture, renderbuffer, sampler and auxiliary-resource dispatch live under the focused
 `Rendering/RHI/Backends/OpenGL` modules; StateCache retains selector knowledge and operation reconciliation.
-Other families still dispatch through StateCache.
+Shader, framebuffer and vertex families still dispatch through StateCache.
 Every route is native command -> existing observation/publication services -> context's GpuResourceManager -> canonical
 struct update -> typed wrapper snapshots -> existing dependent validation/publication. Read canonical
 facts once per change, not once per wrapper. Texture and renderbuffer changes also project selected

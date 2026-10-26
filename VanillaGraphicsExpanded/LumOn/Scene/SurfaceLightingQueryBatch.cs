@@ -43,7 +43,7 @@ internal sealed class SurfaceLightingQueryBatch : IDisposable
         // Bind the exact active range: retained buffer capacity must not become extra queries.
         pipeline.SurfaceQueries = new(queue.Buffer, 0, count << 6);
         pipeline.Dispatch((count+63)/64,1,1);
-        GL.MemoryBarrier(MemoryBarrierFlags.ShaderStorageBarrierBit|MemoryBarrierFlags.BufferUpdateBarrierBit);
+        RHICommandContext.Current.Barrier(new(RHIAccess.ShaderStorage|RHIAccess.BufferUpdate));
         queue.Submit(count);
     }
 

@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System;
 using OpenTK.Graphics.OpenGL;
@@ -22,19 +23,12 @@ public sealed class StencilTexture : DynamicTexture2D
     public byte[] ReadStencilPixels()
     {
         if (!IsValid) throw new InvalidOperationException("Stencil texture is invalid.");
-
-        byte[] pixels = new byte[checked(Width * Height)];
-        using var framebuffer = DynamicGpuFramebuffer.CreateEmpty("VGE_StencilTexture_Readback_FBO");
-        framebuffer.Attach(this);
-        StateCache.Current.SetDrawBuffer(DrawBufferMode.None);
-        GL.ReadBuffer(ReadBufferMode.None);
-        // Borrow a tightly packed layout and restore every incoming pack field through the cache.
-        using (OpenGLPixelLayouts.PackScope(StateCache.Current, new StateCache.PixelPackState(Alignment: 1)))
-        {
-            GL.ReadPixels(0, 0, Width, Height, PixelFormat.StencilIndex, PixelType.UnsignedByte, pixels);
-        }
-        GpuFramebuffer.Unbind();
-        return pixels;
+        using var request = RHICommandContext.Current.EnqueueReadback(new RHIReadbackDescription(this,
+            new(new(0), 0, 0, 0, Width, Height, 1), new(RHIPixelChannels.Stencil, RHIPixelType.UnsignedByte)));
+        if (request.Wait() != RHICompletionStatus.Ready)
+            throw new InvalidOperationException("Stencil readback failed.", request.Error);
+        using var mapping = request.MapReadyReadback();
+        return mapping.Bytes.ToArray();
     }
 
     /// <inheritdoc />

@@ -43,7 +43,7 @@ internal sealed class ColorGradingLut : IDisposable
         generator.GradedOutput=new(spare,TextureAccess.WriteOnly,Layered:true,Format:SizedInternalFormat.Rgba16f);
         generator.Dispatch(Size/4,Size/4,Size/4);
         // The following final draw is ordered after generation; no fence polling or CPU readback is needed.
-        GpuComputePipeline.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit|MemoryBarrierFlags.TextureFetchBarrierBit);
+        RHICommandContext.Current.Barrier(new(RHIAccess.Image|RHIAccess.TextureFetch));
         (completed,spare)=(spare,completed); key=controls; Generation++;
         return completed;
     }

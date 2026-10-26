@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 
 using OpenTK.Graphics.OpenGL;
@@ -10,7 +11,9 @@ namespace VanillaGraphicsExpanded.Rendering;
 internal sealed class GpuTimerQuery : IDisposable
 {
     private readonly GpuQuery query;
+    private RHIQueryTicket? result;
     private bool active;
+    private RHICommandContext? activeContext;
 
     private GpuTimerQuery(GpuQuery query)
     {
@@ -37,7 +40,7 @@ internal sealed class GpuTimerQuery : IDisposable
     /// </summary>
     public static GpuTimerQuery Create(string? debugName = null)
     {
-        return new GpuTimerQuery(GpuQuery.Create(debugName));
+        return new GpuTimerQuery(RHICommandContext.Current.CreateQuery(new(RHIQueryKind.TimeElapsed, debugName)).RequireResource());
     }
 
     /// <summary>
@@ -50,7 +53,9 @@ internal sealed class GpuTimerQuery : IDisposable
             return;
         }
 
-        GL.BeginQuery(QueryTarget.TimeElapsed, QueryId);
+        activeContext = RHICommandContext.Current;
+        activeContext.BeginQuery(query);
+        result = null;
         active = true;
     }
 
@@ -64,8 +69,11 @@ internal sealed class GpuTimerQuery : IDisposable
             return;
         }
 
-        GL.EndQuery(QueryTarget.TimeElapsed);
+        var context = activeContext!;
+        context.EndQuery(query);
         active = false;
+        activeContext = null;
+        result = context.RequestQueryResult(query);
     }
 
     /// <summary>
@@ -87,8 +95,7 @@ internal sealed class GpuTimerQuery : IDisposable
             return false;
         }
 
-        GL.GetQueryObject(QueryId, GetQueryObjectParam.QueryResultAvailable, out int available);
-        return available != 0;
+        return result?.Poll() == RHICompletionStatus.Ready;
     }
 
     /// <summary>
@@ -101,8 +108,9 @@ internal sealed class GpuTimerQuery : IDisposable
             return 0;
         }
 
-        GL.GetQueryObject(QueryId, GetQueryObjectParam.QueryResult, out long result);
-        return result;
+        if (result is null || result.Wait() != RHICompletionStatus.Ready)
+            throw new InvalidOperationException("Query completion failed.", result?.Error);
+        return checked((long)result.Result);
     }
 
     /// <summary>
@@ -137,13 +145,14 @@ internal sealed class GpuTimerQuery : IDisposable
         {
             try
             {
-                GL.EndQuery(QueryTarget.TimeElapsed);
+                activeContext!.EndQuery(query);
             }
-            catch
+            finally
             {
+                // A rejected foreign-context unwind keeps the interval retryable. A completed or
+                // retired-origin unwind releases its guard even when result reconciliation fails.
+                if (query.UsageReferences.Pass == 0) { active = false; activeContext = null; }
             }
-
-            active = false;
         }
 
         query.Dispose();

@@ -95,9 +95,9 @@ internal sealed class AtmosphereGpuComputation : IDisposable
         }
         if (batch is not null)
         {
-            var status = batch.Poll();
-            if (status == WaitSyncStatus.TimeoutExpired) return ready;
-            if (status != WaitSyncStatus.AlreadySignaled && status != WaitSyncStatus.ConditionSatisfied)
+            var status = RHICommandContext.Current.Poll(batch);
+            if (status == RHICompletionStatus.Pending) return ready;
+            if (status != RHICompletionStatus.Ready)
                 throw new InvalidOperationException("Atmosphere dispatch completion failed.");
             batch.Dispose(); batch = null;
         }
@@ -134,13 +134,13 @@ internal sealed class AtmosphereGpuComputation : IDisposable
         {
             int count = Math.Min(CellsPerDispatch, budget.Width * budget.Height - nextCell);
             scattering.Dispatch(count);
-            GpuComputePipeline.MemoryBarrier(MemoryBarrierFlags.ShaderStorageBarrierBit);
+            RHICommandContext.Current.Barrier(new(RHIAccess.ShaderStorage));
             nextCell += count;
             // A zero-time poll on the next frame gates further work; never drain an entire table in one frame.
-            batch = GpuFence.Insert();
+            batch = RHICommandContext.Current.InsertFence();
             // Flush through the existing fence API with a zero timeout to guarantee progress without waiting.
-            var status = batch.Wait(TimeSpan.Zero);
-            if (status == WaitSyncStatus.WaitFailed) throw new InvalidOperationException("Atmosphere dispatch submission failed.");
+            var status = RHICommandContext.Current.WaitCpu(batch, TimeSpan.Zero);
+            if (status == RHICompletionStatus.Failed) throw new InvalidOperationException("Atmosphere dispatch submission failed.");
             return;
         }
         sourceKey = (request.Weather, request.Quality, request.Albedo);
@@ -150,9 +150,9 @@ internal sealed class AtmosphereGpuComputation : IDisposable
         sky.AtmosphereOutput = output.Buffer;
         lighting.AtmosphereOutput = output.Buffer;
         sky.Dispatch((Math.Max(request.Width * request.Height,AtmosphereExternalTransmission.SampleCount) + 63) >> 6);
-        GpuComputePipeline.MemoryBarrier(MemoryBarrierFlags.ShaderStorageBarrierBit);
+        RHICommandContext.Current.Barrier(new(RHIAccess.ShaderStorage));
         lighting.Dispatch(1);
-        GpuComputePipeline.MemoryBarrier(MemoryBarrierFlags.BufferUpdateBarrierBit);
+        RHICommandContext.Current.Barrier(new(RHIAccess.BufferUpdate));
         output.Submit(countOutput);
     }
 

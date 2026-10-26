@@ -21,7 +21,7 @@ internal sealed partial class GpuResourceManager
         public void Validate(in GpuTransformFeedbackInitialization initialization) { }
         /// <inheritdoc />
         public GpuTransformFeedbackMetadata? Initialize(StateCache cache, in GpuTransformFeedbackInitialization initialization, out nint id)
-            => cache.CreateTransformFeedback(out id);
+            => RHI.RHICommandContext.Current.OpenGL.InitializeTransformFeedback(out id);
         #endregion
     }
     #endregion

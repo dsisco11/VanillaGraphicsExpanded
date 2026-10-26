@@ -127,7 +127,7 @@ public sealed class CloudVolumeWorkReductionTests(HeadlessGLFixture fixture,Xuni
                     programs[op].Capture(d,1001,21,3,op==0?1:0,0,true,0,planes,lightingRays:rays);
                     if(op is 7 or 8 or 9)programs[op].DispatchIndirect(commands,op==7?144:op==8?168:156);
                     else programs[op].Dispatch(op==1?(d.Blocks+255)/256:1);
-                    GpuComputePipeline.MemoryBarrier(MemoryBarrierFlags.ShaderStorageBarrierBit|MemoryBarrierFlags.BufferUpdateBarrierBit|MemoryBarrierFlags.CommandBarrierBit);
+                    RHICommandContext.Current.Barrier(new(RHIAccess.ShaderStorage|RHIAccess.BufferUpdate|RHIAccess.Indirect));
                 }
                 Assert.Equal(1u,Read(scratch,51,1)[0]);
                 Assert.Equal(members,Read(scratch,970576,members.Length));

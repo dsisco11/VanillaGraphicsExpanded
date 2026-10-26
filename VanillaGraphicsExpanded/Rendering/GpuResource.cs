@@ -193,6 +193,11 @@ public abstract partial class GpuResource : IDisposable
                 else if (kind == GpuResourceKind.Texture) RHICommandContext.Current.OpenGL.DeleteTexture((int)id);
                 else if (kind == GpuResourceKind.Renderbuffer) RHICommandContext.Current.OpenGL.DeleteRenderbuffer((int)id);
                 else if (kind == GpuResourceKind.Sampler) RHICommandContext.Current.OpenGL.DeleteSampler((int)id);
+                else if (kind == GpuResourceKind.Query) RHICommandContext.Current.OpenGL.DeleteQuery((int)id);
+                else if (kind == GpuResourceKind.Sync) RHICommandContext.Current.OpenGL.DeleteSync(id);
+                else if (kind == GpuResourceKind.TransformFeedback) RHICommandContext.Current.OpenGL.DeleteTransformFeedback((int)id);
+                else if (kind == GpuResourceKind.Semaphore) RHICommandContext.Current.OpenGL.DeleteSemaphore((int)id);
+                else if (kind == GpuResourceKind.MemoryObject) RHICommandContext.Current.OpenGL.DeleteMemoryObject((int)id);
                 else DeleteOrEnqueue(kind, id);
             }
             return;
@@ -282,13 +287,13 @@ public abstract partial class GpuResource : IDisposable
                     RHICommandContext.Current.OpenGL.DeleteRenderbuffer((int)id);
                     break;
                 case GpuResourceKind.Query:
-                    StateCache.Current.DeleteQuery((int)id);
+                    RHICommandContext.Current.OpenGL.DeleteQuery((int)id);
                     break;
                 case GpuResourceKind.Program:
                     StateCache.Current.DeleteProgram((int)id);
                     break;
                 case GpuResourceKind.TransformFeedback:
-                    StateCache.Current.DeleteTransformFeedback((int)id);
+                    RHICommandContext.Current.OpenGL.DeleteTransformFeedback((int)id);
                     break;
                 case GpuResourceKind.Sampler:
                     RHICommandContext.Current.OpenGL.DeleteSampler((int)id);
@@ -300,13 +305,13 @@ public abstract partial class GpuResource : IDisposable
                     StateCache.Current.DeleteShader((int)id);
                     break;
                 case GpuResourceKind.Sync:
-                    StateCache.Current.DeleteSync((IntPtr)id);
+                    RHICommandContext.Current.OpenGL.DeleteSync((IntPtr)id);
                     break;
                 case GpuResourceKind.Semaphore:
-                    StateCache.Current.DeleteSemaphore((int)id);
+                    RHICommandContext.Current.OpenGL.DeleteSemaphore((int)id);
                     break;
                 case GpuResourceKind.MemoryObject:
-                    StateCache.Current.DeleteMemoryObject((int)id);
+                    RHICommandContext.Current.OpenGL.DeleteMemoryObject((int)id);
                     break;
             }
         }

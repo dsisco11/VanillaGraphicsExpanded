@@ -177,6 +177,7 @@ factories cover the resource table above; no public `Destroy(ref)` operation exi
 | `BeginQuery`, `EndQuery`, `WriteTimestamp`, `RequestQueryResult` | precreated query ref/kind → ordered operation; result request → `RHIQueryTicket` | B |
 | `EnqueueReadback` | readback description → `RHIReadbackTicket` owning staging/completion | B |
 | `Poll`, `WaitCpu`, `MapReadyReadback` | sync/result owner and explicit timeout/mapping policy → pending/ready/failure/cancellation or scoped ready mapping | I |
+| `Flush`, `WaitIdle` | explicit current-context submission or complete-context CPU wait → completion | I; no implicit call from ordinary submission |
 | Transform-feedback begin/end/pause/resume | feedback ref + primitive/output description → ordered capture state | B; context-affine setup I |
 | External import and residency commitment | owner authority + typed import or range commitment → completion/unsupported diagnostics | I |
 | `Submit` | closed list → `RHISubmissionResult` (Executed or Failed with command index/original error) | I |

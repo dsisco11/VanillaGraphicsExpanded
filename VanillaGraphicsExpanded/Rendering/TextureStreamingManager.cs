@@ -774,7 +774,7 @@ internal sealed class TextureStreamingManager : IDisposable
         {
             if (backend is not null)
             {
-                GL.Finish();
+                RHICommandContext.Current.WaitIdle();
                 backend.Dispose();
                 backend = null;
             }
@@ -2135,7 +2135,7 @@ internal sealed class TextureStreamingManager : IDisposable
 
         public void SubmitUpload(in PboUpload upload)
         {
-            GpuFence fence = GpuFence.Insert();
+            GpuFence fence = RHICommandContext.Current.InsertFence();
             lock (gate)
             {
                 inFlight.Enqueue(new PendingRegion(upload.OffsetBytes, upload.AllocationSizeBytes, fence));
@@ -2382,7 +2382,7 @@ internal sealed class TextureStreamingManager : IDisposable
         public void SubmitUpload(in PboUpload upload)
         {
             int index = upload.SlotIndex;
-            slots[index] = slots[index] with { Fence = GpuFence.Insert() };
+            slots[index] = slots[index] with { Fence = RHICommandContext.Current.InsertFence() };
             nextIndex = (index + 1) % slots.Length;
         }
 

@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System;
 using OpenTK.Graphics.OpenGL;
@@ -23,34 +24,21 @@ public sealed class DepthStencilTexture : DynamicTexture2D
     /// <summary>Reads the stencil aspect as unsigned bytes.</summary>
     public byte[] ReadStencilPixels()
     {
-        if (!IsValid) throw new InvalidOperationException("Depth-stencil texture is invalid.");
-
-        byte[] pixels = new byte[checked(Width * Height)];
-        using var framebuffer = DynamicGpuFramebuffer.CreateEmpty("VGE_DepthStencilTexture_StencilReadback_FBO");
-        framebuffer.Attach(this);
-        StateCache.Current.SetDrawBuffer(DrawBufferMode.None);
-        GL.ReadBuffer(ReadBufferMode.None);
-        // Borrow a tightly packed layout and restore every incoming pack field through the cache.
-        using (OpenGLPixelLayouts.PackScope(StateCache.Current, new StateCache.PixelPackState(Alignment: 1)))
-        {
-            GL.ReadPixels(0, 0, Width, Height, PixelFormat.StencilIndex, PixelType.UnsignedByte, pixels);
-        }
-        GpuFramebuffer.Unbind();
-        return pixels;
+        if (!IsValid) throw new InvalidOperationException("Stencil texture is invalid.");
+        using var request = RHICommandContext.Current.EnqueueReadback(new RHIReadbackDescription(this,
+            new(new(0), 0, 0, 0, Width, Height, 1), new(RHIPixelChannels.Stencil, RHIPixelType.UnsignedByte)));
+        if (request.Wait() != RHICompletionStatus.Ready)
+            throw new InvalidOperationException("Stencil readback failed.", request.Error);
+        using var mapping = request.MapReadyReadback();
+        return mapping.Bytes.ToArray();
     }
 
-    /// <inheritdoc />
-    protected override void AttachForReadback(GpuFramebuffer framebuffer, int mipLevel)
-    {
-        framebuffer.Attach(this, mipLevel);
-        StateCache.Current.SetDrawBuffer(DrawBufferMode.None);
-    }
+
 
     /// <inheritdoc />
     protected override PixelFormat ReadbackFormat => PixelFormat.DepthComponent;
 
-    /// <inheritdoc />
-    protected override ReadBufferMode ReadbackBuffer => ReadBufferMode.None;
+
 
     /// <summary>Rejects formats without packed depth-stencil storage.</summary>
     private static PixelInternalFormat ValidateFormat(PixelInternalFormat format)

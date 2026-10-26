@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -376,13 +377,7 @@ internal sealed partial class GpuComputePipeline : GpuResource<GpuProgramMetadat
         GL.DispatchComputeIndirect((IntPtr)byteOffset);
     }
 
-    /// <summary>
-    /// Inserts an OpenGL memory barrier via <c>glMemoryBarrier</c>.
-    /// </summary>
-    public static void MemoryBarrier(MemoryBarrierFlags flags)
-    {
-        GL.MemoryBarrier(flags);
-    }
+
 
     /// <summary>
     /// Restores the previous program when disposed.

@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
@@ -39,9 +40,9 @@ internal static class CameraExposureDispatch
         return EngineBoundaryExecution.TryRun(new("Camera.Exposure"), resources, _ =>
         {
             histogram.Dispatch(CameraExposureTargets.HistogramGroupCount);
-            GpuComputePipeline.MemoryBarrier(MemoryBarrierFlags.ShaderStorageBarrierBit);
+            RHICommandContext.Current.Barrier(new(RHIAccess.ShaderStorage));
             adaptation.Dispatch(1);
-            GpuComputePipeline.MemoryBarrier(MemoryBarrierFlags.ShaderStorageBarrierBit);
+            RHICommandContext.Current.Barrier(new(RHIAccess.ShaderStorage));
         });
     }
     /// <summary>Publishes frozen scale writes through the existing prepared resource and restoration boundary.</summary>
@@ -54,7 +55,7 @@ internal static class CameraExposureDispatch
         return EngineBoundaryExecution.TryRun(new("Camera.FrozenLighting"), resources, _ =>
         {
             program.Dispatch(1);
-            GpuComputePipeline.MemoryBarrier(MemoryBarrierFlags.ShaderStorageBarrierBit);
+            RHICommandContext.Current.Barrier(new(RHIAccess.ShaderStorage));
         });
     }
     #endregion

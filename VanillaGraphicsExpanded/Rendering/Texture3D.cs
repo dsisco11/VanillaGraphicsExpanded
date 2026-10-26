@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using System.Diagnostics;
@@ -36,20 +37,12 @@ public sealed class Texture3D : GpuTexture
         var pixels = PooledArray<float>.Rent(count);
         try
         {
-            using var framebuffer = DynamicGpuFramebuffer.CreateEmpty("VGE_Texture3D_Readback");
-            // Preserve separate read/draw bindings, including when attachment or mapping fails.
-            using var draw = StateCache.Current.BindFramebufferScope(FramebufferTarget.DrawFramebuffer, framebuffer.FboId);
-            using var read = StateCache.Current.BindFramebufferScope(FramebufferTarget.ReadFramebuffer, framebuffer.FboId);
-            framebuffer.Attach(this, layer);
-            if (!framebuffer.CheckStatus(out string? error)) throw new InvalidOperationException(error);
-            // CheckStatus releases its diagnostic binding in debug builds.
-            framebuffer.Bind();
-            using var staging = RHICommandContext.Current.CreatePixelPackBuffer(new RHIBufferDescription { Role = RHIBufferRole.PixelPack, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StreamRead, Label = "VGE_Texture3D_Readback_Pixels" }).RequireResource();
-            staging.AllocateOrphan(byteCount);
-            staging.ReadPixels(x, y, regionWidth, regionHeight, format, PixelType.Float);
-            using var mapped = staging.MapRange<float>(0, count, RHIBufferMapAccess.Read);
-            if (!mapped.IsMapped) throw new InvalidOperationException("Texture readback mapping failed.");
-            mapped.Span.CopyTo(pixels.Span);
+            using var request = RHICommandContext.Current.EnqueueReadback(new RHIReadbackDescription(this,
+                new(new(0, layer), x, y, 0, regionWidth, regionHeight, 1), OpenGLPixelValues.Encoding(format, PixelType.Float)));
+            if (request.Wait() != RHICompletionStatus.Ready)
+                throw new InvalidOperationException("Layered texture readback failed.", request.Error);
+            using var mapped = request.MapReadyReadback();
+            System.Runtime.InteropServices.MemoryMarshal.Cast<byte, float>(mapped.Bytes).CopyTo(pixels.Span);
             return pixels;
         }
         catch

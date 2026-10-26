@@ -351,83 +351,35 @@ public class DynamicTexture2D : GpuTexture
     }
     /// <summary>
     /// Reads pixel data from the texture.
-    /// Requires the texture to be bound to an FBO for readback.
+    /// Preserves surrounding framebuffer and pixel-pack selectors.
     /// </summary>
     /// <returns>Float array containing pixel data (RGBA order for RGBA formats).</returns>
-    /// <remarks>
-    /// This method binds the texture to a temporary FBO for readback.
-    /// For frequent readback operations, consider using a persistent FBO.
-    /// </remarks>
     public override float[] ReadPixels()
     {
-        if (!((GpuResource)this).IsValid)
-        {
-            Debug.WriteLine("[DynamicTexture] Attempted to read pixels from disposed or invalid texture");
-            return [];
-        }
-
-        int channelCount = GetChannelCount();
-        float[] data = new float[width * height * channelCount];
-
-        // Create temporary FBO for readback
-        using var tempFbo = DynamicGpuFramebuffer.CreateEmpty("VGE_DynamicTexture2D_Readback_FBO");
-        tempFbo.Bind();
-        AttachForReadback(tempFbo, 0);
-
-        // Explicitly select the attachment as the read source.
-        // Some drivers/context states may otherwise read from an undefined buffer.
-        GL.ReadBuffer(ReadbackBuffer);
-
-        // Read pixels
-        GL.ReadPixels(0, 0, width, height,
-            ReadbackFormat,
-            ReadbackType,
-            data);
-
-        // Cleanup
-        GpuFramebuffer.Unbind();
-
-        return data;
+        if (!((GpuResource)this).IsValid) return [];
+        // The request owns staging independently; only completed bytes are exposed to CPU readers.
+        using var request = RHICommandContext.Current.EnqueueReadback(new RHIReadbackDescription(this,
+            new(new(0), 0, 0, 0, width, height, 1), OpenGLPixelValues.Encoding(ReadbackFormat, PixelType.Float)));
+        if (request.Wait() != RHICompletionStatus.Ready)
+            throw new InvalidOperationException("Texture readback did not complete.", request.Error);
+        using var mapping = request.MapReadyReadback();
+        return System.Runtime.InteropServices.MemoryMarshal.Cast<byte, float>(mapping.Bytes).ToArray();
     }
 
     /// <summary>
     /// Reads pixel data from a sub-region of the texture.
-    /// Creates a temporary FBO for readback (best-effort; avoid calling frequently at runtime).
+    /// Uses an explicit selected-region readback request.
     /// </summary>
     public override float[] ReadPixelsRegion(int x, int y, int regionWidth, int regionHeight)
     {
-        if (!((GpuResource)this).IsValid)
-        {
-            Debug.WriteLine("[DynamicTexture] Attempted to read pixels from disposed or invalid texture");
-            return [];
-        }
-
-        if (x < 0 || y < 0 || x + regionWidth > width || y + regionHeight > height)
-        {
-            throw new ArgumentOutOfRangeException(
-                $"Region ({x}, {y}, {regionWidth}, {regionHeight}) extends beyond texture bounds ({width}×{height})");
-        }
-
-        int channelCount = GetChannelCount();
-        float[] data = new float[regionWidth * regionHeight * channelCount];
-
-        using var tempFbo = DynamicGpuFramebuffer.CreateEmpty("VGE_DynamicTexture2D_Readback_FBO");
-        tempFbo.Bind();
-        AttachForReadback(tempFbo, 0);
-
-        GL.ReadBuffer(ReadbackBuffer);
-        GL.ReadPixels(
-            x,
-            y,
-            regionWidth,
-            regionHeight,
-            ReadbackFormat,
-            ReadbackType,
-            data);
-
-        GpuFramebuffer.Unbind();
-
-        return data;
+        if (!((GpuResource)this).IsValid) return [];
+        // The request owns staging independently; only completed bytes are exposed to CPU readers.
+        using var request = RHICommandContext.Current.EnqueueReadback(new RHIReadbackDescription(this,
+            new(new(0), x, y, 0, regionWidth, regionHeight, 1), OpenGLPixelValues.Encoding(ReadbackFormat, PixelType.Float)));
+        if (request.Wait() != RHICompletionStatus.Ready)
+            throw new InvalidOperationException("Texture readback did not complete.", request.Error);
+        using var mapping = request.MapReadyReadback();
+        return System.Runtime.InteropServices.MemoryMarshal.Cast<byte, float>(mapping.Bytes).ToArray();
     }
 
     /// <summary>
@@ -435,52 +387,28 @@ public class DynamicTexture2D : GpuTexture
     /// </summary>
     public override float[] ReadPixels(int mipLevel)
     {
-        if (!((GpuResource)this).IsValid)
-        {
-            Debug.WriteLine("[DynamicTexture] Attempted to read pixels from disposed or invalid texture");
-            return [];
-        }
-
+        if (!((GpuResource)this).IsValid) return [];
         mipLevel = Math.Clamp(mipLevel, 0, Math.Max(0, StorageMipLevels - 1));
-
-        int mipWidth = Math.Max(1, width >> mipLevel);
-        int mipHeight = Math.Max(1, height >> mipLevel);
-        int channelCount = GetChannelCount();
-        float[] data = new float[mipWidth * mipHeight * channelCount];
-
-        using var tempFbo = DynamicGpuFramebuffer.CreateEmpty("VGE_DynamicTexture2D_Readback_FBO");
-        tempFbo.Bind();
-        AttachForReadback(tempFbo, mipLevel);
-
-        GL.ReadBuffer(ReadbackBuffer);
-        GL.ReadPixels(0, 0, mipWidth, mipHeight,
-            ReadbackFormat,
-            ReadbackType,
-            data);
-
-        GpuFramebuffer.Unbind();
-
-        return data;
+        // The request owns staging independently; only completed bytes are exposed to CPU readers.
+        using var request = RHICommandContext.Current.EnqueueReadback(new RHIReadbackDescription(this,
+            new(new(mipLevel), 0, 0, 0, Math.Max(1, width >> mipLevel), Math.Max(1, height >> mipLevel), 1), OpenGLPixelValues.Encoding(ReadbackFormat, PixelType.Float)));
+        if (request.Wait() != RHICompletionStatus.Ready)
+            throw new InvalidOperationException("Texture readback did not complete.", request.Error);
+        using var mapping = request.MapReadyReadback();
+        return System.Runtime.InteropServices.MemoryMarshal.Cast<byte, float>(mapping.Bytes).ToArray();
     }
 
     #endregion
 
     #region Protected API
 
-    /// <summary>Attaches this texture to a temporary readback framebuffer.</summary>
-    protected virtual void AttachForReadback(GpuFramebuffer framebuffer, int mipLevel) =>
-        framebuffer.Attach(textureId, attachmentIndex: 0, mipLevel);
-
-    /// <summary>Gets the pixel format used for floating-point readback.</summary>
+/// <summary>Gets the pixel format used for floating-point readback.</summary>
     protected virtual PixelFormat ReadbackFormat => TextureFormatHelper.GetPixelFormat(internalFormat);
 
     /// <summary>Gets the pixel type used for floating-point readback.</summary>
     protected virtual PixelType ReadbackType => PixelType.Float;
 
-    /// <summary>Gets the read buffer selected for readback.</summary>
-    protected virtual ReadBufferMode ReadbackBuffer => ReadBufferMode.ColorAttachment0;
-
-    #endregion
+#endregion
 
     #region Private Methods
 

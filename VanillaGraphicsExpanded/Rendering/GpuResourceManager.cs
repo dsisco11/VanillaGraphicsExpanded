@@ -205,13 +205,13 @@ internal sealed partial class GpuResourceManager : IRenderer, IDisposable
                         RHICommandContext.Current.OpenGL.DeleteRenderbuffer((int)command.Id);
                         break;
                     case GpuResourceKind.Query:
-                        StateCache.Current.DeleteQuery((int)command.Id);
+                        RHICommandContext.Current.OpenGL.DeleteQuery((int)command.Id);
                         break;
                     case GpuResourceKind.Program:
                         StateCache.Current.DeleteProgram((int)command.Id);
                         break;
                     case GpuResourceKind.TransformFeedback:
-                        StateCache.Current.DeleteTransformFeedback((int)command.Id);
+                        RHICommandContext.Current.OpenGL.DeleteTransformFeedback((int)command.Id);
                         break;
                     case GpuResourceKind.Sampler:
                         RHICommandContext.Current.OpenGL.DeleteSampler((int)command.Id);
@@ -223,13 +223,13 @@ internal sealed partial class GpuResourceManager : IRenderer, IDisposable
                         StateCache.Current.DeleteShader((int)command.Id);
                         break;
                     case GpuResourceKind.Sync:
-                        StateCache.Current.DeleteSync((IntPtr)command.Id);
+                        RHICommandContext.Current.OpenGL.DeleteSync((IntPtr)command.Id);
                         break;
                     case GpuResourceKind.Semaphore:
-                        StateCache.Current.DeleteSemaphore((int)command.Id);
+                        RHICommandContext.Current.OpenGL.DeleteSemaphore((int)command.Id);
                         break;
                     case GpuResourceKind.MemoryObject:
-                        StateCache.Current.DeleteMemoryObject((int)command.Id);
+                        RHICommandContext.Current.OpenGL.DeleteMemoryObject((int)command.Id);
                         break;
                 }
             }

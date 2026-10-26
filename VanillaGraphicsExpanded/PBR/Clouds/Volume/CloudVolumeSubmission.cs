@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -61,9 +62,9 @@ internal sealed class CloudVolumeSubmission
     /// <summary>Closes each producer once for image, sampler, metadata, upload and indirect-command consumers.</summary>
     private void Barrier()
     {
-        GpuComputePipeline.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit|
-            MemoryBarrierFlags.TextureFetchBarrierBit|MemoryBarrierFlags.ShaderStorageBarrierBit|
-            MemoryBarrierFlags.BufferUpdateBarrierBit|MemoryBarrierFlags.TextureUpdateBarrierBit|MemoryBarrierFlags.CommandBarrierBit);
+        RHICommandContext.Current.Barrier(new(RHIAccess.Image|
+            RHIAccess.TextureFetch|RHIAccess.ShaderStorage|
+            RHIAccess.BufferUpdate|RHIAccess.TextureUpdate|RHIAccess.Indirect));
         Barriers++;
     }
     #endregion

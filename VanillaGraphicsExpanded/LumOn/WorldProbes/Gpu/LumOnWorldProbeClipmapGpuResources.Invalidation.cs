@@ -77,8 +77,8 @@ internal sealed partial class LumOnWorldProbeClipmapGpuResources
         // Use a second dispatch dimension when the slot count exceeds GL's guaranteed X limit.
         int groupsX = Math.Min(count, 65535);
         historyClear.Dispatch(groupsX, (count + groupsX - 1) / groupsX, 1);
-        GL.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit |
-            MemoryBarrierFlags.FramebufferBarrierBit | MemoryBarrierFlags.TextureUpdateBarrierBit);
+        RHICommandContext.Current.Barrier(new(RHIAccess.Image | RHIAccess.TextureFetch |
+            RHIAccess.Framebuffer | RHIAccess.TextureUpdate));
         InvalidationDispatchCount++;
         foreach (int slot in historySlots) queuedHistorySlots[slot] = false;
         historySlots.Clear();

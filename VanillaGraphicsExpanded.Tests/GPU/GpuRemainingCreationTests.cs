@@ -15,14 +15,12 @@ public sealed class GpuRemainingCreationTests(HeadlessGLFixture fixture, Xunit.I
     #region Public API
     /// <summary>Every supported family publishes an empty snapshot in both manager and context-local operation.</summary>
     [Theory]
-    [InlineData(false, false)] [InlineData(false, true)]
-    [InlineData(true, false)] [InlineData(true, true)]
-    public void CreationPreservesSelectionsAndNativeSemantics(bool registered, bool direct)
+    [InlineData(false)] [InlineData(true)]
+    public void CreationPreservesSelectionsAndNativeSemantics(bool registered)
     {
         fixture.EnsureContextValid();
-        output.WriteLine($"Renderer={fixture.GLRenderer}; DSA={GpuSupport.Graphics.SupportsArbDirectStateAccess}; semaphore={GpuSemaphore.IsSupported}; memory={GpuMemoryObject.IsSupported}");
+        output.WriteLine($"Renderer={fixture.GLRenderer}; DSA={GpuSupport.Graphics.SupportsArbDirectStateAccess}; semaphore={RHICommandContext.Current.Capabilities.ExternalSemaphores}; memory={RHICommandContext.Current.Capabilities.ExternalMemory}");
         if (registered) fixture.InitializeResourceDisposal();
-        using var capability = new DirectStateAccessCapabilityScope(direct);
         try
         {
             using var previousVao = GpuVao.Create();
@@ -35,11 +33,11 @@ public sealed class GpuRemainingCreationTests(HeadlessGLFixture fixture, Xunit.I
             using var vao = GpuVao.Create();
             using var pipeline = GpuProgramPipeline.Create();
             using var sampler = RHICommandContext.Current.CreateSampler(new RHISamplerDescription {  }).RequireResource();
-            using var query = GpuQuery.Create();
-            using var feedback = GpuTransformFeedback.Create();
-            using var fence = GpuFence.Insert();
-            using var semaphore = GpuSemaphore.IsSupported ? GpuSemaphore.Create() : null;
-            using var memory = GpuMemoryObject.IsSupported ? GpuMemoryObject.Create() : null;
+            using var query = RHICommandContext.Current.CreateQuery(new(RHIQueryKind.TimeElapsed)).RequireResource();
+            using var feedback = RHICommandContext.Current.CreateTransformFeedback(new()).RequireResource();
+            using var fence = RHICommandContext.Current.InsertFence();
+            using var semaphore = RHICommandContext.Current.Capabilities.ExternalSemaphores ? RHICommandContext.Current.CreateSemaphore(new()).RequireResource() : null;
+            using var memory = RHICommandContext.Current.Capabilities.ExternalMemory ? RHICommandContext.Current.CreateMemoryObject(new(Dedicated: false)).RequireResource() : null;
             Assert.Equal(0, queries);
             observation.Dispose();
             foreach (var resource in new GpuResource[] { vao, pipeline, sampler, query, feedback, fence })
@@ -64,15 +62,15 @@ public sealed class GpuRemainingCreationTests(HeadlessGLFixture fixture, Xunit.I
             Assert.True(GL.IsVertexArray(vao.VertexArrayId));
             Assert.True(GL.IsProgramPipeline(pipeline.PipelineId));
             Assert.True(GL.IsSampler(sampler.SamplerId));
-            // Generated queries and transform feedback names retain their deferred realization contract.
-            Assert.False(GL.IsQuery(query.QueryId));
-            Assert.False(GL.IsTransformFeedback(feedback.TransformFeedbackId));
-            GL.BeginQuery(QueryTarget.TimeElapsed, query.QueryId);
-            GL.EndQuery(QueryTarget.TimeElapsed);
+            // Core named creation realizes query targets and capture objects before publication.
             Assert.True(GL.IsQuery(query.QueryId));
-            using (feedback.BindScope()) Assert.True(GL.IsTransformFeedback(feedback.TransformFeedbackId));
+            Assert.True(GL.IsTransformFeedback(feedback.TransformFeedbackId));
+            RHICommandContext.Current.BeginQuery(query);
+            RHICommandContext.Current.EndQuery(query);
+            Assert.True(GL.IsQuery(query.QueryId));
+            Assert.True(GL.IsTransformFeedback(feedback.TransformFeedbackId));
             Assert.True(GL.IsSync(fence.ResourceId));
-            Assert.Contains(fence.Wait(TimeSpan.FromSeconds(1)), new[] { WaitSyncStatus.AlreadySignaled, WaitSyncStatus.ConditionSatisfied });
+            Assert.Contains(RHICommandContext.Current.WaitCpu(fence, TimeSpan.FromSeconds(1)), new[] { RHICompletionStatus.Ready, RHICompletionStatus.Ready });
             Assert.True(fence.TryConsumeIfSignaled());
             Assert.Equal((nint)0, fence.ResourceId);
             sampler.SetFilter(RHISamplerFilter.Nearest, RHISamplerFilter.Nearest);
@@ -95,8 +93,9 @@ public sealed class GpuRemainingCreationTests(HeadlessGLFixture fixture, Xunit.I
         {
             AccessTools.Field(typeof(GpuSupport), "graphics").SetValue(null,
                 original with { SupportsExtSemaphore = false, SupportsExtMemoryObject = false });
-            Assert.Throws<NotSupportedException>(() => GpuSemaphore.Create());
-            Assert.Throws<NotSupportedException>(() => GpuMemoryObject.Create());
+            var unsupported = new RHICommandContext(new VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBackend(StateCache.Current));
+            Assert.Throws<NotSupportedException>(() => unsupported.CreateSemaphore(new()).RequireResource());
+            Assert.Throws<NotSupportedException>(() => unsupported.CreateMemoryObject(new()).RequireResource());
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
         finally
@@ -192,7 +191,7 @@ public sealed class GpuRemainingCreationTests(HeadlessGLFixture fixture, Xunit.I
                 GpuResourceManagerSystem.CurrentManager?.OnRenderFrame(0, GpuResourceManager.Stage);
                 Assert.Contains(("DeleteTransformFeedback", recipient.Attempted), DeletionObservation.Deleted);
             }
-            if (GpuSemaphore.IsSupported)
+            if (RHICommandContext.Current.Capabilities.ExternalSemaphores)
             {
                 using var recipient = new FailedRecipient<GpuSemaphoreMetadata>(GpuResourceKind.Semaphore);
                 GpuResourceHandle handle = default;
@@ -205,7 +204,7 @@ public sealed class GpuRemainingCreationTests(HeadlessGLFixture fixture, Xunit.I
                 GpuResourceManagerSystem.CurrentManager?.OnRenderFrame(0, GpuResourceManager.Stage);
                 Assert.Contains(("DeleteSemaphore", recipient.Attempted), DeletionObservation.Deleted);
             }
-            if (GpuMemoryObject.IsSupported)
+            if (RHICommandContext.Current.Capabilities.ExternalMemory)
             {
                 using var recipient = new FailedRecipient<GpuMemoryObjectMetadata>(GpuResourceKind.MemoryObject);
                 GpuResourceHandle handle = default;
@@ -236,8 +235,8 @@ public sealed class GpuRemainingCreationTests(HeadlessGLFixture fixture, Xunit.I
         {
             Deleted.Clear();
             foreach (string name in new[] { "DeleteVertexArray", "DeleteProgramPipeline", "DeleteSampler", "DeleteQuery", "DeleteTransformFeedback" })
-                harmony.Patch(AccessTools.Method(typeof(GL), name, [typeof(int)]), prefix: new HarmonyMethod(typeof(DeletionObservation), nameof(CountInteger)));
-            harmony.Patch(AccessTools.Method(typeof(GL), "DeleteSync", [typeof(IntPtr)]), prefix: new HarmonyMethod(typeof(DeletionObservation), nameof(CountPointer)));
+                harmony.Patch(AccessTools.Method(name is "DeleteSampler" or "DeleteQuery" or "DeleteTransformFeedback" ? typeof(OpenTK.Graphics.OpenGL4.GL) : typeof(GL), name, [typeof(int)]), prefix: new HarmonyMethod(typeof(DeletionObservation), nameof(CountInteger)));
+            harmony.Patch(AccessTools.Method(typeof(OpenTK.Graphics.OpenGL4.GL), "DeleteSync", [typeof(IntPtr)]), prefix: new HarmonyMethod(typeof(DeletionObservation), nameof(CountPointer)));
             foreach (string name in new[] { "DeleteSemaphore", "DeleteMemoryObject" })
                 harmony.Patch(AccessTools.Method(typeof(GL.Ext), name, [typeof(int)]), prefix: new HarmonyMethod(typeof(DeletionObservation), nameof(CountInteger)));
         }
@@ -258,7 +257,7 @@ public sealed class GpuRemainingCreationTests(HeadlessGLFixture fixture, Xunit.I
         {
             queries = 0;
             string[] names = ["GetSamplerParameter", "GetQuery", "GetQueryObject", "GetSync", "GetProgramPipeline", "GetVertexArray", "IsVertexArray", "IsProgramPipeline", "IsSampler", "IsQuery", "IsTransformFeedback", "IsSync"];
-            foreach (var method in typeof(GL).GetMethods().Where(method => names.Contains(method.Name) && !method.ContainsGenericParameters))
+            foreach (var method in new[] { typeof(GL), typeof(OpenTK.Graphics.OpenGL4.GL) }.SelectMany(type => type.GetMethods()).Where(method => names.Contains(method.Name) && !method.ContainsGenericParameters))
                 harmony.Patch(method, prefix: new HarmonyMethod(typeof(CreationQueryObservation), nameof(Count)));
             foreach (var method in typeof(GL.Ext).GetMethods().Where(method => new[] { "IsSemaphore", "IsMemoryObject", "GetSemaphoreParameter", "GetMemoryObjectParameter" }.Contains(method.Name) && !method.ContainsGenericParameters))
                 harmony.Patch(method, prefix: new HarmonyMethod(typeof(CreationQueryObservation), nameof(Count)));

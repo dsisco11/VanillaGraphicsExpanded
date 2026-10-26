@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Text.Json;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.PBR.Tessellation;
@@ -30,7 +31,7 @@ public sealed class TerrainDetailMeasurementTests(HeadlessGLFixture fixture) : R
             {
                 scope.Select(mode);
                 using var timer=GpuTimerQuery.Create();
-                using var primitives=GpuQuery.Create();
+                using var primitives=RHICommandContext.Current.CreateQuery(new(RHIQueryKind.TimeElapsed)).RequireResource();
                 GL.BeginQuery(QueryTarget.PrimitivesGenerated,primitives.QueryId);
                 timer.Begin();for(int draw=0;draw<16;draw++)scope.Draw();timer.End();
                 GL.EndQuery(QueryTarget.PrimitivesGenerated);

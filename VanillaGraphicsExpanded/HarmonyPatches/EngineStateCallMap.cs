@@ -39,6 +39,10 @@ internal static class EngineStateCallMap
         }
         foreach (var pair in new (Type Native, Type Adapter)[]
         {
+            (typeof(GL), typeof(Rendering.RHI.Backends.OpenGL.OpenGLAuxiliaryDeletionCalls.Core)),
+            (typeof(GL.Arb), typeof(Rendering.RHI.Backends.OpenGL.OpenGLAuxiliaryDeletionCalls.Arb)),
+            (typeof(GL.Ext), typeof(Rendering.RHI.Backends.OpenGL.OpenGLAuxiliaryDeletionCalls.Ext)),
+            (typeof(GL), typeof(Rendering.RHI.Backends.OpenGL.OpenGLFeedbackCalls)),
             (typeof(GL), typeof(EngineStateDeletionCalls.Core)),
             (typeof(GL.Arb), typeof(EngineStateDeletionCalls.Arb)),
             (typeof(GL.Ext), typeof(EngineStateDeletionCalls.Ext)),

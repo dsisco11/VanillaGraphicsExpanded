@@ -75,10 +75,10 @@ public class GlStateCacheUnbindIntegrationTests
 
         // Transform feedback
         int tf = GL.GenTransformFeedback();
-        StateCache.Current.BindTransformFeedback(tf);
-        Assert.Equal(tf, StateCache.Current.GetCurrentTransformFeedback());
-        StateCache.Current.UnbindTransformFeedback();
-        Assert.Equal(0, StateCache.Current.GetCurrentTransformFeedback());
+        OpenGLFeedbackBindings.Bind(StateCache.Current, tf);
+        Assert.Equal(tf, OpenGLFeedbackBindings.Get(StateCache.Current));
+        OpenGLFeedbackBindings.Bind(StateCache.Current, 0);
+        Assert.Equal(0, OpenGLFeedbackBindings.Get(StateCache.Current));
         GL.DeleteTransformFeedback(tf);
 
         // Texture + sampler

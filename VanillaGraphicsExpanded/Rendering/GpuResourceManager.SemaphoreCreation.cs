@@ -18,14 +18,10 @@ internal sealed partial class GpuResourceManager
         /// <inheritdoc />
         public GpuResourceKind Kind => GpuResourceKind.Semaphore;
         /// <inheritdoc />
-        public void Validate(in GpuSemaphoreInitialization initialization)
-        {
-            if (!GpuSupport.Graphics.SupportsExtSemaphore)
-                throw new System.NotSupportedException("GL_EXT_semaphore is not supported by the current context.");
-        }
+        public void Validate(in GpuSemaphoreInitialization initialization) { }
         /// <inheritdoc />
         public GpuSemaphoreMetadata? Initialize(StateCache cache, in GpuSemaphoreInitialization initialization, out nint id)
-            => cache.CreateSemaphore(out id);
+            => RHI.RHICommandContext.Current.OpenGL.InitializeSemaphore(out id);
         #endregion
     }
     #endregion

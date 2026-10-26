@@ -1,88 +1,33 @@
 using System;
-
-using OpenTK.Graphics.OpenGL;
-
+using VanillaGraphicsExpanded.Rendering.RHI;
 namespace VanillaGraphicsExpanded.Rendering;
-
-/// <summary>
-/// Small wrapper around an OpenGL sync object created by <c>glFenceSync</c>.
-/// All methods require a current GL context on the calling thread.
-/// </summary>
-internal sealed class GpuFence : GpuResource<GpuSyncMetadata>, IDisposable
+/// <summary>Owns a native-width fence; the RHI context executes synchronization.</summary>
+public sealed class GpuFence : GpuResource<GpuSyncMetadata>
 {
     private nint handle;
-    private string? debugName;
-
+    #region Public API
     /// <inheritdoc />
-    public override nint ResourceId
+    public override nint ResourceId { get => handle; protected set => handle = value; }
+    /// <inheritdoc />
+    public override void SetDebugName(string? debugName) { }
+    /// <summary>Creates a consumer reference without native discovery.</summary>
+    public static implicit operator GpuSyncRef(GpuFence? resource) => new(resource);
+    #endregion
+    #region Internal API
+    /// <summary>Releases staging completion ownership only after a successful wait.</summary>
+    internal bool TryConsumeIfSignaled()
     {
-        get => handle;
-        protected set => handle = value;
-    }
-
-    protected override GpuResourceKind ResourceKind => GpuResourceKind.Sync;
-
-    public new bool IsValid => base.IsValid;
-
-    public override void SetDebugName(string? debugName)
-    {
-        // GLsync objects are not labelable via KHR_debug object labels in core GL.
-        // Keep the name for debugging/logging only.
-        this.debugName = debugName;
-    }
-
-    /// <summary>Declares an unpublished wrapper for manager-owned creation.</summary>
-    private GpuFence() { }
-
-    /// <summary>Inserts a fence through the manager without polling its status.</summary>
-    public static GpuFence Insert()
-    {
-        var value = new GpuFence();
-        try
-        {
-            if (!GpuResourceManager.CreateSync(new GpuSyncInitialization(), value, out _).HasValue)
-                throw new InvalidOperationException("Sync creation failed.");
-            return value;
-        }
-        catch
-        {
-            // The manager retires provisional allocation; dispose a completed handoff too.
-            value.Dispose();
-            throw;
-        }
-    }
-
-    public WaitSyncStatus Poll()
-    {
-        if (handle == 0)
-        {
-            return WaitSyncStatus.AlreadySignaled;
-        }
-
-        return GL.ClientWaitSync((IntPtr)handle, ClientWaitSyncFlags.None, 0);
-    }
-
-    /// <summary>Waits for at most the supplied duration without consuming the fence; requires the owning context thread.</summary>
-    public WaitSyncStatus Wait(TimeSpan timeout)
-    {
-        if (timeout < TimeSpan.Zero || timeout > TimeSpan.FromSeconds(60))
-            throw new ArgumentOutOfRangeException(nameof(timeout));
-        if (handle == 0) return WaitSyncStatus.AlreadySignaled;
-        return GL.ClientWaitSync((IntPtr)handle, ClientWaitSyncFlags.SyncFlushCommandsBit,
-            checked((long)(timeout.Ticks * 100)));
-    }
-
-    public bool TryConsumeIfSignaled()
-    {
-        WaitSyncStatus status = Poll();
-        if (status == WaitSyncStatus.TimeoutExpired)
-        {
-            return false;
-        }
-
+        var status = RHICommandContext.Current.Poll(this);
+        if (status == RHICompletionStatus.Pending) return false;
+        if (status != RHICompletionStatus.Ready) throw new InvalidOperationException("Fence completion failed.");
         Dispose();
         return true;
     }
-
-    // Uses base GpuResource.Dispose() / deferred deletion via GpuResourceManager.
+    /// <summary>Declares an unpublished owner for manager handoff.</summary>
+    internal GpuFence() { }
+    #endregion
+    #region Private
+    /// <inheritdoc />
+    protected override GpuResourceKind ResourceKind => GpuResourceKind.Sync;
+    #endregion
 }

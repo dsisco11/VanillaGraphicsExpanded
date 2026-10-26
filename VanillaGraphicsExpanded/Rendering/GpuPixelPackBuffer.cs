@@ -46,44 +46,7 @@ internal sealed class GpuPixelPackBuffer : GpuBufferObject
 
     }
 
-    /// <summary>
-    /// Issues a <c>glReadPixels</c> call that writes into this PBO at the given byte offset.
-    /// </summary>
-    /// <remarks>
-    /// Requires a current GL context on the calling thread.
-    /// The caller must ensure the desired read framebuffer is bound before calling this method.
-    /// Rows use the requested alignment with no skips or byte swapping; prior pack state is restored.
-    /// </remarks>
-    public void ReadPixels(
-        int x,
-        int y,
-        int width,
-        int height,
-        PixelFormat format,
-        PixelType type,
-        int dstOffsetBytes = 0,
-        int packAlignment = 4)
-    {
-        if (!IsValid)
-        {
-            return;
-        }
 
-        if (dstOffsetBytes < 0)
-        {
-            throw new ArgumentOutOfRangeException(nameof(dstOffsetBytes), dstOffsetBytes, "Offset must be >= 0.");
-        }
-
-        if (packAlignment is not (1 or 2 or 4 or 8))
-        {
-            throw new ArgumentOutOfRangeException(nameof(packAlignment), packAlignment, "PackAlignment must be 1, 2, 4, or 8.");
-        }
-
-        using var scope = BindScope();
-
-        using var packScope = OpenGLPixelLayouts.PackScope(StateCache.Current, new StateCache.PixelPackState(packAlignment));
-        GL.ReadPixels(x, y, width, height, format, type, (IntPtr)dstOffsetBytes);
-    }
     /// <summary>
     /// Maps a subrange of the PBO into client address space using <c>glMapBufferRange</c>.
     /// </summary>

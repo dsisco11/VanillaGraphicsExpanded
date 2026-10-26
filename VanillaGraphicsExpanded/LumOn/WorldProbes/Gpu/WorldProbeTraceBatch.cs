@@ -80,7 +80,7 @@ internal sealed class WorldProbeTraceBatch : IDisposable
         setup.WorldProbeTraceTiles = new(tiles, 0, count << 3);
         setup.WorldProbeTraceDispatch = new(dispatch, 0, 12);
         setup.Dispatch((probeData.Length + 63) >> 6);
-        GL.MemoryBarrier(MemoryBarrierFlags.ShaderStorageBarrierBit | MemoryBarrierFlags.CommandBarrierBit);
+        RHICommandContext.Current.Barrier(new(RHIAccess.ShaderStorage | RHIAccess.Indirect));
         pipeline.BindSharedGeometry(scene);
         lighting.Set(snapshot);
         pipeline.SurfaceLightingParameters = lighting;
@@ -92,7 +92,7 @@ internal sealed class WorldProbeTraceBatch : IDisposable
         pipeline.WorldProbeTraceTiles = new(tiles, 0, count << 3);
         pipeline.WorldProbeSelectedDirections = new(directions, 0, directionBytes);
         pipeline.DispatchIndirect(dispatch);
-        GL.MemoryBarrier(MemoryBarrierFlags.ShaderStorageBarrierBit | MemoryBarrierFlags.BufferUpdateBarrierBit);
+        RHICommandContext.Current.Barrier(new(RHIAccess.ShaderStorage | RHIAccess.BufferUpdate));
         metadata.EnsureCapacity(count << 4, growExponentially: false);
         descriptors.EnsureCapacity(outputBytes, growExponentially: false);
         descriptorCount.EnsureCapacity(4, growExponentially: false);
@@ -102,9 +102,9 @@ internal sealed class WorldProbeTraceBatch : IDisposable
         completion.Descriptors = new(descriptors, 0, outputBytes);
         completion.Counter = new(descriptorCount, 0, 4);
         completion.Dispatch((count + 63) >> 6);
-        GL.MemoryBarrier(MemoryBarrierFlags.ShaderStorageBarrierBit | MemoryBarrierFlags.BufferUpdateBarrierBit);
-        fence = GpuFence.Insert();
-        GL.Flush();
+        RHICommandContext.Current.Barrier(new(RHIAccess.ShaderStorage | RHIAccess.BufferUpdate));
+        fence = RHICommandContext.Current.InsertFence();
+        RHICommandContext.Current.Flush();
     }
 
     /// <summary>Validates disjoint complete output ownership and every selector before GPU-generated work can reference it.</summary>
@@ -137,9 +137,9 @@ internal sealed class WorldProbeTraceBatch : IDisposable
     {
         answers = ImmutableArray<WorldProbeTraceAnswerGpu>.Empty;
         if (fence is null) return false;
-        var status = fence.Poll();
-        if (status == WaitSyncStatus.TimeoutExpired) return false;
-        if (status == WaitSyncStatus.WaitFailed) throw new InvalidOperationException("World-probe trace fence failed.");
+        var status = RHICommandContext.Current.Poll(fence);
+        if (status == RHICompletionStatus.Pending) return false;
+        if (status == RHICompletionStatus.Failed) throw new InvalidOperationException("World-probe trace fence failed.");
         using var read = output.MapRange<WorldProbeTraceAnswerGpu>(0, count, RHIBufferMapAccess.Read);
         if (!read.IsMapped) throw new InvalidOperationException("World-probe trace readback failed.");
         var builder = ImmutableArray.CreateBuilder<WorldProbeTraceAnswerGpu>(count);
@@ -154,9 +154,9 @@ internal sealed class WorldProbeTraceBatch : IDisposable
     {
         answers = default; resident = null;
         if (fence is null) return false;
-        var status = fence.Poll();
-        if (status == WaitSyncStatus.TimeoutExpired) return false;
-        if (status == WaitSyncStatus.WaitFailed) throw new InvalidOperationException("World-probe completion fence failed.");
+        var status = RHICommandContext.Current.Poll(fence);
+        if (status == RHICompletionStatus.Pending) return false;
+        if (status == RHICompletionStatus.Failed) throw new InvalidOperationException("World-probe completion fence failed.");
         using var totals = descriptorCount.MapRange<uint>(0, 1, RHIBufferMapAccess.Read);
         if (!totals.IsMapped || totals.Span[0] > count) throw new InvalidOperationException("Invalid descriptor completion count.");
         int sparseCount = (int)totals.Span[0];

@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
@@ -16,11 +17,11 @@ public sealed class GpuFenceCompletionTests(HeadlessGLFixture fixture) : RenderT
     public void BoundedWaitDoesNotConsumeFence()
     {
         EnsureContextValid();
-        using var fence = GpuFence.Insert();
-        var status = fence.Wait(TimeSpan.FromSeconds(5));
-        Assert.True(status is WaitSyncStatus.AlreadySignaled or WaitSyncStatus.ConditionSatisfied);
+        using var fence = RHICommandContext.Current.InsertFence();
+        var status = RHICommandContext.Current.WaitCpu(fence, TimeSpan.FromSeconds(5));
+        Assert.True(status is RHICompletionStatus.Ready);
         Assert.True(fence.IsValid);
-        Assert.Equal(WaitSyncStatus.AlreadySignaled, fence.Poll());
+        Assert.Equal(RHICompletionStatus.Ready, RHICommandContext.Current.Poll(fence));
         Assert.True(fence.TryConsumeIfSignaled());
         Assert.False(fence.IsValid);
         Assert.Equal(ErrorCode.NoError, GL.GetError());
@@ -31,9 +32,9 @@ public sealed class GpuFenceCompletionTests(HeadlessGLFixture fixture) : RenderT
     public void InvalidTimeoutPreservesFence()
     {
         EnsureContextValid();
-        using var fence = GpuFence.Insert();
-        Assert.Throws<ArgumentOutOfRangeException>(() => fence.Wait(TimeSpan.FromTicks(-1)));
-        Assert.Throws<ArgumentOutOfRangeException>(() => fence.Wait(TimeSpan.FromSeconds(61)));
+        using var fence = RHICommandContext.Current.InsertFence();
+        Assert.Throws<ArgumentOutOfRangeException>(() => RHICommandContext.Current.WaitCpu(fence, TimeSpan.FromTicks(-1)));
+        Assert.Throws<ArgumentOutOfRangeException>(() => RHICommandContext.Current.WaitCpu(fence, TimeSpan.FromSeconds(61)));
         Assert.True(fence.IsValid);
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }

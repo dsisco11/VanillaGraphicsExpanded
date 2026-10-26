@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using System.Numerics;
 using System.Linq;
@@ -33,8 +34,8 @@ internal sealed class CloudVolumeUpdates(CloudVolumeStorage storage,CloudVolumeD
         }
         if(fence is null)return;
         if(context!=RenderContextRegistry.Current())throw new InvalidOperationException("Cloud completion context changed.");
-        var status=fence.Poll();if(status==WaitSyncStatus.TimeoutExpired)return;
-        if(status==WaitSyncStatus.WaitFailed)throw new InvalidOperationException("Cloud lighting fence failed.");
+        var status=RHICommandContext.Current.Poll(fence);if(status==RHICompletionStatus.Pending)return;
+        if(status==RHICompletionStatus.Failed)throw new InvalidOperationException("Cloud lighting fence failed.");
         fence.Dispose();fence=null;
         var selected=batch??throw new InvalidOperationException("Cloud completion batch missing.");
         if(step!=Step.Pending)throw new InvalidOperationException("Cloud completion state invalid.");
@@ -72,7 +73,7 @@ internal sealed class CloudVolumeUpdates(CloudVolumeStorage storage,CloudVolumeD
                 !diffuse.Update(storage,work,current,deferStatus:true))
                 throw new InvalidOperationException(work.Failure??direct.Failure??diffuse.Failure??"Cloud lighting submission failed.");
             work.SubmitCompletion(storage,current);
-            step=Step.Pending;context=RenderContextRegistry.Current();fence=GpuFence.Insert();
+            step=Step.Pending;context=RenderContextRegistry.Current();fence=RHICommandContext.Current.InsertFence();
         });
     }
     /// <summary>Revokes queued publication and retires fences without waiting for the GPU.</summary>

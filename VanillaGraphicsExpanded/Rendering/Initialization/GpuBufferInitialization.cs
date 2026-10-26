@@ -51,7 +51,10 @@ internal struct GpuBufferInitialization
         }
         const BufferStorageFlags supported = BufferStorageFlags.DynamicStorageBit | BufferStorageFlags.ClientStorageBit
             | BufferStorageFlags.MapReadBit | BufferStorageFlags.MapWriteBit | BufferStorageFlags.MapPersistentBit
-            | BufferStorageFlags.MapCoherentBit;
+            | BufferStorageFlags.MapCoherentBit | (BufferStorageFlags)ArbSparseBuffer.SparseStorageBitArb;
+        if ((flags & (BufferStorageFlags)ArbSparseBuffer.SparseStorageBitArb) != 0
+            && (flags & (BufferStorageFlags.MapReadBit | BufferStorageFlags.MapWriteBit)) != 0)
+            throw new ArgumentException("Sparse storage cannot be mapped.");
         if (capacity == 0 || (assigned & Inputs.Flags) == 0 || (assigned & Inputs.Usage) != 0 || (flags & ~supported) != 0)
             throw new ArgumentException("Immutable allocation requires positive capacity and explicit supported storage flags.");
         if ((flags & BufferStorageFlags.MapPersistentBit) != 0

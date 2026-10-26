@@ -122,7 +122,7 @@ public sealed class CloudVolumeTraversalTests(HeadlessGLFixture fixture,Xunit.IT
     {
         probe.Capture(fields.Domain,origin,direction,distance,limit);probe.Density=fields.Density;
         probe.Occupancy=fields.Occupancy;probe.Result=output;probe.Dispatch(1);
-        GpuComputePipeline.MemoryBarrier(MemoryBarrierFlags.ShaderStorageBarrierBit|MemoryBarrierFlags.BufferUpdateBarrierBit);
+        RHICommandContext.Current.Barrier(new(RHIAccess.ShaderStorage|RHIAccess.BufferUpdate));
         using var read=output.MapScope<Vector4>(0,3,RHIBufferMapAccess.Read);return read.Span.ToArray();
     }
     #endregion

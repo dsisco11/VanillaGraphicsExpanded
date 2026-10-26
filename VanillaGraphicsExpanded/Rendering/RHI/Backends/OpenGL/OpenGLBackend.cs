@@ -29,6 +29,9 @@ internal sealed partial class OpenGLBackend : IRHIBackend
     /// <summary>Retains the original capability snapshot for backend-local policy and explicit local tools.</summary>
     internal GraphicsCapabilities NativeCapabilities { get; }
 
+    /// <summary>Reports registered origin retirement without issuing GL or accepting another context.</summary>
+    internal bool HasRetiredOrigin => origin != default && !RenderContextRegistry.IsAlive(origin);
+
     /// <summary>Reports exact context identity, without accepting a replacement registered lifetime.</summary>
     internal unsafe bool IsCurrentContext => nativeContext == (nint)GLFW.GetCurrentContext()
         && origin == RenderContextRegistry.Current() && (origin == default || RenderContextRegistry.IsAlive(origin));
@@ -55,7 +58,11 @@ internal sealed partial class OpenGLBackend : IRHIBackend
 
     #region Private
     private static readonly string[] RequiredEntryPoints =
-    [ "glCreateBuffers", "glNamedBufferData", "glNamedBufferStorage", "glNamedBufferSubData",
+    [ "glFenceSync", "glClientWaitSync", "glWaitSync", "glDeleteSync", "glIsSync", "glMemoryBarrier", "glFlush", "glFinish",
+      "glCreateQueries", "glBeginQuery", "glEndQuery", "glQueryCounter", "glGetQueryObjectiv", "glGetQueryObjectui64v", "glDeleteQueries", "glIsQuery",
+      "glBeginConditionalRender", "glEndConditionalRender", "glBindTransformFeedback", "glDeleteTransformFeedbacks", "glIsTransformFeedback",
+      "glCreateTransformFeedbacks", "glTransformFeedbackBufferRange", "glBeginTransformFeedback", "glEndTransformFeedback", "glPauseTransformFeedback", "glResumeTransformFeedback",
+      "glCreateBuffers", "glNamedBufferData", "glNamedBufferStorage", "glNamedBufferSubData",
       "glCopyNamedBufferSubData", "glClearNamedBufferSubData", "glMapNamedBufferRange",
       "glFlushMappedNamedBufferRange", "glUnmapNamedBuffer", "glGetNamedBufferParameteri64v",
       "glGetNamedBufferParameteriv", "glGetNamedBufferSubData", "glDeleteBuffers", "glIsBuffer",

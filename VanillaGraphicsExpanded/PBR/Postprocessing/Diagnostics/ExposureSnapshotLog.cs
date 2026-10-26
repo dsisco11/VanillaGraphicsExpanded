@@ -41,7 +41,7 @@ internal static class ExposureSnapshotLog
             var resources=EngineBoundaryResources.From(program.ProgramLayout.BinaryInterface!.PreparedBindings);
             if(!EngineBoundaryExecution.TryRun(new("Debug.ExposureSnapshot"),resources,_=>program.Dispatch(1)))
                 throw new InvalidOperationException("Exposure snapshot boundary was rejected.");
-            GL.MemoryBarrier(MemoryBarrierFlags.ShaderStorageBarrierBit | MemoryBarrierFlags.BufferUpdateBarrierBit);
+            RHICommandContext.Current.Barrier(new(RHIAccess.ShaderStorage | RHIAccess.BufferUpdate));
             var values=new float[12];
             RHICommandContext.Current.OpenGL.ReadBuffer(output, 0, System.Runtime.InteropServices.MemoryMarshal.AsBytes(values.AsSpan()));
             api.Logger.Notification(Format(values,publication.Settings,local,publication.History is not null,

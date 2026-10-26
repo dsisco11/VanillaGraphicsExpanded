@@ -2,6 +2,7 @@ using System;
 using HarmonyLib;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 using CoreGL = OpenTK.Graphics.OpenGL4.GL;
 
@@ -13,6 +14,61 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 public sealed class EngineEarlyDeletionTests(HeadlessGLFixture fixture)
 {
     #region Public API
+    /// <summary>Exact query and capture deletion use their original loader, including reserved zero-name calls.</summary>
+    [Theory]
+    [InlineData(GpuResourceKind.Query)] [InlineData(GpuResourceKind.TransformFeedback)]
+    public void AuxiliaryDeletionUsesOriginalNativeLoader(GpuResourceKind kind)
+    {
+        fixture.EnsureContextValid();
+        var harmony = new Harmony("VGE.Tests.EarlyAuxiliaryDeletion");
+        string method = kind == GpuResourceKind.Query ? nameof(CoreGL.IsQuery) : nameof(CoreGL.IsTransformFeedback);
+        harmony.Patch(AccessTools.Method(typeof(CoreGL), method, [typeof(int)]),
+            prefix: new HarmonyMethod(typeof(EngineEarlyDeletionTests), nameof(RejectCoreProbe)));
+        int id = 0;
+        try
+        {
+            if (kind == GpuResourceKind.Query)
+            {
+                id = GL.GenQuery(); GL.BeginQuery(QueryTarget.SamplesPassed, id); GL.EndQuery(QueryTarget.SamplesPassed);
+                OpenGLAuxiliaryDeletionCalls.Core.DeleteQuery(id);
+                OpenGLAuxiliaryDeletionCalls.Arb.DeleteQueries(2, new[] { id, 0 });
+                Assert.False(GL.IsQuery(id));
+            }
+            else
+            {
+                id = GL.GenTransformFeedback(); GL.BindTransformFeedback(TransformFeedbackTarget.TransformFeedback, id);
+                OpenGLAuxiliaryDeletionCalls.Core.DeleteTransformFeedbacks(3, new[] { id, id, 0 });
+                Assert.False(GL.IsTransformFeedback(id));
+            }
+            Assert.NotEqual(0, id);
+            Assert.Equal(ErrorCode.NoError, GL.GetError());
+        }
+        finally
+        {
+            harmony.UnpatchAll(harmony.Id);
+            if (kind == GpuResourceKind.Query) GL.DeleteQuery(id); else GL.DeleteTransformFeedback(id);
+            StateCache.Current.InvalidateAll();
+        }
+    }
+
+    /// <summary>Exact sync deletion preserves its full pointer width and original native loader.</summary>
+    [Fact]
+    public void SyncDeletionUsesOriginalNativeLoader()
+    {
+        fixture.EnsureContextValid();
+        var harmony = new Harmony("VGE.Tests.EarlySyncDeletion");
+        harmony.Patch(AccessTools.Method(typeof(CoreGL), nameof(CoreGL.IsSync), [typeof(IntPtr)]),
+            prefix: new HarmonyMethod(typeof(EngineEarlyDeletionTests), nameof(RejectCoreProbe)));
+        nint id = GL.FenceSync(SyncCondition.SyncGpuCommandsComplete, WaitSyncFlags.None);
+        try
+        {
+            OpenGLAuxiliaryDeletionCalls.Core.DeleteSync(id);
+            Assert.False(GL.IsSync(id));
+            Assert.Equal(ErrorCode.NoError, GL.GetError());
+        }
+        finally { harmony.UnpatchAll(harmony.Id); StateCache.Current.InvalidateAll(); }
+    }
+
     /// <summary>Original-loader outcomes reconcile deletion without consulting unadmitted GL4 entry points.</summary>
     [Theory]
     [InlineData(GpuResourceKind.Texture)] [InlineData(GpuResourceKind.Renderbuffer)]

@@ -156,7 +156,7 @@ residency contract and must be removed there together with the final optional op
   query consumers, pixel-pack read/map and unpack staging, raw `GL.MemoryBarrier`, fence/query/wait calls;
   `GpuSemaphore.Create/Wait/Signal/ImportFromFd`, `GpuMemoryObject.Create/SetParameter/ImportFromFd`;
   `GpuTransformFeedback.Create/BindBufferBase/BindBufferRange/Begin/End/Pause/Resume`;
-  optional `GpuSparseBuffer` page commitment and typed residency execution.
+  optional `GpuSparseBuffer`/`GpuSparseTexture` page commitment and typed residency execution.
 - **Callers:** uniform ring/persistent storage completion, scene/world-probe feedback and diagnostics,
   material-builder statistics, exposure diagnostics, cloud stored-volume diagnostics/work/publication,
   depth hierarchy transfers, `GlGpuProfiler` and context cleanup. Preserve DEBUG-only diagnostics.
@@ -373,3 +373,91 @@ image/sampler migration item satisfied and no unresolved source or controlling-d
 The disclosed observer limitation and unrelated golden/benchmark cases do not establish image-family
 defects. Other migration units remain incomplete. No installed-game, visual or performance qualification
 is claimed.
+
+## Auxiliary migration qualification (Phase 4)
+
+Implementation, second review and independent stage audit are complete. Qualification limitations below
+remain explicit; neither broad Release invocation is reported as green.
+
+| Removed execution entry points | Final route |
+| --- | --- |
+| GpuFence.Insert/Poll/Wait, raw memory barriers and explicit flush/idle waits | RHICommandContext.InsertFence/Poll/WaitCpu/WaitGpu/Barrier/Flush/WaitIdle and focused synchronization backend. The retained internal TryConsumeIfSignaled helper owns successful lifecycle consumption, not native dispatch. |
+| GpuQuery.Create and wrapper-owned native query calls | CreateQuery with declared kind; BeginQuery/EndQuery/WriteTimestamp and generation-qualified RHIQueryTicket. GpuTimestampQuery/GpuTimerQuery retain diagnostic ownership policy. |
+| Wrapper/FBO-based CPU texture reads and GpuPixelPackBuffer.ReadPixels | EnqueueReadback, private staging/fence and exclusive ready mapping. Existing queue-owned fenced output and multi-region staging retain their storage policy through final transfer/map APIs. |
+| GpuTransformFeedback.Create/bind/configure/capture methods and StateCache capture selectors | Named creation/configuration, consumer ref and one complete capture interval through the backend. Exact engine BindTransformFeedback preserves unsuppressed original execution. |
+| GpuSemaphore/GpuMemoryObject raw creation/import/configuration/wait/signal | Typed RHI descriptions, explicit platform-handle ownership and transitions; focused optional backend using the pinned GL.Ext extension binding. |
+| Raw sparse buffer/texture helpers and swallowed Try* failures | Explicit typed residency operations, cached sparse-buffer page size and unsupported-before-dispatch checks; no retry path. |
+| StateCache auxiliary creation/deletion and corresponding engine deletion overloads | Private manager creation handoff and admitted backend deletion; exact GL/Core, Arb and Ext overload modules retain original-loader outcomes. |
+
+Task-to-authority mapping:
+
+| Task | Controlling documentation | Implementation / evidence |
+| --- | --- | --- |
+| Barriers/fences/waits | Proposal public operations, execution/results and retirement; Contracts synchronization signatures; GpuResources lifetime; Inventory guards | Synchronization backend, direct production caller migration, fence/completion/ring/queue tests. |
+| Queries/readback ownership | Proposal query/results and recorded-completion boundary; Contracts resource/factory and result signatures; archived creation handoff/defaults | Query/result and owned-staging modules; pending/failure/cancel, generation, QBO restoration, region/pitch and source-retirement tests. |
+| Optional external objects/residency | Contracts auxiliary descriptions, typed imports and optional rejection; Inventory empty schemas; API coverage I1/L1 | External-object modules and semantic residency; supported creation/rejection/native sparse tests. Actual cross-API producer imports require separate hardware/producer evidence. |
+| Transform-feedback closure | This document C/D capture interval; Contracts auxiliary creation and capture; Inventory unchanged empty schema/guards | Named creation, frozen outputs and full capture lifetime; native pause/resume/output/sentinel/guard and unwind tests. No draw executor is moved into C/D. |
+| Adapters/readers/deletion | Proposal exact-boundary and migration rules; API coverage allowed owners and L1; archived resource creation; unchanged archived texture ref | Exact auxiliary deletion and capture selection backend; kind-specific outcomes, original context, lifecycle/name reuse and no old executor source checks. No unrepresented descriptor reader is invented. |
+| Completion receipts | Plan mandatory migration contract; Proposal efficient execution and qualification; Contracts source ownership | Focused Debug/Release, generator regression, canonical package/identity, source closure, second review and independent completion audit. E/F remain explicitly incomplete. |
+
+Source closure is recorded in `artifacts/rhi-phase4/auxiliary-callers.txt` and
+`auxiliary-native-dispatch.txt`; `removed-auxiliary-apis.txt` and `auxiliary-native-bypasses.txt`
+are empty. The original inventory above supplies the before state. Native queries, fences, auxiliary
+creation/deletion, capture, readback and residency execute only in their backend modules. Exact external
+deletion keeps the original legacy loader; managed execution uses the admitted core binding, with the
+pinned optional extension binding confined to focused backend modules. Query/conditional-render and
+capture transitions reject native-callback reentry before altering unfinished execution state.
+
+Remaining E work is shader/program/PSO, geometry/draw/dispatch, framebuffer/pass/routing and complete
+GraphicsCommandContext replacement. Those callers now consume final C/D synchronization and transfers;
+no old auxiliary executor is retained to keep them compiling. Recording and recorded completion markers
+remain F. Shared manager metadata, guards, selectors and retirement remain singular.
+
+Native sparse-buffer commitment, sparse-image commitment/content readback, pipeline statistics,
+transform-feedback output/pause/resume, ready readbacks and fences execute on the test context.
+Deterministic native interception covers pending/failed waits, unmap corruption and execution reentry.
+Actual cross-API memory/semaphore imports and external-producer wait/signal exchange have no producer
+fixture; they remain unexecuted native qualification cases, not successful coverage. Windows also
+cannot establish actual FD-import execution. Supported object creation/configuration, typed ownership
+validation and unsupported-feature rejection are tested separately. No game launch, installed-game,
+visual or performance qualification is claimed.
+
+Delegated commands, exact selections and intermediate/final results are retained in
+`artifacts/rhi-phase4/commands-and-results.txt`, `final-classes.txt`, `final-filter.txt` and
+`final-focused-filter.txt`. The expanded Debug selection passed **1,128** tests before the final
+transition/admission corrections. The frozen candidate then passed **55** focused tests, including the
+new query/capture reentry checks (`debug-frozen-focused.trx`). Generator regression passed **180** tests
+(`generator-final-debug.trx`). These counts overlap; they are not added together.
+
+Final ordinary Release: **1,106 passed, 23 failed, zero skipped** (`release-final-expanded.trx`).
+The exact same binaries and 1,129-case selection with process-only `COMPlus_JitNoInline=1` and
+`COMPlus_TieredCompilation=0` produced **1,124 passed, 5 failed, zero skipped**
+(`release-final-controlled.trx`). The 18 resolved failures involve native interception/observation;
+the remaining five occur in SceneColorParticleTests after resource-manager shutdown by other fixtures.
+Fresh ordinary Release processes passed that class **12/12** and SceneColorParticleIntegrationTests
+**3/3**. All **55** focused cases passed in the controlled broad run; see
+`release-focused-coverage.json`. This is process qualification of ordinary Release binaries, not an
+instrumented Release build or a claim that either broad run passed.
+
+The earlier exploratory selection exposed five independent failures in PbrModeLifecycleTests,
+SceneColorParticlePublicationTests and WaterRefractionLifecycleTests. Each reproduced in a fresh process
+against untouched prior-product Release binaries, runtime SHA256
+`A33807202AC211770EF56C932F26F2643E2620BCDE5CC25A77C469958F7A74D4` and test DLL SHA256
+`EB38FA94DF1392C9BF19E40062EFFFEE5F8F3FDE1255943714525907FD2FBAFF`.
+The final selection excludes those classes and retains the earlier independently established shader
+golden/debug-binding exclusions; measurement classes remain outside the requested work. Exact failures,
+baseline identities and standalone receipts are retained rather than changing their expectations.
+ParticleIntegration also runs separately because its shared-fixture shutdown ordering is sensitive.
+
+Canonical `./build.ps1 --configuration=Release --spirv=true` succeeded
+(`canonical-package-final.log`). Publish, package directory, tested and ZIP runtime DLLs all have SHA256
+`D7BF605C48A78FD8A22BFFADE63823ECB3ED34AB47A5C06419A492C5489B67AA`.
+All **761** packaged and ZIP shader variants match the canonical producer, with zero mismatches.
+`package-identity.json`, `package-verification.log`, `final-tested-identities.json` and
+`final-source-sha256.txt` identify the qualified candidate.
+
+The independent completion audit reconstructed the plan's inherited and task-linked authority after
+the second code review, checked each accepted C/D unit against implementation and receipts, and found
+no unresolved required implementation or source-closure issue. Unexecuted external-producer cases and
+the disclosed broader test limitations remain qualification limits, not successful native evidence.
+Shader/PSO/render submission and recorded lists remain outstanding under E/F.

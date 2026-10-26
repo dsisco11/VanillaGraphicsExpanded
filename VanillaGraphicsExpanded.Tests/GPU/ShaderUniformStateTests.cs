@@ -43,7 +43,7 @@ public sealed class ShaderUniformStateTests(HeadlessGLFixture fixture) : RenderT
                 output.BindImageUnit(0, TextureAccess.WriteOnly);
                 pipeline.Dispatch(1);
             }
-            GpuComputePipeline.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.FramebufferBarrierBit);
+            RHICommandContext.Current.Barrier(new(RHIAccess.Image | RHIAccess.Framebuffer));
             Assert.Equal(ReferenceEquals(pipeline, b) ? new float[] { 8, 6, 1, 2 } : new float[] { 7, 5, 0, 1 }, output.ReadPixels());
         }
 #if DEBUG
@@ -75,11 +75,11 @@ public sealed class ShaderUniformStateTests(HeadlessGLFixture fixture) : RenderT
 #endif
         shader.Output = new(output, TextureAccess.WriteOnly);
         shader.Dispatch(1);
-        GpuComputePipeline.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.FramebufferBarrierBit);
+        RHICommandContext.Current.Barrier(new(RHIAccess.Image | RHIAccess.Framebuffer));
         Assert.Equal(new float[] { 0, 5, 0, 0 }, output.ReadPixels());
         shader.Dispatch(1);
         // Order repeated writes to the same image before submitting changed values.
-        GpuComputePipeline.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit);
+        RHICommandContext.Current.Barrier(new(RHIAccess.Image));
 #if DEBUG
         Assert.Equal(1, ring.AllocationsWritten - allocations);
 #endif
@@ -99,7 +99,7 @@ public sealed class ShaderUniformStateTests(HeadlessGLFixture fixture) : RenderT
 #if DEBUG
         Assert.Equal(2, ring.AllocationsWritten - allocations);
 #endif
-        GpuComputePipeline.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.FramebufferBarrierBit);
+        RHICommandContext.Current.Barrier(new(RHIAccess.Image | RHIAccess.Framebuffer));
         Assert.Equal(new float[] { 7, 10, 8, 9 }, output.ReadPixels());
 #if DEBUG
         Assert.Equal(2, ring.AllocationsWritten - allocations);

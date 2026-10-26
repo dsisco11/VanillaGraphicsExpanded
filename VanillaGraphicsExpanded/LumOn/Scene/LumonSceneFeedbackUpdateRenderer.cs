@@ -508,7 +508,7 @@ internal sealed partial class LumonSceneFeedbackUpdateRenderer : IRenderer, IDis
 
         // MarkPages writes vge_pageUsageStamp via imageAtomics; CompactPages reads it via sampler fetch.
         // TextureFetchBarrierBit is required for image-write -> texture-fetch visibility.
-        GL.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit | MemoryBarrierFlags.AtomicCounterBarrierBit);
+        RHICommandContext.Current.Barrier(new(RHIAccess.Image | RHIAccess.TextureFetch | RHIAccess.AtomicCounter));
 
         // Pass B: compact stamps -> bounded request list.
         nearGpu.PageRequests.Reset();
@@ -539,7 +539,7 @@ internal sealed partial class LumonSceneFeedbackUpdateRenderer : IRenderer, IDis
             feedbackCompactShader!.Dispatch(gx, 1, 1);
         }
 
-        GL.MemoryBarrier(MemoryBarrierFlags.ShaderStorageBarrierBit | MemoryBarrierFlags.AtomicCounterBarrierBit);
+        RHICommandContext.Current.Barrier(new(RHIAccess.ShaderStorage | RHIAccess.AtomicCounter));
 
         // Phase 9.1: ensure DesiredState is up to date before CPU request processing.
         UpdateNearRegionScheduler(frameStamp);
@@ -552,7 +552,7 @@ internal sealed partial class LumonSceneFeedbackUpdateRenderer : IRenderer, IDis
         {
             if (DispatchVoxelCapture(captureCount))
             {
-                GL.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit);
+                RHICommandContext.Current.Barrier(new(RHIAccess.Image));
                 FinalizeCaptureFlagsFromGpuQueue(captureCount);
             }
             else captureRetryVersion++;
@@ -1999,11 +1999,11 @@ internal sealed partial class LumonSceneFeedbackUpdateRenderer : IRenderer, IDis
         // These are consumed later in the frame by:
         // - relight compute (texture fetch + SSBO reads)
         // - debug/material sampling passes (texture fetch)
-        GL.MemoryBarrier(
-            MemoryBarrierFlags.ShaderImageAccessBarrierBit
-            | MemoryBarrierFlags.ShaderStorageBarrierBit
-            | MemoryBarrierFlags.BufferUpdateBarrierBit
-            | MemoryBarrierFlags.TextureFetchBarrierBit);
+        RHICommandContext.Current.Barrier(new(
+            RHIAccess.Image
+            | RHIAccess.ShaderStorage
+            | RHIAccess.BufferUpdate
+            | RHIAccess.TextureFetch));
         return true;
     }
 

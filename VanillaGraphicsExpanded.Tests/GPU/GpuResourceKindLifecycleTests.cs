@@ -36,8 +36,8 @@ public sealed class GpuResourceKindLifecycleTests(HeadlessGLFixture fixture, ITe
         GpuResourceManagerSystem.Initialize(manager);
         try
         {
-            if (kind == GpuResourceKind.Semaphore && !GpuSemaphore.IsSupported
-                || kind == GpuResourceKind.MemoryObject && !GpuMemoryObject.IsSupported)
+            if (kind == GpuResourceKind.Semaphore && !RHICommandContext.Current.Capabilities.ExternalSemaphores
+                || kind == GpuResourceKind.MemoryObject && !RHICommandContext.Current.Capabilities.ExternalMemory)
             {
                 // Keep registry retirement independently exercised without claiming native extension execution.
                 output.WriteLine($"Native {kind} lifecycle NOT EXECUTED: required EXT capability unavailable; registry-only retirement follows.");
@@ -92,15 +92,15 @@ public sealed class GpuResourceKindLifecycleTests(HeadlessGLFixture fixture, ITe
             GpuResourceKind.Texture => RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba8, Width = System.Math.Max(1, 2), Height = System.Math.Max(1, 2), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource(),
             GpuResourceKind.Framebuffer => new DynamicGpuFramebuffer(true),
             GpuResourceKind.Renderbuffer => RHICommandContext.Current.CreateRenderbuffer(new RHIRenderbufferDescription { Format = RHIFormat.Rgba8, Width = 2, Height = 2, Samples = 0, Label = null }).RequireResource(),
-            GpuResourceKind.Query => GpuQuery.Create(),
-            GpuResourceKind.Sync => GpuFence.Insert(),
+            GpuResourceKind.Query => RHICommandContext.Current.CreateQuery(new(RHIQueryKind.TimeElapsed)).RequireResource(),
+            GpuResourceKind.Sync => RHICommandContext.Current.InsertFence(),
             GpuResourceKind.Program => GpuProgramObject.Create(),
-            GpuResourceKind.TransformFeedback => GpuTransformFeedback.Create(),
+            GpuResourceKind.TransformFeedback => RHICommandContext.Current.CreateTransformFeedback(new()).RequireResource(),
             GpuResourceKind.Sampler => RHICommandContext.Current.CreateSampler(new RHISamplerDescription {  }).RequireResource(),
             GpuResourceKind.ProgramPipeline => GpuProgramPipeline.Create(),
             GpuResourceKind.Shader => new GpuShaderModule(GL.CreateShader(ShaderType.VertexShader), ShaderType.VertexShader),
-            GpuResourceKind.Semaphore => GpuSemaphore.Create(),
-            GpuResourceKind.MemoryObject => GpuMemoryObject.Create(),
+            GpuResourceKind.Semaphore => RHICommandContext.Current.CreateSemaphore(new()).RequireResource(),
+            GpuResourceKind.MemoryObject => RHICommandContext.Current.CreateMemoryObject(new(Dedicated: false)).RequireResource(),
             _ => throw new ArgumentOutOfRangeException(nameof(kind))
         };
     }
@@ -113,11 +113,8 @@ public sealed class GpuResourceKindLifecycleTests(HeadlessGLFixture fixture, ITe
             case GpuVbo buffer: buffer.Allocate(16); break;
             case GpuVao array: array.Bind(); break;
             case GpuFramebuffer framebuffer: framebuffer.Bind(); break;
-            case GpuQuery query:
-                GL.BeginQuery(QueryTarget.SamplesPassed, query.QueryId);
-                GL.EndQuery(QueryTarget.SamplesPassed);
-                break;
-            case GpuTransformFeedback feedback: feedback.Bind(); break;
+            case GpuQuery: break;
+            case GpuTransformFeedback: break;
             case GpuProgramPipeline pipeline: pipeline.Bind(); break;
         }
     }

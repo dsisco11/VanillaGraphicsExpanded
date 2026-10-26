@@ -1,234 +1,25 @@
-using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
-using System;
-using System.Diagnostics;
-
-using OpenTK.Graphics.OpenGL;
-
+using VanillaGraphicsExpanded.Rendering.RHI;
 namespace VanillaGraphicsExpanded.Rendering;
-
-/// <summary>
-/// RAII wrapper around an OpenGL transform feedback object (TFO).
-/// Deletion is deferred to <see cref="GpuResourceManager"/> when available.
-/// All methods require a current GL context on the calling thread.
-/// </summary>
-internal sealed class GpuTransformFeedback : GpuResource<GpuTransformFeedbackMetadata>, IDisposable
+/// <summary>Owns a native TransformFeedback allocation; the RHI backend executes resource operations.</summary>
+public sealed class GpuTransformFeedback : GpuResource<GpuTransformFeedbackMetadata>
 {
     private int transformFeedbackId;
-
+    #region Public API
     /// <inheritdoc />
-    public override nint ResourceId
-    {
-        get => transformFeedbackId;
-        protected set => transformFeedbackId = (int)value;
-    }
-
-    protected override GpuResourceKind ResourceKind => GpuResourceKind.TransformFeedback;
-
-    /// <summary>
-    /// Gets the underlying OpenGL transform feedback id.
-    /// </summary>
+    public override nint ResourceId { get => transformFeedbackId; protected set => transformFeedbackId = (int)value; }
+    /// <summary>Gets native identity for explicit integration only.</summary>
     public int TransformFeedbackId => transformFeedbackId;
-
-    /// <summary>
-    /// Returns <c>true</c> when the transform feedback has a non-zero id and has not been disposed.
-    /// </summary>
-    public new bool IsValid => base.IsValid;
-
-    /// <summary>Declares an unpublished wrapper for manager-owned creation.</summary>
-    private GpuTransformFeedback() { }
-
-    /// <summary>
-    /// Creates a new transform feedback object.
-    /// </summary>
-    public static GpuTransformFeedback Create(string? debugName = null)
-    {
-        var value = new GpuTransformFeedback();
-        try
-        {
-            if (!GpuResourceManager.CreateTransformFeedback(new GpuTransformFeedbackInitialization(), value, out _).HasValue)
-                throw new InvalidOperationException("TransformFeedback creation failed.");
-            value.SetDebugName(debugName);
-            return value;
-        }
-        catch
-        {
-            // The manager retires provisional allocation; dispose a completed handoff too.
-            value.Dispose();
-            throw;
-        }
-    }
-
-    /// <summary>
-    /// Sets the debug label for this transform feedback object (debug builds only).
-    /// </summary>
-    public override void SetDebugName(string? debugName)
-    {
-#if DEBUG
-        if (transformFeedbackId != 0)
-        {
-            GlDebug.TryLabel(ObjectLabelIdentifier.TransformFeedback, transformFeedbackId, debugName);
-        }
-#endif
-    }
-
-    /// <summary>
-    /// Binds this transform feedback object to <see cref="TransformFeedbackTarget.TransformFeedback"/>.
-    /// </summary>
-    public void Bind()
-    {
-        if (!IsValid)
-        {
-            Debug.WriteLine("[GpuTransformFeedback] Attempted to bind disposed or invalid transform feedback");
-            return;
-        }
-
-        StateCache.Current.BindTransformFeedback(transformFeedbackId);
-    }
-
-    /// <summary>
-    /// Attempts to bind this transform feedback object. Returns <c>false</c> if invalid.
-    /// </summary>
-    public bool TryBind()
-    {
-        if (!IsValid)
-        {
-            return false;
-        }
-
-        StateCache.Current.BindTransformFeedback(transformFeedbackId);
-        return true;
-    }
-
-    /// <summary>
-    /// Unbinds any transform feedback object from <see cref="TransformFeedbackTarget.TransformFeedback"/>.
-    /// </summary>
-    public void Unbind()
-    {
-        StateCache.Current.BindTransformFeedback(0);
-    }
-
-    /// <summary>
-    /// Binds this transform feedback object and returns a scope that restores the previous binding when disposed.
-    /// </summary>
-    public BindingScope BindScope()
-    {
-        ObjectDisposedException.ThrowIf(!IsValid, this);
-        var gl = StateCache.Current;
-        var scope = gl.BindTransformFeedbackScope(transformFeedbackId);
-        return new BindingScope(scope);
-    }
-
-    /// <summary>
-    /// Binds a buffer to a transform feedback binding point (indexed) via <c>glBindBufferBase</c>.
-    /// </summary>
-    public void BindBufferBase(int index, int bufferId)
-    {
-        if (!IsValid)
-        {
-            return;
-        }
-
-        using var _ = BindScope();
-        OpenGLBufferBindings.BindBufferBase(StateCache.Current, BufferRangeTarget.TransformFeedbackBuffer, index, bufferId);
-    }
-
-    /// <summary>
-    /// Binds a buffer to a transform feedback binding point (indexed) via <c>glBindBufferBase</c>.
-    /// </summary>
-    public void BindBufferBase(int index, GpuBufferObject buffer)
-    {
-        ArgumentNullException.ThrowIfNull(buffer);
-        BindBufferBase(index, buffer.BufferId);
-    }
-
-    /// <summary>
-    /// Binds a buffer range to a transform feedback binding point (indexed) via <c>glBindBufferRange</c>.
-    /// </summary>
-    public void BindBufferRange(int index, int bufferId, nint offsetBytes, nint sizeBytes)
-    {
-        if (!IsValid)
-        {
-            return;
-        }
-
-        using var _ = BindScope();
-        OpenGLBufferBindings.BindBufferRange(StateCache.Current, BufferRangeTarget.TransformFeedbackBuffer, index, bufferId, offsetBytes, sizeBytes);
-    }
-
-    /// <summary>
-    /// Begins transform feedback capture.
-    /// </summary>
-    /// <remarks>
-    /// The caller must ensure rasterizer discard state is configured as intended.
-    /// </remarks>
-    public void Begin(TransformFeedbackPrimitiveType primitiveMode)
-    {
-        if (!IsValid)
-        {
-            return;
-        }
-
-        using var _ = BindScope();
-        GL.BeginTransformFeedback(primitiveMode);
-    }
-
-    /// <summary>
-    /// Ends transform feedback capture.
-    /// </summary>
-    public void End()
-    {
-        if (!IsValid)
-        {
-            return;
-        }
-
-        using var _ = BindScope();
-        GL.EndTransformFeedback();
-    }
-
-    /// <summary>
-    /// Pauses transform feedback capture.
-    /// </summary>
-    public void Pause()
-    {
-        if (!IsValid)
-        {
-            return;
-        }
-
-        using var _ = BindScope();
-        GL.PauseTransformFeedback();
-    }
-
-    /// <summary>
-    /// Resumes transform feedback capture.
-    /// </summary>
-    public void Resume()
-    {
-        if (!IsValid)
-        {
-            return;
-        }
-
-        using var _ = BindScope();
-        GL.ResumeTransformFeedback();
-    }
-
-    /// <summary>
-    /// Scope that restores the previous transform feedback binding when disposed.
-    /// </summary>
-    public readonly struct BindingScope : IDisposable
-    {
-        private readonly StateCache.TransformFeedbackScope scope;
-
-        public BindingScope(StateCache.TransformFeedbackScope scope)
-        {
-            this.scope = scope;
-        }
-
-        public void Dispose()
-        {
-            scope.Dispose();
-        }
-    }
+    /// <inheritdoc />
+    public override void SetDebugName(string? name) { }
+    /// <summary>Retains consumption authority without transferring native ownership.</summary>
+    public static implicit operator GpuTransformFeedbackRef(GpuTransformFeedback? resource) => new(resource);
+    #endregion
+    #region Internal API
+    /// <summary>Declares an unpublished owner for private manager handoff.</summary>
+    internal GpuTransformFeedback() { }
+    #endregion
+    #region Private
+    /// <inheritdoc />
+    protected override GpuResourceKind ResourceKind => GpuResourceKind.TransformFeedback;
+    #endregion
 }

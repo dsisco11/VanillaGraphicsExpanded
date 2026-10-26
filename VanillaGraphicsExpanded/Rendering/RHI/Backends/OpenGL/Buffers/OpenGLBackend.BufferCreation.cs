@@ -13,6 +13,9 @@ internal sealed partial class OpenGLBackend
         var request = description;
         RequireContext();
         request.Validate();
+        if (request.Access.HasFlag(RHIStorageAccess.Sparse) && !Capabilities.SparseBuffers) throw new NotSupportedException("Sparse buffers are unavailable.");
+        if (request.Access.HasFlag(RHIStorageAccess.Sparse) && !initialData.Bytes.IsEmpty)
+            throw new ArgumentException("Sparse storage starts uncommitted; commit pages before uploading content.");
         if (initialData.Offset < 0 || initialData.Offset > request.Capacity
             || initialData.Bytes.Length > request.Capacity - initialData.Offset
             || request.Mode == RHIStorageMode.Realization && !initialData.Bytes.IsEmpty)
@@ -76,6 +79,7 @@ internal sealed partial class OpenGLBackend
             if ((description.Access & RHIStorageAccess.Coherent) != 0) flags |= OpenTK.Graphics.OpenGL.BufferStorageFlags.MapCoherentBit;
             if ((description.Access & RHIStorageAccess.DynamicUpdates) != 0) flags |= OpenTK.Graphics.OpenGL.BufferStorageFlags.DynamicStorageBit;
             if ((description.Access & RHIStorageAccess.ClientStorage) != 0) flags |= OpenTK.Graphics.OpenGL.BufferStorageFlags.ClientStorageBit;
+            if ((description.Access & RHIStorageAccess.Sparse) != 0) flags |= (OpenTK.Graphics.OpenGL.BufferStorageFlags)OpenTK.Graphics.OpenGL.ArbSparseBuffer.SparseStorageBitArb;
             request.StorageFlags = flags;
         }
         return request;

@@ -28,6 +28,10 @@ public sealed class RHICapabilities
     public int ShaderStorageBufferOffsetAlignment => source.ShaderStorageBufferOffsetAlignment;
     /// <summary>Reports support for optional sparse buffer residency.</summary>
     public bool SparseBuffers => source.SupportsSparseBuffer;
+    /// <summary>Reports optional sparse-image residency support.</summary>
+    public bool SparseTextures => source.SupportsSparseTexture;
+    /// <summary>Gets the cached sparse-buffer commitment page size.</summary>
+    public int SparseBufferPageSize => source.SparseBufferPageSize;
     /// <summary>Reports support for optional shader SPIR-V ingestion.</summary>
     public bool SpirvShaders => source.SupportsArbGlSpirv;
     /// <summary>Reports support for optional deferred shader compilation.</summary>
@@ -44,6 +48,12 @@ public sealed class RHICapabilities
     public bool S3tcTextures { get; }
     /// <summary>Reports DXT1 support, including implementations exposing only that S3TC subset.</summary>
     public bool Dxt1Textures { get; }
+    /// <summary>Reports optional Windows memory import support from cached extension discovery.</summary>
+    public bool ExternalMemoryWin32 { get; }
+    /// <summary>Reports optional pipeline-statistics query support from cached extensions.</summary>
+    public bool PipelineStatistics { get; }
+    /// <summary>Reports optional Windows semaphore import support from cached extension discovery.</summary>
+    public bool ExternalSemaphoresWin32 { get; }
     #endregion
 
     #region Internal API
@@ -51,6 +61,9 @@ public sealed class RHICapabilities
     internal RHICapabilities(GraphicsCapabilities source)
     {
         this.source = source;
+        PipelineStatistics = GpuSupport.Supports("GL_ARB_pipeline_statistics_query");
+        ExternalMemoryWin32 = GpuSupport.Supports("GL_EXT_memory_object_win32");
+        ExternalSemaphoresWin32 = GpuSupport.Supports("GL_EXT_semaphore_win32");
         TextureAnisotropy = GpuSupport.Supports("GL_EXT_texture_filter_anisotropic") || GpuSupport.Supports("GL_ARB_texture_filter_anisotropic");
         CoverageSampling = GpuSupport.Supports("GL_NV_framebuffer_multisample_coverage") && GpuSupport.Supports("GL_EXT_direct_state_access");
         S3tcTextures = GpuSupport.Supports("GL_EXT_texture_compression_s3tc");

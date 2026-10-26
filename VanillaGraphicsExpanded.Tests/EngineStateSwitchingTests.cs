@@ -84,6 +84,10 @@ public sealed class EngineStateSwitchingTests
         var supportedOwners = new[]
         {
             (typeof(GL), typeof(EngineStateCalls)),
+            (typeof(GL), typeof(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLAuxiliaryDeletionCalls.Core)),
+            (typeof(GL.Arb), typeof(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLAuxiliaryDeletionCalls.Arb)),
+            (typeof(GL.Ext), typeof(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLAuxiliaryDeletionCalls.Ext)),
+            (typeof(GL), typeof(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLFeedbackCalls)),
             (typeof(GL), typeof(EngineStateDeletionCalls.Core)),
             (typeof(GL.Arb), typeof(EngineStateDeletionCalls.Arb)),
             (typeof(GL.Ext), typeof(EngineStateDeletionCalls.Ext)),

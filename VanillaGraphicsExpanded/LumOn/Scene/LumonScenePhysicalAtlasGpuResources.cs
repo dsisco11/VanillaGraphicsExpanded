@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 
 using OpenTK.Graphics.OpenGL;
@@ -98,7 +99,7 @@ internal sealed class LumonScenePhysicalAtlasGpuResources : IDisposable
         textures.Dispose();
         // Disposal/recreation is a cold lifecycle path. Finish submitted readers before
         // returning byte credit, so deferred GL deletion cannot hide recreation overlap.
-        GL.Finish();
+        RHICommandContext.Current.WaitIdle();
         System.Threading.Interlocked.Add(ref allocatedBytes, -allocationBytes);
     }
 

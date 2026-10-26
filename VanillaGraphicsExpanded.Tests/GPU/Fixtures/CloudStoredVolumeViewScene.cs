@@ -191,8 +191,8 @@ internal sealed class CloudStoredVolumeViewScene:IDisposable
                 var retained=solution.Drawable;
                 solution.Submit(observation,map,Atmosphere,camera,settings,()=>true);Assert.Null(solution.Failure);
                 Assert.Same(retained,solution.Drawable); // Submission alone cannot publish unfinished writes.
-                using var completed=GpuFence.Insert();
-                Assert.Contains(completed.Wait(TimeSpan.FromSeconds(1)),new[]{WaitSyncStatus.AlreadySignaled,WaitSyncStatus.ConditionSatisfied});
+                using var completed=RHICommandContext.Current.InsertFence();
+                Assert.Contains(RHICommandContext.Current.WaitCpu(completed, TimeSpan.FromSeconds(1)),new[]{RHICompletionStatus.Ready,RHICompletionStatus.Ready});
             }
             Assert.NotNull(solution.Drawable);Assert.True(solution.Drawable.Revision>before);
         }
@@ -280,8 +280,8 @@ internal sealed class CloudStoredVolumeViewScene:IDisposable
         var retained=solution.Drawable;solution.Submit(observation,map,Atmosphere,camera,settings,()=>true);
         Assert.Null(solution.Failure);Assert.True(solution.UpdatePending);Assert.Same(retained,solution.Drawable);
         if(!retireAndResubmit)return;
-        using var completed=GpuFence.Insert();
-        Assert.Contains(completed.Wait(TimeSpan.FromSeconds(5)),new[]{WaitSyncStatus.AlreadySignaled,WaitSyncStatus.ConditionSatisfied});
+        using var completed=RHICommandContext.Current.InsertFence();
+        Assert.Contains(RHICommandContext.Current.WaitCpu(completed, TimeSpan.FromSeconds(5)),new[]{RHICompletionStatus.Ready,RHICompletionStatus.Ready});
         observation=observation with{Frame=++updateFrame};solution.Poll(observation);
         Assert.Null(solution.Failure);Assert.False(solution.UpdatePending);
         Assert.True(solution.Drawable!.Revision>retained!.Revision);

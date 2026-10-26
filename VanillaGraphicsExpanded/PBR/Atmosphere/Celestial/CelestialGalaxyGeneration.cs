@@ -96,7 +96,7 @@ internal sealed class CelestialGalaxyGeneration : IDisposable
                 }
             }
             if (GL.GetError() != ErrorCode.NoError) throw new InvalidOperationException("Celestial raster generation failed.");
-            fence = GpuFence.Insert(); GL.Flush();
+            fence = RHICommandContext.Current.InsertFence(); RHICommandContext.Current.Flush();
         }
         catch { Dispose(); throw; }
         finally
@@ -113,9 +113,9 @@ internal sealed class CelestialGalaxyGeneration : IDisposable
     internal CelestialResourceSet? TryComplete()
     {
         if (fence is null) return null;
-        var status = fence.Poll();
-        if (status == WaitSyncStatus.TimeoutExpired) return null;
-        if (status != WaitSyncStatus.AlreadySignaled && status != WaitSyncStatus.ConditionSatisfied)
+        var status = RHICommandContext.Current.Poll(fence);
+        if (status == RHICompletionStatus.Pending) return null;
+        if (status != RHICompletionStatus.Ready)
             throw new InvalidOperationException("Celestial generation fence failed.");
         fence.Dispose(); fence = null;
         ReleaseScratch();

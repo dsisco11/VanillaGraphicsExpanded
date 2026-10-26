@@ -83,8 +83,8 @@ internal sealed class DepthHierarchyPass : IDisposable
                 int boundary = Math.Min(6, texture.MipLevels - 1);
                 program.Dispatch(Math.Max(1, texture.Width >> boundary), Math.Max(1, texture.Height >> boundary));
                 // Image writes feed samplers; storage writes feed PBO transfers and the next counter reuse.
-                GL.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.ShaderStorageBarrierBit
-                    | MemoryBarrierFlags.PixelBufferBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit | MemoryBarrierFlags.TextureUpdateBarrierBit);
+                RHICommandContext.Current.Barrier(new(RHIAccess.Image | RHIAccess.ShaderStorage
+                    | RHIAccess.PixelTransfer | RHIAccess.TextureFetch | RHIAccess.TextureUpdate));
                 if (texture.MipLevels > 7) TransferTail(texture);
             })) throw new InvalidOperationException("Depth hierarchy compute boundary rejected.");
     }

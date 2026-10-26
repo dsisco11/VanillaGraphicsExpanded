@@ -87,6 +87,11 @@ internal sealed partial class OpenGLBackend
     {
         RequireContext();
         initialization.Validate();
+        if ((initialization.StorageFlags & (OpenTK.Graphics.OpenGL.BufferStorageFlags)Native.ArbSparseBuffer.SparseStorageBitArb) != 0)
+        {
+            if (!Capabilities.SparseBuffers) throw new NotSupportedException("Sparse buffers are unavailable.");
+            if (byteCount != 0) throw new ArgumentException("Sparse storage requires explicit commitment before content upload.");
+        }
         if (byteCount < 0 || offset < 0 || offset > initialization.Capacity || byteCount > initialization.Capacity-offset
             || byteCount != 0 && data == 0) throw new ArgumentException("Invalid initial buffer data.");
         id = 0;
@@ -218,6 +223,7 @@ internal sealed partial class OpenGLBackend
         if ((flags & OpenTK.Graphics.OpenGL.BufferStorageFlags.MapCoherentBit) != 0) result |= Native.BufferStorageFlags.MapCoherentBit;
         if ((flags & OpenTK.Graphics.OpenGL.BufferStorageFlags.DynamicStorageBit) != 0) result |= Native.BufferStorageFlags.DynamicStorageBit;
         if ((flags & OpenTK.Graphics.OpenGL.BufferStorageFlags.ClientStorageBit) != 0) result |= Native.BufferStorageFlags.ClientStorageBit;
+        if ((flags & (OpenTK.Graphics.OpenGL.BufferStorageFlags)OpenTK.Graphics.OpenGL.ArbSparseBuffer.SparseStorageBitArb) != 0) result |= (Native.BufferStorageFlags)Native.ArbSparseBuffer.SparseStorageBitArb;
         return result;
     }
     #endregion

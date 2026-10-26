@@ -134,8 +134,8 @@ public sealed class CloudVolumePublicationTests(HeadlessGLFixture fixture,Xunit.
     /// <summary>Waits explicitly in this small GPU fixture; live publication uses zero-timeout polling.</summary>
     private static void Complete()
     {
-        using var fence=GpuFence.Insert();
-        Assert.Contains(fence.Wait(TimeSpan.FromSeconds(1)),new[]{WaitSyncStatus.AlreadySignaled,WaitSyncStatus.ConditionSatisfied});
+        using var fence=RHICommandContext.Current.InsertFence();
+        Assert.Contains(RHICommandContext.Current.WaitCpu(fence, TimeSpan.FromSeconds(1)),new[]{RHICompletionStatus.Ready,RHICompletionStatus.Ready});
     }
     /// <summary>Places a lookup exactly at the center of a selected physical texel.</summary>
     private static Vector3 Point(CloudVolumeDomain d,int x,int y=2,int z=4)=>new(
@@ -152,7 +152,7 @@ public sealed class CloudVolumePublicationTests(HeadlessGLFixture fixture,Xunit.
     private static Vector4[] Sample(CloudVolumeProbeProgram probe,GpuShaderStorageBuffer result,CloudVolumeViewFields fields,Vector3 point)
     {
         probe.Capture(fields,point);probe.Density=fields.Density;probe.Direct=fields.Direct;probe.Diffuse=fields.Diffuse;probe.Result=result;
-        probe.Dispatch(1);GpuComputePipeline.MemoryBarrier(MemoryBarrierFlags.ShaderStorageBarrierBit|MemoryBarrierFlags.BufferUpdateBarrierBit);
+        probe.Dispatch(1);RHICommandContext.Current.Barrier(new(RHIAccess.ShaderStorage|RHIAccess.BufferUpdate));
         using var read=result.MapScope<Vector4>(0,2,RHIBufferMapAccess.Read);return read.Span.ToArray();
     }
     #endregion

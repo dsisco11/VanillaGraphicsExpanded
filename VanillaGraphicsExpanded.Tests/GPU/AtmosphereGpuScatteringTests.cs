@@ -55,9 +55,9 @@ public sealed class AtmosphereGpuScatteringTests(HeadlessGLFixture fixture) : Re
             try
             {
                 ownedProgram.Dispatch(1);
-                GpuComputePipeline.MemoryBarrier(MemoryBarrierFlags.BufferUpdateBarrierBit);
-                using var fence = GpuFence.Insert();
-                Assert.Contains(fence.Wait(TimeSpan.FromSeconds(5)), new[] { WaitSyncStatus.AlreadySignaled, WaitSyncStatus.ConditionSatisfied });
+                RHICommandContext.Current.Barrier(new(RHIAccess.BufferUpdate));
+                using var fence = RHICommandContext.Current.InsertFence();
+                Assert.Contains(RHICommandContext.Current.WaitCpu(fence, TimeSpan.FromSeconds(5)), new[] { RHICompletionStatus.Ready, RHICompletionStatus.Ready });
                 using var mapped = source.MapRange<Vector4>(cell * 16, 1, RHIBufferMapAccess.Read);
                 Assert.True(mapped.IsMapped);
                 Vector3 expected = Reference(cell, budget, groundAlbedo);

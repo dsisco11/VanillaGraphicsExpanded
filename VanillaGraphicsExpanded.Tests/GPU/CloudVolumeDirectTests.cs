@@ -88,7 +88,7 @@ public sealed class CloudVolumeDirectTests(HeadlessGLFixture fixture):LumOnShade
     private static Vector4 Query(CloudVolumeProbeProgram p,CloudVolumeFields fields,GpuShaderStorageBuffer result,Vector3 point)
     {
         p.Capture(fields,point);p.Density=fields.Density;p.Direct=fields.Direct;p.Diffuse=fields.Diffuse;p.Result=result;p.Dispatch(1);
-        GpuComputePipeline.MemoryBarrier(MemoryBarrierFlags.ShaderStorageBarrierBit|MemoryBarrierFlags.BufferUpdateBarrierBit);
+        RHICommandContext.Current.Barrier(new(RHIAccess.ShaderStorage|RHIAccess.BufferUpdate));
         using var read=result.MapScope<Vector4>(0,1,RHIBufferMapAccess.Read);return read.Span[0];
     }
     /// <summary>Reads one exact metadata word without transferring the job list.</summary>

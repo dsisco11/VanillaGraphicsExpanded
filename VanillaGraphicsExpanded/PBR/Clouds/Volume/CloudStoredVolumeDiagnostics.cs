@@ -21,7 +21,7 @@ internal static class CloudStoredVolumeDiagnostics
         long now=Stopwatch.GetTimestamp();
         if(source is not null&&source.TryGetTarget(out var prior)&&ReferenceEquals(prior,solution)&&now-lastRead<Stopwatch.Frequency)return;
         var fields=solution.Storage.Published;var d=fields.Domain;
-        GpuComputePipeline.MemoryBarrier(MemoryBarrierFlags.ShaderStorageBarrierBit|MemoryBarrierFlags.BufferUpdateBarrierBit);
+        RHICommandContext.Current.Barrier(new(RHIAccess.ShaderStorage|RHIAccess.BufferUpdate));
         using var header=fields.Scratch.MapScope<uint>(0,52,RHIBufferMapAccess.Read);
         uint pendingAge=0,completedAge=0,fallback=0,directCompleted=0,diffuseCompleted=0;
         long occupiedOrigins=0,eligibleDirect=0,eligibleDiffuse=0;int unknownBlocks=0;

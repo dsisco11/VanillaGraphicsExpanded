@@ -59,7 +59,7 @@ internal sealed class MinimumChildMaskPass : IDisposable
             draw.Submit(commands,pipeline!,targets[level-1].PreservePass);
         }
         // Completed integer color writes feed the subsequent horizon sampler in the same boundary.
-        GL.MemoryBarrier(MemoryBarrierFlags.FramebufferBarrierBit|MemoryBarrierFlags.TextureFetchBarrierBit);
+        RHICommandContext.Current.Barrier(new(RHIAccess.Framebuffer|RHIAccess.TextureFetch));
     }
     /// <summary>Retires borrowers before sidecar storage on disable, resize, reload or world teardown.</summary>
     public void Dispose()

@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Reflection;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.LumOn;
@@ -25,9 +26,9 @@ internal static class RuntimeLightingCompletionWait
             ?? (batch is null ? null : Field(batch, "fence")) as GpuFence;
         if (fence is not null)
         {
-            var status = fence.Wait(timeout);
-            if (status == WaitSyncStatus.WaitFailed) throw new InvalidOperationException("Lighting GPU completion wait failed.");
-            if (status == WaitSyncStatus.TimeoutExpired) throw new TimeoutException("Lighting GPU completion exceeded the external-wait budget.");
+            var status = RHICommandContext.Current.WaitCpu(fence, timeout);
+            if (status == RHICompletionStatus.Failed) throw new InvalidOperationException("Lighting GPU completion wait failed.");
+            if (status == RHICompletionStatus.Pending) throw new TimeoutException("Lighting GPU completion exceeded the external-wait budget.");
             return;
         }
 

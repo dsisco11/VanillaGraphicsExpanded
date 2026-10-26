@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.Pipeline;
 using VanillaGraphicsExpanded.Rendering.Pipeline.Passes;
@@ -602,31 +603,25 @@ internal static partial class MaterialAtlasNormalDepthGpuBuilder
     /// <summary>Reads one atlas pixel while preserving framebuffer and pixel-pack bindings.</summary>
     private static (float a, (float r, float g, float b) rgb) ReadAtlasPixelRgba(int atlasTexId, int x, int y)
     {
-        // Attach the atlas texture to the scratch FBO and read back a single pixel.
-        // Note: framebuffer coordinates are bottom-left origin.
-        scratchFbo!.Attach(atlasTexId);
-        using var framebuffer = StateCache.Current.BindFramebufferScope(FramebufferTarget.ReadFramebuffer, scratchFbo.FboId);
-        using var pack = OpenGLPixelLayouts.PackScope(StateCache.Current, new(1));
-        using var transfer = StateCache.Current.BindBufferScope(BufferTarget.PixelPackBuffer, 0);
-        GL.ReadBuffer(ReadBufferMode.ColorAttachment0);
-
-        float[] px = new float[4];
-        GL.ReadPixels(x, y, 1, 1, PixelFormat.Rgba, PixelType.Float, px);
-        return (px[3], (px[0], px[1], px[2]));
+        using var texture = new BorrowedTexture(atlasTexId);
+        using var request = RHICommandContext.Current.EnqueueReadback(new RHIReadbackDescription(texture,
+            new(new(0), x, y, 0, 1, 1, 1), new(RHIPixelChannels.Rgba, RHIPixelType.Float)));
+        if (request.Wait() != RHICompletionStatus.Ready)
+            throw new InvalidOperationException("Atlas readback failed.", request.Error);
+        using var mapped = request.MapReadyReadback();
+        var pixels = System.Runtime.InteropServices.MemoryMarshal.Cast<byte, float>(mapped.Bytes);
+        return (pixels[3], (pixels[0], pixels[1], pixels[2]));
     }
 
     /// <summary>Reads one solver value with explicit tightly packed CPU readback state.</summary>
     private static float ReadTexturePixelR32f(DynamicTexture2D tex, int x, int y)
     {
-        scratchFbo!.Attach(tex);
-        using var framebuffer = StateCache.Current.BindFramebufferScope(FramebufferTarget.ReadFramebuffer, scratchFbo.FboId);
-        using var pack = OpenGLPixelLayouts.PackScope(StateCache.Current, new(1));
-        using var transfer = StateCache.Current.BindBufferScope(BufferTarget.PixelPackBuffer, 0);
-        GL.ReadBuffer(ReadBufferMode.ColorAttachment0);
-
-        float[] px = new float[1];
-        GL.ReadPixels(x, y, 1, 1, PixelFormat.Red, PixelType.Float, px);
-        return px[0];
+        using var request = RHICommandContext.Current.EnqueueReadback(new RHIReadbackDescription(tex,
+            new(new(0), x, y, 0, 1, 1, 1), new(RHIPixelChannels.Red, RHIPixelType.Float)));
+        if (request.Wait() != RHICompletionStatus.Ready)
+            throw new InvalidOperationException("Solver readback failed.", request.Error);
+        using var mapped = request.MapReadyReadback();
+        return System.Runtime.InteropServices.MemoryMarshal.Cast<byte, float>(mapped.Bytes)[0];
     }
 
     /// <summary>Creates reusable solver programs and geometry before entering a rendering boundary.</summary>

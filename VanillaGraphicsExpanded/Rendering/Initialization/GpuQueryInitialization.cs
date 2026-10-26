@@ -1,4 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 namespace VanillaGraphicsExpanded.Rendering;
-
-/// <summary>Requests Query creation; configuration and use remain separate operations.</summary>
-internal readonly struct GpuQueryInitialization { }
+/// <summary>Requests target-specific native query realization for private creation.</summary>
+internal readonly record struct GpuQueryInitialization(RHIQueryKind Kind);

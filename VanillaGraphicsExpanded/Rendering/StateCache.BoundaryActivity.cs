@@ -13,10 +13,8 @@ internal sealed partial class StateCache
         RequireOutsideEngineBoundary();
         try
         {
-            GpuSupport.EnsureCurrentContext();
-            if (!GpuSupport.Graphics.TransformFeedbackActivityQueries) return false;
             // Binding identity cannot establish whether feedback is capturing or paused.
-            return !QueryBoundary(() => GL.GetBoolean((GetPName)All.TransformFeedbackActive));
+            return !QueryBoundary(() => RHI.RHICommandContext.Current.OpenGL.ReadTransformFeedbackActive());
         }
         catch (Exception error) when (error is not OutOfMemoryException)
         {

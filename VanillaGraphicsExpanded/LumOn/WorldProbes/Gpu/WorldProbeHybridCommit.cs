@@ -81,8 +81,8 @@ internal sealed class WorldProbeHybridCommit : IDisposable
         pipeline.distanceAtlas = new(resources.ProbeDist0, TextureAccess.WriteOnly, Format: SizedInternalFormat.Rg16f);
         pipeline.metadataAtlas = new(resources.ProbeMeta0, TextureAccess.WriteOnly, Format: SizedInternalFormat.Rg32f);
         pipeline.Dispatch(1);
-        GL.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit |
-            MemoryBarrierFlags.FramebufferBarrierBit | MemoryBarrierFlags.TextureUpdateBarrierBit);
+        RHICommandContext.Current.Barrier(new(RHIAccess.Image | RHIAccess.TextureFetch |
+            RHIAccess.Framebuffer | RHIAccess.TextureUpdate));
         return true;
     }
     #endregion

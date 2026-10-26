@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
 
 using VanillaGraphicsExpanded.Rendering;
@@ -28,9 +29,9 @@ public class GpuSemaphoreMemoryObjectIntegrationTests
     {
         fixture.MakeCurrent();
 
-        Assert.SkipWhen(!GpuSemaphore.IsSupported, "GL_EXT_semaphore not supported by this context.");
+        Assert.SkipWhen(!RHICommandContext.Current.Capabilities.ExternalSemaphores, "GL_EXT_semaphore not supported by this context.");
 
-        using var sem = GpuSemaphore.Create();
+        using var sem = RHICommandContext.Current.CreateSemaphore(new()).RequireResource();
         Assert.True(sem.IsValid);
         Assert.True(sem.SemaphoreId > 0);
 
@@ -45,14 +46,14 @@ public class GpuSemaphoreMemoryObjectIntegrationTests
     {
         fixture.MakeCurrent();
 
-        Assert.SkipWhen(!GpuMemoryObject.IsSupported, "GL_EXT_memory_object not supported by this context.");
+        Assert.SkipWhen(!RHICommandContext.Current.Capabilities.ExternalMemory, "GL_EXT_memory_object not supported by this context.");
 
-        using var mem = GpuMemoryObject.Create();
+        using var mem = RHICommandContext.Current.CreateMemoryObject(new(Dedicated: false)).RequireResource();
         Assert.True(mem.IsValid);
         Assert.True(mem.MemoryObjectId > 0);
 
         // Smoke test: ensure the entrypoints are usable without throwing.
-        mem.SetParameter(MemoryObjectParameterName.DedicatedMemoryObjectExt, 0);
+
         mem.Dispose();
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }

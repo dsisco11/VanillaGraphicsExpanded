@@ -50,7 +50,7 @@ internal sealed class CloudVolumeDensity(Func<int,PackedUniformBuffer?,CloudVolu
         if(validatedBounds is null&&NeedsObservation(storage,input))
         {
             EnsureSnapshot(input.Storage.Width);frozenInput=input;
-            BeginValidation(input,map,current);validating=true;fence=GpuFence.Insert();return;
+            BeginValidation(input,map,current);validating=true;fence=RHICommandContext.Current.InsertFence();return;
         }
         deferred=true;generated=null;
         try
@@ -64,7 +64,7 @@ internal sealed class CloudVolumeDensity(Func<int,PackedUniformBuffer?,CloudVolu
             // New-domain initialization needs its summary before CPU storage admission. Retained
             // fields already have an admitted domain and can feed lighting through GPU barriers.
             if(!chainRetained||generated is null||!storage.Ready||!ReferenceEquals(generated,storage.Published))
-                fence=GpuFence.Insert();
+                fence=RHICommandContext.Current.InsertFence();
         }
         finally{deferred=false;}
     }
@@ -73,8 +73,8 @@ internal sealed class CloudVolumeDensity(Func<int,PackedUniformBuffer?,CloudVolu
     {
         if(fence is null)return true;
         Check(()=>true);
-        var status=fence.Poll();if(status==WaitSyncStatus.TimeoutExpired)return false;
-        if(status==WaitSyncStatus.WaitFailed)throw new InvalidOperationException("Cloud density fence failed.");
+        var status=RHICommandContext.Current.Poll(fence);if(status==RHICompletionStatus.Pending)return false;
+        if(status==RHICompletionStatus.Failed)throw new InvalidOperationException("Cloud density fence failed.");
         fence.Dispose();fence=null;Check(()=>true);
         if(validating){validatedBounds=ReadBounds();validating=false;return true;}
         CompletePending(storage);return true;

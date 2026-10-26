@@ -80,8 +80,8 @@ internal sealed class SurfaceLightingDispatch : IDisposable
             pipeline.NextOutgoing = new(destination, TextureAccess.WriteOnly, Layered: true, Format: SizedInternalFormat.Rgba16f);
             pipeline.DiagnosticCounters = Diagnostics.ActiveBuffer;
             pipeline.Dispatch((input.TileSize + 7) / 8, (input.TileSize + 7) / 8, count);
-            GL.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit |
-                MemoryBarrierFlags.ShaderStorageBarrierBit | MemoryBarrierFlags.BufferUpdateBarrierBit | MemoryBarrierFlags.TextureUpdateBarrierBit);
+            RHICommandContext.Current.Barrier(new(RHIAccess.Image | RHIAccess.TextureFetch |
+                RHIAccess.ShaderStorage | RHIAccess.BufferUpdate | RHIAccess.TextureUpdate));
         }
         finally { Diagnostics.End(); }
     }

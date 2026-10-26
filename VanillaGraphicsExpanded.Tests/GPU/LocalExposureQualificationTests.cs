@@ -125,8 +125,8 @@ public sealed class LocalExposureQualificationTests(HeadlessGLFixture fixture, I
         reduce.LogOutput = new(owner.Logarithms, TextureAccess.WriteOnly, Format: SizedInternalFormat.Rg32f);
         filter.Inputs = inputs; filter.LogImage = owner.Logarithms;
         filter.BaseOutput = new(spatial, TextureAccess.WriteOnly, Format: SizedInternalFormat.Rg32f);
-        Action reduceOnly = () => { reduce.Dispatch(32, 18); GpuComputePipeline.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit); };
-        Action filterOnly = () => { filter.Dispatch(32, 18); GpuComputePipeline.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit); };
+        Action reduceOnly = () => { reduce.Dispatch(32, 18); RHICommandContext.Current.Barrier(new(RHIAccess.Image | RHIAccess.TextureFetch)); };
+        Action filterOnly = () => { filter.Dispatch(32, 18); RHICommandContext.Current.Barrier(new(RHIAccess.Image | RHIAccess.TextureFetch)); };
         for (int i = 0; i < 3; i++) { global(); local(); } GL.Finish();
         var globalTimes = new List<(double Gpu, double Cpu)>(); var localTimes = new List<(double Gpu, double Cpu)>();
         for (int i = 0; i < 10; i++)

@@ -134,6 +134,7 @@ public static partial class GpuSupport
         if (binaryCount > 0) GL.GetInteger(GetPName.ProgramBinaryFormats, binaryFormats);
         return capabilities with
         {
+            SparseBufferPageSize = capabilities.SupportsSparseBuffer ? SafeGetInt((GetPName)ArbSparseBuffer.SparseBufferPageSizeArb) : 0,
             UniformBufferOffsetAlignment = IsAtLeast(capabilities.ApiVersion, 3, 1) ? SafeGetInt(GetPName.UniformBufferOffsetAlignment) : 0,
             MaxTransformFeedbackBuffers = IsAtLeast(capabilities.ApiVersion, 4, 0) ? SafeGetInt(GetPName.MaxTransformFeedbackBuffers) : 0,
             TextureBufferOffsetAlignment = capabilities.SupportsTextureBufferRange ? SafeGetInt((GetPName)All.TextureBufferOffsetAlignment) : 0,

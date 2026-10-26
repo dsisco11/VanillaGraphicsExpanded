@@ -210,7 +210,7 @@ internal sealed class GpuUniformRingBuffer : IDisposable
         fences[activePageIndex]?.Dispose();
         fences[activePageIndex] = null;
 
-        fences[activePageIndex] = GpuFence.Insert();
+        fences[activePageIndex] = RHICommandContext.Current.InsertFence();
         fences[activePageIndex]!.SetDebugName($"{debugName}.Fence.Page{activePageIndex}");
     }
 
@@ -318,15 +318,15 @@ internal sealed class GpuUniformRingBuffer : IDisposable
         }
 
         // Flush the command stream when waiting; a zero-timeout poll alone cannot guarantee submission.
-        var status = fence.Poll();
-        while (status == WaitSyncStatus.TimeoutExpired)
+        var status = RHICommandContext.Current.Poll(fence);
+        while (status == RHICompletionStatus.Pending)
         {
 #if DEBUG
             FenceWaits++;
 #endif
-            status = fence.Wait(TimeSpan.FromMilliseconds(1));
+            status = RHICommandContext.Current.WaitCpu(fence, TimeSpan.FromMilliseconds(1));
         }
-        if (status == WaitSyncStatus.WaitFailed) throw new InvalidOperationException("Uniform page fence failed.");
+        if (status == RHICompletionStatus.Failed) throw new InvalidOperationException("Uniform page fence failed.");
         fence.Dispose();
         fences[pageIndex] = null;
     }

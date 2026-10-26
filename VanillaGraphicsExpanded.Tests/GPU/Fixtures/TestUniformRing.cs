@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Integration;
 
@@ -69,11 +70,11 @@ internal static class TestUniformRing
         // Tests have irregular boundaries and helper re-entry, so insert the fence here, after
         // every possible previous consumer. The production ring's EndFrame polling policy is
         // deliberately not used: this fixture owns a single page and needs a bounded wait.
-        using var completion = GpuFence.Insert();
-        var status = completion.Wait(TimeSpan.FromSeconds(10));
-        if (status == OpenTK.Graphics.OpenGL.WaitSyncStatus.TimeoutExpired)
+        using var completion = RHICommandContext.Current.InsertFence();
+        var status = RHICommandContext.Current.WaitCpu(completion, TimeSpan.FromSeconds(10));
+        if (status == RHICompletionStatus.Pending)
             throw new TimeoutException("Test uniform-buffer consumers did not retire within ten seconds; the page was not reused.");
-        if (status is not (OpenTK.Graphics.OpenGL.WaitSyncStatus.AlreadySignaled or OpenTK.Graphics.OpenGL.WaitSyncStatus.ConditionSatisfied))
+        if (status is not (RHICompletionStatus.Ready))
             throw new InvalidOperationException($"Test uniform-buffer retirement failed ({status}); the page was not reused.");
     }
     #endregion

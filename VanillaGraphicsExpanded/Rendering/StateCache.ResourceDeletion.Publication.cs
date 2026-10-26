@@ -103,12 +103,12 @@ internal sealed partial class StateCache
             GpuResourceKind.Framebuffer => !GL.IsFramebuffer(id),
             GpuResourceKind.VertexArray => !GL.IsVertexArray(id),
             GpuResourceKind.Sampler => RHI.Backends.OpenGL.OpenGLImageDeletionCalls.WasDeleted(kind, id),
-            GpuResourceKind.Query => !GL.IsQuery(id),
-            GpuResourceKind.Sync => !GL.IsSync((IntPtr)nativeId),
+            GpuResourceKind.Query => RHI.Backends.OpenGL.OpenGLAuxiliaryDeletionCalls.WasDeleted(kind, nativeId),
+            GpuResourceKind.Sync => RHI.Backends.OpenGL.OpenGLAuxiliaryDeletionCalls.WasDeleted(kind, nativeId),
             GpuResourceKind.ProgramPipeline => !GL.IsProgramPipeline(id),
-            GpuResourceKind.TransformFeedback => !GL.IsTransformFeedback(id),
-            GpuResourceKind.Semaphore => !GL.Ext.IsSemaphore(id),
-            GpuResourceKind.MemoryObject => !GL.Ext.IsMemoryObject(id),
+            GpuResourceKind.TransformFeedback => RHI.Backends.OpenGL.OpenGLAuxiliaryDeletionCalls.WasDeleted(kind, nativeId),
+            GpuResourceKind.Semaphore => RHI.Backends.OpenGL.OpenGLAuxiliaryDeletionCalls.WasDeleted(kind, nativeId),
+            GpuResourceKind.MemoryObject => RHI.Backends.OpenGL.OpenGLAuxiliaryDeletionCalls.WasDeleted(kind, nativeId),
             _ => false
         };
     }

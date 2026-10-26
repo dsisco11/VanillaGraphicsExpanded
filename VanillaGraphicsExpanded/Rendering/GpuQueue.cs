@@ -89,7 +89,7 @@ internal sealed class GpuQueue<T> : IDisposable where T : unmanaged
         headerReady = false; writtenCount = -1;
         // Commands may already reference this storage even if fence insertion fails. Fail closed until disposal.
         state = QueueState.Pending;
-        try { fence = GpuFence.Insert(); GL.Flush(); }
+        try { fence = RHICommandContext.Current.InsertFence(); RHICommandContext.Current.Flush(); }
         catch { state = QueueState.Faulted; throw; }
     }
     #endregion
@@ -105,9 +105,9 @@ internal sealed class GpuQueue<T> : IDisposable where T : unmanaged
         if (state != QueueState.Pending) throw new InvalidOperationException("GPU queue is faulted or its readback is already borrowed.");
         try
         {
-            var status = fence!.Poll();
-            if (status == WaitSyncStatus.TimeoutExpired) return false;
-            if (status != WaitSyncStatus.AlreadySignaled && status != WaitSyncStatus.ConditionSatisfied)
+            var status = RHICommandContext.Current.Poll(fence!);
+            if (status == RHICompletionStatus.Pending) return false;
+            if (status != RHICompletionStatus.Ready)
                 throw new InvalidOperationException("GPU queue completion failed.");
             state = QueueState.Reading;
             int count = submittedCount;

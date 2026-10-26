@@ -207,8 +207,8 @@ public sealed class CloudVolumeComputeWorkTests(HeadlessGLFixture fixture,Xunit.
 #endif
                 }
                 if(measure)timer.End();
-                using var completed=GpuFence.Insert();
-                Assert.Contains(completed.Wait(TimeSpan.FromSeconds(1)),new[]{WaitSyncStatus.AlreadySignaled,WaitSyncStatus.ConditionSatisfied});
+                using var completed=RHICommandContext.Current.InsertFence();
+                Assert.Contains(RHICommandContext.Current.WaitCpu(completed, TimeSpan.FromSeconds(1)),new[]{RHICompletionStatus.Ready,RHICompletionStatus.Ready});
                 if(measure)sum+=timer.GetResultNanoseconds()/1e6;
                 Assert.Null(solution.Failure);if(published)return(sum,callback+1,cpu);
             }
@@ -307,6 +307,6 @@ public sealed class CloudVolumeComputeWorkTests(HeadlessGLFixture fixture,Xunit.
         Assert.Equal(0xdeadbeefu,Read(scratch,header.Length-1,1)[0]);
     }
     /// <summary>Orders typed metadata, image and indirect work between measured dispatches.</summary>
-    private static void Barrier()=>GpuComputePipeline.MemoryBarrier(MemoryBarrierFlags.AllBarrierBits);
+    private static void Barrier()=>RHICommandContext.Current.Barrier(new(RHIAccess.All));
     #endregion
 }

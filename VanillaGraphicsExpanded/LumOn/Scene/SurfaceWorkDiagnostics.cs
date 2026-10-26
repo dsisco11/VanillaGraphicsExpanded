@@ -64,8 +64,8 @@ internal sealed class SurfaceWorkDiagnostics : IDisposable
         if (active >= 0)
         {
             var slot = slots[active]!;
-            GL.MemoryBarrier(MemoryBarrierFlags.ShaderStorageBarrierBit | MemoryBarrierFlags.BufferUpdateBarrierBit);
-            slot.End.Issue(); slot.Fence = GpuFence.Insert(); PendingCount++;
+            RHICommandContext.Current.Barrier(new(RHIAccess.ShaderStorage | RHIAccess.BufferUpdate));
+            slot.End.Issue(); slot.Fence = RHICommandContext.Current.InsertFence(); PendingCount++;
         }
         totals[(int)activeStage].SubmitMilliseconds += Stopwatch.GetElapsedTime(started).TotalMilliseconds;
         active = -1; started = 0;
@@ -79,10 +79,10 @@ internal sealed class SurfaceWorkDiagnostics : IDisposable
         {
             var slot = slots[index];
             if (slot?.Fence == null) continue;
-            var status = slot.Fence.Poll();
-            if (status == WaitSyncStatus.TimeoutExpired) continue;
+            var status = RHICommandContext.Current.Poll(slot.Fence);
+            if (status == RHICompletionStatus.Pending) continue;
             var total = totals[(int)slot.Stage];
-            if (status == WaitSyncStatus.WaitFailed)
+            if (status == RHICompletionStatus.Failed)
             {
                 // Completion is unknown: retire the storage itself rather than overwrite a possibly live buffer.
                 total.ReadFailures++; slot.Dispose(); slots[index] = null; PendingCount--; continue;

@@ -110,7 +110,7 @@ public sealed class PreparedSubmissionTests(HeadlessGLFixture fixture) : RenderT
         ShaderBindingAccess.Image(pipeline.ProgramLayout, pipeline.ProgramId, "outputImage", view);
         ShaderBindingAccess.Sampler(pipeline.ProgramLayout, pipeline.ProgramId, "unused", default(GpuTextureRef));
         pipeline.Dispatch(1);
-        GpuComputePipeline.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.FramebufferBarrierBit);
+        RHICommandContext.Current.Barrier(new(RHIAccess.Image | RHIAccess.Framebuffer));
         Assert.Equal(new float[] { 11, 22, 33, 44 }, output.ReadPixels());
 
         // Another owner replaces shared units; retained desired values must restore them on reuse.
@@ -120,7 +120,7 @@ public sealed class PreparedSubmissionTests(HeadlessGLFixture fixture) : RenderT
         ShaderPreparedSubmission.SamplerArray(inputs, desired);
         ShaderBindingAccess.Image(pipeline.ProgramLayout, pipeline.ProgramId, "outputImage", output);
         pipeline.Dispatch(1);
-        GpuComputePipeline.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.FramebufferBarrierBit);
+        RHICommandContext.Current.Barrier(new(RHIAccess.Image | RHIAccess.Framebuffer));
         Assert.Equal(new float[] { 11, 22, 33, 44 }, output.ReadPixels());
         Assert.True(StateCache.Current.TryGetCachedBoundTexture(TextureTarget.Texture2D, 7, out int restored));
         Assert.Equal(first.TextureId, restored);

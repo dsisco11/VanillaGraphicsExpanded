@@ -125,7 +125,7 @@ public sealed class CloudVolumeStorageTests(HeadlessGLFixture fixture) : LumOnSh
     {
         probe.Capture(fields,point); probe.Density=fields.Density; probe.Direct=fields.Direct;
         probe.Diffuse=fields.Diffuse; probe.Result=output; probe.Dispatch(1);
-        GpuComputePipeline.MemoryBarrier(MemoryBarrierFlags.BufferUpdateBarrierBit|MemoryBarrierFlags.ShaderStorageBarrierBit);
+        RHICommandContext.Current.Barrier(new(RHIAccess.BufferUpdate|RHIAccess.ShaderStorage));
         using var read=output.MapScope<Vector4>(0,2,RHIBufferMapAccess.Read); return read.Span.ToArray();
     }
     #endregion

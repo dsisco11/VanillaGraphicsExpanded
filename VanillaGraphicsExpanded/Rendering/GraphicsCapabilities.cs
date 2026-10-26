@@ -239,6 +239,8 @@ public sealed record GraphicsCapabilities
     public bool SupportsSparseTexture { get; init; }
     /// <summary>Whether sparse buffer is available.</summary>
     public bool SupportsSparseBuffer { get; init; }
+    /// <summary>Gets sparse-buffer page alignment from the existing capability capture.</summary>
+    public int SparseBufferPageSize { get; init; }
     /// <summary>Whether arb parallel shader compile is available.</summary>
     public bool SupportsArbParallelShaderCompile { get; init; }
     /// <summary>Whether khr parallel shader compile is available.</summary>

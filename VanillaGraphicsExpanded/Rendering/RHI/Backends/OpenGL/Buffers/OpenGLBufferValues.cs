@@ -94,6 +94,7 @@ internal static class OpenGLBufferValues
         if ((value & RHIStorageAccess.Coherent) != 0) result |= Native.BufferStorageFlags.MapCoherentBit;
         if ((value & RHIStorageAccess.DynamicUpdates) != 0) result |= Native.BufferStorageFlags.DynamicStorageBit;
         if ((value & RHIStorageAccess.ClientStorage) != 0) result |= Native.BufferStorageFlags.ClientStorageBit;
+        if ((value & RHIStorageAccess.Sparse) != 0) result |= (Native.BufferStorageFlags)Native.ArbSparseBuffer.SparseStorageBitArb;
         return result;
     }
     /// <summary>Translates access flags for a named mapping.</summary>

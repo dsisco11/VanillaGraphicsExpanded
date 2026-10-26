@@ -56,9 +56,9 @@ internal sealed class LocalExposureRenderer : IDisposable
         if(!EngineBoundaryExecution.TryRun(new("Postprocess.LocalExposure"),borrowed,_=>
         {
             reduce.Dispatch((width+7)/8,(height+7)/8);
-            GpuComputePipeline.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit|MemoryBarrierFlags.TextureFetchBarrierBit);
+            RHICommandContext.Current.Barrier(new(RHIAccess.Image|RHIAccess.TextureFetch));
             filter.Dispatch((width+7)/8,(height+7)/8);
-            GpuComputePipeline.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit|MemoryBarrierFlags.TextureFetchBarrierBit);
+            RHICommandContext.Current.Barrier(new(RHIAccess.Image|RHIAccess.TextureFetch));
         })) throw new InvalidOperationException("Local exposure compute boundary was rejected.");
         published=true;
         return baseImage!;

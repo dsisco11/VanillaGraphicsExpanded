@@ -109,9 +109,9 @@ internal sealed class CloudVolumePublication(Func<int,PackedUniformBuffer,CloudV
     #endregion
     #region Private
     /// <summary>Orders prior drawable reads before overwriting images and exposes completed copies to subsequent draws.</summary>
-    private static void Barrier()=>GpuComputePipeline.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit|
-        MemoryBarrierFlags.TextureFetchBarrierBit|MemoryBarrierFlags.ShaderStorageBarrierBit|MemoryBarrierFlags.BufferUpdateBarrierBit|
-        MemoryBarrierFlags.TextureUpdateBarrierBit|MemoryBarrierFlags.CommandBarrierBit);
+    private static void Barrier()=>RHICommandContext.Current.Barrier(new(RHIAccess.Image|
+        RHIAccess.TextureFetch|RHIAccess.ShaderStorage|RHIAccess.BufferUpdate|
+        RHIAccess.TextureUpdate|RHIAccess.Indirect));
     /// <summary>Allocates hardware-filtered volume storage matching solver addressing.</summary>
     private DynamicTexture3D Volume(CloudVolumeDomain d,PixelInternalFormat format)
     {

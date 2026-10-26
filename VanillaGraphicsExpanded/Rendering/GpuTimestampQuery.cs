@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 
 using OpenTK.Graphics.OpenGL;
@@ -10,6 +11,7 @@ namespace VanillaGraphicsExpanded.Rendering;
 internal sealed class GpuTimestampQuery : IDisposable
 {
     private readonly GpuQuery query;
+    private RHIQueryTicket? result;
 
     private GpuTimestampQuery(GpuQuery query)
     {
@@ -31,7 +33,7 @@ internal sealed class GpuTimestampQuery : IDisposable
     /// </summary>
     public static GpuTimestampQuery Create(string? debugName = null)
     {
-        return new GpuTimestampQuery(GpuQuery.Create(debugName));
+        return new GpuTimestampQuery(RHICommandContext.Current.CreateQuery(new(RHIQueryKind.Timestamp, debugName)).RequireResource());
     }
 
     /// <summary>
@@ -44,7 +46,8 @@ internal sealed class GpuTimestampQuery : IDisposable
             return;
         }
 
-        GL.QueryCounter(QueryId, QueryCounterTarget.Timestamp);
+        RHICommandContext.Current.WriteTimestamp(query);
+        result = RHICommandContext.Current.RequestQueryResult(query);
     }
 
     /// <summary>
@@ -57,8 +60,7 @@ internal sealed class GpuTimestampQuery : IDisposable
             return false;
         }
 
-        GL.GetQueryObject(QueryId, GetQueryObjectParam.QueryResultAvailable, out int available);
-        return available != 0;
+        return result?.Poll() == RHICompletionStatus.Ready;
     }
 
     /// <summary>
@@ -71,8 +73,9 @@ internal sealed class GpuTimestampQuery : IDisposable
             return 0;
         }
 
-        GL.GetQueryObject(QueryId, GetQueryObjectParam.QueryResult, out long result);
-        return result;
+        if (result is null || result.Wait() != RHICompletionStatus.Ready)
+            throw new InvalidOperationException("Query completion failed.", result?.Error);
+        return checked((long)result.Result);
     }
 
     /// <summary>

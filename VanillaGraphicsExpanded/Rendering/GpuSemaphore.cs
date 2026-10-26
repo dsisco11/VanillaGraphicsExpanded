@@ -1,131 +1,25 @@
-using System;
-
-using OpenTK.Graphics.OpenGL;
-
+using VanillaGraphicsExpanded.Rendering.RHI;
 namespace VanillaGraphicsExpanded.Rendering;
-
-/// <summary>
-/// RAII wrapper around an EXT semaphore object (GL_EXT_semaphore).
-/// Deletion is deferred to <see cref="GpuResourceManager"/> when available.
-/// </summary>
-internal sealed class GpuSemaphore : GpuResource<GpuSemaphoreMetadata>, IDisposable
+/// <summary>Owns a native Semaphore allocation; the RHI backend executes resource operations.</summary>
+public sealed class GpuSemaphore : GpuResource<GpuSemaphoreMetadata>
 {
     private int semaphoreId;
-
+    #region Public API
     /// <inheritdoc />
-    public override nint ResourceId
-    {
-        get => semaphoreId;
-        protected set => semaphoreId = (int)value;
-    }
-
-    protected override GpuResourceKind ResourceKind => GpuResourceKind.Semaphore;
-
-    /// <summary>
-    /// Returns <c>true</c> when the current OpenGL context reports EXT semaphore support.
-    /// </summary>
-    public static bool IsSupported => GpuSupport.Graphics.SupportsExtSemaphore;
-
-    /// <summary>
-    /// Gets the underlying OpenGL semaphore id.
-    /// </summary>
+    public override nint ResourceId { get => semaphoreId; protected set => semaphoreId = (int)value; }
+    /// <summary>Gets native identity for explicit integration only.</summary>
     public int SemaphoreId => semaphoreId;
-
-    /// <summary>
-    /// Returns <c>true</c> when the semaphore has a non-zero id and has not been disposed.
-    /// </summary>
-    public new bool IsValid => base.IsValid;
-
-    /// <summary>Declares an unpublished wrapper for manager-owned creation.</summary>
-    private GpuSemaphore() { }
-
-    /// <summary>
-    /// Creates a new semaphore object via <c>glGenSemaphoresEXT</c>.
-    /// </summary>
-    public static GpuSemaphore Create()
-    {
-        var value = new GpuSemaphore();
-        try
-        {
-            if (!GpuResourceManager.CreateSemaphore(new GpuSemaphoreInitialization(), value, out _).HasValue)
-                throw new InvalidOperationException("Semaphore creation failed.");
-            return value;
-        }
-        catch
-        {
-            // The manager retires provisional allocation; dispose a completed handoff too.
-            value.Dispose();
-            throw;
-        }
-    }
-
-    /// <summary>
-    /// Sets a debug label for this resource (no-op; KHR_debug does not standardize labels for semaphores).
-    /// </summary>
-    public override void SetDebugName(string? debugName)
-    {
-    }
-
-    /// <summary>
-    /// Waits on this semaphore via <c>glWaitSemaphoreEXT</c>.
-    /// </summary>
-    public void Wait(
-        ReadOnlySpan<int> bufferIds,
-        ReadOnlySpan<int> textureIds,
-        ReadOnlySpan<TextureLayout> textureLayouts)
-    {
-        if (!IsValid)
-        {
-            return;
-        }
-
-        if (textureIds.Length != textureLayouts.Length)
-        {
-            throw new ArgumentException("textureIds and textureLayouts must have the same length.");
-        }
-
-        int[] buffers = bufferIds.IsEmpty ? Array.Empty<int>() : bufferIds.ToArray();
-        int[] textures = textureIds.IsEmpty ? Array.Empty<int>() : textureIds.ToArray();
-        TextureLayout[] layouts = textureLayouts.IsEmpty ? Array.Empty<TextureLayout>() : textureLayouts.ToArray();
-
-        GL.Ext.WaitSemaphore(semaphoreId, buffers.Length, buffers, textures.Length, textures, layouts);
-    }
-
-    /// <summary>
-    /// Signals this semaphore via <c>glSignalSemaphoreEXT</c>.
-    /// </summary>
-    public void Signal(
-        ReadOnlySpan<int> bufferIds,
-        ReadOnlySpan<int> textureIds,
-        ReadOnlySpan<TextureLayout> textureLayouts)
-    {
-        if (!IsValid)
-        {
-            return;
-        }
-
-        if (textureIds.Length != textureLayouts.Length)
-        {
-            throw new ArgumentException("textureIds and textureLayouts must have the same length.");
-        }
-
-        int[] buffers = bufferIds.IsEmpty ? Array.Empty<int>() : bufferIds.ToArray();
-        int[] textures = textureIds.IsEmpty ? Array.Empty<int>() : textureIds.ToArray();
-        TextureLayout[] layouts = textureLayouts.IsEmpty ? Array.Empty<TextureLayout>() : textureLayouts.ToArray();
-
-        GL.Ext.SignalSemaphore(semaphoreId, buffers.Length, buffers, textures.Length, textures, layouts);
-    }
-
-    /// <summary>
-    /// Imports a semaphore from a file descriptor via <c>glImportSemaphoreFdEXT</c>.
-    /// </summary>
-    public void ImportFromFd(ExternalHandleType handleType, int fd)
-    {
-        if (!IsValid)
-        {
-            return;
-        }
-
-        GL.Ext.ImportSemaphoreF(semaphoreId, handleType, fd);
-    }
+    /// <inheritdoc />
+    public override void SetDebugName(string? name) { }
+    /// <summary>Retains consumption authority without transferring native ownership.</summary>
+    public static implicit operator GpuSemaphoreRef(GpuSemaphore? resource) => new(resource);
+    #endregion
+    #region Internal API
+    /// <summary>Declares an unpublished owner for private manager handoff.</summary>
+    internal GpuSemaphore() { }
+    #endregion
+    #region Private
+    /// <inheritdoc />
+    protected override GpuResourceKind ResourceKind => GpuResourceKind.Semaphore;
+    #endregion
 }

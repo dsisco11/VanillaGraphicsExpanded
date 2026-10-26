@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using System.Collections.Generic;
 using OpenTK.Graphics.OpenGL;
@@ -115,7 +116,7 @@ internal sealed class PersistentUniformStorage : IDisposable
         RequireAlive();
         if (used)
         {
-            var fence = GpuFence.Insert();
+            var fence = RHICommandContext.Current.InsertFence();
             fences.Enqueue((serial, fence));
             serial++; used = false;
         }
@@ -131,9 +132,9 @@ internal sealed class PersistentUniformStorage : IDisposable
 #if DEBUG
             FencePolls++;
 #endif
-            var status = batch.Fence.Poll();
-            if (status == WaitSyncStatus.TimeoutExpired) break;
-            if (status == WaitSyncStatus.WaitFailed) throw new InvalidOperationException("Uniform retirement fence failed.");
+            var status = RHICommandContext.Current.Poll(batch.Fence);
+            if (status == RHICompletionStatus.Pending) break;
+            if (status == RHICompletionStatus.Failed) throw new InvalidOperationException("Uniform retirement fence failed.");
             completed = batch.Serial;
             batch.Fence.Dispose(); fences.Dequeue();
         }

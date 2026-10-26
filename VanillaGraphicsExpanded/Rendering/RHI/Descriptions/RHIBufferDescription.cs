@@ -13,7 +13,7 @@ public enum RHIBufferUsage { StaticDraw, StaticRead, StaticCopy, DynamicDraw, Dy
 
 /// <summary>Declares immutable allocation access without exposing native flags.</summary>
 [Flags]
-public enum RHIStorageAccess { None = 0, Read = 1, Write = 2, Persistent = 4, Coherent = 8, DynamicUpdates = 16, ClientStorage = 32 }
+public enum RHIStorageAccess { None = 0, Read = 1, Write = 2, Persistent = 4, Coherent = 8, DynamicUpdates = 16, ClientStorage = 32, Sparse = 64 }
 
 /// <summary>Declares the CPU access and invalidation contract of an immediate mapping.</summary>
 [Flags]
@@ -65,7 +65,9 @@ public struct RHIBufferDescription
             return;
         }
         const RHIStorageAccess all = RHIStorageAccess.Read | RHIStorageAccess.Write | RHIStorageAccess.Persistent
-            | RHIStorageAccess.Coherent | RHIStorageAccess.DynamicUpdates | RHIStorageAccess.ClientStorage;
+            | RHIStorageAccess.Coherent | RHIStorageAccess.DynamicUpdates | RHIStorageAccess.ClientStorage | RHIStorageAccess.Sparse;
+        if (access.HasFlag(RHIStorageAccess.Sparse) && (access & (RHIStorageAccess.Read | RHIStorageAccess.Write)) != 0)
+            throw new ArgumentException("Sparse storage cannot be mapped.");
         if (capacity == 0 || (assigned & Inputs.Access) == 0 || (assigned & Inputs.Usage) != 0 || (access & ~all) != 0
             || access.HasFlag(RHIStorageAccess.Persistent) && (access & (RHIStorageAccess.Read | RHIStorageAccess.Write)) == 0
             || access.HasFlag(RHIStorageAccess.Coherent) && !access.HasFlag(RHIStorageAccess.Persistent))
