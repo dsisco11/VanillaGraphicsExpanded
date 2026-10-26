@@ -77,6 +77,8 @@ Public shader inputs use `RHIShaderRef`; native shader, program and program-pipe
 needed, remain private to OpenGL realization/integration and are not public command inputs.
 Framebuffer references remain useful for the OpenGL integration; portable passes describe attachments,
 not read/draw framebuffer binding targets. The default surface is an explicit surface input, not ID zero.
+The backend realizes attachment-based pass targets as described below; ordinary renderers do not create
+framebuffers merely to begin a pass.
 
 Consumption does not grant resize, deletion or ownership transfer. Mutating wrapper methods use an
 internal owner-bearing execution route; destroy requests originate only from existing ownership and
@@ -123,7 +125,8 @@ creation request produces the same success/failure contract when complete.
 
 Factories cover buffers, textures, renderbuffers, framebuffers, samplers, vertex arrays, queries,
 transform feedback and supported external memory/semaphore objects. Buffer textures and native texture
-views are explicit creation operations with required backing references and ranges. Fence insertion
+views are explicit creation operations with required backing references and ranges. Framebuffer creation
+serves backend target realization and explicit OpenGL integration, not portable pass descriptions. Fence insertion
 retains its synchronization result contract. Native shader/program/program-pipeline allocation stays
 private to shader realization. Return existing appropriate owned resource abstractions; do not introduce
 a parallel RHI resource hierarchy or replace the established consumer reference types.
@@ -270,6 +273,55 @@ earlier executed commands retain their normal outcomes. Creation, cancellation a
 must preserve original associations and prevent stale candidates from installing after a newer selection.
 
 ## Immediate execution and recorded lists
+
+### Geometry inputs
+
+Draws consume retained geometry inputs: vertex-buffer references with stream ranges, offsets and strides,
+an optional index-buffer reference with its format/range, and explicit draw parameters. The pipeline
+supplies the immutable vertex-layout contract. Validate layout compatibility, resource usability and
+accessed ranges at execution before issuing the draw. Indirect inputs retain their buffer references and
+ranges under the same execution-time rules.
+
+Geometry adapters supply these inputs and retain ownership/adoption policy; they do not execute draws.
+Replace `GraphicsGeometry.Submit` and concrete engine/native draw paths with backend-owned submission.
+Engine mesh adapters preserve engine ownership and their permitted usage interval when exposing borrowed
+streams. Retaining a recording does not extend that interval; reject expired inputs before dispatch.
+Move upload/adoption, manager-backed validation, input binding, draw submission and retirement together
+so no completed geometry migration retains an adapter-owned native execution path.
+
+### Attachment-based pass targets
+
+Portable pass descriptions supply attachment references and subresource selections, output routing,
+render area and load/store/clear intentions. Renderers own the attachment resources and pass ordering;
+the OpenGL backend owns the framebuffer objects needed to execute those descriptions. An explicit
+surface input follows its surface integration contract rather than becoming an ordinary attachment cache entry.
+
+A target service scoped to the owning context/backend resolves attachments at execution and reuses or
+creates a framebuffer for their resolved configuration. Its key includes original resource associations,
+selected mip/layer or layered ranges, and other configuration affecting framebuffer realization, including
+routing where retained on the object. Do not key solely by wrapper equality or numeric native names.
+Per-pass clear values and load/store actions are executed intentions, not reasons to create another
+framebuffer. The service caches native realizations, not another copy of canonical resource metadata.
+
+Create and configure cache misses through backend operations and existing manager publication. Validate
+attachment usability, target compatibility and completeness before executing pass loads, clears or draws.
+Publish a reusable realization only after successful configuration; failure retires its candidate and
+unwinds admission without exposing a partial target. Recording retains descriptions/references and does
+not realize framebuffers or acquire pass guards.
+
+The manager retains canonical framebuffer metadata, attachment dependencies and retirement authority.
+Replacement or invalidation of an attachment makes dependent cached realizations ineligible for reuse;
+the next execution resolves the current owner identity and realizes the matching configuration. Borrowed
+attachments preserve their original associations and cannot follow unrelated name reuse. Retire obsolete
+owned framebuffers through existing guards and original-context queues, leaving attachment ownership
+unchanged. Context teardown releases the target cache through those same lifetime rules. Explicitly
+borrowed engine framebuffers remain external objects and never acquire backend deletion ownership.
+
+Migrate attachment descriptions, target realization/reuse, routing, completeness validation, pass guards
+and restoration together. Existing pass helpers remain responsible for their specialized behavior behind
+the unified context; they consume the resolved target rather than requiring renderer-created framebuffers.
+
+### Execution and recording lifecycle
 
 Recommend immediate execution as the default, using the same backend operations as list submission.
 This preserves synchronous creation, current exception boundaries and existing rendering order. A list
@@ -460,6 +512,14 @@ an incompatible executable/table change and require re-recording rather than rep
 against a new interface. Submission-time equality checks cannot discard a needed upload based solely
 on a successful recording that has not executed.
 
+Recorded uniform inputs retain logical bytes, captured content revision and lifetime policy, not a
+physical ring offset acquired during recording. Execution selects reusable storage or allocates and
+uploads a complete captured version through the existing uniform publication services in the current
+open publication epoch. Binding success commits that captured revision; it never clears newer CPU edits.
+Cancellation before execution allocates no uniform storage. Failure aborts only the new candidate under
+the existing publication rules, and allocator completion/epoch rules govern physical storage reuse.
+Migrate generated submissions, CPU snapshots, allocator publication and execution history together.
+
 `RHICommandContext` entirely supersedes `GraphicsCommandContext`. Move its pass lifecycle/sequencing,
 pipeline selection, dynamic state, binding validation/publication and draw submission responsibilities
 into the unified context alongside compute dispatch. Migrate all callers and delete the old class in
@@ -526,6 +586,17 @@ Verify boundary admission for immediate declarations and closed-list footprints:
 captured before mutation, undeclared pipelines/operations are rejected before dispatch, and submission
 within an existing boundary cannot widen its declaration. Verify selective restoration on success and
 failure without blanket capture or recording-time resource inspection.
+
+Verify geometry inputs for owned and borrowed streams, indexed/instanced/indirect ranges, replacement
+and expiration of engine borrowing intervals; adapters must issue no native draws. Verify recorded
+uniform submission across allocator epoch changes, cancellation before execution, failed binding and
+newer CPU edits, with physical allocation deferred until execution and no expired ring-offset reuse.
+
+Verify attachment-based passes reuse matching framebuffer realizations, distinguish subresources and
+configuration, and execute new clear/load/store intentions without needless framebuffer creation. Cover
+attachment replacement/deletion and native-name reuse, incomplete-target cleanup before pass effects,
+context teardown, and borrowed engine targets without deletion or ownership transfer. Recording must
+perform no target realization, and cache reuse must still honor manager dependency validity.
 
 For shader/PSO replacement, verify synchronous and pending creation, compile/link/interface failure,
 candidate cleanup, context retirement, exact shader-generation identity, graphics target compatibility,
