@@ -1,0 +1,320 @@
+RHI commands and command lists — implementation plan
+===================================================
+
+Source proposal: [Rendering.GpuCommands.Proposal.md](Rendering.GpuCommands.Proposal.md).
+Parent design task: Rendering.GpuResourceHandles.todo, Phase 8.
+Status: planned; all implementation and qualification tasks are outstanding.
+
+Goal
+  Implement the approved semantic RHI boundary, immediate execution and optional single-use recorded
+  lists on OpenGL 4.5+. Preserve manager-owned metadata/lifetimes, resource ownership, render order,
+  binding suppression, content readiness and engine restoration while removing old execution APIs.
+  The proposal controls semantics; this file controls implementation order and completion evidence.
+
+Mandatory migration contract — applies to every implementation phase
+  A migration unit includes its operations, all affected callers, blocking dependencies, creation,
+  acquisition/readers, external adapters, retirement, tests and obsolete API removal. An implementation
+  subtask is not a completed migration unit. Passing tests through an old forwarding path is not completion.
+  No temporary compatibility facade, forwarding shim, old-name alias, duplicate dispatcher, or adapter
+  whose purpose is to keep unmigrated internal callers compiling is permitted in a completed unit.
+  Do not introduce such shims as intermediate implementation steps or schedule their removal for later.
+  Change callers directly; keep the unit open until its dependency closure is implemented and verified.
+  If a later dependency prevents that, bring it into the unit or merge the units before continuing.
+  Unmigrated families may retain their original implementation, explicitly incomplete. They may call
+  completed families through their final APIs; completed families must not execute through old APIs.
+  Shared state remains singular throughout: migrated backend operations use the existing cache/manager
+  services, never a parallel cache. The cache name changes only after its execution surface is removed.
+  Permanent exact engine adapters, existing opaque resource-reference accessors and private manager
+  publication handoff are intentional final boundaries, not exceptions allowing internal execution bypasses.
+
+  Every family completion requires these receipts:
+    - Before/after caller and API inventory naming removed entry points and the final routes used.
+    - Source inspection showing native execution only in the family's backend modules, no shim or retry path.
+    - Focused behavioral tests for effects, failure, original identity, suppression and restoration.
+    - Exact external overloads preserve arguments/errors and execute/publish once without recursion.
+    - Old capability variants, DSA-emulation scopes and fallback-only tests removed in that same unit.
+    - Linked documentation reconciled and residual work assigned to an explicitly incomplete family.
+
+Scope and implementation boundaries
+  - Uppercase RHI in interface names/directories. OpenGlStateCache is backend-specific; existing GPU
+    resource names and the implemented GpuTextureRef contract remain. No parallel resource hierarchy.
+  - Managed execution uses OpenTK.Graphics.OpenGL4 and core 4.5 directly. Optional features beyond 4.5
+    have focused checks; no generic fallback registry, version strategies, DSA flag or variant table.
+  - Keep required bound semantics, mutable storage semantics and exact engine calls. Never retry a
+    native failure through another path. Use enum members, not numeric GL tokens.
+  - Preserve the approved query policy: supplied/default/derived facts; narrowly justified sample-count,
+    resolved-format, shader output/interface, external acquisition/recovery and deletion-outcome reads.
+    No universal GetError drain, Is-object probing, descriptor readback or requested/actual duplicate cache.
+  - Immediate creation/storage/configuration/mip generation; recordable upload/copy/clear, bindings,
+    complete passes, draw/dispatch, barriers, synchronization and query/readback operations.
+  - No worker scheduling, asynchronous submission, shared-context execution, nested lists, cross-list
+    scheduler, second backend, shader translation, render graph, global PSO cache or automatic sharing.
+  - No new game launch or visual acceptance by the agent. Delegate all build/test execution to subagents.
+    DEBUG-only diagnostics; no instrumented Release product. Keep measured CPU results separate from
+    GPU/frame-time and user-run visual evidence.
+  - No architectural decisions remain open. Concrete API spelling, typed-page sizing and pooling are
+    implementation details subject to the approved contracts and measurements, not scope expansion.
+
+Phase 1: Establish final contracts and migration dependency closure
+  Outcome: the final API model and explicit migration units are defined before replacing execution.
+
+  ☐ Inventory affected production callers and existing backend/native paths by operation family.
+    Include wrappers/helpers, manager creation/readers/deletion, EngineStateCallMap/NativeAdapters,
+    shader assets/binary caches, generated bindings, geometry, pass helpers, uniform allocators and renderers.
+    Use source inspection; do not restrict supported operations to those observed in today's engine calls.
+  ☐ Record each unit's old entry points, final contracts, dependencies, callers, verification and removals.
+    Reconcile against existing inventory/API coverage and retained GL/Core, Ext and Arb interception scope.
+    Keep legacy and other auxiliary namespaces excluded. Merge inseparable units rather than adding shims.
+  ☐ Define RHICommandContext, IRHIBackend, RHICapabilities, RHICreationResult<TResource>, RHICommand
+    and RHICommandList contracts, including immediate/recordable dispositions and errors/completion states.
+    Define shader/PSO contracts before command payloads: RHIShaderDescription/RHIShader/RHIShaderRef,
+    RHIGraphicsPipelineDescription/RHIComputePipelineDescription, RHIGraphicsPipeline/RHIComputePipeline
+    and their consumer-only references with exact generation identity.
+  ☐ Define project-owned descriptors/enums for initialization, ranges, geometry, attachments, pipeline
+    state, bindings and synchronization. Public operations accept no GL enum, native ID, target or DSA flag.
+    Keep omission versus explicit zero/false and initial-content payloads distinct from metadata.
+  ☐ Retain GpuTextureRef unchanged and specify analogous typed refs only where operations require them:
+    GpuBufferRef, GpuSamplerRef, GpuRenderbufferRef, GpuFramebufferRef, GpuVertexArrayRef, GpuQueryRef,
+    GpuSyncRef, GpuTransformFeedbackRef, GpuSemaphoreRef and GpuMemoryObjectRef. Keep native shader,
+    program and program-pipeline refs private; references grant neither deletion nor resize authority.
+  ☐ Specify geometry inputs, attachment-based pass targets, execution-time uniform allocation and boundary
+    declarations in the final signatures; resolve caller dependencies before writing migration code.
+  ☐ Establish steady-state source ownership: Rendering/RHI/Commands, Rendering/RHI/Backends/OpenGL,
+    and existing manager/metadata/initialization/wrapper domains. No aggregate dispatcher or new registry.
+  ☐ Verify the contract-to-proposal mapping and unit order, especially the combined Phase 5 closure.
+    Record fresh baseline build/test/package commands and evidence through delegated tools.
+  ☐ Completion: contracts and dependency map cover every operation family without temporary execution
+    adapters, production placeholders or an API that must be replaced again in a later phase.
+
+Phase 2: Establish backend admission and replace the buffer family
+  Depends on Phase 1.
+  Outcome: buffers execute through the final immediate RHI path, with one cache and manager authority.
+
+  ☐ Implement backend/context association and one-time 4.5 version/entry-point admission. Project existing
+    cached limits and optional capabilities through RHICapabilities; reject unsupported contexts explicitly.
+    Preserve context-local tools and existing native-context identity/retirement services.
+  ☐ Implement the shared operation sequence: validate/guard, suppress eligible known-equal state,
+    retain original identity, withdraw affected metadata, execute explicit internal steps, reconcile and
+    commit once. Disposal is cleanup, not success; no ambient collector or arbitrary joining callback.
+  ☐ Implement typed owned creation using unpublished internal recipients and private manager handoff.
+    Return completed owners or failure diagnostics, propagate required exceptions, publish before handoff
+    and clean candidate-only allocations. Avoid constructor/factory recursion and public recipient APIs.
+  ☐ Replace buffer creation/storage/configuration/upload/copy/clear and manager acquisition/deletion paths
+    with direct core named operations. Preserve wrapper growth policy and GpuBufferUploader responsibility.
+    Initial CPU content is stable until return; GPU staging follows explicit completion lifetimes.
+  ☐ Update all affected helpers and callers directly, including uniform/geometry storage callers where
+    they consume buffer operations. Remove old buffer execution entry points and try-named/retry fallback.
+    The uniform publication algorithm and geometry draw family remain explicitly incomplete until Phase 5.
+  ☐ Move this family's exact engine overloads to internal backend forwarding modules with compiler-checked
+    signatures, reserved-name semantics and shared reconciliation. Keep metadata readers manager-owned.
+  ☐ Test content, capacity, omitted inputs, partial creation failure, local contexts, same-ID reuse and
+    queued retirement. Prove uploads do not publish capacity, native work never retries, and sentinel
+    bindings survive named operations and necessary external bound operations.
+  ☐ Completion: mandatory migration receipts pass for the entire buffer unit; no old buffer executor
+    remains behind the new API. Other resource families are identified as incomplete, not shimmed.
+
+Phase 3: Replace images, samplers and backing-resource relationships
+  Depends on Phase 2.
+  Outcome: owned and borrowed image resources use final creation, mutation and lifetime routes.
+
+  ☐ Implement texture/renderbuffer/sampler creation, storage/configuration, uploads/copies/clears and
+    immediate mip generation. Use core Create* and named APIs where equivalent; keep mutable image
+    definitions bound with backend-owned restoration, never substitute immutable storage semantics.
+  ☐ Migrate DynamicTexture2D, DynamicTextureCube and other image wrappers/helpers without removing
+    allocation-policy inputs. Include cube faces/mips, multisample images and cached format/sample limits.
+    Publish coherent image facts once, with only the approved narrow driver-derived reads.
+  ☐ Implement explicit buffer-texture and native texture-view creation with backing refs and subresource
+    ranges. Preserve dependencies, alias validity and view-relative selections through replacement/failure.
+  ☐ Migrate external borrowing/adoption and native readers. Reuse available manager facts; unknown external
+    facts use explicit acquisition. Native IDs stay at integration boundaries; ownership transfer is explicit.
+    Owner refs follow intentional replacement; old borrowers/views retain original associations.
+  ☐ Migrate image/sampler disposal and exact engine operations together with their caller/helper coverage.
+    Failure clears provisional identity, retires only owned candidates and preserves documented replacement
+    behavior; no deletion of borrowed backing objects and no invented rollback.
+  ☐ Implement buffer-to-texture/texture-to-buffer transfer payload contracts with offsets/layout/pitches
+    so later compute consumers need no raw pixel-buffer scopes or pointer-shaped semantic APIs.
+  ☐ Test cube/mip derivation, partial allocation cleanup, contents, view ranges, replacement/name reuse,
+    borrowed lifetime, sampler configuration, optional features and selector preservation. Remove baseline
+    capability forks and fallback tests from wrappers, creation, readers and fixtures in this unit.
+  ☐ Completion: image/sampler family receipts pass with no old executor. Framebuffer pass realization
+    remains in Phase 5 and must call these completed image operations through their final contracts.
+
+Phase 4: Replace synchronization, queries and remaining non-draw resource operations
+  Depends on Phase 3.
+  Outcome: final immediate completion and auxiliary-resource operations are ready for render submission.
+
+  ☐ Implement semantic access barriers, fence insertion, GPU waits and explicit immediate CPU polling/waits.
+    Preserve ordering and existing retirement; do not infer hazards/render graphs or fence every operation.
+  ☐ Implement query creation, timestamp/statistics operations and owned-staging readback requests with
+    Pending/Ready/Failed/Cancelled outcomes. Mapping requires readiness; CPU dispatch is not GPU completion.
+    Retain staging/mapped ownership through actual completion, including errors and context retirement.
+  ☐ Implement supported semaphore/memory-object creation/import/configuration and synchronization with
+    explicit optional feature checks and handle ownership. Reject unsupported requests before dispatch.
+  ☐ Replace transform-feedback resource creation/configuration and other remaining non-draw operations
+    identified by Phase 1. Coordinate execution-dependent work with Phase 5; merge a unit if dependency
+    inspection shows its caller closure requires draw execution. Do not declare a partial family complete.
+  ☐ Move corresponding exact adapters, acquisition, helpers and deletion paths into their final backend
+    modules. Preserve kind-specific deletion outcomes and original-context queue admission.
+  ☐ Test ready/pending/failure/cancellation, staging reuse, explicit waits, context loss and unsupported
+    optional requests. Mark unavailable hardware cases as evidence gaps, not successful execution.
+  ☐ Completion: each accepted unit meets mandatory receipts; all Phase 5 synchronization/transfer
+    dependencies use final operations with no temporary bridge to old StateCache execution methods.
+
+Phase 5: Replace shader, pipeline and immediate rendering as one integration unit
+  Depends on Phases 2–4 and Phase 1's final shader/PSO contracts.
+  Outcome: RHICommandContext is the sole immediate graphics/compute submission context.
+  This is one completion gate with ordered work packages below. Shader/PSO internals may be developed
+  first, but the unit cannot complete while old program/pipeline/context consumers require shims.
+
+  ☐ Implement immutable stage-code/entry-point/specialization/binding descriptions and owned RHIShader.
+    Keep asset loading/preprocessing/permutations/offline and binary-cache policy above native execution.
+    Backend privately compiles/specializes/links or installs binaries; native resources stay manager-owned.
+    Require optional SPIR-V support or supplied supported GLSL; no silent translation or asset substitution.
+  ☐ Implement CreateShader and BeginCreateShader with pending completion, diagnostics, cancellation,
+    original associations and candidate-only cleanup. Clean temporary stages; expose no partial executable.
+    Install fixed ready generations; external executable changes invalidate use without in-place RHI relink.
+  ☐ Implement graphics/compute PSO creation and refs, target/layout/stage validation, immutable state and
+    dynamic-state declarations. Equality includes behavior and exact shader generation, not labels.
+    Keep renderer-owned reuse; no global cache, reference-counted sharing, duplicate linking/reflection
+    or invented native registry entries for purely managed PSOs. PSO disposal does not dispose its shader.
+  ☐ Migrate reload installation across shader owners and renderer PSOs together: build compatible sets,
+    swap between submissions, retain installed sets on failure, reject stale candidates and retired refs.
+    Retained live old generations remain usable; prepared tables cannot silently retarget new interfaces.
+  ☐ Implement geometry inputs and backend VAO realization/configuration using core named operations.
+    Move upload/adoption, manager validation, vertex/index/indirect binding, draws and retirement together.
+    Replace GraphicsGeometry.Submit, EngineFullscreenGeometry and CloudSimpleGeometry execution routes;
+    adapters expose inputs, not native draws. Preserve ownership and callback-scoped engine borrowing.
+    Validate descriptors/alignment/known bounds; producers own index and GPU-generated argument values.
+    No index/indirect content readback or GPU synchronization merely to validate those contents.
+  ☐ Implement attachment-based descriptions and context/backend-scoped framebuffer realization/reuse.
+    Key by original associations, subresources and native configuration/routing, not bare IDs or wrapper
+    equality; load/store/clear values do not create new realizations. Explicit surfaces use integration rules.
+    Manager owns metadata/dependencies; check completeness before pass effects, clean failed candidates,
+    invalidate dependent cache entries on replacement/deletion and retire owned targets on context teardown.
+    Preserve borrowed engine framebuffer ownership and existing pass guards/restoration helpers.
+  ☐ Migrate generated bindings, ShaderPreparedSubmission, GpuPreparedBindings, CpuUniformBuffer,
+    UniformPublication and allocators together. Preparation uses supplied metadata; full sets validate before
+    binding. Logical snapshots carry bytes/revision/lifetime; physical storage is selected in the current
+    execution epoch. Successful binding commits only the captured version, never a newer CPU edit.
+    Preserve persistent/transient storage completion rules, candidate abort and compatibility history.
+  ☐ Implement final resource binding, dynamic state, pass sequencing, direct/indexed/instanced/indirect
+    draw and compute dispatch on RHICommandContext. Reuse helper responsibilities; no duplicate state.
+    Preserve stable-binding suppression, image level/layer/access/format and alias feedback validation.
+  ☐ Implement boundary admission using declared pipeline sets and state footprints. Capture selectively
+    before mutation; reject undeclared operations before dispatch. Restore on success/failure and retain
+    existing usage/reentry guards. Compute and graphics share the context; renderers only orchestrate.
+  ☐ Reconcile separately scheduled PSO multi-bind work with the current checkout: use core 4.5 multi-bind
+    and existing slot knowledge, with singles for semantic eligibility/measured policy, not old contexts.
+    Do not reimplement separately completed work or retain its older-context fallback after migration.
+  ☐ Migrate all affected renderers, shader owners and external integration callers directly. In particular,
+    preserve direct-lighting geometry, depth hierarchy dispatch→barriers→tail transfers→publication,
+    cloud borrowing/content certificates, screen resize and reload/disposal order. Resource validity is
+    not content freshness; producer admission remains outside the RHI and must survive these migrations.
+  ☐ Move this unit's exact engine overloads/readers/retirement and remove superseded shader/PSO APIs,
+    GraphicsCommandContext, adapter-owned draws and raw render dispatch. No temporary program/PSO facade.
+  ☐ Test synchronous/pending/binary shader creation, failures/cancel, immutable identity and atomic reload;
+    PSO ownership/reuse; known-bound geometry checks/expired borrows; target cache reuse/subresources/
+    replacement/name reuse/incomplete cleanup; uniform epochs/new edits/failures; pass feedback and
+    selective restoration; complete graphics and compute output parity and publication counts.
+  ☐ Completion: every work package and mandatory family receipt passes; all callers use final immediate
+    contracts, the old graphics context is deleted, and no old execution path is required for compilation
+    or runtime. Split acceptance is prohibited even if isolated shader or pipeline tests already pass.
+
+Phase 6: Implement single-use command recording on the final immediate machinery
+  Depends on Phase 5.
+  Outcome: lists record context-independent inputs and execute through the same backend as immediate calls.
+
+  ☐ Implement immutable RHICommand headers, reusable typed payload pages and list-owned reference tables.
+    Copy spans/arrays/mutable descriptions, retain immutable executable descriptions, and avoid closures,
+    arbitrary callbacks, unmanaged managed-reference unions or mandatory per-command heap allocation.
+  ☐ Implement exclusive list ownership and Recording→Closed→Executing→Executed/Failed lifecycle,
+    cancellation before execution, reset only after terminal state, and no replay/concurrent cancellation.
+    Closing freezes/publishes complete arguments for ownership transfer; context identity is explicit.
+  ☐ Add recordable upload/copy/clear, bindings/dynamic state, full passes, draw/dispatch, barriers,
+    synchronization, query and readback operations. Keep general creation/storage/mips immediate.
+    Query resources preexist recording; fence markers return pending tickets, not provisional GpuSyncRefs.
+  ☐ Record only supplied shape/balanced-pass checks. No native context, mutable resource inspection,
+    manager/cache access, pass guards, target realization, uniform allocation or history publication.
+    Build closed-list boundary declarations from immutable descriptions and operation kinds.
+  ☐ Execute on the originating context thread in explicit order; validate limits/optional features and
+    original/current resource identity as appropriate before affected work. Owner-following texture refs
+    resolve at execution; shader/PSO refs and table identity stay fixed. Recheck bounds and feedback.
+    Existing boundaries must admit the list footprint; no silent widening or implicit state isolation.
+  ☐ Execute captured uniform snapshots through Phase 5 publication services in the current epoch.
+    Cancelled lists allocate nothing and never clear dirty work; recorded equality cannot suppress an
+    upload merely because an earlier unexecuted recording promised it.
+  ☐ Implement failure index/original error, stop without retry/rollback, unwind scopes and withdraw only
+    uncertain knowledge. Fail/cancel unexecuted requests; retain completion ownership for enqueued work.
+    Context retirement cancels CPU work without GL into a replacement context. Reset releases CPU storage,
+    not GPU-used staging; successful Submit adds neither Finish nor an automatic fence.
+  ☐ Exercise representative graphics, depth and borrowed-resource paths with recording where their existing
+    usage interval permits; keep immediate default and producer freshness checks. Lists cannot straddle
+    engine callbacks or leave passes active for another list. Do not extend an engine borrow for convenience.
+  ☐ Test no-current-context recording, frozen arrays/descriptions, close/reset/cancel, expired refs/borrows,
+    replacement/reload, optional rejection, partial failure, pending fence cancellation, readback staging,
+    execution-time uniform allocation and immediate/recorded output/state equivalence.
+  ☐ Completion: all recorded operations use final backend execution without a second dispatcher authority,
+    metadata path or compatibility facade; lifecycle and failure receipts cover every result-bearing path.
+
+Phase 7: Finish the cache split and reconcile architecture documentation
+  Depends on Phase 6; prior family cleanup is a prerequisite, not work deferred into this phase.
+  Outcome: final naming/layout matches the approved ownership boundaries throughout the repository.
+
+  ☐ Audit every Phase 1 family against its receipts and all remaining native dispatch sites. A surviving
+    old executor/shim reopens its owning unit; do not relabel it an allowed integration path.
+  ☐ Rename the remaining StateCache to OpenGlStateCache with all callers updated in the same change.
+    Leave no old-name forwarding type/alias. Confirm it owns knowledge/suppression/restoration facts and
+    effect forwarding, not a public native executor. Manager reads/creation invoke backend services without
+    recursive creation; native query services remain manager-owned.
+  ☐ Confirm exact engine adapters are the permanent compiler-checked boundary, only allowed namespaces
+    are covered, original overload/error semantics survive, and native backend calls cannot recurse.
+  ☐ Reconcile Rendering.GpuResources.md, Rendering.ShaderBindingState.md and affected architecture/API
+    documents with implemented state. Update active inventory/coverage and parent plan cross-references;
+    do not turn permanent documentation into migration history or add external-engine comparisons.
+  ☐ Completion: final source audit finds no internal execution bypass, duplicate authority, temporary shim,
+    obsolete capability path or old context/cache alias. Documentation describes implemented contracts.
+
+Phase 8: Qualify integrated behavior, cost and release artifacts
+  Depends on Phase 7.
+  Outcome: correctness, measured costs, package identity and outstanding live evidence are explicit.
+
+  ☐ Run delegated focused and integrated regressions on an immutable candidate, covering all family receipts,
+    original-context retirement, aliases/views, local tools, context loss, rejected commands, exactly-once
+    external calls and immediate/recorded equivalence. Keep hardware coverage gaps explicit.
+  ☐ Run canonical Debug/Release build and package tooling through subagents; verify installed/package
+    identity where the repository workflow requires it. Confirm diagnostic counters remain DEBUG-only.
+    Do not create an instrumented Release product to obtain measurements.
+  ☐ Measure unchanged/changed/sparse bindings, small/large payloads and representative cloud/depth passes:
+    baseline versus immediate facade versus recorded submission CPU cost, allocations/retained capacity,
+    native bindings, metadata queries and publication counts. Separate preparation/copy/record/validate/
+    dispatch costs; choose page sizes/pooling from evidence without claiming frame-time improvement.
+  ☐ Record whether CPU recording offers enough parallelizable work to justify a future proposal, without
+    adding workers, async submission or concurrency qualification to this implementation.
+  ☐ Provide a user-run visual/runtime checklist for graphics, compute, cloud/depth content ordering,
+    resize, shader reload and teardown. Record actual user evidence separately from headless tests and
+    CPU measurements; leave live appearance/performance acceptance unchecked until supplied.
+  ☐ Reconcile every proposal requirement with implementation and evidence; resolve deviations or obtain
+    explicit scope approval rather than declaring unimplemented requirements complete.
+  ☐ Completion: all required correctness/package/measurement receipts and user-run acceptance are recorded;
+    remaining unsupported hardware evidence is disclosed, and no unapproved architecture deviation remains.
+
+Final acceptance
+  ☐ All eight phases and mandatory migration receipts are satisfied; later cleanup never substitutes for
+    removing superseded APIs within their owning migration unit.
+  ☐ Final APIs are backend-neutral, managed OpenGL execution requires 4.5, and every native operation has
+    one execution owner with existing manager metadata/lifetime authority and preserved cache behavior.
+  ☐ GraphicsCommandContext and StateCache's old execution/name surfaces are gone; shader/PSO, geometry,
+    targets, uniforms, synchronization and recording follow the approved final contracts.
+  ☐ Tests, current-state docs, package verification, measurements and user-run evidence support the claimed
+    outcome without claiming unmeasured GPU performance or treating headless results as visual acceptance.
+
+Proposal coverage map
+  Boundary, operations, capabilities and resource inputs: Phases 1–5; final cache split in Phase 7.
+  Creation/adoption, initial content, original identity and retirement: Phases 2–5; lifecycle tests in 6/8.
+  Shader/PSO creation, generation identity, replacement and ownership: Phase 5; recorded rejection in 6.
+  Geometry, attachment targets and immediate submission: Phase 5; recorded consumption in 6.
+  Uniform capture, physical publication and history: Phase 5; recording/epoch/cancellation tests in 6.
+  Recording, ownership transfer, tickets, failure and CPU/GPU completion: Phases 4/6.
+  Native dispatch, publication, exact integration and no-shim migration: mandatory receipts, Phases 2–7.
+  Representative outcomes, baseline comparison, package and user-run qualification: Phase 8, supported
+    by focused verification and current-state documentation in every owning migration unit.
