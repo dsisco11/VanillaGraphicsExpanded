@@ -3,7 +3,7 @@ RHI commands and command lists — implementation plan
 
 Source proposal: [Rendering.GpuCommands.Proposal.md](Rendering.GpuCommands.Proposal.md).
 Parent design task: Rendering.GpuResourceHandles.todo, Phase 8.
-Status: planned; all implementation and qualification tasks are outstanding.
+Status: Phase 1 complete; runtime migration and qualification in Phases 2–8 remain outstanding.
 
 Goal
   Implement the approved semantic RHI boundary, immediate execution and optional single-use recorded
@@ -58,34 +58,43 @@ Scope and implementation boundaries
 
 Phase 1: Establish final contracts and migration dependency closure
   Outcome: the final API model and explicit migration units are defined before replacing execution.
+  Deliverables: [final contract definitions](Rendering.GpuCommands.Contracts.md) and
+    [source inventory, replacement units and baseline evidence](Rendering.GpuCommands.Migrations.md).
+  Contracts are defined in these planning companions; production types are implemented with their
+    complete families below, without empty interface scaffolding or old-executor forwarding placeholders.
 
-  ☐ Inventory affected production callers and existing backend/native paths by operation family.
+  ☑ Inventory affected production callers and existing backend/native paths by operation family.
     Include wrappers/helpers, manager creation/readers/deletion, EngineStateCallMap/NativeAdapters,
     shader assets/binary caches, generated bindings, geometry, pass helpers, uniform allocators and renderers.
     Use source inspection; do not restrict supported operations to those observed in today's engine calls.
-  ☐ Record each unit's old entry points, final contracts, dependencies, callers, verification and removals.
+  ☑ Record each unit's old entry points, final contracts, dependencies, callers, verification and removals.
     Reconcile against existing inventory/API coverage and retained GL/Core, Ext and Arb interception scope.
     Keep legacy and other auxiliary namespaces excluded. Merge inseparable units rather than adding shims.
-  ☐ Define RHICommandContext, IRHIBackend, RHICapabilities, RHICreationResult<TResource>, RHICommand
+  ☑ Define RHICommandContext, IRHIBackend, RHICapabilities, RHICreationResult<TResource>, RHICommand
     and RHICommandList contracts, including immediate/recordable dispositions and errors/completion states.
     Define shader/PSO contracts before command payloads: RHIShaderDescription/RHIShader/RHIShaderRef,
     RHIGraphicsPipelineDescription/RHIComputePipelineDescription, RHIGraphicsPipeline/RHIComputePipeline
     and their consumer-only references with exact generation identity.
-  ☐ Define project-owned descriptors/enums for initialization, ranges, geometry, attachments, pipeline
+  ☑ Define project-owned descriptors/enums for initialization, ranges, geometry, attachments, pipeline
     state, bindings and synchronization. Public operations accept no GL enum, native ID, target or DSA flag.
     Keep omission versus explicit zero/false and initial-content payloads distinct from metadata.
-  ☐ Retain GpuTextureRef unchanged and specify analogous typed refs only where operations require them:
+  ☑ Retain GpuTextureRef unchanged and specify analogous typed refs only where operations require them:
     GpuBufferRef, GpuSamplerRef, GpuRenderbufferRef, GpuFramebufferRef, GpuVertexArrayRef, GpuQueryRef,
     GpuSyncRef, GpuTransformFeedbackRef, GpuSemaphoreRef and GpuMemoryObjectRef. Keep native shader,
     program and program-pipeline refs private; references grant neither deletion nor resize authority.
-  ☐ Specify geometry inputs, attachment-based pass targets, execution-time uniform allocation and boundary
+  ☑ Specify geometry inputs, attachment-based pass targets, execution-time uniform allocation and boundary
     declarations in the final signatures; resolve caller dependencies before writing migration code.
-  ☐ Establish steady-state source ownership: Rendering/RHI/Commands, Rendering/RHI/Backends/OpenGL,
+  ☑ Establish steady-state source ownership: Rendering/RHI/Commands, Rendering/RHI/Backends/OpenGL,
     and existing manager/metadata/initialization/wrapper domains. No aggregate dispatcher or new registry.
-  ☐ Verify the contract-to-proposal mapping and unit order, especially the combined Phase 5 closure.
+  ☑ Verify the contract-to-proposal mapping and unit order, especially the combined Phase 5 closure.
     Record fresh baseline build/test/package commands and evidence through delegated tools.
-  ☐ Completion: contracts and dependency map cover every operation family without temporary execution
+  ☑ Completion: contracts and dependency map cover every operation family without temporary execution
     adapters, production placeholders or an API that must be replaced again in a later phase.
+  Evidence: contract/proposal second review and independent stage audit completed against the linked
+    authority. Fresh delegated baseline results and exact receipt paths are in the migration companion.
+    Release package/identity passed; ordinary focused Release had four disclosed observer failures,
+    affected-class JIT-controlled rerun passed, and broad Debug execution was interrupted with failures.
+    This establishes the starting condition, not a clean-suite or runtime-migration completion claim.
 
 Phase 2: Establish backend admission and replace the buffer family
   Depends on Phase 1.

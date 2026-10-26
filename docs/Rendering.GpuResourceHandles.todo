@@ -51,7 +51,7 @@ Goal and governing contracts
   display lists, server/client attribute stacks and legacy client-array state/default resets. Phase 4b
   removes their existing support. Commands introduced before 3.0 that remain part of modern OpenGL
   (for example texture/buffer operations and ordinary depth/blend state) remain supported; API age alone
-  is not the removal criterion. This exclusion does not narrow the separate GpuCommandList RHI design.
+  is not the removal criterion. This exclusion does not narrow the separate RHICommandList RHI design.
   Keep registry, common registration/dispatch, typed metadata definitions and native adapters in files
   with those respective responsibilities. Follow repository comment and region conventions.
   Use subagents for every build/test invocation. Keep source, unit, GPU integration, package and live
@@ -1163,7 +1163,7 @@ Phase 7: Design and implement the unified GpuTextureRef API
   ☑ Completion: the approved GpuTextureRef design is implemented across affected consumers,
     ownership/mutation remain explicit, manager authority and binding suppression are preserved,
     and documentation plus validation identify the same qualified implementation. Supply this
-    implemented contract to the following GpuCommand/GpuCommandList design.
+    implemented contract to the following RHICommand/RHICommandList design.
   Verification: 180/180 generator tests; 113/113 Debug GPU tests plus 2/2 added-path tests;
   115/115 canonical Release GPU tests. Canonical build/package succeeded; tested/published/packaged
   runtime SHA256 7D5AFEFE4FCA17E8EB9F44C0FBBDCB68CE1F63BF374B3F0F6C2A0C2FB0DFE46E matches,
@@ -1172,60 +1172,110 @@ Phase 7: Design and implement the unified GpuTextureRef API
   canonical-release-07.log, canonical-package-identity.json and final-source.csv.
   Qualification is headless/package only; live appearance and frame-time performance are not established.
 
-Phase 8: Design the GpuCommand and GpuCommandList render hardware interface
+Phase 8: Design the RHICommand and RHICommandList render hardware interface
   Depends on Phase 7 and its implemented GpuTextureRef API, together with Phase 6's qualified contracts.
   Outcome: a standalone, reviewable design for an RHI-style command system, with the OpenGL backend
-  encapsulating native execution and subsequent GpuStateCache updates. This phase produces a proposal,
+  encapsulating native execution and subsequent OpenGlStateCache updates. This phase produces a proposal,
   not the command implementation or the StateCache rename.
+  Proposal: [Rendering.GpuCommands.Proposal.md](Rendering.GpuCommands.Proposal.md).
+  Status: proposal reviewed and approved, including naming, migration, recording and OpenGL 4.5.
+  Implementation is tracked separately in Rendering.GpuCommands.todo; its first phase defines final
+  contracts and complete replacement units before runtime migration.
+  Design authority is the current resource/binding contracts, inventory/API coverage and archived
+  proposals at 3f307365 (command publication) and b9fca04c (texture reference).
+  This design task makes no runtime implementation claim; execution and cache renaming belong to that plan.
 
-  ☐ Create Rendering.GpuCommands.Proposal.md. Use Unreal Engine 5's RHI as an architectural reference,
-    consulting its official documentation/source during design. Define this project's required boundary
-    rather than copying engine-specific infrastructure or merely wrapping individual GL calls.
-  ☐ Define the responsibilities and APIs of GpuCommand, GpuCommandList, backend execution and
-    GpuStateCache (the planned name for StateCache). Keep the public command model independent of
+  ☑ Create Rendering.GpuCommands.Proposal.md as a self-contained design derived from this project's
+    resource, execution and binding contracts. Define semantic operations and backend responsibilities
+    rather than merely wrapping individual GL calls. Do not reference other engines as design authority.
+  ☑ Define the responsibilities and APIs of RHICommand, RHICommandList, backend execution and
+    OpenGlStateCache (the planned name for StateCache). Keep the public command model independent of
     OpenGL entry points, binding targets and overload conventions; translate backend-neutral operations
     into native commands inside the OpenGL backend. Establish extension points for other backends
     without requiring another backend implementation as part of this design.
-  ☐ Define coverage for resource creation/destruction, storage changes, uploads/copies/readback,
+  ☑ Define coverage for resource creation/destruction, storage changes, uploads/copies/readback,
     pipeline and resource binding, render passes, draw/dispatch, synchronization and queries.
     Use the implemented GpuTextureRef contract for texture references; specify other typed resource references,
     descriptors, capabilities and unsupported-operation behavior.
     Keep wrapper allocation policy and higher-level rendering orchestration above backend execution;
     retain manager ownership of canonical metadata and typed snapshot publication.
-  ☐ Design backend-owned dispatch between DSA and non-DSA implementations. Callers express a typed
-    resource operation once, without capability branches, DSA flags, native entry-point selection or
-    manual fallback binding scopes. Select the supported implementation inside the OpenGL backend
-    using cached per-operation capabilities, including applicable core/ARB/EXT variants rather than
-    assuming one global DSA switch. Specify fallback binding, restoration and GpuStateCache updates
-    so both paths satisfy the same public operation contract and publish metadata exactly once.
-    Distinguish unsupported capability from command failure; do not retry a failed or partially
-    executed operation through another path as an implicit fallback. Demonstrate the abstraction for
-    buffers, textures, framebuffers and VAOs, and plan capability-enabled/disabled tests for equivalent
-    results, preserved surrounding state and absence of redundant binds or capability queries.
-  ☐ Specify command-list recording, execution, submission, reset/reuse and completion semantics.
+    Define one typed RHI resource-creation result returning a completed owned resource or diagnostics,
+    not a public recipient/native-handle/nullable-metadata handoff. Keep manager initialization and
+    publication mechanics internal; preserve existing resource abstractions and ownership services.
+    Specify separate initial-content payloads, payload/staging lifetimes and usable-versus-GPU-complete
+    semantics. Separate external borrowing and explicit ownership-taking adoption from owned creation.
+    Cover candidate-only cleanup, original-context retirement, owner replacement and unchanged original
+    borrower/view associations. No parallel registry or new resource-management hierarchy.
+    Define shader/PSO contracts before command payload and draw/dispatch implementation: immutable
+    stage-code inputs, backend-private compilation/linking, ready executable generations and prepared
+    interfaces; synchronous/pending shader creation results and candidate-only failure cleanup.
+    Define graphics/compute PSO descriptions, immediate realization, exact shader-generation identity,
+    renderer-owned reuse without a new global cache, consumer-only references and disposal authority.
+    Define atomic installation of replacement shader/pipeline sets, preservation of the installed set
+    on failure, and rejection of stale recorded pipelines/binding tables without silent retargeting.
+    Implement shaders/PSOs as a separate complete migration unit after the shared contracts, before
+    draw/dispatch integration. No temporary current-program/GraphicsPipeline compatibility API.
+    RHICommandContext entirely replaces GraphicsCommandContext for submission: migrate pass sequencing,
+    pipeline/dynamic state, binding validation/publication, draw/dispatch and boundary coordination.
+    Update every caller and delete GraphicsCommandContext in that replacement unit, with no forwarding
+    facade or duplicated submission state. Retain specialized helpers behind the unified context and
+    renderer-owned orchestration above it; immediate and recorded execution share the same machinery.
+    Retain manager publication and existing native retirement; no new metadata authority. Extensive
+    PSO precaching, worker compilation and parallel translation remain outside this scope.
+  ☑ Require OpenGL 4.5 or newer and OpenTK.Graphics.OpenGL4 for managed RHI execution.
+    Validate baseline/version and required entry points once at backend initialization; reject older
+    contexts without fallback. No platform/adoption examination is required for this approved decision.
+    Use core DSA wherever equivalent; remove older-context named/bound branches and redundant native
+    variants for baseline operations. Keep optional features beyond 4.5 capability-gated.
+    Implement baseline operations directly, without per-operation variant tables, DSA enable flags,
+    version strategies or a generic fallback registry. RHICapabilities exposes semantic limits/optional
+    features from existing cached discovery. Use core Create* and named queries wherever equivalent;
+    retain reserved-name behavior only where the specific creation/external contract requires it.
+    Callers express semantic operations without native selection or manual binding scopes. Bound APIs
+    remain only where semantics require them, including mutable image definitions and exact external
+    calls; preserve their surrounding state within the backend. Never retry failed native execution.
+    Demonstrate buffers, textures, framebuffers and VAOs; test baseline admission/rejection, DSA state
+    preservation, necessary bound semantics and optional-feature support. Publish metadata exactly once.
+  ☑ Specify command-list recording, execution, submission, reset/reuse and completion semantics.
     Evaluate immediate and deferred execution, argument/data ownership, resource retention, cancellation,
     context/thread affinity and synchronization. Distinguish recording, native execution and GPU
     completion; do not assume multithreaded OpenGL execution or asynchronous submission is required.
-  ☐ Specify the execution sequence: commands encapsulate native OpenGL calls, then invoke
-    GpuStateCache to reconcile their actual state, metadata and deletion effects. Preserve binding
+    Approved recording contract: exclusive list ownership, list-local mutable state, frozen/copied
+    arguments and no recording-time native context, resource metadata, registry or executed-cache access.
+    Define closed-list publication/ownership transfer and explicit submission ordering now. Implement
+    immediate and single-threaded recorded execution first; keep native execution context-affine.
+    Preserve efficient execution without requiring performance baselines, benchmarks or timing studies.
+    Worker integration requires separate design approval and concurrency/lifetime tests;
+    a dedicated RHI execution thread and parallel native translation remain separate decisions.
+  ☑ Specify the execution sequence: commands encapsulate native OpenGL calls, then invoke
+    OpenGlStateCache to reconcile their actual state, metadata and deletion effects. Preserve binding
     suppression decisions before execution, rejected-command behavior, unknown-state recovery,
     grouped publication and exactly-once manager notifications. Recording alone must not change
     executed state or publish resource metadata; content updates remain distinct from metadata changes.
-  ☐ Design integration with existing wrappers/upload helpers, render submission, pass scopes,
+  ☑ Design integration with existing wrappers/upload helpers, render submission, pass scopes,
     deletion queues and EngineStateCallMap redirection. Route intercepted external GL operations into
     the same execution/observation contract without recursion, duplicate execution or duplicate
-    notifications. Plan the StateCache-to-GpuStateCache rename and migration boundaries, preserving
+    notifications. Plan the StateCache-to-OpenGlStateCache rename and migration boundaries, preserving
     existing resource ownership, render ordering, context retirement and external-state restoration.
-  ☐ Walk representative existing paths through the proposed API: cube/mip allocation, buffer
-    DSA/bound fallback, framebuffer reattachment failure, draw/dispatch, external deletion and queued
+    Approved migration contract: define final RHI interfaces/dependency rules first, then replace each
+    operation family completely, including all affected callers and blocking dependencies. Remove
+    superseded APIs in the same replacement; prohibit temporary compatibility facades/forwarding shims.
+    Track unmigrated families as incomplete. Verify behavior, publication, suppression/restoration and
+    absence of internal execution bypasses before accepting a replacement. Exact engine adapters remain
+    the permanent external boundary, not a temporary migration layer.
+    Each family replacement removes obsolete baseline capability branches, retry state, DSA-emulation
+    scopes and fallback-only fixtures across wrappers, helpers, creation and readers. Replace those
+    fixtures with core-operation/state-preservation coverage; retain necessary bound/external tests.
+  ☑ Walk representative existing paths through the proposed API: cube/mip allocation, buffer
+    core DSA and required bound semantics, framebuffer reattachment failure, draw/dispatch, external deletion and queued
     resource retirement. Document error propagation and resource/argument lifetime through execution
-    and GPU completion. Define focused correctness tests and measurement criteria for recording,
-    allocation, dispatch and cache costs; make no unmeasured performance claims.
-  ☐ Review the complete design against the implemented resource contracts and resolve conflicts.
+    and GPU completion. Define focused correctness checks for storage reuse, avoidance of unnecessary
+    allocations/redundant queries and preserved binding suppression; no performance measurement gate.
+  ☑ Review the complete design against the implemented resource contracts and resolve conflicts.
     Present the standalone proposal for approval before deriving implementation phases or changing
     runtime code. Record unresolved design decisions explicitly.
-  ☐ Completion: the RHI boundary, command/list semantics, backend-owned DSA/fallback dispatch,
-    backend execution, GpuStateCache integration,
+  ☑ Completion: the RHI boundary, command/list semantics, the OpenGL 4.5 baseline and backend-owned native dispatch,
+    backend execution, OpenGlStateCache integration,
     migration and validation strategy are concrete and internally consistent; design review is complete
     and the proposal is approved. Implementation and renaming remain separately authorized work.
 
@@ -1290,7 +1340,7 @@ Proposal traceability
   Scope, source layout and documentation: governing contracts; Phases 2–6.
   Acceptance and measurements: baseline in Phase 1; focused verification in Phases 2–5; Phase 6.
   Separately requested unified GpuTextureRef design and implementation: Phase 7.
-  Separately requested RHI command-system design and GpuStateCache rename planning: Phase 8.
+  Separately requested RHI command-system design and OpenGlStateCache rename planning: Phase 8.
   Separately requested capability-selected PSO multi-bind upgrade: Phase 9.
 
 Final acceptance
@@ -1315,6 +1365,6 @@ Final acceptance
   ☑ Phase 7 supplies the unified GpuTextureRef binding/validation API for owned, borrowed and native-view
     inputs while preserving ownership, manager metadata authority, lifecycle and cache behavior.
   ☐ The separately requested Phase 8 command-system design is reviewed and approved; its completion
-    does not claim that GpuCommand, GpuCommandList or the GpuStateCache rename are implemented.
+    does not claim that RHICommand, RHICommandList or the OpenGlStateCache rename are implemented.
   ☐ Phase 9 PSO multi-bind integration preserves individual-call fallback semantics and authoritative
     cache behavior, with regression, package and matched measurement evidence for the final candidate.

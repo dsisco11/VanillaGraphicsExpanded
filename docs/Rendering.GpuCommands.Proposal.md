@@ -1,6 +1,6 @@
 # RHI commands and command lists
 
-Status: proposed for approval. Design deliverable for Phase 8 of
+Status: approved. Design deliverable for Phase 8 of
 [Rendering.GpuResourceHandles.todo](Rendering.GpuResourceHandles.todo). This document proposes
 an execution boundary; it does not implement commands or rename `StateCache`.
 
@@ -639,7 +639,7 @@ Recommended decisions: semantic backend operations; immediate default with initi
 single-use recorded lists and the required context-independent recording contract; execution-time resource resolution; immediate creation/storage/lifecycle
 operations; direct OpenGL 4.5 execution with explicit optional features; existing manager publication
 and error policy.
-These choices are proposed together for review. No unresolved external specification blocks the design;
+These choices are approved together. No unresolved external specification blocks the design;
 API naming and storage sizing/pooling remain implementation details, not permission to change semantics.
 
 Current authority: [GPU resources](Rendering.GpuResources.md),
@@ -651,4 +651,5 @@ is retained at `3f307365:docs/Rendering.CommandPublication.Proposal.md`; the com
 proposal is retained at `b9fca04c:docs/Rendering.GpuTextureRef.Proposal.md`. Consult those Git versions,
 not their removed live paths. The current source remains authoritative for implemented APIs.
 
-Approval of this proposal is required before deriving implementation phases or changing runtime code.
+Implementation follows [Rendering.GpuCommands.todo](Rendering.GpuCommands.todo), with final contracts
+and replacement-unit definitions established before runtime migration. Temporary migration shims remain prohibited.
