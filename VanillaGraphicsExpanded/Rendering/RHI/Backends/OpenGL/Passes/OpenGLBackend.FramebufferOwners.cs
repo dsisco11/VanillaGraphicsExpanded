@@ -5,6 +5,21 @@ internal sealed partial class OpenGLBackend
 {
     #region Public API
     /// <inheritdoc />
+    public void RequireMutableFramebufferOwner(GpuFramebuffer owner)
+    {
+        RequireContext();
+        owner.RequireOriginalContext();
+        cache.RequireMutableFramebufferConfiguration(owner.FboId);
+        owner.RequireMutableStorage();
+    }
+    /// <inheritdoc />
+    public System.IDisposable SealFramebufferConfiguration(GpuFramebuffer owner)
+    {
+        RequireContext();
+        owner.RequireOriginalContext();
+        return new OpenGLFramebufferConfigurationLease(cache, owner);
+    }
+    /// <inheritdoc />
     public void SelectFramebufferOwner(GpuFramebuffer? owner, FramebufferTarget target)
     {
         RequireContext();
@@ -16,10 +31,10 @@ internal sealed partial class OpenGLBackend
     { RequireContext(); OpenGLFramebufferConfiguration.ConfigureRouting(owner, routing, read); }
     /// <inheritdoc />
     public void ConfigureFramebufferAttachment(GpuFramebuffer owner, FramebufferAttachment slot, GpuFramebufferAttachment? image)
-    { RequireContext(); owner.RequireOriginalContext(); OpenGLFramebufferConfiguration.FramebufferTexture(owner, slot, image); }
+    { RequireMutableFramebufferOwner(owner); OpenGLFramebufferConfiguration.FramebufferTexture(owner, slot, image); }
     /// <inheritdoc />
     public void RefreshFramebufferAttachments(GpuFramebuffer owner, System.Collections.Generic.IEnumerable<System.Collections.Generic.KeyValuePair<FramebufferAttachment, GpuFramebufferAttachment>> images)
-    { RequireContext(); owner.RequireOriginalContext(); OpenGLFramebufferConfiguration.ReattachFramebuffer(owner, images); }
+    { RequireMutableFramebufferOwner(owner); OpenGLFramebufferConfiguration.ReattachFramebuffer(owner, images); }
     /// <inheritdoc />
     public void RequireFramebufferComplete(GpuFramebuffer owner)
     { RequireContext(); owner.RequireOriginalContext(); OpenGLFramebufferCompleteness.RequireComplete(owner.FboId); }

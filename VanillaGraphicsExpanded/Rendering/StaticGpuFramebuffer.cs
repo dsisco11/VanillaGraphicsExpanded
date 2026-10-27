@@ -1,4 +1,3 @@
-using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -12,8 +11,7 @@ public sealed class StaticGpuFramebuffer : GpuFramebuffer
 {
     private readonly DrawBuffersEnum[] routing;
     private readonly List<GpuResource> frozen = new();
-    private readonly OpenGlStateCache configurationOwner = OpenGlStateCache.Current;
-    private readonly (nint Handle, long Generation) configurationContext = Integration.RenderContextRegistry.Current();
+    private IDisposable? configuration;
 
     #region Public API
     /// <summary>Creates and freezes a complete framebuffer; backing storage remains borrowed and content writes remain permitted.</summary>
@@ -52,13 +50,13 @@ public sealed class StaticGpuFramebuffer : GpuFramebuffer
     /// <summary>Releases immutable backing guards before retiring this framebuffer, preserving borrowed storage ownership.</summary>
     protected override void OnBeforeDelete(nint id)
     {
-        ReleaseConfiguration((int)id);
+        ReleaseConfiguration();
         base.OnBeforeDelete(id);
     }
     /// <summary>Withdraws immutable admission before transferring the native handle to another owner.</summary>
     protected override void OnDetached(nint id)
     {
-        ReleaseConfiguration((int)id);
+        ReleaseConfiguration();
         base.OnDetached(id);
     }
     #endregion
@@ -79,8 +77,7 @@ public sealed class StaticGpuFramebuffer : GpuFramebuffer
                     throw new ArgumentException("Static framebuffers require managed attachment storage with tracked allocation ownership.");
                 Freeze(image); Freeze(storage);
             }
-            configurationOwner.RegisterImmutableFramebuffer(this);
-            Integration.RenderContextRegistry.Retiring += OnContextRetiring;
+            configuration = RHI.RHICommandContext.Current.SealFramebufferConfiguration(this);
 
         }
         catch { Dispose(); throw; }
@@ -97,19 +94,11 @@ public sealed class StaticGpuFramebuffer : GpuFramebuffer
         if (resource is GpuTextureView { Source: { } source }) Freeze(source);
     }
     /// <summary>Removes static admission and releases all image/allocation guards without native mutations.</summary>
-    private void ReleaseConfiguration(int id)
+    private void ReleaseConfiguration()
     {
-        Integration.RenderContextRegistry.Retiring -= OnContextRetiring;
-        configurationOwner.UnregisterImmutableFramebuffer(id, this);
+        System.Threading.Interlocked.Exchange(ref configuration, null)?.Dispose();
         foreach (var resource in frozen) resource.ReleasePassReference();
         frozen.Clear();
-    }
-    /// <summary>Withdraws native configuration authority when its context namespace retires, without native calls.</summary>
-    private void OnContextRetiring((nint Handle, long Generation) context)
-    {
-        if (context != configurationContext) return;
-        configurationOwner.UnregisterImmutableFramebuffer(FboId, this);
-        Integration.RenderContextRegistry.Retiring -= OnContextRetiring;
     }
     #endregion
 }

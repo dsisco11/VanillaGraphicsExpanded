@@ -653,26 +653,33 @@ Phase 8: Close resource-wrapper and helper RHI boundary violations
 Phase 8a: Route framebuffer cache policy and frame lifecycle through RHI
   Depends on Phase 7.
 
-  ☐ Remove direct OpenGlStateCache guards from GpuFramebuffer.SetAttachmentCore, RemoveAttachmentCore,
+  ☑ Remove direct OpenGlStateCache guards from GpuFramebuffer.SetAttachmentCore, RemoveAttachmentCore,
     ResizeCore and Bind. Enforce mutable/immutable configuration admission at the final RHI operation
     boundary, preserving rejection before effects and existing restoration/suppression behavior.
-  ☐ Remove wrapper-owned routing invalidation from GpuFramebuffer.OnBeforeDelete, OnDetached,
+  ☑ Remove wrapper-owned routing invalidation from GpuFramebuffer.OnBeforeDelete, OnDetached,
     PublishRenderPassMetadata and RefreshWrappedFramebuffer. Preserve old/new identity handling and
     exactly-once publication; wrappers must not compose backend cache effects around an RHI call.
     Apply 8g's removal policy: retain a backend effect only for actual retirement or established uncertainty,
     not merely because ownership, attachments or publication changed.
-  ☐ Remove StaticGpuFramebuffer.configurationOwner and direct RegisterImmutableFramebuffer /
+  ☑ Remove StaticGpuFramebuffer.configurationOwner and direct RegisterImmutableFramebuffer /
     UnregisterImmutableFramebuffer calls in construction, ReleaseConfiguration and OnContextRetiring.
     Keep one immutable-configuration authority beneath RHI with original-context retirement, balanced
     backing guards and correct failure cleanup; retain owner allocation/attachment policy above it.
-  ☐ Preserve screen callback ordering and uniform epochs through their existing lifecycle owners.
+  ☑ Preserve screen callback ordering and uniform epochs through their existing lifecycle owners.
     Remove the redundant resize/frame cache purges under 8g; do not introduce semantic lifecycle methods
     whose purpose is to forward the same blanket invalidation through RHI.
-  ☐ Route GpuProgram.RequireOutsideSubmission's direct RequireOutsideEngineBoundary guard through RHI.
+  ☑ Route GpuProgram.RequireOutsideSubmission's direct RequireOutsideEngineBoundary guard through RHI.
     Inspect the analogous EngineGeometryInputs guard against its explicit integration contract; retain
     backend cache access only beneath the admitted integration/execution boundary, not in an alternate caller.
-  ☐ Verify immutable rejection, resize/replacement, detach/disposal, context retirement, frame epochs and
+  ☑ Verify immutable rejection, resize/replacement, detach/disposal, context retirement, frame epochs and
     engine-boundary admission. Remove wrapper imports/stored types exposing the concrete cache.
+
+  Qualification: second source review and independent stage-completion audit passed against the approved
+    proposal/contracts, retained resource/binding contracts and 8g removal policy. Delegated shader-enabled
+    Debug and ordinary Release compilation passed; 175 focused/lifecycle/workflow tests passed in each
+    configuration, with no failures, skips, JIT overrides or instrumented product. Exact routes, traceability
+    and receipts: [Framebuffer owner admission qualification](Rendering.GpuCommands.Migrations.md#framebuffer-owner-admission-qualification-phase-8a).
+    No staging or commit. Phases 8b–8h and Phase 9 remain open; complete interception coverage is not claimed.
 
 Phase 8b: Close owner creation entry points without disturbing private handoff
   Depends on 8a.

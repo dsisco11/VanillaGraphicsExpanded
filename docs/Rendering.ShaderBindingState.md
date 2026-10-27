@@ -18,6 +18,10 @@ generation. OpenGlStateCache's existing scopes carry owner/revision/context borr
 are not a VGE ownership channel. Replacement and retirement reject active borrows. Every managed draw
 publishes intended inputs even when the binding ID is unchanged.
 
+Shader preparation and native geometry admission use the RHI preparation gate to reject work inside an
+active engine restoration boundary. The gate consults existing thread-local boundary authority without native
+context admission or queries, so CPU-only asset invalidation retains its context-free behavior.
+
 The world `VgeFrameUBO` remains one shared snapshot. An early `Before` callback withdraws the
 previous publication; capture runs at order `0.001`, immediately after native camera and ambient
 preparation at order zero and before liquid depth at `0.995`. Projection is copied immediately

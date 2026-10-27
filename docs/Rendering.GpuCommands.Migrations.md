@@ -1078,3 +1078,54 @@ the implementation plan's Phase 8 explicitly corrects these and requires fresh c
 The earlier receipts do not establish complete architectural closure. The broader numerical mismatch,
 canonical package identity, installed-client behavior and user-run visual acceptance remain Phase 9
 qualification work. No game launch, performance measurement or package/live acceptance is claimed here.
+
+## Framebuffer owner admission qualification (Phase 8a)
+
+Authority: implementation-plan Phase 8a and its inherited mandatory migration contract; approved proposal
+“The proposed boundary”, “Attachment-based pass targets” and execution/recording constraints; final
+contracts “Authority and ownership”, “Internal resource execution” and boundary admission; retained
+resource ownership/retirement and prepared-binding contracts. Archived creation/publication
+(`3f307365`) and texture-reference (`b9fca04c`) proposals were consulted for retained manager handoff,
+operation failure and nonowning reference semantics. Phase 8g's approved removal policy controls purges.
+
+| Requirement and source | Final route and observed evidence |
+| --- | --- |
+| Owner configuration guards; proposal/backend authority and contract private handoff | SetAttachmentCore, RemoveAttachmentCore and ResizeCore call RHI RequireMutableFramebufferOwner; backend checks context, immutable aliases and owner guards. Attachment configure/refresh also admit at execution. Dirty Bind refresh now precedes selection, so rejection cannot change native framebuffer selection. Static/attachment/boundary tests cover alias rejection, no-op removal, resize and restoration. |
+| Immutable configuration lifetime; resource original-context retirement | StaticGpuFramebuffer retains only an IDisposable lease supplied by RHI SealFramebufferConfiguration. OpenGLFramebufferConfigurationLease uses the existing immutable declaration store and unregisters its captured original ID on release or context retirement. Worker cleanup makes no native call. Owner backing guards remain balanced on disposal/detach; static tests cover view/source guards, worker disposal and context retirement. No new registry or concrete backend field was added to an RHI object or ordinary wrapper. |
+| Routing knowledge and lifecycle; 8g removal policy | Wrapper deletion/detach/publication/refresh no longer invalidate routes. Existing observed deletion publication removes retired native routing. ScreenResourceManager no longer purges all knowledge; the uniform renderer retains controller.BeginFrame without cache purging. New FramebufferOwnerKnowledgeTests cover detach, published borrowed refresh, callback ordering and retained selectors/routes. The old routing fixture now preserves same-object routing and represents a native change through EngineStateCalls instead of relying on unobserved GL plus a later purge. |
+| Preparation admission; proposal boundary and binding lifetime contracts | GpuProgram.RequireOutsideSubmission and EngineGeometryInputs use the RHI preparation gate. Its backend composition check consults existing thread-local boundary authority without creating/admitting a native backend; CPU-only shader asset work still works without a current context. Engine geometry/boundary tests and GpuProgramWorkflowTests cover these paths; UniformLifetimeTests retains frame epoch checks. |
+| Dependency/document closure; mandatory no-shim contract | Targeted wrapper/helper files have no OpenGlStateCache or concrete-backend imports/types/calls. No old-path forwarding shim or second execution/metadata authority was added. Current resource and binding documentation describes the lease, preparation admission and retained knowledge. Creation/acquisition/diagnostic/interception corrections assigned to 8b–8h remain explicitly incomplete. |
+
+Second source review and the audit-stage-completion workflow independently reconstructed the selected
+contract and linked authority, inspected the corrected source/callers and reconciled the behavioral
+receipts. No required Phase 8a issue remains. The early in-flight build found a missed no-op alias
+removal guard and a stale purge-dependent fixture; both were corrected before frozen validation.
+
+Final delegated shader-enabled production/test compilation succeeded in Debug and ordinary Release.
+Debug: 139 focused plus 36 lifecycle/workflow cases passed. Release: 171 focused/lifecycle plus four
+CPU workflow cases passed. Both total 175, with zero failures/skips and no process JIT overrides.
+Production/test source timestamps did not change after final Debug validation began at
+`2026-10-27T20:15:46.8908894Z`; subsequent edits only recorded documentation/checklist evidence.
+
+Logs: `artifacts/phase8a-final-debug.log`, `phase8a-final-debug-lifetimes.log`,
+`phase8a-final-release.log` and `phase8a-final-release-workflow.log` in the same directory.
+Matching TRX files are under `artifacts/TestResults/` with those prefixes.
+
+Reproduction: `dotnet test VanillaGraphicsExpanded.Tests/VanillaGraphicsExpanded.Tests.csproj -c Debug
+--no-restore --tl:off -v:minimal --filter <selection> --logger trx;LogFileName=phase8a-final-debug.trx
+--results-directory artifacts/TestResults`, keeping the logger argument quoted in PowerShell.
+Core selection is OR-joined `FullyQualifiedName~` terms for StaticGpuFramebufferTests,
+FramebufferOwnerKnowledgeTests, GpuFramebufferAttachmentTests, FramebufferAttachmentNotificationTests,
+FramebufferAttachmentDiscoveryTests, EngineBoundaryEntryTests, EngineBoundaryContextTests,
+EngineBoundaryRestorationTests, EngineBoundaryBindingTests, FramebufferRoutingCacheTests,
+FramebufferRoutingDsaTests, RHICommandContextIntegrationTests, UniformRing, EngineFramebufferRebuildTests,
+EngineFramebufferRoutingTests, GpuFramebufferExecutableCreationTests and EngineGraphicsGeometryTests.
+Supplemental Debug uses `--no-build --no-restore` for GpuProgramWorkflowTests, UniformLifetimeTests,
+ShaderRegistryLifetimeTests, ComputeShaderAssetTests and ShaderAssetCandidateTests. Release uses
+`-c Release` with core plus supplemental except GpuProgramWorkflowTests, then runs that class separately
+with `--no-build --no-restore` and the matching receipt name.
+
+Package identity, live rendering acceptance and integrated lighting remain later qualification work.
+Complete interception, startup purge/API removal and handler-level direct state propagation remain 8g
+requirements; passing these tests does not claim those requirements are implemented. Nothing was staged
+or committed.

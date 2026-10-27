@@ -1,4 +1,3 @@
-using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -25,7 +24,7 @@ internal sealed class EngineGeometryInputs : IDisposable
         if (mesh.Disposed || !mesh.Initialized || mesh.VaoId <= 0 || mesh.vboIdIndex <= 0
             || vertices <= 0 || indices <= 0 || instances <= 0)
             throw new ArgumentException("Engine geometry has no complete realized storage.", nameof(mesh));
-        OpenGlStateCache.Current.RequireOutsideEngineBoundary();
+        RHICommandContext.RequirePreparationAdmission();
         try
         {
             var array = new ArrayRecipient(mesh);

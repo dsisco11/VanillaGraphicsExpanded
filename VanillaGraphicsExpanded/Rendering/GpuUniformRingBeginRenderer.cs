@@ -1,4 +1,3 @@
-using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System;
 
 using Vintagestory.API.Client;
@@ -23,7 +22,6 @@ internal sealed class GpuUniformRingBeginRenderer : IRenderer
     {
         if (stage == EnumRenderStage.Before)
         {
-            OpenGlStateCache.Current.BeginFrame();
             controller.BeginFrame();
         }
     }

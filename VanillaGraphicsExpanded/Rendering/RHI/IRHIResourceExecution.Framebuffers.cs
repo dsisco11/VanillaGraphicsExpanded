@@ -3,6 +3,10 @@ namespace VanillaGraphicsExpanded.Rendering.RHI;
 internal partial interface IRHIResourceExecution
 {
     #region Framebuffer ownership
+    /// <summary>Rejects immutable aliases before owner policy mutates shared attachments.</summary>
+    void RequireMutableFramebufferOwner(GpuFramebuffer owner);
+    /// <summary>Registers a completed immutable declaration with cleanup independent of the current context/thread.</summary>
+    System.IDisposable SealFramebufferConfiguration(GpuFramebuffer owner);
     /// <summary>Requires the original framebuffer owner before selecting its native integration target.</summary>
     void SelectFramebufferOwner(GpuFramebuffer? owner, OpenTK.Graphics.OpenGL.FramebufferTarget target);
     /// <summary>Configures routing under the existing framebuffer owner authority.</summary>

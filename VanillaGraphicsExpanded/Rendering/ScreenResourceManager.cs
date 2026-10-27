@@ -1,4 +1,3 @@
-using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System;
 using System.Collections.Generic;
 
@@ -32,9 +31,8 @@ internal static class ScreenResourceManager
     /// <summary>Reattaches and resizes resources after the complete engine framebuffer rebuild.</summary>
     public static void HandleScreenResize()
     {
-        // Engine retirement deletes cached framebuffer and texture bindings. Invalidate after
-        // that deletion, before any resource callback can save and restore those bindings.
-        OpenGlStateCache.Current.InvalidateAll();
+        // Observed resource retirement updates affected knowledge. Resize callbacks retain
+        // unrelated executed state and run in their declared dependency order.
         foreach (var orderedCallbacks in callbacks.Values)
         {
             foreach (var callback in orderedCallbacks.ToArray())

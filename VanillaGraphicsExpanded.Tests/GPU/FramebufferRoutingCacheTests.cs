@@ -123,9 +123,9 @@ public sealed class FramebufferRoutingCacheTests(HeadlessGLFixture fixture, ITes
         Assert.Equal(2, capture.Calls.Count(call => call.StartsWith("Routing")));
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
-    /// <summary>Transferred native identities and same-name external refresh cannot retain routes authored by their previous owner.</summary>
+    /// <summary>Ownership transfer and same-name publication preserve routes; observed native changes update their knowledge.</summary>
     [Fact]
-    public void DetachAndWrappedRefreshForgetSameNativeIdentity()
+    public void DetachAndWrappedRefreshPreserveObservedNativeIdentity()
     {
         EnsureContextValid();
         using var target = Target();
@@ -135,13 +135,13 @@ public sealed class FramebufferRoutingCacheTests(HeadlessGLFixture fixture, ITes
         int id = (int)target.Detach();
         try
         {
-            GL.DrawBuffer(DrawBufferMode.ColorAttachment0);
+            Assert.Equal(DrawBuffersEnum.ColorAttachment1, OpenGLFramebufferRouting.Capture(cache, id)[0]);
+            EngineStateCalls.DrawBuffer(DrawBufferMode.ColorAttachment0);
             Assert.Equal(DrawBuffersEnum.ColorAttachment0, OpenGLFramebufferRouting.Capture(cache, id)[0]);
             using var wrapped = DynamicGpuFramebuffer.Wrap(id, width: 2, height: 2);
             OpenGLFramebufferRouting.SetDrawBuffer(cache, DrawBufferMode.ColorAttachment1);
-            GL.DrawBuffer(DrawBufferMode.ColorAttachment0);
             wrapped.RefreshWrappedFramebuffer(id, 2, 2);
-            Assert.Equal(DrawBuffersEnum.ColorAttachment0, OpenGLFramebufferRouting.Capture(cache, id)[0]);
+            Assert.Equal(DrawBuffersEnum.ColorAttachment1, OpenGLFramebufferRouting.Capture(cache, id)[0]);
         }
         finally { VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Framebuffer, id)); }
         using var replacement = Target();

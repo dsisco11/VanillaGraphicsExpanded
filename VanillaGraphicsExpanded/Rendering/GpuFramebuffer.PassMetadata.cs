@@ -1,4 +1,3 @@
-using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -24,7 +23,6 @@ public abstract partial class GpuFramebuffer
         ObjectDisposedException.ThrowIf(IsDisposed, this);
         if (ownsFramebuffer) throw new InvalidOperationException("Managed attachments already provide metadata.");
         if (fboId == 0) throw new NotSupportedException("Default framebuffer surface metadata is unavailable.");
-        OpenGlStateCache.Current.InvalidateFramebufferDrawRouting(fboId);
         passMetadataPublished = false;
         // One manager-owned discovery supplies both canonical descriptors and image reconciliation.
         // Do not scan slots independently before asking the canonical reader for the same facts.

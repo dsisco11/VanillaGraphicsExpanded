@@ -3,6 +3,10 @@ namespace VanillaGraphicsExpanded.Rendering.RHI;
 public sealed partial class RHICommandContext
 {
     #region Internal API
+    /// <summary>Admits owner configuration before allocation policy can change shared attachment storage.</summary>
+    internal void RequireMutableFramebufferOwner(GpuFramebuffer owner) => backend.RequireMutableFramebufferOwner(owner);
+    /// <summary>Seals a completed configuration and returns native-free cleanup for its original context lifetime.</summary>
+    internal System.IDisposable SealFramebufferConfiguration(GpuFramebuffer owner) => backend.SealFramebufferConfiguration(owner);
     /// <summary>Requires the original framebuffer owner before selecting its native integration target.</summary>
     internal void SelectFramebufferOwner(GpuFramebuffer? owner, OpenTK.Graphics.OpenGL.FramebufferTarget target) => backend.SelectFramebufferOwner(owner, target);
     /// <summary>Configures routing under the existing framebuffer owner authority.</summary>

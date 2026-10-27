@@ -32,6 +32,16 @@ semantic command descriptions with backend helpers. Buffer role is owner policy,
 metadata. Texture/image/sampler slot publication belongs to RHI resource operations, not wrapper bind
 methods. Buffer-texture views use the same retained texture reference as other sampled textures.
 
+Framebuffer configuration admission runs through owner-bearing RHI operations before shared attachment
+storage or native selectors change. Static framebuffer owners retain a disposable configuration lease;
+the backend registers the immutable declaration in the existing cache and withdraws it on lease disposal
+or original-context retirement. Lease cleanup issues no native calls and can run on a worker thread.
+Backing-allocation guards remain owner policy and are released on disposal or detach. Detaching a wrapper
+or publishing attachments does not discard the still-live native object's independently known output route.
+Observed deletion removes that route through the backend's existing retirement publication.
+Screen resize preserves unrelated executed knowledge and runs resource callbacks in dependency order;
+uniform frame callbacks advance allocation/publication epochs without purging bindings each frame.
+
 ## Command results and queries
 
 The OpenGL RHI backend owns buffer/image, synchronization, query-result, readback, capture and optional

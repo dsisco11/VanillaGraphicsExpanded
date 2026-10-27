@@ -1,4 +1,3 @@
-using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -37,7 +36,7 @@ public abstract partial class GpuFramebuffer
     /// <summary>Commits a validated attachment for mutable subclasses or construction before publication.</summary>
     private protected void SetAttachmentCore(FramebufferAttachment slot, GpuFramebufferAttachment attachment)
     {
-        OpenGlStateCache.Current.RequireMutableFramebufferConfiguration(fboId);
+        RHI.RHICommandContext.Current.RequireMutableFramebufferOwner(this);
         RequireMutableStorage();
         ArgumentNullException.ThrowIfNull(attachment);
         ObjectDisposedException.ThrowIf(IsDisposed, this);
@@ -61,7 +60,7 @@ public abstract partial class GpuFramebuffer
     /// <summary>Detaches mutable configuration without changing independently owned image lifetimes.</summary>
     private protected bool RemoveAttachmentCore(FramebufferAttachment slot)
     {
-        OpenGlStateCache.Current.RequireMutableFramebufferConfiguration(fboId);
+        RHI.RHICommandContext.Current.RequireMutableFramebufferOwner(this);
         RequireMutableStorage();
         ObjectDisposedException.ThrowIf(IsDisposed, this);
         bool present = slot == FramebufferAttachment.DepthStencilAttachment
@@ -84,7 +83,7 @@ public abstract partial class GpuFramebuffer
     /// <summary>Refreshes mutable backing allocations while retaining the framebuffer identity.</summary>
     private protected bool ResizeCore(int newWidth, int newHeight)
     {
-        OpenGlStateCache.Current.RequireMutableFramebufferConfiguration(fboId);
+        RHI.RHICommandContext.Current.RequireMutableFramebufferOwner(this);
         RequireMutableStorage();
         if (!IsValid) return false;
         bool changed = false;
