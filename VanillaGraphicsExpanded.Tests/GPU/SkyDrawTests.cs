@@ -27,7 +27,7 @@ public sealed class SkyDrawTests(HeadlessGLFixture fixture, ITestOutputHelper ou
             scene.DrawStandalone();
             separate = [.. capture.Calls];
         }
-        Assert.Equal(4, scene.Contexts.Count);
+        Assert.Single(scene.Contexts);
         scene.AssertRestored();
         var expected = scene.ReadOutput();
         scene.Initialize();
@@ -45,8 +45,10 @@ public sealed class SkyDrawTests(HeadlessGLFixture fixture, ITestOutputHelper ou
         Assert.Equal(new[] { .25f, .21875f, .28125f, 1.375f }, actual[1][..4]);
         Assert.Equal(new[] { "prepare:sky0", "prepare:sky1", "prepare:sky2", "prepare:sky3",
             "draw:sky0", "draw:sky1", "draw:sky2", "draw:sky3" }, scene.Events);
-        foreach (string prefix in new[] { "Framebuffer:", "Program:", "Routing" })
+        foreach (string prefix in new[] { "Framebuffer:", "Program:" })
             Assert.True(shared.Count(call => call.StartsWith(prefix)) < separate.Count(call => call.StartsWith(prefix)), prefix);
+        // Attachment realization owns fixed routing; both warmed paths suppress redundant route writes.
+        Assert.Equal(separate.Count(call=>call.StartsWith("Routing")),shared.Count(call=>call.StartsWith("Routing")));
         output.WriteLine("SINGLE_SKY_TRANSITIONS=" + System.Text.Json.JsonSerializer.Serialize(new { separate, shared }));
     }
 

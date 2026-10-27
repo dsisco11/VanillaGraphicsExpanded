@@ -1,4 +1,3 @@
-using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Diagnostics;

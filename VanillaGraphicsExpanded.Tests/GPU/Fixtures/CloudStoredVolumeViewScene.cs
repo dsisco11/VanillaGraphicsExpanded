@@ -28,14 +28,17 @@ internal sealed class CloudStoredVolumeViewScene:IDisposable
     private readonly CloudVolumeViewRenderer renderer;
     private readonly CloudVolumeTemporalProgram temporalProgram;
     private readonly CloudOitSurface output;
+    private readonly DynamicGpuFramebuffer engineOutput;
     private CloudMapInput input;
     private uint updateFrame;
     private object? replacementIdentity;
     private CloudVolumeViewScene preparedScene=null!;
     /// <summary>Reports only the view owner's allocated trace products and reconstruction metadata.</summary>
     internal long ViewTargetBytes=>renderer.TargetBytes;
+#if DEBUG
     /// <summary>Counts immutable pass preparation independently of immediate draw validation.</summary>
     internal int ViewPassPreparations=>renderer.PassPreparations;
+#endif
     /// <summary>Exposes retained density identity so view-only changes cannot silently replace the cloud fields.</summary>
     internal DynamicTexture3D StoredDensity=>storage.Published.Density;
     /// <summary>Reads actual fresh-ray validity and cell/block visits after the timed view submission.</summary>
@@ -97,6 +100,8 @@ internal sealed class CloudStoredVolumeViewScene:IDisposable
             var temporal=GpuShaderProgramLibraries.Get<CloudVolumeTemporalProgram>(programs.Api,CloudVolumeTemporalProgram.Contract.Identity);
             Assert.NotNull(temporal);temporalProgram=temporal;renderer=Own(new CloudVolumeViewRenderer(view,reconstruction,temporal));
             output=Own(new CloudOitSurface(width,height,"Tests.Cloud.StoredVolume.View"));
+            engineOutput=Own(DynamicGpuFramebuffer.Wrap(output.Target.FboId,"Tests.Engine.OIT"));
+            engineOutput.RefreshWrappedFramebuffer(output.Target.FboId,width,height,publishPassMetadata:true);
         }
         catch{Dispose();throw;}
     }
@@ -201,7 +206,7 @@ internal sealed class CloudStoredVolumeViewScene:IDisposable
             Assert.NotNull(solution.Drawable);Assert.True(solution.Drawable.Revision>before);
         }
         PrepareDraw(settings,scale,clear);
-        bool drawn=solution is null?DrawOnly():renderer.Draw(solution.Drawable!,input,preparedScene,output.Target,()=>true,captureDiagnostics:CaptureDiagnostics);
+        bool drawn=solution is null?DrawOnly():renderer.Draw(solution.Drawable!,input,preparedScene,engineOutput,()=>true,captureDiagnostics:CaptureDiagnostics);
         if(succeeds)Assert.True(drawn,renderer.Failure);else{Assert.False(drawn);Assert.NotNull(renderer.Failure);}
         return output.Images.Select(texture=>texture.ReadPixels()).ToArray();
     }
@@ -239,8 +244,8 @@ internal sealed class CloudStoredVolumeViewScene:IDisposable
         preparedScene=new CloudVolumeViewScene(camera,lighting.Buffer,Atmosphere,material,visibility,liquid,aerial,attenuation,shafts,Underwater);
     }
     /// <summary>Submits only the actual typed view draw, without preparation, clearing or readback.</summary>
-    internal bool DrawOnly()=>replacementIdentity is null?renderer.Draw(storage,input,preparedScene,output.Target,()=>true,captureDiagnostics:CaptureDiagnostics):
-        renderer.Draw(storage.Published.View with{MaterialIdentity=replacementIdentity},input,preparedScene,output.Target,()=>true,captureDiagnostics:CaptureDiagnostics);
+    internal bool DrawOnly()=>replacementIdentity is null?renderer.Draw(storage,input,preparedScene,engineOutput,()=>true,captureDiagnostics:CaptureDiagnostics):
+        renderer.Draw(storage.Published.View with{MaterialIdentity=replacementIdentity},input,preparedScene,engineOutput,()=>true,captureDiagnostics:CaptureDiagnostics);
     /// <summary>Models a new material owner reusing identical drawable allocations.</summary>
     internal void ReplaceViewMaterialIdentity(){replacementIdentity=new object();}
     /// <summary>Advances a complete camera/native frame pair without changing cloud storage identity.</summary>
@@ -273,6 +278,9 @@ internal sealed class CloudStoredVolumeViewScene:IDisposable
         int width=output.Images[0].Width,height=output.Images[0].Height;
         Assert.True(output.Images[0].Resize(width+1,height));
         Assert.True(output.Images[0].Resize(width,height));
+        using var selection=StateCache.Current.BindFramebufferScope();
+        output.Target.Bind();
+        engineOutput.RefreshWrappedFramebuffer(output.Target.FboId,width,height,publishPassMetadata:true);
     }
     /// <summary>Exercises the same screen-resource retirement boundary used by client resize and reload.</summary>
     internal void ReleaseViewTargets()

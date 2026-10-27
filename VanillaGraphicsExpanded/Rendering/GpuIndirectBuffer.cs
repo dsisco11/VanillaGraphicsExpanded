@@ -23,60 +23,6 @@ internal sealed class GpuIndirectBuffer : GpuBufferObject
 
 
     /// <summary>
-    /// Binds this buffer as the draw-indirect buffer (GL_DRAW_INDIRECT_BUFFER).
-    /// </summary>
-    public void BindDraw()
-    {
-        if (!IsValid)
-        {
-            Debug.WriteLine("[GpuIndirectBuffer] Attempted to bind disposed or invalid buffer");
-            return;
-        }
-
-        RHICommandContext.Current.BindBuffer(BufferRole.IndirectDraw, this);
-    }
-
-    /// <summary>
-    /// Binds this buffer as the dispatch-indirect buffer (GL_DISPATCH_INDIRECT_BUFFER).
-    /// </summary>
-    public void BindDispatch()
-    {
-        if (!IsValid)
-        {
-            Debug.WriteLine("[GpuIndirectBuffer] Attempted to bind disposed or invalid buffer");
-            return;
-        }
-
-        RHICommandContext.Current.BindBuffer(BufferRole.IndirectDispatch, this);
-    }
-
-    /// <summary>Binds indirect arguments as shader storage so compute can generate command counts.</summary>
-    public void BindStorage(int bindingIndex)
-    {
-        if (bindingIndex < 0) throw new ArgumentOutOfRangeException(nameof(bindingIndex));
-        if (!IsValid) throw new ObjectDisposedException(nameof(GpuIndirectBuffer));
-        RHICommandContext.Current.BindBufferBase(BufferRole.ShaderStorage, bindingIndex, this);
-    }
-
-    /// <summary>
-    /// Binds this buffer as the draw-indirect buffer and returns a scope that restores the previous binding.
-    /// </summary>
-    public StateCache.BufferScope BindDrawScope()
-    {
-        GpuResourceManager.RequireBufferReferenceMetadata(this);
-        return StateCache.Current.BindBufferScope(BufferTarget.DrawIndirectBuffer, bufferId);
-    }
-
-    /// <summary>
-    /// Binds this buffer as the dispatch-indirect buffer and returns a scope that restores the previous binding.
-    /// </summary>
-    public StateCache.BufferScope BindDispatchScope()
-    {
-        GpuResourceManager.RequireBufferReferenceMetadata(this);
-        return StateCache.Current.BindBufferScope(BufferTarget.DispatchIndirectBuffer, bufferId);
-    }
-
-    /// <summary>
     /// Uploads a single <see cref="DrawArraysIndirectCommand"/> command at offset 0.
     /// </summary>
     public void UploadDrawArraysCommand(in DrawArraysIndirectCommand cmd)

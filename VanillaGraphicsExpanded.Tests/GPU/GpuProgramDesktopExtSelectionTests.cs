@@ -46,7 +46,7 @@ public sealed partial class GpuProgramMetadataInterceptionTests
             Assert.True(entryB.MetadataRevision > revisionB);
 
             // Uniform observation recovers the active selector, but cannot certify all installed stages.
-            harmony.Patch(AccessTools.Method(typeof(GL), nameof(GL.UseProgram), [typeof(int)]),
+            harmony.Patch(AccessTools.Method(typeof(OpenTK.Graphics.OpenGL4.GL), nameof(GL.UseProgram), [typeof(int)]),
                 prefix: new HarmonyMethod(typeof(GpuProgramMetadataInterceptionTests), nameof(CountFullProgramRestore)));
             restoredProgramCalls = 0;
             Assert.Equal(b.ProgramId, StateCache.Current.GetCurrentProgram());
@@ -94,7 +94,7 @@ public sealed partial class GpuProgramMetadataInterceptionTests
             Assert.Equal(program.ProgramId, GL.GetInteger(GetPName.CurrentProgram));
             Assert.Equal(program.ProgramId, StateCache.Current.GetCurrentProgram());
 
-            harmony.Patch(AccessTools.Method(typeof(GL), nameof(GL.UseProgram), [typeof(int)]),
+            harmony.Patch(AccessTools.Method(typeof(OpenTK.Graphics.OpenGL4.GL), nameof(GL.UseProgram), [typeof(int)]),
                 prefix: new HarmonyMethod(typeof(GpuProgramMetadataInterceptionTests), nameof(CountFullProgramRestore)));
             restoredProgramCalls = 0;
             OpenGLProgramSelection.Select(StateCache.Current, program.ProgramId);

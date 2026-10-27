@@ -74,15 +74,20 @@ public sealed class CloudVolumeStorageTests(HeadlessGLFixture fixture) : LumOnSh
         OpenGLImageBindings.BindTexture(cache, TextureTarget.Texture3D,0,fields.Density.TextureId);
         OpenGLImageSlotBindings.BindImageTexture(cache, 0,fields.Density.TextureId,0,true,0,TextureAccess.ReadOnly,SizedInternalFormat.R16f);
         fields.Regions.BindBase(0);
+#if DEBUG
         int boundaries=submission.Boundaries,dispatches=submission.Dispatches,barriers=submission.Barriers;
+#endif
         submission.Batch(storage.SubmissionPrograms,()=>
         {
             Assert.True(storage.UpdateDiffuse(grown,()=>true,_=>{}));
             Assert.Throws<InvalidOperationException>(()=>submission.Batch(storage.SubmissionPrograms,()=>{}));
             Assert.Throws<InvalidOperationException>(()=>submission.Run(probe,()=>probe.Dispatch(1)));
         });
+#if DEBUG
         Assert.Equal(1,submission.Boundaries-boundaries);Assert.Equal(1,submission.Dispatches-dispatches);
-        Assert.Equal(2,submission.Barriers-barriers);Restored();
+        Assert.Equal(2,submission.Barriers-barriers);
+#endif
+        Restored();
         Assert.NotSame(oldDiffuse,fields.Diffuse); Assert.Equal(grown,fields.Encoding);
         Assert.Equal(new Vector4(4,4,4,0),Query(probe,fields,output,point-new Vector3(50,0,0))[1]);
         var replacement = new CloudVolumeDomain(5, default,-1000,1000,moved);

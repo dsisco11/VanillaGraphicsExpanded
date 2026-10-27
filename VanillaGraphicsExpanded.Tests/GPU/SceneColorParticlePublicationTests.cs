@@ -56,8 +56,9 @@ public sealed class SceneColorParticlePublicationTests(HeadlessGLFixture fixture
         var events = new RuntimeRenderEvents();
         float[] identity = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
         int resolveDraws = 0;
+        using var nativeDraws = new NativeDrawObserver(() => resolveDraws++);
         var render = RuntimeEngineServices.Render(2, frames, () => identity, () => identity,
-            () => { resolveDraws++; drawing.RenderGeometry(); });
+            () => drawing.RenderGeometry());
         var renderMock = Mock.Get(render);
         renderMock.SetupGet(value => value.CurrentRenderStage).Returns(EnumRenderStage.Opaque);
         renderMock.SetupGet(value => value.CurrentFrameBuffer).Returns(primary);

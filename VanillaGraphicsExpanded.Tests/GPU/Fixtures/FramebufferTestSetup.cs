@@ -15,7 +15,7 @@ internal static class FramebufferTestSetup
     /// <summary>Selects an engine fixture destination and viewport without changing production rendering APIs.</summary>
     internal static void BindForEngineRendering(GpuFramebuffer target)
     {
-        target.Bind();
+        OpenGLFramebufferSelection.Bind(StateCache.Current, FramebufferTarget.Framebuffer, target.FboId);
         GL.Viewport(0, 0, target.Width, target.Height);
         StateCache.Current.Invalidate(EPipelineState.Viewport);
     }
@@ -25,7 +25,7 @@ internal static class FramebufferTestSetup
     {
         var outputs = colors?.ToArray() ?? [new(AttachmentIndex: 0)];
         if (!target.OwnsNativeFramebuffer) return new(target.SurfaceReference, outputs, actions: actions, area: area);
-        var selected = outputs.Select(output => output.AttachmentIndex is { } index
+        var selected = outputs.Select(output => !output.DiscardOutput && output.AttachmentIndex is { } index
             ? output with { Image = Select(target.GetAttachment(FramebufferAttachment.ColorAttachment0 + index)
                 ?? throw new InvalidOperationException("Fixture color image is unavailable.")), AttachmentIndex = null }
             : output).ToArray();

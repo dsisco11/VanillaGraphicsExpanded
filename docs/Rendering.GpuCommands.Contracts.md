@@ -289,6 +289,14 @@ new context. No worker scheduling, concurrent execution or performance measureme
 
 ## Steady-state source ownership
 
+Native engine integration retains explicit framebuffer attachment/routing/blend policy and callback mesh
+ownership. Restricted integration requests admit the original context and invoke the existing backend;
+they return no backend object. Fullscreen/particle adapters expose geometry or producer certificates,
+while backend operations own native selector/restoration scopes. Cloud external acquisition reuses
+available canonical manager facts and queries unknown facts through backend services. Reported callback
+outcomes certify content; neither ambient GL errors nor object-validity queries provide a certificate.
+Pass helpers under the OpenGL backend serve only context pass execution and specialized validation.
+
 | Directory/domain | One responsibility per file/module; dependency direction |
 | --- | --- |
 | `Rendering/RHI/` | Thin `RHICommandContext` composition and capability/result contracts; callers depend on semantic inputs. |

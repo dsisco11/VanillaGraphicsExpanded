@@ -91,6 +91,7 @@ public sealed class PsoStateRelevanceWorkloadTests(HeadlessGLFixture fixture, IT
     using var scope73=commands.EnterBoundary(new("Pso.PointResolve",true,graphics:System.Linq.Enumerable.Select<RHIGraphicsPipeline,RHIGraphicsPipelineRef>([pipeline],value=>value),operations:BoundaryOperations.RenderPasses));
     scope73.Run(()=>{
             commands.BeginRenderPass(pass); commands.SetPipeline(pipeline); commands.SetDynamicState(new() { Viewport = commands.PassViewport });
+            commands.BindResources(program.CaptureBindings());
             commands.Draw(geometry.Inputs, new(0, 1)); commands.EndRenderPass();
         });
 }, () => [image.ReadPixels()]);

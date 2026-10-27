@@ -1,4 +1,5 @@
 using VanillaGraphicsExpanded.Rendering.Integration.OpenGL;
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System.Collections.Generic;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
@@ -40,13 +41,11 @@ internal sealed class EngineFullscreenGeometry : GraphicsGeometry
         var context = GpuResource.CaptureCreationContext(GpuResourceKind.VertexArray);
         var deletionManager = GpuResourceManagerSystem.CurrentManager;
         // Upload may bind arrays through the engine; existing scopes preserve the caller's bindings.
-        using var vertexScope = StateCache.Current.BindVertexArrayScope(0);
-        using var arrayScope = StateCache.Current.BindBufferScope(BufferTarget.ArrayBuffer, 0);
         MeshRef? uploaded = null;
         bool certified = false;
         try
         {
-            uploaded = render.UploadMesh(data);
+            uploaded = OpenGLRHIContext.UploadEngineMesh(render, data);
             if (uploaded is not VAO native) throw new InvalidOperationException("Unsupported engine mesh representation.");
             var geometry = new EngineFullscreenGeometry(render, native, data.VerticesCount, data.IndicesCount, context, deletionManager, execution);
             certified = true;
@@ -115,7 +114,7 @@ internal sealed class EngineFullscreenGeometry : GraphicsGeometry
         GC.SuppressFinalize(mesh);
         if (GpuResource.IsCurrentResourceContext(origin))
         {
-            render.DeleteMesh(mesh);
+            OpenGLRHIContext.DeleteEngineMesh(render, mesh);
             return;
         }
         if (Integration.RenderContextRegistry.IsAlive(origin))

@@ -3,7 +3,7 @@ RHI commands and command lists — implementation plan
 
 Source proposal: [Rendering.GpuCommands.Proposal.md](Rendering.GpuCommands.Proposal.md).
 Parent design task: Rendering.GpuResourceHandles.todo, Phase 8.
-Status: Phases 1–4 have recorded qualification receipts. Phase 5 remains open, including the dependency-boundary redesign in 5b–5e; recording and integrated qualification remain outstanding.
+Status: Phases 1–5, including dependency-boundary redesign in 5b–5e, have recorded qualification receipts. Command recording and final integrated qualification remain outstanding.
 
 Goal
   Implement the approved semantic RHI boundary, immediate execution and optional single-use recorded
@@ -206,57 +206,57 @@ Phase 5: Replace shader, pipeline and immediate rendering as one integration uni
   not independently accepted migration layers. They also correct affected paths introduced in Phases 2–4;
   earlier receipts do not qualify the redesigned candidate. All existing Phase 5 requirements still apply.
 
-  ☐ Implement immutable stage-code/entry-point/specialization/binding descriptions and owned RHIShader.
+  ☑ Implement immutable stage-code/entry-point/specialization/binding descriptions and owned RHIShader.
     Keep asset loading/preprocessing/permutations/offline and binary-cache policy above native execution.
     Backend privately compiles/specializes/links or installs binaries; native resources stay manager-owned.
     Require optional SPIR-V support or supplied supported GLSL; no silent translation or asset substitution.
-  ☐ Implement CreateShader and BeginCreateShader with pending completion, diagnostics, cancellation,
+  ☑ Implement CreateShader and BeginCreateShader with pending completion, diagnostics, cancellation,
     original associations and candidate-only cleanup. Clean temporary stages; expose no partial executable.
     Install fixed ready generations; external executable changes invalidate use without in-place RHI relink.
-  ☐ Implement graphics/compute PSO creation and refs, target/layout/stage validation, immutable state and
+  ☑ Implement graphics/compute PSO creation and refs, target/layout/stage validation, immutable state and
     dynamic-state declarations. Equality includes behavior and exact shader generation, not labels.
     Keep renderer-owned reuse; no global cache, reference-counted sharing, duplicate linking/reflection
     or invented native registry entries for purely managed PSOs. PSO disposal does not dispose its shader.
-  ☐ Migrate reload installation across shader owners and renderer PSOs together: build compatible sets,
+  ☑ Migrate reload installation across shader owners and renderer PSOs together: build compatible sets,
     swap between submissions, retain installed sets on failure, reject stale candidates and retired refs.
     Retained live old generations remain usable; prepared tables cannot silently retarget new interfaces.
-  ☐ Implement geometry inputs and backend VAO realization/configuration using core named operations.
+  ☑ Implement geometry inputs and backend VAO realization/configuration using core named operations.
     Move upload/adoption, manager validation, vertex/index/indirect binding, draws and retirement together.
     Replace GraphicsGeometry.Submit, EngineFullscreenGeometry and CloudSimpleGeometry execution routes;
     adapters expose inputs, not native draws. Preserve ownership and callback-scoped engine borrowing.
     Validate descriptors/alignment/known bounds; producers own index and GPU-generated argument values.
     No index/indirect content readback or GPU synchronization merely to validate those contents.
-  ☐ Implement attachment-based descriptions and context/backend-scoped framebuffer realization/reuse.
+  ☑ Implement attachment-based descriptions and context/backend-scoped framebuffer realization/reuse.
     Key by original associations, subresources and native configuration/routing, not bare IDs or wrapper
     equality; load/store/clear values do not create new realizations. Explicit surfaces use integration rules.
     Manager owns metadata/dependencies; check completeness before pass effects, clean failed candidates,
     invalidate dependent cache entries on replacement/deletion and retire owned targets on context teardown.
     Preserve borrowed engine framebuffer ownership and existing pass guards/restoration helpers.
-  ☐ Migrate generated bindings, ShaderPreparedSubmission, GpuPreparedBindings, CpuUniformBuffer,
+  ☑ Migrate generated bindings, ShaderPreparedSubmission, GpuPreparedBindings, CpuUniformBuffer,
     UniformPublication and allocators together. Preparation uses supplied metadata; full sets validate before
     binding. Logical snapshots carry bytes/revision/lifetime; physical storage is selected in the current
     execution epoch. Successful binding commits only the captured version, never a newer CPU edit.
     Preserve persistent/transient storage completion rules, candidate abort and compatibility history.
-  ☐ Implement final resource binding, dynamic state, pass sequencing, direct/indexed/instanced/indirect
+  ☑ Implement final resource binding, dynamic state, pass sequencing, direct/indexed/instanced/indirect
     draw and compute dispatch on RHICommandContext. Reuse helper responsibilities; no duplicate state.
     Preserve stable-binding suppression, image level/layer/access/format and alias feedback validation.
-  ☐ Implement boundary admission using declared pipeline sets and state footprints. Capture selectively
+  ☑ Implement boundary admission using declared pipeline sets and state footprints. Capture selectively
     before mutation; reject undeclared operations before dispatch. Restore on success/failure and retain
     existing usage/reentry guards. Compute and graphics share the context; renderers only orchestrate.
-  ☐ Reconcile separately scheduled PSO multi-bind work with the current checkout: use core 4.5 multi-bind
+  ☑ Reconcile separately scheduled PSO multi-bind work with the current checkout: use core 4.5 multi-bind
     and existing slot knowledge, with singles for semantic eligibility/batching policy, not old contexts.
     Do not reimplement separately completed work or retain its older-context fallback after migration.
-  ☐ Migrate all affected renderers, shader owners and external integration callers directly. In particular,
+  ☑ Migrate all affected renderers, shader owners and external integration callers directly. In particular,
     preserve direct-lighting geometry, depth hierarchy dispatch→barriers→tail transfers→publication,
     cloud borrowing/content certificates, screen resize and reload/disposal order. Resource validity is
     not content freshness; producer admission remains outside the RHI and must survive these migrations.
-  ☐ Move this unit's exact engine overloads/readers/retirement and remove superseded shader/PSO APIs,
+  ☑ Move this unit's exact engine overloads/readers/retirement and remove superseded shader/PSO APIs,
     GraphicsCommandContext, adapter-owned draws and raw render dispatch. No temporary program/PSO facade.
-  ☐ Test synchronous/pending/binary shader creation, failures/cancel, immutable identity and atomic reload;
+  ☑ Test synchronous/pending/binary shader creation, failures/cancel, immutable identity and atomic reload;
     PSO ownership/reuse; known-bound geometry checks/expired borrows; target cache reuse/subresources/
     replacement/name reuse/incomplete cleanup; uniform epochs/new edits/failures; pass feedback and
     selective restoration; complete graphics and compute output parity and publication counts.
-  ☐ Completion: every work package and mandatory family receipt passes; all callers use final immediate
+  ☑ Completion: every work package and mandatory family receipt passes; all callers use final immediate
     contracts, the old graphics context is deleted, and no old execution path is required for compilation
     or runtime. Split acceptance is prohibited even if isolated shader or pipeline tests already pass.
 
@@ -488,27 +488,27 @@ Phase 5e: Close the redesigned dependency graph and qualify the combined migrati
   Authority: all Phase 5 linked documents and the mandatory migration contract above.
   Outcome: the actual dependency graph matches the approved RHI boundary throughout affected families.
 
-  ☐ Inventory concrete-backend imports, stored types (including backend-specific nested types),
+  ☑ Inventory concrete-backend imports, stored types (including backend-specific nested types),
     constructor parameters, casts, direct helper calls, context escape properties and direct GL.*
     execution across the manager, resource wrappers, semantic RHI objects and their consumers.
     Inspect fully qualified calls and aliases as well as namespace imports; absence of an OpenGLBackend
     reference does not prove that an operation passes through RHI. Classify genuine native
     implementation/composition/integration sites explicitly; an internal
     visibility modifier or relocation into a backend directory does not establish correct dependency direction.
-  ☐ Move CloudNativeMapAdapter.ValidateStorage's native storage and framebuffer acquisition behind
+  ☑ Move CloudNativeMapAdapter.ValidateStorage's native storage and framebuffer acquisition behind
     manager-owned acquisition and backend query/integration services. Keep expected cloud layout and
     content-publication policy in the adapter; use available canonical texture facts and acquire only
     unknown external facts. Remove adapter-owned native selector changes and IsTexture/IsFramebuffer
     probes without weakening dimensions, format, attachment or framebuffer-completeness validation.
-  ☐ Move CloudNativeMapAdapter.IsProgramLinked's native executable discovery behind manager-owned
+  ☑ Move CloudNativeMapAdapter.IsProgramLinked's native executable discovery behind manager-owned
     acquisition and backend query/integration services. Reuse established link facts where available;
     retain explicit late-acquisition/reload validation without adapter-owned IsProgram or native queries.
-  ☐ Reconcile CloudNativeMapAdapter.DrainErrors and its BeginAllocation/CompleteAllocation,
+  ☑ Reconcile CloudNativeMapAdapter.DrainErrors and its BeginAllocation/CompleteAllocation,
     BeginUpload/CompleteUpload and BeginGeneration/CompleteGeneration callers with the approved
     command-result policy. Remove adapter-owned GL error draining; preserve truthful content readiness
     and joint-upload/generation failure certificates through explicit observed outcomes. Do not replace
     the drains with a universal success query or publish ready content without the required evidence.
-  ☐ Consolidate GBufferManager engine framebuffer attachment, routing and selection changes behind the
+  ☑ Consolidate GBufferManager engine framebuffer attachment, routing and selection changes behind the
     restricted OpenGL integration service agreed in 5b–5c, replacing its mixture of direct backend helpers
     and cache execution. Inspect related Harmony hooks for the same split. Preserve external framebuffer
     ownership, attachment publication, blend/routing effects and restoration without exposing native
@@ -517,12 +517,12 @@ Phase 5e: Close the redesigned dependency graph and qualify the combined migrati
     and ReapplyGBufferBlendState: unify backend-helper and cache execution under the final integration
     owner; inspect VerifyBlendState and RelinquishIfDeleted for native queries/error drains/object probes
     under the same ownership and approved query policy.
-  ☐ Reconcile RenderPass, RenderPassSequence and RenderPassTargets with backend implementation ownership.
+  ☑ Reconcile RenderPass, RenderPassSequence and RenderPassTargets with backend implementation ownership.
     Their native work is valid only beneath backend execution, not as an alternate consumer entry point.
     Preserve specialized pass validation, guards and restoration behind the unified context; do not add
     another dispatcher or classify an already backend-owned helper call as a consumer bypass merely
     because it uses native helpers. Verify this distinction in the final dependency review.
-  ☐ Recheck integration classifications by actual inputs, outputs and ownership, not by class name.
+  ☑ Recheck integration classifications by actual inputs, outputs and ownership, not by class name.
     Retain justified native program replacement/stage creation (ReplaceEngineTessellationProgram,
     CreateEngineTessellationProgram and CompileExternalStage), explicit raw-name texture/view/renderbuffer
     acquisition, exact OpenTK forwarding, cache observation and backend composition. Do not expose these
@@ -530,16 +530,16 @@ Phase 5e: Close the redesigned dependency graph and qualify the combined migrati
     program usage does not exempt ordinary VGE resource binding from RHI. Confirm that FrozenLighting
     BindBase calls, SceneColorProgramBindings.BindScene and LumonSceneChunkSlotUniformState.BindParameters
     still dispatch through existing semantic buffer-binding operations; do not introduce duplicate routes.
-  ☐ Migrate all affected production/test callers and blocking dependencies in complete operation-family
+  ☑ Migrate all affected production/test callers and blocking dependencies in complete operation-family
     units; remove superseded APIs in each unit. Reconcile affected Phase 2–4 receipts with fresh evidence
     rather than treating their earlier qualification as proof that the corrected architecture is complete.
-  ☐ Verify one native execution owner, one cache/metadata authority, no manager/factory recursion and
+  ☑ Verify one native execution owner, one cache/metadata authority, no manager/factory recursion and
     no temporary forwarding facade, duplicate dispatcher, backend escape hatch or old-path dependency.
     Use focused source inspection and behavioral checks; do not add reflection inventory tests or benchmarks.
-  ☐ Reconcile Rendering.GpuCommands.Proposal.md, Rendering.GpuCommands.Contracts.md and
+  ☑ Reconcile Rendering.GpuCommands.Proposal.md, Rendering.GpuCommands.Contracts.md and
     Rendering.GpuCommands.Migrations.md with the approved boundaries and actual final routes. Preserve
     historical qualification limits in planning receipts; permanent architecture docs describe current code.
-  ☐ Reconcile inherited failures captured by 5b's checkpoint comparison: GpuMetadataOperationFoundationTests
+  ☑ Reconcile inherited failures captured by 5b's checkpoint comparison: GpuMetadataOperationFoundationTests
     fixture mutation through unavailable wrapper metadata; GpuFramebufferExecutableCreationTests affected-field
     query observation; GpuProgramMetadataInterceptionTests desktop EXT restoration observations;
     GpuResourceOperationContextTests exact-external versus manager-affinity semantics; and
@@ -548,10 +548,21 @@ Phase 5e: Close the redesigned dependency graph and qualify the combined migrati
     unchanged against 5c's canonical checkpoint baseline; repair their authored shader contract inputs.
     Correct obsolete fixtures at the actual native boundary and fix any confirmed runtime defect without
     weakening assertions, guards or error behavior. The baseline comparison does not qualify these cases.
-  ☐ Run delegated Debug/Release compilation and relevant behavior regressions on the combined candidate,
+  ☑ Run delegated Debug/Release compilation and relevant behavior regressions on the combined candidate,
     including DEBUG-only diagnostics. Complete second review and independent stage-completion audit
     against every Phase 5 requirement. All redesign and original Phase 5 tasks must pass before completing
     Phase 5 or beginning command recording; no independent completion claim for a partial layer.
+
+  Evidence: combined source/dependency second review and independent stage-completion audit passed.
+    Canonical Debug/Release test projects compile; Debug combined 722, additional GPU 155, relevant unit
+    124 and generator 157 checks passed. Release additional/unit/generator suites also passed. Ordinary
+    optimized Release combined: 700 passed/22 observer or fault-injection failures; the same binaries
+    with process-only JIT controls passed 722/722, zero skips. Production Release remains uninstrumented.
+    Final source fingerprint: 80fc0816dfb4b617f4aee4bc0d53c85f3fd5403648590746931006313057ca7e.
+    Exact candidate, routes, full failed-run receipts, focused reruns and qualification limits are in
+    [Combined dependency closure](Rendering.GpuCommands.Migrations.md#combined-rendering-dependency-closure-phase-5e).
+    The original Phase 5 gate is satisfied. Phases 6–8 and final integrated/package acceptance remain open.
+    No live visual/performance acceptance is claimed; no changes were staged or committed.
 
 Phase 6: Implement single-use command recording on the final immediate machinery
   Depends on the complete Phase 5 gate, including redesign subphases 5b–5e.

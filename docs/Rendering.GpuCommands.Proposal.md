@@ -41,7 +41,16 @@ flowchart TD
 | `GpuResourceManager` | Creation handoff, original associations, canonical metadata, operation candidates, availability, revisions, dependency validation and retirement queues. |
 | Existing wrappers/renderers | Ownership, allocation/growth/streaming policy, content readiness, pass orchestration and ordering. |
 
-Backend operations and cache are collaborators, not two dispatchers. Ordinary named resource operations
+Backend operations and cache are collaborators, not two dispatchers.
+
+Explicit engine framebuffer attachment/routing/blend changes, callback mesh upload/retirement and
+particle output redirection belong to restricted native integration operations. Those operations own
+the selectors and restoration they change. Cloud adapters request canonical external texture,
+framebuffer and executable facts through the manager; covered facts are reused. Content certificates
+come from observed allocation/upload/generation outcomes, never ambient error draining or object probes.
+Backend pass helpers implement the context's selected pass and cannot serve as another submission API.
+
+Ordinary named resource operations
 leave selectors untouched and need no binding scope or restoration plan. Cache restoration remains for
 render/engine boundaries and operations whose semantics actually change bindings. Native metadata readers
 remain manager-owned services, using core named queries wherever available through the backend.

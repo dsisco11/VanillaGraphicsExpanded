@@ -89,14 +89,22 @@ public sealed class CloudStoredVolumeViewTests(HeadlessGLFixture fixture,Xunit.I
         var settings=CloudVolumeViewSettings.Default with{Detail=false,Stop=0,TraceDivisor=2};
         var baseline=scene.Draw(settings);
         scene.Draw(settings); // Warm both disjoint temporal destinations before checking stable preparation.
+#if DEBUG
         int prepared=scene.ViewPassPreparations;
+#endif
         Assert.Equal(baseline[1],scene.Draw(settings)[1]);
+#if DEBUG
         Assert.Equal(prepared,scene.ViewPassPreparations);
-        // Replacing an attachment on the same framebuffer must refresh only its native pass.
+#endif
+        // Replacing equal-format storage refreshes the surface realization without rebuilding its compatible pipeline.
         scene.RefreshOutputMetadata();Assert.Equal(baseline[1],scene.Draw(settings)[1]);
-        Assert.Equal(prepared+1,scene.ViewPassPreparations);
+#if DEBUG
+        Assert.Equal(prepared,scene.ViewPassPreparations);
+#endif
         scene.ReleaseViewTargets();Assert.Equal(baseline[1],scene.Draw(settings)[1]);
-        Assert.Equal(prepared+3,scene.ViewPassPreparations);
+#if DEBUG
+        Assert.Equal(prepared+2,scene.ViewPassPreparations);
+#endif
         Assert.InRange(Math.Abs(baseline[1][0]-MathF.Exp(-.0078125f*100)),0,2e-5f);
         float phase0=.64f/(4*MathF.PI*MathF.Pow(1.36f,1.5f));float phase1=1.6f/(4*MathF.PI*.4f*.4f);
         float source=.9f*(30*.25f*phase1+3*.75f*phase0)+12;
@@ -120,6 +128,7 @@ public sealed class CloudStoredVolumeViewTests(HeadlessGLFixture fixture,Xunit.I
         Assert.All(scene.Draw(settings,clear:.25f).SelectMany(v=>v),v=>Assert.Equal(.25f,v));
         scene.SeedDensity(float.NaN);
         Assert.All(scene.Draw(settings,clear:.25f).SelectMany(v=>v),v=>Assert.Equal(.25f,v));
+        scene.ReleaseViewTargets(); // The shared asset now belongs to the replacement resolution fixture.
         using(var edge=new CloudStoredVolumeViewScene(Programs,5,3))
         {
             // Resolution changes retire only screen-sized products and preserve cloud-space density.
@@ -421,7 +430,7 @@ public sealed class CloudStoredVolumeViewTests(HeadlessGLFixture fixture,Xunit.I
                 if(i>0){times.Add(milliseconds);cpuTimes.Add(cpuMilliseconds);allocations.Add(allocated);}
             }
             times.Sort();cpuTimes.Sort();allocations.Sort();
-            output.WriteLine($"Stored view 3440x1377 sigma={sigma} history={reuse}: median {times[1]:F4} ms; samples {string.Join(", ",times.Select(t=>t.ToString("F4")))} ms. CPU submission median {cpuTimes[1]:F4} ms; samples {string.Join(", ",cpuTimes.Select(t=>t.ToString("F4")))} ms; allocated median {allocations[1]} bytes; samples {string.Join(", ",allocations)} bytes. Pass preparations {scene.ViewPassPreparations}. GPU: {gpu}.");
+            output.WriteLine($"Stored view 3440x1377 sigma={sigma} history={reuse}: median {times[1]:F4} ms; samples {string.Join(", ",times.Select(t=>t.ToString("F4")))} ms. CPU submission median {cpuTimes[1]:F4} ms; samples {string.Join(", ",cpuTimes.Select(t=>t.ToString("F4")))} ms; allocated median {allocations[1]} bytes; samples {string.Join(", ",allocations)} bytes. GPU: {gpu}.");
             var receipt=scene.TraceReceipts;var history=scene.HistoryReceipts;
             output.WriteLine($"Trace receipts: fresh={receipt.Where((_,i)=>i%4==1).Count(v=>v>=1)}, visits={receipt.Where((_,i)=>i%4==3).Sum()}, admitted history={history.Where((_,i)=>i%4==3).Count(v=>v>1)}/{history.Length/4}; targets={scene.ViewTargetBytes}bytes.");
             var contribution=scene.HistoryDiagnostics;

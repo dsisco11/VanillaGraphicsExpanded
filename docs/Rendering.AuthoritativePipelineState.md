@@ -9,14 +9,14 @@ not part of the current production implementation.
 
 VGE graphics/compute executables are independent `IGpuProgram` owners. The existing StateCache
 program-scope chain retains owner/revision/originating-context borrows; raw scopes remain binding-only.
-GraphicsCommandContext captures one incoming program scope and rejects stale prepared pipeline revisions.
+RHICommandContext captures one incoming program scope and rejects stale prepared pipeline revisions.
 Consecutive draws transition directly between prepared owners and publish inputs on every draw.
 `EndPass` releases active image borrows and clears the pass selection; it leaves the current shader
 and draw framebuffer selected until another pass changes them or the outer boundary exits.
 
 `SkyRenderer` owns one Before registration for celestial admission and one Opaque registration at
 order 0.19. Its draw callback prepares galaxy/stars, moon, sun and atmosphere in fixed order, then
-`SkyDraw.Run` enters one `GraphicsCommandContext` with their complete prepared pipeline/resource
+`SkyDraw.Run` enters one `RHICommandContext` with their complete prepared pipeline/resource
 footprint. The four draw-pass owners retain independent resize, world, reload and failure lifetimes;
 they do not register engine renderer callbacks. Preparation finishes outside graphics authority.
 Each pass retains its authored PSO, including the additive-to-atmospheric blend transition.
@@ -156,7 +156,7 @@ below accounts for the eleven retired capture invocations, including the removed
 | [FramebufferBindingHook](../VanillaGraphicsExpanded/HarmonyPatches/FramebufferBindingHook.cs) | Successful setter postfix observes combined read/draw FBO binding without another GL call. Does not establish blend/routing or arbitrary mod coverage. |
 | [GpuProgram](../VanillaGraphicsExpanded/Rendering/Shaders/GpuProgram.cs), IGpuProgram workflows, terrain material/scene-slot binding hooks | Shader owner and prepared resource publication remain authoritative; native program tracking alone does not restore engine ownership. Texture/UBO inputs may change on every draw with the same executable. |
 | [CompleteGraphicsBoundary](../VanillaGraphicsExpanded/Rendering/Integration/CompleteGraphicsBoundary.cs), [EngineBoundaryScope](../VanillaGraphicsExpanded/Rendering/EngineBoundaryScope.cs) | Explicit restoration of declared effects and prepared resource footprints. Resolve unknown incoming fields once at entry; restore shader owner, borrowed bindings and independent read/draw FBOs, then draw state. Prepared pipelines supply the union of their potential native write groups plus helper coverage; engine compatibility adapters retain their explicitly partial scopes. |
-| GpuFramebuffer creation/routing and scratch helpers | Complete pipeline descriptions own VGE blend policy. Draw/read-buffer routing is FBO-local resource state. Standalone RenderPass scopes restore routing immediately; GraphicsCommandContext defers it through RenderPassSequence until the outer boundary exits. |
+| GpuFramebuffer creation/routing and scratch helpers | Complete pipeline descriptions own VGE blend policy. Draw/read-buffer routing is FBO-local resource state. Standalone RenderPass scopes restore routing immediately; RHICommandContext defers it through RenderPassSequence until the outer boundary exits. |
 | Engine compatibility scopes, explicit external invalidation, [StateCache.ScissorScope](../VanillaGraphicsExpanded/Rendering/StateCache.ScissorScope.cs) | Retained for bounded engine-owned operations; the legacy fixed-function capture is test-only. Scissor helper preserves enable, not a general dynamic rectangle contract. Complete VGE draws use the full boundary contract. |
 | Unmapped engine overloads, other mods and unobserved external stencil/equation/rasterizer/sampling/clip changes | Unknown to current cache unless independently restored. Query required unknown fields at entry, establish complete state, restore and invalidate affected knowledge at declared external boundaries. No untracked mutation inside complete submission. |
 
@@ -262,7 +262,7 @@ recovery needs separate design and validation later.
 | Boundary | Required restored effects / policy |
 | --- | --- |
 | Direct-lighting standalone or shared capture | Union of all complete state categories above changed by the pass, plus viewport/scissor/reference/constant, program/engine shader owner, VAO and its EBO association, array buffer, independent read/draw FBO, active texture and touched sampler/texture/UBO/SSBO/image slots. Restore clear helper values if changed. Capture unknown fields, reuse truthful known values. Include global/indexed aliases and prior-shader reactivation effects. No hard-coded engine baseline. |
-| Composite/refraction/particle resolve/SSAO preparation | Union all participating pipeline/resource footprints plus allocation, blit/reduction and actual engine SSAO helper effects. GraphicsCommandContext now declares the complete participating pipeline set. Sequential passes share one nonnested interruption. |
+| Composite/refraction/particle resolve/SSAO preparation | Union all participating pipeline/resource footprints plus allocation, blit/reduction and actual engine SSAO helper effects. RHICommandContext now declares the complete participating pipeline set. Sequential passes share one nonnested interruption. |
 | Particle engine redirection | Existing known full-scene scissor and source-alpha output-zero contract, incoming read/draw FBO and borrowed attachment/routing preservation. Verify installed engine entry assumptions when migrating; changed unknown contracts fall back to capture. |
 | Liquid depth/surface/volume pools | Shader owner/resources, pool geometry, targets/viewport, indexed MRT blend/masks, depth/cull, UseSsbo and suppression bookkeeping. Capture unknown entry; preserve invalidation until exact pool/engine effects are validated. |
 | Raw atlas/resolve/debug entries | Each independent entry declares full pipeline/dynamic changes, target/clear/allocation effects, geometry and shader resources. Capture unknown entry; do not assume a sibling caller's surrounding scope. |
@@ -423,7 +423,7 @@ corresponding dynamic declarations. No skipped value becomes ambient draw intent
 `GraphicsPipeline.Relevance` retains immutable `GraphicsStateRelevance` alongside its validated
 executable revision. It derives potential native write groups from complete authored state, target
 aspects/formats, sparse output slots and primitive selectors, separately from live cache knowledge.
-`GraphicsPipeline.Coverage` caches the corresponding native write groups. `GraphicsCommandContext`
+`GraphicsPipeline.Coverage` caches the corresponding native write groups. `RHICommandContext`
 declares their union through `CompleteGraphicsBoundary.TryRunPrepared`, and prepared
 `StateCache.ApplyGraphicsState` consumes that same relevance and coverage. Descriptor-only low-level
 application and boundary calls derive conservative relevance without executable output metadata.
@@ -546,7 +546,7 @@ cached, and warm reads do not consume pending native errors. This optional query
 
 Legacy `GlPipelineDesc` is explicitly documented as a partial compatibility override. Its stable mask
 numbering and consumers remain unchanged; there is no implicit conversion or shared base/interface
-allowing it to masquerade as GraphicsPipelineDesc. Complete owned draws use GraphicsCommandContext,
+allowing it to masquerade as GraphicsPipelineDesc. Complete owned draws use RHICommandContext,
 prepared GraphicsPipeline relevance and explicit render passes. Description tests cover copied/read-only
 storage, structural identity, dormant authored intent, equivalent representation normalization,
 shader specialization/layout identity, sparse exact targets, explicit dynamics, invalid/capability
@@ -1185,7 +1185,7 @@ UV fallback remain outside the automated acceptance claim. No game is launched b
 ### Legacy reconciliation and future submission ownership
 
 The 2026-10-05 reconciliation was documentation-only; its historical callback tables above describe
-the bounded implementation at that time. Direct lighting now uses GraphicsCommandContext to
+the bounded implementation at that time. Direct lighting now uses RHICommandContext to
 coordinate the existing boundary mechanism around complete passes, preserving engine-aware shader cleanup, borrowed bindings/framebuffers,
 then StateCache drawing-state restoration. Unknown external mutations require an explicit handoff
 and affected-category invalidation; engine hooks do not prove arbitrary raw GL coverage.
@@ -2268,13 +2268,13 @@ No live-game visual acceptance or frame-time improvement is claimed.
 
 ## Render passes and target lifetime (2026-10-06)
 
-`Rendering/Pipeline/Passes/RenderPassDesc` freezes borrowed target references, sparse output routing,
+`Rendering/RHI/Backends/OpenGL/Passes/RenderPassDesc` freezes borrowed target references, sparse output routing,
 typed color clears, independent depth/stencil intentions and an optional pixel render area.
 `RenderPass.Begin` requires an existing complete `EngineBoundaryScope`; it cannot create a nested
 pass or a second restoration cache. The boundary owns drawing-state restoration. A standalone pass
 restores the incoming independent read/draw framebuffer bindings. Dynamic targets also restore their
 original draw routing; static targets retain their constructor-declared routing without capture or
-restoration. GraphicsCommandContext shares a RenderPassSequence, retaining original dynamic target
+restoration. RHICommandContext shares a RenderPassSequence, retaining original dynamic target
 routes until outer cleanup and transitioning directly between draw targets. Both paths register
 cleanup with the boundary so exceptional exits cannot leave borrowed resources locked.
 Dynamic routing restoration uses direct state access for supported image framebuffers, while older
@@ -2353,7 +2353,7 @@ acceptance, packaging result or CPU/GPU performance improvement is claimed by th
 
 ## Immediate graphics submission
 
-`GraphicsCommandContext.TryRun` declares prepared pipelines before entering the existing
+`RHICommandContext.TryRun` declares prepared pipelines before entering the existing
 `CompleteGraphicsBoundary`. Their complete state coverage and prepared resource footprints are
 resolved once at entry. The callback can execute sequential nonnested `BeginPass` / `EndPass`
 operations. Select a declared pipeline, assign its existing generated shader inputs, supply
@@ -2402,14 +2402,14 @@ authored contract after clearing `Rgba`: four vertices, six indices, twelve posi
 UV floats, no normal/flag/custom streams, and no instanced streams.
 
 Raw GL calls and arbitrary engine rendering are prohibited inside the callback. Deliberate external
-operations run after `TryRun` exits through `GraphicsCommandContext.ExecuteExternal`, which uses
+operations run after `TryRun` exits through `RHICommandContext.ExecuteExternal`, which uses
 the existing StateCache owner to invalidate the declared categories even if the operation throws.
 A subsequent `TryRun` resolves truthful entry state and reestablishes complete draw intent. Ending
 only a pass does not end the enclosing engine boundary and does not authorize external operations.
 
 | Contract and controlling source | Implementation and verification |
 | --- | --- |
-| Proposal / Submission contract; design contract / Geometry, target and executable contracts | GraphicsCommandContext, existing RenderPass/GraphicsPipeline validation, owned geometry adapters; deterministic HZB pixels and rejected draw contracts |
+| Proposal / Submission contract; design contract / Geometry, target and executable contracts | RHICommandContext, existing RenderPass/GraphicsPipeline validation, owned geometry adapters; deterministic HZB pixels and rejected draw contracts |
 | Proposal / Prepared pipelines, identity, and lifetime; numeric input migration inventory | Existing GpuProgram activation, generated typed UBO publication and prepared resource validation; changed texture/mip on one pipeline and prior-owner restoration |
 | Proposal / Native error-checking policy; design contract / Restoration decisions by boundary | Existing category transitions and EngineBoundaryScope, VAO-owned EBO restoration and observed engine helper effects; warm counters, external operations and exception cleanup |
 
@@ -2427,11 +2427,11 @@ shader orchestration (414 production and 481 combined variants when rebuilt). Al
 `dotnet test VanillaGraphicsExpanded.Tests/VanillaGraphicsExpanded.Tests.csproj -c Debug --no-restore
 --filter '<selection>' --logger 'console;verbosity=normal'`, repeated with `-c Release` as described:
 
-- The broad selection ORs `FullyQualifiedName~` matches for GraphicsCommandContextTests,
+- The broad selection ORs `FullyQualifiedName~` matches for RHICommandContextTests,
   EngineGraphicsGeometryTests, RenderPass, EngineBoundary, EngineStateSwitching,
   PreparedGraphicsPipeline, CompleteGraphics, ShaderInputSubmission and ShaderOwnership.
   Release additionally includes GpuVaoIntegrationTests.
-- The Debug focused selection covers GraphicsCommandContextTests, EngineGraphicsGeometryTests,
+- The Debug focused selection covers RHICommandContextTests, EngineGraphicsGeometryTests,
   GpuVaoIntegrationTests and GpuProgramUseScopeTests. Release focused covers
   EngineGraphicsGeometryTests and GpuProgramUseScopeTests.
 - Final upload checks select only `FullyQualifiedName~EngineGraphicsGeometryTests`.
@@ -2458,7 +2458,7 @@ reload replaces the realization. Renderer disposal retires its realization, life
 geometry without taking ownership of shader programs or borrowed output images.
 
 The renderer assigns the same generated shader inputs through `DirectLightingRenderer.Inputs.cs`.
-`GraphicsCommandContext.Draw` retains engine-aware activation and current resource/UBO publication
+`RHICommandContext.Draw` retains engine-aware activation and current resource/UBO publication
 on every draw, including repeated pipeline selections. It replaces the former renderer-side partial
 descriptor, framebuffer bind, clear and mesh submission. No additional live-state cache, restore PSO,
 packed-value manipulation or context-generation tracking is introduced.
@@ -2474,7 +2474,7 @@ ordinary opaque/pre-overlay callback invariant; transform-feedback inactivity is
 | --- | --- |
 | Production adoption; proposal / Submission contract; design / Deterministic reference and evidence boundaries | DirectLightingRenderer and Inputs, DirectLightingSubmissionTests and the frozen DirectLightingReferenceRenderer compare all three radiance outputs using identical built shaders and inputs. |
 | Lifetime and readiness; proposal / Prepared pipelines, identity, and lifetime; design / Geometry, target and executable contracts | Renderer-owned realization and EngineFullscreenGeometry, existing target owners and revision checks; normal/isolated output, resize, repeated inputs, failed preparation and reload cases. |
-| State authority and capture; proposal / Engine integration and cache authority; design / Restoration decisions by boundary | GraphicsCommandContext.TryRunShared, existing CompleteGraphicsBoundary and EngineBoundaryScope; hostile-state/exception checks plus capture, particle-publication and shader-ownership regressions. |
+| State authority and capture; proposal / Engine integration and cache authority; design / Restoration decisions by boundary | RHICommandContext.TryRunShared, existing CompleteGraphicsBoundary and EngineBoundaryScope; hostile-state/exception checks plus capture, particle-publication and shader-ownership regressions. |
 
 The reference fixture preserves the previous submission path and explicitly establishes a complete
 neutral baseline before running its partial descriptor. The candidate is also exercised after hostile
@@ -2509,7 +2509,7 @@ already active pass. Source-accounted native checks outside BoundaryQueries are 
 routing reads per pass and eight GL.IsTexture validations for active borrowed integer samplers per
 submission. Native error polls are separate and excluded from those state-read counts. This migration
 does not claim a query-free production callback; stable managed-draw suppression remains covered by
-GraphicsCommandContextTests. GPU timing, in-game appearance and broader engine/other-mod coverage
+RHICommandContextTests. GPU timing, in-game appearance and broader engine/other-mod coverage
 remain outside these headless receipts. No game was launched.
 
 Delegated commands used `NUGET_PACKAGES=C:\Users\Sisco\.nuget\packages` and
@@ -2518,7 +2518,7 @@ Delegated commands used `NUGET_PACKAGES=C:\Users\Sisco\.nuget\packages` and
 shared fixture shaders use normal project orchestration, including release debug stripping.
 The broad selection ORs `FullyQualifiedName~` matches for DirectLightingSubmissionTests,
 PbrDirectLighting, WaterRefractionCaptureStateTests, SceneColorParticle, SurfaceLightingPbr,
-DirectLightingBufferOwnershipTests, GraphicsCommandContextTests and EngineGraphicsGeometryTests.
+DirectLightingBufferOwnershipTests, RHICommandContextTests and EngineGraphicsGeometryTests.
 Debug separately selects SurfaceLightingDisplayBoundaryTests with `--no-build`; Release includes
 that family in its broad selection. Receipts are `phase7-regression-debug.log`,
 `phase7-display-debug.log` and `phase7-regression-release.log` in the repository root.
@@ -2556,7 +2556,7 @@ all migrated families; the legacy inventory above tracks every retired capture e
 | CPU world-probe two-pass resolve | LumOnWorldProbeClipmapGpuUploader.Pipelines declares actual radiance/metadata formats and immutable point layouts; ArrayGraphicsGeometry borrows streaming buffers. | WorldProbeCpuSubmissionTests; ArrayGraphicsGeometryTests; existing transport integration. |
 | Shared depth hierarchy, LumOn fullscreen and clear-only history | LumOnRenderer.Submission retains one realization per pass name/executable/target signature. The shared DepthHierarchyRenderer submits actual mip areas before AO and LumOn, restricting sampled levels to exclude each destination. ClearHistory declares every target as a clear-only pass. Compute and explicit barriers retain their existing owners. | LumOnTemporalRendererTests; LumOnHistorySubmissionTests; compute/shared-binding suites. |
 | Debug windows, images and primitives | DebugRenderTarget retains actual window formats and borrowed image metadata per target until rebuild/resize, so alternating OIT/window draws reuse their publications. DebugGraphicsSubmission owns bounded per-mode pipeline realizations. Array/fullscreen adapters own geometry. Orbs explicitly declare six output blend policies and point-size/depth behavior. | LumOnDebugRendererFunctionalTests; DebugGraphicsSubmissionTests; SurfaceRenderPassTests. |
-| Liquid depth/surface/volume | LiquidGraphicsSubmission prepares ordinary pool metadata before entry and routes the existing manager's per-pool hook through GraphicsCommandContext.Draw. Engine culling, mini-dimension origin/model-view staging and atlas selection remain in their original order. EngineLiquidPoolGeometry validates native stream layout/capacity once and current allocation groups on each submission. | Liquid adapter tests and existing liquid shader/transport regressions; installed engine pool source/IL establishes the ordinary indexed path and UseSsbo behavior. |
+| Liquid depth/surface/volume | LiquidGraphicsSubmission prepares ordinary pool metadata before entry and routes the existing manager's per-pool hook through RHICommandContext.Draw. Engine culling, mini-dimension origin/model-view staging and atlas selection remain in their original order. EngineLiquidPoolGeometry validates native stream layout/capacity once and current allocation groups on each submission. | Liquid adapter tests and existing liquid shader/transport regressions; installed engine pool source/IL establishes the ordinary indexed path and UseSsbo behavior. |
 | Single state/blend owner and compatibility cleanup | Production legacy capture and temporary FullscreenBoundary are removed; reference implementations live only in test fixtures. GpuFramebuffer blend storage is removed. Complete pipelines own VGE draws. G-buffer, particle and terrain/tessellation hooks remain explicit engine-owned compatibility paths. | Indexed-blend pipeline tests, historical negative control, direct-lighting comparison and engine-boundary regressions. |
 
 Clear-only command contexts have no executable and resolve bounded clear-helper coverage plus viewport;
@@ -2627,16 +2627,16 @@ and the consolidated verification below.
 
 | Proposal sections / required contract | Current implementation and evidence |
 | --- | --- |
-| Intent; Current implementation and gaps; Pipeline model | Pipeline/Descriptions/GraphicsPipelineDesc, Pipeline/GraphicsPipeline, Pipeline/GraphicsCommandContext and StateCache separate draw policy from cached transitions. DirectLightingSubmissionTests compares all three outputs to the retained reference; the remaining-consumer table accounts for every VGE draw family. The historical gaps are not current implementation claims. |
-| Naming and namespaces; Architectural responsibilities | Responsibility-named types live in Pipeline/Descriptions, Pipeline/State and Pipeline/Passes; geometry, interface validation and lifetime each have focused owners. Existing GpuProgram, GpuFramebuffer and buffer hierarchies remain resource owners. GraphicsCommandContext composes them without owning allocation algorithms or another binding system. |
+| Intent; Current implementation and gaps; Pipeline model | Pipeline/Descriptions/GraphicsPipelineDesc, Pipeline/GraphicsPipeline, Pipeline/RHICommandContext and StateCache separate draw policy from cached transitions. DirectLightingSubmissionTests compares all three outputs to the retained reference; the remaining-consumer table accounts for every VGE draw family. The historical gaps are not current implementation claims. |
+| Naming and namespaces; Architectural responsibilities | Responsibility-named types live in Pipeline/Descriptions, Pipeline/State and Pipeline/Passes; geometry, interface validation and lifetime each have focused owners. Existing GpuProgram, GpuFramebuffer and buffer hierarchies remain resource owners. RHICommandContext composes them without owning allocation algorithms or another binding system. |
 | Scope and exclusions | Engine-owned particle, G-buffer, terrain/tessellation and shared-shadow paths retain explicit partial adapters. Compute uses its existing pipeline and resource owners. One live rendering context is assumed; no context generations, render graph, alternate backend, interning or asynchronous preparation are introduced. Consumer and mutation coverage records unobserved external paths. |
 | Categorized cache storage | Pipeline/State category values and independent category knowledge masks are copied by PipelineStateSnapshot. StateBooleanValueTests, StateValueLayoutTests, CategorizedStateCacheTests, GlStateCacheInvalidationTests and PipelineStateCoverageTests cover packed-value independence, known false versus unknown, detached snapshots and selective/partial authority. Managed sizes are reported separately below. |
-| Complete descriptions and partial overrides | GraphicsPipelineDesc resolves defaults and validates in all configurations; GlPipelineDesc remains explicitly partial compatibility intent. PipelineCanonicalization normalizes equivalent representations while preserving authored identity; StateCache.ApplyGraphicsState establishes relevant native groups and preserves dormant values. GraphicsPipelineDescriptionTests, CompleteGraphicsStateTests and GraphicsCommandContextTests verify observable draw control and rejection of undeclared changes. |
+| Complete descriptions and partial overrides | GraphicsPipelineDesc resolves defaults and validates in all configurations; GlPipelineDesc remains explicitly partial compatibility intent. PipelineCanonicalization normalizes equivalent representations while preserving authored identity; StateCache.ApplyGraphicsState establishes relevant native groups and preserves dormant values. GraphicsPipelineDescriptionTests, CompleteGraphicsStateTests and RHICommandContextTests verify observable draw control and rejection of undeclared changes. |
 | Static and dynamic state coverage | Description category records, GraphicsDynamicState, StateCache category transitions and complete restoration own supported raster/depth/stencil/blend/sampling/output/assembly state. ConfigurableRasterizerDescriptionTests and ConfigurableRasterizerGpuTests cover the retained modern raster settings. Custom shader clipping is unsupported; user clip enables are explicitly disabled for VGE draws and restored for engine handoff. |
 | Target signatures and render passes | RenderTargetSignature, RenderPassDesc, RenderPassTargets, RenderPassOperations and GpuFramebuffer attachment/surface publication retain exact formats, sparse/discard routes, typed clears, render areas and borrowed lifetime. RenderPassClearTests/RenderPassLifetimeTests, SurfaceRenderPassTests and native liquid-target tests cover incompatible targets, clear independence, retirement, replacement and resize. |
 | Prepared pipelines, identity, and lifetime | ShaderPipelineIdentity, GraphicsPipelineLifetime, GraphicsPipeline and GraphicsInterfaceValidation use immutable descriptions plus owner/executable revision. Existing prepared bindings and generated std140 inputs remain authoritative. GraphicsPipelineDescriptionTests, ShaderPipelineIdentityTests and PreparedGraphicsPipelineTests cover equality, mutation resistance, reload/disposal and validation without repeated reflection. |
 | Compiler packaging and numeric-input amendments within preparation | ShaderBuildTool/Spirv/ShaderInterfaceReflection and ShaderVariantBuild package immutable declarations with exact binary association; PreparedProgramBinary and GpuProgram.Spirv validate candidates before publication. PackagedInterfaceValidationTests, ShaderInterfaceCompatibilityTests and existing build/driver-cache receipts cover rejection and atomic generations. The Standalone numeric input migration inventory and ShaderAuthoring.md define the approved engine GLSL exceptions; no runtime instruction parser or release debug-name dependency remains. |
-| Submission contract | GraphicsCommandContext and geometry adapters validate pass, targets, executable, ranges, dynamics and resources before drawing. GpuProgram activation publishes changed inputs on every draw. GraphicsCommandContextTests, EngineGraphicsGeometryTests, ArrayGraphicsGeometryTests and LiquidGraphicsSubmissionTests cover input changes, failure-before-draw, recursive/external mutation and UseSsbo restoration. |
+| Submission contract | RHICommandContext and geometry adapters validate pass, targets, executable, ranges, dynamics and resources before drawing. GpuProgram activation publishes changed inputs on every draw. RHICommandContextTests, EngineGraphicsGeometryTests, ArrayGraphicsGeometryTests and LiquidGraphicsSubmissionTests cover input changes, failure-before-draw, recursive/external mutation and UseSsbo restoration. |
 | Native error-checking policy | GlDebug.CheckStateTransitions is opt-in; category transitions and pixel-store scopes suppress unchanged work. Boundary cleanup retains checked, independent restoration and targeted invalidation. StateTransitionDiagnosticsTests, PixelPackStateTests, PixelUnpackStateTests, ConfigurableRasterizerGpuTests and boundary tests distinguish ordinary setters, cold queries, transfer safety and checked restoration. Counters are bounded instrumentation, not a complete driver trace. |
 | Engine integration and cache authority | CompleteGraphicsBoundary, EngineBoundaryScope, EngineStateCalls and exact-signature observation compose prepared footprints with prior shader-owner restoration. EngineBoundaryEntryTests/EngineBoundaryBindingTests, EngineStateSwitchingTests and capture/publication tests prove covered handoffs. Unknown mutations still require explicit invalidation; no whole-engine or arbitrary-mod authority is claimed. |
 | Interpretation of existing project TODOs | project.todo links concrete targets, prepared shader dependencies and scope retirement to the current coverage matrix. Resource binding remains separate from PSO identity. Required engine compatibility scopes remain; all eleven inventoried legacy fixed-function capture calls and framebuffer-owned blend policy are retired. |
@@ -2784,7 +2784,7 @@ checks: StateTransitionDiagnosticsTests requires one changed native command and 
 without nested transition diagnostics. Cold queries and transfer-buffer safety checks are separate
 required work. Suppressing redundant setters does not remove those ownership obligations.
 
-GraphicsCommandContextTests verifies repeated draws within an active pass add no counted fixed-state
+RHICommandContextTests verifies repeated draws within an active pass add no counted fixed-state
 calls, boundary reads or interface reflection, while changed generated inputs still reach the draw.
 That is narrower than a complete one-draw renderer invocation. RenderPass setup captures framebuffer
 bindings and framebuffer-local routing, and cleanup restores them. The matched renderer measurements

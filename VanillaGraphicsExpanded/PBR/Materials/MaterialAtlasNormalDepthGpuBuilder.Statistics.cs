@@ -1,5 +1,4 @@
 using VanillaGraphicsExpanded.Rendering.RHI;
-using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.Pipeline;
 using VanillaGraphicsExpanded.Rendering.Pipeline.Passes;
 using System;

@@ -15,7 +15,7 @@ internal static class CloudMapUploadHook
     {
         __state = CloudNativeRuntime.Active?.ForMap(__instance); __state?.BeginUpload();
     }
-    /// <summary>Only normal completion and an error-free pair of uploads receives a certificate.</summary>
+    /// <summary>Only normal original-callback completion of the joint upload receives a certificate.</summary>
     private static void Postfix(CloudNativeMapAdapter? __state, bool __runOriginal) => __state?.CompleteUpload(__runOriginal);
     /// <summary>A failed in-place upload cannot retain the old certificate.</summary>
     private static void Finalizer(Exception? __exception, CloudNativeMapAdapter? __state)

@@ -186,22 +186,6 @@ public class GpuEboUnitTests
     }
 
     [Fact]
-    public void DrawMethods_HaveCorrectSignatures()
-    {
-        // Verify draw method signatures
-        var drawElementsMethod = typeof(GpuEbo).GetMethod("DrawElements", 
-            new[] { typeof(PrimitiveType), typeof(int), typeof(int) });
-        
-        var drawElementsInstancedMethod = typeof(GpuEbo).GetMethod("DrawElementsInstanced", 
-            new[] { typeof(PrimitiveType), typeof(int), typeof(int), typeof(int) });
-        
-        Assert.NotNull(drawElementsMethod);
-        Assert.NotNull(drawElementsInstancedMethod);
-        Assert.Equal(typeof(void), drawElementsMethod.ReturnType);
-        Assert.Equal(typeof(void), drawElementsInstancedMethod.ReturnType);
-    }
-
-    [Fact]
     public void IndexDataTypes_CorrespondToDrawElementsTypes()
     {
         // This test documents the correspondence between C# types and DrawElementsType values

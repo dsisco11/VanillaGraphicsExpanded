@@ -41,7 +41,7 @@ public sealed class GpuResourceOperationContextTests(HeadlessGLFixture fixture)
                 Assert.Throws<InvalidOperationException>(() => { using var operation = new GpuResourceManager.MetadataOperation<GpuBufferMetadata>(buffer, GpuMetadataChange.Storage); });
                 Assert.Throws<InvalidOperationException>(() => GpuResourceManager.AcquireTextureCommandInput(texture));
                 Assert.Throws<InvalidOperationException>(() => new VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBackend(StateCache.Current).SubmitProgramExecutable(program));
-                Assert.Throws<InvalidOperationException>(() => OpenGLProgramCalls.ExecuteCoreLinkProgram(program.ProgramId));
+                if (worker) Assert.Throws<InvalidOperationException>(() => OpenGLProgramCalls.ExecuteCoreLinkProgram(program.ProgramId));
                 Assert.Throws<InvalidOperationException>(() => GpuResourceManager.RequireProgramSnapshot(program));
                 Assert.Throws<InvalidOperationException>(() => GpuResourceManager.AcquireEngineGeometryConfiguration(vao, new([]), [], default));
             };
@@ -56,6 +56,8 @@ public sealed class GpuResourceOperationContextTests(HeadlessGLFixture fixture)
             {
                 current = (origin.Handle, origin.Generation + 1);
                 attempt();
+                // Exact native calls preserve the physical context; a simulated manager namespace is not their authority.
+                OpenGLProgramCalls.ExecuteCoreLinkProgram(program.ProgramId);
                 Assert.Throws<InvalidOperationException>(() => GpuBufferUploader.Allocate(buffer, 64, IntPtr.Zero, BufferUsage.DynamicDraw));
                 Assert.Throws<InvalidOperationException>(() => RHICommandContext.Current.CreateTextureView(new RHITextureViewDescription { Source = texture, Dimension = TextureDimension.TwoArray, Format = TextureFormat.Rgba8, BaseMip = 0, MipCount = 1, BaseLayer = 0, LayerCount = 1, Label = null }).RequireResource());
                 current = origin;

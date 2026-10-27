@@ -814,3 +814,117 @@ slot-binding facade, no parallel resource registry or dispatcher, and no native 
 as command success detection. Source fingerprint recheck found no drift after qualification.
 All required 5d findings are resolved. Phase 5 and 5e remain open. These headless checks do not claim
 installed-game startup, visual acceptance or measured performance. No staging or commit was performed.
+
+## Combined rendering dependency closure (Phase 5e)
+
+The candidate is based on HEAD `c1893abd52f6cdde14f0c8cc2216e518bf24dd19`. Earlier E and 5b–5d
+receipts remain historical checkpoints; this section qualifies their combined immediate-execution graph.
+Command recording and final integrated/package acceptance remain separate unchecked work.
+
+### Consulted authority and implementation traceability
+
+| Work | Controlling source | Implementation and observed verification |
+| --- | --- | --- |
+| Complete E gate: executable/PSO lifecycle, geometry, target realization, logical uniforms, boundaries and immediate consumers | Proposal shader/pipeline objects, resource creation/adoption, immediate execution, pass targets, backend publication and representative verification; Contracts authority/factories/executables/pipelines/submission/uniform/source ownership; E work packages above | Existing final RHI context/backend, fixed-generation objects, manager registry and logical publication remain singular. Combined and additional suites exercise shader creation/binaries/pending/reload, pipeline identity, resources/geometry, target lifetimes, uniform allocation/publication, binding suppression and original-context cleanup. |
+| Cloud storage/executable acquisition and content certificates | Same authority; GpuResources query/retirement policy; PBR.Clouds borrowed map contract; archived CommandPublication private handoff and TextureRef identity contracts | `GpuResourceManager.AcquireExternalFacts` reuses available canonical entries; native readers execute behind query services. `CloudNativeMapAdapter` retains expected layout and content policy without native selector changes, validity probes or error drains. Explicit upload/generation outcomes, skipped callbacks and exception withdrawal remain producer-owned. A covered-reader rejection test preserves an unrelated ambient native error. |
+| Engine framebuffer and callback execution | Proposal permanent engine boundary/backend publication; Contracts authority and submission; GpuResources explicit integration | `OpenGLRHIContext` admits named native integration operations, returning no backend. Backend services own GBuffer attachment transactions, routing, blend application, external completeness, engine mesh upload/deletion, patch selection and particle selector/restoration scopes. `VerifyBlendState` and `RelinquishIfDeleted` are removed. Original manager association is checked after attachment observers before completeness; original-context admission surrounds callbacks. |
+| Specialized passes and wrapper cleanup | Proposal pass validation/restoration and no-shim migration; Contracts source ownership | RenderPass, RenderPassSequence, RenderPassTargets and their native descriptions live under `Rendering/RHI/Backends/OpenGL/Passes`. Only backend pass lifecycle starts a pass; validators retain specialized checks. Unused indirect-buffer binding scopes and redundant framebuffer scopes are removed with callers. No facade or duplicate executor replaces them. |
+| Inherited fixture reconciliation and affected B–D evidence | 5e inherited-failure task; Proposal 4.5 baseline and representative regressions; archived metadata/creation contracts | Observers target actual OpenGL4 operations; exact native context/deferred-delete cases preserve external semantics. Captured shader tests use the packaged shader's real contract. Engine framebuffer fixtures model external surfaces; sparse discarded outputs use semantic holes. Native draw failure/reentry observers act at backend packet preparation with resource guards held, rather than expecting removed engine mesh callbacks. |
+
+### Dependency classification
+
+Source inspection includes imports, qualified names, aliases, fields/constructors/casts, direct helpers,
+native calls and locally retained cache references. Ordinary manager/resource/semantic-object/render
+execution does not retrieve a concrete backend. Remaining native dependencies have explicit ownership:
+
+- OpenGL backend modules and StateCache's native knowledge/restoration collaborate under the existing
+  execution owner. Cache final naming/layout consolidation remains scheduled separately.
+- RHICommandContext composition selects the concrete implementation; semantic objects retain only
+  their neutral lifetime/realization contract. No context backend escape property is restored.
+- EngineStateCallMap, NativeAdapters and EngineStateCalls preserve exact native signatures/outcomes.
+  EngineStateTargets discovers engine call sites; it does not provide portable rendering dispatch.
+- GBuffer, cloud external completeness, terrain program/stage replacement and patch selection,
+  fullscreen engine upload/retirement and particle redirection use restricted native integration.
+- Frame/terrain/atmosphere hooks retain linked engine membership, locations and sampler/block assignment
+  at native executable preparation. Ordinary texture/sampler and uniform/SSBO binding goes through RHI.
+  FrozenLighting.BindBase, SceneColorProgramBindings.BindScene and chunk-slot parameter BindBase retain
+  their existing semantic buffer routes; no second integration binding path is introduced.
+- GpuProgramLayout's raw linked-interface query/assignment helpers serve explicit engine preparation;
+  generated owned shader interfaces remain supplied metadata. ShaderPreparedSubmission is backend-used
+  pure validation; native format translation compares canonical facts without issuing commands.
+- GlDebug, GpuSupport and GlExtensions retain context admission, cached capability discovery and DEBUG
+  diagnostics. Source mutator references identify native methods; they do not execute rendering.
+
+### Correctness fixes found by combined qualification
+
+The disabled surface-lighting fallback buffer now reserves its authoritative header plus one record,
+matching the reflected minimum storage-block extent even when capture is disabled. Validation remains
+strict. Immutable framebuffer declarations are scoped by original context and native ID inside the
+thread-local cache; context switching cannot confuse equal names. Admission and declared-route reuse
+discard terminal manager associations before deferred wrapper cleanup, without native probes; a
+deletion-before-disposal regression and the independent PSO context workloads cover both cases.
+Cloud output-mode changes release obsolete target/pipeline recipes before installing a shader
+variant with a different fragment-output contract; ordinary asset reload remains a coherent candidate
+installation. Equivalent-format surface replacement reuses its compatible fixed pipeline.
+
+Framebuffer fixtures now select an engine surface without replaying their original owned attachment
+set over GBuffer's extension. The routing fixture exercises the original external framebuffer IDs and
+injects failure during restoration after both owners were touched. Hostile-state cleanup deliberately
+invalidates cached knowledge; tests distinguish that from successful native program restoration. A raw
+incoming-program snapshot grants no ownership: explicit retirement produces a fatal restoration error,
+unknown program knowledge and withdrawn capture publication, without rebinding the deleted name. Raw
+engine raster fixtures explicitly establish their input raster state rather than inheriting prior tests.
+Core 4.5 capability tests no longer demand older-version fallback behavior. The obsolete EBO draw-method
+reflection check is removed with the retired wrapper execution API; actual indexed draws are qualified
+through semantic geometry tests.
+
+### Combined validation
+
+The following receipts qualify the combined immediate-execution candidate; failed historical runs and their limits remain explicit.
+
+The frozen source contains 3,417 files at HEAD `c1893abd52f6cdde14f0c8cc2216e518bf24dd19`, with
+SHA256 `80fc0816dfb4b617f4aee4bc0d53c85f3fd5403648590746931006313057ca7e`.
+The fingerprint excludes documentation and build outputs. Receipts are under
+`artifacts/rhi-phase5e/candidate/`; none of this work was staged or committed.
+
+- Canonical Debug test-project compilation: `final2-debug-build.log`, zero errors. Combined immediate
+  rendering/resource regressions: `final2-debug-combined.trx`, **722/722 passed**, zero skips.
+- Additional affected GPU checks: `final-debug-additional.trx`, **155/155 passed**. Relevant unit checks:
+  `final-debug-unit.trx`, **124/124 passed**. Generator suite: `final-generator-debug.trx`, **157/157 passed**.
+- Canonical Release test-project compilation: `final4-release-build.log`, zero errors/204 warnings.
+  Existing test references to DEBUG-only counters are now guarded; their actual execution, restoration
+  and output assertions remain unconditional. Final Debug recompilation and all 13 affected cloud
+  checks passed (`final4-debug-build.log`, `final4-debug-cloud.trx`).
+- Ordinary optimized Release combined execution: `canonical-release-combined.trx`, **700 passed,
+  22 failed**, zero skips. Exact failures remain in `canonical-release-failures.txt`. These cases depend
+  on native method interception for call observation or fault injection. The failed run is retained;
+  it is not represented as a green Release suite.
+- Ordinary Release additional GPU/unit/generator suites passed **155/155**, **124/124** and **157/157**
+  (`canonical-release-additional.trx`, `canonical-release-unit.trx`, `canonical-generator-release.trx`).
+- A separate Debug test harness also ran against the canonical optimized Release production assembly:
+  `release-final.trx`, **171/171 passed**, zero skips. Production assembly SHA256 was
+  `D7F0B3653CBB074FD0A5E98C0ED8C9651283782C93C274C5D581773CD220F798` in both locations.
+  This is a focused Release-product receipt, not a replacement for the failed ordinary Release run.
+
+An earlier broad non-GPU selection recorded 2,146 passed, eight failed and nine explicit skips.
+Five obsolete architectural fixtures were corrected and are covered by the passing relevant unit suite.
+The other three asynchronous timing cases passed in isolation (eight theory cases); that rerun does
+not make the original broad selection green. No live startup, visual, frame-time or optional external
+producer-import qualification is claimed. Recording and final integrated/package acceptance remain
+assigned to the later unchecked work.
+
+The same canonical Release binaries passed **722/722**, zero skips, with process-only
+`COMPlus_JitNoInline=1`, `COMPlus_TieredCompilation=0`, and `COMPlus_ReadyToRun=0`
+(`canonical-release-noinline.log` and `.trx`). This confirms the native observer/fault-injection
+sensitivity to optimization. The command used the same combined filter and Release `dotnet test`
+with `--no-build --no-restore` (exact invocation: `release-noinline-invocation.txt`); no production instrumentation, DEBUG definition, substitute executable
+or fallback path was added. The canonical Release assembly hash and final source fingerprint remained
+unchanged (`noinline-fingerprint-after.txt`). Ordinary optimized Release remains 700/722, as recorded above.
+
+Second implementation review and independent stage-completion audit consulted the inherited proposal,
+contracts, inventory/API scope, resource/cloud/binding documentation and archived controlling handoff
+and reference contracts. Each original Phase 5 and 5e requirement maps to the routes and behavioral
+receipts above. No required implementation or documentation discrepancy remains. Exact native integration,
+cache observation and backend composition remain explicit final boundaries; they are not portable
+submission bypasses. StateCache naming/layout consolidation and command recording remain later work.
+The combined Phase 5 gate and dependency closure are satisfied within these qualification limits.

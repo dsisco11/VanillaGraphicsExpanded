@@ -67,7 +67,6 @@ public abstract partial class GpuFramebuffer
             ? attachments.ContainsKey(FramebufferAttachment.DepthAttachment) || attachments.ContainsKey(FramebufferAttachment.StencilAttachment)
             : attachments.ContainsKey(slot);
         if (!present) return false;
-        using var bindings = StateCache.Current.BindFramebufferScope(FramebufferTarget.Framebuffer, fboId);
         // Detachment must remain possible when the outgoing image is unavailable. Keep any
         // other pending replacements dirty so their native attachments refresh at rendering use.
         RHI.RHICommandContext.Current.ConfigureFramebufferAttachment(this, slot, null);

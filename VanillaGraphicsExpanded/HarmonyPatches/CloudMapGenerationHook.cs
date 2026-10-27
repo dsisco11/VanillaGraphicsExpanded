@@ -10,7 +10,7 @@ namespace VanillaGraphicsExpanded.HarmonyPatches;
 internal static class CloudMapGenerationHook
 {
     #region Private
-    /// <summary>Expires the old map before native ticking and establishes an error boundary.</summary>
+    /// <summary>Expires the old map before native ticking and establishes an observed callback boundary.</summary>
     private static void Prefix(CloudRendererMap __instance, out CloudNativeMapAdapter? __state)
     {
         __state = CloudNativeRuntime.Active?.ForMap(__instance);

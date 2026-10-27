@@ -9,31 +9,30 @@ using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 
 namespace VanillaGraphicsExpanded.Tests.GPU;
 
-/// <summary>Qualifies named framebuffer routing against the capability-gated bound fallback and independent cleanup.</summary>
+/// <summary>Qualifies core named framebuffer routing, repeated restoration and independent cleanup.</summary>
 [Collection("GPU")][Trait("Category","GPU")]
 public sealed class FramebufferRoutingDsaTests(HeadlessGLFixture fixture,ITestOutputHelper output):RenderTestBase(fixture)
 {
     #region Public API
     #region Equivalent restoration
-    /// <summary>Supported and capability-disabled paths restore identical images and routes while sequences eliminate restoration-only binds.</summary>
+    /// <summary>Repeated named restoration preserves images and routes in standalone and shared boundaries.</summary>
     [Theory][InlineData(false)][InlineData(true)]
-    public void NamedAndBoundRestorationProduceEquivalentResults(bool standalone)
+    public void NamedRestorationProducesEquivalentResults(bool standalone)
     {
         EnsureContextValid();Assert.True(GpuSupport.Graphics.SupportsArbDirectStateAccess);
         // Clear-only passes declare no executable; preserve any program left by another shared-fixture test.
         OpenGLProgramSelection.Select(StateCache.Current, 0);
         using var scene=new RoutingScene();scene.Initialize();List<string> fallback;
-        using(var capability=new DirectStateAccessCapabilityScope(false))
         using(var capture=new GraphicsTransitionCapture()){scene.Render(standalone);fallback=[..capture.Calls];}
         scene.AssertRestored();var expected=scene.ReadOutput();scene.Initialize();List<string> named;
         using(var capture=new GraphicsTransitionCapture()){scene.Render(standalone);named=[..capture.Calls];}
         scene.AssertRestored();var actual=scene.ReadOutput();
         for(int layer=0;layer<expected.Length;layer++)Assert.Equal(expected[layer],actual[layer]);
         Assert.Equal(.25f,actual[0][0]);Assert.Equal(.5f,actual[3][0]);
-        Assert.DoesNotContain(fallback,call=>call.StartsWith("RoutingNamed:"));
-        Assert.Equal(2,named.Count(call=>call.StartsWith("RoutingNamed:")));
+        Assert.Equal(4,fallback.Count(call=>call.StartsWith("RoutingNamed:")));
+        Assert.Equal(4,named.Count(call=>call.StartsWith("RoutingNamed:")));
         Assert.Equal(fallback.Count(call=>call.StartsWith("Routing")),named.Count(call=>call.StartsWith("Routing")));
-        if(!standalone)Assert.True(named.Count(call=>call.StartsWith("Framebuffer:"))<fallback.Count(call=>call.StartsWith("Framebuffer:")));
+        Assert.Equal(fallback.Count(call=>call.StartsWith("Framebuffer:")),named.Count(call=>call.StartsWith("Framebuffer:")));
         output.WriteLine("FRAMEBUFFER_ROUTING_DSA="+System.Text.Json.JsonSerializer.Serialize(new{standalone,fallback,named}));
         scene.AssertReleased();Assert.Equal(ErrorCode.NoError,GL.GetError());
     }
@@ -109,6 +108,14 @@ public sealed class FramebufferRoutingDsaTests(HeadlessGLFixture fixture,ITestOu
         {
             images=Enumerable.Range(0,4).Select(_=>Own(RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba32f, Width = System.Math.Max(1, 2), Height = System.Math.Max(1, 2), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource())).ToArray();
             targets=[Own(DynamicGpuFramebuffer.CreateMRT(images.Take(2).ToArray())!),Own(DynamicGpuFramebuffer.CreateMRT(images.Skip(2).ToArray())!)];
+            // Model real external framebuffer surfaces so handback concerns the original engine IDs,
+            // rather than the backend's independently realized attachment-based pass targets.
+            targets=targets.Select(target=>
+            {
+                var external=Own(DynamicGpuFramebuffer.Wrap(target.FboId));
+                external.RefreshWrappedFramebuffer(target.FboId,2,2,publishPassMetadata:true);
+                return (GpuFramebuffer)external;
+            }).ToArray();
             incoming=CreateTarget();read=CreateTarget();
         }
         /// <summary>Identifies the first cleanup owner for controlled failure injection.</summary>

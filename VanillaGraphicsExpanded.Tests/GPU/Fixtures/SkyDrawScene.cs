@@ -113,6 +113,7 @@ internal sealed class SkyDrawScene : IDisposable
         GL.BlendFunc(BlendingFactor.Zero, BlendingFactor.One);
         GL.Viewport(1, 1, 2, 1);
         StateCache.Current.InvalidateAll();
+        StateCache.Current.NotifyProgramBound(native.ProgramId);
     }
     #endregion
 

@@ -42,7 +42,7 @@ public sealed class RenderPassClearTests(HeadlessGLFixture fixture) : RenderTest
             {
                 boundary.BeginRenderPass(FramebufferTestSetup.DescribeAttachments(target,
                     [new(AttachmentIndex:2, Load:AttachmentLoad.Clear, Clear: ColorClearValue.Int(-3, 7, -16777217, 19)),
-                     new(AttachmentIndex:-1, DiscardOutput: true),
+                     new(DiscardOutput: true),
                      new(AttachmentIndex:0, Load:AttachmentLoad.Clear, Clear: ColorClearValue.Float(.25f, .5f, .75f, 1)),
                      new(AttachmentIndex:4, Load:AttachmentLoad.Clear, Clear: ColorClearValue.UInt(3, 7, 4294967294, 19))]));
                 Assert.True(boundary.HasRenderPass);

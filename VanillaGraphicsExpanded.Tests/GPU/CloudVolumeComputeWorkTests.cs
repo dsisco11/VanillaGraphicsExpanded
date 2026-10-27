@@ -73,8 +73,8 @@ public sealed class CloudVolumeComputeWorkTests(HeadlessGLFixture fixture,Xunit.
         }
         foreach(bool batched in new[]{false,true})
         {
-            int boundaries=submission.Boundaries,barriers=submission.Barriers;
 #if DEBUG
+            int boundaries=submission.Boundaries,barriers=submission.Barriers;
             long binds=StateCache.Current.ResourceSlotBindCount,textures=StateCache.Current.TextureBindCount;
 #endif
             Measure(batched?"Batched transport/copy boundary":"Standalone transport/copy boundaries",()=>
@@ -193,16 +193,16 @@ public sealed class CloudVolumeComputeWorkTests(HeadlessGLFixture fixture,Xunit.
                 bool published=solution.Drawable is {} drawable&&drawable.Revision>before;
                 if(!published)
                 {
-                    int boundaries=solution.Submission.Boundaries,dispatches=solution.Submission.Dispatches,barriers=solution.Submission.Barriers;
 #if DEBUG
+                    int boundaries=solution.Submission.Boundaries,dispatches=solution.Submission.Dispatches,barriers=solution.Submission.Barriers;
                     long binds=StateCache.Current.ResourceSlotBindCount;
 #endif
                     started=System.Diagnostics.Stopwatch.GetTimestamp();solution.Submit(observation,map,lighting,camera,settings,()=>true);
                     cpu+=System.Diagnostics.Stopwatch.GetElapsedTime(started).TotalMilliseconds;
+#if DEBUG
                     int count=solution.Submission.Dispatches-dispatches;
                     Assert.Equal(1,solution.Submission.Boundaries-boundaries);
                     Assert.Equal(count+1,solution.Submission.Barriers-barriers);
-#if DEBUG
                     if(measure)output.WriteLine($"Update submission: dispatches={count}, boundaries=1, barriers={count+1}, actual image/indexed binds={StateCache.Current.ResourceSlotBindCount-binds}; previous per-pass path requires {count} boundaries and {count*2} per-pass barriers, plus one post-refine barrier only when diffuse runs.");
 #endif
                 }

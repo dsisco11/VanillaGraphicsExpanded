@@ -191,7 +191,7 @@ public sealed class GpuFramebufferExecutableCreationTests(HeadlessGLFixture fixt
             Assert.Equal(sentinel.FboId, GL.GetInteger(GetPName.DrawFramebufferBinding));
             Assert.Equal(sentinel.FboId, GL.GetInteger(GetPName.ReadFramebufferBinding));
             // Calibrate the concrete intercepted entry point after the measured interval.
-            GL.GetShader((int)shaderHandle.Id, ShaderParameter.ShaderType, out int nativeStage);
+            OpenTK.Graphics.OpenGL4.GL.GetShader((int)shaderHandle.Id, OpenTK.Graphics.OpenGL4.ShaderParameter.ShaderType, out int nativeStage);
             Assert.Equal(1, queries);
             Assert.Equal((int)ShaderType.VertexShader, nativeStage);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
@@ -281,16 +281,16 @@ public sealed class GpuFramebufferExecutableCreationTests(HeadlessGLFixture fixt
     private static void PatchQueries(Harmony harmony)
     {
         var prefix = new HarmonyMethod(typeof(GpuFramebufferExecutableCreationTests), nameof(CountQuery));
-        harmony.Patch(AccessTools.Method(typeof(GL), nameof(GL.GetShader), [typeof(int), typeof(ShaderParameter), typeof(int).MakeByRefType()]), prefix: prefix);
-        harmony.Patch(AccessTools.Method(typeof(GL), nameof(GL.GetProgram), [typeof(int), typeof(GetProgramParameterName), typeof(int).MakeByRefType()]), prefix: prefix);
-        harmony.Patch(AccessTools.Method(typeof(GL), nameof(GL.GetProgramInterface), [typeof(int), typeof(ProgramInterface), typeof(ProgramInterfaceParameter), typeof(int).MakeByRefType()]), prefix: prefix);
-        harmony.Patch(AccessTools.Method(typeof(GL), nameof(GL.GetFramebufferAttachmentParameter), [typeof(FramebufferTarget), typeof(FramebufferAttachment), typeof(FramebufferParameterName), typeof(int).MakeByRefType()]), prefix: prefix);
-        harmony.Patch(AccessTools.Method(typeof(GL), nameof(GL.GetNamedFramebufferAttachmentParameter), [typeof(int), typeof(FramebufferAttachment), typeof(FramebufferParameterName), typeof(int).MakeByRefType()]), prefix: prefix);
-        harmony.Patch(AccessTools.Method(typeof(GL), nameof(GL.GetFramebufferParameter), [typeof(FramebufferTarget), typeof(FramebufferDefaultParameter), typeof(int).MakeByRefType()]), prefix: prefix);
-        harmony.Patch(AccessTools.Method(typeof(GL), nameof(GL.GetNamedFramebufferParameter), [typeof(int), typeof(FramebufferDefaultParameter), typeof(int).MakeByRefType()]), prefix: prefix);
-        harmony.Patch(AccessTools.Method(typeof(GL), nameof(GL.IsShader), [typeof(int)]), prefix: prefix);
-        harmony.Patch(AccessTools.Method(typeof(GL), nameof(GL.IsProgram), [typeof(int)]), prefix: prefix);
-        harmony.Patch(AccessTools.Method(typeof(GL), nameof(GL.IsFramebuffer), [typeof(int)]), prefix: prefix);
+        harmony.Patch(AccessTools.Method(typeof(OpenTK.Graphics.OpenGL4.GL), nameof(GL.GetShader), [typeof(int), typeof(OpenTK.Graphics.OpenGL4.ShaderParameter), typeof(int).MakeByRefType()]), prefix: prefix);
+        harmony.Patch(AccessTools.Method(typeof(OpenTK.Graphics.OpenGL4.GL), nameof(GL.GetProgram), [typeof(int), typeof(OpenTK.Graphics.OpenGL4.GetProgramParameterName), typeof(int).MakeByRefType()]), prefix: prefix);
+        harmony.Patch(AccessTools.Method(typeof(OpenTK.Graphics.OpenGL4.GL), nameof(GL.GetProgramInterface), [typeof(int), typeof(OpenTK.Graphics.OpenGL4.ProgramInterface), typeof(OpenTK.Graphics.OpenGL4.ProgramInterfaceParameter), typeof(int).MakeByRefType()]), prefix: prefix);
+        harmony.Patch(AccessTools.Method(typeof(OpenTK.Graphics.OpenGL4.GL), nameof(GL.GetFramebufferAttachmentParameter), [typeof(OpenTK.Graphics.OpenGL4.FramebufferTarget), typeof(OpenTK.Graphics.OpenGL4.FramebufferAttachment), typeof(OpenTK.Graphics.OpenGL4.FramebufferParameterName), typeof(int).MakeByRefType()]), prefix: prefix);
+        harmony.Patch(AccessTools.Method(typeof(OpenTK.Graphics.OpenGL4.GL), nameof(GL.GetNamedFramebufferAttachmentParameter), [typeof(int), typeof(OpenTK.Graphics.OpenGL4.FramebufferAttachment), typeof(OpenTK.Graphics.OpenGL4.FramebufferParameterName), typeof(int).MakeByRefType()]), prefix: prefix);
+        harmony.Patch(AccessTools.Method(typeof(OpenTK.Graphics.OpenGL4.GL), nameof(GL.GetFramebufferParameter), [typeof(OpenTK.Graphics.OpenGL4.FramebufferTarget), typeof(OpenTK.Graphics.OpenGL4.FramebufferDefaultParameter), typeof(int).MakeByRefType()]), prefix: prefix);
+        harmony.Patch(AccessTools.Method(typeof(OpenTK.Graphics.OpenGL4.GL), nameof(GL.GetNamedFramebufferParameter), [typeof(int), typeof(OpenTK.Graphics.OpenGL4.FramebufferDefaultParameter), typeof(int).MakeByRefType()]), prefix: prefix);
+        harmony.Patch(AccessTools.Method(typeof(OpenTK.Graphics.OpenGL4.GL), nameof(GL.IsShader), [typeof(int)]), prefix: prefix);
+        harmony.Patch(AccessTools.Method(typeof(OpenTK.Graphics.OpenGL4.GL), nameof(GL.IsProgram), [typeof(int)]), prefix: prefix);
+        harmony.Patch(AccessTools.Method(typeof(OpenTK.Graphics.OpenGL4.GL), nameof(GL.IsFramebuffer), [typeof(int)]), prefix: prefix);
     }
 
     /// <summary>Records a descriptor query without changing its native behavior.</summary>
@@ -298,7 +298,7 @@ public sealed class GpuFramebufferExecutableCreationTests(HeadlessGLFixture fixt
     {
         queries++;
         if (__originalMethod.Name.Contains("AttachmentParameter", StringComparison.Ordinal))
-            queriedSlots.Add((FramebufferAttachment)__args[1]);
+            queriedSlots.Add((FramebufferAttachment)Convert.ToInt32(__args[1]));
     }
 
     /// <summary>Receives the initial canonical snapshot through the real manager association boundary.</summary>

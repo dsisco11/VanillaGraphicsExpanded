@@ -8,6 +8,8 @@ namespace VanillaGraphicsExpanded.Rendering;
 public abstract partial class GpuResource
 {
     #region Internal API
+    /// <summary>Supplies the original namespace for backend-owned CPU configuration guards.</summary>
+    internal (nint Handle, long Generation) OriginalContext => nativeContext;
     /// <summary>Captures registered identity, or the physical context for an explicitly local buffer or image tool.</summary>
     internal static unsafe (nint Handle, long Generation) CaptureCreationContext(GpuResourceKind kind)
     {

@@ -57,6 +57,7 @@ public sealed class SceneColorParticleIntegrationTests(HeadlessGLFixture fixture
     public void DrawScopeRestoresEngineBlendAndIndependentBindings(bool failed)
     {
         EnsureContextValid();
+        fixture.InitializeResourceDisposal();
         using var material = new GpuFramebufferAttachment(2, 2, PixelInternalFormat.Rgba16f);
         using var glow = new GpuFramebufferAttachment(2, 2, PixelInternalFormat.Rgba32f);
         using var depthStorage = new DepthTexture(2, 2, PixelInternalFormat.DepthComponent32f);

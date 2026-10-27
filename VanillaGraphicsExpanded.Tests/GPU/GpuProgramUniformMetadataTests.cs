@@ -67,7 +67,7 @@ public sealed class GpuProgramUniformMetadataTests(HeadlessGLFixture fixture)
             OpenGLProgramAssignments.SetUnit(program.ProgramId,sampler,3);
             var reader=new CountingReader(entry.Reader!); entry.Reader=reader;
             harmony.Patch(AccessTools.Method(typeof(GL),nameof(GL.Uniform1),[typeof(int),typeof(int)]),prefix:new HarmonyMethod(typeof(GpuProgramUniformMetadataTests),nameof(CountNative)));
-            harmony.Patch(AccessTools.Method(typeof(GL),nameof(GL.ProgramUniform1),[typeof(int),typeof(int),typeof(int)]),prefix:new HarmonyMethod(typeof(GpuProgramUniformMetadataTests),nameof(CountNative)));
+            harmony.Patch(AccessTools.Method(typeof(OpenTK.Graphics.OpenGL4.GL),nameof(GL.ProgramUniform1),[typeof(int),typeof(int),typeof(int)]),prefix:new HarmonyMethod(typeof(GpuProgramUniformMetadataTests),nameof(CountNative)));
             nativeCalls=0; ulong revision=entry.MetadataRevision;
             OpenGLProgramAssignments.SetUnit(program.ProgramId,sampler,3);
             Assert.Equal(0,nativeCalls); Assert.Equal(0,reader.Reads); Assert.Equal(revision,entry.MetadataRevision);

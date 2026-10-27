@@ -25,7 +25,7 @@ internal sealed class CloudMapPublication(object owner, long world)
     /// <summary>Withdraws the upload before an in-place update whose failure may destroy previous content.</summary>
     internal void BeginUpload() { upload = 0; completed = null; }
 
-    /// <summary>Certifies both native raw uploads only on a successful error-free boundary.</summary>
+    /// <summary>Certifies both native raw uploads only on a successfully reported joint callback boundary.</summary>
     internal void CompleteUpload(bool success)
     {
         if (!retired && storageReady && success) upload = ++generation;

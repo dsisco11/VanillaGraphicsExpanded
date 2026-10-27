@@ -1,4 +1,5 @@
 using System;
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
 
@@ -25,26 +26,19 @@ internal sealed class SceneColorParticleDrawScope : IDisposable
             BlendingFactorSrc.SrcAlpha, BlendingFactorDest.OneMinusSrcAlpha))],
         name: "SceneColor.Particles.EngineBoundary");
     private readonly SceneColorParticleTargets targets;
-    private readonly StateCache.FramebufferScope bindings;
+    private readonly IDisposable? bindings;
     private bool completed;
     private bool disposed;
 
     #region Public API
-    /// <summary>Establishes the engine's full-scene particle contract before preserving cached copy state.</summary>
+    /// <summary>Captures initial depth, then admits engine particle routing under backend-owned restoration.</summary>
     internal SceneColorParticleDrawScope(SceneColorParticleTargets targets)
     {
         this.targets = targets;
-        var state = StateCache.Current;
-        bindings = state.BindFramebufferScope();
         try
         {
-            // The installed OnRenderFrame3D sets standard source-alpha blending
-            // immediately before Render(1). This scope owns only output zero and
-            // full-scene scissor intent; borrowed glow retains its engine factors.
-            state.Apply(ParticleBoundary);
             targets.BeginCapture();
-            targets.DrawTarget.Bind();
-            state.Apply(CapturePipeline);
+            bindings = OpenGLRHIContext.BeginEngineParticleCapture(targets.DrawTarget, CapturePipeline, ParticleBoundary);
         }
         catch { Dispose(); throw; }
     }
@@ -63,8 +57,7 @@ internal sealed class SceneColorParticleDrawScope : IDisposable
         if (disposed) return;
         disposed = true;
         if (!completed) targets.ResetCapture();
-        try { bindings.Dispose(); }
-        finally { StateCache.Current.Apply(ParticleBoundary); }
+        bindings?.Dispose();
     }
     #endregion
 }

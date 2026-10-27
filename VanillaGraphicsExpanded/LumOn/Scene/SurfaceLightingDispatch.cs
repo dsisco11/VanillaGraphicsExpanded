@@ -34,7 +34,8 @@ internal sealed class SurfaceLightingDispatch : IDisposable
             infoLog: out string log))
             throw new InvalidOperationException(log);
         pipeline = new(created!);
-        disabledFallback.EnsureCapacity(SurfaceHitCaptureCodec.HeaderBytes, growExponentially:false);
+        // Even a disabled runtime array must bind its reflected minimum extent: header plus one record.
+        disabledFallback.EnsureCapacity(SurfaceHitCaptureCodec.HeaderBytes + SurfaceHitCaptureCodec.RecordBytes, growExponentially:false);
         disabledFallback.UploadSubData<uint>(new uint[SurfaceHitCaptureCodec.HeaderBytes >> 2],0,SurfaceHitCaptureCodec.HeaderBytes);
     }
 

@@ -104,7 +104,7 @@ internal sealed partial class OpenGLBackend
         int minimum = binding.Contract.Kind == ShaderBindingKind.AtomicCounter ? Math.Max(4, binding.MinimumSize) : binding.MinimumSize;
         if (length < minimum || input.Offset % alignment != 0
             || binding.Contract.Kind == ShaderBindingKind.UniformBlock && length > Capabilities.MaxUniformBlockSize)
-            throw new ArgumentException("Captured buffer extent or alignment is incompatible with its prepared block.");
+            throw new ArgumentException($"Captured {binding.Contract.Name} buffer extent {length} (minimum {minimum}, offset {input.Offset}, alignment {alignment}) is incompatible with its prepared block.");
     }
     /// <summary>Maps the three semantic buffer roles accepted by immutable resource tables.</summary>
     private static ShaderBindingKind BufferKind(BufferRole role) => role switch

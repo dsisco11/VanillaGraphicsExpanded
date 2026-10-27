@@ -1,4 +1,5 @@
 using System;
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
@@ -23,16 +24,14 @@ internal static class TerrainTessellationDrawHook
         __state = null;
         if (!TerrainTessellationPrograms.Active) return;
         TerrainDisplacementRuntime.Bind();
-        var cache = StateCache.Current;
-        __state = cache.PatchVertices;
-        cache.SetPatchVertices(3);
+        __state = OpenGLRHIContext.SelectEnginePatchVertices(3);
     }
 
     /// <summary>Restores patch size on normal completion and exceptional engine draw exits.</summary>
     [HarmonyFinalizer]
     internal static void Finalizer(int? __state)
     {
-        if (__state is { } previous) StateCache.Current.SetPatchVertices(previous);
+        if (__state is { } previous) OpenGLRHIContext.SelectEnginePatchVertices(previous);
     }
     #endregion
 

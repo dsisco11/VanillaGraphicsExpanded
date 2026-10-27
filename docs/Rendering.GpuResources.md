@@ -92,8 +92,18 @@ shader tables. Empty inputs clear only their declared texture target and supplie
 membership, sampler assignment and engine generation policy remain with their explicit integration.
 
 Pass completeness and its attachment/routing revision reuse belong to backend target realization.
+Immutable native framebuffer configuration declarations in the thread-local cache use original context
+and native ID together; manager registry keys remain resource kind/ID within their owning manager.
+Terminal associations cannot certify routing or block a new allocation while wrapper disposal is deferred.
 Framebuffer owners retain image composition and notifications; private RHI operations execute their
 native configuration and status checks. Window-surface discovery occurs only at explicit publication.
+
+Explicit engine framebuffer extension uses the restricted OpenGL integration service for attachment
+transactions, output routing and blend application. Engine callback mesh upload/deletion and particle
+output redirection use that same admitted native boundary, including selector restoration. Cloud adapters
+acquire external framebuffer/program facts through the manager and reuse covered snapshots; adapter
+publication observes callback outcomes separately from metadata validity and never consumes ambient errors.
+
 Optional bindless owners likewise route handle issuance/residency through private RHI execution and
 never issue cleanup against a replacement context.
 

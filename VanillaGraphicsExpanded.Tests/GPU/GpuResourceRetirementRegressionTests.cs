@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
@@ -11,6 +12,28 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 public sealed class GpuResourceRetirementRegressionTests(HeadlessGLFixture fixture)
 {
     #region Public API
+    /// <summary>Retired manager associations cannot retain immutable admission while wrapper cleanup is deferred.</summary>
+    [Fact]
+    public void DeletedFramebufferWithdrawsImmutableConfigurationBeforeWrapperDisposal()
+    {
+        fixture.EnsureContextValid(); fixture.InitializeResourceDisposal();
+        try
+        {
+            using var image = new GpuFramebufferAttachment(2,2,PixelInternalFormat.Rgba8);
+            using var target = StaticGpuFramebuffer.Create([image]);
+            int id = target.FboId;
+            var cache = StateCache.Current;
+            Assert.Throws<InvalidOperationException>(() => cache.RequireMutableFramebufferConfiguration(id));
+            // Model confirmed external deletion arriving at the registry before deferred wrapper disposal.
+            GL.DeleteFramebuffer(id);
+            GpuResourceManagerSystem.CurrentManager!.ObserveDeletion(GpuResourceKind.Framebuffer,id);
+            Assert.False(target.IsValid);
+            cache.RequireMutableFramebufferConfiguration(id);
+            Assert.False(cache.ValidateImmutableFramebufferRouting(id,[DrawBuffersEnum.ColorAttachment0]));
+        }
+        finally { fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+    }
+
     /// <summary>Non-owning renderbuffer and framebuffer wrappers cannot transfer an external owner's identity.</summary>
     [Theory]
     [InlineData(false, false)]
@@ -136,7 +159,7 @@ public sealed class GpuResourceRetirementRegressionTests(HeadlessGLFixture fixtu
             StateCache.Current.InvalidateAll();
             var manager = GpuResourceManagerSystem.CurrentManager!;
             var retired = manager.GetResourceRegistration(original)!;
-            VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Program, program));
+            OpenGLRenderingDeletionCalls.Core.DeleteProgram(program);
             Assert.True(GL.IsProgram(program));
             GL.GetProgram(program, GetProgramParameterName.DeleteStatus, out int pending);
             Assert.Equal(1, pending);

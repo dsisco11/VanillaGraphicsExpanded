@@ -53,7 +53,7 @@ public sealed class ConfigurableRasterizerDescriptionTests : IDisposable
         foreach (var raster in invalid) Assert.ThrowsAny<ArgumentException>(() => Create(raster));
     }
 
-    /// <summary>Modern raster behavior remains accepted while unsupported clip control rejects.</summary>
+    /// <summary>Core raster behavior remains available independently of legacy extension flags.</summary>
     [Fact]
     public void ProfileAndClipCapabilitiesAreEnforced()
     {
@@ -61,8 +61,8 @@ public sealed class ConfigurableRasterizerDescriptionTests : IDisposable
         Create(new() { LineSmooth = true, PolygonSmooth = true, PointSpriteOrigin = PointSpriteOrigin.LowerLeft }, core);
         var noControl = Capabilities() with { ClipControl = false };
         Create(new(), noControl);
-        Assert.Throws<NotSupportedException>(() => Create(new() { ClipOrigin = ClipCoordinateOrigin.UpperLeft }, noControl));
-        Assert.Throws<NotSupportedException>(() => Create(new() { ClipDepth = ClipDepthRange.ZeroToOne }, noControl));
+        Create(new() { ClipOrigin = ClipCoordinateOrigin.UpperLeft }, noControl);
+        Create(new() { ClipDepth = ClipDepthRange.ZeroToOne }, noControl);
         Create(new(), Capabilities() with { MaxClipDistances = 0 });
     }
 
@@ -81,6 +81,6 @@ public sealed class ConfigurableRasterizerDescriptionTests : IDisposable
     private static GraphicsCapabilities Capabilities() => new() {
         Graphics33 = true, ClipControl = true, MaxClipDistances = 8, MaxDrawBuffers = 8,
         MaxVertexAttributes = 16, MaxVertexBindings = 16, MaxVertexStride = 2048, MaxVertexRelativeOffset = 2047,
-        MaxSamples = 8, MaxSampleMaskWords = 1, MinLineWidth = 1, MaxLineWidth = 16, MinPointSize = 1, MaxPointSize = 64 };
+        MaxPatchVertices = 32, MaxSamples = 8, MaxSampleMaskWords = 1, MinLineWidth = 1, MaxLineWidth = 16, MinPointSize = 1, MaxPointSize = 64 };
     #endregion
 }

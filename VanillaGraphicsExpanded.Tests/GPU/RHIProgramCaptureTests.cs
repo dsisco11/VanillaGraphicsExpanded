@@ -36,9 +36,11 @@ public sealed class RHIProgramCaptureTests(HeadlessGLFixture fixture)
 
     #region Private
     /// <summary>Supplies authored input sampling for the packaged generated-accessor executable.</summary>
-    private sealed class GuardedShader:GeneratedAccessorShader
+    private sealed class GuardedShader:VanillaGraphicsExpanded.Rendering.Shaders.GpuProgram
     {
         private int value;
+        /// <summary>Uses the executable fixture's actual schema and identity rather than generator-only accessor metadata.</summary>
+        internal override VanillaGraphicsExpanded.Rendering.Contracts.GpuShaderContract ProgramContract => RenderInfrastructureShaderProgram.Contract;
         /// <summary>Creates the real executable-backed authored capture fixture.</summary>
         public GuardedShader() { }
         /// <summary>Retains a value through the same asset mutation guard as generated setters.</summary>

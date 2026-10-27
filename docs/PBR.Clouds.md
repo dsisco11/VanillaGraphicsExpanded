@@ -52,6 +52,13 @@ Deletion, unavailable metadata or a changed storage revision withdraws content a
 validation and a fresh raw upload succeed. Allocation hooks qualify content; GL deletion observation
 owns resource retirement. Stable publication checks compare manager facts without descriptor queries.
 
+Storage validation requests canonical texture and framebuffer snapshots through the manager and checks
+external framebuffer completeness through restricted backend integration. Native program link discovery
+also reuses canonical executable facts. Upload/generation hooks report whether their original callback
+ran and returned successfully; exceptions and skipped callbacks withdraw the corresponding certificate.
+The adapter neither changes native selectors nor drains GL errors. Ambient errors remain with their
+caller and cannot be attributed to a later cloud callback.
+
 VGE samples `TextureMap` read-only. Its red component is extinction control per native tile unit;
 blue/alpha carry lower/upper vertical bounds divided by tile size. The inspected 1.22.7 GPU
 producer/consumer hardcode 50 world units. Runtime uses one metre per world unit:

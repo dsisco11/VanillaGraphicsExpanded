@@ -1,5 +1,6 @@
 using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System;
+using System.Collections.Generic;
 using Vintagestory.API.Client;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
@@ -7,7 +8,7 @@ using VanillaGraphicsExpanded.Rendering;
 namespace VanillaGraphicsExpanded;
 
 /// <summary>
-/// Manages G-buffer attachments for the Primary framebuffer using raw OpenGL calls.
+/// Manages G-buffer attachments for the Primary framebuffer through the restricted engine framebuffer integration boundary.
 /// This adds multiple color attachments to store deferred rendering data:
 /// - ColorAttachment0-3: Managed by VS (outColor/Albedo, outGlow, outGNormal, outGPosition)
 /// - ColorAttachment4: World-space normals (RGBA16F) - layout(location = 4)
@@ -193,30 +194,7 @@ public sealed partial class GBufferManager : IDisposable
             DrawBuffersEnum.ColorAttachment6,
             DrawBuffersEnum.ColorAttachment7   // VGE: Local environment
         ];
-        OpenGLFramebufferRouting.SetDrawBuffers(StateCache.Current,8, drawBuffers);
-
-        // Per-buffer blend control requires GL 4.0+ / ARB_draw_buffers_blend
-        ApplyGBufferBlendState(forceDirty: true);
-
-        // Verify the blend state was actually set
-        VerifyBlendState();
-    }
-
-    /// <summary>
-    /// Applies the correct blend state for G-buffer attachments (One/Zero, disabled).
-    /// </summary>
-    private void ApplyGBufferBlendState(bool forceDirty)
-    {
-        var gl = StateCache.Current;
-
-        if (forceDirty)
-        {
-            // Engine/global glBlendFunc calls can stomp indexed blend factors. Mark them dirty so the cache re-emits.
-            gl.DirtyIndexedBlendFunc();
-            gl.DirtyIndexedBlendEnable();
-        }
-
-        gl.Apply(GBufferBlendPso);
+        OpenGLRHIContext.RouteEngineFramebuffer(drawBuffers, GBufferBlendPso, forceDirty: true);
     }
 
     /// <summary>
@@ -228,65 +206,8 @@ public sealed partial class GBufferManager : IDisposable
         if (!isInitialized || !isInjected)
             return;
 
-        // Only reapply if Primary framebuffer is currently bound
-        int currentFbo = StateCache.Current.GetCurrentFramebuffer(FramebufferTarget.Framebuffer);
-        FrameBufferRef? primaryFb = capi.Render.FrameBuffers[(int)EnumFrameBuffer.Primary];
-        if (primaryFb is null || currentFbo != primaryFb.FboId)
-            return;
-
-        ApplyGBufferBlendState(forceDirty: true);
-    }
-
-    private bool hasLoggedBlendState;
-    private void VerifyBlendState()
-    {
-        if (hasLoggedBlendState) return;
-        hasLoggedBlendState = true;
-
-        string preExistingErrors = GlDebug.GetErrorsString("GBuffer blend verification before queries");
-        if (preExistingErrors.Length != 0)
-        {
-            capi.Logger.Warning($"[VGE] {preExistingErrors}");
-        }
-
-        // Check if blend is enabled/disabled for each buffer
-        bool blend4Enabled = GL.IsEnabled(IndexedEnableCap.Blend, NormalSlotId);
-        bool blend5Enabled = GL.IsEnabled(IndexedEnableCap.Blend, MaterialSlotId);
-
-        // Also check VS buffers for comparison
-        bool blend2Enabled = GL.IsEnabled(IndexedEnableCap.Blend, 2);
-        bool blend3Enabled = GL.IsEnabled(IndexedEnableCap.Blend, 3);
-
-        // Query blend func using raw GL constants
-        // GL_BLEND_SRC_RGB = 0x80C9, GL_BLEND_DST_RGB = 0x80C8
-        const int GL_BLEND_SRC_RGB = 0x80C9;
-        const int GL_BLEND_DST_RGB = 0x80C8;
-
-        GL.GetInteger((GetIndexedPName)GL_BLEND_SRC_RGB, NormalSlotId, out int srcRgb4);
-        GL.GetInteger((GetIndexedPName)GL_BLEND_DST_RGB, NormalSlotId, out int dstRgb4);
-        GL.GetInteger((GetIndexedPName)GL_BLEND_SRC_RGB, MaterialSlotId, out int srcRgb5);
-        GL.GetInteger((GetIndexedPName)GL_BLEND_DST_RGB, MaterialSlotId, out int dstRgb5);
-
-        // Compare with VS buffers
-        GL.GetInteger((GetIndexedPName)GL_BLEND_SRC_RGB, 2, out int srcRgb2);
-        GL.GetInteger((GetIndexedPName)GL_BLEND_DST_RGB, 2, out int dstRgb2);
-        GL.GetInteger((GetIndexedPName)GL_BLEND_SRC_RGB, 3, out int srcRgb3);
-        GL.GetInteger((GetIndexedPName)GL_BLEND_DST_RGB, 3, out int dstRgb3);
-
-        // GL_ONE = 1, GL_ZERO = 0
-        capi.Logger.Notification($"[VGE] Blend state verification:");
-        capi.Logger.Notification($"[VGE]   Buffer 2 (VS GNormal):   Enabled={blend2Enabled}, Src={srcRgb2}, Dst={dstRgb2}");
-        capi.Logger.Notification($"[VGE]   Buffer 3 (VS GPosition): Enabled={blend3Enabled}, Src={srcRgb3}, Dst={dstRgb3}");
-        capi.Logger.Notification($"[VGE]   Buffer 4 (VGE Normal):   Enabled={blend4Enabled}, Src={srcRgb4}, Dst={dstRgb4}");
-        capi.Logger.Notification($"[VGE]   Buffer 5 (VGE Material): Enabled={blend5Enabled}, Src={srcRgb5}, Dst={dstRgb5}");
-        capi.Logger.Notification($"[VGE]   (GL_ONE=1, GL_ZERO=0, GL_SRC_ALPHA=770, GL_ONE_MINUS_SRC_ALPHA=771)");
-
-        // Check for GL errors
-        var error = GL.GetError();
-        if (error != ErrorCode.NoError)
-        {
-            capi.Logger.Warning($"[VGE] GL Error after blend state query: {error}");
-        }
+        FrameBufferRef? primary = capi.Render.FrameBuffers[(int)EnumFrameBuffer.Primary];
+        if (primary is not null) OpenGLRHIContext.ReapplyEngineFramebufferBlend(primary.FboId, GBufferBlendPso);
     }
 
     /// <summary>
@@ -378,6 +299,7 @@ public sealed partial class GBufferManager : IDisposable
         SetupGBuffers();
     }
 
+    /// <summary>Replaces the owned image set while preserving engine deletion ownership.</summary>
     private void CreateGBufferTextures(int width, int height)
     {
         // Delete old textures if they exist
@@ -391,6 +313,7 @@ public sealed partial class GBufferManager : IDisposable
         capi.Logger.Notification($"[VGE]   Surface array ID={SurfaceTextureId}, PatchId ID={PatchIdTextureId}");
     }
 
+    /// <summary>Releases owned images and borrowed recipients through their manager-certified lifetimes.</summary>
     private void DeleteTextures()
     {
         fallbackPosition?.Dispose();
@@ -398,12 +321,6 @@ public sealed partial class GBufferManager : IDisposable
         borrowedPosition?.Dispose();
         borrowedPosition = null;
         PositionTextureId = 0;
-
-        bool externallyDeleted = RelinquishIfDeleted(surfaceTex) | RelinquishIfDeleted(patchIdTex);
-        if (externallyDeleted)
-        {
-            StateCache.Current.InvalidateAll();
-        }
 
         textures?.Dispose();
         textures = null;
@@ -413,110 +330,35 @@ public sealed partial class GBufferManager : IDisposable
         isInjected = false;
     }
 
-    private static bool RelinquishIfDeleted(GpuTexture? texture)
-    {
-        if (texture is null || !texture.IsValid || GL.IsTexture(texture.TextureId))
-        {
-            return false;
-        }
-
-        texture.ReleaseHandle();
-        return true;
-    }
-
     /// <summary>
     /// Attaches the G-buffer textures to the specified framebuffer.
     /// </summary>
     /// <param name="fboId">The framebuffer ID to attach to</param>
     private void AttachToFramebuffer(int fboId)
     {
-        var gl = StateCache.Current;
-        using var _ = gl.BindFramebufferScope(FramebufferTarget.Framebuffer, fboId);
-
-        // Reuse the engine SSAO position target, or occupy its vacant slot when SSAO is disabled.
-        gl.FramebufferTexture2D(FramebufferTarget.Framebuffer, FramebufferAttachment.ColorAttachment3,
-            TextureTarget.Texture2D, PositionTextureId, 0);
-
-        // Attach normal texture as ColorAttachment4 (matches layout(location = 4))
-        gl.FramebufferTextureLayer(FramebufferTarget.Framebuffer, FramebufferAttachment.ColorAttachment4, surfaceTex!.TextureId, 0, GBufferTextures.NormalLayer);
-
-        // Attach material texture as ColorAttachment5 (matches layout(location = 5))
-        gl.FramebufferTextureLayer(FramebufferTarget.Framebuffer, FramebufferAttachment.ColorAttachment5, surfaceTex!.TextureId, 0, GBufferTextures.MaterialLayer);
-
-        gl.FramebufferTextureLayer(FramebufferTarget.Framebuffer, FramebufferAttachment.ColorAttachment7, surfaceTex!.TextureId, 0, GBufferTextures.EnvironmentLayer);
-
-        // Attach patch id texture as ColorAttachment6 (matches layout(location = 6))
-        gl.FramebufferTexture2D(
-            FramebufferTarget.Framebuffer,
-            FramebufferAttachment.ColorAttachment6,
-            TextureTarget.Texture2D,
-            PatchIdTextureId,
-            0);
-
-        ApplyGBufferBlendState(forceDirty: true);
-
-        // Verify framebuffer is complete
-        var status = GL.CheckFramebufferStatus(FramebufferTarget.Framebuffer);
-        if (status != FramebufferErrorCode.FramebufferComplete)
-        {
-            capi.Logger.Error($"[VGE] Framebuffer incomplete after attaching G-buffer: {status}");
-        }
-        else
-        {
-            capi.Logger.Notification("[VGE] G-buffer textures attached to Primary framebuffer (Normal@4, Material@5, PatchId@6, Environment@7)");
-        }
+        bool complete = OpenGLRHIContext.ConfigureEngineFramebuffer(fboId,
+            new Dictionary<FramebufferAttachment, GpuFramebufferAttachment?>
+            {
+                [FramebufferAttachment.ColorAttachment3] = GpuFramebufferAttachment.FromTextureId(PositionTextureId),
+                [FramebufferAttachment.ColorAttachment4] = GpuFramebufferAttachment.FromTexture(surfaceTex!, layer: GBufferTextures.NormalLayer),
+                [FramebufferAttachment.ColorAttachment5] = GpuFramebufferAttachment.FromTexture(surfaceTex!, layer: GBufferTextures.MaterialLayer),
+                [FramebufferAttachment.ColorAttachment6] = GpuFramebufferAttachment.FromTexture(patchIdTex!),
+                [FramebufferAttachment.ColorAttachment7] = GpuFramebufferAttachment.FromTexture(surfaceTex!, layer: GBufferTextures.EnvironmentLayer)
+            });
+        OpenGLRHIContext.ApplyEngineFramebufferBlend(GBufferBlendPso, forceDirty: true);
+        if (!complete) capi.Logger.Error("[VGE] Framebuffer incomplete after attaching G-buffer.");
     }
 
-    /// <summary>
-    /// Detaches the G-buffer textures from the specified framebuffer.
-    /// </summary>
-    /// <param name="fboId">The framebuffer ID to detach from</param>
+    /// <summary>Removes only VGE-owned attachment selections and restores engine routing.</summary>
     private void DetachFromFramebuffer(int fboId)
     {
-        var gl = StateCache.Current;
-        OpenGLFramebufferSelection.Bind(gl, FramebufferTarget.Framebuffer, fboId);
-
-        // Detach our color textures (ColorAttachment4-7)
-        gl.FramebufferTexture2D(
-            FramebufferTarget.Framebuffer,
-            FramebufferAttachment.ColorAttachment4,
-            TextureTarget.Texture2D,
-            0,
-            0);
-
-        gl.FramebufferTexture2D(
-            FramebufferTarget.Framebuffer,
-            FramebufferAttachment.ColorAttachment5,
-            TextureTarget.Texture2D,
-            0,
-            0);
-
-        gl.FramebufferTexture2D(
-            FramebufferTarget.Framebuffer,
-            FramebufferAttachment.ColorAttachment6,
-            TextureTarget.Texture2D,
-            0,
-            0);
-
-        gl.FramebufferTexture2D(FramebufferTarget.Framebuffer, FramebufferAttachment.ColorAttachment7,
-            TextureTarget.Texture2D, 0, 0);
-
-        // Reset draw buffers to VS defaults (0-3)
-        DrawBuffersEnum[] drawBuffers = {
-            DrawBuffersEnum.ColorAttachment0,
-            DrawBuffersEnum.ColorAttachment1,
-            DrawBuffersEnum.ColorAttachment2,
-            DrawBuffersEnum.ColorAttachment3
-        };
-        OpenGLFramebufferRouting.SetDrawBuffers(StateCache.Current,4, drawBuffers);
-
-        OpenGLFramebufferSelection.Bind(gl, FramebufferTarget.Framebuffer, 0);
-
-        capi.Logger.Notification("[VGE] G-buffer detached from Primary framebuffer");
+        OpenGLRHIContext.DetachEngineFramebuffer(fboId,
+            [FramebufferAttachment.ColorAttachment4, FramebufferAttachment.ColorAttachment5,
+                FramebufferAttachment.ColorAttachment6, FramebufferAttachment.ColorAttachment7],
+            [DrawBuffersEnum.ColorAttachment0, DrawBuffersEnum.ColorAttachment1,
+                DrawBuffersEnum.ColorAttachment2, DrawBuffersEnum.ColorAttachment3]);
         if (PrimaryFramebuffer.IsValid && PrimaryFramebuffer.FboId == fboId)
-        {
             PrimaryFramebuffer.RefreshWrappedFramebuffer(fboId, PrimaryFramebuffer.Width, PrimaryFramebuffer.Height, publishPassMetadata: true);
-        }
     }
 
     #endregion

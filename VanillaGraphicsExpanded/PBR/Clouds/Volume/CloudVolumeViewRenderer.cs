@@ -62,6 +62,9 @@ internal sealed class CloudVolumeViewRenderer(CloudVolumeViewProgram program,Clo
         ObjectDisposedException.ThrowIf(disposed,this);selection.Validate();if(failed)return false;
         try
         {
+            // A resolution-mode change selects a different fragment-output contract. Retire its
+            // obsolete target recipe before asking the shared shader owner to install that variant.
+            if(prepared&&settings.TraceDivisor!=selection.TraceDivisor)ReleaseTargets();
             program.ConfigureOptions(()=>{program.SelfShadowing=selection.SelfShadowing;program.Diffuse=selection.Diffuse;
                 program.Termination=selection.Stop>0;program.TraceDivisor=selection.TraceDivisor;});
             if(!program.EnsureReady())throw new InvalidOperationException("Stored cloud view executable unavailable.",program.PreparationFailure);
@@ -72,12 +75,11 @@ internal sealed class CloudVolumeViewRenderer(CloudVolumeViewProgram program,Clo
                 caps.MaxUniformBufferBindings<=GpuBindingRegistry.Ubo.Frame||caps.MaxUniformBlockSize<240)
                 throw new NotSupportedException("Stored cloud view exceeds rendering capabilities.");
             geometry??=new(Layout,PrimitiveTopology.Triangles,new Dictionary<int,GpuVbo>(),proceduralVertices:3);
-            if(prepared&&settings.TraceDivisor!=selection.TraceDivisor)ReleaseTargets();
             settings=selection;revision=program.ExecutableRevision;
             temporalRevision=selection.TraceDivisor==1?0:temporal.ExecutableRevision;
             reconstructionRevision=selection.TraceDivisor==1?0:reconstruct.ExecutableRevision;prepared=true;return true;
         }
-        catch(Exception error)when(!EngineBoundaryRestoreException.IsRestorationFailure(error)){failed=true;Failure=error.Message;return false;}
+        catch(Exception error)when(!EngineBoundaryRestoreException.IsRestorationFailure(error)){failed=true;Failure=error.InnerException is { } detail ? $"{error.Message} {detail.Message}" : error.Message;return false;}
     }
     /// <summary>Validates independent publications and submits exactly one native six-attachment contribution.</summary>
     internal bool Draw(CloudVolumeStorage storage,CloudMapInput input,CloudVolumeViewScene scene,GpuFramebuffer target,Func<bool> current,int debugMode=0,bool captureDiagnostics=false)

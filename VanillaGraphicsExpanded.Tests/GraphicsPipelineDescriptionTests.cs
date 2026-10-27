@@ -239,11 +239,11 @@ public sealed class GraphicsPipelineDescriptionTests : IDisposable
         Assert.ThrowsAny<ArgumentException>(() => Create(sampling: new() { CoverageEnabled = true, Coverage = 2 }));
         Assert.Throws<NotSupportedException>(() => Create(sampling: new() { MaskEnabled = true, Masks = new([1u, 2u, 3u]) }));
         Assert.ThrowsAny<ArgumentException>(() => Create(assembly: new() { Topology = PrimitiveTopology.Patches }));
-        Assert.Throws<NotSupportedException>(() => Create(capabilities: Capabilities() with { Graphics33 = false }));
+        Assert.NotNull(Create(capabilities: Capabilities() with { Graphics33 = false }));
         Assert.ThrowsAny<ArgumentException>(() => Create(capabilities: Capabilities() with { MaxDrawBuffers = 0 }));
-        Assert.Throws<NotSupportedException>(() => Create(capabilities: Capabilities() with { DepthClamp = false }, rasterizer: new() { DepthClamp = true }));
-        Assert.Throws<NotSupportedException>(() => Create(capabilities: Capabilities() with { SampleShading = false }, sampling: new() { SampleShading = true }));
-        Assert.Throws<NotSupportedException>(() => Create(capabilities: Capabilities() with { FixedIndexRestart = false }, assembly: new() { FixedIndexRestart = true }));
+        Assert.NotNull(Create(capabilities: Capabilities() with { DepthClamp = false }, rasterizer: new() { DepthClamp = true }));
+        Assert.NotNull(Create(capabilities: Capabilities() with { SampleShading = false }, sampling: new() { SampleShading = true }));
+        Assert.NotNull(Create(capabilities: Capabilities() with { FixedIndexRestart = false }, assembly: new() { FixedIndexRestart = true }));
     }
 
     /// <summary>Disabled features cannot conceal malformed operands behind relevance filtering or normalization.</summary>

@@ -127,7 +127,7 @@ public sealed class CloudNativeAdapterTests(HeadlessGLFixture fixture)
 
     /// <summary>Late acquisition waits for uploads, observes errors and copies current placement while preserving native resources.</summary>
     [Fact]
-    public void StorageUploadsAndGlErrorsControlPublication()
+    public void StorageUploadsAndReportedFailuresControlPublication()
     {
         fixture.EnsureContextValid();
         using var native = new NativeMap();
@@ -139,9 +139,7 @@ public sealed class CloudNativeAdapterTests(HeadlessGLFixture fixture)
         Assert.True(adapter.Publication.TryGet(native.Owner, 5, 10, out var first));
         // A failed in-place second upload must not leave the prior map usable.
         adapter.BeginGeneration(); adapter.BeginUpload();
-        GL.BindTexture(TextureTarget.Texture2D, native.Raw1.TextureId);
-        GL.TexSubImage2D(TextureTarget.Texture2D, 0, -1, 0, 1, 1, PixelFormat.Rgba, PixelType.Float, new float[4]);
-        adapter.CompleteUpload(true); adapter.CompleteGeneration(11, true);
+        adapter.CompleteUpload(false); adapter.CompleteGeneration(11, true);
         Assert.False(adapter.Publication.TryGet(native.Owner, 5, 11, out _));
         Assert.False(adapter.Publication.IsCurrent(first, 10));
         adapter.BeginGeneration(); adapter.BeginUpload(); native.Upload(); adapter.CompleteUpload(true); adapter.CompleteGeneration(12, true);
@@ -188,7 +186,7 @@ public sealed class CloudNativeAdapterTests(HeadlessGLFixture fixture)
 
     /// <summary>Failed native compilation and generation errors revoke publication; a fresh linked generation can recover.</summary>
     [Fact]
-    public void ReloadAndDrawErrorsWithdrawUntilSuccessfulGeneration()
+    public void ReloadAndReportedDrawFailuresWithdrawUntilSuccessfulGeneration()
     {
         fixture.EnsureContextValid(); using var native = new NativeMap();
         var adapter = new CloudNativeMapAdapter(native.Owner, 5);
@@ -200,7 +198,7 @@ public sealed class CloudNativeAdapterTests(HeadlessGLFixture fixture)
         Assert.False(adapter.Publication.TryGet(native.Owner, 5, 11, out _));
         native.SetProgram(native.Program);
         GL.DeleteProgram(unlinked);
-        adapter.BeginGeneration(); GL.Enable((EnableCap)(-1)); adapter.CompleteGeneration(12, true);
+        adapter.BeginGeneration(); adapter.CompleteGeneration(12, false);
         Assert.False(adapter.Publication.TryGet(native.Owner, 5, 12, out _));
         adapter.BeginGeneration(); adapter.CompleteGeneration(13, true);
         Assert.True(adapter.Publication.TryGet(native.Owner, 5, 13, out _));
@@ -326,6 +324,43 @@ public sealed class CloudNativeAdapterTests(HeadlessGLFixture fixture)
         api.VerifySet(value => value.Settings.Int["cloudRenderMode"] = It.IsAny<int>(), Times.Never);
     }
     #endregion
+
+    /// <summary>Covered allocation and executable facts are reused without invoking their acquisition readers.</summary>
+    [Fact]
+    public void CoveredFactsAreReusedAndAmbientErrorsRemainWithTheirCaller()
+    {
+        fixture.EnsureContextValid(); fixture.InitializeResourceDisposal();
+        try
+        {
+            using var native = new NativeMap();
+            var manager = GpuResourceManagerSystem.CurrentManager!;
+            _ = GpuResourceManager.AcquireExternalFacts(GpuResourceKind.Program, native.Program, GpuProgramMetadataReader.Instance);
+            var program = (GpuResourceMetadataEntry<GpuProgramMetadata>)manager.FindResource(GpuResourceKind.Program, native.Program)!;
+            program.Reader = new RejectRead<GpuProgramMetadata>();
+            foreach (var texture in new[] { native.Map, native.Color, native.Raw1, native.Raw2 })
+                ((GpuResourceMetadataEntry<GpuTextureMetadata>)manager.GetResourceRegistration(texture)!).Reader = new RejectRead<GpuTextureMetadata>();
+            var adapter = new CloudNativeMapAdapter(native.Owner, 5);
+            try
+            {
+                GL.Viewport(0, 0, -1, 1);
+                adapter.BeginGeneration(); adapter.BeginUpload(); native.Upload(); adapter.CompleteUpload(true); adapter.CompleteGeneration(10, true);
+                Assert.True(adapter.TryGet(5, 10, out _));
+                Assert.Equal(ErrorCode.InvalidValue, GL.GetError());
+                Assert.Equal(ErrorCode.NoError, GL.GetError());
+            }
+            finally { adapter.Retire(); }
+        }
+        finally { fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+    }
+
+    /// <summary>Fails if an available canonical resource is unnecessarily queried again.</summary>
+    private sealed class RejectRead<T> : IGpuResourceMetadataReader<T> where T : struct
+    {
+        /// <inheritdoc />
+        public bool IsResource(nint id) => throw new InvalidOperationException("Covered validity was queried.");
+        /// <inheritdoc />
+        public bool TryRead(nint id, out T data) => throw new InvalidOperationException("Covered metadata was queried.");
+    }
 
     #region Private
     /// <summary>Simulates a foreign prefix that bypasses the native void upload body.</summary>

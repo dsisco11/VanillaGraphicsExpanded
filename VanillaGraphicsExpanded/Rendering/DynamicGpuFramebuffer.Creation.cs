@@ -22,7 +22,6 @@ public sealed partial class DynamicGpuFramebuffer
         ArgumentNullException.ThrowIfNull(colors);
         if (firstColorAttachment < 0 || firstColorAttachment > 31 || colors.Count > 32 - firstColorAttachment)
             throw new ArgumentOutOfRangeException(nameof(firstColorAttachment));
-        using var bindings = StateCache.Current.BindFramebufferScope();
         var framebuffer = CreateEmpty(debugName);
         try
         {

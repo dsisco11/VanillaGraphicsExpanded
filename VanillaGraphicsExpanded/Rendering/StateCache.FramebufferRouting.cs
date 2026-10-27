@@ -13,7 +13,7 @@ internal sealed partial class StateCache
     /// <summary>Returns a private snapshot of established routing, including immutable configuration declarations.</summary>
     internal bool TryCopyFramebufferDrawRouting(int framebuffer,out DrawBuffersEnum[] route)
     {
-        if(immutableFramebuffers.TryGetValue(framebuffer,out var immutable))
+        if(TryGetImmutableFramebuffer(framebuffer,out var immutable))
         { route=immutable.CaptureDeclaredRouting();return true; }
         if(framebufferDrawRouting.TryGetValue(framebuffer,out var stored))
         { route=(DrawBuffersEnum[])stored.Clone();return true; }
@@ -30,7 +30,7 @@ internal sealed partial class StateCache
     /// <summary>Certifies an immutable declaration or leaves mutable native routing to its backend owner.</summary>
     internal bool ValidateImmutableFramebufferRouting(int framebuffer,ReadOnlySpan<DrawBuffersEnum> route)
     {
-        if(!immutableFramebuffers.TryGetValue(framebuffer,out var immutable))return false;
+        if(!TryGetImmutableFramebuffer(framebuffer,out var immutable))return false;
         immutable.ValidateDeclaredRouting(route);return true;
     }
     /// <summary>Stores only a backend-owned completed route, padding unspecified outputs with None.</summary>

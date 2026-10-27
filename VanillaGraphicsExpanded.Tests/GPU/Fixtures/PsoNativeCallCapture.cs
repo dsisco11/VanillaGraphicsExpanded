@@ -32,7 +32,7 @@ internal sealed class PsoNativeCallCapture : IDisposable
                 !p.ParameterType.IsPointer && !p.ParameterType.IsByRef && !p.ParameterType.IsArray && p.ParameterType != typeof(uint))))
             harmony.Patch(method, prefix: new HarmonyMethod(AccessTools.Method(typeof(PsoNativeCallCapture), nameof(Observe))));
         // Observe the typed draw because optimized state helpers may already be inlined.
-        var apply = AccessTools.Method(typeof(RHICommandContext), "Draw");
+        var apply = AccessTools.Method(typeof(OpenGLBackend), "Draw");
         harmony.Patch(apply, prefix: new HarmonyMethod(AccessTools.Method(typeof(PsoNativeCallCapture), nameof(Application))),
             postfix: new HarmonyMethod(AccessTools.Method(typeof(PsoNativeCallCapture), nameof(DrawCompleted))));
         harmony.Patch(AccessTools.Method(typeof(StateCache), "RestoreBoundaryState"),
@@ -46,18 +46,18 @@ internal sealed class PsoNativeCallCapture : IDisposable
 
     #region Private
     /// <summary>Labels the complete typed draw, excluding fixture preparation and pass loads.</summary>
-    private static void Application(RHIGraphicsPipeline? ___pipeline)
+    private static void Application(RHIGraphicsPipelineRef reference)
     {
-        if (active is not { } capture || ___pipeline is null) return;
-        var pipeline=___pipeline.Description;
+        if (active is not { } capture) return;
+        var pipeline=reference.RequirePipeline().Description;
         capture.segment = "application";
         capture.Events.Add("draw:" + string.Join(",", pipeline.Blending.Select((blend, slot) =>
             pipeline.Targets.Colors[slot].Format is null ? "hole" : blend.Enabled ? "blend" : "replace")));
     }
     /// <summary>Verifies actual active blend factors before boundary handback, independent of inlined GL wrappers.</summary>
-    private static void DrawCompleted(RHIGraphicsPipeline? ___pipeline)
+    private static void DrawCompleted(RHIGraphicsPipelineRef reference)
     {
-        if(active is {} capture && ___pipeline is {} pipeline && pipeline.Description.Blending.Any(blend=>blend.Enabled))
+        if(active is {} capture && reference.RequirePipeline() is {} pipeline && pipeline.Description.Blending.Any(blend=>blend.Enabled))
         {
             // Reuse the native fingerprint reader; wrapper interception alone can miss JIT-inlined calls.
             var state=System.Text.Json.JsonSerializer.Deserialize<Dictionary<string,string>>(PsoNativeStateFingerprint.Read())!;

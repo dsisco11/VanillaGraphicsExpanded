@@ -23,6 +23,12 @@ public sealed class WaterRefractionCaptureStateTests(HeadlessGLFixture fixture) 
     public void CaptureRestoresEngineOwnerAndIndependentFramebufferBindings(int backgroundScale, bool lumon)
     {
         EnsureContextValid();
+        // These raw engine fixture draws require an authored baseline, independently of earlier tests.
+        GL.Disable(EnableCap.RasterizerDiscard); GL.Disable(EnableCap.ScissorTest); GL.Disable(EnableCap.StencilTest);
+        GL.Disable(EnableCap.CullFace); GL.Disable(EnableCap.SampleCoverage); GL.Disable(EnableCap.SampleMask);
+        for(int index=0;index<GpuSupport.Graphics.MaxClipDistances;index++)GL.Disable(EnableCap.ClipDistance0+index);
+        GL.ColorMask(true,true,true,true); GL.PolygonMode(TriangleFace.FrontAndBack,PolygonMode.Fill);
+        StateCache.Current.InvalidateAll();
         using var fixedFunction = LegacyFixedFunctionReference.Capture(StateCache.Current);
         using var platform = new EngineShaderPlatformScope();
         using var assets = new BinaryShaderApiFixture();
@@ -35,8 +41,9 @@ public sealed class WaterRefractionCaptureStateTests(HeadlessGLFixture fixture) 
         framebuffers[(int)EnumFrameBuffer.Primary] = terrain.Primary;
         float[] identity = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
         int draws = 0; bool failDraw = false; Action? duringDraw = null;
+        using var nativeDraws = new NativeDrawObserver(() => { if (failDraw) throw new InvalidOperationException("Injected native draw failure"); draws++; duringDraw?.Invoke(); });
         var render = RuntimeEngineServices.Render(1, framebuffers, () => identity, () => identity,
-            () => { if (failDraw) throw new InvalidOperationException("Injected engine mesh failure"); draws++; duringDraw?.Invoke(); drawing.RenderGeometry(); });
+            () => drawing.RenderGeometry());
         var api = RuntimeRenderEvents.Adapt<ICoreClientAPI>((method, args) => method.Name switch
         {
             "get_Render" => render,
@@ -118,8 +125,8 @@ public sealed class WaterRefractionCaptureStateTests(HeadlessGLFixture fixture) 
             Assert.Equal(callerTarget.FboId, GL.GetInteger(GetPName.DrawFramebufferBinding));
             Assert.Equal(readTarget.FboId, GL.GetInteger(GetPName.ReadFramebufferBinding));
             Assert.Equal(caller.ProgramId, GL.GetInteger(GetPName.CurrentProgram));
-            Assert.True(StateCache.Current.TryGetCachedCurrentProgram(out int cachedProgram1));
-            Assert.Equal(caller.ProgramId, cachedProgram1);
+            // HostileFullscreenState.Dispose explicitly forgets knowledge after verifying native restoration.
+            Assert.False(StateCache.Current.TryGetCachedCurrentProgram(out _));
             Assert.True(GL.GetBoolean(GetPName.DepthWritemask));
             Assert.True(GL.IsEnabled(EnableCap.DepthTest));
             for (int output = 0; output < 8; output++)
@@ -319,18 +326,20 @@ public sealed class WaterRefractionCaptureStateTests(HeadlessGLFixture fixture) 
             Assert.All(composite.PreOverlayScene.Depth!.ReadPixels(), value => Assert.Equal(.75f, value));
             var capturedColor = composite.PreOverlayScene.Color;
             var capturedDepth = composite.PreOverlayScene.Depth;
-            // Retirement of the suspended incoming generation is rejected before deletion.
-            // Capture preserves that operation failure, withdraws publication and successfully
-            // restores the still-live caller through the declared boundary.
+            // This fixture selected a raw incoming native name, not an active owned RHI submission.
+            // Its restoration snapshot grants no ownership: retirement must surface a fatal handback
+            // failure, withdraw publication and leave program knowledge unknown instead of rebinding it.
+            int retiredIncomingProgram = caller.ProgramId;
             duringDraw = () => { duringDraw = null; caller.Dispose(); };
             var cleanupFailure = Assert.Throws<System.Reflection.TargetInvocationException>(() =>
                 HarmonyLib.AccessTools.Method(typeof(VanillaGraphicsExpanded.PBR.Liquids.WaterRefractionCapture), "Capture").Invoke(capture, null));
-            Assert.IsType<InvalidOperationException>(cleanupFailure.InnerException);
-            Assert.False(EngineBoundaryRestoreException.IsRestorationFailure(cleanupFailure.InnerException!));
-            Assert.False(caller.IsRetired);
-            Assert.True(StateCache.Current.TryGetCachedCurrentProgram(out int cachedProgram2));
-            Assert.Equal(caller.ProgramId, cachedProgram2);
-            Assert.Equal(caller.ProgramId, GL.GetInteger(GetPName.CurrentProgram));
+            Assert.True(EngineBoundaryRestoreException.IsRestorationFailure(cleanupFailure.InnerException!), cleanupFailure.InnerException!.ToString());
+            Assert.Contains("borrowed boundary resource was retired", cleanupFailure.InnerException!.ToString(), StringComparison.OrdinalIgnoreCase);
+            Assert.True(caller.IsRetired);
+            Assert.False(StateCache.Current.TryGetCachedCurrentProgram(out _));
+            // Failed handback promises neither a replacement selector nor retry of native work.
+            Assert.NotEqual(retiredIncomingProgram, GL.GetInteger(GetPName.CurrentProgram));
+            Assert.False(GL.IsProgram(retiredIncomingProgram));
             Assert.False(composite.PreOverlayScene.Published);
             OpenGLProgramSelection.Select(StateCache.Current, 0); OpenGLProgramSelection.Select(StateCache.Current, 0);
             events.LeaveWorld();

@@ -51,11 +51,17 @@ public sealed class CloudVolumeDensityTests(HeadlessGLFixture fixture):LumOnShad
         Assert.Equal(0,fields.DensityState.Selected);Assert.Equal(actual,fields.DensityState.CompletedFrame);
         Assert.Equal(0,fields.DensityState.Changed);Assert.False(fields.DensityState.MaintenanceRequired);
         // A wind-only transform does not observe or regenerate stationary material content.
-        uint revision=fields.DensityState.Revision;int dispatches=submission.Dispatches;
+        uint revision=fields.DensityState.Revision;
+#if DEBUG
+        int dispatches=submission.Dispatches;
+#endif
         input=input with{Frame=3,Placement=input.Placement with{Offset=new Vector3(7,0,4),WindX=.7}};
         Assert.True(density.Update(storage,input,map,encoding,Vector3.One,()=>true),density.Failure);
         Assert.Equal(revision,fields.DensityState.Revision);Assert.Equal(0,fields.DensityState.Selected);
-        Assert.Equal(dispatches,submission.Dispatches);Assert.Equal(0,fields.DensityState.Changed);
+#if DEBUG
+        Assert.Equal(dispatches,submission.Dispatches);
+#endif
+        Assert.Equal(0,fields.DensityState.Changed);
         data[column]=1;map.UploadDataImmediate(data);input=input with{Frame=4,Generation=3,Upload=3};
         Assert.True(density.Update(storage,input,map,encoding,Vector3.One,()=>true),density.Failure);
         Assert.InRange(fields.DensityState.Selected,1,4096);
