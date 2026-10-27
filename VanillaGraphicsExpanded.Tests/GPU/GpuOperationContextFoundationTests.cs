@@ -61,7 +61,7 @@ public sealed class GpuOperationContextFoundationTests(HeadlessGLFixture fixture
             using (var operation = new GpuResourceManager.MetadataOperation<GpuBufferMetadata>(owner, GpuMetadataChange.Storage))
             {
                 RenderContextRegistry.Retire(fixture);
-                Assert.Throws<InvalidOperationException>(() => operation.Commit(new(64, BufferUsageHint.StaticDraw)));
+                Assert.Throws<InvalidOperationException>(() => operation.Commit(new(64, BufferUsage.StaticDraw)));
             }
             Assert.Equal(GpuResourceRegistrationState.ContextRetired, entry.State);
             Assert.False(entry.MetadataAvailable);

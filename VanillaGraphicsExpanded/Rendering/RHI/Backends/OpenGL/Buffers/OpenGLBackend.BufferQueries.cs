@@ -35,7 +35,7 @@ internal sealed partial class OpenGLBackend
         if (immutable != 0) GL.GetNamedBufferParameter(unchecked((int)id), Native.BufferParameterName.BufferStorageFlags, &flags);
         RequireContext();
         if (capacity < 0 || capacity > nint.MaxValue || !Enum.IsDefined((Legacy.BufferUsageHint)usage)) return false;
-        metadata = new((nint)capacity, (Legacy.BufferUsageHint)usage, immutable != 0, (Legacy.BufferStorageFlags)flags);
+        metadata = new((nint)capacity, OpenGLBufferValues.Usage((Legacy.BufferUsageHint)usage), immutable != 0, OpenGLBufferValues.Storage((Native.BufferStorageFlags)flags));
         return true;
     }
     #endregion

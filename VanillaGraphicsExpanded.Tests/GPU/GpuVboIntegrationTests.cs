@@ -36,7 +36,7 @@ public class GpuVboIntegrationTests
         Assert.True(vbo.IsValid);
         Assert.True(vbo.BufferId > 0);
         Assert.Equal(BufferTarget.ArrayBuffer, VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBufferValues.Target(vbo.Role));
-        Assert.Equal(BufferUsageHint.StaticDraw, vbo.Usage);
+        Assert.Equal(BufferUsage.StaticDraw, vbo.Usage);
         Assert.Equal(0, vbo.SizeBytes);
         Assert.Null(vbo.DebugName);
         Assert.False(vbo.IsDisposed);
@@ -54,7 +54,7 @@ public class GpuVboIntegrationTests
         // Assert
         Assert.True(vbo.IsValid);
         Assert.Equal(BufferTarget.ElementArrayBuffer, VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBufferValues.Target(vbo.Role));
-        Assert.Equal(BufferUsageHint.StaticDraw, vbo.Usage);
+        Assert.Equal(BufferUsage.StaticDraw, vbo.Usage);
     }
 
     [Fact]
@@ -71,7 +71,7 @@ public class GpuVboIntegrationTests
         Assert.Equal(BufferTarget.ArrayBuffer, VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBufferValues.Target(vbo.Role));
         AssertNativeUsage(vbo);
         vbo.Allocate(0);
-        Assert.Equal(BufferUsageHint.DynamicDraw, vbo.Usage);
+        Assert.Equal(BufferUsage.DynamicDraw, vbo.Usage);
     }
 
     [Fact]
@@ -106,7 +106,7 @@ public class GpuVboIntegrationTests
         Assert.Equal(target, VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBufferValues.Target(vbo.Role));
         AssertNativeUsage(vbo);
         vbo.Allocate(0);
-        Assert.Equal(usage, vbo.Usage);
+        Assert.Equal(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBufferValues.Usage(usage), vbo.Usage);
         Assert.Equal(debugName, vbo.DebugName);
         Assert.True(vbo.BufferId > 0);
         Assert.False(vbo.IsDisposed);
@@ -339,7 +339,7 @@ public class GpuVboIntegrationTests
         Assert.True(vbo.IsValid);
         AssertNativeUsage(vbo);
         vbo.Allocate(0);
-        Assert.Equal(usage, vbo.Usage);
+        Assert.Equal(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBufferValues.Usage(usage), vbo.Usage);
         Assert.True(vbo.BufferId > 0);
     }
 
@@ -483,7 +483,7 @@ public class GpuVboIntegrationTests
         // Array-buffer binding can query any buffer without altering a VAO's element binding.
         using var binding = OpenGlStateCache.Current.BindBufferScope(BufferTarget.ArrayBuffer, buffer.BufferId);
         GL.GetBufferParameter(BufferTarget.ArrayBuffer, BufferParameterName.BufferUsage, out int actualUsage);
-        Assert.Equal((BufferUsageHint)actualUsage, buffer.Usage);
+        Assert.Equal(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBufferValues.Usage((BufferUsageHint)actualUsage), buffer.Usage);
     }
     #endregion
 }

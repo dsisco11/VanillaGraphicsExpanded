@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System.Runtime.CompilerServices;
 using HarmonyLib;
@@ -73,9 +74,9 @@ public sealed partial class GpuProgramMetadataInterceptionTests(HeadlessGLFixtur
             int index=GL.GetProgramResourceIndex(program.ProgramId,kind,storage?"Output":"Parameters");
             ulong revision=entry.MetadataRevision; SetBlock(storage,program.ProgramId,index,4);
             Assert.Equal(revision+1,entry.MetadataRevision);
-            Assert.Equal(4,entry.Metadata.Resources.Single(item=>item.Interface==kind && item.Index==index).Properties[ProgramProperty.BufferBinding][0]);
+            Assert.Equal(4,entry.Metadata.Resources.Single(item=>item.Interface == (kind == ProgramInterface.UniformBlock ? ProgramResourceKind.UniformBlock : ProgramResourceKind.ShaderStorageBlock) && item.Index==index).BufferBinding);
             SetBlock(storage,program.ProgramId,int.MaxValue,7); Assert.Equal(ErrorCode.InvalidValue,GL.GetError());
-            Assert.Equal(4,entry.Metadata.Resources.Single(item=>item.Interface==kind && item.Index==index).Properties[ProgramProperty.BufferBinding][0]); Assert.Equal(ErrorCode.NoError,GL.GetError());
+            Assert.Equal(4,entry.Metadata.Resources.Single(item=>item.Interface == (kind == ProgramInterface.UniformBlock ? ProgramResourceKind.UniformBlock : ProgramResourceKind.ShaderStorageBlock) && item.Index==index).BufferBinding); Assert.Equal(ErrorCode.NoError,GL.GetError());
         }
         finally { harmony.UnpatchAll(harmony.Id); fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }

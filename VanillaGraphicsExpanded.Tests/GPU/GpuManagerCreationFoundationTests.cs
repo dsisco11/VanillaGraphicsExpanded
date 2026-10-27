@@ -313,7 +313,7 @@ public sealed class GpuManagerCreationFoundationTests(HeadlessGLFixture fixture)
     #region Private
     /// <summary>Provides one small mutable allocation with all required intent assigned.</summary>
     private static GpuBufferInitialization MutableRequest() => new()
-        { Mode = GpuBufferStorageMode.Mutable, Capacity = 32, Usage = BufferUsageHint.StaticDraw };
+        { Mode = GpuBufferStorageMode.Mutable, Capacity = 32, Usage = BufferUsage.StaticDraw };
 
     /// <summary>Observes fixture backend calls and carries an exact failure instance across orchestration.</summary>
     private sealed class CreationState
@@ -343,7 +343,7 @@ public sealed class GpuManagerCreationFoundationTests(HeadlessGLFixture fixture)
             if (state.CollisionId != 0)
                 return state.Failure == 0 ? null : new(initialization.Capacity, initialization.Usage);
             using var binding = OpenGlStateCache.Current.BindBufferScope(BufferTarget.ArrayBuffer, state.Id);
-            GL.BufferData(BufferTarget.ArrayBuffer, initialization.Capacity, IntPtr.Zero, initialization.Usage);
+            GL.BufferData(BufferTarget.ArrayBuffer, initialization.Capacity, IntPtr.Zero, (BufferUsageHint)OpenGLBufferValues.Usage(initialization.Usage));
             state.AfterInitialize?.Invoke();
             if (state.Failure == 1) throw state.Exception;
             return state.Failure == 0 ? null : new(initialization.Capacity, initialization.Usage);

@@ -78,7 +78,7 @@ internal struct ShaderInputValidation
         // Context-local failures clear descriptors rather than retaining availability state.
         // A live native name alone cannot make those discarded snapshots usable again.
         if (resource is GpuTexture texture && texture.StorageImages.IsDefaultOrEmpty
-            || resource is GpuBufferObject buffer && buffer.Usage == 0)
+            || resource is GpuBufferObject buffer && buffer.Usage == RHI.BufferUsage.Undefined)
             throw new System.InvalidOperationException("Shader input resource metadata is unavailable.");
         var manager = resource.ResourceManager;
         if (manager?.GetResourceRegistration(resource) is not { } entry) return default;

@@ -35,8 +35,8 @@ public sealed class GpuMetadataOperationFoundationTests(HeadlessGLFixture fixtur
                 ResizeNative(owner, 64);
                 Assert.Equal(registered ? 16 : 0, owner.SizeBytes);
                 if (entry is not null) Assert.False(entry.MetadataAvailable);
-                operation.Commit(new(64, BufferUsageHint.StaticDraw));
-                Assert.Throws<InvalidOperationException>(() => operation.Commit(new(128, BufferUsageHint.DynamicDraw)));
+                operation.Commit(new(64, BufferUsage.StaticDraw));
+                Assert.Throws<InvalidOperationException>(() => operation.Commit(new(128, BufferUsage.DynamicDraw)));
                 Assert.Equal(64, owner.SizeBytes);
                 if (entry is not null) Assert.Equal((nint)64, alias.Snapshot.Capacity);
             }
@@ -79,7 +79,7 @@ public sealed class GpuMetadataOperationFoundationTests(HeadlessGLFixture fixtur
                 Assert.Throws<InvalidOperationException>(() => new GpuResourceManager.MetadataOperation<GpuBufferMetadata>(alias, GpuMetadataChange.Metadata));
                 Assert.True(new GpuBufferMetadataReader().TryRead(owner.BufferId, out var unchanged));
                 Assert.Equal((nint)64, unchanged.Capacity);
-                Assert.Throws<InvalidOperationException>(() => operation.Commit(new(64, BufferUsageHint.StaticDraw)));
+                Assert.Throws<InvalidOperationException>(() => operation.Commit(new(64, BufferUsage.StaticDraw)));
             }
             Assert.Equal(0, reader.Reads);
             if (entry is not null) Assert.False(entry.MetadataAvailable);
@@ -159,7 +159,7 @@ public sealed class GpuMetadataOperationFoundationTests(HeadlessGLFixture fixtur
             using (var operation = new GpuResourceManager.MetadataOperation<GpuBufferMetadata>(owner, GpuMetadataChange.Storage))
             {
                 RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Buffer, id));
-                Assert.Throws<InvalidOperationException>(() => operation.Commit(new(64, BufferUsageHint.StaticDraw)));
+                Assert.Throws<InvalidOperationException>(() => operation.Commit(new(64, BufferUsage.StaticDraw)));
             }
             Assert.False(GL.IsBuffer(id));
             Assert.Equal(ErrorCode.NoError, GL.GetError());
@@ -181,8 +181,8 @@ public sealed class GpuMetadataOperationFoundationTests(HeadlessGLFixture fixtur
             {
                 manager.ObserveDeletion(GpuResourceKind.Buffer, id);
                 var next = manager.RegisterCreatedResource<GpuBufferMetadata>(GpuResourceKind.Buffer, id);
-                manager.PublishMetadata(next, new(16, BufferUsageHint.StaticDraw), GpuMetadataChange.None);
-                Assert.Throws<InvalidOperationException>(() => operation.Commit(new(64, BufferUsageHint.StaticDraw)));
+                manager.PublishMetadata(next, new(16, BufferUsage.StaticDraw), GpuMetadataChange.None);
+                Assert.Throws<InvalidOperationException>(() => operation.Commit(new(64, BufferUsage.StaticDraw)));
                 Assert.True(next.MetadataAvailable);
                 Assert.Equal((nint)16, next.Metadata.Capacity);
                 Assert.Equal((ulong)1, next.MetadataRevision);
@@ -216,7 +216,7 @@ public sealed class GpuMetadataOperationFoundationTests(HeadlessGLFixture fixtur
             ulong revision = entry.MetadataRevision;
             var reader = new ReentrantReader(original, () =>
             {
-                if (command == 0) manager.PublishMetadata(entry, new(128, BufferUsageHint.DynamicDraw), GpuMetadataChange.Metadata);
+                if (command == 0) manager.PublishMetadata(entry, new(128, BufferUsage.DynamicDraw), GpuMetadataChange.Metadata);
                 else if (command == 1) manager.RefreshMetadata(entry, GpuMetadataChange.Metadata);
                 else using (new GpuResourceManager.MetadataOperation<GpuBufferMetadata>(owner, GpuMetadataChange.Metadata)) { }
             }, catchFailure);
@@ -321,7 +321,7 @@ public sealed class GpuMetadataOperationFoundationTests(HeadlessGLFixture fixtur
             var native = new GpuBufferMetadataReader();
             ulong storage = entry.StorageRevision;
             entry.Reader = new ReentrantReader(native,
-                () => manager.PublishMetadata(entry, new GpuBufferMetadata(64, BufferUsageHint.StaticDraw), GpuMetadataChange.Storage), true);
+                () => manager.PublishMetadata(entry, new GpuBufferMetadata(64, BufferUsage.StaticDraw), GpuMetadataChange.Storage), true);
             ResizeNative(owner, 64);
             Assert.Throws<InvalidOperationException>(() => manager.RefreshMetadata(entry, GpuMetadataChange.Metadata));
             Assert.False(entry.MetadataAvailable);

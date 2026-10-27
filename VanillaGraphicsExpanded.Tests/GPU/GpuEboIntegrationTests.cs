@@ -42,7 +42,7 @@ public class GpuEboIntegrationTests : IDisposable
         Assert.True(ebo.IsValid);
         Assert.True(ebo.BufferId > 0);
         Assert.Equal(BufferTarget.ElementArrayBuffer, VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBufferValues.Target(ebo.Role));
-        Assert.Equal(BufferUsageHint.StaticDraw, ebo.Usage);
+        Assert.Equal(BufferUsage.StaticDraw, ebo.Usage);
         Assert.Equal(0, ebo.SizeBytes);
         Assert.Equal(0, ebo.IndexCount);
         Assert.Equal(default(DrawElementsType), ebo.IndexType);
@@ -63,7 +63,7 @@ public class GpuEboIntegrationTests : IDisposable
         Assert.True(ebo.IsValid);
         AssertNativeUsage(ebo);
         ebo.Allocate(0);
-        Assert.Equal(BufferUsageHint.DynamicDraw, ebo.Usage);
+        Assert.Equal(BufferUsage.DynamicDraw, ebo.Usage);
         Assert.Equal(BufferTarget.ElementArrayBuffer, VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBufferValues.Target(ebo.Role));
     }
 
@@ -97,7 +97,7 @@ public class GpuEboIntegrationTests : IDisposable
         Assert.True(ebo.IsValid);
         AssertNativeUsage(ebo);
         ebo.Allocate(0);
-        Assert.Equal(usage, ebo.Usage);
+        Assert.Equal(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBufferValues.Usage(usage), ebo.Usage);
         Assert.Equal(debugName, ebo.DebugName);
         Assert.True(ebo.BufferId > 0);
         Assert.False(ebo.IsDisposed);
@@ -659,7 +659,7 @@ public class GpuEboIntegrationTests : IDisposable
         Assert.True(ebo.IsValid);
         AssertNativeUsage(ebo);
         ebo.Allocate(0);
-        Assert.Equal(usage, ebo.Usage);
+        Assert.Equal(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBufferValues.Usage(usage), ebo.Usage);
         Assert.True(ebo.BufferId > 0);
     }
 
@@ -739,7 +739,7 @@ public class GpuEboIntegrationTests : IDisposable
         // Array-buffer binding can query any buffer without altering a VAO's element binding.
         using var binding = OpenGlStateCache.Current.BindBufferScope(BufferTarget.ArrayBuffer, buffer.BufferId);
         GL.GetBufferParameter(BufferTarget.ArrayBuffer, BufferParameterName.BufferUsage, out int actualUsage);
-        Assert.Equal((BufferUsageHint)actualUsage, buffer.Usage);
+        Assert.Equal(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBufferValues.Usage((BufferUsageHint)actualUsage), buffer.Usage);
     }
     #endregion
 }

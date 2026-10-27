@@ -43,7 +43,7 @@ public struct RHIBufferDescription
         if ((assigned & Inputs.Capacity) == 0 || capacity < 0) throw new ArgumentException("An explicit nonnegative capacity is required.");
         if (mode == ResourceStorageMode.Mutable)
         {
-            if ((assigned & Inputs.Usage) == 0 || !Enum.IsDefined(usage) || (assigned & Inputs.Access) != 0)
+            if ((assigned & Inputs.Usage) == 0 || !Enum.IsDefined(usage) || usage == BufferUsage.Undefined || (assigned & Inputs.Access) != 0)
                 throw new ArgumentException("Mutable storage requires usage and rejects immutable access flags.");
             return;
         }

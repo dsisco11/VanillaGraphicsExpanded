@@ -28,6 +28,12 @@ public sealed class RHIContractIsolationTests
     }
     /// <summary>Canonical image schemas cannot reintroduce native enum fields behind semantic method signatures.</summary>
     [Theory]
+    [InlineData(typeof(GpuBufferMetadata))]
+    [InlineData(typeof(GpuBufferInitialization))]
+    [InlineData(typeof(GpuShaderMetadata))]
+    [InlineData(typeof(GpuShaderInitialization))]
+    [InlineData(typeof(GpuProgramMetadata))]
+    [InlineData(typeof(GpuProgramResourceMetadata))]
     [InlineData(typeof(GpuTextureMetadata))]
     [InlineData(typeof(GpuTextureLevelMetadata))]
     [InlineData(typeof(GpuTextureBufferMetadata))]
@@ -66,7 +72,7 @@ public sealed class RHIContractIsolationTests
                 if (method.GetMethodBody() is null) continue;
                 foreach (var member in ReadReferencedMembers(method))
                     Assert.DoesNotContain(member is Type referenced ? referenced.Name : member.DeclaringType?.Name ?? "",
-                        new[] { "OpenGLImageValues", "OpenGLResourceValues", "OpenGLResourceSelectors" });
+                        new[] { "OpenGLImageValues", "OpenGLResourceValues", "OpenGLResourceSelectors", "OpenGLShaderValues", "OpenGLBufferValues" });
             }
         }
         Assert.Null(assembly.GetType("VanillaGraphicsExpanded.Rendering.Integration.OpenGL.OpenGLResourceSelectors"));

@@ -2,7 +2,6 @@ using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering.Contracts;
 
 namespace VanillaGraphicsExpanded.Rendering.Spirv;
@@ -17,7 +16,7 @@ internal sealed class GpuPreparedBindings
     private readonly Dictionary<(ShaderBindingKind Kind, int Slot), int> blockSizes = new();
     private readonly Dictionary<(ShaderBindingKind Kind, int Slot), int> textureLocations = new();
     /// <summary>Describes one contract entry without exposing reflection uniform locations.</summary>
-    internal readonly record struct Entry(GpuBindingEntry Contract, bool Active, ActiveUniformType Type,
+    internal readonly record struct Entry(GpuBindingEntry Contract, bool Active, ShaderValueType Type,
         IReadOnlyList<bool> ActiveElements, int MinimumSize = 0);
     /// <summary>Retains an active array element's original authored identity and precomputed slot projection.</summary>
     internal readonly record struct ActiveEntry(ulong Identity, int Element, Entry Binding);
@@ -29,27 +28,22 @@ internal sealed class GpuPreparedBindings
 
     #region Public API
     /// <summary>Validates supplied executable facts and prepares fixed assignments without acquiring native metadata.</summary>
-    internal GpuPreparedBindings(GpuBindingContract contract, GpuProgramMetadata metadata)
+    internal GpuPreparedBindings(GpuBindingContract contract, GpuProgramMetadata metadata, int textureUnits, int imageUnits)
     {
         if (!metadata.ExecutableAvailable)
             throw new InvalidOperationException("Program executable metadata is unavailable.");
         if (metadata.Resources.IsDefault || metadata.TextureUnits.IsDefault)
             throw new InvalidOperationException("Program executable metadata is incomplete.");
-        int textureUnits = GpuSupport.Graphics.MaxCombinedTextureImageUnits;
-        int imageUnits = GpuSupport.Graphics.MaxImageUnits;
-        var linked = new Dictionary<(ShaderBindingKind Kind, int Slot), (ActiveUniformType Type, int Extent, int BaseSlot)>();
-        var uniforms = metadata.Resources.Where(resource => resource.Interface == ProgramInterface.Uniform).ToArray();
-        ProgramProperty[] uniformProperties = [ProgramProperty.Location, ProgramProperty.Type, ProgramProperty.ArraySize];
-        int[] values = new int[uniformProperties.Length];
+        var linked = new Dictionary<(ShaderBindingKind Kind, int Slot), (ShaderValueType Type, int Extent, int BaseSlot)>();
+        var uniforms = metadata.Resources.Where(resource => resource.Interface == ProgramResourceKind.Uniform).ToArray();
         for (int resource = 0; resource < uniforms.Length; resource++)
         {
-            ReadProperties(uniforms[resource], uniformProperties, values);
-            uniformResourceLocations.Add(uniforms[resource].Index, values[0]);
-            var type = (ActiveUniformType)values[1];
-            if (values[0] >= 0)
-            {
-                uniformArrays.Add(values[0], Math.Max(1, values[2]));
-            }
+            var uniform = uniforms[resource];
+            int location = uniform.Location ?? throw new InvalidOperationException("Uniform location is unavailable.");
+            int extent = uniform.ArraySize ?? throw new InvalidOperationException("Uniform extent is unavailable.");
+            var type = uniform.Type ?? throw new InvalidOperationException("Uniform type is unavailable.");
+            uniformResourceLocations.Add(uniform.Index, location);
+            if (location >= 0) uniformArrays.Add(location, Math.Max(1, extent));
             ShaderBindingKind kind;
             if (GpuProgramLayout.IsSamplerType(type)) kind = ShaderBindingKind.Sampler;
             else if (GpuProgramLayout.IsImageType(type)) kind = ShaderBindingKind.Image;
@@ -57,32 +51,32 @@ internal sealed class GpuPreparedBindings
             {
                 // Owned executables publish numeric data only through immutable UBO versions.
                 // Catch undeclared/manual numeric paths as well as generator-contract mistakes.
-                if (values[0] >= 0)
-                    throw new InvalidOperationException($"Standalone numeric uniform at location {values[0]} must use a uniform block.");
+                if (location >= 0)
+                    throw new InvalidOperationException($"Standalone numeric uniform at location {location} must use a uniform block.");
                 continue;
             }
-            if (values[0] < 0 || values[2] < 1) throw new InvalidOperationException("Invalid linked texture resource.");
+            if (location < 0 || extent < 1) throw new InvalidOperationException("Invalid linked texture resource.");
             // Inspect each array element: the compiler owns locations, while the contract owns units.
             int baseSlot = -1;
-            for (int element = 0; element < values[2]; element++)
+            for (int element = 0; element < extent; element++)
             {
                 GpuProgramTextureUnitMetadata? assignment = metadata.TextureUnits
-                    .Where(unit => unit.Location == values[0] + element)
+                    .Where(unit => unit.Location == location + element)
                     .Select(unit => (GpuProgramTextureUnitMetadata?)unit).SingleOrDefault();
                 if (assignment is null)
                     throw new InvalidOperationException("Program unit metadata is incomplete.");
                 int slot = assignment.Value.Unit;
                 if (element == 0) baseSlot = slot;
-                if (slot < 0 || slot != baseSlot + element || !linked.TryAdd((kind, slot), (type, values[2], baseSlot)))
+                if (slot < 0 || slot != baseSlot + element || !linked.TryAdd((kind, slot), (type, extent, baseSlot)))
                     throw new InvalidOperationException($"Ambiguous or invalid linked {kind} unit {slot}.");
-                textureLocations.Add((kind, slot), values[0] + element);
+                textureLocations.Add((kind, slot), location + element);
             }
         }
-        PrepareBlocks(ProgramInterface.UniformBlock, ShaderBindingKind.UniformBlock, linked, metadata);
-        PrepareBlocks(ProgramInterface.ShaderStorageBlock, ShaderBindingKind.StorageBlock, linked, metadata);
-        foreach (var counter in metadata.Resources.Where(resource => resource.Interface == ProgramInterface.AtomicCounterBuffer))
+        PrepareBlocks(ProgramResourceKind.UniformBlock, ShaderBindingKind.UniformBlock, linked, metadata);
+        PrepareBlocks(ProgramResourceKind.ShaderStorageBlock, ShaderBindingKind.StorageBlock, linked, metadata);
+        foreach (var counter in metadata.Resources.Where(resource => resource.Interface == ProgramResourceKind.AtomicCounterBuffer))
         {
-            int slot = Property(counter, ProgramProperty.BufferBinding);
+            int slot = counter.BufferBinding ?? throw new InvalidOperationException("Counter binding is unavailable.");
             if (!linked.TryAdd((ShaderBindingKind.AtomicCounter, slot), (default, 1, slot)))
                 throw new InvalidOperationException($"Ambiguous linked atomic counter binding {slot}.");
         }
@@ -99,7 +93,7 @@ internal sealed class GpuPreparedBindings
             if (entry.Binding.Slot > limit - entry.Binding.ArrayLength)
                 throw new InvalidOperationException($"Contract {entry.Kind} range exceeds available units: '{entry.Name}'.");
             bool active = false;
-            ActiveUniformType type = default;
+            ShaderValueType type = default;
             var elements = new bool[entry.Binding.ArrayLength];
             for (int element = 0; element < entry.Binding.ArrayLength; element++)
             {
@@ -165,109 +159,164 @@ internal sealed class GpuPreparedBindings
     internal int BlockResourceIndex(ShaderBindingKind kind, int slot) => blockIndices.GetValueOrDefault((kind, slot), -1);
 
     /// <summary>Converts a linked sampler or image dimension into the contract's texture target.</summary>
-    internal static int CompatibleTextureTarget(ActiveUniformType type) => type switch
+    internal static int CompatibleTextureTarget(ShaderValueType type) => type switch
     {
-        ActiveUniformType.Sampler1D
-            or ActiveUniformType.Sampler1DShadow
-            or ActiveUniformType.IntSampler1D
-            or ActiveUniformType.UnsignedIntSampler1D
-            or ActiveUniformType.Image1D
-            or ActiveUniformType.IntImage1D
-            or ActiveUniformType.UnsignedIntImage1D => (int)ShaderTextureTarget.Texture1D,
-        ActiveUniformType.Sampler2D
-            or ActiveUniformType.Sampler2DShadow
-            or ActiveUniformType.IntSampler2D
-            or ActiveUniformType.UnsignedIntSampler2D
-            or ActiveUniformType.Image2D
-            or ActiveUniformType.IntImage2D
-            or ActiveUniformType.UnsignedIntImage2D => (int)ShaderTextureTarget.Texture2D,
-        ActiveUniformType.Sampler3D
-            or ActiveUniformType.IntSampler3D
-            or ActiveUniformType.UnsignedIntSampler3D
-            or ActiveUniformType.Image3D
-            or ActiveUniformType.IntImage3D
-            or ActiveUniformType.UnsignedIntImage3D => (int)ShaderTextureTarget.Texture3D,
-        ActiveUniformType.SamplerCube
-            or ActiveUniformType.SamplerCubeShadow
-            or ActiveUniformType.IntSamplerCube
-            or ActiveUniformType.UnsignedIntSamplerCube
-            or ActiveUniformType.ImageCube
-            or ActiveUniformType.IntImageCube
-            or ActiveUniformType.UnsignedIntImageCube => (int)ShaderTextureTarget.TextureCubeMap,
-        ActiveUniformType.Sampler2DArray
-            or ActiveUniformType.Sampler2DArrayShadow
-            or ActiveUniformType.IntSampler2DArray
-            or ActiveUniformType.UnsignedIntSampler2DArray
-            or ActiveUniformType.Image2DArray
-            or ActiveUniformType.IntImage2DArray
-            or ActiveUniformType.UnsignedIntImage2DArray => (int)ShaderTextureTarget.Texture2DArray,
-        ActiveUniformType.SamplerBuffer
-            or ActiveUniformType.IntSamplerBuffer
-            or ActiveUniformType.UnsignedIntSamplerBuffer
-            or ActiveUniformType.ImageBuffer
-            or ActiveUniformType.IntImageBuffer
-            or ActiveUniformType.UnsignedIntImageBuffer => (int)ShaderTextureTarget.TextureBuffer,
+        ShaderValueType.Sampler1D
+            or ShaderValueType.Sampler1DShadow
+            or ShaderValueType.IntSampler1D
+            or ShaderValueType.UnsignedIntSampler1D
+            or ShaderValueType.Image1D
+            or ShaderValueType.IntImage1D
+            or ShaderValueType.UnsignedIntImage1D => (int)ShaderTextureTarget.Texture1D,
+        ShaderValueType.Sampler2D
+            or ShaderValueType.Sampler2DShadow
+            or ShaderValueType.IntSampler2D
+            or ShaderValueType.UnsignedIntSampler2D
+            or ShaderValueType.Image2D
+            or ShaderValueType.IntImage2D
+            or ShaderValueType.UnsignedIntImage2D => (int)ShaderTextureTarget.Texture2D,
+        ShaderValueType.Sampler3D
+            or ShaderValueType.IntSampler3D
+            or ShaderValueType.UnsignedIntSampler3D
+            or ShaderValueType.Image3D
+            or ShaderValueType.IntImage3D
+            or ShaderValueType.UnsignedIntImage3D => (int)ShaderTextureTarget.Texture3D,
+        ShaderValueType.SamplerCube
+            or ShaderValueType.SamplerCubeShadow
+            or ShaderValueType.IntSamplerCube
+            or ShaderValueType.UnsignedIntSamplerCube
+            or ShaderValueType.ImageCube
+            or ShaderValueType.IntImageCube
+            or ShaderValueType.UnsignedIntImageCube => (int)ShaderTextureTarget.TextureCubeMap,
+        ShaderValueType.Sampler2DArray
+            or ShaderValueType.Sampler2DArrayShadow
+            or ShaderValueType.IntSampler2DArray
+            or ShaderValueType.UnsignedIntSampler2DArray
+            or ShaderValueType.Image2DArray
+            or ShaderValueType.IntImage2DArray
+            or ShaderValueType.UnsignedIntImage2DArray => (int)ShaderTextureTarget.Texture2DArray,
+        ShaderValueType.SamplerBuffer
+            or ShaderValueType.IntSamplerBuffer
+            or ShaderValueType.UnsignedIntSamplerBuffer
+            or ShaderValueType.ImageBuffer
+            or ShaderValueType.IntImageBuffer
+            or ShaderValueType.UnsignedIntImageBuffer => (int)ShaderTextureTarget.TextureBuffer,
         _ => 0
     };
     #endregion
 
     #region Private
     /// <summary>Matches fixed block slots, including separate stage entries emitted for optimized SPIR-V.</summary>
-    private void PrepareBlocks(ProgramInterface resourceInterface, ShaderBindingKind kind,
-        Dictionary<(ShaderBindingKind Kind, int Slot), (ActiveUniformType Type, int Extent, int BaseSlot)> linked,
+    private void PrepareBlocks(ProgramResourceKind resourceInterface, ShaderBindingKind kind,
+        Dictionary<(ShaderBindingKind Kind, int Slot), (ShaderValueType Type, int Extent, int BaseSlot)> linked,
         GpuProgramMetadata metadata)
     {
         var resources = metadata.Resources.Where(resource => resource.Interface == resourceInterface).ToArray();
-        ProgramProperty[] properties = [ProgramProperty.BufferBinding, ProgramProperty.BufferDataSize,
-            ProgramProperty.ReferencedByVertexShader, ProgramProperty.ReferencedByTessControlShader,
-            ProgramProperty.ReferencedByTessEvaluationShader, ProgramProperty.ReferencedByGeometryShader,
-            ProgramProperty.ReferencedByFragmentShader, (ProgramProperty)All.ReferencedByComputeShader];
-        int[] values = new int[properties.Length];
         var blocks = new Dictionary<int, (int Size, int Stages)>();
         for (int resource = 0; resource < resources.Length; resource++)
         {
-            ReadProperties(resources[resource], properties, values);
-            int slot = values[0];
-            int stages = 0;
-            for (int stage = 2; stage < values.Length; stage++)
-                if (values[stage] != 0) stages |= 1 << (stage - 2);
+            var block = resources[resource];
+            int slot = block.BufferBinding ?? throw new InvalidOperationException("Block binding is unavailable.");
+            int size = block.BufferDataSize ?? throw new InvalidOperationException("Block extent is unavailable.");
+            int stages = (int)(block.ReferencedStages ?? throw new InvalidOperationException("Block stage ownership is unavailable."));
             if (blocks.TryGetValue(slot, out var previous))
             {
                 // A driver may retain one block per stage after optimization strips names.
                 // These entries use the same fixed buffer slot; same-stage collisions,
                 // unknown stage ownership and unequal buffer extents remain ambiguous.
-                if (previous.Size != values[1] || previous.Stages == 0 || stages == 0
+                if (previous.Size != size || previous.Stages == 0 || stages == 0
                     || (previous.Stages & stages) != 0)
                     throw new InvalidOperationException($"Ambiguous linked {kind} binding {slot}.");
                 blocks[slot] = (previous.Size, previous.Stages | stages);
                 continue;
             }
-            blocks.Add(slot, (values[1], stages));
+            blocks.Add(slot, (size, stages));
             if (!linked.TryAdd((kind, slot), (default, 1, slot)))
                 throw new InvalidOperationException($"Ambiguous linked {kind} binding {slot}.");
             // Diagnostic adapters retain one representative; submission binds by slot.
             blockIndices.Add((kind, slot), resources[resource].Index);
-            blockSizes.Add((kind, slot), values[1]);
+            blockSizes.Add((kind, slot), size);
         }
     }
 
-    /// <summary>Requires a complete canonical scalar fact rather than inventing a missing native property.</summary>
-    private static int Property(GpuProgramResourceMetadata resource, ProgramProperty property)
+    /// <summary>Matches authored resource requirements against semantic executable types.</summary>
+    private static bool MatchesType(ShaderValueType actual, ShaderResourceType expected) => actual == (expected switch
     {
-        if (resource.Properties is null || !resource.Properties.TryGetValue(property, out var values)
-            || values.IsDefault || values.Length != 1)
-            throw new InvalidOperationException($"Program metadata omits {property}.");
-        return values[0];
-    }
-
-    /// <summary>Projects a canonical resource into the existing fixed-slot validation algorithm.</summary>
-    private static void ReadProperties(GpuProgramResourceMetadata resource, ProgramProperty[] properties, int[] values)
-    {
-        for (int index = 0; index < properties.Length; index++) values[index] = Property(resource, properties[index]);
-    }
-
-    /// <summary>Compares standardized numeric type identifiers independently of enum spelling.</summary>
-    private static bool MatchesType(ActiveUniformType actual, ShaderResourceType expected) => (int)actual == (int)expected;
+        ShaderResourceType.Sampler1D => ShaderValueType.Sampler1D,
+        ShaderResourceType.Sampler2D => ShaderValueType.Sampler2D,
+        ShaderResourceType.Sampler3D => ShaderValueType.Sampler3D,
+        ShaderResourceType.SamplerCube => ShaderValueType.SamplerCube,
+        ShaderResourceType.Sampler1DShadow => ShaderValueType.Sampler1DShadow,
+        ShaderResourceType.Sampler2DShadow => ShaderValueType.Sampler2DShadow,
+        ShaderResourceType.Sampler2DRect => ShaderValueType.Sampler2DRect,
+        ShaderResourceType.Sampler2DRectShadow => ShaderValueType.Sampler2DRectShadow,
+        ShaderResourceType.Sampler1DArray => ShaderValueType.Sampler1DArray,
+        ShaderResourceType.Sampler2DArray => ShaderValueType.Sampler2DArray,
+        ShaderResourceType.SamplerBuffer => ShaderValueType.SamplerBuffer,
+        ShaderResourceType.Sampler1DArrayShadow => ShaderValueType.Sampler1DArrayShadow,
+        ShaderResourceType.Sampler2DArrayShadow => ShaderValueType.Sampler2DArrayShadow,
+        ShaderResourceType.SamplerCubeShadow => ShaderValueType.SamplerCubeShadow,
+        ShaderResourceType.IntSampler1D => ShaderValueType.IntSampler1D,
+        ShaderResourceType.IntSampler2D => ShaderValueType.IntSampler2D,
+        ShaderResourceType.IntSampler3D => ShaderValueType.IntSampler3D,
+        ShaderResourceType.IntSamplerCube => ShaderValueType.IntSamplerCube,
+        ShaderResourceType.IntSampler2DRect => ShaderValueType.IntSampler2DRect,
+        ShaderResourceType.IntSampler1DArray => ShaderValueType.IntSampler1DArray,
+        ShaderResourceType.IntSampler2DArray => ShaderValueType.IntSampler2DArray,
+        ShaderResourceType.IntSamplerBuffer => ShaderValueType.IntSamplerBuffer,
+        ShaderResourceType.UnsignedIntSampler1D => ShaderValueType.UnsignedIntSampler1D,
+        ShaderResourceType.UnsignedIntSampler2D => ShaderValueType.UnsignedIntSampler2D,
+        ShaderResourceType.UnsignedIntSampler3D => ShaderValueType.UnsignedIntSampler3D,
+        ShaderResourceType.UnsignedIntSamplerCube => ShaderValueType.UnsignedIntSamplerCube,
+        ShaderResourceType.UnsignedIntSampler2DRect => ShaderValueType.UnsignedIntSampler2DRect,
+        ShaderResourceType.UnsignedIntSampler1DArray => ShaderValueType.UnsignedIntSampler1DArray,
+        ShaderResourceType.UnsignedIntSampler2DArray => ShaderValueType.UnsignedIntSampler2DArray,
+        ShaderResourceType.UnsignedIntSamplerBuffer => ShaderValueType.UnsignedIntSamplerBuffer,
+        ShaderResourceType.SamplerCubeMapArray => ShaderValueType.SamplerCubeMapArray,
+        ShaderResourceType.SamplerCubeMapArrayShadow => ShaderValueType.SamplerCubeMapArrayShadow,
+        ShaderResourceType.IntSamplerCubeMapArray => ShaderValueType.IntSamplerCubeMapArray,
+        ShaderResourceType.UnsignedIntSamplerCubeMapArray => ShaderValueType.UnsignedIntSamplerCubeMapArray,
+        ShaderResourceType.Image1D => ShaderValueType.Image1D,
+        ShaderResourceType.Image2D => ShaderValueType.Image2D,
+        ShaderResourceType.Image3D => ShaderValueType.Image3D,
+        ShaderResourceType.Image2DRect => ShaderValueType.Image2DRect,
+        ShaderResourceType.ImageCube => ShaderValueType.ImageCube,
+        ShaderResourceType.ImageBuffer => ShaderValueType.ImageBuffer,
+        ShaderResourceType.Image1DArray => ShaderValueType.Image1DArray,
+        ShaderResourceType.Image2DArray => ShaderValueType.Image2DArray,
+        ShaderResourceType.ImageCubeMapArray => ShaderValueType.ImageCubeMapArray,
+        ShaderResourceType.Image2DMultisample => ShaderValueType.Image2DMultisample,
+        ShaderResourceType.Image2DMultisampleArray => ShaderValueType.Image2DMultisampleArray,
+        ShaderResourceType.IntImage1D => ShaderValueType.IntImage1D,
+        ShaderResourceType.IntImage2D => ShaderValueType.IntImage2D,
+        ShaderResourceType.IntImage3D => ShaderValueType.IntImage3D,
+        ShaderResourceType.IntImage2DRect => ShaderValueType.IntImage2DRect,
+        ShaderResourceType.IntImageCube => ShaderValueType.IntImageCube,
+        ShaderResourceType.IntImageBuffer => ShaderValueType.IntImageBuffer,
+        ShaderResourceType.IntImage1DArray => ShaderValueType.IntImage1DArray,
+        ShaderResourceType.IntImage2DArray => ShaderValueType.IntImage2DArray,
+        ShaderResourceType.IntImageCubeMapArray => ShaderValueType.IntImageCubeMapArray,
+        ShaderResourceType.IntImage2DMultisample => ShaderValueType.IntImage2DMultisample,
+        ShaderResourceType.IntImage2DMultisampleArray => ShaderValueType.IntImage2DMultisampleArray,
+        ShaderResourceType.UnsignedIntImage1D => ShaderValueType.UnsignedIntImage1D,
+        ShaderResourceType.UnsignedIntImage2D => ShaderValueType.UnsignedIntImage2D,
+        ShaderResourceType.UnsignedIntImage3D => ShaderValueType.UnsignedIntImage3D,
+        ShaderResourceType.UnsignedIntImage2DRect => ShaderValueType.UnsignedIntImage2DRect,
+        ShaderResourceType.UnsignedIntImageCube => ShaderValueType.UnsignedIntImageCube,
+        ShaderResourceType.UnsignedIntImageBuffer => ShaderValueType.UnsignedIntImageBuffer,
+        ShaderResourceType.UnsignedIntImage1DArray => ShaderValueType.UnsignedIntImage1DArray,
+        ShaderResourceType.UnsignedIntImage2DArray => ShaderValueType.UnsignedIntImage2DArray,
+        ShaderResourceType.UnsignedIntImageCubeMapArray => ShaderValueType.UnsignedIntImageCubeMapArray,
+        ShaderResourceType.UnsignedIntImage2DMultisample => ShaderValueType.UnsignedIntImage2DMultisample,
+        ShaderResourceType.UnsignedIntImage2DMultisampleArray => ShaderValueType.UnsignedIntImage2DMultisampleArray,
+        ShaderResourceType.Sampler2DMultisample => ShaderValueType.Sampler2DMultisample,
+        ShaderResourceType.IntSampler2DMultisample => ShaderValueType.IntSampler2DMultisample,
+        ShaderResourceType.UnsignedIntSampler2DMultisample => ShaderValueType.UnsignedIntSampler2DMultisample,
+        ShaderResourceType.Sampler2DMultisampleArray => ShaderValueType.Sampler2DMultisampleArray,
+        ShaderResourceType.IntSampler2DMultisampleArray => ShaderValueType.IntSampler2DMultisampleArray,
+        ShaderResourceType.UnsignedIntSampler2DMultisampleArray => ShaderValueType.UnsignedIntSampler2DMultisampleArray,
+        _ => ShaderValueType.Unknown
+    });
 
     #endregion
 }

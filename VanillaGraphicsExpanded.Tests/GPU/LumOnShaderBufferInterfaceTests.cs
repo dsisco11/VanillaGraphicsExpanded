@@ -37,10 +37,15 @@ public sealed class LumOnShaderBufferInterfaceTests : RenderTestBase
         using var replacement = RHICommandContext.Current.CreateUniformBuffer(new RHIBufferDescription { Role = BufferRole.Uniform, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = null }).RequireResource();
         using var texture = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba32f, Width = System.Math.Max(1, 1), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         using var inputs = AssignRequiredTextures(program, texture);
-        // Contents are irrelevant to this binding-only contract; no draw reads these buffers.
-        frame.UploadOrResize(new byte[16]);
-        world.UploadOrResize(new byte[16]);
-        replacement.UploadOrResize(new byte[16]);
+        // Contents are irrelevant, but retained ranges must satisfy the actual compiled block extents.
+        var entries = program.ProgramLayout.BinaryInterface!.PreparedBindings.Entries;
+        int frameBytes = Math.Max(16, entries.Where(entry => entry.Contract.Name == LumOnUniformBuffers.FrameBlockName)
+            .Select(entry => entry.MinimumSize).DefaultIfEmpty(0).Max());
+        int worldBytes = Math.Max(16, entries.Where(entry => entry.Contract.Name == LumOnUniformBuffers.WorldProbeBlockName)
+            .Select(entry => entry.MinimumSize).DefaultIfEmpty(0).Max());
+        frame.UploadOrResize(new byte[frameBytes]);
+        world.UploadOrResize(new byte[worldBytes]);
+        replacement.UploadOrResize(new byte[frameBytes]);
         ((ILumOnFrameShader)program).FrameUniformBuffer = frame;
         ((ILumOnWorldProbeShader)program).WorldProbeUniformBuffer = world;
         bool consumesEffectFrame = program.ProgramLayout.BinaryInterface!.GetUniformBlockIndex(LumOnUniformBuffers.FrameBlockName) >= 0;

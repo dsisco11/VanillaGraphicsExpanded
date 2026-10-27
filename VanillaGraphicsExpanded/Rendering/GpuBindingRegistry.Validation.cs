@@ -16,9 +16,9 @@ internal static partial class GpuBindingRegistry
             throw new ArgumentOutOfRangeException(nameof(bindingPoint));
         }
 
-        if (GpuSupport.MaxUniformBufferBindings > 0 && bindingPoint >= GpuSupport.MaxUniformBufferBindings)
+        if (RHI.RHICommandContext.Current.Capabilities.MaxUniformBufferBindings > 0 && bindingPoint >= RHI.RHICommandContext.Current.Capabilities.MaxUniformBufferBindings)
         {
-            throw new ArgumentOutOfRangeException(nameof(bindingPoint), $"UBO binding point {bindingPoint} exceeds GL_MAX_UNIFORM_BUFFER_BINDINGS={GpuSupport.MaxUniformBufferBindings}.");
+            throw new ArgumentOutOfRangeException(nameof(bindingPoint), $"UBO binding point {bindingPoint} exceeds GL_MAX_UNIFORM_BUFFER_BINDINGS={RHI.RHICommandContext.Current.Capabilities.MaxUniformBufferBindings}.");
         }
     }
 }

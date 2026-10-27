@@ -2,7 +2,6 @@ using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using System.Collections.Generic;
 using System.Threading;
-using OpenTK.Graphics.OpenGL;
 
 namespace VanillaGraphicsExpanded.Rendering;
 
@@ -234,7 +233,7 @@ public sealed class GpuFramebufferAttachment : GpuResource<GpuImageMetadata>
             FramebufferSlot.DepthStencil => depth && stencil,
             _ => (int)slot >= (int)FramebufferSlot.Color0
                 && (int)slot <= (int)FramebufferSlot.Color15
-                && (int)slot - (int)FramebufferSlot.Color0 < GpuSupport.Graphics.MaxColorAttachments
+                && (int)slot - (int)FramebufferSlot.Color0 < RHICommandContext.Current.Capabilities.MaxColorAttachments
                 && !depth && !stencil
         };
         if (!compatible) throw new ArgumentException("Storage format does not match the attachment point.", nameof(slot));
@@ -380,9 +379,9 @@ public sealed class GpuFramebufferAttachment : GpuResource<GpuImageMetadata>
         if ((uint)MipLevel > 30) throw new ArgumentOutOfRangeException(nameof(MipLevel));
         if ((ViewCount != 0 || attachmentMode == GpuFramebufferAttachmentMode.Multiview)
             && (target != TextureDimension.TwoArray || Layer.HasValue || BaseView < 0 || ViewCount < 1
-            || !GpuSupport.Graphics.SupportsOvrMultiview
-            || attachmentMode == GpuFramebufferAttachmentMode.Multiview && ViewCount > GpuSupport.Graphics.MaxMultiviewViews
-            || (long)BaseView + ViewCount > GpuSupport.Graphics.MaxArrayTextureLayers))
+            || !RHICommandContext.Current.Capabilities.Multiview
+            || attachmentMode == GpuFramebufferAttachmentMode.Multiview && ViewCount > RHICommandContext.Current.Capabilities.MaxMultiviewViews
+            || (long)BaseView + ViewCount > RHICommandContext.Current.Capabilities.MaxArrayTextureLayers))
             throw new ArgumentOutOfRangeException(nameof(ViewCount));
         if (Layer.HasValue && (Layer.Value < 0 || target is not (TextureDimension.OneArray
             or TextureDimension.TwoArray or TextureDimension.Three or TextureDimension.CubeArray

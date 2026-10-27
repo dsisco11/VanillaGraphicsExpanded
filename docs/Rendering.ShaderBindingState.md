@@ -41,8 +41,8 @@ retain their engine interfaces. See [supported replacements](GpuProgram.md#share
 The C# attributes remain the authoritative contract. `ArrayLength` and optional `ShaderType`
 constraints, texture targets and sampler policies are carried by generated resource declarations.
 Texture dimensions come from explicit `TextureTarget` contract metadata, independently of wrapper
-class names. Exact types use the engine-independent `ShaderResourceType` enum and compare numeric
-identifiers with the linked interface; target compatibility uses explicit enum cases. Unconstrained
+class names. Exact types use the engine-independent `ShaderResourceType` enum and match semantic
+`ShaderValueType` facts through explicit cases; target compatibility also uses explicit cases. Unconstrained
 dimensions remain flexible, and actual storage formats are resource inputs validated during
 submission rather than invented shader-type constraints.
 `GpuBindingContract.Merge` rejects cross-stage disagreement and overlapping ranges within each
@@ -58,7 +58,7 @@ It also records UBO, storage-block and atomic-counter activity by binding. Sampl
 use separate namespaces. Uncontracted active slots and ambiguous mappings reject preparation;
 inactive required entries remain legal. No sampler/image uniform writes repair a fixed assignment.
 Preparation has no native program-ID parameter, native query path or manager acquisition fallback.
-Unavailable snapshots, uninitialized collections and missing required properties or unit assignments
+Unavailable snapshots, uninitialized collections and missing required typed fields or unit assignments
 reject preparation. `GpuProgramInterface` requests canonical facts through the private RHI acquisition boundary when its caller
 has no snapshot; the admitted backend invokes manager acquisition. Graphics and compute candidates supply
 their existing owner snapshots directly.
@@ -80,7 +80,9 @@ Layout cache rebuilding and binding validation reuse immutable active-binding ma
 the prepared table. Diagnostic resource-name adapters reuse recorded locations and indices.
 Neither path repeats linked-interface enumeration. Native executable discovery belongs to the manager's
 reader boundary; preparation projects block sizes, stage ownership and native diagnostic indices from
-the supplied collections.
+the supplied collections. Reflected resources use `ProgramResourceKind`, nullable typed location/extent/block
+fields and `ShaderStageMask`; native property selectors and type tokens never enter those snapshots.
+Preparation receives texture/image-unit limits as supplied values and requires no context admission.
 
 Validation covers fixed sampler/image namespaces, array activity, incompatible types, supplied metadata,
 executable replacement and failure preservation. Generated submission consumes the resulting table.

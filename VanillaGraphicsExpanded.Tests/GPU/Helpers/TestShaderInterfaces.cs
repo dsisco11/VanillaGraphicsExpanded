@@ -66,6 +66,6 @@ internal static class TestShaderInterfaces
     public static int GetUniformBlockIndex(int program, string name) => Programs[program].GetUniformBlockIndex(name);
     /// <summary>Names numeric resources only for fixture diagnostics.</summary>
     public static void GetProgramResourceName(int program, ProgramInterface kind, int index, int capacity, out int length, out string name)
-        => Programs[program].GetProgramResourceName(kind, index, capacity, out length, out name);
+        => Programs[program].GetProgramResourceName(OpenGLShaderValues.Resource((OpenTK.Graphics.OpenGL4.ProgramInterface)kind), index, capacity, out length, out name);
     #endregion
 }

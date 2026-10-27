@@ -144,7 +144,7 @@ internal sealed partial class OpenGLBackend
         var stage = new GpuShaderModule();
         try
         {
-            if (!GpuResourceManager.CreateShader(new() { Stage = (OpenTK.Graphics.OpenGL.ShaderType)NativeShaderStage(input.Stage) }, stage, out _).HasValue)
+            if (!GpuResourceManager.CreateShader(new() { Stage = input.Stage }, stage, out _).HasValue)
                 throw new InvalidOperationException("Native shader stage allocation failed.");
             CompileShaderStage(stage, input);
             return stage;

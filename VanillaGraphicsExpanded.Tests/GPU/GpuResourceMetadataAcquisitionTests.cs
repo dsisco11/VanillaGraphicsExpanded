@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
@@ -34,14 +35,14 @@ public sealed class GpuResourceMetadataAcquisitionTests
             GL.BindBuffer(BufferTarget.ArrayBuffer, sentinel);
             var entry = manager.AcquireResource(GpuResourceKind.Buffer, buffer, reader)!;
             Assert.NotNull(entry);
-            Assert.Equal(new GpuBufferMetadata(128, BufferUsageHint.DynamicDraw), entry.Metadata);
+            Assert.Equal(new GpuBufferMetadata(128, BufferUsage.DynamicDraw), entry.Metadata);
             Assert.Equal(sentinel, GL.GetInteger(GetPName.ArrayBufferBinding));
             Assert.Same(entry, manager.AcquireResource(GpuResourceKind.Buffer, buffer, reader));
             GL.BindBuffer(BufferTarget.ArrayBuffer, buffer);
             GL.BufferData(BufferTarget.ArrayBuffer, 0, IntPtr.Zero, BufferUsageHint.StaticDraw);
             GL.BindBuffer(BufferTarget.ArrayBuffer, sentinel);
             Assert.True(manager.RefreshMetadata(entry, GpuMetadataChange.Storage));
-            Assert.Equal(new GpuBufferMetadata(0, BufferUsageHint.StaticDraw), entry.Metadata);
+            Assert.Equal(new GpuBufferMetadata(0, BufferUsage.StaticDraw), entry.Metadata);
             manager.Dispose();
             Assert.True(GL.IsBuffer(buffer));
             Assert.Equal(ErrorCode.NoError, GL.GetError());

@@ -46,7 +46,7 @@ internal sealed partial class OpenGlStateCache
         {
             bool represented = false;
             foreach (var resource in entry.Metadata.Resources)
-                if (resource.Interface == block && resource.Index == blockIndex) { represented = true; break; }
+                if (resource.Interface == OpenGLShaderValues.Resource((OpenTK.Graphics.OpenGL4.ProgramInterface)block) && resource.Index == blockIndex) { represented = true; break; }
             if (!represented) return default;
         }
         var change = GpuMetadataChange.Metadata | (executable ? GpuMetadataChange.Executable : GpuMetadataChange.None);

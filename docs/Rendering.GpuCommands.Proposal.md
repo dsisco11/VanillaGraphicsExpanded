@@ -80,10 +80,10 @@ vertex layout and synchronization intent. No public operation accepts an OpenTK 
 DSA flag, GL method name or native overload selector. Migration proceeds through complete operation-family
 replacements against this final contract, as defined below.
 
-Use the implemented `GpuTextureRef` unchanged for texture consumption. Its native accessors and
-OpenTK-valued metadata are an existing compatibility surface, not fields exposed in command descriptors.
-Commands pass the reference opaquely; the backend/manager resolves it. This permits another backend
-implementation later without claiming the existing native wrappers already support one.
+Use the implemented `GpuTextureRef` unchanged for texture consumption. Published metadata uses
+project-owned dimensions, formats and selections and remains query-free. Commands retain the reference
+opaquely; the backend/manager resolves its original association. Consumption grants no native execution,
+metadata recovery or lifecycle authority. This boundary does not claim another backend is implemented.
 
 Introduce analogous consumer-only values as needed: `GpuBufferRef`, `GpuSamplerRef`,
 `GpuRenderbufferRef`, `GpuFramebufferRef`, `GpuVertexArrayRef`,
@@ -191,6 +191,10 @@ old borrowers and native views retain their original associations and cannot sil
 Failed replacement preserves the existing documented failure behavior rather than inventing rollback of
 already retired storage. Shader/pipeline candidate installation has its stricter preservation contract below.
 
+Managed buffer contracts carry project-owned usage/storage-access values; shader stage and executable
+reflection facts use semantic kinds, types, stage masks and typed fields with explicit availability.
+Authored resource types have no numeric equivalence with native tokens. Binding preparation and ordinary
+layout reads consume supplied snapshots/limits; explicit external assignment resolves through RHI.
 Managed image and framebuffer contracts carry project-owned dimensions, cube faces, formats, slots and
 routing selections throughout wrappers, initialization, canonical metadata and capability-cache keys.
 A native translation helper is not a replacement for migrating those callers. Encode values only at

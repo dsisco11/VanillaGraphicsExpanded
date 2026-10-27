@@ -764,55 +764,62 @@ Phase 8c: Centralize acquisition, recovery and image dependency publication
     11 observer/fault-injection/counter failures; it is not a clean-suite receipt. No JIT overrides.
     Source/schema/codec isolation checks and all affected callers compile in both configurations.
     Receipts/filter and the combined-process limitation are recorded in the linked migration ledger.
-    Subphases 8d–8i and Phase 9 remain open.
+    Subphases 8e–8i and Phase 9 remain open.
 
 Phase 8d: Complete semantic resource schemas and remove capability/shader-layout backend dependencies
   Depends on 8c.
 
-  ☐ Replace native BufferUsageHint/BufferStorageFlags in GpuBufferMetadata and GpuBufferInitialization
+  ☑ Replace native BufferUsageHint/BufferStorageFlags in GpuBufferMetadata and GpuBufferInitialization
     with project-owned usage/storage descriptions. Migrate GpuBufferObject.Usage, GpuBufferRef metadata
     access, IRHIResourceExecution.InitializeBuffer and all dependent creation, validation and publication
     callers together. Preserve immutable/sparse/storage-access semantics; encode/decode native flags only
     beneath backend or explicit native import boundaries, without a parallel metadata representation.
-  ☐ Replace ShaderType in GpuShaderMetadata, GpuShaderInitialization.Stage and GpuShaderModule's stage
+  ☑ Replace ShaderType in GpuShaderMetadata, GpuShaderInitialization.Stage and GpuShaderModule's stage
     accessor/adoption constructor with ShaderStage. Migrate InitializeShader, native adoption and all
     shader creation/publication consumers together; native stage conversion belongs beneath the backend.
-  ☐ Replace GpuProgramResourceMetadata's ProgramInterface/ProgramProperty-keyed reflection bags and raw
+  ☑ Replace GpuProgramResourceMetadata's ProgramInterface/ProgramProperty-keyed reflection bags and raw
     native type identifiers with typed semantic reflection facts in the canonical GpuProgramMetadata
     snapshot. Migrate GpuProgramInterface's resource keys/name lookup, GpuProgramLayout and its
     NativeMetadata partial, GpuResourceManager.ProgramFields/ProgramUnitAvailability and RHIShader's
     retained reflection consumers together. Preserve publication, field availability, executable generation
     identity and external acquisition; introduce no second reflection cache or owner-side native decoding.
-  ☐ Remove ActiveUniformType/ActiveAttribType from GpuPreparedBindings.Entry,
+  ☑ Remove ActiveUniformType/ActiveAttribType from GpuPreparedBindings.Entry,
     GraphicsExecutableInterface.Variable, ShaderInterfaceShape and ShaderResourceFormatCompatibility.
     Update ShaderPreparedSubmission, ShaderInputValidation and all dependent layout/binding consumers to
     supplied semantic reflection facts. Preparation remains query-free and preserves shape/format validation.
-  ☐ Detach ShaderResourceType's authored contract from OpenGL token identity: remove numeric-equivalence
+  ☑ Detach ShaderResourceType's authored contract from OpenGL token identity: remove numeric-equivalence
     casts/comparisons with native uniform types outside the backend. Update ShaderContractGenerator,
     shared schemas, executable/cache identities and all consumers/tests in the same migration unit;
     use explicit backend translation rather than a renamed enum or forwarding compatibility layer.
-  ☐ Replace GpuFramebufferAttachment.ValidateSlot/ValidateSelection direct GpuSupport accesses with
+  ☑ Replace GpuFramebufferAttachment.ValidateSlot/ValidateSelection direct GpuSupport accesses with
     RHICapabilities, including color slots, multiview support, view count and array-layer limits.
-  ☐ Migrate GpuUniformRingBuffer context admission/alignment access, GpuBindingRegistry validation limits
+  ☑ Migrate GpuUniformRingBuffer context admission/alignment access, GpuBindingRegistry validation limits
     and GpuPreparedBindings texture/image-unit limits to admitted RHI capabilities or supplied immutable
     limits. Keep binding preparation CPU-only and preserve one existing capability discovery authority.
-  ☐ Remove GpuProgramLayout's direct OpenGLProgramQueries/OpenGLProgramAssignments dependencies from
+  ☑ Remove GpuProgramLayout's direct OpenGLProgramQueries/OpenGLProgramAssignments dependencies from
     GetUniformLocation/GetResourceName, ApplyUniformBlockContract, ApplyShaderStorageBlockContract,
     ApplyUniformUnitContract, block-index resolution, TryBuildBufferBindingByName and TryBuildTextureUnitBindings.
     Cover their ApplyContract, ValidateContract, RebuildCache and TryBuild callers, including
     AtmosphereProgramBindings; owned executable preparation uses supplied snapshots and explicit external
     recovery/assignments execute beneath final RHI integration services. No ordinary layout read queries GL.
-  ☐ Replace GpuProgramLayout's GpuSupport capability branches and native ErrorScope ownership consistently
+  ☑ Replace GpuProgramLayout's GpuSupport capability branches and native ErrorScope ownership consistently
     with the 4.5 baseline and approved diagnostics/error policy. Remove superseded native fallback entry
     points and avoid universal error drains, requested/actual duplicate caches or a second reflection system.
-  ☐ Inspect GpuTextureInitialization.Resolve's internal-format capability access: retain native resolution
+  ☑ Inspect GpuTextureInitialization.Resolve's internal-format capability access: retain native resolution
     only beneath its backend-owned callers, with no new owner-side query path. Do not move valid private
     backend initialization into a public factory merely to eliminate a helper dependency.
-  ☐ Verify buffer usage/storage flags, shader stages, semantic reflected resource shapes/types and authored
+  ☑ Verify buffer usage/storage flags, shader stages, semantic reflected resource shapes/types and authored
     resource compatibility across creation, adoption and publication. Cover executable reflection/assignment,
     reload, missing/invalid inputs, binding preparation and optional multiview rejection without weakening
     validation, duplicating metadata authority or introducing redundant native queries. Add schema/isolation
     regressions with each migration; combined coverage and dependency review are reconciled in 8h.
+
+  Completion receipt: canonical Debug/Release builds passed; affected Debug 842/842, generator 157/157
+    and build-tool identity/cache tests 256/256 passed. Ordinary Release combined 840/842; the exact two
+    fault-injection cases passed 2/2 fresh on unchanged optimized binaries. Second review and independent
+    stage-completion audit found no remaining 8d blocker. See Rendering.GpuCommands.Migrations.md,
+    "Semantic executable and buffer boundary (Phase 8d)" for routes, traceability and receipt limits.
+    Subphases 8e–8i and Phase 9 remain open. Nothing was staged or committed.
 
 Phase 8e: Put resource labels and native diagnostics beneath the backend
   Depends on 8d.
@@ -827,8 +834,9 @@ Phase 8e: Put resource labels and native diagnostics beneath the backend
   ☐ Move native GlDebug label/probe implementation beneath backend diagnostics. Remove GL.Is* validity
     probes where owner/manager identity already establishes admission; retain best-effort label failure
     behavior without inventing a release query path or silently swallowing required operation errors.
-  ☐ Reconcile GpuProgramLayout.ErrorScope and ShaderPatchRecovery's GetErrorsString with backend-owned
-    diagnostics and the approved outcome policy. Do not add unconditional error draining to semantic operations.
+  ☐ Verify GpuProgramLayout retains no native ErrorScope after 8d, and reconcile ShaderPatchRecovery's
+    GetErrorsString with backend-owned diagnostics and the approved outcome policy. Do not add unconditional
+    error draining to semantic operations.
   ☐ Verify Debug label/error behavior and Release exclusion using delegated tools. No instrumented Release
     configuration, new counters, timing studies or benchmark requirements are introduced.
 

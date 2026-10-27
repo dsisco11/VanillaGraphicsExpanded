@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Runtime.CompilerServices;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
@@ -64,7 +65,7 @@ public sealed class GpuResourceAssociationStressTests
         /// <inheritdoc />
         public bool IsResource(nint id) => id == 7;
         /// <inheritdoc />
-        public bool TryRead(nint id, out GpuBufferMetadata data) { data = new(16, BufferUsageHint.StaticDraw); return IsResource(id); }
+        public bool TryRead(nint id, out GpuBufferMetadata data) { data = new(16, BufferUsage.StaticDraw); return IsResource(id); }
     }
     /// <summary>Models a non-owning recipient so collection never retires native storage.</summary>
     private sealed class Alias : GpuResource<GpuBufferMetadata>

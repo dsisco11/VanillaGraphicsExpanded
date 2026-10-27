@@ -15,7 +15,7 @@ internal static class ShaderContractProjection
         using var stream = new MemoryStream();
         using var writer = new BinaryWriter(stream, Encoding.UTF8, true);
         var stage = selection.Stage;
-        writer.Write("effective-contract-v1");
+        writer.Write("effective-contract-v2");
         writer.Write(stage.Source); writer.Write((int)stage.Kind); writer.Write(stage.EntryPoint);
         // Length-prefixed strings, typed bits and explicit counts avoid delimiter and culture ambiguities.
         writer.Write(stage.FixedDefines.Count);

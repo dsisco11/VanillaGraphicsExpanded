@@ -1,6 +1,7 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using System.Collections.Immutable;
-using OpenTK.Graphics.OpenGL;
+using VanillaGraphicsExpanded.Rendering.RHI;
 
 namespace VanillaGraphicsExpanded.Rendering;
 
@@ -40,14 +41,14 @@ internal sealed partial class GpuResourceManager
                 for (int i = 0; i < resources.Count; i++)
                 {
                     var resource = resources[i];
-                    if (resource.Interface != (block == RHI.ProgramBlockKind.Uniform ? ProgramInterface.UniformBlock : ProgramInterface.ShaderStorageBlock) || resource.Index != index) continue;
+                    if (resource.Interface != (block == RHI.ProgramBlockKind.Uniform ? ProgramResourceKind.UniformBlock : ProgramResourceKind.ShaderStorageBlock) || resource.Index != index) continue;
                     int value;
                     if (supplied.HasValue) value = supplied.Value;
                     else
                     {
                         if (!RHI.RHICommandContext.Current.ReadExternalProgramBlockBinding((int)entry.Id, block, index, out value)) return false;
                     }
-                    resources[i] = resource with { Properties = resource.Properties.SetItem(ProgramProperty.BufferBinding, ImmutableArray.Create(value)) };
+                    resources[i] = resource with { BufferBinding = value };
                 }
                 candidate = candidate with { Resources = resources.ToImmutable() };
             }

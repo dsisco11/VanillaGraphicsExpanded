@@ -11,7 +11,7 @@ internal sealed partial class OpenGLBackend
     public GpuShaderMetadata? InitializeShader(in GpuShaderInitialization initialization, out nint id)
     {
         RequireContext();
-        id = GL.CreateShader((ShaderType)initialization.Stage);
+        id = GL.CreateShader(NativeShaderStage(initialization.Stage));
         RequireContext();
         return id == 0 ? null : new GpuShaderMetadata(initialization.Stage);
     }

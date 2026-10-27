@@ -2,7 +2,6 @@ using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using System.Diagnostics;
 
-using OpenTK.Graphics.OpenGL;
 
 namespace VanillaGraphicsExpanded.Rendering;
 
@@ -137,7 +136,7 @@ internal sealed class GpuUniformRingBuffer : IDisposable
         this.coherent = coherent;
         this.debugName = debugName;
 
-        GpuSupport.EnsureCurrentContext();
+        RHICommandContext.Current.RequireContext();
         usePersistent = preferPersistent;
 
         pages = new GpuUniformBuffer[pageCount];
@@ -384,7 +383,7 @@ internal sealed class GpuUniformRingBuffer : IDisposable
     {
         try
         {
-            int align = GpuSupport.Graphics.UniformBufferOffsetAlignment;
+            int align = RHICommandContext.Current.Capabilities.UniformBufferOffsetAlignment;
             return Math.Max(1, align);
         }
         catch

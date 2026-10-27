@@ -22,6 +22,55 @@ public sealed class GpuProgramNarrowPublicationTests(HeadlessGLFixture fixture)
     private static Action? duringLink;
 
     #region Public API
+    /// <summary>External layout application reuses canonical facts; subsequent layout reads never query native state.</summary>
+    [Fact]
+    public void LayoutAssignmentsAndReadsReuseCanonicalFacts()
+    {
+        fixture.EnsureContextValid(); fixture.InitializeResourceDisposal();
+        try
+        {
+            using var owner = CreateProgram();
+            var layout = GpuProgramLayout.TryBuild(owner.ProgramId);
+            layout.RegisterSamplerUnitArray("inputs", 2, 2);
+            layout.RegisterUniformBlockBinding("Parameters", 1);
+            layout.RegisterShaderStorageBlockBinding("Output", 2);
+            int expectedLocation = GL.GetUniformLocation(owner.ProgramId, "inputs");
+            using (var capture = new ProgramAcquisitionCapture())
+            {
+                capture.Calibrate(owner.ProgramId);
+                layout.ApplyContract(owner.ProgramId);
+                layout.ApplyContract(owner.ProgramId);
+                Assert.Equal(expectedLocation, layout.ResolveUniformLocation(owner.ProgramId, "inputs").Value);
+                Assert.True(layout.ResolveUniformBlockActive(owner.ProgramId, "Parameters").Value);
+                layout.RebuildCache(owner.ProgramId);
+                Assert.Equal(0, capture.Reads);
+            }
+            GL.GetUniform(owner.ProgramId, GL.GetUniformLocation(owner.ProgramId, "inputs[0]"), out int first);
+            GL.GetUniform(owner.ProgramId, GL.GetUniformLocation(owner.ProgramId, "inputs[1]"), out int second);
+            Assert.Equal(2, first); Assert.Equal(3, second);
+            Assert.Equal(1, owner.MetadataSnapshot.Resources.Single(item => item.Interface == ProgramResourceKind.UniformBlock).BufferBinding);
+            Assert.Equal(2, owner.MetadataSnapshot.Resources.Single(item => item.Interface == ProgramResourceKind.ShaderStorageBlock).BufferBinding);
+        }
+        finally { fixture.CleanupGpuResources(); }
+    }
+
+    /// <summary>A warning callback cannot change interface facts and then apply the remaining stale assignment packet.</summary>
+    [Fact]
+    public void LayoutAssignmentsRejectInterfaceChangeDuringCallback()
+    {
+        fixture.EnsureContextValid(); fixture.InitializeResourceDisposal();
+        try
+        {
+            using var owner = CreateProgram();
+            Assert.Throws<InvalidOperationException>(() => RHICommandContext.Current.ApplyProgramBindings(owner.ProgramId,
+                [new(ProgramResourceKind.Uniform, "missing", 1, true), new(ProgramResourceKind.Uniform, "inputs", 2, true)],
+                message => OpenGLProgramAssignments.SetUnit(owner.ProgramId, GL.GetUniformLocation(owner.ProgramId, "inputs[0]"), 4)));
+            GL.GetUniform(owner.ProgramId, GL.GetUniformLocation(owner.ProgramId, "inputs[0]"), out int unit);
+            Assert.Equal(4, unit);
+        }
+        finally { fixture.CleanupGpuResources(); }
+    }
+
     /// <summary>Out-of-range managed binding inputs preserve canonical facts and are rejected before any native setter.</summary>
     [Theory]
     [InlineData(0)]
@@ -293,9 +342,9 @@ public sealed class GpuProgramNarrowPublicationTests(HeadlessGLFixture fixture)
             Assert.Equal(0, interfaceQueries);
             Assert.Equal(0, unitQueries);
             Assert.Equal(before.TextureUnits, entry.Metadata.TextureUnits);
-            var changed = entry.Metadata.Resources.Single(item => item.Interface == kind && item.Index == index);
-            Assert.Equal(3, changed.Properties[ProgramProperty.BufferBinding][0]);
-            Assert.All(before.Resources.Where(item => item.Interface != kind || item.Index != index),
+            var changed = entry.Metadata.Resources.Single(item => item.Interface == (kind == ProgramInterface.UniformBlock ? ProgramResourceKind.UniformBlock : ProgramResourceKind.ShaderStorageBlock) && item.Index == index);
+            Assert.Equal(3, changed.BufferBinding);
+            Assert.All(before.Resources.Where(item => item.Interface != (kind == ProgramInterface.UniformBlock ? ProgramResourceKind.UniformBlock : ProgramResourceKind.ShaderStorageBlock) || item.Index != index),
                 item => Assert.Contains(item, entry.Metadata.Resources));
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
@@ -386,8 +435,10 @@ public sealed class GpuProgramDeferredContextTests(HeadlessGLFixture fixture)
             RenderContextRegistry.RegisterCurrent(fixture, static _ => true);
             harmony.Patch(AccessTools.Method(typeof(GL), nameof(GL.GetProgram), [typeof(int), typeof(GetProgramParameterName), typeof(int).MakeByRefType()]),
                 prefix: new HarmonyMethod(typeof(GpuProgramDeferredContextTests), nameof(CountQuery)));
+            harmony.Patch(AccessTools.Method(typeof(OpenTK.Graphics.OpenGL4.GL), nameof(GL.GetProgram), [typeof(int), typeof(OpenTK.Graphics.OpenGL4.GetProgramParameterName), typeof(int).MakeByRefType()]),
+                prefix: new HarmonyMethod(typeof(GpuProgramDeferredContextTests), nameof(CountQuery)));
             queries = 0;
-            Assert.False(executionBackend.CompleteProgramLink(owner, out _));
+            Assert.Throws<InvalidOperationException>(() => executionBackend.CompleteProgramLink(owner, out _));
             Assert.Equal(0, queries);
             Assert.Equal(GpuResourceRegistrationState.ContextRetired, entry.State);
             Assert.False(entry.MetadataAvailable);

@@ -39,7 +39,7 @@ public sealed class GpuBufferImageCreationTests(HeadlessGLFixture fixture)
             Assert.False(entry.MetadataAvailable);
             Assert.NotNull(manager.AcquireResource(GpuResourceKind.Buffer, buffer.BufferId, new GpuBufferMetadataReader()));
             Assert.Equal(64, buffer.SizeBytes);
-            Assert.Equal(BufferUsageHint.StreamDraw, buffer.Usage);
+            Assert.Equal(BufferUsage.StreamDraw, buffer.Usage);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
         finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
@@ -96,7 +96,7 @@ public sealed class GpuBufferImageCreationTests(HeadlessGLFixture fixture)
             else
             {
                 using var recipient = new FailedRecipient<GpuBufferMetadata>(GpuResourceKind.Buffer);
-                var request = new GpuBufferInitialization { Mode = GpuBufferStorageMode.Mutable, Capacity = 64, Usage = BufferUsageHint.StaticDraw };
+                var request = new GpuBufferInitialization { Mode = GpuBufferStorageMode.Mutable, Capacity = 64, Usage = BufferUsage.StaticDraw };
                 Assert.Throws<InvalidOperationException>(() => GpuResourceManager.CreateBuffer(request, recipient, out handle));
                 native = recipient.Attempted;
                 Assert.Equal((nint)0, recipient.ResourceId);
@@ -123,7 +123,7 @@ public sealed class GpuBufferImageCreationTests(HeadlessGLFixture fixture)
             Assert.Equal((nint)0, recipient.ResourceId);
             request.StorageFlags = 0;
             var result = GpuResourceManager.CreateBuffer(request, recipient, out var handle);
-            Assert.Equal(new GpuBufferMetadata(64, BufferUsageHint.DynamicDraw, true), result);
+            Assert.Equal(new GpuBufferMetadata(64, BufferUsage.DynamicDraw, true), result);
             using var binding = OpenGlStateCache.Current.BindBufferScope(BufferTarget.ArrayBuffer, (int)handle.Id);
             GL.GetBufferParameter(BufferTarget.ArrayBuffer, (BufferParameterName)All.BufferImmutableStorage, out int immutable);
             GL.GetBufferParameter(BufferTarget.ArrayBuffer, BufferParameterName.BufferSize, out int size);
@@ -148,9 +148,9 @@ public sealed class GpuBufferImageCreationTests(HeadlessGLFixture fixture)
             using var binding = OpenGlStateCache.Current.BindBufferScope(BufferTarget.CopyWriteBuffer, sentinel.BufferId);
             using var recipient = new Recipient<GpuBufferMetadata>(GpuResourceKind.Buffer);
             var request = new GpuBufferInitialization
-                { Mode = GpuBufferStorageMode.Mutable, Capacity = 48, Usage = BufferUsageHint.StreamDraw };
+                { Mode = GpuBufferStorageMode.Mutable, Capacity = 48, Usage = BufferUsage.StreamDraw };
             var result = GpuResourceManager.CreateBuffer(request, recipient, out var handle);
-            Assert.Equal(new GpuBufferMetadata(48, BufferUsageHint.StreamDraw), result);
+            Assert.Equal(new GpuBufferMetadata(48, BufferUsage.StreamDraw), result);
             Assert.Equal(result.Value, recipient.Snapshot);
             Assert.Equal(handle.Id, recipient.ResourceId);
             Assert.Equal(sentinel.BufferId, GL.GetInteger((GetPName)All.CopyWriteBufferBinding));
@@ -177,11 +177,11 @@ public sealed class GpuBufferImageCreationTests(HeadlessGLFixture fixture)
         try
         {
             using var recipient = new Recipient<GpuBufferMetadata>(GpuResourceKind.Buffer);
-            var request = new GpuBufferInitialization { Mode = GpuBufferStorageMode.Mutable, Usage = BufferUsageHint.StaticDraw };
+            var request = new GpuBufferInitialization { Mode = GpuBufferStorageMode.Mutable, Usage = BufferUsage.StaticDraw };
             Assert.Throws<ArgumentException>(() => GpuResourceManager.CreateBuffer(request, recipient, out _));
             Assert.Equal((nint)0, recipient.ResourceId);
             request.Capacity = 0;
-            Assert.Equal(new GpuBufferMetadata(0, BufferUsageHint.StaticDraw),
+            Assert.Equal(new GpuBufferMetadata(0, BufferUsage.StaticDraw),
                 GpuResourceManager.CreateBuffer(request, recipient, out _));
             Assert.True(recipient.IsValid);
             Assert.Equal(ErrorCode.NoError, GL.GetError());

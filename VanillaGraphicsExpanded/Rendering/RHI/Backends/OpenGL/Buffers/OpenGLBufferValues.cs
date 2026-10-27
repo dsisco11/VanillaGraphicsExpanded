@@ -70,20 +70,6 @@ internal static class OpenGLBufferValues
         Legacy.BufferUsageHint.StreamCopy => BufferUsage.StreamCopy,
         _ => throw new ArgumentOutOfRangeException(nameof(value))
     };
-    /// <summary>Translates a semantic usage into the retained canonical metadata schema.</summary>
-    internal static Legacy.BufferUsageHint MetadataUsage(BufferUsage value) => value switch
-    {
-        BufferUsage.StaticDraw => Legacy.BufferUsageHint.StaticDraw,
-        BufferUsage.StaticRead => Legacy.BufferUsageHint.StaticRead,
-        BufferUsage.StaticCopy => Legacy.BufferUsageHint.StaticCopy,
-        BufferUsage.DynamicDraw => Legacy.BufferUsageHint.DynamicDraw,
-        BufferUsage.DynamicRead => Legacy.BufferUsageHint.DynamicRead,
-        BufferUsage.DynamicCopy => Legacy.BufferUsageHint.DynamicCopy,
-        BufferUsage.StreamDraw => Legacy.BufferUsageHint.StreamDraw,
-        BufferUsage.StreamRead => Legacy.BufferUsageHint.StreamRead,
-        BufferUsage.StreamCopy => Legacy.BufferUsageHint.StreamCopy,
-        _ => throw new ArgumentOutOfRangeException(nameof(value))
-    };
     /// <summary>Translates each declared immutable-storage flag independently.</summary>
     internal static Native.BufferStorageFlags Storage(StorageAccess value)
     {
@@ -95,6 +81,19 @@ internal static class OpenGLBufferValues
         if ((value & StorageAccess.DynamicUpdates) != 0) result |= Native.BufferStorageFlags.DynamicStorageBit;
         if ((value & StorageAccess.ClientStorage) != 0) result |= Native.BufferStorageFlags.ClientStorageBit;
         if ((value & StorageAccess.Sparse) != 0) result |= (Native.BufferStorageFlags)Native.ArbSparseBuffer.SparseStorageBitArb;
+        return result;
+    }
+    /// <summary>Decodes observed native immutable permissions into canonical semantic facts.</summary>
+    internal static StorageAccess Storage(Native.BufferStorageFlags value)
+    {
+        StorageAccess result = 0;
+        if ((value & Native.BufferStorageFlags.MapReadBit) != 0) result |= StorageAccess.Read;
+        if ((value & Native.BufferStorageFlags.MapWriteBit) != 0) result |= StorageAccess.Write;
+        if ((value & Native.BufferStorageFlags.MapPersistentBit) != 0) result |= StorageAccess.Persistent;
+        if ((value & Native.BufferStorageFlags.MapCoherentBit) != 0) result |= StorageAccess.Coherent;
+        if ((value & Native.BufferStorageFlags.DynamicStorageBit) != 0) result |= StorageAccess.DynamicUpdates;
+        if ((value & Native.BufferStorageFlags.ClientStorageBit) != 0) result |= StorageAccess.ClientStorage;
+        if ((value & (Native.BufferStorageFlags)Native.ArbSparseBuffer.SparseStorageBitArb) != 0) result |= StorageAccess.Sparse;
         return result;
     }
     /// <summary>Translates access flags for a named mapping.</summary>

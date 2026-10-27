@@ -69,19 +69,8 @@ internal sealed partial class OpenGLBackend
         };
         if (description.Mode == ResourceStorageMode.Realization) return request;
         request.Capacity = description.Capacity;
-        if (description.Mode == ResourceStorageMode.Mutable) request.Usage = OpenGLBufferValues.MetadataUsage(description.Usage);
-        else
-        {
-            OpenTK.Graphics.OpenGL.BufferStorageFlags flags = 0;
-            if ((description.Access & StorageAccess.Read) != 0) flags |= OpenTK.Graphics.OpenGL.BufferStorageFlags.MapReadBit;
-            if ((description.Access & StorageAccess.Write) != 0) flags |= OpenTK.Graphics.OpenGL.BufferStorageFlags.MapWriteBit;
-            if ((description.Access & StorageAccess.Persistent) != 0) flags |= OpenTK.Graphics.OpenGL.BufferStorageFlags.MapPersistentBit;
-            if ((description.Access & StorageAccess.Coherent) != 0) flags |= OpenTK.Graphics.OpenGL.BufferStorageFlags.MapCoherentBit;
-            if ((description.Access & StorageAccess.DynamicUpdates) != 0) flags |= OpenTK.Graphics.OpenGL.BufferStorageFlags.DynamicStorageBit;
-            if ((description.Access & StorageAccess.ClientStorage) != 0) flags |= OpenTK.Graphics.OpenGL.BufferStorageFlags.ClientStorageBit;
-            if ((description.Access & StorageAccess.Sparse) != 0) flags |= (OpenTK.Graphics.OpenGL.BufferStorageFlags)OpenTK.Graphics.OpenGL.ArbSparseBuffer.SparseStorageBitArb;
-            request.StorageFlags = flags;
-        }
+        if (description.Mode == ResourceStorageMode.Mutable) request.Usage = description.Usage;
+        else request.StorageFlags = description.Access;
         return request;
     }
     #endregion

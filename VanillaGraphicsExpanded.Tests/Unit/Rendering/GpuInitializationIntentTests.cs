@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
 
@@ -17,7 +18,7 @@ public sealed class GpuInitializationIntentTests
         realization.Validate();
         realization.Capacity = 0;
         Assert.Throws<ArgumentException>(() => realization.Validate());
-        var mutable = new GpuBufferInitialization { Mode = GpuBufferStorageMode.Mutable, Usage = BufferUsageHint.StaticDraw };
+        var mutable = new GpuBufferInitialization { Mode = GpuBufferStorageMode.Mutable, Usage = BufferUsage.StaticDraw };
         Assert.Throws<ArgumentException>(() => mutable.Validate());
         mutable.Capacity = 0;
         mutable.Validate();
@@ -31,7 +32,7 @@ public sealed class GpuInitializationIntentTests
     [Fact]
     public void BufferCopiesRetainIndependentIntent()
     {
-        var original = new GpuBufferInitialization { Mode = GpuBufferStorageMode.Mutable, Capacity = 0, Usage = BufferUsageHint.StaticDraw };
+        var original = new GpuBufferInitialization { Mode = GpuBufferStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw };
         var copy = original;
         copy.StorageFlags = 0;
         Assert.Throws<ArgumentException>(() => copy.Validate());
@@ -44,11 +45,11 @@ public sealed class GpuInitializationIntentTests
 
     /// <summary>Immutable mapping combinations preserve the native dependency rules even when flags are explicitly assigned.</summary>
     [Theory]
-    [InlineData(BufferStorageFlags.MapPersistentBit, false)]
-    [InlineData(BufferStorageFlags.MapCoherentBit, false)]
-    [InlineData(BufferStorageFlags.MapPersistentBit | BufferStorageFlags.MapReadBit, true)]
-    [InlineData(BufferStorageFlags.MapPersistentBit | BufferStorageFlags.MapWriteBit | BufferStorageFlags.MapCoherentBit, true)]
-    public void ImmutableFlagsRespectDependencies(BufferStorageFlags flags, bool valid)
+    [InlineData(StorageAccess.Persistent, false)]
+    [InlineData(StorageAccess.Coherent, false)]
+    [InlineData(StorageAccess.Persistent | StorageAccess.Read, true)]
+    [InlineData(StorageAccess.Persistent | StorageAccess.Write | StorageAccess.Coherent, true)]
+    public void ImmutableFlagsRespectDependencies(StorageAccess flags, bool valid)
     {
         var input = new GpuBufferInitialization { Mode = GpuBufferStorageMode.Immutable, Capacity = 16, StorageFlags = flags };
         if (valid) input.Validate();

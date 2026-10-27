@@ -60,18 +60,6 @@ internal partial struct GpuTextureInitialization
             || target is TextureDimension.TwoArray or TextureDimension.CubeArray or TextureDimension.TwoMultisampleArray && caps.MaxArrayTextureLayers > 0 && depth > caps.MaxArrayTextureLayers
             || target == TextureDimension.OneArray && caps.MaxArrayTextureLayers > 0 && height > caps.MaxArrayTextureLayers)
             throw new ArgumentOutOfRangeException(nameof(Width), "Texture dimensions exceed cached limits.");
-        if (multisample)
-        {
-            var support = GpuSupport.GetInternalFormatCapabilities(target, internalFormat);
-            if (!support.Supported) throw new ArgumentOutOfRangeException(nameof(Samples));
-            if (support.SampleCounts.IsDefaultOrEmpty) return result;
-            int selected = int.MaxValue;
-            foreach (int count in support.SampleCounts)
-                if (count >= samples && count < selected) selected = count;
-            if (!support.Supported || selected == int.MaxValue)
-                throw new ArgumentOutOfRangeException(nameof(Samples));
-            result.Samples = selected;
-        }
         return result;
     }
     #endregion

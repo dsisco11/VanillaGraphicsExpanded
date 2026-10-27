@@ -99,7 +99,7 @@ public sealed class GpuResourceKindLifecycleTests(HeadlessGLFixture fixture, ITe
             GpuResourceKind.TransformFeedback => RHICommandContext.Current.CreateTransformFeedback(new()).RequireResource(),
             GpuResourceKind.Sampler => RHICommandContext.Current.CreateSampler(new RHISamplerDescription {  }).RequireResource(),
             GpuResourceKind.ProgramPipeline => NativeResourceSetup.CreateProgramPipeline(),
-            GpuResourceKind.Shader => new GpuShaderModule(GL.CreateShader(ShaderType.VertexShader), ShaderType.VertexShader),
+            GpuResourceKind.Shader => new GpuShaderModule(GL.CreateShader(ShaderType.VertexShader), ShaderStage.Vertex),
             GpuResourceKind.Semaphore => RHICommandContext.Current.CreateSemaphore(new()).RequireResource(),
             GpuResourceKind.MemoryObject => RHICommandContext.Current.CreateMemoryObject(new(Dedicated: false)).RequireResource(),
             _ => throw new ArgumentOutOfRangeException(nameof(kind))

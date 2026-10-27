@@ -28,7 +28,7 @@ internal sealed partial class OpenGLBackend
         RequireContext();
         if ((ShaderType)stage is not (ShaderType.VertexShader or ShaderType.FragmentShader or ShaderType.GeometryShader
             or ShaderType.TessControlShader or ShaderType.TessEvaluationShader or ShaderType.ComputeShader)) return false;
-        metadata = new((OpenTK.Graphics.OpenGL.ShaderType)stage);
+        metadata = new(OpenGLShaderValues.Stage((ShaderType)stage));
         return true;
     }
     #endregion

@@ -23,5 +23,8 @@ public sealed partial class RHICommandContext
     internal void ResolveFramebufferAttachments(GpuFramebuffer owner, bool recover) => backend.ResolveFramebufferAttachments(owner, recover);
     /// <summary>Routes explicit ObserveAttachmentOwner without exposing native execution to resource wrappers.</summary>
     internal void ObserveAttachmentOwner(GpuResource owner, GpuFramebufferAttachment image) => backend.ObserveAttachmentOwner(owner, image);
+    /// <summary>Admits an explicit external executable assignment transaction; ordinary layout reads remain query-free.</summary>
+    internal GpuProgramMetadata ApplyProgramBindings(int program, System.Collections.Generic.IReadOnlyList<ProgramBindingAssignment> assignments, System.Action<string>? warn)
+        => backend.ApplyProgramBindings(program, assignments, warn);
     #endregion
 }

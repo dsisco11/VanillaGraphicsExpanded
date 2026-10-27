@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
 
@@ -28,7 +29,7 @@ public sealed class GpuInitialAcquisitionFoundationTests
             {
                 Assert.NotNull(result);
                 Assert.True(result.MetadataAvailable);
-                Assert.Equal(new GpuBufferMetadata(16, BufferUsageHint.StaticDraw), result.Metadata);
+                Assert.Equal(new GpuBufferMetadata(16, BufferUsage.StaticDraw), result.Metadata);
                 Assert.Equal((ulong)1, result.MetadataRevision);
             }
             else Assert.Null(result);
@@ -63,7 +64,7 @@ public sealed class GpuInitialAcquisitionFoundationTests
             Assert.False(Provisional.MetadataAvailable);
             Assert.Null(recover ? manager.RecoverResource(GpuResourceKind.Buffer, id, this)
                 : manager.AcquireResource(GpuResourceKind.Buffer, id, this));
-            metadata = new(16, BufferUsageHint.StaticDraw);
+            metadata = new(16, BufferUsage.StaticDraw);
             if (outcome == 2) throw Failure;
             return outcome == 0;
         }

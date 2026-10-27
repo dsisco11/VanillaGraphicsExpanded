@@ -80,12 +80,30 @@ internal sealed partial class OpenGLBackend
                     GL.GetProgramResourceName(program, (Native.ProgramInterface)kind, index, Math.Max(1, capacity), out _, out name);
                     RequireContext();
                 }
-                var facts = ImmutableDictionary.CreateBuilder<ProgramProperty, ImmutableArray<int>>();
-                for (int property = 0; property < properties.Length; property++) facts.Add(properties[property], ImmutableArray.Create(values[property]));
-                resources.Add(new(kind, index, name, facts.ToImmutable()));
-                if (kind != ProgramInterface.Uniform || values[1] < 0 || values[2] != -1) continue;
-                var type = (ActiveUniformType)values[0];
-                if (!GpuProgramLayout.IsSamplerType(type) && !GpuProgramLayout.IsImageType(type)) continue;
+                // Only fields valid for this category are present; omitted facts stay unavailable.
+                int? Fact(ProgramProperty property)
+                {
+                    int at = Array.IndexOf(properties, property);
+                    return at < 0 ? null : values[at];
+                }
+                ShaderStageMask? stages = null;
+                if (kind is ProgramInterface.UniformBlock or ProgramInterface.ShaderStorageBlock)
+                {
+                    stages = ShaderStageMask.None;
+                    if (Fact(ProgramProperty.ReferencedByVertexShader) != 0) stages |= ShaderStageMask.Vertex;
+                    if (Fact(ProgramProperty.ReferencedByTessControlShader) != 0) stages |= ShaderStageMask.TessellationControl;
+                    if (Fact(ProgramProperty.ReferencedByTessEvaluationShader) != 0) stages |= ShaderStageMask.TessellationEvaluation;
+                    if (Fact(ProgramProperty.ReferencedByGeometryShader) != 0) stages |= ShaderStageMask.Geometry;
+                    if (Fact(ProgramProperty.ReferencedByFragmentShader) != 0) stages |= ShaderStageMask.Fragment;
+                    if (Fact((ProgramProperty)All.ReferencedByComputeShader) != 0) stages |= ShaderStageMask.Compute;
+                }
+                var type = Fact(ProgramProperty.Type) is { } token
+                    ? OpenGLShaderValues.Value((Native.All)token) : (ShaderValueType?)null;
+                resources.Add(new(OpenGLShaderValues.Resource((Native.ProgramInterface)kind), index, name,
+                    type, Fact(ProgramProperty.Location), Fact(ProgramProperty.ArraySize), Fact(ProgramProperty.BlockIndex),
+                    Fact(ProgramProperty.BufferBinding), Fact(ProgramProperty.BufferDataSize), stages, Fact(ProgramProperty.LocationIndex)));
+                if (kind != ProgramInterface.Uniform || values[1] < 0 || values[2] != -1 || type is null) continue;
+                if (!GpuProgramLayout.IsSamplerType(type.Value) && !GpuProgramLayout.IsImageType(type.Value)) continue;
                 for (int element = 0; element < Math.Max(1, values[3]); element++)
                 {
                     int location = values[1] + element;

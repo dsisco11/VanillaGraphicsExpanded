@@ -28,7 +28,7 @@ public sealed class StandaloneNumericInputTests(HeadlessGLFixture fixture) : Ren
         using var acquisition = new ProgramAcquisitionCapture();
         acquisition.Calibrate(program.ProgramId);
         var failure = Assert.Throws<InvalidOperationException>(() =>
-            new GpuPreparedBindings(new GpuBindingContract(), metadata));
+            new GpuPreparedBindings(new GpuBindingContract(), metadata, 16, 8));
         Assert.Equal(0, acquisition.Reads);
         Assert.Contains("must use a uniform block", failure.Message);
     }

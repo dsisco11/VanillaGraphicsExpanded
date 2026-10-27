@@ -169,7 +169,7 @@ public sealed class GpuFramebufferExecutableCreationTests(HeadlessGLFixture fixt
             using var shader = new Recipient<GpuShaderMetadata>(GpuResourceKind.Shader);
             using var program = new Recipient<GpuProgramMetadata>(GpuResourceKind.Program);
             var frameData = GpuResourceManager.CreateFramebuffer(default, framebuffer, out var frameHandle);
-            var shaderData = GpuResourceManager.CreateShader(new GpuShaderInitialization { Stage = ShaderType.VertexShader }, shader, out var shaderHandle);
+            var shaderData = GpuResourceManager.CreateShader(new GpuShaderInitialization { Stage = ShaderStage.Vertex }, shader, out var shaderHandle);
             var programData = GpuResourceManager.CreateProgram(default, program, out var programHandle);
             Assert.Equal(0, queries);
             Assert.NotNull(frameData);
@@ -177,7 +177,7 @@ public sealed class GpuFramebufferExecutableCreationTests(HeadlessGLFixture fixt
             Assert.Equal(0, frameData.Value.DefaultWidth);
             Assert.Equal(0, frameData.Value.DefaultSamples);
             Assert.False(frameData.Value.DefaultFixedSampleLocations);
-            Assert.Equal(new GpuShaderMetadata(ShaderType.VertexShader), shaderData);
+            Assert.Equal(new GpuShaderMetadata(ShaderStage.Vertex), shaderData);
             Assert.NotNull(programData);
             Assert.False(programData.Value.ExecutableAvailable);
             Assert.Empty(programData.Value.Resources);
@@ -255,7 +255,7 @@ public sealed class GpuFramebufferExecutableCreationTests(HeadlessGLFixture fixt
             else if (family == 1)
             {
                 using var recipient = new FailedRecipient<GpuShaderMetadata>(GpuResourceKind.Shader);
-                Assert.Throws<InvalidOperationException>(() => GpuResourceManager.CreateShader(new GpuShaderInitialization { Stage = ShaderType.VertexShader }, recipient, out handle));
+                Assert.Throws<InvalidOperationException>(() => GpuResourceManager.CreateShader(new GpuShaderInitialization { Stage = ShaderStage.Vertex }, recipient, out handle));
                 id = recipient.Attempted;
                 Assert.Equal((nint)0, recipient.ResourceId);
             }

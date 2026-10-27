@@ -42,7 +42,7 @@ internal sealed partial class OpenGLBackend
         }
         RequireContext();
         var usage = request.Mode == ResourceStorageMode.Immutable
-            ? OpenTK.Graphics.OpenGL.BufferUsageHint.DynamicDraw : OpenGLBufferValues.MetadataUsage(request.Usage);
+            ? BufferUsage.DynamicDraw : request.Usage;
         operation.Commit(new(request.Capacity, usage, request.Mode == ResourceStorageMode.Immutable,
             request.Mode == ResourceStorageMode.Immutable ? LowerBufferDescription(request).StorageFlags : 0));
     }
@@ -52,7 +52,7 @@ internal sealed partial class OpenGLBackend
     {
         var owner = RequireRange(destination, offset, bytes.Length);
         var storage = owner.PublishedMetadata;
-        if (storage.ImmutableStorage && (storage.StorageFlags & OpenTK.Graphics.OpenGL.BufferStorageFlags.DynamicStorageBit) == 0)
+        if (storage.ImmutableStorage && (storage.StorageFlags & StorageAccess.DynamicUpdates) == 0)
             throw new InvalidOperationException("Immutable storage does not allow client subdata updates.");
         cache.RequireResourceOperationAvailable(GpuResourceKind.Buffer, owner.ResourceId);
         fixed (byte* data = bytes) GL.NamedBufferSubData((int)owner.ResourceId, offset, bytes.Length, (nint)data);
@@ -87,7 +87,7 @@ internal sealed partial class OpenGLBackend
     {
         RequireContext();
         initialization.Validate();
-        if ((initialization.StorageFlags & (OpenTK.Graphics.OpenGL.BufferStorageFlags)Native.ArbSparseBuffer.SparseStorageBitArb) != 0)
+        if ((initialization.StorageFlags & StorageAccess.Sparse) != 0)
         {
             if (!Capabilities.SparseBuffers) throw new NotSupportedException("Sparse buffers are unavailable.");
             if (byteCount != 0) throw new ArgumentException("Sparse storage requires explicit commitment before content upload.");
@@ -100,18 +100,18 @@ internal sealed partial class OpenGLBackend
         RequireContext();
         if (name == 0) return null;
         if (initialization.Mode == GpuBufferStorageMode.Realization)
-            return new(0, OpenTK.Graphics.OpenGL.BufferUsageHint.StaticDraw);
+            return new(0, BufferUsage.StaticDraw);
         bool complete = offset == 0 && byteCount == initialization.Capacity;
         if (initialization.Mode == GpuBufferStorageMode.Mutable)
-            GL.NamedBufferData(name, initialization.Capacity, complete ? data : 0, OpenGLBufferValues.Usage(OpenGLBufferValues.Usage(initialization.Usage)));
+            GL.NamedBufferData(name, initialization.Capacity, complete ? data : 0, OpenGLBufferValues.Usage(initialization.Usage));
         else
-            GL.NamedBufferStorage(name, initialization.Capacity, complete ? data : 0, ToCoreStorageFlags(initialization.StorageFlags));
+            GL.NamedBufferStorage(name, initialization.Capacity, complete ? data : 0, OpenGLBufferValues.Storage(initialization.StorageFlags));
         RequireContext();
         if (!complete && byteCount != 0) InitializeBufferRange(name, offset, byteCount, data,
-            initialization.Mode == GpuBufferStorageMode.Mutable || (initialization.StorageFlags & OpenTK.Graphics.OpenGL.BufferStorageFlags.DynamicStorageBit) != 0);
+            initialization.Mode == GpuBufferStorageMode.Mutable || (initialization.StorageFlags & StorageAccess.DynamicUpdates) != 0);
         RequireContext();
         return new(initialization.Capacity, initialization.Mode == GpuBufferStorageMode.Mutable
-            ? initialization.Usage : OpenTK.Graphics.OpenGL.BufferUsageHint.DynamicDraw,
+            ? initialization.Usage : BufferUsage.DynamicDraw,
             initialization.Mode == GpuBufferStorageMode.Immutable, initialization.Mode == GpuBufferStorageMode.Immutable ? initialization.StorageFlags : 0);
     }
 
@@ -130,10 +130,10 @@ internal sealed partial class OpenGLBackend
         var storage = owner.PublishedMetadata;
         if (storage.ImmutableStorage)
         {
-            var required = (access & BufferMapAccess.Read) != 0 ? OpenTK.Graphics.OpenGL.BufferStorageFlags.MapReadBit : 0;
-            if ((access & BufferMapAccess.Write) != 0) required |= OpenTK.Graphics.OpenGL.BufferStorageFlags.MapWriteBit;
-            if ((access & BufferMapAccess.Persistent) != 0) required |= OpenTK.Graphics.OpenGL.BufferStorageFlags.MapPersistentBit;
-            if ((access & BufferMapAccess.Coherent) != 0) required |= OpenTK.Graphics.OpenGL.BufferStorageFlags.MapCoherentBit;
+            var required = (access & BufferMapAccess.Read) != 0 ? StorageAccess.Read : 0;
+            if ((access & BufferMapAccess.Write) != 0) required |= StorageAccess.Write;
+            if ((access & BufferMapAccess.Persistent) != 0) required |= StorageAccess.Persistent;
+            if ((access & BufferMapAccess.Coherent) != 0) required |= StorageAccess.Coherent;
             if ((storage.StorageFlags & required) != required) throw new InvalidOperationException("Mapping access exceeds immutable storage permissions.");
         }
         else if ((access & (BufferMapAccess.Persistent | BufferMapAccess.Coherent)) != 0)
@@ -207,18 +207,5 @@ internal sealed partial class OpenGLBackend
         return owner;
     }
 
-    /// <summary>Translates retained initialization flags explicitly at the private native boundary.</summary>
-    private static Native.BufferStorageFlags ToCoreStorageFlags(OpenTK.Graphics.OpenGL.BufferStorageFlags flags)
-    {
-        Native.BufferStorageFlags result = 0;
-        if ((flags & OpenTK.Graphics.OpenGL.BufferStorageFlags.MapReadBit) != 0) result |= Native.BufferStorageFlags.MapReadBit;
-        if ((flags & OpenTK.Graphics.OpenGL.BufferStorageFlags.MapWriteBit) != 0) result |= Native.BufferStorageFlags.MapWriteBit;
-        if ((flags & OpenTK.Graphics.OpenGL.BufferStorageFlags.MapPersistentBit) != 0) result |= Native.BufferStorageFlags.MapPersistentBit;
-        if ((flags & OpenTK.Graphics.OpenGL.BufferStorageFlags.MapCoherentBit) != 0) result |= Native.BufferStorageFlags.MapCoherentBit;
-        if ((flags & OpenTK.Graphics.OpenGL.BufferStorageFlags.DynamicStorageBit) != 0) result |= Native.BufferStorageFlags.DynamicStorageBit;
-        if ((flags & OpenTK.Graphics.OpenGL.BufferStorageFlags.ClientStorageBit) != 0) result |= Native.BufferStorageFlags.ClientStorageBit;
-        if ((flags & (OpenTK.Graphics.OpenGL.BufferStorageFlags)OpenTK.Graphics.OpenGL.ArbSparseBuffer.SparseStorageBitArb) != 0) result |= (Native.BufferStorageFlags)Native.ArbSparseBuffer.SparseStorageBitArb;
-        return result;
-    }
     #endregion
 }

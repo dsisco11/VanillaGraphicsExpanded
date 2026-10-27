@@ -43,10 +43,11 @@ internal sealed partial class OpenGLBackend
     }
 
     /// <summary>Defines storage while an explicit operation retains the original resource association.</summary>
-    internal GpuTextureMetadata DefineTextureImages(int name, in GpuTextureInitialization request,
+    internal GpuTextureMetadata DefineTextureImages(int name, in GpuTextureInitialization initialization,
         GpuResourceManager.MetadataOperation<GpuTextureMetadata>? operation = null, OpenGlStateCache.ResourceOperationGuard? creationGuard = null)
     {
         RequireContext();
+        var request = ResolveTextureSamples(initialization);
         bool immutable = request.AllocationMode == GpuTextureAllocationMode.Immutable;
         bool multisample = request.Target is TextureDimension.TwoMultisample or TextureDimension.TwoMultisampleArray;
         bool three = request.Target is TextureDimension.Three or TextureDimension.TwoArray or TextureDimension.CubeArray;

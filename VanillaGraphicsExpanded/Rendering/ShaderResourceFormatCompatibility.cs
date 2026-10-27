@@ -1,5 +1,4 @@
 using VanillaGraphicsExpanded.Rendering.RHI;
-using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering.Contracts;
 
 namespace VanillaGraphicsExpanded.Rendering;
@@ -12,64 +11,64 @@ internal static class ShaderResourceFormatCompatibility
 
     #region Public API
     /// <summary>Checks the resource's format interpretation without reflecting its executable or allocation.</summary>
-    internal static bool Matches(ActiveUniformType type, TextureFormat format)
+    internal static bool Matches(ShaderValueType type, TextureFormat format)
     {
         // Comparison samplers require depth storage in addition to floating-point interpretation.
-        bool shadow = (ShaderResourceType)type is ShaderResourceType.Sampler1DShadow or ShaderResourceType.Sampler2DShadow or
-            ShaderResourceType.Sampler2DRectShadow or ShaderResourceType.Sampler1DArrayShadow or ShaderResourceType.Sampler2DArrayShadow or
-            ShaderResourceType.SamplerCubeShadow or ShaderResourceType.SamplerCubeMapArrayShadow;
-        return (!shadow || TextureFormatHelper.IsDepthFormat(format)) && Classify((ShaderResourceType)type) == Classify(format);
+        bool shadow = type is ShaderValueType.Sampler1DShadow or ShaderValueType.Sampler2DShadow or
+            ShaderValueType.Sampler2DRectShadow or ShaderValueType.Sampler1DArrayShadow or ShaderValueType.Sampler2DArrayShadow or
+            ShaderValueType.SamplerCubeShadow or ShaderValueType.SamplerCubeMapArrayShadow;
+        return (!shadow || TextureFormatHelper.IsDepthFormat(format)) && Classify(type) == Classify(format);
     }
     #endregion
 
     #region Private
     /// <summary>Classifies the standardized numeric linked resource type.</summary>
-    private static ScalarClass Classify(ShaderResourceType type) => type switch
+    private static ScalarClass Classify(ShaderValueType type) => type switch
     {
-        ShaderResourceType.IntSampler1D or
-            ShaderResourceType.IntSampler2D or
-            ShaderResourceType.IntSampler3D or
-            ShaderResourceType.IntSamplerCube or
-            ShaderResourceType.IntSampler2DRect or
-            ShaderResourceType.IntSampler1DArray or
-            ShaderResourceType.IntSampler2DArray or
-            ShaderResourceType.IntSamplerBuffer or
-            ShaderResourceType.IntSamplerCubeMapArray or
-            ShaderResourceType.IntImage1D or
-            ShaderResourceType.IntImage2D or
-            ShaderResourceType.IntImage3D or
-            ShaderResourceType.IntImage2DRect or
-            ShaderResourceType.IntImageCube or
-            ShaderResourceType.IntImageBuffer or
-            ShaderResourceType.IntImage1DArray or
-            ShaderResourceType.IntImage2DArray or
-            ShaderResourceType.IntImageCubeMapArray or
-            ShaderResourceType.IntImage2DMultisample or
-            ShaderResourceType.IntImage2DMultisampleArray or
-            ShaderResourceType.IntSampler2DMultisample or
-            ShaderResourceType.IntSampler2DMultisampleArray => ScalarClass.Signed,
-        ShaderResourceType.UnsignedIntSampler1D or
-            ShaderResourceType.UnsignedIntSampler2D or
-            ShaderResourceType.UnsignedIntSampler3D or
-            ShaderResourceType.UnsignedIntSamplerCube or
-            ShaderResourceType.UnsignedIntSampler2DRect or
-            ShaderResourceType.UnsignedIntSampler1DArray or
-            ShaderResourceType.UnsignedIntSampler2DArray or
-            ShaderResourceType.UnsignedIntSamplerBuffer or
-            ShaderResourceType.UnsignedIntSamplerCubeMapArray or
-            ShaderResourceType.UnsignedIntImage1D or
-            ShaderResourceType.UnsignedIntImage2D or
-            ShaderResourceType.UnsignedIntImage3D or
-            ShaderResourceType.UnsignedIntImage2DRect or
-            ShaderResourceType.UnsignedIntImageCube or
-            ShaderResourceType.UnsignedIntImageBuffer or
-            ShaderResourceType.UnsignedIntImage1DArray or
-            ShaderResourceType.UnsignedIntImage2DArray or
-            ShaderResourceType.UnsignedIntImageCubeMapArray or
-            ShaderResourceType.UnsignedIntImage2DMultisample or
-            ShaderResourceType.UnsignedIntImage2DMultisampleArray or
-            ShaderResourceType.UnsignedIntSampler2DMultisample or
-            ShaderResourceType.UnsignedIntSampler2DMultisampleArray => ScalarClass.Unsigned,
+        ShaderValueType.IntSampler1D or
+            ShaderValueType.IntSampler2D or
+            ShaderValueType.IntSampler3D or
+            ShaderValueType.IntSamplerCube or
+            ShaderValueType.IntSampler2DRect or
+            ShaderValueType.IntSampler1DArray or
+            ShaderValueType.IntSampler2DArray or
+            ShaderValueType.IntSamplerBuffer or
+            ShaderValueType.IntSamplerCubeMapArray or
+            ShaderValueType.IntImage1D or
+            ShaderValueType.IntImage2D or
+            ShaderValueType.IntImage3D or
+            ShaderValueType.IntImage2DRect or
+            ShaderValueType.IntImageCube or
+            ShaderValueType.IntImageBuffer or
+            ShaderValueType.IntImage1DArray or
+            ShaderValueType.IntImage2DArray or
+            ShaderValueType.IntImageCubeMapArray or
+            ShaderValueType.IntImage2DMultisample or
+            ShaderValueType.IntImage2DMultisampleArray or
+            ShaderValueType.IntSampler2DMultisample or
+            ShaderValueType.IntSampler2DMultisampleArray => ScalarClass.Signed,
+        ShaderValueType.UnsignedIntSampler1D or
+            ShaderValueType.UnsignedIntSampler2D or
+            ShaderValueType.UnsignedIntSampler3D or
+            ShaderValueType.UnsignedIntSamplerCube or
+            ShaderValueType.UnsignedIntSampler2DRect or
+            ShaderValueType.UnsignedIntSampler1DArray or
+            ShaderValueType.UnsignedIntSampler2DArray or
+            ShaderValueType.UnsignedIntSamplerBuffer or
+            ShaderValueType.UnsignedIntSamplerCubeMapArray or
+            ShaderValueType.UnsignedIntImage1D or
+            ShaderValueType.UnsignedIntImage2D or
+            ShaderValueType.UnsignedIntImage3D or
+            ShaderValueType.UnsignedIntImage2DRect or
+            ShaderValueType.UnsignedIntImageCube or
+            ShaderValueType.UnsignedIntImageBuffer or
+            ShaderValueType.UnsignedIntImage1DArray or
+            ShaderValueType.UnsignedIntImage2DArray or
+            ShaderValueType.UnsignedIntImageCubeMapArray or
+            ShaderValueType.UnsignedIntImage2DMultisample or
+            ShaderValueType.UnsignedIntImage2DMultisampleArray or
+            ShaderValueType.UnsignedIntSampler2DMultisample or
+            ShaderValueType.UnsignedIntSampler2DMultisampleArray => ScalarClass.Unsigned,
         _ => ScalarClass.Floating
     };
 

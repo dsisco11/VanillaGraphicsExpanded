@@ -112,7 +112,7 @@ public sealed class GpuResourceRetirementRegressionTests(HeadlessGLFixture fixtu
         {
             GL.AttachShader(program, shader);
             attached = true;
-            original = new GpuShaderModule(shader, ShaderType.VertexShader);
+            original = new GpuShaderModule(shader, ShaderStage.Vertex);
             var manager = GpuResourceManagerSystem.CurrentManager!;
             var retired = manager.GetResourceRegistration(original)!;
             VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Shader, shader));
@@ -120,7 +120,7 @@ public sealed class GpuResourceRetirementRegressionTests(HeadlessGLFixture fixtu
             Assert.True(GL.IsShader(shader));
             GL.GetShader(shader, ShaderParameter.DeleteStatus, out int pending);
             Assert.Equal(1, pending);
-            Assert.Throws<InvalidOperationException>(() => new GpuShaderModule(shader, ShaderType.VertexShader));
+            Assert.Throws<InvalidOperationException>(() => new GpuShaderModule(shader, ShaderStage.Vertex));
             Assert.Null(manager.FindResource(GpuResourceKind.Shader, shader));
             GL.DetachShader(program, shader);
             attached = false;

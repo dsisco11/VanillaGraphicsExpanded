@@ -1,9 +1,9 @@
-using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
+using VanillaGraphicsExpanded.Rendering.RHI;
+using System.Linq;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 
-using OpenTK.Graphics.OpenGL;
 
 namespace VanillaGraphicsExpanded.Rendering;
 
@@ -71,20 +71,13 @@ public partial class GpuProgramLayout
 #if DEBUG
         UniformNameResolutions++;
 #endif
-        return BinaryInterface?.GetUniformLocation(name) ?? OpenGLProgramQueries.GetUniformLocation(programId, name);
+        return BinaryInterface?.GetUniformLocation(name) ?? FindPublishedUniform(name);
     }
 
 #if DEBUG
     /// <summary>Counts named uniform resolution requests, including engine compatibility lookups.</summary>
     internal long UniformNameResolutions { get; private set; }
 #endif
-
-    /// <summary>Supplies optional resource names for diagnostics without changing any resource slots.</summary>
-    private void GetResourceName(int programId, ProgramInterface kind, int index, int capacity, out int length, out string name)
-    {
-        if (BinaryInterface != null) BinaryInterface.GetProgramResourceName(kind, index, capacity, out length, out name);
-        else OpenGLProgramQueries.GetProgramResourceName(programId, kind, index, capacity, out length, out name);
-    }
 
     #endregion
 
@@ -366,9 +359,6 @@ public partial class GpuProgramLayout
     /// </remarks>
     public void ApplyContract(int programId, Action<string>? warn = null)
     {
-#if DEBUG
-        using var errors = new GlDebug.ErrorScope($"Program {programId}: ApplyContract");
-#endif
         if (compiledContract && BinaryInterface is not null)
         {
             // Explicit source layouts already own these slots; only refresh active-resource caches.
@@ -380,17 +370,13 @@ public partial class GpuProgramLayout
             return;
         }
 
-        try
-        {
-            ApplyUniformBlockContract(programId, warn);
-            ApplyShaderStorageBlockContract(programId, warn);
-            ApplyUniformUnitContract(programId, samplerContract, warn);
-            ApplyUniformUnitContract(programId, imageContract, warn);
-        }
-        finally
-        {
-            RebuildCache(programId);
-        }
+        // Assignment is an explicit external-program operation. Ordinary layout reads remain CPU-only.
+        nativeMetadata = RHICommandContext.Current.ApplyProgramBindings(programId,
+            uniformBlockContract.Select(pair => new ProgramBindingAssignment(ProgramResourceKind.UniformBlock, pair.Key, pair.Value.BindingOrUnit, pair.Value.Required))
+            .Concat(shaderStorageBlockContract.Select(pair => new ProgramBindingAssignment(ProgramResourceKind.ShaderStorageBlock, pair.Key, pair.Value.BindingOrUnit, pair.Value.Required)))
+            .Concat(samplerContract.Select(pair => new ProgramBindingAssignment(ProgramResourceKind.Uniform, pair.Key, pair.Value.BindingOrUnit, pair.Value.Required)))
+            .Concat(imageContract.Select(pair => new ProgramBindingAssignment(ProgramResourceKind.Uniform, pair.Key, pair.Value.BindingOrUnit, pair.Value.Required))).ToArray(), warn);
+        RebuildCache(programId);
     }
 
 #if DEBUG
@@ -413,19 +399,11 @@ public partial class GpuProgramLayout
             return;
         }
 
-        if (!GpuSupport.Graphics.SupportsArbProgramInterfaceQuery)
-        {
-            WarnOnce(
-                key: "validate:piq",
-                message: "Contract validation skipped: GL_ARB_program_interface_query not available.",
-                warn: warn);
-            return;
-        }
 
         try
         {
-            var activeUboBindings = TryBuildBufferBindingByName(programId, ProgramInterface.UniformBlock);
-            var activeSsboBindings = TryBuildBufferBindingByName(programId, ProgramInterface.ShaderStorageBlock);
+            var activeUboBindings = TryBuildBufferBindingByName(programId, ProgramResourceKind.UniformBlock);
+            var activeSsboBindings = TryBuildBufferBindingByName(programId, ProgramResourceKind.ShaderStorageBlock);
             var (activeSamplers, activeImages) = TryBuildTextureUnitBindings(programId);
 
             ValidateBufferContract(programId, "UBO", uniformBlockContract, activeUboBindings, warn);
@@ -527,6 +505,9 @@ public partial class GpuProgramLayout
     /// </summary>
     public void RebuildCache(int programId)
     {
+        uniformLocationCache.Clear();
+        uniformBlockIndexCache.Clear();
+        shaderStorageBlockIndexCache.Clear();
         if (programId == 0)
         {
             SetActiveSnapshot(null, null, null, null);
@@ -544,18 +525,11 @@ public partial class GpuProgramLayout
             return;
         }
 
-        if (!GpuSupport.Graphics.SupportsArbProgramInterfaceQuery)
-        {
-            // Reflection snapshot relies on program interface queries; keep the cache empty
-            // and let contract-based fallback (by name) handle binding where needed.
-            SetActiveSnapshot(null, null, null, null);
-            return;
-        }
 
         try
         {
-            var uniformBlocks = TryBuildBufferBindingByName(programId, ProgramInterface.UniformBlock);
-            var storageBlocks = TryBuildBufferBindingByName(programId, ProgramInterface.ShaderStorageBlock);
+            var uniformBlocks = TryBuildBufferBindingByName(programId, ProgramResourceKind.UniformBlock);
+            var storageBlocks = TryBuildBufferBindingByName(programId, ProgramResourceKind.ShaderStorageBlock);
             var (samplers, images) = TryBuildTextureUnitBindings(programId);
             SetActiveSnapshot(uniformBlocks, storageBlocks, samplers, images);
         }
@@ -567,7 +541,7 @@ public partial class GpuProgramLayout
 
     /// <summary>
     /// Attempts to build a binding cache for a successfully linked program.
-    /// Returns an empty cache if program interface queries are unavailable or if the GL call fails.
+    /// Explicitly acquires unknown external facts once; ordinary cache rebuilding uses only supplied facts.
     /// </summary>
     public static GpuProgramLayout TryBuild(int programId)
     {
@@ -577,134 +551,9 @@ public partial class GpuProgramLayout
         }
 
         var layout = new GpuProgramLayout();
+        layout.nativeMetadata = RHICommandContext.Current.AcquireProgramInterface(programId);
         layout.RebuildCache(programId);
         return layout;
-    }
-
-    private void ApplyUniformBlockContract(int programId, Action<string>? warn)
-    {
-        if (uniformBlockContract.Count == 0)
-        {
-            return;
-        }
-
-        foreach (var (blockName, spec) in uniformBlockContract)
-        {
-            int blockIndex = GetUniformBlockIndexCached(programId, blockName);
-            if (blockIndex < 0)
-            {
-                if (spec.Required)
-                {
-                    WarnOnce($"ubo:{blockName}", $"Program did not expose required uniform block '{blockName}'.", warn);
-                }
-
-#if DEBUG
-                Diagnostics.SkippedUboBindsMissing++;
-#endif
-                continue;
-            }
-
-            // Prefer explicit bindings when present (skip redundant assignment if the block is already bound correctly).
-            try
-            {
-                OpenGLProgramQueries.GetActiveUniformBlock(programId, blockIndex, ActiveUniformBlockParameter.UniformBlockBinding, out int current);
-                if (current == spec.BindingOrUnit)
-                {
-                    continue;
-                }
-            }
-            catch
-            {
-                // Best-effort only.
-            }
-
-            try
-            {
-                OpenGLProgramAssignments.UniformBlockBinding(programId, blockIndex, spec.BindingOrUnit);
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine($"[GpuProgramLayout] Failed to assign UBO binding for '{blockName}': {ex.Message}");
-            }
-        }
-    }
-
-    private void ApplyShaderStorageBlockContract(int programId, Action<string>? warn)
-    {
-        if (shaderStorageBlockContract.Count == 0)
-        {
-            return;
-        }
-
-        foreach (var (blockName, spec) in shaderStorageBlockContract)
-        {
-            int blockIndex = GetShaderStorageBlockIndexCached(programId, blockName);
-            if (blockIndex < 0)
-            {
-                if (spec.Required)
-                {
-                    WarnOnce($"ssbo:{blockName}", $"Program did not expose required shader storage block '{blockName}'.", warn);
-                }
-
-#if DEBUG
-                Diagnostics.SkippedSsboBindsMissing++;
-#endif
-                continue;
-            }
-
-            try
-            {
-                OpenGLProgramAssignments.ShaderStorageBlockBinding(programId, blockIndex, spec.BindingOrUnit);
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine($"[GpuProgramLayout] Failed to assign SSBO binding for '{blockName}': {ex.Message}");
-            }
-        }
-    }
-
-    /// <summary>Applies authored texture units with explicit-program updates or a binding-preserving fallback.</summary>
-    private void ApplyUniformUnitContract(int programId, Dictionary<string, BindingSpec> contract, Action<string>? warn)
-    {
-        if (contract.Count == 0)
-        {
-            return;
-        }
-
-
-        foreach (var (uniformName, spec) in contract)
-        {
-            int loc = GetUniformLocationOrArray0Cached(programId, uniformName);
-            if (loc < 0)
-            {
-                if (spec.Required)
-                {
-                    WarnOnce($"uniform:{uniformName}", $"Program did not expose required uniform '{uniformName}'.", warn);
-                }
-
-#if DEBUG
-                Diagnostics.SkippedUniformBindsMissing++;
-#endif
-                continue;
-            }
-
-            try
-            {
-                OpenGLProgramQueries.GetUniform(programId, loc, out int current);
-                if (current == spec.BindingOrUnit)
-                {
-                    continue;
-                }
-            }
-            catch
-            {
-                // Best-effort only.
-            }
-
-            // Publication failure must reach preparation; stale native unit facts cannot
-            // be treated as a successfully applied authored contract.
-            OpenGLProgramAssignments.SetUnit(programId, loc, spec.BindingOrUnit);
-        }
     }
 
     private int GetUniformLocationOrArray0Cached(int programId, string uniformName)
@@ -771,10 +620,6 @@ public partial class GpuProgramLayout
             return new ResolutionBool(ResolutionState.Unknown, false);
         }
 
-        if (!GpuSupport.Graphics.SupportsArbProgramInterfaceQuery)
-        {
-            return new ResolutionBool(ResolutionState.Unknown, false);
-        }
 
         int index = GetShaderStorageBlockIndexCached(programId, blockName);
         return index >= 0
@@ -798,7 +643,7 @@ public partial class GpuProgramLayout
         int index = -1;
         try
         {
-            index = BinaryInterface?.GetUniformBlockIndex(blockName) ?? OpenGLProgramQueries.GetUniformBlockIndex(programId, blockName);
+            index = BinaryInterface?.GetUniformBlockIndex(blockName) ?? FindPublishedBlock(ProgramResourceKind.UniformBlock, blockName);
         }
         catch
         {
@@ -825,7 +670,7 @@ public partial class GpuProgramLayout
         int index = -1;
         try
         {
-            index = BinaryInterface?.GetStorageBlockIndex(blockName) ?? OpenGLProgramQueries.GetProgramResourceIndex(programId, ProgramInterface.ShaderStorageBlock, blockName);
+            index = BinaryInterface?.GetStorageBlockIndex(blockName) ?? FindPublishedBlock(ProgramResourceKind.ShaderStorageBlock, blockName);
         }
         catch
         {
@@ -836,127 +681,42 @@ public partial class GpuProgramLayout
         return index;
     }
 
-    private IReadOnlyDictionary<string, int> TryBuildBufferBindingByName(int programId, ProgramInterface programInterface)
-    {
-        if (nativeMetadata.HasValue) return ProjectBufferBindings(programInterface);
-        if (BinaryInterface is { } prepared)
-            return prepared.ActiveBindings(programInterface == ProgramInterface.UniformBlock
-                ? Contracts.ShaderBindingKind.UniformBlock : Contracts.ShaderBindingKind.StorageBlock);
-        try
-        {
-            OpenGLProgramQueries.GetProgramInterface(programId, programInterface, ProgramInterfaceParameter.ActiveResources, out int count);
-            if (count <= 0)
-            {
-                return EmptyBindings;
-            }
+    /// <summary>Projects block bindings from supplied canonical metadata or fixed executable preparation.</summary>
+    private IReadOnlyDictionary<string, int> TryBuildBufferBindingByName(int programId, ProgramResourceKind kind)
+        => BinaryInterface is { } prepared ? prepared.ActiveBindings(kind == ProgramResourceKind.UniformBlock
+            ? Contracts.ShaderBindingKind.UniformBlock : Contracts.ShaderBindingKind.StorageBlock) : ProjectBufferBindings(kind);
 
-            OpenGLProgramQueries.GetProgramInterface(programId, programInterface, ProgramInterfaceParameter.MaxNameLength, out int maxNameLen);
-            if (maxNameLen <= 0)
-            {
-                maxNameLen = 256;
-            }
-
-            var bindings = new Dictionary<string, int>(count, StringComparer.Ordinal);
-            var props = new[] { ProgramProperty.BufferBinding };
-            var values = new int[1];
-
-            for (int i = 0; i < count; i++)
-            {
-                GetResourceName(programId, programInterface, i, maxNameLen, out _, out string name);
-                if (string.IsNullOrWhiteSpace(name))
-                {
-                    continue;
-                }
-
-                OpenGLProgramQueries.GetProgramResource(programId, programInterface, i, props.Length, props, values.Length, out _, values);
-                bindings[name] = values[0];
-            }
-
-            return bindings;
-        }
-        catch
-        {
-            return EmptyBindings;
-        }
-    }
-
+    /// <summary>Projects texture assignments without native reflection.</summary>
     private (IReadOnlyDictionary<string, int> Samplers, IReadOnlyDictionary<string, int> Images) TryBuildTextureUnitBindings(int programId)
+        => ProjectTextureUnits();
+
+    /// <summary>Resolves a block index from the supplied executable generation.</summary>
+    private int FindPublishedBlock(ProgramResourceKind kind, string name)
     {
-        if (nativeMetadata.HasValue && BinaryInterface is null) return ProjectTextureUnits();
-        if (BinaryInterface is { } prepared)
-            return (prepared.ActiveBindings(Contracts.ShaderBindingKind.Sampler), prepared.ActiveBindings(Contracts.ShaderBindingKind.Image));
-        try
-        {
-            OpenGLProgramQueries.GetProgramInterface(programId, ProgramInterface.Uniform, ProgramInterfaceParameter.ActiveResources, out int count);
-            if (count <= 0)
-            {
-                return (EmptyBindings, EmptyBindings);
-            }
-
-            OpenGLProgramQueries.GetProgramInterface(programId, ProgramInterface.Uniform, ProgramInterfaceParameter.MaxNameLength, out int maxNameLen);
-            if (maxNameLen <= 0)
-            {
-                maxNameLen = 256;
-            }
-
-            // Query uniform type + location. Skip uniforms in blocks (BlockIndex != -1).
-            var props = new[] { ProgramProperty.Type, ProgramProperty.Location, ProgramProperty.BlockIndex };
-            var values = new int[props.Length];
-
-            Dictionary<string, int>? samplerBindings = null;
-            Dictionary<string, int>? imageBindings = null;
-
-            for (int i = 0; i < count; i++)
-            {
-                OpenGLProgramQueries.GetProgramResource(programId, ProgramInterface.Uniform, i, props.Length, props, values.Length, out _, values);
-
-                int typeValue = values[0];
-                int location = values[1];
-                int blockIndex = values[2];
-
-                if (blockIndex != -1 || location < 0)
-                {
-                    continue;
-                }
-
-                var type = (ActiveUniformType)typeValue;
-                bool isSampler = IsSamplerType(type);
-                bool isImage = !isSampler && IsImageType(type);
-                if (!isSampler && !isImage)
-                {
-                    continue;
-                }
-
-                GetResourceName(programId, ProgramInterface.Uniform, i, maxNameLen, out _, out string name);
-                if (string.IsNullOrWhiteSpace(name))
-                {
-                    continue;
-                }
-
-                name = NormalizeUniformName(name);
-
-                OpenGLProgramQueries.GetUniform(programId, location, out int unitOrBinding);
-
-                if (isSampler)
-                {
-                    samplerBindings ??= new Dictionary<string, int>(StringComparer.Ordinal);
-                    samplerBindings[name] = unitOrBinding;
-                }
-                else
-                {
-                    imageBindings ??= new Dictionary<string, int>(StringComparer.Ordinal);
-                    imageBindings[name] = unitOrBinding;
-                }
-            }
-
-            return (samplerBindings ?? EmptyBindings, imageBindings ?? EmptyBindings);
-        }
-        catch
-        {
-            return (EmptyBindings, EmptyBindings);
-        }
+        if (nativeMetadata is not { ExecutableAvailable: true } data || data.Resources.IsDefault) return -1;
+        foreach (var resource in data.Resources)
+            if (resource.Interface == kind && resource.Name == name) return resource.Index;
+        return -1;
     }
 
+    /// <summary>Resolves scalar/array uniform locations using only published names and extents.</summary>
+    private int FindPublishedUniform(string name)
+    {
+        if (nativeMetadata is not { ExecutableAvailable: true } data || data.Resources.IsDefault) return -1;
+        foreach (var resource in data.Resources)
+        {
+            if (resource.Interface != ProgramResourceKind.Uniform || resource.Location is not { } location || location < 0 || resource.Name is null) continue;
+            string baseName = NormalizeUniformName(resource.Name);
+            if (name == resource.Name || name == baseName) return location;
+            int bracket = name.LastIndexOf('[');
+            if (bracket > 0 && name.EndsWith(']') && name[..bracket] == baseName
+                && int.TryParse(name[(bracket + 1)..^1], out int element) && element >= 0 && element < resource.ArraySize)
+                return location + element;
+        }
+        return -1;
+    }
+
+    /// <summary>Normalizes the reflected first array element to its authored base name.</summary>
     private static string NormalizeUniformName(string name)
     {
         // Drivers often expose arrays as "name[0]" via active uniform enumeration.
@@ -969,90 +729,90 @@ public partial class GpuProgramLayout
         return name;
     }
 
-    /// <summary>Classifies linked sampler types for preparation and diagnostic cache enumeration.</summary>
-    internal static bool IsSamplerType(ActiveUniformType type)
+    /// <summary>Identifies semantic sampled-texture values.</summary>
+    internal static bool IsSamplerType(ShaderValueType type)
     {
         // Keep this allocation-free; the set is stable across GL versions.
         return type is
-            ActiveUniformType.Sampler1D
-            or ActiveUniformType.Sampler2D
-            or ActiveUniformType.Sampler3D
-            or ActiveUniformType.SamplerCube
-            or ActiveUniformType.Sampler1DShadow
-            or ActiveUniformType.Sampler2DShadow
-            or ActiveUniformType.Sampler1DArray
-            or ActiveUniformType.Sampler2DArray
-            or ActiveUniformType.Sampler1DArrayShadow
-            or ActiveUniformType.Sampler2DArrayShadow
-            or ActiveUniformType.Sampler2DMultisample
-            or ActiveUniformType.Sampler2DMultisampleArray
-            or ActiveUniformType.SamplerCubeShadow
-            or ActiveUniformType.SamplerBuffer
-            or ActiveUniformType.Sampler2DRect
-            or ActiveUniformType.Sampler2DRectShadow
-            or ActiveUniformType.IntSampler1D
-            or ActiveUniformType.IntSampler2D
-            or ActiveUniformType.IntSampler3D
-            or ActiveUniformType.IntSamplerCube
-            or ActiveUniformType.IntSampler1DArray
-            or ActiveUniformType.IntSampler2DArray
-            or ActiveUniformType.IntSampler2DMultisample
-            or ActiveUniformType.IntSampler2DMultisampleArray
-            or ActiveUniformType.IntSamplerBuffer
-            or ActiveUniformType.IntSampler2DRect
-            or ActiveUniformType.UnsignedIntSampler1D
-            or ActiveUniformType.UnsignedIntSampler2D
-            or ActiveUniformType.UnsignedIntSampler3D
-            or ActiveUniformType.UnsignedIntSamplerCube
-            or ActiveUniformType.UnsignedIntSampler1DArray
-            or ActiveUniformType.UnsignedIntSampler2DArray
-            or ActiveUniformType.UnsignedIntSampler2DMultisample
-            or ActiveUniformType.UnsignedIntSampler2DMultisampleArray
-            or ActiveUniformType.UnsignedIntSamplerBuffer
-            or ActiveUniformType.UnsignedIntSampler2DRect
-            or ActiveUniformType.SamplerCubeMapArray
-            or ActiveUniformType.SamplerCubeMapArrayShadow
-            or ActiveUniformType.IntSamplerCubeMapArray
-            or ActiveUniformType.UnsignedIntSamplerCubeMapArray;
+            ShaderValueType.Sampler1D
+            or ShaderValueType.Sampler2D
+            or ShaderValueType.Sampler3D
+            or ShaderValueType.SamplerCube
+            or ShaderValueType.Sampler1DShadow
+            or ShaderValueType.Sampler2DShadow
+            or ShaderValueType.Sampler1DArray
+            or ShaderValueType.Sampler2DArray
+            or ShaderValueType.Sampler1DArrayShadow
+            or ShaderValueType.Sampler2DArrayShadow
+            or ShaderValueType.Sampler2DMultisample
+            or ShaderValueType.Sampler2DMultisampleArray
+            or ShaderValueType.SamplerCubeShadow
+            or ShaderValueType.SamplerBuffer
+            or ShaderValueType.Sampler2DRect
+            or ShaderValueType.Sampler2DRectShadow
+            or ShaderValueType.IntSampler1D
+            or ShaderValueType.IntSampler2D
+            or ShaderValueType.IntSampler3D
+            or ShaderValueType.IntSamplerCube
+            or ShaderValueType.IntSampler1DArray
+            or ShaderValueType.IntSampler2DArray
+            or ShaderValueType.IntSampler2DMultisample
+            or ShaderValueType.IntSampler2DMultisampleArray
+            or ShaderValueType.IntSamplerBuffer
+            or ShaderValueType.IntSampler2DRect
+            or ShaderValueType.UnsignedIntSampler1D
+            or ShaderValueType.UnsignedIntSampler2D
+            or ShaderValueType.UnsignedIntSampler3D
+            or ShaderValueType.UnsignedIntSamplerCube
+            or ShaderValueType.UnsignedIntSampler1DArray
+            or ShaderValueType.UnsignedIntSampler2DArray
+            or ShaderValueType.UnsignedIntSampler2DMultisample
+            or ShaderValueType.UnsignedIntSampler2DMultisampleArray
+            or ShaderValueType.UnsignedIntSamplerBuffer
+            or ShaderValueType.UnsignedIntSampler2DRect
+            or ShaderValueType.SamplerCubeMapArray
+            or ShaderValueType.SamplerCubeMapArrayShadow
+            or ShaderValueType.IntSamplerCubeMapArray
+            or ShaderValueType.UnsignedIntSamplerCubeMapArray;
     }
 
     /// <summary>Classifies linked image types independently of the sampler unit namespace.</summary>
-    internal static bool IsImageType(ActiveUniformType type)
+    internal static bool IsImageType(ShaderValueType type)
     {
         return type is
-            ActiveUniformType.Image1D
-            or ActiveUniformType.Image2D
-            or ActiveUniformType.Image3D
-            or ActiveUniformType.Image2DRect
-            or ActiveUniformType.ImageCube
-            or ActiveUniformType.ImageBuffer
-            or ActiveUniformType.Image1DArray
-            or ActiveUniformType.Image2DArray
-            or ActiveUniformType.Image2DMultisample
-            or ActiveUniformType.Image2DMultisampleArray
-            or ActiveUniformType.IntImage1D
-            or ActiveUniformType.IntImage2D
-            or ActiveUniformType.IntImage3D
-            or ActiveUniformType.IntImage2DRect
-            or ActiveUniformType.IntImageCube
-            or ActiveUniformType.IntImageBuffer
-            or ActiveUniformType.IntImage1DArray
-            or ActiveUniformType.IntImage2DArray
-            or ActiveUniformType.IntImage2DMultisample
-            or ActiveUniformType.IntImage2DMultisampleArray
-            or ActiveUniformType.UnsignedIntImage1D
-            or ActiveUniformType.UnsignedIntImage2D
-            or ActiveUniformType.UnsignedIntImage3D
-            or ActiveUniformType.UnsignedIntImage2DRect
-            or ActiveUniformType.UnsignedIntImageCube
-            or ActiveUniformType.UnsignedIntImageBuffer
-            or ActiveUniformType.UnsignedIntImage1DArray
-            or ActiveUniformType.UnsignedIntImage2DArray
-            or ActiveUniformType.UnsignedIntImage2DMultisample
-            or ActiveUniformType.UnsignedIntImage2DMultisampleArray
-            or ActiveUniformType.ImageCubeMapArray
-            or ActiveUniformType.IntImageCubeMapArray
-            or ActiveUniformType.UnsignedIntImageCubeMapArray;
+            ShaderValueType.Image1D
+            or ShaderValueType.Image2D
+            or ShaderValueType.Image3D
+            or ShaderValueType.Image2DRect
+            or ShaderValueType.ImageCube
+            or ShaderValueType.ImageBuffer
+            or ShaderValueType.Image1DArray
+            or ShaderValueType.Image2DArray
+            or ShaderValueType.Image2DMultisample
+            or ShaderValueType.Image2DMultisampleArray
+            or ShaderValueType.IntImage1D
+            or ShaderValueType.IntImage2D
+            or ShaderValueType.IntImage3D
+            or ShaderValueType.IntImage2DRect
+            or ShaderValueType.IntImageCube
+            or ShaderValueType.IntImageBuffer
+            or ShaderValueType.IntImage1DArray
+            or ShaderValueType.IntImage2DArray
+            or ShaderValueType.IntImage2DMultisample
+            or ShaderValueType.IntImage2DMultisampleArray
+            or ShaderValueType.UnsignedIntImage1D
+            or ShaderValueType.UnsignedIntImage2D
+            or ShaderValueType.UnsignedIntImage3D
+            or ShaderValueType.UnsignedIntImage2DRect
+            or ShaderValueType.UnsignedIntImageCube
+            or ShaderValueType.UnsignedIntImageBuffer
+            or ShaderValueType.UnsignedIntImage1DArray
+            or ShaderValueType.UnsignedIntImage2DArray
+            or ShaderValueType.UnsignedIntImage2DMultisample
+            or ShaderValueType.UnsignedIntImage2DMultisampleArray
+            or ShaderValueType.ImageCubeMapArray
+            or ShaderValueType.IntImageCubeMapArray
+            or ShaderValueType.UnsignedIntImageCubeMapArray;
     }
 
     /// <summary>

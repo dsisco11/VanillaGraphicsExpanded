@@ -1,8 +1,8 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
-using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering.Contracts;
 
 namespace VanillaGraphicsExpanded.Rendering.Spirv;
@@ -13,7 +13,7 @@ internal sealed class GpuProgramInterface
     private readonly Resources resources;
     private readonly GpuBindingContract[] contracts;
     private readonly IReadOnlyDictionary<ShaderBindingKind, IReadOnlyDictionary<string, int>> activeBindings;
-    private readonly Dictionary<(ProgramInterface Kind, int Index), string> resourceNames = new();
+    private readonly Dictionary<(ProgramResourceKind Kind, int Index), string> resourceNames = new();
     private readonly Dictionary<int, string> uniformNames = new();
     /// <summary>Validated resource entries owned by this executable's interface generation.</summary>
     internal GpuPreparedBindings PreparedBindings { get; }
@@ -33,7 +33,8 @@ internal sealed class GpuProgramInterface
         var snapshot = metadata ?? RHI.RHICommandContext.Current.AcquireProgramInterface(program);
         var array = contracts.ToArray();
         this.contracts = array;
-        PreparedBindings = new GpuPreparedBindings(GpuBindingContract.Merge(array), snapshot);
+        PreparedBindings = new GpuPreparedBindings(GpuBindingContract.Merge(array), snapshot,
+            RHICommandContext.Current.Capabilities.MaxCombinedTextureImageUnits, RHICommandContext.Current.Capabilities.MaxImageUnits);
         var arraySizes = new Dictionary<int, int>();
         var uniforms = new Dictionary<string, int>(StringComparer.Ordinal);
         foreach (var pair in array.SelectMany(v => v.UniformLocations))
@@ -60,9 +61,9 @@ internal sealed class GpuProgramInterface
                 group => (IReadOnlyDictionary<string, int>)new ReadOnlyDictionary<string, int>(group.Where(entry => entry.Active)
                     .ToDictionary(entry => entry.Contract.Name, entry => entry.Contract.Binding.Slot, StringComparer.Ordinal))));
         foreach (var block in resources.Blocks)
-            if (block.Value >= 0) resourceNames.TryAdd((ProgramInterface.UniformBlock, block.Value), block.Key);
+            if (block.Value >= 0) resourceNames.TryAdd((ProgramResourceKind.UniformBlock, block.Value), block.Key);
         foreach (var block in resources.Storage)
-            if (block.Value >= 0) resourceNames.TryAdd((ProgramInterface.ShaderStorageBlock, block.Value), block.Key);
+            if (block.Value >= 0) resourceNames.TryAdd((ProgramResourceKind.ShaderStorageBlock, block.Value), block.Key);
     }
 
     /// <summary>Revalidates resource assignments from a new canonical snapshot while retaining authored contracts.</summary>
@@ -108,9 +109,9 @@ internal sealed class GpuProgramInterface
     /// <summary>Returns a storage block's numeric index, independent of optional shader names.</summary>
     public int GetStorageBlockIndex(string name) => resources.Storage.GetValueOrDefault(name, -1);
     /// <summary>Resolves resource names from the generated contract for diagnostic cache enumeration.</summary>
-    public void GetProgramResourceName(ProgramInterface kind, int index, int capacity, out int length, out string name)
+    public void GetProgramResourceName(ProgramResourceKind kind, int index, int capacity, out int length, out string name)
     {
-        if (kind == ProgramInterface.Uniform)
+        if (kind == ProgramResourceKind.Uniform)
         {
             int location = PreparedBindings.UniformResourceLocation(index);
             name = location < 0 ? "" : uniformNames.GetValueOrDefault(location, "");

@@ -23,5 +23,7 @@ internal partial interface IRHIResourceExecution
     void ResolveFramebufferAttachments(GpuFramebuffer owner, bool recover);
     /// <summary>Admits ObserveAttachmentOwner through the original resource context and manager authority.</summary>
     void ObserveAttachmentOwner(GpuResource owner, GpuFramebufferAttachment image);
+    /// <summary>Applies external authored assignments using canonical facts and returns their reconciled snapshot.</summary>
+    GpuProgramMetadata ApplyProgramBindings(int program, System.Collections.Generic.IReadOnlyList<ProgramBindingAssignment> assignments, System.Action<string>? warn);
     #endregion
 }

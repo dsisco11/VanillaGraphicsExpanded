@@ -23,8 +23,8 @@ internal static class ShaderBindingTestPipeline
         {
             TextureFormat format = output.Type switch
             {
-                ActiveAttribType.Int or ActiveAttribType.IntVec2 or ActiveAttribType.IntVec3 or ActiveAttribType.IntVec4 => TextureFormat.Rgba32i,
-                ActiveAttribType.UnsignedInt or ActiveAttribType.UnsignedIntVec2 or ActiveAttribType.UnsignedIntVec3 or ActiveAttribType.UnsignedIntVec4 => TextureFormat.Rgba32ui,
+                ShaderValueType.Int or ShaderValueType.IntVec2 or ShaderValueType.IntVec3 or ShaderValueType.IntVec4 => TextureFormat.Rgba32i,
+                ShaderValueType.UnsignedInt or ShaderValueType.UnsignedIntVec2 or ShaderValueType.UnsignedIntVec3 or ShaderValueType.UnsignedIntVec4 => TextureFormat.Rgba32ui,
                 _ => TextureFormat.Rgba32f
             };
             for (int element = 0; element < output.ArraySize; element++) colors[output.Location + element] = new(format);

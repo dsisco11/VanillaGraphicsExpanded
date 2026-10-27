@@ -38,7 +38,7 @@ public sealed class GpuResourceMetadataRegistryTests
     public void AcquisitionSharesEntryAndRefreshesAllAliasesOnce()
     {
         using var manager = CreateManager();
-        var reader = new BufferReader { Candidate = new(24, BufferUsageHint.DynamicDraw) };
+        var reader = new BufferReader { Candidate = new(24, BufferUsage.DynamicDraw) };
         var entry = manager.AcquireResource(GpuResourceKind.Buffer, 7, reader)!;
         Assert.Same(entry, manager.AcquireResource(GpuResourceKind.Buffer, 7, reader));
         using var first = new Resource<GpuBufferMetadata>(GpuResourceKind.Buffer, 7);
@@ -49,7 +49,7 @@ public sealed class GpuResourceMetadataRegistryTests
         Assert.Equal(first.Snapshot, second.Snapshot);
         Assert.True(manager.IsResourceMetadataAvailable(first));
         Assert.Equal(1, reader.Reads);
-        reader.Candidate = new(96, BufferUsageHint.StaticDraw);
+        reader.Candidate = new(96, BufferUsage.StaticDraw);
         reader.OnRead = () => { Assert.False(manager.IsResourceMetadataAvailable(first)); Assert.False(manager.IsResourceMetadataAvailable(second)); };
         Assert.True(manager.RefreshMetadata(entry, GpuMetadataChange.Storage));
         Assert.Equal(2, reader.Reads);
@@ -324,7 +324,7 @@ public sealed class GpuResourceMetadataRegistryTests
         manager.AssociateResource(entry, resource);
         var canonical = entry.Metadata;
         Assert.True(manager.IsResourceMetadataAvailable(resource));
-        resource.HandleMetadataChanged(new(100, BufferUsageHint.DynamicDraw));
+        resource.HandleMetadataChanged(new(100, BufferUsage.DynamicDraw));
         Assert.Equal(canonical, entry.Metadata);
         Assert.True(manager.IsResourceMetadataAvailable(resource));
         Assert.Equal(1ul, entry.MetadataRevision);
@@ -381,7 +381,7 @@ public sealed class GpuResourceMetadataRegistryTests
         manager.AssociateResource(replacement, newAlias);
         manager.UnregisterResource(oldEntry, oldAlias);
         manager.UnregisterResource(oldEntry, newAlias);
-        oldAlias.HandleMetadataChanged(new(100, BufferUsageHint.DynamicDraw));
+        oldAlias.HandleMetadataChanged(new(100, BufferUsage.DynamicDraw));
         Assert.True(manager.IsResourceMetadataRetired(oldAlias));
         Assert.False(manager.IsResourceMetadataAvailable(oldAlias));
         Assert.Throws<InvalidOperationException>(() => manager.AssociateResource(replacement, oldAlias));
@@ -407,7 +407,7 @@ public sealed class GpuResourceMetadataRegistryTests
         Assert.True(retired);
         Assert.False(manager.IsResourceMetadataAvailable(alias));
         Assert.True(manager.IsResourceMetadataRetired(alias));
-        alias.HandleMetadataChanged(new(100, BufferUsageHint.DynamicDraw));
+        alias.HandleMetadataChanged(new(100, BufferUsage.DynamicDraw));
         Assert.False(manager.IsResourceMetadataAvailable(alias));
         Assert.True(manager.IsRegistered(entry));
         Assert.Throws<InvalidOperationException>(() => manager.RegisterCreatedResource<GpuBufferMetadata>(GpuResourceKind.Buffer, 7));
@@ -457,11 +457,11 @@ public sealed class GpuResourceMetadataRegistryTests
         });
         worker.Start(); start.Set();
         for (int index = 1; index <= 100; index++)
-            manager.PublishMetadata(entry, new(index, BufferUsageHint.DynamicDraw), GpuMetadataChange.Metadata);
+            manager.PublishMetadata(entry, new(index, BufferUsage.DynamicDraw), GpuMetadataChange.Metadata);
         worker.Join();
         Assert.Equal(1, entry.AssociationCount);
         Assert.True(manager.IsResourceMetadataAvailable(survivor));
-        Assert.Equal(new GpuBufferMetadata(100, BufferUsageHint.DynamicDraw), survivor.Snapshot);
+        Assert.Equal(new GpuBufferMetadata(100, BufferUsage.DynamicDraw), survivor.Snapshot);
         foreach (var resource in resources)
         {
             Assert.False(manager.IsResourceMetadataTracked(resource));
@@ -529,7 +529,7 @@ public sealed class GpuResourceMetadataRegistryTests
         internal bool Exists = true, Readable = true, Throws;
         internal int Reads, ValidityChecks;
         internal Action? OnRead;
-        internal GpuBufferMetadata Candidate = new(16, BufferUsageHint.StaticDraw);
+        internal GpuBufferMetadata Candidate = new(16, BufferUsage.StaticDraw);
 
         /// <inheritdoc />
         public bool IsResource(nint id) { ValidityChecks++; return Exists; }

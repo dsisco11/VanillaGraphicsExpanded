@@ -86,6 +86,10 @@ public sealed class RHICapabilities
     public bool PipelineStatistics { get; }
     /// <summary>Reports optional Windows semaphore import support from cached extension discovery.</summary>
     public bool ExternalSemaphoresWin32 { get; }
+    /// <summary>Gets the cached framebuffer attachment slot bound.</summary>
+    public int MaxColorAttachments => source.MaxColorAttachments;
+    /// <summary>Gets the cached optional multiview count bound.</summary>
+    public int MaxMultiviewViews => source.MaxMultiviewViews;
     #endregion
 
     #region Internal API

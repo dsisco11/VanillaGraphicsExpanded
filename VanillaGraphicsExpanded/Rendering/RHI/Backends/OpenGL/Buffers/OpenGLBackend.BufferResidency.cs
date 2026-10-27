@@ -15,7 +15,7 @@ internal sealed partial class OpenGLBackend
         var owner = RequireRange(range.Buffer, range.Offset, range.Length);
         var metadata = owner.PublishedMetadata;
         int pageSize = Capabilities.SparseBufferPageSize;
-        if (!metadata.ImmutableStorage || (metadata.StorageFlags & (OpenTK.Graphics.OpenGL.BufferStorageFlags)ArbSparseBuffer.SparseStorageBitArb) == 0
+        if (!metadata.ImmutableStorage || (metadata.StorageFlags & StorageAccess.Sparse) == 0
             || pageSize <= 0 || range.Offset % pageSize != 0 || range.Length <= 0
             || range.Length % pageSize != 0 && range.Offset + range.Length != metadata.Capacity)
             throw new ArgumentException("The commitment must select aligned pages of sparse immutable storage.");

@@ -21,7 +21,7 @@ public abstract class GpuBufferObject : GpuResource<GpuBufferMetadata>, IDisposa
     /// <summary>Reads the canonical native capacity through the typed snapshot.</summary>
     protected int sizeBytes => checked((int)metadata.Capacity);
     /// <summary>Reads the canonical storage usage through the typed snapshot.</summary>
-    protected BufferUsageHint usage => metadata.Usage;
+    protected BufferUsage usage => metadata.Usage;
     /// <summary>Contains the requested hint for the next allocation, independently of observed storage.</summary>
     protected BufferUsage allocationUsage;
     protected string? debugName;
@@ -35,7 +35,7 @@ public abstract class GpuBufferObject : GpuResource<GpuBufferMetadata>, IDisposa
     public BufferRole Role { get; protected set; }
     public int BufferId => bufferId;
     public int SizeBytes => sizeBytes;
-    public BufferUsageHint Usage => usage;
+    public BufferUsage Usage => usage;
     public string? DebugName => debugName;
 
     /// <inheritdoc />

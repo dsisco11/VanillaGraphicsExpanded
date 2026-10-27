@@ -26,8 +26,8 @@ public sealed class ShaderPreparedMetadataValidationTests(HeadlessGLFixture fixt
         {
             using var texture = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba32f, Width = System.Math.Max(1, 4), Height = System.Math.Max(1, 4), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
             using var sentinel = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba32f, Width = System.Math.Max(1, 4), Height = System.Math.Max(1, 4), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
-            var sampler = Entry(ShaderBindingKind.Sampler, ActiveUniformType.Sampler2D, [true, true]);
-            var image = Entry(ShaderBindingKind.Image, ActiveUniformType.Image2D, [true]);
+            var sampler = Entry(ShaderBindingKind.Sampler, ShaderValueType.Sampler2D, [true, true]);
+            var image = Entry(ShaderBindingKind.Image, ShaderValueType.Image2D, [true]);
             OpenGLImageBindings.ActiveTexture(OpenGlStateCache.Current, 0);
             OpenGLImageBindings.BindTexture(OpenGlStateCache.Current, TextureTarget.Texture2D, 0, sentinel.TextureId);
             ShaderPreparedSubmission.ValidateSampler(sampler, (GpuTexture)texture);
@@ -79,7 +79,7 @@ public sealed class ShaderPreparedMetadataValidationTests(HeadlessGLFixture fixt
 
     #region Private
     /// <summary>Supplies a prepared contract with explicit activity while exercising actual resource metadata.</summary>
-    private static GpuPreparedBindings.Entry Entry(ShaderBindingKind kind, ActiveUniformType type, bool[] elements) =>
+    private static GpuPreparedBindings.Entry Entry(ShaderBindingKind kind, ShaderValueType type, bool[] elements) =>
         new(new GpuBindingEntry(0, kind, "fixture", new GpuBindingContract.Binding(0, true, elements.Length)), true, type, elements);
 
     /// <summary>Exercises either the whole-store consumer or its retained explicit initialized range.</summary>

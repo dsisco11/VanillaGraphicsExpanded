@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Runtime.CompilerServices;
 
 namespace VanillaGraphicsExpanded.Rendering;
@@ -15,12 +16,10 @@ internal sealed partial class GpuResourceManager
             || !entry.IsUsable || entry.Metadata.Resources.IsDefault) return;
         foreach (var resource in entry.Metadata.Resources)
         {
-            if (resource.Interface != OpenTK.Graphics.OpenGL.ProgramInterface.Uniform
-                || !resource.Properties.TryGetValue(OpenTK.Graphics.OpenGL.ProgramProperty.Location, out var locations) || locations.IsDefaultOrEmpty
-                || !resource.Properties.TryGetValue(OpenTK.Graphics.OpenGL.ProgramProperty.Type, out var types) || types.IsDefaultOrEmpty) continue;
-            int count = resource.Properties.TryGetValue(OpenTK.Graphics.OpenGL.ProgramProperty.ArraySize, out var sizes) && !sizes.IsDefaultOrEmpty ? sizes[0] : 1;
-            if (locations[0] < 0 || location < locations[0] || (long)location - locations[0] >= count) continue;
-            var type = (OpenTK.Graphics.OpenGL.ActiveUniformType)types[0];
+            if (resource.Interface != ProgramResourceKind.Uniform
+                || resource.Location is not { } start || resource.Type is not { } type
+                || resource.ArraySize is not { } count) continue;
+            if (start < 0 || location < start || (long)location - start >= count) continue;
             int limit = GpuProgramLayout.IsImageType(type) ? RHI.RHICommandContext.Current.Capabilities.MaxImageUnits
                 : GpuProgramLayout.IsSamplerType(type) ? RHI.RHICommandContext.Current.Capabilities.MaxCombinedTextureImageUnits : -1;
             if (limit >= 0 && (uint)unit >= (uint)limit) throw new System.ArgumentOutOfRangeException(nameof(unit));

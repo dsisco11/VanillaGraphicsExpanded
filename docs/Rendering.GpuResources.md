@@ -116,6 +116,12 @@ specializations and authored bindings. The backend creates stages/programs throu
 or installs a selected binary, publishes one canonical executable snapshot and prepares its interface.
 SPIR-V input admission checks the selected entry-point name and execution model before native ingestion;
 this declaration check does not reflect resource bindings or replace native compiler diagnostics.
+Canonical shader metadata and initialization use `ShaderStage`. Program resource snapshots use
+`ProgramResourceKind`, `ShaderValueType`, nullable typed location/extent/block fields and `ShaderStageMask`;
+missing fields remain unavailable. Native reflection selectors and tokens are decoded inside the backend.
+Prepared tables consume these facts and supplied limits without queries or context admission.
+External authored assignments resolve against canonical facts through a private RHI operation, skip
+unchanged values and publish through the existing observation path; ordinary layout reads use snapshots.
 Temporary stages are retired after completion. Pending creation exposes outcomes through
 `IRHIShaderCreation`; the OpenGL implementation privately retains native candidate stages and programs.
 Cancellation retires only those candidate allocations against their original context.
@@ -188,7 +194,7 @@ existing owner, or diagnostics; the manager retains private identity/snapshot ha
 
 `GpuBufferUploader` validates client payloads and routes allocation and uploads into that semantic path.
 Core named allocation, upload, copy, clear, map and flush preserve selectors. Canonical `GpuBufferMetadata`
-contains capacity, usage, immutable-storage status and storage-access flags; content operations never
+contains capacity, semantic `BufferUsage`, immutable-storage status and `StorageAccess` flags; content operations never
 publish another storage snapshot. Partial initial bytes use direct subdata when permitted, otherwise a
 temporary staging copy. Native deferred destruction retains that staging storage until the copy completes.
 No alternate execution path is retried after failure.

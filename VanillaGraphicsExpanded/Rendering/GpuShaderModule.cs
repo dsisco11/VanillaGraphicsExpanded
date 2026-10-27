@@ -1,6 +1,7 @@
+using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
-using OpenTK.Graphics.OpenGL;
+
 
 namespace VanillaGraphicsExpanded.Rendering;
 
@@ -15,7 +16,7 @@ internal sealed class GpuShaderModule : GpuResource<GpuShaderMetadata>
     /// <summary>Gets the native name for backend execution and explicit engine integration.</summary>
     public int ShaderId => shaderId;
     /// <summary>Gets the manager-published stage kind without native rediscovery.</summary>
-    public ShaderType ShaderType => metadata.Type;
+    public ShaderStage ShaderStage => metadata.Type;
     /// <inheritdoc />
     public override void SetDebugName(string? debugName)
     {
@@ -29,7 +30,7 @@ internal sealed class GpuShaderModule : GpuResource<GpuShaderMetadata>
     /// <summary>Declares an unpublished stage recipient for backend-controlled allocation.</summary>
     internal GpuShaderModule() { }
     /// <summary>Adopts explicit external stage ownership and verifies its kind through manager acquisition.</summary>
-    internal GpuShaderModule(int shaderId, ShaderType type)
+    internal GpuShaderModule(int shaderId, ShaderStage type)
     {
         this.shaderId = shaderId;
         RHICommandContext.Current.AdoptShaderOwner(this);

@@ -1,5 +1,5 @@
 using System;
-using OpenTK.Graphics.OpenGL;
+using VanillaGraphicsExpanded.Rendering.RHI;
 
 namespace VanillaGraphicsExpanded.Rendering;
 
@@ -12,8 +12,8 @@ internal struct GpuBufferInitialization
     private Inputs assigned;
     private GpuBufferStorageMode mode;
     private nint capacity;
-    private BufferUsageHint usage;
-    private BufferStorageFlags flags;
+    private BufferUsage usage;
+    private StorageAccess flags;
 
     /// <summary>Tracks intent independently of zero-valued input properties.</summary>
     [Flags]
@@ -25,9 +25,9 @@ internal struct GpuBufferInitialization
     /// <summary>Requests native-width byte capacity; zero is valid for mutable allocation.</summary>
     public nint Capacity { readonly get => capacity; set { capacity = value; assigned |= Inputs.Capacity; } }
     /// <summary>Requests mutable usage, independently of the zero value of the enumeration.</summary>
-    public BufferUsageHint Usage { readonly get => usage; set { usage = value; assigned |= Inputs.Usage; } }
+    public BufferUsage Usage { readonly get => usage; set { usage = value; assigned |= Inputs.Usage; } }
     /// <summary>Requests immutable storage flags, including an explicitly empty set.</summary>
-    public BufferStorageFlags StorageFlags { readonly get => flags; set { flags = value; assigned |= Inputs.Flags; } }
+    public StorageAccess StorageFlags { readonly get => flags; set { flags = value; assigned |= Inputs.Flags; } }
     #endregion
 
     #region Internal API
@@ -45,21 +45,21 @@ internal struct GpuBufferInitialization
             throw new ArgumentException("An explicit nonnegative buffer capacity is required.");
         if (mode == GpuBufferStorageMode.Mutable)
         {
-            if ((assigned & Inputs.Usage) == 0 || !Enum.IsDefined(usage) || (assigned & Inputs.Flags) != 0)
+            if ((assigned & Inputs.Usage) == 0 || !Enum.IsDefined(usage) || usage == BufferUsage.Undefined || (assigned & Inputs.Flags) != 0)
                 throw new ArgumentException("Mutable allocation requires usage and rejects storage flags.");
             return;
         }
-        const BufferStorageFlags supported = BufferStorageFlags.DynamicStorageBit | BufferStorageFlags.ClientStorageBit
-            | BufferStorageFlags.MapReadBit | BufferStorageFlags.MapWriteBit | BufferStorageFlags.MapPersistentBit
-            | BufferStorageFlags.MapCoherentBit | (BufferStorageFlags)ArbSparseBuffer.SparseStorageBitArb;
-        if ((flags & (BufferStorageFlags)ArbSparseBuffer.SparseStorageBitArb) != 0
-            && (flags & (BufferStorageFlags.MapReadBit | BufferStorageFlags.MapWriteBit)) != 0)
+        const StorageAccess supported = StorageAccess.DynamicUpdates | StorageAccess.ClientStorage
+            | StorageAccess.Read | StorageAccess.Write | StorageAccess.Persistent
+            | StorageAccess.Coherent | StorageAccess.Sparse;
+        if ((flags & StorageAccess.Sparse) != 0
+            && (flags & (StorageAccess.Read | StorageAccess.Write)) != 0)
             throw new ArgumentException("Sparse storage cannot be mapped.");
         if (capacity == 0 || (assigned & Inputs.Flags) == 0 || (assigned & Inputs.Usage) != 0 || (flags & ~supported) != 0)
             throw new ArgumentException("Immutable allocation requires positive capacity and explicit supported storage flags.");
-        if ((flags & BufferStorageFlags.MapPersistentBit) != 0
-            && (flags & (BufferStorageFlags.MapReadBit | BufferStorageFlags.MapWriteBit)) == 0
-            || (flags & BufferStorageFlags.MapCoherentBit) != 0 && (flags & BufferStorageFlags.MapPersistentBit) == 0)
+        if ((flags & StorageAccess.Persistent) != 0
+            && (flags & (StorageAccess.Read | StorageAccess.Write)) == 0
+            || (flags & StorageAccess.Coherent) != 0 && (flags & StorageAccess.Persistent) == 0)
             throw new ArgumentException("Persistent mapping requires access; coherent mapping requires persistence.");
     }
     #endregion

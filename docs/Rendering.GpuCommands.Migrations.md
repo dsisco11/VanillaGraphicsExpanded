@@ -1316,3 +1316,65 @@ a clean combined-process Release run. Debug exercises that complete selection to
 
 Installed runtime/package acceptance remains later work. The agent did not stage or commit changes.
 Subphases 8d–8i and Phase 9 remain open.
+
+
+## Semantic executable and buffer boundary (Phase 8d)
+
+### Authority and task traceability
+
+The controlling sources are the RHI proposal's resource creation, shader/pipeline, backend dispatch and
+migration sections; the implementation contracts' authority/internal execution, descriptor and executable
+sections; Rendering.GpuResources.md's initialization, acquisition, executable and buffer contracts; and
+Rendering.ShaderBindingState.md's supplied-metadata preparation and publication contract. The canonical
+schema inventory/API coverage and parent resource proposal retain manager-owned snapshots, original
+associations, availability and notification ordering. The archived creation/publication proposal at
+`3f307365:docs/Rendering.CommandPublication.Proposal.md` governs private initialization and the approved
+query policy; `b9fca04c:docs/Rendering.GpuTextureRef.Proposal.md` retains query-free consumer values.
+
+| Task group | Before → final route / evidence |
+| --- | --- |
+| Buffer schema, initialization and public facts | BufferUsageHint/BufferStorageFlags → BufferUsage/StorageAccess in GpuBufferMetadata, GpuBufferInitialization, GpuBufferObject and reference consumers. Named allocation/query services encode/decode only beneath OpenGLBufferValues. Immutable permissions, sparse flags and omission validation are preserved. Undefined is the unavailable default; StaticDraw is valid and cannot collide with discarded metadata. |
+| Stage schema and adoption | ShaderType → ShaderStage in GpuShaderMetadata, initialization and GpuShaderModule. Creation encodes at native dispatch; observed native stages decode beneath OpenGLShaderValues. All production/test adoption and initialization callers use semantic stages. |
+| Canonical executable reflection | ProgramInterface/ProgramProperty bags and integer type tokens → ProgramResourceKind, ShaderValueType, nullable typed location/extent/block facts and ShaderStageMask. OpenGLBackend.ProgramQueries decodes query results before manager publication. ProgramFields and ProgramUnitAvailability update/read those typed facts while preserving unavailable fields and unrelated data. |
+| Prepared/graphics consumers | GpuPreparedBindings, GpuProgramInterface, GraphicsExecutableInterface, ShaderInterfaceShape, ShaderResourceFormatCompatibility and dependent validation consume typed facts. Preparation receives explicit texture/image limits and admits no context or native reads. Fixed shader ownership/revision checks remain unchanged. |
+| Authored types and cache identities | ShaderResourceType no longer encodes GL tokens. Explicit semantic matching replaces native ordinal casts. Shared generator/runtime declarations use the same enum; effective-contract-v2 invalidates reusable interface projections. Existing driver-binary identity still describes unchanged stage bytes/settings, and installation revalidates the interface rather than adding another cache authority. |
+| Capabilities and validation | Framebuffer slot/multiview/layer checks, uniform-ring admission/alignment and binding-registry limits use the admitted RHICapabilities projection. No additional capability discovery/cache was introduced. |
+| Layout reads and external assignments | GetUniformLocation/block resolution, RebuildCache, ValidateContract and active-binding projections read supplied snapshots only. Explicit TryBuild acquires unknown external facts through RHI. ApplyContract routes complete authored assignments through RHICommandContext/IRHIResourceExecution.ApplyProgramBindings; backend resolution skips known-equal values, checks original association/revision across callbacks and publishes through existing observation. OpenGLProgramQueries and layout-owned native assignment helpers, obsolete capability branches and ErrorScope are removed. |
+| Texture initialization format access | Resolve validates shape/defaults and admitted global limits without format discovery. Backend ResolveTextureSamples selects from the existing target/format capability cache before allocation; the established narrow sample-count fallback remains intact. Private manager handoff stays private. |
+
+All affected callers were migrated directly. There is no compatibility overload, old-name alias,
+owner-side native codec, forwarding shim, second reflection registry or requested/actual metadata pair.
+Layout address caches are cleared with snapshot rebuilding so equal native names do not retain stale
+locations. Callback changes to the captured interface revision reject remaining stale assignments.
+
+### Validation and review
+
+Canonical Debug and ordinary Release production builds passed, as did both complete test-project
+compilations with normal shader fixture generation. Final receipts are under `artifacts/phase8d/`:
+
+- Debug affected selection: **842/842 passed**, zero skips (`debug-affected-3.log` and TRX).
+- Ordinary Release combined selection: **840/842 passed**, zero skips (`release-affected.log` and TRX).
+  Both FailedMipAllocationRetiresUnpublishedTexture cases missed the injected Harmony throw in that
+  process. The exact two cases passed **2/2** in a fresh process on the unchanged optimized binary
+  (`release-fault-isolated.log` and TRX). This retains the prior optimized observer limitation; it does
+  not claim a clean combined-process Release result. No JIT overrides or instrumented product was used.
+- ShaderContractGenerator.Tests: **157/157 passed** (`debug-generator-2.log` and TRX).
+- ShaderBuildTool.Tests: **256/256 passed**, including contract identity/cache tests
+  (`debug-shader-build-tool.log` and TRX).
+- Exact affected filter: `affected-test-filter.txt`. Initial 41-case schema/isolation/preparation checks
+  are in `debug-core.log`; the final broad selection includes those checks and new layout regressions.
+
+Review resolved the semantic zero/default buffer-availability collision, retained supplied-metadata
+rejection behavior, checked native/semantic decoding and assignment publication, and preserved original
+context rejection. LumOn ownership fixtures now allocate the actual prepared block extents; runtime
+minimum-size validation was not relaxed. The retired-context test observes both core/legacy status
+queries and expects the existing originating-context exception. Source review also checked callback
+revision rejection, discarded local snapshots, cached lookup invalidation and obsolete API removal.
+Later label/diagnostic, manager guard/context discovery, state-purge, aggregate closure and service-name
+work remains assigned to 8e–8i. Integrated package/game acceptance remains in Phase 9. No staging,
+commit, game launch or performance qualification was performed.
+
+The second implementation review and independent audit-stage-completion review found no remaining
+8d blocker after correcting the proposal's stale OpenTK-valued texture-reference exception. The audit
+independently reconstructed the eleven task/source mappings and retained the combined-process Release
+limitation above; later 8e–8i work is not represented as completed by this receipt.

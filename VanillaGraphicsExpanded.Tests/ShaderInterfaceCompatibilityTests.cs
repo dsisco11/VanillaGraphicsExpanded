@@ -11,14 +11,14 @@ public sealed class ShaderInterfaceCompatibilityTests
     #region Public API
     /// <summary>Normalized integer storage feeds floating inputs, while integer and double inputs retain their interpretation.</summary>
     [Theory]
-    [InlineData(ActiveAttribType.FloatVec4, VertexComponentFormat.UnsignedByte, (int)VertexInterpretation.Normalized, true)]
-    [InlineData(ActiveAttribType.IntVec4, VertexComponentFormat.SignedInt, (int)VertexInterpretation.Integer, true)]
-    [InlineData(ActiveAttribType.IntVec4, VertexComponentFormat.UnsignedInt, (int)VertexInterpretation.Integer, false)]
-    [InlineData(ActiveAttribType.UnsignedIntVec4, VertexComponentFormat.UnsignedInt, (int)VertexInterpretation.Integer, true)]
-    [InlineData(ActiveAttribType.UnsignedIntVec4, VertexComponentFormat.SignedInt, (int)VertexInterpretation.Integer, false)]
-    [InlineData(ActiveAttribType.DoubleVec4, VertexComponentFormat.Double, (int)VertexInterpretation.Double, true)]
-    [InlineData(ActiveAttribType.DoubleVec4, VertexComponentFormat.Float, (int)VertexInterpretation.Floating, false)]
-    public void VertexScalarCompatibility(ActiveAttribType type, VertexComponentFormat storage, int interpretation, bool accepted)
+    [InlineData(ShaderValueType.FloatVec4, VertexComponentFormat.UnsignedByte, (int)VertexInterpretation.Normalized, true)]
+    [InlineData(ShaderValueType.IntVec4, VertexComponentFormat.SignedInt, (int)VertexInterpretation.Integer, true)]
+    [InlineData(ShaderValueType.IntVec4, VertexComponentFormat.UnsignedInt, (int)VertexInterpretation.Integer, false)]
+    [InlineData(ShaderValueType.UnsignedIntVec4, VertexComponentFormat.UnsignedInt, (int)VertexInterpretation.Integer, true)]
+    [InlineData(ShaderValueType.UnsignedIntVec4, VertexComponentFormat.SignedInt, (int)VertexInterpretation.Integer, false)]
+    [InlineData(ShaderValueType.DoubleVec4, VertexComponentFormat.Double, (int)VertexInterpretation.Double, true)]
+    [InlineData(ShaderValueType.DoubleVec4, VertexComponentFormat.Float, (int)VertexInterpretation.Floating, false)]
+    public void VertexScalarCompatibility(ShaderValueType type, VertexComponentFormat storage, int interpretation, bool accepted)
     {
         var shape = ShaderInterfaceShape.From(type);
         var attribute = new RHIVertexAttribute(0, 4, storage, (VertexInterpretation)interpretation, 0, 0, 32, 2);
@@ -28,9 +28,9 @@ public sealed class ShaderInterfaceCompatibilityTests
 
     /// <summary>Rectangular matrices retain their independent column count and row component count.</summary>
     [Theory]
-    [InlineData(ActiveAttribType.FloatMat2x3, 2, 3)]
-    [InlineData(ActiveAttribType.DoubleMat4x2, 4, 2)]
-    public void MatrixShapePreservesOccupiedLocations(ActiveAttribType type, int columns, int components)
+    [InlineData(ShaderValueType.FloatMat2x3, 2, 3)]
+    [InlineData(ShaderValueType.DoubleMat4x2, 4, 2)]
+    public void MatrixShapePreservesOccupiedLocations(ShaderValueType type, int columns, int components)
     {
         var shape = ShaderInterfaceShape.From(type);
         Assert.Equal(columns, shape.Columns);
@@ -39,13 +39,13 @@ public sealed class ShaderInterfaceCompatibilityTests
 
     /// <summary>Output formats retain signedness and sufficient stored component coverage.</summary>
     [Theory]
-    [InlineData(TextureFormat.Rgba8, ActiveAttribType.FloatVec4, true)]
-    [InlineData(TextureFormat.Rg16f, ActiveAttribType.FloatVec4, false)]
-    [InlineData(TextureFormat.Rgba8ui, ActiveAttribType.IntVec4, false)]
-    [InlineData(TextureFormat.Rgba8ui, ActiveAttribType.UnsignedIntVec4, true)]
-    [InlineData(TextureFormat.Rgba8i, ActiveAttribType.IntVec4, true)]
-    [InlineData(TextureFormat.Rgba16f, ActiveAttribType.UnsignedIntVec4, false)]
-    public void FragmentScalarAndComponents(TextureFormat format, ActiveAttribType type, bool accepted) =>
+    [InlineData(TextureFormat.Rgba8, ShaderValueType.FloatVec4, true)]
+    [InlineData(TextureFormat.Rg16f, ShaderValueType.FloatVec4, false)]
+    [InlineData(TextureFormat.Rgba8ui, ShaderValueType.IntVec4, false)]
+    [InlineData(TextureFormat.Rgba8ui, ShaderValueType.UnsignedIntVec4, true)]
+    [InlineData(TextureFormat.Rgba8i, ShaderValueType.IntVec4, true)]
+    [InlineData(TextureFormat.Rgba16f, ShaderValueType.UnsignedIntVec4, false)]
+    public void FragmentScalarAndComponents(TextureFormat format, ShaderValueType type, bool accepted) =>
         Assert.Equal(accepted, ShaderTargetCompatibility.Accepts(format, ShaderInterfaceShape.From(type)));
 
     #endregion

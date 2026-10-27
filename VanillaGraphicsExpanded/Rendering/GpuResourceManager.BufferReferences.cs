@@ -14,7 +14,7 @@ internal sealed partial class GpuResourceManager
         var manager = resource.ResourceManager;
         if (manager?.GetResourceRegistration(resource) is not null && !manager.IsResourceMetadataAvailable(resource)) return false;
         data = resource.PublishedMetadata;
-        return data.Capacity >= 0 && Enum.IsDefined(data.Usage);
+        return data.Capacity >= 0 && Enum.IsDefined(data.Usage) && data.Usage != RHI.BufferUsage.Undefined;
     }
 
     /// <summary>Requires published facts and originating affinity before native use.</summary>

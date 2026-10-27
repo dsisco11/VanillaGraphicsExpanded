@@ -1,7 +1,7 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using OpenTK.Graphics.OpenGL;
 
 namespace VanillaGraphicsExpanded.Rendering;
 
@@ -61,14 +61,14 @@ public partial class GpuProgramLayout
 
     #region Private
     /// <summary>Projects named buffer bindings while retaining immutable metadata as the authority.</summary>
-    private IReadOnlyDictionary<string, int> ProjectBufferBindings(ProgramInterface kind)
+    private IReadOnlyDictionary<string, int> ProjectBufferBindings(ProgramResourceKind kind)
     {
         var result = new Dictionary<string, int>(StringComparer.Ordinal);
         if (nativeMetadata is not { ExecutableAvailable: true } data || data.Resources.IsDefault) return result;
         foreach (var resource in data.Resources)
             if (resource.Interface == kind && !string.IsNullOrWhiteSpace(resource.Name)
-                && resource.Properties.TryGetValue(ProgramProperty.BufferBinding, out var values) && !values.IsDefaultOrEmpty)
-                result[resource.Name] = values[0];
+                && resource.BufferBinding is { } binding)
+                result[resource.Name] = binding;
         return result;
     }
 
@@ -82,11 +82,9 @@ public partial class GpuProgramLayout
         var units = data.TextureUnits.ToDictionary(unit => unit.Location, unit => unit.Unit);
         foreach (var resource in data.Resources)
         {
-            if (resource.Interface != ProgramInterface.Uniform || string.IsNullOrWhiteSpace(resource.Name)
-                || !resource.Properties.TryGetValue(ProgramProperty.Type, out var types) || types.IsDefaultOrEmpty
-                || !resource.Properties.TryGetValue(ProgramProperty.Location, out var locations) || locations.IsDefaultOrEmpty
-                || !units.TryGetValue(locations[0], out int unit)) continue;
-            var type = (ActiveUniformType)types[0];
+            if (resource.Interface != ProgramResourceKind.Uniform || string.IsNullOrWhiteSpace(resource.Name)
+                || resource.Type is not { } type || resource.Location is not { } location
+                || !units.TryGetValue(location, out int unit)) continue;
             if (IsSamplerType(type)) samplers[NormalizeUniformName(resource.Name)] = unit;
             else if (IsImageType(type)) images[NormalizeUniformName(resource.Name)] = unit;
         }
