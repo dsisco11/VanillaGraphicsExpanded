@@ -3,7 +3,7 @@ RHI commands and command lists — implementation plan
 
 Source proposal: [Rendering.GpuCommands.Proposal.md](Rendering.GpuCommands.Proposal.md).
 Parent design task: Rendering.GpuResourceHandles.todo, Phase 8.
-Status: Phases 1–5, including dependency-boundary redesign in 5b–5e, have recorded qualification receipts. Command recording and final integrated qualification remain outstanding.
+Status: Phases 1–6, including dependency-boundary redesign and single-use recording, have recorded qualification receipts. Cache naming/layout reconciliation and final integrated qualification remain outstanding.
 
 Goal
   Implement the approved semantic RHI boundary, immediate execution and optional single-use recorded
@@ -568,37 +568,44 @@ Phase 6: Implement single-use command recording on the final immediate machinery
   Depends on the complete Phase 5 gate, including redesign subphases 5b–5e.
   Outcome: lists record context-independent inputs and execute through the same backend as immediate calls.
 
-  ☐ Implement immutable RHICommand headers, reusable typed payload pages and list-owned reference tables.
+  ☑ Implement immutable RHICommand headers, reusable typed payload pages and list-owned reference tables.
     Copy spans/arrays/mutable descriptions, retain immutable executable descriptions, and avoid closures,
     arbitrary callbacks, unmanaged managed-reference unions or mandatory per-command heap allocation.
-  ☐ Implement exclusive list ownership and Recording→Closed→Executing→Executed/Failed lifecycle,
+  ☑ Implement exclusive list ownership and Recording→Closed→Executing→Executed/Failed lifecycle,
     cancellation before execution, reset only after terminal state, and no replay/concurrent cancellation.
     Closing freezes/publishes complete arguments for ownership transfer; context identity is explicit.
-  ☐ Add recordable upload/copy/clear, bindings/dynamic state, full passes, draw/dispatch, barriers,
+  ☑ Add recordable upload/copy/clear, bindings/dynamic state, full passes, draw/dispatch, barriers,
     synchronization, query and readback operations. Keep general creation/storage/mips immediate.
     Query resources preexist recording; fence markers return pending tickets, not provisional GpuSyncRefs.
-  ☐ Record only supplied shape/balanced-pass checks. No native context, mutable resource inspection,
+  ☑ Record only supplied shape/balanced-pass checks. No native context, mutable resource inspection,
     manager/cache access, pass guards, target realization, uniform allocation or history publication.
     Build closed-list boundary declarations from immutable descriptions and operation kinds.
-  ☐ Execute on the originating context thread in explicit order; validate limits/optional features and
+  ☑ Execute on the originating context thread in explicit order; validate limits/optional features and
     original/current resource identity as appropriate before affected work. Owner-following texture refs
     resolve at execution; shader/PSO refs and table identity stay fixed. Recheck bounds and feedback.
     Existing boundaries must admit the list footprint; no silent widening or implicit state isolation.
-  ☐ Execute captured uniform snapshots through Phase 5 publication services in the current epoch.
+  ☑ Execute captured uniform snapshots through Phase 5 publication services in the current epoch.
     Cancelled lists allocate nothing and never clear dirty work; recorded equality cannot suppress an
     upload merely because an earlier unexecuted recording promised it.
-  ☐ Implement failure index/original error, stop without retry/rollback, unwind scopes and withdraw only
+  ☑ Implement failure index/original error, stop without retry/rollback, unwind scopes and withdraw only
     uncertain knowledge. Fail/cancel unexecuted requests; retain completion ownership for enqueued work.
     Context retirement cancels CPU work without GL into a replacement context. Reset releases CPU storage,
     not GPU-used staging; successful Submit adds neither Finish nor an automatic fence.
-  ☐ Exercise representative graphics, depth and borrowed-resource paths with recording where their existing
+  ☑ Exercise representative graphics, depth and borrowed-resource paths with recording where their existing
     usage interval permits; keep immediate default and producer freshness checks. Lists cannot straddle
     engine callbacks or leave passes active for another list. Do not extend an engine borrow for convenience.
-  ☐ Test no-current-context recording, frozen arrays/descriptions, close/reset/cancel, expired refs/borrows,
+  ☑ Test no-current-context recording, frozen arrays/descriptions, close/reset/cancel, expired refs/borrows,
     replacement/reload, optional rejection, partial failure, pending fence cancellation, readback staging,
     execution-time uniform allocation and immediate/recorded output/state equivalence.
-  ☐ Completion: all recorded operations use final backend execution without a second dispatcher authority,
+  ☑ Completion: all recorded operations use final backend execution without a second dispatcher authority,
     metadata path or compatibility facade; lifecycle and failure receipts cover every result-bearing path.
+
+  Qualification: Debug 178/178; ordinary optimized Release 177/178, with one existing native fault-injection
+    observer failure. The same Release binaries passed 178/178 with process-only JIT observation controls.
+    Second review and independent completion audit found no remaining required gap. Full traceability,
+    candidate identity, supporting checks and limitations are recorded in
+    [Single-use recording qualification](Rendering.GpuCommands.Migrations.md#single-use-recording-qualification-phase-6).
+    Nothing was staged or committed. Phases 7–8 remain open.
 
 Phase 7: Finish the cache split and reconcile architecture documentation
   Depends on Phase 6; prior family cleanup is a prerequisite, not work deferred into this phase.

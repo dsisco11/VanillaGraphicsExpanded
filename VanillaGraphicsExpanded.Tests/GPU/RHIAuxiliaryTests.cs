@@ -183,17 +183,22 @@ public sealed class RHIAuxiliaryTests(HeadlessGLFixture fixture, Xunit.ITestOutp
             { Role = BufferRole.CopySource, Mode = ResourceStorageMode.Mutable, Capacity = 16, Usage = BufferUsage.DynamicRead }).RequireResource();
             using var request = context.EnqueueReadback(new RHIReadbackDescription(new RHIBufferRange(source, 0, 16)));
             using var fence = context.InsertFence();
+            using var list = context.CreateCommandList();
+            using var recordedFence = list.InsertFence(); list.Close();
+            Assert.Equal(CommandListState.Executed, context.Submit(list).State);
             using var interception = new WaitObservation();
             injectedWait = WaitSyncStatus.TimeoutExpired;
             Assert.Equal(CompletionStatus.Pending, request.Poll());
             Assert.False(fence.TryConsumeIfSignaled());
+            Assert.Equal(CompletionStatus.Pending, recordedFence.Poll());
             Assert.Throws<InvalidOperationException>(() => request.MapReadyReadback());
             injectedWait = WaitSyncStatus.WaitFailed;
             Assert.Equal(CompletionStatus.Failed, request.Poll());
             Assert.NotNull(request.Error);
             Assert.Throws<InvalidOperationException>(() => fence.TryConsumeIfSignaled());
             Assert.True(fence.IsValid);
-            Assert.Equal(4, waitCalls);
+            Assert.Equal(CompletionStatus.Failed, recordedFence.Poll()); Assert.NotNull(recordedFence.Error);
+            Assert.Equal(6, waitCalls);
         }
         finally { Finish(); }
     }

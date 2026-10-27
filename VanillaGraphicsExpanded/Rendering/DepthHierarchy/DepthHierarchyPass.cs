@@ -73,12 +73,38 @@ internal sealed class DepthHierarchyPass : IDisposable
         shader.Mip6 = new RHIImageBinding(Texture, ImageAccess.ReadWrite, Math.Min(6, Texture.MipLevels - 1));
     }
     /// <summary>Generates every mip in one dispatch, transfers only the coarse tail and publishes sampling visibility.</summary>
-    internal void Render(GpuTexture depth)
+    internal void Render(GpuTexture depth, bool record = false)
     {
         var texture = Texture ?? throw new InvalidOperationException("Depth hierarchy is not prepared.");
         var program = shader ?? throw new InvalidOperationException("Depth hierarchy executable is missing.");
         program.PrimaryDepth = depth;
         var commands=RHICommandContext.Current;
+        if (record)
+        {
+            using var list = commands.CreateCommandList();
+            list.SetPipeline(program.Pipeline);
+            list.BindResources(program.CaptureBindings());
+            int boundaryMip = Math.Min(6, texture.MipLevels - 1);
+            list.Dispatch(new(Math.Max(1, texture.Width >> boundaryMip), Math.Max(1, texture.Height >> boundaryMip)));
+            list.Barrier(new(ResourceAccess.Image | ResourceAccess.ShaderStorage | ResourceAccess.PixelTransfer
+                | ResourceAccess.TextureFetch | ResourceAccess.TextureUpdate));
+            int offset = 4;
+            for (int level = 7; level < texture.MipLevels; level++)
+            {
+                int width = Math.Max(1, texture.Width >> level), height = Math.Max(1, texture.Height >> level);
+                list.TransferBufferToTexture(texture, new(tail!, offset, new(new(level), 0, 0, 0, width, height),
+                    new(PixelChannelLayout.Red, PixelComponentType.Float)));
+                offset = checked(offset + width * height * 4);
+            }
+            list.Close(conditionalRenderingInactive: true);
+            using var recordedScope = commands.EnterBoundary(list.Boundary);
+            var result = commands.Submit(list);
+            if (result.CleanupError is { } cleanup)
+                throw result.Error is { } original ? new AggregateException(original, cleanup) : cleanup;
+            if (result.Error is { } error) System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(error).Throw();
+            if (result.State != CommandListState.Executed) throw new InvalidOperationException("Depth hierarchy dispatch was cancelled.");
+            return;
+        }
         using var scope=commands.EnterBoundary(new("DepthHierarchy",true,compute:[program.Pipeline]));
         scope.Run(()=>
             {

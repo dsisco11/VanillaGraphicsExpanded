@@ -20,7 +20,7 @@ public sealed class EngineBoundaryBindingTests(HeadlessGLFixture fixture)
     [InlineData(true)]
     public void BorrowedResourceFootprintRestoresNativeState(bool invalidate)
     {
-        fixture.MakeCurrent(); var cache = StateCache.Current;
+        Start(); var cache = StateCache.Current;
         int texture = GL.GenTexture(), sampler = GL.GenSampler(), buffer = GL.GenBuffer(), array = GL.GenVertexArray();
         int read = GL.GenFramebuffer(), draw = GL.GenFramebuffer();
         try
@@ -101,7 +101,7 @@ public sealed class EngineBoundaryBindingTests(HeadlessGLFixture fixture)
     [Fact]
     public void RetiredBorrowedTextureIsNotRebound()
     {
-        fixture.MakeCurrent(); var cache = StateCache.Current;
+        Start(); var cache = StateCache.Current;
         int texture = GL.GenTexture();
         GL.ActiveTexture(TextureUnit.Texture0); GL.BindTexture(TextureTarget.Texture2D, texture); cache.InvalidateAll();
         Assert.True(cache.TryBeginEngineBoundary(new EngineBoundaryDeclaration("Retirement"), out var scope,
@@ -117,7 +117,7 @@ public sealed class EngineBoundaryBindingTests(HeadlessGLFixture fixture)
     [Fact]
     public void InvalidFootprintDoesNotBeginOptionalWork()
     {
-        fixture.MakeCurrent();
+        Start();
         var cache = StateCache.Current;
         OpenGLImageBindings.ActiveTexture(cache, 3);
         Assert.False(cache.TryBeginEngineBoundary(new EngineBoundaryDeclaration("Invalid"), out var scope,
@@ -134,7 +134,7 @@ public sealed class EngineBoundaryBindingTests(HeadlessGLFixture fixture)
     [InlineData(true)]
     public void OriginalExecutableRestoresOnSuccessAndOperationFailure(bool fail)
     {
-        fixture.MakeCurrent();
+        Start();
         using var programs=new ComponentShaderPrograms();
         var previous=programs.Create<RasterDepthCopyShaderProgram>();
         var inner=programs.Create<RasterDepthCopyShaderProgram>();
@@ -169,7 +169,7 @@ public sealed class EngineBoundaryBindingTests(HeadlessGLFixture fixture)
     [Fact]
     public void UndeclaredExecutableRejectsBeforePublication()
     {
-        fixture.MakeCurrent();using var programs=new ComponentShaderPrograms();
+        Start();using var programs=new ComponentShaderPrograms();
         var shader=programs.Create<RasterDepthCopyShaderProgram>();var commands=RHICommandContext.Current;
         using var pipeline=commands.CreateGraphicsPipeline(new(shader.Shader,new([]),new([new(TextureFormat.R32f)]),
             VanillaGraphicsExpanded.Rendering.Pipeline.Descriptions.DynamicPipelineState.Viewport)).RequireResource();
@@ -179,5 +179,13 @@ public sealed class EngineBoundaryBindingTests(HeadlessGLFixture fixture)
         Assert.Equal(previous,GL.GetInteger(GetPName.CurrentProgram));
     }
     #endregion
+    #endregion
+    #region Private
+    /// <summary>Admits the final backend before directly inspecting private cache restoration machinery.</summary>
+    private void Start()
+    {
+        fixture.MakeCurrent();
+        RHICommandContext.Current.RequireContext();
+    }
     #endregion
 }

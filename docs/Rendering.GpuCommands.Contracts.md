@@ -283,6 +283,11 @@ Typed reusable pages hold payloads; managed reference tables and copied byte sto
 No closures, unmanaged managed-reference unions or required per-command heap objects. Immediate calls
 do not allocate command storage. Submit executes in explicit caller order and reports CPU dispatch
 completion only, with no automatic fence/Finish. Reset releases recording memory, not GPU-used staging.
+The implementation exposes closed-list declarations through `RHICommandList.Boundary`; explicit sampled
+slot dimensions and uniform slots supplement pipeline-derived coverage. `Submit` admits the full footprint
+before commands, leaves an existing caller pass intact on rejection, and introduces no implicit boundary.
+`RHISubmissionResult` separately carries `CleanupError`, preserving `Error` as the original exception.
+
 Failed lists report the failing index and original error; unexecuted requests fail/cancel while already
 enqueued tickets retain completion ownership. Context retirement cancels CPU work without GL into a
 new context. No worker scheduling, concurrent execution or performance measurement gate is introduced.

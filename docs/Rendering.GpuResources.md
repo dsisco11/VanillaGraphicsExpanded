@@ -232,6 +232,41 @@ references expose no disposal, handle-transfer or native execution methods. Exac
 adapters preserve their original loader/signatures and per-name outcomes before shared retirement
 publication. Managed deletion uses the admitted backend after original-context queue admission.
 
+## Recorded command ownership
+
+`RHICommandList` is an optional CPU recording for an explicitly supplied `RHICommandContext`.
+Recording uses no current native context, resource validity, metadata acquisition, pass guards or
+physical uniform allocation. Immutable descriptions and exact shader/PSO references are retained;
+upload bytes, indexed batches and variable slot/transition spans are copied into reusable list storage.
+Headers identify typed payload locations, and managed resources remain in typed list-owned tables.
+Immediate execution allocates no recording storage.
+
+Close publishes a complete recording and an immutable `Boundary` derived from its pipeline references,
+operation kinds and explicit helper slots. Enter that boundary when restoration is required, or submit
+inside an existing boundary that admits the whole footprint. Submission cannot widen a declaration or
+enter/leave a caller-owned pass. Each list contains complete pass, query, conditional and capture intervals.
+Native execution goes through the same immediate context operations in explicit order, without automatic
+state isolation, a completion fence or a GPU wait. Immediate submission remains the default.
+
+Lists are exclusive to their originating thread and follow Recording -> Closed -> Executing -> Executed
+or Failed. Cancellation is allowed only before execution; only terminal lists can reset. Reset and disposal
+release CPU references while keeping reusable page capacity; they never dispose issued result storage.
+Resources are resolved again at execution: owner-following references see deliberate replacement;
+expired borrowers and fixed shader generations reject rather than retarget. Retention extends no engine
+callback borrowing interval and certifies no producer content freshness.
+
+Recorded readback/query requests use their existing ticket types; recorded fences return `RHIFenceTicket`.
+They stay pending without allocating a native result until their operation executes. Cancellation creates
+nothing. Enqueued staging/fences belong to the tickets independently of list reset. Failure stops once,
+reports the offending index and original error, and separately reports cleanup errors. Unexecuted requests
+fail or cancel; earlier GPU work remains enqueued. Scope unwind uses existing backend services and only
+list-owned intervals. Observing/submitting closed work or polling pending tickets after origin retirement
+cancels CPU promises without entering a replacement context.
+
+Captured uniform bytes/revisions publish through the existing allocator in the execution epoch. Recording
+and cancellation never advance upload history or clear dirty CPU edits. Missing allocation authority fails
+recorded publication; successful execution commits only the captured revision, preserving newer edits.
+
 ## Imported geometry certification
 
 The manager authorizes cold external vertex-array configuration discovery through the RHI context.

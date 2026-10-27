@@ -23,6 +23,18 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 public sealed class CloudSimpleDrawTests(HeadlessGLFixture fixture) : LumOnShaderFunctionalTestBase(fixture)
 {
     #region Public API
+    /// <summary>Recorded submission consumes native cloud streams only inside their live synchronous borrowing interval.</summary>
+    [Fact]
+    public void RecordedCloudMatchesImmediatePixelsAndPreservesBorrowedStorage()
+    {
+        EnsureShaderTestAvailable();
+        var immediate = Draw(.125f, .25f, 2);
+        var recorded = Draw(.125f, .25f, 2, record: true);
+        Assert.Equal(immediate.Radiance, recorded.Radiance);
+        Assert.Equal(immediate.RevealPixels, recorded.RevealPixels);
+        Assert.Equal(immediate.BucketAlpha, recorded.BucketAlpha);
+    }
+
     /// <summary>Simple has the same physical response and native OIT coverage with either receiver-lighting mode.</summary>
     [Theory]
     [InlineData(false)]
@@ -123,16 +135,16 @@ public sealed class CloudSimpleDrawTests(HeadlessGLFixture fixture) : LumOnShade
         using var native=new NativeCloud(5,.1f,0,short.MaxValue,.1f,0,0);
         using(var borrowed=new CloudSimpleGeometry(native.Mesh,1)) { }
         Assert.Throws<ArgumentOutOfRangeException>(()=>new CloudSimpleGeometry(native.Mesh,0));
-        Assert.Throws<InvalidOperationException>(()=>new CloudSimpleGeometry(native.Mesh,2));
+        Assert.Throws<ArgumentOutOfRangeException>(()=>new CloudSimpleGeometry(native.Mesh,2));
         // A new managed identity has no previous receipt, so a malformed divisor is checked at acquisition.
         using var malformed=new NativeCloud(5,.1f,0,short.MaxValue,.1f,0,0);
         OpenGLVertexSelection.Bind(StateCache.Current, malformed.Mesh.VaoId); GL.VertexAttribDivisor(4,0);
-        Assert.Throws<NotSupportedException>(()=>new CloudSimpleGeometry(malformed.Mesh,1));
+        Assert.Throws<InvalidOperationException>(()=>new CloudSimpleGeometry(malformed.Mesh,1));
         using var packed=new NativeCloud(5,.1f,0,short.MaxValue,.1f,0,0);
         OpenGLVertexSelection.Bind(StateCache.Current, packed.Mesh.VaoId);
         OpenGLBufferBindings.BindBuffer(StateCache.Current, BufferTarget.ArrayBuffer,packed.Mesh.customDataShortVboId);
         GL.VertexAttribPointer(3,2,VertexAttribPointerType.Short,true,0,IntPtr.Zero);
-        Assert.Throws<NotSupportedException>(()=>new CloudSimpleGeometry(packed.Mesh,1));
+        Assert.Throws<InvalidOperationException>(()=>new CloudSimpleGeometry(packed.Mesh,1));
         Assert.False(native.Mesh.Disposed); Assert.True(GL.IsBuffer(native.Mesh.customDataShortVboId));
     }
     #endregion
@@ -144,7 +156,7 @@ public sealed class CloudSimpleDrawTests(HeadlessGLFixture fixture) : LumOnShade
 
     /// <summary>Runs the real binary executable, native-layout geometry and six-attachment blending in a small controlled view.</summary>
     private Result Draw(float scale,float loss,float scatter,int face=5,float neighbor=.1f,short tileX=0,float perception=0,
-        short brightness=short.MaxValue,float opaqueDepth=1,float liquidDepth=1,float thickness=.1f,float thin=0,float undulation=0)
+        short brightness=short.MaxValue,float opaqueDepth=1,float liquidDepth=1,float thickness=.1f,float thin=0,float undulation=0,bool record=false)
     {
         const int size=16;
         float[] projection=[1,0,0,0,0,1,0,0,0,0,-1.002002f,-1,0,0,-.2002002f,0];
@@ -189,8 +201,21 @@ public sealed class CloudSimpleDrawTests(HeadlessGLFixture fixture) : LumOnShade
     var commands=RHICommandContext.Current;
     using var scope24=commands.EnterBoundary(new("Tests.Cloud.Simple",true,graphics:System.Linq.Enumerable.Select<RHIGraphicsPipeline,RHIGraphicsPipelineRef>([pipeline],value=>value),operations:BoundaryOperations.RenderPasses));
     scope24.Run(()=>{
-            commands.BeginRenderPass(pass); commands.SetPipeline(pipeline); commands.SetDynamicState(new(){Viewport=commands.PassViewport});
-            commands.DrawIndexed(geometry.Inputs,new(0,36)); commands.EndRenderPass();
+            if (record)
+            {
+                using var list = commands.CreateCommandList();
+                list.BeginRenderPass(pass); list.SetPipeline(pipeline);
+                list.SetDynamicState(new() { Viewport = new(0, 0, size, size) });
+                list.BindResources(program.CaptureBindings()); list.DrawIndexed(geometry.Inputs, new(0, 36)); list.EndRenderPass();
+                list.Close(conditionalRenderingInactive: true);
+                var result = commands.Submit(list);
+                Assert.Null(result.Error); Assert.Equal(CommandListState.Executed, result.State);
+            }
+            else
+            {
+                commands.BeginRenderPass(pass); commands.SetPipeline(pipeline); commands.SetDynamicState(new(){Viewport=commands.PassViewport});
+                commands.BindResources(program.CaptureBindings()); commands.DrawIndexed(geometry.Inputs,new(0,36)); commands.EndRenderPass();
+            }
         });
 }
         Assert.Equal(priorVao,GL.GetInteger(GetPName.VertexArrayBinding)); Assert.Equal(priorDepth,GL.IsEnabled(EnableCap.DepthTest));

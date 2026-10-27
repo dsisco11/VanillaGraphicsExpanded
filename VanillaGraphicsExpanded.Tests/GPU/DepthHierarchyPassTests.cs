@@ -32,7 +32,7 @@ public sealed class DepthHierarchyPassTests(HeadlessGLFixture fixture) : LumOnSh
         using var source=TestFramework.CreateTexture(width,height,PixelInternalFormat.R32f,values);
         owner.Prepare(width,height,compute);
         using(var hostile=new HostileFullscreenState()) {
-            owner.Render(source);
+            owner.Render(source, record: width % 2 != 0);
             hostile.AssertRestored();
         }
         var texture=owner.Texture!;long bytes=0;int w=width,h=height;

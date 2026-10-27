@@ -28,6 +28,11 @@ internal sealed partial class OpenGLBackend
     /// <inheritdoc />
     public void EndRenderPass()
     {
+        if (HasRetiredOrigin)
+        {
+            activeRenderPass?.Abandon(); activeRenderPass = null;
+            return;
+        }
         RequireContext();
         var pass = activeRenderPass ?? throw new InvalidOperationException("No render pass is active.");
         try { pass.Dispose(); }

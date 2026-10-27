@@ -928,3 +928,77 @@ receipts above. No required implementation or documentation discrepancy remains.
 cache observation and backend composition remain explicit final boundaries; they are not portable
 submission bypasses. StateCache naming/layout consolidation and command recording remain later work.
 The combined Phase 5 gate and dependency closure are satisfied within these qualification limits.
+
+
+## Single-use recording qualification (Phase 6)
+
+### Authority and traceability
+
+Phase 6 inherits the mandatory migration contract and approved proposal, especially Execution and
+recording lifecycle, Geometry inputs, Attachment-based pass targets, Backend dispatch/publication,
+and Representative outcomes. Contracts' operation disposition table and List lifecycle/storage define
+the named recordable surface. Retained resource/binding rules and archived publication/reference
+contracts continue controlling identity, snapshots, dirty history and original-context cleanup.
+
+| Task group | Controlling source | Implemented route / required evidence |
+| --- | --- | --- |
+| Headers, typed pages, ownership, close/reset/cancel | Proposal recording lifecycle; Contracts list lifecycle/storage | Commands storage and RHICommandList lifecycle; copied client bytes/spans, no native context recording, page reuse and terminal-state regressions. |
+| Complete recordable operation surface | Contracts operation signatures/dispositions; migration unit F | Focused recording/interpreter families for buffers, images/blits, graphics/compute, bindings/uniforms, barriers/fences/semaphores, queries/readback and capture. No factories/storage/mip commands or callback payloads. Each opcode calls final immediate context operations. |
+| Execution identity, admission and failure | Proposal submission/retirement/boundaries; GPU resource lifetime | RHICommandContext.Commands, fixed origin/thread, whole-footprint admission, no widening or caller-pass cleanup, current resource/borrow checks, first index/original error, independent cleanup error and pending request withdrawal. |
+| Logical uniforms and result ownership | Prepared resource submission; Contracts publication/result rules; archived command-publication proposal | Captured snapshots execute through existing publisher in the current epoch; missing allocator fails, newer edits stay dirty. Existing query/readback tickets and RHIFenceTicket distinguish unissued markers from independent enqueued completion. |
+| Representative depth/graphics/borrowed paths | Proposal representative verification; GPU resources external-consumer rules | Optional DepthHierarchyPass recording retains immediate default and freshness policy. Recorded cloud fixture submits during the original native geometry borrow. Indexed batch, resource snapshot, image and pass restoration checks compare actual output and state. |
+| Review and reconciliation | Phase 6 completion and mandatory receipts | Source audit, delegated Debug/Release checks, second implementation review and independent stage audit; final receipts below. |
+
+### Routes and source closure
+
+The new opcode interpreter owns argument retrieval and ordering only. Native execution, metadata,
+resource/usage guards, limits, feedback checks, suppression and target realization still belong to
+existing immediate operations/backend services. No OpenGL import, manager/cache lookup or native
+validity inspection occurs in recording. Existing immutable descriptions and binding tables are retained;
+variable spans and upload data are copied. No obsolete executor existed to shim or retain for recording.
+General creation/configuration, mapping, CPU waits, mips and native engine interception remain immediate.
+
+Explicit helper sampled/uniform slots augment immutable boundary declarations, and backend boundary
+admission projects those supplied slots through existing selective restoration. Ordinary boundaries
+without helper declarations allocate no recording storage. Lists retain no extra resource registry,
+metadata history or captured native identities. Shader/PSO/table references stay fixed; texture ownership
+and borrowing retain existing manager rules. Cancellation clears both payload references and footprint
+collections; issued result ownership survives reset and disposal.
+
+### Validation
+
+Fresh baseline Debug build and 102 focused RHI tests passed before implementation
+(artifacts/rhi-phase6/baseline). Final candidate receipts and exact invocations are under
+`artifacts/rhi-phase6/final2`:
+
+- Canonical Debug and Release builds passed with zero errors (532 and 539 warnings respectively).
+- Combined recording, immediate RHI, depth, cloud, uniform and engine-boundary checks passed
+  **178/178** in Debug, with zero skips.
+- Ordinary optimized Release passed **177/178**, with zero skips. The existing native fault-injection
+  case `RHIBufferTests.FailedCreationReturnsNoOwner` missed its optimized hook. All new recording,
+  completion, fence, depth/cloud and boundary checks passed in this ordinary run.
+- The same unchanged Release binaries passed **178/178**, zero skips, using process-only
+  `COMPlus_JitNoInline=1`, `COMPlus_TieredCompilation=0` and `COMPlus_ReadyToRun=0`.
+  This qualifies the observer limitation; it does not replace the ordinary 177/178 receipt.
+  No instrumented Release product or source-level no-inline workaround was introduced.
+- Supporting CPU checks passed **11/11** in both configurations and generator checks passed
+  **157/157** in Debug (`artifacts/rhi-phase6/final`). Subsequent changes concerned only the
+  recorded fence diagnostic and GPU fixture admission, covered by the final combined selection.
+
+The final source manifest covers 3,214 files, with zero drift during validation (`source-drift.json`).
+SHA256 of `source-before.csv` is
+`13FF1D011107BD632BD6BA137ACC34C8C8CE64E27C5A7F252CB001CFAC5A12B8`.
+Production assembly hashes in `runtime-hashes.json` are
+`05E34DAF0D8F9830119C55C0DE1C9DB8DC80892F2BCE7F8FA6D538682C492A5F` (Debug) and
+`C35D1210C2403AEB57F68EA2FE0E078819C31F2BD9C19E00A3E5EF7F484B5B5A` (Release).
+
+Cloud fixture assertions now require the shared validator's precise range/packing exceptions while
+retaining rejection and native ownership checks. Boundary fixtures explicitly admit their context before
+private cache capture; cold admission during capture was a fixture defect, not a missing production cache.
+
+Second implementation review and independent stage-completion audit directly reconciled the selected
+tasks with the proposal, contracts, retained resource/binding rules and archived controlling contracts.
+Cancellation/reference release, caller-owned scope protection, missing uniform epochs, retirement,
+result ownership and helper-slot restoration were rechecked after corrections. No required implementation
+or documentation gap remains. Cache naming and final integrated/package qualification remain later work.
+No game launch, live appearance, frame-time measurement or external producer-import qualification is claimed.

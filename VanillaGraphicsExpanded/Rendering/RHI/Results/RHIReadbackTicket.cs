@@ -3,9 +3,10 @@ using System;
 namespace VanillaGraphicsExpanded.Rendering.RHI;
 
 /// <summary>Owns staging and its completion independently of any command-list or source lifetime.</summary>
-public sealed class RHIReadbackTicket : IDisposable
+public sealed class RHIReadbackTicket : IDisposable, IRHIRecordedResult
 {
-    private readonly IRHIBackend backend;
+    private IRHIBackend? backend;
+    private readonly RHICommandContext? pendingOrigin;
     private GpuBufferObject? staging;
     private GpuFence? fence;
     private bool mapped;
@@ -16,8 +17,8 @@ public sealed class RHIReadbackTicket : IDisposable
     public CompletionStatus Status { get; private set; } = CompletionStatus.Pending;
     /// <summary>Gets the original dispatch or completion error.</summary>
     public Exception? Error { get; private set; }
-    /// <summary>Gets the immutable byte extent of this request.</summary>
-    public int ByteCount { get; }
+    /// <summary>Gets the byte extent established at dispatch; an unissued marker has zero bytes.</summary>
+    public int ByteCount { get; private set; }
     /// <summary>Polls only this request's explicit fence.</summary>
     public CompletionStatus Poll() => Observe(TimeSpan.Zero, false);
     /// <summary>Waits synchronously using the shared readback timeout policy.</summary>
@@ -27,13 +28,14 @@ public sealed class RHIReadbackTicket : IDisposable
     /// <summary>Maps ready storage exclusively; no implicit wait or source rediscovery occurs.</summary>
     public RHIMappedReadback MapReadyReadback()
     {
-        if (backend.HasRetiredOrigin)
+        if (backend is null) throw new InvalidOperationException("The readback has not been submitted.");
+        if (backend!.HasRetiredOrigin)
         {
             Status = CompletionStatus.Cancelled;
             ReleaseStorage();
             throw new InvalidOperationException("The readback context has retired.");
         }
-        backend.RequireContext();
+        backend!.RequireContext();
         if (Status != CompletionStatus.Ready || staging is null || mapped)
             throw new InvalidOperationException("Readback must be ready and not already mapped.");
         try
@@ -64,6 +66,21 @@ public sealed class RHIReadbackTicket : IDisposable
     public void Dispose() => Cancel();
     #endregion
     #region Internal API
+    /// <summary>Creates a CPU-only pending marker with no staging allocation.</summary>
+    internal RHIReadbackTicket(RHICommandContext origin) => pendingOrigin = origin;
+    /// <summary>Transfers issued staging ownership once from the immediate execution result.</summary>
+    internal void Adopt(RHIReadbackTicket issued)
+    {
+        backend = issued.backend; staging = issued.staging; fence = issued.fence; ByteCount = issued.ByteCount;
+        issued.staging = null; issued.fence = null;
+    }
+    /// <inheritdoc />
+    void IRHIRecordedResult.Abandon(Exception? error)
+    {
+        if (backend is not null || Status != CompletionStatus.Pending) return;
+        Error = error; Status = error is null ? CompletionStatus.Cancelled : CompletionStatus.Failed;
+    }
+
     /// <summary>Reports whether an exclusive mapping still requires scope-owned cleanup.</summary>
     internal bool HasActiveMapping => mapped;
     /// <summary>Takes exclusive ownership of already-enqueued staging and its fence.</summary>
@@ -72,13 +89,13 @@ public sealed class RHIReadbackTicket : IDisposable
     /// <summary>Rejects mapped access in a foreign context or after the scope ends.</summary>
     internal void RequireMapping()
     {
-        backend.RequireContext();
+        backend!.RequireContext();
         if (!mapped || staging is null || Status != CompletionStatus.Ready) throw new InvalidOperationException("The mapping has ended.");
     }
     /// <summary>Ends the exclusive mapping without relinquishing staging until native unmap finishes.</summary>
     internal void Unmap()
     {
-        if (backend.HasRetiredOrigin)
+        if (backend!.HasRetiredOrigin)
         {
             // A dead namespace cannot receive an unmap in a later native context.
             mapped = false;
@@ -101,8 +118,13 @@ public sealed class RHIReadbackTicket : IDisposable
     private CompletionStatus Observe(TimeSpan timeout, bool flush)
     {
         if (Status != CompletionStatus.Pending) return Status;
-        if (backend.HasRetiredOrigin) { Cancel(); return Status; }
-        backend.RequireContext();
+        if (backend is null)
+        {
+            if (pendingOrigin?.HasRetiredOrigin == true) Status = CompletionStatus.Cancelled;
+            return Status;
+        }
+        if (backend!.HasRetiredOrigin) { Cancel(); return Status; }
+        backend!.RequireContext();
         try
         {
             Status = backend.WaitCpu(fence!, timeout, flush);
