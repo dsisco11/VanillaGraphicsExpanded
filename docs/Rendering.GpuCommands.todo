@@ -36,6 +36,11 @@ Mandatory migration contract — applies to every implementation phase
     - Linked documentation reconciled and residual work assigned to an explicitly incomplete family.
 
 Scope and implementation boundaries
+  - Complete GL interception is a required architectural invariant: all GL calls made by project code,
+    the engine and other mods must be observed by the interception/state-cache system, irrespective of
+    caller assembly. Missing interception or missing state-effect propagation is a correctness bug to fix
+    at that boundary, not a supported external-mutation mode or justification for routine purging/recapture.
+    This is the required contract, not a claim that current interception coverage has already been verified.
   - Uppercase RHI in interface names/directories. OpenGlStateCache is backend-specific; existing GPU
     resource names and the implemented GpuTextureRef contract remain. No parallel resource hierarchy.
   - Managed execution uses OpenTK.Graphics.OpenGL4 and core 4.5 directly. Optional features beyond 4.5
@@ -641,7 +646,7 @@ Phase 8: Close resource-wrapper and helper RHI boundary violations
   Authority: the approved proposal, final contracts and the wrapper-dependency audit findings.
   Outcome: owners retain allocation policy and manager-owned lifetimes, while execution, cache policy,
     acquisition orchestration and native diagnostics enter through their final RHI boundaries.
-  Subphases 8a–8f are dependency-ordered correction units; 8g qualifies their combined result.
+  Subphases 8a–8g are dependency-ordered correction units; 8h qualifies their combined result.
   Apply the mandatory no-shim contract to every unit, including callers, tests and obsolete API removal.
   Earlier source-closure receipts do not exempt any of the sites explicitly listed below.
 
@@ -651,16 +656,18 @@ Phase 8a: Route framebuffer cache policy and frame lifecycle through RHI
   ☐ Remove direct OpenGlStateCache guards from GpuFramebuffer.SetAttachmentCore, RemoveAttachmentCore,
     ResizeCore and Bind. Enforce mutable/immutable configuration admission at the final RHI operation
     boundary, preserving rejection before effects and existing restoration/suppression behavior.
-  ☐ Move routing invalidation out of GpuFramebuffer.OnBeforeDelete, OnDetached,
+  ☐ Remove wrapper-owned routing invalidation from GpuFramebuffer.OnBeforeDelete, OnDetached,
     PublishRenderPassMetadata and RefreshWrappedFramebuffer. Preserve old/new identity handling and
     exactly-once publication; wrappers must not compose backend cache effects around an RHI call.
+    Apply 8g's removal policy: retain a backend effect only for actual retirement or established uncertainty,
+    not merely because ownership, attachments or publication changed.
   ☐ Remove StaticGpuFramebuffer.configurationOwner and direct RegisterImmutableFramebuffer /
     UnregisterImmutableFramebuffer calls in construction, ReleaseConfiguration and OnContextRetiring.
     Keep one immutable-configuration authority beneath RHI with original-context retirement, balanced
     backing guards and correct failure cleanup; retain owner allocation/attachment policy above it.
-  ☐ Replace ScreenResourceManager.HandleScreenResize's direct InvalidateAll and
-    GpuUniformRingBeginRenderer.OnRenderFrame's direct BeginFrame with final semantic lifecycle routes.
-    Preserve callback ordering, uniform epochs and selective knowledge handling without a cache escape hatch.
+  ☐ Preserve screen callback ordering and uniform epochs through their existing lifecycle owners.
+    Remove the redundant resize/frame cache purges under 8g; do not introduce semantic lifecycle methods
+    whose purpose is to forward the same blanket invalidation through RHI.
   ☐ Route GpuProgram.RequireOutsideSubmission's direct RequireOutsideEngineBoundary guard through RHI.
     Inspect the analogous EngineGeometryInputs guard against its explicit integration contract; retain
     backend cache access only beneath the admitted integration/execution boundary, not in an alternate caller.
@@ -772,8 +779,69 @@ Phase 8f: Preserve legitimate manager ownership and close affected caller depend
     APIs and imports in its owning correction unit. No forwarding facade, compatibility alias, duplicate
     registry, dispatcher, cache or delayed shim-removal task is permitted.
 
-Phase 8g: Qualify corrective closure and reconcile documentation
+Phase 8g: Remove legacy state purges and complete intercepted state propagation
   Depends on 8a–8f.
+
+  ☐ Remove GpuUniformRingBeginRenderer.OnRenderFrame's OpenGlStateCache.BeginFrame call and delete the
+    cache BeginFrame/PurgeCache methods once their callers are removed. Keep controller.BeginFrame and
+    uniform allocation/publication epochs intact. Frame transitions do not invalidate executed binding,
+    framebuffer-routing or pixel-pack knowledge; do not replace the purge with an RHI forwarding operation.
+  ☐ Remove ScreenResourceManager.HandleScreenResize's InvalidateAll. Preserve known state across ordinary
+    resize and retain only affected resource retirement/replacement or explicit window-surface effects.
+    Distinguish resizing from context recreation; no blanket resize recapture or duplicate knowledge store.
+  ☐ Reconcile VanillaGraphicsExpandedModSystem.StartClientSide's InvalidateAll with context admission.
+    Verify initialization order and initial unknown knowledge, then remove the duplicate reset; establish
+    context identity before cached state is consumed rather than depending on a caller-owned startup purge.
+  ☐ Remove GpuFramebuffer.OnDetached's routing invalidation when only wrapper ownership transfers.
+    Remove OnBeforeDelete's duplicate invalidation in favor of the retirement/deletion authority, preserving
+    queued original-context retirement and the distinction between logical retirement and native deletion.
+  ☐ Remove unconditional routing invalidation from PublishRenderPassMetadata and RefreshWrappedFramebuffer
+    when attachment publication or observed replacement provides no evidence that routing became unknown.
+    Preserve routes for still-live original associations; deletion/name reuse must never reuse an old route.
+    Do not retain targeted recovery merely because another mod may have changed routing: runtime GL
+    mutations must already be observed. Retain acquisition only for genuinely unavailable initial facts
+    or justified operation outcomes under the approved query policy.
+  ☐ Inventory remaining broad resets and recapture callers, including indirect helper chains, and classify
+    their actual cause. Assume complete GL interception across project, engine and third-party mod callers.
+    Audit EngineStateTargets' selected-assembly rewriting and all other interception entry paths against
+    this invariant; close coverage gaps, including calls from other mods, as correctness bugs in this unit.
+    Do not preserve an unobserved-runtime-mutation recovery mode or use blanket purges to mask missing hooks.
+    Retain explicit acquisition for initially unknown facts and knowledge reset on context identity changes.
+  ☐ Inventory interception handlers that forget affected state and later query it instead of propagating
+    command effects. Include BeginNativeFramebufferRouting/NativeFramebufferRouting.Complete,
+    OpenGLPixelStoreCalls.InvalidatePixelTransferLayout and analogous binding, selector, fixed-function
+    and resource-configuration handlers. Record each forgotten field, its command inputs/defined effects,
+    downstream recapture and whether any genuine outcome uncertainty requires acquisition.
+  ☐ Replace unnecessary field-level invalidation/readback with direct updates to the existing authoritative
+    cache or manager snapshot from intercepted arguments, guaranteed defaults and defined derived effects.
+    Cover framebuffer draw routing, integer/float pixel-store semantics, binding aliases and indexed/object-
+    local effects; preserve exact overload arguments/errors, ordering, context identity and exactly-once
+    dispatch/publication. Do not assume native return alone proves acceptance or publish guesses after failure.
+    Use the approved operation/query policy without universal GetError/Is* probes, retry, a second cache
+    or requested/actual duplicate metadata. Complete each handler and dependent reader migration together.
+  ☐ Consolidate resource deletion handling into its single observed retirement/deletion path. Preserve
+    logical-versus-native retirement and remove only affected bindings/routes/dependencies; wrapper cleanup
+    must not discard unrelated knowledge or treat detach as deletion. Never reuse facts after name reuse.
+  ☐ Retain only justified uncertainty after failed commands/restoration, genuinely unavailable initial
+    facts, context identity changes and outcomes that cannot be established under the approved query policy.
+    Document the reason at remaining invalidation/acquisition sites; current invalidate-and-query behavior
+    is not itself justification for retaining it. Preserve boundary snapshots/restoration, reuse known
+    values and query only genuinely missing facts; another mod's observed mutation is not missing knowledge.
+  ☐ Run delegated focused regressions showing known bindings/routing/layout survive frame boundaries and
+    ordinary resize without repeat state queries, while uniform epochs still advance. Cover startup order,
+    genuine context switches, initially unknown state, GL calls originating in other mods, detach, queued
+    retirement, deletion/name reuse and failed restoration. Verify those calls update the same cache without
+    purge/recapture. Include intercepted routing, pixel-store and binding changes followed by boundary
+    capture/restore and repeated operations: assert correct native state, no avoidable readback and preserved
+    suppression. Exercise rejected/failed commands to ensure truthful cache knowledge and unchanged errors.
+    Use existing diagnostic/test seams; no new counters, benchmarks or timing gates.
+  ☐ Completion: routine frame/resize/startup ownership no longer discards valid intercepted knowledge;
+    obsolete purge APIs/callers are removed, complete caller interception gaps are fixed, and intercepted
+    effects update authoritative knowledge without unnecessary field-level invalidation/readback. Required
+    initial acquisition, operation-outcome uncertainty and restoration remain intact.
+
+Phase 8h: Qualify corrective closure and reconcile documentation
+  Depends on 8a–8g.
 
   ☐ Record before/after routes for every named audit finding and any additional helper-chain occurrence.
     Review actual dependency direction as well as native execution location; demonstrate one admitted
@@ -792,7 +860,7 @@ Phase 8g: Qualify corrective closure and reconcile documentation
     retained manager lifetimes, no alternate owner-side execution/acquisition route and no temporary shim.
 
 Phase 9: Qualify integrated behavior and release artifacts
-  Depends on Phase 8, including subphases 8a–8g.
+  Depends on Phase 8, including subphases 8a–8h.
   Outcome: correctness, package identity and outstanding live evidence are explicit.
 
   ☐ Run delegated focused and integrated regressions on an immutable candidate, covering all family receipts,
@@ -833,7 +901,8 @@ Proposal coverage map
   Geometry, attachment targets and immediate submission: Phase 5; recorded consumption in 6.
   Uniform capture, physical publication and history: Phase 5; recording/epoch/cancellation tests in 6.
   Recording, ownership transfer, tickets, failure and CPU/GPU completion: Phases 4/6.
-  Dependency inversion for manager services, wrappers and semantic RHI objects: subphases 5b–5e and 8a–8g.
+  Dependency inversion for manager services, wrappers and semantic RHI objects: subphases 5b–5e and 8a–8h.
+  Persistent intercepted-state knowledge and removal of obsolete frame/resize/startup purges: subphase 8g.
   Native dispatch, publication, exact integration and no-shim migration: mandatory receipts, Phases 2–8.
   Representative outcomes, efficient-execution checks, package and user-run qualification: Phase 9, supported
     by focused verification and current-state documentation in every owning migration unit.

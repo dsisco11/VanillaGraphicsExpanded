@@ -8,6 +8,13 @@ throwing placeholder or old-executor forwarding facade is introduced merely to d
 
 ## Authority and ownership
 
+Complete GL interception is a required architectural invariant. GL calls from project code, the engine
+and other mods must reach the same interception/state-cache authority regardless of caller assembly.
+Missing interception or state-effect propagation is a correctness bug; routine invalidation/recapture
+must not compensate for it. Initial unknown facts, context identity changes and uncertain operation
+outcomes retain their explicit acquisition/invalidation rules. This defines the required contract,
+not a statement that the current implementation's coverage has already been qualified.
+
 The proposal controls semantics. Existing [resource](Rendering.GpuResources.md) and
 [binding](Rendering.ShaderBindingState.md#prepared-resource-submission) contracts control retained
 metadata, ownership and publication behavior. The creation/publication proposal at
