@@ -104,7 +104,7 @@ public sealed class FramebufferRoutingDsaTests(HeadlessGLFixture fixture,ITestOu
         /// <summary>Creates independently owned images and framebuffers without any shader or legacy pipeline fixture.</summary>
         internal RoutingScene()
         {
-            images=Enumerable.Range(0,4).Select(_=>Own(RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba32f, Width = System.Math.Max(1, 2), Height = System.Math.Max(1, 2), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource())).ToArray();
+            images=Enumerable.Range(0,4).Select(_=>Own(RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba32f, Width = System.Math.Max(1, 2), Height = System.Math.Max(1, 2), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource())).ToArray();
             targets=[Own(DynamicGpuFramebuffer.CreateMRT(images.Take(2).ToArray())!),Own(DynamicGpuFramebuffer.CreateMRT(images.Skip(2).ToArray())!)];
             incoming=CreateTarget();read=CreateTarget();
         }
@@ -157,7 +157,7 @@ public sealed class FramebufferRoutingDsaTests(HeadlessGLFixture fixture,ITestOu
         /// <summary>Authors a different output route and clear value for each target.</summary>
         private RenderPassDesc Description(int index)=>new(targets[index],[new(index,AttachmentLoad.Clear,Clear:ColorClearValue.Float(.25f*(index+1),.5f,.75f,1))]);
         /// <summary>Creates a separate incoming native framebuffer image.</summary>
-        private GpuFramebuffer CreateTarget(){var image=Own(RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba32f, Width = System.Math.Max(1, 2), Height = System.Math.Max(1, 2), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource());return Own(DynamicGpuFramebuffer.CreateSingle(image)!);}
+        private GpuFramebuffer CreateTarget(){var image=Own(RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba32f, Width = System.Math.Max(1, 2), Height = System.Math.Max(1, 2), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource());return Own(DynamicGpuFramebuffer.CreateSingle(image)!);}
         /// <summary>Retains fixture allocation ownership in dependency order.</summary>
         private T Own<T>(T value)where T:IDisposable{owned.Add(value);return value;}
         #endregion

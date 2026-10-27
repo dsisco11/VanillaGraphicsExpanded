@@ -33,7 +33,7 @@ internal sealed class GpuTimestampQuery : IDisposable
     /// </summary>
     public static GpuTimestampQuery Create(string? debugName = null)
     {
-        return new GpuTimestampQuery(RHICommandContext.Current.CreateQuery(new(RHIQueryKind.Timestamp, debugName)).RequireResource());
+        return new GpuTimestampQuery(RHICommandContext.Current.CreateQuery(new(QueryKind.Timestamp, debugName)).RequireResource());
     }
 
     /// <summary>
@@ -60,7 +60,7 @@ internal sealed class GpuTimestampQuery : IDisposable
             return false;
         }
 
-        return result?.Poll() == RHICompletionStatus.Ready;
+        return result?.Poll() == CompletionStatus.Ready;
     }
 
     /// <summary>
@@ -73,7 +73,7 @@ internal sealed class GpuTimestampQuery : IDisposable
             return 0;
         }
 
-        if (result is null || result.Wait() != RHICompletionStatus.Ready)
+        if (result is null || result.Wait() != CompletionStatus.Ready)
             throw new InvalidOperationException("Query completion failed.", result?.Error);
         return checked((long)result.Result);
     }

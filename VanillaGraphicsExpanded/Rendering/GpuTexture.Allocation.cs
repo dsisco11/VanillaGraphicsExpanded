@@ -25,7 +25,7 @@ public abstract partial class GpuTexture
         var request = new RHI.RHITextureDescription
         {
             Dimension = RHI.Backends.OpenGL.OpenGLImageValues.Dimension(target), Format = RHI.Backends.OpenGL.OpenGLImageValues.Format(format),
-            Width = width, Height = height, MipLevels = Math.Max(1, mipLevels), Storage = RHI.RHIStorageMode.Mutable,
+            Width = width, Height = height, MipLevels = Math.Max(1, mipLevels), Storage = RHI.ResourceStorageMode.Mutable,
             Filter = filterMode, BaseLevel = 0, MaxLevel = Math.Max(1, mipLevels) - 1, Label = debugName
         };
         if (textureId == 0) RHI.RHICommandContext.Current.OpenGL.InitializeTextureOwner(this, request);

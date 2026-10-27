@@ -10,13 +10,13 @@ using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 
 namespace VanillaGraphicsExpanded.Tests.GPU;
 
-/// <summary>Verifies pass borrowing, target compatibility, mutation guards, and failed setup cleanup.</summary>
+/// <summary>Checks attachment intention realization, private target reuse, mutation guards and cleanup through the final context.</summary>
 [Collection("GPU")]
 [Trait("Category", "GPU")]
 public sealed class RenderPassLifetimeTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
     #region Public API
-    /// <summary>A retained pipeline accepts different IDs and dimensions but rejects format and sample changes.</summary>
+    /// <summary>Load actions do not change target identity; replacing the same storage owner invalidates its realization.</summary>
     [Fact]
     public void PipelineReusesCompatibleTargetsAndRefreshesDimensions()
     {
@@ -43,7 +43,7 @@ public sealed class RenderPassLifetimeTests(HeadlessGLFixture fixture) : RenderT
             using var pass = RenderPass.Begin(new(first, [new(0)]), boundary);
             pass.ValidatePipeline(pipeline); Assert.Equal(7, pass.Area.Width); Assert.Equal(4, pass.Viewport.Height);
         });
-        using var replacementStorage = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba32f, Width = System.Math.Max(1, 7), Height = System.Math.Max(1, 4), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
+        using var replacementStorage = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba32f, Width = System.Math.Max(1, 7), Height = System.Math.Max(1, 4), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         using var replacement = GpuFramebufferAttachment.FromTexture(replacementStorage);
         first.SetAttachment(FramebufferAttachment.ColorAttachment0, replacement);
         RenderPassTestBoundary.Run(boundary =>
@@ -51,7 +51,7 @@ public sealed class RenderPassLifetimeTests(HeadlessGLFixture fixture) : RenderT
             using var pass = RenderPass.Begin(new(first, [new(0)]), boundary);
             Assert.Throws<InvalidOperationException>(() => pass.ValidatePipeline(pipeline));
         });
-        using var multisampleStorage = RHICommandContext.Current.CreateRenderbuffer(new RHIRenderbufferDescription { Format = RHIFormat.Rgba16f, Width = 7, Height = 4, Samples = 4, Label = null }).RequireResource();
+        using var multisampleStorage = RHICommandContext.Current.CreateRenderbuffer(new RHIRenderbufferDescription { Format = TextureFormat.Rgba16f, Width = 7, Height = 4, Samples = 4, Label = null }).RequireResource();
         using var multisample = GpuFramebufferAttachment.FromRenderbuffer(multisampleStorage);
         first.SetAttachment(FramebufferAttachment.ColorAttachment0, multisample);
         RenderPassTestBoundary.Run(boundary =>
@@ -62,16 +62,16 @@ public sealed class RenderPassLifetimeTests(HeadlessGLFixture fixture) : RenderT
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
 
-    /// <summary>Active passes reject mutation and release all borrowing on normal and exceptional exits.</summary>
+    /// <summary>Pass guards hold original image storage on success and failure without transferring its ownership.</summary>
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
     public void ActiveBorrowGuardsMutationsAndEndsWithoutDisposal(bool fail)
     {
         EnsureContextValid();
-        using var texture = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba8, Width = System.Math.Max(1, 4), Height = System.Math.Max(1, 4), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
+        using var texture = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba8, Width = System.Math.Max(1, 4), Height = System.Math.Max(1, 4), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         using var target = DynamicGpuFramebuffer.CreateSingle(texture)!;
-        using var replacementStorage = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba8, Width = System.Math.Max(1, 4), Height = System.Math.Max(1, 4), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
+        using var replacementStorage = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba8, Width = System.Math.Max(1, 4), Height = System.Math.Max(1, 4), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         using var replacement = GpuFramebufferAttachment.FromTexture(replacementStorage);
         var expected = new InvalidOperationException("fixture body");
         void Run() => RenderPassTestBoundary.Run(boundary =>
@@ -143,7 +143,7 @@ public sealed class RenderPassLifetimeTests(HeadlessGLFixture fixture) : RenderT
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
 
-    /// <summary>Bad clear types and render extents fail without modifying contents or blocking a subsequent valid pass.</summary>
+    /// <summary>Retired original references and bad clear/area intentions fail before any incoming selector or contents change.</summary>
     [Fact]
     public void InvalidSetupPreservesContentsAndBindings()
     {
@@ -166,14 +166,16 @@ public sealed class RenderPassLifetimeTests(HeadlessGLFixture fixture) : RenderT
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
 
-    /// <summary>Boundary cleanup ends an undisposed pass and restores the target's original sparse routing.</summary>
+    /// <summary>External targets require explicit metadata publication and restore their original sparse route at boundary exit.</summary>
     [Fact]
     public void BoundaryCleanupRestoresRoutingAndReleasesBorrow()
     {
         EnsureContextValid();
         using var target = CreateMRTRenderTarget(4, 4, PixelInternalFormat.Rgba8, PixelInternalFormat.Rgba8);
         using var incoming = CreateRenderTarget(2, 2, PixelInternalFormat.Rgba8);
-        target.Bind(); GL.DrawBuffers(3, [DrawBuffersEnum.None, DrawBuffersEnum.ColorAttachment1, DrawBuffersEnum.ColorAttachment0]); StateCache.Current.Invalidate(EPipelineState.FramebufferRouting);
+        target.Bind();
+        GL.DrawBuffers(3, [DrawBuffersEnum.None, DrawBuffersEnum.ColorAttachment1, DrawBuffersEnum.ColorAttachment0]);
+        StateCache.Current.Invalidate(EPipelineState.FramebufferRouting);
         incoming.Bind();
         RenderPass? retained = null;
         RenderPassTestBoundary.Run(boundary => retained = RenderPass.Begin(new(target, [new(0), new(1)]), boundary));
@@ -192,12 +194,12 @@ public sealed class RenderPassLifetimeTests(HeadlessGLFixture fixture) : RenderT
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
 
-    /// <summary>Packed storage attached only to depth must not advertise an unattached stencil aspect.</summary>
+    /// <summary>Incompatible layered target creation leaves no active pass, leaked storage guard or changed incoming framebuffer.</summary>
     [Fact]
     public void PackedStorageSignatureUsesAttachedAspects()
     {
         EnsureContextValid();
-        using var storage = RHICommandContext.Current.CreateRenderbuffer(new RHIRenderbufferDescription { Format = RHIFormat.Depth24Stencil8, Width = 4, Height = 4, Samples = 0, Label = null }).RequireResource();
+        using var storage = RHICommandContext.Current.CreateRenderbuffer(new RHIRenderbufferDescription { Format = TextureFormat.Depth24Stencil8, Width = 4, Height = 4, Samples = 0, Label = null }).RequireResource();
         using var image = GpuFramebufferAttachment.FromRenderbuffer(storage);
         using var target = DynamicGpuFramebuffer.CreateEmpty();
         target.SetAttachment(FramebufferAttachment.DepthAttachment, image);
@@ -209,14 +211,14 @@ public sealed class RenderPassLifetimeTests(HeadlessGLFixture fixture) : RenderT
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
 
-    /// <summary>Target compatibility uses the driver's realized sample count, including rounded requests and ordinary storage.</summary>
+    /// <summary>Published target compatibility reports the realized sample count without another descriptor query.</summary>
     [Theory]
     [InlineData(0)]
     [InlineData(1)]
     public void SignatureUsesRealizedRenderbufferSamples(int requestedSamples)
     {
         EnsureContextValid();
-        using var storage = RHICommandContext.Current.CreateRenderbuffer(new RHIRenderbufferDescription { Format = RHIFormat.Rgba8, Width = 4, Height = 4, Samples = requestedSamples, Label = null }).RequireResource();
+        using var storage = RHICommandContext.Current.CreateRenderbuffer(new RHIRenderbufferDescription { Format = TextureFormat.Rgba8, Width = 4, Height = 4, Samples = requestedSamples, Label = null }).RequireResource();
         using var image = GpuFramebufferAttachment.FromRenderbuffer(storage);
         using var target = DynamicGpuFramebuffer.CreateEmpty();
         target.SetAttachment(FramebufferAttachment.ColorAttachment0, image);
@@ -240,9 +242,9 @@ public sealed class RenderPassLifetimeTests(HeadlessGLFixture fixture) : RenderT
     public void NativeIncompleteSetupRestoresRoutingAndBindings()
     {
         EnsureContextValid();
-        using var layered = RHICommandContext.Current.CreateDynamicTexture3D(new RHITextureDescription { Dimension = RHITextureDimension.TwoArray, Format = RHIFormat.Rgba8, Width = System.Math.Max(1, 4), Height = System.Math.Max(1, 4), Depth = System.Math.Max(1, 2), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Linear, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
-        using var flat = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba8, Width = System.Math.Max(1, 4), Height = System.Math.Max(1, 4), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
-        using var original = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba8, Width = System.Math.Max(1, 4), Height = System.Math.Max(1, 4), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
+        using var layered = RHICommandContext.Current.CreateDynamicTexture3D(new RHITextureDescription { Dimension = TextureDimension.TwoArray, Format = TextureFormat.Rgba8, Width = System.Math.Max(1, 4), Height = System.Math.Max(1, 4), Depth = System.Math.Max(1, 2), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Linear, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
+        using var flat = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba8, Width = System.Math.Max(1, 4), Height = System.Math.Max(1, 4), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
+        using var original = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba8, Width = System.Math.Max(1, 4), Height = System.Math.Max(1, 4), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         using var image = GpuFramebufferAttachment.FromTexture(layered);
         using var flatImage = GpuFramebufferAttachment.FromTexture(flat);
         using var originalImage = GpuFramebufferAttachment.FromTexture(original);

@@ -360,7 +360,7 @@ public class DynamicTexture2D : GpuTexture
         // The request owns staging independently; only completed bytes are exposed to CPU readers.
         using var request = RHICommandContext.Current.EnqueueReadback(new RHIReadbackDescription(this,
             new(new(0), 0, 0, 0, width, height, 1), OpenGLPixelValues.Encoding(ReadbackFormat, PixelType.Float)));
-        if (request.Wait() != RHICompletionStatus.Ready)
+        if (request.Wait() != CompletionStatus.Ready)
             throw new InvalidOperationException("Texture readback did not complete.", request.Error);
         using var mapping = request.MapReadyReadback();
         return System.Runtime.InteropServices.MemoryMarshal.Cast<byte, float>(mapping.Bytes).ToArray();
@@ -376,7 +376,7 @@ public class DynamicTexture2D : GpuTexture
         // The request owns staging independently; only completed bytes are exposed to CPU readers.
         using var request = RHICommandContext.Current.EnqueueReadback(new RHIReadbackDescription(this,
             new(new(0), x, y, 0, regionWidth, regionHeight, 1), OpenGLPixelValues.Encoding(ReadbackFormat, PixelType.Float)));
-        if (request.Wait() != RHICompletionStatus.Ready)
+        if (request.Wait() != CompletionStatus.Ready)
             throw new InvalidOperationException("Texture readback did not complete.", request.Error);
         using var mapping = request.MapReadyReadback();
         return System.Runtime.InteropServices.MemoryMarshal.Cast<byte, float>(mapping.Bytes).ToArray();
@@ -392,7 +392,7 @@ public class DynamicTexture2D : GpuTexture
         // The request owns staging independently; only completed bytes are exposed to CPU readers.
         using var request = RHICommandContext.Current.EnqueueReadback(new RHIReadbackDescription(this,
             new(new(mipLevel), 0, 0, 0, Math.Max(1, width >> mipLevel), Math.Max(1, height >> mipLevel), 1), OpenGLPixelValues.Encoding(ReadbackFormat, PixelType.Float)));
-        if (request.Wait() != RHICompletionStatus.Ready)
+        if (request.Wait() != CompletionStatus.Ready)
             throw new InvalidOperationException("Texture readback did not complete.", request.Error);
         using var mapping = request.MapReadyReadback();
         return System.Runtime.InteropServices.MemoryMarshal.Cast<byte, float>(mapping.Bytes).ToArray();

@@ -35,12 +35,12 @@ public sealed class LumonSceneVoxelCaptureComputeTests : RenderTestBase
         const int tilesPerAtlas = 1;
         const int atlasCount = 1;
 
-        using var depthAtlas = RHICommandContext.Current.CreateTexture3D(new RHITextureDescription { Dimension = RHITextureDimension.TwoArray, Format = RHIFormat.R16f, Width = System.Math.Max(1, tileSize), Height = System.Math.Max(1, tileSize), Depth = System.Math.Max(1, atlasCount), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "Test_DepthAtlas" }).RequireResource();
-        using var materialAtlas = RHICommandContext.Current.CreateTexture3D(new RHITextureDescription { Dimension = RHITextureDimension.TwoArray, Format = RHIFormat.Rgba8, Width = System.Math.Max(1, tileSize), Height = System.Math.Max(1, tileSize), Depth = System.Math.Max(1, atlasCount), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "Test_MaterialAtlas" }).RequireResource();
+        using var depthAtlas = RHICommandContext.Current.CreateTexture3D(new RHITextureDescription { Dimension = TextureDimension.TwoArray, Format = TextureFormat.R16f, Width = System.Math.Max(1, tileSize), Height = System.Math.Max(1, tileSize), Depth = System.Math.Max(1, atlasCount), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "Test_DepthAtlas" }).RequireResource();
+        using var materialAtlas = RHICommandContext.Current.CreateTexture3D(new RHITextureDescription { Dimension = TextureDimension.TwoArray, Format = TextureFormat.Rgba8, Width = System.Math.Max(1, tileSize), Height = System.Math.Max(1, tileSize), Depth = System.Math.Max(1, atlasCount), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "Test_MaterialAtlas" }).RequireResource();
 
         const int occRes = 32;
-        using var occL0 = RHICommandContext.Current.CreateTexture3D(new RHITextureDescription { Dimension = RHITextureDimension.Three, Format = RHIFormat.R32ui, Width = System.Math.Max(1, occRes), Height = System.Math.Max(1, occRes), Depth = System.Math.Max(1, occRes), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "Test_OccL0" }).RequireResource();
-        using var materialPalette = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba32ui, Width = System.Math.Max(1, 64), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "Test_MaterialPalette" }).RequireResource();
+        using var occL0 = RHICommandContext.Current.CreateTexture3D(new RHITextureDescription { Dimension = TextureDimension.Three, Format = TextureFormat.R32ui, Width = System.Math.Max(1, occRes), Height = System.Math.Max(1, occRes), Depth = System.Math.Max(1, occRes), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "Test_OccL0" }).RequireResource();
+        using var materialPalette = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba32ui, Width = System.Math.Max(1, 64), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "Test_MaterialPalette" }).RequireResource();
 
         ClearR16f2DArray(depthAtlas.TextureId, tileSize, tileSize, atlasCount, value: 1f);
         ClearRgba8_2DArray(materialAtlas.TextureId, tileSize, tileSize, atlasCount, r: 0, g: 0, b: 0, a: 0);
@@ -118,8 +118,8 @@ public sealed class LumonSceneVoxelCaptureComputeTests : RenderTestBase
         int w = tileSize * tilesPerAxis;
         int h = tileSize * tilesPerAxis;
 
-        using var depthAtlas = RHICommandContext.Current.CreateTexture3D(new RHITextureDescription { Dimension = RHITextureDimension.TwoArray, Format = RHIFormat.R16f, Width = System.Math.Max(1, w), Height = System.Math.Max(1, h), Depth = System.Math.Max(1, atlasCount), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "Test_DepthAtlas" }).RequireResource();
-        using var materialAtlas = RHICommandContext.Current.CreateTexture3D(new RHITextureDescription { Dimension = RHITextureDimension.TwoArray, Format = RHIFormat.Rgba8, Width = System.Math.Max(1, w), Height = System.Math.Max(1, h), Depth = System.Math.Max(1, atlasCount), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "Test_MaterialAtlas" }).RequireResource();
+        using var depthAtlas = RHICommandContext.Current.CreateTexture3D(new RHITextureDescription { Dimension = TextureDimension.TwoArray, Format = TextureFormat.R16f, Width = System.Math.Max(1, w), Height = System.Math.Max(1, h), Depth = System.Math.Max(1, atlasCount), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "Test_DepthAtlas" }).RequireResource();
+        using var materialAtlas = RHICommandContext.Current.CreateTexture3D(new RHITextureDescription { Dimension = TextureDimension.TwoArray, Format = TextureFormat.Rgba8, Width = System.Math.Max(1, w), Height = System.Math.Max(1, h), Depth = System.Math.Max(1, atlasCount), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "Test_MaterialAtlas" }).RequireResource();
         ClearR16f2DArray(depthAtlas.TextureId, w, h, atlasCount, value: 1f);
         ClearRgba8_2DArray(materialAtlas.TextureId, w, h, atlasCount, r: 0, g: 0, b: 0, a: 0);
 
@@ -151,7 +151,7 @@ public sealed class LumonSceneVoxelCaptureComputeTests : RenderTestBase
 
         GpuTestFence.WaitForGpuOrSkip("VoxelCapture dispatch (multi-slice)");
 
-        using var mapped = patchMetaSsbo.MapRange<LumonScenePatchMetadataGpu>(dstOffsetBytes: 0, elementCount: 3, access: RHIBufferMapAccess.Read);
+        using var mapped = patchMetaSsbo.MapRange<LumonScenePatchMetadataGpu>(dstOffsetBytes: 0, elementCount: 3, access: BufferMapAccess.Read);
         Assert.True(mapped.IsMapped);
 
         LumonScenePatchMetadataGpu m0 = mapped.Span[1];
@@ -192,11 +192,11 @@ public sealed class LumonSceneVoxelCaptureComputeTests : RenderTestBase
         int w = tileSize * tilesPerAxis;
         int h = tileSize * tilesPerAxis;
 
-        using var depthAtlas = RHICommandContext.Current.CreateTexture3D(new RHITextureDescription { Dimension = RHITextureDimension.TwoArray, Format = RHIFormat.R16f, Width = System.Math.Max(1, w), Height = System.Math.Max(1, h), Depth = System.Math.Max(1, atlasCount), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "Test_DepthAtlas" }).RequireResource();
-        using var materialAtlas = RHICommandContext.Current.CreateTexture3D(new RHITextureDescription { Dimension = RHITextureDimension.TwoArray, Format = RHIFormat.Rgba8, Width = System.Math.Max(1, w), Height = System.Math.Max(1, h), Depth = System.Math.Max(1, atlasCount), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "Test_MaterialAtlas" }).RequireResource();
+        using var depthAtlas = RHICommandContext.Current.CreateTexture3D(new RHITextureDescription { Dimension = TextureDimension.TwoArray, Format = TextureFormat.R16f, Width = System.Math.Max(1, w), Height = System.Math.Max(1, h), Depth = System.Math.Max(1, atlasCount), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "Test_DepthAtlas" }).RequireResource();
+        using var materialAtlas = RHICommandContext.Current.CreateTexture3D(new RHITextureDescription { Dimension = TextureDimension.TwoArray, Format = TextureFormat.Rgba8, Width = System.Math.Max(1, w), Height = System.Math.Max(1, h), Depth = System.Math.Max(1, atlasCount), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "Test_MaterialAtlas" }).RequireResource();
         const int occRes = 32;
-        using var occL0 = RHICommandContext.Current.CreateTexture3D(new RHITextureDescription { Dimension = RHITextureDimension.Three, Format = RHIFormat.R32ui, Width = System.Math.Max(1, occRes), Height = System.Math.Max(1, occRes), Depth = System.Math.Max(1, occRes), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "Test_OccL0" }).RequireResource();
-        using var materialPalette = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba32ui, Width = System.Math.Max(1, 64), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "Test_MaterialPalette" }).RequireResource();
+        using var occL0 = RHICommandContext.Current.CreateTexture3D(new RHITextureDescription { Dimension = TextureDimension.Three, Format = TextureFormat.R32ui, Width = System.Math.Max(1, occRes), Height = System.Math.Max(1, occRes), Depth = System.Math.Max(1, occRes), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "Test_OccL0" }).RequireResource();
+        using var materialPalette = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba32ui, Width = System.Math.Max(1, 64), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "Test_MaterialPalette" }).RequireResource();
 
         ClearR16f2DArray(depthAtlas.TextureId, w, h, atlasCount, value: 1f);
         ClearRgba8_2DArray(materialAtlas.TextureId, w, h, atlasCount, r: 0, g: 0, b: 0, a: 0);
@@ -286,11 +286,11 @@ public sealed class LumonSceneVoxelCaptureComputeTests : RenderTestBase
 
         const int tileSize = 16;
 
-        using var depthAtlas = RHICommandContext.Current.CreateTexture3D(new RHITextureDescription { Dimension = RHITextureDimension.TwoArray, Format = RHIFormat.R16f, Width = System.Math.Max(1, tileSize), Height = System.Math.Max(1, tileSize), Depth = System.Math.Max(1, 1), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "Test_DepthAtlas" }).RequireResource();
-        using var materialAtlas = RHICommandContext.Current.CreateTexture3D(new RHITextureDescription { Dimension = RHITextureDimension.TwoArray, Format = RHIFormat.Rgba8, Width = System.Math.Max(1, tileSize), Height = System.Math.Max(1, tileSize), Depth = System.Math.Max(1, 1), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "Test_MaterialAtlas" }).RequireResource();
+        using var depthAtlas = RHICommandContext.Current.CreateTexture3D(new RHITextureDescription { Dimension = TextureDimension.TwoArray, Format = TextureFormat.R16f, Width = System.Math.Max(1, tileSize), Height = System.Math.Max(1, tileSize), Depth = System.Math.Max(1, 1), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "Test_DepthAtlas" }).RequireResource();
+        using var materialAtlas = RHICommandContext.Current.CreateTexture3D(new RHITextureDescription { Dimension = TextureDimension.TwoArray, Format = TextureFormat.Rgba8, Width = System.Math.Max(1, tileSize), Height = System.Math.Max(1, tileSize), Depth = System.Math.Max(1, 1), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "Test_MaterialAtlas" }).RequireResource();
         const int occRes = 32;
-        using var occL0 = RHICommandContext.Current.CreateTexture3D(new RHITextureDescription { Dimension = RHITextureDimension.Three, Format = RHIFormat.R32ui, Width = System.Math.Max(1, occRes), Height = System.Math.Max(1, occRes), Depth = System.Math.Max(1, occRes), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "Test_OccL0" }).RequireResource();
-        using var materialPalette = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba32ui, Width = System.Math.Max(1, 64), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "Test_MaterialPalette" }).RequireResource();
+        using var occL0 = RHICommandContext.Current.CreateTexture3D(new RHITextureDescription { Dimension = TextureDimension.Three, Format = TextureFormat.R32ui, Width = System.Math.Max(1, occRes), Height = System.Math.Max(1, occRes), Depth = System.Math.Max(1, occRes), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "Test_OccL0" }).RequireResource();
+        using var materialPalette = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba32ui, Width = System.Math.Max(1, 64), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "Test_MaterialPalette" }).RequireResource();
 
         ClearR16f2DArray(depthAtlas.TextureId, tileSize, tileSize, depth: 1, value: 1f);
         ClearRgba8_2DArray(materialAtlas.TextureId, tileSize, tileSize, depth: 1, r: 0, g: 0, b: 0, a: 0);
@@ -345,7 +345,7 @@ public sealed class LumonSceneVoxelCaptureComputeTests : RenderTestBase
 
     private static GpuShaderStorageBuffer CreateSsbo<T>(string name, ReadOnlySpan<T> data) where T : unmanaged
     {
-        var ssbo = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = name }).RequireResource();
+        var ssbo = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = name }).RequireResource();
         int bytes = checked(data.Length * Marshal.SizeOf<T>());
         ssbo.EnsureCapacity(bytes, growExponentially: false);
         ssbo.UploadSubData(data, dstOffsetBytes: 0, byteCount: bytes);

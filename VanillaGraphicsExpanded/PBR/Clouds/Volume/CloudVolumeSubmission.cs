@@ -62,9 +62,9 @@ internal sealed class CloudVolumeSubmission
     /// <summary>Closes each producer once for image, sampler, metadata, upload and indirect-command consumers.</summary>
     private void Barrier()
     {
-        RHICommandContext.Current.Barrier(new(RHIAccess.Image|
-            RHIAccess.TextureFetch|RHIAccess.ShaderStorage|
-            RHIAccess.BufferUpdate|RHIAccess.TextureUpdate|RHIAccess.Indirect));
+        RHICommandContext.Current.Barrier(new(ResourceAccess.Image|
+            ResourceAccess.TextureFetch|ResourceAccess.ShaderStorage|
+            ResourceAccess.BufferUpdate|ResourceAccess.TextureUpdate|ResourceAccess.Indirect));
         Barriers++;
     }
     #endregion

@@ -43,10 +43,10 @@ public sealed class GpuQuery : GpuResource<GpuQueryMetadata>, IDisposable
     }
 
     /// <summary>Declares an unpublished wrapper for manager-owned creation.</summary>
-    internal GpuQuery(RHIQueryKind kind) { QueryKind = kind; }
+    internal GpuQuery(QueryKind kind) { QueryKind = kind; }
 
     /// <summary>Gets immutable creation intent, without native discovery.</summary>
-    internal RHIQueryKind QueryKind { get; }
+    internal QueryKind QueryKind { get; }
 
     /// <summary>Creates a consumer-only reference without transferring ownership.</summary>
     public static implicit operator GpuQueryRef(GpuQuery? resource) => new(resource);

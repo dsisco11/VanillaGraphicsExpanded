@@ -24,7 +24,7 @@ internal static class MicrofacetEnergyLookup
         var support = GpuSupport.Graphics;
         if (support.MaxCombinedTextureImageUnits <= GpuBindingRegistry.Sampler.MicrofacetEnergy)
             throw new InvalidOperationException("The microfacet energy lookup exceeds texture binding capabilities.");
-        var candidate = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rg16f, Width = System.Math.Max(1, size), Height = System.Math.Max(1, size), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Linear, BaseLevel = 0, MaxLevel = (1) - 1, Label = "PBR.MicrofacetEnergy" }).RequireResource();
+        var candidate = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rg16f, Width = System.Math.Max(1, size), Height = System.Math.Max(1, size), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Linear, BaseLevel = 0, MaxLevel = (1) - 1, Label = "PBR.MicrofacetEnergy" }).RequireResource();
         try { candidate.UploadDataImmediate(MicrofacetEnergyTable.Shared.CreateTextureData(size)); }
         catch { candidate.Dispose(); throw; }
         // Reloaded shaders reuse storage; quality/context replacement becomes visible only

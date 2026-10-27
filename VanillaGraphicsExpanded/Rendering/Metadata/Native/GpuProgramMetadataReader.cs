@@ -4,7 +4,7 @@ using OpenTK.Graphics.OpenGL;
 
 namespace VanillaGraphicsExpanded.Rendering;
 
-/// <summary>Captures executable interface facts independently of authored binding contracts and preparation policy.</summary>
+/// <summary>Routes manager-owned program acquisition into the admitted native query service.</summary>
 internal sealed class GpuProgramMetadataReader : IGpuResourceMetadataReader<GpuProgramMetadata>
 {
     internal static readonly GpuProgramMetadataReader Instance = new();

@@ -8,7 +8,7 @@ internal sealed partial class OpenGLBackend
 {
     #region Public API
     /// <summary>Resolves current manager-certified identity before consulting executed knowledge.</summary>
-    public void BindBuffer(RHIBufferRole role, GpuBufferRef buffer)
+    public void BindBuffer(BufferRole role, GpuBufferRef buffer)
     {
         RequireContext();
         int name = buffer.IsEmpty ? 0 : checked((int)RequireRange(buffer, 0, 0).ResourceId);
@@ -16,7 +16,7 @@ internal sealed partial class OpenGLBackend
     }
 
     /// <summary>Validates a complete indexed input, preserving empty-slot clearing semantics.</summary>
-    public void BindBufferBase(RHIBufferRole role, int slot, GpuBufferRef buffer)
+    public void BindBufferBase(BufferRole role, int slot, GpuBufferRef buffer)
     {
         RequireContext();
         var target = RequireIndexedSlot(role, slot);
@@ -25,7 +25,7 @@ internal sealed partial class OpenGLBackend
     }
 
     /// <summary>Checks bounds/alignment and cached role limits before selecting a range.</summary>
-    public void BindBufferRange(RHIBufferRole role, int slot, GpuBufferRef buffer, nint offset, nint size)
+    public void BindBufferRange(BufferRole role, int slot, GpuBufferRef buffer, nint offset, nint size)
     {
         RequireContext();
         var target = RequireIndexedSlot(role, slot);
@@ -34,11 +34,11 @@ internal sealed partial class OpenGLBackend
         var owner = RequireRange(buffer, offset, size);
         int alignment = role switch
         {
-            RHIBufferRole.Uniform => Math.Max(1, Capabilities.UniformBufferOffsetAlignment),
-            RHIBufferRole.ShaderStorage => Math.Max(1, Capabilities.ShaderStorageBufferOffsetAlignment),
+            BufferRole.Uniform => Math.Max(1, Capabilities.UniformBufferOffsetAlignment),
+            BufferRole.ShaderStorage => Math.Max(1, Capabilities.ShaderStorageBufferOffsetAlignment),
             _ => 4
         };
-        if (offset % alignment != 0 || role == RHIBufferRole.Uniform && size > Capabilities.MaxUniformBlockSize)
+        if (offset % alignment != 0 || role == BufferRole.Uniform && size > Capabilities.MaxUniformBlockSize)
             throw new ArgumentException("Buffer range violates the cached role alignment or block-size limit.");
         OpenGLBufferBindings.BindBufferRange(cache, target, slot, checked((int)owner.ResourceId), offset, size);
     }
@@ -46,21 +46,21 @@ internal sealed partial class OpenGLBackend
 
     #region Private
     /// <summary>Resolves indexed namespaces using cached limits, without native queries.</summary>
-    private Legacy.BufferRangeTarget RequireIndexedSlot(RHIBufferRole role, int slot)
+    private Legacy.BufferRangeTarget RequireIndexedSlot(BufferRole role, int slot)
     {
         if (slot < 0) throw new ArgumentOutOfRangeException(nameof(slot));
         var target = role switch
         {
-            RHIBufferRole.Uniform => Legacy.BufferRangeTarget.UniformBuffer,
-            RHIBufferRole.ShaderStorage => Legacy.BufferRangeTarget.ShaderStorageBuffer,
-            RHIBufferRole.AtomicCounter => Legacy.BufferRangeTarget.AtomicCounterBuffer,
-            RHIBufferRole.TransformFeedback => Legacy.BufferRangeTarget.TransformFeedbackBuffer,
+            BufferRole.Uniform => Legacy.BufferRangeTarget.UniformBuffer,
+            BufferRole.ShaderStorage => Legacy.BufferRangeTarget.ShaderStorageBuffer,
+            BufferRole.AtomicCounter => Legacy.BufferRangeTarget.AtomicCounterBuffer,
+            BufferRole.TransformFeedback => Legacy.BufferRangeTarget.TransformFeedbackBuffer,
             _ => throw new ArgumentException("This role has no indexed binding namespace.", nameof(role))
         };
-        if (role == RHIBufferRole.Uniform && slot >= Capabilities.MaxUniformBufferBindings
-            || role == RHIBufferRole.ShaderStorage && slot >= Capabilities.MaxShaderStorageBufferBindings
-            || role == RHIBufferRole.AtomicCounter && slot >= Capabilities.MaxAtomicCounterBufferBindings
-            || role == RHIBufferRole.TransformFeedback && slot >= Capabilities.MaxTransformFeedbackBuffers)
+        if (role == BufferRole.Uniform && slot >= Capabilities.MaxUniformBufferBindings
+            || role == BufferRole.ShaderStorage && slot >= Capabilities.MaxShaderStorageBufferBindings
+            || role == BufferRole.AtomicCounter && slot >= Capabilities.MaxAtomicCounterBufferBindings
+            || role == BufferRole.TransformFeedback && slot >= Capabilities.MaxTransformFeedbackBuffers)
             throw new ArgumentOutOfRangeException(nameof(slot));
         return target;
     }

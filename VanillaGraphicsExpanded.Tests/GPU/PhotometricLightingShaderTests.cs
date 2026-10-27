@@ -19,7 +19,7 @@ public sealed class PhotometricLightingShaderTests(HeadlessGLFixture fixture) : 
     public void SurfaceInwardSunlightIsOccluded()
     {
         EnsureContextValid();
-        using var parameters = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = null }).RequireResource();
+        using var parameters = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = null }).RequireResource();
         parameters.EnsureCapacity(64, growExponentially: false);
         System.Numerics.Vector4[] inputs = [new(0, 1, 0, .001f), new(1, .1f, 32, 24), new(32, 16, 128, 24), new(12, 0, 0, 1)];
         parameters.UploadSubData<System.Numerics.Vector4>(inputs, 0, 64);

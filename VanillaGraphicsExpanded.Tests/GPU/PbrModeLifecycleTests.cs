@@ -93,7 +93,7 @@ public sealed class PbrModeLifecycleTests : RenderTestBase
         // Readiness prepares real binary programs and attachments without submitting either draw.
         terrain.Color.UploadDataImmediate([.125f, .25f, .5f, 1f]);
         float[] primaryBefore = terrain.Color.ReadPixels();
-        using (var otherColor = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba16f, Width = System.Math.Max(1, 1), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource())
+        using (var otherColor = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba16f, Width = System.Math.Max(1, 1), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource())
         using (var other = DynamicGpuFramebuffer.CreateSingle(otherColor)!)
         using (StateCache.Current.BindFramebufferScope(FramebufferTarget.ReadFramebuffer, terrain.Output.FboId))
         using (StateCache.Current.BindFramebufferScope(FramebufferTarget.DrawFramebuffer, other.FboId))
@@ -132,7 +132,7 @@ public sealed class PbrModeLifecycleTests : RenderTestBase
         var firstResolve = Assert.IsType<DynamicGpuFramebuffer>(resolveField.GetValue(composite));
         Assert.InRange(Compose(), .249f, .251f);
         Assert.Same(firstResolve, resolveField.GetValue(composite));
-        using (var replacement = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba16f, Width = System.Math.Max(1, 1), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource())
+        using (var replacement = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba16f, Width = System.Math.Max(1, 1), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource())
         {
             replacement.UploadDataImmediate(new float[] { 1f, 1f, 1f, 1f });
             terrain.Primary.ColorTextureIds[0] = replacement.TextureId;

@@ -10,7 +10,7 @@ internal partial interface IRHIBackend
     /// <summary>Inserts an owned fence without waiting for completion.</summary>
     GpuFence InsertFence();
     /// <summary>Polls or explicitly waits for a fence on its originating context.</summary>
-    RHICompletionStatus WaitCpu(GpuSyncRef fence, TimeSpan timeout, bool flush);
+    CompletionStatus WaitCpu(GpuSyncRef fence, TimeSpan timeout, bool flush);
     /// <summary>Orders subsequent GPU work after a fence without blocking the CPU.</summary>
     void WaitGpu(GpuSyncRef fence);
     /// <summary>Explicitly submits queued native commands without waiting.</summary>

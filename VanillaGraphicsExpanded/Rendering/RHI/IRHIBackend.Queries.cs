@@ -14,7 +14,7 @@ internal partial interface IRHIBackend
     /// <summary>Captures the issued query generation for result observation.</summary>
     RHIQueryTicket RequestQueryResult(GpuQueryRef query);
     /// <summary>Begins native conditional rendering using an issued occlusion query.</summary>
-    void BeginConditionalRender(GpuQueryRef query, RHIConditionalRenderMode mode);
+    void BeginConditionalRender(GpuQueryRef query, ConditionalRenderPolicy mode);
     /// <summary>Ends native conditional rendering without reading its result back.</summary>
     void EndConditionalRender();
 }

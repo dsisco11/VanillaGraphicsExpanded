@@ -9,7 +9,7 @@ namespace VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 internal sealed partial class OpenGLBackend
 {
     private readonly ConditionalWeakTable<GpuQuery, QueryExecution> queryExecutions = new();
-    private readonly Dictionary<RHIQueryKind, GpuQuery> activeQueries = new();
+    private readonly Dictionary<QueryKind, GpuQuery> activeQueries = new();
     private bool queryTransition;
     #region Public API
     /// <inheritdoc />
@@ -36,7 +36,7 @@ internal sealed partial class OpenGLBackend
         try
         {
             var owner = RequireQuery(query);
-            if (owner.QueryKind == RHIQueryKind.Timestamp || activeQueries.ContainsKey(owner.QueryKind))
+            if (owner.QueryKind == QueryKind.Timestamp || activeQueries.ContainsKey(owner.QueryKind))
                 throw new InvalidOperationException("The query category is already active or is timestamp-only.");
             var state = queryExecutions.GetOrCreateValue(owner);
             state.Issued = false;
@@ -92,7 +92,7 @@ internal sealed partial class OpenGLBackend
         try
         {
             var owner = RequireQuery(query);
-            if (owner.QueryKind != RHIQueryKind.Timestamp) throw new ArgumentException("A timestamp query is required.");
+            if (owner.QueryKind != QueryKind.Timestamp) throw new ArgumentException("A timestamp query is required.");
             var state = queryExecutions.GetOrCreateValue(owner);
             state.Issued = false;
             state.Revision++;
@@ -113,7 +113,7 @@ internal sealed partial class OpenGLBackend
     #endregion
     #region Internal API
     /// <summary>Realizes the target-specific query without a temporary begin/end or readback.</summary>
-    internal GpuQueryMetadata? InitializeQuery(RHIQueryKind kind, out nint id)
+    internal GpuQueryMetadata? InitializeQuery(QueryKind kind, out nint id)
     {
         RequireContext();
         RequireQueryKind(kind);
@@ -184,33 +184,33 @@ internal sealed partial class OpenGLBackend
         return owner;
     }
     /// <summary>Rejects optional statistics before issuing creation or beginning work.</summary>
-    private void RequireQueryKind(RHIQueryKind kind)
+    private void RequireQueryKind(QueryKind kind)
     {
         _ = QueryTargetFor(kind);
-        if (kind >= RHIQueryKind.VerticesSubmitted && !Capabilities.PipelineStatistics)
+        if (kind >= QueryKind.VerticesSubmitted && !Capabilities.PipelineStatistics)
             throw new NotSupportedException("Pipeline-statistics queries are unavailable.");
     }
     /// <summary>Translates project query categories explicitly.</summary>
-    private static QueryTarget QueryTargetFor(RHIQueryKind kind) => kind switch
+    private static QueryTarget QueryTargetFor(QueryKind kind) => kind switch
     {
-        RHIQueryKind.TimeElapsed => QueryTarget.TimeElapsed,
-        RHIQueryKind.Timestamp => QueryTarget.Timestamp,
-        RHIQueryKind.SamplesPassed => QueryTarget.SamplesPassed,
-        RHIQueryKind.AnySamplesPassed => QueryTarget.AnySamplesPassed,
-        RHIQueryKind.AnySamplesPassedConservative => QueryTarget.AnySamplesPassedConservative,
-        RHIQueryKind.PrimitivesGenerated => QueryTarget.PrimitivesGenerated,
-        RHIQueryKind.TransformFeedbackPrimitivesWritten => QueryTarget.TransformFeedbackPrimitivesWritten,
-        RHIQueryKind.VerticesSubmitted => QueryTarget.VerticesSubmitted,
-        RHIQueryKind.PrimitivesSubmitted => QueryTarget.PrimitivesSubmitted,
-        RHIQueryKind.VertexShaderInvocations => QueryTarget.VertexShaderInvocations,
-        RHIQueryKind.TessellationControlPatches => (QueryTarget)ArbPipelineStatisticsQuery.TessControlShaderPatchesArb,
-        RHIQueryKind.TessellationEvaluationInvocations => (QueryTarget)ArbPipelineStatisticsQuery.TessEvaluationShaderInvocationsArb,
-        RHIQueryKind.GeometryShaderInvocations => (QueryTarget)ArbPipelineStatisticsQuery.GeometryShaderInvocations,
-        RHIQueryKind.GeometryPrimitivesEmitted => (QueryTarget)ArbPipelineStatisticsQuery.GeometryShaderPrimitivesEmittedArb,
-        RHIQueryKind.FragmentShaderInvocations => (QueryTarget)ArbPipelineStatisticsQuery.FragmentShaderInvocationsArb,
-        RHIQueryKind.ComputeShaderInvocations => (QueryTarget)ArbPipelineStatisticsQuery.ComputeShaderInvocationsArb,
-        RHIQueryKind.ClippingInputPrimitives => (QueryTarget)ArbPipelineStatisticsQuery.ClippingInputPrimitivesArb,
-        RHIQueryKind.ClippingOutputPrimitives => (QueryTarget)ArbPipelineStatisticsQuery.ClippingOutputPrimitivesArb,
+        QueryKind.TimeElapsed => QueryTarget.TimeElapsed,
+        QueryKind.Timestamp => QueryTarget.Timestamp,
+        QueryKind.SamplesPassed => QueryTarget.SamplesPassed,
+        QueryKind.AnySamplesPassed => QueryTarget.AnySamplesPassed,
+        QueryKind.AnySamplesPassedConservative => QueryTarget.AnySamplesPassedConservative,
+        QueryKind.PrimitivesGenerated => QueryTarget.PrimitivesGenerated,
+        QueryKind.TransformFeedbackPrimitivesWritten => QueryTarget.TransformFeedbackPrimitivesWritten,
+        QueryKind.VerticesSubmitted => QueryTarget.VerticesSubmitted,
+        QueryKind.PrimitivesSubmitted => QueryTarget.PrimitivesSubmitted,
+        QueryKind.VertexShaderInvocations => QueryTarget.VertexShaderInvocations,
+        QueryKind.TessellationControlPatches => (QueryTarget)ArbPipelineStatisticsQuery.TessControlShaderPatchesArb,
+        QueryKind.TessellationEvaluationInvocations => (QueryTarget)ArbPipelineStatisticsQuery.TessEvaluationShaderInvocationsArb,
+        QueryKind.GeometryShaderInvocations => (QueryTarget)ArbPipelineStatisticsQuery.GeometryShaderInvocations,
+        QueryKind.GeometryPrimitivesEmitted => (QueryTarget)ArbPipelineStatisticsQuery.GeometryShaderPrimitivesEmittedArb,
+        QueryKind.FragmentShaderInvocations => (QueryTarget)ArbPipelineStatisticsQuery.FragmentShaderInvocationsArb,
+        QueryKind.ComputeShaderInvocations => (QueryTarget)ArbPipelineStatisticsQuery.ComputeShaderInvocationsArb,
+        QueryKind.ClippingInputPrimitives => (QueryTarget)ArbPipelineStatisticsQuery.ClippingInputPrimitivesArb,
+        QueryKind.ClippingOutputPrimitives => (QueryTarget)ArbPipelineStatisticsQuery.ClippingOutputPrimitivesArb,
         _ => throw new ArgumentOutOfRangeException(nameof(kind))
     };
     /// <summary>Tracks submitted result identity, not resource metadata or ownership.</summary>

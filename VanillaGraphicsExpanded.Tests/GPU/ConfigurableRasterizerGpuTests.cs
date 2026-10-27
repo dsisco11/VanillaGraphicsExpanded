@@ -92,14 +92,14 @@ public sealed class ConfigurableRasterizerGpuTests(HeadlessGLFixture fixture, IT
         finally { GlDebug.CheckStateTransitions = false; cache.ApplyConfigurableRaster(second); }
     }
 
-    /// <summary>Real texture uploads refresh cached unpack layout.</summary>
+    /// <summary>Real texture uploads preserve native and cached unpack layout while publishing the requested pixels.</summary>
     [Fact]
     public void TextureUploadRefreshesUnpackKnowledge()
     {
         using var context = new CompatibilityContext(fixture, output);
         var cache = StateCache.Current;
         cache.InvalidateAll();
-        using var texture = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.R16, Width = System.Math.Max(1, 1), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
+        using var texture = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.R16, Width = System.Math.Max(1, 1), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         OpenGLPixelLayouts.SetUnpack(cache, new(8));
         texture.UploadDataImmediate(new ushort[] { 17 });
         Assert.Equal(1, GL.GetInteger(GetPName.UnpackAlignment));

@@ -20,11 +20,11 @@ internal sealed class CameraExposureTargets : IDisposable
     {
         try
         {
-            histogram = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = "Camera.Histogram" }).RequireResource();
+            histogram = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = "Camera.Histogram" }).RequireResource();
             histogram.Allocate(HistogramBytes);
             for (int i = 0; i < 2; i++)
             {
-                history[i] = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = $"Camera.Exposure.{i}" }).RequireResource();
+                history[i] = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = $"Camera.Exposure.{i}" }).RequireResource();
                 // Only gain is temporal; the remaining slots hold current metering diagnostics.
                 history[i]!.Allocate(32);
             }

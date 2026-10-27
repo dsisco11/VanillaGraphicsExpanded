@@ -46,7 +46,7 @@ public sealed class DirectLightingBufferOwnershipTests(HeadlessGLFixture fixture
         Assert.True(resized.IsDisposed);
     }
 
-    /// <summary>A later allocation failure cleans the production target constructor's earlier texture and restores the caller binding.</summary>
+    /// <summary>Image declaration defers framebuffer realization and retires its sole owned allocation.</summary>
     [Fact]
     public void ConstructorFailureReleasesEarlierAllocationAndRestoresFramebuffer()
     {
@@ -83,7 +83,7 @@ public sealed class DirectLightingBufferOwnershipTests(HeadlessGLFixture fixture
 
     #region Allocation fault injection
 
-    /// <summary>Interrupts framebuffer allocation after the radiance array has been registered.</summary>
+    /// <summary>Rejects eager framebuffer realization during image-only declaration.</summary>
     private static void FailFramebufferAllocation(string? debugName)
     {
         if (debugName == "DirectLightingFBO") throw new InvalidOperationException("Injected allocation failure.");

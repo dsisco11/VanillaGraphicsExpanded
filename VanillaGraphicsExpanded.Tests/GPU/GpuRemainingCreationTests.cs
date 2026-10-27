@@ -33,7 +33,7 @@ public sealed class GpuRemainingCreationTests(HeadlessGLFixture fixture, Xunit.I
             using var vao = GpuVao.Create();
             using var pipeline = GpuProgramPipeline.Create();
             using var sampler = RHICommandContext.Current.CreateSampler(new RHISamplerDescription {  }).RequireResource();
-            using var query = RHICommandContext.Current.CreateQuery(new(RHIQueryKind.TimeElapsed)).RequireResource();
+            using var query = RHICommandContext.Current.CreateQuery(new(QueryKind.TimeElapsed)).RequireResource();
             using var feedback = RHICommandContext.Current.CreateTransformFeedback(new()).RequireResource();
             using var fence = RHICommandContext.Current.InsertFence();
             using var semaphore = RHICommandContext.Current.Capabilities.ExternalSemaphores ? RHICommandContext.Current.CreateSemaphore(new()).RequireResource() : null;
@@ -70,10 +70,10 @@ public sealed class GpuRemainingCreationTests(HeadlessGLFixture fixture, Xunit.I
             Assert.True(GL.IsQuery(query.QueryId));
             Assert.True(GL.IsTransformFeedback(feedback.TransformFeedbackId));
             Assert.True(GL.IsSync(fence.ResourceId));
-            Assert.Contains(RHICommandContext.Current.WaitCpu(fence, TimeSpan.FromSeconds(1)), new[] { RHICompletionStatus.Ready, RHICompletionStatus.Ready });
+            Assert.Contains(RHICommandContext.Current.WaitCpu(fence, TimeSpan.FromSeconds(1)), new[] { CompletionStatus.Ready, CompletionStatus.Ready });
             Assert.True(fence.TryConsumeIfSignaled());
             Assert.Equal((nint)0, fence.ResourceId);
-            sampler.SetFilter(RHISamplerFilter.Nearest, RHISamplerFilter.Nearest);
+            sampler.SetFilter(SamplerFilter.Nearest, SamplerFilter.Nearest);
             GL.GetSamplerParameter(sampler.SamplerId, SamplerParameterName.TextureMinFilter, out int filter);
             Assert.Equal((int)TextureMinFilter.Nearest, filter);
             Assert.Equal(ErrorCode.NoError, GL.GetError());

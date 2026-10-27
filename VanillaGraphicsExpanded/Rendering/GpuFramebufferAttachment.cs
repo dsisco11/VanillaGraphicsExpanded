@@ -288,7 +288,7 @@ public sealed class GpuFramebufferAttachment : GpuResource<GpuImageMetadata>
     {
         if (GpuResourceManagerSystem.CaptureDisposalQueue().IsClosed)
             throw new InvalidOperationException("Initialize the GPU resource manager before creating new owned attachments after shutdown.");
-        return RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Format((OpenTK.Graphics.OpenGL.PixelInternalFormat)(format)), Width = System.Math.Max(1, width), Height = System.Math.Max(1, height), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = filter, BaseLevel = 0, MaxLevel = (1) - 1, Label = debugName }).RequireResource();
+        return RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Format((OpenTK.Graphics.OpenGL.PixelInternalFormat)(format)), Width = System.Math.Max(1, width), Height = System.Math.Max(1, height), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = filter, BaseLevel = 0, MaxLevel = (1) - 1, Label = debugName }).RequireResource();
     }
 
     /// <summary>Allocates owned renderbuffer storage only while deferred cleanup remains available.</summary>

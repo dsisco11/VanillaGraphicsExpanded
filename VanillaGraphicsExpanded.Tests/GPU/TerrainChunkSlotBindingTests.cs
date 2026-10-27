@@ -71,7 +71,7 @@ public sealed class TerrainChunkSlotBindingTests : RenderTestBase
             """;
         int shader = GL.CreateShader(ShaderType.ComputeShader), program = GL.CreateProgram();
         int output = GL.GenBuffer(), unrelated = GL.GenBuffer();
-        using var generations = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.R32ui, Width = System.Math.Max(1, 289), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
+        using var generations = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.R32ui, Width = System.Math.Max(1, 289), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         using var assets = new BinaryShaderApiFixture();
         var events = new RuntimeRenderEvents();
         var config = new VgeConfig();

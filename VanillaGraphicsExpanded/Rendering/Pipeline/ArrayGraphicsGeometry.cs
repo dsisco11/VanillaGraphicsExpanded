@@ -6,7 +6,7 @@ using VanillaGraphicsExpanded.Rendering.Pipeline.Descriptions;
 
 namespace VanillaGraphicsExpanded.Rendering.Pipeline;
 
-/// <summary>Owns immutable vertex-array configuration while borrowing mutable streaming buffers.</summary>
+/// <summary>Supplies immutable stream packets while borrowing independently owned streaming buffers.</summary>
 internal sealed class ArrayGraphicsGeometry : GraphicsGeometry
 {
     private readonly GpuVao vao;

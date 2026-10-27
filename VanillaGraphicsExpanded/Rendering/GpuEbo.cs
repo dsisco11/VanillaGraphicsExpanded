@@ -18,7 +18,7 @@ internal sealed class GpuEbo : GpuBufferObject
     public DrawElementsType IndexType => indexType;
 
     /// <summary>Declares index-buffer policy without native allocation or publication.</summary>
-    internal GpuEbo(RHIBufferUsage usage, string? debugName)
+    internal GpuEbo(BufferUsage usage, string? debugName)
     {
         target = BufferTarget.ElementArrayBuffer;
         allocationUsage = usage;

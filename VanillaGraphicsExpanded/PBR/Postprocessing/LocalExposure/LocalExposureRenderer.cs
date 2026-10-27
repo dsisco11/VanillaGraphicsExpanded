@@ -56,9 +56,9 @@ internal sealed class LocalExposureRenderer : IDisposable
         if(!EngineBoundaryExecution.TryRun(new("Postprocess.LocalExposure"),borrowed,_=>
         {
             reduce.Dispatch((width+7)/8,(height+7)/8);
-            RHICommandContext.Current.Barrier(new(RHIAccess.Image|RHIAccess.TextureFetch));
+            RHICommandContext.Current.Barrier(new(ResourceAccess.Image|ResourceAccess.TextureFetch));
             filter.Dispatch((width+7)/8,(height+7)/8);
-            RHICommandContext.Current.Barrier(new(RHIAccess.Image|RHIAccess.TextureFetch));
+            RHICommandContext.Current.Barrier(new(ResourceAccess.Image|ResourceAccess.TextureFetch));
         })) throw new InvalidOperationException("Local exposure compute boundary was rejected.");
         published=true;
         return baseImage!;
@@ -107,8 +107,8 @@ internal sealed class LocalExposureRenderer : IDisposable
             inputs??=new LocalExposureInputs();
             if(logarithms is null)
             {
-                logarithms=resources.Own(RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rg32f, Width = System.Math.Max(1, width), Height = System.Math.Max(1, height), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "LocalExposure.Log" }).RequireResource());
-                baseImage=resources.Own(RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rg32f, Width = System.Math.Max(1, width), Height = System.Math.Max(1, height), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "LocalExposure.Base" }).RequireResource());
+                logarithms=resources.Own(RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rg32f, Width = System.Math.Max(1, width), Height = System.Math.Max(1, height), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "LocalExposure.Log" }).RequireResource());
+                baseImage=resources.Own(RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rg32f, Width = System.Math.Max(1, width), Height = System.Math.Max(1, height), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "LocalExposure.Base" }).RequireResource());
                 Generation++;
             }
         }

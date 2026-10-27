@@ -101,7 +101,7 @@ public class GlStateCacheUnbindIntegrationTests
         int buffer = GL.GenBuffer();
         OpenGLBufferBindings.BindBuffer(StateCache.Current, BufferTarget.ArrayBuffer, buffer);
         Assert.Equal(buffer, StateCache.Current.GetBoundBuffer(BufferTarget.ArrayBuffer));
-        RHICommandContext.Current.BindBuffer(RHIBufferRole.Vertex, default);
+        RHICommandContext.Current.BindBuffer(BufferRole.Vertex, default);
         Assert.Equal(0, StateCache.Current.GetBoundBuffer(BufferTarget.ArrayBuffer));
         GL.DeleteBuffer(buffer);
     }

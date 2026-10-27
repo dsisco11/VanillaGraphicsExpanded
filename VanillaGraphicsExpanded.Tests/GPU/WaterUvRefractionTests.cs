@@ -310,8 +310,8 @@ public sealed class WaterUvRefractionTests(HeadlessGLFixture fixture) : LumOnSha
         bool half, bool underwater, Action<float[],float[]>? edit = null)
     {
         EnsureShaderTestAvailable();
-        using var color = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba32f, Width = System.Math.Max(1, Width), Height = System.Math.Max(1, Height), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
-        using var depth = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.R32f, Width = System.Math.Max(1, Width), Height = System.Math.Max(1, Height), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
+        using var color = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba32f, Width = System.Math.Max(1, Width), Height = System.Math.Max(1, Height), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
+        using var depth = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.R32f, Width = System.Math.Max(1, Width), Height = System.Math.Max(1, Height), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         float[] colors = new float[Width * Height * 4];
         float[] depths = Enumerable.Repeat(DeviceDepth(metres),Width * Height).ToArray();
         for (int y = 0; y < Height; y++)
@@ -325,8 +325,8 @@ public sealed class WaterUvRefractionTests(HeadlessGLFixture fixture) : LumOnSha
         edit?.Invoke(colors,depths);
         WaterReceiverTestInputs.EncodeDepthValidity(colors, depths);
         color.UploadDataImmediate(colors); depth.UploadDataImmediate(depths);
-        using var reducedColor = half ? RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba32f, Width = System.Math.Max(1, Width / 2), Height = System.Math.Max(1, Height / 2), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource() : null;
-        using var reducedDepth = half ? RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba32f, Width = System.Math.Max(1, Width / 2), Height = System.Math.Max(1, Height / 2), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource() : null;
+        using var reducedColor = half ? RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba32f, Width = System.Math.Max(1, Width / 2), Height = System.Math.Max(1, Height / 2), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource() : null;
+        using var reducedDepth = half ? RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba32f, Width = System.Math.Max(1, Width / 2), Height = System.Math.Max(1, Height / 2), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource() : null;
         using var reducedTarget = half ? DynamicGpuFramebuffer.CreateMRT([reducedColor!,reducedDepth!]) : null;
         if (half)
         {

@@ -83,7 +83,7 @@ internal sealed class WaterVolumeRenderer : IRenderer
                 var resources = new GpuResourceCollection();
                 try
                 {
-                    transport = resources.Own(RHICommandContext.Current.CreateTexture3D(new RHITextureDescription { Dimension = RHITextureDimension.TwoArray, Format = RHIFormat.Rgba32f, Width = System.Math.Max(1, primary.Width), Height = System.Math.Max(1, primary.Height), Depth = System.Math.Max(1, 2), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "Water.Transport" }).RequireResource());
+                    transport = resources.Own(RHICommandContext.Current.CreateTexture3D(new RHITextureDescription { Dimension = TextureDimension.TwoArray, Format = TextureFormat.Rgba32f, Width = System.Math.Max(1, primary.Width), Height = System.Math.Max(1, primary.Height), Depth = System.Math.Max(1, 2), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "Water.Transport" }).RequireResource());
                     var optical = resources.Own(GpuFramebufferAttachment.FromTexture(transport, layer: WaterVolumeFrame.OpticalLayer));
                     var illumination = resources.Own(GpuFramebufferAttachment.FromTexture(transport, layer: WaterVolumeFrame.SourceLayer));
                     var fixedTarget = resources.Own(StaticGpuFramebuffer.Create([optical, illumination], debugName: "Water.Transport.Framebuffer"));

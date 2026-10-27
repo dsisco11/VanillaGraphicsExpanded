@@ -1,7 +1,7 @@
 namespace VanillaGraphicsExpanded.Rendering.RHI;
 
 /// <summary>Declares the query target before native realization.</summary>
-public enum RHIQueryKind
+public enum QueryKind
 {
     TimeElapsed, Timestamp, SamplesPassed, AnySamplesPassed, AnySamplesPassedConservative,
     PrimitivesGenerated, TransformFeedbackPrimitivesWritten,

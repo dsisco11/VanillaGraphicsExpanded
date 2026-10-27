@@ -35,7 +35,7 @@ public sealed class CloudVolumeWorkTests(HeadlessGLFixture fixture):LumOnShaderF
         // Empty blocks keep uncompleted demand; becoming occupied must make it eligible again.
         fields.Occupancy.UploadData(Enumerable.Repeat(1u,domain.Blocks).ToArray());
         // The fixture replaces density-producer metadata directly, including its membership invalidation.
-        using(var membership=fields.Scratch.MapScope<uint>(48*4,1,RHIBufferMapAccess.Write))membership.Span[0]=1;
+        using(var membership=fields.Scratch.MapScope<uint>(48*4,1,BufferMapAccess.Write))membership.Span[0]=1;
         var directSeen=new HashSet<uint>();var diffuseSeen=new HashSet<uint>();
         for(uint frame=1;frame<=5;frame++)
         {
@@ -65,7 +65,7 @@ public sealed class CloudVolumeWorkTests(HeadlessGLFixture fixture):LumOnShaderF
         lighting=lighting with{Sun=Vector3.UnitY};
         Assert.True(work.Select(storage,lighting,9,planes,()=>true,lightingRays:2560),work.Failure);
         Assert.Equal(8u,Read(fields.Regions,9,1)[0]);
-        using(var flag=fields.Scratch.MapScope<uint>(6*4,1,RHIBufferMapAccess.Write))flag.Span[0]=1;
+        using(var flag=fields.Scratch.MapScope<uint>(6*4,1,BufferMapAccess.Write))flag.Span[0]=1;
         work.Reconfigure(); // Algorithm changes refresh transport without treating retained channels as newly enabled.
         Assert.True(work.Select(storage,lighting,10,planes,()=>true),work.Failure);
         Assert.True(work.TryBatch(storage,out var retainedBatch));Assert.Equal(0,retainedBatch!.NewlyActive);
@@ -76,7 +76,7 @@ public sealed class CloudVolumeWorkTests(HeadlessGLFixture fixture):LumOnShaderF
         lighting=lighting with{Lunar=Vector3.One};
         // Carry density failure across ordered scratch reuse; finite substituted density
         // must not allow later lighting consumers to certify failed geometry as successful.
-        using(var densityFailure=fields.Scratch.MapScope<uint>(31*4,1,RHIBufferMapAccess.Write))densityFailure.Span[0]=8;
+        using(var densityFailure=fields.Scratch.MapScope<uint>(31*4,1,BufferMapAccess.Write))densityFailure.Span[0]=8;
         Assert.True(work.Select(storage,lighting,12,planes,()=>true,densityPending:true),work.Failure);
         Assert.True(work.TryBatch(storage,out var batch));Assert.Equal(2,batch!.NewlyActive);
         Assert.Equal(0u,Read(fields.Regions,8,1)[0]);
@@ -90,7 +90,7 @@ public sealed class CloudVolumeWorkTests(HeadlessGLFixture fixture):LumOnShaderF
     private static uint[] Read(GpuShaderStorageBuffer buffer,int word,int count)
     {
         if(count==0)return [];
-        using var view=buffer.MapScope<uint>(word*4,count,RHIBufferMapAccess.Read);return view.Span.ToArray();
+        using var view=buffer.MapScope<uint>(word*4,count,BufferMapAccess.Read);return view.Span.ToArray();
     }
     #endregion
 }

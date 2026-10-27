@@ -64,14 +64,14 @@ internal sealed class ProductionSkyDrawScene : IDisposable
             moon.FrameLightingInputs = sun.FrameLightingInputs = sky.FrameLightingInputs = storage.Buffer;
             galaxy.DrawInputs.Capture(Matrix4x4.Identity, variation, -1);
             star.DrawInputs.Capture(Matrix4x4.Identity, 1, -1);
-            var cube = Own(RHICommandContext.Current.CreateTextureCube(new RHITextureDescription { Dimension = RHITextureDimension.Cube, Format = RHIFormat.Rgba32f, Width = 1, Height = 1, MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource());
+            var cube = Own(RHICommandContext.Current.CreateTextureCube(new RHITextureDescription { Dimension = TextureDimension.Cube, Format = TextureFormat.Rgba32f, Width = 1, Height = 1, MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource());
             for (int face = 0; face < 6; face++)
             {
                 using var binding = cube.BindScope(0);
                 GL.TexSubImage2D(TextureTarget.TextureCubeMapPositiveX + face, 0, 0, 0, 1, 1,
                     PixelFormat.Rgba, PixelType.Float, new float[] { .02f, .01f, .005f, 1 });
             }
-            var transmission = Own(RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Width = 2, Height = 1, Format = RHIFormat.Rgba32f, MipLevels = 1, Storage = RHIStorageMode.Mutable, BaseLevel = 0, MaxLevel = 0, Filter = TextureFilterMode.Nearest, Label = null }, [new RHITextureInitialData(new(new(), 0, 0, 0, 2, 1), VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLPixelValues.Encoding(TextureFormatHelper.GetPixelFormat(PixelInternalFormat.Rgba32f), OpenTK.Graphics.OpenGL.PixelType.Float), System.Runtime.InteropServices.MemoryMarshal.AsBytes((new float[] { .8f, .7f, .6f, 1f, .8f, .7f, .6f, 1f }).AsSpan()).ToArray())]).RequireResource());
+            var transmission = Own(RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Width = 2, Height = 1, Format = TextureFormat.Rgba32f, MipLevels = 1, Storage = ResourceStorageMode.Mutable, BaseLevel = 0, MaxLevel = 0, Filter = TextureFilterMode.Nearest, Label = null }, [new RHITextureInitialData(new(new(), 0, 0, 0, 2, 1), VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLPixelValues.Encoding(TextureFormatHelper.GetPixelFormat(PixelInternalFormat.Rgba32f), OpenTK.Graphics.OpenGL.PixelType.Float), System.Runtime.InteropServices.MemoryMarshal.AsBytes((new float[] { .8f, .7f, .6f, 1f, .8f, .7f, .6f, 1f }).AsSpan()).ToArray())]).RequireResource());
             galaxy.GalaxyMap = star.GalaxyMap = cube;
             galaxy.ExternalTransmission = star.ExternalTransmission = transmission;
             moon.DrawInputs.Capture(new(Vector3.Normalize(new(-.002f, 0, -1)), Vector3.UnitX,
@@ -89,20 +89,20 @@ internal sealed class ProductionSkyDrawScene : IDisposable
             api.SetupGet(value => value.Render.ShaderUniforms).Returns(uniforms);
             api.SetupGet(value => value.Ambient.BlendedFogMin).Returns(.25f);
             api.SetupGet(value => value.World.Player).Returns(CreatePlayer());
-            var depth = Own(RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Width = 1, Height = 1, Format = RHIFormat.R32f, MipLevels = 1, Storage = RHIStorageMode.Mutable, BaseLevel = 0, MaxLevel = 0, Filter = TextureFilterMode.Nearest, Label = null }, [new RHITextureInitialData(new(new(), 0, 0, 0, 1, 1), VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLPixelValues.Encoding(TextureFormatHelper.GetPixelFormat(PixelInternalFormat.R32f), OpenTK.Graphics.OpenGL.PixelType.Float), System.Runtime.InteropServices.MemoryMarshal.AsBytes((new float[] { 1f }).AsSpan()).ToArray())]).RequireResource());
+            var depth = Own(RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Width = 1, Height = 1, Format = TextureFormat.R32f, MipLevels = 1, Storage = ResourceStorageMode.Mutable, BaseLevel = 0, MaxLevel = 0, Filter = TextureFilterMode.Nearest, Label = null }, [new RHITextureInitialData(new(new(), 0, 0, 0, 1, 1), VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLPixelValues.Encoding(TextureFormatHelper.GetPixelFormat(PixelInternalFormat.R32f), OpenTK.Graphics.OpenGL.PixelType.Float), System.Runtime.InteropServices.MemoryMarshal.AsBytes((new float[] { 1f }).AsSpan()).ToArray())]).RequireResource());
             var frames = Enumerable.Repeat<FrameBufferRef>(null!, 25).ToList();
             frames[(int)EnumFrameBuffer.LiquidDepth] = new() { DepthTextureId = depth.TextureId };
             api.SetupGet(value => value.Render.FrameBuffers).Returns(frames);
             // This owner supplies the real owned-celestial compatibility flag; no callback admission is claimed.
             Own(new CelestialDrawPass(api.Object, null!));
             sky.Capture(api.Object, lighting, true);
-            outputs = Enumerable.Range(0, 2).Select(_ => Own(RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba32f, Width = System.Math.Max(1, Size), Height = System.Math.Max(1, Size), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource())).ToArray();
+            outputs = Enumerable.Range(0, 2).Select(_ => Own(RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba32f, Width = System.Math.Max(1, Size), Height = System.Math.Max(1, Size), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource())).ToArray();
             var target = Own(DynamicGpuFramebuffer.CreateMRT(outputs)!);
             pass = new(target, [new(0), new(1)]);
             using var metadata = new RenderPassTargets(pass);
             fullscreen = Own(new ArrayGraphicsGeometry(CelestialDrawPass.FullscreenLayout, PrimitiveType.Triangles,
                 new Dictionary<int, GpuVbo>(), 3));
-            var stream = Own(RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Vertex, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = null }).RequireResource());
+            var stream = Own(RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = null }).RequireResource());
             stream.UploadData(new[] { new Vector4(Vector3.Normalize(new(.002f, .001f, -1)), .001f * variation), new Vector4(1, .5f, .25f, 0) });
             stars = Own(new ArrayGraphicsGeometry(CelestialStarGeometry.Layout, PrimitiveType.Triangles,
                 new Dictionary<int, GpuVbo> { [0] = stream }));

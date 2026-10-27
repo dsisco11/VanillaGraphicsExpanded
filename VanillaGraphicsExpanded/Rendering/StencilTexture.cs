@@ -24,8 +24,8 @@ public sealed class StencilTexture : DynamicTexture2D
     {
         if (!IsValid) throw new InvalidOperationException("Stencil texture is invalid.");
         using var request = RHICommandContext.Current.EnqueueReadback(new RHIReadbackDescription(this,
-            new(new(0), 0, 0, 0, Width, Height, 1), new(RHIPixelChannels.Stencil, RHIPixelType.UnsignedByte)));
-        if (request.Wait() != RHICompletionStatus.Ready)
+            new(new(0), 0, 0, 0, Width, Height, 1), new(PixelChannelLayout.Stencil, PixelComponentType.UnsignedByte)));
+        if (request.Wait() != CompletionStatus.Ready)
             throw new InvalidOperationException("Stencil readback failed.", request.Error);
         using var mapping = request.MapReadyReadback();
         return mapping.Bytes.ToArray();

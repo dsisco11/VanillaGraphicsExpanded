@@ -29,9 +29,9 @@ internal static class ExposureSnapshotLog
         try
         {
             var publication = CameraExposureRenderer.DiagnosticPublication();
-            using var fallback = publication.History is null ? RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = "ExposureSnapshot.Neutral" }).RequireResource() : null;
+            using var fallback = publication.History is null ? RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = "ExposureSnapshot.Neutral" }).RequireResource() : null;
             fallback?.UploadData(new float[8]);
-            using var output = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = "ExposureSnapshot.Output" }).RequireResource();
+            using var output = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = "ExposureSnapshot.Output" }).RequireResource();
             output.Allocate(48);
             using var program = ExposureSnapshotProgram.Create(api);
             if(!program.EnsureReady()) throw new InvalidOperationException(program.PreparationLog);
@@ -41,7 +41,7 @@ internal static class ExposureSnapshotLog
             var resources=EngineBoundaryResources.From(program.ProgramLayout.BinaryInterface!.PreparedBindings);
             if(!EngineBoundaryExecution.TryRun(new("Debug.ExposureSnapshot"),resources,_=>program.Dispatch(1)))
                 throw new InvalidOperationException("Exposure snapshot boundary was rejected.");
-            RHICommandContext.Current.Barrier(new(RHIAccess.ShaderStorage | RHIAccess.BufferUpdate));
+            RHICommandContext.Current.Barrier(new(ResourceAccess.ShaderStorage | ResourceAccess.BufferUpdate));
             var values=new float[12];
             RHICommandContext.Current.OpenGL.ReadBuffer(output, 0, System.Runtime.InteropServices.MemoryMarshal.AsBytes(values.AsSpan()));
             api.Logger.Notification(Format(values,publication.Settings,local,publication.History is not null,

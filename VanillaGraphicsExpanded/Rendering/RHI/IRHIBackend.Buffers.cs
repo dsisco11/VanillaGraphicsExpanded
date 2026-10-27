@@ -20,9 +20,9 @@ internal partial interface IRHIBackend
     /// <summary>Clears an explicit range with an unsigned byte value.</summary>
     void ClearBuffer(GpuBufferRef destination, nint offset, nint byteCount, byte value);
     /// <summary>Publishes a semantic generic role selection.</summary>
-    void BindBuffer(RHIBufferRole role, GpuBufferRef buffer);
+    void BindBuffer(BufferRole role, GpuBufferRef buffer);
     /// <summary>Publishes a whole indexed selection.</summary>
-    void BindBufferBase(RHIBufferRole role, int slot, GpuBufferRef buffer);
+    void BindBufferBase(BufferRole role, int slot, GpuBufferRef buffer);
     /// <summary>Publishes a checked allocation-relative indexed range.</summary>
-    void BindBufferRange(RHIBufferRole role, int slot, GpuBufferRef buffer, nint offset, nint size);
+    void BindBufferRange(BufferRole role, int slot, GpuBufferRef buffer, nint offset, nint size);
 }

@@ -151,7 +151,7 @@ public sealed class GpuRenderbuffer : GpuResource<GpuRenderbufferMetadata>, IDis
     /// <summary>
     /// Allocates or reallocates renderbuffer storage.
     /// </summary>
-    public void AllocateStorage(RHIFormat storage, int width, int height, int samples = 0)
+    public void AllocateStorage(TextureFormat storage, int width, int height, int samples = 0)
     {
         RequireMutableStorage();
         if (!IsValid)

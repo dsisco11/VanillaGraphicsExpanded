@@ -20,67 +20,67 @@ internal static unsafe partial class Core
     /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
     internal static void VertexAttribIPointer(uint @index, int @size, VertexAttribIPointerType @type, int @stride, IntPtr @pointer) => StateCache.Current.ExecuteCoreVertexAttribIPointer(@index, @size, @type, @stride, @pointer);
 
-    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
+    /// <summary>Forwards the exact signature to the backend execution boundary.</summary>
     internal static void VertexAttribIPointer<T4>(int @index, int @size, VertexAttribIntegerType @type, int @stride, ref T4 @pointer)
         where T4 : struct => StateCache.Current.ExecuteCoreVertexAttribIPointer<T4>(@index, @size, @type, @stride, ref @pointer);
 
-    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
+    /// <summary>Forwards the exact signature to the backend execution boundary.</summary>
     internal static void VertexAttribIPointer<T4>(int @index, int @size, VertexAttribIntegerType @type, int @stride, T4[,,] @pointer)
         where T4 : struct => StateCache.Current.ExecuteCoreVertexAttribIPointer<T4>(@index, @size, @type, @stride, @pointer);
 
-    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
+    /// <summary>Forwards the exact signature to the backend execution boundary.</summary>
     internal static void VertexAttribIPointer<T4>(int @index, int @size, VertexAttribIntegerType @type, int @stride, T4[,] @pointer)
         where T4 : struct => StateCache.Current.ExecuteCoreVertexAttribIPointer<T4>(@index, @size, @type, @stride, @pointer);
 
-    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
+    /// <summary>Forwards the exact signature to the backend execution boundary.</summary>
     internal static void VertexAttribIPointer<T4>(int @index, int @size, VertexAttribIntegerType @type, int @stride, T4[] @pointer)
         where T4 : struct => StateCache.Current.ExecuteCoreVertexAttribIPointer<T4>(@index, @size, @type, @stride, @pointer);
 
-    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
+    /// <summary>Forwards the exact signature to the backend execution boundary.</summary>
     internal static void VertexAttribIPointer<T4>(int @index, int @size, VertexAttribIPointerType @type, int @stride, ref T4 @pointer)
         where T4 : struct => StateCache.Current.ExecuteCoreVertexAttribIPointer<T4>(@index, @size, @type, @stride, ref @pointer);
 
-    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
+    /// <summary>Forwards the exact signature to the backend execution boundary.</summary>
     internal static void VertexAttribIPointer<T4>(int @index, int @size, VertexAttribIPointerType @type, int @stride, T4[,,] @pointer)
         where T4 : struct => StateCache.Current.ExecuteCoreVertexAttribIPointer<T4>(@index, @size, @type, @stride, @pointer);
 
-    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
+    /// <summary>Forwards the exact signature to the backend execution boundary.</summary>
     internal static void VertexAttribIPointer<T4>(int @index, int @size, VertexAttribIPointerType @type, int @stride, T4[,] @pointer)
         where T4 : struct => StateCache.Current.ExecuteCoreVertexAttribIPointer<T4>(@index, @size, @type, @stride, @pointer);
 
-    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
+    /// <summary>Forwards the exact signature to the backend execution boundary.</summary>
     internal static void VertexAttribIPointer<T4>(int @index, int @size, VertexAttribIPointerType @type, int @stride, T4[] @pointer)
         where T4 : struct => StateCache.Current.ExecuteCoreVertexAttribIPointer<T4>(@index, @size, @type, @stride, @pointer);
 
-    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
+    /// <summary>Forwards the exact signature to the backend execution boundary.</summary>
     internal static void VertexAttribIPointer<T4>(uint @index, int @size, VertexAttribIntegerType @type, int @stride, ref T4 @pointer)
         where T4 : struct => StateCache.Current.ExecuteCoreVertexAttribIPointer<T4>(@index, @size, @type, @stride, ref @pointer);
 
-    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
+    /// <summary>Forwards the exact signature to the backend execution boundary.</summary>
     internal static void VertexAttribIPointer<T4>(uint @index, int @size, VertexAttribIntegerType @type, int @stride, T4[,,] @pointer)
         where T4 : struct => StateCache.Current.ExecuteCoreVertexAttribIPointer<T4>(@index, @size, @type, @stride, @pointer);
 
-    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
+    /// <summary>Forwards the exact signature to the backend execution boundary.</summary>
     internal static void VertexAttribIPointer<T4>(uint @index, int @size, VertexAttribIntegerType @type, int @stride, T4[,] @pointer)
         where T4 : struct => StateCache.Current.ExecuteCoreVertexAttribIPointer<T4>(@index, @size, @type, @stride, @pointer);
 
-    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
+    /// <summary>Forwards the exact signature to the backend execution boundary.</summary>
     internal static void VertexAttribIPointer<T4>(uint @index, int @size, VertexAttribIntegerType @type, int @stride, T4[] @pointer)
         where T4 : struct => StateCache.Current.ExecuteCoreVertexAttribIPointer<T4>(@index, @size, @type, @stride, @pointer);
 
-    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
+    /// <summary>Forwards the exact signature to the backend execution boundary.</summary>
     internal static void VertexAttribIPointer<T4>(uint @index, int @size, VertexAttribIPointerType @type, int @stride, ref T4 @pointer)
         where T4 : struct => StateCache.Current.ExecuteCoreVertexAttribIPointer<T4>(@index, @size, @type, @stride, ref @pointer);
 
-    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
+    /// <summary>Forwards the exact signature to the backend execution boundary.</summary>
     internal static void VertexAttribIPointer<T4>(uint @index, int @size, VertexAttribIPointerType @type, int @stride, T4[,,] @pointer)
         where T4 : struct => StateCache.Current.ExecuteCoreVertexAttribIPointer<T4>(@index, @size, @type, @stride, @pointer);
 
-    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
+    /// <summary>Forwards the exact signature to the backend execution boundary.</summary>
     internal static void VertexAttribIPointer<T4>(uint @index, int @size, VertexAttribIPointerType @type, int @stride, T4[,] @pointer)
         where T4 : struct => StateCache.Current.ExecuteCoreVertexAttribIPointer<T4>(@index, @size, @type, @stride, @pointer);
 
-    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
+    /// <summary>Forwards the exact signature to the backend execution boundary.</summary>
     internal static void VertexAttribIPointer<T4>(uint @index, int @size, VertexAttribIPointerType @type, int @stride, T4[] @pointer)
         where T4 : struct => StateCache.Current.ExecuteCoreVertexAttribIPointer<T4>(@index, @size, @type, @stride, @pointer);
 

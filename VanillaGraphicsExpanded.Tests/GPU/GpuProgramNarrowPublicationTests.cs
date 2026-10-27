@@ -64,7 +64,7 @@ public sealed class GpuProgramNarrowPublicationTests(HeadlessGLFixture fixture)
         finally { harmony.UnpatchAll(harmony.Id); fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
     }
 
-    /// <summary>Context-local compute preparation reflects once at linking and reuses those facts through final ownership transfer.</summary>
+    /// <summary>Context-local shader and PSO owners reuse their canonical interface without another native resource transfer.</summary>
     [Theory]
     [InlineData(false)]
     [InlineData(true)]

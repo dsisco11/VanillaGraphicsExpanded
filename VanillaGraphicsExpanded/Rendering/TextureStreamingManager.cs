@@ -2040,7 +2040,7 @@ internal sealed class TextureStreamingManager : IDisposable
             this.alignment = Math.Max(1, alignment);
             this.coherent = coherent;
 
-            buffer = RHICommandContext.Current.CreatePixelUnpackBuffer(new RHIBufferDescription { Role = RHIBufferRole.PixelUnpack, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StreamDraw, Label = "VGE_TextureStreaming_PersistentPboRing" }).RequireResource();
+            buffer = RHICommandContext.Current.CreatePixelUnpackBuffer(new RHIBufferDescription { Role = BufferRole.PixelUnpack, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StreamDraw, Label = "VGE_TextureStreaming_PersistentPboRing" }).RequireResource();
             mappedPtr = buffer.AllocateAndMapPersistent(bufferSizeBytes, coherent);
 
             if (mappedPtr == IntPtr.Zero)
@@ -2271,7 +2271,7 @@ internal sealed class TextureStreamingManager : IDisposable
 
             for (int i = 0; i < slots.Length; i++)
             {
-                var buffer = RHICommandContext.Current.CreatePixelUnpackBuffer(new RHIBufferDescription { Role = RHIBufferRole.PixelUnpack, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StreamDraw, Label = $"VGE_TextureStreaming_TriplePbo_{i}" }).RequireResource();
+                var buffer = RHICommandContext.Current.CreatePixelUnpackBuffer(new RHIBufferDescription { Role = BufferRole.PixelUnpack, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StreamDraw, Label = $"VGE_TextureStreaming_TriplePbo_{i}" }).RequireResource();
                 buffer.AllocateOrphan(bufferSizeBytes);
 
                 slots[i] = new PboSlot(buffer);
@@ -2310,7 +2310,7 @@ internal sealed class TextureStreamingManager : IDisposable
             IntPtr ptr = buffer.MapRange(
                 offsetBytes: 0,
                 byteCount: prepared.ByteCount,
-                access: RHIBufferMapAccess.Write | RHIBufferMapAccess.InvalidateBuffer);
+                access: BufferMapAccess.Write | BufferMapAccess.InvalidateBuffer);
 
             if (ptr == IntPtr.Zero)
             {
@@ -2360,7 +2360,7 @@ internal sealed class TextureStreamingManager : IDisposable
             IntPtr ptr = buffer.MapRange(
                 offsetBytes: 0,
                 byteCount: byteCount,
-                access: RHIBufferMapAccess.Write | RHIBufferMapAccess.InvalidateBuffer);
+                access: BufferMapAccess.Write | BufferMapAccess.InvalidateBuffer);
 
             if (ptr == IntPtr.Zero)
             {

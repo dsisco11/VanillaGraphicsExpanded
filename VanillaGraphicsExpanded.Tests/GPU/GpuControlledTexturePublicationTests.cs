@@ -49,7 +49,7 @@ public sealed class GpuControlledTexturePublicationTests(HeadlessGLFixture fixtu
         fixture.EnsureContextValid(); fixture.InitializeResourceDisposal();
         try
         {
-            using var texture = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba8, Width = System.Math.Max(1, 8), Height = System.Math.Max(1, 8), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
+            using var texture = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba8, Width = System.Math.Max(1, 8), Height = System.Math.Max(1, 8), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
             using var binding = texture.BindScope(0);
             VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLTexturesCalls.ExecuteCoreTexImage2D(TextureTarget.Texture2D, int.MaxValue, PixelInternalFormat.Rgba8,
                 1, 1, 0, PixelFormat.Rgba, PixelType.UnsignedByte, IntPtr.Zero);
@@ -100,7 +100,7 @@ public sealed class GpuControlledTexturePublicationTests(HeadlessGLFixture fixtu
         fixture.EnsureContextValid(); fixture.InitializeResourceDisposal();
         try
         {
-            using var texture = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba8, Width = System.Math.Max(1, 8), Height = System.Math.Max(1, 8), MipLevels = 4, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (4) - 1, Label = null }).RequireResource();
+            using var texture = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba8, Width = System.Math.Max(1, 8), Height = System.Math.Max(1, 8), MipLevels = 4, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (4) - 1, Label = null }).RequireResource();
             var manager = GpuResourceManagerSystem.CurrentManager!;
             var entry = Assert.IsType<GpuResourceMetadataEntry<GpuTextureMetadata>>(manager.GetResourceRegistration(texture));
             ulong revision = entry.MetadataRevision;
@@ -125,7 +125,7 @@ public sealed class GpuControlledTexturePublicationTests(HeadlessGLFixture fixtu
         fixture.EnsureContextValid(); fixture.InitializeResourceDisposal();
         try
         {
-            using var texture = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba8, Width = System.Math.Max(1, 16), Height = System.Math.Max(1, 8), MipLevels = 4, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (4) - 1, Label = null }).RequireResource();
+            using var texture = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba8, Width = System.Math.Max(1, 16), Height = System.Math.Max(1, 8), MipLevels = 4, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (4) - 1, Label = null }).RequireResource();
 
             using var binding = StateCache.Current.BindTextureScope(TextureTarget.Texture2D, 0, texture.TextureId);
             var entry = Assert.IsType<GpuResourceMetadataEntry<GpuTextureMetadata>>(
@@ -225,7 +225,7 @@ public sealed class GpuControlledTexturePublicationTests(HeadlessGLFixture fixtu
         try
         {
 
-            using var texture = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba16f, Width = System.Math.Max(1, 16), Height = System.Math.Max(1, 8), MipLevels = 4, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (4) - 1, Label = null }).RequireResource();
+            using var texture = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba16f, Width = System.Math.Max(1, 16), Height = System.Math.Max(1, 8), MipLevels = 4, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (4) - 1, Label = null }).RequireResource();
             var manager = GpuResourceManagerSystem.CurrentManager!;
             var entry = Assert.IsType<GpuResourceMetadataEntry<GpuTextureMetadata>>(manager.GetResourceRegistration(texture));
             Assert.Equal(4, entry.Metadata.Levels.Length);
@@ -255,8 +255,8 @@ public sealed class GpuControlledTexturePublicationTests(HeadlessGLFixture fixtu
         fixture.EnsureContextValid(); fixture.InitializeResourceDisposal();
         try
         {
-            using var source = RHICommandContext.Current.CreateDynamicTexture3D(new RHITextureDescription { Dimension = RHITextureDimension.TwoArray, Format = RHIFormat.Rgba32f, Width = System.Math.Max(1, 8), Height = System.Math.Max(1, 4), Depth = System.Math.Max(1, 6), MipLevels = 1, Storage = (true ? RHIStorageMode.Immutable : RHIStorageMode.Mutable), Filter = TextureFilterMode.Linear, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
-            using var view = RHICommandContext.Current.CreateTextureView(new RHITextureViewDescription { Source = source, Dimension = RHITextureDimension.TwoArray, Format = RHIFormat.Rgba32f, BaseMip = 0, MipCount = 1, BaseLayer = 2, LayerCount = 3, Label = null }).RequireResource();
+            using var source = RHICommandContext.Current.CreateDynamicTexture3D(new RHITextureDescription { Dimension = TextureDimension.TwoArray, Format = TextureFormat.Rgba32f, Width = System.Math.Max(1, 8), Height = System.Math.Max(1, 4), Depth = System.Math.Max(1, 6), MipLevels = 1, Storage = (true ? ResourceStorageMode.Immutable : ResourceStorageMode.Mutable), Filter = TextureFilterMode.Linear, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
+            using var view = RHICommandContext.Current.CreateTextureView(new RHITextureViewDescription { Source = source, Dimension = TextureDimension.TwoArray, Format = TextureFormat.Rgba32f, BaseMip = 0, MipCount = 1, BaseLayer = 2, LayerCount = 3, Label = null }).RequireResource();
             var entry = Assert.IsType<GpuResourceMetadataEntry<GpuTextureMetadata>>(
                 GpuResourceManagerSystem.CurrentManager!.GetResourceRegistration(view));
             Assert.Equal(new GpuTextureViewMetadata(0, 1, 2, 3), entry.Metadata.View);

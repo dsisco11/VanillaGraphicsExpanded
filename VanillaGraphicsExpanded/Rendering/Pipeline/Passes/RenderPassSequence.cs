@@ -4,7 +4,7 @@ using OpenTK.Graphics.OpenGL;
 
 namespace VanillaGraphicsExpanded.Rendering.Pipeline.Passes;
 
-/// <summary>Retains framebuffer-local routing until an owned graphics sequence returns to the engine.</summary>
+/// <summary>Preserves only externally owned framebuffer routing touched by one admitted pass sequence.</summary>
 internal sealed class RenderPassSequence : IDisposable
 {
     private readonly EngineBoundaryScope boundary;
@@ -35,7 +35,7 @@ internal sealed class RenderPassSequence : IDisposable
     /// <summary>Binds only the draw target and publishes a route without restoring an intermediate engine binding.</summary>
     internal void Bind(DynamicGpuFramebuffer target, DrawBuffersEnum[] routing)
     {
-        ObjectDisposedException.ThrowIf(disposed, this);
+        ObjectDisposedException.ThrowIf(disposed,this);
         StateCache.Current.RequireEngineBoundary(boundary);
         target.Bind(FramebufferTarget.DrawFramebuffer);
         if (!targets.TryGetValue(target.FboId, out var state))
@@ -68,7 +68,7 @@ internal sealed class RenderPassSequence : IDisposable
     #endregion
 
     #region Private
-    /// <summary>Releases CPU ownership after context loss without issuing calls into the retired native context.</summary>
+    /// <summary>Releases CPU lifetime guards on irreversible context loss without issuing restoration commands.</summary>
     private void Abandon()
     {
         if (disposed) return;
@@ -79,7 +79,7 @@ internal sealed class RenderPassSequence : IDisposable
         immutableTargets.Clear();
     }
 
-    /// <summary>Owns one framebuffer lifetime borrow and its original output route.</summary>
+    /// <summary>Retains one original external allocation and its pre-mutation route, rather than an asset owner or a reusable native-name lookup.</summary>
     private sealed class Routing
     {
         private readonly DynamicGpuFramebuffer target;
@@ -106,17 +106,15 @@ internal sealed class RenderPassSequence : IDisposable
             applied = true;
             StateCache.Current.SetDrawBuffers(routing.Length, routing);
         }
-
-        /// <summary>Restores framebuffer-local state without altering the read framebuffer binding.</summary>
+        /// <summary>Restores through named commands; only the default window requires selecting its draw alias.</summary>
         internal void Restore()
         {
             if (!applied) return;
             using var errors = new GlDebug.ErrorScope("Graphics sequence routing restoration");
             target.RestoreDrawRouting(original);
         }
-
-        /// <summary>Ends the routing borrow after native restoration or context abandonment.</summary>
-        internal void Release() => target.ReleaseLifetimeReference();
+        /// <summary>Releases the original allocation's lifetime guard after restoration or abandonment.</summary>
+        internal void Release()=>target.ReleaseLifetimeReference();
         #endregion
 
     }

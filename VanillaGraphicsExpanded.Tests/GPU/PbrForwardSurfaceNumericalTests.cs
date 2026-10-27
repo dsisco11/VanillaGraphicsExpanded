@@ -121,7 +121,7 @@ public sealed class PbrForwardSurfaceNumericalTests : RenderTestBase
             GL.Uniform1(GL.GetUniformLocation(program, "vge_atmosphereAerialRadiance"),11);
             GL.Uniform1(GL.GetUniformLocation(program, "vge_atmosphereAerialAttenuation"),12);
             using var framework = new ShaderTestFramework();
-            using var depth = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.DepthComponent32f, Width = System.Math.Max(1, 1), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
+            using var depth = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.DepthComponent32f, Width = System.Math.Max(1, 1), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
             // The generic float uploader assumes color channels; explicitly initialize the depth comparison input.
             GL.ClearTexImage(depth.TextureId, 0, PixelFormat.DepthComponent, PixelType.Float, new[] { scenario is 4 or 5 or 10 ? 1f : 0f });
             using var output = framework.CreateTestGBuffer(1, 1, PixelInternalFormat.Rgba32f);

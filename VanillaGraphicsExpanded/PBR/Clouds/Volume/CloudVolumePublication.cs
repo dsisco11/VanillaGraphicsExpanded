@@ -43,7 +43,7 @@ internal sealed class CloudVolumePublication(Func<int,PackedUniformBuffer,CloudV
         }
         if(commands is null)
         {
-            commands=RHICommandContext.Current.CreateIndirectBuffer(new RHIBufferDescription { Role = RHIBufferRole.IndirectDraw, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = "Cloud.Volume.Publication.Arguments" }).RequireResource();
+            commands=RHICommandContext.Current.CreateIndirectBuffer(new RHIBufferDescription { Role = BufferRole.IndirectDraw, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = "Cloud.Volume.Publication.Arguments" }).RequireResource();
             commands.UploadData(new uint[4]);
         }
     }
@@ -109,18 +109,18 @@ internal sealed class CloudVolumePublication(Func<int,PackedUniformBuffer,CloudV
     #endregion
     #region Private
     /// <summary>Orders prior drawable reads before overwriting images and exposes completed copies to subsequent draws.</summary>
-    private static void Barrier()=>RHICommandContext.Current.Barrier(new(RHIAccess.Image|
-        RHIAccess.TextureFetch|RHIAccess.ShaderStorage|RHIAccess.BufferUpdate|
-        RHIAccess.TextureUpdate|RHIAccess.Indirect));
+    private static void Barrier()=>RHICommandContext.Current.Barrier(new(ResourceAccess.Image|
+        ResourceAccess.TextureFetch|ResourceAccess.ShaderStorage|ResourceAccess.BufferUpdate|
+        ResourceAccess.TextureUpdate|ResourceAccess.Indirect));
     /// <summary>Allocates hardware-filtered volume storage matching solver addressing.</summary>
     private DynamicTexture3D Volume(CloudVolumeDomain d,PixelInternalFormat format)
     {
-        var texture=resources!.Own(RHICommandContext.Current.CreateDynamicTexture3D(new RHITextureDescription { Dimension = RHITextureDimension.Three, Format = VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Format((OpenTK.Graphics.OpenGL.PixelInternalFormat)(format)), Width = System.Math.Max(1, d.Size), Height = System.Math.Max(1, 66), Depth = System.Math.Max(1, d.Size), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Linear, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource());
-        texture.SetTexWrap(RHISamplerAddress.Repeat,RHISamplerAddress.ClampToEdge,RHISamplerAddress.Repeat);return texture;
+        var texture=resources!.Own(RHICommandContext.Current.CreateDynamicTexture3D(new RHITextureDescription { Dimension = TextureDimension.Three, Format = VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Format((OpenTK.Graphics.OpenGL.PixelInternalFormat)(format)), Width = System.Math.Max(1, d.Size), Height = System.Math.Max(1, 66), Depth = System.Math.Max(1, d.Size), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Linear, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource());
+        texture.SetTexWrap(SamplerAddressMode.Repeat,SamplerAddressMode.ClampToEdge,SamplerAddressMode.Repeat);return texture;
     }
     /// <summary>Allocates exact metadata through its ordinary GPU owner.</summary>
     private GpuShaderStorageBuffer Buffer(int words)
-    {var result=resources!.Own(RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = null }).RequireResource());result.UploadData(new uint[words]);return result;}
+    {var result=resources!.Own(RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = null }).RequireResource());result.UploadData(new uint[words]);return result;}
     /// <summary>Revokes the snapshot before releasing every acquired image and metadata buffer.</summary>
     private void ResetImages()
     {Published=null;source=null;resources?.Dispose();resources=null;density=direct=diffuse=null;regions=occupancy=null;}

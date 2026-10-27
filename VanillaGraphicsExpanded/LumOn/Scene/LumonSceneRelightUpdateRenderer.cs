@@ -122,7 +122,7 @@ internal sealed partial class LumonSceneRelightUpdateRenderer : IRenderer, ISurf
             historyRevision = feedback.GeometryHistoryRevision; settingsHash = hash;
             sourceCalibration = VgeFrameRenderer.CurrentLightingCalibration;
             readiness = new uint[pool.Plan.CapacityPages + 1];
-            readyBuffer ??= RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = "SurfaceLighting.Readiness" }).RequireResource();
+            readyBuffer ??= RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = "SurfaceLighting.Readiness" }).RequireResource();
             readyBuffer.EnsureCapacity(readiness.Length * sizeof(uint), growExponentially: false);
             readyBuffer.UploadSubData<uint>(readiness, 0, readiness.Length * sizeof(uint));
         }
@@ -166,7 +166,7 @@ internal sealed partial class LumonSceneRelightUpdateRenderer : IRenderer, ISurf
             uint operation = pass == 2 ? 4u : pass;
             var work = CollectionsMarshal.AsSpan(operation == 0 ? seedWork : operation == 1 ? traceWork : refreshWork);
             if (work.Length == 0) continue;
-            var workBuffer = operationBuffers[pass] ??= RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = $"SurfaceLighting.Operation{pass}" }).RequireResource();
+            var workBuffer = operationBuffers[pass] ??= RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = $"SurfaceLighting.Operation{pass}" }).RequireResource();
             workBuffer.EnsureCapacity(work.Length << 4, growExponentially: false);
             workBuffer.UploadSubData(work, 0, work.Length << 4);
             var fallbackBuffer = operation == 1 ? BeginFallbackCapture(current,work) : null;
@@ -186,7 +186,7 @@ internal sealed partial class LumonSceneRelightUpdateRenderer : IRenderer, ISurf
             if (work.Length == 0) continue;
             // All stages are already queued. Completion reads no longer separate shader submissions.
             long readStart = System.Diagnostics.Stopwatch.GetTimestamp();
-            using var result = operationBuffers[pass]!.MapRange<LumonSceneRelightWorkGpu>(0, work.Length, RHIBufferMapAccess.Read);
+            using var result = operationBuffers[pass]!.MapRange<LumonSceneRelightWorkGpu>(0, work.Length, BufferMapAccess.Read);
             diagnosticMapMilliseconds[pass] += System.Diagnostics.Stopwatch.GetElapsedTime(readStart).TotalMilliseconds;
             diagnosticMapCalls[pass]++;
             for (int i = 0; i < work.Length; i++)
@@ -228,7 +228,7 @@ internal sealed partial class LumonSceneRelightUpdateRenderer : IRenderer, ISurf
             // Keep the submitted list unchanged while its span is borrowed for completion handling.
             committedWork.Clear();
             long readStart = System.Diagnostics.Stopwatch.GetTimestamp();
-            using (var result = gpu.RelightWork.Items.MapRange<LumonSceneRelightWorkGpu>(0, work.Length, RHIBufferMapAccess.Read))
+            using (var result = gpu.RelightWork.Items.MapRange<LumonSceneRelightWorkGpu>(0, work.Length, BufferMapAccess.Read))
             {
                 diagnosticMapMilliseconds[3] += System.Diagnostics.Stopwatch.GetElapsedTime(readStart).TotalMilliseconds;
                 diagnosticMapCalls[3]++;
@@ -260,7 +260,7 @@ internal sealed partial class LumonSceneRelightUpdateRenderer : IRenderer, ISurf
                 if (seeded.Contains(item.PhysicalPageId))
                     feedback.TryClearNearPageFlagsMip0(item.ChunkSlot, (int)item.VirtualPageIndex, LumonScenePageTableEntryPacking.Flags.NeedsRelight);
             }
-            RHICommandContext.Current.Barrier(new(RHIAccess.TextureUpdate | RHIAccess.TextureFetch | RHIAccess.ShaderStorage));
+            RHICommandContext.Current.Barrier(new(ResourceAccess.TextureUpdate | ResourceAccess.TextureFetch | ResourceAccess.ShaderStorage));
             snapshot = snapshot with { OutgoingRadiance = resources.PublishedOutgoing, Generation = resources.LightingGeneration };
             published = true;
         }

@@ -70,7 +70,7 @@ public sealed class GpuBufferMetadataInterceptionTests(HeadlessGLFixture fixture
         {
             harmony.Patch(AccessTools.Method(typeof(GpuBufferMetadataInterceptionTests), nameof(AllocateStorage)),
                 transpiler: new HarmonyMethod(typeof(EngineStateSwitchingHook), nameof(EngineStateSwitchingHook.Transpiler)));
-            using var owner = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Vertex, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = null }).RequireResource();
+            using var owner = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = null }).RequireResource();
             OpenGLBufferBindings.BindBuffer(StateCache.Current, BufferTarget.ArrayBuffer, owner.BufferId);
             AllocateStorage(named, owner.BufferId);
             AcquireAfterExternal(owner);
@@ -106,7 +106,7 @@ public sealed class GpuBufferMetadataInterceptionTests(HeadlessGLFixture fixture
         {
             var caller = AccessTools.Method(typeof(GpuBufferMetadataInterceptionTests), nameof(Upload));
             harmony.Patch(caller, transpiler: new HarmonyMethod(typeof(EngineStateSwitchingHook), nameof(EngineStateSwitchingHook.Transpiler)));
-            using var owner = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Vertex, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = null }).RequireResource();
+            using var owner = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = null }).RequireResource();
             owner.Allocate(64);
             var manager = GpuResourceManagerSystem.CurrentManager!;
             var entry = Assert.IsType<GpuResourceMetadataEntry<GpuBufferMetadata>>(manager.GetResourceRegistration(owner));
@@ -141,7 +141,7 @@ public sealed class GpuBufferMetadataInterceptionTests(HeadlessGLFixture fixture
         {
             harmony.Patch(AccessTools.Method(typeof(GpuBufferMetadataInterceptionTests), nameof(Allocate)),
                 transpiler: new HarmonyMethod(typeof(EngineStateSwitchingHook), nameof(EngineStateSwitchingHook.Transpiler)));
-            using var owner = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Vertex, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = null }).RequireResource();
+            using var owner = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = null }).RequireResource();
             owner.Allocate(64);
             OpenGLBufferBindings.BindBuffer(StateCache.Current, BufferTarget.ArrayBuffer, owner.BufferId);
             Allocate(-1);

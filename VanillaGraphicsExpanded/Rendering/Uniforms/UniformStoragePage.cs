@@ -24,17 +24,17 @@ internal sealed class UniformStoragePage : IDisposable
         this.coherent = coherent;
         Slots = new UniformStorageVersion?[capacity / slotSize];
         Generations = new long[Slots.Length];
-        Buffer = RHICommandContext.Current.CreateUniformBuffer(new RHIBufferDescription { Role = RHIBufferRole.Uniform, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = "Uniform.PersistentPage" }).RequireResource();
+        Buffer = RHICommandContext.Current.CreateUniformBuffer(new RHIBufferDescription { Role = BufferRole.Uniform, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = "Uniform.PersistentPage" }).RequireResource();
         try
         {
             if (!persistent) Buffer.Allocate(capacity);
             else
             {
 
-                var storage = RHIStorageAccess.Write | RHIStorageAccess.Persistent;
-                var access = RHIBufferMapAccess.Write | RHIBufferMapAccess.Persistent;
-                if (coherent) { storage |= RHIStorageAccess.Coherent; access |= RHIBufferMapAccess.Coherent; }
-                else access |= RHIBufferMapAccess.ExplicitFlush;
+                var storage = StorageAccess.Write | StorageAccess.Persistent;
+                var access = BufferMapAccess.Write | BufferMapAccess.Persistent;
+                if (coherent) { storage |= StorageAccess.Coherent; access |= BufferMapAccess.Coherent; }
+                else access |= BufferMapAccess.ExplicitFlush;
                 RHICommandContext.Current.AllocateImmutableBuffer(Buffer, capacity, storage);
                 mapped = RHICommandContext.Current.MapBuffer(Buffer, 0, capacity, access);
                 if (mapped == IntPtr.Zero) throw new InvalidOperationException("Persistent uniform mapping failed.");

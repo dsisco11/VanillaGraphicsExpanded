@@ -87,12 +87,12 @@ public sealed class GpuResourceKindLifecycleTests(HeadlessGLFixture fixture, ITe
     {
         return kind switch
         {
-            GpuResourceKind.Buffer => RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Vertex, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = null }).RequireResource(),
+            GpuResourceKind.Buffer => RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = null }).RequireResource(),
             GpuResourceKind.VertexArray => GpuVao.Create(),
-            GpuResourceKind.Texture => RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba8, Width = System.Math.Max(1, 2), Height = System.Math.Max(1, 2), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource(),
+            GpuResourceKind.Texture => RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba8, Width = System.Math.Max(1, 2), Height = System.Math.Max(1, 2), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource(),
             GpuResourceKind.Framebuffer => new DynamicGpuFramebuffer(true),
-            GpuResourceKind.Renderbuffer => RHICommandContext.Current.CreateRenderbuffer(new RHIRenderbufferDescription { Format = RHIFormat.Rgba8, Width = 2, Height = 2, Samples = 0, Label = null }).RequireResource(),
-            GpuResourceKind.Query => RHICommandContext.Current.CreateQuery(new(RHIQueryKind.TimeElapsed)).RequireResource(),
+            GpuResourceKind.Renderbuffer => RHICommandContext.Current.CreateRenderbuffer(new RHIRenderbufferDescription { Format = TextureFormat.Rgba8, Width = 2, Height = 2, Samples = 0, Label = null }).RequireResource(),
+            GpuResourceKind.Query => RHICommandContext.Current.CreateQuery(new(QueryKind.TimeElapsed)).RequireResource(),
             GpuResourceKind.Sync => RHICommandContext.Current.InsertFence(),
             GpuResourceKind.Program => GpuProgramObject.Create(),
             GpuResourceKind.TransformFeedback => RHICommandContext.Current.CreateTransformFeedback(new()).RequireResource(),

@@ -18,7 +18,7 @@ public sealed class TextureLayerReadbackTests(HeadlessGLFixture fixture) : Rende
     public void RegionSelectsLayerAndPreservesFramebufferBindings(TextureTarget target)
     {
         EnsureContextValid();
-        using var texture=RHICommandContext.Current.CreateTexture3D(new RHITextureDescription { Dimension = VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(target), Format = RHIFormat.Rgba32f, Width = System.Math.Max(1, 5), Height = System.Math.Max(1, 4), Depth = System.Math.Max(1, 3), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Linear, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
+        using var texture=RHICommandContext.Current.CreateTexture3D(new RHITextureDescription { Dimension = VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(target), Format = TextureFormat.Rgba32f, Width = System.Math.Max(1, 5), Height = System.Math.Max(1, 4), Depth = System.Math.Max(1, 3), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Linear, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         var data=new float[5*4*3*4];
         for(int z=0;z<3;z++) for(int y=0;y<4;y++) for(int x=0;x<5;x++)
         {
@@ -30,7 +30,7 @@ public sealed class TextureLayerReadbackTests(HeadlessGLFixture fixture) : Rende
         using var read=DynamicGpuFramebuffer.CreateEmpty("Tests.Readback.Read");
         using var drawScope=StateCache.Current.BindFramebufferScope(FramebufferTarget.DrawFramebuffer,draw.FboId);
         using var readScope=StateCache.Current.BindFramebufferScope(FramebufferTarget.ReadFramebuffer,read.FboId);
-        using var pack=RHICommandContext.Current.CreatePixelPackBuffer(new RHIBufferDescription { Role = RHIBufferRole.PixelPack, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StreamRead, Label = "Tests.Readback.ExistingPack" }).RequireResource();
+        using var pack=RHICommandContext.Current.CreatePixelPackBuffer(new RHIBufferDescription { Role = BufferRole.PixelPack, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StreamRead, Label = "Tests.Readback.ExistingPack" }).RequireResource();
         using var packScope=pack.BindScope();
         var packing=new[]{PixelStoreParameter.PackAlignment,PixelStoreParameter.PackRowLength,
             PixelStoreParameter.PackSkipRows,PixelStoreParameter.PackSkipPixels,PixelStoreParameter.PackSwapBytes};

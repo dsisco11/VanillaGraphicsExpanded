@@ -34,8 +34,8 @@ internal sealed class CloudVolumeUpdates(CloudVolumeStorage storage,CloudVolumeD
         }
         if(fence is null)return;
         if(context!=RenderContextRegistry.Current())throw new InvalidOperationException("Cloud completion context changed.");
-        var status=RHICommandContext.Current.Poll(fence);if(status==RHICompletionStatus.Pending)return;
-        if(status==RHICompletionStatus.Failed)throw new InvalidOperationException("Cloud lighting fence failed.");
+        var status=RHICommandContext.Current.Poll(fence);if(status==CompletionStatus.Pending)return;
+        if(status==CompletionStatus.Failed)throw new InvalidOperationException("Cloud lighting fence failed.");
         fence.Dispose();fence=null;
         var selected=batch??throw new InvalidOperationException("Cloud completion batch missing.");
         if(step!=Step.Pending)throw new InvalidOperationException("Cloud completion state invalid.");

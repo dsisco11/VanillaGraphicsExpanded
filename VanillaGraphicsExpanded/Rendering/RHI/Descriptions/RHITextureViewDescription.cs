@@ -7,8 +7,8 @@ public struct RHITextureViewDescription
 {
     private ulong assigned;
     private GpuTextureRef source;
-    private RHITextureDimension dimension;
-    private RHIFormat format;
+    private TextureDimension dimension;
+    private TextureFormat format;
     private int baseMip;
     private int mipCount;
     private int baseLayer;
@@ -19,9 +19,9 @@ public struct RHITextureViewDescription
     /// <summary>Supplies Source while retaining explicit assignment intent.</summary>
     public GpuTextureRef Source { readonly get => source; set { source = value; assigned |= 1UL << 0; } }
     /// <summary>Supplies Dimension while retaining explicit assignment intent.</summary>
-    public RHITextureDimension Dimension { readonly get => dimension; set { dimension = value; assigned |= 1UL << 1; } }
+    public TextureDimension Dimension { readonly get => dimension; set { dimension = value; assigned |= 1UL << 1; } }
     /// <summary>Supplies Format while retaining explicit assignment intent.</summary>
-    public RHIFormat Format { readonly get => format; set { format = value; assigned |= 1UL << 2; } }
+    public TextureFormat Format { readonly get => format; set { format = value; assigned |= 1UL << 2; } }
     /// <summary>Supplies BaseMip while retaining explicit assignment intent.</summary>
     public int BaseMip { readonly get => baseMip; set { baseMip = value; assigned |= 1UL << 3; } }
     /// <summary>Supplies MipCount while retaining explicit assignment intent.</summary>

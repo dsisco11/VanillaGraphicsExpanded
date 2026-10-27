@@ -1059,7 +1059,7 @@ public sealed partial class LumOnDebugRenderer : IRenderer, IDisposable
 
         try
         {
-            clipmapQueuedTraceRaysVbo = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Vertex, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StreamDraw, Label = "VGE_WorldProbeQueuedTraceRays_VBO" }).RequireResource();
+            clipmapQueuedTraceRaysVbo = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StreamDraw, Label = "VGE_WorldProbeQueuedTraceRays_VBO" }).RequireResource();
 
             clipmapQueuedTraceRaysGeometry = new(DebugLineLayout, PrimitiveType.Lines,
                 new Dictionary<int, GpuVbo> { [0] = clipmapQueuedTraceRaysVbo });
@@ -1091,7 +1091,7 @@ public sealed partial class LumOnDebugRenderer : IRenderer, IDisposable
 
         try
         {
-            clipmapBoundsVbo = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Vertex, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StreamDraw, Label = "VGE_WorldProbeClipmapBoundsLines_VBO" }).RequireResource();
+            clipmapBoundsVbo = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StreamDraw, Label = "VGE_WorldProbeClipmapBoundsLines_VBO" }).RequireResource();
 
             clipmapBoundsGeometry = new(DebugLineLayout, PrimitiveType.Lines,
                 new Dictionary<int, GpuVbo> { [0] = clipmapBoundsVbo });
@@ -1130,7 +1130,7 @@ public sealed partial class LumOnDebugRenderer : IRenderer, IDisposable
 
         try
         {
-            clipmapProbePointsColorVbo = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Vertex, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StreamDraw, Label = "VGE_WorldProbeClipmapProbePoints_Color_VBO" }).RequireResource();
+            clipmapProbePointsColorVbo = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StreamDraw, Label = "VGE_WorldProbeClipmapProbePoints_Color_VBO" }).RequireResource();
 
             clipmapProbePointsGeometry = new(DebugPointLayout, PrimitiveType.Points,
                 new Dictionary<int, GpuVbo> { [0] = clipmapProbePositionsVbo, [1] = clipmapProbePointsColorVbo });
@@ -1157,7 +1157,7 @@ public sealed partial class LumOnDebugRenderer : IRenderer, IDisposable
 
         try
         {
-            clipmapProbePositionsVbo = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Vertex, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StreamDraw, Label = "VGE_WorldProbeClipmapProbePositions_VBO" }).RequireResource();
+            clipmapProbePositionsVbo = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StreamDraw, Label = "VGE_WorldProbeClipmapProbePositions_VBO" }).RequireResource();
         }
         catch
         {
@@ -1256,8 +1256,8 @@ public sealed partial class LumOnDebugRenderer : IRenderer, IDisposable
 
         try
         {
-            clipmapProbeOrbsColorVbo = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Vertex, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StreamDraw, Label = "VGE_WorldProbeClipmapProbeOrbs_Color_VBO" }).RequireResource();
-            clipmapProbeOrbsAtlasVbo = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Vertex, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StreamDraw, Label = "VGE_WorldProbeClipmapProbeOrbs_Atlas_VBO" }).RequireResource();
+            clipmapProbeOrbsColorVbo = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StreamDraw, Label = "VGE_WorldProbeClipmapProbeOrbs_Color_VBO" }).RequireResource();
+            clipmapProbeOrbsAtlasVbo = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StreamDraw, Label = "VGE_WorldProbeClipmapProbeOrbs_Atlas_VBO" }).RequireResource();
 
             clipmapProbeOrbsGeometry = new(DebugOrbLayout, PrimitiveType.Points,
                 new Dictionary<int, GpuVbo> { [0] = clipmapProbePositionsVbo, [1] = clipmapProbeOrbsColorVbo, [2] = clipmapProbeOrbsAtlasVbo });
@@ -1295,8 +1295,8 @@ public sealed partial class LumOnDebugRenderer : IRenderer, IDisposable
 
         try
         {
-            closestProbeMarkerPosVbo = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Vertex, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StreamDraw, Label = "VGE_WorldProbeClosestProbeMarker_Pos_VBO" }).RequireResource();
-            closestProbeMarkerColorVbo = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Vertex, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StreamDraw, Label = "VGE_WorldProbeClosestProbeMarker_Color_VBO" }).RequireResource();
+            closestProbeMarkerPosVbo = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StreamDraw, Label = "VGE_WorldProbeClosestProbeMarker_Pos_VBO" }).RequireResource();
+            closestProbeMarkerColorVbo = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StreamDraw, Label = "VGE_WorldProbeClosestProbeMarker_Color_VBO" }).RequireResource();
 
             closestProbeMarkerGeometry = new(DebugPointLayout, PrimitiveType.Points,
                 new Dictionary<int, GpuVbo> { [0] = closestProbeMarkerPosVbo, [1] = closestProbeMarkerColorVbo });

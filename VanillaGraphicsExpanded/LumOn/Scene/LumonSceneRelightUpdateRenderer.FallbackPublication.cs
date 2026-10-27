@@ -91,7 +91,7 @@ internal sealed partial class LumonSceneRelightUpdateRenderer
         }
         if (pendingCommits.Count == 0) pendingCommitDependencies = null;
         if (accepted == 0) return 0;
-        fallbackCommitBuffer ??= RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = "SurfaceLighting.FallbackCommits" }).RequireResource();
+        fallbackCommitBuffer ??= RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = "SurfaceLighting.FallbackCommits" }).RequireResource();
         fallbackCommitBuffer.EnsureCapacity(SurfaceFallbackWorker.MaximumTexels << 5,growExponentially:false);
         fallbackCommitBuffer.UploadSubData<SurfaceFallbackCommit>(fallbackCommitUpload,0,SurfaceFallbackWorker.MaximumTexels << 5);
         var work = CollectionsMarshal.AsSpan(fallbackWork);

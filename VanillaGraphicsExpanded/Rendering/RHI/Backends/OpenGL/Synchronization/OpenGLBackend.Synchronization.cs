@@ -11,23 +11,23 @@ internal sealed partial class OpenGLBackend
     public void Barrier(in RHIBarrierDescription description)
     {
         RequireContext();
-        if ((description.Access & ~RHIAccess.All) != 0) throw new ArgumentOutOfRangeException(nameof(description));
+        if ((description.Access & ~ResourceAccess.All) != 0) throw new ArgumentOutOfRangeException(nameof(description));
         MemoryBarrierFlags flags = 0;
-        if (description.Access.HasFlag(RHIAccess.Vertex)) flags |= MemoryBarrierFlags.VertexAttribArrayBarrierBit;
-        if (description.Access.HasFlag(RHIAccess.Index)) flags |= MemoryBarrierFlags.ElementArrayBarrierBit;
-        if (description.Access.HasFlag(RHIAccess.Uniform)) flags |= MemoryBarrierFlags.UniformBarrierBit;
-        if (description.Access.HasFlag(RHIAccess.TextureFetch)) flags |= MemoryBarrierFlags.TextureFetchBarrierBit;
-        if (description.Access.HasFlag(RHIAccess.Image)) flags |= MemoryBarrierFlags.ShaderImageAccessBarrierBit;
-        if (description.Access.HasFlag(RHIAccess.Indirect)) flags |= MemoryBarrierFlags.CommandBarrierBit;
-        if (description.Access.HasFlag(RHIAccess.PixelTransfer)) flags |= MemoryBarrierFlags.PixelBufferBarrierBit;
-        if (description.Access.HasFlag(RHIAccess.TextureUpdate)) flags |= MemoryBarrierFlags.TextureUpdateBarrierBit;
-        if (description.Access.HasFlag(RHIAccess.BufferUpdate)) flags |= MemoryBarrierFlags.BufferUpdateBarrierBit;
-        if (description.Access.HasFlag(RHIAccess.Framebuffer)) flags |= MemoryBarrierFlags.FramebufferBarrierBit;
-        if (description.Access.HasFlag(RHIAccess.TransformFeedback)) flags |= MemoryBarrierFlags.TransformFeedbackBarrierBit;
-        if (description.Access.HasFlag(RHIAccess.AtomicCounter)) flags |= MemoryBarrierFlags.AtomicCounterBarrierBit;
-        if (description.Access.HasFlag(RHIAccess.ShaderStorage)) flags |= MemoryBarrierFlags.ShaderStorageBarrierBit;
-        if (description.Access.HasFlag(RHIAccess.ClientMapped)) flags |= MemoryBarrierFlags.ClientMappedBufferBarrierBit;
-        if (description.Access.HasFlag(RHIAccess.QueryResult)) flags |= MemoryBarrierFlags.QueryBufferBarrierBit;
+        if (description.Access.HasFlag(ResourceAccess.Vertex)) flags |= MemoryBarrierFlags.VertexAttribArrayBarrierBit;
+        if (description.Access.HasFlag(ResourceAccess.Index)) flags |= MemoryBarrierFlags.ElementArrayBarrierBit;
+        if (description.Access.HasFlag(ResourceAccess.Uniform)) flags |= MemoryBarrierFlags.UniformBarrierBit;
+        if (description.Access.HasFlag(ResourceAccess.TextureFetch)) flags |= MemoryBarrierFlags.TextureFetchBarrierBit;
+        if (description.Access.HasFlag(ResourceAccess.Image)) flags |= MemoryBarrierFlags.ShaderImageAccessBarrierBit;
+        if (description.Access.HasFlag(ResourceAccess.Indirect)) flags |= MemoryBarrierFlags.CommandBarrierBit;
+        if (description.Access.HasFlag(ResourceAccess.PixelTransfer)) flags |= MemoryBarrierFlags.PixelBufferBarrierBit;
+        if (description.Access.HasFlag(ResourceAccess.TextureUpdate)) flags |= MemoryBarrierFlags.TextureUpdateBarrierBit;
+        if (description.Access.HasFlag(ResourceAccess.BufferUpdate)) flags |= MemoryBarrierFlags.BufferUpdateBarrierBit;
+        if (description.Access.HasFlag(ResourceAccess.Framebuffer)) flags |= MemoryBarrierFlags.FramebufferBarrierBit;
+        if (description.Access.HasFlag(ResourceAccess.TransformFeedback)) flags |= MemoryBarrierFlags.TransformFeedbackBarrierBit;
+        if (description.Access.HasFlag(ResourceAccess.AtomicCounter)) flags |= MemoryBarrierFlags.AtomicCounterBarrierBit;
+        if (description.Access.HasFlag(ResourceAccess.ShaderStorage)) flags |= MemoryBarrierFlags.ShaderStorageBarrierBit;
+        if (description.Access.HasFlag(ResourceAccess.ClientMapped)) flags |= MemoryBarrierFlags.ClientMappedBufferBarrierBit;
+        if (description.Access.HasFlag(ResourceAccess.QueryResult)) flags |= MemoryBarrierFlags.QueryBufferBarrierBit;
         GL.MemoryBarrier(flags);
         RequireContext();
     }
@@ -45,7 +45,7 @@ internal sealed partial class OpenGLBackend
         catch { try { owner.Dispose(); } catch { } throw; }
     }
     /// <inheritdoc />
-    public RHICompletionStatus WaitCpu(GpuSyncRef fence, TimeSpan timeout, bool flush)
+    public CompletionStatus WaitCpu(GpuSyncRef fence, TimeSpan timeout, bool flush)
     {
         RequireContext();
         if (timeout < TimeSpan.Zero || timeout > TimeSpan.FromSeconds(60)) throw new ArgumentOutOfRangeException(nameof(timeout));
@@ -53,9 +53,9 @@ internal sealed partial class OpenGLBackend
         var status = GL.ClientWaitSync(owner.ResourceId, flush ? ClientWaitSyncFlags.SyncFlushCommandsBit : ClientWaitSyncFlags.None,
             checked(timeout.Ticks * 100)) switch
         {
-            WaitSyncStatus.AlreadySignaled or WaitSyncStatus.ConditionSatisfied => RHICompletionStatus.Ready,
-            WaitSyncStatus.TimeoutExpired => RHICompletionStatus.Pending,
-            _ => RHICompletionStatus.Failed
+            WaitSyncStatus.AlreadySignaled or WaitSyncStatus.ConditionSatisfied => CompletionStatus.Ready,
+            WaitSyncStatus.TimeoutExpired => CompletionStatus.Pending,
+            _ => CompletionStatus.Failed
         };
         RequireContext();
         return status;

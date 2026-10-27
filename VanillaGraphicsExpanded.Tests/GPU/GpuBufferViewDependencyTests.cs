@@ -28,7 +28,7 @@ public sealed class GpuBufferViewDependencyTests(HeadlessGLFixture fixture)
         var harmony = Patch();
         try
         {
-            using var buffer = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = null }).RequireResource();
+            using var buffer = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = null }).RequireResource();
             buffer.Allocate(64);
             using var view = CreateView(buffer, ranged);
             var manager = GpuResourceManagerSystem.CurrentManager!;
@@ -64,14 +64,14 @@ public sealed class GpuBufferViewDependencyTests(HeadlessGLFixture fixture)
         var harmony = Patch();
         try
         {
-            using var buffer = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = null }).RequireResource();
+            using var buffer = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = null }).RequireResource();
             buffer.Allocate(64);
             using var view = CreateView(buffer, ranged);
             var manager = GpuResourceManagerSystem.CurrentManager!;
             var entry = (GpuResourceMetadataEntry<GpuBufferMetadata>)manager.GetResourceRegistration(buffer)!;
             using var alias = new TextureAlias(view.TextureId);
             manager.AssociateResource((GpuResourceMetadataEntry<GpuTextureMetadata>)manager.GetResourceRegistration(view)!, alias);
-            using var sentinelBuffer = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = null }).RequireResource();
+            using var sentinelBuffer = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = null }).RequireResource();
             sentinelBuffer.Allocate(64);
             using var sentinel = CreateView(sentinelBuffer, false);
             sentinel.BindImageUnit(0);
@@ -106,7 +106,7 @@ public sealed class GpuBufferViewDependencyTests(HeadlessGLFixture fixture)
         fixture.InitializeResourceDisposal();
         try
         {
-            using var buffer = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = null }).RequireResource();
+            using var buffer = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = null }).RequireResource();
             buffer.Allocate(64);
             using var view = CreateView(buffer, false);
             using var sentinel = CreateView(buffer, false);
@@ -137,7 +137,7 @@ public sealed class GpuBufferViewDependencyTests(HeadlessGLFixture fixture)
         fixture.InitializeResourceDisposal();
         try
         {
-            using var buffer = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = null }).RequireResource();
+            using var buffer = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = null }).RequireResource();
             buffer.Allocate(64);
             using var view = CreateView(buffer, false);
             var manager = GpuResourceManagerSystem.CurrentManager!;
@@ -158,7 +158,7 @@ public sealed class GpuBufferViewDependencyTests(HeadlessGLFixture fixture)
             Assert.False(view.IsValid);
             // Retire the synthetic registry-only replacement before the driver may reuse this native name.
             manager.ObserveDeletion(GpuResourceKind.Buffer, oldId);
-            using var newBuffer = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = null }).RequireResource();
+            using var newBuffer = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = null }).RequireResource();
             newBuffer.Allocate(128);
             var reassociation = StateCache.BeginNativeBufferTexture(view.TextureId, (int)TextureTarget.TextureBuffer,
                 0, true, false, newBuffer.BufferId, (int)SizedInternalFormat.R32f, 0, 0, true);
@@ -215,8 +215,8 @@ public sealed class GpuBufferViewDependencyTests(HeadlessGLFixture fixture)
     #region Private
     /// <summary>Creates the range policy whose zero-size whole-buffer convention must survive observation.</summary>
     private static GpuBufferView CreateView(GpuBufferObject buffer, bool ranged) => ranged
-        ? RHICommandContext.Current.CreateBufferTexture(new RHIBufferTextureDescription { Buffer = buffer, Format = RHIFormat.R32f, WholeBuffer = false, Offset = 0, Length = 64, Label = null }).RequireResource()
-        : RHICommandContext.Current.CreateBufferTexture(new RHIBufferTextureDescription { Buffer = buffer, Format = RHIFormat.R32f, WholeBuffer = true, Label = null }).RequireResource();
+        ? RHICommandContext.Current.CreateBufferTexture(new RHIBufferTextureDescription { Buffer = buffer, Format = TextureFormat.R32f, WholeBuffer = false, Offset = 0, Length = 64, Label = null }).RequireResource()
+        : RHICommandContext.Current.CreateBufferTexture(new RHIBufferTextureDescription { Buffer = buffer, Format = TextureFormat.R32f, WholeBuffer = true, Label = null }).RequireResource();
 
     /// <summary>Selects the owning allocation API or the production-transpiled native allocation boundary.</summary>
     private static void Resize(GpuShaderStorageBuffer buffer, int bytes, bool native)

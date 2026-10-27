@@ -23,12 +23,12 @@ public sealed class ShaderBindingOperationTests(HeadlessGLFixture fixture, ITest
         EnsureContextValid();
         using var pipeline = Load("uniform_state", UniformStateComputeShader.Contract);
         using var shader = new UniformStateComputeShader(pipeline);
-        using var result = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba32f, Width = System.Math.Max(1, 1), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
+        using var result = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba32f, Width = System.Math.Max(1, 1), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         shader.Values = [2, 3];
         shader.Scalar = 7;
         shader.Output = new(result, TextureAccess.WriteOnly);
         shader.Dispatch(1);
-        RHICommandContext.Current.Barrier(new(RHIAccess.Image));
+        RHICommandContext.Current.Barrier(new(ResourceAccess.Image));
         var cache = StateCache.Current;
         var prepared = pipeline.ProgramLayout.BinaryInterface!.PreparedBindings;
 #if DEBUG
@@ -52,7 +52,7 @@ public sealed class ShaderBindingOperationTests(HeadlessGLFixture fixture, ITest
             shader.Values = [2, 3];
             shader.Output = new(result, TextureAccess.WriteOnly);
             shader.Dispatch(1);
-            RHICommandContext.Current.Barrier(new(RHIAccess.Image));
+            RHICommandContext.Current.Barrier(new(ResourceAccess.Image));
         }
         Assert.Equal(revision, Revision(shader));
 #if DEBUG
@@ -69,7 +69,7 @@ public sealed class ShaderBindingOperationTests(HeadlessGLFixture fixture, ITest
         Assert.Equal(1, validation.EntryResolutions);
         Assert.Equal(1, validation.CompatibilityChecks);
 #endif
-        RHICommandContext.Current.Barrier(new(RHIAccess.Framebuffer));
+        RHICommandContext.Current.Barrier(new(ResourceAccess.Framebuffer));
         Assert.Equal(new float[] { 7, 5, 0, 0 }, result.ReadPixels());
 #if DEBUG
         output.WriteLine($"Generated owner: {repeats * 3} assignment attempts/skips; 0 revision changes; preparation reflection queries {reflection}; steady-state reflection/name resolutions 0; {repeats} submissions/image cache checks; entry resolutions 1; compatibility checks 1; numeric GL uploads 0; repeated block copies/allocations 0; repeated image or UBO range binds 0.");
@@ -79,8 +79,8 @@ public sealed class ShaderBindingOperationTests(HeadlessGLFixture fixture, ITest
         var table = arrays.ProgramLayout.BinaryInterface!.PreparedBindings;
         var input = table.Resolve(GpuBindingEntry.Identity(ShaderBindingKind.Sampler, "inputs"));
         var image = table.Resolve(GpuBindingEntry.Identity(ShaderBindingKind.Image, "outputImage"));
-        using var first = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Width = 1, Height = 1, Format = RHIFormat.Rgba32f, MipLevels = 1, Storage = RHIStorageMode.Mutable, BaseLevel = 0, MaxLevel = 0, Filter = TextureFilterMode.Nearest, Label = null }, [new RHITextureInitialData(new(new(), 0, 0, 0, 1, 1), VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLPixelValues.Encoding(TextureFormatHelper.GetPixelFormat(PixelInternalFormat.Rgba32f), OpenTK.Graphics.OpenGL.PixelType.Float), System.Runtime.InteropServices.MemoryMarshal.AsBytes((new float[] { 1, 2, 3, 4 }).AsSpan()).ToArray())]).RequireResource();
-        using var second = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Width = 1, Height = 1, Format = RHIFormat.Rgba32f, MipLevels = 1, Storage = RHIStorageMode.Mutable, BaseLevel = 0, MaxLevel = 0, Filter = TextureFilterMode.Nearest, Label = null }, [new RHITextureInitialData(new(new(), 0, 0, 0, 1, 1), VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLPixelValues.Encoding(TextureFormatHelper.GetPixelFormat(PixelInternalFormat.Rgba32f), OpenTK.Graphics.OpenGL.PixelType.Float), System.Runtime.InteropServices.MemoryMarshal.AsBytes((new float[] { 10, 20, 30, 40 }).AsSpan()).ToArray())]).RequireResource();
+        using var first = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Width = 1, Height = 1, Format = TextureFormat.Rgba32f, MipLevels = 1, Storage = ResourceStorageMode.Mutable, BaseLevel = 0, MaxLevel = 0, Filter = TextureFilterMode.Nearest, Label = null }, [new RHITextureInitialData(new(new(), 0, 0, 0, 1, 1), VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLPixelValues.Encoding(TextureFormatHelper.GetPixelFormat(PixelInternalFormat.Rgba32f), OpenTK.Graphics.OpenGL.PixelType.Float), System.Runtime.InteropServices.MemoryMarshal.AsBytes((new float[] { 1, 2, 3, 4 }).AsSpan()).ToArray())]).RequireResource();
+        using var second = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Width = 1, Height = 1, Format = TextureFormat.Rgba32f, MipLevels = 1, Storage = ResourceStorageMode.Mutable, BaseLevel = 0, MaxLevel = 0, Filter = TextureFilterMode.Nearest, Label = null }, [new RHITextureInitialData(new(new(), 0, 0, 0, 1, 1), VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLPixelValues.Encoding(TextureFormatHelper.GetPixelFormat(PixelInternalFormat.Rgba32f), OpenTK.Graphics.OpenGL.PixelType.Float), System.Runtime.InteropServices.MemoryMarshal.AsBytes((new float[] { 10, 20, 30, 40 }).AsSpan()).ToArray())]).RequireResource();
         GpuTextureRef[] desired = [first, second];
         var view = new GpuTextureBinding(result, TextureAccess.WriteOnly);
         ShaderPreparedSubmission.SamplerArray(input, desired);
@@ -113,13 +113,13 @@ public sealed class ShaderBindingOperationTests(HeadlessGLFixture fixture, ITest
         Assert.Equal(interfaceNames, arrays.ProgramLayout.BinaryInterface.UniformNameResolutions);
 #endif
         arrays.Dispatch(1);
-        RHICommandContext.Current.Barrier(new(RHIAccess.Image | RHIAccess.Framebuffer));
+        RHICommandContext.Current.Barrier(new(ResourceAccess.Image | ResourceAccess.Framebuffer));
         Assert.Equal(new float[] { 11, 22, 33, 44 }, result.ReadPixels());
 #if DEBUG
         output.WriteLine($"Managed array: preparation reflection queries {reflection}; {repeats} full-set validations/publications; {repeats * 2} texture cache checks; {repeats * 2} sampler cache checks; {repeats} image cache checks; steady-state reflection/name resolutions 0; texture/sampler/image binds 0.");
 #endif
 
-        using var buffer = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = null }).RequireResource();
+        using var buffer = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = null }).RequireResource();
         buffer.EnsureCapacity(64, growExponentially: false);
         OpenGLBufferBindings.BindBufferRange(cache, BufferRangeTarget.ShaderStorageBuffer, 0, buffer.BufferId, 0, 32);
 #if DEBUG
@@ -141,7 +141,7 @@ public sealed class ShaderBindingOperationTests(HeadlessGLFixture fixture, ITest
 #endif
     }
 
-    /// <summary>Borrowed numeric IDs are checked and rebound even when unchanged, and retirement fails before publication.</summary>
+    /// <summary>Borrowed objects share normal binding suppression and reject observed retirement without adopting a reused name.</summary>
     [Fact]
     public void RawEngineIdRetirementAndRepeatedBindingRemainExplicit()
     {
@@ -151,7 +151,7 @@ public sealed class ShaderBindingOperationTests(HeadlessGLFixture fixture, ITest
             GpuBindingEntry.Identity(ShaderBindingKind.Sampler, "inputs"));
         // The descriptor fixture has no wrapper target policy; model the explicit engine-ID contract.
         input = input with { Contract = input.Contract with { Binding = input.Contract.Binding with { TextureTarget = (int)TextureTarget.Texture2D } } };
-        using var texture = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba32f, Width = System.Math.Max(1, 1), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
+        using var texture = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba32f, Width = System.Math.Max(1, 1), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         int borrowedId = texture.TextureId;
         var cache = StateCache.Current;
 #if DEBUG

@@ -10,24 +10,24 @@ internal static class GpuBufferUploader
 {
     #region Internal API
     /// <summary>Allocates mutable storage, optionally initializing it from stable client memory.</summary>
-    internal static unsafe void Allocate(GpuBufferObject buffer, int byteCount, nint data, RHIBufferUsage usage)
+    internal static unsafe void Allocate(GpuBufferObject buffer, int byteCount, nint data, BufferUsage usage)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(byteCount);
         var description = new RHIBufferDescription
-        { Role = buffer.Role, Mode = RHIStorageMode.Mutable, Capacity = byteCount, Usage = usage };
+        { Role = buffer.Role, Mode = ResourceStorageMode.Mutable, Capacity = byteCount, Usage = usage };
         ReadOnlySpan<byte> bytes = data == 0 ? default : new((void*)data, byteCount);
         RHICommandContext.Current.AllocateBufferStorage(buffer, description, bytes);
     }
 
     /// <summary>Checks managed payload representation and extent before allocating storage.</summary>
-    internal static void Allocate<T>(GpuBufferObject buffer, int byteCount, T[] data, RHIBufferUsage usage) where T : struct
+    internal static void Allocate<T>(GpuBufferObject buffer, int byteCount, T[] data, BufferUsage usage) where T : struct
     {
         ArgumentNullException.ThrowIfNull(data);
         if (RuntimeHelpers.IsReferenceOrContainsReferences<T>()) throw new ArgumentException("Buffer data must contain no managed references.");
         var bytes = MemoryMarshal.AsBytes(data.AsSpan());
         if (byteCount < 0 || byteCount > bytes.Length) throw new ArgumentOutOfRangeException(nameof(byteCount));
         var description = new RHIBufferDescription
-        { Role = buffer.Role, Mode = RHIStorageMode.Mutable, Capacity = byteCount, Usage = usage };
+        { Role = buffer.Role, Mode = ResourceStorageMode.Mutable, Capacity = byteCount, Usage = usage };
         RHICommandContext.Current.AllocateBufferStorage(buffer, description, bytes[..byteCount]);
     }
 

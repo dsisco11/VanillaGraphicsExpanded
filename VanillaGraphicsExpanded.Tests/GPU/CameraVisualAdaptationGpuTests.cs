@@ -57,7 +57,7 @@ public sealed class CameraVisualAdaptationGpuTests(HeadlessGLFixture fixture, IT
         using var targets = new CameraExposureTargets();
         float level = MathF.Pow(2, logarithm);
         using var scene = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba32f, [level, level, level, 1]);
-        using var history = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = "Tests.InstantMeter" }).RequireResource();
+        using var history = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = "Tests.InstantMeter" }).RequireResource();
         history.UploadData(previous);
         using var camera = TestFrameCamera.CreateIdentity(1, 1, dt);
         histogram.SceneRadiance = scene; histogram.Histogram = targets.Histogram; histogram.Capture(policy, reset, true);

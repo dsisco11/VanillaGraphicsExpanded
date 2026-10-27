@@ -15,7 +15,7 @@ internal sealed partial class OpenGLBackend
         var request = description;
         RequireContext();
         request.Validate();
-        if (request.Mode == RHIStorageMode.Realization) throw new ArgumentException("Storage replacement requires an allocation request.");
+        if (request.Mode == ResourceStorageMode.Realization) throw new ArgumentException("Storage replacement requires an allocation request.");
         if (initialData.Length > request.Capacity) throw new ArgumentException("Initial bytes exceed requested capacity.");
         GpuResourceManager.RequireWrapperMetadataAccess(owner);
         if (GpuResourceManager.RequireBufferReferenceMetadata(owner).ImmutableStorage)
@@ -28,7 +28,7 @@ internal sealed partial class OpenGLBackend
         fixed (byte* bytes = initialData)
         {
             bool complete = initialData.Length == request.Capacity;
-            if (request.Mode == RHIStorageMode.Mutable)
+            if (request.Mode == ResourceStorageMode.Mutable)
                 GL.NamedBufferData(nativeId, request.Capacity, complete ? (nint)bytes : 0, OpenGLBufferValues.Usage(request.Usage));
             else
                 GL.NamedBufferStorage(nativeId, request.Capacity, complete ? (nint)bytes : 0, OpenGLBufferValues.Storage(request.Access));
@@ -37,14 +37,14 @@ internal sealed partial class OpenGLBackend
             if (!complete && !initialData.IsEmpty)
             {
                 InitializeBufferRange(nativeId, 0, initialData.Length, (nint)bytes,
-                    request.Mode == RHIStorageMode.Mutable || (request.Access & RHIStorageAccess.DynamicUpdates) != 0, operation);
+                    request.Mode == ResourceStorageMode.Mutable || (request.Access & global::VanillaGraphicsExpanded.Rendering.RHI.StorageAccess.DynamicUpdates) != 0, operation);
             }
         }
         RequireContext();
-        var usage = request.Mode == RHIStorageMode.Immutable
+        var usage = request.Mode == ResourceStorageMode.Immutable
             ? OpenTK.Graphics.OpenGL.BufferUsageHint.DynamicDraw : OpenGLBufferValues.MetadataUsage(request.Usage);
-        operation.Commit(new(request.Capacity, usage, request.Mode == RHIStorageMode.Immutable,
-            request.Mode == RHIStorageMode.Immutable ? LowerBufferDescription(request).StorageFlags : 0));
+        operation.Commit(new(request.Capacity, usage, request.Mode == ResourceStorageMode.Immutable,
+            request.Mode == ResourceStorageMode.Immutable ? LowerBufferDescription(request).StorageFlags : 0));
     }
 
     /// <inheritdoc />
@@ -116,27 +116,27 @@ internal sealed partial class OpenGLBackend
     }
 
     /// <summary>Maps a current allocation using named access; failure never retries another path.</summary>
-    internal nint MapBuffer(GpuBufferRef buffer, nint offset, nint byteCount, RHIBufferMapAccess access)
+    internal nint MapBuffer(GpuBufferRef buffer, nint offset, nint byteCount, BufferMapAccess access)
     {
         var owner = RequireRange(buffer, offset, byteCount);
-        const RHIBufferMapAccess supported = RHIBufferMapAccess.Read | RHIBufferMapAccess.Write | RHIBufferMapAccess.InvalidateRange
-            | RHIBufferMapAccess.InvalidateBuffer | RHIBufferMapAccess.ExplicitFlush | RHIBufferMapAccess.Unsynchronized
-            | RHIBufferMapAccess.Persistent | RHIBufferMapAccess.Coherent;
-        if (byteCount == 0 || (access & ~supported) != 0 || (access & (RHIBufferMapAccess.Read | RHIBufferMapAccess.Write)) == 0
-            || (access & RHIBufferMapAccess.Read) != 0 && (access & (RHIBufferMapAccess.InvalidateRange | RHIBufferMapAccess.InvalidateBuffer | RHIBufferMapAccess.Unsynchronized)) != 0
-            || (access & RHIBufferMapAccess.ExplicitFlush) != 0 && (access & RHIBufferMapAccess.Write) == 0
-            || (access & RHIBufferMapAccess.Coherent) != 0 && (access & RHIBufferMapAccess.Persistent) == 0)
+        const BufferMapAccess supported = BufferMapAccess.Read | BufferMapAccess.Write | BufferMapAccess.InvalidateRange
+            | BufferMapAccess.InvalidateBuffer | BufferMapAccess.ExplicitFlush | BufferMapAccess.Unsynchronized
+            | BufferMapAccess.Persistent | BufferMapAccess.Coherent;
+        if (byteCount == 0 || (access & ~supported) != 0 || (access & (BufferMapAccess.Read | BufferMapAccess.Write)) == 0
+            || (access & BufferMapAccess.Read) != 0 && (access & (BufferMapAccess.InvalidateRange | BufferMapAccess.InvalidateBuffer | BufferMapAccess.Unsynchronized)) != 0
+            || (access & BufferMapAccess.ExplicitFlush) != 0 && (access & BufferMapAccess.Write) == 0
+            || (access & BufferMapAccess.Coherent) != 0 && (access & BufferMapAccess.Persistent) == 0)
             throw new ArgumentException("Invalid mapping access or extent.");
         var storage = owner.PublishedMetadata;
         if (storage.ImmutableStorage)
         {
-            var required = (access & RHIBufferMapAccess.Read) != 0 ? OpenTK.Graphics.OpenGL.BufferStorageFlags.MapReadBit : 0;
-            if ((access & RHIBufferMapAccess.Write) != 0) required |= OpenTK.Graphics.OpenGL.BufferStorageFlags.MapWriteBit;
-            if ((access & RHIBufferMapAccess.Persistent) != 0) required |= OpenTK.Graphics.OpenGL.BufferStorageFlags.MapPersistentBit;
-            if ((access & RHIBufferMapAccess.Coherent) != 0) required |= OpenTK.Graphics.OpenGL.BufferStorageFlags.MapCoherentBit;
+            var required = (access & BufferMapAccess.Read) != 0 ? OpenTK.Graphics.OpenGL.BufferStorageFlags.MapReadBit : 0;
+            if ((access & BufferMapAccess.Write) != 0) required |= OpenTK.Graphics.OpenGL.BufferStorageFlags.MapWriteBit;
+            if ((access & BufferMapAccess.Persistent) != 0) required |= OpenTK.Graphics.OpenGL.BufferStorageFlags.MapPersistentBit;
+            if ((access & BufferMapAccess.Coherent) != 0) required |= OpenTK.Graphics.OpenGL.BufferStorageFlags.MapCoherentBit;
             if ((storage.StorageFlags & required) != required) throw new InvalidOperationException("Mapping access exceeds immutable storage permissions.");
         }
-        else if ((access & (RHIBufferMapAccess.Persistent | RHIBufferMapAccess.Coherent)) != 0)
+        else if ((access & (BufferMapAccess.Persistent | BufferMapAccess.Coherent)) != 0)
             throw new InvalidOperationException("Persistent mapping requires immutable storage.");
         cache.RequireResourceOperationAvailable(GpuResourceKind.Buffer, owner.ResourceId);
         return GL.MapNamedBufferRange((int)owner.ResourceId, offset, byteCount, OpenGLBufferValues.Map(access));

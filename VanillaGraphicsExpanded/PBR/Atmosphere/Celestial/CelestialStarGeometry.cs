@@ -34,7 +34,7 @@ internal sealed class CelestialStarGeometry : IDisposable
                 data[2*i] = new(star.Direction, star.FluxLux);
                 data[2*i+1] = new(star.Color, 0);
             }
-            var stream = owned.Own(RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Vertex, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = "Celestial.Stars" }).RequireResource());
+            var stream = owned.Own(RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = "Celestial.Stars" }).RequireResource());
             stream.UploadData(data);
             Geometry = new(Layout, PrimitiveType.Triangles, new Dictionary<int,GpuVbo> { [0] = stream });
         }

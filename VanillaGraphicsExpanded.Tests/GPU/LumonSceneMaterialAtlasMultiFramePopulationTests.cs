@@ -70,16 +70,16 @@ public sealed class LumonSceneMaterialAtlasMultiFramePopulationTests : RenderTes
         const int gH = 64;
         Assert.True(gW * gH >= desiredPages);
 
-        using var patchIdGBuffer = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba32ui, Width = System.Math.Max(1, gW), Height = System.Math.Max(1, gH), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "Test_PatchIdGBuffer" }).RequireResource();
+        using var patchIdGBuffer = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba32ui, Width = System.Math.Max(1, gW), Height = System.Math.Max(1, gH), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "Test_PatchIdGBuffer" }).RequireResource();
 
         const int chunkSlotCount = 1;
-        using var usageStamp = RHICommandContext.Current.CreateTexture3D(new RHITextureDescription { Dimension = RHITextureDimension.TwoArray, Format = RHIFormat.R32ui, Width = System.Math.Max(1, 128), Height = System.Math.Max(1, 128), Depth = System.Math.Max(1, chunkSlotCount), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "Test_PageUsageStamp" }).RequireResource();
+        using var usageStamp = RHICommandContext.Current.CreateTexture3D(new RHITextureDescription { Dimension = TextureDimension.TwoArray, Format = TextureFormat.R32ui, Width = System.Math.Max(1, 128), Height = System.Math.Max(1, 128), Depth = System.Math.Max(1, chunkSlotCount), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "Test_PageUsageStamp" }).RequireResource();
         usageStamp.UploadDataImmediate(new uint[128 * 128 * chunkSlotCount], 0, 0, 0, 128, 128, chunkSlotCount);
 
-        using var pageTableMip0 = RHICommandContext.Current.CreateTexture3D(new RHITextureDescription { Dimension = RHITextureDimension.TwoArray, Format = RHIFormat.R32ui, Width = System.Math.Max(1, 128), Height = System.Math.Max(1, 128), Depth = System.Math.Max(1, chunkSlotCount), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "Test_PageTableMip0" }).RequireResource();
+        using var pageTableMip0 = RHICommandContext.Current.CreateTexture3D(new RHITextureDescription { Dimension = TextureDimension.TwoArray, Format = TextureFormat.R32ui, Width = System.Math.Max(1, 128), Height = System.Math.Max(1, 128), Depth = System.Math.Max(1, chunkSlotCount), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "Test_PageTableMip0" }).RequireResource();
         pageTableMip0.UploadDataImmediate(new uint[128 * 128 * chunkSlotCount], 0, 0, 0, 128, 128, chunkSlotCount);
 
-        using var genTex = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.R32ui, Width = System.Math.Max(1, chunkSlotCount), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "Test_ChunkSlotGeneration" }).RequireResource();
+        using var genTex = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.R32ui, Width = System.Math.Max(1, chunkSlotCount), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "Test_ChunkSlotGeneration" }).RequireResource();
         genTex.UploadDataImmediate(new uint[chunkSlotCount], x: 0, y: 0, regionWidth: chunkSlotCount, regionHeight: 1);
 
         uint[] pidTexels = new uint[gW * gH * 4];
@@ -96,11 +96,11 @@ public sealed class LumonSceneMaterialAtlasMultiFramePopulationTests : RenderTes
         using var markCounters = CreateAtomicCounterBuffer(counterCount: 3);
 
         // GPU atlas outputs (we only validate that tiles are written).
-        using var depthAtlas = RHICommandContext.Current.CreateTexture3D(new RHITextureDescription { Dimension = RHITextureDimension.TwoArray, Format = RHIFormat.R16f, Width = System.Math.Max(1, atlasW), Height = System.Math.Max(1, atlasH), Depth = System.Math.Max(1, atlasCount), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "Test_DepthAtlas" }).RequireResource();
-        using var materialAtlas = RHICommandContext.Current.CreateTexture3D(new RHITextureDescription { Dimension = RHITextureDimension.TwoArray, Format = RHIFormat.Rgba8, Width = System.Math.Max(1, atlasW), Height = System.Math.Max(1, atlasH), Depth = System.Math.Max(1, atlasCount), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "Test_MaterialAtlas" }).RequireResource();
+        using var depthAtlas = RHICommandContext.Current.CreateTexture3D(new RHITextureDescription { Dimension = TextureDimension.TwoArray, Format = TextureFormat.R16f, Width = System.Math.Max(1, atlasW), Height = System.Math.Max(1, atlasH), Depth = System.Math.Max(1, atlasCount), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "Test_DepthAtlas" }).RequireResource();
+        using var materialAtlas = RHICommandContext.Current.CreateTexture3D(new RHITextureDescription { Dimension = TextureDimension.TwoArray, Format = TextureFormat.Rgba8, Width = System.Math.Max(1, atlasW), Height = System.Math.Max(1, atlasH), Depth = System.Math.Max(1, atlasCount), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "Test_MaterialAtlas" }).RequireResource();
         const int occRes = 32;
-        using var occL0 = RHICommandContext.Current.CreateTexture3D(new RHITextureDescription { Dimension = RHITextureDimension.Three, Format = RHIFormat.R32ui, Width = System.Math.Max(1, occRes), Height = System.Math.Max(1, occRes), Depth = System.Math.Max(1, occRes), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "Test_OccL0" }).RequireResource();
-        using var materialPalette = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba32ui, Width = System.Math.Max(1, 64), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "Test_MaterialPalette" }).RequireResource();
+        using var occL0 = RHICommandContext.Current.CreateTexture3D(new RHITextureDescription { Dimension = TextureDimension.Three, Format = TextureFormat.R32ui, Width = System.Math.Max(1, occRes), Height = System.Math.Max(1, occRes), Depth = System.Math.Max(1, occRes), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "Test_OccL0" }).RequireResource();
+        using var materialPalette = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba32ui, Width = System.Math.Max(1, 64), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "Test_MaterialPalette" }).RequireResource();
 
         FillR16f2DArray(depthAtlas.TextureId, atlasW, atlasH, atlasCount, value: 0f);
         FillRgba8_2DArray(materialAtlas.TextureId, atlasW, atlasH, atlasCount, r: 0, g: 0, b: 0, a: 0);
@@ -241,16 +241,16 @@ public sealed class LumonSceneMaterialAtlasMultiFramePopulationTests : RenderTes
         const int gH = 10;
         Assert.True(gW * gH >= totalPixels);
 
-        using var patchIdGBuffer = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba32ui, Width = System.Math.Max(1, gW), Height = System.Math.Max(1, gH), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "Test_PatchIdGBuffer" }).RequireResource();
+        using var patchIdGBuffer = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba32ui, Width = System.Math.Max(1, gW), Height = System.Math.Max(1, gH), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "Test_PatchIdGBuffer" }).RequireResource();
 
         int chunkSlotCount = chunksVisible;
-        using var usageStamp = RHICommandContext.Current.CreateTexture3D(new RHITextureDescription { Dimension = RHITextureDimension.TwoArray, Format = RHIFormat.R32ui, Width = System.Math.Max(1, 128), Height = System.Math.Max(1, 128), Depth = System.Math.Max(1, chunkSlotCount), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "Test_PageUsageStamp" }).RequireResource();
+        using var usageStamp = RHICommandContext.Current.CreateTexture3D(new RHITextureDescription { Dimension = TextureDimension.TwoArray, Format = TextureFormat.R32ui, Width = System.Math.Max(1, 128), Height = System.Math.Max(1, 128), Depth = System.Math.Max(1, chunkSlotCount), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "Test_PageUsageStamp" }).RequireResource();
         usageStamp.UploadDataImmediate(new uint[128 * 128 * chunkSlotCount], 0, 0, 0, 128, 128, chunkSlotCount);
 
-        using var pageTableMip0 = RHICommandContext.Current.CreateTexture3D(new RHITextureDescription { Dimension = RHITextureDimension.TwoArray, Format = RHIFormat.R32ui, Width = System.Math.Max(1, 128), Height = System.Math.Max(1, 128), Depth = System.Math.Max(1, chunkSlotCount), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "Test_PageTableMip0" }).RequireResource();
+        using var pageTableMip0 = RHICommandContext.Current.CreateTexture3D(new RHITextureDescription { Dimension = TextureDimension.TwoArray, Format = TextureFormat.R32ui, Width = System.Math.Max(1, 128), Height = System.Math.Max(1, 128), Depth = System.Math.Max(1, chunkSlotCount), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "Test_PageTableMip0" }).RequireResource();
         pageTableMip0.UploadDataImmediate(new uint[128 * 128 * chunkSlotCount], 0, 0, 0, 128, 128, chunkSlotCount);
 
-        using var genTex = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.R32ui, Width = System.Math.Max(1, chunkSlotCount), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "Test_ChunkSlotGeneration" }).RequireResource();
+        using var genTex = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.R32ui, Width = System.Math.Max(1, chunkSlotCount), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "Test_ChunkSlotGeneration" }).RequireResource();
         genTex.UploadDataImmediate(new uint[chunkSlotCount], x: 0, y: 0, regionWidth: chunkSlotCount, regionHeight: 1);
 
         uint[] pidTexels = new uint[gW * gH * 4];
@@ -315,7 +315,7 @@ public sealed class LumonSceneMaterialAtlasMultiFramePopulationTests : RenderTes
 
     private static GpuAtomicCounterBuffer CreateAtomicCounterBuffer(int counterCount)
     {
-        var buf = RHICommandContext.Current.CreateAtomicCounterBuffer(new RHIBufferDescription { Role = RHIBufferRole.AtomicCounter, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = "Test_AtomicCounter" }).RequireResource();
+        var buf = RHICommandContext.Current.CreateAtomicCounterBuffer(new RHIBufferDescription { Role = BufferRole.AtomicCounter, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = "Test_AtomicCounter" }).RequireResource();
         buf.InitializeCounters(counterCount, initialValue: 0u);
         return buf;
     }
@@ -328,14 +328,14 @@ public sealed class LumonSceneMaterialAtlasMultiFramePopulationTests : RenderTes
 
     private static uint ReadAtomicCounter(GpuAtomicCounterBuffer buffer, int counterIndex)
     {
-        using var mapped = buffer.MapRange<uint>(dstOffsetBytes: counterIndex * sizeof(uint), elementCount: 1, access: RHIBufferMapAccess.Read);
+        using var mapped = buffer.MapRange<uint>(dstOffsetBytes: counterIndex * sizeof(uint), elementCount: 1, access: BufferMapAccess.Read);
         Assert.True(mapped.IsMapped);
         return mapped.Span[0];
     }
 
     private static GpuShaderStorageBuffer CreateSsbo<T>(string name, ReadOnlySpan<T> data) where T : unmanaged
     {
-        var ssbo = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = name }).RequireResource();
+        var ssbo = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = name }).RequireResource();
         ssbo.Allocate(checked(data.Length * Unsafe.SizeOf<T>()));
         ssbo.UploadSubData(data, dstOffsetBytes: 0);
         return ssbo;
@@ -343,7 +343,7 @@ public sealed class LumonSceneMaterialAtlasMultiFramePopulationTests : RenderTes
 
     private static GpuShaderStorageBuffer CreateSsbo<T>(string name, int capacityItems) where T : unmanaged
     {
-        var ssbo = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = name }).RequireResource();
+        var ssbo = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = name }).RequireResource();
         ssbo.Allocate(checked(capacityItems * Unsafe.SizeOf<T>()));
         return ssbo;
     }
@@ -351,7 +351,7 @@ public sealed class LumonSceneMaterialAtlasMultiFramePopulationTests : RenderTes
     private static T[] ReadSsbo<T>(GpuShaderStorageBuffer ssbo, int itemCount) where T : unmanaged
     {
         T[] dst = new T[itemCount];
-        using var mapped = ssbo.MapRange<T>(dstOffsetBytes: 0, elementCount: itemCount, access: RHIBufferMapAccess.Read);
+        using var mapped = ssbo.MapRange<T>(dstOffsetBytes: 0, elementCount: itemCount, access: BufferMapAccess.Read);
         Assert.True(mapped.IsMapped);
         mapped.Span.CopyTo(dst);
         return dst;

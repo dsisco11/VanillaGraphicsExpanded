@@ -15,7 +15,7 @@ internal sealed class SurfaceLightingQueryBatch : IDisposable
     private readonly SurfaceLightingQueryShader pipeline;
     private readonly SurfaceLightingParamsUbo lighting = new();
 
-    private readonly GpuQueue<SurfaceLightingQuery> queue = new(MaximumQueries, debugName: "SurfaceLighting.Queries", usage: RHIBufferUsage.StreamRead);
+    private readonly GpuQueue<SurfaceLightingQuery> queue = new(MaximumQueries, debugName: "SurfaceLighting.Queries", usage: BufferUsage.StreamRead);
     public bool Pending => queue.Pending;
 
     #region Submission and completion
@@ -43,7 +43,7 @@ internal sealed class SurfaceLightingQueryBatch : IDisposable
         // Bind the exact active range: retained buffer capacity must not become extra queries.
         pipeline.SurfaceQueries = new(queue.Buffer, 0, count << 6);
         pipeline.Dispatch((count+63)/64,1,1);
-        RHICommandContext.Current.Barrier(new(RHIAccess.ShaderStorage|RHIAccess.BufferUpdate));
+        RHICommandContext.Current.Barrier(new(ResourceAccess.ShaderStorage|ResourceAccess.BufferUpdate));
         queue.Submit(count);
     }
 

@@ -15,7 +15,7 @@ public sealed class GpuUniformBuffer : GpuBufferObject
 {
     /// <summary>Wraps a newly allocated uniform-buffer object with its usage and debug identity.</summary>
     /// <summary>Declares buffer policy before manager-owned native creation.</summary>
-    internal GpuUniformBuffer(RHIBufferUsage usage, string? debugName)
+    internal GpuUniformBuffer(BufferUsage usage, string? debugName)
     {
         target = BufferTarget.UniformBuffer;
         allocationUsage = usage;
@@ -40,7 +40,7 @@ public sealed class GpuUniformBuffer : GpuBufferObject
             throw new ArgumentOutOfRangeException(nameof(bindingIndex), bindingIndex, "Binding index must be >= 0.");
         }
 
-        RHICommandContext.Current.BindBufferBase(RHIBufferRole.Uniform, bindingIndex, this);
+        RHICommandContext.Current.BindBufferBase(BufferRole.Uniform, bindingIndex, this);
     }
 
     /// <summary>
@@ -64,7 +64,7 @@ public sealed class GpuUniformBuffer : GpuBufferObject
             throw new ArgumentOutOfRangeException(nameof(offsetBytes), "Offset must be >= 0 and size must be > 0.");
         }
 
-        RHICommandContext.Current.BindBufferRange(RHIBufferRole.Uniform, bindingIndex, this, offsetBytes, sizeBytes);
+        RHICommandContext.Current.BindBufferRange(BufferRole.Uniform, bindingIndex, this, offsetBytes, sizeBytes);
     }
 
     /// <summary>Publishes a logical version with capability validation and truthful failure bookkeeping.</summary>
@@ -94,6 +94,6 @@ public sealed class GpuUniformBuffer : GpuBufferObject
             throw new ArgumentOutOfRangeException(nameof(bindingIndex), bindingIndex, "Binding index must be >= 0.");
         }
 
-        RHICommandContext.Current.BindBufferBase(RHIBufferRole.Uniform, bindingIndex, default);
+        RHICommandContext.Current.BindBufferBase(BufferRole.Uniform, bindingIndex, default);
     }
 }

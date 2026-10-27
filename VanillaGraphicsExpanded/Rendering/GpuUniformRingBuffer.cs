@@ -146,7 +146,7 @@ internal sealed class GpuUniformRingBuffer : IDisposable
 
         for (int i = 0; i < pageCount; i++)
         {
-            pages[i] = RHICommandContext.Current.CreateUniformBuffer(new RHIBufferDescription { Role = RHIBufferRole.Uniform, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StreamDraw, Label = $"{debugName}.Page{i}" }).RequireResource();
+            pages[i] = RHICommandContext.Current.CreateUniformBuffer(new RHIBufferDescription { Role = BufferRole.Uniform, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StreamDraw, Label = $"{debugName}.Page{i}" }).RequireResource();
             mappedBases[i] = IntPtr.Zero;
         }
 
@@ -319,14 +319,14 @@ internal sealed class GpuUniformRingBuffer : IDisposable
 
         // Flush the command stream when waiting; a zero-timeout poll alone cannot guarantee submission.
         var status = RHICommandContext.Current.Poll(fence);
-        while (status == RHICompletionStatus.Pending)
+        while (status == CompletionStatus.Pending)
         {
 #if DEBUG
             FenceWaits++;
 #endif
             status = RHICommandContext.Current.WaitCpu(fence, TimeSpan.FromMilliseconds(1));
         }
-        if (status == RHICompletionStatus.Failed) throw new InvalidOperationException("Uniform page fence failed.");
+        if (status == CompletionStatus.Failed) throw new InvalidOperationException("Uniform page fence failed.");
         fence.Dispose();
         fences[pageIndex] = null;
     }
@@ -342,17 +342,17 @@ internal sealed class GpuUniformRingBuffer : IDisposable
                 continue;
             }
 
-            RHIStorageAccess storageFlags = RHIStorageAccess.Write | RHIStorageAccess.Persistent | RHIStorageAccess.DynamicUpdates;
-            RHIBufferMapAccess mapFlags = RHIBufferMapAccess.Write | RHIBufferMapAccess.Persistent;
+            StorageAccess storageFlags = StorageAccess.Write | StorageAccess.Persistent | StorageAccess.DynamicUpdates;
+            BufferMapAccess mapFlags = BufferMapAccess.Write | BufferMapAccess.Persistent;
 
             if (coherent)
             {
-                storageFlags |= RHIStorageAccess.Coherent;
-                mapFlags |= RHIBufferMapAccess.Coherent;
+                storageFlags |= StorageAccess.Coherent;
+                mapFlags |= BufferMapAccess.Coherent;
             }
             else
             {
-                mapFlags |= RHIBufferMapAccess.ExplicitFlush;
+                mapFlags |= BufferMapAccess.ExplicitFlush;
             }
 
             RHICommandContext.Current.AllocateImmutableBuffer(page, pageSizeBytes, storageFlags);

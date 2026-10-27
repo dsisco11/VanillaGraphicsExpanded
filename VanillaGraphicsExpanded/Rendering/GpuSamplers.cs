@@ -38,8 +38,8 @@ internal static class GpuSamplers
 
             nearestClamp?.Dispose();
             nearestClamp = RHICommandContext.Current.CreateSampler(new RHISamplerDescription { Label = "VGE.Sampler.NearestClamp" }).RequireResource();
-            nearestClamp.SetFilter(RHISamplerFilter.Nearest, RHISamplerFilter.Nearest);
-            nearestClamp.SetWrap(RHISamplerAddress.ClampToEdge, RHISamplerAddress.ClampToEdge);
+            nearestClamp.SetFilter(SamplerFilter.Nearest, SamplerFilter.Nearest);
+            nearestClamp.SetWrap(SamplerAddressMode.ClampToEdge, SamplerAddressMode.ClampToEdge);
             return nearestClamp;
         }
     }
@@ -52,8 +52,8 @@ internal static class GpuSamplers
 
             linearClamp?.Dispose();
             linearClamp = RHICommandContext.Current.CreateSampler(new RHISamplerDescription { Label = "VGE.Sampler.LinearClamp" }).RequireResource();
-            linearClamp.SetFilter(RHISamplerFilter.Linear, RHISamplerFilter.Linear);
-            linearClamp.SetWrap(RHISamplerAddress.ClampToEdge, RHISamplerAddress.ClampToEdge);
+            linearClamp.SetFilter(SamplerFilter.Linear, SamplerFilter.Linear);
+            linearClamp.SetWrap(SamplerAddressMode.ClampToEdge, SamplerAddressMode.ClampToEdge);
             return linearClamp;
         }
     }
@@ -66,9 +66,9 @@ internal static class GpuSamplers
 
             shadowCompareLinearClamp?.Dispose();
             shadowCompareLinearClamp = RHICommandContext.Current.CreateSampler(new RHISamplerDescription { Label = "VGE.Sampler.ShadowCompareLinearClamp" }).RequireResource();
-            shadowCompareLinearClamp.SetFilter(RHISamplerFilter.Linear, RHISamplerFilter.Linear);
-            shadowCompareLinearClamp.SetWrap(RHISamplerAddress.ClampToEdge, RHISamplerAddress.ClampToEdge);
-            shadowCompareLinearClamp.SetCompare(true, RHIComparison.LessOrEqual);
+            shadowCompareLinearClamp.SetFilter(SamplerFilter.Linear, SamplerFilter.Linear);
+            shadowCompareLinearClamp.SetWrap(SamplerAddressMode.ClampToEdge, SamplerAddressMode.ClampToEdge);
+            shadowCompareLinearClamp.SetCompare(true, ComparisonFunction.LessOrEqual);
             return shadowCompareLinearClamp;
         }
     }

@@ -108,7 +108,7 @@ internal sealed class CapturedAmbientOcclusionFixture : IDisposable
         Assert.Equal(Width, record.GetProperty("width").GetInt32());
         Assert.Equal(Height, record.GetProperty("height").GetInt32());
         int levels = record.GetProperty("mips").GetInt32();
-        var texture = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.R32f, Width = System.Math.Max(1, Width), Height = System.Math.Max(1, Height), MipLevels = levels, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (levels) - 1, Label = null }).RequireResource();
+        var texture = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.R32f, Width = System.Math.Max(1, Width), Height = System.Math.Max(1, Height), MipLevels = levels, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (levels) - 1, Label = null }).RequireResource();
         try
         {
             var subresources = record.GetProperty("subresources").EnumerateArray().ToArray();
@@ -140,7 +140,7 @@ internal sealed class CapturedAmbientOcclusionFixture : IDisposable
         Assert.Equal(1, record.GetProperty("mips").GetInt32());
         int layers = record.GetProperty("arraySize").GetInt32();
         Assert.Equal(3, layers);
-        var texture = RHICommandContext.Current.CreateTexture3D(new RHITextureDescription { Dimension = RHITextureDimension.TwoArray, Format = RHIFormat.Rgba16f, Width = System.Math.Max(1, Width), Height = System.Math.Max(1, Height), Depth = System.Math.Max(1, layers), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
+        var texture = RHICommandContext.Current.CreateTexture3D(new RHITextureDescription { Dimension = TextureDimension.TwoArray, Format = TextureFormat.Rgba16f, Width = System.Math.Max(1, Width), Height = System.Math.Max(1, Height), Depth = System.Math.Max(1, layers), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         try
         {
             var subresources = record.GetProperty("subresources").EnumerateArray().ToArray();

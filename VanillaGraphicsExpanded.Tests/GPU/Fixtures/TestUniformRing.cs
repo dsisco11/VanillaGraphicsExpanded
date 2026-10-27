@@ -72,9 +72,9 @@ internal static class TestUniformRing
         // deliberately not used: this fixture owns a single page and needs a bounded wait.
         using var completion = RHICommandContext.Current.InsertFence();
         var status = RHICommandContext.Current.WaitCpu(completion, TimeSpan.FromSeconds(10));
-        if (status == RHICompletionStatus.Pending)
+        if (status == CompletionStatus.Pending)
             throw new TimeoutException("Test uniform-buffer consumers did not retire within ten seconds; the page was not reused.");
-        if (status is not (RHICompletionStatus.Ready))
+        if (status is not (CompletionStatus.Ready))
             throw new InvalidOperationException($"Test uniform-buffer retirement failed ({status}); the page was not reused.");
     }
     #endregion

@@ -48,7 +48,7 @@ internal sealed class RetainedPostprocessRenderer : IDisposable
     /// <summary>Allocates sized storage and registers its image and framebuffer with the lifetime owner.</summary>
     private static StaticGpuFramebuffer CreateTarget(GpuResourceCollection collection,int width,int height,string name,out DynamicTexture2D image)
     {
-        image=collection.Own(RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba16f, Width = System.Math.Max(1, width), Height = System.Math.Max(1, height), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = $"Postprocess.{name}" }).RequireResource());
+        image=collection.Own(RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba16f, Width = System.Math.Max(1, width), Height = System.Math.Max(1, height), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = $"Postprocess.{name}" }).RequireResource());
         var attachment=collection.Own(GpuFramebufferAttachment.FromTexture(image));
         return collection.Own(StaticGpuFramebuffer.Create([attachment],debugName:$"Postprocess.{name}"));
     }

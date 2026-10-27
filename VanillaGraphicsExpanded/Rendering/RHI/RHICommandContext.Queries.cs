@@ -15,7 +15,7 @@ public sealed partial class RHICommandContext
     /// <summary>Creates a result request that never silently follows query reissue.</summary>
     public RHIQueryTicket RequestQueryResult(GpuQueryRef query) => backend.RequestQueryResult(query);
     /// <summary>Begins native conditional rendering without a CPU query-result read.</summary>
-    public void BeginConditionalRender(GpuQueryRef query, RHIConditionalRenderMode mode) => backend.BeginConditionalRender(query, mode);
+    public void BeginConditionalRender(GpuQueryRef query, ConditionalRenderPolicy mode) => backend.BeginConditionalRender(query, mode);
     /// <summary>Ends the explicitly active native condition.</summary>
     public void EndConditionalRender() => backend.EndConditionalRender();
     #endregion

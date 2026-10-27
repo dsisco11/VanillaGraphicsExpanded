@@ -17,9 +17,9 @@ public sealed class RenderbufferBindingLifetimeTests(HeadlessGLFixture fixture) 
     public void UnknownBindingAndNestedScopesRestoreNativeOwners()
     {
         EnsureContextValid();
-        using var first = RHICommandContext.Current.CreateRenderbuffer(new RHIRenderbufferDescription { Format = RHIFormat.Rgba8, Width = 2, Height = 2, Samples = 0, Label = null }).RequireResource();
-        using var second = RHICommandContext.Current.CreateRenderbuffer(new RHIRenderbufferDescription { Format = RHIFormat.Rgba8, Width = 2, Height = 2, Samples = 0, Label = null }).RequireResource();
-        using var third = RHICommandContext.Current.CreateRenderbuffer(new RHIRenderbufferDescription { Format = RHIFormat.Rgba8, Width = 2, Height = 2, Samples = 0, Label = null }).RequireResource();
+        using var first = RHICommandContext.Current.CreateRenderbuffer(new RHIRenderbufferDescription { Format = TextureFormat.Rgba8, Width = 2, Height = 2, Samples = 0, Label = null }).RequireResource();
+        using var second = RHICommandContext.Current.CreateRenderbuffer(new RHIRenderbufferDescription { Format = TextureFormat.Rgba8, Width = 2, Height = 2, Samples = 0, Label = null }).RequireResource();
+        using var third = RHICommandContext.Current.CreateRenderbuffer(new RHIRenderbufferDescription { Format = TextureFormat.Rgba8, Width = 2, Height = 2, Samples = 0, Label = null }).RequireResource();
         GL.BindRenderbuffer(RenderbufferTarget.Renderbuffer, (int)first.ResourceId);
         var cache = StateCache.Current; cache.Invalidate(EPipelineState.RenderbufferBinding);
         Assert.Equal((int)first.ResourceId, cache.GetCurrentRenderbuffer());
@@ -45,8 +45,8 @@ public sealed class RenderbufferBindingLifetimeTests(HeadlessGLFixture fixture) 
     public void BoundRetirementUpdatesOnlyTheAffectedBinding()
     {
         EnsureContextValid();
-        using var retired = RHICommandContext.Current.CreateRenderbuffer(new RHIRenderbufferDescription { Format = RHIFormat.Rgba8, Width = 2, Height = 2, Samples = 0, Label = null }).RequireResource();
-        using var live = RHICommandContext.Current.CreateRenderbuffer(new RHIRenderbufferDescription { Format = RHIFormat.Rgba8, Width = 2, Height = 2, Samples = 0, Label = null }).RequireResource();
+        using var retired = RHICommandContext.Current.CreateRenderbuffer(new RHIRenderbufferDescription { Format = TextureFormat.Rgba8, Width = 2, Height = 2, Samples = 0, Label = null }).RequireResource();
+        using var live = RHICommandContext.Current.CreateRenderbuffer(new RHIRenderbufferDescription { Format = TextureFormat.Rgba8, Width = 2, Height = 2, Samples = 0, Label = null }).RequireResource();
         var cache = StateCache.Current;
         OpenGLImageBindings.BindRenderbuffer(cache, (int)retired.ResourceId);
         retired.Dispose();
@@ -62,7 +62,7 @@ public sealed class RenderbufferBindingLifetimeTests(HeadlessGLFixture fixture) 
     public void UnrelatedNativeErrorSurvivesBindingRecovery()
     {
         EnsureContextValid();
-        using var bound = RHICommandContext.Current.CreateRenderbuffer(new RHIRenderbufferDescription { Format = RHIFormat.Rgba8, Width = 2, Height = 2, Samples = 0, Label = null }).RequireResource();
+        using var bound = RHICommandContext.Current.CreateRenderbuffer(new RHIRenderbufferDescription { Format = TextureFormat.Rgba8, Width = 2, Height = 2, Samples = 0, Label = null }).RequireResource();
         var cache = StateCache.Current;
         GL.BindRenderbuffer(RenderbufferTarget.Renderbuffer, (int)bound.ResourceId);
         cache.Invalidate(EPipelineState.RenderbufferBinding);

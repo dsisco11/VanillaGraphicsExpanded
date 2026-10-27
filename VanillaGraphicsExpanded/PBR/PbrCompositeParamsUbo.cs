@@ -10,7 +10,7 @@ internal sealed class PbrCompositeParamsUbo : CpuUniformBuffer
     private bool underwater, refractionSource, preOverlaySource, ambientOcclusion;
 
     #region Public API
-    /// <summary>Allocates ten std140 vectors for composition and raw camera-medium light conversion.</summary>
+    /// <summary>Allocates twelve std140 vectors for composition and raw camera-medium light conversion.</summary>
     public PbrCompositeParamsUbo() : base(192) { }
 
     /// <summary>Enables the clean pre-overlay pair only after successful current-frame capture.</summary>

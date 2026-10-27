@@ -12,8 +12,7 @@ internal static class PipelineFixedFunctionValidation
     {
         var depth = value.DepthStencil;
         Defined(depth.DepthComparison);
-        ValidateStencil(depth.Front);
-        ValidateStencil(depth.Back);
+        ValidateStencil(depth.Front); ValidateStencil(depth.Back);
         var raster = value.Rasterizer;
         Defined(raster.CullMode); Defined(raster.FrontFace); Defined(raster.PolygonMode); Defined(raster.ProvokingVertex);
         Finite(raster.DepthBiasFactor); Finite(raster.DepthBiasUnits);
@@ -54,7 +53,7 @@ internal static class PipelineFixedFunctionValidation
             || (face.WriteMask > 255 && face.WriteMask != uint.MaxValue))
             throw new ArgumentException("Stencil mask exceeds the target's eight-bit aspect.");
     }
-    /// <summary>Rejects undefined native enum values in all configurations.</summary>
+    /// <summary>Rejects undefined semantic enum values in all configurations.</summary>
     private static void Defined<T>(T value) where T : struct, Enum
     {
         if (!Enum.IsDefined(value)) throw new ArgumentOutOfRangeException(nameof(value), value, "Undefined pipeline enum.");

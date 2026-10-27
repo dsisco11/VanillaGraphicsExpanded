@@ -133,8 +133,8 @@ internal sealed class PersistentUniformStorage : IDisposable
             FencePolls++;
 #endif
             var status = RHICommandContext.Current.Poll(batch.Fence);
-            if (status == RHICompletionStatus.Pending) break;
-            if (status == RHICompletionStatus.Failed) throw new InvalidOperationException("Uniform retirement fence failed.");
+            if (status == CompletionStatus.Pending) break;
+            if (status == CompletionStatus.Failed) throw new InvalidOperationException("Uniform retirement fence failed.");
             completed = batch.Serial;
             batch.Fence.Dispose(); fences.Dequeue();
         }

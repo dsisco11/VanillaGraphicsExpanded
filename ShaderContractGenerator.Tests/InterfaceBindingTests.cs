@@ -9,7 +9,7 @@ public sealed class InterfaceBindingTests
         """;
 
     #region Public API
-    /// <summary>Interfaces generate executable setters with the original API names on both runtime ownership boundaries.</summary>
+    /// <summary>Graphics and compute owners retain legal inputs and freeze them without immediate native execution.</summary>
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -100,7 +100,7 @@ public sealed class InterfaceBindingTests
         GeneratorFixture.Generate(source, true, supportSource: support).Compile();
     }
 
-    /// <summary>Direct pipeline adapters can inherit an accessible owning field.</summary>
+    /// <summary>Capture recognizes a concrete owner through an abstract family, without inspecting fields for a pipeline.</summary>
     [Fact]
     public void AlternateAdapterResolvesInheritedPipelineField()
     {
@@ -377,7 +377,7 @@ public sealed class InterfaceBindingTests
         Assert.Equal("3", GeneratorFixture.Generate(source).Run());
         GeneratorFixture.Generate(source, true).Compile();
     }
-    /// <summary>Existing engine texture IDs and nullable textures retain their authored sampler policy.</summary>
+    /// <summary>Authored resource getters preserve nullable state while capture freezes the supplied identity.</summary>
     [Fact]
     public void AuthoredTextureSettersPreserveNamesAndNullBehavior()
     {

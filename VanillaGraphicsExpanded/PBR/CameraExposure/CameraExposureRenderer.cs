@@ -196,7 +196,7 @@ internal sealed class CameraExposureRenderer : IRenderer
         frameLighting.Capture(physicalBound, manual, automaticHistory, VgeFrameRenderer.Current.FrameIndex, calibrationGeneration);
         if (frozenLighting is null)
         {
-            frozenLighting = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = "Camera.FrozenLighting" }).RequireResource();
+            frozenLighting = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = "Camera.FrozenLighting" }).RequireResource();
             frozenLighting.Allocate(32);
         }
         frameLighting.PreviousExposure = automaticHistory ? targets!.Exposure : null;

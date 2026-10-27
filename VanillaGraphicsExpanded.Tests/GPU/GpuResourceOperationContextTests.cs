@@ -24,8 +24,8 @@ public sealed class GpuResourceOperationContextTests(HeadlessGLFixture fixture)
         GpuResourceManagerSystem.Initialize(manager);
         try
         {
-            using var buffer = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = null }).RequireResource(); buffer.Allocate(16);
-            using var texture = RHICommandContext.Current.CreateDynamicTexture3D(new RHITextureDescription { Dimension = RHITextureDimension.TwoArray, Format = RHIFormat.Rgba8, Width = System.Math.Max(1, 4), Height = System.Math.Max(1, 4), Depth = System.Math.Max(1, 2), MipLevels = 1, Storage = (true ? RHIStorageMode.Immutable : RHIStorageMode.Mutable), Filter = TextureFilterMode.Linear, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
+            using var buffer = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = null }).RequireResource(); buffer.Allocate(16);
+            using var texture = RHICommandContext.Current.CreateDynamicTexture3D(new RHITextureDescription { Dimension = TextureDimension.TwoArray, Format = TextureFormat.Rgba8, Width = System.Math.Max(1, 4), Height = System.Math.Max(1, 4), Depth = System.Math.Max(1, 2), MipLevels = 1, Storage = (true ? ResourceStorageMode.Immutable : ResourceStorageMode.Mutable), Filter = TextureFilterMode.Linear, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
             using var program = GpuProgramObject.Create();
             using var vao = GpuVao.Create();
             var bufferEntry = manager.GetResourceRegistration(buffer)!;
@@ -58,8 +58,8 @@ public sealed class GpuResourceOperationContextTests(HeadlessGLFixture fixture)
             {
                 current = (origin.Handle, origin.Generation + 1);
                 attempt();
-                Assert.Throws<InvalidOperationException>(() => GpuBufferUploader.Allocate(buffer, 64, IntPtr.Zero, RHIBufferUsage.DynamicDraw));
-                Assert.Throws<InvalidOperationException>(() => RHICommandContext.Current.CreateTextureView(new RHITextureViewDescription { Source = texture, Dimension = RHITextureDimension.TwoArray, Format = RHIFormat.Rgba8, BaseMip = 0, MipCount = 1, BaseLayer = 0, LayerCount = 1, Label = null }).RequireResource());
+                Assert.Throws<InvalidOperationException>(() => GpuBufferUploader.Allocate(buffer, 64, IntPtr.Zero, BufferUsage.DynamicDraw));
+                Assert.Throws<InvalidOperationException>(() => RHICommandContext.Current.CreateTextureView(new RHITextureViewDescription { Source = texture, Dimension = TextureDimension.TwoArray, Format = TextureFormat.Rgba8, BaseMip = 0, MipCount = 1, BaseLayer = 0, LayerCount = 1, Label = null }).RequireResource());
                 current = origin;
             }
             Assert.True(bufferEntry.MetadataAvailable); Assert.True(textureEntry.MetadataAvailable);

@@ -8,11 +8,11 @@ namespace VanillaGraphicsExpanded.HarmonyPatches.NativeAdapters.Framebuffers;
 internal static unsafe partial class Arb
 {
     #region Internal API
-    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
+    /// <summary>Forwards the exact signature to the backend execution boundary.</summary>
     internal static void FramebufferTextureFace(FramebufferTarget @target, FramebufferAttachment @attachment, int @texture, int @level, TextureTarget @face)
         => StateCache.Current.ExecuteArbFramebufferTextureFace(@target, @attachment, @texture, @level, @face);
 
-    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
+    /// <summary>Forwards the exact signature to the backend execution boundary.</summary>
     internal static void FramebufferTextureFace(FramebufferTarget @target, FramebufferAttachment @attachment, uint @texture, int @level, TextureTarget @face)
         => StateCache.Current.ExecuteArbFramebufferTextureFace(@target, @attachment, @texture, @level, @face);
     #endregion

@@ -6,7 +6,7 @@ namespace VanillaGraphicsExpanded.Rendering.RHI;
 public struct RHIRenderbufferDescription
 {
     private ulong assigned;
-    private RHIFormat format;
+    private TextureFormat format;
     private int width;
     private int height;
     private int samples;
@@ -15,7 +15,7 @@ public struct RHIRenderbufferDescription
 
     #region Public API
     /// <summary>Supplies Format while retaining explicit assignment intent.</summary>
-    public RHIFormat Format { readonly get => format; set { format = value; assigned |= 1UL << 0; } }
+    public TextureFormat Format { readonly get => format; set { format = value; assigned |= 1UL << 0; } }
     /// <summary>Supplies Width while retaining explicit assignment intent.</summary>
     public int Width { readonly get => width; set { width = value; assigned |= 1UL << 1; } }
     /// <summary>Supplies Height while retaining explicit assignment intent.</summary>

@@ -76,13 +76,13 @@ public sealed class PsoStateRelevanceWorkloadTests(HeadlessGLFixture fixture, IT
         using var programs = new ComponentShaderPrograms();
         var program = programs.Create<LumOnWorldProbeRadianceTileResolveShaderProgram>();
         program.AtlasSize = new(8, 8);
-        using var image = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Width = 8, Height = 8, Format = RHIFormat.Rgba32f, MipLevels = 1, Storage = RHIStorageMode.Mutable, BaseLevel = 0, MaxLevel = 0, Filter = TextureFilterMode.Nearest, Label = null }, [new RHITextureInitialData(new(new(), 0, 0, 0, 8, 8), VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLPixelValues.Encoding(TextureFormatHelper.GetPixelFormat(PixelInternalFormat.Rgba32f), OpenTK.Graphics.OpenGL.PixelType.Float), System.Runtime.InteropServices.MemoryMarshal.AsBytes((new float[8 * 8 * 4]).AsSpan()).ToArray())]).RequireResource();
+        using var image = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Width = 8, Height = 8, Format = TextureFormat.Rgba32f, MipLevels = 1, Storage = ResourceStorageMode.Mutable, BaseLevel = 0, MaxLevel = 0, Filter = TextureFilterMode.Nearest, Label = null }, [new RHITextureInitialData(new(new(), 0, 0, 0, 8, 8), VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLPixelValues.Encoding(TextureFormatHelper.GetPixelFormat(PixelInternalFormat.Rgba32f), OpenTK.Graphics.OpenGL.PixelType.Float), System.Runtime.InteropServices.MemoryMarshal.AsBytes((new float[8 * 8 * 4]).AsSpan()).ToArray())]).RequireResource();
         using var target = DynamicGpuFramebuffer.CreateSingle(image)!;
         var pass = new RenderPassDesc(target, [new(0)]);
         using var metadata = new RenderPassTargets(pass);
         var layout = new VertexLayoutDesc([new(0, 2, VertexAttribPointerType.Float, VertexInterpretation.Floating, 0, 0, 24),
             new(1, 4, VertexAttribPointerType.Float, VertexInterpretation.Floating, 0, 8, 24)]);
-        using var buffer = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Vertex, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = null }).RequireResource(); buffer.UploadData(new float[] { 3, 4, .75f, .125f, .5f, 1 });
+        using var buffer = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = null }).RequireResource(); buffer.UploadData(new float[] { 3, 4, .75f, .125f, .5f, 1 });
         using var geometry = new ArrayGraphicsGeometry(layout, PrimitiveType.Points, new Dictionary<int, GpuVbo> { [0] = buffer });
         using var lifetime = new GraphicsPipelineLifetime();
         using var pipeline = new GraphicsPipeline(lifetime, new(program.GraphicsIdentity!, layout, metadata.Signature,

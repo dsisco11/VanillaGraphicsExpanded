@@ -14,7 +14,7 @@ namespace VanillaGraphicsExpanded.LumOn.WorldProbes.Gpu;
 internal sealed class WorldProbeHybridCommit : IDisposable
 {
     private readonly WorldProbeCommitShader pipeline;
-    private readonly GpuShaderStorageBuffer staging = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StreamDraw, Label = null }).RequireResource();
+    private readonly GpuShaderStorageBuffer staging = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StreamDraw, Label = null }).RequireResource();
 
     /// <summary>Describes one probe's target and geometry metadata in three aligned vectors.</summary>
     [StructLayout(LayoutKind.Sequential)]
@@ -81,8 +81,8 @@ internal sealed class WorldProbeHybridCommit : IDisposable
         pipeline.distanceAtlas = new(resources.ProbeDist0, TextureAccess.WriteOnly, Format: SizedInternalFormat.Rg16f);
         pipeline.metadataAtlas = new(resources.ProbeMeta0, TextureAccess.WriteOnly, Format: SizedInternalFormat.Rg32f);
         pipeline.Dispatch(1);
-        RHICommandContext.Current.Barrier(new(RHIAccess.Image | RHIAccess.TextureFetch |
-            RHIAccess.Framebuffer | RHIAccess.TextureUpdate));
+        RHICommandContext.Current.Barrier(new(ResourceAccess.Image | ResourceAccess.TextureFetch |
+            ResourceAccess.Framebuffer | ResourceAccess.TextureUpdate));
         return true;
     }
     #endregion

@@ -9,7 +9,7 @@ internal sealed partial class OpenGLBackend
     private GpuQuery? conditionalQuery;
     #region Public API
     /// <inheritdoc />
-    public void BeginConditionalRender(GpuQueryRef query, RHIConditionalRenderMode mode)
+    public void BeginConditionalRender(GpuQueryRef query, ConditionalRenderPolicy mode)
     {
         // Native callbacks must not reenter an unfinished execution-state transition.
         if (queryTransition) throw new InvalidOperationException("An auxiliary operation is already in progress.");
@@ -17,19 +17,19 @@ internal sealed partial class OpenGLBackend
         try
         {
             var owner = RequireQuery(query);
-            if (conditionalQuery is not null || owner.QueryKind is not (RHIQueryKind.SamplesPassed or RHIQueryKind.AnySamplesPassed or RHIQueryKind.AnySamplesPassedConservative)
+            if (conditionalQuery is not null || owner.QueryKind is not (QueryKind.SamplesPassed or QueryKind.AnySamplesPassed or QueryKind.AnySamplesPassedConservative)
                 || !queryExecutions.GetOrCreateValue(owner).Issued)
                 throw new InvalidOperationException("Conditional rendering requires an issued occlusion query and no active condition.");
             var nativeMode = mode switch
             {
-                RHIConditionalRenderMode.Wait => ConditionalRenderType.QueryWait,
-                RHIConditionalRenderMode.NoWait => ConditionalRenderType.QueryNoWait,
-                RHIConditionalRenderMode.RegionWait => ConditionalRenderType.QueryByRegionWait,
-                RHIConditionalRenderMode.RegionNoWait => ConditionalRenderType.QueryByRegionNoWait,
-                RHIConditionalRenderMode.WaitInverted => ConditionalRenderType.QueryWaitInverted,
-                RHIConditionalRenderMode.NoWaitInverted => ConditionalRenderType.QueryNoWaitInverted,
-                RHIConditionalRenderMode.RegionWaitInverted => ConditionalRenderType.QueryByRegionWaitInverted,
-                RHIConditionalRenderMode.RegionNoWaitInverted => ConditionalRenderType.QueryByRegionNoWaitInverted,
+                ConditionalRenderPolicy.Wait => ConditionalRenderType.QueryWait,
+                ConditionalRenderPolicy.NoWait => ConditionalRenderType.QueryNoWait,
+                ConditionalRenderPolicy.RegionWait => ConditionalRenderType.QueryByRegionWait,
+                ConditionalRenderPolicy.RegionNoWait => ConditionalRenderType.QueryByRegionNoWait,
+                ConditionalRenderPolicy.WaitInverted => ConditionalRenderType.QueryWaitInverted,
+                ConditionalRenderPolicy.NoWaitInverted => ConditionalRenderType.QueryNoWaitInverted,
+                ConditionalRenderPolicy.RegionWaitInverted => ConditionalRenderType.QueryByRegionWaitInverted,
+                ConditionalRenderPolicy.RegionNoWaitInverted => ConditionalRenderType.QueryByRegionNoWaitInverted,
                 _ => throw new ArgumentOutOfRangeException(nameof(mode))
             };
             owner.RetainPassReference();

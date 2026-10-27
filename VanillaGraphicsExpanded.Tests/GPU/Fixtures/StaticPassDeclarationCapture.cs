@@ -4,7 +4,7 @@ using VanillaGraphicsExpanded.Rendering.Pipeline.Passes;
 
 namespace VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 
-/// <summary>Observes actual static submissions and checks declaration identity for each target/load/store/area contract.</summary>
+/// <summary>Observes final owned-image submissions and checks realization reuse for repeated target/load/store/area contracts.</summary>
 internal sealed class StaticPassDeclarationCapture : IDisposable
 {
     [ThreadStatic] private static StaticPassDeclarationCapture? active;

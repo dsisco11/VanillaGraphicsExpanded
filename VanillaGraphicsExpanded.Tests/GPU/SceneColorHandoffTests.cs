@@ -55,7 +55,7 @@ public sealed class SceneColorHandoffTests(HeadlessGLFixture fixture) : LumOnSha
         using var scene = TestFramework.CreateTexture(2, 1, PixelInternalFormat.Rgba32f,
             new[] { 8f, 4f, 2f, .25f, 8f, 4f, 2f, .75f });
         using var depth = TestFramework.CreateTexture(2, 1, PixelInternalFormat.R32f, new[] { .5f, 1f });
-        using var layer = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba32f, Width = System.Math.Max(1, 2), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
+        using var layer = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba32f, Width = System.Math.Max(1, 2), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         layer.UploadDataImmediate(Enumerable.Repeat(new[] { 4f * coverage, 8f * coverage, 2f * coverage, coverage }, 2).SelectMany(pixel => pixel).ToArray());
         using var output = TestFramework.CreateTestGBuffer(2, 1, PixelInternalFormat.Rgba32f);
         program.PrimaryScene = scene.TextureId;

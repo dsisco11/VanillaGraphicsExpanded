@@ -41,7 +41,7 @@ internal static class GraphicsInterfaceValidation
                     var attribute = matches[0];
                     if (attribute.Components != shape.Components || !shape.Accepts(attribute))
                         throw new InvalidOperationException($"Incompatible shader attribute at location {location}.");
-                    // Divisors are geometry requirements, not shader reflection: VertexLayoutDesc validates
+                    // Divisors are geometry requirements, not shader reflection: RHIVertexLayout validates
                     // shared binding rates, and draw adapters must match this exact immutable layout.
                 }
         }

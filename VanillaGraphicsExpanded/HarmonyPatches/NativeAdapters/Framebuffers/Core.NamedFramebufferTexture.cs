@@ -8,11 +8,11 @@ namespace VanillaGraphicsExpanded.HarmonyPatches.NativeAdapters.Framebuffers;
 internal static unsafe partial class Core
 {
     #region Internal API
-    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
+    /// <summary>Forwards the exact signature to the backend execution boundary.</summary>
     internal static void NamedFramebufferTexture(int @framebuffer, FramebufferAttachment @attachment, int @texture, int @level)
         => StateCache.Current.ExecuteCoreNamedFramebufferTexture(@framebuffer, @attachment, @texture, @level);
 
-    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
+    /// <summary>Forwards the exact signature to the backend execution boundary.</summary>
     internal static void NamedFramebufferTexture(uint @framebuffer, FramebufferAttachment @attachment, uint @texture, int @level)
         => StateCache.Current.ExecuteCoreNamedFramebufferTexture(@framebuffer, @attachment, @texture, @level);
     #endregion

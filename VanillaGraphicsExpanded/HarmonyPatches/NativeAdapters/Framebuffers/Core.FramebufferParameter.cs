@@ -8,7 +8,7 @@ namespace VanillaGraphicsExpanded.HarmonyPatches.NativeAdapters.Framebuffers;
 internal static unsafe partial class Core
 {
     #region Internal API
-    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
+    /// <summary>Forwards the exact signature to the backend execution boundary.</summary>
     internal static void FramebufferParameter(FramebufferTarget @target, FramebufferDefaultParameter @pname, int @param)
         => StateCache.Current.ExecuteCoreFramebufferParameter(@target, @pname, @param);
     #endregion

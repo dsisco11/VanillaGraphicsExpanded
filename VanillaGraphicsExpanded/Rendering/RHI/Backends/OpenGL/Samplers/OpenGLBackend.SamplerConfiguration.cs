@@ -71,7 +71,7 @@ internal sealed partial class OpenGLBackend
     private void ValidateSampler(in RHISamplerDescription request)
     {
         if (request.Has(0)) _ = MinFilter(request.MinFilter);
-        if (request.Has(1) && request.MagFilter is not (RHISamplerFilter.Nearest or RHISamplerFilter.Linear)) throw new ArgumentException("Magnification has no mip filter.");
+        if (request.Has(1) && request.MagFilter is not (SamplerFilter.Nearest or SamplerFilter.Linear)) throw new ArgumentException("Magnification has no mip filter.");
         if (request.Has(2)) _ = Address(request.AddressS);
         if (request.Has(3)) _ = Address(request.AddressT);
         if (request.Has(4)) _ = Address(request.AddressR);
@@ -85,26 +85,26 @@ internal sealed partial class OpenGLBackend
         }
     }
     /// <summary>Maps minification policy explicitly.</summary>
-    private static int MinFilter(RHISamplerFilter value) => (int)(value switch
+    private static int MinFilter(SamplerFilter value) => (int)(value switch
     {
-        RHISamplerFilter.Nearest => Native.TextureMinFilter.Nearest, RHISamplerFilter.Linear => Native.TextureMinFilter.Linear,
-        RHISamplerFilter.NearestMipNearest => Native.TextureMinFilter.NearestMipmapNearest, RHISamplerFilter.LinearMipNearest => Native.TextureMinFilter.LinearMipmapNearest,
-        RHISamplerFilter.NearestMipLinear => Native.TextureMinFilter.NearestMipmapLinear, RHISamplerFilter.LinearMipLinear => Native.TextureMinFilter.LinearMipmapLinear,
+        SamplerFilter.Nearest => Native.TextureMinFilter.Nearest, SamplerFilter.Linear => Native.TextureMinFilter.Linear,
+        SamplerFilter.NearestMipNearest => Native.TextureMinFilter.NearestMipmapNearest, SamplerFilter.LinearMipNearest => Native.TextureMinFilter.LinearMipmapNearest,
+        SamplerFilter.NearestMipLinear => Native.TextureMinFilter.NearestMipmapLinear, SamplerFilter.LinearMipLinear => Native.TextureMinFilter.LinearMipmapLinear,
         _ => throw new ArgumentOutOfRangeException(nameof(value))
     });
     /// <summary>Maps addressing policy explicitly.</summary>
-    private static int Address(RHISamplerAddress value) => (int)(value switch
+    private static int Address(SamplerAddressMode value) => (int)(value switch
     {
-        RHISamplerAddress.Repeat => Native.TextureWrapMode.Repeat, RHISamplerAddress.MirroredRepeat => Native.TextureWrapMode.MirroredRepeat,
-        RHISamplerAddress.ClampToEdge => Native.TextureWrapMode.ClampToEdge, RHISamplerAddress.ClampToBorder => Native.TextureWrapMode.ClampToBorder,
-        RHISamplerAddress.MirrorClampToEdge => (Native.TextureWrapMode)Native.All.MirrorClampToEdge, _ => throw new ArgumentOutOfRangeException(nameof(value))
+        SamplerAddressMode.Repeat => Native.TextureWrapMode.Repeat, SamplerAddressMode.MirroredRepeat => Native.TextureWrapMode.MirroredRepeat,
+        SamplerAddressMode.ClampToEdge => Native.TextureWrapMode.ClampToEdge, SamplerAddressMode.ClampToBorder => Native.TextureWrapMode.ClampToBorder,
+        SamplerAddressMode.MirrorClampToEdge => (Native.TextureWrapMode)Native.All.MirrorClampToEdge, _ => throw new ArgumentOutOfRangeException(nameof(value))
     });
     /// <summary>Maps comparison policy explicitly.</summary>
-    private static int Comparison(RHIComparison value) => (int)(value switch
+    private static int Comparison(ComparisonFunction value) => (int)(value switch
     {
-        RHIComparison.Never => Native.DepthFunction.Never, RHIComparison.Less => Native.DepthFunction.Less, RHIComparison.Equal => Native.DepthFunction.Equal,
-        RHIComparison.LessOrEqual => Native.DepthFunction.Lequal, RHIComparison.Greater => Native.DepthFunction.Greater, RHIComparison.NotEqual => Native.DepthFunction.Notequal,
-        RHIComparison.GreaterOrEqual => Native.DepthFunction.Gequal, RHIComparison.Always => Native.DepthFunction.Always,
+        ComparisonFunction.Never => Native.DepthFunction.Never, ComparisonFunction.Less => Native.DepthFunction.Less, ComparisonFunction.Equal => Native.DepthFunction.Equal,
+        ComparisonFunction.LessOrEqual => Native.DepthFunction.Lequal, ComparisonFunction.Greater => Native.DepthFunction.Greater, ComparisonFunction.NotEqual => Native.DepthFunction.Notequal,
+        ComparisonFunction.GreaterOrEqual => Native.DepthFunction.Gequal, ComparisonFunction.Always => Native.DepthFunction.Always,
         _ => throw new ArgumentOutOfRangeException(nameof(value))
     });
     #endregion

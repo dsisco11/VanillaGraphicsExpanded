@@ -25,7 +25,7 @@ public sealed class GpuResourceRetirementRegressionTests(HeadlessGLFixture fixtu
         {
             using GpuResource owner = framebuffer
                 ? DynamicGpuFramebuffer.CreateEmpty()
-                : RHICommandContext.Current.CreateRenderbuffer(new RHIRenderbufferDescription { Format = RHIFormat.Rgba8, Width = 4, Height = 4, Samples = 0, Label = null }).RequireResource();
+                : RHICommandContext.Current.CreateRenderbuffer(new RHIRenderbufferDescription { Format = TextureFormat.Rgba8, Width = 4, Height = 4, Samples = 0, Label = null }).RequireResource();
             if (owner is GpuFramebuffer target) target.Bind();
             using GpuResource borrower = framebuffer
                 ? DynamicGpuFramebuffer.Wrap(checked((int)owner.ResourceId), width: 4, height: 4)

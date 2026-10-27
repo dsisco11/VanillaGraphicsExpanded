@@ -9,7 +9,7 @@ internal static class ExposureTestStorage
     /// <summary>Creates complete adaptation storage with exposure retained at offset zero and invalid physical history.</summary>
     internal static GpuShaderStorageBuffer Create(float value)
     {
-        var buffer = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = "Tests.Exposure" }).RequireResource();
+        var buffer = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = "Tests.Exposure" }).RequireResource();
         buffer.UploadData(new[] { value, 0f, 0f, 0f, 0f, 0f, 0f, 0f });
         return buffer;
     }

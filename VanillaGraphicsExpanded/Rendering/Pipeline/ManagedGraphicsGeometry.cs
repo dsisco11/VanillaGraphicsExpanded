@@ -8,7 +8,7 @@ using VanillaGraphicsExpanded.Rendering.Pipeline.Descriptions;
 
 namespace VanillaGraphicsExpanded.Rendering.Pipeline;
 
-/// <summary>Owns immutable indexed geometry configured through the existing vertex-binding helper.</summary>
+/// <summary>Owns uploaded vertex and index buffers while supplying immutable packets to backend rendering.</summary>
 internal sealed class ManagedGraphicsGeometry : GraphicsGeometry
 {
     private readonly VertexLayoutDesc layout;
@@ -99,7 +99,7 @@ internal sealed class ManagedGraphicsGeometry : GraphicsGeometry
         this.topology = topology;
         this.indices = (uint[])indices.Clone();
         vao = GpuVao.Create();
-        try { elements = RHICommandContext.Current.CreateIndexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Index, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = null }).RequireResource(); }
+        try { elements = RHICommandContext.Current.CreateIndexBuffer(new RHIBufferDescription { Role = BufferRole.Index, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = null }).RequireResource(); }
         catch { vao.Dispose(); throw; }
         try
         {
@@ -110,7 +110,7 @@ internal sealed class ManagedGraphicsGeometry : GraphicsGeometry
             vao.BindElementBuffer(elements);
             foreach (var stream in streams)
             {
-                var buffer = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Vertex, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = null }).RequireResource();
+                var buffer = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = null }).RequireResource();
                 buffers.Add(stream.Binding, buffer);
                 buffer.UploadData(stream.Data);
                 var attributes = layout.Attributes.Where(a => a.Binding == stream.Binding).ToArray();

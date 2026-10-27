@@ -6,13 +6,13 @@ namespace VanillaGraphicsExpanded.Rendering.RHI;
 public struct RHITextureDescription
 {
     private ulong assigned;
-    private RHITextureDimension dimension;
-    private RHIFormat format;
+    private TextureDimension dimension;
+    private TextureFormat format;
     private int width;
     private int height;
     private int depth;
     private int mipLevels;
-    private RHIStorageMode storage;
+    private ResourceStorageMode storage;
     private int samples;
     private bool fixedSampleLocations;
     private int baseLevel;
@@ -22,9 +22,9 @@ public struct RHITextureDescription
 
     #region Public API
     /// <summary>Supplies Dimension while retaining explicit assignment intent.</summary>
-    public RHITextureDimension Dimension { readonly get => dimension; set { dimension = value; assigned |= 1UL << 0; } }
+    public TextureDimension Dimension { readonly get => dimension; set { dimension = value; assigned |= 1UL << 0; } }
     /// <summary>Supplies Format while retaining explicit assignment intent.</summary>
-    public RHIFormat Format { readonly get => format; set { format = value; assigned |= 1UL << 1; } }
+    public TextureFormat Format { readonly get => format; set { format = value; assigned |= 1UL << 1; } }
     /// <summary>Supplies Width while retaining explicit assignment intent.</summary>
     public int Width { readonly get => width; set { width = value; assigned |= 1UL << 2; } }
     /// <summary>Supplies Height while retaining explicit assignment intent.</summary>
@@ -34,7 +34,7 @@ public struct RHITextureDescription
     /// <summary>Supplies MipLevels while retaining explicit assignment intent.</summary>
     public int MipLevels { readonly get => mipLevels; set { mipLevels = value; assigned |= 1UL << 5; } }
     /// <summary>Supplies Storage while retaining explicit assignment intent.</summary>
-    public RHIStorageMode Storage { readonly get => storage; set { storage = value; assigned |= 1UL << 6; } }
+    public ResourceStorageMode Storage { readonly get => storage; set { storage = value; assigned |= 1UL << 6; } }
     /// <summary>Supplies Samples while retaining explicit assignment intent.</summary>
     public int Samples { readonly get => samples; set { samples = value; assigned |= 1UL << 7; } }
     /// <summary>Supplies FixedSampleLocations while retaining explicit assignment intent.</summary>

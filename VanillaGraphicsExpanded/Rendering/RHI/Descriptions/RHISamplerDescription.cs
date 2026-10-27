@@ -6,31 +6,31 @@ namespace VanillaGraphicsExpanded.Rendering.RHI;
 public struct RHISamplerDescription
 {
     private ulong assigned;
-    private RHISamplerFilter minFilter;
-    private RHISamplerFilter magFilter;
-    private RHISamplerAddress addressS;
-    private RHISamplerAddress addressT;
-    private RHISamplerAddress addressR;
+    private SamplerFilter minFilter;
+    private SamplerFilter magFilter;
+    private SamplerAddressMode addressS;
+    private SamplerAddressMode addressT;
+    private SamplerAddressMode addressR;
     private float minLod;
     private float maxLod;
     private float lodBias;
     private bool compare;
-    private RHIComparison comparison;
+    private ComparisonFunction comparison;
     private System.Numerics.Vector4 borderColor;
     private float anisotropy;
     private string? label;
 
     #region Public API
     /// <summary>Supplies MinFilter while retaining explicit assignment intent.</summary>
-    public RHISamplerFilter MinFilter { readonly get => minFilter; set { minFilter = value; assigned |= 1UL << 0; } }
+    public SamplerFilter MinFilter { readonly get => minFilter; set { minFilter = value; assigned |= 1UL << 0; } }
     /// <summary>Supplies MagFilter while retaining explicit assignment intent.</summary>
-    public RHISamplerFilter MagFilter { readonly get => magFilter; set { magFilter = value; assigned |= 1UL << 1; } }
+    public SamplerFilter MagFilter { readonly get => magFilter; set { magFilter = value; assigned |= 1UL << 1; } }
     /// <summary>Supplies AddressS while retaining explicit assignment intent.</summary>
-    public RHISamplerAddress AddressS { readonly get => addressS; set { addressS = value; assigned |= 1UL << 2; } }
+    public SamplerAddressMode AddressS { readonly get => addressS; set { addressS = value; assigned |= 1UL << 2; } }
     /// <summary>Supplies AddressT while retaining explicit assignment intent.</summary>
-    public RHISamplerAddress AddressT { readonly get => addressT; set { addressT = value; assigned |= 1UL << 3; } }
+    public SamplerAddressMode AddressT { readonly get => addressT; set { addressT = value; assigned |= 1UL << 3; } }
     /// <summary>Supplies AddressR while retaining explicit assignment intent.</summary>
-    public RHISamplerAddress AddressR { readonly get => addressR; set { addressR = value; assigned |= 1UL << 4; } }
+    public SamplerAddressMode AddressR { readonly get => addressR; set { addressR = value; assigned |= 1UL << 4; } }
     /// <summary>Supplies MinLod while retaining explicit assignment intent.</summary>
     public float MinLod { readonly get => minLod; set { minLod = value; assigned |= 1UL << 5; } }
     /// <summary>Supplies MaxLod while retaining explicit assignment intent.</summary>
@@ -40,7 +40,7 @@ public struct RHISamplerDescription
     /// <summary>Supplies Compare while retaining explicit assignment intent.</summary>
     public bool Compare { readonly get => compare; set { compare = value; assigned |= 1UL << 8; } }
     /// <summary>Supplies Comparison while retaining explicit assignment intent.</summary>
-    public RHIComparison Comparison { readonly get => comparison; set { comparison = value; assigned |= 1UL << 9; } }
+    public ComparisonFunction Comparison { readonly get => comparison; set { comparison = value; assigned |= 1UL << 9; } }
     /// <summary>Supplies BorderColor while retaining explicit assignment intent.</summary>
     public System.Numerics.Vector4 BorderColor { readonly get => borderColor; set { borderColor = value; assigned |= 1UL << 10; } }
     /// <summary>Supplies Anisotropy while retaining explicit assignment intent.</summary>

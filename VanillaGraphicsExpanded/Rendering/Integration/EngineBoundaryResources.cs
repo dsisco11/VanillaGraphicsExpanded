@@ -14,7 +14,7 @@ internal sealed class EngineBoundaryResources
     internal IReadOnlyList<(BufferRangeTarget Target, int Slot)> Buffers { get; }
 
     #region Public API
-    /// <summary>Copies explicit helper slots; active texture, quad geometry and independent framebuffers are always preserved.</summary>
+    /// <summary>Copies explicit helper slots and the selector families the declared work can actually change.</summary>
     internal EngineBoundaryResources(IEnumerable<(int Unit, TextureTarget Target)>? textures = null,
         IEnumerable<int>? images = null, IEnumerable<(BufferRangeTarget Target, int Slot)>? buffers = null)
     {

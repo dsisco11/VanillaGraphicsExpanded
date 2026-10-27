@@ -76,7 +76,7 @@ public sealed class DebugGraphicsSubmissionTests(HeadlessGLFixture fixture) : Re
         shader.WorldOffset = new(0, 0, 0);
         var layout = new VertexLayoutDesc([new(0, 3, VertexAttribPointerType.Float, VertexInterpretation.Floating, 0, 0, 28),
             new(1, 4, VertexAttribPointerType.Float, VertexInterpretation.Floating, 0, 12, 28)]);
-        using var vertices = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Vertex, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = null }).RequireResource();
+        using var vertices = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = null }).RequireResource();
         vertices.UploadData(new float[] { -.75f, 0, 0, 1, 0, 0, 1, .75f, 0, 0, 1, 0, 0, 1 });
         using var geometry = new ArrayGraphicsGeometry(layout, topology, new Dictionary<int, GpuVbo> { [0] = vertices });
         using var target = CreateRenderTarget(8, 8, PixelInternalFormat.Rgba32f);
@@ -108,10 +108,10 @@ public sealed class DebugGraphicsSubmissionTests(HeadlessGLFixture fixture) : Re
         var shader = programs.Create<DebugTextureShaderProgram>();
         var layout = new VertexLayoutDesc([new(0, 3, VertexAttribPointerType.Float, VertexInterpretation.Floating, 0, 0, 20),
             new(1, 2, VertexAttribPointerType.Float, VertexInterpretation.Floating, 0, 12, 20)]);
-        using var vertices = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Vertex, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = null }).RequireResource();
+        using var vertices = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = null }).RequireResource();
         vertices.UploadData(new float[] { -1, -1, 0, 0, 0, 3, -1, 0, 2, 0, -1, 3, 0, 0, 2 });
         using var geometry = new ArrayGraphicsGeometry(layout, PrimitiveType.Triangles, new Dictionary<int, GpuVbo> { [0] = vertices });
-        using var source = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Width = 1, Height = 1, Format = RHIFormat.Rgba32f, MipLevels = 1, Storage = RHIStorageMode.Mutable, BaseLevel = 0, MaxLevel = 0, Filter = TextureFilterMode.Nearest, Label = null }, [new RHITextureInitialData(new(new(), 0, 0, 0, 1, 1), VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLPixelValues.Encoding(TextureFormatHelper.GetPixelFormat(PixelInternalFormat.Rgba32f), OpenTK.Graphics.OpenGL.PixelType.Float), System.Runtime.InteropServices.MemoryMarshal.AsBytes((new float[] { .25f, .5f, .75f, 1 }).AsSpan()).ToArray())]).RequireResource();
+        using var source = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Width = 1, Height = 1, Format = TextureFormat.Rgba32f, MipLevels = 1, Storage = ResourceStorageMode.Mutable, BaseLevel = 0, MaxLevel = 0, Filter = TextureFilterMode.Nearest, Label = null }, [new RHITextureInitialData(new(new(), 0, 0, 0, 1, 1), VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLPixelValues.Encoding(TextureFormatHelper.GetPixelFormat(PixelInternalFormat.Rgba32f), OpenTK.Graphics.OpenGL.PixelType.Float), System.Runtime.InteropServices.MemoryMarshal.AsBytes((new float[] { .25f, .5f, .75f, 1 }).AsSpan()).ToArray())]).RequireResource();
         using var target = CreateRenderTarget(8, 8, PixelInternalFormat.Rgba32f);
         using var submission = new DebugGraphicsSubmission(Api(assets));
         shader.Scene = source.TextureId;
@@ -145,7 +145,7 @@ public sealed class DebugGraphicsSubmissionTests(HeadlessGLFixture fixture) : Re
         shader.EnsureWorldProbeClipmapDefines(true, 1, 1, 1, 8, 64, 2);
         shader.WorldOffset = new(0, 0, 0);
         shader.PointSize = 6; shader.FadeNear = 10; shader.FadeFar = 20; shader.ImportanceColorMode = true;
-        using var frame = RHICommandContext.Current.CreateUniformBuffer(new RHIBufferDescription { Role = RHIBufferRole.Uniform, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = null }).RequireResource(); using var world = RHICommandContext.Current.CreateUniformBuffer(new RHIBufferDescription { Role = RHIBufferRole.Uniform, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = null }).RequireResource();
+        using var frame = RHICommandContext.Current.CreateUniformBuffer(new RHIBufferDescription { Role = BufferRole.Uniform, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = null }).RequireResource(); using var world = RHICommandContext.Current.CreateUniformBuffer(new RHIBufferDescription { Role = BufferRole.Uniform, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = null }).RequireResource();
         using var frameCamera = TestFrameCamera.CreateIdentity(8, 8);
         ((ILumOnFrameShader)shader).FrameInputs = frameCamera;
         frame.UploadData(new float[28]); world.UploadData(new float[72]);
@@ -156,7 +156,7 @@ public sealed class DebugGraphicsSubmissionTests(HeadlessGLFixture fixture) : Re
         var layout = new VertexLayoutDesc([new(0, 3, VertexAttribPointerType.Float, VertexInterpretation.Floating, 0, 0, 36),
             new(1, 4, VertexAttribPointerType.Float, VertexInterpretation.Floating, 0, 12, 36),
             new(2, 2, VertexAttribPointerType.Float, VertexInterpretation.Floating, 0, 28, 36)]);
-        using var vertices = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Vertex, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = null }).RequireResource(); vertices.UploadData(new float[] { 0, 0, 0, 1, 1, 1, 1, 0, 0 });
+        using var vertices = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = null }).RequireResource(); vertices.UploadData(new float[] { 0, 0, 0, 1, 1, 1, 1, 0, 0 });
         using var geometry = new ArrayGraphicsGeometry(layout, PrimitiveType.Points, new Dictionary<int, GpuVbo> { [0] = vertices });
         using var target = CreateMRTRenderTarget(8, 8, PixelInternalFormat.Rgb8, PixelInternalFormat.R16f,
             PixelInternalFormat.Rgba8, PixelInternalFormat.Rgba16f, PixelInternalFormat.Rgba16f, PixelInternalFormat.Rgba16f);

@@ -6,7 +6,7 @@ using VanillaGraphicsExpanded.Rendering.Pipeline.Passes;
 
 namespace VanillaGraphicsExpanded.PBR;
 
-/// <summary>Owns a layered linear-radiance allocation and its three-output framebuffer.</summary>
+/// <summary>Owns layered linear radiance and declares three independent fragment-output image selections.</summary>
 internal sealed class DirectLightingTargets : IDisposable
 {
     private readonly GpuResourceCollection resources = new();
@@ -28,7 +28,7 @@ internal sealed class DirectLightingTargets : IDisposable
     {
         try
         {
-            Radiance = resources.Own(RHICommandContext.Current.CreateTexture3D(new RHITextureDescription { Dimension = RHITextureDimension.TwoArray, Format = RHIFormat.Rgba16f, Width = System.Math.Max(1, width), Height = System.Math.Max(1, height), Depth = System.Math.Max(1, 3), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Linear, BaseLevel = 0, MaxLevel = (1) - 1, Label = "DirectLighting.Radiance" }).RequireResource());
+            Radiance = resources.Own(RHICommandContext.Current.CreateTexture3D(new RHITextureDescription { Dimension = TextureDimension.TwoArray, Format = TextureFormat.Rgba16f, Width = System.Math.Max(1, width), Height = System.Math.Max(1, height), Depth = System.Math.Max(1, 3), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Linear, BaseLevel = 0, MaxLevel = (1) - 1, Label = "DirectLighting.Radiance" }).RequireResource());
             var layers = new GpuFramebufferAttachment[3];
             for (int layer = 0; layer < layers.Length; layer++)
                 layers[layer] = resources.Own(GpuFramebufferAttachment.FromTexture(Radiance, layer: layer));
@@ -42,7 +42,7 @@ internal sealed class DirectLightingTargets : IDisposable
         catch { resources.Dispose(); throw; }
     }
 
-    /// <summary>Retires the framebuffer and layer attachments before their shared storage.</summary>
+    /// <summary>Retires shared storage through its owner; the backend retires dependent framebuffer realizations.</summary>
     public void Dispose() => resources.Dispose();
     #endregion
 }

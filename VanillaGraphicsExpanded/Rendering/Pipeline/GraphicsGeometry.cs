@@ -3,7 +3,7 @@ using VanillaGraphicsExpanded.Rendering.Pipeline.Descriptions;
 
 namespace VanillaGraphicsExpanded.Rendering.Pipeline;
 
-/// <summary>Owns verified geometry; only concrete upload adapters can issue its native draw.</summary>
+/// <summary>Supplies immutable geometry inputs while retaining producer-specific storage ownership.</summary>
 internal abstract class GraphicsGeometry : IDisposable
 {
     #region Public API

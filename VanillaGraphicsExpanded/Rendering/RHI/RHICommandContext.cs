@@ -40,15 +40,15 @@ public sealed partial class RHICommandContext
     internal void AllocateBufferStorage(GpuBufferObject owner, in RHIBufferDescription description, ReadOnlySpan<byte> initialData = default) =>
         backend.AllocateBufferStorage(owner, description, initialData);
     /// <summary>Maps an owner-selected CPU range without exposing pointers in recorded commands.</summary>
-    internal nint MapBuffer(GpuBufferRef buffer, nint offset, nint byteCount, RHIBufferMapAccess access) => OpenGL.MapBuffer(buffer, offset, byteCount, access);
+    internal nint MapBuffer(GpuBufferRef buffer, nint offset, nint byteCount, BufferMapAccess access) => OpenGL.MapBuffer(buffer, offset, byteCount, access);
     /// <summary>Flushes an explicit mapped range under originating-context validation.</summary>
     internal void FlushMappedBuffer(GpuBufferRef buffer, nint offset, nint byteCount) => OpenGL.FlushMappedBuffer(buffer, offset, byteCount);
     /// <summary>Ends immediate mapping of an existing owner.</summary>
     internal bool UnmapBuffer(GpuBufferRef buffer) => OpenGL.UnmapBuffer(buffer);
     /// <summary>Allocates immutable owner storage using an explicit access request.</summary>
-    internal void AllocateImmutableBuffer(GpuBufferObject owner, nint capacity, RHIStorageAccess access)
+    internal void AllocateImmutableBuffer(GpuBufferObject owner, nint capacity, StorageAccess access)
     {
-        var description = new RHIBufferDescription { Role = owner.Role, Mode = RHIStorageMode.Immutable, Capacity = capacity, Access = access };
+        var description = new RHIBufferDescription { Role = owner.Role, Mode = ResourceStorageMode.Immutable, Capacity = capacity, Access = access };
         backend.AllocateBufferStorage(owner, description, default);
     }
     #endregion

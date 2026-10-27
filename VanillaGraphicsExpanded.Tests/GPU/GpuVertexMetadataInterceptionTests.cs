@@ -24,8 +24,8 @@ public sealed class GpuVertexMetadataInterceptionTests(HeadlessGLFixture fixture
         try
         {
             using var owner=GpuVao.Create(); using var sentinel=GpuVao.Create();
-            using var buffer=RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = null }).RequireResource(); buffer.Allocate(64);
-            using var previous=RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = null }).RequireResource(); previous.Allocate(64);
+            using var buffer=RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = null }).RequireResource(); buffer.Allocate(64);
+            using var previous=RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = null }).RequireResource(); previous.Allocate(64);
             var cache=StateCache.Current;
             cache.BindVertexArray(owner.VertexArrayId); OpenGLBufferBindings.BindBuffer(cache, BufferTarget.ElementArrayBuffer,previous.BufferId);
             cache.BindVertexArray(sentinel.VertexArrayId); OpenGLBufferBindings.BindBuffer(cache, BufferTarget.ElementArrayBuffer,previous.BufferId);

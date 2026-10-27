@@ -60,7 +60,7 @@ internal static class LumonSceneChunkSlotUniformState
     /// <summary>Uploads changed mapping parameters and restores the global binding on every terrain use.</summary>
     internal static void BindParameters()
     {
-        parameters ??= RHICommandContext.Current.CreateUniformBuffer(new RHIBufferDescription { Role = RHIBufferRole.Uniform, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = "LumonScene.ChunkSlotParameters" }).RequireResource();
+        parameters ??= RHICommandContext.Current.CreateUniformBuffer(new RHIBufferDescription { Role = BufferRole.Uniform, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = "LumonScene.ChunkSlotParameters" }).RequireResource();
         if (uploadedVersion != Version)
         {
             // Three std140 ivec4 lanes match lumonscene_chunkslot_params_ubo.glsl.

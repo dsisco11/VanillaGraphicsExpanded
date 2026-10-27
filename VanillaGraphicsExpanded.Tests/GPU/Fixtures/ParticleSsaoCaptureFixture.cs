@@ -109,7 +109,7 @@ internal sealed class ParticleSsaoCaptureFixture : IDisposable
     /// <summary>Creates and initializes one four-pixel metadata or color image through the texture abstraction.</summary>
     private DynamicTexture2D CreateColor(float[] value)
     {
-        var texture = resources.Own(RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba16f, Width = System.Math.Max(1, Width), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource());
+        var texture = resources.Own(RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba16f, Width = System.Math.Max(1, Width), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource());
         texture.UploadDataImmediate(Enumerable.Repeat(value, Width).SelectMany(pixel => pixel).ToArray());
         return texture;
     }

@@ -56,8 +56,8 @@ public sealed class GpuVertexSelectionAndMultiBindingTests(HeadlessGLFixture fix
         try
         {
             using var vao=GpuVao.Create(); using var sentinel=GpuVao.Create();
-            using var old=RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = null }).RequireResource(); old.Allocate(128);
-            using var next=RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = null }).RequireResource(); next.Allocate(128);
+            using var old=RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = null }).RequireResource(); old.Allocate(128);
+            using var next=RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = null }).RequireResource(); next.Allocate(128);
             StateCache.Current.VertexArrayVertexBuffer(vao.VertexArrayId,0,old.BufferId,0,16);
             StateCache.Current.VertexArrayVertexBuffer(vao.VertexArrayId,1,old.BufferId,0,16);
             (named?sentinel:vao).Bind();
@@ -83,7 +83,7 @@ public sealed class GpuVertexSelectionAndMultiBindingTests(HeadlessGLFixture fix
         {
             using var capabilities=new DirectStateAccessCapabilityScope(direct);
             using var vao=GpuVao.Create(); using var sentinel=GpuVao.Create(); sentinel.Bind();
-            using var buffer=RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = null }).RequireResource(); buffer.Allocate(256);
+            using var buffer=RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = null }).RequireResource(); buffer.Allocate(256);
             var binding=vao.GetBinding(2).BindVertexBuffer(buffer.BufferId,16,32).SetDivisor(3);
             binding.SetDoubleAttrib(0,2,0); binding.SetDoubleAttrib(1,2,16);
             if(direct) Assert.Equal(sentinel.VertexArrayId,GL.GetInteger(GetPName.VertexArrayBinding));

@@ -91,7 +91,7 @@ public sealed class GpuTextureViewInterceptionTests(HeadlessGLFixture fixture)
             GL.CreateTextures(TextureTarget.Texture2DArray, 1, out sourceId);
             GL.TextureStorage3D(sourceId, 4, SizedInternalFormat.Rgba8, 8, 8, 4);
             using var source = new BorrowedTexture(sourceId);
-            using var view = RHICommandContext.Current.CreateTextureView(new RHITextureViewDescription { Source = source, Dimension = RHITextureDimension.TwoArray, Format = RHIFormat.Rgba8, BaseMip = 0, MipCount = 1, BaseLayer = 0, LayerCount = 2, Label = null }).RequireResource();
+            using var view = RHICommandContext.Current.CreateTextureView(new RHITextureViewDescription { Source = source, Dimension = TextureDimension.TwoArray, Format = TextureFormat.Rgba8, BaseMip = 0, MipCount = 1, BaseLayer = 0, LayerCount = 2, Label = null }).RequireResource();
             var sourceEntry = GpuResourceManagerSystem.CurrentManager!.GetResourceRegistration(source)!;
             ulong sourceRevision = sourceEntry.MetadataRevision;
             DefineView(false, view.TextureId, source.TextureId);

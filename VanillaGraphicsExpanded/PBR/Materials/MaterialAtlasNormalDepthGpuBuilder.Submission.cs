@@ -49,7 +49,7 @@ internal static partial class MaterialAtlasNormalDepthGpuBuilder
         private static readonly RenderPassColor[] PreserveOutput = [new(0)];
 
         #region Public API
-        /// <summary>Retargets the owned scratch FBO between completed passes to one solver image.</summary>
+        /// <summary>Selects one retained solver image for subsequent pure attachment intentions.</summary>
         internal void SetTarget(DynamicTexture2D image)
         {
             scratchFbo!.Attach(image);

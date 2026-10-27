@@ -29,7 +29,7 @@ public class GpuBindlessTextureHandleIntegrationTests
 
         Assert.SkipWhen(!GpuBindlessTextureHandle.IsSupported, "GL_ARB_bindless_texture not supported by this context.");
 
-        using var tex = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba8, Width = System.Math.Max(1, 4), Height = System.Math.Max(1, 4), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
+        using var tex = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba8, Width = System.Math.Max(1, 4), Height = System.Math.Max(1, 4), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         using var handle = GpuBindlessTextureHandle.CreateForTexture(tex, makeResident: true);
 
         Assert.NotEqual(0ul, handle.Handle);

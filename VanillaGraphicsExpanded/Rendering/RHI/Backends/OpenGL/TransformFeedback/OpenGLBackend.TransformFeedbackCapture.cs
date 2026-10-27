@@ -11,13 +11,13 @@ internal sealed partial class OpenGLBackend
     private bool feedbackTransition;
     #region Public API
     /// <inheritdoc />
-    public IDisposable CaptureTransformFeedback(GpuTransformFeedbackRef feedback, RHICapturePrimitive primitive)
+    public IDisposable CaptureTransformFeedback(GpuTransformFeedbackRef feedback, CapturePrimitive primitive)
     {
         BeginTransformFeedback(feedback, primitive);
         return new FeedbackScope(this, feedbackCapture!);
     }
     /// <inheritdoc />
-    public void BeginTransformFeedback(GpuTransformFeedbackRef feedback, RHICapturePrimitive primitive)
+    public void BeginTransformFeedback(GpuTransformFeedbackRef feedback, CapturePrimitive primitive)
     {
         // Native callbacks must not reenter an unfinished execution-state transition.
         if (feedbackTransition) throw new InvalidOperationException("An auxiliary operation is already in progress.");
@@ -28,9 +28,9 @@ internal sealed partial class OpenGLBackend
             if (feedbackCapture is not null) throw new InvalidOperationException("Capture is already active.");
             var nativePrimitive = primitive switch
             {
-                RHICapturePrimitive.Points => TransformFeedbackPrimitiveType.Points,
-                RHICapturePrimitive.Lines => TransformFeedbackPrimitiveType.Lines,
-                RHICapturePrimitive.Triangles => TransformFeedbackPrimitiveType.Triangles,
+                CapturePrimitive.Points => TransformFeedbackPrimitiveType.Points,
+                CapturePrimitive.Lines => TransformFeedbackPrimitiveType.Lines,
+                CapturePrimitive.Triangles => TransformFeedbackPrimitiveType.Triangles,
                 _ => throw new ArgumentOutOfRangeException(nameof(primitive))
             };
             var owner = feedback.RequireResource();

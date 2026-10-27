@@ -15,7 +15,7 @@ namespace VanillaGraphicsExpanded.Rendering;
 internal sealed class GpuIndirectBuffer : GpuBufferObject
 {
     /// <summary>Declares buffer policy before manager-owned native creation.</summary>
-    internal GpuIndirectBuffer(RHIBufferUsage usage, string? debugName, RHIBufferRole role = RHIBufferRole.IndirectDraw)
+    internal GpuIndirectBuffer(BufferUsage usage, string? debugName, BufferRole role = BufferRole.IndirectDraw)
     {
         target = OpenGLBufferValues.Target(role);
         allocationUsage = usage;
@@ -35,7 +35,7 @@ internal sealed class GpuIndirectBuffer : GpuBufferObject
             return;
         }
 
-        RHICommandContext.Current.BindBuffer(RHIBufferRole.IndirectDraw, this);
+        RHICommandContext.Current.BindBuffer(BufferRole.IndirectDraw, this);
     }
 
     /// <summary>
@@ -49,7 +49,7 @@ internal sealed class GpuIndirectBuffer : GpuBufferObject
             return;
         }
 
-        RHICommandContext.Current.BindBuffer(RHIBufferRole.IndirectDispatch, this);
+        RHICommandContext.Current.BindBuffer(BufferRole.IndirectDispatch, this);
     }
 
     /// <summary>Binds indirect arguments as shader storage so compute can generate command counts.</summary>
@@ -57,7 +57,7 @@ internal sealed class GpuIndirectBuffer : GpuBufferObject
     {
         if (bindingIndex < 0) throw new ArgumentOutOfRangeException(nameof(bindingIndex));
         if (!IsValid) throw new ObjectDisposedException(nameof(GpuIndirectBuffer));
-        RHICommandContext.Current.BindBufferBase(RHIBufferRole.ShaderStorage, bindingIndex, this);
+        RHICommandContext.Current.BindBufferBase(BufferRole.ShaderStorage, bindingIndex, this);
     }
 
     /// <summary>

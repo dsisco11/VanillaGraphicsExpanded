@@ -4,7 +4,7 @@ using OpenTK.Graphics.OpenGL;
 
 namespace VanillaGraphicsExpanded.Rendering;
 
-/// <summary>Executes managed attachment composition and retains its command-established descriptors.</summary>
+/// <summary>Composes canonical framebuffer attachment facts without native execution.</summary>
 internal sealed partial class StateCache
 {
     #region Internal API

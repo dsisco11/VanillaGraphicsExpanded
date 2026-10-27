@@ -34,11 +34,7 @@ internal sealed class GpuProgramObject : GpuResource<GpuProgramMetadata>, IDispo
     /// Gets the underlying OpenGL program id.
     /// </summary>
     public int ProgramId => programId;
-
-    /// <summary>
-    /// Gets cached binding-related program resources (UBO/SSBO bindings, sampler/image units).
-    /// Populated on successful <see cref="TryLink"/>.
-    /// </summary>
+    /// <summary>Gets binding preparation derived from manager-published executable metadata.</summary>
     public GpuProgramLayout BindingCache => bindingCache;
 
     /// <summary>Reports stale derived preparation independently of native allocation validity.</summary>
@@ -58,10 +54,7 @@ internal sealed class GpuProgramObject : GpuResource<GpuProgramMetadata>, IDispo
     /// Gets the debug name used for KHR_debug labeling (debug builds only).
     /// </summary>
     public string? DebugName => debugName;
-
-    /// <summary>
-    /// Returns <c>true</c> when the program has a non-zero id and has not been disposed.
-    /// </summary>
+    /// <summary>Reports native allocation usability independently of executable readiness.</summary>
     public new bool IsValid => base.IsValid;
 
     /// <summary>Adopts native identity and acquires its canonical executable snapshot.</summary>
@@ -90,9 +83,7 @@ internal sealed class GpuProgramObject : GpuResource<GpuProgramMetadata>, IDispo
         recipient.SetDebugName(debugName);
         return recipient;
     }
-    /// <summary>
-    /// Sets the debug label for this program (debug builds only).
-    /// </summary>
+    /// <summary>Stores the diagnostic label and applies it to the native allocation in debug builds.</summary>
     public override void SetDebugName(string? debugName)
     {
         this.debugName = debugName;

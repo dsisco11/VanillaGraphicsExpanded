@@ -98,7 +98,7 @@ internal sealed class RenderPass : IDisposable
         pipeline.ValidateTargets(Signature);
     }
 
-    /// <summary>Ends image authority; standalone passes also restore routing and bindings immediately.</summary>
+    /// <summary>Ends image authority while the admitted sequence retains external routing restoration.</summary>
     public void Dispose()
     {
         if (disposed) return;

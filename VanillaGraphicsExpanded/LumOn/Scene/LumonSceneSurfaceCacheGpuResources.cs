@@ -92,8 +92,8 @@ internal sealed class LumonSceneFieldGpuResources : IDisposable
         pageRequests = new LumonSceneWorkQueueGpu<LumonScenePageRequestGpu>(
             $"LumOn.LumonScene.{field}.PageRequests",
             capacityItems: q,
-            counterUsage: RHIBufferUsage.DynamicRead,
-            itemsUsage: RHIBufferUsage.DynamicRead);
+            counterUsage: BufferUsage.DynamicRead,
+            itemsUsage: BufferUsage.DynamicRead);
         captureWork = new LumonSceneWorkQueueGpu<LumonSceneCaptureWorkGpu>($"LumOn.LumonScene.{field}.CaptureWork", capacityItems: q);
         relightWork = new LumonSceneWorkQueueGpu<LumonSceneRelightWorkGpu>($"LumOn.LumonScene.{field}.RelightWork", capacityItems: q);
     }

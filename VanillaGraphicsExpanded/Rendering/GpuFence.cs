@@ -18,8 +18,8 @@ public sealed class GpuFence : GpuResource<GpuSyncMetadata>
     internal bool TryConsumeIfSignaled()
     {
         var status = RHICommandContext.Current.Poll(this);
-        if (status == RHICompletionStatus.Pending) return false;
-        if (status != RHICompletionStatus.Ready) throw new InvalidOperationException("Fence completion failed.");
+        if (status == CompletionStatus.Pending) return false;
+        if (status != CompletionStatus.Ready) throw new InvalidOperationException("Fence completion failed.");
         Dispose();
         return true;
     }

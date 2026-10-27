@@ -8,7 +8,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU.Helpers;
 /// <summary>Copies one display framebuffer's BGRA8 pixels through a PBO into a BMP file.</summary>
 internal sealed class FramebufferBmpCapture(int width, int height) : IDisposable
 {
-    private readonly GpuPixelPackBuffer readback = RHICommandContext.Current.CreatePixelPackBuffer(new RHIBufferDescription { Role = RHIBufferRole.PixelPack, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StreamRead, Label = "Test.FramebufferBmp.Readback" }).RequireResource();
+    private readonly GpuPixelPackBuffer readback = RHICommandContext.Current.CreatePixelPackBuffer(new RHIBufferDescription { Role = BufferRole.PixelPack, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StreamRead, Label = "Test.FramebufferBmp.Readback" }).RequireResource();
 
     #region Public API
     /// <summary>Reads the framebuffer's first color attachment without altering its pixels.</summary>
@@ -23,11 +23,11 @@ internal sealed class FramebufferBmpCapture(int width, int height) : IDisposable
         using var texture = new BorrowedTexture(attachment.TextureId);
         RHICommandContext.Current.TransferTextureToBuffer(texture, new(readback, 0,
             new(new(attachment.MipLevel, attachment.Layer ?? 0), 0, 0, 0, width, height, 1),
-            new(RHIPixelChannels.Bgra, RHIPixelType.UnsignedByte)));
+            new(PixelChannelLayout.Bgra, PixelComponentType.UnsignedByte)));
         using var fence = RHICommandContext.Current.InsertFence();
-        if (RHICommandContext.Current.WaitCpu(fence, TimeSpan.FromSeconds(60)) != RHICompletionStatus.Ready)
+        if (RHICommandContext.Current.WaitCpu(fence, TimeSpan.FromSeconds(60)) != CompletionStatus.Ready)
             throw new InvalidOperationException("Framebuffer capture did not complete.");
-        IntPtr mapped = readback.MapRange(0, byteCount, RHIBufferMapAccess.Read);
+        IntPtr mapped = readback.MapRange(0, byteCount, BufferMapAccess.Read);
         if (mapped == IntPtr.Zero) throw new InvalidOperationException("Could not map framebuffer readback buffer.");
         byte[] pixels = new byte[byteCount];
         try { Marshal.Copy(mapped, pixels, 0, byteCount); }

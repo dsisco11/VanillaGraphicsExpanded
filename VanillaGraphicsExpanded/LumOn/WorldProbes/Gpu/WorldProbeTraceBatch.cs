@@ -20,15 +20,15 @@ internal sealed class WorldProbeTraceBatch : IDisposable
     private readonly WorldProbeTraceTilesShader? setup;
 
     private readonly SurfaceLightingParamsUbo lighting = new();
-    private GpuShaderStorageBuffer output = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StreamRead, Label = null }).RequireResource();
+    private GpuShaderStorageBuffer output = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StreamRead, Label = null }).RequireResource();
     private WorldProbeCompletionShader? completion;
-    private readonly GpuShaderStorageBuffer metadata = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StreamRead, Label = null }).RequireResource();
-    private readonly GpuShaderStorageBuffer descriptors = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StreamRead, Label = null }).RequireResource();
-    private readonly GpuShaderStorageBuffer descriptorCount = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StreamRead, Label = null }).RequireResource();
-    private readonly GpuShaderStorageBuffer probes = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StreamDraw, Label = null }).RequireResource();
-    private readonly GpuShaderStorageBuffer directions = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StreamDraw, Label = null }).RequireResource();
-    private readonly GpuShaderStorageBuffer tiles = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = null }).RequireResource();
-    private readonly GpuIndirectBuffer dispatch = RHICommandContext.Current.CreateIndirectBuffer(new RHIBufferDescription { Role = RHIBufferRole.IndirectDraw, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = null }).RequireResource();
+    private readonly GpuShaderStorageBuffer metadata = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StreamRead, Label = null }).RequireResource();
+    private readonly GpuShaderStorageBuffer descriptors = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StreamRead, Label = null }).RequireResource();
+    private readonly GpuShaderStorageBuffer descriptorCount = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StreamRead, Label = null }).RequireResource();
+    private readonly GpuShaderStorageBuffer probes = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StreamDraw, Label = null }).RequireResource();
+    private readonly GpuShaderStorageBuffer directions = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StreamDraw, Label = null }).RequireResource();
+    private readonly GpuShaderStorageBuffer tiles = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = null }).RequireResource();
+    private readonly GpuIndirectBuffer dispatch = RHICommandContext.Current.CreateIndirectBuffer(new RHIBufferDescription { Role = BufferRole.IndirectDraw, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = null }).RequireResource();
     private GpuFence? fence;
     private int count;
     public bool Pending => fence is not null;
@@ -80,7 +80,7 @@ internal sealed class WorldProbeTraceBatch : IDisposable
         setup.WorldProbeTraceTiles = new(tiles, 0, count << 3);
         setup.WorldProbeTraceDispatch = new(dispatch, 0, 12);
         setup.Dispatch((probeData.Length + 63) >> 6);
-        RHICommandContext.Current.Barrier(new(RHIAccess.ShaderStorage | RHIAccess.Indirect));
+        RHICommandContext.Current.Barrier(new(ResourceAccess.ShaderStorage | ResourceAccess.Indirect));
         pipeline.BindSharedGeometry(scene);
         lighting.Set(snapshot);
         pipeline.SurfaceLightingParameters = lighting;
@@ -92,7 +92,7 @@ internal sealed class WorldProbeTraceBatch : IDisposable
         pipeline.WorldProbeTraceTiles = new(tiles, 0, count << 3);
         pipeline.WorldProbeSelectedDirections = new(directions, 0, directionBytes);
         pipeline.DispatchIndirect(dispatch);
-        RHICommandContext.Current.Barrier(new(RHIAccess.ShaderStorage | RHIAccess.BufferUpdate));
+        RHICommandContext.Current.Barrier(new(ResourceAccess.ShaderStorage | ResourceAccess.BufferUpdate));
         metadata.EnsureCapacity(count << 4, growExponentially: false);
         descriptors.EnsureCapacity(outputBytes, growExponentially: false);
         descriptorCount.EnsureCapacity(4, growExponentially: false);
@@ -102,7 +102,7 @@ internal sealed class WorldProbeTraceBatch : IDisposable
         completion.Descriptors = new(descriptors, 0, outputBytes);
         completion.Counter = new(descriptorCount, 0, 4);
         completion.Dispatch((count + 63) >> 6);
-        RHICommandContext.Current.Barrier(new(RHIAccess.ShaderStorage | RHIAccess.BufferUpdate));
+        RHICommandContext.Current.Barrier(new(ResourceAccess.ShaderStorage | ResourceAccess.BufferUpdate));
         fence = RHICommandContext.Current.InsertFence();
         RHICommandContext.Current.Flush();
     }
@@ -138,9 +138,9 @@ internal sealed class WorldProbeTraceBatch : IDisposable
         answers = ImmutableArray<WorldProbeTraceAnswerGpu>.Empty;
         if (fence is null) return false;
         var status = RHICommandContext.Current.Poll(fence);
-        if (status == RHICompletionStatus.Pending) return false;
-        if (status == RHICompletionStatus.Failed) throw new InvalidOperationException("World-probe trace fence failed.");
-        using var read = output.MapRange<WorldProbeTraceAnswerGpu>(0, count, RHIBufferMapAccess.Read);
+        if (status == CompletionStatus.Pending) return false;
+        if (status == CompletionStatus.Failed) throw new InvalidOperationException("World-probe trace fence failed.");
+        using var read = output.MapRange<WorldProbeTraceAnswerGpu>(0, count, BufferMapAccess.Read);
         if (!read.IsMapped) throw new InvalidOperationException("World-probe trace readback failed.");
         var builder = ImmutableArray.CreateBuilder<WorldProbeTraceAnswerGpu>(count);
         foreach (var answer in read.Span) builder.Add(answer);
@@ -155,19 +155,19 @@ internal sealed class WorldProbeTraceBatch : IDisposable
         answers = default; resident = null;
         if (fence is null) return false;
         var status = RHICommandContext.Current.Poll(fence);
-        if (status == RHICompletionStatus.Pending) return false;
-        if (status == RHICompletionStatus.Failed) throw new InvalidOperationException("World-probe completion fence failed.");
-        using var totals = descriptorCount.MapRange<uint>(0, 1, RHIBufferMapAccess.Read);
+        if (status == CompletionStatus.Pending) return false;
+        if (status == CompletionStatus.Failed) throw new InvalidOperationException("World-probe completion fence failed.");
+        using var totals = descriptorCount.MapRange<uint>(0, 1, BufferMapAccess.Read);
         if (!totals.IsMapped || totals.Span[0] > count) throw new InvalidOperationException("Invalid descriptor completion count.");
         int sparseCount = (int)totals.Span[0];
         using var sparse = PooledArray<WorldProbeTraceAnswerGpu>.Rent(sparseCount);
         if (sparseCount > 0)
         {
-            using var read = descriptors.MapRange<WorldProbeTraceAnswerGpu>(0, sparseCount, RHIBufferMapAccess.Read);
+            using var read = descriptors.MapRange<WorldProbeTraceAnswerGpu>(0, sparseCount, BufferMapAccess.Read);
             if (!read.IsMapped) throw new InvalidOperationException("Descriptor readback failed.");
             read.Span.CopyTo(sparse.Span);
         }
-        using var data = metadata.MapRange<WorldProbeCompletionGpu>(0, count, RHIBufferMapAccess.Read);
+        using var data = metadata.MapRange<WorldProbeCompletionGpu>(0, count, BufferMapAccess.Read);
         if (!data.IsMapped) throw new InvalidOperationException("Completion readback failed.");
         var builder = ImmutableArray.CreateBuilder<WorldProbeTraceAnswerGpu>(count);
         foreach (var item in data.Span)
@@ -181,7 +181,7 @@ internal sealed class WorldProbeTraceBatch : IDisposable
         }
         answers = builder.MoveToImmutable();
         LastReadbackBytes = 4 + (count << 4) + sparseCount * 80;
-        var replacement = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StreamRead, Label = null }).RequireResource();
+        var replacement = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StreamRead, Label = null }).RequireResource();
         resident = new WorldProbeResidentAnswers(output, answers); output = replacement;
         fence.Dispose(); fence = null; count = 0;
         return true;

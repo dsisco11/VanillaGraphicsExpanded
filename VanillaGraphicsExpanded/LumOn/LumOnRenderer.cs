@@ -799,7 +799,7 @@ public partial class LumOnRenderer : IRenderer, IDisposable
     /// Pass 3 (Screen-Probe Atlas mode): Per-texel temporal blending for probe-atlas radiance.
     /// Only blends texels that were traced this frame; preserves non-traced texels.
     /// Uses hit-distance delta for per-texel disocclusion detection.
-    /// Output: Blended probe atlas to ScreenProbeAtlasCurrentFbo.
+    /// Output: Blended probe atlas to ScreenProbeAtlasCurrentPass.
     /// </summary>
     private void RenderProbeAtlasTemporalPass()
     {
@@ -1159,7 +1159,7 @@ public partial class LumOnRenderer : IRenderer, IDisposable
     /// <summary>
     /// Pass 3.5 (Screen-Probe Atlas mode): Probe-space filtering/denoise.
     /// Operates within each probe's 8x8 octahedral tile with edge-stopping based on hit distance and meta.
-    /// Output: Filtered probe atlas to ScreenProbeAtlasFilteredFbo.
+    /// Output: Filtered probe atlas to ScreenProbeAtlasFilteredPass.
     /// </summary>
     private void RenderProbeAtlasFilterPass()
     {
@@ -1210,7 +1210,7 @@ public partial class LumOnRenderer : IRenderer, IDisposable
 
     /// <summary>
     /// Pass 5: Bilateral upsample from half-res to full resolution.
-    /// Output is written to IndirectFullFbo for consumption by the final PBR composite.
+    /// Output is written to IndirectFullPass for consumption by the final PBR composite.
     /// Missing output resources leave indirect lighting unpublished for this frame.
     /// </summary>
     private void RenderUpsamplePass(FrameBufferRef primaryFb)

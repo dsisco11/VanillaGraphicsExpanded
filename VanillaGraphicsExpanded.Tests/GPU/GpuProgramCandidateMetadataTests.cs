@@ -9,14 +9,14 @@ using VanillaGraphicsExpanded.Rendering.Spirv;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 namespace VanillaGraphicsExpanded.Tests.GPU;
 
-/// <summary>Verifies deferred program submission and publication retain one manager-owned allocation.</summary>
+/// <summary>Verifies deferred executable publication retains one manager-owned allocation and supplied interface snapshot.</summary>
 [Collection("GPU")]
-[Trait("Category","GPU")]
+[Trait("Category", "GPU")]
 public sealed class GpuProgramCandidateMetadataTests(HeadlessGLFixture fixture)
 {
-    private static int statusQueries,validityQueries,interfaceQueries;
+    private static int statusQueries, validityQueries, interfaceQueries;
     #region Public API
-    /// <summary>Fresh creation and submission do not wait on status; preparation reuses the completed canonical snapshot.</summary>
+    /// <summary>Pending creation defers native interface reads and ready preparation reuses the canonical executable snapshot.</summary>
     [Fact]
     public void SubmissionDefersQueriesAndPreparationReusesSnapshot()
     {
@@ -51,7 +51,8 @@ public sealed class GpuProgramCandidateMetadataTests(HeadlessGLFixture fixture)
         }
         finally { harmony.UnpatchAll(harmony.Id); StateCache.Current.DeleteShader(shader); fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
     }
-    /// <summary>Taking a completed pending program preserves its existing registration and releases stage ownership once.</summary>
+
+    /// <summary>Ready transfer retains its original program registration and releases all temporary stages.</summary>
     [Fact]
     public void PendingTransferPreservesRegistration()
     {
@@ -69,7 +70,8 @@ public sealed class GpuProgramCandidateMetadataTests(HeadlessGLFixture fixture)
         }
         finally { fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
     }
-    /// <summary>Cancellation cleanup from a thread without a GL context defers retirement to the originating manager.</summary>
+
+    /// <summary>Worker cancellation queues cleanup against the originating manager rather than issuing GL without its context.</summary>
     [Fact]
     public void PendingDisposalFromWorkerDefersNativeRetirement()
     {
@@ -101,7 +103,3 @@ public sealed class GpuProgramCandidateMetadataTests(HeadlessGLFixture fixture)
     private static void CountInterface()=>interfaceQueries++;
     #endregion
 }
-
-
-
-

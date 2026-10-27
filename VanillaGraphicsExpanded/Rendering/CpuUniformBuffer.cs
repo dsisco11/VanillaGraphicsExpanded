@@ -10,7 +10,7 @@ namespace VanillaGraphicsExpanded.Rendering;
 /// Owns CPU bytes and delegates publication to its logical lifetime owner.
 /// Physical allocation and binding remain with the context allocators and uniform-buffer owners.
 ///
-/// Assignments remain CPU-only; the shader activation boundary publishes the complete block.
+/// Assignments and capture remain CPU-only; command execution publishes the captured complete block.
 /// </summary>
 public abstract class CpuUniformBuffer : IDisposable
 {

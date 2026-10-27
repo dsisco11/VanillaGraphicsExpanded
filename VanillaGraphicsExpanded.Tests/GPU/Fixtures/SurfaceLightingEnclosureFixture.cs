@@ -125,7 +125,7 @@ internal sealed class SurfaceLightingEnclosureFixture : IDisposable
                 measurement=captureShader.Diagnostics.Snapshot(SurfaceWorkStage.Capture);
             }
         }
-        using (var result=work.MapRange<LumonSceneCaptureWorkGpu>(0,captureItems.Length,RHIBufferMapAccess.Read))
+        using (var result=work.MapRange<LumonSceneCaptureWorkGpu>(0,captureItems.Length,BufferMapAccess.Read))
         { Assert.True(result.IsMapped); foreach (var item in result.Span) Assert.Equal(expectComplete?0u:0x80000000u,item.VirtualPageIndex & 0x80000000u); }
         return measurement;
     }
@@ -146,7 +146,7 @@ internal sealed class SurfaceLightingEnclosureFixture : IDisposable
     /// <summary>Creates a typed buffer using production storage ownership.</summary>
     private static GpuShaderStorageBuffer Buffer<T>(ReadOnlySpan<T> data) where T:unmanaged
     {
-        var buffer=RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = null }).RequireResource();
+        var buffer=RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = null }).RequireResource();
         int bytes=data.Length*Marshal.SizeOf<T>(); buffer.EnsureCapacity(bytes,growExponentially:false);
         buffer.UploadSubData(data,0,bytes); return buffer;
     }
@@ -189,7 +189,7 @@ internal sealed class SurfaceLightingEnclosureFixture : IDisposable
     /// <summary>Reads producer status synchronously as the production scheduler currently does.</summary>
     public int ReadDiagnosticCompletion(int count,GpuShaderStorageBuffer? workStorage=null)
     {
-        using var result=(workStorage??work).MapRange<LumonSceneRelightWorkGpu>(0,count,RHIBufferMapAccess.Read);
+        using var result=(workStorage??work).MapRange<LumonSceneRelightWorkGpu>(0,count,BufferMapAccess.Read);
         Assert.True(result.IsMapped);
         int completed=0;
         foreach(var item in result.Span) if((item.VirtualPageIndex&0x80000000u)==0)completed++;
@@ -238,7 +238,7 @@ internal sealed class SurfaceLightingEnclosureFixture : IDisposable
     {
         work.UploadSubData<LumonSceneRelightWorkGpu>(lightingItems,0,lightingItems.Length*16);
         producer.Run(Geometry.Scene,Snapshot,outgoing[1-generation%2],work,lightingItems.Length,operation,64,RaysPerTexel,256,(uint)generation,EmissionPolicy,maxFramesAccumulated:MaxFramesAccumulated);
-        using var result = work.MapRange<LumonSceneRelightWorkGpu>(0,lightingItems.Length,RHIBufferMapAccess.Read);
+        using var result = work.MapRange<LumonSceneRelightWorkGpu>(0,lightingItems.Length,BufferMapAccess.Read);
         Assert.True(result.IsMapped);
         foreach (var item in result.Span) Assert.Equal(0u,item.VirtualPageIndex & 0x80000000u);
     }
@@ -289,7 +289,7 @@ internal sealed class SurfaceLightingEnclosureFixture : IDisposable
     {
         work.UploadSubData<LumonSceneRelightWorkGpu>(lightingItems,0,lightingItems.Length*16);
         producer.Run(Geometry.Scene,Snapshot,outgoing[1-generation%2],work,lightingItems.Length,1,64,4,256,(uint)generation,EmissionPolicy,maxFramesAccumulated:MaxFramesAccumulated);
-        using var result=work.MapRange<LumonSceneRelightWorkGpu>(0,lightingItems.Length,RHIBufferMapAccess.Read);
+        using var result=work.MapRange<LumonSceneRelightWorkGpu>(0,lightingItems.Length,BufferMapAccess.Read);
         Assert.True(result.IsMapped);
         return result.Span.ToArray().All(item => (item.VirtualPageIndex & 0x80000000u)==0);
     }
@@ -302,7 +302,7 @@ internal sealed class SurfaceLightingEnclosureFixture : IDisposable
         work.UploadSubData<LumonSceneRelightWorkGpu>(new[]{selected},0,16);
         producer.Run(Geometry.Scene,Snapshot,outgoing[1-generation%2],work,1,1,1,rays,steps,frame,EmissionPolicy,maxFramesAccumulated:MaxFramesAccumulated,fallbackRequests:fallbackRequests,maxTraceDistance:maxTraceDistance,hitRetries:hitRetries,captureHitRetries:captureHitRetries);
         bool complete;
-        using(var result=work.MapRange<LumonSceneRelightWorkGpu>(0,1,RHIBufferMapAccess.Read))
+        using(var result=work.MapRange<LumonSceneRelightWorkGpu>(0,1,BufferMapAccess.Read))
         { Assert.True(result.IsMapped); LastWorkFlags=result.Span[0].VirtualPageIndex; complete=(LastWorkFlags & 0x80000000u)==0; }
         // This controlled estimator test combines immediately; production page scheduling is exercised separately.
         if(complete) Publish();

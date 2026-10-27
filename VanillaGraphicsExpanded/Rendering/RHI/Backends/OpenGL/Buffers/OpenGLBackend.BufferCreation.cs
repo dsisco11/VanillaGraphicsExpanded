@@ -13,23 +13,23 @@ internal sealed partial class OpenGLBackend
         var request = description;
         RequireContext();
         request.Validate();
-        if (request.Access.HasFlag(RHIStorageAccess.Sparse) && !Capabilities.SparseBuffers) throw new NotSupportedException("Sparse buffers are unavailable.");
-        if (request.Access.HasFlag(RHIStorageAccess.Sparse) && !initialData.Bytes.IsEmpty)
+        if (request.Access.HasFlag(global::VanillaGraphicsExpanded.Rendering.RHI.StorageAccess.Sparse) && !Capabilities.SparseBuffers) throw new NotSupportedException("Sparse buffers are unavailable.");
+        if (request.Access.HasFlag(global::VanillaGraphicsExpanded.Rendering.RHI.StorageAccess.Sparse) && !initialData.Bytes.IsEmpty)
             throw new ArgumentException("Sparse storage starts uncommitted; commit pages before uploading content.");
         if (initialData.Offset < 0 || initialData.Offset > request.Capacity
             || initialData.Bytes.Length > request.Capacity - initialData.Offset
-            || request.Mode == RHIStorageMode.Realization && !initialData.Bytes.IsEmpty)
+            || request.Mode == ResourceStorageMode.Realization && !initialData.Bytes.IsEmpty)
             throw new ArgumentException("Initial content exceeds the requested allocation.");
-        var usage = request.Mode == RHIStorageMode.Mutable ? request.Usage : RHIBufferUsage.StaticDraw;
+        var usage = request.Mode == ResourceStorageMode.Mutable ? request.Usage : BufferUsage.StaticDraw;
         GpuBufferObject owner = request.Role switch
         {
-            RHIBufferRole.Index => new GpuEbo(usage, request.Label),
-            RHIBufferRole.Uniform => new GpuUniformBuffer(usage, request.Label),
-            RHIBufferRole.ShaderStorage => new GpuShaderStorageBuffer(usage, request.Label),
-            RHIBufferRole.AtomicCounter => new GpuAtomicCounterBuffer(usage, request.Label),
-            RHIBufferRole.IndirectDraw or RHIBufferRole.IndirectDispatch => new GpuIndirectBuffer(usage, request.Label, request.Role),
-            RHIBufferRole.PixelPack => new GpuPixelPackBuffer(usage, request.Label),
-            RHIBufferRole.PixelUnpack => new GpuPixelUnpackBuffer(usage, request.Label),
+            BufferRole.Index => new GpuEbo(usage, request.Label),
+            BufferRole.Uniform => new GpuUniformBuffer(usage, request.Label),
+            BufferRole.ShaderStorage => new GpuShaderStorageBuffer(usage, request.Label),
+            BufferRole.AtomicCounter => new GpuAtomicCounterBuffer(usage, request.Label),
+            BufferRole.IndirectDraw or BufferRole.IndirectDispatch => new GpuIndirectBuffer(usage, request.Label, request.Role),
+            BufferRole.PixelPack => new GpuPixelPackBuffer(usage, request.Label),
+            BufferRole.PixelUnpack => new GpuPixelUnpackBuffer(usage, request.Label),
             _ => new GpuVbo(OpenGLBufferValues.Target(request.Role), usage, request.Label)
         };
         try
@@ -61,25 +61,25 @@ internal sealed partial class OpenGLBackend
         {
             Mode = description.Mode switch
             {
-                RHIStorageMode.Realization => GpuBufferStorageMode.Realization,
-                RHIStorageMode.Mutable => GpuBufferStorageMode.Mutable,
-                RHIStorageMode.Immutable => GpuBufferStorageMode.Immutable,
+                ResourceStorageMode.Realization => GpuBufferStorageMode.Realization,
+                ResourceStorageMode.Mutable => GpuBufferStorageMode.Mutable,
+                ResourceStorageMode.Immutable => GpuBufferStorageMode.Immutable,
                 _ => throw new ArgumentOutOfRangeException(nameof(description))
             }
         };
-        if (description.Mode == RHIStorageMode.Realization) return request;
+        if (description.Mode == ResourceStorageMode.Realization) return request;
         request.Capacity = description.Capacity;
-        if (description.Mode == RHIStorageMode.Mutable) request.Usage = OpenGLBufferValues.MetadataUsage(description.Usage);
+        if (description.Mode == ResourceStorageMode.Mutable) request.Usage = OpenGLBufferValues.MetadataUsage(description.Usage);
         else
         {
             OpenTK.Graphics.OpenGL.BufferStorageFlags flags = 0;
-            if ((description.Access & RHIStorageAccess.Read) != 0) flags |= OpenTK.Graphics.OpenGL.BufferStorageFlags.MapReadBit;
-            if ((description.Access & RHIStorageAccess.Write) != 0) flags |= OpenTK.Graphics.OpenGL.BufferStorageFlags.MapWriteBit;
-            if ((description.Access & RHIStorageAccess.Persistent) != 0) flags |= OpenTK.Graphics.OpenGL.BufferStorageFlags.MapPersistentBit;
-            if ((description.Access & RHIStorageAccess.Coherent) != 0) flags |= OpenTK.Graphics.OpenGL.BufferStorageFlags.MapCoherentBit;
-            if ((description.Access & RHIStorageAccess.DynamicUpdates) != 0) flags |= OpenTK.Graphics.OpenGL.BufferStorageFlags.DynamicStorageBit;
-            if ((description.Access & RHIStorageAccess.ClientStorage) != 0) flags |= OpenTK.Graphics.OpenGL.BufferStorageFlags.ClientStorageBit;
-            if ((description.Access & RHIStorageAccess.Sparse) != 0) flags |= (OpenTK.Graphics.OpenGL.BufferStorageFlags)OpenTK.Graphics.OpenGL.ArbSparseBuffer.SparseStorageBitArb;
+            if ((description.Access & global::VanillaGraphicsExpanded.Rendering.RHI.StorageAccess.Read) != 0) flags |= OpenTK.Graphics.OpenGL.BufferStorageFlags.MapReadBit;
+            if ((description.Access & global::VanillaGraphicsExpanded.Rendering.RHI.StorageAccess.Write) != 0) flags |= OpenTK.Graphics.OpenGL.BufferStorageFlags.MapWriteBit;
+            if ((description.Access & global::VanillaGraphicsExpanded.Rendering.RHI.StorageAccess.Persistent) != 0) flags |= OpenTK.Graphics.OpenGL.BufferStorageFlags.MapPersistentBit;
+            if ((description.Access & global::VanillaGraphicsExpanded.Rendering.RHI.StorageAccess.Coherent) != 0) flags |= OpenTK.Graphics.OpenGL.BufferStorageFlags.MapCoherentBit;
+            if ((description.Access & global::VanillaGraphicsExpanded.Rendering.RHI.StorageAccess.DynamicUpdates) != 0) flags |= OpenTK.Graphics.OpenGL.BufferStorageFlags.DynamicStorageBit;
+            if ((description.Access & global::VanillaGraphicsExpanded.Rendering.RHI.StorageAccess.ClientStorage) != 0) flags |= OpenTK.Graphics.OpenGL.BufferStorageFlags.ClientStorageBit;
+            if ((description.Access & global::VanillaGraphicsExpanded.Rendering.RHI.StorageAccess.Sparse) != 0) flags |= (OpenTK.Graphics.OpenGL.BufferStorageFlags)OpenTK.Graphics.OpenGL.ArbSparseBuffer.SparseStorageBitArb;
             request.StorageFlags = flags;
         }
         return request;

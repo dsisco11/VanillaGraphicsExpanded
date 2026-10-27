@@ -40,7 +40,7 @@ internal sealed class DepthHierarchyPass : IDisposable
             {
                 int levels = 1;
                 for (int extent = Math.Max(width, height); extent > 1; extent >>= 1) levels++;
-                Texture = resources.Own(RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.R32f, Width = System.Math.Max(1, width), Height = System.Math.Max(1, height), MipLevels = levels, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (levels) - 1, Label = "DepthHierarchy" }).RequireResource());
+                Texture = resources.Own(RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.R32f, Width = System.Math.Max(1, width), Height = System.Math.Max(1, height), MipLevels = levels, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (levels) - 1, Label = "DepthHierarchy" }).RequireResource());
                 ScratchBytes = 4;
                 for (int level = 0; level < levels; level++)
                 {
@@ -52,7 +52,7 @@ internal sealed class DepthHierarchyPass : IDisposable
                 }
                 if (ScratchBytes > limits.MaxShaderStorageBlockSize)
                     throw new InvalidOperationException("Depth hierarchy tail exceeds the storage-block limit.");
-                tail = resources.Own(RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = "DepthHierarchy.Tail" }).RequireResource());
+                tail = resources.Own(RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = "DepthHierarchy.Tail" }).RequireResource());
                 tail.UploadData(new uint[ScratchBytes / 4]);
             }
             catch { Dispose(); throw; }
@@ -83,8 +83,8 @@ internal sealed class DepthHierarchyPass : IDisposable
                 int boundary = Math.Min(6, texture.MipLevels - 1);
                 program.Dispatch(Math.Max(1, texture.Width >> boundary), Math.Max(1, texture.Height >> boundary));
                 // Image writes feed samplers; storage writes feed PBO transfers and the next counter reuse.
-                RHICommandContext.Current.Barrier(new(RHIAccess.Image | RHIAccess.ShaderStorage
-                    | RHIAccess.PixelTransfer | RHIAccess.TextureFetch | RHIAccess.TextureUpdate));
+                RHICommandContext.Current.Barrier(new(ResourceAccess.Image | ResourceAccess.ShaderStorage
+                    | ResourceAccess.PixelTransfer | ResourceAccess.TextureFetch | ResourceAccess.TextureUpdate));
                 if (texture.MipLevels > 7) TransferTail(texture);
             })) throw new InvalidOperationException("Depth hierarchy compute boundary rejected.");
     }
@@ -107,7 +107,7 @@ internal sealed class DepthHierarchyPass : IDisposable
         for (int level = 7; level < texture.MipLevels; level++)
         {
             int width = Math.Max(1, texture.Width >> level), height = Math.Max(1, texture.Height >> level);
-            RHICommandContext.Current.TransferBufferToTexture(texture, new RHITextureTransfer(tail!, offset, new(new(level), 0, 0, 0, width, height), new(RHIPixelChannels.Red, RHIPixelType.Float)));
+            RHICommandContext.Current.TransferBufferToTexture(texture, new RHITextureTransfer(tail!, offset, new(new(level), 0, 0, 0, width, height), new(PixelChannelLayout.Red, PixelComponentType.Float)));
             offset += width * height * 4;
         }
     }

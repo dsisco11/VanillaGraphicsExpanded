@@ -31,9 +31,9 @@ public sealed class RHIBufferTests(HeadlessGLFixture fixture)
         {
             var context = RHICommandContext.Current;
             var description = Description(16);
-            if (immutable) description = new() { Role = RHIBufferRole.Vertex, Mode = RHIStorageMode.Immutable, Capacity = 16, Access = RHIStorageAccess.None };
+            if (immutable) description = new() { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Immutable, Capacity = 16, Access = StorageAccess.None };
             using var sentinel = context.CreateBuffer(Description(16)).RequireResource();
-            context.BindBuffer(RHIBufferRole.Vertex, sentinel);
+            context.BindBuffer(BufferRole.Vertex, sentinel);
             byte[] initial = [1, 2, 3, 4];
             var result = context.CreateBuffer(description, new(initial, 4));
             Assert.True(result.IsSuccess); Assert.Null(result.Diagnostics);
@@ -66,7 +66,7 @@ public sealed class RHIBufferTests(HeadlessGLFixture fixture)
         try
         {
             var context = RHICommandContext.Current;
-            var incomplete = new RHIBufferDescription { Role = RHIBufferRole.Vertex, Mode = RHIStorageMode.Mutable, Usage = RHIBufferUsage.StaticDraw };
+            var incomplete = new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Usage = BufferUsage.StaticDraw };
             Assert.Throws<ArgumentException>(() => context.CreateBuffer(incomplete));
             Assert.False(default(RHICreationResult<GpuBufferObject>).IsSuccess);
             using var owner = context.CreateBuffer(Description(0)).RequireResource();
@@ -114,12 +114,12 @@ public sealed class RHIBufferTests(HeadlessGLFixture fixture)
         try
         {
             using var buffer = RHICommandContext.Current.CreateBuffer(Description(32)).RequireResource();
-            using (var mapping = buffer.MapRange<int>(16, 4, RHIBufferMapAccess.Write | RHIBufferMapAccess.ExplicitFlush))
+            using (var mapping = buffer.MapRange<int>(16, 4, BufferMapAccess.Write | BufferMapAccess.ExplicitFlush))
             {
                 mapping.Span[3] = 1234;
                 mapping.Flush(12, 4);
             }
-            using var read = buffer.MapRange<int>(28, 1, RHIBufferMapAccess.Read);
+            using var read = buffer.MapRange<int>(28, 1, BufferMapAccess.Read);
             Assert.Equal(1234, read.Span[0]);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
@@ -137,7 +137,7 @@ public sealed class RHIBufferTests(HeadlessGLFixture fixture)
             using var buffer = RHICommandContext.Current.CreateBuffer(Description(16)).RequireResource();
             harmony.Patch(((Func<int, nint, nint, OpenTK.Graphics.OpenGL4.BufferAccessMask, nint>)CoreGL.MapNamedBufferRange).Method,
                 prefix: new HarmonyMethod(typeof(RHIBufferTests), nameof(RejectMapping)));
-            Assert.Throws<InvalidOperationException>(() => buffer.MapRange<int>(0, 4, RHIBufferMapAccess.Read));
+            Assert.Throws<InvalidOperationException>(() => buffer.MapRange<int>(0, 4, BufferMapAccess.Read));
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
         finally { harmony.UnpatchAll(harmony.Id); fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
@@ -185,7 +185,7 @@ public sealed class RHIBufferTests(HeadlessGLFixture fixture)
             GLFW.MakeContextCurrent(local);
             var localContext = RHICommandContext.Current;
             owner = localContext.CreateBuffer(Description(16)).RequireResource();
-            localContext.BindBuffer(RHIBufferRole.Vertex, owner);
+            localContext.BindBuffer(BufferRole.Vertex, owner);
             Assert.True(StateCache.Current.TryGetCachedBoundBuffer(BufferTarget.ArrayBuffer, out _));
             GLFW.MakeContextCurrent(original);
             originalContext.OpenGL.RequireContext();
@@ -222,14 +222,14 @@ public sealed class RHIBufferTests(HeadlessGLFixture fixture)
             using var first = context.CreateBuffer(Description(32)).RequireResource();
             using var second = context.CreateBuffer(Description(32)).RequireResource();
             using var capture = new BindingCallCapture();
-            context.BindBufferBase(RHIBufferRole.Uniform, 0, first);
-            context.BindBufferBase(RHIBufferRole.Uniform, 0, first);
+            context.BindBufferBase(BufferRole.Uniform, 0, first);
+            context.BindBufferBase(BufferRole.Uniform, 0, first);
             Assert.Equal(1, capture.Calls(nameof(GL.BindBufferBase)));
-            context.BindBuffer(RHIBufferRole.Uniform, second);
-            context.BindBufferBase(RHIBufferRole.Uniform, 0, first);
+            context.BindBuffer(BufferRole.Uniform, second);
+            context.BindBufferBase(BufferRole.Uniform, 0, first);
             Assert.Equal(2, capture.Calls(nameof(GL.BindBufferBase)));
-            context.BindBufferRange(RHIBufferRole.Uniform, 0, first, 0, 16);
-            context.BindBufferRange(RHIBufferRole.Uniform, 0, first, 0, 16);
+            context.BindBufferRange(BufferRole.Uniform, 0, first, 0, 16);
+            context.BindBufferRange(BufferRole.Uniform, 0, first, 0, 16);
             Assert.Equal(1, capture.Calls(nameof(GL.BindBufferRange)));
             OpenGLBufferBindingCalls.BindBufferBase(BufferRangeTarget.UniformBuffer, 0, first.BufferId);
             OpenGLBufferBindingCalls.BindBufferBase(BufferRangeTarget.UniformBuffer, 0, first.BufferId);
@@ -290,7 +290,7 @@ public sealed class RHIBufferTests(HeadlessGLFixture fixture)
     #region Private
     /// <summary>Builds an explicit mutable allocation request for content tests.</summary>
     private static RHIBufferDescription Description(nint capacity) => new()
-    { Role = RHIBufferRole.Vertex, Mode = RHIStorageMode.Mutable, Capacity = capacity, Usage = RHIBufferUsage.DynamicDraw };
+    { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = capacity, Usage = BufferUsage.DynamicDraw };
 
     /// <summary>Fails before mapping any bytes to verify exception propagation.</summary>
     private static void RejectMapping() => throw new InvalidOperationException("Injected named mapping failure.");

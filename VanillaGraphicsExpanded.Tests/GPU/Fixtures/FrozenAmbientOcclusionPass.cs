@@ -68,7 +68,7 @@ internal sealed class FrozenAmbientOcclusionPass : IDisposable
     #region Private
     /// <summary>Owns sized storage and registers framebuffer borrowers in the same retirement collection.</summary>
     private GpuFramebuffer Create(int width,int height,PixelInternalFormat format,string name,out DynamicTexture2D texture) {
-        texture=resources.Own(RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Format((OpenTK.Graphics.OpenGL.PixelInternalFormat)(format)), Width = System.Math.Max(1, width), Height = System.Math.Max(1, height), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = $"AmbientOcclusion.{name}" }).RequireResource());
+        texture=resources.Own(RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Format((OpenTK.Graphics.OpenGL.PixelInternalFormat)(format)), Width = System.Math.Max(1, width), Height = System.Math.Max(1, height), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = $"AmbientOcclusion.{name}" }).RequireResource());
         StorageBytes+=(long)width*height*8;
         var attachment=resources.Own(GpuFramebufferAttachment.FromTexture(texture));
         return resources.Own(DynamicGpuFramebuffer.Create([attachment],debugName:$"AmbientOcclusion.{name}"));

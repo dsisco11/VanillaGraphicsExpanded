@@ -31,7 +31,7 @@ internal sealed class MinimumChildMaskPass : IDisposable
             Dispose();
             try
             {
-                Texture=resources.Own(RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.R16ui, Width = System.Math.Max(1, mw), Height = System.Math.Max(1, mh), MipLevels = Math.Max(1,levels), Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (Math.Max(1,levels)) - 1, Label = "AmbientOcclusion.MinimumChildren" }).RequireResource());
+                Texture=resources.Own(RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.R16ui, Width = System.Math.Max(1, mw), Height = System.Math.Max(1, mh), MipLevels = Math.Max(1,levels), Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (Math.Max(1,levels)) - 1, Label = "AmbientOcclusion.MinimumChildren" }).RequireResource());
                 targets=new StaticGpuFramebuffer[Math.Max(1,levels)];
                 for(int level=0;level<targets.Length;level++)
                 {
@@ -59,7 +59,7 @@ internal sealed class MinimumChildMaskPass : IDisposable
             draw.Submit(commands,pipeline!,targets[level-1].PreservePass);
         }
         // Completed integer color writes feed the subsequent horizon sampler in the same boundary.
-        RHICommandContext.Current.Barrier(new(RHIAccess.Framebuffer|RHIAccess.TextureFetch));
+        RHICommandContext.Current.Barrier(new(ResourceAccess.Framebuffer|ResourceAccess.TextureFetch));
     }
     /// <summary>Retires borrowers before sidecar storage on disable, resize, reload or world teardown.</summary>
     public void Dispose()

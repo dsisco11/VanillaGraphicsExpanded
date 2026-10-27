@@ -27,8 +27,8 @@ internal static class RuntimeLightingCompletionWait
         if (fence is not null)
         {
             var status = RHICommandContext.Current.WaitCpu(fence, timeout);
-            if (status == RHICompletionStatus.Failed) throw new InvalidOperationException("Lighting GPU completion wait failed.");
-            if (status == RHICompletionStatus.Pending) throw new TimeoutException("Lighting GPU completion exceeded the external-wait budget.");
+            if (status == CompletionStatus.Failed) throw new InvalidOperationException("Lighting GPU completion wait failed.");
+            if (status == CompletionStatus.Pending) throw new TimeoutException("Lighting GPU completion exceeded the external-wait budget.");
             return;
         }
 

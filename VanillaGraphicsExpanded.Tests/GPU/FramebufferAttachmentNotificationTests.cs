@@ -18,7 +18,7 @@ public sealed class FramebufferAttachmentNotificationTests(HeadlessGLFixture fix
         EnsureContextValid();
         using var bindings = StateCache.Current.BindFramebufferScope();
         using var fixedState = LegacyFixedFunctionReference.Capture(StateCache.Current);
-        using var depth = RHICommandContext.Current.CreateRenderbuffer(new RHIRenderbufferDescription { Format = RHIFormat.DepthComponent24, Width = 2, Height = 2, Samples = 0, Label = null }).RequireResource();
+        using var depth = RHICommandContext.Current.CreateRenderbuffer(new RHIRenderbufferDescription { Format = TextureFormat.DepthComponent24, Width = 2, Height = 2, Samples = 0, Label = null }).RequireResource();
         using var framebuffer = DynamicGpuFramebuffer.CreateDepthOnly(depth)!;
         framebuffer.Bind();
         GL.Disable(EnableCap.ScissorTest);
@@ -57,7 +57,7 @@ public sealed class FramebufferAttachmentNotificationTests(HeadlessGLFixture fix
     public void RenderbufferResizePreservesMultisampleStorage()
     {
         EnsureContextValid();
-        using var depth = RHICommandContext.Current.CreateRenderbuffer(new RHIRenderbufferDescription { Format = RHIFormat.DepthComponent24, Width = 2, Height = 2, Samples = 4, Label = null }).RequireResource();
+        using var depth = RHICommandContext.Current.CreateRenderbuffer(new RHIRenderbufferDescription { Format = TextureFormat.DepthComponent24, Width = 2, Height = 2, Samples = 4, Label = null }).RequireResource();
         Assert.True(depth.Resize(4, 3));
         Assert.False(depth.Resize(4, 3));
         using var binding = depth.BindScope();
@@ -78,8 +78,8 @@ public sealed class FramebufferAttachmentNotificationTests(HeadlessGLFixture fix
     {
         EnsureContextValid();
         using var scope = StateCache.Current.BindFramebufferScope();
-        using var first = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba32f, Width = System.Math.Max(1, 2), Height = System.Math.Max(1, 2), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
-        using var replacement = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba32f, Width = System.Math.Max(1, 2), Height = System.Math.Max(1, 2), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
+        using var first = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba32f, Width = System.Math.Max(1, 2), Height = System.Math.Max(1, 2), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
+        using var replacement = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba32f, Width = System.Math.Max(1, 2), Height = System.Math.Max(1, 2), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         using var source = DynamicGpuFramebuffer.CreateSingle(first)!;
         using var destination = CreateRenderTarget(2, 2, PixelInternalFormat.Rgba32f);
         using var wrapped = DynamicGpuFramebuffer.Wrap(source.FboId, width: 2, height: 2);

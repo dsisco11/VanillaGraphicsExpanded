@@ -2,11 +2,11 @@ using VanillaGraphicsExpanded.Rendering.Contracts;
 
 namespace VanillaGraphicsExpanded.Tests.Unit.Rendering.Contracts;
 
-/// <summary>Compares generated declarations against the independently captured pre-migration compiled registry.</summary>
+/// <summary>Compares generated declarations against the checked-in canonical shader catalog snapshot.</summary>
 public sealed class ShaderMigrationBaselineTests
 {
     #region Migration evidence
-    /// <summary>All program settings, finite availability branches and binary paths retain the compiled baseline.</summary>
+    /// <summary>Program settings, finite availability branches and binary paths match the current catalog contract.</summary>
     [Fact]
     public void GeneratedDeclarationsPreserveCompiledBaseline()
     {

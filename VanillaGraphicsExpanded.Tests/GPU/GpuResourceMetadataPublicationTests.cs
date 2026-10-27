@@ -17,7 +17,7 @@ public sealed class GpuResourceMetadataPublicationTests(HeadlessGLFixture fixtur
     public void BufferAllocationPublishesNativeCapacityToEveryAlias()
     {
         using var lifetime = StartLifetime(true);
-        using var owner = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Vertex, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = null }).RequireResource();
+        using var owner = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = null }).RequireResource();
         owner.Allocate(64);
         var manager = GpuResourceManagerSystem.CurrentManager!;
         var entry = Assert.IsType<GpuResourceMetadataEntry<GpuBufferMetadata>>(manager.GetResourceRegistration(owner));
@@ -39,7 +39,7 @@ public sealed class GpuResourceMetadataPublicationTests(HeadlessGLFixture fixtur
     public void ContentUploadDoesNotPublishAnotherMetadataRevision()
     {
         using var lifetime = StartLifetime(true);
-        using var owner = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Vertex, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = null }).RequireResource();
+        using var owner = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = null }).RequireResource();
         owner.Allocate(64);
         var entry = GpuResourceManagerSystem.CurrentManager!.GetResourceRegistration(owner)!;
         ulong metadataRevision = entry.MetadataRevision, storageRevision = entry.StorageRevision;
@@ -59,7 +59,7 @@ public sealed class GpuResourceMetadataPublicationTests(HeadlessGLFixture fixtur
     public void RejectedBufferAllocationPreservesMeasuredCapacity()
     {
         using var lifetime = StartLifetime(true);
-        using var owner = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Vertex, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = null }).RequireResource();
+        using var owner = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = null }).RequireResource();
         owner.Allocate(64);
         var manager = GpuResourceManagerSystem.CurrentManager!;
         var entry = Assert.IsType<GpuResourceMetadataEntry<GpuBufferMetadata>>(manager.GetResourceRegistration(owner));
@@ -69,7 +69,7 @@ public sealed class GpuResourceMetadataPublicationTests(HeadlessGLFixture fixtur
         {
             // Bypass the owning API to verify the StateCache command boundary also validates storage inputs.
             using var binding = owner.BindScope();
-            Assert.Throws<ArgumentOutOfRangeException>(() => GpuBufferUploader.Allocate(owner, -1, IntPtr.Zero, RHIBufferUsage.StaticDraw));
+            Assert.Throws<ArgumentOutOfRangeException>(() => GpuBufferUploader.Allocate(owner, -1, IntPtr.Zero, BufferUsage.StaticDraw));
             Assert.Equal(64, owner.SizeBytes);
             Assert.Equal((nint)64, alias.Capacity);
             Assert.Equal((nint)64, entry.Metadata.Capacity);
@@ -86,8 +86,8 @@ public sealed class GpuResourceMetadataPublicationTests(HeadlessGLFixture fixtur
     {
         using var lifetime = StartLifetime(true);
         Assert.True(GpuSupport.Graphics.SupportsArbDirectStateAccess);
-        using var owner = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Vertex, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = null }).RequireResource();
-        using var sentinel = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Vertex, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = null }).RequireResource();
+        using var owner = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = null }).RequireResource();
+        using var sentinel = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = null }).RequireResource();
         owner.Allocate(64);
         var manager = GpuResourceManagerSystem.CurrentManager!;
         var entry = Assert.IsType<GpuResourceMetadataEntry<GpuBufferMetadata>>(manager.GetResourceRegistration(owner));
@@ -96,7 +96,7 @@ public sealed class GpuResourceMetadataPublicationTests(HeadlessGLFixture fixtur
         ulong metadataRevision = entry.MetadataRevision, storageRevision = entry.StorageRevision;
         using var sentinelBinding = sentinel.BindScope();
         byte[] expected = [9, 8, 7, 6];
-        GpuBufferUploader.Allocate(owner, byteCount, expected, RHIBufferUsage.StreamDraw);
+        GpuBufferUploader.Allocate(owner, byteCount, expected, BufferUsage.StreamDraw);
         Assert.Equal(sentinel.BufferId, GL.GetInteger(GetPName.ArrayBufferBinding));
         Assert.Equal(byteCount, owner.SizeBytes);
         Assert.Equal((nint)byteCount, alias.Capacity);
@@ -119,8 +119,8 @@ public sealed class GpuResourceMetadataPublicationTests(HeadlessGLFixture fixtur
     {
         using var lifetime = StartLifetime(true);
         Assert.True(GpuSupport.Graphics.SupportsArbDirectStateAccess);
-        using var owner = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Vertex, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = null }).RequireResource();
-        using var sentinel = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Vertex, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = null }).RequireResource();
+        using var owner = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = null }).RequireResource();
+        using var sentinel = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = null }).RequireResource();
         owner.Allocate(64);
         var manager = GpuResourceManagerSystem.CurrentManager!;
         var entry = Assert.IsType<GpuResourceMetadataEntry<GpuBufferMetadata>>(manager.GetResourceRegistration(owner));
@@ -129,7 +129,7 @@ public sealed class GpuResourceMetadataPublicationTests(HeadlessGLFixture fixtur
         using var sentinelBinding = sentinel.BindScope();
         try
         {
-            Assert.Throws<ArgumentOutOfRangeException>(() => GpuBufferUploader.Allocate(owner, -1, new byte[4], RHIBufferUsage.StreamDraw));
+            Assert.Throws<ArgumentOutOfRangeException>(() => GpuBufferUploader.Allocate(owner, -1, new byte[4], BufferUsage.StreamDraw));
             Assert.Equal(sentinel.BufferId, GL.GetInteger(GetPName.ArrayBufferBinding));
             Assert.Equal(64, owner.SizeBytes);
             Assert.Equal((nint)64, alias.Capacity);
@@ -146,7 +146,7 @@ public sealed class GpuResourceMetadataPublicationTests(HeadlessGLFixture fixtur
     public void RequestedBufferUsageDoesNotMasqueradeAsAllocatedStorage(bool managed)
     {
         using var lifetime = StartLifetime(managed);
-        using var owner = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Vertex, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = null }).RequireResource();
+        using var owner = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = null }).RequireResource();
         // Direct-state creation realizes an empty native object immediately. The legacy
         // generated-name path has no metadata to expose until its first storage command.
         if (GL.IsBuffer(owner.BufferId))
@@ -170,7 +170,7 @@ public sealed class GpuResourceMetadataPublicationTests(HeadlessGLFixture fixtur
     public void TextureResizePublishesActualImageDimensions(bool managed)
     {
         using var lifetime = StartLifetime(managed);
-        using var owner = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba16f, Width = System.Math.Max(1, 8), Height = System.Math.Max(1, 4), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
+        using var owner = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba16f, Width = System.Math.Max(1, 8), Height = System.Math.Max(1, 4), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         using var image = GpuFramebufferAttachment.FromTexture(owner);
         Assert.True(owner.Resize(12, 6));
         Assert.Equal(12, owner.Width);
@@ -190,7 +190,7 @@ public sealed class GpuResourceMetadataPublicationTests(HeadlessGLFixture fixtur
     public void RenderbufferCreationPublishesNativeImage(bool managed)
     {
         using var lifetime = StartLifetime(managed);
-        using var owner = RHICommandContext.Current.CreateRenderbuffer(new RHIRenderbufferDescription { Format = RHIFormat.Rgba8, Width = 7, Height = 5, Samples = 0, Label = null }).RequireResource();
+        using var owner = RHICommandContext.Current.CreateRenderbuffer(new RHIRenderbufferDescription { Format = TextureFormat.Rgba8, Width = 7, Height = 5, Samples = 0, Label = null }).RequireResource();
         using var image = GpuFramebufferAttachment.FromRenderbuffer(owner);
         Assert.Equal(7, owner.Width);
         Assert.Equal(5, owner.Height);
@@ -210,17 +210,17 @@ public sealed class GpuResourceMetadataPublicationTests(HeadlessGLFixture fixtur
     public void ViewsPublishNativeDescriptors(bool managed)
     {
         using var lifetime = StartLifetime(managed);
-        using var source = RHICommandContext.Current.CreateDynamicTexture3D(new RHITextureDescription { Dimension = RHITextureDimension.TwoArray, Format = RHIFormat.Rgba32f, Width = System.Math.Max(1, 8), Height = System.Math.Max(1, 4), Depth = System.Math.Max(1, 6), MipLevels = 1, Storage = (true ? RHIStorageMode.Immutable : RHIStorageMode.Mutable), Filter = TextureFilterMode.Linear, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
-        using var view = RHICommandContext.Current.CreateTextureView(new RHITextureViewDescription { Source = source, Dimension = RHITextureDimension.TwoArray, Format = RHIFormat.Rgba32f, BaseMip = 0, MipCount = 1, BaseLayer = 2, LayerCount = 3, Label = null }).RequireResource();
+        using var source = RHICommandContext.Current.CreateDynamicTexture3D(new RHITextureDescription { Dimension = TextureDimension.TwoArray, Format = TextureFormat.Rgba32f, Width = System.Math.Max(1, 8), Height = System.Math.Max(1, 4), Depth = System.Math.Max(1, 6), MipLevels = 1, Storage = (true ? ResourceStorageMode.Immutable : ResourceStorageMode.Mutable), Filter = TextureFilterMode.Linear, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
+        using var view = RHICommandContext.Current.CreateTextureView(new RHITextureViewDescription { Source = source, Dimension = TextureDimension.TwoArray, Format = TextureFormat.Rgba32f, BaseMip = 0, MipCount = 1, BaseLayer = 2, LayerCount = 3, Label = null }).RequireResource();
         Assert.Equal(2, view.BaseLayer);
         Assert.Equal(3, view.LayerCount);
         GL.GetTextureParameter(view.TextureId, GetTextureParameter.TextureViewMinLayer, out int actualBaseLayer);
         GL.GetTextureParameter(view.TextureId, GetTextureParameter.TextureViewNumLayers, out int actualLayerCount);
         Assert.Equal(actualBaseLayer, view.BaseLayer);
         Assert.Equal(actualLayerCount, view.LayerCount);
-        using var buffer = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Vertex, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = null }).RequireResource();
+        using var buffer = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = null }).RequireResource();
         buffer.Allocate(1024);
-        using var bufferView = RHICommandContext.Current.CreateBufferTexture(new RHIBufferTextureDescription { Buffer = buffer, Format = RHIFormat.R32f, WholeBuffer = true, Label = null }).RequireResource();
+        using var bufferView = RHICommandContext.Current.CreateBufferTexture(new RHIBufferTextureDescription { Buffer = buffer, Format = TextureFormat.R32f, WholeBuffer = true, Label = null }).RequireResource();
         Assert.Equal(buffer.BufferId, bufferView.BufferId);
         Assert.Equal(SizedInternalFormat.R32f, bufferView.Format);
         GL.GetTextureLevelParameter(bufferView.TextureId, 0, (GetTextureParameter)All.TextureBufferDataStoreBindingExt, out int actualBuffer);
@@ -233,7 +233,7 @@ public sealed class GpuResourceMetadataPublicationTests(HeadlessGLFixture fixtur
     public void CubeAllocationPublishesCompleteMipChainOnce()
     {
         using var lifetime = StartLifetime(true);
-        using var cube = RHICommandContext.Current.CreateTextureCube(new RHITextureDescription { Dimension = RHITextureDimension.Cube, Format = RHIFormat.Rgba16f, Width = 8, Height = 8, MipLevels = 3, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (3) - 1, Label = null }).RequireResource();
+        using var cube = RHICommandContext.Current.CreateTextureCube(new RHITextureDescription { Dimension = TextureDimension.Cube, Format = TextureFormat.Rgba16f, Width = 8, Height = 8, MipLevels = 3, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (3) - 1, Label = null }).RequireResource();
         var manager = GpuResourceManagerSystem.CurrentManager!;
         var entry = Assert.IsType<GpuResourceMetadataEntry<GpuTextureMetadata>>(manager.GetResourceRegistration(cube));
         Assert.True(entry.MetadataAvailable);
@@ -249,8 +249,8 @@ public sealed class GpuResourceMetadataPublicationTests(HeadlessGLFixture fixtur
     public void FailedAttachmentOperationLeavesCanonicalMetadataUnavailable()
     {
         using var lifetime = StartLifetime(true);
-        using var originalTexture = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba8, Width = System.Math.Max(1, 4), Height = System.Math.Max(1, 4), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
-        using var replacementTexture = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba8, Width = System.Math.Max(1, 4), Height = System.Math.Max(1, 4), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
+        using var originalTexture = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba8, Width = System.Math.Max(1, 4), Height = System.Math.Max(1, 4), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
+        using var replacementTexture = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba8, Width = System.Math.Max(1, 4), Height = System.Math.Max(1, 4), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         using var original = GpuFramebufferAttachment.FromTexture(originalTexture);
         using var replacement = GpuFramebufferAttachment.FromTexture(replacementTexture);
         using var framebuffer = DynamicGpuFramebuffer.Create([original])!;
@@ -290,9 +290,9 @@ public sealed class GpuResourceMetadataPublicationTests(HeadlessGLFixture fixtur
         Assert.True(GpuSupport.Graphics.SupportsTextureBufferRange);
         int offset = Math.Max(1, GpuSupport.Graphics.TextureBufferOffsetAlignment);
         const int size = 256;
-        using var buffer = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Vertex, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = null }).RequireResource();
+        using var buffer = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = null }).RequireResource();
         buffer.Allocate(checked(offset * 2 + size));
-        using var sentinel = RHICommandContext.Current.CreateBufferTexture(new RHIBufferTextureDescription { Buffer = buffer, Format = RHIFormat.R32f, WholeBuffer = true, Label = null }).RequireResource();
+        using var sentinel = RHICommandContext.Current.CreateBufferTexture(new RHIBufferTextureDescription { Buffer = buffer, Format = TextureFormat.R32f, WholeBuffer = true, Label = null }).RequireResource();
         var cache = StateCache.Current;
         OpenGLImageBindings.BindTexture(cache, TextureTarget.TextureBuffer, 0, sentinel.TextureId);
         OpenGLImageBindings.BindTexture(cache, TextureTarget.TextureBuffer, 3, sentinel.TextureId);
@@ -304,8 +304,8 @@ public sealed class GpuResourceMetadataPublicationTests(HeadlessGLFixture fixtur
         try
         {
             using var view = ranged
-                    ? RHICommandContext.Current.CreateBufferTexture(new RHIBufferTextureDescription { Buffer = buffer, Format = RHIFormat.R32f, WholeBuffer = false, Offset = offset, Length = size, Label = null }).RequireResource()
-                    : RHICommandContext.Current.CreateBufferTexture(new RHIBufferTextureDescription { Buffer = buffer, Format = RHIFormat.R32f, WholeBuffer = true, Label = null }).RequireResource();
+                    ? RHICommandContext.Current.CreateBufferTexture(new RHIBufferTextureDescription { Buffer = buffer, Format = TextureFormat.R32f, WholeBuffer = false, Offset = offset, Length = size, Label = null }).RequireResource()
+                    : RHICommandContext.Current.CreateBufferTexture(new RHIBufferTextureDescription { Buffer = buffer, Format = TextureFormat.R32f, WholeBuffer = true, Label = null }).RequireResource();
 #if DEBUG
             Assert.Equal(previousBindCount, cache.TextureBindCount);
 #endif

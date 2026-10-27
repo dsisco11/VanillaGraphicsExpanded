@@ -8,11 +8,11 @@ namespace VanillaGraphicsExpanded.HarmonyPatches.NativeAdapters.Framebuffers;
 internal static unsafe partial class Ext
 {
     #region Internal API
-    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
+    /// <summary>Forwards the exact signature to the backend execution boundary.</summary>
     internal static void NamedFramebufferTexture2D(int @framebuffer, FramebufferAttachment @attachment, TextureTarget @textarget, int @texture, int @level)
         => StateCache.Current.ExecuteExtNamedFramebufferTexture2D(@framebuffer, @attachment, @textarget, @texture, @level);
 
-    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
+    /// <summary>Forwards the exact signature to the backend execution boundary.</summary>
     internal static void NamedFramebufferTexture2D(uint @framebuffer, FramebufferAttachment @attachment, TextureTarget @textarget, uint @texture, int @level)
         => StateCache.Current.ExecuteExtNamedFramebufferTexture2D(@framebuffer, @attachment, @textarget, @texture, @level);
     #endregion

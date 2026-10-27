@@ -19,9 +19,9 @@ public sealed class GpuFenceCompletionTests(HeadlessGLFixture fixture) : RenderT
         EnsureContextValid();
         using var fence = RHICommandContext.Current.InsertFence();
         var status = RHICommandContext.Current.WaitCpu(fence, TimeSpan.FromSeconds(5));
-        Assert.True(status is RHICompletionStatus.Ready);
+        Assert.True(status is CompletionStatus.Ready);
         Assert.True(fence.IsValid);
-        Assert.Equal(RHICompletionStatus.Ready, RHICommandContext.Current.Poll(fence));
+        Assert.Equal(CompletionStatus.Ready, RHICommandContext.Current.Poll(fence));
         Assert.True(fence.TryConsumeIfSignaled());
         Assert.False(fence.IsValid);
         Assert.Equal(ErrorCode.NoError, GL.GetError());

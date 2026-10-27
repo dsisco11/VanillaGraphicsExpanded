@@ -40,9 +40,9 @@ internal static class CameraExposureDispatch
         return EngineBoundaryExecution.TryRun(new("Camera.Exposure"), resources, _ =>
         {
             histogram.Dispatch(CameraExposureTargets.HistogramGroupCount);
-            RHICommandContext.Current.Barrier(new(RHIAccess.ShaderStorage));
+            RHICommandContext.Current.Barrier(new(ResourceAccess.ShaderStorage));
             adaptation.Dispatch(1);
-            RHICommandContext.Current.Barrier(new(RHIAccess.ShaderStorage));
+            RHICommandContext.Current.Barrier(new(ResourceAccess.ShaderStorage));
         });
     }
     /// <summary>Publishes frozen scale writes through the existing prepared resource and restoration boundary.</summary>
@@ -55,7 +55,7 @@ internal static class CameraExposureDispatch
         return EngineBoundaryExecution.TryRun(new("Camera.FrozenLighting"), resources, _ =>
         {
             program.Dispatch(1);
-            RHICommandContext.Current.Barrier(new(RHIAccess.ShaderStorage));
+            RHICommandContext.Current.Barrier(new(ResourceAccess.ShaderStorage));
         });
     }
     #endregion

@@ -52,7 +52,7 @@ internal sealed class SharedSurfacePageFixture : IDisposable
         capture.BindMaterialAtlasImage(material);
         capture.SetAtlasLayout(Size, 1, 1, 0);
         Dispatch(() => capture.Dispatch(1, 1, 1));
-        using var read = captureWork.MapRange<LumonSceneCaptureWorkGpu>(0, 1, RHIBufferMapAccess.Read);
+        using var read = captureWork.MapRange<LumonSceneCaptureWorkGpu>(0, 1, BufferMapAccess.Read);
         Assert.True(read.IsMapped);
         return (read.Span[0].VirtualPageIndex & 0x80000000u) == 0;
     }
@@ -73,7 +73,7 @@ internal sealed class SharedSurfacePageFixture : IDisposable
             owner.SetAtlasLayout(Size, 1, 1, 0);
             Dispatch(() => owner!.Dispatch(1, 1, 1));
         }
-        using var read = captureWork.MapRange<LumonSceneCaptureWorkGpu>(0, 1, RHIBufferMapAccess.Read);
+        using var read = captureWork.MapRange<LumonSceneCaptureWorkGpu>(0, 1, BufferMapAccess.Read);
         Assert.True(read.IsMapped);
         return (read.Span[0].VirtualPageIndex & 0x80000000u) == 0;
     }
@@ -95,7 +95,7 @@ internal sealed class SharedSurfacePageFixture : IDisposable
         relight.SetRelightParams(Size * Size, rays, steps, false);
         relight.SetOccupancyMapping(0, 0, 0, 0, 0, 0, scene.Resolution);
         Dispatch(() => relight.Dispatch(1, 1, 1));
-        using var read = relightWork.MapRange<LumonSceneRelightWorkGpu>(0, 1, RHIBufferMapAccess.Read);
+        using var read = relightWork.MapRange<LumonSceneRelightWorkGpu>(0, 1, BufferMapAccess.Read);
         Assert.True(read.IsMapped);
         return (read.Span[0].VirtualPageIndex & 0x80000000u) == 0;
     }
@@ -147,7 +147,7 @@ internal sealed class SharedSurfacePageFixture : IDisposable
     /// <summary>Allocates typed storage using the same buffer ownership used by runtime consumers.</summary>
     private static GpuShaderStorageBuffer Buffer<T>(ReadOnlySpan<T> values) where T : unmanaged
     {
-        var buffer = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = null }).RequireResource();
+        var buffer = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = null }).RequireResource();
         int bytes = values.Length * Marshal.SizeOf<T>();
         buffer.EnsureCapacity(bytes, growExponentially: false);
         buffer.UploadSubData(values, 0, bytes);

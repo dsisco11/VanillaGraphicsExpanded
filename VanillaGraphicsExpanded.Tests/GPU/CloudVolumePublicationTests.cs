@@ -28,7 +28,7 @@ public sealed class CloudVolumePublicationTests(HeadlessGLFixture fixture,Xunit.
         Complete();publication.Publish(fields,0,storage.StorageBytes);
         var old=publication.Published!;Assert.NotSame(fields.Density,old.Density);Assert.NotSame(fields.Regions,old.Regions);
         using var probe=CloudVolumeProbeProgram.Create(Programs.Api);
-        using var result=RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = null }).RequireResource();result.UploadData(new Vector4[2]);
+        using var result=RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = null }).RequireResource();result.UploadData(new Vector4[2]);
         var before=Sample(probe,result,old,Point(d,4));Assert.Equal(1,before[0].X);Assert.Equal(1,before[0].Y);
         fields.Density.UploadDataImmediate(Enumerable.Repeat(2f,d.Voxels).ToArray(),0,0,0,d.Size,66,d.Size);
         fields.Direct.UploadDataImmediate(Enumerable.Repeat(.5f,d.Voxels*2).ToArray(),0,0,0,d.Size,66,d.Size);
@@ -38,23 +38,23 @@ public sealed class CloudVolumePublicationTests(HeadlessGLFixture fixture,Xunit.
         var after=Sample(probe,result,publication.Published!,Point(d,4));
         Assert.Equal(2,after[0].X);Assert.Equal(before[0].Y,after[0].Y);Assert.Equal(before[1],after[1]);
         Assert.Equal(1,Sample(probe,result,publication.Published!,Point(d,12))[0].X);
-        using(var flags=fields.Regions.MapScope<uint>(0,1,RHIBufferMapAccess.Read))Assert.Equal(0u,flags.Span[0]);
+        using(var flags=fields.Regions.MapScope<uint>(0,1,BufferMapAccess.Read))Assert.Equal(0u,flags.Span[0]);
         Assert.Equal(old.Revision+1,publication.Published!.Revision);
         Assert.Equal(new uint[]{1,1,1,1},Arguments(publication));Assert.Equal(0,publication.FullChannels);
         // A metadata-only publication must update every word and occupancy without touching images.
         Array.Clear(records);records[16]=2;records[20]=77;fields.Regions.UploadData(records);
         var occupancy=Enumerable.Repeat(1u,d.Blocks).ToArray();occupancy[1]=0;fields.Occupancy.UploadData(occupancy);
-        using(var persistent=fields.Scratch.MapScope<uint>(0,40,RHIBufferMapAccess.Write))
+        using(var persistent=fields.Scratch.MapScope<uint>(0,40,BufferMapAccess.Write))
         {persistent.Span[5]=17;persistent.Span[18]=19;persistent.Span[19]=23;persistent.Span[38]=1;persistent.Span[39]=29;}
-        using(var repair=fields.Scratch.MapScope<uint>(17280*4,1,RHIBufferMapAccess.Write))repair.Span[0]=31;
+        using(var repair=fields.Scratch.MapScope<uint>(17280*4,1,BufferMapAccess.Write))repair.Span[0]=31;
         publication.Publish(fields,0,storage.StorageBytes);Complete();
         Assert.Equal(new uint[]{0,1,1,0},Arguments(publication));
-        using(var read=publication.Published!.Regions.MapScope<uint>(0,records.Length,RHIBufferMapAccess.Read))Assert.Equal(records,read.Span.ToArray());
-        using(var read=publication.Published!.Occupancy.MapScope<uint>(0,d.Blocks,RHIBufferMapAccess.Read))Assert.Equal(occupancy,read.Span.ToArray());
+        using(var read=publication.Published!.Regions.MapScope<uint>(0,records.Length,BufferMapAccess.Read))Assert.Equal(records,read.Span.ToArray());
+        using(var read=publication.Published!.Occupancy.MapScope<uint>(0,d.Blocks,BufferMapAccess.Read))Assert.Equal(occupancy,read.Span.ToArray());
         Assert.Equal(after,Sample(probe,result,publication.Published!,Point(d,4)));
-        using(var persistent=fields.Scratch.MapScope<uint>(0,40,RHIBufferMapAccess.Read))
+        using(var persistent=fields.Scratch.MapScope<uint>(0,40,BufferMapAccess.Read))
         {Assert.Equal(17u,persistent.Span[5]);Assert.Equal(19u,persistent.Span[18]);Assert.Equal(23u,persistent.Span[19]);Assert.Equal(1u,persistent.Span[38]);Assert.Equal(29u,persistent.Span[39]);}
-        using(var repair=fields.Scratch.MapScope<uint>(17280*4,1,RHIBufferMapAccess.Read))Assert.Equal(31u,repair.Span[0]);
+        using(var repair=fields.Scratch.MapScope<uint>(17280*4,1,BufferMapAccess.Read))Assert.Equal(31u,repair.Span[0]);
         // More than one indirect row, with a short final Y block, exercises uniform padded exits.
         fields.Density.Clear(3);fields.Direct.Clear(.25f,.75f);fields.Diffuse.Clear(5,5,5);
         for(int r=0;r<d.Blocks;r++)records[r*16]=4096|8192|16384;
@@ -62,7 +62,7 @@ public sealed class CloudVolumePublicationTests(HeadlessGLFixture fixture,Xunit.
         Assert.Equal(new uint[]{64,(uint)((d.Blocks+63)/64),1,(uint)d.Blocks},Arguments(publication));
         var edge=Sample(probe,result,publication.Published!,Point(d,d.Size-1,65,d.Size-1));
         Assert.Equal(new Vector4(3,.25f,.75f,0),edge[0]);Assert.Equal(new Vector4(new Vector3(5*fields.Encoding.Scale),0),edge[1]);
-        using(var flags=fields.Regions.MapScope<uint>(0,records.Length,RHIBufferMapAccess.Read))
+        using(var flags=fields.Regions.MapScope<uint>(0,records.Length,BufferMapAccess.Read))
             for(int r=0;r<d.Blocks;r++)Assert.Equal(0u,flags.Span[r*16]&(4096u|8192u|16384u));
         // Exceptional masks copy their whole channel and still honor other dirty channels.
         Array.Clear(records);records[0]=4096;fields.Regions.UploadData(records);
@@ -135,7 +135,7 @@ public sealed class CloudVolumePublicationTests(HeadlessGLFixture fixture,Xunit.
     private static void Complete()
     {
         using var fence=RHICommandContext.Current.InsertFence();
-        Assert.Contains(RHICommandContext.Current.WaitCpu(fence, TimeSpan.FromSeconds(1)),new[]{RHICompletionStatus.Ready,RHICompletionStatus.Ready});
+        Assert.Contains(RHICommandContext.Current.WaitCpu(fence, TimeSpan.FromSeconds(1)),new[]{CompletionStatus.Ready,CompletionStatus.Ready});
     }
     /// <summary>Places a lookup exactly at the center of a selected physical texel.</summary>
     private static Vector3 Point(CloudVolumeDomain d,int x,int y=2,int z=4)=>new(
@@ -145,15 +145,15 @@ public sealed class CloudVolumePublicationTests(HeadlessGLFixture fixture,Xunit.
     /// <summary>Reads produced arguments only after an explicit test wait, outside measured intervals.</summary>
     private static uint[] Arguments(CloudVolumePublication owner)
     {
-        Complete();using var read=owner.Arguments.MapScope<uint>(0,4,RHIBufferMapAccess.Read);
+        Complete();using var read=owner.Arguments.MapScope<uint>(0,4,BufferMapAccess.Read);
         return read.Span.ToArray();
     }
     /// <summary>Samples the same hardware-filtered fields used by the actual cloud view.</summary>
     private static Vector4[] Sample(CloudVolumeProbeProgram probe,GpuShaderStorageBuffer result,CloudVolumeViewFields fields,Vector3 point)
     {
         probe.Capture(fields,point);probe.Density=fields.Density;probe.Direct=fields.Direct;probe.Diffuse=fields.Diffuse;probe.Result=result;
-        probe.Dispatch(1);RHICommandContext.Current.Barrier(new(RHIAccess.ShaderStorage|RHIAccess.BufferUpdate));
-        using var read=result.MapScope<Vector4>(0,2,RHIBufferMapAccess.Read);return read.Span.ToArray();
+        probe.Dispatch(1);RHICommandContext.Current.Barrier(new(ResourceAccess.ShaderStorage|ResourceAccess.BufferUpdate));
+        using var read=result.MapScope<Vector4>(0,2,BufferMapAccess.Read);return read.Span.ToArray();
     }
     #endregion
 }

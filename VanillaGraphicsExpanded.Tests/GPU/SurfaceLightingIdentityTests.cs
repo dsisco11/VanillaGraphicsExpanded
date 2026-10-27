@@ -57,7 +57,7 @@ public sealed class SurfaceLightingIdentityTests(HeadlessGLFixture fixture) : Re
         for(int frame=0;frame<4;frame++) runtime.Frame();
         Assert.True(runtime.TryGetLighting(out var suspended));
         Assert.False(runtime.Feedback.IsCaptureAvailable(page));
-        using (var readiness=suspended.Readiness.MapRange<uint>(0,checked((int)page+1),RHIBufferMapAccess.Read))
+        using (var readiness=suspended.Readiness.MapRange<uint>(0,checked((int)page+1),BufferMapAccess.Read))
             Assert.Equal(0u,readiness.Span[(int)page]);
         using (var queries=new SurfaceLightingQueryBatch(runtime.Api))
         {
@@ -97,7 +97,7 @@ public sealed class SurfaceLightingIdentityTests(HeadlessGLFixture fixture) : Re
         using var observed6=SurfaceLightingPageReadback.Read(after.OutgoingRadiance,after,pages[1].Key);
         Assert.True(untouched.Span.SequenceEqual(observed6.Span));
         Assert.Equal(captures+1,CaptureAttempts(runtime));
-        using(var readiness=after.Readiness.MapRange<uint>(0,checked((int)pages.Max(pair=>pair.Key)+1),RHIBufferMapAccess.Read))
+        using(var readiness=after.Readiness.MapRange<uint>(0,checked((int)pages.Max(pair=>pair.Key)+1),BufferMapAccess.Read))
         {
             Assert.Equal(0u,readiness.Span[(int)pages[0].Key]);
             Assert.Equal(1u,readiness.Span[(int)pages[1].Key]);

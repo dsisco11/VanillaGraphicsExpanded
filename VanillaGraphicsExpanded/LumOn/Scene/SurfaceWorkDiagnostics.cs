@@ -64,7 +64,7 @@ internal sealed class SurfaceWorkDiagnostics : IDisposable
         if (active >= 0)
         {
             var slot = slots[active]!;
-            RHICommandContext.Current.Barrier(new(RHIAccess.ShaderStorage | RHIAccess.BufferUpdate));
+            RHICommandContext.Current.Barrier(new(ResourceAccess.ShaderStorage | ResourceAccess.BufferUpdate));
             slot.End.Issue(); slot.Fence = RHICommandContext.Current.InsertFence(); PendingCount++;
         }
         totals[(int)activeStage].SubmitMilliseconds += Stopwatch.GetElapsedTime(started).TotalMilliseconds;
@@ -80,15 +80,15 @@ internal sealed class SurfaceWorkDiagnostics : IDisposable
             var slot = slots[index];
             if (slot?.Fence == null) continue;
             var status = RHICommandContext.Current.Poll(slot.Fence);
-            if (status == RHICompletionStatus.Pending) continue;
+            if (status == CompletionStatus.Pending) continue;
             var total = totals[(int)slot.Stage];
-            if (status == RHICompletionStatus.Failed)
+            if (status == CompletionStatus.Failed)
             {
                 // Completion is unknown: retire the storage itself rather than overwrite a possibly live buffer.
                 total.ReadFailures++; slot.Dispose(); slots[index] = null; PendingCount--; continue;
             }
             if (!slot.Start.TryGetResultNanoseconds(out long start) || !slot.End.TryGetResultNanoseconds(out long end)) continue;
-            using var mapped = slot.Buffer.MapRange<uint>(0, zero.Length, RHIBufferMapAccess.Read);
+            using var mapped = slot.Buffer.MapRange<uint>(0, zero.Length, BufferMapAccess.Read);
             if (mapped.IsMapped)
             {
                 for (int i = 0; i < zero.Length; i++) total.Counters[i] += mapped.Span[i];
@@ -137,7 +137,7 @@ internal sealed class SurfaceWorkDiagnostics : IDisposable
     /// <summary>One independently fenced diagnostic buffer and its timestamp pair.</summary>
     private sealed class Slot : IDisposable
     {
-        public readonly GpuShaderStorageBuffer Buffer = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = "SurfaceCache.Diagnostics" }).RequireResource();
+        public readonly GpuShaderStorageBuffer Buffer = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = "SurfaceCache.Diagnostics" }).RequireResource();
         public readonly GpuTimestampQuery Start = GpuTimestampQuery.Create("SurfaceCache.Start");
         public readonly GpuTimestampQuery End = GpuTimestampQuery.Create("SurfaceCache.End");
         public GpuFence? Fence;

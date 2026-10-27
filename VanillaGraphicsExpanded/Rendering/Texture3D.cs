@@ -39,7 +39,7 @@ public sealed class Texture3D : GpuTexture
         {
             using var request = RHICommandContext.Current.EnqueueReadback(new RHIReadbackDescription(this,
                 new(new(0, layer), x, y, 0, regionWidth, regionHeight, 1), OpenGLPixelValues.Encoding(format, PixelType.Float)));
-            if (request.Wait() != RHICompletionStatus.Ready)
+            if (request.Wait() != CompletionStatus.Ready)
                 throw new InvalidOperationException("Layered texture readback failed.", request.Error);
             using var mapped = request.MapReadyReadback();
             System.Runtime.InteropServices.MemoryMarshal.Cast<byte, float>(mapped.Bytes).CopyTo(pixels.Span);

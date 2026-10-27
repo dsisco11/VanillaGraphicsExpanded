@@ -26,11 +26,11 @@ public sealed class RHICompletionTests(HeadlessGLFixture fixture)
             byte[] expected = Enumerable.Range(0, 32).Select(value => (byte)value).ToArray();
             using var source = Buffer(context, expected);
             using var request = context.EnqueueReadback(new RHIReadbackDescription(new RHIBufferRange(source, 4, 16)));
-            Assert.Equal(RHICompletionStatus.Pending, request.Status);
+            Assert.Equal(CompletionStatus.Pending, request.Status);
             Assert.Throws<InvalidOperationException>(() => request.MapReadyReadback());
             context.ClearBuffer(source, 0, expected.Length, 99);
             source.Dispose();
-            Assert.Equal(RHICompletionStatus.Ready, request.Wait(TimeSpan.FromSeconds(5)));
+            Assert.Equal(CompletionStatus.Ready, request.Wait(TimeSpan.FromSeconds(5)));
             using (var mapped = request.MapReadyReadback())
             {
                 Assert.Equal(expected.AsSpan(4, 16).ToArray(), mapped.Bytes.ToArray());
@@ -55,8 +55,8 @@ public sealed class RHICompletionTests(HeadlessGLFixture fixture)
             using var source = Buffer(context, new byte[16]);
             using var request = context.EnqueueReadback(new RHIReadbackDescription(new RHIBufferRange(source, 0, 16)));
             request.Cancel();
-            Assert.Equal(RHICompletionStatus.Cancelled, request.Poll());
-            Assert.Equal(RHICompletionStatus.Cancelled, request.Wait(TimeSpan.Zero));
+            Assert.Equal(CompletionStatus.Cancelled, request.Poll());
+            Assert.Equal(CompletionStatus.Cancelled, request.Wait(TimeSpan.Zero));
             Assert.Throws<InvalidOperationException>(() => request.MapReadyReadback());
             Assert.True(source.IsValid);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
@@ -74,12 +74,12 @@ public sealed class RHICompletionTests(HeadlessGLFixture fixture)
             var context = RHICommandContext.Current;
             using var texture = context.CreateTexture(new RHITextureDescription
             {
-                Dimension = RHITextureDimension.TwoArray, Width = 2, Height = 2, Depth = 2,
-                Format = RHIFormat.Rgba8, MipLevels = 1, Storage = RHIStorageMode.Immutable
+                Dimension = TextureDimension.TwoArray, Width = 2, Height = 2, Depth = 2,
+                Format = TextureFormat.Rgba8, MipLevels = 1, Storage = ResourceStorageMode.Immutable
             }).RequireResource();
             byte[] pixels = Enumerable.Repeat((byte)31, 16).ToArray();
             var region = new RHITextureRegion(new(0, 1), 0, 0, 0, 2, 2, 1);
-            var encoding = new RHIPixelEncoding(RHIPixelChannels.Rgba, RHIPixelType.UnsignedByte);
+            var encoding = new RHIPixelEncoding(PixelChannelLayout.Rgba, PixelComponentType.UnsignedByte);
             context.UploadTexture(texture, region, encoding, pixels);
             int prior = GL.GetInteger(GetPName.PackAlignment);
             try
@@ -88,7 +88,7 @@ public sealed class RHICompletionTests(HeadlessGLFixture fixture)
                 StateCache.Current.InvalidateAll();
                 using var request = context.EnqueueReadback(new RHIReadbackDescription(texture, region, encoding, 12));
                 Assert.Equal(8, GL.GetInteger(GetPName.PackAlignment));
-                Assert.Equal(RHICompletionStatus.Ready, request.Wait(TimeSpan.FromSeconds(5)));
+                Assert.Equal(CompletionStatus.Ready, request.Wait(TimeSpan.FromSeconds(5)));
                 using var mapped = request.MapReadyReadback();
                 Assert.Equal(20, mapped.Bytes.Length);
                 Assert.Equal(pixels.AsSpan(0, 8).ToArray(), mapped.Bytes[..8].ToArray());
@@ -108,7 +108,7 @@ public sealed class RHICompletionTests(HeadlessGLFixture fixture)
         try
         {
             var context = RHICommandContext.Current;
-            using var query = context.CreateQuery(new(RHIQueryKind.Timestamp)).RequireResource();
+            using var query = context.CreateQuery(new(QueryKind.Timestamp)).RequireResource();
             Assert.True(GL.IsQuery(query.QueryId));
             Assert.Throws<InvalidOperationException>(() => context.RequestQueryResult(query));
             context.WriteTimestamp(query);
@@ -116,11 +116,11 @@ public sealed class RHICompletionTests(HeadlessGLFixture fixture)
             var cancelled = context.RequestQueryResult(query);
             cancelled.Cancel();
             context.WriteTimestamp(query);
-            Assert.Equal(RHICompletionStatus.Failed, obsolete.Poll());
+            Assert.Equal(CompletionStatus.Failed, obsolete.Poll());
             Assert.IsType<InvalidOperationException>(obsolete.Error);
-            Assert.Equal(RHICompletionStatus.Cancelled, cancelled.Wait());
+            Assert.Equal(CompletionStatus.Cancelled, cancelled.Wait());
             var current = context.RequestQueryResult(query);
-            Assert.Equal(RHICompletionStatus.Ready, current.Wait());
+            Assert.Equal(CompletionStatus.Ready, current.Wait());
             _ = current.Result;
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
@@ -137,14 +137,14 @@ public sealed class RHICompletionTests(HeadlessGLFixture fixture)
         {
             var context = RHICommandContext.Current;
             using var selected = Buffer(context, new byte[32]);
-            using var query = context.CreateQuery(new(RHIQueryKind.Timestamp)).RequireResource();
+            using var query = context.CreateQuery(new(QueryKind.Timestamp)).RequireResource();
             GL.BindBuffer(BufferTarget.QueryBuffer, (int)selected.ResourceId);
             StateCache.Current.InvalidateAll();
             context.WriteTimestamp(query);
             var result = context.RequestQueryResult(query);
             _ = result.Poll();
             Assert.Equal((int)selected.ResourceId, GL.GetInteger((GetPName)All.QueryBufferBinding));
-            Assert.Equal(RHICompletionStatus.Ready, result.Wait());
+            Assert.Equal(CompletionStatus.Ready, result.Wait());
             Assert.Equal((int)selected.ResourceId, GL.GetInteger((GetPName)All.QueryBufferBinding));
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
@@ -159,7 +159,7 @@ public sealed class RHICompletionTests(HeadlessGLFixture fixture)
         try
         {
             var context = RHICommandContext.Current;
-            using var query = context.CreateQuery(new(RHIQueryKind.SamplesPassed)).RequireResource();
+            using var query = context.CreateQuery(new(QueryKind.SamplesPassed)).RequireResource();
             context.BeginQuery(query);
             try
             {
@@ -169,9 +169,9 @@ public sealed class RHICompletionTests(HeadlessGLFixture fixture)
             }
             finally { context.EndQuery(query); }
             var ticket = context.RequestQueryResult(query);
-            Assert.Equal(RHICompletionStatus.Ready, ticket.Wait());
+            Assert.Equal(CompletionStatus.Ready, ticket.Wait());
             Assert.Equal(0UL, ticket.Result);
-            context.BeginConditionalRender(query, RHIConditionalRenderMode.NoWait);
+            context.BeginConditionalRender(query, ConditionalRenderPolicy.NoWait);
             try { Assert.Throws<InvalidOperationException>(() => query.Dispose()); }
             finally { context.EndConditionalRender(); }
             Assert.Equal(ErrorCode.NoError, GL.GetError());
@@ -189,13 +189,13 @@ public sealed class RHICompletionTests(HeadlessGLFixture fixture)
             var context = RHICommandContext.Current;
             using var fence = context.InsertFence();
             context.WaitGpu(fence);
-            Assert.Equal(RHICompletionStatus.Ready, context.WaitCpu(fence, TimeSpan.FromSeconds(5)));
+            Assert.Equal(CompletionStatus.Ready, context.WaitCpu(fence, TimeSpan.FromSeconds(5)));
             Assert.True(fence.IsValid);
             fence.Dispose();
             Assert.Throws<InvalidOperationException>(() => context.Poll(fence));
             Assert.Throws<InvalidOperationException>(() => context.WaitGpu(default));
-            Assert.Throws<ArgumentOutOfRangeException>(() => context.Barrier(new((RHIAccess)(1 << 20))));
-            context.Barrier(new(RHIAccess.ShaderStorage | RHIAccess.BufferUpdate));
+            Assert.Throws<ArgumentOutOfRangeException>(() => context.Barrier(new((ResourceAccess)(1 << 20))));
+            context.Barrier(new(ResourceAccess.ShaderStorage | ResourceAccess.BufferUpdate));
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
         finally { Finish(); }
@@ -213,12 +213,12 @@ public sealed class RHICompletionTests(HeadlessGLFixture fixture)
             var context = RHICommandContext.Current;
             using var source = Buffer(context, new byte[16]);
             using var request = context.EnqueueReadback(new RHIReadbackDescription(new RHIBufferRange(source, 0, 16)));
-            using var query = context.CreateQuery(new(RHIQueryKind.Timestamp)).RequireResource();
+            using var query = context.CreateQuery(new(QueryKind.Timestamp)).RequireResource();
             context.WriteTimestamp(query);
             var result = context.RequestQueryResult(query);
             RenderContextRegistry.Retire(owner);
-            Assert.Equal(RHICompletionStatus.Cancelled, request.Poll());
-            Assert.Equal(RHICompletionStatus.Cancelled, result.Poll());
+            Assert.Equal(CompletionStatus.Cancelled, request.Poll());
+            Assert.Equal(CompletionStatus.Cancelled, result.Poll());
             Assert.Throws<InvalidOperationException>(() => context.InsertFence());
         }
         finally
@@ -233,7 +233,7 @@ public sealed class RHICompletionTests(HeadlessGLFixture fixture)
     #region Private
     /// <summary>Creates initialized staging-independent source storage.</summary>
     private static GpuBufferObject Buffer(RHICommandContext context, byte[] bytes) => context.CreateBuffer(new RHIBufferDescription
-    { Role = RHIBufferRole.CopySource, Mode = RHIStorageMode.Mutable, Capacity = bytes.Length, Usage = RHIBufferUsage.DynamicRead }, new(bytes)).RequireResource();
+    { Role = BufferRole.CopySource, Mode = ResourceStorageMode.Mutable, Capacity = bytes.Length, Usage = BufferUsage.DynamicRead }, new(bytes)).RequireResource();
     /// <summary>Starts an explicit registered or context-local ownership interval.</summary>
     private void Start(bool registered = true)
     {

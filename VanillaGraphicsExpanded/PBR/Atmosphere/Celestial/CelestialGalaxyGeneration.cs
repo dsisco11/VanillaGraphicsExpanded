@@ -46,8 +46,8 @@ internal sealed class CelestialGalaxyGeneration : IDisposable
                 loadingFrame = new(new GpuUniformRingBuffer(pageSizeBytes: 2 * 1024 * 1024, pageCount: 1, debugName: "Celestial.LoadUniforms"));
                 loadingFrame.BeginFrame(); loadingFrameBegan = true;
             }
-            cube = RHICommandContext.Current.CreateTextureCube(new RHITextureDescription { Dimension = RHITextureDimension.Cube, Format = RHIFormat.R11fG11fB10f, Width = source.Quality.FaceSize, Height = source.Quality.FaceSize, MipLevels = 1 + (int)MathF.Floor(MathF.Log2(source.Quality.FaceSize)), Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Linear, BaseLevel = 0, MaxLevel = (1 + (int)MathF.Floor(MathF.Log2(source.Quality.FaceSize))) - 1, Label = "Celestial.Galaxy" }).RequireResource();
-            var catalog = owned.Own(RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba32f, Width = System.Math.Max(1, CelestialSource.StarCapacity * 2), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource());
+            cube = RHICommandContext.Current.CreateTextureCube(new RHITextureDescription { Dimension = TextureDimension.Cube, Format = TextureFormat.R11fG11fB10f, Width = source.Quality.FaceSize, Height = source.Quality.FaceSize, MipLevels = 1 + (int)MathF.Floor(MathF.Log2(source.Quality.FaceSize)), Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Linear, BaseLevel = 0, MaxLevel = (1 + (int)MathF.Floor(MathF.Log2(source.Quality.FaceSize))) - 1, Label = "Celestial.Galaxy" }).RequireResource();
+            var catalog = owned.Own(RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba32f, Width = System.Math.Max(1, CelestialSource.StarCapacity * 2), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource());
             catalog.UploadData(residual.Catalog);
             var values = new List<float>();
             int[] offsets = new int[residual.Tiles.Length];
@@ -58,8 +58,8 @@ internal sealed class CelestialGalaxyGeneration : IDisposable
             }
             int indexHeight = Math.Max(1, (values.Count / 4 + 4095) / 4096);
             var indexData = new float[4096 * indexHeight * 4]; values.CopyTo(indexData);
-            var indices = owned.Own(RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba32f, Width = System.Math.Max(1, 4096), Height = System.Math.Max(1, indexHeight), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource()); indices.UploadData(indexData);
-            var scratch = owned.Own(RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba32f, Width = System.Math.Max(1, CelestialResidual.TileSize), Height = System.Math.Max(1, CelestialResidual.TileSize), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource());
+            var indices = owned.Own(RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba32f, Width = System.Math.Max(1, 4096), Height = System.Math.Max(1, indexHeight), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource()); indices.UploadData(indexData);
+            var scratch = owned.Own(RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba32f, Width = System.Math.Max(1, CelestialResidual.TileSize), Height = System.Math.Max(1, CelestialResidual.TileSize), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource());
             var image = owned.Own(GpuFramebufferAttachment.FromTexture(scratch));
             var target = owned.Own(StaticGpuFramebuffer.Create([image], debugName: "Celestial.GenerationScratch"));
             var layout = new VertexLayoutDesc([]);
@@ -114,8 +114,8 @@ internal sealed class CelestialGalaxyGeneration : IDisposable
     {
         if (fence is null) return null;
         var status = RHICommandContext.Current.Poll(fence);
-        if (status == RHICompletionStatus.Pending) return null;
-        if (status != RHICompletionStatus.Ready)
+        if (status == CompletionStatus.Pending) return null;
+        if (status != CompletionStatus.Ready)
             throw new InvalidOperationException("Celestial generation fence failed.");
         fence.Dispose(); fence = null;
         ReleaseScratch();

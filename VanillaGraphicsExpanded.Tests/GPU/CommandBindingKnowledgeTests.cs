@@ -180,9 +180,9 @@ public sealed class CommandBindingKnowledgeTests(HeadlessGLFixture fixture)
         try
         {
             using var original = GpuVao.Create(); using var later = GpuVao.Create();
-            using var first = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = null }).RequireResource(); first.Allocate(128);
-            using var temporary = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = null }).RequireResource(); temporary.Allocate(128);
-            using var second = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = null }).RequireResource(); second.Allocate(128);
+            using var first = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = null }).RequireResource(); first.Allocate(128);
+            using var temporary = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = null }).RequireResource(); temporary.Allocate(128);
+            using var second = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = null }).RequireResource(); second.Allocate(128);
             var cache = StateCache.Current;
             later.Bind(); OpenGLBufferBindings.BindBuffer(cache, BufferTarget.ElementArrayBuffer, second.BufferId);
             original.Bind(); OpenGLBufferBindings.BindBuffer(cache, BufferTarget.ElementArrayBuffer, first.BufferId);
@@ -209,7 +209,7 @@ public sealed class CommandBindingKnowledgeTests(HeadlessGLFixture fixture)
         try
         {
             using var vao = GpuVao.Create();
-            using var buffer = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = null }).RequireResource(); buffer.Allocate(128);
+            using var buffer = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = null }).RequireResource(); buffer.Allocate(128);
             vao.Bind();
             var cache = StateCache.Current;
             OpenGLBufferBindings.BindBuffer(cache, BufferTarget.ElementArrayBuffer, buffer.BufferId);
@@ -239,7 +239,7 @@ public sealed class CommandBindingKnowledgeTests(HeadlessGLFixture fixture)
         {
             using var capability = new DirectStateAccessCapabilityScope(true);
             using var vao = GpuVao.Create();
-            using var buffer = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = null }).RequireResource(); buffer.Allocate(256);
+            using var buffer = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = null }).RequireResource(); buffer.Allocate(256);
             var helper = vao.GetBinding(2);
             var copied = helper;
             using var capture = new BindingCallCapture();
@@ -271,7 +271,7 @@ public sealed class CommandBindingKnowledgeTests(HeadlessGLFixture fixture)
         fixture.EnsureContextValid(); fixture.InitializeResourceDisposal();
         try
         {
-            using var buffer = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = null }).RequireResource(); buffer.Allocate(128);
+            using var buffer = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = null }).RequireResource(); buffer.Allocate(128);
             GL.BindBuffer(BufferTarget.AtomicCounterBuffer, buffer.BufferId);
             StateCache.Current.Invalidate(EPipelineState.Bindings);
             Assert.Equal(buffer.BufferId, StateCache.Current.GetBoundBuffer(BufferTarget.AtomicCounterBuffer));

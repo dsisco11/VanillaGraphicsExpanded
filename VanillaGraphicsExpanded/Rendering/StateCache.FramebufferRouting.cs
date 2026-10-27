@@ -4,7 +4,7 @@ using OpenTK.Graphics.OpenGL;
 
 namespace VanillaGraphicsExpanded.Rendering;
 
-/// <summary>Owns complete framebuffer-local draw routes independently of framebuffer selection.</summary>
+/// <summary>Retains framebuffer-local executed routes independently of resource metadata or native execution.</summary>
 internal sealed partial class StateCache
 {
     private readonly Dictionary<int, DrawBuffersEnum[]> framebufferDrawRouting = new();

@@ -45,7 +45,7 @@ internal sealed class LumOnUniformBuffers : IDisposable
         if (frameUbo is null || frameUbo.BufferId == 0)
         {
             frameUbo?.Dispose();
-            frameUbo = RHICommandContext.Current.CreateUniformBuffer(new RHIBufferDescription { Role = RHIBufferRole.Uniform, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = "LumOn.FrameUBO" }).RequireResource();
+            frameUbo = RHICommandContext.Current.CreateUniformBuffer(new RHIBufferDescription { Role = BufferRole.Uniform, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = "LumOn.FrameUBO" }).RequireResource();
         }
     }
 
@@ -55,7 +55,7 @@ internal sealed class LumOnUniformBuffers : IDisposable
         if (worldProbeUbo is null || worldProbeUbo.BufferId == 0)
         {
             worldProbeUbo?.Dispose();
-            worldProbeUbo = RHICommandContext.Current.CreateUniformBuffer(new RHIBufferDescription { Role = RHIBufferRole.Uniform, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = "LumOn.WorldProbeUBO" }).RequireResource();
+            worldProbeUbo = RHICommandContext.Current.CreateUniformBuffer(new RHIBufferDescription { Role = BufferRole.Uniform, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = "LumOn.WorldProbeUBO" }).RequireResource();
         }
     }
 

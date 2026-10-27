@@ -132,7 +132,7 @@ public sealed class SurfaceCacheRuntimeTests : RenderTestBase
         Assert.Equal(2,ids.Length);
         int readCount=checked((int)ids.Max()+1);
         uint firstId;
-        using (var ready=first.Readiness.MapRange<uint>(0,readCount,RHIBufferMapAccess.Read))
+        using (var ready=first.Readiness.MapRange<uint>(0,readCount,BufferMapAccess.Read))
         {
             Assert.True(ready.IsMapped);
             Assert.Equal(1u,ready.Span[(int)ids[0]]+ready.Span[(int)ids[1]]);
@@ -148,7 +148,7 @@ public sealed class SurfaceCacheRuntimeTests : RenderTestBase
         Assert.True(runtime.TryGetLighting(out var second));
         Assert.True(second.Generation>first.Generation);
         Assert.Equal(first.DependencyRevision,second.DependencyRevision);
-        using (var ready=second.Readiness.MapRange<uint>(0,readCount,RHIBufferMapAccess.Read))
+        using (var ready=second.Readiness.MapRange<uint>(0,readCount,BufferMapAccess.Read))
         { Assert.True(ready.IsMapped);Assert.Equal(1u,ready.Span[(int)ids[0]]);Assert.Equal(1u,ready.Span[(int)ids[1]]); }
         Assert.Equal(before,ReadTile(second,firstId));
         Assert.Equal(ErrorCode.NoError,GL.GetError());

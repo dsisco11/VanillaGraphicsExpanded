@@ -8,11 +8,11 @@ namespace VanillaGraphicsExpanded.HarmonyPatches.NativeAdapters.Programs;
 internal static unsafe partial class Arb
 {
     #region Internal API
-    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
+    /// <summary>Forwards the exact signature to the backend execution boundary.</summary>
     internal static void LinkProgram(int @programObj)
         => StateCache.Current.ExecuteArbLinkProgram(@programObj);
 
-    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
+    /// <summary>Forwards the exact signature to the backend execution boundary.</summary>
     internal static void LinkProgram(uint @programObj)
         => StateCache.Current.ExecuteArbLinkProgram(@programObj);
     #endregion

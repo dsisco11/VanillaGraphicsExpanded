@@ -33,7 +33,7 @@ internal sealed partial class LumOnWorldProbeClipmapGpuResources
             out var created, out _, out string log, preferSpirv: true))
             throw new InvalidOperationException("Cannot initialize world-probe history: " + log);
         historyClear = new(created!);
-        historyClearSlots = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StreamDraw, Label = null }).RequireResource();
+        historyClearSlots = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StreamDraw, Label = null }).RequireResource();
     }
 
     /// <summary>Queues an inclusive local box; overlapping regions share one physical-slot entry.</summary>
@@ -77,8 +77,8 @@ internal sealed partial class LumOnWorldProbeClipmapGpuResources
         // Use a second dispatch dimension when the slot count exceeds GL's guaranteed X limit.
         int groupsX = Math.Min(count, 65535);
         historyClear.Dispatch(groupsX, (count + groupsX - 1) / groupsX, 1);
-        RHICommandContext.Current.Barrier(new(RHIAccess.Image | RHIAccess.TextureFetch |
-            RHIAccess.Framebuffer | RHIAccess.TextureUpdate));
+        RHICommandContext.Current.Barrier(new(ResourceAccess.Image | ResourceAccess.TextureFetch |
+            ResourceAccess.Framebuffer | ResourceAccess.TextureUpdate));
         InvalidationDispatchCount++;
         foreach (int slot in historySlots) queuedHistorySlots[slot] = false;
         historySlots.Clear();

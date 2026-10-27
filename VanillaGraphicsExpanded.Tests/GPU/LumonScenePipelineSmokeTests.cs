@@ -75,17 +75,17 @@ public sealed class LumonScenePipelineSmokeTests : RenderTestBase
         // PatchIdGBuffer (RGBA32UI): place `desiredPages` sparse pixels, rest zero.
         const int gW = 32;
         const int gH = 32;
-        using var patchIdGBuffer = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba32ui, Width = System.Math.Max(1, gW), Height = System.Math.Max(1, gH), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "Test_PatchIdGBuffer" }).RequireResource();
+        using var patchIdGBuffer = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba32ui, Width = System.Math.Max(1, gW), Height = System.Math.Max(1, gH), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "Test_PatchIdGBuffer" }).RequireResource();
 
         // v2 feedback uses a per-virtual-page stamp texture to deduplicate requests.
         const int chunkSlotCount = 1;
-        using var usageStamp = RHICommandContext.Current.CreateTexture3D(new RHITextureDescription { Dimension = RHITextureDimension.TwoArray, Format = RHIFormat.R32ui, Width = System.Math.Max(1, 128), Height = System.Math.Max(1, 128), Depth = System.Math.Max(1, chunkSlotCount), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "Test_PageUsageStamp" }).RequireResource();
+        using var usageStamp = RHICommandContext.Current.CreateTexture3D(new RHITextureDescription { Dimension = TextureDimension.TwoArray, Format = TextureFormat.R32ui, Width = System.Math.Max(1, 128), Height = System.Math.Max(1, 128), Depth = System.Math.Max(1, chunkSlotCount), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "Test_PageUsageStamp" }).RequireResource();
         usageStamp.UploadDataImmediate(new uint[128 * 128 * chunkSlotCount], 0, 0, 0, 128, 128, chunkSlotCount);
 
-        using var pageTableMip0 = RHICommandContext.Current.CreateTexture3D(new RHITextureDescription { Dimension = RHITextureDimension.TwoArray, Format = RHIFormat.R32ui, Width = System.Math.Max(1, 128), Height = System.Math.Max(1, 128), Depth = System.Math.Max(1, chunkSlotCount), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "Test_PageTableMip0" }).RequireResource();
+        using var pageTableMip0 = RHICommandContext.Current.CreateTexture3D(new RHITextureDescription { Dimension = TextureDimension.TwoArray, Format = TextureFormat.R32ui, Width = System.Math.Max(1, 128), Height = System.Math.Max(1, 128), Depth = System.Math.Max(1, chunkSlotCount), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "Test_PageTableMip0" }).RequireResource();
         pageTableMip0.UploadDataImmediate(new uint[128 * 128 * chunkSlotCount], 0, 0, 0, 128, 128, chunkSlotCount);
 
-        using var genTex = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.R32ui, Width = System.Math.Max(1, chunkSlotCount), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "Test_ChunkSlotGeneration" }).RequireResource();
+        using var genTex = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.R32ui, Width = System.Math.Max(1, chunkSlotCount), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "Test_ChunkSlotGeneration" }).RequireResource();
         genTex.UploadDataImmediate(new uint[chunkSlotCount], x: 0, y: 0, regionWidth: chunkSlotCount, regionHeight: 1);
 
         // Compute patch ids that (a) map to distinct virtual pages, and (b) are "safe" for the relight tracer.
@@ -146,9 +146,9 @@ public sealed class LumonScenePipelineSmokeTests : RenderTestBase
         Array.Sort(requests, static (a, b) => a.VirtualPageIndex.CompareTo(b.VirtualPageIndex));
 
         // GPU textures used by capture + relight.
-        using var depthAtlas = RHICommandContext.Current.CreateTexture3D(new RHITextureDescription { Dimension = RHITextureDimension.TwoArray, Format = RHIFormat.R16f, Width = System.Math.Max(1, atlasW), Height = System.Math.Max(1, atlasH), Depth = System.Math.Max(1, atlasCount), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "Test_DepthAtlas" }).RequireResource();
-        using var materialAtlas = RHICommandContext.Current.CreateTexture3D(new RHITextureDescription { Dimension = RHITextureDimension.TwoArray, Format = RHIFormat.Rgba8, Width = System.Math.Max(1, atlasW), Height = System.Math.Max(1, atlasH), Depth = System.Math.Max(1, atlasCount), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "Test_MaterialAtlas" }).RequireResource();
-        using var irradianceAtlas = RHICommandContext.Current.CreateTexture3D(new RHITextureDescription { Dimension = RHITextureDimension.TwoArray, Format = RHIFormat.Rgba16f, Width = System.Math.Max(1, atlasW), Height = System.Math.Max(1, atlasH), Depth = System.Math.Max(1, atlasCount), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "Test_IrradianceAtlas" }).RequireResource();
+        using var depthAtlas = RHICommandContext.Current.CreateTexture3D(new RHITextureDescription { Dimension = TextureDimension.TwoArray, Format = TextureFormat.R16f, Width = System.Math.Max(1, atlasW), Height = System.Math.Max(1, atlasH), Depth = System.Math.Max(1, atlasCount), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "Test_DepthAtlas" }).RequireResource();
+        using var materialAtlas = RHICommandContext.Current.CreateTexture3D(new RHITextureDescription { Dimension = TextureDimension.TwoArray, Format = TextureFormat.Rgba8, Width = System.Math.Max(1, atlasW), Height = System.Math.Max(1, atlasH), Depth = System.Math.Max(1, atlasCount), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "Test_MaterialAtlas" }).RequireResource();
+        using var irradianceAtlas = RHICommandContext.Current.CreateTexture3D(new RHITextureDescription { Dimension = TextureDimension.TwoArray, Format = TextureFormat.Rgba16f, Width = System.Math.Max(1, atlasW), Height = System.Math.Max(1, atlasH), Depth = System.Math.Max(1, atlasCount), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "Test_IrradianceAtlas" }).RequireResource();
         FillR16f2DArray(depthAtlas.TextureId, atlasW, atlasH, atlasCount, value: 0f);
         FillRgba8_2DArray(materialAtlas.TextureId, atlasW, atlasH, atlasCount, r: 0, g: 0, b: 0, a: 0);
         FillRgba16f2DArray(irradianceAtlas.TextureId, atlasW, atlasH, atlasCount, r: 0f, g: 0f, b: 0f, a: 0f);
@@ -162,10 +162,10 @@ public sealed class LumonScenePipelineSmokeTests : RenderTestBase
         // Occupancy volume + LUTs (simple deterministic radiance).
         // Note: materialPaletteIndex must be non-zero for DDA to register hits (solidness is encoded via matIdx != 0).
         uint occPacked = LumonSceneOccupancyPacking.PackClamped(blockLevel: 32, sunLevel: 0, lightId: 1, materialPaletteIndex: 1);
-        using var occ = RHICommandContext.Current.CreateTexture3D(new RHITextureDescription { Dimension = RHITextureDimension.Three, Format = RHIFormat.R32ui, Width = System.Math.Max(1, occRes), Height = System.Math.Max(1, occRes), Depth = System.Math.Max(1, occRes), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "Test_OccL0" }).RequireResource();
+        using var occ = RHICommandContext.Current.CreateTexture3D(new RHITextureDescription { Dimension = TextureDimension.Three, Format = TextureFormat.R32ui, Width = System.Math.Max(1, occRes), Height = System.Math.Max(1, occRes), Depth = System.Math.Max(1, occRes), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "Test_OccL0" }).RequireResource();
         FillR32ui3D(occ.TextureId, occRes, occRes, occRes, occPacked);
 
-        using var materialPalette = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba32ui, Width = System.Math.Max(1, 64), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "Test_MaterialPalette" }).RequireResource();
+        using var materialPalette = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba32ui, Width = System.Math.Max(1, 64), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "Test_MaterialPalette" }).RequireResource();
         uint[] pal = new uint[64 * 4];
         uint sid = 9u;
         uint packed2 = sid | (sid << 16);
@@ -175,7 +175,7 @@ public sealed class LumonScenePipelineSmokeTests : RenderTestBase
         pal[1 * 4 + 3] = 0u;
         materialPalette.UploadDataImmediate(pal);
 
-        using var surfaceLut = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba32ui, Width = System.Math.Max(1, 256), Height = System.Math.Max(1, 256), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "Test_SurfaceLut" }).RequireResource();
+        using var surfaceLut = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba32ui, Width = System.Math.Max(1, 256), Height = System.Math.Max(1, 256), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "Test_SurfaceLut" }).RequireResource();
         uint[] surf = new uint[256 * 256 * 4];
         int surfX = (int)(sid & 255u);
         int surfY = (int)(sid >> 8);
@@ -186,9 +186,9 @@ public sealed class LumonScenePipelineSmokeTests : RenderTestBase
         surf[surfO + 3] = 0u;
         surfaceLut.UploadDataImmediate(surf);
 
-        using var lightColorLut = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba16f, Width = System.Math.Max(1, 64), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "Test_LightColorLut" }).RequireResource();
-        using var blockScalar = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.R16f, Width = System.Math.Max(1, 33), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "Test_BlockScalar" }).RequireResource();
-        using var sunScalar = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.R16f, Width = System.Math.Max(1, 33), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "Test_SunScalar" }).RequireResource();
+        using var lightColorLut = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba16f, Width = System.Math.Max(1, 64), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "Test_LightColorLut" }).RequireResource();
+        using var blockScalar = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.R16f, Width = System.Math.Max(1, 33), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "Test_BlockScalar" }).RequireResource();
+        using var sunScalar = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.R16f, Width = System.Math.Max(1, 33), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "Test_SunScalar" }).RequireResource();
         UploadLightColorLut(lightColorLut, redId: 1);
         UploadLinearScalarLut(blockScalar, scale: 1f);
         UploadLinearScalarLut(sunScalar, scale: 0f);
@@ -350,7 +350,7 @@ public sealed class LumonScenePipelineSmokeTests : RenderTestBase
         {
             count = Math.Clamp(count, 0, capacityItems);
             var dst = new T[count];
-            using var mapped = buffer.MapRange<T>(dstOffsetBytes: 0, elementCount: count, access: RHIBufferMapAccess.Read);
+            using var mapped = buffer.MapRange<T>(dstOffsetBytes: 0, elementCount: count, access: BufferMapAccess.Read);
             if (!mapped.IsMapped)
             {
                 return dst;
@@ -364,7 +364,7 @@ public sealed class LumonScenePipelineSmokeTests : RenderTestBase
 
     private static Ssbo<T> CreateSsbo<T>(string debugName, int capacityItems) where T : unmanaged
     {
-        var ssbo = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicRead, Label = debugName }).RequireResource();
+        var ssbo = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicRead, Label = debugName }).RequireResource();
         int bytes = checked(capacityItems * Marshal.SizeOf<T>());
         ssbo.EnsureCapacity(bytes, growExponentially: false);
         // Leave contents undefined; shader will write the first N entries.
@@ -373,7 +373,7 @@ public sealed class LumonScenePipelineSmokeTests : RenderTestBase
 
     private static GpuShaderStorageBuffer CreateSsbo<T>(string name, ReadOnlySpan<T> data) where T : unmanaged
     {
-        var ssbo = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = name }).RequireResource();
+        var ssbo = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = name }).RequireResource();
         int bytes = checked(data.Length * Marshal.SizeOf<T>());
         ssbo.EnsureCapacity(bytes, growExponentially: false);
         ssbo.UploadSubData(data, dstOffsetBytes: 0, byteCount: bytes);

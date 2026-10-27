@@ -73,12 +73,12 @@ internal sealed class CloudStoredVolumeViewScene:IDisposable
         try
         {
             camera=Own(TestFrameCamera.CreateFromProjection([1,0,0,0,0,1,0,0,0,0,-1.00020002f,-1,0,0,-.200020002f,0],width,height,.1f,1000,fogColor,fogDensity,fogMinimum));
-            lighting=Own(new TestFrameLightingPublication());map=Own(RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba32f, Width = System.Math.Max(1, 20), Height = System.Math.Max(1, 20), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource());
-            material=Own(RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.R32f, Width = System.Math.Max(1, width), Height = System.Math.Max(1, height), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource());visibility=Own(RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.R32f, Width = System.Math.Max(1, width), Height = System.Math.Max(1, height), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource());
-            liquid=Own(RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.R32f, Width = System.Math.Max(1, width), Height = System.Math.Max(1, height), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource());shafts=Own(RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.R32f, Width = System.Math.Max(1, 1), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource());
+            lighting=Own(new TestFrameLightingPublication());map=Own(RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba32f, Width = System.Math.Max(1, 20), Height = System.Math.Max(1, 20), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource());
+            material=Own(RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.R32f, Width = System.Math.Max(1, width), Height = System.Math.Max(1, height), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource());visibility=Own(RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.R32f, Width = System.Math.Max(1, width), Height = System.Math.Max(1, height), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource());
+            liquid=Own(RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.R32f, Width = System.Math.Max(1, width), Height = System.Math.Max(1, height), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource());shafts=Own(RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.R32f, Width = System.Math.Max(1, 1), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource());
             shafts.UploadDataImmediate(new float[]{0});
-            aerial=Own(RHICommandContext.Current.CreateDynamicTexture3D(new RHITextureDescription { Dimension = RHITextureDimension.Three, Format = RHIFormat.Rgba32f, Width = System.Math.Max(1, 1), Height = System.Math.Max(1, 2), Depth = System.Math.Max(1, 1), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Linear, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource());
-            attenuation=Own(RHICommandContext.Current.CreateDynamicTexture3D(new RHITextureDescription { Dimension = RHITextureDimension.Three, Format = RHIFormat.Rgba32f, Width = System.Math.Max(1, 1), Height = System.Math.Max(1, 1), Depth = System.Math.Max(1, 1), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Linear, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource());
+            aerial=Own(RHICommandContext.Current.CreateDynamicTexture3D(new RHITextureDescription { Dimension = TextureDimension.Three, Format = TextureFormat.Rgba32f, Width = System.Math.Max(1, 1), Height = System.Math.Max(1, 2), Depth = System.Math.Max(1, 1), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Linear, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource());
+            attenuation=Own(RHICommandContext.Current.CreateDynamicTexture3D(new RHITextureDescription { Dimension = TextureDimension.Three, Format = TextureFormat.Rgba32f, Width = System.Math.Max(1, 1), Height = System.Math.Max(1, 1), Depth = System.Math.Max(1, 1), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Linear, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource());
             aerial.UploadDataImmediate(new float[8],0,0,0,1,2,1);attenuation.UploadDataImmediate(new float[4],0,0,0,1,1,1);
             SetDepths(100,100,100);
             var native=new float[20*20*4];for(int i=0;i<400;i++){native[i*4]=1;native[i*4+2]=-.5f;native[i*4+3]=.5f;}map.UploadDataImmediate(native);
@@ -192,7 +192,7 @@ internal sealed class CloudStoredVolumeViewScene:IDisposable
                 solution.Submit(observation,map,Atmosphere,camera,settings,()=>true);Assert.Null(solution.Failure);
                 Assert.Same(retained,solution.Drawable); // Submission alone cannot publish unfinished writes.
                 using var completed=RHICommandContext.Current.InsertFence();
-                Assert.Contains(RHICommandContext.Current.WaitCpu(completed, TimeSpan.FromSeconds(1)),new[]{RHICompletionStatus.Ready,RHICompletionStatus.Ready});
+                Assert.Contains(RHICommandContext.Current.WaitCpu(completed, TimeSpan.FromSeconds(1)),new[]{CompletionStatus.Ready,CompletionStatus.Ready});
             }
             Assert.NotNull(solution.Drawable);Assert.True(solution.Drawable.Revision>before);
         }
@@ -260,7 +260,7 @@ internal sealed class CloudStoredVolumeViewScene:IDisposable
         input=input with{Frame=frame,
             Placement=input.Placement with{Offset=input.Placement.Offset+new Vector3(materialMotion,0,0)}};
     }
-    /// <summary>Replaces attachment metadata on the same native target to exercise revision-based invalidation.</summary>
+    /// <summary>Replaces storage behind the same retained image owner to exercise target realization invalidation.</summary>
     internal void RefreshOutputMetadata()
     {
         var old=output.Target.GetAttachment(FramebufferAttachment.ColorAttachment0)!;
@@ -281,7 +281,7 @@ internal sealed class CloudStoredVolumeViewScene:IDisposable
         Assert.Null(solution.Failure);Assert.True(solution.UpdatePending);Assert.Same(retained,solution.Drawable);
         if(!retireAndResubmit)return;
         using var completed=RHICommandContext.Current.InsertFence();
-        Assert.Contains(RHICommandContext.Current.WaitCpu(completed, TimeSpan.FromSeconds(5)),new[]{RHICompletionStatus.Ready,RHICompletionStatus.Ready});
+        Assert.Contains(RHICommandContext.Current.WaitCpu(completed, TimeSpan.FromSeconds(5)),new[]{CompletionStatus.Ready,CompletionStatus.Ready});
         observation=observation with{Frame=++updateFrame};solution.Poll(observation);
         Assert.Null(solution.Failure);Assert.False(solution.UpdatePending);
         Assert.True(solution.Drawable!.Revision>retained!.Revision);

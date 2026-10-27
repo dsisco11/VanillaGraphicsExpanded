@@ -4,7 +4,7 @@ namespace VanillaGraphicsExpanded.Rendering.RHI;
 
 /// <summary>Explicit subsequent access categories made visible by an ordered barrier.</summary>
 [Flags]
-public enum RHIAccess
+public enum ResourceAccess
 {
     None = 0, Vertex = 1, Index = 2, Uniform = 4, TextureFetch = 8,
     Image = 16, Indirect = 32, PixelTransfer = 64, TextureUpdate = 128,

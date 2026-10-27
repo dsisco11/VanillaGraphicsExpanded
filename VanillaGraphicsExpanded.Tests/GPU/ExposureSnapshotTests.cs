@@ -141,8 +141,8 @@ public sealed class ExposureSnapshotTests(HeadlessGLFixture fixture) : LumOnShad
         using var frame=TestFrameCamera.CreateIdentity(width,height);
         using var lighting=new TestFrameLightingPublication();
         lighting.Capture(scale);
-        using var history=RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = "Tests.ExposureSnapshot.History" }).RequireResource();history.UploadData(state);
-        using var output=RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = "Tests.ExposureSnapshot.Output" }).RequireResource();output.Allocate(48);
+        using var history=RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = "Tests.ExposureSnapshot.History" }).RequireResource();history.UploadData(state);
+        using var output=RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = "Tests.ExposureSnapshot.Output" }).RequireResource();output.Allocate(48);
         var program=Programs.CreateCompute(ExposureSnapshotProgram.Create);
         program.FrameOverride=frame;program.LightingOverride=lighting.Buffer;
         program.Scene=scene;program.LocalBase=baseImage;program.History=history;program.Output=output;

@@ -11,7 +11,8 @@ using VanillaGraphicsExpanded.Rendering.Spirv;
 using VanillaGraphicsExpanded.Rendering.ProgramBinaries;
 using VanillaGraphicsExpanded.Rendering.ShaderCompilation;
 namespace VanillaGraphicsExpanded.Rendering.Shaders;
-/// <summary>Prepares binary graphics generations and transfers ownership only after successful linking and interface preparation.</summary>
+
+/// <summary>Prepares an immutable graphics executable and installs it only after asset and lifetime admission.</summary>
 public abstract partial class GpuProgram
 {
 

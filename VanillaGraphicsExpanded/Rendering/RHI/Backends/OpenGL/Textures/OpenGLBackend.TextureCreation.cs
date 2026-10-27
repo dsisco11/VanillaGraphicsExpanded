@@ -46,12 +46,12 @@ internal sealed partial class OpenGLBackend
     /// <summary>Rejects requests incompatible with the selected wrapper's owning policy before allocation.</summary>
     private static void ValidateTextureOwner<T>(in RHITextureDescription request) where T : GpuTexture
     {
-        if (typeof(T) == typeof(DynamicTextureCube) && request.Dimension != RHITextureDimension.Cube
-            || typeof(T) == typeof(DynamicTexture2D) && request.Dimension != RHITextureDimension.Two
-            || (typeof(T) == typeof(Texture3D) || typeof(T) == typeof(DynamicTexture3D)) && request.Dimension is not (RHITextureDimension.Three or RHITextureDimension.TwoArray))
+        if (typeof(T) == typeof(DynamicTextureCube) && request.Dimension != TextureDimension.Cube
+            || typeof(T) == typeof(DynamicTexture2D) && request.Dimension != TextureDimension.Two
+            || (typeof(T) == typeof(Texture3D) || typeof(T) == typeof(DynamicTexture3D)) && request.Dimension is not (TextureDimension.Three or TextureDimension.TwoArray))
             throw new ArgumentException("Texture shape does not match the selected owning abstraction.");
         if (request.Has(11) && !Enum.IsDefined(request.Filter)) throw new ArgumentOutOfRangeException(nameof(request));
-        bool multi = request.Dimension is RHITextureDimension.TwoMultisample or RHITextureDimension.TwoMultisampleArray;
+        bool multi = request.Dimension is TextureDimension.TwoMultisample or TextureDimension.TwoMultisampleArray;
         if (multi && request.Has(11)) throw new ArgumentException("Multisample textures have no sampling-filter request.");
         var format = OpenGLImageValues.Format(request.Format);
         var pixels = TextureFormatHelper.GetPixelFormat(format);
@@ -65,13 +65,13 @@ internal sealed partial class OpenGLBackend
     private GpuTextureInitialization LowerTexture(in RHITextureDescription description)
     {
         RequireContext();
-        if (description.Format is RHIFormat.CompressedRgbS3tcDxt1Ext or RHIFormat.CompressedRgbaS3tcDxt1Ext
-            or RHIFormat.CompressedSrgbS3tcDxt1Ext or RHIFormat.CompressedSrgbAlphaS3tcDxt1Ext)
+        if (description.Format is TextureFormat.CompressedRgbS3tcDxt1Ext or TextureFormat.CompressedRgbaS3tcDxt1Ext
+            or TextureFormat.CompressedSrgbS3tcDxt1Ext or TextureFormat.CompressedSrgbAlphaS3tcDxt1Ext)
         {
             if (!Capabilities.Dxt1Textures) throw new NotSupportedException("DXT1 texture compression is unavailable.");
         }
-        else if (description.Format is RHIFormat.CompressedRgbaS3tcDxt3Ext or RHIFormat.CompressedRgbaS3tcDxt5Ext
-            or RHIFormat.CompressedSrgbAlphaS3tcDxt3Ext or RHIFormat.CompressedSrgbAlphaS3tcDxt5Ext)
+        else if (description.Format is TextureFormat.CompressedRgbaS3tcDxt3Ext or TextureFormat.CompressedRgbaS3tcDxt5Ext
+            or TextureFormat.CompressedSrgbAlphaS3tcDxt3Ext or TextureFormat.CompressedSrgbAlphaS3tcDxt5Ext)
         {
             if (!Capabilities.S3tcTextures) throw new NotSupportedException("S3TC texture compression is unavailable.");
         }
@@ -80,9 +80,9 @@ internal sealed partial class OpenGLBackend
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(description.Width);
         if (description.Has(3)) ArgumentOutOfRangeException.ThrowIfNegativeOrZero(description.Height);
         if (description.Has(4)) ArgumentOutOfRangeException.ThrowIfNegativeOrZero(description.Depth);
-        if (description.Storage is not (RHIStorageMode.Mutable or RHIStorageMode.Immutable)) throw new ArgumentException("Image storage must be mutable or immutable.");
+        if (description.Storage is not (ResourceStorageMode.Mutable or ResourceStorageMode.Immutable)) throw new ArgumentException("Image storage must be mutable or immutable.");
         var result = new GpuTextureInitialization { Target = OpenGLImageValues.Target(description.Dimension), InternalFormat = OpenGLImageValues.Format(description.Format),
-            Width = description.Width, Levels = description.MipLevels, AllocationMode = description.Storage == RHIStorageMode.Immutable ? GpuTextureAllocationMode.Immutable : GpuTextureAllocationMode.Mutable };
+            Width = description.Width, Levels = description.MipLevels, AllocationMode = description.Storage == ResourceStorageMode.Immutable ? GpuTextureAllocationMode.Immutable : GpuTextureAllocationMode.Mutable };
         if (description.Has(3)) result.Height = description.Height;
         if (description.Has(4)) result.Depth = description.Depth;
         if (description.Has(7)) result.Samples = description.Samples;

@@ -15,7 +15,7 @@ namespace VanillaGraphicsExpanded.Rendering;
 /// 
 /// Usage:
 /// <code>
-/// using var texture = RHICommandContext.Current.CreateDynamicTexture3D(new RHITextureDescription { Dimension = RHITextureDimension.TwoArray, Format = RHIFormat.Rgba16f, Width = System.Math.Max(1, 8), Height = System.Math.Max(1, 8), Depth = System.Math.Max(1, probeCount), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Linear, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
+/// using var texture = RHICommandContext.Current.CreateDynamicTexture3D(new RHITextureDescription { Dimension = TextureDimension.TwoArray, Format = TextureFormat.Rgba16f, Width = System.Math.Max(1, 8), Height = System.Math.Max(1, 8), Depth = System.Math.Max(1, probeCount), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Linear, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
 /// texture.Bind(0); // Bind to texture unit 0
 /// // ... use texture ...
 /// </code>

@@ -22,18 +22,18 @@ public sealed class CloudVolumeDensityTests(HeadlessGLFixture fixture):LumOnShad
         var submission=new CloudVolumeSubmission();
         using var storage=new VolumeStorage(()=>CloudVolumeMaintenanceProgram.Create(Programs.Api),()=>CloudVolumeCopyProgram.Create(Programs.Api),submission);
         using var density=new CloudVolumeDensity((op,shared)=>CloudVolumeDensityProgram.Create(Programs.Api,op,false,shared),submission);
-        using var map=RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba32f, Width = System.Math.Max(1, 20), Height = System.Math.Max(1, 20), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
+        using var map=RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba32f, Width = System.Math.Max(1, 20), Height = System.Math.Max(1, 20), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         var data=new float[20*20*4];int column=(10*20+10)*4;data[column]=.5f;data[column+3]=1f/50;
         map.UploadDataImmediate(data);
         var input=Input(map);var encoding=new CloudVolumeEncoding(new Vector3(100));
         Assert.True(density.Update(storage,input,map,encoding,Vector3.One,()=>true),density.Failure);
         var fields=storage.Published;Assert.True(fields.DensityState.InitialComplete);
         using var probe=CloudVolumeProbeProgram.Create(Programs.Api);
-        using var output=RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = null }).RequireResource();output.UploadData(new Vector4[2]);
+        using var output=RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = null }).RequireResource();output.UploadData(new Vector4[2]);
         Vector3 point=new((float)(.5*CloudVolumeDomain.HorizontalCell-fields.Domain.AnchorX),6.25f,
             (float)(.5*CloudVolumeDomain.HorizontalCell-fields.Domain.AnchorZ));
         AssertStoredRepresentation(.01f/12.5f,Sample(probe,fields,output,point));
-        using(var words=fields.Occupancy.MapScope<uint>(0,fields.Domain.Blocks,RHIBufferMapAccess.Read))
+        using(var words=fields.Occupancy.MapScope<uint>(0,fields.Domain.Blocks,BufferMapAccess.Read))
         {
             int last=fields.Domain.BlocksX-1,y=33/4;
             Assert.Equal(1u,words.Span[y*fields.Domain.BlocksX]&3u);
@@ -45,7 +45,7 @@ public sealed class CloudVolumeDensityTests(HeadlessGLFixture fixture):LumOnShad
         }
         uint actual=fields.DensityState.CompletedFrame;
         // Consume the membership dirty flag as the scheduler does after building its retained list.
-        using(var membership=fields.Scratch.MapScope<uint>(48*4,1,RHIBufferMapAccess.Write))membership.Span[0]=0;
+        using(var membership=fields.Scratch.MapScope<uint>(48*4,1,BufferMapAccess.Write))membership.Span[0]=0;
         input=input with{Frame=2,Generation=2,Upload=2};
         Assert.True(density.Update(storage,input,map,encoding,Vector3.One,()=>true),density.Failure);
         Assert.Equal(0,fields.DensityState.Selected);Assert.Equal(actual,fields.DensityState.CompletedFrame);
@@ -64,7 +64,7 @@ public sealed class CloudVolumeDensityTests(HeadlessGLFixture fixture):LumOnShad
         Assert.InRange(fields.DensityState.Selected,1,fields.Domain.BlocksX*fields.Domain.BlocksX);
         Assert.InRange(fields.DensityState.Changed,1,fields.DensityState.Selected);
         AssertStoredRepresentation(.02f/12.5f,Sample(probe,fields,output,point));
-        using(var membership=fields.Scratch.MapScope<uint>(48*4,1,RHIBufferMapAccess.Read))Assert.Equal(0u,membership.Span[0]);
+        using(var membership=fields.Scratch.MapScope<uint>(48*4,1,BufferMapAccess.Read))Assert.Equal(0u,membership.Span[0]);
         // Move the layer to disjoint support, ensuring old cells are cleared as new ones fill.
         data[column+2]=2;data[column+3]=2+1f/50;map.UploadDataImmediate(data);
         input=input with{Frame=6,Generation=5,Upload=5};
@@ -72,7 +72,7 @@ public sealed class CloudVolumeDensityTests(HeadlessGLFixture fixture):LumOnShad
         Assert.Equal(0,Sample(probe,fields,output,point));
         AssertStoredRepresentation(.02f/12.5f,Sample(probe,fields,output,point+new Vector3(0,100,0)));
         Assert.InRange(fields.DensityState.Changed,1,fields.DensityState.Selected);
-        using(var membership=fields.Scratch.MapScope<uint>(48*4,1,RHIBufferMapAccess.Read))Assert.Equal(1u,membership.Span[0]);
+        using(var membership=fields.Scratch.MapScope<uint>(48*4,1,BufferMapAccess.Read))Assert.Equal(1u,membership.Span[0]);
         // Recenter an already-empty field: changed transport coverage still dirties lighting,
         // and entering/guard occupancy must repair even when no generated texel changes.
         Array.Clear(data);
@@ -81,19 +81,19 @@ public sealed class CloudVolumeDensityTests(HeadlessGLFixture fixture):LumOnShad
         data[column]=1e-10f;data[column+3]=1f/50;
         map.UploadDataImmediate(data);input=input with{Frame=7,Generation=6,Upload=6};
         Assert.True(density.Update(storage,input,map,encoding,Vector3.One,()=>true),density.Failure);
-        using(var dirty=fields.Scratch.MapScope<uint>(6*4,1,RHIBufferMapAccess.Write))dirty.Span[0]=0;
-        using(var membership=fields.Scratch.MapScope<uint>(48*4,1,RHIBufferMapAccess.Write))membership.Span[0]=0;
+        using(var dirty=fields.Scratch.MapScope<uint>(6*4,1,BufferMapAccess.Write))dirty.Span[0]=0;
+        using(var membership=fields.Scratch.MapScope<uint>(48*4,1,BufferMapAccess.Write))membership.Span[0]=0;
         data[column]=2e-10f;map.UploadDataImmediate(data);input=input with{Frame=8,Generation=7,Upload=7};
         Assert.True(density.Update(storage,input,map,encoding,Vector3.One,()=>true),density.Failure);
         Assert.True(fields.DensityState.Selected>0);Assert.Equal(0,fields.DensityState.Changed);
-        using(var dirty=fields.Scratch.MapScope<uint>(6*4,1,RHIBufferMapAccess.Read))Assert.Equal(0u,dirty.Span[0]);
+        using(var dirty=fields.Scratch.MapScope<uint>(6*4,1,BufferMapAccess.Read))Assert.Equal(0u,dirty.Span[0]);
         input=input with{Frame=9,Placement=input.Placement with{CenterX=1}};
         Assert.True(density.Update(storage,input,map,encoding,Vector3.One,()=>true),density.Failure);
         Assert.Equal(0,fields.DensityState.Changed);Assert.False(fields.DensityState.LayoutChanged);
-        using(var dirty=fields.Scratch.MapScope<uint>(6*4,1,RHIBufferMapAccess.Read))Assert.Equal(1u,dirty.Span[0]);
-        using(var occupied=fields.Occupancy.MapScope<uint>(0,fields.Domain.Blocks,RHIBufferMapAccess.Read))
+        using(var dirty=fields.Scratch.MapScope<uint>(6*4,1,BufferMapAccess.Read))Assert.Equal(1u,dirty.Span[0]);
+        using(var occupied=fields.Occupancy.MapScope<uint>(0,fields.Domain.Blocks,BufferMapAccess.Read))
             Assert.All(occupied.Span.ToArray(),value=>Assert.Equal(4u,value));
-        using(var membership=fields.Scratch.MapScope<uint>(48*4,1,RHIBufferMapAccess.Read))Assert.Equal(0u,membership.Span[0]);
+        using(var membership=fields.Scratch.MapScope<uint>(48*4,1,BufferMapAccess.Read))Assert.Equal(0u,membership.Span[0]);
         var retained=fields.Density;Assert.True(retained.IsValid);
         data[column]=-1;map.UploadDataImmediate(data);input=input with{Frame=10,Generation=8,Upload=8};
         Assert.False(density.Update(storage,input,map,encoding,Vector3.One,()=>true));
@@ -107,7 +107,7 @@ public sealed class CloudVolumeDensityTests(HeadlessGLFixture fixture):LumOnShad
         EnsureShaderTestAvailable();
         using var storage=new VolumeStorage(()=>CloudVolumeMaintenanceProgram.Create(Programs.Api),()=>CloudVolumeCopyProgram.Create(Programs.Api));
         using var density=new CloudVolumeDensity((op,shared)=>CloudVolumeDensityProgram.Create(Programs.Api,op,true,shared));
-        using var map=RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba32f, Width = System.Math.Max(1, 50), Height = System.Math.Max(1, 50), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
+        using var map=RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba32f, Width = System.Math.Max(1, 50), Height = System.Math.Max(1, 50), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         var data=new float[50*50*4];int column=(25*50+25)*4;
         data[column]=.5f;data[column+2]=-2;data[column+3]=2;map.UploadDataImmediate(data);
         var input=Input(map);var encoding=new CloudVolumeEncoding(new Vector3(100));
@@ -124,7 +124,7 @@ public sealed class CloudVolumeDensityTests(HeadlessGLFixture fixture):LumOnShad
         Assert.True(density.Update(storage,input,map,encoding,Vector3.One,()=>true),density.Failure);
         var initial=storage.Published;Assert.Equal(frozen,initial.DensityState.SnapshotFrame);
         using var probe=CloudVolumeProbeProgram.Create(Programs.Api);
-        using var output=RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = null }).RequireResource();output.UploadData(new Vector4[2]);
+        using var output=RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = null }).RequireResource();output.UploadData(new Vector4[2]);
         var point=new Vector3((float)(.5*CloudVolumeDomain.HorizontalCell-initial.Domain.AnchorX),6.25f,
             (float)(.5*CloudVolumeDomain.HorizontalCell-initial.Domain.AnchorZ));
         // The shaping contract is bounded0..1.15; this checks declared math, not visual approximation quality.
@@ -160,8 +160,8 @@ public sealed class CloudVolumeDensityTests(HeadlessGLFixture fixture):LumOnShad
     private static float Sample(CloudVolumeProbeProgram probe,CloudVolumeFields fields,GpuShaderStorageBuffer output,Vector3 point)
     {
         probe.Capture(fields,point);probe.Density=fields.Density;probe.Direct=fields.Direct;probe.Diffuse=fields.Diffuse;probe.Result=output;
-        probe.Dispatch(1);RHICommandContext.Current.Barrier(new(RHIAccess.BufferUpdate|RHIAccess.ShaderStorage));
-        using var read=output.MapScope<Vector4>(0,2,RHIBufferMapAccess.Read);return read.Span[0].X;
+        probe.Dispatch(1);RHICommandContext.Current.Barrier(new(ResourceAccess.BufferUpdate|ResourceAccess.ShaderStorage));
+        using var read=output.MapScope<Vector4>(0,2,BufferMapAccess.Read);return read.Span[0].X;
     }
     #endregion
 }

@@ -27,7 +27,7 @@ public sealed class ShaderUniformStateTests(HeadlessGLFixture fixture) : RenderT
         using var a = first!;
         using var b = second!;
         using var c = replacement!;
-        using var output = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba32f, Width = System.Math.Max(1, 1), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
+        using var output = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba32f, Width = System.Math.Max(1, 1), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         using var inputs = new UniformStateBuffer { Scalar = 7, Values = [2, 3], Vector = Vector3.Zero, Transform = Matrix4x4.Identity };
         Assert.True(GpuUniformRingSystem.TryGetCurrent(out var ring));
 #if DEBUG
@@ -43,7 +43,7 @@ public sealed class ShaderUniformStateTests(HeadlessGLFixture fixture) : RenderT
                 output.BindImageUnit(0, TextureAccess.WriteOnly);
                 pipeline.Dispatch(1);
             }
-            RHICommandContext.Current.Barrier(new(RHIAccess.Image | RHIAccess.Framebuffer));
+            RHICommandContext.Current.Barrier(new(ResourceAccess.Image | ResourceAccess.Framebuffer));
             Assert.Equal(ReferenceEquals(pipeline, b) ? new float[] { 8, 6, 1, 2 } : new float[] { 7, 5, 0, 1 }, output.ReadPixels());
         }
 #if DEBUG
@@ -60,7 +60,7 @@ public sealed class ShaderUniformStateTests(HeadlessGLFixture fixture) : RenderT
         Assert.True(GpuComputePipeline.TryLoadFromSpirv(path, new ShaderSettings(UniformStateComputeShader.Contract),
             out var pipeline, out string log), log);
         using var shader = new UniformStateComputeShader(pipeline!);
-        using var output = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba32f, Width = System.Math.Max(1, 1), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
+        using var output = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba32f, Width = System.Math.Max(1, 1), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         Assert.True(GpuUniformRingSystem.TryGetCurrent(out var ring));
 #if DEBUG
         long allocations = ring.AllocationsWritten;
@@ -75,11 +75,11 @@ public sealed class ShaderUniformStateTests(HeadlessGLFixture fixture) : RenderT
 #endif
         shader.Output = new(output, TextureAccess.WriteOnly);
         shader.Dispatch(1);
-        RHICommandContext.Current.Barrier(new(RHIAccess.Image | RHIAccess.Framebuffer));
+        RHICommandContext.Current.Barrier(new(ResourceAccess.Image | ResourceAccess.Framebuffer));
         Assert.Equal(new float[] { 0, 5, 0, 0 }, output.ReadPixels());
         shader.Dispatch(1);
         // Order repeated writes to the same image before submitting changed values.
-        RHICommandContext.Current.Barrier(new(RHIAccess.Image));
+        RHICommandContext.Current.Barrier(new(ResourceAccess.Image));
 #if DEBUG
         Assert.Equal(1, ring.AllocationsWritten - allocations);
 #endif
@@ -99,7 +99,7 @@ public sealed class ShaderUniformStateTests(HeadlessGLFixture fixture) : RenderT
 #if DEBUG
         Assert.Equal(2, ring.AllocationsWritten - allocations);
 #endif
-        RHICommandContext.Current.Barrier(new(RHIAccess.Image | RHIAccess.Framebuffer));
+        RHICommandContext.Current.Barrier(new(ResourceAccess.Image | ResourceAccess.Framebuffer));
         Assert.Equal(new float[] { 7, 10, 8, 9 }, output.ReadPixels());
 #if DEBUG
         Assert.Equal(2, ring.AllocationsWritten - allocations);

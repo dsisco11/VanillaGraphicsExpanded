@@ -1,7 +1,7 @@
 namespace VanillaGraphicsExpanded.Rendering.RHI;
 
 /// <summary>Names image representations independently of native API token values.</summary>
-public enum RHIFormat
+public enum TextureFormat
 {
     Undefined,
     /// <summary>Selects CompressedRed storage.</summary>

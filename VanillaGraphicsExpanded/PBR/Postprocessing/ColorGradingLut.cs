@@ -37,13 +37,13 @@ internal sealed class ColorGradingLut : IDisposable
         if(!generator.EnsureReady()) throw new InvalidOperationException(generator.PreparationLog);
         if(key==controls&&completed is { IsValid:true }) return completed;
         inputs??=new(); inputs.Capture(controls);
-        spare??=RHICommandContext.Current.CreateDynamicTexture3D(new RHITextureDescription { Dimension = RHITextureDimension.Three, Format = RHIFormat.Rgba16f, Width = System.Math.Max(1, Size), Height = System.Math.Max(1, Size), Depth = System.Math.Max(1, Size), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Linear, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
-        spare.SetTexWrap(RHISamplerAddress.ClampToEdge,RHISamplerAddress.ClampToEdge,RHISamplerAddress.ClampToEdge);
+        spare??=RHICommandContext.Current.CreateDynamicTexture3D(new RHITextureDescription { Dimension = TextureDimension.Three, Format = TextureFormat.Rgba16f, Width = System.Math.Max(1, Size), Height = System.Math.Max(1, Size), Depth = System.Math.Max(1, Size), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Linear, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
+        spare.SetTexWrap(SamplerAddressMode.ClampToEdge,SamplerAddressMode.ClampToEdge,SamplerAddressMode.ClampToEdge);
         generator.GradingInputs=inputs;
         generator.GradedOutput=new(spare,TextureAccess.WriteOnly,Layered:true,Format:SizedInternalFormat.Rgba16f);
         generator.Dispatch(Size/4,Size/4,Size/4);
         // The following final draw is ordered after generation; no fence polling or CPU readback is needed.
-        RHICommandContext.Current.Barrier(new(RHIAccess.Image|RHIAccess.TextureFetch));
+        RHICommandContext.Current.Barrier(new(ResourceAccess.Image|ResourceAccess.TextureFetch));
         (completed,spare)=(spare,completed); key=controls; Generation++;
         return completed;
     }

@@ -21,13 +21,13 @@ internal static class CloudStoredVolumeDiagnostics
         long now=Stopwatch.GetTimestamp();
         if(source is not null&&source.TryGetTarget(out var prior)&&ReferenceEquals(prior,solution)&&now-lastRead<Stopwatch.Frequency)return;
         var fields=solution.Storage.Published;var d=fields.Domain;
-        RHICommandContext.Current.Barrier(new(RHIAccess.ShaderStorage|RHIAccess.BufferUpdate));
-        using var header=fields.Scratch.MapScope<uint>(0,52,RHIBufferMapAccess.Read);
+        RHICommandContext.Current.Barrier(new(ResourceAccess.ShaderStorage|ResourceAccess.BufferUpdate));
+        using var header=fields.Scratch.MapScope<uint>(0,52,BufferMapAccess.Read);
         uint pendingAge=0,completedAge=0,fallback=0,directCompleted=0,diffuseCompleted=0;
         long occupiedOrigins=0,eligibleDirect=0,eligibleDiffuse=0;int unknownBlocks=0;
         var rays=solution.WorkStatistics;
-        using var support=fields.Occupancy.MapScope<uint>(0,d.Blocks,RHIBufferMapAccess.Read);
-        using(var regions=fields.Regions.MapScope<uint>(0,d.Blocks*16,RHIBufferMapAccess.Read))
+        using var support=fields.Occupancy.MapScope<uint>(0,d.Blocks,BufferMapAccess.Read);
+        using(var regions=fields.Regions.MapScope<uint>(0,d.Blocks*16,BufferMapAccess.Read))
             for(int b=0;b<regions.Span.Length;b+=16)
             {
                 var r=regions.Span.Slice(b,16);

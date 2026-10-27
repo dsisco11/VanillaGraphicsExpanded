@@ -4,7 +4,7 @@ using VanillaGraphicsExpanded.Rendering.Pipeline.Passes;
 
 namespace VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 
-/// <summary>Retains explicit output-zero declarations for mutable shader diagnostic targets.</summary>
+/// <summary>Retains output-zero image intentions for repeated component draws.</summary>
 internal static class PostprocessTestPasses
 {
     private static readonly ConditionalWeakTable<GpuFramebuffer, RenderPassDesc> passes = new();

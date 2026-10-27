@@ -29,7 +29,7 @@ internal sealed partial class OpenGLBackend
             if (bytes <= 0) throw new ArgumentOutOfRangeException(nameof(description));
         }
         var staging = CreateBuffer(new RHIBufferDescription
-        { Role = RHIBufferRole.PixelPack, Mode = RHIStorageMode.Mutable, Capacity = bytes, Usage = RHIBufferUsage.StreamRead }, default).RequireResource();
+        { Role = BufferRole.PixelPack, Mode = ResourceStorageMode.Mutable, Capacity = bytes, Usage = BufferUsage.StreamRead }, default).RequireResource();
         GpuFence? fence = null;
         try
         {

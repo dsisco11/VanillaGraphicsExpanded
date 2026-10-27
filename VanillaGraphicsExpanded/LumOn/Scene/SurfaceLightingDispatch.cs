@@ -18,7 +18,7 @@ internal sealed class SurfaceLightingDispatch : IDisposable
 
     private readonly PackedUniformBuffer parameters = new(144);
     private readonly byte[] bytes = new byte[144];
-    private readonly GpuShaderStorageBuffer disabledFallback = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = "SurfaceLighting.DisabledFallback" }).RequireResource();
+    private readonly GpuShaderStorageBuffer disabledFallback = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = "SurfaceLighting.DisabledFallback" }).RequireResource();
     public SurfaceWorkDiagnostics Diagnostics { get; } = new();
     /// <summary>Supplies isolated frame calibration for fixture submission; runtime uses the shared world publication.</summary>
     internal VgeFrameUniformBuffer FrameInputs { set => pipeline.FrameInputs = value; }
@@ -80,8 +80,8 @@ internal sealed class SurfaceLightingDispatch : IDisposable
             pipeline.NextOutgoing = new(destination, TextureAccess.WriteOnly, Layered: true, Format: SizedInternalFormat.Rgba16f);
             pipeline.DiagnosticCounters = Diagnostics.ActiveBuffer;
             pipeline.Dispatch((input.TileSize + 7) / 8, (input.TileSize + 7) / 8, count);
-            RHICommandContext.Current.Barrier(new(RHIAccess.Image | RHIAccess.TextureFetch |
-                RHIAccess.ShaderStorage | RHIAccess.BufferUpdate | RHIAccess.TextureUpdate));
+            RHICommandContext.Current.Barrier(new(ResourceAccess.Image | ResourceAccess.TextureFetch |
+                ResourceAccess.ShaderStorage | ResourceAccess.BufferUpdate | ResourceAccess.TextureUpdate));
         }
         finally { Diagnostics.End(); }
     }

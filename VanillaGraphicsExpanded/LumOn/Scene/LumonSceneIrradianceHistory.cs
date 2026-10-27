@@ -42,7 +42,7 @@ internal sealed class LumonSceneIrradianceHistory : IDisposable
         }
         reset.irradianceAtlas = new(atlas, TextureAccess.WriteOnly, Layered: true, Format: SizedInternalFormat.Rgba16f);
         reset.Dispatch((atlas.Width + 7) / 8, (atlas.Height + 7) / 8, atlas.Depth);
-        RHICommandContext.Current.Barrier(new(RHIAccess.Image | RHIAccess.TextureFetch));
+        RHICommandContext.Current.Barrier(new(ResourceAccess.Image | ResourceAccess.TextureFetch));
         previousScene = scene;
         previousAtlas = atlas;
         Revision++;

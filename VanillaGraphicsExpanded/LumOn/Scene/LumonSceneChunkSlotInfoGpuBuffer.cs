@@ -36,7 +36,7 @@ internal sealed class LumonSceneChunkSlotInfoGpuBuffer : IDisposable
             return;
         }
 
-        ssbo = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = $"LumOn.LumonScene.{field}.ChunkSlotInfo(SSBO)" }).RequireResource();
+        ssbo = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = $"LumOn.LumonScene.{field}.ChunkSlotInfo(SSBO)" }).RequireResource();
 
         int bytes = checked(capacityEntries * System.Runtime.InteropServices.Marshal.SizeOf<LumonSceneChunkSlotInfoGpu>());
         ssbo.EnsureCapacity(bytes, growExponentially: false);

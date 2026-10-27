@@ -24,7 +24,7 @@ public sealed class CloudVolumeTraversalTests(HeadlessGLFixture fixture,Xunit.IT
         while(!storage.InitializeNext(()=>true)){}
         Assert.True(storage.PublishPending(()=>true,()=>true));var fields=storage.Published;
         using var probe=CloudVolumeTraversalProbeProgram.Create(Programs.Api);
-        using var output=RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = null }).RequireResource();output.UploadData(new Vector4[3]);
+        using var output=RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = null }).RequireResource();output.UploadData(new Vector4[3]);
         var values=new float[domain.Voxels];Array.Fill(values,1);fields.Density.UploadDataImmediate(values,0,0,0,domain.Size,66,domain.Size);
         var occupied=new uint[domain.Blocks];Array.Fill(occupied,1u);fields.Occupancy.UploadData(occupied);
         var cases=new[]{(new Vector3(0,0,125),Vector3.UnitX,250f),(new Vector3(250,0,125),-Vector3.UnitX,250f),
@@ -122,8 +122,8 @@ public sealed class CloudVolumeTraversalTests(HeadlessGLFixture fixture,Xunit.IT
     {
         probe.Capture(fields.Domain,origin,direction,distance,limit);probe.Density=fields.Density;
         probe.Occupancy=fields.Occupancy;probe.Result=output;probe.Dispatch(1);
-        RHICommandContext.Current.Barrier(new(RHIAccess.ShaderStorage|RHIAccess.BufferUpdate));
-        using var read=output.MapScope<Vector4>(0,3,RHIBufferMapAccess.Read);return read.Span.ToArray();
+        RHICommandContext.Current.Barrier(new(ResourceAccess.ShaderStorage|ResourceAccess.BufferUpdate));
+        using var read=output.MapScope<Vector4>(0,3,BufferMapAccess.Read);return read.Span.ToArray();
     }
     #endregion
 }

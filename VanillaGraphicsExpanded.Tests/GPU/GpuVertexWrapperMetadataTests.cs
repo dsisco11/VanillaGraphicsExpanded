@@ -23,8 +23,8 @@ public sealed class GpuVertexWrapperMetadataTests(HeadlessGLFixture fixture)
         try
         {
             using var sentinel=GpuVao.Create(); sentinel.Bind();
-            using var arraySentinel=RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = null }).RequireResource(); arraySentinel.Allocate(64);
-            using var buffer=RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = null }).RequireResource(); buffer.Allocate(128);
+            using var arraySentinel=RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = null }).RequireResource(); arraySentinel.Allocate(64);
+            using var buffer=RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = null }).RequireResource(); buffer.Allocate(128);
             OpenGLBufferBindings.BindBuffer(StateCache.Current, BufferTarget.ArrayBuffer,arraySentinel.BufferId);
             using var capabilities=new DirectStateAccessCapabilityScope(direct);
             using var vao=GpuVao.Create();
@@ -62,7 +62,7 @@ public sealed class GpuVertexWrapperMetadataTests(HeadlessGLFixture fixture)
         try
         {
             using var vao=GpuVao.Create(); vao.Bind();
-            using var buffer=RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = null }).RequireResource(); buffer.Allocate(64);
+            using var buffer=RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = null }).RequireResource(); buffer.Allocate(64);
             var cache=StateCache.Current;
             var entry=GpuResourceManagerSystem.CurrentManager!.GetResourceRegistration(vao)!;
             ulong before=entry.MetadataRevision;

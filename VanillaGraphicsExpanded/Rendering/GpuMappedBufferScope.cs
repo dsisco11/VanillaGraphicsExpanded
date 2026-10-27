@@ -32,12 +32,12 @@ public struct GpuMappedBufferScope<T> : IDisposable where T : unmanaged
     public Span<T> Span => range.Span;
 
     /// <summary>
-    /// Flushes the mapped range if the mapping was created with <see cref="RHIBufferMapAccess.ExplicitFlush"/>.
+    /// Flushes the mapped range if the mapping was created with <see cref="BufferMapAccess.ExplicitFlush"/>.
     /// </summary>
     public void Flush() => range.Flush();
 
     /// <summary>
-    /// Flushes a subrange of the mapped range if the mapping was created with <see cref="RHIBufferMapAccess.ExplicitFlush"/>.
+    /// Flushes a subrange of the mapped range if the mapping was created with <see cref="BufferMapAccess.ExplicitFlush"/>.
     /// </summary>
     public void Flush(int relativeOffsetBytes, int byteCount) => range.Flush(relativeOffsetBytes, byteCount);
 

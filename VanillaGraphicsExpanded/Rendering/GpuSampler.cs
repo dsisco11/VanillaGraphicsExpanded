@@ -103,14 +103,14 @@ public sealed class GpuSampler : GpuResource<GpuSamplerMetadata>, IDisposable
     }
 
     /// <summary>Applies owner-selected minification and magnification through the semantic backend.</summary>
-    public void SetFilter(RHISamplerFilter minFilter, RHISamplerFilter magFilter)
+    public void SetFilter(SamplerFilter minFilter, SamplerFilter magFilter)
     {
         if (!IsValid) return;
         RHICommandContext.Current.ConfigureSampler(this, new RHISamplerDescription { MinFilter = minFilter, MagFilter = magFilter });
     }
 
     /// <summary>Applies only the requested wrap axes without reading sampler parameters.</summary>
-    public void SetWrap(RHISamplerAddress wrapS, RHISamplerAddress wrapT, RHISamplerAddress? wrapR = null)
+    public void SetWrap(SamplerAddressMode wrapS, SamplerAddressMode wrapT, SamplerAddressMode? wrapR = null)
     {
         if (!IsValid) return;
         var request = new RHISamplerDescription { AddressS = wrapS, AddressT = wrapT };
@@ -119,7 +119,7 @@ public sealed class GpuSampler : GpuResource<GpuSamplerMetadata>, IDisposable
     }
 
     /// <summary>Applies owner-selected shadow comparison without swallowing native dispatch failures.</summary>
-    public void SetCompare(bool enabled, RHIComparison comparison)
+    public void SetCompare(bool enabled, ComparisonFunction comparison)
     {
         if (!IsValid) return;
         RHICommandContext.Current.ConfigureSampler(this, new RHISamplerDescription { Compare = enabled, Comparison = comparison });

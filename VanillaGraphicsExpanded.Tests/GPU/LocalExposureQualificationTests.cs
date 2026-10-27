@@ -30,7 +30,7 @@ public sealed class LocalExposureQualificationTests(HeadlessGLFixture fixture, I
         using var owner = new LocalExposureRenderer(); owner.FrameLightingInputs = lighting.Buffer;
         using var grading = new ColorGradingLut(); Vector4 controls = new(1, 1, 1, 0);
         var lookup = grading.Prepare(Programs.Api, controls);
-        using var history = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = null }).RequireResource();
+        using var history = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = null }).RequireResource();
         using var zero = Scene([Vector3.Zero], 1, 1, scale);
         using var camera = TestFrameCamera.CreateIdentity(width, height);
         using var target = TestFramework.CreateTestGBuffer(width, height, PixelInternalFormat.Rgba32f);
@@ -97,7 +97,7 @@ public sealed class LocalExposureQualificationTests(HeadlessGLFixture fixture, I
             MakeScene("window-edge", width, height, false).SelectMany(c => new[] { c.X, c.Y, c.Z, 1f }).ToArray());
         using var zero = Scene([Vector3.Zero], 1, 1);
         using var grading = new ColorGradingLut(); var lookup = grading.Prepare(Programs.Api, new(1, 1, 1, 0));
-        using var history = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = null }).RequireResource(); history.UploadData(new[] { 6f, 0f, -12f, 1f, 10f, 1f, 0f, 0f });
+        using var history = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = null }).RequireResource(); history.UploadData(new[] { 6f, 0f, -12f, 1f, 10f, 1f, 0f, 0f });
         using var camera = TestFrameCamera.CreateIdentity(width, height);
         using var target = TestFramework.CreateTestGBuffer(width, height, PixelInternalFormat.Rgba16f);
         using var draw = new PostprocessDraw(); var policy = Candidate(256, 144);
@@ -125,8 +125,8 @@ public sealed class LocalExposureQualificationTests(HeadlessGLFixture fixture, I
         reduce.LogOutput = new(owner.Logarithms, TextureAccess.WriteOnly, Format: SizedInternalFormat.Rg32f);
         filter.Inputs = inputs; filter.LogImage = owner.Logarithms;
         filter.BaseOutput = new(spatial, TextureAccess.WriteOnly, Format: SizedInternalFormat.Rg32f);
-        Action reduceOnly = () => { reduce.Dispatch(32, 18); RHICommandContext.Current.Barrier(new(RHIAccess.Image | RHIAccess.TextureFetch)); };
-        Action filterOnly = () => { filter.Dispatch(32, 18); RHICommandContext.Current.Barrier(new(RHIAccess.Image | RHIAccess.TextureFetch)); };
+        Action reduceOnly = () => { reduce.Dispatch(32, 18); RHICommandContext.Current.Barrier(new(ResourceAccess.Image | ResourceAccess.TextureFetch)); };
+        Action filterOnly = () => { filter.Dispatch(32, 18); RHICommandContext.Current.Barrier(new(ResourceAccess.Image | ResourceAccess.TextureFetch)); };
         for (int i = 0; i < 3; i++) { global(); local(); } GL.Finish();
         var globalTimes = new List<(double Gpu, double Cpu)>(); var localTimes = new List<(double Gpu, double Cpu)>();
         for (int i = 0; i < 10; i++)

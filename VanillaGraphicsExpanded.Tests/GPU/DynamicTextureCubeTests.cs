@@ -20,7 +20,7 @@ public sealed class DynamicTextureCubeTests(HeadlessGLFixture fixture) : RenderT
     public void ColorFacesAndMipsAreIndependent(PixelInternalFormat format)
     {
         EnsureContextValid();
-        using var cube = RHICommandContext.Current.CreateTextureCube(new RHITextureDescription { Dimension = RHITextureDimension.Cube, Format = VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Format((OpenTK.Graphics.OpenGL.PixelInternalFormat)(format)), Width = 3, Height = 3, MipLevels = 2, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Linear, BaseLevel = 0, MaxLevel = (2) - 1, Label = "Test.ColorCube" }).RequireResource();
+        using var cube = RHICommandContext.Current.CreateTextureCube(new RHITextureDescription { Dimension = TextureDimension.Cube, Format = VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Format((OpenTK.Graphics.OpenGL.PixelInternalFormat)(format)), Width = 3, Height = 3, MipLevels = 2, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Linear, BaseLevel = 0, MaxLevel = (2) - 1, Label = "Test.ColorCube" }).RequireResource();
         Assert.Equal(TextureTarget.TextureCubeMap, cube.TextureTarget);
         Assert.Equal(format, cube.InternalFormat); Assert.Equal(2, cube.MipLevels);
         Assert.Equal(TextureFilterMode.Linear, cube.FilterMode); Assert.Equal("Test.ColorCube", cube.DebugName);
@@ -49,7 +49,7 @@ public sealed class DynamicTextureCubeTests(HeadlessGLFixture fixture) : RenderT
     public void IntegerCubeUsesNearestFiltering()
     {
         EnsureContextValid();
-        using var cube = RHICommandContext.Current.CreateTextureCube(new RHITextureDescription { Dimension = RHITextureDimension.Cube, Format = RHIFormat.R32ui, Width = 2, Height = 2, MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
+        using var cube = RHICommandContext.Current.CreateTextureCube(new RHITextureDescription { Dimension = TextureDimension.Cube, Format = TextureFormat.R32ui, Width = 2, Height = 2, MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         using var image = GpuFramebufferAttachment.FromTexture(cube, cubeFace: TextureTarget.TextureCubeMapPositiveX);
         using var target = DynamicGpuFramebuffer.Create([image]);
         using var binding = StateCache.Current.BindFramebufferScope();
@@ -69,12 +69,12 @@ public sealed class DynamicTextureCubeTests(HeadlessGLFixture fixture) : RenderT
     public void InvalidDescriptorsAndCollectionRetirementPreserveOwnership()
     {
         EnsureContextValid();
-        Assert.Throws<ArgumentOutOfRangeException>(() => RHICommandContext.Current.CreateTextureCube(new RHITextureDescription { Dimension = RHITextureDimension.Cube, Format = RHIFormat.Rgba8, Width = 0, Height = 0, MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource());
-        Assert.Throws<ArgumentOutOfRangeException>(() => RHICommandContext.Current.CreateTextureCube(new RHITextureDescription { Dimension = RHITextureDimension.Cube, Format = RHIFormat.Rgba8, Width = 3, Height = 3, MipLevels = 3, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (3) - 1, Label = null }).RequireResource());
-        Assert.Throws<ArgumentException>(() => RHICommandContext.Current.CreateTextureCube(new RHITextureDescription { Dimension = RHITextureDimension.Cube, Format = RHIFormat.DepthComponent32f, Width = 2, Height = 2, MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource());
-        Assert.Throws<ArgumentException>(() => RHICommandContext.Current.CreateTextureCube(new RHITextureDescription { Dimension = RHITextureDimension.Cube, Format = RHIFormat.R32ui, Width = 2, Height = 2, MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Linear, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource());
+        Assert.Throws<ArgumentOutOfRangeException>(() => RHICommandContext.Current.CreateTextureCube(new RHITextureDescription { Dimension = TextureDimension.Cube, Format = TextureFormat.Rgba8, Width = 0, Height = 0, MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource());
+        Assert.Throws<ArgumentOutOfRangeException>(() => RHICommandContext.Current.CreateTextureCube(new RHITextureDescription { Dimension = TextureDimension.Cube, Format = TextureFormat.Rgba8, Width = 3, Height = 3, MipLevels = 3, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (3) - 1, Label = null }).RequireResource());
+        Assert.Throws<ArgumentException>(() => RHICommandContext.Current.CreateTextureCube(new RHITextureDescription { Dimension = TextureDimension.Cube, Format = TextureFormat.DepthComponent32f, Width = 2, Height = 2, MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource());
+        Assert.Throws<ArgumentException>(() => RHICommandContext.Current.CreateTextureCube(new RHITextureDescription { Dimension = TextureDimension.Cube, Format = TextureFormat.R32ui, Width = 2, Height = 2, MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Linear, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource());
         using var resources = new GpuResourceCollection();
-        var cube = resources.Own(RHICommandContext.Current.CreateTextureCube(new RHITextureDescription { Dimension = RHITextureDimension.Cube, Format = RHIFormat.Rgba8, Width = 2, Height = 2, MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource());
+        var cube = resources.Own(RHICommandContext.Current.CreateTextureCube(new RHITextureDescription { Dimension = TextureDimension.Cube, Format = TextureFormat.Rgba8, Width = 2, Height = 2, MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource());
         int id = cube.TextureId;
         Assert.True(GL.IsTexture(id)); resources.Dispose();
         Assert.False(cube.IsValid); Assert.False(GL.IsTexture(id));

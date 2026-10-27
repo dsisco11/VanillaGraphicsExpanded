@@ -56,20 +56,20 @@ internal static class SurfaceCacheReadinessReadback
         foreach (var region in regions)
             count = checked(count + checked((int)((long)region.Width * region.Height << 2)));
         using var staging = RHICommandContext.Current.CreatePixelPackBuffer(new RHIBufferDescription
-        { Role = RHIBufferRole.PixelPack, Mode = RHIStorageMode.Mutable, Capacity = checked(count * sizeof(float)), Usage = RHIBufferUsage.StreamRead }).RequireResource();
+        { Role = BufferRole.PixelPack, Mode = ResourceStorageMode.Mutable, Capacity = checked(count * sizeof(float)), Usage = BufferUsage.StreamRead }).RequireResource();
         int offsetBytes = 0;
         // Preserve one shared staging allocation and completion marker across all requested runs.
         foreach (var region in regions)
         {
             RHICommandContext.Current.TransferTextureToBuffer(texture, new(staging, offsetBytes,
                 new(new(0, region.Layer), region.X, region.Y, 0, region.Width, region.Height, 1),
-                new(RHIPixelChannels.Rgba, RHIPixelType.Float)));
+                new(PixelChannelLayout.Rgba, PixelComponentType.Float)));
             offsetBytes = checked(offsetBytes + checked(region.Width * region.Height * 4 * sizeof(float)));
         }
         using var fence = RHICommandContext.Current.InsertFence();
-        if (RHICommandContext.Current.WaitCpu(fence, TimeSpan.FromSeconds(60)) != RHICompletionStatus.Ready)
+        if (RHICommandContext.Current.WaitCpu(fence, TimeSpan.FromSeconds(60)) != CompletionStatus.Ready)
             throw new InvalidOperationException("Readiness observation did not complete.");
-        using var mapped = staging.MapRange<float>(0, count, RHIBufferMapAccess.Read);
+        using var mapped = staging.MapRange<float>(0, count, BufferMapAccess.Read);
         if (!mapped.IsMapped) throw new InvalidOperationException("Unable to map requested Surface Cache texels.");
         return IsFullyInitialized(mapped.Span);
     }

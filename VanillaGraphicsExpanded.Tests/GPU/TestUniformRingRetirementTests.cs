@@ -38,7 +38,7 @@ public sealed class TestUniformRingRetirementTests(HeadlessGLFixture fixture) : 
 
             // Allocate every output before submission so resource creation cannot retire intervening work.
             for (int i = 0; i < outputs.Length; i++)
-                outputs[i] = RHICommandContext.Current.CreateTexture3D(new RHITextureDescription { Dimension = RHITextureDimension.Three, Format = RHIFormat.Rgba32ui, Width = System.Math.Max(1, 1), Height = System.Math.Max(1, 1), Depth = System.Math.Max(1, 1), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "Tests.Retirement." + i }).RequireResource();
+                outputs[i] = RHICommandContext.Current.CreateTexture3D(new RHITextureDescription { Dimension = TextureDimension.Three, Format = TextureFormat.Rgba32ui, Width = System.Math.Max(1, 1), Height = System.Math.Max(1, 1), Depth = System.Math.Max(1, 1), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "Tests.Retirement." + i }).RequireResource();
             GpuUniformBuffer? originalBuffer = null;
             byte[] bytes = new byte[16];
             for (int i = 0; i < outputs.Length; i++)

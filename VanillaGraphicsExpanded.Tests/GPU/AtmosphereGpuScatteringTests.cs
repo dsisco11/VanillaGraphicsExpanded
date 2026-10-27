@@ -39,9 +39,9 @@ public sealed class AtmosphereGpuScatteringTests(HeadlessGLFixture fixture) : Re
         using var assets = new BinaryShaderApiFixture();
         Assert.True(GpuComputePipeline.TryCreateFromAssets(assets.Api, new ShaderSettings(AtmosphereComputePrograms.Scattering), out var program, out string log), log);
         using var ownedProgram = program!;
-        using var parameters = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = null }).RequireResource();
+        using var parameters = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = null }).RequireResource();
         parameters.EnsureCapacity(64, growExponentially: false);
-        using var source = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = null }).RequireResource();
+        using var source = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = null }).RequireResource();
         var budget = AtmosphereScatteringBudget.FromQuality(quality);
         source.EnsureCapacity(budget.Width * budget.Height * 16, growExponentially: false);
         // The ground-level cells on either side of the horizon qualify the visibility
@@ -55,10 +55,10 @@ public sealed class AtmosphereGpuScatteringTests(HeadlessGLFixture fixture) : Re
             try
             {
                 ownedProgram.Dispatch(1);
-                RHICommandContext.Current.Barrier(new(RHIAccess.BufferUpdate));
+                RHICommandContext.Current.Barrier(new(ResourceAccess.BufferUpdate));
                 using var fence = RHICommandContext.Current.InsertFence();
-                Assert.Contains(RHICommandContext.Current.WaitCpu(fence, TimeSpan.FromSeconds(5)), new[] { RHICompletionStatus.Ready, RHICompletionStatus.Ready });
-                using var mapped = source.MapRange<Vector4>(cell * 16, 1, RHIBufferMapAccess.Read);
+                Assert.Contains(RHICommandContext.Current.WaitCpu(fence, TimeSpan.FromSeconds(5)), new[] { CompletionStatus.Ready, CompletionStatus.Ready });
+                using var mapped = source.MapRange<Vector4>(cell * 16, 1, BufferMapAccess.Read);
                 Assert.True(mapped.IsMapped);
                 Vector3 expected = Reference(cell, budget, groundAlbedo);
                 Vector4 actual = mapped.Span[0];

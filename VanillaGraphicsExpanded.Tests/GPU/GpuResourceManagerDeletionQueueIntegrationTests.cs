@@ -39,7 +39,7 @@ public sealed class GpuResourceManagerDeletionQueueIntegrationTests
             {
             }
 
-            var vbo = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Vertex, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StreamDraw, Label = "VGE_Test_DisposeQueue_VBO" }).RequireResource();
+            var vbo = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StreamDraw, Label = "VGE_Test_DisposeQueue_VBO" }).RequireResource();
             int id = vbo.BufferId;
 
             Assert.True(id != 0);
@@ -135,7 +135,7 @@ public sealed class GpuResourceManagerDeletionQueueIntegrationTests
         try
         {
             manager.OnRenderFrame(0, GpuResourceManager.Stage);
-            var buffer = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Vertex, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StreamDraw, Label = null }).RequireResource();
+            var buffer = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StreamDraw, Label = null }).RequireResource();
             buffer.Bind(); buffer.Unbind(); id = buffer.BufferId;
             if (queued)
             {
@@ -147,7 +147,7 @@ public sealed class GpuResourceManagerDeletionQueueIntegrationTests
             manager.Dispose();
             // Registration changes emulate a reused namespace while keeping a live sentinel observable.
             Assert.True(GL.IsBuffer(id));
-            using (var current = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Vertex, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StreamDraw, Label = null }).RequireResource())
+            using (var current = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StreamDraw, Label = null }).RequireResource())
             {
                 current.Bind(); current.Unbind();
                 int currentId = current.BufferId;

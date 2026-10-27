@@ -508,7 +508,7 @@ internal sealed partial class LumonSceneFeedbackUpdateRenderer : IRenderer, IDis
 
         // MarkPages writes vge_pageUsageStamp via imageAtomics; CompactPages reads it via sampler fetch.
         // TextureFetchBarrierBit is required for image-write -> texture-fetch visibility.
-        RHICommandContext.Current.Barrier(new(RHIAccess.Image | RHIAccess.TextureFetch | RHIAccess.AtomicCounter));
+        RHICommandContext.Current.Barrier(new(ResourceAccess.Image | ResourceAccess.TextureFetch | ResourceAccess.AtomicCounter));
 
         // Pass B: compact stamps -> bounded request list.
         nearGpu.PageRequests.Reset();
@@ -539,7 +539,7 @@ internal sealed partial class LumonSceneFeedbackUpdateRenderer : IRenderer, IDis
             feedbackCompactShader!.Dispatch(gx, 1, 1);
         }
 
-        RHICommandContext.Current.Barrier(new(RHIAccess.ShaderStorage | RHIAccess.AtomicCounter));
+        RHICommandContext.Current.Barrier(new(ResourceAccess.ShaderStorage | ResourceAccess.AtomicCounter));
 
         // Phase 9.1: ensure DesiredState is up to date before CPU request processing.
         UpdateNearRegionScheduler(frameStamp);
@@ -552,7 +552,7 @@ internal sealed partial class LumonSceneFeedbackUpdateRenderer : IRenderer, IDis
         {
             if (DispatchVoxelCapture(captureCount))
             {
-                RHICommandContext.Current.Barrier(new(RHIAccess.Image));
+                RHICommandContext.Current.Barrier(new(ResourceAccess.Image));
                 FinalizeCaptureFlagsFromGpuQueue(captureCount);
             }
             else captureRetryVersion++;
@@ -860,7 +860,7 @@ internal sealed partial class LumonSceneFeedbackUpdateRenderer : IRenderer, IDis
         }
 
         feedbackMarkDebugCounters?.Dispose();
-        feedbackMarkDebugCounters = RHICommandContext.Current.CreateAtomicCounterBuffer(new RHIBufferDescription { Role = RHIBufferRole.AtomicCounter, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicRead, Label = "LumOn.LumonScene.Feedback.MarkCounters(ACBO)" }).RequireResource();
+        feedbackMarkDebugCounters = RHICommandContext.Current.CreateAtomicCounterBuffer(new RHIBufferDescription { Role = BufferRole.AtomicCounter, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicRead, Label = "LumOn.LumonScene.Feedback.MarkCounters(ACBO)" }).RequireResource();
         feedbackMarkDebugCounters.InitializeCounters(counterCount: FeedbackMarkDebugCounterCount, initialValue: 0u);
     }
 
@@ -912,7 +912,7 @@ internal sealed partial class LumonSceneFeedbackUpdateRenderer : IRenderer, IDis
         slotGenerations = new ushort[chunkSlotCount];
 
         slotGenerationTex?.Dispose();
-        slotGenerationTex = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.R32ui, Width = System.Math.Max(1, chunkSlotCount), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = $"LumOn.LumonScene.{LumonSceneField.Near}.ChunkSlotGeneration(R32UI)" }).RequireResource();
+        slotGenerationTex = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.R32ui, Width = System.Math.Max(1, chunkSlotCount), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = $"LumOn.LumonScene.{LumonSceneField.Near}.ChunkSlotGeneration(R32UI)" }).RequireResource();
 
         // Clear to zero once (generation starts at 0). We'll upload per-slot updates as they change.
         slotGenerationTex.UploadDataImmediate(new uint[checked(chunkSlotCount)], x: 0, y: 0, regionWidth: chunkSlotCount, regionHeight: 1);
@@ -1239,7 +1239,7 @@ internal sealed partial class LumonSceneFeedbackUpdateRenderer : IRenderer, IDis
         }
 
         pageUsageStamp?.Dispose();
-        pageUsageStamp = RHICommandContext.Current.CreateTexture3D(new RHITextureDescription { Dimension = RHITextureDimension.TwoArray, Format = RHIFormat.R32ui, Width = System.Math.Max(1, LumonSceneVirtualAtlasConstants.VirtualPageTableWidth), Height = System.Math.Max(1, LumonSceneVirtualAtlasConstants.VirtualPageTableHeight), Depth = System.Math.Max(1, Math.Max(1, nearGpu.PageTable.ChunkSlotCount)), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = $"LumOn.LumonScene.{LumonSceneField.Near}.PageUsageStamp(R32UI)" }).RequireResource();
+        pageUsageStamp = RHICommandContext.Current.CreateTexture3D(new RHITextureDescription { Dimension = TextureDimension.TwoArray, Format = TextureFormat.R32ui, Width = System.Math.Max(1, LumonSceneVirtualAtlasConstants.VirtualPageTableWidth), Height = System.Math.Max(1, LumonSceneVirtualAtlasConstants.VirtualPageTableHeight), Depth = System.Math.Max(1, Math.Max(1, nearGpu.PageTable.ChunkSlotCount)), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = $"LumOn.LumonScene.{LumonSceneField.Near}.PageUsageStamp(R32UI)" }).RequireResource();
 
         // Clear to 0 once; stamps use frameStamp!=0 to avoid needing per-frame clears.
         pageUsageStamp.ClearToZero();
@@ -1339,7 +1339,7 @@ internal sealed partial class LumonSceneFeedbackUpdateRenderer : IRenderer, IDis
         EnsureRecaptureListIfRequested();
 
         uint requestCount;
-        using (var mapped = nearGpu.PageRequests.Counter.MapRange<uint>(dstOffsetBytes: 0, elementCount: 1, access: RHIBufferMapAccess.Read))
+        using (var mapped = nearGpu.PageRequests.Counter.MapRange<uint>(dstOffsetBytes: 0, elementCount: 1, access: BufferMapAccess.Read))
         {
             requestCount = (mapped.IsMapped && mapped.Span.Length > 0) ? mapped.Span[0] : 0u;
         }
@@ -1395,7 +1395,7 @@ internal sealed partial class LumonSceneFeedbackUpdateRenderer : IRenderer, IDis
                 using (var mappedItems = nearGpu.PageRequests.Items.MapRange<LumonScenePageRequestGpu>(
                     dstOffsetBytes: 0,
                     elementCount: toRead,
-                    access: RHIBufferMapAccess.Read))
+                    access: BufferMapAccess.Read))
                 {
                     if (!mappedItems.IsMapped)
                     {
@@ -1614,7 +1614,7 @@ internal sealed partial class LumonSceneFeedbackUpdateRenderer : IRenderer, IDis
                     using var mapped = feedbackMarkDebugCounters.MapRange<uint>(
                         dstOffsetBytes: 0,
                         elementCount: FeedbackMarkDebugCounterCount,
-                        access: RHIBufferMapAccess.Read);
+                        access: BufferMapAccess.Read);
 
                     if (mapped.IsMapped && mapped.Span.Length >= FeedbackMarkDebugCounterCount)
                     {
@@ -2000,10 +2000,10 @@ internal sealed partial class LumonSceneFeedbackUpdateRenderer : IRenderer, IDis
         // - relight compute (texture fetch + SSBO reads)
         // - debug/material sampling passes (texture fetch)
         RHICommandContext.Current.Barrier(new(
-            RHIAccess.Image
-            | RHIAccess.ShaderStorage
-            | RHIAccess.BufferUpdate
-            | RHIAccess.TextureFetch));
+            ResourceAccess.Image
+            | ResourceAccess.ShaderStorage
+            | ResourceAccess.BufferUpdate
+            | ResourceAccess.TextureFetch));
         return true;
     }
 
@@ -2021,7 +2021,7 @@ internal sealed partial class LumonSceneFeedbackUpdateRenderer : IRenderer, IDis
         try
         {
             long mapStart = System.Diagnostics.Stopwatch.GetTimestamp();
-            using var mapped = nearGpu.CaptureWork.Items.MapRange<LumonSceneCaptureWorkGpu>(0, captureCount, RHIBufferMapAccess.Read);
+            using var mapped = nearGpu.CaptureWork.Items.MapRange<LumonSceneCaptureWorkGpu>(0, captureCount, BufferMapAccess.Read);
             diagnosticCaptureMapMilliseconds += System.Diagnostics.Stopwatch.GetElapsedTime(mapStart).TotalMilliseconds;
             diagnosticCaptureMapCalls++;
             if (!mapped.IsMapped)
@@ -2088,7 +2088,7 @@ internal sealed partial class LumonSceneFeedbackUpdateRenderer : IRenderer, IDis
         int x = virtualPageIndex % VirtualPageTableW;
         int y = virtualPageIndex / VirtualPageTableW;
         RHICommandContext.Current.UploadTexture(nearGpu.PageTable.PageTableMip0, new(new(0), x, y, chunkSlot, 1, 1),
-            new(RHIPixelChannels.RedInteger, RHIPixelType.UnsignedInt),
+            new(PixelChannelLayout.RedInteger, PixelComponentType.UnsignedInt),
             MemoryMarshal.AsBytes(MemoryMarshal.CreateReadOnlySpan(ref packedEntry, 1)));
     }
 

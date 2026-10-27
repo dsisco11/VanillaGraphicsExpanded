@@ -6,7 +6,7 @@ using VanillaGraphicsExpanded.Rendering.Contracts;
 
 namespace VanillaGraphicsExpanded.Rendering.Spirv;
 
-/// <summary>Retains linked vertex/fragment locations and compiler declarations for one executable revision.</summary>
+/// <summary>Projects linked vertex/fragment locations and stage facts from one canonical executable snapshot.</summary>
 internal sealed class GraphicsExecutableInterface
 {
     /// <summary>One linked interface resource, with arrays and matrices still represented by their native type.</summary>

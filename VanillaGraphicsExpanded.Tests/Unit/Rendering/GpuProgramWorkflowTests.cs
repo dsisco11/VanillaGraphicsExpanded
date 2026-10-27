@@ -2,11 +2,11 @@ using VanillaGraphicsExpanded.Rendering;
 
 namespace VanillaGraphicsExpanded.Tests.Unit.Rendering;
 
-/// <summary>Exercises default workflow dispatch and exceptional lifetime cleanup without a GL context.</summary>
+/// <summary>Exercises asset preparation admission and independent terminal cleanup without graphics activation.</summary>
 public sealed class GpuProgramWorkflowTests
 {
     #region Public API
-    /// <summary>Preparation precedes binding, every activation publishes, and recursive admission owns no cleanup.</summary>
+    /// <summary>Preparation returns family readiness without binding an executable or publishing inputs.</summary>
     [Fact]
     public void ActivationOrdersPreparationAndRejectsInnerCleanup()
     {
@@ -79,20 +79,11 @@ public sealed class GpuProgramWorkflowTests
     [InlineData(2)]
     public void RetirementIsTerminalAcrossDispatchRoutes(int route)
     {
-        var owner = new Owner { FailResources = true, FailExecutable = true };
-        IGpuProgram program = owner;
-        Action retire = route switch
-        {
-            0 => owner.Dispose,
-            1 => program.Retire,
-            _ => ((IDisposable)owner).Dispose
-        };
-        var failure = Assert.Throws<AggregateException>(retire);
-        Assert.Equal(2, failure.InnerExceptions.Count);
-        Assert.Equal("resources;executable;", owner.Events);
-        Assert.Empty(program.Lifetime.OwnedUniforms);
-        owner.Dispose(); program.Retire(); ((IDisposable)owner).Dispose();
-        Assert.Equal("resources;executable;", owner.Events);
+        var owner=new Owner{FailResources=true,FailExecutable=true};IGpuProgram program=owner;
+        Action retire=route switch{0=>owner.Dispose,1=>program.Retire,_=>((IDisposable)owner).Dispose};
+        var failure=Assert.Throws<AggregateException>(retire);Assert.Equal(2,failure.InnerExceptions.Count);
+        Assert.Equal("resources;executable;",owner.Events);Assert.Empty(program.Lifetime.OwnedUniforms);
+        owner.Dispose();program.Retire();((IDisposable)owner).Dispose();Assert.Equal("resources;executable;",owner.Events);
         Assert.False(program.Prepare());
         Assert.Throws<ObjectDisposedException>(program.Activate);
         Assert.Throws<ObjectDisposedException>(() => program.BeginUse());
@@ -102,8 +93,8 @@ public sealed class GpuProgramWorkflowTests
     #endregion
 
     #region Private
-    /// <summary>Records family hooks while using production default workflow and CPU ownership policy.</summary>
-    private sealed class Owner : IGpuProgram
+    /// <summary>Supplies only the asset family and cleanup hooks required by the CPU-only workflow contract.</summary>
+    private sealed class Owner:IGpuProgram
     {
         #region Public API
         /// <summary>Stores stable owner lifecycle state.</summary>

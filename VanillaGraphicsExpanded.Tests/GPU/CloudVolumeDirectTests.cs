@@ -35,7 +35,7 @@ public sealed class CloudVolumeDirectTests(HeadlessGLFixture fixture):LumOnShade
             {Moon=-Vector3.UnitX,Lunar=Vector3.One};
         var planes=Enumerable.Repeat(new Vector4(0,0,0,1),6).ToArray();
         using var probe=CloudVolumeProbeProgram.Create(Programs.Api);
-        using var output=RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = null }).RequireResource();output.UploadData(new Vector4[2]);
+        using var output=RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = null }).RequireResource();output.UploadData(new Vector4[2]);
         fields.Direct.UploadDataImmediate(Enumerable.Repeat(.25f,d.Voxels*2).ToArray(),0,0,0,d.Size,66,d.Size);
         for(uint frame=1;frame<=5;frame++)
         {
@@ -88,11 +88,11 @@ public sealed class CloudVolumeDirectTests(HeadlessGLFixture fixture):LumOnShade
     private static Vector4 Query(CloudVolumeProbeProgram p,CloudVolumeFields fields,GpuShaderStorageBuffer result,Vector3 point)
     {
         p.Capture(fields,point);p.Density=fields.Density;p.Direct=fields.Direct;p.Diffuse=fields.Diffuse;p.Result=result;p.Dispatch(1);
-        RHICommandContext.Current.Barrier(new(RHIAccess.ShaderStorage|RHIAccess.BufferUpdate));
-        using var read=result.MapScope<Vector4>(0,1,RHIBufferMapAccess.Read);return read.Span[0];
+        RHICommandContext.Current.Barrier(new(ResourceAccess.ShaderStorage|ResourceAccess.BufferUpdate));
+        using var read=result.MapScope<Vector4>(0,1,BufferMapAccess.Read);return read.Span[0];
     }
     /// <summary>Reads one exact metadata word without transferring the job list.</summary>
     private static uint Word(GpuShaderStorageBuffer buffer,int word)
-    {using var read=buffer.MapScope<uint>(word*4,1,RHIBufferMapAccess.Read);return read.Span[0];}
+    {using var read=buffer.MapScope<uint>(word*4,1,BufferMapAccess.Read);return read.Span[0];}
     #endregion
 }

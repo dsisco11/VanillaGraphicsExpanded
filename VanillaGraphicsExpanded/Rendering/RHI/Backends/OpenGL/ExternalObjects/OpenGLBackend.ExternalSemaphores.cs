@@ -46,15 +46,15 @@ internal sealed partial class OpenGLBackend
             textureNames[i] = (int)resource.ResourceId;
             layouts[i] = textures[i].Layout switch
             {
-                RHIExternalTextureLayout.General => TextureLayout.LayoutGeneralExt,
-                RHIExternalTextureLayout.ColorAttachment => TextureLayout.LayoutColorAttachmentExt,
-                RHIExternalTextureLayout.DepthStencilAttachment => TextureLayout.LayoutDepthStencilAttachmentExt,
-                RHIExternalTextureLayout.DepthStencilReadOnly => TextureLayout.LayoutDepthStencilReadOnlyExt,
-                RHIExternalTextureLayout.ShaderReadOnly => TextureLayout.LayoutShaderReadOnlyExt,
-                RHIExternalTextureLayout.TransferSource => TextureLayout.LayoutTransferSrcExt,
-                RHIExternalTextureLayout.TransferDestination => TextureLayout.LayoutTransferDstExt,
-                RHIExternalTextureLayout.DepthReadOnlyStencilAttachment => TextureLayout.LayoutDepthReadOnlyStencilAttachmentExt,
-                RHIExternalTextureLayout.DepthAttachmentStencilReadOnly => TextureLayout.LayoutDepthAttachmentStencilReadOnlyExt,
+                ExternalTextureLayout.General => TextureLayout.LayoutGeneralExt,
+                ExternalTextureLayout.ColorAttachment => TextureLayout.LayoutColorAttachmentExt,
+                ExternalTextureLayout.DepthStencilAttachment => TextureLayout.LayoutDepthStencilAttachmentExt,
+                ExternalTextureLayout.DepthStencilReadOnly => TextureLayout.LayoutDepthStencilReadOnlyExt,
+                ExternalTextureLayout.ShaderReadOnly => TextureLayout.LayoutShaderReadOnlyExt,
+                ExternalTextureLayout.TransferSource => TextureLayout.LayoutTransferSrcExt,
+                ExternalTextureLayout.TransferDestination => TextureLayout.LayoutTransferDstExt,
+                ExternalTextureLayout.DepthReadOnlyStencilAttachment => TextureLayout.LayoutDepthReadOnlyStencilAttachmentExt,
+                ExternalTextureLayout.DepthAttachmentStencilReadOnly => TextureLayout.LayoutDepthAttachmentStencilReadOnlyExt,
                 _ => throw new ArgumentOutOfRangeException(nameof(textures))
             };
         }

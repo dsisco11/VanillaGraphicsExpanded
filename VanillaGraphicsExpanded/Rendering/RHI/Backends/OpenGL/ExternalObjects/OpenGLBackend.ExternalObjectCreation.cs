@@ -79,9 +79,9 @@ internal sealed partial class OpenGLBackend
     /// <summary>Rejects unavailable platform imports or mismatched ownership before native allocation.</summary>
     private void ValidateExternalHandle(RHIExternalHandle handle, bool memory)
     {
-        bool fd = handle.Kind == RHIExternalHandleKind.OpaqueFileDescriptor;
+        bool fd = handle.Kind == ExternalHandleKind.OpaqueFileDescriptor;
         if (!Enum.IsDefined(handle.Kind) || handle.Value == -1 || (fd ? handle.Value < 0 || handle.Value > int.MaxValue : handle.Value == 0)
-            || handle.Ownership != (fd ? RHIExternalHandleOwnership.TransferToDriver : RHIExternalHandleOwnership.RetainByCaller))
+            || handle.Ownership != (fd ? ExternalHandleOwnership.TransferToDriver : ExternalHandleOwnership.RetainByCaller))
             throw new ArgumentException("Invalid platform handle or import ownership.");
         bool supported = fd ? (memory ? NativeCapabilities.SupportsExtMemoryObjectFd : NativeCapabilities.SupportsExtSemaphoreFd)
             : (memory ? Capabilities.ExternalMemoryWin32 : Capabilities.ExternalSemaphoresWin32);
@@ -91,18 +91,18 @@ internal sealed partial class OpenGLBackend
     /// <summary>Imports once without closing caller-owned Win32 handles or retrying failed dispatch.</summary>
     private void ImportSemaphore(GpuSemaphore owner, RHIExternalHandle handle)
     {
-        if (handle.Kind == RHIExternalHandleKind.OpaqueFileDescriptor)
+        if (handle.Kind == ExternalHandleKind.OpaqueFileDescriptor)
             GL.Ext.ImportSemaphoreF(owner.SemaphoreId, ExternalHandleType.HandleTypeOpaqueFdExt, (int)handle.Value);
-        else GL.Ext.ImportSemaphoreWin32Handle(owner.SemaphoreId, handle.Kind == RHIExternalHandleKind.OpaqueWin32
+        else GL.Ext.ImportSemaphoreWin32Handle(owner.SemaphoreId, handle.Kind == ExternalHandleKind.OpaqueWin32
             ? ExternalHandleType.HandleTypeOpaqueWin32Ext : ExternalHandleType.HandleTypeOpaqueWin32KmtExt, handle.Value);
         RequireContext();
     }
     /// <summary>Imports the explicit memory size once under the selected ownership contract.</summary>
     private void ImportMemory(GpuMemoryObject owner, ulong size, RHIExternalHandle handle)
     {
-        if (handle.Kind == RHIExternalHandleKind.OpaqueFileDescriptor)
+        if (handle.Kind == ExternalHandleKind.OpaqueFileDescriptor)
             GL.Ext.ImportMemoryF(owner.MemoryObjectId, (long)size, ExternalHandleType.HandleTypeOpaqueFdExt, (int)handle.Value);
-        else GL.Ext.ImportMemoryWin32Handle(owner.MemoryObjectId, (long)size, handle.Kind == RHIExternalHandleKind.OpaqueWin32
+        else GL.Ext.ImportMemoryWin32Handle(owner.MemoryObjectId, (long)size, handle.Kind == ExternalHandleKind.OpaqueWin32
             ? ExternalHandleType.HandleTypeOpaqueWin32Ext : ExternalHandleType.HandleTypeOpaqueWin32KmtExt, handle.Value);
         RequireContext();
     }

@@ -25,7 +25,7 @@ public abstract class GpuBufferObject : GpuResource<GpuBufferMetadata>, IDisposa
     /// <summary>Reads the canonical storage usage through the typed snapshot.</summary>
     protected BufferUsageHint usage => metadata.Usage;
     /// <summary>Contains the requested hint for the next allocation, independently of observed storage.</summary>
-    protected RHIBufferUsage allocationUsage;
+    protected BufferUsage allocationUsage;
     protected string? debugName;
 
     private readonly ConcurrentQueue<PendingUpload> pendingUploads = new();
@@ -34,7 +34,7 @@ public abstract class GpuBufferObject : GpuResource<GpuBufferMetadata>, IDisposa
     /// <summary>Supplies a non-owning consumer value without acquisition or native work.</summary>
     public static implicit operator GpuBufferRef(GpuBufferObject? buffer) => new(buffer);
     /// <summary>Gets the intended semantic role retained by this owning abstraction.</summary>
-    public RHIBufferRole Role => RHI.Backends.OpenGL.OpenGLBufferValues.Role(target);
+    public BufferRole Role => RHI.Backends.OpenGL.OpenGLBufferValues.Role(target);
     public int BufferId => bufferId;
     public int SizeBytes => sizeBytes;
     public BufferTarget Target => target;
@@ -751,7 +751,7 @@ public abstract class GpuBufferObject : GpuResource<GpuBufferMetadata>, IDisposa
         }
     }
 
-    public unsafe MappedRange<T> MapRange<T>(int dstOffsetBytes, int elementCount, RHIBufferMapAccess access) where T : unmanaged
+    public unsafe MappedRange<T> MapRange<T>(int dstOffsetBytes, int elementCount, BufferMapAccess access) where T : unmanaged
     {
         if (!IsValid)
         {
@@ -788,7 +788,7 @@ public abstract class GpuBufferObject : GpuResource<GpuBufferMetadata>, IDisposa
     /// <summary>
     /// Maps a range of the buffer and returns an RAII scope that will unmap on dispose.
     /// </summary>
-    public GpuMappedBufferScope<T> MapScope<T>(int dstOffsetBytes, int elementCount, RHIBufferMapAccess access) where T : unmanaged
+    public GpuMappedBufferScope<T> MapScope<T>(int dstOffsetBytes, int elementCount, BufferMapAccess access) where T : unmanaged
     {
         return new GpuMappedBufferScope<T>(MapRange<T>(dstOffsetBytes, elementCount, access));
     }
@@ -799,7 +799,7 @@ public abstract class GpuBufferObject : GpuResource<GpuBufferMetadata>, IDisposa
     public bool TryMapScope<T>(
         int dstOffsetBytes,
         int elementCount,
-        RHIBufferMapAccess access,
+        BufferMapAccess access,
         out GpuMappedBufferScope<T> scope) where T : unmanaged
     {
         if (TryMapRange(dstOffsetBytes, elementCount, access, out MappedRange<T> range))
@@ -812,7 +812,7 @@ public abstract class GpuBufferObject : GpuResource<GpuBufferMetadata>, IDisposa
         return false;
     }
 
-    public bool TryMapRange<T>(int dstOffsetBytes, int elementCount, RHIBufferMapAccess access, out MappedRange<T> range) where T : unmanaged
+    public bool TryMapRange<T>(int dstOffsetBytes, int elementCount, BufferMapAccess access, out MappedRange<T> range) where T : unmanaged
     {
         try
         {
@@ -1053,7 +1053,7 @@ public abstract class GpuBufferObject : GpuResource<GpuBufferMetadata>, IDisposa
     {
         private readonly GpuBufferObject owner;
         private readonly RHICommandContext context;
-        private readonly RHIBufferMapAccess access;
+        private readonly BufferMapAccess access;
         private readonly int nativeId;
         private readonly int offsetBytes;
         private readonly int elementCount;
@@ -1084,7 +1084,7 @@ public abstract class GpuBufferObject : GpuResource<GpuBufferMetadata>, IDisposa
             RequireOwner();
             if (relativeOffsetBytes < 0 || byteCount < 0 || relativeOffsetBytes > ByteCount || byteCount > ByteCount-relativeOffsetBytes)
                 throw new ArgumentOutOfRangeException(nameof(byteCount));
-            if ((access & RHIBufferMapAccess.ExplicitFlush) != 0 && byteCount != 0)
+            if ((access & BufferMapAccess.ExplicitFlush) != 0 && byteCount != 0)
                 context.FlushMappedBuffer(owner, relativeOffsetBytes, byteCount);
         }
         /// <summary>Unmaps exactly once against the original context, never retrying after failure.</summary>
@@ -1099,7 +1099,7 @@ public abstract class GpuBufferObject : GpuResource<GpuBufferMetadata>, IDisposa
 
         #region Internal API
         /// <summary>Retains mapping ownership without querying metadata or capturing another registration.</summary>
-        internal MappedRange(GpuBufferObject owner, RHIBufferMapAccess access, int offsetBytes, int elementCount, nint pointer, bool isMapped)
+        internal MappedRange(GpuBufferObject owner, BufferMapAccess access, int offsetBytes, int elementCount, nint pointer, bool isMapped)
         {
             this.owner=owner; this.access=access; this.offsetBytes=offsetBytes; this.elementCount=elementCount;
             this.pointer=pointer; this.isMapped=isMapped; nativeId=owner.BufferId; context=RHICommandContext.Current;

@@ -27,7 +27,7 @@ public sealed class RHIAuxiliaryTests(HeadlessGLFixture fixture, Xunit.ITestOutp
         try
         {
             var context = RHICommandContext.Current;
-            using var query = context.CreateQuery(new(RHIQueryKind.SamplesPassed)).RequireResource();
+            using var query = context.CreateQuery(new(QueryKind.SamplesPassed)).RequireResource();
             using var observation = new BeginObservation(nameof(GL.BeginQuery), [typeof(QueryTarget), typeof(int)], () =>
             {
                 Assert.Throws<InvalidOperationException>(() => context.EndQuery(query));
@@ -35,7 +35,7 @@ public sealed class RHIAuxiliaryTests(HeadlessGLFixture fixture, Xunit.ITestOutp
             });
             context.BeginQuery(query);
             context.EndQuery(query);
-            Assert.Equal(RHICompletionStatus.Ready, context.RequestQueryResult(query).Wait());
+            Assert.Equal(CompletionStatus.Ready, context.RequestQueryResult(query).Wait());
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
         finally { Finish(); }
@@ -49,13 +49,13 @@ public sealed class RHIAuxiliaryTests(HeadlessGLFixture fixture, Xunit.ITestOutp
         {
             var context = RHICommandContext.Current;
             using var source = context.CreateBuffer(new RHIBufferDescription
-            { Role = RHIBufferRole.CopySource, Mode = RHIStorageMode.Mutable, Capacity = 16, Usage = RHIBufferUsage.DynamicRead }).RequireResource();
+            { Role = BufferRole.CopySource, Mode = ResourceStorageMode.Mutable, Capacity = 16, Usage = BufferUsage.DynamicRead }).RequireResource();
             using var request = context.EnqueueReadback(new RHIReadbackDescription(new RHIBufferRange(source, 0, 16)));
-            Assert.Equal(RHICompletionStatus.Ready, request.Wait(TimeSpan.FromSeconds(5)));
+            Assert.Equal(CompletionStatus.Ready, request.Wait(TimeSpan.FromSeconds(5)));
             using var observation = new UnmapObservation();
             var mapped = request.MapReadyReadback();
             Assert.Throws<InvalidOperationException>(() => mapped.Dispose());
-            Assert.Equal(RHICompletionStatus.Failed, request.Status);
+            Assert.Equal(CompletionStatus.Failed, request.Status);
             Assert.NotNull(request.Error);
             mapped.Dispose();
             Assert.Equal(1, unmapCalls);
@@ -90,11 +90,11 @@ public sealed class RHIAuxiliaryTests(HeadlessGLFixture fixture, Xunit.ITestOutp
             Assert.Equal(previous, GL.GetInteger(GetPName.TextureBinding2D));
             var bytes = new byte[checked(width * height * 4)];
             Array.Fill(bytes, (byte)23);
-            var encoding = new RHIPixelEncoding(RHIPixelChannels.Rgba, RHIPixelType.UnsignedByte);
+            var encoding = new RHIPixelEncoding(PixelChannelLayout.Rgba, PixelComponentType.UnsignedByte);
             context.UploadTexture(borrowed, region, encoding, bytes);
             using (var result = context.EnqueueReadback(new RHIReadbackDescription(borrowed, region, encoding)))
             {
-                Assert.Equal(RHICompletionStatus.Ready, result.Wait(TimeSpan.FromSeconds(5)));
+                Assert.Equal(CompletionStatus.Ready, result.Wait(TimeSpan.FromSeconds(5)));
                 using var mapped = result.MapReadyReadback();
                 Assert.Equal(bytes, mapped.Bytes.ToArray());
             }
@@ -121,7 +121,7 @@ public sealed class RHIAuxiliaryTests(HeadlessGLFixture fixture, Xunit.ITestOutp
         {
             var context = RHICommandContext.Current;
             using var output = context.CreateBuffer(new RHIBufferDescription
-            { Role = RHIBufferRole.TransformFeedback, Mode = RHIStorageMode.Mutable, Capacity = 16, Usage = RHIBufferUsage.StreamRead }).RequireResource();
+            { Role = BufferRole.TransformFeedback, Mode = ResourceStorageMode.Mutable, Capacity = 16, Usage = BufferUsage.StreamRead }).RequireResource();
             using var capture = context.CreateTransformFeedback(new([new(0, new(output, 0, 16))])).RequireResource();
             shader = GL.CreateShader(ShaderType.VertexShader);
             GL.ShaderSource(shader, "#version 450 core\nout float captured;\nvoid main(){ captured=3.0; gl_Position=vec4(0.0); }");
@@ -139,9 +139,9 @@ public sealed class RHIAuxiliaryTests(HeadlessGLFixture fixture, Xunit.ITestOutp
             using var beginObservation = new BeginObservation(nameof(GL.BeginTransformFeedback), [typeof(TransformFeedbackPrimitiveType)], () =>
             {
                 Assert.Throws<InvalidOperationException>(() => context.EndTransformFeedback());
-                Assert.Throws<InvalidOperationException>(() => context.BeginTransformFeedback(capture, RHICapturePrimitive.Points));
+                Assert.Throws<InvalidOperationException>(() => context.BeginTransformFeedback(capture, CapturePrimitive.Points));
             });
-            using (context.CaptureTransformFeedback(capture, RHICapturePrimitive.Points))
+            using (context.CaptureTransformFeedback(capture, CapturePrimitive.Points))
             {
                 Assert.Equal(capture.TransformFeedbackId, GL.GetInteger(GetPName.TransformFeedbackBinding));
                 Assert.Throws<InvalidOperationException>(() => output.Dispose());
@@ -153,9 +153,9 @@ public sealed class RHIAuxiliaryTests(HeadlessGLFixture fixture, Xunit.ITestOutp
                 GL.DrawArrays(PrimitiveType.Points, 0, 1);
             }
             Assert.Equal(previous, GL.GetInteger(GetPName.TransformFeedbackBinding));
-            context.Barrier(new(RHIAccess.BufferUpdate));
+            context.Barrier(new(ResourceAccess.BufferUpdate));
             using var result = context.EnqueueReadback(new RHIReadbackDescription(new RHIBufferRange(output, 0, 8)));
-            Assert.Equal(RHICompletionStatus.Ready, result.Wait(TimeSpan.FromSeconds(5)));
+            Assert.Equal(CompletionStatus.Ready, result.Wait(TimeSpan.FromSeconds(5)));
             using var mapped = result.MapReadyReadback();
             Assert.Equal(new float[] { 3, 3 }, MemoryMarshal.Cast<byte, float>(mapped.Bytes).ToArray());
             Assert.Equal(ErrorCode.NoError, GL.GetError());
@@ -180,16 +180,16 @@ public sealed class RHIAuxiliaryTests(HeadlessGLFixture fixture, Xunit.ITestOutp
         {
             var context = RHICommandContext.Current;
             using var source = context.CreateBuffer(new RHIBufferDescription
-            { Role = RHIBufferRole.CopySource, Mode = RHIStorageMode.Mutable, Capacity = 16, Usage = RHIBufferUsage.DynamicRead }).RequireResource();
+            { Role = BufferRole.CopySource, Mode = ResourceStorageMode.Mutable, Capacity = 16, Usage = BufferUsage.DynamicRead }).RequireResource();
             using var request = context.EnqueueReadback(new RHIReadbackDescription(new RHIBufferRange(source, 0, 16)));
             using var fence = context.InsertFence();
             using var interception = new WaitObservation();
             injectedWait = WaitSyncStatus.TimeoutExpired;
-            Assert.Equal(RHICompletionStatus.Pending, request.Poll());
+            Assert.Equal(CompletionStatus.Pending, request.Poll());
             Assert.False(fence.TryConsumeIfSignaled());
             Assert.Throws<InvalidOperationException>(() => request.MapReadyReadback());
             injectedWait = WaitSyncStatus.WaitFailed;
-            Assert.Equal(RHICompletionStatus.Failed, request.Poll());
+            Assert.Equal(CompletionStatus.Failed, request.Poll());
             Assert.NotNull(request.Error);
             Assert.Throws<InvalidOperationException>(() => fence.TryConsumeIfSignaled());
             Assert.True(fence.IsValid);
@@ -208,13 +208,13 @@ public sealed class RHIAuxiliaryTests(HeadlessGLFixture fixture, Xunit.ITestOutp
             var context = RHICommandContext.Current;
             if (!context.Capabilities.PipelineStatistics)
             {
-                Assert.Throws<NotSupportedException>(() => context.CreateQuery(new(RHIQueryKind.VerticesSubmitted)));
+                Assert.Throws<NotSupportedException>(() => context.CreateQuery(new(QueryKind.VerticesSubmitted)));
                 return;
             }
-            using var query = context.CreateQuery(new(RHIQueryKind.VerticesSubmitted)).RequireResource();
+            using var query = context.CreateQuery(new(QueryKind.VerticesSubmitted)).RequireResource();
             context.BeginQuery(query); context.EndQuery(query);
             var result = context.RequestQueryResult(query);
-            Assert.Equal(RHICompletionStatus.Ready, result.Wait());
+            Assert.Equal(CompletionStatus.Ready, result.Wait());
             Assert.Equal(0UL, result.Result);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
@@ -231,10 +231,10 @@ public sealed class RHIAuxiliaryTests(HeadlessGLFixture fixture, Xunit.ITestOutp
             var context = RHICommandContext.Current;
             outputLog.WriteLine($"SparseBuffer={context.Capabilities.SparseBuffers}; SparseTexture={context.Capabilities.SparseTextures}; PipelineStatistics={context.Capabilities.PipelineStatistics}; Semaphore={context.Capabilities.ExternalSemaphores}; Memory={context.Capabilities.ExternalMemory}; MemoryWin32={context.Capabilities.ExternalMemoryWin32}; SemaphoreWin32={context.Capabilities.ExternalSemaphoresWin32}");
             if (context.Capabilities.ExternalSemaphores)
-                Assert.Throws<ArgumentException>(() => context.CreateSemaphore(new(new(RHIExternalHandleKind.OpaqueWin32, 1, RHIExternalHandleOwnership.TransferToDriver))));
+                Assert.Throws<ArgumentException>(() => context.CreateSemaphore(new(new(ExternalHandleKind.OpaqueWin32, 1, ExternalHandleOwnership.TransferToDriver))));
             else Assert.Throws<NotSupportedException>(() => context.CreateSemaphore(new()));
             if (context.Capabilities.ExternalMemory)
-                Assert.Throws<ArgumentException>(() => context.CreateMemoryObject(new(Import: new(RHIExternalHandleKind.OpaqueFileDescriptor, -1, RHIExternalHandleOwnership.TransferToDriver), Size: 16)));
+                Assert.Throws<ArgumentException>(() => context.CreateMemoryObject(new(Import: new(ExternalHandleKind.OpaqueFileDescriptor, -1, ExternalHandleOwnership.TransferToDriver), Size: 16)));
             else Assert.Throws<NotSupportedException>(() => context.CreateMemoryObject(new()));
             if (!context.Capabilities.SparseBuffers)
                 Assert.Throws<NotSupportedException>(() => context.CommitBufferPages(default, true));
@@ -242,7 +242,7 @@ public sealed class RHIAuxiliaryTests(HeadlessGLFixture fixture, Xunit.ITestOutp
             {
                 int size = context.Capabilities.SparseBufferPageSize;
                 using var sparse = context.CreateBuffer(new RHIBufferDescription
-                { Role = RHIBufferRole.CopyDestination, Mode = RHIStorageMode.Immutable, Capacity = size * 2, Access = RHIStorageAccess.Sparse }).RequireResource();
+                { Role = BufferRole.CopyDestination, Mode = ResourceStorageMode.Immutable, Capacity = size * 2, Access = StorageAccess.Sparse }).RequireResource();
                 context.CommitBufferPages(new(sparse, 0, size), true);
                 context.CommitBufferPages(new(sparse, 0, size), false);
                 Assert.Throws<ArgumentException>(() => context.CommitBufferPages(new(sparse, 1, size), true));

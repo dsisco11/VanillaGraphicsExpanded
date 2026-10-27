@@ -147,7 +147,7 @@ public sealed class WorldProbeComputeTraceTests(HeadlessGLFixture fixture) : Ren
         using var geometry=new SharedTraceGeometryFixture(TraceGeometryCoverage.Plan(new(0,2,0),true,32,4),new(),(_,_,_)=>new(1,0,0));
         geometry.Publish();
         using var assets=new BinaryShaderApiFixture();using var batch=new WorldProbeTraceBatch(assets.Api);
-        using var prior=RHICommandContext.Current.CreateIndirectBuffer(new RHIBufferDescription { Role = RHIBufferRole.IndirectDraw, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = null }).RequireResource();prior.UploadDispatchCommand(new(7,8,9));
+        using var prior=RHICommandContext.Current.CreateIndirectBuffer(new RHIBufferDescription { Role = BufferRole.IndirectDraw, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = null }).RequireResource();prior.UploadDispatchCommand(new(7,8,9));
         using var binding=prior.BindDispatchScope();
         int original=GL.GetInteger(GetPName.DispatchIndirectBufferBinding);
         WorldProbeTraceProbeGpu[] probes=

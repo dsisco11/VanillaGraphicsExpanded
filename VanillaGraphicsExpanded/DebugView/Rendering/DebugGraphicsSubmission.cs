@@ -9,7 +9,7 @@ using Vintagestory.API.Client;
 
 namespace VanillaGraphicsExpanded.DebugView;
 
-/// <summary>Owns named debug pipeline realizations and the current borrowed engine destination.</summary>
+/// <summary>Owns debug-mode pipelines and an explicitly published external destination, leaving native execution to the RHI.</summary>
 internal sealed class DebugGraphicsSubmission : IDisposable
 {
     private readonly DebugRenderTarget destination;

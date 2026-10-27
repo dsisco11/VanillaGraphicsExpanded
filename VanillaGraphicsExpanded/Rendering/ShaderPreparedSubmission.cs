@@ -7,7 +7,7 @@ using VanillaGraphicsExpanded.Rendering.Spirv;
 
 namespace VanillaGraphicsExpanded.Rendering;
 
-/// <summary>Validates complete retained inputs and publishes resources using preparation-owned numeric metadata.</summary>
+/// <summary>Checks resource compatibility against preparation-owned metadata without executing native commands.</summary>
 internal static class ShaderPreparedSubmission
 {
     #region Public API

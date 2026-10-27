@@ -20,7 +20,7 @@ public sealed class GpuFramebufferMultiviewInterceptionTests(HeadlessGLFixture f
         try
         {
             GL.TextureStorage3D(texture,1,SizedInternalFormat.Rgba8,8,4,6);
-            using var array=new BorrowedTexture(texture); using var view=RHICommandContext.Current.CreateTextureView(new RHITextureViewDescription { Source = array, Dimension = RHITextureDimension.TwoArray, Format = RHIFormat.Rgba8, BaseMip = 0, MipCount = 1, BaseLayer = 1, LayerCount = 4, Label = null }).RequireResource();
+            using var array=new BorrowedTexture(texture); using var view=RHICommandContext.Current.CreateTextureView(new RHITextureViewDescription { Source = array, Dimension = TextureDimension.TwoArray, Format = TextureFormat.Rgba8, BaseMip = 0, MipCount = 1, BaseLayer = 1, LayerCount = 4, Label = null }).RequireResource();
             using var image=useView?GpuFramebufferAttachment.FromMultiviewTexture(view,1,2):GpuFramebufferAttachment.FromMultiviewTexture(array,1,2);
             using var capabilities=new DirectStateAccessCapabilityScope(direct);
             using var first=DynamicGpuFramebuffer.Create([image])!; using var target=DynamicGpuFramebuffer.Create([image])!;

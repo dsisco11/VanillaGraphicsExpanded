@@ -44,7 +44,7 @@ public sealed class CloudVolumeComputeWorkTests(HeadlessGLFixture fixture,Xunit.
         for(int i=0;i<32;i++){header[16384+i*2]=(uint)(regions[i]*2);header[16385+i*2]=(uint)(regions[i]*2+1);header[16640+i]=(uint)regions[i];header[16768+i]=header[17024+i]=(uint)regions[i];header[17280+i]=(uint)regions[i];}
         header[38]=32;
         header[16]=64;header[17]=32;fields.Scratch.UploadData(header);
-        using var commands=RHICommandContext.Current.CreateIndirectBuffer(new RHIBufferDescription { Role = RHIBufferRole.IndirectDraw, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = null }).RequireResource();commands.UploadData(new uint[]{64,1,1,32,8,1,32,1,1,32,1,1});
+        using var commands=RHICommandContext.Current.CreateIndirectBuffer(new RHIBufferDescription { Role = BufferRole.IndirectDraw, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = null }).RequireResource();commands.UploadData(new uint[]{64,1,1,32,8,1,32,1,1,32,1,1});
         var light=new AtmosphereLighting(Vector3.UnitY,Vector3.One,Vector3.One,Vector3.Zero,Vector3.Zero,ImmutableArray<float>.Empty)
             {Moon=Vector3.UnitX,Lunar=Vector3.One};
         var batch=new CloudVolumeWorkBatch(fields,light,1,1,0,0,0,3,0,true,true,commands);
@@ -94,7 +94,7 @@ public sealed class CloudVolumeComputeWorkTests(HeadlessGLFixture fixture,Xunit.
         Measure("Bounded prior-block repair (32 complete blocks)",()=>copy.Dispatch(32));
         Measure("Combined transport, bounded repair and dirty publication",()=>{solar.DispatchIndirect(commands,24);Barrier();lunar.DispatchIndirect(commands,36);Barrier();copy.Dispatch(32);Barrier();diffuse.DispatchIndirect(commands,12);Barrier();publication.Publish(fields,0,domain.Bytes);},()=>fields.Regions.UploadData(dirty));
         output.WriteLine($"Scene: width=20, guarded {domain.Size}x66x{domain.Size}, extinction=.005, all occupancy set, old diffuse=0, unit sources/environment. Direct 64 block-source jobs, 32 per source, no source-mismatched groups, 16384 live occupied voxel integrals. Diffuse 32 blocks, 8192 occupied interior voxels, 65536 gather rays. Density budget=4096, direct=64, diffuse=32. Authored selected blocks have no guard, zero-density or edge lane exits. Publication bracket is a separate unchanged-path cost; baseline excluded it.");
-        using var status=fields.Scratch.MapScope<uint>(25*4,1,RHIBufferMapAccess.Read);Assert.Equal(0u,status.Span[0]);
+        using var status=fields.Scratch.MapScope<uint>(25*4,1,BufferMapAccess.Read);Assert.Equal(0u,status.Span[0]);
         MeasureCompleteUpdates();
     }
     #endregion
@@ -103,10 +103,10 @@ public sealed class CloudVolumeComputeWorkTests(HeadlessGLFixture fixture,Xunit.
     private void MeasureDiffuseRepair()
     {
         var domain=new CloudVolumeDomain(200,default,-100,100);var encoding=new CloudVolumeEncoding(Vector3.One);
-        using var source=RHICommandContext.Current.CreateDynamicTexture3D(new RHITextureDescription { Dimension = RHITextureDimension.Three, Format = RHIFormat.Rgba16f, Width = System.Math.Max(1, domain.Size), Height = System.Math.Max(1, 66), Depth = System.Math.Max(1, domain.Size), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Linear, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
-        using var target=RHICommandContext.Current.CreateDynamicTexture3D(new RHITextureDescription { Dimension = RHITextureDimension.Three, Format = RHIFormat.Rgba16f, Width = System.Math.Max(1, domain.Size), Height = System.Math.Max(1, 66), Depth = System.Math.Max(1, domain.Size), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Linear, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
+        using var source=RHICommandContext.Current.CreateDynamicTexture3D(new RHITextureDescription { Dimension = TextureDimension.Three, Format = TextureFormat.Rgba16f, Width = System.Math.Max(1, domain.Size), Height = System.Math.Max(1, 66), Depth = System.Math.Max(1, domain.Size), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Linear, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
+        using var target=RHICommandContext.Current.CreateDynamicTexture3D(new RHITextureDescription { Dimension = TextureDimension.Three, Format = TextureFormat.Rgba16f, Width = System.Math.Max(1, domain.Size), Height = System.Math.Max(1, 66), Depth = System.Math.Max(1, domain.Size), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Linear, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         source.Clear(.25f,.5f,.75f);target.Clear();
-        using var scratch=RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = null }).RequireResource();var header=new uint[CloudVolumeWork.RepairListWord+CloudVolumeLightingBudget.MaximumDiffuseJobs];
+        using var scratch=RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = null }).RequireResource();var header=new uint[CloudVolumeWork.RepairListWord+CloudVolumeLightingBudget.MaximumDiffuseJobs];
         header[38]=32;for(int i=0;i<32;i++)header[17280+i]=(uint)(1+i+domain.BlocksX*(4+domain.BlocksY));
         scratch.UploadData(header);
         using var copy=CloudVolumeCopyProgram.Create(Programs.Api);copy.Scratch=scratch;copy.Source=source;
@@ -119,7 +119,7 @@ public sealed class CloudVolumeComputeWorkTests(HeadlessGLFixture fixture,Xunit.
     /// <summary>Times every real deferred update callback through publication, excluding view draws and simulated frame waits.</summary>
     private void MeasureCompleteUpdates(int quality=2,bool profileOnly=false)
     {
-        using var map=RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba32f, Width = System.Math.Max(1, 20), Height = System.Math.Max(1, 20), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
+        using var map=RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba32f, Width = System.Math.Max(1, 20), Height = System.Math.Max(1, 20), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         using var camera=TestFrameCamera.CreateFromProjection([1,0,0,0,0,1,0,0,0,0,-1.00020002f,-1,0,0,-.200020002f,0],1,1,.1f,1000);
         using var solution=new CloudVolumeSolution(Programs.Api,true,quality);
         var profile=CloudVolumeQuality.Resolve(quality);
@@ -152,13 +152,13 @@ public sealed class CloudVolumeComputeWorkTests(HeadlessGLFixture fixture,Xunit.
                 var fields=solution.Storage.Published;
                 uint[] header,records,occupied;
                 // Diagnostic maps occur after the test fence and outside every reported timer interval.
-                using(var read=fields.Scratch.MapScope<uint>(0,32,RHIBufferMapAccess.Read))header=read.Span.ToArray();
-                using(var read=fields.Regions.MapScope<uint>(0,fields.Domain.Blocks*16,RHIBufferMapAccess.Read))records=read.Span.ToArray();
-                using(var read=fields.Occupancy.MapScope<uint>(0,fields.Domain.Blocks,RHIBufferMapAccess.Read))occupied=read.Span.ToArray();
+                using(var read=fields.Scratch.MapScope<uint>(0,32,BufferMapAccess.Read))header=read.Span.ToArray();
+                using(var read=fields.Regions.MapScope<uint>(0,fields.Domain.Blocks*16,BufferMapAccess.Read))records=read.Span.ToArray();
+                using(var read=fields.Occupancy.MapScope<uint>(0,fields.Domain.Blocks,BufferMapAccess.Read))occupied=read.Span.ToArray();
                 // Deferred metadata gives exact positive-origin counts independently of the traversal halo.
                 uint[] selectedDirect=[],selectedDiffuse=[];
-                if(header[16]>0)using(var read=fields.Scratch.MapScope<uint>(CloudVolumeWork.DirectListWord*4,(int)header[16],RHIBufferMapAccess.Read))selectedDirect=read.Span.ToArray();
-                if(header[17]>0)using(var read=fields.Scratch.MapScope<uint>(CloudVolumeWork.DiffuseListWord*4,(int)header[17],RHIBufferMapAccess.Read))selectedDiffuse=read.Span.ToArray();
+                if(header[16]>0)using(var read=fields.Scratch.MapScope<uint>(CloudVolumeWork.DirectListWord*4,(int)header[16],BufferMapAccess.Read))selectedDirect=read.Span.ToArray();
+                if(header[17]>0)using(var read=fields.Scratch.MapScope<uint>(CloudVolumeWork.DiffuseListWord*4,(int)header[17],BufferMapAccess.Read))selectedDiffuse=read.Span.ToArray();
                 long directRays=selectedDirect.Sum(job=>(long)((occupied[job/2]&4u)!=0?(occupied[job/2]>>3)&511u:256u));
                 long diffuseRays=selectedDiffuse.Sum(job=>(long)profile.Directions*((occupied[job]&4u)!=0?(occupied[job]>>3)&511u:256u));
                 output.WriteLine($"Positive scheduling support: exact blocks={occupied.Count(v=>(v&4u)!=0)}, eligible origins={occupied.Where(v=>(v&4u)!=0).Sum(v=>(long)((v>>3)&511u))}, selected direct/diffuse origin rays={directRays}/{diffuseRays}; unknown support charges conservative256 origins per block. Reserved block-capacity rays={header[16]*256L}/{header[17]*256L*profile.Directions}. Metadata maps outside timings.");
@@ -208,7 +208,7 @@ public sealed class CloudVolumeComputeWorkTests(HeadlessGLFixture fixture,Xunit.
                 }
                 if(measure)timer.End();
                 using var completed=RHICommandContext.Current.InsertFence();
-                Assert.Contains(RHICommandContext.Current.WaitCpu(completed, TimeSpan.FromSeconds(1)),new[]{RHICompletionStatus.Ready,RHICompletionStatus.Ready});
+                Assert.Contains(RHICommandContext.Current.WaitCpu(completed, TimeSpan.FromSeconds(1)),new[]{CompletionStatus.Ready,CompletionStatus.Ready});
                 if(measure)sum+=timer.GetResultNanoseconds()/1e6;
                 Assert.Null(solution.Failure);if(published)return(sum,callback+1,cpu);
             }
@@ -222,10 +222,10 @@ public sealed class CloudVolumeComputeWorkTests(HeadlessGLFixture fixture,Xunit.
             r/(d.BlocksX*d.BlocksY)>0&&r/(d.BlocksX*d.BlocksY)<d.BlocksX-1&&
             (r/d.BlocksX)%d.BlocksY is 7 or 8).Take(32).Select(r=>(uint)r).ToArray();
         Assert.Equal(32,regions.Length);
-        using(var count=fields.Scratch.MapScope<uint>(16,1,RHIBufferMapAccess.Write))count.Span[0]=32;
+        using(var count=fields.Scratch.MapScope<uint>(16,1,BufferMapAccess.Write))count.Span[0]=32;
         foreach(int offset in new[]{64,16768,17024})
-            using(var list=fields.Scratch.MapScope<uint>(offset*4,32,RHIBufferMapAccess.Write))regions.CopyTo(list.Span);
-        using var summary=RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = null }).RequireResource();summary.UploadData(new uint[8]);
+            using(var list=fields.Scratch.MapScope<uint>(offset*4,32,BufferMapAccess.Write))regions.CopyTo(list.Span);
+        using var summary=RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = null }).RequireResource();summary.UploadData(new uint[8]);
         using var generation=CloudVolumeDensityProgram.Create(Programs.Api,3,true,quality:quality);
         generation.Capture(d,fields.DensityState.WindowX,fields.DensityState.WindowZ,fields.DensityState,1000,false);
         generation.Descriptors=new(fields.Descriptors,TextureAccess.ReadWrite);generation.Density=new(fields.Density,TextureAccess.ReadWrite,Layered:true);
@@ -243,8 +243,8 @@ public sealed class CloudVolumeComputeWorkTests(HeadlessGLFixture fixture,Xunit.
     {
         var domain=new CloudVolumeDomain(200,default,-100,100);var records=new uint[domain.Blocks*16];
         for(int i=0;i<domain.Blocks;i++){records[i*16]=1;records[i*16+1]=2;records[i*16+3]=(uint)(i%997+1);}
-        using var regions=RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = null }).RequireResource();using var scratch=RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = null }).RequireResource();
-        using var summary=RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = null }).RequireResource();using var commands=RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = null }).RequireResource();
+        using var regions=RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = null }).RequireResource();using var scratch=RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = null }).RequireResource();
+        using var summary=RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = null }).RequireResource();using var commands=RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = null }).RequireResource();
         var header=new uint[(CloudVolumeDomain.ScratchBytes-4096)/4];header[5]=(uint)(domain.Blocks-17);
         var programs=new[]{2,6,7,8,9,10,11,12,13}.ToDictionary(op=>op,op=>CloudVolumeDensityProgram.Create(Programs.Api,op,false));
         try
@@ -299,7 +299,7 @@ public sealed class CloudVolumeComputeWorkTests(HeadlessGLFixture fixture,Xunit.
         var selected=fair.Concat(priority).ToHashSet();foreach(int r in selected)expected[r*16]|=256;
         // Read back only validation data after the complete measured submission has finished.
         uint[] Read(GpuShaderStorageBuffer b,int first,int count)
-        {using var view=b.MapScope<uint>(first*4,count,RHIBufferMapAccess.Read);return view.Span.ToArray();}
+        {using var view=b.MapScope<uint>(first*4,count,BufferMapAccess.Read);return view.Span.ToArray();}
         var actual=Read(scratch,64,selected.Count);Assert.Equal(fair.Select(r=>(uint)r),actual.Take(fair.Length));
         Assert.Equal(selected.Order().Select(r=>(uint)r),actual.Order());Assert.Equal(expected,Read(regions,0,records.Length));
         Assert.Equal(new uint[]{(uint)selected.Count,1,1},Read(commands,0,3));Assert.Equal((uint)selected.Count,Read(summary,5,1)[0]);
@@ -307,6 +307,6 @@ public sealed class CloudVolumeComputeWorkTests(HeadlessGLFixture fixture,Xunit.
         Assert.Equal(0xdeadbeefu,Read(scratch,header.Length-1,1)[0]);
     }
     /// <summary>Orders typed metadata, image and indirect work between measured dispatches.</summary>
-    private static void Barrier()=>RHICommandContext.Current.Barrier(new(RHIAccess.All));
+    private static void Barrier()=>RHICommandContext.Current.Barrier(new(ResourceAccess.All));
     #endregion
 }

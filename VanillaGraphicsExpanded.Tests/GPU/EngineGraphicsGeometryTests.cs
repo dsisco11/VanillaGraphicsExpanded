@@ -34,9 +34,9 @@ public sealed class EngineGraphicsGeometryTests(HeadlessGLFixture fixture) : Ren
         using var pipeline = new GraphicsPipeline(lifetime, new(shader.GraphicsIdentity!, EngineFullscreenGeometry.Layout,
             new([new(PixelInternalFormat.R32f)]), DynamicPipelineState.Viewport), shader);
         using var geometry = EngineFullscreenGeometry.Upload(native.Render.Object, native.Data);
-        using var source = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Width = 2, Height = 2, Format = RHIFormat.R32f, MipLevels = 1, Storage = RHIStorageMode.Mutable, BaseLevel = 0, MaxLevel = 0, Filter = TextureFilterMode.Nearest, Label = null }, [new RHITextureInitialData(new(new(), 0, 0, 0, 2, 2), VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLPixelValues.Encoding(TextureFormatHelper.GetPixelFormat(PixelInternalFormat.R32f), OpenTK.Graphics.OpenGL.PixelType.Float), System.Runtime.InteropServices.MemoryMarshal.AsBytes((new float[] { .2f, .4f, .6f, .8f }).AsSpan()).ToArray())]).RequireResource();
+        using var source = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Width = 2, Height = 2, Format = TextureFormat.R32f, MipLevels = 1, Storage = ResourceStorageMode.Mutable, BaseLevel = 0, MaxLevel = 0, Filter = TextureFilterMode.Nearest, Label = null }, [new RHITextureInitialData(new(new(), 0, 0, 0, 2, 2), VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLPixelValues.Encoding(TextureFormatHelper.GetPixelFormat(PixelInternalFormat.R32f), OpenTK.Graphics.OpenGL.PixelType.Float), System.Runtime.InteropServices.MemoryMarshal.AsBytes((new float[] { .2f, .4f, .6f, .8f }).AsSpan()).ToArray())]).RequireResource();
         using var target = CreateRenderTarget(1, 1, PixelInternalFormat.R32f);
-        using var incomingVao = GpuVao.Create(); using var incomingIndices = RHICommandContext.Current.CreateIndexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Index, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = null }).RequireResource();
+        using var incomingVao = GpuVao.Create(); using var incomingIndices = RHICommandContext.Current.CreateIndexBuffer(new RHIBufferDescription { Role = BufferRole.Index, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = null }).RequireResource();
         incomingVao.Bind(); incomingIndices.UploadIndices(new uint[] { 0, 1, 2 }); incomingVao.BindElementBuffer(incomingIndices);
         int priorVao = incomingSameMesh ? native.Mesh.VaoId : incomingVao.VertexArrayId;
         StateCache.Current.BindVertexArray(priorVao); OpenGLBufferBindings.BindBuffer(StateCache.Current, BufferTarget.ElementArrayBuffer, incomingIndices.BufferId);
@@ -151,7 +151,7 @@ public sealed class EngineGraphicsGeometryTests(HeadlessGLFixture fixture) : Ren
     public void FailedUploadRestoresCallerBindings()
     {
         EnsureContextValid();
-        using var native = new NativeMesh(); using var previous = GpuVao.Create(); using var buffer = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Vertex, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = null }).RequireResource();
+        using var native = new NativeMesh(); using var previous = GpuVao.Create(); using var buffer = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = null }).RequireResource();
         previous.Bind(); OpenGLBufferBindings.BindBuffer(StateCache.Current, BufferTarget.ArrayBuffer, buffer.BufferId);
         native.Render.Setup(render => render.UploadMesh(It.IsAny<MeshData>())).Returns(() =>
         {
@@ -186,8 +186,8 @@ public sealed class EngineGraphicsGeometryTests(HeadlessGLFixture fixture) : Ren
         internal bool FailDraw;
         internal Action? DuringDraw;
         private readonly GpuVao vao = GpuVao.Create();
-        private readonly GpuVbo positions = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Vertex, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = null }).RequireResource(), uv = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Vertex, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = null }).RequireResource();
-        private readonly GpuEbo indices = RHICommandContext.Current.CreateIndexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Index, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = null }).RequireResource();
+        private readonly GpuVbo positions = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = null }).RequireResource(), uv = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = null }).RequireResource();
+        private readonly GpuEbo indices = RHICommandContext.Current.CreateIndexBuffer(new RHIBufferDescription { Role = BufferRole.Index, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = null }).RequireResource();
 
         /// <summary>Constructs exactly the position/UV native layout accepted at the engine upload boundary.</summary>
         internal NativeMesh()

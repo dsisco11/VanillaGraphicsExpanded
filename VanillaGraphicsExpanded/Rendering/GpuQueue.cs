@@ -24,13 +24,13 @@ internal sealed class GpuQueue<T> : IDisposable where T : unmanaged
 
     #region Storage and submission
     /// <summary>Creates an append queue with a count-prefixed header, or a lazily allocated known-count queue without a header.</summary>
-    public GpuQueue(int capacity, int headerBytes = 0, string? debugName = null, RHIBufferUsage usage = RHIBufferUsage.DynamicDraw)
+    public GpuQueue(int capacity, int headerBytes = 0, string? debugName = null, BufferUsage usage = BufferUsage.DynamicDraw)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(capacity);
         if (headerBytes < 0 || (headerBytes & 3) != 0) throw new ArgumentOutOfRangeException(nameof(headerBytes));
         int maximumBytes = checked(headerBytes + capacity * recordBytes);
         this.capacity = capacity; this.headerBytes = headerBytes;
-        buffer = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = usage, Label = debugName }).RequireResource();
+        buffer = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = usage, Label = debugName }).RequireResource();
         try
         {
             // Append producers can write any bounded slot. Known-count producers allocate lazily.
@@ -106,21 +106,21 @@ internal sealed class GpuQueue<T> : IDisposable where T : unmanaged
         try
         {
             var status = RHICommandContext.Current.Poll(fence!);
-            if (status == RHICompletionStatus.Pending) return false;
-            if (status != RHICompletionStatus.Ready)
+            if (status == CompletionStatus.Pending) return false;
+            if (status != CompletionStatus.Ready)
                 throw new InvalidOperationException("GPU queue completion failed.");
             state = QueueState.Reading;
             int count = submittedCount;
             if (headerBytes > 0)
             {
-                using var header = buffer.MapRange<uint>(0, 1, RHIBufferMapAccess.Read);
+                using var header = buffer.MapRange<uint>(0, 1, BufferMapAccess.Read);
                 if (!header.IsMapped) throw new InvalidOperationException("GPU queue count readback failed.");
                 count = (int)Math.Min(header.Span[0], (uint)capacity);
             }
             if (count == 0) result = reader(ReadOnlySpan<T>.Empty);
             else
             {
-                using var records = buffer.MapRange<T>(headerBytes, count, RHIBufferMapAccess.Read);
+                using var records = buffer.MapRange<T>(headerBytes, count, BufferMapAccess.Read);
                 if (!records.IsMapped) throw new InvalidOperationException("GPU queue record readback failed.");
                 result = reader(records.Span);
             }

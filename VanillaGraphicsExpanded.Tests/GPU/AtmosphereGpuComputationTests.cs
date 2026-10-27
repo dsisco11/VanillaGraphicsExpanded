@@ -26,8 +26,8 @@ public sealed class AtmosphereGpuComputationTests(HeadlessGLFixture fixture, ITe
         using var assets = new BinaryShaderApiFixture();
         Assert.True(LumonSceneFeedbackCompactPagesComputeShader.TryCreate(assets.Api, out var loaded, out string log), log);
         using var outer = loaded!;
-        using var texture = RHICommandContext.Current.CreateTexture3D(new RHITextureDescription { Dimension = RHITextureDimension.TwoArray, Format = RHIFormat.R32ui, Width = System.Math.Max(1, 1), Height = System.Math.Max(1, 1), Depth = System.Math.Max(1, 1), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Linear, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
-        using var requests = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = null }).RequireResource();
+        using var texture = RHICommandContext.Current.CreateTexture3D(new RHITextureDescription { Dimension = TextureDimension.TwoArray, Format = TextureFormat.R32ui, Width = System.Math.Max(1, 1), Height = System.Math.Max(1, 1), Depth = System.Math.Max(1, 1), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Linear, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
+        using var requests = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = null }).RequireResource();
         requests.EnsureCapacity(64, growExponentially: false);
         using var counter = new ComponentAtomicCounters(0, 1);
         outer.BindPageUsageStamp(texture.TextureId);
@@ -283,7 +283,7 @@ public sealed class AtmosphereGpuComputationTests(HeadlessGLFixture fixture, ITe
             var result = gpu.Update(sun, altitude, clouds, width, height, quality, groundAlbedo);
             if (result is not null) return result;
             using var fence = RHICommandContext.Current.InsertFence();
-            Assert.Contains(RHICommandContext.Current.WaitCpu(fence, TimeSpan.FromSeconds(5)), new[] { RHICompletionStatus.Ready, RHICompletionStatus.Ready });
+            Assert.Contains(RHICommandContext.Current.WaitCpu(fence, TimeSpan.FromSeconds(5)), new[] { CompletionStatus.Ready, CompletionStatus.Ready });
         }
         throw new TimeoutException("Atmosphere GPU publication did not complete.");
     }

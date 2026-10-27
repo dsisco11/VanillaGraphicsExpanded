@@ -35,8 +35,8 @@ public sealed class NativeFrameLightingBindingTests(HeadlessGLFixture fixture) :
         int fragment = shaders.Compile(ShaderType.FragmentShader, "#version 430 core\n" + energy + helper +
             "\nflat in vec3 physical;layout(location=0)out vec4 outColor;void main(){vec2 e=VgeDirectionalAlbedo(.5,1);outColor=vec4(VgeStoreFrameLight(physical)*vec3(e,1),VgeFrameLightingValid(42u,7u)?1:0);}");
         using var program = GpuProgramObject.Adopt(TerrainShaderTestFixture.Link(vertex, fragment));
-        using var face = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = "Tests.NativeFaceData" }).RequireResource();
-        using var frame = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = "Tests.NativeFrozenFrame" }).RequireResource();
+        using var face = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = "Tests.NativeFaceData" }).RequireResource();
+        using var frame = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = "Tests.NativeFrozenFrame" }).RequireResource();
         float[] data = new float[16]; data[0] = 11; data[1] = 13; data[2] = 17; face.UploadData(data);
         byte[] publication = new byte[32];
         MemoryMarshal.Cast<byte, float>(publication.AsSpan())[0] = .25f;

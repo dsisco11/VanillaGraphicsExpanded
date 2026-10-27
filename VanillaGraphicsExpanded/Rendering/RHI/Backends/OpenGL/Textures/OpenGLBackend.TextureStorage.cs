@@ -94,13 +94,13 @@ internal sealed partial class OpenGLBackend
     /// <summary>Preserves wrapper filtering policy while keeping parameter execution inside the backend.</summary>
     private void ApplyTextureFilterPolicy(GpuTexture owner, in RHITextureDescription request, GpuResourceManager.MetadataOperation<GpuTextureMetadata>? operation = null)
     {
-        if (request.Dimension is RHITextureDimension.TwoMultisample or RHITextureDimension.TwoMultisampleArray) return;
+        if (request.Dimension is TextureDimension.TwoMultisample or TextureDimension.TwoMultisampleArray) return;
         bool linear = request.Filter == TextureFilterMode.Linear;
         ApplyTextureSampling(owner, new RHISamplerDescription { MinFilter = request.MipLevels > 1
-            ? linear ? RHISamplerFilter.LinearMipLinear : RHISamplerFilter.NearestMipNearest
-            : linear ? RHISamplerFilter.Linear : RHISamplerFilter.Nearest,
-            MagFilter = linear ? RHISamplerFilter.Linear : RHISamplerFilter.Nearest,
-            AddressS = RHISamplerAddress.ClampToEdge, AddressT = RHISamplerAddress.ClampToEdge, AddressR = RHISamplerAddress.ClampToEdge }, operation);
+            ? linear ? SamplerFilter.LinearMipLinear : SamplerFilter.NearestMipNearest
+            : linear ? SamplerFilter.Linear : SamplerFilter.Nearest,
+            MagFilter = linear ? SamplerFilter.Linear : SamplerFilter.Nearest,
+            AddressS = SamplerAddressMode.ClampToEdge, AddressT = SamplerAddressMode.ClampToEdge, AddressR = SamplerAddressMode.ClampToEdge }, operation);
     }
 
     /// <summary>Stops compound setters after original identity or context changes.</summary>

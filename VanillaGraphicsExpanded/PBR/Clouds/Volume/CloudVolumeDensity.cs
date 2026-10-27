@@ -73,8 +73,8 @@ internal sealed class CloudVolumeDensity(Func<int,PackedUniformBuffer?,CloudVolu
     {
         if(fence is null)return true;
         Check(()=>true);
-        var status=RHICommandContext.Current.Poll(fence);if(status==RHICompletionStatus.Pending)return false;
-        if(status==RHICompletionStatus.Failed)throw new InvalidOperationException("Cloud density fence failed.");
+        var status=RHICommandContext.Current.Poll(fence);if(status==CompletionStatus.Pending)return false;
+        if(status==CompletionStatus.Failed)throw new InvalidOperationException("Cloud density fence failed.");
         fence.Dispose();fence=null;Check(()=>true);
         if(validating){validatedBounds=ReadBounds();validating=false;return true;}
         CompletePending(storage);return true;
@@ -112,9 +112,9 @@ internal sealed class CloudVolumeDensity(Func<int,PackedUniformBuffer?,CloudVolu
             executable[i]=next;
         }
         if(summary is null)
-        {summary=RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = null }).RequireResource();summary.UploadData(new uint[8]);}
+        {summary=RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = null }).RequireResource();summary.UploadData(new uint[8]);}
         if(commands is null)
-        {commands=RHICommandContext.Current.CreateIndirectBuffer(new RHIBufferDescription { Role = RHIBufferRole.IndirectDraw, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = null }).RequireResource();commands.UploadData(new uint[]{0,1,1});}
+        {commands=RHICommandContext.Current.CreateIndirectBuffer(new RHIBufferDescription { Role = BufferRole.IndirectDraw, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = null }).RequireResource();commands.UploadData(new uint[]{0,1,1});}
     }
 
     /// <summary>Consumes only a synchronous certified native borrow, then advances one density budget against owned descriptors.</summary>
@@ -202,7 +202,7 @@ internal sealed class CloudVolumeDensity(Func<int,PackedUniformBuffer?,CloudVolu
     private void EnsureSnapshot(int width)
     {
         if(nativeSnapshot?.Width==width)return;
-        nativeSnapshot?.Dispose();nativeSnapshot=RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba32f, Width = System.Math.Max(1, width), Height = System.Math.Max(1, width), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
+        nativeSnapshot?.Dispose();nativeSnapshot=RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba32f, Width = System.Math.Max(1, width), Height = System.Math.Max(1, width), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
     }
     /// <summary>Validates and freezes the same native observation in one ordered dispatch.</summary>
     private void BeginValidation(CloudMapInput input,GpuTexture map,Func<bool> current)
@@ -218,7 +218,7 @@ internal sealed class CloudVolumeDensity(Func<int,PackedUniformBuffer?,CloudVolu
     /// <summary>Consumes a completed height/error reduction without rereading native storage.</summary>
     private (float Minimum,float Maximum) ReadBounds()
     {
-        using var read=summary.MapScope<uint>(0,4,RHIBufferMapAccess.Read);
+        using var read=summary.MapScope<uint>(0,4,BufferMapAccess.Read);
         if(read.Span[0]!=0)throw new InvalidOperationException("Native cloud extinction or height data is invalid.");
         return read.Span[3]==0?(0,0):(Unordered(read.Span[1]),Unordered(read.Span[2]));
     }
@@ -283,7 +283,7 @@ internal sealed class CloudVolumeDensity(Func<int,PackedUniformBuffer?,CloudVolu
     private void ReadGeneration(CloudVolumeFields fields,uint completedFrame)
     {
         var state=fields.DensityState;
-        using var read=summary!.MapScope<uint>(0,8,RHIBufferMapAccess.Read);
+        using var read=summary!.MapScope<uint>(0,8,BufferMapAccess.Read);
         if(read.Span[0]!=0)throw new InvalidOperationException("Generated cloud density cannot be represented as finite R16F.");
         state.Selected=checked((int)read.Span[5]);state.Remaining=checked((int)read.Span[4]);
         state.Changed=checked((int)read.Span[7]);state.MaintenanceRequired=state.Remaining!=0;

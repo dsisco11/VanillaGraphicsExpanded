@@ -26,13 +26,13 @@ public sealed class SurfaceFallbackGpuTests(HeadlessGLFixture fixture):RenderTes
         using var queue=Queue(16,1,37);
         bool complete=floor.BounceSample(rays:1,steps:scenario=="budget"?0u:256u,fallbackRequests:queue);
         GpuTestFence.WaitForGpuOrSkip("Fallback admission");
-        using(var header=queue.MapRange<uint>(0,4,RHIBufferMapAccess.Read))
+        using(var header=queue.MapRange<uint>(0,4,BufferMapAccess.Read))
         { Assert.True(header.IsMapped);Assert.Equal(expected?1u:0u,header.Span[0]); }
         Assert.Equal(scenario=="sky",complete);
         if(scenario!="sky")Assert.Equal(before,floor.Read(floor.Snapshot.IndirectIrradiance));
         if(expected)
         {
-            using var request=queue.MapRange<SurfaceFallbackRequest>(16,1,RHIBufferMapAccess.Read);
+            using var request=queue.MapRange<SurfaceFallbackRequest>(16,1,BufferMapAccess.Read);
             Assert.True(request.IsMapped);Assert.Equal(1u,request.Span[0].Page);Assert.Equal(27u,request.Span[0].Linear);
             Assert.Equal(1,request.Span[0].Fraction.W);Assert.Equal(1,request.Span[0].Normal.Y);
         }
@@ -46,7 +46,7 @@ public sealed class SurfaceFallbackGpuTests(HeadlessGLFixture fixture):RenderTes
         floor.Seed();Configure(floor,"coverage");using var queue=Queue(16,4,0);
         floor.DispatchDiagnosticWork(1,steps:256,fallbackRequests:queue);
         GpuTestFence.WaitForGpuOrSkip("Bounded fallback queue");
-        using var data=queue.MapRange<uint>(0,(16+16*64+16)/4,RHIBufferMapAccess.Read);
+        using var data=queue.MapRange<uint>(0,(16+16*64+16)/4,BufferMapAccess.Read);
         Assert.True(data.IsMapped);Assert.InRange(data.Span[0],1u,16u);
         foreach(uint guard in data.Span[^4..])Assert.Equal(0xfeedabcdU,guard);
         for(int page=0;page<4;page++)Assert.Equal(0,floor.Read(floor.Snapshot.IndirectIrradiance,page)[3]);
@@ -65,9 +65,9 @@ public sealed class SurfaceFallbackGpuTests(HeadlessGLFixture fixture):RenderTes
             using var queue=Queue(capacity,4,serial);
             floor.DispatchDiagnosticWork(1,steps:256,texels:cyclingBuckets?4u:64u,fallbackRequests:queue,bucket:cyclingBuckets?serial%16:0);
             GpuTestFence.WaitForGpuOrSkip("Rotating fallback queue");
-            using(var header=queue.MapRange<uint>(0,4,RHIBufferMapAccess.Read))
+            using(var header=queue.MapRange<uint>(0,4,BufferMapAccess.Read))
             { Assert.True(header.IsMapped);Assert.Equal(capacity,header.Span[0]); }
-            using var records=queue.MapRange<SurfaceFallbackRequest>(16,(int)capacity,RHIBufferMapAccess.Read);
+            using var records=queue.MapRange<SurfaceFallbackRequest>(16,(int)capacity,BufferMapAccess.Read);
             Assert.True(records.IsMapped);
             foreach(var record in records.Span)visited.Add((record.Page,record.Linear));
         }
@@ -130,7 +130,7 @@ public sealed class SurfaceFallbackGpuTests(HeadlessGLFixture fixture):RenderTes
     /// <summary>Allocates bounded request storage followed by a canary outside the writable record capacity.</summary>
     private static GpuShaderStorageBuffer Queue(uint capacity,uint pages,uint serial)
     {
-        var buffer=RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = null }).RequireResource();
+        var buffer=RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = null }).RequireResource();
         var words=new uint[(16+(int)capacity*Marshal.SizeOf<SurfaceFallbackRequest>()+16)/4];
         words[1]=capacity;words[2]=pages;words[3]=serial;Array.Fill(words,0xfeedabcdU,words.Length-4,4);
         buffer.EnsureCapacity(words.Length*4,growExponentially:false);buffer.UploadSubData<uint>(words,0,words.Length*4);return buffer;
@@ -140,7 +140,7 @@ public sealed class SurfaceFallbackGpuTests(HeadlessGLFixture fixture):RenderTes
     private static SurfaceFallbackRequest ReadRequest(GpuShaderStorageBuffer queue)
     {
         GpuTestFence.WaitForGpuOrSkip("Fallback request readback");
-        using var request=queue.MapRange<SurfaceFallbackRequest>(16,1,RHIBufferMapAccess.Read);
+        using var request=queue.MapRange<SurfaceFallbackRequest>(16,1,BufferMapAccess.Read);
         Assert.True(request.IsMapped);return request.Span[0];
     }
     #endregion

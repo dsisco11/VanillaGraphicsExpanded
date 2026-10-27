@@ -89,7 +89,7 @@ internal sealed class SurfaceLightingScreenTraceFixture : IDisposable
     /// <summary>Creates initialized typed storage through the GPU ownership abstraction.</summary>
     private static GpuShaderStorageBuffer Buffer<T>(ReadOnlySpan<T> values) where T : unmanaged
     {
-        var buffer = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = null }).RequireResource();
+        var buffer = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = null }).RequireResource();
         int bytes = values.Length * Marshal.SizeOf<T>();
         buffer.EnsureCapacity(bytes, growExponentially: false);
         buffer.UploadSubData(values, 0, bytes);
@@ -120,7 +120,7 @@ internal sealed class SurfaceLightingScreenTraceFixture : IDisposable
             shader.Dispatch(1, 1, capture.Length);
             GL.MemoryBarrier(MemoryBarrierFlags.AllBarrierBits);
         }
-        using (var result = work.MapRange<LumonSceneCaptureWorkGpu>(0, capture.Length, RHIBufferMapAccess.Read))
+        using (var result = work.MapRange<LumonSceneCaptureWorkGpu>(0, capture.Length, BufferMapAccess.Read))
         {
             Assert.True(result.IsMapped);
             foreach (var item in result.Span)
@@ -131,7 +131,7 @@ internal sealed class SurfaceLightingScreenTraceFixture : IDisposable
             work.UploadSubData<LumonSceneRelightWorkGpu>(lighting, 0, lighting.Length << 4);
             producer.Run(geometry, Snapshot, atlas.Outgoing[1 - (generation & 1)], work, lighting.Length,
                 operation, 64, 1, 256, (uint)generation, emission: true);
-            using var result = work.MapRange<LumonSceneRelightWorkGpu>(0, lighting.Length, RHIBufferMapAccess.Read);
+            using var result = work.MapRange<LumonSceneRelightWorkGpu>(0, lighting.Length, BufferMapAccess.Read);
             Assert.True(result.IsMapped);
             // Material capture can succeed for unsupported shapes; their lighting seed must still remain unavailable.
             foreach (var item in result.Span)

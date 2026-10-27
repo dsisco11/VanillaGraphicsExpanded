@@ -30,10 +30,10 @@ public sealed partial class GBufferManager
 
         // Do not insert this owned texture into the engine's deletion list. Its framebuffer
         // attachment is sufficient; VGE owns its lifetime alongside the other G-buffer textures.
-        fallbackPosition ??= RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba16f, Width = System.Math.Max(1, width), Height = System.Math.Max(1, height), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "gReceiverPosition" }).RequireResource();
+        fallbackPosition ??= RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba16f, Width = System.Math.Max(1, width), Height = System.Math.Max(1, height), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "gReceiverPosition" }).RequireResource();
         fallbackPosition.DisableMipmaps();
-        fallbackPosition.SetTexFilter(RHISamplerFilter.Nearest, RHISamplerFilter.Nearest);
-        fallbackPosition.SetTexWrap(RHISamplerAddress.ClampToEdge, RHISamplerAddress.ClampToEdge);
+        fallbackPosition.SetTexFilter(SamplerFilter.Nearest, SamplerFilter.Nearest);
+        fallbackPosition.SetTexWrap(SamplerAddressMode.ClampToEdge, SamplerAddressMode.ClampToEdge);
         PositionTextureId = fallbackPosition.TextureId;
     }
     #endregion

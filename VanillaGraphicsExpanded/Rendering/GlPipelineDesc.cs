@@ -9,7 +9,7 @@ namespace VanillaGraphicsExpanded.Rendering;
 /// <remarks>
 /// This intentionally stores only values needed for the bits present in the intent masks.
 /// (Some knobs, like indexed blend, also require attachment indices when forcing baseline defaults.)
-/// This type is not a complete GraphicsPipelineDesc and has no implicit conversion to one.
+/// This type is not a complete RHIGraphicsPipelineDescription and has no implicit conversion to one.
 /// </remarks>
 internal readonly partial struct GlPipelineDesc
 {

@@ -74,7 +74,7 @@ public sealed class UniformLifetimeSharingTests(HeadlessGLFixture fixture) : Ren
         finally { GpuUniformRingSystem.ClearCurrent(); }
     }
 
-    /// <summary>Nested persistent owners restore their distinct retained ranges and record the restoring bind.</summary>
+    /// <summary>Independent snapshots explicitly restore their retained ranges without copying CPU contents.</summary>
     [Fact]
     public void NestedResolveScopesRestorePersistentContentsWithoutCopying()
     {

@@ -197,7 +197,7 @@ public sealed class UniformLifetimeTests(HeadlessGLFixture fixture) : RenderTest
             var layout = TestShaderInterfaces.BuildLayout(program);
             layout.RegisterUniformBlockBinding("TestParams", 0, required: true);
             layout.ApplyContract(program);
-            using var output = RHICommandContext.Current.CreateTexture3D(new RHITextureDescription { Dimension = RHITextureDimension.Three, Format = RHIFormat.Rgba32ui, Width = System.Math.Max(1, 1), Height = System.Math.Max(1, 1), Depth = System.Math.Max(1, 1), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
+            using var output = RHICommandContext.Current.CreateTexture3D(new RHITextureDescription { Dimension = TextureDimension.Three, Format = TextureFormat.Rgba32ui, Width = System.Math.Max(1, 1), Height = System.Math.Max(1, 1), Depth = System.Math.Max(1, 1), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
             GL.BindImageTexture(0, output.TextureId, 0, true, 0, TextureAccess.WriteOnly, SizedInternalFormat.Rgba32ui);
             candidate.Buffer.BindRange(0, candidate.Offset, candidate.Size);
             GL.UseProgram(program);

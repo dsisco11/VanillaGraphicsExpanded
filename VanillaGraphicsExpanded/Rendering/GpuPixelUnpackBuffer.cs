@@ -12,7 +12,7 @@ namespace VanillaGraphicsExpanded.Rendering;
 internal sealed class GpuPixelUnpackBuffer : GpuBufferObject
 {
     /// <summary>Declares buffer policy before manager-owned native creation.</summary>
-    internal GpuPixelUnpackBuffer(RHIBufferUsage usage, string? debugName)
+    internal GpuPixelUnpackBuffer(BufferUsage usage, string? debugName)
     {
         target = BufferTarget.PixelUnpackBuffer;
         allocationUsage = usage;
@@ -53,7 +53,7 @@ internal sealed class GpuPixelUnpackBuffer : GpuBufferObject
     /// Returns <see cref="IntPtr.Zero"/> on invalid buffers; GL failures are surfaced via OpenTK/driver behavior.
     /// The caller is responsible for calling <see cref="Unmap"/> when finished.
     /// </remarks>
-    public IntPtr MapRange(int offsetBytes, int byteCount, RHIBufferMapAccess access)
+    public IntPtr MapRange(int offsetBytes, int byteCount, BufferMapAccess access)
     {
         if (!IsValid)
         {
@@ -134,7 +134,7 @@ internal sealed class GpuPixelUnpackBuffer : GpuBufferObject
     public IntPtr AllocateAndMapPersistent(
         int byteCount,
         bool coherent,
-        RHIStorageAccess extraStorageFlags = 0)
+        StorageAccess extraStorageFlags = 0)
     {
         if (!IsValid)
         {
@@ -148,17 +148,17 @@ internal sealed class GpuPixelUnpackBuffer : GpuBufferObject
 
 
 
-        RHIStorageAccess storageFlags = RHIStorageAccess.Write | RHIStorageAccess.Persistent | extraStorageFlags;
-        RHIBufferMapAccess mapFlags = RHIBufferMapAccess.Write | RHIBufferMapAccess.Persistent;
+        StorageAccess storageFlags = StorageAccess.Write | StorageAccess.Persistent | extraStorageFlags;
+        BufferMapAccess mapFlags = BufferMapAccess.Write | BufferMapAccess.Persistent;
 
         if (coherent)
         {
-            storageFlags |= RHIStorageAccess.Coherent;
-            mapFlags |= RHIBufferMapAccess.Coherent;
+            storageFlags |= StorageAccess.Coherent;
+            mapFlags |= BufferMapAccess.Coherent;
         }
         else
         {
-            mapFlags |= RHIBufferMapAccess.ExplicitFlush;
+            mapFlags |= BufferMapAccess.ExplicitFlush;
         }
 
         RHICommandContext.Current.AllocateImmutableBuffer(this, byteCount, storageFlags);

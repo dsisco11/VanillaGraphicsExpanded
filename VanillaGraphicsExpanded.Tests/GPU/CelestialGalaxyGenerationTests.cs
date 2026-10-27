@@ -66,7 +66,7 @@ public sealed class CelestialGalaxyGenerationTests(HeadlessGLFixture fixture, IT
             int failedReads = assets.Reads.Count;
             for (int i = 0; i < 10; i++) lifetime.Update(0);
             Assert.Equal(failedReads, assets.Reads.Count);
-            lifetime.Dispose(); Assert.Null(lifetime.Completed); Assert.False(previous.Galaxy.IsValid);
+             lifetime.Dispose(); Assert.Null(lifetime.Completed); Assert.False(previous.Galaxy.IsValid);
         }
         finally { lifetime.Dispose(); }
     }

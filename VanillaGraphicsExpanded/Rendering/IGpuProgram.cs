@@ -3,20 +3,20 @@ using System.Collections.Generic;
 
 namespace VanillaGraphicsExpanded.Rendering;
 
-/// <summary>Sequences preparation, publication and retirement for VGE executable owners.</summary>
+/// <summary>Coordinates asset preparation, CPU binding capture and retirement without owning command execution.</summary>
 internal interface IGpuProgram : IShaderSubmissionTarget, IDisposable
 {
     #region Public API
     #region Owner contract
-    /// <summary>Provides stable lifecycle data without duplicating native ownership.</summary>
+    /// <summary>Gets the existing asset lifetime and capture guards.</summary>
     GpuProgramLifetime Lifetime { get; }
-    /// <summary>Identifies the installed executable independently of its numeric name.</summary>
+    /// <summary>Identifies a successful installation independently of the native name.</summary>
     ulong ExecutableRevision { get; }
-    /// <summary>Identifies the originating registered native context lifetime.</summary>
+    /// <summary>Identifies the native context which owns the installed executable.</summary>
     (nint Handle, long Generation) ExecutableContext { get; }
-    /// <summary>Reports whether the requested executable needs installation rather than reuse.</summary>
+    /// <summary>Reports whether requested assets need installation.</summary>
     bool RequiresPreparation { get; }
-    /// <summary>Prepares the family-specific executable and reports readiness.</summary>
+    /// <summary>Prepares the owner's fixed executable selection without binding resources or dispatching work.</summary>
     bool PrepareExecutable();
     /// <summary>Establishes the family's existing activation ownership before publication.</summary>
     void BindExecutable();
@@ -28,7 +28,7 @@ internal interface IGpuProgram : IShaderSubmissionTarget, IDisposable
     IDisposable OpenUseScope(bool replayInputs);
     /// <summary>Releases the family's singular native executable owner.</summary>
     void ReleaseExecutable();
-    /// <summary>Releases additional family-owned resources on terminal retirement.</summary>
+    /// <summary>Releases extra asset-owned resources after retirement closes admission.</summary>
     void ReleaseResources();
     #endregion
 
@@ -103,11 +103,8 @@ internal interface IGpuProgram : IShaderSubmissionTarget, IDisposable
     void Retire()
     {
         if (Lifetime.IsRetired) return;
-        Lifetime.RequireMutation();
-        Lifetime.RequireUnborrowed();
-        Lifetime.IsRetired = true;
+        Lifetime.RequireMutation(); Lifetime.RequireUnborrowed(); Lifetime.IsRetired = true;
         List<Exception>? failures = null;
-        // Terminal admission closes before any cleanup can invoke owner code again.
         foreach (var buffer in Lifetime.OwnedUniforms)
             try { buffer.Dispose(); }
             catch (Exception failure) { (failures ??= new()).Add(failure); }
@@ -118,12 +115,10 @@ internal interface IGpuProgram : IShaderSubmissionTarget, IDisposable
         catch (Exception failure) { (failures ??= new()).Add(failure); }
         if (failures != null) throw new AggregateException(failures);
     }
-
-    /// <summary>Registers an owned CPU block and enforces the same input mutation contract.</summary>
+    /// <summary>Adopts a CPU block and guards its writes and future captures with this same logical asset lifetime.</summary>
     T RegisterUniform<T>(T buffer) where T : CpuUniformBuffer
     {
-        ArgumentNullException.ThrowIfNull(buffer);
-        Lifetime.RequireMutation();
+        ArgumentNullException.ThrowIfNull(buffer); Lifetime.RequireMutation();
         if (!Lifetime.OwnedUniforms.Contains(buffer)) Lifetime.OwnedUniforms.Add(buffer);
         buffer.SetWriteGuard(Lifetime.RequireMutation);
         return buffer;

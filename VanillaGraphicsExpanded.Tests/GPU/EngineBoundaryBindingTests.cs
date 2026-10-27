@@ -196,7 +196,7 @@ public sealed class EngineBoundaryBindingTests(HeadlessGLFixture fixture)
         }
     }
 
-    /// <summary>Failed activation and its failed rollback remain distinguishable before a UseScope can be registered.</summary>
+    /// <summary>Pipeline selection cannot widen an already admitted execution footprint.</summary>
     [Fact]
     public void ActivationAndRollbackFailuresBothSurvive()
     {

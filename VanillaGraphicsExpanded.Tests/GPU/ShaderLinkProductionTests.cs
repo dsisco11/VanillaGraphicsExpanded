@@ -24,7 +24,7 @@ public sealed class ShaderLinkProductionTests(HeadlessGLFixture fixture, ITestOu
         EnsureContextValid();
         using var platform = new EngineShaderPlatformScope();
         using var cache = DriverProgramCache.UseStoreForTesting(null);
-        using var depth = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.R32f, Width = System.Math.Max(1, 8), Height = System.Math.Max(1, 8), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
+        using var depth = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.R32f, Width = System.Math.Max(1, 8), Height = System.Math.Max(1, 8), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         depth.UploadDataImmediate(Enumerable.Repeat(.5f, 64).ToArray());
         using var target = CreateRenderTarget(8, 8, PixelInternalFormat.R32f);
         bool profile = Environment.GetEnvironmentVariable("VGE_SHADER_LINK_PROFILE") == "1";

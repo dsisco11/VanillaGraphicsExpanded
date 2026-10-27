@@ -253,7 +253,7 @@ public sealed class AtmosphereCelestialPublicationTests(HeadlessGLFixture fixtur
             else
             {
                 using var fence = RHICommandContext.Current.InsertFence();
-                Assert.Contains(RHICommandContext.Current.WaitCpu(fence, TimeSpan.FromSeconds(5)), new[] {RHICompletionStatus.Ready, RHICompletionStatus.Ready});
+                Assert.Contains(RHICommandContext.Current.WaitCpu(fence, TimeSpan.FromSeconds(5)), new[] {CompletionStatus.Ready, CompletionStatus.Ready});
             }
         }
         throw new TimeoutException("Celestial pair did not complete.");

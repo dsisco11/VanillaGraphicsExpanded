@@ -7,7 +7,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 /// <summary>Authors and observes counters while production shaders own their binding points.</summary>
 internal sealed class ComponentAtomicCounters : IDisposable
 {
-    public GpuAtomicCounterBuffer Buffer { get; } = RHICommandContext.Current.CreateAtomicCounterBuffer(new RHIBufferDescription { Role = RHIBufferRole.AtomicCounter, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = null }).RequireResource();
+    public GpuAtomicCounterBuffer Buffer { get; } = RHICommandContext.Current.CreateAtomicCounterBuffer(new RHIBufferDescription { Role = BufferRole.AtomicCounter, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = null }).RequireResource();
     #region Population and observation
     /// <summary>Allocates zeroed counters and initializes the first value used by the scenario.</summary>
     public ComponentAtomicCounters(uint initialValue = 0, int counterCount = 1)
@@ -24,7 +24,7 @@ internal sealed class ComponentAtomicCounters : IDisposable
     /// <summary>Copies the requested counters through production buffer mapping.</summary>
     public uint[] Read(int counterCount)
     {
-        using var mapped = Buffer.MapRange<uint>(0, counterCount, RHIBufferMapAccess.Read);
+        using var mapped = Buffer.MapRange<uint>(0, counterCount, BufferMapAccess.Read);
         Assert.True(mapped.IsMapped);
         return mapped.Span.ToArray();
     }

@@ -8,11 +8,11 @@ namespace VanillaGraphicsExpanded.HarmonyPatches.NativeAdapters.Programs;
 internal static unsafe partial class Core
 {
     #region Internal API
-    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
+    /// <summary>Forwards the exact signature to the backend execution boundary.</summary>
     internal static void UniformBlockBinding(int @program, int @uniformBlockIndex, int @uniformBlockBinding)
         => StateCache.Current.ExecuteCoreUniformBlockBinding(@program, @uniformBlockIndex, @uniformBlockBinding);
 
-    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
+    /// <summary>Forwards the exact signature to the backend execution boundary.</summary>
     internal static void UniformBlockBinding(uint @program, uint @uniformBlockIndex, uint @uniformBlockBinding)
         => StateCache.Current.ExecuteCoreUniformBlockBinding(@program, @uniformBlockIndex, @uniformBlockBinding);
     #endregion

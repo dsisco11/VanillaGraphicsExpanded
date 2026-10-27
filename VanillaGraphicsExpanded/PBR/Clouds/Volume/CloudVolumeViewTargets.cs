@@ -8,7 +8,7 @@ using VanillaGraphicsExpanded.Rendering.Pipeline.Passes;
 
 namespace VanillaGraphicsExpanded.PBR.Clouds.Volume;
 
-/// <summary>Owns compact transport, required observation age and independently optional diagnostic images.</summary>
+/// <summary>Owns compact transport/history images and their pure attachment intentions without creating framebuffer objects.</summary>
 internal sealed class CloudVolumeViewTargets : IDisposable
 {
     internal DynamicTexture2D[] Images {get;private set;}
@@ -33,13 +33,14 @@ internal sealed class CloudVolumeViewTargets : IDisposable
         PixelInternalFormat[] formats=[PixelInternalFormat.Rgba32f,PixelInternalFormat.Rgb32f,PixelInternalFormat.Rgba32f,PixelInternalFormat.R16f];
         try
         {
-            for(int i=0;i<Images.Length;i++)Images[i]=RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Format((OpenTK.Graphics.OpenGL.PixelInternalFormat)(formats[i])), Width = System.Math.Max(1, (width+divisor-1)/divisor), Height = System.Math.Max(1, (height+divisor-1)/divisor), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = $"Cloud.Volume.View.{i}" }).RequireResource();
+            for(int i=0;i<Images.Length;i++)Images[i]=RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Format((OpenTK.Graphics.OpenGL.PixelInternalFormat)(formats[i])), Width = System.Math.Max(1, (width+divisor-1)/divisor), Height = System.Math.Max(1, (height+divisor-1)/divisor), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = $"Cloud.Volume.View.{i}" }).RequireResource();
             Target=DynamicGpuFramebuffer.CreateMRT(Images,debugName:"Cloud.Volume.View.Reduced")
                 ??throw new InvalidOperationException("Stored cloud intermediate framebuffer unavailable.");
         }
-        catch{foreach(var image in Images)image?.Dispose();throw;}
+        catch { foreach (var image in Images) image?.Dispose(); throw; }
     }
-    /// <summary>Adds or retires the optional diagnostic attachment without replacing physical history or observation age.</summary>
+
+    /// <summary>Installs or retires optional diagnostics without replacing physical history images or acquiring target authority.</summary>
     internal void ConfigureDiagnostics(bool enabled)
     {
         if(Images.Length<4)throw new InvalidOperationException("Raw cloud traces have no temporal diagnostics.");
@@ -53,7 +54,7 @@ internal sealed class CloudVolumeViewTargets : IDisposable
             // every physical image and its framebuffer usable under the existing failure boundary.
             if(enabled)
             {
-                added=RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba16f, Width = System.Math.Max(1, Target.Width), Height = System.Math.Max(1, Target.Height), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "Cloud.Volume.View.Diagnostics" }).RequireResource();
+                added=RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba16f, Width = System.Math.Max(1, Target.Width), Height = System.Math.Max(1, Target.Height), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "Cloud.Volume.View.Diagnostics" }).RequireResource();
                 next=[..Images,added];
             }
             else next=Images[..4];

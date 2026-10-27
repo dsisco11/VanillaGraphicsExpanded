@@ -275,7 +275,7 @@ public static partial class VgeBuiltInDebugViews
             vbo = null;
             try
             {
-                vbo = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Vertex, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StreamDraw, Label = "VGE_WorldCellBoundsLines_VBO" }).RequireResource();
+                vbo = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StreamDraw, Label = "VGE_WorldCellBoundsLines_VBO" }).RequireResource();
                 geometry = new(LineLayout, PrimitiveType.Lines, new Dictionary<int, GpuVbo> { [0] = vbo });
             }
             catch

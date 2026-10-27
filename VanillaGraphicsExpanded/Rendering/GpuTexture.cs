@@ -170,7 +170,7 @@ public abstract partial class GpuTexture : GpuResource<GpuTextureMetadata>, IDis
         var request = new RHITextureDescription
         {
             Dimension = RHI.Backends.OpenGL.OpenGLImageValues.Dimension(target), Format = RHI.Backends.OpenGL.OpenGLImageValues.Format(format),
-            Width = width, Height = height, Depth = depth, MipLevels = 1, Storage = immutableStorage ? RHIStorageMode.Immutable : RHIStorageMode.Mutable,
+            Width = width, Height = height, Depth = depth, MipLevels = 1, Storage = immutableStorage ? ResourceStorageMode.Immutable : ResourceStorageMode.Mutable,
             Filter = filterMode, BaseLevel = 0, MaxLevel = 0, Label = debugName
         };
         try { RHICommandContext.Current.OpenGL.InitializeTextureOwner(this, request); }
@@ -252,14 +252,14 @@ public abstract partial class GpuTexture : GpuResource<GpuTextureMetadata>, IDis
     }
 
     /// <summary>Applies owner-selected texture filtering without temporarily selecting a texture unit.</summary>
-    public void SetTexFilter(RHISamplerFilter minFilter, RHISamplerFilter magFilter)
+    public void SetTexFilter(SamplerFilter minFilter, SamplerFilter magFilter)
     {
         ObjectDisposedException.ThrowIf(!base.IsValid, this);
         RHICommandContext.Current.ConfigureTexture(this, new RHISamplerDescription { MinFilter = minFilter, MagFilter = magFilter });
     }
 
     /// <summary>Applies the supplied address axes through the named backend operation.</summary>
-    public void SetTexWrap(RHISamplerAddress wrapS, RHISamplerAddress wrapT, RHISamplerAddress? wrapR = null)
+    public void SetTexWrap(SamplerAddressMode wrapS, SamplerAddressMode wrapT, SamplerAddressMode? wrapR = null)
     {
         ObjectDisposedException.ThrowIf(!base.IsValid, this);
         var request = new RHISamplerDescription { AddressS = wrapS, AddressT = wrapT };
@@ -731,7 +731,7 @@ public abstract partial class GpuTexture : GpuResource<GpuTextureMetadata>, IDis
         // The request owns staging independently; only completed bytes are exposed to CPU readers.
         using var request = RHICommandContext.Current.EnqueueReadback(new RHIReadbackDescription(this,
             new(new(0), 0, 0, 0, width, height, 1), OpenGLPixelValues.Encoding(TextureFormatHelper.GetPixelFormat(internalFormat), PixelType.Float)));
-        if (request.Wait() != RHICompletionStatus.Ready)
+        if (request.Wait() != CompletionStatus.Ready)
             throw new InvalidOperationException("Texture readback did not complete.", request.Error);
         using var mapping = request.MapReadyReadback();
         return System.Runtime.InteropServices.MemoryMarshal.Cast<byte, float>(mapping.Bytes).ToArray();
@@ -747,7 +747,7 @@ public abstract partial class GpuTexture : GpuResource<GpuTextureMetadata>, IDis
         // The request owns staging independently; only completed bytes are exposed to CPU readers.
         using var request = RHICommandContext.Current.EnqueueReadback(new RHIReadbackDescription(this,
             new(new(0), x, y, 0, regionWidth, regionHeight, 1), OpenGLPixelValues.Encoding(TextureFormatHelper.GetPixelFormat(internalFormat), PixelType.Float)));
-        if (request.Wait() != RHICompletionStatus.Ready)
+        if (request.Wait() != CompletionStatus.Ready)
             throw new InvalidOperationException("Texture readback did not complete.", request.Error);
         using var mapping = request.MapReadyReadback();
         return System.Runtime.InteropServices.MemoryMarshal.Cast<byte, float>(mapping.Bytes).ToArray();
@@ -763,7 +763,7 @@ public abstract partial class GpuTexture : GpuResource<GpuTextureMetadata>, IDis
         // The request owns staging independently; only completed bytes are exposed to CPU readers.
         using var request = RHICommandContext.Current.EnqueueReadback(new RHIReadbackDescription(this,
             new(new(mipLevel), 0, 0, 0, Math.Max(1, width >> mipLevel), Math.Max(1, height >> mipLevel), 1), OpenGLPixelValues.Encoding(TextureFormatHelper.GetPixelFormat(internalFormat), PixelType.Float)));
-        if (request.Wait() != RHICompletionStatus.Ready)
+        if (request.Wait() != CompletionStatus.Ready)
             throw new InvalidOperationException("Texture readback did not complete.", request.Error);
         using var mapping = request.MapReadyReadback();
         return System.Runtime.InteropServices.MemoryMarshal.Cast<byte, float>(mapping.Bytes).ToArray();

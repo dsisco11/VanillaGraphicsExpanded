@@ -43,7 +43,7 @@ public sealed class ShaderLinkBatchTests(HeadlessGLFixture fixture, ITestOutputH
         {
             Assert.True(GL.IsProgram(pipeline!.ProgramId));
             Assert.NotNull(pipeline.ProgramLayout.BinaryInterface);
-            using var texture = RHICommandContext.Current.CreateTexture3D(new RHITextureDescription { Dimension = RHITextureDimension.Three, Format = RHIFormat.Rgba32ui, Width = System.Math.Max(1, 1), Height = System.Math.Max(1, 1), Depth = System.Math.Max(1, 1), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
+            using var texture = RHICommandContext.Current.CreateTexture3D(new RHITextureDescription { Dimension = TextureDimension.Three, Format = TextureFormat.Rgba32ui, Width = System.Math.Max(1, 1), Height = System.Math.Max(1, 1), Depth = System.Math.Max(1, 1), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
             Assert.True(GpuUniformRingSystem.TryGetCurrent(out var ring));
             byte[] data = new byte[16];
             System.Buffers.Binary.BinaryPrimitives.WriteUInt32LittleEndian(data, 123);
@@ -233,7 +233,7 @@ public sealed class ShaderLinkBatchTests(HeadlessGLFixture fixture, ITestOutputH
         Assert.Equal(revision + 1, program.ExecutableRevision);
     }
 
-    /// <summary>Successful transfers release attached stages; abandoned and cancelled candidates retire every native allocation once.</summary>
+    /// <summary>Ready transfers release temporary stages; cancelled requests retire all their unpublished native allocations.</summary>
     [Theory]
     [InlineData(false)]
     [InlineData(true)]

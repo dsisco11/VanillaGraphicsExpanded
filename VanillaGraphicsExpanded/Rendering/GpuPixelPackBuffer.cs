@@ -13,7 +13,7 @@ namespace VanillaGraphicsExpanded.Rendering;
 internal sealed class GpuPixelPackBuffer : GpuBufferObject
 {
     /// <summary>Declares buffer policy before manager-owned native creation.</summary>
-    internal GpuPixelPackBuffer(RHIBufferUsage usage, string? debugName)
+    internal GpuPixelPackBuffer(BufferUsage usage, string? debugName)
     {
         target = BufferTarget.PixelPackBuffer;
         allocationUsage = usage;
@@ -55,7 +55,7 @@ internal sealed class GpuPixelPackBuffer : GpuBufferObject
     /// Returns <see cref="IntPtr.Zero"/> on invalid buffers; GL failures are surfaced via OpenTK/driver behavior.
     /// The caller is responsible for calling <see cref="Unmap"/> when finished.
     /// </remarks>
-    public IntPtr MapRange(int offsetBytes, int byteCount, RHIBufferMapAccess access)
+    public IntPtr MapRange(int offsetBytes, int byteCount, BufferMapAccess access)
     {
         if (!IsValid)
         {
@@ -136,7 +136,7 @@ internal sealed class GpuPixelPackBuffer : GpuBufferObject
     public IntPtr AllocateAndMapPersistent(
         int byteCount,
         bool coherent,
-        RHIStorageAccess extraStorageFlags = 0)
+        StorageAccess extraStorageFlags = 0)
     {
         if (!IsValid)
         {
@@ -150,13 +150,13 @@ internal sealed class GpuPixelPackBuffer : GpuBufferObject
 
 
 
-        RHIStorageAccess storageFlags = RHIStorageAccess.Read | RHIStorageAccess.Persistent | extraStorageFlags;
-        RHIBufferMapAccess mapFlags = RHIBufferMapAccess.Read | RHIBufferMapAccess.Persistent;
+        StorageAccess storageFlags = StorageAccess.Read | StorageAccess.Persistent | extraStorageFlags;
+        BufferMapAccess mapFlags = BufferMapAccess.Read | BufferMapAccess.Persistent;
 
         if (coherent)
         {
-            storageFlags |= RHIStorageAccess.Coherent;
-            mapFlags |= RHIBufferMapAccess.Coherent;
+            storageFlags |= StorageAccess.Coherent;
+            mapFlags |= BufferMapAccess.Coherent;
         }
         // Read-only mappings need no client flush; GPU completion governs visibility.
 

@@ -605,8 +605,8 @@ internal static partial class MaterialAtlasNormalDepthGpuBuilder
     {
         using var texture = new BorrowedTexture(atlasTexId);
         using var request = RHICommandContext.Current.EnqueueReadback(new RHIReadbackDescription(texture,
-            new(new(0), x, y, 0, 1, 1, 1), new(RHIPixelChannels.Rgba, RHIPixelType.Float)));
-        if (request.Wait() != RHICompletionStatus.Ready)
+            new(new(0), x, y, 0, 1, 1, 1), new(PixelChannelLayout.Rgba, PixelComponentType.Float)));
+        if (request.Wait() != CompletionStatus.Ready)
             throw new InvalidOperationException("Atlas readback failed.", request.Error);
         using var mapped = request.MapReadyReadback();
         var pixels = System.Runtime.InteropServices.MemoryMarshal.Cast<byte, float>(mapped.Bytes);
@@ -617,8 +617,8 @@ internal static partial class MaterialAtlasNormalDepthGpuBuilder
     private static float ReadTexturePixelR32f(DynamicTexture2D tex, int x, int y)
     {
         using var request = RHICommandContext.Current.EnqueueReadback(new RHIReadbackDescription(tex,
-            new(new(0), x, y, 0, 1, 1, 1), new(RHIPixelChannels.Red, RHIPixelType.Float)));
-        if (request.Wait() != RHICompletionStatus.Ready)
+            new(new(0), x, y, 0, 1, 1, 1), new(PixelChannelLayout.Red, PixelComponentType.Float)));
+        if (request.Wait() != CompletionStatus.Ready)
             throw new InvalidOperationException("Solver readback failed.", request.Error);
         using var mapped = request.MapReadyReadback();
         return System.Runtime.InteropServices.MemoryMarshal.Cast<byte, float>(mapped.Bytes)[0];

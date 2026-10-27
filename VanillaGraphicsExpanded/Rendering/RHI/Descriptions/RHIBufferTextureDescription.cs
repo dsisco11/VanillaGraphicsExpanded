@@ -7,7 +7,7 @@ public struct RHIBufferTextureDescription
 {
     private ulong assigned;
     private GpuBufferRef buffer;
-    private RHIFormat format;
+    private TextureFormat format;
     private bool wholeBuffer;
     private nint offset;
     private nint length;
@@ -17,7 +17,7 @@ public struct RHIBufferTextureDescription
     /// <summary>Supplies Buffer while retaining explicit assignment intent.</summary>
     public GpuBufferRef Buffer { readonly get => buffer; set { buffer = value; assigned |= 1UL << 0; } }
     /// <summary>Supplies Format while retaining explicit assignment intent.</summary>
-    public RHIFormat Format { readonly get => format; set { format = value; assigned |= 1UL << 1; } }
+    public TextureFormat Format { readonly get => format; set { format = value; assigned |= 1UL << 1; } }
     /// <summary>Supplies WholeBuffer while retaining explicit assignment intent.</summary>
     public bool WholeBuffer { readonly get => wholeBuffer; set { wholeBuffer = value; assigned |= 1UL << 2; } }
     /// <summary>Supplies Offset while retaining explicit assignment intent.</summary>

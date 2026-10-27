@@ -1,6 +1,6 @@
 namespace ShaderContractGenerator.Tests;
 
-/// <summary>Checks contract-generated publication and retained assignments independently of the graphics driver.</summary>
+/// <summary>Verifies immutable generated capture without native state, allocation or execution stubs.</summary>
 public sealed class RuntimeSubmissionTests
 {
     private const string Support = """
@@ -138,7 +138,7 @@ public sealed class RuntimeSubmissionTests
         Assert.Equal("11", GeneratorFixture.Generate(source, supportSource: Support).Run());
     }
 
-    /// <summary>Authored getters are sampled once and retained even when the scene source changes.</summary>
+    /// <summary>Caller array edits cannot mutate retained assignments or earlier captured element tables.</summary>
     [Fact]
     public void AuthoredSourcesUpdateTheGeneratedStateOncePerUse()
     {
@@ -227,7 +227,7 @@ public sealed class RuntimeSubmissionTests
         Assert.Equal("|validate-sampler;sampler;", GeneratorFixture.Generate(source, supportSource: support).Run());
     }
 
-    /// <summary>Separate texture views retain typed submission without inheriting the owning texture wrapper.</summary>
+    /// <summary>CPU edits create a new captured version without changing the bytes version retained by earlier tables.</summary>
     [Fact]
     public void TextureViewSamplerPublishesAtActivation()
     {
@@ -255,7 +255,7 @@ public sealed class RuntimeSubmissionTests
         Assert.Equal("|validate-sampler;sampler;", GeneratorFixture.Generate(source, supportSource: support).Run());
     }
 
-    /// <summary>Reference arrays compile to complete array validation and publication with stable retained storage.</summary>
+    /// <summary>Authored resource getters are sampled once per capture and equal values reuse the frozen table.</summary>
     [Fact]
     public void TextureReferenceArraysUseArraySubmission()
     {
@@ -485,7 +485,7 @@ public sealed class RuntimeSubmissionTests
         Assert.Equal("used", result.Run());
     }
 
-    /// <summary>Interface setters retain values, while the generated method validates and publishes on every use.</summary>
+    /// <summary>Retirement rejects further input mutation before any new capture can be produced.</summary>
     [Fact]
     public void ResourceAssignmentsPublishOnlyOnUseAndRetainCpuBlock()
     {
@@ -527,8 +527,7 @@ public sealed class RuntimeSubmissionTests
         Assert.Equal(2, calls.Split(';').Count(call => call == "storage"));
         Assert.True(calls.IndexOf("validate-storage;", StringComparison.Ordinal) < calls.IndexOf(";sampler;", StringComparison.Ordinal));
     }
-
-    /// <summary>Generated shader state owns every non-UBO resource and ignores equal reassignment.</summary>
+    /// <summary>Image selectors and buffer intervals remain frozen when later desired inputs select different subresources.</summary>
     [Fact]
     public void GeneratedStateRetainsNonUboBindingsAndSkipsEqualAssignments()
     {

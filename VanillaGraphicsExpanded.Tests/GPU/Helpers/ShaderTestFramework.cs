@@ -26,7 +26,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU.Helpers;
 /// // Bind inputs and render
 /// depthTex.Bind(0);
 /// normalTex.Bind(1);
-/// outputGBuffer.BindWithViewport();
+/// FramebufferTestSetup.BindForEngineRendering(outputGBuffer);
 /// framework.RenderQuad(programId);
 ///
 /// // Read back and validate
@@ -88,7 +88,7 @@ public sealed class ShaderTestFramework : IDisposable
         float[] data,
         TextureFilterMode filter = TextureFilterMode.Nearest)
     {
-        var texture = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Width = width, Height = height, Format = VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Format(format), MipLevels = 1, Storage = RHIStorageMode.Mutable, BaseLevel = 0, MaxLevel = 0, Filter = filter, Label = null }, [new RHITextureInitialData(new(new(), 0, 0, 0, width, height), VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLPixelValues.Encoding(TextureFormatHelper.GetPixelFormat(format), OpenTK.Graphics.OpenGL.PixelType.Float), System.Runtime.InteropServices.MemoryMarshal.AsBytes((data).AsSpan()).ToArray())]).RequireResource();
+        var texture = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Width = width, Height = height, Format = VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Format(format), MipLevels = 1, Storage = ResourceStorageMode.Mutable, BaseLevel = 0, MaxLevel = 0, Filter = filter, Label = null }, [new RHITextureInitialData(new(new(), 0, 0, 0, width, height), VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLPixelValues.Encoding(TextureFormatHelper.GetPixelFormat(format), OpenTK.Graphics.OpenGL.PixelType.Float), System.Runtime.InteropServices.MemoryMarshal.AsBytes((data).AsSpan()).ToArray())]).RequireResource();
         _managedResources.Add(texture);
         return texture;
     }
@@ -108,7 +108,7 @@ public sealed class ShaderTestFramework : IDisposable
         PixelInternalFormat format,
         TextureFilterMode filter = TextureFilterMode.Nearest)
     {
-        var texture = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Format((OpenTK.Graphics.OpenGL.PixelInternalFormat)(format)), Width = System.Math.Max(1, width), Height = System.Math.Max(1, height), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = filter, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
+        var texture = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Format((OpenTK.Graphics.OpenGL.PixelInternalFormat)(format)), Width = System.Math.Max(1, width), Height = System.Math.Max(1, height), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = filter, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         _managedResources.Add(texture);
         return texture;
     }
@@ -137,7 +137,7 @@ public sealed class ShaderTestFramework : IDisposable
         var textures = new DynamicTexture2D[attachmentCount];
         for (int i = 0; i < attachmentCount; i++)
         {
-            textures[i] = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Format((OpenTK.Graphics.OpenGL.PixelInternalFormat)(format)), Width = System.Math.Max(1, width), Height = System.Math.Max(1, height), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
+            textures[i] = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Format((OpenTK.Graphics.OpenGL.PixelInternalFormat)(format)), Width = System.Math.Max(1, width), Height = System.Math.Max(1, height), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
             _managedResources.Add(textures[i]);
         }
 
@@ -171,7 +171,7 @@ public sealed class ShaderTestFramework : IDisposable
         var textures = new DynamicTexture2D[formats.Length];
         for (int i = 0; i < formats.Length; i++)
         {
-            textures[i] = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Format((OpenTK.Graphics.OpenGL.PixelInternalFormat)(formats[i])), Width = System.Math.Max(1, width), Height = System.Math.Max(1, height), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
+            textures[i] = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Format((OpenTK.Graphics.OpenGL.PixelInternalFormat)(formats[i])), Width = System.Math.Max(1, width), Height = System.Math.Max(1, height), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
             _managedResources.Add(textures[i]);
         }
 
@@ -208,7 +208,7 @@ public sealed class ShaderTestFramework : IDisposable
         StateCache.Current.UnbindProgram();
     }
 
-    /// <summary>Models engine mesh submission while the production caller owns program and pipeline state.</summary>
+    /// <summary>Issues an explicitly native engine fixture draw while the engine caller owns executable and target state.</summary>
     public void RenderGeometry()
     {
         EnsureQuadInitialized();
@@ -216,7 +216,7 @@ public sealed class ShaderTestFramework : IDisposable
         _quadVao.DrawElements(PrimitiveType.Triangles, _quadEbo!);
     }
 
-    /// <summary>Draws an isolated pass using its production activation and state handling.</summary>
+    /// <summary>Imports the fixture's currently selected engine target explicitly, then submits production bindings through the RHI.</summary>
     public void RenderQuad(GpuProgram program)
     {
         EnsureQuadInitialized();
@@ -258,10 +258,7 @@ public sealed class ShaderTestFramework : IDisposable
         GpuFramebuffer.Unbind();
     }
 
-    /// <summary>
-    /// Initializes the fullscreen quad VAO/VBO on first use.
-    /// Uses a single triangle that covers the entire clip space.
-    /// </summary>
+    /// <summary>Configures native fixture geometry using core named vertex-array commands, independent of production realization caches.</summary>
     private void EnsureQuadInitialized()
     {
         if (_quadInitialized)
@@ -277,8 +274,8 @@ public sealed class ShaderTestFramework : IDisposable
         ];
 
         _quadVao = GpuVao.Create("Tests.FullscreenTriangle");
-        _quadVbo = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Vertex, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = "Tests.FullscreenTriangle.Vertices" }).RequireResource();
-        _quadEbo = RHICommandContext.Current.CreateIndexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Index, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = "Tests.FullscreenTriangle.Indices" }).RequireResource();
+        _quadVbo = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = "Tests.FullscreenTriangle.Vertices" }).RequireResource();
+        _quadEbo = RHICommandContext.Current.CreateIndexBuffer(new RHIBufferDescription { Role = BufferRole.Index, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = "Tests.FullscreenTriangle.Indices" }).RequireResource();
         using var geometry = _quadVao.BindScope();
         using var vertexBinding = _quadVbo.BindScope();
         _quadVbo.UploadData(vertices);

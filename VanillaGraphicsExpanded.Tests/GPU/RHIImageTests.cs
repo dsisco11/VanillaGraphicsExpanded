@@ -18,8 +18,8 @@ public sealed class RHIImageTests(HeadlessGLFixture fixture)
     #region Public API
     /// <summary>Multisample copies retain their samples; client-pixel transfers remain unsupported for these images.</summary>
     [Theory]
-    [InlineData(RHITextureDimension.TwoMultisample)] [InlineData(RHITextureDimension.TwoMultisampleArray)]
-    public void MultisampleImageCopiesPreserveAllocation(RHITextureDimension dimension)
+    [InlineData(TextureDimension.TwoMultisample)] [InlineData(TextureDimension.TwoMultisampleArray)]
+    public void MultisampleImageCopiesPreserveAllocation(TextureDimension dimension)
     {
         Start();
         try
@@ -27,13 +27,13 @@ public sealed class RHIImageTests(HeadlessGLFixture fixture)
             var context = RHICommandContext.Current;
             using var source = context.CreateTexture(Description(dimension, true)).RequireResource();
             using var destination = context.CreateTexture(Description(dimension, true)).RequireResource();
-            var region = new RHITextureRegion(new(), 0, 0, 0, 4, 4, dimension == RHITextureDimension.TwoMultisampleArray ? 4 : 1);
+            var region = new RHITextureRegion(new(), 0, 0, 0, 4, 4, dimension == TextureDimension.TwoMultisampleArray ? 4 : 1);
             var manager = GpuResourceManagerSystem.CurrentManager!;
             ulong revision = manager.GetResourceRegistration(destination)!.StorageRevision;
             context.CopyTexture(source, region, destination, region);
             Assert.Equal(revision, manager.GetResourceRegistration(destination)!.StorageRevision);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
-            var encoding = new RHIPixelEncoding(RHIPixelChannels.Rgba, RHIPixelType.UnsignedByte);
+            var encoding = new RHIPixelEncoding(PixelChannelLayout.Rgba, PixelComponentType.UnsignedByte);
             Assert.Throws<ArgumentException>(() => context.UploadTexture(destination, region, encoding, new byte[256]));
         }
         finally { Finish(); }
@@ -41,17 +41,17 @@ public sealed class RHIImageTests(HeadlessGLFixture fixture)
 
     /// <summary>All represented dimensions establish coherent facts through mutable and immutable allocation.</summary>
     [Theory]
-    [InlineData(RHITextureDimension.One, false)] [InlineData(RHITextureDimension.One, true)]
-    [InlineData(RHITextureDimension.Two, false)] [InlineData(RHITextureDimension.Two, true)]
-    [InlineData(RHITextureDimension.Three, false)] [InlineData(RHITextureDimension.Three, true)]
-    [InlineData(RHITextureDimension.OneArray, false)] [InlineData(RHITextureDimension.OneArray, true)]
-    [InlineData(RHITextureDimension.TwoArray, false)] [InlineData(RHITextureDimension.TwoArray, true)]
-    [InlineData(RHITextureDimension.Cube, false)] [InlineData(RHITextureDimension.Cube, true)]
-    [InlineData(RHITextureDimension.CubeArray, false)] [InlineData(RHITextureDimension.CubeArray, true)]
-    [InlineData(RHITextureDimension.Rectangle, false)] [InlineData(RHITextureDimension.Rectangle, true)]
-    [InlineData(RHITextureDimension.TwoMultisample, false)] [InlineData(RHITextureDimension.TwoMultisample, true)]
-    [InlineData(RHITextureDimension.TwoMultisampleArray, false)] [InlineData(RHITextureDimension.TwoMultisampleArray, true)]
-    public void DimensionsPublishCompleteImages(RHITextureDimension dimension, bool immutable)
+    [InlineData(TextureDimension.One, false)] [InlineData(TextureDimension.One, true)]
+    [InlineData(TextureDimension.Two, false)] [InlineData(TextureDimension.Two, true)]
+    [InlineData(TextureDimension.Three, false)] [InlineData(TextureDimension.Three, true)]
+    [InlineData(TextureDimension.OneArray, false)] [InlineData(TextureDimension.OneArray, true)]
+    [InlineData(TextureDimension.TwoArray, false)] [InlineData(TextureDimension.TwoArray, true)]
+    [InlineData(TextureDimension.Cube, false)] [InlineData(TextureDimension.Cube, true)]
+    [InlineData(TextureDimension.CubeArray, false)] [InlineData(TextureDimension.CubeArray, true)]
+    [InlineData(TextureDimension.Rectangle, false)] [InlineData(TextureDimension.Rectangle, true)]
+    [InlineData(TextureDimension.TwoMultisample, false)] [InlineData(TextureDimension.TwoMultisample, true)]
+    [InlineData(TextureDimension.TwoMultisampleArray, false)] [InlineData(TextureDimension.TwoMultisampleArray, true)]
+    public void DimensionsPublishCompleteImages(TextureDimension dimension, bool immutable)
     {
         Start();
         try
@@ -63,14 +63,14 @@ public sealed class RHIImageTests(HeadlessGLFixture fixture)
             var facts = reference.RequireMetadata();
             Assert.Equal(immutable, facts.ImmutableStorage);
             Assert.Equal(0, facts.BaseLevel);
-            Assert.Equal(dimension is RHITextureDimension.TwoMultisample or RHITextureDimension.TwoMultisampleArray ? 0 : 1000, facts.MaxLevel);
-            int faces = dimension == RHITextureDimension.Cube ? 6 : 1;
+            Assert.Equal(dimension is TextureDimension.TwoMultisample or TextureDimension.TwoMultisampleArray ? 0 : 1000, facts.MaxLevel);
+            int faces = dimension == TextureDimension.Cube ? 6 : 1;
             Assert.Equal(request.MipLevels * faces, facts.Levels.Length);
             Assert.All(facts.Levels, image => Assert.True(image.Allocated));
             foreach (var image in facts.Levels)
             {
                 Assert.Equal(Math.Max(1, request.Width >> image.Level), image.Width);
-                Assert.Equal(dimension == RHITextureDimension.One ? 1 : dimension == RHITextureDimension.OneArray ? request.Height : Math.Max(1, request.Height >> image.Level), image.Height);
+                Assert.Equal(dimension == TextureDimension.One ? 1 : dimension == TextureDimension.OneArray ? request.Height : Math.Max(1, request.Height >> image.Level), image.Height);
             }
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
@@ -79,16 +79,16 @@ public sealed class RHIImageTests(HeadlessGLFixture fixture)
 
     /// <summary>Explicit pitches and offsets preserve transfer contents and caller pixel-buffer/layout state.</summary>
     [Theory]
-    [InlineData(RHITextureDimension.Two)] [InlineData(RHITextureDimension.Three)] [InlineData(RHITextureDimension.OneArray)]
-    public void PitchedBufferTransfersPreserveContentAndSelectors(RHITextureDimension dimension)
+    [InlineData(TextureDimension.Two)] [InlineData(TextureDimension.Three)] [InlineData(TextureDimension.OneArray)]
+    public void PitchedBufferTransfersPreserveContentAndSelectors(TextureDimension dimension)
     {
         Start();
         try
         {
             var context = RHICommandContext.Current;
             using var texture = context.CreateTexture(Description(dimension, true)).RequireResource();
-            using var source = context.CreatePixelUnpackBuffer(Buffer(256, RHIBufferRole.PixelUnpack)).RequireResource();
-            using var destination = context.CreatePixelPackBuffer(Buffer(256, RHIBufferRole.PixelPack)).RequireResource();
+            using var source = context.CreatePixelUnpackBuffer(Buffer(256, BufferRole.PixelUnpack)).RequireResource();
+            using var destination = context.CreatePixelPackBuffer(Buffer(256, BufferRole.PixelPack)).RequireResource();
             byte[] data = Enumerable.Range(0, 256).Select(value => (byte)value).ToArray();
             GL.NamedBufferSubData(source.BufferId, 0, data.Length, data);
             using var packBinding = StateCache.Current.BindBufferScope(OpenTK.Graphics.OpenGL.BufferTarget.PixelPackBuffer, source.BufferId);
@@ -96,9 +96,9 @@ public sealed class RHIImageTests(HeadlessGLFixture fixture)
             using var packLayout = VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLPixelLayouts.PackScope(StateCache.Current, new(8));
             using var unpackLayout = VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLPixelLayouts.UnpackScope(StateCache.Current, new(8));
             StateCache.Current.InvalidateAll();
-            var region = new RHITextureRegion(new(), 1, 0, 0, 2, dimension == RHITextureDimension.OneArray ? 1 : 2,
-                dimension == RHITextureDimension.Two ? 1 : 2);
-            var encoding = new RHIPixelEncoding(RHIPixelChannels.Rgba, RHIPixelType.UnsignedByte);
+            var region = new RHITextureRegion(new(), 1, 0, 0, 2, dimension == TextureDimension.OneArray ? 1 : 2,
+                dimension == TextureDimension.Two ? 1 : 2);
+            var encoding = new RHIPixelEncoding(PixelChannelLayout.Rgba, PixelComponentType.UnsignedByte);
             context.TransferBufferToTexture(texture, new(source, 16, region, encoding, 16, 48));
             context.TransferTextureToBuffer(texture, new(destination, 32, region, encoding, 16, 48));
             byte[] result = new byte[256];
@@ -123,15 +123,15 @@ public sealed class RHIImageTests(HeadlessGLFixture fixture)
         try
         {
             var context = RHICommandContext.Current;
-            var description = Description(RHITextureDimension.TwoArray, true);
-            var encoding = new RHIPixelEncoding(RHIPixelChannels.Rgba, RHIPixelType.UnsignedByte);
+            var description = Description(TextureDimension.TwoArray, true);
+            var encoding = new RHIPixelEncoding(PixelChannelLayout.Rgba, PixelComponentType.UnsignedByte);
             var region = new RHITextureRegion(new(1, 1), 0, 0, 0, 2, 2);
             byte[] initial = Enumerable.Repeat((byte)17, 16).ToArray();
             using var source = context.CreateTexture(description, [new(region, encoding, initial)]).RequireResource();
-            using var view = context.CreateTextureView(new RHITextureViewDescription { Source = source, Dimension = RHITextureDimension.Two,
-                Format = RHIFormat.Rgba8, BaseMip = 1, MipCount = 1, BaseLayer = 1, LayerCount = 1 }).RequireResource();
-            using var destination = context.CreateTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Width = 2, Height = 2,
-                Format = RHIFormat.Rgba8, MipLevels = 1, Storage = RHIStorageMode.Immutable }).RequireResource();
+            using var view = context.CreateTextureView(new RHITextureViewDescription { Source = source, Dimension = TextureDimension.Two,
+                Format = TextureFormat.Rgba8, BaseMip = 1, MipCount = 1, BaseLayer = 1, LayerCount = 1 }).RequireResource();
+            using var destination = context.CreateTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Width = 2, Height = 2,
+                Format = TextureFormat.Rgba8, MipLevels = 1, Storage = ResourceStorageMode.Immutable }).RequireResource();
             var selection = new RHITextureRegion(new(), 0, 0, 0, 2, 2);
             context.CopyTexture(view, selection, destination, selection);
             byte[] result = new byte[16];
@@ -156,13 +156,13 @@ public sealed class RHIImageTests(HeadlessGLFixture fixture)
         try
         {
             var context = RHICommandContext.Current;
-            var description = new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba8, MipLevels = 1, Storage = RHIStorageMode.Mutable };
+            var description = new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba8, MipLevels = 1, Storage = ResourceStorageMode.Mutable };
             Assert.Throws<ArgumentException>(() => context.CreateTexture(description));
             description.Width = 0; description.Height = 2;
             Assert.Throws<ArgumentOutOfRangeException>(() => context.CreateTexture(description));
             description.Width = 2;
             var region = new RHITextureRegion(new(), 0, 0, 0, 2, 2);
-            var encoding = new RHIPixelEncoding(RHIPixelChannels.Rgba, RHIPixelType.UnsignedByte);
+            var encoding = new RHIPixelEncoding(PixelChannelLayout.Rgba, PixelComponentType.UnsignedByte);
             Assert.Throws<ArgumentException>(() => context.CreateTexture(description, [new(region, encoding, new byte[15])]));
             using var texture = context.CreateTexture(description).RequireResource();
             Assert.Throws<ArgumentException>(() => context.UploadTexture(texture, region, encoding, new byte[16], rowPitch: 3));
@@ -179,8 +179,8 @@ public sealed class RHIImageTests(HeadlessGLFixture fixture)
         Start();
         try
         {
-            using var sampler = RHICommandContext.Current.CreateSampler(new RHISamplerDescription { MinFilter = RHISamplerFilter.Nearest,
-                MagFilter = RHISamplerFilter.Linear, AddressS = RHISamplerAddress.MirroredRepeat, Compare = false, MinLod = 0 }).RequireResource();
+            using var sampler = RHICommandContext.Current.CreateSampler(new RHISamplerDescription { MinFilter = SamplerFilter.Nearest,
+                MagFilter = SamplerFilter.Linear, AddressS = SamplerAddressMode.MirroredRepeat, Compare = false, MinLod = 0 }).RequireResource();
             GL.GetSamplerParameter(sampler.SamplerId, SamplerParameterName.TextureMinFilter, out int min);
             GL.GetSamplerParameter(sampler.SamplerId, SamplerParameterName.TextureWrapT, out int wrap);
             GL.GetSamplerParameter(sampler.SamplerId, SamplerParameterName.TextureCompareMode, out int compare);
@@ -210,14 +210,14 @@ public sealed class RHIImageTests(HeadlessGLFixture fixture)
         {
             if (renderbuffer)
             {
-                using var owner = RHICommandContext.Current.CreateRenderbuffer(new RHIRenderbufferDescription { Width = 4, Height = 4, Format = RHIFormat.Rgba8, Samples = 3 }).RequireResource();
+                using var owner = RHICommandContext.Current.CreateRenderbuffer(new RHIRenderbufferDescription { Width = 4, Height = 4, Format = TextureFormat.Rgba8, Samples = 3 }).RequireResource();
                 GL.GetNamedRenderbufferParameter(owner.RenderbufferId, RenderbufferParameterName.RenderbufferSamples, out int native);
                 Assert.True(native >= 3);
                 Assert.Equal(native, owner.Samples);
             }
             else
             {
-                using var owner = RHICommandContext.Current.CreateTexture(Description(RHITextureDimension.TwoMultisample, true)).RequireResource();
+                using var owner = RHICommandContext.Current.CreateTexture(Description(TextureDimension.TwoMultisample, true)).RequireResource();
                 GL.GetTextureLevelParameter(owner.TextureId, 0, GetTextureParameter.TextureSamples, out int native);
                 Assert.True(native >= 3);
                 Assert.Equal(native, ((GpuTextureRef)owner).RequireImage(0).Samples);
@@ -239,7 +239,7 @@ public sealed class RHIImageTests(HeadlessGLFixture fixture)
         try
         {
             var failure = Assert.Throws<InvalidOperationException>(() => RHICommandContext.Current.CreateSampler(new RHISamplerDescription
-                { MinFilter = RHISamplerFilter.Nearest, MagFilter = RHISamplerFilter.Linear, AddressS = RHISamplerAddress.ClampToEdge }));
+                { MinFilter = SamplerFilter.Nearest, MagFilter = SamplerFilter.Linear, AddressS = SamplerAddressMode.ClampToEdge }));
             Assert.Same(samplerFailure, failure);
             Assert.Equal(2, samplerCalls);
             Assert.NotEqual(0, candidateSampler);
@@ -258,7 +258,7 @@ public sealed class RHIImageTests(HeadlessGLFixture fixture)
         try
         {
             var context = RHICommandContext.Current;
-            var description = new RHIRenderbufferDescription { Width = 4, Height = 4, Format = RHIFormat.Rgba8, Samples = 4, CoverageSamples = 4 };
+            var description = new RHIRenderbufferDescription { Width = 4, Height = 4, Format = TextureFormat.Rgba8, Samples = 4, CoverageSamples = 4 };
             if (!context.Capabilities.CoverageSampling) Assert.Throws<NotSupportedException>(() => context.CreateRenderbuffer(description));
             else
             {
@@ -281,19 +281,19 @@ public sealed class RHIImageTests(HeadlessGLFixture fixture)
     }
 
     /// <summary>Creates controlled dimensions, preserving array layers independently of mip geometry.</summary>
-    private static RHITextureDescription Description(RHITextureDimension dimension, bool immutable)
+    private static RHITextureDescription Description(TextureDimension dimension, bool immutable)
     {
-        bool multi = dimension is RHITextureDimension.TwoMultisample or RHITextureDimension.TwoMultisampleArray;
-        var result = new RHITextureDescription { Dimension = dimension, Width = 4, Format = RHIFormat.Rgba8,
-            MipLevels = multi || dimension == RHITextureDimension.Rectangle ? 1 : 2, Storage = immutable ? RHIStorageMode.Immutable : RHIStorageMode.Mutable };
-        if (dimension != RHITextureDimension.One) result.Height = 4;
-        if (dimension is RHITextureDimension.Three or RHITextureDimension.TwoArray or RHITextureDimension.TwoMultisampleArray) result.Depth = 4;
-        if (dimension == RHITextureDimension.CubeArray) result.Depth = 12;
+        bool multi = dimension is TextureDimension.TwoMultisample or TextureDimension.TwoMultisampleArray;
+        var result = new RHITextureDescription { Dimension = dimension, Width = 4, Format = TextureFormat.Rgba8,
+            MipLevels = multi || dimension == TextureDimension.Rectangle ? 1 : 2, Storage = immutable ? ResourceStorageMode.Immutable : ResourceStorageMode.Mutable };
+        if (dimension != TextureDimension.One) result.Height = 4;
+        if (dimension is TextureDimension.Three or TextureDimension.TwoArray or TextureDimension.TwoMultisampleArray) result.Depth = 4;
+        if (dimension == TextureDimension.CubeArray) result.Depth = 12;
         if (multi) { result.Samples = 3; result.FixedSampleLocations = false; }
         return result;
     }
     /// <summary>Provides legal buffer allocation intent independent of its consuming binding role.</summary>
-    private static RHIBufferDescription Buffer(int capacity, RHIBufferRole role) => new() { Role = role, Capacity = capacity, Mode = RHIStorageMode.Mutable, Usage = RHIBufferUsage.StaticDraw };
+    private static RHIBufferDescription Buffer(int capacity, BufferRole role) => new() { Role = role, Capacity = capacity, Mode = ResourceStorageMode.Mutable, Usage = BufferUsage.StaticDraw };
     /// <summary>Begins the original managed resource lifetime on the fixture context.</summary>
     private void Start() { fixture.EnsureContextValid(); fixture.InitializeResourceDisposal(); }
     /// <summary>Drains original retirements and discards test-owned selector knowledge.</summary>

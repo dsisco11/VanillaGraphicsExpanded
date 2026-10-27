@@ -15,7 +15,7 @@ internal sealed class ObjectParamsUbo : IDisposable
 
     public ObjectParamsUbo(string debugName)
     {
-        ubo = RHICommandContext.Current.CreateUniformBuffer(new RHIBufferDescription { Role = RHIBufferRole.Uniform, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = debugName }).RequireResource();
+        ubo = RHICommandContext.Current.CreateUniformBuffer(new RHIBufferDescription { Role = BufferRole.Uniform, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = debugName }).RequireResource();
     }
 
     public void UploadAndBind(ReadOnlySpan<byte> bytes)
