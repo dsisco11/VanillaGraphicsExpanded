@@ -87,9 +87,8 @@ public sealed class WorldProbeDirectionalHistoryTests(HeadlessGLFixture fixture)
         using var assets=new BinaryShaderApiFixture();
         using var resources=new LumOnWorldProbeClipmapGpuResources(assets.Api,4,2,4);
         GL.Disable(EnableCap.ScissorTest);GL.ColorMask(true,true,true,true);
-        resources.GetRadianceFbo().BindWithViewport();GL.ClearBuffer(ClearBuffer.Color,0,new[]{1f,1f,1f,1f});
-        resources.GetFbo().BindWithViewport();
-        for(int attachment=0;attachment<3;attachment++) GL.ClearBuffer(ClearBuffer.Color,attachment,new[]{1f,1f,1f,1f});
+        FramebufferTestSetup.ClearPass(resources.RadiancePass,1);
+        FramebufferTestSetup.ClearPass(resources.MetadataPass,1);
         GL.Enable(EnableCap.ScissorTest);GL.Scissor(3,4,5,6);GL.ColorMask(false,true,false,true);
         try
         {
@@ -126,9 +125,8 @@ public sealed class WorldProbeDirectionalHistoryTests(HeadlessGLFixture fixture)
     private static void Fill(LumOnWorldProbeClipmapGpuResources resources)
     {
         GL.Disable(EnableCap.ScissorTest);GL.ColorMask(true,true,true,true);
-        resources.GetRadianceFbo().BindWithViewport();GL.ClearBuffer(ClearBuffer.Color,0,new[]{1f,1f,1f,1f});
-        resources.GetFbo().BindWithViewport();
-        for(int attachment=0;attachment<3;attachment++) GL.ClearBuffer(ClearBuffer.Color,attachment,new[]{1f,1f,1f,1f});
+        FramebufferTestSetup.ClearPass(resources.RadiancePass,1);
+        FramebufferTestSetup.ClearPass(resources.MetadataPass,1);
     }
     #endregion
 }

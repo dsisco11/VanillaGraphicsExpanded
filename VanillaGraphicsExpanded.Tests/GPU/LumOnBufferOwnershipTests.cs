@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Reflection;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.LumOn;
@@ -113,28 +114,24 @@ public sealed class LumOnBufferOwnershipTests(HeadlessGLFixture fixture) : Rende
         Assert.Equal(4, buffers.ProbeCountX);
         Assert.Equal(3, buffers.ProbeCountY);
         var originalResources = PublishedResources(buffers);
-        var physicalTargets = originalResources.OfType<GpuFramebuffer>().ToArray();
-        // The history FBO is intentionally not part of the manager's public surface;
-        // the allocation-level test covers all eleven physical targets.
-        Assert.Equal(10, physicalTargets.Length);
-        Assert.All(physicalTargets, target => Assert.IsType<StaticGpuFramebuffer>(target));
-        var currentPass = ((StaticGpuFramebuffer)buffers.ScreenProbeAtlasCurrentFbo!).PreservePass;
+        Assert.Empty(originalResources.OfType<GpuFramebuffer>());
+        var currentPass = buffers.ScreenProbeAtlasCurrentPass!;
         var current = buffers.ScreenProbeAtlasCurrentTex;
         var history = buffers.ScreenProbeAtlasHistoryTex;
         var currentMeta = buffers.ScreenProbeAtlasMetaCurrentTex;
         var historyMeta = buffers.ScreenProbeAtlasMetaHistoryTex;
-        var currentFbo = buffers.ScreenProbeAtlasCurrentFbo;
+        var currentFbo = buffers.ScreenProbeAtlasCurrentPass;
 
         buffers.SwapRadianceBuffers();
         Assert.Same(history, buffers.ScreenProbeAtlasCurrentTex);
         Assert.Same(current, buffers.ScreenProbeAtlasHistoryTex);
         Assert.Same(historyMeta, buffers.ScreenProbeAtlasMetaCurrentTex);
         Assert.Same(currentMeta, buffers.ScreenProbeAtlasMetaHistoryTex);
-        Assert.Same(history, buffers.ScreenProbeAtlasCurrentFbo![0]);
+        Assert.Equal((GpuTextureRef)history!, buffers.ScreenProbeAtlasCurrentPass!.Colors[0].Image!.Value.Texture);
         Assert.All(originalResources, resource => Assert.False(resource.IsDisposed));
         buffers.SwapRadianceBuffers();
-        Assert.Same(currentFbo, buffers.ScreenProbeAtlasCurrentFbo);
-        Assert.Same(currentPass, ((StaticGpuFramebuffer)buffers.ScreenProbeAtlasCurrentFbo!).PreservePass);
+        Assert.Same(currentFbo, buffers.ScreenProbeAtlasCurrentPass);
+        Assert.Same(currentPass, buffers.ScreenProbeAtlasCurrentPass!);
         buffers.SwapRadianceBuffers();
 
         buffers.HasPublishedIndirect = true;

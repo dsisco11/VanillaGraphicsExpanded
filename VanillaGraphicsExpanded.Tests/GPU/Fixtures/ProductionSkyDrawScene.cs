@@ -28,13 +28,13 @@ internal sealed class ProductionSkyDrawScene : IDisposable
     private readonly List<IDisposable> owned = [];
     private readonly SkyDrawScene native;
     private readonly GpuProgram[] programs;
-    private readonly GraphicsPipeline[] pipelines;
+    private readonly RHIGraphicsPipeline[] pipelines;
     private readonly ArrayGraphicsGeometry fullscreen, stars;
     private readonly DynamicTexture2D[] outputs;
-    private readonly RenderPassDesc pass;
+    private readonly RHIRenderPassDescription pass;
     private readonly SkyDrawTestPass[] passes;
     private readonly List<string> events = [];
-    internal readonly HashSet<GraphicsCommandContext> Contexts = [];
+    internal readonly HashSet<RHICommandContext> Contexts = [];
     internal readonly List<string> Draws = [];
     internal readonly List<float[][]> PrefixImages = [];
     internal bool ReadPrefixes;
@@ -98,37 +98,37 @@ internal sealed class ProductionSkyDrawScene : IDisposable
             sky.Capture(api.Object, lighting, true);
             outputs = Enumerable.Range(0, 2).Select(_ => Own(RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba32f, Width = System.Math.Max(1, Size), Height = System.Math.Max(1, Size), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource())).ToArray();
             var target = Own(DynamicGpuFramebuffer.CreateMRT(outputs)!);
-            pass = new(target, [new(0), new(1)]);
-            using var metadata = new RenderPassTargets(pass);
-            fullscreen = Own(new ArrayGraphicsGeometry(CelestialDrawPass.FullscreenLayout, PrimitiveType.Triangles,
+            pass = FramebufferTestSetup.DescribeAttachments(target, [new(AttachmentIndex: 0), new(AttachmentIndex: 1)]);
+            var metadata = RHICommandContext.Current.DescribeRenderTargets(pass);
+            fullscreen = Own(new ArrayGraphicsGeometry(CelestialDrawPass.FullscreenLayout, PrimitiveTopology.Triangles,
                 new Dictionary<int, GpuVbo>(), 3));
             var stream = Own(RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = null }).RequireResource());
             stream.UploadData(new[] { new Vector4(Vector3.Normalize(new(.002f, .001f, -1)), .001f * variation), new Vector4(1, .5f, .25f, 0) });
-            stars = Own(new ArrayGraphicsGeometry(CelestialStarGeometry.Layout, PrimitiveType.Triangles,
+            stars = Own(new ArrayGraphicsGeometry(CelestialStarGeometry.Layout, PrimitiveTopology.Triangles,
                 new Dictionary<int, GpuVbo> { [0] = stream }));
-            var lifetime = Own(new GraphicsPipelineLifetime());
-            pipelines = new GraphicsPipeline[5];
+            
+            pipelines = new RHIGraphicsPipeline[5];
             for (int index = 0; index < 5; index++)
             {
                 var blend = index < 4 ? new ColorBlendDesc
                 {
                     Enabled = true,
-                    SourceRgb = BlendingFactorSrc.One,
-                    DestinationRgb = BlendingFactorDest.One,
-                    SourceAlpha = BlendingFactorSrc.Zero,
-                    DestinationAlpha = BlendingFactorDest.One
+                    SourceRgb = BlendFactor.One,
+                    DestinationRgb = BlendFactor.One,
+                    SourceAlpha = BlendFactor.Zero,
+                    DestinationAlpha = BlendFactor.One
                 }
                     : new ColorBlendDesc
                     {
                         Enabled = true,
-                        SourceRgb = BlendingFactorSrc.One,
-                        DestinationRgb = BlendingFactorDest.OneMinusSrcAlpha,
-                        SourceAlpha = BlendingFactorSrc.SrcAlpha,
-                        DestinationAlpha = BlendingFactorDest.OneMinusSrcAlpha
+                        SourceRgb = BlendFactor.One,
+                        DestinationRgb = BlendFactor.OneMinusSourceAlpha,
+                        SourceAlpha = BlendFactor.SourceAlpha,
+                        DestinationAlpha = BlendFactor.OneMinusSourceAlpha
                     };
-                pipelines[index] = Own(new GraphicsPipeline(lifetime, new(programs[index].GraphicsIdentity!,
+                pipelines[index] = Own(RHICommandContext.Current.CreateGraphicsPipeline(new(programs[index].Shader,
                     index == 1 ? CelestialStarGeometry.Layout : CelestialDrawPass.FullscreenLayout,
-                    metadata.Signature, DynamicPipelineState.Viewport, blending: [blend, blend]), programs[index]));
+                    metadata, DynamicPipelineState.Viewport, blending: [blend, blend])).RequireResource());
             }
             passes = Enumerable.Range(0, 4).Select(index => new SkyDrawTestPass(index,
                 index == 0 ? pipelines[..2] : [pipelines[index + 1]], commands => Draw(commands, index), events)).ToArray();
@@ -156,7 +156,11 @@ internal sealed class ProductionSkyDrawScene : IDisposable
     {
         var work = PrepareDraws();
         if (shared) SkyDraw.Run(work);
-        else foreach (var item in work) Assert.True(GraphicsCommandContext.TryRun(item.Name, item.Pipelines, true, item.Execute));
+        else foreach (var item in work) {
+    var commands=RHICommandContext.Current;
+    using var scope41=commands.EnterBoundary(new(item.Name,true,graphics:System.Linq.Enumerable.Select<RHIGraphicsPipeline,RHIGraphicsPipelineRef>(item.Pipelines,value=>value),operations:BoundaryOperations.RenderPasses));
+    scope41.Run(()=>item.Execute(commands));
+}
     }
 
     /// <summary>Reads actual simultaneous color/glow shader outputs after the owned group hands back authority.</summary>
@@ -195,21 +199,22 @@ internal sealed class ProductionSkyDrawScene : IDisposable
     }
 
     /// <summary>Preserves five distinct program input slices and the production galaxy/star pass and blending order.</summary>
-    private void Draw(GraphicsCommandContext commands, int passIndex)
+    private void Draw(RHICommandContext commands, int passIndex)
     {
         Contexts.Add(commands);
-        commands.BeginPass(pass);
+        commands.BeginRenderPass(pass);
         int start = passIndex == 0 ? 0 : passIndex + 1;
         int end = passIndex == 0 ? 2 : start + 1;
         for (int index = start; index < end; index++)
         {
             commands.SetPipeline(pipelines[index]);
             commands.SetDynamicState(new() { Viewport = commands.PassViewport });
-            commands.Draw(index == 1 ? stars : fullscreen, index == 1 ? new(0, 6, InstanceCount: 1) : new(0, 3));
+            commands.BindResources(programs[index].CaptureBindings());
+            commands.Draw(index == 1 ? stars.Inputs : fullscreen.Inputs, index == 1 ? new(0, 6, InstanceCount: 1) : new(0, 3));
             Draws.Add(programs[index].GetType().Name);
             if (ReadPrefixes) PrefixImages.Add(Read());
         }
-        commands.EndPass();
+        commands.EndRenderPass();
     }
 
     /// <summary>Records dependency construction order for deterministic reverse cleanup.</summary>

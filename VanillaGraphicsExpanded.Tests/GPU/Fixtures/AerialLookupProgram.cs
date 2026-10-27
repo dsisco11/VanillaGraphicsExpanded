@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Numerics;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Contracts;
@@ -36,16 +37,13 @@ internal sealed class AerialLookupProgram : GpuProgram
     #endregion
     #region Protected API
     /// <summary>Validates the complete typed input set before publishing prepared descriptors.</summary>
-    protected override void Submit()
+    protected override RHIResourceBindings CaptureBindingsCore()
     {
-        var radiance=ShaderPreparedSubmission.Resolve(this,GpuBindingEntry.Identity(ShaderBindingKind.Sampler,"vge_atmosphereAerialRadiance"));
-        var attenuation=ShaderPreparedSubmission.Resolve(this,GpuBindingEntry.Identity(ShaderBindingKind.Sampler,"vge_atmosphereAerialAttenuation"));
-        var occlusion=ShaderPreparedSubmission.Resolve(this,GpuBindingEntry.Identity(ShaderBindingKind.Sampler,"vge_lightShaftOcclusion"));
-        var block=ShaderPreparedSubmission.Resolve(this,GpuBindingEntry.Identity(ShaderBindingKind.UniformBlock,"AerialLookupInputs"));
-        ShaderPreparedSubmission.ValidateSampler(radiance,Radiance);ShaderPreparedSubmission.ValidateSampler(attenuation,Attenuation);
-        ShaderPreparedSubmission.ValidateSampler(occlusion,Occlusion);ShaderPreparedSubmission.ValidateUniformBlock(block,inputs);
-        ShaderPreparedSubmission.Sampler(radiance,Radiance);ShaderPreparedSubmission.Sampler(attenuation,Attenuation);
-        ShaderPreparedSubmission.Sampler(occlusion,Occlusion);ShaderPreparedSubmission.UniformBlock(block,inputs);
+        return new(Shader,samplers:[
+            new(GpuBindingEntry.Identity(ShaderBindingKind.Sampler,"vge_atmosphereAerialRadiance"),Radiance),
+            new(GpuBindingEntry.Identity(ShaderBindingKind.Sampler,"vge_atmosphereAerialAttenuation"),Attenuation),
+            new(GpuBindingEntry.Identity(ShaderBindingKind.Sampler,"vge_lightShaftOcclusion"),Occlusion)],
+            uniforms:[new(GpuBindingEntry.Identity(ShaderBindingKind.UniformBlock,"AerialLookupInputs"),inputs.Capture())]);
     }
     #endregion
 }

@@ -99,7 +99,7 @@ public sealed class PbrForwardSurfaceNumericalTests : RenderTestBase
             Assert.True(linked != 0, GL.GetProgramInfoLog(program));
             Helpers.MicrofacetTextureReference.Bind();
             using var frame = new VgeFrameUniformBuffer();
-            Assert.True(frame.TryBindToSlot(GpuBindingRegistry.Ubo.Frame));
+            Assert.True(RHICommandContext.Current.OpenGL.BindEngineUniform(GpuBindingRegistry.Ubo.Frame, frame.Capture()));
             using var inputs = new FixtureUniformInputs(program, 64);
             GL.UseProgram(program);
             GL.Uniform1(GL.GetUniformLocation(program, "vge_pbrRoute"), 2);
@@ -110,7 +110,7 @@ public sealed class PbrForwardSurfaceNumericalTests : RenderTestBase
             lights.Capture(scenario is 2 or 3 or 8 or 14 ? 1 : 0, [0, 0, 0], [4, 4, 4]);
             if (scenario >= 16) lights.CaptureAuthored([new(new(0, 0, scenario == 17 ? 0 : -1), Vector3.One,
                 scenario == 18 ? 2000 : 1000, 100)]);
-            Assert.True(lights.TryBindToSlot(GpuBindingRegistry.Ubo.Lights));
+            Assert.True(RHICommandContext.Current.OpenGL.BindEngineUniform(GpuBindingRegistry.Ubo.Lights, lights.Capture()));
             GL.Uniform1(GL.GetUniformLocation(program, "shadowMapFar"), 0);
             using var atmosphereOwner = new AtmosphereModSystem();
             float[] scatter = scenario is 12 or 13 ? [.04f,.09f,.16f,1f] : [0f,0f,0f,1f];

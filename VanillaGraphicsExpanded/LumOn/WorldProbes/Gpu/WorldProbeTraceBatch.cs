@@ -42,9 +42,9 @@ internal sealed class WorldProbeTraceBatch : IDisposable
             using var links = new ShaderLinkBatch(api.Assets, PBR.ShaderImportsSystem.DefaultDomain,
                 [new ShaderSettings(WorldProbeTraceTilesShader.Contract), new ShaderSettings(WorldProbeTraceShader.Contract),
                  new ShaderSettings(WorldProbeCompletionShader.Contract)]);
-            setup = new(GpuComputePipeline.DeclareFromAssets(api, new ShaderSettings(WorldProbeTraceTilesShader.Contract)));
-            pipeline = new(GpuComputePipeline.DeclareFromAssets(api, new ShaderSettings(WorldProbeTraceShader.Contract)));
-            completion = new(GpuComputePipeline.DeclareFromAssets(api, new ShaderSettings(WorldProbeCompletionShader.Contract)));
+            setup = new(ComputeShaderAsset.DeclareFromAssets(api, new ShaderSettings(WorldProbeTraceTilesShader.Contract)));
+            pipeline = new(ComputeShaderAsset.DeclareFromAssets(api, new ShaderSettings(WorldProbeTraceShader.Contract)));
+            completion = new(ComputeShaderAsset.DeclareFromAssets(api, new ShaderSettings(WorldProbeCompletionShader.Contract)));
             // This tracing owner requires all three programs; explicitly preload them through the active batch.
             if (!setup.EnsureReady()) throw new InvalidOperationException(setup.PreparationLog);
             if (!pipeline.EnsureReady()) throw new InvalidOperationException(pipeline.PreparationLog);
@@ -79,7 +79,14 @@ internal sealed class WorldProbeTraceBatch : IDisposable
         setup!.WorldProbeTraceProbes = new(probes, 0, probeBytes);
         setup.WorldProbeTraceTiles = new(tiles, 0, count << 3);
         setup.WorldProbeTraceDispatch = new(dispatch, 0, 12);
-        setup.Dispatch((probeData.Length + 63) >> 6);
+        if(!setup.EnsureReady()||!pipeline.EnsureReady()||!completion!.EnsureReady())
+            throw new InvalidOperationException("World-probe trace executables are unavailable.");
+        int setupGroups=(probeData.Length+63)>>6;
+        var dispatchContext=RHICommandContext.Current;
+        using var dispatchBoundary=dispatchContext.EnterBoundary(new("WorldProbe.Trace",true,compute:[setup.Pipeline,pipeline.Pipeline,completion.Pipeline]));
+        dispatchBoundary.Run(()=>
+        {
+        setup.Dispatch(setupGroups);
         RHICommandContext.Current.Barrier(new(ResourceAccess.ShaderStorage | ResourceAccess.Indirect));
         pipeline.BindSharedGeometry(scene);
         lighting.Set(snapshot);
@@ -103,6 +110,7 @@ internal sealed class WorldProbeTraceBatch : IDisposable
         completion.Counter = new(descriptorCount, 0, 4);
         completion.Dispatch((count + 63) >> 6);
         RHICommandContext.Current.Barrier(new(ResourceAccess.ShaderStorage | ResourceAccess.BufferUpdate));
+        });
         fence = RHICommandContext.Current.InsertFence();
         RHICommandContext.Current.Flush();
     }

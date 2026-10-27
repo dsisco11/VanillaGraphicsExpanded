@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Numerics;
 using VanillaGraphicsExpanded.Rendering.Contracts;
 
@@ -20,6 +21,6 @@ internal interface IUniformStateComputeBindings
     Matrix4x4 Transform { get; set; }
     /// <summary>Supplies the required floating image output.</summary>
     [ShaderBinding("result", ShaderBindingKind.Image, 0, ShaderStageKind.Compute, ShaderType = ShaderResourceType.Image2D)]
-    GpuTextureBinding Output { get; set; }
+    RHIImageBinding Output { get; set; }
     #endregion
 }

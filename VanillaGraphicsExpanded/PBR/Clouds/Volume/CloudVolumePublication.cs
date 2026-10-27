@@ -71,27 +71,25 @@ internal sealed class CloudVolumePublication(Func<int,PackedUniformBuffer,CloudV
             full=7;
         }
         programs[0]!.Capture(d,full);
-        var boundaryResources=new EngineBoundaryResources();
         foreach(var program in programs)
         {
             program!.Density=fields.Density;program.Direct=fields.Direct;program.Diffuse=fields.Diffuse;
-            program.TargetDensity=new(density,TextureAccess.WriteOnly,Layered:true);
-            program.TargetDirect=new(direct,TextureAccess.WriteOnly,Layered:true);
-            program.TargetDiffuse=new(diffuse,TextureAccess.WriteOnly,Layered:true);
+            program.TargetDensity=new(density,ImageAccess.WriteOnly,Layered:true);
+            program.TargetDirect=new(direct,ImageAccess.WriteOnly,Layered:true);
+            program.TargetDiffuse=new(diffuse,ImageAccess.WriteOnly,Layered:true);
             program.Regions=fields.Regions;program.Occupancy=fields.Occupancy;program.TargetRegions=regions;program.TargetOccupancy=occupancy;
             program.Scratch=fields.Scratch;program.Commands=new(commands!,0,16);
-            var bindings=program.ProgramLayout.BinaryInterface?.PreparedBindings??throw new InvalidOperationException("Cloud publication bindings unavailable.");
-            boundaryResources=boundaryResources.Union(EngineBoundaryResources.From(bindings));
         }
-        if(!EngineBoundaryExecution.TryRun(new EngineBoundaryDeclaration("Cloud.Volume.Publish"),boundaryResources,_=>
+        var context=RHICommandContext.Current;
+        using var boundary=context.EnterBoundary(new("Cloud.Volume.Publish",true,compute:programs.Select(program=>program!.Pipeline)));
+        boundary.Run(()=>
             {
                 Barrier();programs[0]!.Dispatch(1);Barrier();
                 programs[1]!.Dispatch((d.Blocks+255)/256);Barrier();
                 if(full!=0)programs[2]!.Dispatch(d.BlocksX,d.BlocksY,d.BlocksX);
                 else programs[2]!.DispatchIndirect(commands!);
                 Barrier();
-            }))
-            throw new InvalidOperationException("Cloud publication boundary rejected.");
+            });
         GlDebug.ThrowIfErrors("Cloud volume publication");
         Published=new(d,fields.Encoding,fields.LightingBounds,checked((Published?.Revision??0)+1),density!,direct!,diffuse!,regions!,occupancy!,fields);
         source=fields;

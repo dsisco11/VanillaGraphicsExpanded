@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Runtime.InteropServices;
 using Moq;
 using OpenTK.Graphics.OpenGL;
@@ -44,7 +45,7 @@ public sealed class SurfaceCacheWorldOriginTests(HeadlessGLFixture fixture) : Re
                 MemoryMarshal.Cast<byte, int>(VgeFrameRenderer.Current.Bytes.Slice(512, 16)).ToArray());
             Assert.Equal(new float[] { (float)remainder, (float)remainder, (float)remainder, 0 },
                 MemoryMarshal.Cast<byte, float>(VgeFrameRenderer.Current.Bytes.Slice(528, 16)).ToArray());
-            Assert.True(VgeFrameRenderer.Current.TryBindToSlot(GpuBindingRegistry.Ubo.Frame));
+            Assert.True(RHICommandContext.Current.OpenGL.BindEngineUniform(GpuBindingRegistry.Ubo.Frame, VgeFrameRenderer.Current.Capture()));
             GL.GetInteger(GetIndexedPName.UniformBufferBinding, GpuBindingRegistry.Ubo.Frame, out int buffer);
             GL.GetInteger(GetIndexedPName.UniformBufferStart, GpuBindingRegistry.Ubo.Frame, out int offset);
             byte[] published = new byte[VgeFrameUniformBuffer.PackedSize];

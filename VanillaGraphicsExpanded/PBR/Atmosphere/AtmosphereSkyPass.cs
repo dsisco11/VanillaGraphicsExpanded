@@ -1,3 +1,5 @@
+using VanillaGraphicsExpanded.Rendering.ShaderCompilation;
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.ModSystems;
@@ -17,11 +19,10 @@ internal sealed class AtmosphereSkyPass : IDisposable
     private static AtmosphereSkyPass? active;
     private readonly ICoreClientAPI api;
     private readonly GBufferManager gbuffer;
-    private readonly GraphicsPipelineLifetime lifetime = new();
     private readonly Action unregisterResize;
-    private static readonly VertexLayoutDesc Layout = new([]);
+    private static readonly RHIVertexLayout Layout = new([]);
     private ArrayGraphicsGeometry? geometry;
-    private GraphicsPipeline? pipeline;
+    private GraphicsPipelineAsset? pipeline;
     private bool failed;
     private bool disposed;
 
@@ -61,7 +62,7 @@ internal sealed class AtmosphereSkyPass : IDisposable
         unregisterResize();
         api.Event.LeaveWorld -= Reset;
         reloadRegistration?.Dispose();
-        Reset(); lifetime.Dispose();
+        Reset(); 
     }
     /// <summary>Prepares owned drawing resources without changing sky-system ownership.</summary>
     internal bool PrepareFrame()
@@ -72,7 +73,7 @@ internal sealed class AtmosphereSkyPass : IDisposable
         {
             if (GpuShaderProgramLibraries.Get<AtmosphereSkyShaderProgram>(api, "pbr_sky")?.EnsureReady() != true) return false;
             // A private empty VAO supplies the core-profile draw contract; vertices come from gl_VertexID.
-            geometry ??= new ArrayGraphicsGeometry(Layout, PrimitiveType.Triangles,
+            geometry ??= new ArrayGraphicsGeometry(Layout, PrimitiveTopology.Triangles,
                 new System.Collections.Generic.Dictionary<int, GpuVbo>(), proceduralVertices: 3);
             var frames = api.Render.FrameBuffers;
             if (frames[(int)EnumFrameBuffer.Primary] is not { } primary
@@ -113,26 +114,27 @@ internal sealed class AtmosphereSkyPass : IDisposable
         // Use the same convention as all other contributors to primary.
         shader.Capture(api, lighting, sceneLinear: true);
         // Sky owns color and glow only; framebuffer clearing establishes background validity.
-        var pass = new RenderPassDesc(target, [new(0), new(1)]);
-        using var metadata = new RenderPassTargets(pass);
+        var pass = new RHIRenderPassDescription(target.SurfaceReference,[new(AttachmentIndex:0),new(AttachmentIndex:1)]);
+        var signature=RHICommandContext.Current.DescribeRenderTargets(pass);
         var blend = new ColorBlendDesc { Enabled = true,
-            SourceRgb = Celestial.CelestialDrawPass.IsEnabled ? BlendingFactorSrc.One : BlendingFactorSrc.SrcAlpha, DestinationRgb = BlendingFactorDest.OneMinusSrcAlpha,
-            SourceAlpha = BlendingFactorSrc.SrcAlpha, DestinationAlpha = BlendingFactorDest.OneMinusSrcAlpha };
-        var description = new GraphicsPipelineDesc(shader.GraphicsIdentity!, Layout,
-            metadata.Signature, DynamicPipelineState.Viewport,
+            SourceRgb = Celestial.CelestialDrawPass.IsEnabled ? BlendFactor.One : BlendFactor.SourceAlpha, DestinationRgb = BlendFactor.OneMinusSourceAlpha,
+            SourceAlpha = BlendFactor.SourceAlpha, DestinationAlpha = BlendFactor.OneMinusSourceAlpha };
+        var description = new RHIGraphicsPipelineDescription(shader.Shader, Layout,
+            signature, DynamicPipelineState.Viewport,
             blending: [blend, blend]);
-        if (pipeline is null || pipeline.Description != description || pipeline.ExecutableRevision != shader.ExecutableRevision)
+        if (pipeline is null || pipeline.Description != description || pipeline.Description.Shader != shader.Shader)
         {
-            var candidate = new GraphicsPipeline(lifetime, description, shader);
+            var candidate = new GraphicsPipelineAsset(shader,description);
             pipeline?.Dispose(); pipeline = candidate;
         }
-        return new SkyDraw("Atmosphere.Sky", [pipeline], commands =>
+        return new SkyDraw("Atmosphere.Sky", [pipeline.Pipeline], commands =>
         {
-            commands.BeginPass(pass);
-            commands.SetPipeline(pipeline);
+            commands.BeginRenderPass(pass);
+            commands.SetPipeline(pipeline.Pipeline);
             commands.SetDynamicState(new() { Viewport = commands.PassViewport });
-            commands.Draw(geometry, new(0, 3));
-            commands.EndPass();
+            commands.BindResources(shader.CaptureBindings());
+            commands.Draw(geometry!.Inputs,new(0,3));
+            commands.EndRenderPass();
         }, ReportFailure);
     }
 
@@ -144,6 +146,6 @@ internal sealed class AtmosphereSkyPass : IDisposable
         geometry?.Dispose(); geometry = null; failed = false;
     }
     /// <summary>Allows a fresh executable attempt after shader reload.</summary>
-    private bool Reload() { Reset(); return true; }
+    private bool Reload() { failed=false; return true; }
     #endregion
 }

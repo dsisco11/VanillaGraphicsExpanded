@@ -84,7 +84,7 @@ public sealed class WaterRefractionResolutionTests(HeadlessGLFixture fixture) : 
         Assert.True(composite.IsValid);
 
         /// <summary>Executes the actual reduction program while asserting unpublished ownership and coherent full sources.</summary>
-        void Reduce(GpuFramebuffer target, DynamicTexture2D color, DynamicTexture2D depth)
+        void Reduce(RHIRenderPassDescription target, DynamicTexture2D color, DynamicTexture2D depth)
         {
             Assert.False(scene.Published);
             Assert.Same(scene.SourceColor, color); Assert.Same(scene.SourceDepth, depth);

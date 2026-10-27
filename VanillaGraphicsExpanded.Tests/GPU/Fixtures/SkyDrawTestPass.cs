@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using VanillaGraphicsExpanded.PBR.Atmosphere;
 using VanillaGraphicsExpanded.Rendering.Pipeline;
 using VanillaGraphicsExpanded.Rendering;
@@ -8,15 +9,15 @@ namespace VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 internal sealed class SkyDrawTestPass : IDisposable
 {
     private readonly string name;
-    private readonly GraphicsPipeline[] pipelines;
-    private readonly Action<GraphicsCommandContext> draw;
+    private readonly RHIGraphicsPipeline[] pipelines;
+    private readonly Action<RHICommandContext> draw;
     private readonly List<string> events;
     internal bool Skipped, Disabled, Disposed;
     internal readonly List<Exception> Failures = [];
 
     #region Public API
     /// <summary>Retains a complete prepared footprint and its local recovery policy.</summary>
-    internal SkyDrawTestPass(int index, GraphicsPipeline[] pipelines, Action<GraphicsCommandContext> draw, List<string> events)
+    internal SkyDrawTestPass(int index, RHIGraphicsPipeline[] pipelines, Action<RHICommandContext> draw, List<string> events)
     {
         name = "sky" + index;
         this.pipelines = pipelines;

@@ -1,3 +1,5 @@
+using HarmonyLib;
+using VanillaGraphicsExpanded.Rendering.RHI;
 using Moq;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.PBR;
@@ -30,6 +32,8 @@ internal sealed class DirectLightingComparisonFixture : IDisposable
     internal DirectLightingTargets Actual { get; private set; }
     internal readonly DefaultShaderUniforms Uniforms = new() { ZNear = .1f, ZFar = 100 };
     internal readonly int Width, Height;
+    [ThreadStatic] private static DirectLightingComparisonFixture? activeDrawCapture;
+    private readonly Harmony drawCapture = new("Tests.DirectLighting.NativeDraw");
     internal int Draws;
     internal bool FailDraw;
 
@@ -67,6 +71,10 @@ internal sealed class DirectLightingComparisonFixture : IDisposable
         gbuffer = new(api); Assert.True(gbuffer.EnsureBuffers(width, height));
         buffers = new(api); reference = new(api, gbuffer, buffers); Candidate = new(api, gbuffer, buffers);
         Expected = new(width, height); Actual = new(width, height);
+        activeDrawCapture=this;
+        drawCapture.Patch(AccessTools.Method(typeof(OpenTK.Graphics.OpenGL4.GL),nameof(OpenTK.Graphics.OpenGL4.GL.DrawElementsInstancedBaseVertexBaseInstance),
+            [typeof(OpenTK.Graphics.OpenGL4.PrimitiveType),typeof(int),typeof(OpenTK.Graphics.OpenGL4.DrawElementsType),typeof(IntPtr),typeof(int),typeof(int),typeof(uint)]),
+            prefix:new HarmonyMethod(typeof(DirectLightingComparisonFixture),nameof(ObserveNativeDraw)));
         shader = reference.PrepareBoundaryProgram()!;
         frameCamera = TestFrameCamera.CreateFromInverseView(identity, identity, width, height, Uniforms.ZNear, Uniforms.ZFar);
         shader.FrameInputs = frameCamera;
@@ -124,8 +132,8 @@ internal sealed class DirectLightingComparisonFixture : IDisposable
     internal void Neutral()
     {
         var shader = reference.PrepareBoundaryProgram()!;
-        var desc = new GraphicsPipelineDesc(shader.GraphicsIdentity!, EngineFullscreenGeometry.Layout,
-            new([new(PixelInternalFormat.Rgba16f), new(PixelInternalFormat.Rgba16f), new(PixelInternalFormat.Rgba16f)]), DynamicPipelineState.Viewport);
+        var desc = new RHIGraphicsPipelineDescription(shader.Shader, EngineFullscreenGeometry.Layout,
+            new([new(TextureFormat.Rgba16f), new(TextureFormat.Rgba16f), new(TextureFormat.Rgba16f)]), DynamicPipelineState.Viewport);
         StateCache.Current.ApplyGraphicsState(desc, new() { Viewport = new() { Width = Width, Height = Height } });
     }
 
@@ -135,13 +143,14 @@ internal sealed class DirectLightingComparisonFixture : IDisposable
     /// <summary>Retires renderers before the shared engine programs and images they borrow.</summary>
     public void Dispose()
     {
+        drawCapture.UnpatchAll(drawCapture.Id); activeDrawCapture=null;
         Neutral(); Candidate.Dispose(); reference.Dispose(); Actual.Dispose(); Expected.Dispose();
         buffers.Dispose(); gbuffer.Dispose(); shadowFar.Dispose(); shadow.Dispose(); terrain.Dispose(); programs.Dispose();
         frameCamera.Dispose(); frameLights.Dispose(); frameLighting.Dispose();
         assets.Dispose(); atmosphere.Dispose(); platform.Dispose();
     }
     /// <summary>Exposes the production manager target after a normal frame draw.</summary>
-    internal GpuFramebuffer Normal => buffers.DirectLightingFbo!;
+    internal RHIRenderPassDescription Normal => buffers.LightingPass!;
 
     /// <summary>Makes the next reload encounter an invalid production binary, then permits explicit recovery.</summary>
     internal void FailPreparation(bool fail)
@@ -156,6 +165,13 @@ internal sealed class DirectLightingComparisonFixture : IDisposable
     #endregion
 
     #region Private
+    /// <summary>Observes actual RHI native submissions and injects a driver-boundary failure before drawing.</summary>
+    private static void ObserveNativeDraw()
+    {
+        if(activeDrawCapture is not { } owner)return;
+        if(owner.FailDraw)throw new ArithmeticException("Controlled native draw failure.");
+        owner.Draws++;
+    }
     /// <summary>Replicates one frozen four-channel value over the complete image.</summary>
     private float[] Pixels(float[] value) => Enumerable.Repeat(value, Width * Height).SelectMany(pixel => pixel).ToArray();
     /// <summary>Updates production G-buffer storage through the existing unpack and texture-binding scopes.</summary>

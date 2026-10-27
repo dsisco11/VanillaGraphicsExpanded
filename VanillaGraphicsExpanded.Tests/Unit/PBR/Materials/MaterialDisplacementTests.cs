@@ -70,8 +70,8 @@ public sealed class MaterialDisplacementTests
         var settings=new VanillaGraphicsExpanded.PBR.Tessellation.TerrainSubdivisionSettings
         {MaximumLevel=99,TargetEdgePixels=float.NaN,FadeStartMetres=float.PositiveInfinity,FadeEndMetres=-1};
         settings.Sanitize();
-        Assert.Equal(8,settings.MaximumLevel); Assert.Equal(16,settings.TargetEdgePixels);
-        Assert.Equal(8,settings.FadeStartMetres); Assert.Equal(9,settings.FadeEndMetres);
+        Assert.Equal(8,settings.MaximumLevel); Assert.Equal(8,settings.TargetEdgePixels);
+        Assert.Equal(4,settings.FadeStartMetres); Assert.Equal(5,settings.FadeEndMetres);
         settings.MaximumLevel=0; settings.TargetEdgePixels=999; settings.FadeStartMetres=200; settings.FadeEndMetres=float.NaN;
         settings.Sanitize();
         Assert.Equal(1,settings.MaximumLevel); Assert.Equal(256,settings.TargetEdgePixels);

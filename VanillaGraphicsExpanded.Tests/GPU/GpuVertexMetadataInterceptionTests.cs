@@ -27,11 +27,11 @@ public sealed class GpuVertexMetadataInterceptionTests(HeadlessGLFixture fixture
             using var buffer=RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = null }).RequireResource(); buffer.Allocate(64);
             using var previous=RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = null }).RequireResource(); previous.Allocate(64);
             var cache=StateCache.Current;
-            cache.BindVertexArray(owner.VertexArrayId); OpenGLBufferBindings.BindBuffer(cache, BufferTarget.ElementArrayBuffer,previous.BufferId);
-            cache.BindVertexArray(sentinel.VertexArrayId); OpenGLBufferBindings.BindBuffer(cache, BufferTarget.ElementArrayBuffer,previous.BufferId);
+            OpenGLVertexSelection.Bind(cache, owner.VertexArrayId); OpenGLBufferBindings.BindBuffer(cache, BufferTarget.ElementArrayBuffer,previous.BufferId);
+            OpenGLVertexSelection.Bind(cache, sentinel.VertexArrayId); OpenGLBufferBindings.BindBuffer(cache, BufferTarget.ElementArrayBuffer,previous.BufferId);
             OpenGLBufferBindings.BindBuffer(cache, BufferTarget.ArrayBuffer,previous.BufferId);
             bool named=variant is 1 or 3 or 5 or 7 or 9 or 10 or 11;
-            if(!named) cache.BindVertexArray(owner.VertexArrayId);
+            if(!named) OpenGLVertexSelection.Bind(cache, owner.VertexArrayId);
             var manager=GpuResourceManagerSystem.CurrentManager!;
             var entry=(GpuResourceMetadataEntry<GpuVertexArrayMetadata>)manager.GetResourceRegistration(owner)!;
             using var alias=new VertexAlias(owner.VertexArrayId); manager.AssociateResource(entry,alias);
@@ -41,7 +41,7 @@ public sealed class GpuVertexMetadataInterceptionTests(HeadlessGLFixture fixture
             Assert.True(manager.IsResourceMetadataAvailable(alias));
             Assert.Equal(named?sentinel.VertexArrayId:owner.VertexArrayId,GL.GetInteger(GetPName.VertexArrayBinding));
             Assert.Equal(previous.BufferId,GL.GetInteger(GetPName.ArrayBufferBinding));
-            cache.BindVertexArray(owner.VertexArrayId);
+            OpenGLVertexSelection.Bind(cache, owner.VertexArrayId);
             if(variant is 0 or 1)
             {
                 GL.GetInteger((GetIndexedPName)All.VertexBindingBuffer,2,out int actual); Assert.Equal(buffer.BufferId,actual);
@@ -74,7 +74,7 @@ public sealed class GpuVertexMetadataInterceptionTests(HeadlessGLFixture fixture
         fixture.EnsureContextValid(); fixture.InitializeResourceDisposal(); var harmony=Patch();
         try
         {
-            using var vao=GpuVao.Create(); StateCache.Current.BindVertexArray(vao.VertexArrayId);
+            using var vao=GpuVao.Create(); OpenGLVertexSelection.Bind(StateCache.Current, vao.VertexArrayId);
             var entry=GpuResourceManagerSystem.CurrentManager!.GetResourceRegistration(vao)!;
             ulong revision=entry.MetadataRevision;
             Mutate(12,vao.VertexArrayId,0);
@@ -94,7 +94,7 @@ public sealed class GpuVertexMetadataInterceptionTests(HeadlessGLFixture fixture
         fixture.EnsureContextValid(); fixture.InitializeResourceDisposal(); var harmony=Patch();
         try
         {
-            using var vao=GpuVao.Create(); StateCache.Current.BindVertexArray(vao.VertexArrayId);
+            using var vao=GpuVao.Create(); OpenGLVertexSelection.Bind(StateCache.Current, vao.VertexArrayId);
             harmony.Patch(AccessTools.Method(typeof(GL),nameof(GL.EnableVertexArrayAttrib),[typeof(int),typeof(int)]),prefix:new HarmonyMethod(typeof(GpuVertexMetadataInterceptionTests),nameof(ThrowDispatch)));
             Assert.Throws<ApplicationException>(() => Mutate(7,vao.VertexArrayId,0));
             Assert.False(GpuResourceManagerSystem.CurrentManager!.IsResourceMetadataAvailable(vao));
@@ -114,7 +114,7 @@ public sealed class GpuVertexMetadataInterceptionTests(HeadlessGLFixture fixture
             GL.GetVertexArrayIndexed(vao,0,VertexArrayIndexedParameter.VertexAttribArrayEnabled,out int enabled); Assert.Equal(1,enabled);
             Assert.Equal(ErrorCode.NoError,GL.GetError());
         }
-        finally { harmony.UnpatchAll(harmony.Id); StateCache.Current.DeleteVertexArray(vao); fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { harmony.UnpatchAll(harmony.Id); VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.OpenGL.DeleteVertexArray(vao); fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
     }
     #endregion
     #region Private

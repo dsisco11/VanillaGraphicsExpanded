@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Numerics;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.PBR.Postprocessing;
@@ -84,8 +85,11 @@ public sealed class BloomLocalExposureShaderTests(HeadlessGLFixture fixture) : L
         foreach (bool enabled in new[] { true, false, true })
         {
             var pipeline = owner.Prepare(assets.Api, draw, 17, 9, 5, Settings(enabled), enabled ? spatial : null, MathF.Log2(.18f));
-            Assert.True(GraphicsCommandContext.TryRun("Tests.BloomLocal.Owner", [pipeline], true,
-                commands => owner.Render(commands, draw, source, (null, 0), settings)));
+            {
+    var commands=RHICommandContext.Current;
+    using var scope12=commands.EnterBoundary(new("Tests.BloomLocal.Owner",true,graphics:System.Linq.Enumerable.Select<RHIGraphicsPipeline,RHIGraphicsPipelineRef>([pipeline],value=>value),operations:BoundaryOperations.RenderPasses));
+    scope12.Run(()=>owner.Render(commands, draw, source, (null, 0), settings));
+}
             float expected = enabled ? MathF.Sqrt(.04f * .18f) : .04f;
             float[] actual = owner.Texture.ReadPixels();
             for (int pixel = 0; pixel < actual.Length; pixel += 4)
@@ -104,8 +108,11 @@ public sealed class BloomLocalExposureShaderTests(HeadlessGLFixture fixture) : L
     {
         using var draw = new PostprocessDraw();
         var pipeline = draw.Prepare(program,target.PostprocessPass());
-        Assert.True(GraphicsCommandContext.TryRun("Tests.BloomLocal.Extraction", [pipeline], true,
-            commands => draw.Submit(commands, pipeline,target.PostprocessPass())));
+        {
+    var commands=RHICommandContext.Current;
+    using var scope13=commands.EnterBoundary(new("Tests.BloomLocal.Extraction",true,graphics:System.Linq.Enumerable.Select<RHIGraphicsPipeline,RHIGraphicsPipelineRef>([pipeline],value=>value),operations:BoundaryOperations.RenderPasses));
+    scope13.Run(()=>draw.Submit(commands, pipeline,target.PostprocessPass(), program.CaptureBindings()));
+}
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
     #endregion

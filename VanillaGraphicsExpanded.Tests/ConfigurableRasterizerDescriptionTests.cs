@@ -1,3 +1,6 @@
+using VanillaGraphicsExpanded.Tests.GPU;
+using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
+using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Contracts;
@@ -6,17 +9,26 @@ using VanillaGraphicsExpanded.Rendering.Pipeline.Descriptions;
 namespace VanillaGraphicsExpanded.Tests;
 
 /// <summary>Verifies configurable raster policy independent of executable interface validation without native state.</summary>
-public sealed class ConfigurableRasterizerDescriptionTests
+[Collection("GPU")]
+[Trait("Category", "GPU")]
+public sealed class ConfigurableRasterizerDescriptionTests : IDisposable
 {
+    private readonly ComponentShaderPrograms programs;
+    private readonly RasterDepthReductionShaderProgram program;
+    /// <summary>Supplies a real fixed executable before testing pure descriptions with synthetic device limits.</summary>
+    public ConfigurableRasterizerDescriptionTests(HeadlessGLFixture fixture)
+    { fixture.MakeCurrent();programs=new();program=programs.Create<RasterDepthReductionShaderProgram>(); }
+    /// <summary>Retires fixture-owned executables after description assertions complete.</summary>
+    public void Dispose()=>programs.Dispose();
     #region Public API
     /// <summary>Construction retains the former neutral raster defaults.</summary>
     [Fact]
     public void DefaultsAreExplicit()
     {
         var raster = Create(new()).Rasterizer;
-        Assert.Equal(ClipOrigin.LowerLeft, raster.ClipOrigin);
-        Assert.Equal(ClipDepthMode.NegativeOneToOne, raster.ClipDepth);
-        Assert.Equal(PointSpriteCoordOriginParameter.UpperLeft, raster.PointSpriteOrigin);
+        Assert.Equal(ClipCoordinateOrigin.LowerLeft, raster.ClipOrigin);
+        Assert.Equal(ClipDepthRange.NegativeOneToOne, raster.ClipDepth);
+        Assert.Equal(PointSpriteOrigin.UpperLeft, raster.PointSpriteOrigin);
         Assert.False(raster.LineSmooth || raster.PolygonSmooth);
     }
 
@@ -25,8 +37,8 @@ public sealed class ConfigurableRasterizerDescriptionTests
     public void ActiveRasterSettingsChangeIdentity()
     {
         var baseline = Create(new());
-        RasterizerDesc[] alternatives = [new() { ClipOrigin = ClipOrigin.UpperLeft },
-            new() { ClipDepth = ClipDepthMode.ZeroToOne }, new() { PointSpriteOrigin = PointSpriteCoordOriginParameter.LowerLeft },
+        RasterizerDesc[] alternatives = [new() { ClipOrigin = ClipCoordinateOrigin.UpperLeft },
+            new() { ClipDepth = ClipDepthRange.ZeroToOne }, new() { PointSpriteOrigin = PointSpriteOrigin.LowerLeft },
             new() { LineSmooth = true },
             new() { PolygonSmooth = true }];
         foreach (var raster in alternatives) Assert.NotEqual(baseline, Create(raster));
@@ -36,8 +48,8 @@ public sealed class ConfigurableRasterizerDescriptionTests
     [Fact]
     public void InvalidInactiveParametersReject()
     {
-        RasterizerDesc[] invalid = [new() { ClipOrigin = (ClipOrigin)(-1) }, new() { ClipDepth = (ClipDepthMode)(-1) },
-            new() { PointSpriteOrigin = (PointSpriteCoordOriginParameter)(-1) }];
+        RasterizerDesc[] invalid = [new() { ClipOrigin = (ClipCoordinateOrigin)(-1) }, new() { ClipDepth = (ClipDepthRange)(-1) },
+            new() { PointSpriteOrigin = (PointSpriteOrigin)(-1) }];
         foreach (var raster in invalid) Assert.ThrowsAny<ArgumentException>(() => Create(raster));
     }
 
@@ -46,11 +58,11 @@ public sealed class ConfigurableRasterizerDescriptionTests
     public void ProfileAndClipCapabilitiesAreEnforced()
     {
         var core = Capabilities() with { CoreProfile = true };
-        Create(new() { LineSmooth = true, PolygonSmooth = true, PointSpriteOrigin = PointSpriteCoordOriginParameter.LowerLeft }, core);
+        Create(new() { LineSmooth = true, PolygonSmooth = true, PointSpriteOrigin = PointSpriteOrigin.LowerLeft }, core);
         var noControl = Capabilities() with { ClipControl = false };
         Create(new(), noControl);
-        Assert.Throws<NotSupportedException>(() => Create(new() { ClipOrigin = ClipOrigin.UpperLeft }, noControl));
-        Assert.Throws<NotSupportedException>(() => Create(new() { ClipDepth = ClipDepthMode.ZeroToOne }, noControl));
+        Assert.Throws<NotSupportedException>(() => Create(new() { ClipOrigin = ClipCoordinateOrigin.UpperLeft }, noControl));
+        Assert.Throws<NotSupportedException>(() => Create(new() { ClipDepth = ClipDepthRange.ZeroToOne }, noControl));
         Create(new(), Capabilities() with { MaxClipDistances = 0 });
     }
 
@@ -59,17 +71,10 @@ public sealed class ConfigurableRasterizerDescriptionTests
 
     #region Private
     /// <summary>Creates a minimal complete graphics description with deterministic support.</summary>
-    private static GraphicsPipelineDesc Create(RasterizerDesc raster, GraphicsCapabilities? capabilities = null, ShaderPipelineIdentity? shader = null) =>
-        new(shader ?? Shader(), new([]), new([new(PixelInternalFormat.Rgba8)]), DynamicPipelineState.Viewport,
-            capabilities ?? Capabilities(), rasterizer: raster);
-
-    /// <summary>Creates shader identity without executable output metadata.</summary>
-    private static ShaderPipelineIdentity Shader()
+    private RHIGraphicsPipelineDescription Create(RasterizerDesc raster,GraphicsCapabilities? capabilities=null)
     {
-        var stages = new List<ShaderStageContract> {
-            new("test.vsh", "test.vsh", ShaderStageKind.Vertex, new()),
-            new("test.fsh", "test.fsh", ShaderStageKind.Fragment, new()) };
-        return new("test", new(new ShaderSettings(new GpuShaderContract("test", stages, 1))));
+        var description=new RHIGraphicsPipelineDescription(program.Shader,new([]),new([new(TextureFormat.Rgba8)]),DynamicPipelineState.Viewport,rasterizer:raster);
+        PipelineDescriptionValidation.Validate(description,capabilities??Capabilities());return description;
     }
 
     /// <summary>Supplies representative compatibility support independent of installed hardware.</summary>

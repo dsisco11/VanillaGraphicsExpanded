@@ -3,7 +3,7 @@ using System;
 namespace VanillaGraphicsExpanded.Rendering.Pipeline.Descriptions;
 
 /// <summary>Immutable sampling controls; omitted mask words explicitly mean all ones, never inherited state.</summary>
-internal sealed record SamplingDesc
+public sealed record SamplingDesc
 {
     public bool Multisample { get; init; } = true;
     public bool CoverageEnabled { get; init; }

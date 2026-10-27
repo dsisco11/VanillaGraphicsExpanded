@@ -112,19 +112,7 @@ public class DynamicTexture2D : GpuTexture
         return true;
     }
 
-    /// <summary>
-    /// Clears the texture to the specified color (requires binding to FBO first).
-    /// This method should be called when the texture is attached to a bound framebuffer.
-    /// </summary>
-    public virtual void Clear()
-    {
-        if (!((GpuResource)this).IsValid)
-        {
-            Debug.WriteLine("[DynamicTexture] Attempted to clear disposed or invalid texture");
-            return;
-        }
-        GL.Clear(ClearBufferMask.ColorBufferBit);
-    }
+
 
     /// <summary>
     /// Uploads pixel data to the texture, replacing existing contents.

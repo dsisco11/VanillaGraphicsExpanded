@@ -52,8 +52,8 @@ public sealed class LumonSceneFeedbackGatherComputeTests : RenderTestBase
 
         compactShader.BindRequestCounter(counter.Buffer);
         compactShader.BindRequestsSsbo(requests.Buffer);
-        compactShader.BindPageUsageStamp(usageStamp.TextureId);
-        compactShader.BindPageTableMip0(pageTableMip0.TextureId);
+        compactShader.PageUsageStamp = usageStamp;
+        compactShader.PageTableMip0 = pageTableMip0;
 
         // Verify scanOffset rotation: offset increments by VirtualPagesPerChunk each "frame"
         // and should rotate the dominant slot for the bounded request list.
@@ -154,18 +154,18 @@ public sealed class LumonSceneFeedbackGatherComputeTests : RenderTestBase
         using var markCounters = new ComponentAtomicCounters(counterCount: 8);
         markShader.BindDebugCounters(markCounters.Buffer);
         // Pass A: mark pages.
-        markShader.BindPatchIdGBuffer(patchId.TextureId);
-        markShader.BindChunkSlotGenerationTex(genTex.TextureId);
+        markShader.PatchIdG = patchId;
+        markShader.ChunkSlotGenerationTex = genTex;
         markShader.FrameStamp = 1u;
-        markShader.BindPageUsageStampImage(usageStamp, access: TextureAccess.ReadWrite);
+        markShader.BindPageUsageStampImage(usageStamp, access: ImageAccess.ReadWrite);
         markShader.Dispatch((w + 7) / 8, (h + 7) / 8, 1);
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
 
         // Pass B: compact stamps -> unique requests list.
         compactShader.BindRequestCounter(counter.Buffer);
         compactShader.BindRequestsSsbo(requests.Buffer);
-        compactShader.BindPageUsageStamp(usageStamp.TextureId);
-        compactShader.BindPageTableMip0(pageTableMip0.TextureId);
+        compactShader.PageUsageStamp = usageStamp;
+        compactShader.PageTableMip0 = pageTableMip0;
         compactShader.MaxRequests = capacity;
         compactShader.FrameStamp = 1u;
         compactShader.ScanOffset = 0u;
@@ -251,17 +251,17 @@ public sealed class LumonSceneFeedbackGatherComputeTests : RenderTestBase
         using var counter = new ComponentAtomicCounters(initialValue: 0u);
 
         markShader.BindDebugCounters(markCounters.Buffer);
-        markShader.BindPatchIdGBuffer(patchId.TextureId);
-        markShader.BindChunkSlotGenerationTex(genTex.TextureId);
+        markShader.PatchIdG = patchId;
+        markShader.ChunkSlotGenerationTex = genTex;
         markShader.FrameStamp = 1u;
-        markShader.BindPageUsageStampImage(usageStamp, access: TextureAccess.ReadWrite);
+        markShader.BindPageUsageStampImage(usageStamp, access: ImageAccess.ReadWrite);
         markShader.Dispatch((w + 7) / 8, (h + 7) / 8, 1);
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
 
         compactShader.BindRequestCounter(counter.Buffer);
         compactShader.BindRequestsSsbo(requests.Buffer);
-        compactShader.BindPageUsageStamp(usageStamp.TextureId);
-        compactShader.BindPageTableMip0(pageTableMip0.TextureId);
+        compactShader.PageUsageStamp = usageStamp;
+        compactShader.PageTableMip0 = pageTableMip0;
         compactShader.MaxRequests = capacity;
         compactShader.FrameStamp = 1u;
         compactShader.ScanOffset = 0u;
@@ -321,17 +321,17 @@ public sealed class LumonSceneFeedbackGatherComputeTests : RenderTestBase
         using var counter = new ComponentAtomicCounters(initialValue: 0u);
 
         markShader.BindDebugCounters(markCounters.Buffer);
-        markShader.BindPatchIdGBuffer(patchId.TextureId);
-        markShader.BindChunkSlotGenerationTex(genTex.TextureId);
+        markShader.PatchIdG = patchId;
+        markShader.ChunkSlotGenerationTex = genTex;
         markShader.FrameStamp = 1u;
-        markShader.BindPageUsageStampImage(usageStamp, access: TextureAccess.ReadWrite);
+        markShader.BindPageUsageStampImage(usageStamp, access: ImageAccess.ReadWrite);
         markShader.Dispatch((w + 7) / 8, (h + 7) / 8, 1);
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
 
         compactShader.BindRequestCounter(counter.Buffer);
         compactShader.BindRequestsSsbo(requests.Buffer);
-        compactShader.BindPageUsageStamp(usageStamp.TextureId);
-        compactShader.BindPageTableMip0(pageTableMip0.TextureId);
+        compactShader.PageUsageStamp = usageStamp;
+        compactShader.PageTableMip0 = pageTableMip0;
         compactShader.MaxRequests = capacity;
         compactShader.FrameStamp = 1u;
         compactShader.ScanOffset = 0u;

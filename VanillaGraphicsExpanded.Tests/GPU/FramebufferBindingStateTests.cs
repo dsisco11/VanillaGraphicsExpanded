@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
@@ -22,9 +23,9 @@ public sealed class FramebufferBindingStateTests(HeadlessGLFixture fixture) : Re
         var cache = StateCache.Current;
         try
         {
-            cache.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
-            cache.BindFramebuffer(FramebufferTarget.DrawFramebuffer, draw.FboId);
-            cache.BindFramebuffer(FramebufferTarget.ReadFramebuffer, read.FboId);
+            OpenGLFramebufferSelection.Bind(cache, FramebufferTarget.Framebuffer, 0);
+            OpenGLFramebufferSelection.Bind(cache, FramebufferTarget.DrawFramebuffer, draw.FboId);
+            OpenGLFramebufferSelection.Bind(cache, FramebufferTarget.ReadFramebuffer, read.FboId);
             if (invalidate) cache.InvalidateAll();
             Assert.Equal(draw.FboId, cache.GetCurrentFramebuffer(FramebufferTarget.Framebuffer));
             Assert.Equal(draw.FboId, GL.GetInteger(GetPName.FramebufferBinding));
@@ -45,7 +46,7 @@ public sealed class FramebufferBindingStateTests(HeadlessGLFixture fixture) : Re
         using var texture = RHICommandContext.Current.CreateTexture3D(new RHITextureDescription { Dimension = TextureDimension.TwoArray, Format = TextureFormat.Rgba16f, Width = System.Math.Max(1, 2), Height = System.Math.Max(1, 2), Depth = System.Math.Max(1, 1), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         using var layer = DynamicGpuFramebuffer.CreateEmpty("Tests.ReadbackLayer");
         layer.Attach(texture, 0);
-        layer.BindAndClear(1, 2, 3, 1);
+        FramebufferTestSetup.ClearAttachments(layer, 1, 2, 3, 1);
         using var sourceTexture = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba16f, Width = System.Math.Max(1, 2), Height = System.Math.Max(1, 2), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         using var targetTexture = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba16f, Width = System.Math.Max(1, 2), Height = System.Math.Max(1, 2), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         using var source = DynamicGpuFramebuffer.CreateSingle(sourceTexture)!;
@@ -53,17 +54,17 @@ public sealed class FramebufferBindingStateTests(HeadlessGLFixture fixture) : Re
         var cache = StateCache.Current;
         try
         {
-            source.BindAndClear(1, 0, 0, 1);
-            cache.BindFramebuffer(FramebufferTarget.DrawFramebuffer, target.FboId);
-            cache.BindFramebuffer(FramebufferTarget.ReadFramebuffer, source.FboId);
+            FramebufferTestSetup.ClearAttachments(source, 1, 0, 0, 1);
+            OpenGLFramebufferSelection.Bind(cache, FramebufferTarget.DrawFramebuffer, target.FboId);
+            OpenGLFramebufferSelection.Bind(cache, FramebufferTarget.ReadFramebuffer, source.FboId);
             using (var pixels = texture.ReadPixelsRegion(0, 0, 2, 2, 0))
                 Assert.Equal(1, pixels.Span[0]);
             Assert.Equal(target.FboId, GL.GetInteger(GetPName.DrawFramebufferBinding));
             Assert.Equal(source.FboId, GL.GetInteger(GetPName.ReadFramebufferBinding));
             // This real follow-up operation consumes the cached combined binding while
             // restoring its state, reproducing the delayed error in the runtime fixture.
-            using var blitter = new GpuFramebufferBlitter(source, target);
-            blitter.Blit();
+            var copy = FramebufferTestSetup.DescribeCopy(source, target);
+            RHICommandContext.Current.BlitImages(copy);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
             Assert.Equal(target.FboId, cache.GetCurrentFramebuffer(FramebufferTarget.Framebuffer));
         }

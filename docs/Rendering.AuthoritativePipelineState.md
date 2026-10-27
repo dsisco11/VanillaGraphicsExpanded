@@ -385,12 +385,14 @@ an older checkout was not executed to establish a reproduced baseline. No baseli
 Receipts: artifacts/shader-identity-{debug,release}.log and
 artifacts/shader-identity-focused-{debug,release}.log.
 
-[VertexLayoutDesc](../VanillaGraphicsExpanded/Rendering/Pipeline/Descriptions/VertexLayoutDesc.cs)
+[RHIVertexLayout](../VanillaGraphicsExpanded/Rendering/RHI/Descriptions/RHIVertexLayout.cs)
 validates and sorts copied attributes by location, rejects duplicate locations/unsupported packing,
 and requires shared binding strides/divisors to agree. Instance buffers and index ranges remain draw
 arguments. [RenderTargetSignature](../VanillaGraphicsExpanded/Rendering/Pipeline/Descriptions/RenderTargetSignature.cs)
-retains sparse output slots and explicit discard policy, exact sized formats, depth/stencil aspects
-and normalized sample count. Its bounded sized-color whitelist is in TargetFormatPolicy; unknown,
+retains sparse output slots and explicit discard policy, exact sized `TextureFormat` values, depth/stencil aspects
+and normalized sample count. Pass setup projects existing native attachment metadata through the backend's
+explicit format conversion; signatures and clear-value compatibility checks perform no native queries.
+Its bounded sized-color whitelist is in TargetFormatPolicy; unknown,
 unsized and compressed formats reject. Actual attachment metadata/routing and linked shader output
 compatibility still belong to preparation/pass setup.
 
@@ -1668,7 +1670,7 @@ Preparation validates the current capability owner, description, actual shader s
 locations/components/scalar interpretation, fragment locations/scalar classes/component coverage,
 geometry input topology. Matrix columns and array elements occupy explicit
 vertex locations; supplied unused attributes remain allowed. Divisors are immutable geometry-layout
-requirements, not reflected shader properties: shared binding rates are checked by VertexLayoutDesc,
+requirements, not reflected shader properties: shared binding rates are checked by RHIVertexLayout,
 and future draw adapters must match the complete layout. Sparse output slots retain explicit discard
 policy. ValidateTargets compares exact normalized formats/aspects/samples, excluding resource IDs
 and dimensions. Actual target metadata, storage-specific support/completeness and attachment lifetimes

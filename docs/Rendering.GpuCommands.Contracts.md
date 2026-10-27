@@ -55,7 +55,7 @@ through the manager on use; equality alone cannot establish current validity or 
 | `GpuTransformFeedbackRef` | `GpuTransformFeedback`; `GpuTransformFeedbackMetadata` | `CreateTransformFeedback(RHITransformFeedbackDescription)` → `GpuTransformFeedback`. |
 | `GpuSemaphoreRef` | `GpuSemaphore`; `GpuSemaphoreMetadata` | `CreateSemaphore(RHISemaphoreDescription)` → `GpuSemaphore`; import is explicit, capability checked. |
 | `GpuMemoryObjectRef` | `GpuMemoryObject`; `GpuMemoryObjectMetadata` | `CreateMemoryObject(RHIMemoryObjectDescription)` → `GpuMemoryObject`; import ownership is explicit. |
-| Private native executable refs only | `GpuShaderModule` / `GpuShaderMetadata`, `GpuProgramObject` and `GpuComputePipeline` / `GpuProgramMetadata`, `GpuProgramPipeline` / `GpuProgramPipelineMetadata` | Private backend creation/retirement inside shader realization and external integration; no portable native-stage/program factory. Public shader factory returns `RHIShader`. |
+| Private native executable refs only | `GpuShaderModule` / `GpuShaderMetadata`, `GpuProgramObject` / `GpuProgramMetadata`, `GpuProgramPipeline` / `GpuProgramPipelineMetadata` | Private backend creation/retirement inside shader realization and external integration; no portable native-stage/program factory. Public shader factory returns `RHIShader`. Compute asset policy composes a shader and managed PSO rather than adding another native program wrapper. |
 
 Every `Create*` result abbreviated to an owner `T` in this table means `RHICreationResult<T>`,
 not a second bare-owner/exception-only creation pattern. Fence insertion retains its distinct sync contract.
@@ -86,6 +86,9 @@ facts. They are not portable factories or automatic recovery on every command.
 
 ## Descriptor and enum inputs
 
+Keep `RHI` on the namespace and major abstraction types. Enums use descriptive domain names without
+an `RHI` or `E` prefix; native enum types remain confined to backend and explicit integration boundaries.
+
 Descriptors use project types and immutable/frozen collections. Constructors and recorders validate
 supplied shape without a current context; cached limits, optional support and resource facts are checked
 at execution. Legal optional setters track assignment automatically, preserving omitted versus explicit
@@ -107,17 +110,17 @@ assignment flags are request intent only and never enter published canonical met
 | Targets/pass | `RHIAttachment`: texture ref/subresource or renderbuffer ref. `RHIRenderPassDescription`: frozen color/depth-stencil attachments, output routing, optional render area, typed clear values and independent load/store actions. Explicit `RHISurfaceRef` represents an integration-owned surface, never bare zero. `RHIFramebufferDescription` supplies configuration/attachmentless defaults for integration and target service. |
 | Pipeline | `RHIGraphicsPipelineDescription`: exact shader ref, vertex layout, primitive assembly, depth/stencil, rasterizer, per-color blending, sampling/output state, target format/sample signature, dynamic-field mask and label. `RHIComputePipelineDescription`: exact compute shader ref and label. `RHIDynamicState`: viewport/scissor, blend constants, stencil references and other declared dynamic values. |
 | Bindings/uniforms | `RHIResourceBindings`: exact prepared-interface identity, frozen active slot inputs with typed texture/image/sampler/buffer ranges, ordinary values and logical uniform snapshots. `RHIImageBinding`: ref, mip, layer/layered, access and format. `RHIUniformSnapshot`: immutable bytes, captured revision, logical publication owner/lifetime; no physical ring offset. |
-| Synchronization/results | `RHIAccess` flags express supported producer/consumer access categories. `RHIBarrierDescription` contains the explicit ordered access intent. `RHIReadbackDescription` names source range/region and layout. `RHIQueryDescription` selects timestamps/statistics/occlusion kind. Wait timeout/poll policy is explicit; external semaphore descriptions retain buffer/image transitions. |
+| Synchronization/results | `ResourceAccess` flags express supported producer/consumer access categories. `RHIBarrierDescription` contains the explicit ordered access intent. `RHIReadbackDescription` names source range/region and layout. `RHIQueryDescription` selects timestamps/statistics/occlusion kind. Wait timeout/poll policy is explicit; external semaphore descriptions retain buffer/image transitions. |
 | Auxiliary resources | `RHITransformFeedbackDescription`: retained output buffer ranges; begin/end/pause/resume select primitive kind. `RHIMemoryObjectDescription` and `RHISemaphoreDescription`: supported parameter/import intent and explicit external-handle ownership. Platform handles use a typed import payload, not a resource ID or opaque GL enum. |
 | Boundary | `RHIBoundaryDescription`: immutable permitted graphics/compute pipeline refs, explicit state-category footprint and existing conditional-rendering/reentry declarations. A closed list supplies an equivalent declaration from immutable descriptions/opcodes only. |
 
-Project-owned enum domains are `RHIFormat`, `RHITextureDimension`, `RHIPixelEncoding`,
-`RHIBufferRole`, `RHIStorageMode`, `RHIBufferUsage`, `RHIStorageAccess`, `RHIImageAccess`,
-`RHIIndexFormat` (unsigned 8/16/32), `RHIVertexInterpretation` (float/normalized/integer/double),
-`RHIPrimitiveTopology`, shader stage/code format, comparison/stencil/blend/rasterizer modes,
+Project-owned enum domains are `TextureFormat`, `TextureDimension`, `RHIPixelEncoding`,
+`BufferRole`, `ResourceStorageMode`, `BufferUsage`, `StorageAccess`, `ImageAccess`,
+`IndexFormat` (unsigned 8/16/32), `VertexInterpretation` (float/normalized/integer/double),
+`PrimitiveTopology`, shader stage/code format, comparison/stencil/blend/rasterizer modes,
 sampler filters/address modes, attachment load/store actions, query kinds, external handle kinds,
-`RHIAccess`, dynamic fields and state-category flags. Reuse existing project-owned values where already
-equivalent; replace OpenTK-valued fields and their callers directly. `RHIFormat`/pixel/vertex encodings
+`ResourceAccess`, dynamic fields and state-category flags. Reuse existing project-owned values where already
+equivalent; replace OpenTK-valued fields and their callers directly. `TextureFormat`/pixel/vertex encodings
 cover the formats already supported by wrappers, `TextureFormatHelper` and shader validators, including
 integer, floating, depth/stencil and compressed distinctions; no cast-compatible GL token values or
 catch-all native-token member. Backend translation uses explicit enum members and rejects unrepresented
@@ -126,7 +129,7 @@ inputs. Exact external signatures retain their full OpenTK overload coverage sep
 ## Executable and pipeline contracts
 
 `RHIShaderDescription` freezes graphics-or-compute kind, stage descriptions, authored binding contract
-and optional validated binary-cache input. Each stage identifies `RHIShaderStage`, explicit GLSL text
+and optional validated binary-cache input. Each stage identifies `ShaderStage`, explicit GLSL text
 or SPIR-V bytes, entry point and typed specialization values. Asset loading, preprocessing, permutation
 selection and binary cache acceptance policy stay above backend execution. No silent translation.
 
@@ -161,6 +164,7 @@ factories cover the resource table above; no public `Destroy(ref)` operation exi
 | Operations | Inputs → result | Disposition |
 | --- | --- | --- |
 | `Create*`, `CreateShader`, pipeline factories | descriptions + optional initial content → typed ready owned creation result | I |
+| `ExportShaderBinary` | fixed shader ref + explicit byte budget → optional opaque executable-cache payload | I; cache policy/persistence remains with the shader owner |
 | `AllocateBufferStorage`, `AllocateTextureStorage`, `AllocateRenderbufferStorage`, `ConfigureSampler`, `ConfigureVertexArray`, `ConfigureFramebuffer`, backing/view configuration and `SetMipRange` | owner authority + frozen legal description → coherent completion or original error | I |
 | `GenerateMipmaps` | texture write input and view-relative range → completion | I initially |
 | `UploadBuffer`, `UploadTexture` | destination ref/range or region + bytes/layout → completion | B |
@@ -170,7 +174,7 @@ factories cover the resource table above; no public `Destroy(ref)` operation exi
 | `BeginRenderPass`, `EndRenderPass` | attachment/surface pass description → complete pass scope | B; no split passes |
 | `SetPipeline` | graphics or compute pipeline ref → selected immutable realization | B |
 | `SetDynamicState`, `BindResources` | declared dynamic values, complete interface-qualified binding set → validated publication | B |
-| `Draw`, `DrawIndexed`, `DrawIndirect`, `DrawIndexedIndirect` | geometry inputs + explicit draw/argument description → ordered native dispatch | B |
+| `Draw`, `DrawIndexed`, `DrawIndexedBatch`, `DrawIndirect`, `DrawIndexedIndirect` | geometry inputs + explicit draw/argument description → ordered native dispatch; noninstanced indexed batches consume a stable supplied span immediately and recording copies it | B |
 | `Dispatch`, `DispatchIndirect` | group counts or argument range → ordered compute dispatch | B |
 | `Barrier`, `WaitGpu`, `WaitSemaphore`, `SignalSemaphore` | access intent, sync/semaphore refs and explicit resource transitions → ordered native work | B |
 | `InsertFence` / `RecordFence` | context: → owned `GpuFence`; list: → `RHIFenceTicket` without native identity | I / recorded marker |

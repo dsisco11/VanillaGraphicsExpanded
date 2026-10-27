@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
@@ -10,10 +11,10 @@ internal static unsafe partial class Ext
     #region Internal API
     /// <summary>Forwards the exact signature to the backend execution boundary.</summary>
     internal static void NamedFramebufferTextureLayer(int @framebuffer, FramebufferAttachment @attachment, int @texture, int @level, int @layer)
-        => StateCache.Current.ExecuteExtNamedFramebufferTextureLayer(@framebuffer, @attachment, @texture, @level, @layer);
+        => OpenGLFramebufferCalls.ExecuteExtNamedFramebufferTextureLayer(@framebuffer, @attachment, @texture, @level, @layer);
 
     /// <summary>Forwards the exact signature to the backend execution boundary.</summary>
     internal static void NamedFramebufferTextureLayer(uint @framebuffer, FramebufferAttachment @attachment, uint @texture, int @level, int @layer)
-        => StateCache.Current.ExecuteExtNamedFramebufferTextureLayer(@framebuffer, @attachment, @texture, @level, @layer);
+        => OpenGLFramebufferCalls.ExecuteExtNamedFramebufferTextureLayer(@framebuffer, @attachment, @texture, @level, @layer);
     #endregion
 }

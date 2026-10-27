@@ -37,10 +37,10 @@ internal interface ILiquidShaderProgramBindings : VanillaGraphicsExpanded.PBR.Ca
     CpuUniformBuffer WaveParameters { get; }
     /// <summary>Declares the terrainTex Sampler slot.</summary>
     [ShaderBinding("terrainTex", ShaderBindingKind.Sampler, 0, ShaderStageKind.Vertex, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.Texture2D, Sampler = ShaderSamplerPolicy.Default)]
-    int TerrainTexture { set; }
+    GpuTextureRef TerrainTexture { set; }
     /// <summary>Declares the depthTex Sampler slot.</summary>
     [ShaderBinding("depthTex", ShaderBindingKind.Sampler, 1, ShaderStageKind.Vertex, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.Texture2D, Sampler = ShaderSamplerPolicy.NearestClamp)]
-    int DepthTexture { set; }
+    GpuTextureRef DepthTexture { set; }
     /// <summary>Declares the vge_materialParamsTex Sampler slot.</summary>
     [ShaderBinding("vge_materialParamsTex", ShaderBindingKind.Sampler, 2, ShaderStageKind.Vertex, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.Texture2D, Sampler = ShaderSamplerPolicy.NearestClamp)]
     GpuTextureRef MaterialParamsTexture { set; }
@@ -52,10 +52,10 @@ internal interface ILiquidShaderProgramBindings : VanillaGraphicsExpanded.PBR.Ca
     GpuTextureRef WaterMediumRecordsTexture { set; }
     /// <summary>Declares the shadowMapNear Sampler slot.</summary>
     [ShaderBinding("shadowMapNear", ShaderBindingKind.Sampler, 3, ShaderStageKind.Vertex, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.Texture2D, Sampler = ShaderSamplerPolicy.ShadowCompareLinearClamp, Required = false)]
-    int ShadowMapNear { set; }
+    GpuTextureRef ShadowMapNear { set; }
     /// <summary>Declares the shadowMapFar Sampler slot.</summary>
     [ShaderBinding("shadowMapFar", ShaderBindingKind.Sampler, 4, ShaderStageKind.Vertex, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.Texture2D, Sampler = ShaderSamplerPolicy.ShadowCompareLinearClamp, Required = false)]
-    int ShadowMapFar { set; }
+    GpuTextureRef ShadowMapFar { set; }
     /// <summary>Declares the vge_atmosphereAerialRadiance Sampler slot.</summary>
     [ShaderBinding("vge_atmosphereAerialRadiance", ShaderBindingKind.Sampler, 5, ShaderStageKind.Vertex, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.Texture3D, Sampler = ShaderSamplerPolicy.Default)]
     GpuTextureRef AerialRadianceTexture { set; }

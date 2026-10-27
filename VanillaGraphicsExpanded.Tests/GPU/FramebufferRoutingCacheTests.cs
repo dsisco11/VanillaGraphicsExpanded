@@ -1,3 +1,5 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
+using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Pipeline;
@@ -25,19 +27,19 @@ public sealed class FramebufferRoutingCacheTests(HeadlessGLFixture fixture, ITes
         using (var capture = new GraphicsTransitionCapture())
         {
             first.Bind();
-            cache.SetDrawBuffers(2, authored);
+            OpenGLFramebufferRouting.SetDrawBuffers(cache, 2, authored);
             authored[1] = DrawBuffersEnum.ColorAttachment0;
-            var snapshot = cache.CaptureFramebufferDrawRouting(first.FboId);
+            var snapshot = OpenGLFramebufferRouting.Capture(cache, first.FboId);
             Assert.Equal(DrawBuffersEnum.ColorAttachment2, snapshot[1]);
             snapshot[1] = DrawBuffersEnum.None;
-            cache.SetDrawBuffers(4, [DrawBuffersEnum.None, DrawBuffersEnum.ColorAttachment2, DrawBuffersEnum.None, DrawBuffersEnum.None]);
+            OpenGLFramebufferRouting.SetDrawBuffers(cache, 4, [DrawBuffersEnum.None, DrawBuffersEnum.ColorAttachment2, DrawBuffersEnum.None, DrawBuffersEnum.None]);
             second.Bind();
-            cache.SetDrawBuffers(2, [DrawBuffersEnum.None, DrawBuffersEnum.ColorAttachment2]);
+            OpenGLFramebufferRouting.SetDrawBuffers(cache, 2, [DrawBuffersEnum.None, DrawBuffersEnum.ColorAttachment2]);
             first.Bind();
-            cache.SetDrawBuffers(2, [DrawBuffersEnum.None, DrawBuffersEnum.ColorAttachment2]);
+            OpenGLFramebufferRouting.SetDrawBuffers(cache, 2, [DrawBuffersEnum.None, DrawBuffersEnum.ColorAttachment2]);
             Assert.Equal(2, capture.Calls.Count(call => call.StartsWith("Routing")));
             Assert.Equal((int)DrawBuffersEnum.ColorAttachment2, GL.GetInteger(GetPName.DrawBuffer1));
-            Assert.Equal(DrawBuffersEnum.ColorAttachment2, cache.CaptureFramebufferDrawRouting(first.FboId)[1]);
+            Assert.Equal(DrawBuffersEnum.ColorAttachment2, OpenGLFramebufferRouting.Capture(cache, first.FboId)[1]);
         }
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
@@ -50,11 +52,11 @@ public sealed class FramebufferRoutingCacheTests(HeadlessGLFixture fixture, ITes
         target.Bind();
         var cache = StateCache.Current;
         using var capture = new GraphicsTransitionCapture();
-        cache.SetDrawBuffer(DrawBufferMode.ColorAttachment1);
-        cache.SetDrawBuffers(1, [DrawBuffersEnum.ColorAttachment1, DrawBuffersEnum.ColorAttachment2]);
+        OpenGLFramebufferRouting.SetDrawBuffer(cache, DrawBufferMode.ColorAttachment1);
+        OpenGLFramebufferRouting.SetDrawBuffers(cache, 1, [DrawBuffersEnum.ColorAttachment1, DrawBuffersEnum.ColorAttachment2]);
         Assert.Single(capture.Calls, call => call.StartsWith("Routing"));
         Assert.Equal((int)DrawBuffersEnum.None, GL.GetInteger(GetPName.DrawBuffer1));
-        cache.SetDrawBuffers(2, [DrawBuffersEnum.None, DrawBuffersEnum.ColorAttachment2]);
+        OpenGLFramebufferRouting.SetDrawBuffers(cache, 2, [DrawBuffersEnum.None, DrawBuffersEnum.ColorAttachment2]);
         Assert.Equal(2, capture.Calls.Count(call => call.StartsWith("Routing")));
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
@@ -70,10 +72,10 @@ public sealed class FramebufferRoutingCacheTests(HeadlessGLFixture fixture, ITes
         using var second = Target();
         var cache = StateCache.Current;
         first.Bind();
-        cache.SetDrawBuffer(DrawBufferMode.ColorAttachment1);
+        OpenGLFramebufferRouting.SetDrawBuffer(cache, DrawBufferMode.ColorAttachment1);
         second.Bind();
         using var capture = new GraphicsTransitionCapture();
-        cache.RestoreFramebufferDrawRouting(first.FboId, [DrawBuffersEnum.ColorAttachment1, DrawBuffersEnum.None]);
+        OpenGLFramebufferRouting.Restore(cache, first.FboId, [DrawBuffersEnum.ColorAttachment1, DrawBuffersEnum.None]);
         Assert.Empty(capture.Calls);
         Assert.Equal(second.FboId, GL.GetInteger(GetPName.DrawFramebufferBinding));
         Assert.Equal(ErrorCode.NoError, GL.GetError());
@@ -91,11 +93,11 @@ public sealed class FramebufferRoutingCacheTests(HeadlessGLFixture fixture, ITes
         using var target = Target();
         target.Bind();
         var cache = StateCache.Current;
-        cache.SetDrawBuffer(DrawBufferMode.ColorAttachment1);
+        OpenGLFramebufferRouting.SetDrawBuffer(cache, DrawBufferMode.ColorAttachment1);
         GL.DrawBuffer(DrawBufferMode.ColorAttachment0);
         cache.Invalidate(invalidation);
         using var capture = new GraphicsTransitionCapture();
-        cache.SetDrawBuffer(DrawBufferMode.ColorAttachment1);
+        OpenGLFramebufferRouting.SetDrawBuffer(cache, DrawBufferMode.ColorAttachment1);
         Assert.Single(capture.Calls, call => call.StartsWith("Routing"));
         Assert.Equal((int)DrawBufferMode.ColorAttachment1, GL.GetInteger(GetPName.DrawBuffer0));
         Assert.Equal(ErrorCode.NoError, GL.GetError());
@@ -109,15 +111,15 @@ public sealed class FramebufferRoutingCacheTests(HeadlessGLFixture fixture, ITes
         using var second = Target();
         var cache = StateCache.Current;
         second.Bind();
-        cache.SetDrawBuffer(DrawBufferMode.ColorAttachment1);
+        OpenGLFramebufferRouting.SetDrawBuffer(cache, DrawBufferMode.ColorAttachment1);
         first.Bind();
-        cache.SetDrawBuffer(DrawBufferMode.ColorAttachment0);
+        OpenGLFramebufferRouting.SetDrawBuffer(cache, DrawBufferMode.ColorAttachment0);
         using var capture = new GraphicsTransitionCapture();
-        Assert.Throws<InvalidOperationException>(() => cache.SetDrawBuffers(1, [(DrawBuffersEnum)DrawBufferMode.Back]));
-        cache.SetDrawBuffer(DrawBufferMode.ColorAttachment0);
+        Assert.Throws<InvalidOperationException>(() => OpenGLFramebufferRouting.SetDrawBuffers(cache, 1, [(DrawBuffersEnum)DrawBufferMode.Back]));
+        OpenGLFramebufferRouting.SetDrawBuffer(cache, DrawBufferMode.ColorAttachment0);
         Assert.Equal(2, capture.Calls.Count(call => call.StartsWith("Routing")));
         second.Bind();
-        cache.SetDrawBuffer(DrawBufferMode.ColorAttachment1);
+        OpenGLFramebufferRouting.SetDrawBuffer(cache, DrawBufferMode.ColorAttachment1);
         Assert.Equal(2, capture.Calls.Count(call => call.StartsWith("Routing")));
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
@@ -129,22 +131,22 @@ public sealed class FramebufferRoutingCacheTests(HeadlessGLFixture fixture, ITes
         using var target = Target();
         target.Bind();
         var cache = StateCache.Current;
-        cache.SetDrawBuffer(DrawBufferMode.ColorAttachment1);
+        OpenGLFramebufferRouting.SetDrawBuffer(cache, DrawBufferMode.ColorAttachment1);
         int id = (int)target.Detach();
         try
         {
             GL.DrawBuffer(DrawBufferMode.ColorAttachment0);
-            Assert.Equal(DrawBuffersEnum.ColorAttachment0, cache.CaptureFramebufferDrawRouting(id)[0]);
+            Assert.Equal(DrawBuffersEnum.ColorAttachment0, OpenGLFramebufferRouting.Capture(cache, id)[0]);
             using var wrapped = DynamicGpuFramebuffer.Wrap(id, width: 2, height: 2);
-            cache.SetDrawBuffer(DrawBufferMode.ColorAttachment1);
+            OpenGLFramebufferRouting.SetDrawBuffer(cache, DrawBufferMode.ColorAttachment1);
             GL.DrawBuffer(DrawBufferMode.ColorAttachment0);
             wrapped.RefreshWrappedFramebuffer(id, 2, 2);
-            Assert.Equal(DrawBuffersEnum.ColorAttachment0, cache.CaptureFramebufferDrawRouting(id)[0]);
+            Assert.Equal(DrawBuffersEnum.ColorAttachment0, OpenGLFramebufferRouting.Capture(cache, id)[0]);
         }
-        finally { cache.DeleteFramebuffer(id); }
+        finally { VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.OpenGL.DeleteFramebuffer(id); }
         using var replacement = Target();
         replacement.Bind();
-        Assert.Equal(DrawBuffersEnum.ColorAttachment0, cache.CaptureFramebufferDrawRouting(replacement.FboId)[0]);
+        Assert.Equal(DrawBuffersEnum.ColorAttachment0, OpenGLFramebufferRouting.Capture(cache, replacement.FboId)[0]);
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
     #endregion
@@ -155,7 +157,7 @@ public sealed class FramebufferRoutingCacheTests(HeadlessGLFixture fixture, ITes
     {
         EnsureContextValid();
         // Clear-only passes declare no executable and restore the incoming shared-fixture program.
-        using var program = StateCache.Current.UseProgramScope(0);
+        OpenGLProgramSelection.Select(StateCache.Current, 0);
         using var target = Target();
         var cache = StateCache.Current;
         // Reset image contents and the incoming mapping identically for each comparison.
@@ -163,21 +165,24 @@ public sealed class FramebufferRoutingCacheTests(HeadlessGLFixture fixture, ITes
         {
             foreach (var image in new[] { target[0], target[1], target[2] }) image.UploadDataImmediate(new float[16]);
             target.Bind();
-            cache.SetDrawBuffer(DrawBufferMode.ColorAttachment0);
+            OpenGLFramebufferRouting.SetDrawBuffer(cache, DrawBufferMode.ColorAttachment0);
         }
         // Explicit invalidation models an owner without remembered live routing.
         List<string> Run(bool forget)
         {
             using var capture = new GraphicsTransitionCapture();
-            Assert.True(GraphicsCommandContext.TryRun("Tests.RoutingCache", [], true, commands =>
-                        {
+            {
+    var commands=RHICommandContext.Current;
+    using var scope43=commands.EnterBoundary(new("Tests.RoutingCache",true,graphics:System.Linq.Enumerable.Select<RHIGraphicsPipeline,RHIGraphicsPipelineRef>([],value=>value),operations:BoundaryOperations.RenderPasses));
+    scope43.Run(()=>{
                             for (int step = 0; step < 4; step++)
                             {
                                 if (forget) cache.Invalidate(EPipelineState.FramebufferRouting);
-                                commands.BeginPass(new(target, [new(step == 3 ? 1 : 0, AttachmentLoad.Clear, Clear: ColorClearValue.Float(step == 3 ? .5f : (step + 1) * .25f, 0, 0, 1))]));
-                                commands.EndPass();
+                                commands.BeginRenderPass(FramebufferTestSetup.DescribeAttachments(target, [new(AttachmentIndex:step == 3 ? 1 : 0, Load:AttachmentLoad.Clear, Clear: ColorClearValue.Float(step == 3 ? .5f : (step + 1) * .25f, 0, 0, 1))]));
+                                commands.EndRenderPass();
                             }
-                        }));
+                        });
+}
             return [.. capture.Calls];
         }
         Initialize();

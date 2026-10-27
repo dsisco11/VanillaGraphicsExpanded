@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.ShaderCompilation;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using OpenTK.Graphics.OpenGL;
@@ -32,16 +33,21 @@ internal sealed class LumonSceneIrradianceHistory : IDisposable
             return true;
         if (reset == null)
         {
-            if (!GpuComputePipeline.TryCreateFromAssets(capi, Shaders.LumonSceneResetIrradianceComputeShader.Contract.Identity,
-                out var created, out _, out var log, preferSpirv: true))
+            if (!ComputeShaderAsset.TryCreateFromAssets(api: capi,
+            settings: new global::VanillaGraphicsExpanded.Rendering.Contracts.ShaderSettings(global::VanillaGraphicsExpanded.Rendering.Contracts.GpuShaderContracts.Registry.FindProgram(Shaders.LumonSceneResetIrradianceComputeShader.Contract.Identity)),
+            pipeline: out var created,
+            infoLog: out var log))
             {
                 capi.Logger.Warning("[VGE] Cannot invalidate surface lighting: {0}", log);
                 return false;
             }
             reset = new(created!);
         }
-        reset.irradianceAtlas = new(atlas, TextureAccess.WriteOnly, Layered: true, Format: SizedInternalFormat.Rgba16f);
-        reset.Dispatch((atlas.Width + 7) / 8, (atlas.Height + 7) / 8, atlas.Depth);
+        reset.irradianceAtlas = new(atlas, ImageAccess.WriteOnly, Layered: true, Format: TextureFormat.Rgba16f);
+        if(!reset.EnsureReady())throw new InvalidOperationException(reset.PreparationLog);
+        var dispatchContext=RHICommandContext.Current;
+        using var dispatchBoundary=dispatchContext.EnterBoundary(new("SurfaceLighting.Reset",true,compute:[reset.Pipeline]));
+        dispatchBoundary.Run(()=>reset.Dispatch((atlas.Width + 7) / 8, (atlas.Height + 7) / 8, atlas.Depth));
         RHICommandContext.Current.Barrier(new(ResourceAccess.Image | ResourceAccess.TextureFetch));
         previousScene = scene;
         previousAtlas = atlas;

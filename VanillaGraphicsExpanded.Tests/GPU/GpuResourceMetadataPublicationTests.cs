@@ -263,7 +263,7 @@ public sealed class GpuResourceMetadataPublicationTests(HeadlessGLFixture fixtur
         framebuffer.Bind();
         try
         {
-            using (var operation = new StateCache.FramebufferOperation(framebuffer))
+            using (var operation = new OpenGLFramebufferConfiguration.FramebufferOperation(framebuffer))
             {
                 replacement.AttachTo(framebuffer, FramebufferAttachment.ColorAttachment0, operation);
                 Assert.False(entry.MetadataAvailable);

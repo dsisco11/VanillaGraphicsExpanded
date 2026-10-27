@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -11,14 +12,14 @@ internal sealed class RenderPassDesc
 {
     internal GpuFramebuffer Target { get; }
     internal PipelineValues<RenderPassColor> Colors { get; }
-    internal RenderPassDepthStencil DepthStencil { get; }
+    internal RHIDepthStencilActions DepthStencil { get; }
     internal RenderArea? Area { get; }
     internal PipelineValues<DrawBuffersEnum> Routing { get; }
 
     #region Public API
     /// <summary>Copies output routing; an omitted area resolves to the current full target on each begin.</summary>
     internal RenderPassDesc(GpuFramebuffer target, IEnumerable<RenderPassColor> colors,
-        RenderPassDepthStencil? depthStencil = null, RenderArea? area = null)
+        RHIDepthStencilActions? depthStencil = null, RenderArea? area = null)
     {
         ArgumentNullException.ThrowIfNull(target);
         ArgumentNullException.ThrowIfNull(colors);
@@ -45,7 +46,6 @@ internal sealed class RenderPassDesc
             throw new ArgumentException("Invalid depth/stencil intention.", nameof(depthStencil));
         Routing = new(Colors.Select(color => color.SurfaceBuffer ?? (color.Attachment < 0
             ? DrawBuffersEnum.None : DrawBuffersEnum.ColorAttachment0 + color.Attachment)).DefaultIfEmpty(DrawBuffersEnum.None));
-        Target.ValidatePassRouting(Routing);
     }
     #endregion
 }

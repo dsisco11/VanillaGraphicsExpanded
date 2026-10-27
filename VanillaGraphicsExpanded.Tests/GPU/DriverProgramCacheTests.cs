@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.ShaderCompilation;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Diagnostics;
 using OpenTK.Graphics.OpenGL;
@@ -104,7 +105,7 @@ public sealed class DriverProgramCacheTests(HeadlessGLFixture fixture, ITestOutp
                 double load = Stopwatch.GetElapsedTime(start).TotalMilliseconds;
                 if (previous != 0) Assert.False(GL.IsProgram(previous));
                 previous = program.ProgramId;
-                target.BindWithViewport();
+                FramebufferTestSetup.BindForEngineRendering(target);
                 start = Stopwatch.GetTimestamp();
                 RenderFullscreenQuad(program.ProgramId);
                 GL.Finish();
@@ -141,7 +142,7 @@ public sealed class DriverProgramCacheTests(HeadlessGLFixture fixture, ITestOutp
             {
                 using var bypass = generation < 0 ? DriverProgramCache.UseStoreForTesting(null) : null;
                 long start = Stopwatch.GetTimestamp();
-                Assert.True(GpuComputePipeline.TryCreateFromAssets(assets.Api, settings, out var pipeline, out string log,
+                Assert.True(ComputeShaderAsset.TryCreateFromAssets(assets.Api, settings, out var pipeline, out string log,
                     ct: TestContext.Current.CancellationToken), log);
                 double load = Stopwatch.GetElapsedTime(start).TotalMilliseconds;
                 using (pipeline)
@@ -266,7 +267,7 @@ public sealed class DriverProgramCacheTests(HeadlessGLFixture fixture, ITestOutp
     {
         #region Submission
         /// <summary>Retains this owner's explicit external input publication contract.</summary>
-        protected override void Submit() { }
+        protected override VanillaGraphicsExpanded.Rendering.RHI.RHIResourceBindings CaptureBindingsCore() => new(Shader);
         #endregion
 
         /// <summary>Selects the existing deterministic fullscreen fixture.</summary>

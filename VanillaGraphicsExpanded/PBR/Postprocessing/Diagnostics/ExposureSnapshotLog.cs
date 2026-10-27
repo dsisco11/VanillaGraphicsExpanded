@@ -38,12 +38,16 @@ internal static class ExposureSnapshotLog
             program.Scene=scene; program.LocalBase=localBase ?? scene;
             program.History=publication.History ?? fallback!; program.Output=output;
             program.Capture(local,publication.Settings,antialias);
-            var resources=EngineBoundaryResources.From(program.ProgramLayout.BinaryInterface!.PreparedBindings);
-            if(!EngineBoundaryExecution.TryRun(new("Debug.ExposureSnapshot"),resources,_=>program.Dispatch(1)))
-                throw new InvalidOperationException("Exposure snapshot boundary was rejected.");
+            var commands=RHICommandContext.Current;
+            using var boundary=commands.EnterBoundary(new("Debug.ExposureSnapshot",true,compute:[program.Pipeline]));
+            boundary.Run(()=>program.Dispatch(1));
             RHICommandContext.Current.Barrier(new(ResourceAccess.ShaderStorage | ResourceAccess.BufferUpdate));
             var values=new float[12];
-            RHICommandContext.Current.OpenGL.ReadBuffer(output, 0, System.Runtime.InteropServices.MemoryMarshal.AsBytes(values.AsSpan()));
+            using var readback = RHICommandContext.Current.EnqueueReadback(new RHIReadbackDescription(new RHIBufferRange(output, 0, 48)));
+            if (readback.Wait() != CompletionStatus.Ready)
+                throw new InvalidOperationException("Exposure snapshot readback did not complete.", readback.Error);
+            using (var mapped = readback.MapReadyReadback())
+                mapped.Bytes.CopyTo(System.Runtime.InteropServices.MemoryMarshal.AsBytes(values.AsSpan()));
             api.Logger.Notification(Format(values,publication.Settings,local,publication.History is not null,
                 VgeFrameRenderer.Current.FrameIndex,ConfigModSystem.Config.LumOn.Enabled,antialias));
         }

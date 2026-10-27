@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.ShaderCompilation;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using OpenTK.Graphics.OpenGL;
@@ -27,8 +28,10 @@ internal sealed class SurfaceLightingDispatch : IDisposable
     /// <summary>Loads the packaged SPIR-V producer through its shader-owned contract.</summary>
     public SurfaceLightingDispatch(ICoreAPI api)
     {
-        if (!GpuComputePipeline.TryCreateFromAssets(api, LumonSceneSurfaceLightingShader.Contract.Identity,
-            out var created, out _, out string log, preferSpirv: true))
+        if (!ComputeShaderAsset.TryCreateFromAssets(api: api,
+            settings: new global::VanillaGraphicsExpanded.Rendering.Contracts.ShaderSettings(global::VanillaGraphicsExpanded.Rendering.Contracts.GpuShaderContracts.Registry.FindProgram(LumonSceneSurfaceLightingShader.Contract.Identity)),
+            pipeline: out var created,
+            infoLog: out string log))
             throw new InvalidOperationException(log);
         pipeline = new(created!);
         disabledFallback.EnsureCapacity(SurfaceHitCaptureCodec.HeaderBytes, growExponentially:false);
@@ -75,11 +78,15 @@ internal sealed class SurfaceLightingDispatch : IDisposable
             pipeline.SurfacePages = input.PageTable;
             pipeline.LightColors = scene.LightColors; pipeline.BlockLevels = scene.BlockLevels;
             pipeline.SunLevels = scene.SunLevels; pipeline.Surfaces = scene.Surfaces;
-            pipeline.IndirectIrradiance = new(input.IndirectIrradiance, TextureAccess.ReadWrite, Layered: true, Format: SizedInternalFormat.Rgba16f);
-            pipeline.DirectIrradiance = new(input.DirectIrradiance, TextureAccess.ReadWrite, Layered: true, Format: SizedInternalFormat.Rgba16f);
-            pipeline.NextOutgoing = new(destination, TextureAccess.WriteOnly, Layered: true, Format: SizedInternalFormat.Rgba16f);
+            pipeline.IndirectIrradiance = new(input.IndirectIrradiance, ImageAccess.ReadWrite, Layered: true, Format: TextureFormat.Rgba16f);
+            pipeline.DirectIrradiance = new(input.DirectIrradiance, ImageAccess.ReadWrite, Layered: true, Format: TextureFormat.Rgba16f);
+            pipeline.NextOutgoing = new(destination, ImageAccess.WriteOnly, Layered: true, Format: TextureFormat.Rgba16f);
             pipeline.DiagnosticCounters = Diagnostics.ActiveBuffer;
-            pipeline.Dispatch((input.TileSize + 7) / 8, (input.TileSize + 7) / 8, count);
+            int dispatchGroups=(input.TileSize+7)/8;
+            if(!pipeline.EnsureReady())throw new InvalidOperationException(pipeline.PreparationLog);
+            var dispatchContext=RHICommandContext.Current;
+            using var dispatchBoundary=dispatchContext.EnterBoundary(new("SurfaceLighting.Update",true,compute:[pipeline.Pipeline]));
+            dispatchBoundary.Run(()=>pipeline.Dispatch(dispatchGroups, dispatchGroups, count));
             RHICommandContext.Current.Barrier(new(ResourceAccess.Image | ResourceAccess.TextureFetch |
                 ResourceAccess.ShaderStorage | ResourceAccess.BufferUpdate | ResourceAccess.TextureUpdate));
         }

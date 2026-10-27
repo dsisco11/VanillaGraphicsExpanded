@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System;
 using System.Diagnostics;
 
@@ -94,7 +95,7 @@ public readonly struct GpuImageUnitBinding : IDisposable
 
         try
         {
-            StateCache.Current.BindImageTexture(unit, textureId, level, layered, layer, access, format);
+            OpenGLImageSlotBindings.BindImageTexture(StateCache.Current, unit, textureId, level, layered, layer, access, format);
         }
         catch (Exception e)
         {
@@ -166,7 +167,7 @@ public readonly struct GpuImageUnitBinding : IDisposable
 
         try
         {
-            StateCache.Current.BindImageTexture(
+            OpenGLImageSlotBindings.BindImageTexture(StateCache.Current, 
                 unit,
                 prevName,
                 prevLevel,

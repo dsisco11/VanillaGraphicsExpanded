@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.PBR;
@@ -38,7 +39,7 @@ public sealed class ShaderLinkBatchTests(HeadlessGLFixture fixture, ITestOutputH
         program.Initialize(assets.Api);
         Assert.True(program.CompileAndLink(), string.Join('\n', assets.Logs));
         Assert.Equal(enabled ? 2 : 0, batch.Outstanding);
-        Assert.True(GpuComputePipeline.TryCreateFromAssets(assets.Api, compute, out var pipeline, out var log, ct: TestContext.Current.CancellationToken), log);
+        Assert.True(ComputeShaderAsset.TryCreateFromAssets(assets.Api, compute, out var pipeline, out var log, ct: TestContext.Current.CancellationToken), log);
         using (pipeline)
         {
             Assert.True(GL.IsProgram(pipeline!.ProgramId));
@@ -70,7 +71,7 @@ public sealed class ShaderLinkBatchTests(HeadlessGLFixture fixture, ITestOutputH
         Assert.Equal(enabled ? 2 : 0, batch.PeakOutstanding);
 #endif
         using var target = CreateRenderTarget(8, 8, PixelInternalFormat.Rgba32f);
-        target.BindWithViewport();
+        FramebufferTestSetup.BindForEngineRendering(target);
         RenderFullscreenQuad(program.ProgramId);
         var pixel = ReadPixel(target, 4, 4);
         Assert.InRange(pixel.R, .55f, .58f);
@@ -111,7 +112,7 @@ public sealed class ShaderLinkBatchTests(HeadlessGLFixture fixture, ITestOutputH
         using var sentinel = new FixtureProgram();
         sentinel.Initialize(assets.Api);
         Assert.True(sentinel.CompileAndLink());
-        StateCache.Current.UseProgram(sentinel.ProgramId);
+        OpenGLProgramSelection.Select(StateCache.Current, sentinel.ProgramId);
         var original = VanillaGraphicsExpanded.Rendering.Integration.RenderContextRegistry.Current();
         var registrations = (System.Collections.IDictionary)typeof(VanillaGraphicsExpanded.Rendering.Integration.RenderContextRegistry)
             .GetField("registrations", System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic)!.GetValue(null)!;
@@ -130,11 +131,10 @@ public sealed class ShaderLinkBatchTests(HeadlessGLFixture fixture, ITestOutputH
         }
         try
         {
-            var failure = Assert.Throws<InvalidOperationException>(() => new PendingShaderProgram(
+            var failure = Assert.Throws<InvalidOperationException>(() => new ShaderAssetCandidate(
                 new ShaderLoadPlan(Settings(Graphics)), Read,
-                () => ShaderDigestIndexCache.ForAssets(assets.Api.Assets, ShaderImportsSystem.DefaultDomain),
-                GetProgramParameterName.LinkStatus));
-            Assert.Contains("originating native context generation", failure.Message);
+                () => ShaderDigestIndexCache.ForAssets(assets.Api.Assets, ShaderImportsSystem.DefaultDomain)));
+            Assert.Contains("original RHI context", failure.Message);
             Assert.Equal(sentinel.ProgramId, GL.GetInteger(GetPName.CurrentProgram));
             Assert.True(GL.IsProgram(sentinel.ProgramId));
             Assert.Equal(ErrorCode.NoError, GL.GetError());
@@ -142,7 +142,7 @@ public sealed class ShaderLinkBatchTests(HeadlessGLFixture fixture, ITestOutputH
         finally
         {
             lock (registrations) registrations[original.Handle] = registration;
-            StateCache.Current.UnbindProgram();
+            OpenGLProgramSelection.Select(StateCache.Current, 0);
         }
     }
 
@@ -171,7 +171,7 @@ public sealed class ShaderLinkBatchTests(HeadlessGLFixture fixture, ITestOutputH
             var registrations = (System.Collections.IDictionary)typeof(VanillaGraphicsExpanded.Rendering.Integration.RenderContextRegistry)
                 .GetField("registrations", System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic)!.GetValue(null)!;
             object registration = registrations[original.Handle]!;
-            StateCache.Current.UseProgram(sentinel.ProgramId);
+            OpenGLProgramSelection.Select(StateCache.Current, sentinel.ProgramId);
             var replacement = new object();
             try
             {
@@ -195,7 +195,7 @@ public sealed class ShaderLinkBatchTests(HeadlessGLFixture fixture, ITestOutputH
                 // Reuse the original live registration receipt to retry cleanup; destroyed-context abandonment is separate.
                 lock (registrations) registrations[original.Handle] = registration;
                 batch.Dispose();
-                StateCache.Current.UnbindProgram();
+                OpenGLProgramSelection.Select(StateCache.Current, 0);
             }
             Assert.Equal(0, batch.Outstanding);
             batch.Dispose();
@@ -243,18 +243,17 @@ public sealed class ShaderLinkBatchTests(HeadlessGLFixture fixture, ITestOutputH
         using var cache = DriverProgramCache.UseStoreForTesting(null);
         using var assets = new BinaryShaderApiFixture();
         ReadOnlySpan<byte> Read(string path) => File.ReadAllBytes(Path.Combine(AppContext.BaseDirectory, "assets", "shaders", path));
-        var pending = new PendingShaderProgram(new ShaderLoadPlan(Settings(Graphics)), Read,
-            () => ShaderDigestIndexCache.ForAssets(assets.Api.Assets, ShaderImportsSystem.DefaultDomain),
-            GetProgramParameterName.LinkStatus);
-        int program = pending.Program;
-        int[] stages = pending.Stages.Select(stage => stage.Shader).ToArray();
-        Assert.Equal(2, stages.Length);
+        var plan = new ShaderLoadPlan(Settings(Graphics));
+        var inputs = DriverProgramCache.Prepare(plan, Read,
+            () => ShaderDigestIndexCache.ForAssets(assets.Api.Assets, ShaderImportsSystem.DefaultDomain));
+        using var pending = VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BeginCreateShader(ShaderExecutableInputs.Create(plan, inputs));
+        int program = (pending.Program ?? pending.Result.RequireResource().Program).ProgramId;
+        int[] stages = pending.Stages.Select(stage => stage.ShaderId).ToArray();
         if (transfer)
         {
-            pending.Complete(TestContext.Current.CancellationToken);
-            using var installed = GpuProgramObject.Adopt(pending.DetachProgram());
-            Assert.Empty(pending.Stages);
-            Assert.Equal(0, pending.Program);
+            while (pending.TryComplete() == VanillaGraphicsExpanded.Rendering.RHI.CompletionStatus.Pending)
+                TestContext.Current.CancellationToken.ThrowIfCancellationRequested();
+            using var installed = pending.Result.RequireResource();
             Assert.All(stages, stage => Assert.False(GL.IsShader(stage)));
             pending.Dispose(); pending.Dispose();
             Assert.True(GL.IsProgram(program));
@@ -263,9 +262,10 @@ public sealed class ShaderLinkBatchTests(HeadlessGLFixture fixture, ITestOutputH
         }
         else
         {
-            using var cancellation = new CancellationTokenSource();
-            cancellation.Cancel();
-            Assert.Throws<OperationCanceledException>(() => pending.Complete(cancellation.Token));
+            // Ready results are recipient-owned; pending cancellation retires only unpublished ownership.
+            if (pending.Status == VanillaGraphicsExpanded.Rendering.RHI.CompletionStatus.Ready)
+                pending.Result.RequireResource().Dispose();
+            else pending.Cancel();
             pending.Dispose(); pending.Dispose();
             Assert.False(GL.IsProgram(program));
             Assert.All(stages, stage => Assert.False(GL.IsShader(stage)));
@@ -370,7 +370,7 @@ public sealed class ShaderLinkBatchTests(HeadlessGLFixture fixture, ITestOutputH
         assets.BeforeRead = _ => Assert.Equal(outer.Outstanding, outer.CompletedOutstanding);
         using (var inner = nested ? new ShaderLinkBatch(assets.Api.Assets, ShaderImportsSystem.DefaultDomain, [Settings(Compute)]) : null)
         {
-            Assert.True(GpuComputePipeline.TryCreateFromAssets(assets.Api, Settings(Compute), out var pipeline, out string log,
+            Assert.True(ComputeShaderAsset.TryCreateFromAssets(assets.Api, Settings(Compute), out var pipeline, out string log,
                 ct: TestContext.Current.CancellationToken), log);
             pipeline!.Dispose();
         }
@@ -443,16 +443,16 @@ public sealed class ShaderLinkBatchTests(HeadlessGLFixture fixture, ITestOutputH
             second.Initialize(assets.Api);
             Assert.True(first.CompileAndLink());
             Assert.True(second.CompileAndLink());
-            Assert.True(GpuComputePipeline.TryCreateFromAssets(assets.Api, Settings(Compute), out var firstCompute, out var firstLog,
+            Assert.True(ComputeShaderAsset.TryCreateFromAssets(assets.Api, Settings(Compute), out var firstCompute, out var firstLog,
                 ct: TestContext.Current.CancellationToken), firstLog);
-            Assert.True(GpuComputePipeline.TryCreateFromAssets(assets.Api, Settings(Compute), out var secondCompute, out var secondLog,
+            Assert.True(ComputeShaderAsset.TryCreateFromAssets(assets.Api, Settings(Compute), out var secondCompute, out var secondLog,
                 ct: TestContext.Current.CancellationToken), secondLog);
             using (firstCompute)
             using (secondCompute)
             {
                 double loaded = System.Diagnostics.Stopwatch.GetElapsedTime(start).TotalMilliseconds;
                 long use = System.Diagnostics.Stopwatch.GetTimestamp();
-                target.BindWithViewport();
+                FramebufferTestSetup.BindForEngineRendering(target);
                 RenderFullscreenQuad(first.ProgramId);
                 RenderFullscreenQuad(second.ProgramId);
                 GL.Finish();
@@ -475,7 +475,7 @@ public sealed class ShaderLinkBatchTests(HeadlessGLFixture fixture, ITestOutputH
     {
         #region Submission
         /// <summary>Retains this owner's explicit external input publication contract.</summary>
-        protected override void Submit() { }
+        protected override VanillaGraphicsExpanded.Rendering.RHI.RHIResourceBindings CaptureBindingsCore() => new(Shader);
         #endregion
 
         /// <summary>Supplies engine wrappers for the production owner.</summary>

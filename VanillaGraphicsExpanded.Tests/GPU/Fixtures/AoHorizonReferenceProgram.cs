@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using VanillaGraphicsExpanded.PBR.Postprocessing;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Contracts;
@@ -44,24 +45,13 @@ internal sealed class AoHorizonReferenceProgram : GpuProgram
 
     #region Protected API
     /// <summary>Validates all descriptors before publishing the shared textures and immutable uniform slices.</summary>
-    protected override void Submit()
+    protected override RHIResourceBindings CaptureBindingsCore()
     {
-        var frame = ShaderPreparedSubmission.Resolve(this, GpuBindingEntry.Identity(ShaderBindingKind.UniformBlock, "VgeFrameUBO"));
-        var parameters = ShaderPreparedSubmission.Resolve(this, GpuBindingEntry.Identity(ShaderBindingKind.UniformBlock, "AmbientOcclusionInputs"));
-        var depthBinding = ShaderPreparedSubmission.Resolve(this, GpuBindingEntry.Identity(ShaderBindingKind.Sampler, "depthImage"));
-        var surfaceBinding = ShaderPreparedSubmission.Resolve(this, GpuBindingEntry.Identity(ShaderBindingKind.Sampler, "surfaceImage"));
-        var hierarchyBinding = ShaderPreparedSubmission.Resolve(this, GpuBindingEntry.Identity(ShaderBindingKind.Sampler, "depthHierarchy"));
-        var sharedCamera = camera ?? throw new InvalidOperationException("Reference AO requires a shared camera.");
-        ShaderPreparedSubmission.ValidateUniformBlock(frame, sharedCamera);
-        ShaderPreparedSubmission.ValidateUniformBlock(parameters, inputs);
-        ShaderPreparedSubmission.ValidateSampler(depthBinding, depth);
-        ShaderPreparedSubmission.ValidateSampler(surfaceBinding, surface);
-        ShaderPreparedSubmission.ValidateSampler(hierarchyBinding, hierarchy);
-        ShaderPreparedSubmission.UniformBlock(frame, sharedCamera);
-        ShaderPreparedSubmission.UniformBlock(parameters, inputs);
-        ShaderPreparedSubmission.Sampler(depthBinding, depth);
-        ShaderPreparedSubmission.Sampler(surfaceBinding, surface);
-        ShaderPreparedSubmission.Sampler(hierarchyBinding, hierarchy);
+        return new(Shader,samplers:[new(GpuBindingEntry.Identity(ShaderBindingKind.Sampler,"depthImage"),depth),
+            new(GpuBindingEntry.Identity(ShaderBindingKind.Sampler,"surfaceImage"),surface),
+            new(GpuBindingEntry.Identity(ShaderBindingKind.Sampler,"depthHierarchy"),hierarchy)],
+            uniforms:[new(GpuBindingEntry.Identity(ShaderBindingKind.UniformBlock,"VgeFrameUBO"),camera?.Capture()),
+                new(GpuBindingEntry.Identity(ShaderBindingKind.UniformBlock,"AmbientOcclusionInputs"),inputs.Capture())]);
     }
     #endregion
 }

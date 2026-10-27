@@ -101,8 +101,7 @@ public sealed class SurfaceLightingPartialWorldProbeTests(HeadlessGLFixture fixt
         EnsureContextValid();
         using var runtime=new SurfaceLightingConsumerRuntimeFixture(false);runtime.Frame();
         var resources=runtime.WorldBuffers.Resources!;
-        resources.GetRadianceFbo().BindWithViewport();
-        OpenTK.Graphics.OpenGL.GL.ClearBuffer(OpenTK.Graphics.OpenGL.ClearBuffer.Color,0,new[]{1f,1f,1f,1f});
+        FramebufferTestSetup.ClearPass(resources.RadiancePass,1);
         resources.QueueClearLocalBox(0,new(),new(),new(3,3,3));
         long dispatches=resources.InvalidationDispatchCount;
         runtime.WorldAccessorAvailable=false;
@@ -120,8 +119,7 @@ public sealed class SurfaceLightingPartialWorldProbeTests(HeadlessGLFixture fixt
         EnsureContextValid();
         using var runtime=new SurfaceLightingConsumerRuntimeFixture(false);runtime.Frame();
         var resources=runtime.WorldBuffers.Resources!;
-        resources.GetRadianceFbo().BindWithViewport();
-        OpenTK.Graphics.OpenGL.GL.ClearBuffer(OpenTK.Graphics.OpenGL.ClearBuffer.Color,0,new[]{1f,1f,1f,1f});
+        FramebufferTestSetup.ClearPass(resources.RadiancePass,1);
         var scheduler=(LumOnWorldProbeScheduler)typeof(LumOnWorldProbeUpdateRenderer)
             .GetField("scheduler",BindingFlags.Instance|BindingFlags.NonPublic)!.GetValue(runtime.WorldRenderer)!;
         scheduler.UpdateOrigins(new Vintagestory.API.MathTools.Vec3d(4+delta,36,6),4);

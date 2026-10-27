@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.PBR.SceneColor;
 using VanillaGraphicsExpanded.Rendering;
@@ -27,7 +28,7 @@ public sealed class SceneColorParticleTests(HeadlessGLFixture fixture) : LumOnSh
         using var depthStorage = new DepthTexture(2, 2, depthFormat);
         using var depth = GpuFramebufferAttachment.FromTexture(depthStorage);
         using var primary = DynamicGpuFramebuffer.Create([material, glow], depth);
-        primary.BindWithViewport();
+        FramebufferTestSetup.BindForEngineRendering(primary);
         GL.Disable(EnableCap.ScissorTest);
         GL.DepthMask(true);
         GL.ColorMask(true, true, true, true);
@@ -38,21 +39,18 @@ public sealed class SceneColorParticleTests(HeadlessGLFixture fixture) : LumOnSh
         EstablishScissor(false);
         using var capture = new SceneColorParticleTargets(primary);
         Assert.IsType<DynamicGpuFramebuffer>(capture.DrawTarget);
-        Assert.IsType<StaticGpuFramebuffer>(capture.ResolveTarget);
-        foreach (string name in new[] { "beforeTarget", "afterTarget" })
-            Assert.IsType<StaticGpuFramebuffer>(typeof(SceneColorParticleTargets)
-                .GetField(name, System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!.GetValue(capture));
-        Assert.Equal(depth.TextureId, capture.VisibilityDepth);
+        Assert.IsType<RHIRenderPassDescription>(capture.ResolvePass);
+        Assert.Equal(depth.TextureId, capture.VisibilityDepth.TextureId);
         Assert.False(capture.Captured);
         capture.BeginCapture();
-        Assert.Equal(.75f, ReadDepth(capture.BeforeDepth));
+        Assert.Equal(.75f, ReadDepth(capture.BeforeDepth.TextureId));
         using var shaders = new TerrainShaderTestFixture();
         using var inputs = new PackedUniformBuffer(32);
         int vertex = shaders.Load(ShaderType.VertexShader, "tests/complete-state.vsh");
         int fragment = shaders.Load(ShaderType.FragmentShader, "tests/particle-draw.fsh");
         using var draw = GpuProgramObject.Adopt(TerrainShaderTestFixture.Link(vertex, fragment));
         using var vao = GpuVao.Create();
-        capture.DrawTarget.BindWithViewport();
+        FramebufferTestSetup.BindForEngineRendering(capture.DrawTarget);
         GL.Enable(EnableCap.DepthTest);
         GL.DepthFunc(DepthFunction.Less);
         GL.DepthMask(true);
@@ -70,13 +68,13 @@ public sealed class SceneColorParticleTests(HeadlessGLFixture fixture) : LumOnSh
         EstablishScissor(false);
         capture.EndCapture();
         Assert.True(capture.Captured);
-        Assert.Equal(.75f, ReadDepth(capture.BeforeDepth));
+        Assert.Equal(.75f, ReadDepth(capture.BeforeDepth.TextureId));
         float visibilityAfterDraw = ReadDepth(depth.TextureId);
         // Fixed-point depth32 conversion can round the nominal fragment value by one float ULP.
         // The actual before/after copies must nevertheless match the source representation exactly.
         Assert.InRange(visibilityAfterDraw, (scenario == 3 ? .75f : .5f) - .0000001f,
             (scenario == 3 ? .75f : .5f) + .0000001f);
-        Assert.Equal(visibilityAfterDraw, ReadDepth(capture.AfterDepth));
+        Assert.Equal(visibilityAfterDraw, ReadDepth(capture.AfterDepth.TextureId));
         float[] captured = capture.DrawTarget[0].ReadPixels();
         float[] expected = scenario >= 2 ? [0, 0, 0, 0] : [2, 2, 0, .75f];
         Assert.Equal(expected, captured[..4]);
@@ -95,19 +93,19 @@ public sealed class SceneColorParticleTests(HeadlessGLFixture fixture) : LumOnSh
         resolve.BeforeDepth = capture.BeforeDepth;
         resolve.AfterDepth = capture.AfterDepth;
         resolve.ParticleColor = capture.ParticleColor;
-        TestFramework.RenderQuadTo(resolve, capture.ResolveTarget);
-        Assert.Equal(scenario == 1 ? ReadDepth(depth.TextureId) : ReadDepth(capture.BeforeDepth), capture.ResolveTarget[0].ReadPixels()[0]);
-        Assert.Equal(scenario == 1 ? new float[4] : expected, capture.ResolveTarget[1].ReadPixels()[..4]);
+        TestFramework.RenderQuadTo(resolve, capture.ResolvePass);
+        Assert.Equal(scenario == 1 ? ReadDepth(depth.TextureId) : ReadDepth(capture.BeforeDepth.TextureId), capture.MaterialDepth.ReadPixels()[0]);
+        Assert.Equal(scenario == 1 ? new float[4] : expected, capture.VisibleRadiance.ReadPixels()[..4]);
         Assert.InRange(ReadDepth(depth.TextureId), (scenario == 1 ? .25f : visibilityAfterDraw) - .0000001f, (scenario == 1 ? .25f : visibilityAfterDraw) + .0000001f);
         capture.ResetCapture();
         Assert.False(capture.Captured);
         Assert.Throws<InvalidOperationException>(capture.EndCapture);
-        int retainedColor = capture.ParticleColor;
+        var retainedColor = capture.ParticleColor;
         capture.BeginCapture();
         capture.EndCapture();
         Assert.Equal(retainedColor, capture.ParticleColor);
         Assert.All(capture.DrawTarget[0].ReadPixels(), value => Assert.Equal(0, value));
-        Assert.Equal(ReadDepth(capture.BeforeDepth), ReadDepth(capture.AfterDepth));
+        Assert.Equal(ReadDepth(capture.BeforeDepth.TextureId), ReadDepth(capture.AfterDepth.TextureId));
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
 
@@ -125,8 +123,8 @@ public sealed class SceneColorParticleTests(HeadlessGLFixture fixture) : LumOnSh
         using var engine = DynamicGpuFramebuffer.Create([material, glow], depth);
         using var primary = DynamicGpuFramebuffer.Wrap(engine.FboId, width: 2, height: 2);
         using var capture = new SceneColorParticleTargets(primary);
-        int[] owned = [capture.ParticleColor, capture.BeforeDepth, capture.AfterDepth,
-            capture.ResolveTarget.GetColorTextureId(0), capture.ResolveTarget.GetColorTextureId(1)];
+        int[] owned = [capture.ParticleColor.TextureId, capture.BeforeDepth.TextureId, capture.AfterDepth.TextureId,
+            capture.MaterialDepth.TextureId, capture.VisibleRadiance.TextureId];
         capture.BeginCapture();
         capture.EndCapture();
         primary.RefreshWrappedFramebuffer(engine.FboId, 2, 2);
@@ -280,7 +278,7 @@ public sealed class SceneColorParticleTests(HeadlessGLFixture fixture) : LumOnSh
         UboPacking.WriteVec4(bytes, 0, red, green, 0f, alpha);
         UboPacking.WriteFloat(bytes, 16, depth);
         inputs.SetBytes(bytes);
-        Assert.True(inputs.TryBindToSlot(GpuBindingRegistry.Ubo.ShaderInputs));
+        Assert.True(RHICommandContext.Current.OpenGL.BindEngineUniform(GpuBindingRegistry.Ubo.ShaderInputs, inputs.Capture()));
         GL.DrawArrays(PrimitiveType.Triangles, 0, 3);
     }
 

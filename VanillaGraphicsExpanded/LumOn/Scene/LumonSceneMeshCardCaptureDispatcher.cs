@@ -107,8 +107,8 @@ internal sealed class LumonSceneMeshCardCaptureDispatcher : IDisposable
                 captureMeshCardShader.BindPatchMetadataSsbo(fieldGpu.PatchMetadata.Ssbo);
                 captureMeshCardShader.BindTrianglesSsbo(trianglesSsbo!);
 
-                captureMeshCardShader.BindDepthAtlasImage(atlases.DepthAtlas, access: TextureAccess.WriteOnly);
-                captureMeshCardShader.BindMaterialAtlasImage(atlases.MaterialAtlas, access: TextureAccess.WriteOnly);
+                captureMeshCardShader.BindDepthAtlasImage(atlases.DepthAtlas, access: ImageAccess.WriteOnly);
+                captureMeshCardShader.BindMaterialAtlasImage(atlases.MaterialAtlas, access: ImageAccess.WriteOnly);
 
                 captureMeshCardShader.SetAtlasLayout(
                     tileSizeTexels: (uint)Math.Max(1, tileSizeTexels),
@@ -120,7 +120,11 @@ internal sealed class LumonSceneMeshCardCaptureDispatcher : IDisposable
 
                 int gx = (Math.Max(1, tileSizeTexels) + 7) / 8;
                 int gy = (Math.Max(1, tileSizeTexels) + 7) / 8;
-                captureMeshCardShader!.Dispatch(gx, gy, jobs.Length);
+                int dispatchJobs=jobs.Length;
+                if(!captureMeshCardShader!.EnsureReady())throw new InvalidOperationException(captureMeshCardShader!.PreparationLog);
+                var dispatchContext=RHICommandContext.Current;
+                using var dispatchBoundary=dispatchContext.EnterBoundary(new("Scene.MeshCardCapture",true,compute:[captureMeshCardShader!.Pipeline]));
+                dispatchBoundary.Run(()=>captureMeshCardShader!.Dispatch(gx, gy, dispatchJobs));
             }
         }
         finally

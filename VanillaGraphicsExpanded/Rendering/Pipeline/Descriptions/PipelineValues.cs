@@ -6,7 +6,7 @@ using System.Linq;
 namespace VanillaGraphicsExpanded.Rendering.Pipeline.Descriptions;
 
 /// <summary>Owns a copied sequence of immutable pipeline values with structural equality.</summary>
-internal sealed class PipelineValues<T> : IReadOnlyList<T>, IEquatable<PipelineValues<T>> where T : notnull
+public sealed class PipelineValues<T> : IReadOnlyList<T>, IEquatable<PipelineValues<T>> where T : notnull
 {
     private readonly T[] values;
     public int Count => values.Length;

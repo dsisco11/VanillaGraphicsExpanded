@@ -1,3 +1,5 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using HarmonyLib;
 using Moq;
 using OpenTK.Graphics.OpenGL;
@@ -121,11 +123,11 @@ public sealed class SceneColorParticlePublicationTests(HeadlessGLFixture fixture
                 CameraExposureRenderer.FreezeLightingStorage(new FrameLightingBounds(1e6f, 0, 0, 0, 0, 0),
                     VgeFrameRenderer.Current.CalibrationGeneration);
                 Assert.Null(SceneColorParticleCapture.Layer(api));
-                Assert.Equal(depth.TextureId, SceneColorParticleCapture.ReceiverDepth(api, depth.TextureId));
+                Assert.Equal(depth.TextureId, SceneColorParticleCapture.ReceiverDepth(api, new GpuTextureRef((GpuResource<GpuTextureMetadata>)depth.Resource!)).TextureId);
                 Assert.True(cube.HasUniform("vge_sceneLinear"));
                 Assert.True(capture.PrepareFrame(true), string.Join(Environment.NewLine, assets.Logs));
                 Assert.Null(SceneColorParticleCapture.BeginDraw(0));
-                engine.BindWithViewport();
+                FramebufferTestSetup.BindForEngineRendering(engine);
                 GL.DepthMask(true);
                 GL.ClearBuffer(ClearBuffer.Depth, 0, new[] { .75f });
                 if (ssao)
@@ -134,7 +136,7 @@ public sealed class SceneColorParticlePublicationTests(HeadlessGLFixture fixture
                     GL.ClearBuffer(ClearBuffer.Color, 3, new[] { 1f, 2f, 3f, 4f });
                 }
                 ShaderProgramBase.CurrentShaderProgram = cube;
-                StateCache.Current.UseProgram(cube.ProgramId);
+                OpenGLProgramSelection.Select(StateCache.Current, cube.ProgramId);
                 ShaderProgramBase.CurrentShaderProgram = null;
                 Assert.Null(SceneColorParticleCapture.BeginDraw(1));
                 ShaderProgramBase.CurrentShaderProgram = cube;
@@ -174,9 +176,9 @@ public sealed class SceneColorParticlePublicationTests(HeadlessGLFixture fixture
                 var layer = SceneColorParticleCapture.Layer(api);
                 Assert.NotNull(layer);
                 Assert.Null(SceneColorParticleCapture.Layer(assets.Api));
-                Assert.Equal(depth.TextureId, SceneColorParticleCapture.ReceiverDepth(assets.Api, depth.TextureId));
+                Assert.Equal(depth.TextureId, SceneColorParticleCapture.ReceiverDepth(assets.Api, new GpuTextureRef((GpuResource<GpuTextureMetadata>)depth.Resource!)).TextureId);
                 Assert.All(layer.ReadPixels(), value => Assert.Equal(0, value));
-                int receiver = SceneColorParticleCapture.ReceiverDepth(api, depth.TextureId);
+                int receiver = SceneColorParticleCapture.ReceiverDepth(api, new GpuTextureRef((GpuResource<GpuTextureMetadata>)depth.Resource!)).TextureId;
                 Assert.NotEqual(depth.TextureId, receiver);
                 // Distinguish corrected material depth from a later primary-depth change.
                 // The shared generator must sample the actual published receiver instance.
@@ -198,10 +200,10 @@ public sealed class SceneColorParticlePublicationTests(HeadlessGLFixture fixture
                     // The real independent compositor owns SSAO restoration and receiver
                     // reduction in one boundary, including first-use target preparation.
                     ShaderProgramBase.CurrentShaderProgram = null;
-                    StateCache.Current.UnbindProgram();
+                    OpenGLProgramSelection.Select(StateCache.Current, 0);
                     StateCache.Current.Invalidate(EPipelineState.Depth | EPipelineState.Blend | EPipelineState.Viewport);
-                    StateCache.Current.BindFramebuffer(FramebufferTarget.DrawFramebuffer, engine.FboId);
-                    StateCache.Current.BindFramebuffer(FramebufferTarget.ReadFramebuffer, separateRead.FboId);
+                    OpenGLFramebufferSelection.Bind(StateCache.Current, FramebufferTarget.DrawFramebuffer, engine.FboId);
+                    OpenGLFramebufferSelection.Bind(StateCache.Current, FramebufferTarget.ReadFramebuffer, separateRead.FboId);
                     StateCache.Current.ApplyDynamic(new VanillaGraphicsExpanded.Rendering.Pipeline.State.DynamicDrawState { X = 1, Y = 1, Width = 1, Height = 1 });
                     direct.OnRenderFrame(.016f, EnumRenderStage.Opaque);
                     using (var hostile = new HostileFullscreenState())
@@ -224,7 +226,7 @@ public sealed class SceneColorParticlePublicationTests(HeadlessGLFixture fixture
                 if (cycle == 2) ScreenResourceManager.HandleScreenResize();
                 if (cycle == 3) Assert.False(capture.PrepareFrame(false));
                 Assert.Null(SceneColorParticleCapture.Layer(api));
-                Assert.Equal(depth.TextureId, SceneColorParticleCapture.ReceiverDepth(api, depth.TextureId));
+                Assert.Equal(depth.TextureId, SceneColorParticleCapture.ReceiverDepth(api, new GpuTextureRef((GpuResource<GpuTextureMetadata>)depth.Resource!)).TextureId);
                 if (cycle > 0)
                 {
                     GpuResourceManagerSystem.CaptureDisposalQueue().DrainPending();
@@ -240,7 +242,7 @@ public sealed class SceneColorParticlePublicationTests(HeadlessGLFixture fixture
             ShaderProgramBase.CurrentShaderProgram = null;
             ShaderCapabilities.Forget(cube);
             ShaderPrograms.Particlescube = previousCube;
-            StateCache.Current.UseProgram(0);
+            OpenGLProgramSelection.Select(StateCache.Current, 0);
         }
         capture.Dispose();
         capture.Dispose();

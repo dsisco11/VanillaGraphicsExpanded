@@ -24,10 +24,10 @@ public sealed partial class PBRDisplayResolveShaderProgram : GpuProgram, IPBRDis
     }
 
     /// <summary>Scene-linear lighting, except for the legacy display-referred sky.</summary>
-    public partial int PrimaryScene { set; }
+    public partial GpuTextureRef PrimaryScene { set; }
 
     /// <summary>Depth distinguishes geometry from the unchanged legacy sky.</summary>
-    public partial int PrimaryDepth { set; }
+    public partial GpuTextureRef PrimaryDepth { set; }
 
     /// <summary>Preserves scene radiance when the complete HDR producer/consumer handoff is ready.</summary>
     public int SceneLinear { set => routing.SceneLinear = value; }

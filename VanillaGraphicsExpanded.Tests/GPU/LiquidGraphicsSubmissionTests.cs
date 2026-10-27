@@ -45,7 +45,7 @@ public sealed class LiquidGraphicsSubmissionTests(HeadlessGLFixture fixture) : R
         using var submission = new LiquidGraphicsSubmission(api.Object);
         LiquidMeshSource.UseSsbo(render) = true;
         shader.HzbDepth = first; shader.SrcMip = 0;
-        Assert.True(submission.Run(shader, [manager], new(target, [new(0)]), new(), [new ColorBlendDesc()], () =>
+        Assert.True(submission.Run(shader, [manager], FramebufferTestSetup.DescribeAttachments(target, [new(AttachmentIndex: 0)]), new(), [new ColorBlendDesc()], () =>
         {
             Assert.False(LiquidMeshSource.UseSsbo(render));
             Assert.Null(ShaderProgramBase.CurrentShaderProgram);
@@ -54,15 +54,15 @@ public sealed class LiquidGraphicsSubmissionTests(HeadlessGLFixture fixture) : R
         }));
         Assert.True(LiquidMeshSource.UseSsbo(render));
         Assert.InRange(target[0].ReadPixels()[0], .6999f, .7001f);
-        Assert.Throws<ArithmeticException>(() => submission.Run(shader, [manager], new(target, [new(0)]), new(),
+        Assert.Throws<ArithmeticException>(() => submission.Run(shader, [manager], FramebufferTestSetup.DescribeAttachments(target, [new(AttachmentIndex: 0)]), new(),
             [new ColorBlendDesc()], () => throw new ArithmeticException("Manager fixture failure.")));
         Assert.True(LiquidMeshSource.UseSsbo(render));
         Assert.True(LiquidPoolSubmissionHook.Prefix(storage.Pool));
         using var depth = new DepthTexture(1, 1, PixelInternalFormat.DepthComponent24);
         using var depthTarget = DynamicGpuFramebuffer.CreateDepthOnly(depth)!;
         var borrowedDepth = submission.Borrow(new FrameBufferRef { FboId = depthTarget.FboId, Width = 1, Height = 1, DepthTextureId = depth.TextureId });
-        Assert.True(submission.Run(shader, [manager], new(borrowedDepth, LiquidPipelineStates.DepthOutputs,
-            new(DepthLoad: VanillaGraphicsExpanded.Rendering.Pipeline.Passes.AttachmentLoad.Clear, ClearDepth: 1)),
+        Assert.True(submission.Run(shader, [manager], FramebufferTestSetup.DescribeAttachments(borrowedDepth, LiquidPipelineStates.DepthOutputs,
+            new(DepthLoad: AttachmentLoad.Clear, ClearDepth: 1)),
             LiquidPipelineStates.Depth, LiquidPipelineStates.DepthBlending,
             () => Assert.False(LiquidPoolSubmissionHook.Prefix(storage.Pool))));
         Assert.InRange(depth.ReadPixels()[0], .4999f, .5001f);

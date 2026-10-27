@@ -1,3 +1,5 @@
+using System;
+using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Contracts;
@@ -11,8 +13,12 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 /// <summary>Verifies complete state against native values independently of production migration.</summary>
 [Collection("GPU")]
 [Trait("Category", "GPU")]
-public sealed class CompleteGraphicsStateTests(HeadlessGLFixture fixture)
+public sealed class CompleteGraphicsStateTests(HeadlessGLFixture fixture) : IDisposable
 {
+    private readonly GraphicsStateShaders stateShaders = new();
+    /// <summary>Retires test-owned executable generations after state assertions complete.</summary>
+    public void Dispose() => stateShaders.Dispose();
+
     #region Public API
     /// <summary>Cold external mutations, A-B-A transitions and warm repeats establish complete native state.</summary>
     [Fact]
@@ -117,14 +123,14 @@ public sealed class CompleteGraphicsStateTests(HeadlessGLFixture fixture)
         fixture.MakeCurrent();
         var cache = StateCache.Current;
         var baseline = Pipeline(false);
-        var dormant = new GraphicsPipelineDesc(baseline.Shader, baseline.VertexLayout, baseline.Targets,
+        var dormant = new RHIGraphicsPipelineDescription(baseline.Shader, baseline.VertexLayout, baseline.Targets,
             DynamicPipelineState.All, depthStencil: baseline.DepthStencil, rasterizer: baseline.Rasterizer,
             blending: baseline.Blending, sampling: baseline.Sampling, assembly: baseline.Assembly);
         var enabled = Pipeline(true);
-        var defaults = new GraphicsPipelineDesc(baseline.Shader, baseline.VertexLayout, baseline.Targets,
+        var defaults = new RHIGraphicsPipelineDescription(baseline.Shader, baseline.VertexLayout, baseline.Targets,
             DynamicPipelineState.Viewport, depthStencil: baseline.DepthStencil, rasterizer: baseline.Rasterizer,
             blending: baseline.Blending, sampling: baseline.Sampling, assembly: baseline.Assembly);
-        var valid = new GraphicsDynamicState { Viewport = new() { Width = 8, Height = 8 },
+        var valid = new RHIDynamicState { Viewport = new() { Width = 8, Height = 8 },
             Scissor = (1, 2, 3, 4), StencilReference = (5, 6), BlendConstant = (.1f, .2f, .3f, .4f) };
         cache.ApplyGraphicsState(baseline, Dynamics());
         cache.SetScissor(4, 3, 2, 1); cache.SetBlendConstant(.5f, .6f, .7f, .8f);
@@ -219,12 +225,12 @@ public sealed class CompleteGraphicsStateTests(HeadlessGLFixture fixture)
 #if DEBUG
         long calls = cache.FixedFunctionCalls;
 #endif
-        cache.SetDepthFunc(description.DepthStencil.DepthComparison); cache.SetScissor(2, 4, 11, 13); cache.SetBlendConstant(.125f, .25f, .5f, .75f);
+        cache.SetDepthFunc(DepthFunction.Gequal); cache.SetScissor(2, 4, 11, 13); cache.SetBlendConstant(.125f, .25f, .5f, .75f);
 #if DEBUG
         calls = cache.FixedFunctionCalls;
 #endif
         cache.Invalidate(EPipelineState.Sampling);
-        cache.SetDepthFunc(description.DepthStencil.DepthComparison); cache.SetScissor(2, 4, 11, 13); cache.SetBlendConstant(.125f, .25f, .5f, .75f);
+        cache.SetDepthFunc(DepthFunction.Gequal); cache.SetScissor(2, 4, 11, 13); cache.SetBlendConstant(.125f, .25f, .5f, .75f);
 #if DEBUG
         Assert.Equal(calls, cache.FixedFunctionCalls);
 #endif
@@ -340,7 +346,7 @@ public sealed class CompleteGraphicsStateTests(HeadlessGLFixture fixture)
             calls = cache.FixedFunctionCalls;
 #endif
             cache.SetBlendConstant(.125f, .25f, .5f, .75f);
-            cache.ApplyDynamic(Dynamics().Viewport!.Value);
+            cache.ApplyDynamic(new VanillaGraphicsExpanded.Rendering.Pipeline.State.DynamicDrawState { X = 3, Y = 5, Width = 17, Height = 19 });
 #if DEBUG
             Assert.Equal(calls, cache.FixedFunctionCalls);
 #endif
@@ -355,47 +361,47 @@ public sealed class CompleteGraphicsStateTests(HeadlessGLFixture fixture)
 
     #region Private
     /// <summary>Defines all declared dynamic values explicitly, including distinct stencil references.</summary>
-    private static GraphicsDynamicState Dynamics() => new() { Viewport = new() { X = 3, Y = 5, Width = 17, Height = 19 },
+    private static RHIDynamicState Dynamics() => new() { Viewport = new() { X = 3, Y = 5, Width = 17, Height = 19 },
         Scissor = (2, 4, 11, 13), StencilReference = (3, 5), BlendConstant = (.125f, .25f, .5f, .75f) };
 
     /// <summary>Builds two independently meaningful configurations with different output and face policies.</summary>
-    private static GraphicsPipelineDesc Pipeline(bool enabled)
+    private RHIGraphicsPipelineDescription Pipeline(bool enabled)
     {
         var contract = new GpuShaderContract("complete", [new("complete.vsh", "complete.vsh", ShaderStageKind.Vertex, new()), new("complete.fsh", "complete.fsh", ShaderStageKind.Fragment, new())], 1);
-        return new(new("fixture", new(new ShaderSettings(contract))), new([]), new([new(PixelInternalFormat.Srgb8Alpha8), new(PixelInternalFormat.Srgb8Alpha8)], PixelInternalFormat.Depth24Stencil8), DynamicPipelineState.All,
-            depthStencil: new() { DepthTest = enabled, DepthWrite = enabled, DepthComparison = DepthFunction.Gequal, StencilTest = enabled,
-                Front = new() { Comparison = StencilFunction.Equal, ReadMask = 0x35, WriteMask = 0x53, Fail = StencilOp.Incr, DepthFail = StencilOp.Decr, Pass = StencilOp.Replace },
-                Back = new() { Comparison = StencilFunction.Notequal, ReadMask = 0x75, WriteMask = 0x37, Fail = StencilOp.Invert, DepthFail = StencilOp.IncrWrap, Pass = StencilOp.DecrWrap } },
-            rasterizer: new() { Cull = enabled, CullMode = CullFaceMode.Front, FrontFace = FrontFaceDirection.Cw, Scissor = enabled,
+        return new(stateShaders.Get(contract.Stages.Select(stage => stage.Kind)), new([]), new([new(TextureFormat.Srgb8Alpha8), new(TextureFormat.Srgb8Alpha8)], TextureFormat.Depth24Stencil8), DynamicPipelineState.All,
+            depthStencil: new() { DepthTest = enabled, DepthWrite = enabled, DepthComparison = ComparisonFunction.GreaterOrEqual, StencilTest = enabled,
+                Front = new() { Comparison = ComparisonFunction.Equal, ReadMask = 0x35, WriteMask = 0x53, Fail = StencilOperation.IncrementClamp, DepthFail = StencilOperation.DecrementClamp, Pass = StencilOperation.Replace },
+                Back = new() { Comparison = ComparisonFunction.NotEqual, ReadMask = 0x75, WriteMask = 0x37, Fail = StencilOperation.Invert, DepthFail = StencilOperation.IncrementWrap, Pass = StencilOperation.DecrementWrap } },
+            rasterizer: new() { Cull = enabled, CullMode = RasterizerCullMode.Front, FrontFace = FrontFaceWinding.Clockwise, Scissor = enabled,
                 OffsetFill = enabled, DepthBiasFactor = 2, DepthBiasUnits = 3, DepthClamp = enabled, ProgramPointSize = enabled, PointSize = 3 },
-            blending: [new() { Enabled = enabled, RgbEquation = BlendEquationMode.FuncSubtract, AlphaEquation = BlendEquationMode.FuncReverseSubtract, SourceRgb = BlendingFactorSrc.ConstantColor, DestinationRgb = BlendingFactorDest.OneMinusSrcAlpha, WriteGreen = !enabled }, new() { Enabled = enabled, RgbEquation = BlendEquationMode.Max, AlphaEquation = BlendEquationMode.Min, WriteAlpha = !enabled }],
+            blending: [new() { Enabled = enabled, RgbEquation = BlendOperation.Subtract, AlphaEquation = BlendOperation.ReverseSubtract, SourceRgb = BlendFactor.ConstantColor, DestinationRgb = BlendFactor.OneMinusSourceAlpha, WriteGreen = !enabled }, new() { Enabled = enabled, RgbEquation = BlendOperation.Maximum, AlphaEquation = BlendOperation.Minimum, WriteAlpha = !enabled }],
             sampling: new() { Multisample = enabled, CoverageEnabled = enabled, Coverage = .375f, CoverageInvert = true, MaskEnabled = enabled, Masks = new([0x55u]), AlphaToCoverage = enabled, AlphaToOne = enabled, SampleShading = enabled, MinimumSampleShading = .5f },
             assembly: new() { Restart = enabled, RestartIndex = 17 }, output: new() { FramebufferSrgb = enabled, Dither = enabled });
     }
 
     /// <summary>Reads native fields rather than trusting cache storage or transition counters.</summary>
-    private static void AssertNative(GraphicsPipelineDesc desc)
+    private static void AssertNative(RHIGraphicsPipelineDescription desc)
     {
         Assert.Equal(desc.DepthStencil.DepthTest, GL.IsEnabled(EnableCap.DepthTest));
         if (desc.DepthStencil.DepthTest)
         {
             Assert.Equal(desc.DepthStencil.DepthWrite, GL.GetBoolean(GetPName.DepthWritemask));
-            Assert.Equal((int)desc.DepthStencil.DepthComparison, GL.GetInteger(GetPName.DepthFunc));
+            Assert.Equal((int)DepthFunction.Gequal, GL.GetInteger(GetPName.DepthFunc));
         }
         double[] range = new double[2]; GL.GetDouble(GetPName.DepthRange, range); Assert.Equal(new[] { 0d, 1d }, range);
         Assert.Equal(desc.DepthStencil.StencilTest, GL.IsEnabled(EnableCap.StencilTest));
         if (desc.DepthStencil.StencilTest)
         {
-            Assert.Equal((int)desc.DepthStencil.Front.Comparison, GL.GetInteger(GetPName.StencilFunc));
-            Assert.Equal((int)desc.DepthStencil.Back.Comparison, GL.GetInteger(GetPName.StencilBackFunc));
+            Assert.Equal((int)StencilFunction.Equal, GL.GetInteger(GetPName.StencilFunc));
+            Assert.Equal((int)StencilFunction.Notequal, GL.GetInteger(GetPName.StencilBackFunc));
             Assert.Equal((int)desc.DepthStencil.Front.WriteMask, GL.GetInteger(GetPName.StencilWritemask));
             Assert.Equal((int)desc.DepthStencil.Back.WriteMask, GL.GetInteger(GetPName.StencilBackWritemask));
-            Assert.Equal((int)desc.DepthStencil.Front.Pass, GL.GetInteger(GetPName.StencilPassDepthPass));
-            Assert.Equal((int)desc.DepthStencil.Back.DepthFail, GL.GetInteger(GetPName.StencilBackPassDepthFail));
+            Assert.Equal((int)StencilOp.Replace, GL.GetInteger(GetPName.StencilPassDepthPass));
+            Assert.Equal((int)StencilOp.IncrWrap, GL.GetInteger(GetPName.StencilBackPassDepthFail));
             Assert.Equal(3, GL.GetInteger(GetPName.StencilRef)); Assert.Equal(5, GL.GetInteger(GetPName.StencilBackRef));
         }
         Assert.Equal(desc.Rasterizer.Cull, GL.IsEnabled(EnableCap.CullFace)); Assert.False(GL.IsEnabled(EnableCap.RasterizerDiscard));
-        Assert.Equal((int)desc.Rasterizer.FrontFace, GL.GetInteger(GetPName.FrontFace));
+        Assert.Equal((int)FrontFaceDirection.Cw, GL.GetInteger(GetPName.FrontFace));
         Assert.Equal(desc.Rasterizer.DepthClamp, GL.IsEnabled(EnableCap.DepthClamp));
         Assert.Equal(desc.Rasterizer.OffsetFill, GL.IsEnabled(EnableCap.PolygonOffsetFill));
         if (desc.Rasterizer.OffsetFill) Assert.Equal(desc.Rasterizer.DepthBiasFactor, GL.GetFloat(GetPName.PolygonOffsetFactor));
@@ -410,8 +416,8 @@ public sealed class CompleteGraphicsStateTests(HeadlessGLFixture fixture)
             var blend = desc.Blending[i]; Assert.Equal(blend.Enabled, GL.IsEnabled(IndexedEnableCap.Blend, i));
             if (blend.Enabled)
             {
-                GL.GetInteger((GetIndexedPName)GetPName.BlendEquationRgb, i, out int rgb); Assert.Equal((int)blend.RgbEquation, rgb);
-                GL.GetInteger((GetIndexedPName)GetPName.BlendEquationAlpha, i, out int alpha); Assert.Equal((int)blend.AlphaEquation, alpha);
+                GL.GetInteger((GetIndexedPName)GetPName.BlendEquationRgb, i, out int rgb); Assert.Equal((int)(i == 0 ? BlendEquationMode.FuncSubtract : BlendEquationMode.Max), rgb);
+                GL.GetInteger((GetIndexedPName)GetPName.BlendEquationAlpha, i, out int alpha); Assert.Equal((int)(i == 0 ? BlendEquationMode.FuncReverseSubtract : BlendEquationMode.Min), alpha);
             }
             bool[] mask = new bool[4]; GL.GetBoolean(GetIndexedPName.ColorWritemask, i, mask); Assert.Equal(new[] { blend.WriteRed, blend.WriteGreen, blend.WriteBlue, blend.WriteAlpha }, mask);
         }

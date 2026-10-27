@@ -78,8 +78,11 @@ internal sealed class CapturedAmbientOcclusionFixture : IDisposable
         PostprocessDraw draw, GpuFramebuffer referenceTarget, GpuFramebuffer currentTarget)
     {
         var maskPipeline=comparisonMasks.Prepare(draw,Width,Height,maskShader);
-        Assert.True(GraphicsCommandContext.TryRun("Tests.CapturedAoMasks",[maskPipeline],true,
-            commands=>comparisonMasks.Render(commands,draw,hierarchy)));
+        {
+    var commands=RHICommandContext.Current;
+    using var scope36=commands.EnterBoundary(new("Tests.CapturedAoMasks",true,graphics:System.Linq.Enumerable.Select<RHIGraphicsPipeline,RHIGraphicsPipelineRef>([maskPipeline],value=>value),operations:BoundaryOperations.RenderPasses));
+    scope36.Run(()=>comparisonMasks.Render(commands,draw,hierarchy));
+}
         reference.Capture(depth, surface, hierarchy, camera, Quality);
         horizon.DepthImage = depth; horizon.SurfaceImage = surface; horizon.DepthHierarchy = hierarchy;
         horizon.MinimumChildren=comparisonMasks.Texture;
@@ -88,10 +91,16 @@ internal sealed class CapturedAmbientOcclusionFixture : IDisposable
         var currentPipeline = draw.Prepare(horizon,currentTarget.PostprocessPass());
         // Native uploads, verification, hierarchy masks, preparation and descriptor mutation precede horizon-only timing.
         return (
-            () => Assert.True(GraphicsCommandContext.TryRun("Tests.CapturedAoReference", [referencePipeline], true,
-                commands => draw.Submit(commands, referencePipeline,referenceTarget.PostprocessPass()))),
-            () => Assert.True(GraphicsCommandContext.TryRun("Tests.CapturedAoCurrent", [currentPipeline], true,
-                commands => draw.Submit(commands, currentPipeline,currentTarget.PostprocessPass()))));
+            () => {
+    var commands=RHICommandContext.Current;
+    using var scope37=commands.EnterBoundary(new("Tests.CapturedAoReference",true,graphics:System.Linq.Enumerable.Select<RHIGraphicsPipeline,RHIGraphicsPipelineRef>([referencePipeline],value=>value),operations:BoundaryOperations.RenderPasses));
+    scope37.Run(()=>draw.Submit(commands, referencePipeline,referenceTarget.PostprocessPass(), reference.CaptureBindings()));
+},
+            () => {
+    var commands=RHICommandContext.Current;
+    using var scope38=commands.EnterBoundary(new("Tests.CapturedAoCurrent",true,graphics:System.Linq.Enumerable.Select<RHIGraphicsPipeline,RHIGraphicsPipelineRef>([currentPipeline],value=>value),operations:BoundaryOperations.RenderPasses));
+    scope38.Run(()=>draw.Submit(commands, currentPipeline,currentTarget.PostprocessPass(), horizon.CaptureBindings()));
+});
     }
 
     /// <summary>Retires all restored GPU inputs and parsed metadata together.</summary>

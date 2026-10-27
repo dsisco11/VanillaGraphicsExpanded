@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Contracts;
 
@@ -15,7 +16,7 @@ internal interface ICloudVolumeCopyBindings
     GpuTextureRef Source { set; }
     /// <summary>Writes only the unpublished spare.</summary>
     [ShaderBinding("newDiffuse", ShaderBindingKind.Image, 0, ShaderStageKind.Compute, TextureTarget=ShaderTextureTarget.Texture3D)]
-    GpuTextureBinding Destination { set; }
+    RHIImageBinding Destination { set; }
     /// <summary>Retains previous successful block indices and records copied texels in the existing deferred status.</summary>
     [ShaderBinding("CopyScratch", ShaderBindingKind.StorageBlock, 0, ShaderStageKind.Compute)]
     GpuShaderStorageBuffer? Scratch { set; }

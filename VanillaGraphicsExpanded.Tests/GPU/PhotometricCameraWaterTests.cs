@@ -34,8 +34,8 @@ public sealed class PhotometricCameraWaterTests(HeadlessGLFixture fixture) : Lum
         using var publication = new TestFrameLightingPublication();
         program.FrameLightingInputs = publication.Buffer;
         program.FrameInputs = camera; program.GBufferSurface = surface;
-        program.IndirectDiffuse = zero; program.GBufferAlbedo = zero.TextureId;
-        program.GBufferPosition = zero.TextureId; program.PrimaryDepth = depth.TextureId;
+        program.IndirectDiffuse = zero; program.GBufferAlbedo = zero;
+        program.GBufferPosition = zero; program.PrimaryDepth = depth;
         program.SetAtmosphere(null);
         var medium = new WaterMedium(new(.1f, .2f, .3f), Vector3.Zero);
         var cameraSource = new Vector3(.3f, .4f, .5f);
@@ -89,8 +89,8 @@ public sealed class PhotometricCameraWaterTests(HeadlessGLFixture fixture) : Lum
             AccessorBlockReferenceLux: 120, AccessorBlockNeutralFloor: .1f));
         program.FrameInputs = camera;
         program.DirectLighting = lighting; program.GBufferSurface = surface;
-        program.IndirectDiffuse = zero; program.GBufferAlbedo = zero.TextureId;
-        program.GBufferPosition = zero.TextureId; program.PrimaryDepth = depth.TextureId;
+        program.IndirectDiffuse = zero; program.GBufferAlbedo = zero;
+        program.GBufferPosition = zero; program.PrimaryDepth = depth;
         using var owner = new AtmosphereModSystem();
         var environment = new Vector3(3, 5, 7);
         var snapshot = new AtmosphereLighting(Vector3.UnitY, Vector3.Zero, environment,

@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.ShaderCompilation;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Collections.Immutable;
 using OpenTK.Graphics.OpenGL;
@@ -26,14 +27,17 @@ public sealed class ShaderDemandPreparationTests(HeadlessGLFixture fixture) : Re
         using var depth = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.R32f, Width = System.Math.Max(1, 1), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         var program = GpuShaderProgramLibraries.Declare(assets.Api, RasterDepthCopyShaderProgram.Contract.Identity, () => new RasterDepthCopyShaderProgram());
         program.PrimaryDepth = depth;
-        using (program.UseScope())
+        Assert.True(program.EnsureReady());
+        var installed=program.Shader;program.InvalidateAssets();
+        using(var pipeline=RHICommandContext.Current.CreateGraphicsPipeline(new(installed,new([]),new([new(TextureFormat.R32f)]),
+            VanillaGraphicsExpanded.Rendering.Pipeline.Descriptions.DynamicPipelineState.Viewport)).RequireResource())
+        using(var boundary=RHICommandContext.Current.EnterBoundary(new("Tests.PreloadAdmission",true,graphics:[pipeline])))
+        boundary.Run(()=>
         {
-            HarmonyLib.AccessTools.Field(typeof(GpuProgram), "reloadRequired").SetValue(program, true);
-            int reads = assets.Reads.Count;
-            Assert.Throws<InvalidOperationException>(() => GpuShaderProgramLibraries.Preload(assets.Api, [program]));
-            Assert.Equal(reads, assets.Reads.Count);
-            Assert.Same(program, StateCache.ActiveProgram);
-        }
+            int reads=assets.Reads.Count;
+            Assert.Throws<InvalidOperationException>(()=>GpuShaderProgramLibraries.Preload(assets.Api,[program]));
+            Assert.Equal(reads,assets.Reads.Count);Assert.Equal(installed,program.Shader);
+        });
         Assert.True(program.EnsureReady(), string.Join('\n', assets.Logs));
     }
 
@@ -42,8 +46,7 @@ public sealed class ShaderDemandPreparationTests(HeadlessGLFixture fixture) : Re
     [InlineData(0)]
     [InlineData(1)]
     [InlineData(2)]
-    [InlineData(3)]
-    public void ActivationPreparesOnlySelectedOwner(int activation)
+    public void ExplicitPreparationLoadsOnlySelectedOwner(int activation)
     {
         EnsureContextValid();
         using var engine = new EngineShaderPlatformScope();
@@ -58,32 +61,11 @@ public sealed class ShaderDemandPreparationTests(HeadlessGLFixture fixture) : Re
         Assert.Equal(0, program.ProgramId);
         using var depth = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.R32f, Width = System.Math.Max(1, 1), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         program.PrimaryDepth = depth;
-        if (activation == 0)
-        {
-            Assert.True(program.TryUse());
-            program.Stop();
-        }
-        else if (activation == 1)
-        {
-            using var use = program.UseScope();
-            Assert.Equal(program.ProgramId, GL.GetInteger(GetPName.CurrentProgram));
-        }
-        else if (activation == 2)
-        {
-            IGpuProgram contract = program;
-            contract.Activate();
-            Assert.Equal(program.ProgramId, GL.GetInteger(GetPName.CurrentProgram));
-            program.Stop();
-        }
-        else
-        {
-            IGpuProgram contract = program;
-            Assert.True(contract.Prepare());
-            using var use = contract.BeginUse();
-            Assert.Equal(program.ProgramId, GL.GetInteger(GetPName.CurrentProgram));
-            contract.Activate();
-        }
-        Assert.True(GL.IsProgram(program.ProgramId));
+        int previous=GL.GetInteger(GetPName.CurrentProgram);
+        if(activation==0)Assert.True(program.EnsureReady());
+        else if(activation==1)Assert.True(((IGpuProgram)program).Prepare());
+        else Assert.True(GpuShaderProgramLibraries.Preload(assets.Api,[program]));
+        Assert.Equal(previous,GL.GetInteger(GetPName.CurrentProgram));
         Assert.Single(assets.PreparedPrograms);
         int reads = assets.Reads.Count;
         Assert.True(program.EnsureReady());
@@ -129,7 +111,7 @@ public sealed class ShaderDemandPreparationTests(HeadlessGLFixture fixture) : Re
         else ((IDisposable)program).Dispose();
         Assert.True(program.IsRetired);
         Assert.False(program.EnsureReady());
-        Assert.False(program.TryUse());
+        Assert.Throws<ObjectDisposedException>(() => program.CaptureBindings());
         Assert.False(program.CompileAndLink());
         Assert.Empty(assets.Reads);
         Assert.Empty(assets.PreparedPrograms);
@@ -150,7 +132,7 @@ public sealed class ShaderDemandPreparationTests(HeadlessGLFixture fixture) : Re
         program.Dispose();
         Assert.False(GL.IsProgram(installed));
         Assert.False(program.EnsureReady());
-        Assert.False(program.TryUse());
+        Assert.Throws<ObjectDisposedException>(() => program.CaptureBindings());
         Assert.False(program.CompileAndLink());
         Assert.Equal(reads, assets.Reads.Count);
         Assert.False(GpuShaderProgramLibraries.Preload(assets.Api, [program]));
@@ -162,13 +144,13 @@ public sealed class ShaderDemandPreparationTests(HeadlessGLFixture fixture) : Re
     #region Compute demand and retry
     /// <summary>The first dispatch prepares declared compute inputs and executes the original binding contract.</summary>
     [Fact]
-    public void ComputeFirstDispatchPreparesAndExecutes()
+    public void ComputePreparationPublishesACompleteDispatchSet()
     {
         EnsureContextValid();
         using var cache = DriverProgramCache.UseStoreForTesting(null);
         using var assets = new BinaryShaderApiFixture();
         var settings = new ShaderSettings(GpuShaderContracts.Registry.FindProgram("tests/GpuUniformRingBufferIntegrationTests_1"));
-        using var pipeline = GpuComputePipeline.DeclareFromAssets(assets.Api, settings);
+        using var pipeline = ComputeShaderAsset.DeclareFromAssets(assets.Api, settings);
         using var texture = RHICommandContext.Current.CreateTexture3D(new RHITextureDescription { Dimension = TextureDimension.Three, Format = TextureFormat.Rgba32ui, Width = System.Math.Max(1, 1), Height = System.Math.Max(1, 1), Depth = System.Math.Max(1, 1), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         Assert.True(GpuUniformRingSystem.TryGetCurrent(out var ring));
         byte[] data = new byte[16];
@@ -177,7 +159,9 @@ public sealed class ShaderDemandPreparationTests(HeadlessGLFixture fixture) : Re
         allocation.Buffer.BindRange(0, allocation.OffsetBytes, allocation.SizeBytes);
         GL.BindImageTexture(0, texture.TextureId, 0, true, 0, TextureAccess.WriteOnly, SizedInternalFormat.Rgba32ui);
         Assert.Empty(assets.Reads);
-        pipeline.Dispatch(1);
+        Assert.True(pipeline.EnsureReady(), pipeline.PreparationLog);
+        RHICommandContext.Current.SetPipeline(pipeline.Pipeline);
+        RHICommandContext.Current.Dispatch(new(1));
         GL.MemoryBarrier(MemoryBarrierFlags.TextureUpdateBarrierBit | MemoryBarrierFlags.ShaderImageAccessBarrierBit);
         uint[] actual = new uint[4];
         GL.BindTexture(TextureTarget.Texture3D, texture.TextureId);
@@ -197,7 +181,7 @@ public sealed class ShaderDemandPreparationTests(HeadlessGLFixture fixture) : Re
         using var cache = DriverProgramCache.UseStoreForTesting(null);
         using var assets = new BinaryShaderApiFixture();
         var settings = new ShaderSettings(GpuShaderContracts.Registry.FindProgram("tests/GpuUniformRingBufferIntegrationTests_1"));
-        using var pipeline = GpuComputePipeline.DeclareFromAssets(assets.Api, settings);
+        using var pipeline = ComputeShaderAsset.DeclareFromAssets(assets.Api, settings);
         Assert.Equal(0, pipeline.ProgramId);
         Assert.Empty(assets.Reads);
         Assert.True(pipeline.EnsureReady(), pipeline.PreparationLog);
@@ -219,7 +203,7 @@ public sealed class ShaderDemandPreparationTests(HeadlessGLFixture fixture) : Re
         var settings = new ShaderSettings(GpuShaderContracts.Registry.FindProgram("tests/GpuUniformRingBufferIntegrationTests_1"));
         // Corrupt only the executable; digest metadata retains its asset-generation identity for retry.
         assets.BeforeRead = path => { if(path.EndsWith(".spv",StringComparison.Ordinal)) assets.Overrides[path] = new byte[20]; };
-        using var pipeline = GpuComputePipeline.DeclareFromAssets(assets.Api, settings);
+        using var pipeline = ComputeShaderAsset.DeclareFromAssets(assets.Api, settings);
         Assert.False(pipeline.EnsureReady());
         Assert.NotEmpty(pipeline.PreparationLog);
         int reads = assets.Reads.Count;

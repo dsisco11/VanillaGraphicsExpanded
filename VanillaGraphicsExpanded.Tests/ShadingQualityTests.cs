@@ -32,7 +32,9 @@ public sealed class ShadingQualityTests
         var document=JObject.Parse(File.ReadAllText(Path.Combine(AppContext.BaseDirectory,"assets/config/configlib-patches.json")));
         var setting=document.Descendants().OfType<JObject>().Single(value=>value["name"]?.Value<string>()=="ShadingQuality");
         Assert.Equal(3,setting["default"]!.Value<int>());
-        Assert.Equal(new[]{0,1,2,3},setting["values"]!.Values<int>());
+        Assert.Equal(0,setting["range"]!["min"]!.Value<int>());
+        Assert.Equal(3,setting["range"]!["max"]!.Value<int>());
+        Assert.Equal(1,setting["range"]!["step"]!.Value<int>());
         Assert.Equal("ShadingQuality",setting["code"]!.Value<string>());
     }
     #endregion

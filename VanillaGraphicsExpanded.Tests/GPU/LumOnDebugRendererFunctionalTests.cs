@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using Moq;
 using VanillaGraphicsExpanded.DebugView;
 using OpenTK.Graphics.OpenGL;
@@ -79,7 +80,7 @@ public sealed class LumOnDebugRendererFunctionalTests : LumOnShaderFunctionalTes
         var render = RuntimeEngineServices.Render(2, framebuffers, () => view, () => projection, () =>
         {
             draws++;
-            drawing.RenderQuad(StateCache.ActiveProgram!.ProgramId);
+            drawing.RenderGeometry();
         });
         var api = RuntimeEngineServices.Client(assets.Api, events.Api, world.Object, render, shaderApi.Object);
         using var frameCamera = new VgeFrameRenderer(api);
@@ -119,7 +120,7 @@ public sealed class LumOnDebugRendererFunctionalTests : LumOnShaderFunctionalTes
             for (int frame = 0; frame < 8; frame++)
             {
                 TestUniformRing.BeginFrame();
-                terrain.Output.BindWithViewport();
+                FramebufferTestSetup.BindForEngineRendering(terrain.Output);
                 events.Render(EnumRenderStage.Before);
                 events.Render(EnumRenderStage.Opaque);
                 events.Render(EnumRenderStage.AfterBlit);
@@ -165,7 +166,7 @@ public sealed class LumOnDebugRendererFunctionalTests : LumOnShaderFunctionalTes
                     for (int frame = 0; frame < 8; frame++)
                     {
                         TestUniformRing.BeginFrame();
-                        terrain.Output.BindWithViewport();
+                        FramebufferTestSetup.BindForEngineRendering(terrain.Output);
                         events.Render(EnumRenderStage.Before);
                 events.Render(EnumRenderStage.Opaque);
                 events.Render(EnumRenderStage.AfterBlit);

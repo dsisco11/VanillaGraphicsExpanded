@@ -1,3 +1,6 @@
+using VanillaGraphicsExpanded.Rendering.Integration.OpenGL;
+using System.Collections.Generic;
+using VanillaGraphicsExpanded.Rendering.RHI;
 using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System;
 using System.Linq;
@@ -11,13 +14,14 @@ namespace VanillaGraphicsExpanded.Rendering.Pipeline;
 /// <summary>Owns an ordinary engine-uploaded position/UV mesh with a verified native fullscreen representation.</summary>
 internal sealed class EngineFullscreenGeometry : GraphicsGeometry
 {
-    internal static VertexLayoutDesc Layout { get; } = new([
-        new(0, 3, VertexAttribPointerType.Float, VertexInterpretation.Floating, 0, 0, 12),
-        new(1, 2, VertexAttribPointerType.Float, VertexInterpretation.Floating, 1, 0, 8)]);
+    internal static RHIVertexLayout Layout { get; } = new([
+        new(0, 3, VertexComponentFormat.Float, VertexInterpretation.Floating, 0, 0, 12),
+        new(1, 2, VertexComponentFormat.Float, VertexInterpretation.Floating, 1, 0, 8)]);
     private readonly IRenderAPI render;
     private readonly (nint Handle, long Generation) context;
     private readonly GpuResourceManager? deletionManager;
     private readonly VAO mesh;
+    private readonly EngineGeometryInputs inputs;
     private readonly int vao, positions, uv, elements, count;
     private bool disposed;
 
@@ -33,7 +37,7 @@ internal sealed class EngineFullscreenGeometry : GraphicsGeometry
             || data.Indices.Take(data.IndicesCount).Any(i => i < 0 || i >= data.VerticesCount))
             throw new ArgumentException("Expected indexed position/UV geometry without a color stream.", nameof(data));
         StateCache.Current.RequireOutsideEngineBoundary();
-        var context = Integration.RenderContextRegistry.Current();
+        var context = RHICommandContext.Current.OpenGL.NativeOrigin;
         var deletionManager = GpuResourceManagerSystem.CurrentManager;
         // Upload may bind arrays through the engine; existing scopes preserve the caller's bindings.
         using var vertexScope = StateCache.Current.BindVertexArrayScope(0);
@@ -58,34 +62,18 @@ internal sealed class EngineFullscreenGeometry : GraphicsGeometry
         }
     }
 
-    /// <inheritdoc />
-    internal override void Validate(GraphicsPipelineDesc pipeline, GraphicsDraw draw)
+    /// <summary>Lends certified geometry without granting native draw or ownership operations.</summary>
+    internal override RHIGeometryInputs Inputs
     {
-        ObjectDisposedException.ThrowIf(disposed, this);
-        if (mesh.Disposed || !mesh.Initialized || mesh.VaoId != vao || mesh.xyzVboId != positions
-            || mesh.uvVboId != uv || mesh.vboIdIndex != elements || mesh.IndicesCount != count
-            || mesh.drawMode != PrimitiveType.Triangles || !HasOnlyPositionUvStreams(mesh))
-            throw new InvalidOperationException("Owned engine mesh was retired or changed.");
-        if (pipeline.VertexLayout != Layout || pipeline.Assembly.Topology != PrimitiveType.Triangles
-            || pipeline.Assembly.Restart || pipeline.Assembly.FixedIndexRestart)
-            throw new InvalidOperationException("Pipeline does not match ordinary fullscreen engine geometry.");
-        if (draw != new GraphicsDraw(0, count))
-            throw new ArgumentOutOfRangeException(nameof(draw), "Ordinary engine geometry draws its complete noninstanced index range.");
-    }
-
-    /// <inheritdoc />
-    internal override void Submit(GraphicsDraw draw)
-    {
-        bool completed = false;
-        try
+        get
         {
-            render.RenderMesh(mesh);
-            completed = true;
-#if DEBUG
-            StateCache.Current.RecordDrawSubmission();
-#endif
+            ObjectDisposedException.ThrowIf(disposed, this);
+            if (mesh.Disposed || !mesh.Initialized || mesh.VaoId != vao || mesh.xyzVboId != positions
+                || mesh.uvVboId != uv || mesh.vboIdIndex != elements || mesh.IndicesCount != count
+                || mesh.drawMode != PrimitiveType.Triangles || !HasOnlyPositionUvStreams(mesh))
+                throw new InvalidOperationException("Owned engine mesh was retired or changed.");
+            return inputs.Inputs;
         }
-        finally { StateCache.Current.ObserveEngineMeshDraw(vao, completed); }
     }
 
     /// <inheritdoc />
@@ -93,6 +81,7 @@ internal sealed class EngineFullscreenGeometry : GraphicsGeometry
     {
         if (disposed) return;
         disposed = true;
+        inputs.Dispose();
         RetireMesh(render, mesh, context, deletionManager);
     }
     #endregion
@@ -104,21 +93,14 @@ internal sealed class EngineFullscreenGeometry : GraphicsGeometry
     {
         this.render = render; this.mesh = mesh; this.count = count;
         this.context = context; this.deletionManager = deletionManager;
-        if (context != Integration.RenderContextRegistry.Current())
+        if (context != RHICommandContext.Current.OpenGL.NativeOrigin)
             throw new InvalidOperationException("Engine mesh publication requires its uploading context.");
         vao = mesh.VaoId; positions = mesh.xyzVboId; uv = mesh.uvVboId; elements = mesh.vboIdIndex;
         if (vao == 0 || positions == 0 || uv == 0 || elements == 0 || mesh.IndicesCount != count
             || mesh.drawMode != PrimitiveType.Triangles || !HasOnlyPositionUvStreams(mesh))
             throw new InvalidOperationException("Unsupported uploaded engine geometry.");
-        using var errors = new GlDebug.ErrorScope("Engine geometry publication");
-        // Invalidate upload knowledge before using cache-owned scopes to inspect the resulting VAO.
         StateCache.Current.ForgetEngineMeshUpload(vao);
-        StateCache.Current.BindVertexArray(vao);
-        CheckAttribute(0, 3, 12, positions);
-        CheckAttribute(1, 2, 8, uv);
-        CheckBuffer(positions, checked(vertices * 12));
-        CheckBuffer(uv, checked(vertices * 8));
-        CheckBuffer(elements, checked(count * sizeof(uint)));
+        inputs = new(mesh, Layout, new Dictionary<int, int> { [0] = positions, [1] = uv }, vertices, count);
     }
 
     /// <summary>Retires only the adapter's owned mesh, preserving engine cleanup on its originating context.</summary>
@@ -128,7 +110,7 @@ internal sealed class EngineFullscreenGeometry : GraphicsGeometry
         // The adapter owns terminal cleanup. Suppress the engine leak diagnostic when
         // ownership moves to deferred cleanup or the retired context reclaims its names.
         GC.SuppressFinalize(mesh);
-        if (origin == default || origin == Integration.RenderContextRegistry.Current())
+        if (GpuResource.IsCurrentResourceContext(origin))
         {
             render.DeleteMesh(mesh);
             return;
@@ -137,43 +119,10 @@ internal sealed class EngineFullscreenGeometry : GraphicsGeometry
             manager?.EnqueueContextCleanup(() => render.DeleteMesh(mesh), origin);
     }
 
-    /// <summary>Requires enabled floating attributes, zero offsets, and no instancing or integer reinterpretation.</summary>
-    private static void CheckAttribute(int location, int components, int stride, int buffer)
-    {
-        // The engine uses legacy pointer stride zero to mean tightly packed, unlike separated bindings.
-        int nativeStride = GetAttribute(location, VertexAttribParameter.ArrayStride);
-        if (GetAttribute(location, VertexAttribParameter.ArrayEnabled) != 1
-            || GetAttribute(location, VertexAttribParameter.ArraySize) != components
-            || GetAttribute(location, VertexAttribParameter.ArrayType) != (int)VertexAttribPointerType.Float
-            || nativeStride != 0 && nativeStride != stride
-            || GetAttribute(location, VertexAttribParameter.ArrayNormalized) != 0
-            || GetAttribute(location, VertexAttribParameter.VertexAttribArrayInteger) != 0
-            || GetAttribute(location, VertexAttribParameter.VertexAttribArrayDivisor) != 0)
-            throw new InvalidOperationException("Unsupported engine vertex attribute representation.");
-        GL.GetVertexAttrib(location, (VertexAttribParameter)All.VertexAttribArrayBufferBinding, out int actual);
-        IntPtr pointer = IntPtr.Zero;
-        GL.GetVertexAttribPointer(location, VertexAttribPointerParameter.ArrayPointer, ref pointer);
-        if (actual != buffer || pointer != IntPtr.Zero)
-            throw new InvalidOperationException("Engine vertex attribute points outside its declared stream.");
-    }
-
-    /// <summary>Reads one native attribute property during cold publication.</summary>
-    private static int GetAttribute(int location, VertexAttribParameter parameter)
-    {
-        GL.GetVertexAttrib(location, parameter, out int value);
-        return value;
-    }
-
     /// <summary>Rejects pooled or extended streams instead of assigning them fullscreen semantics.</summary>
     private static bool HasOnlyPositionUvStreams(VAO mesh) => mesh.normalsVboId == 0 && mesh.rgbaVboId == 0
         && mesh.flagsVboId == 0 && mesh.customDataFloatVboId == 0 && mesh.customDataIntVboId == 0
         && mesh.customDataShortVboId == 0 && mesh.customDataByteVboId == 0;
 
-    /// <summary>Checks allocated byte extent through the existing cache-owned binding API.</summary>
-    private static void CheckBuffer(int buffer, int required)
-    {
-        nint bytes = GpuResourceManager.AcquireBufferMetadata(buffer).Capacity;
-        if (bytes < required) throw new InvalidOperationException("Engine geometry buffer is smaller than its upload.");
-    }
     #endregion
 }

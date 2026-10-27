@@ -39,15 +39,15 @@ internal static class TerrainMaterialParamsTextureBindingHook
     private static readonly Dictionary<int, int> normalDepthUniformLocationCache = new();
 
 
-    private static int lastBoundNormalDepthTexId;
+    private static GpuTextureRef lastBoundNormalDepth;
     private static int lastBoundAtlasTexId;
 
     /// <summary>Reports the last atlas pair for existing material debug overlays.</summary>
-    public static bool TryGetLastBoundNormalDepthTextureId(out int normalDepthTextureId, out int baseAtlasTextureId)
+    public static bool TryGetLastBoundNormalDepthTexture(out GpuTextureRef texture, out int baseAtlasTextureId)
     {
-        normalDepthTextureId = lastBoundNormalDepthTexId;
+        texture = lastBoundNormalDepth;
         baseAtlasTextureId = lastBoundAtlasTexId;
-        return normalDepthTextureId != 0;
+        return texture.IsValid;
     }
 
     /// <summary>Binds material and relief resources for the atlas selected by an engine terrain draw.</summary>
@@ -96,14 +96,15 @@ internal static class TerrainMaterialParamsTextureBindingHook
                 {
                     OpenGLImageBindings.ActiveTexture(StateCache.Current, MaterialTextureUnit);
                     OpenGLImageBindings.BindTextureOnActiveUnit(StateCache.Current, TextureTarget.Texture2D, materialTexId);
-                    StateCache.Current.SetProgramUniformUnit(programId, materialUniformLoc, MaterialTextureUnit);
+                    OpenGLProgramAssignments.SetUnit(programId, materialUniformLoc, MaterialTextureUnit);
                 }
             }
 
             if (hasNormalDepth)
             {
                 // Capture for debug overlays (e.g., showing the currently active atlas page).
-                lastBoundNormalDepthTexId = normalDepthTexId;
+                store.TryGetPageTextures(value, out var selectedPage);
+                lastBoundNormalDepth = selectedPage.NormalDepthTexture;
                 lastBoundAtlasTexId = value;
 
                 if (!normalDepthUniformLocationCache.TryGetValue(programId, out int normalDepthUniformLoc))
@@ -116,7 +117,7 @@ internal static class TerrainMaterialParamsTextureBindingHook
                 {
                     OpenGLImageBindings.ActiveTexture(StateCache.Current, NormalDepthTextureUnit);
                     OpenGLImageBindings.BindTextureOnActiveUnit(StateCache.Current, TextureTarget.Texture2D, normalDepthTexId);
-                    StateCache.Current.SetProgramUniformUnit(programId, normalDepthUniformLoc, NormalDepthTextureUnit);
+                    OpenGLProgramAssignments.SetUnit(programId, normalDepthUniformLoc, NormalDepthTextureUnit);
                 }
             }
         }

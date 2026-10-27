@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System;
 using System.Diagnostics;
@@ -105,13 +106,19 @@ public sealed class AoMinimumChildProductionTests(HeadlessGLFixture fixture, ITe
             Programs.Create<AmbientOcclusionFilterShaderProgram>(),Programs.Create<MinimumChildMaskShaderProgram>());
         Action baseline=()=> {
             hierarchy.Render(reference.ReceiverDepth);
-            Assert.True(GraphicsCommandContext.TryRun("Tests.FrozenAoOwner",baselinePipelines,true,
-                commands=>frozen.Render(commands,draw,reference.ReceiverDepth,reference.Surface,hierarchy.Texture!,reference.Camera)));
+            {
+    var commands=RHICommandContext.Current;
+    using var scope1=commands.EnterBoundary(new("Tests.FrozenAoOwner",true,graphics:System.Linq.Enumerable.Select<RHIGraphicsPipeline,RHIGraphicsPipelineRef>(baselinePipelines,value=>value),operations:BoundaryOperations.RenderPasses));
+    scope1.Run(()=>frozen.Render(commands,draw,reference.ReceiverDepth,reference.Surface,hierarchy.Texture!,reference.Camera));
+}
         };
         Action candidate=()=> {
             hierarchy.Render(reference.ReceiverDepth);
-            Assert.True(GraphicsCommandContext.TryRun("Tests.CurrentAoOwner",candidatePipelines,true,
-                commands=>current.Render(commands,draw,reference.ReceiverDepth,reference.Surface,hierarchy.Texture!,reference.Camera)));
+            {
+    var commands=RHICommandContext.Current;
+    using var scope2=commands.EnterBoundary(new("Tests.CurrentAoOwner",true,graphics:System.Linq.Enumerable.Select<RHIGraphicsPipeline,RHIGraphicsPipelineRef>(candidatePipelines,value=>value),operations:BoundaryOperations.RenderPasses));
+    scope2.Run(()=>current.Render(commands,draw,reference.ReceiverDepth,reference.Surface,hierarchy.Texture!,reference.Camera));
+}
         };
         baseline();candidate();
         SameBits(rawOriginal,Read(frozen,"raw"));

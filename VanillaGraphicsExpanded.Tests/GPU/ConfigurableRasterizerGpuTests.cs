@@ -1,3 +1,4 @@
+using System;
 using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using ErrorCode = OpenTK.Graphics.OpenGL.ErrorCode;
@@ -16,8 +17,12 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 /// <summary>Exercises native configurable raster transitions in core and compatibility contexts.</summary>
 [Collection("GPU")]
 [Trait("Category", "GPU")]
-public sealed class ConfigurableRasterizerGpuTests(HeadlessGLFixture fixture, ITestOutputHelper output)
+public sealed class ConfigurableRasterizerGpuTests(HeadlessGLFixture fixture, ITestOutputHelper output) : IDisposable
 {
+    private readonly GraphicsStateShaders stateShaders = new();
+    /// <summary>Retires test-owned executable generations after state assertions complete.</summary>
+    public void Dispose() => stateShaders.Dispose();
+
     #region Public API
     /// <summary>Core-supported parameters agree with GL, suppress repeats, and restore scoped mutations.</summary>
     [Fact]
@@ -28,7 +33,7 @@ public sealed class ConfigurableRasterizerGpuTests(HeadlessGLFixture fixture, IT
         output.WriteLine($"Raster core: {GL.GetString(StringName.Version)}; {GL.GetString(StringName.Renderer)}; ClipControl={GpuSupport.Graphics.ClipControl}");
         var cache = StateCache.Current; cache.InvalidateAll();
         var first = Pipeline(new() { LineSmooth = true, PolygonSmooth = true,
-            PointSpriteOrigin = PointSpriteCoordOriginParameter.LowerLeft });
+            PointSpriteOrigin = PointSpriteOrigin.LowerLeft });
         var second = Pipeline(new());
         cache.ApplyConfigurableRaster(first);
         try
@@ -94,7 +99,7 @@ public sealed class ConfigurableRasterizerGpuTests(HeadlessGLFixture fixture, IT
 
     /// <summary>Real texture uploads preserve native and cached unpack layout while publishing the requested pixels.</summary>
     [Fact]
-    public void TextureUploadRefreshesUnpackKnowledge()
+    public void TextureUploadPreservesUnpackKnowledge()
     {
         using var context = new CompatibilityContext(fixture, output);
         var cache = StateCache.Current;
@@ -102,8 +107,9 @@ public sealed class ConfigurableRasterizerGpuTests(HeadlessGLFixture fixture, IT
         using var texture = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.R16, Width = System.Math.Max(1, 1), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         OpenGLPixelLayouts.SetUnpack(cache, new(8));
         texture.UploadDataImmediate(new ushort[] { 17 });
-        Assert.Equal(1, GL.GetInteger(GetPName.UnpackAlignment));
-        Assert.Equal(1, OpenGLPixelLayouts.GetUnpack(cache).Alignment);
+        Assert.Equal(8, GL.GetInteger(GetPName.UnpackAlignment));
+        Assert.Equal(8, OpenGLPixelLayouts.GetUnpack(cache).Alignment);
+        Assert.Equal(17f / ushort.MaxValue, texture.ReadPixels()[0], precision: 6);
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
     /// <summary>Real fragments exercise matching clip-depth conventions.</summary>
@@ -118,8 +124,8 @@ public sealed class ConfigurableRasterizerGpuTests(HeadlessGLFixture fixture, IT
         Assert.True(draw.Count(Pipeline(new()), lines: true) > 0);
         if (GpuSupport.Graphics.ClipControl)
         {
-            Assert.Equal(0, draw.Count(Pipeline(new() { ClipOrigin = ClipOrigin.UpperLeft, ClipDepth = ClipDepthMode.ZeroToOne }), zeroToOne: false));
-            Assert.Equal(1024, draw.Count(Pipeline(new() { ClipOrigin = ClipOrigin.UpperLeft, ClipDepth = ClipDepthMode.ZeroToOne }), zeroToOne: true));
+            Assert.Equal(0, draw.Count(Pipeline(new() { ClipOrigin = ClipCoordinateOrigin.UpperLeft, ClipDepth = ClipDepthRange.ZeroToOne }), zeroToOne: false));
+            Assert.Equal(1024, draw.Count(Pipeline(new() { ClipOrigin = ClipCoordinateOrigin.UpperLeft, ClipDepth = ClipDepthRange.ZeroToOne }), zeroToOne: true));
             Assert.Equal(255, draw.LastPixels[(4 * 32 + 16) * 4 + 1]);
             Assert.Equal(1024, draw.Count(Pipeline(new()), zeroToOne: false));
             Assert.Equal(0, draw.LastPixels[(4 * 32 + 16) * 4 + 1]);
@@ -132,11 +138,11 @@ public sealed class ConfigurableRasterizerGpuTests(HeadlessGLFixture fixture, IT
     /// <summary>Declares the entire configurable raster boundary.</summary>
     private static EngineBoundaryDeclaration Declaration() => new("RasterFixture", new PipelineStateCoverage(rasterizer: RasterizerStateKnowledge.ConfigurableRaster));
     /// <summary>Builds a real-capability descriptor without duplicating shader output metadata.</summary>
-    private static GraphicsPipelineDesc Pipeline(RasterizerDesc raster)
+    private RHIGraphicsPipelineDescription Pipeline(RasterizerDesc raster)
     {
         var contract = new GpuShaderContract("raster", [new("raster.vsh", "raster.vsh", ShaderStageKind.Vertex, new()),
             new("raster.fsh", "raster.fsh", ShaderStageKind.Fragment, new())], 1);
-        return new(new("test", new(new ShaderSettings(contract))), new([]), new([new(PixelInternalFormat.Rgba8)]), DynamicPipelineState.Viewport,
+        return new(stateShaders.Get(contract.Stages.Select(stage => stage.Kind)), new([]), new([new(TextureFormat.Rgba8)]), DynamicPipelineState.Viewport,
             rasterizer: raster);
     }
 
@@ -198,7 +204,7 @@ public sealed class ConfigurableRasterizerGpuTests(HeadlessGLFixture fixture, IT
             frame.BeginFrame();
         }
         /// <summary>Applies production raster policy, draws and counts nonzero red pixels.</summary>
-        public int Count(GraphicsPipelineDesc pipeline, bool lines = false, bool zeroToOne = false)
+        public int Count(RHIGraphicsPipelineDescription pipeline, bool lines = false, bool zeroToOne = false)
         {
             StateCache.Current.ApplyConfigurableRaster(pipeline);
             GL.ClearColor(0, 0, 0, 0); GL.Clear(ClearBufferMask.ColorBufferBit);
@@ -208,7 +214,7 @@ public sealed class ConfigurableRasterizerGpuTests(HeadlessGLFixture fixture, IT
             UboPacking.WriteInt32(bytes, 0, lines ? 1 : 0);
             UboPacking.WriteInt32(bytes, 4, zeroToOne ? 1 : 0);
             inputs.SetBytes(bytes);
-            Assert.True(inputs.TryBindToSlot(GpuBindingRegistry.Ubo.ShaderInputs));
+            Assert.True(RHICommandContext.Current.OpenGL.BindEngineUniform(GpuBindingRegistry.Ubo.ShaderInputs, inputs.Capture()));
             GL.DrawArrays(lines ? PrimitiveType.Lines : PrimitiveType.Triangles, 0, lines ? 2 : 3);
             byte[] pixels = new byte[32 * 32 * 4]; GL.ReadPixels(0, 0, 32, 32, PixelFormat.Rgba, PixelType.UnsignedByte, pixels);
             LastPixels = pixels;

@@ -133,6 +133,14 @@ internal sealed class CloudStoredVolumeConsumer : ICloudVolumeConsumer
     }
     #endregion
     #region Lifetime
+    /// <summary>Revokes content certificates and solver work while retaining graphics contracts for atomic executable replacement.</summary>
+    public void WithdrawForReload()
+    {
+        prepared=failed=false;admitted=null;configurationPending=false;
+        RenderingCleanup.Run(()=>view?.WithdrawForReload(),()=>{solution?.Dispose();solution=null;},
+            ()=>{mapTexture?.Dispose();mapTexture=null;});
+    }
+
     /// <summary>Clears executables, persistent light and bounds together for explicit reload/recovery.</summary>
     public void Reset()
     {

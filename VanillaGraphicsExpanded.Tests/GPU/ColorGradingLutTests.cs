@@ -245,24 +245,26 @@ public sealed class ColorGradingLutTests(HeadlessGLFixture fixture, ITestOutputH
         using var color = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba32f, Width = System.Math.Max(1, size), Height = System.Math.Max(1, size), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         using var glow = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba32f, Width = System.Math.Max(1, size), Height = System.Math.Max(1, size), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         using var target = DynamicGpuFramebuffer.CreateMRT([color,glow])!;
-        using var geometry = new ArrayGraphicsGeometry(CelestialDrawPass.FullscreenLayout,PrimitiveType.Triangles,new Dictionary<int,GpuVbo>(),3);
-        using var lifetime = new GraphicsPipelineLifetime();
-        var pass = new RenderPassDesc(target,[new(0,AttachmentLoad.Clear,Clear:ColorClearValue.Float(0,0,0,0)),
-            new(1,AttachmentLoad.Clear,Clear:ColorClearValue.Float(0,0,0,0))]);
-        using var metadata = new RenderPassTargets(pass);
-        using var pipeline = new GraphicsPipeline(lifetime,new(shader.GraphicsIdentity!,CelestialDrawPass.FullscreenLayout,
-            metadata.Signature,DynamicPipelineState.Viewport),shader);
+        using var geometry = new ArrayGraphicsGeometry(CelestialDrawPass.FullscreenLayout,PrimitiveTopology.Triangles,new Dictionary<int,GpuVbo>(),3);
+        var pass = FramebufferTestSetup.DescribeAttachments(target, [new(AttachmentIndex:0, Load:AttachmentLoad.Clear,Clear:ColorClearValue.Float(0,0,0,0)),
+            new(AttachmentIndex:1, Load:AttachmentLoad.Clear,Clear:ColorClearValue.Float(0,0,0,0))]);
+        var metadata = RHICommandContext.Current.DescribeRenderTargets(pass);
+        using var pipeline = RHICommandContext.Current.CreateGraphicsPipeline(new(shader.Shader,CelestialDrawPass.FullscreenLayout,
+            metadata,DynamicPipelineState.Viewport)).RequireResource();
         Vector3 brightest = Vector3.Zero;
         Vector3[] brightestView = [];
         for (int orientation = 0; orientation < 4; orientation++)
         {
             shader.DrawInputs.Capture(Matrix4x4.CreateRotationY(orientation * MathF.PI / 2),
                 1 / resources.Source.StorageScale,AtmosphereSkyMapping.Horizon(.001f));
-            Assert.True(GraphicsCommandContext.TryRun("Tests.GradingGalaxy",[pipeline],true,commands =>
             {
-                commands.BeginPass(pass); commands.SetPipeline(pipeline); commands.SetDynamicState(new(){Viewport=commands.PassViewport});
-                commands.Draw(geometry,new(0,3)); commands.EndPass();
-            }));
+    var commands=RHICommandContext.Current;
+    using var scope25=commands.EnterBoundary(new("Tests.GradingGalaxy",true,graphics:System.Linq.Enumerable.Select<RHIGraphicsPipeline,RHIGraphicsPipelineRef>([pipeline],value=>value),operations:BoundaryOperations.RenderPasses));
+    scope25.Run(()=>{
+                commands.BeginRenderPass(pass); commands.SetPipeline(pipeline); commands.SetDynamicState(new(){Viewport=commands.PassViewport});
+                commands.Draw(geometry.Inputs,new(0,3)); commands.EndRenderPass();
+            });
+}
             float[] data = color.ReadPixels();
             Vector3 candidate = Vector3.Zero;
             for (int pixel = 0; pixel < data.Length; pixel += 4)
@@ -307,7 +309,11 @@ public sealed class ColorGradingLutTests(HeadlessGLFixture fixture, ITestOutputH
         program.GradingLookup = lookup; program.ExposureBuffer = exposure;
         program.Capture(false, new(controls, Vector4.Zero, Vector4.Zero), new(ev, 0, 0, 0));
         var pipeline = draw.Prepare(program,target.PostprocessPass());
-        Assert.True(GraphicsCommandContext.TryRun("Tests.GradingFinal", [pipeline], true, commands => draw.Submit(commands, pipeline,target.PostprocessPass())));
+        {
+    var commands=RHICommandContext.Current;
+    using var scope26=commands.EnterBoundary(new("Tests.GradingFinal",true,graphics:System.Linq.Enumerable.Select<RHIGraphicsPipeline,RHIGraphicsPipelineRef>([pipeline],value=>value),operations:BoundaryOperations.RenderPasses));
+    scope26.Run(()=>draw.Submit(commands, pipeline,target.PostprocessPass(), program.CaptureBindings()));
+}
         Assert.Equal(ErrorCode.NoError, GL.GetError());
         Assert.Equal(input, source.ReadPixels());
         return target[0].ReadPixels();

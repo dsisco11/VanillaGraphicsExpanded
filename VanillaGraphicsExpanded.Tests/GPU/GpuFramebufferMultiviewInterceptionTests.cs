@@ -24,7 +24,7 @@ public sealed class GpuFramebufferMultiviewInterceptionTests(HeadlessGLFixture f
             using var image=useView?GpuFramebufferAttachment.FromMultiviewTexture(view,1,2):GpuFramebufferAttachment.FromMultiviewTexture(array,1,2);
             using var capabilities=new DirectStateAccessCapabilityScope(direct);
             using var first=DynamicGpuFramebuffer.Create([image])!; using var target=DynamicGpuFramebuffer.Create([image])!;
-            StateCache.Current.BindFramebuffer(FramebufferTarget.DrawFramebuffer,first.FboId); StateCache.Current.BindFramebuffer(FramebufferTarget.ReadFramebuffer,target.FboId);
+            OpenGLFramebufferSelection.Bind(StateCache.Current, FramebufferTarget.DrawFramebuffer,first.FboId); OpenGLFramebufferSelection.Bind(StateCache.Current, FramebufferTarget.ReadFramebuffer,target.FboId);
             target.SetAttachment(FramebufferAttachment.ColorAttachment0,image);
             Assert.Equal(first.FboId,GL.GetInteger(GetPName.DrawFramebufferBinding)); Assert.Equal(target.FboId,GL.GetInteger(GetPName.ReadFramebufferBinding));
             var entry=(GpuResourceMetadataEntry<GpuFramebufferMetadata>)GpuResourceManagerSystem.CurrentManager!.GetResourceRegistration(target)!;
@@ -48,7 +48,7 @@ public sealed class GpuFramebufferMultiviewInterceptionTests(HeadlessGLFixture f
             using var ordinary=GpuFramebufferAttachment.FromTexture(array,layer:0); using var target=DynamicGpuFramebuffer.Create([ordinary])!;
             Assert.Throws<NotSupportedException>(()=>image.AttachTo(target,FramebufferAttachment.ColorAttachment0)); Assert.Equal(ErrorCode.NoError,GL.GetError());
         }
-        finally { StateCache.Current.DeleteFramebuffer(framebuffer); RHICommandContext.Current.OpenGL.DeleteTexture(texture); fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.OpenGL.DeleteFramebuffer(framebuffer); RHICommandContext.Current.OpenGL.DeleteTexture(texture); fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
     }
     /// <summary>Backing storage publication refreshes selected extents and replays the proven OVR range.</summary>
     [Theory]

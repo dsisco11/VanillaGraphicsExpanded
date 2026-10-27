@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.ShaderCompilation;
 using VanillaGraphicsExpanded.Rendering.Contracts;
 
 namespace VanillaGraphicsExpanded.Rendering.Shaders.Fixtures;
@@ -14,7 +15,7 @@ internal sealed partial class UniformStateComputeShader : GpuComputeProgram, IUn
     [ShaderOption("UNIFORM_ALTERNATE", false)]
     internal static partial ShaderOption<bool> Alternate { get; }
     /// <summary>Adopts an executable loaded through the established compute preparation owner.</summary>
-    internal UniformStateComputeShader(GpuComputePipeline pipeline) : base(pipeline)
+    internal UniformStateComputeShader(ComputeShaderAsset pipeline) : base(pipeline)
     {
         OwnUniformBuffer(inputs);
     }

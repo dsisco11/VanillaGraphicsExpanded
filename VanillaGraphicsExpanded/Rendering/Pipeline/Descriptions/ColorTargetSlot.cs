@@ -1,6 +1,6 @@
-using OpenTK.Graphics.OpenGL;
+using VanillaGraphicsExpanded.Rendering.RHI;
 
 namespace VanillaGraphicsExpanded.Rendering.Pipeline.Descriptions;
 
 /// <summary>One output slot's format, or an unrouted hole with an explicit active-output discard policy.</summary>
-internal readonly record struct ColorTargetSlot(PixelInternalFormat? Format, bool DiscardOutput = false);
+public readonly record struct ColorTargetSlot(TextureFormat? Format, bool DiscardOutput = false);

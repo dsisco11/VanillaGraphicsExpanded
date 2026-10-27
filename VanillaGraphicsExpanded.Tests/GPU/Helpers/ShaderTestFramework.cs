@@ -1,3 +1,6 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
+using VanillaGraphicsExpanded.Rendering.Pipeline.Descriptions;
+using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using System.Collections.Generic;
@@ -40,6 +43,7 @@ public sealed class ShaderTestFramework : IDisposable
     private GpuVao? _quadVao;
     private GpuVbo? _quadVbo;
     private GpuEbo? _quadEbo;
+    private static readonly RHIVertexLayout QuadLayout = new([new(0,3,VertexComponentFormat.Float,VertexInterpretation.Floating,0,0,20),new(1,2,VertexComponentFormat.Float,VertexInterpretation.Floating,0,12,20)]);
     private bool _quadInitialized;
     private bool _isDisposed;
     private readonly List<IDisposable> _managedResources = [];
@@ -200,91 +204,93 @@ public sealed class ShaderTestFramework : IDisposable
     public void RenderQuad(int programId)
     {
         EnsureQuadInitialized();
-
         StateCache.Current.Apply(FullscreenPassPso);
-        StateCache.Current.UseProgram(programId);
-        using var geometry = _quadVao!.BindScope();
-        _quadVao.DrawElements(PrimitiveType.Triangles, _quadEbo!);
-        StateCache.Current.UnbindProgram();
+        OpenGLProgramSelection.Select(StateCache.Current, programId);
+        RenderGeometry();
+        OpenGLProgramSelection.Select(StateCache.Current, 0);
     }
 
     /// <summary>Issues an explicitly native engine fixture draw while the engine caller owns executable and target state.</summary>
     public void RenderGeometry()
     {
         EnsureQuadInitialized();
-        using var geometry = _quadVao!.BindScope();
-        _quadVao.DrawElements(PrimitiveType.Triangles, _quadEbo!);
+        using var geometry = StateCache.Current.BindVertexArrayScope(_quadVao!.VertexArrayId);
+        OpenGLVertexSelection.Bind(StateCache.Current, _quadVao!.VertexArrayId);
+        OpenTK.Graphics.OpenGL4.GL.DrawElements(OpenTK.Graphics.OpenGL4.PrimitiveType.Triangles, 3, OpenTK.Graphics.OpenGL4.DrawElementsType.UnsignedInt, 0);
     }
 
     /// <summary>Imports the fixture's currently selected engine target explicitly, then submits production bindings through the RHI.</summary>
     public void RenderQuad(GpuProgram program)
     {
+        int name=StateCache.Current.GetCurrentFramebuffer(FramebufferTarget.DrawFramebuffer);
+        int[] viewport=new int[4]; GL.GetInteger(GetPName.Viewport,viewport);
+        using var target=DynamicGpuFramebuffer.Wrap(name,"Fixture.EngineDestination",viewport[2],viewport[3]);
+        target.PublishRenderPassMetadata();
+        SubmitProductionQuad(program,target,null,false);
+    }
+
+    /// <summary>Creates the actual fixed pipeline and submits captured inputs to a fixture-owned attachment pass.</summary>
+    public void RenderQuadTo(GpuProgram program, GpuFramebuffer target, (float r,float g,float b,float a)? clearColor=null, Action? afterDraw=null)
+        => SubmitProductionQuad(program,target,clearColor,true,afterDraw);
+
+    /// <summary>Freezes explicit fixture load policy and executes the exact captured shader generation.</summary>
+    private void SubmitProductionQuad(GpuProgram program,GpuFramebuffer target,(float r,float g,float b,float a)? clearColor,bool clear,Action? afterDraw=null)
+    {
         EnsureQuadInitialized();
-        StateCache.Current.Apply(FullscreenPassPso);
-        using var use = program.UseScope();
-        using var geometry = _quadVao!.BindScope();
-        _quadVao.DrawElements(PrimitiveType.Triangles, _quadEbo!);
+        var color=clearColor??(0f,0f,0f,0f);
+        var pass=FramebufferTestSetup.DescribeAttachments(target,Enumerable.Range(0,target.ColorAttachmentCount).Select(index=>
+            new RHIColorAttachment(AttachmentIndex:index,Load:clear?AttachmentLoad.Clear:AttachmentLoad.Preserve,
+                Clear:clear?ColorClearValue.Float(color.Item1,color.Item2,color.Item3,color.Item4):null)));
+        RenderQuadTo(program,pass,afterDraw);
     }
 
-    /// <summary>Executes a production shader against an explicitly supplied component target.</summary>
-    public void RenderQuadTo(GpuProgram program, GpuFramebuffer target, (float r, float g, float b, float a)? clearColor = null)
+    /// <summary>Submits fixed shader inputs directly to supplied final attachment intentions.</summary>
+    public void RenderQuadTo(GpuProgram program,RHIRenderPassDescription pass,Action? afterDraw=null)
     {
-        target.BindWithViewport();
-        StateCache.Current.Apply(FullscreenPassPso);
-        var (r, g, b, a) = clearColor ?? (0f, 0f, 0f, 0f);
-        target.Clear(r, g, b, a);
-        RenderQuad(program);
-        GpuFramebuffer.Unbind();
+        EnsureQuadInitialized();
+        var commands=RHICommandContext.Current;
+        using var pipeline=commands.CreateGraphicsPipeline(new(program.Shader,QuadLayout,commands.DescribeRenderTargets(pass),DynamicPipelineState.Viewport)).RequireResource();
+        var geometry=new RHIGeometryInputs(QuadLayout,[new(0,new(_quadVbo!,0,_quadVbo!.SizeBytes),20)],new(new(_quadEbo!,0,_quadEbo!.SizeBytes),IndexFormat.UnsignedInt));
+        if (!commands.TryEnterBoundary(new("Fixture.Fullscreen",true,graphics:[pipeline],operations:BoundaryOperations.RenderPasses),out var admitted))
+            throw new InvalidOperationException($"Fixture boundary admission failed: {StateCache.Current.BoundaryEntryFailure}");
+        using var boundary=admitted!;
+        boundary.Run(()=>
+        {
+            commands.BeginRenderPass(pass);commands.SetPipeline(pipeline);
+            commands.SetDynamicState(new(){Viewport=commands.PassViewport});commands.BindResources(program.CaptureBindings());
+            commands.DrawIndexed(geometry,new(0,3));
+            // Binding observations must run before boundary restoration withdraws the submitted table.
+            afterDraw?.Invoke();commands.EndRenderPass();
+        });
     }
 
-    /// <summary>
-    /// Renders a fullscreen quad with explicit state setup.
-    /// Binds the GBuffer, sets viewport, clears, then renders.
-    /// </summary>
-    /// <param name="programId">Compiled and linked shader program ID.</param>
-    /// <param name="target">Target GBuffer to render to.</param>
-    /// <param name="clearColor">Optional clear color (default: black with alpha 0).</param>
-    public void RenderQuadTo(int programId, GpuFramebuffer target, (float r, float g, float b, float a)? clearColor = null)
+    /// <summary>Draws explicitly native GLSL fixtures to their engine-owned target without wrapping them as portable shaders.</summary>
+    public void RenderQuadTo(int programId,GpuFramebuffer target,(float r,float g,float b,float a)? clearColor=null)
     {
-        target.BindWithViewport();
-
-        StateCache.Current.Apply(FullscreenPassPso);
-
-        var (r, g, b, a) = clearColor ?? (0f, 0f, 0f, 0f);
-        target.Clear(r, g, b, a);
-
-        RenderQuad(programId);
-
-        GpuFramebuffer.Unbind();
+        var color=clearColor??(0f,0f,0f,0f);
+        FramebufferTestSetup.ClearAttachments(target,color.Item1,color.Item2,color.Item3,color.Item4);
+        using var binding=StateCache.Current.BindFramebufferScope();
+        FramebufferTestSetup.BindForEngineRendering(target);RenderQuad(programId);
     }
 
     /// <summary>Configures native fixture geometry using core named vertex-array commands, independent of production realization caches.</summary>
     private void EnsureQuadInitialized()
     {
-        if (_quadInitialized)
-            return;
-
-        // Fullscreen triangle vertices (clip space)
-        // This triangle covers (-1,-1) to (1,1) with overdraw
-        float[] vertices =
-        [
-            -1f, -1f, 0f, 0f, // Position and UV
-             3f, -1f, 2f, 0f, // Bottom-right (extends past viewport)
-            -1f,  3f, 0f, 2f  // Top-left (extends past viewport)
-        ];
-
-        _quadVao = GpuVao.Create("Tests.FullscreenTriangle");
-        _quadVbo = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = "Tests.FullscreenTriangle.Vertices" }).RequireResource();
-        _quadEbo = RHICommandContext.Current.CreateIndexBuffer(new RHIBufferDescription { Role = BufferRole.Index, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = "Tests.FullscreenTriangle.Indices" }).RequireResource();
-        using var geometry = _quadVao.BindScope();
-        using var vertexBinding = _quadVbo.BindScope();
-        _quadVbo.UploadData(vertices);
-        _quadVao.AttribPointer(0, 2, VertexAttribPointerType.Float, false, 4 * sizeof(float), 0);
-        // Production direct lighting consumes the engine mesh UV attribute.
-        _quadVao.AttribPointer(1, 2, VertexAttribPointerType.Float, false, 4 * sizeof(float), 2 * sizeof(float));
-        _quadEbo.UploadIndices(new uint[] { 0, 1, 2 });
-
-        _quadInitialized = true;
+        if(_quadInitialized)return;
+        _quadVao=GpuVao.Create("Tests.FullscreenTriangle");
+        _quadVbo=RHICommandContext.Current.CreateVertexBuffer(new(){Role=BufferRole.Vertex,Mode=ResourceStorageMode.Mutable,Capacity=60,Usage=BufferUsage.StaticDraw}).RequireResource();
+        _quadEbo=RHICommandContext.Current.CreateIndexBuffer(new(){Role=BufferRole.Index,Mode=ResourceStorageMode.Mutable,Capacity=12,Usage=BufferUsage.StaticDraw}).RequireResource();
+        _quadVbo.UploadData(new float[]{-1,-1,0,0,0,3,-1,0,2,0,-1,3,0,0,2});
+        _quadEbo.UploadIndices(new uint[]{0,1,2});
+        OpenTK.Graphics.OpenGL4.GL.VertexArrayVertexBuffer(_quadVao.VertexArrayId,0,_quadVbo.BufferId,IntPtr.Zero,20);
+        for(int attribute=0;attribute<2;attribute++)
+        {
+            OpenTK.Graphics.OpenGL4.GL.EnableVertexArrayAttrib(_quadVao.VertexArrayId,attribute);
+            OpenTK.Graphics.OpenGL4.GL.VertexArrayAttribFormat(_quadVao.VertexArrayId,attribute,attribute==0?3:2,OpenTK.Graphics.OpenGL4.VertexAttribType.Float,false,attribute==0?0:12);
+            OpenTK.Graphics.OpenGL4.GL.VertexArrayAttribBinding(_quadVao.VertexArrayId,attribute,0);
+        }
+        OpenTK.Graphics.OpenGL4.GL.VertexArrayElementBuffer(_quadVao.VertexArrayId,_quadEbo.BufferId);
+        _quadInitialized=true;
     }
 
     #endregion

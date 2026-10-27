@@ -13,124 +13,63 @@ public sealed class InterfaceBindingTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void ResourceInterfacesGenerateSettersAndOfflineContracts(bool pipeline)
+    public void ResourceInterfacesGenerateRetainedCapture(bool compute)
     {
-        string source = """
-            internal interface IResources
-            {
-                [ShaderBinding("source", ShaderBindingKind.Sampler, 3, ShaderStageKind.Compute)] VanillaGraphicsExpanded.Rendering.GpuTexture Source { set; }
-                [ShaderBinding("output", ShaderBindingKind.Image, 4, ShaderStageKind.Compute)] VanillaGraphicsExpanded.Rendering.GpuTextureBinding Output { set; }
-                [ShaderBinding("direct", ShaderBindingKind.Image, 5, ShaderStageKind.Compute)] VanillaGraphicsExpanded.Rendering.GpuTexture Direct { set; }
-                [ShaderBinding("Params", ShaderBindingKind.UniformBlock, 6, ShaderStageKind.Compute)] VanillaGraphicsExpanded.Rendering.GpuUniformBuffer Params { set; }
-                [ShaderBinding("Work", ShaderBindingKind.StorageBlock, 7, ShaderStageKind.Compute)] VanillaGraphicsExpanded.Rendering.GpuShaderStorageBuffer Work { set; }
-            }
-            """ + Header + "internal partial class Shader : " +
-            (pipeline ? "IResources { private readonly VanillaGraphicsExpanded.Rendering.GpuComputePipeline pipeline = new(); }" :
-                "VanillaGraphicsExpanded.Rendering.Shaders.GpuProgram, IResources { protected override void Submit() { } }") + """
-            public static class Proof
-            {
-                public static string Run()
-                {
-                    var shader = new Shader();
-                    var texture = new VanillaGraphicsExpanded.Rendering.GpuTexture();
-                    var uniform = new VanillaGraphicsExpanded.Rendering.GpuUniformBuffer();
-                    var storage = new VanillaGraphicsExpanded.Rendering.GpuShaderStorageBuffer();
-                    VanillaGraphicsExpanded.Rendering.ShaderBindingAccess.ExpectedLayout = LAYOUT;
-                    VanillaGraphicsExpanded.Rendering.ShaderBindingAccess.ExpectedTexture = texture;
-                    VanillaGraphicsExpanded.Rendering.ShaderBindingAccess.ExpectedUniform = uniform;
-                    VanillaGraphicsExpanded.Rendering.ShaderBindingAccess.ExpectedStorage = storage;
-                    IResources api = shader;
-                    api.Source = texture; api.Output = new(); api.Direct = texture; api.Params = uniform; api.Work = storage;
-                    return VanillaGraphicsExpanded.Rendering.ShaderBindingAccess.Calls + Shader.Contract.Stages[0].Bindings.Images["direct"].Slot;
-                }
-            }
-            """;
-        // A pipeline wrapper exposes its layout solely for the test observation method.
-        source = pipeline ? source.Replace("private readonly", "internal readonly") : source;
-        source = source.Replace("LAYOUT", pipeline ? "shader.pipeline.ProgramLayout" : "shader.ProgramLayout");
-        Assert.Equal("True:source;True:output;True:direct;True:Params;True:Work;5",
-            GeneratorFixture.Generate(source, supportSource: BindingTests.RuntimeBindingSupport).Run());
-        var offline = GeneratorFixture.Generate(source, true, supportSource: BindingTests.RuntimeBindingSupport);
-        offline.Compile();
-        Assert.All(offline.Generated, s => Assert.DoesNotContain("ShaderBindingAccess", s));
-        Assert.Contains(offline.Generated, s => s.Contains("\"direct\", new GpuBindingContract.Binding(5, true, 1, null, 0, 0)"));
-    }
-
-    /// <summary>Authored compute submission uses family facade state without requiring a field named pipeline.</summary>
-    [Fact]
-    public void AuthoredComputeOwnerUsesFacadeForAlternateBindings()
-    {
-        string support = BindingTests.RuntimeBindingSupport + """
-            namespace VanillaGraphicsExpanded.Rendering
-            {
-                public abstract class GpuComputeProgram
-                {
-                    public object ProgramLayout = new(); public int ProgramId = 42;
-                    protected abstract void Submit();
-                }
-            }
-            """;
         string source = """
             internal interface IResources
             {
                 [ShaderBinding("source", ShaderBindingKind.Sampler, 3, ShaderStageKind.Compute)]
-                VanillaGraphicsExpanded.Rendering.GpuTexture Source { set; }
+                VanillaGraphicsExpanded.Rendering.GpuTextureRef Source { get; set; }
+                [ShaderBinding("output", ShaderBindingKind.Image, 4, ShaderStageKind.Compute)]
+                VanillaGraphicsExpanded.Rendering.RHI.RHIImageBinding Output { get; set; }
+                [ShaderBinding("Work", ShaderBindingKind.StorageBlock, 7, ShaderStageKind.Compute)]
+                VanillaGraphicsExpanded.Rendering.GpuShaderStorageBuffer Work { get; set; }
             }
-            internal abstract class Family : VanillaGraphicsExpanded.Rendering.GpuComputeProgram { }
-            """ + Header + """
-            internal partial class Shader : Family, IResources
-            {
-                protected override void Submit() { }
-            }
+            """ + Header + "internal partial class Shader : " + (compute ? "VanillaGraphicsExpanded.Rendering.GpuComputeProgram" : "VanillaGraphicsExpanded.Rendering.Shaders.GpuProgram") + ", IResources { }" + """
             public static class Proof
             {
                 public static string Run()
                 {
-                    var shader = new Shader(); var texture = new VanillaGraphicsExpanded.Rendering.GpuTexture();
-                    VanillaGraphicsExpanded.Rendering.ShaderBindingAccess.ExpectedLayout = shader.ProgramLayout;
-                    VanillaGraphicsExpanded.Rendering.ShaderBindingAccess.ExpectedTexture = texture;
-                    ((IResources)shader).Source = texture;
-                    return VanillaGraphicsExpanded.Rendering.ShaderBindingAccess.Calls;
+                    var shader = new Shader(); var source = new VanillaGraphicsExpanded.Rendering.GpuTextureRef(new object());
+                    var work = new VanillaGraphicsExpanded.Rendering.GpuShaderStorageBuffer();
+                    shader.Source = source; shader.Output = new(source, 2, false, 3); shader.Work = work;
+                    var captured = shader.CaptureBindings();
+                    return (captured.Samplers[0].Texture == source) + ":" + captured.Images[0].View.Level + ":"
+                        + captured.Images[0].View.Layer + ":" + object.ReferenceEquals(captured.Buffers[0].Buffer.Resource, work);
                 }
             }
             """;
-        var runtime = GeneratorFixture.Generate(source, supportSource: support);
-        Assert.Equal("True:source;", runtime.Run());
-        Assert.All(runtime.Generated, text => Assert.DoesNotContain("pipeline.ProgramLayout", text));
-        GeneratorFixture.Generate(source, true, supportSource: support).Compile();
+        Assert.Equal("True:2:3:True", GeneratorFixture.Generate(source, supportSource: RuntimeCaptureSupport.Source).Run());
+        var offline = GeneratorFixture.Generate(source, true, supportSource: RuntimeCaptureSupport.Source);
+        offline.Compile();
+        Assert.All(offline.Generated, text => Assert.DoesNotContain("CaptureBindingsCore", text));
     }
 
     /// <summary>Capture recognizes a concrete owner through an abstract family, without inspecting fields for a pipeline.</summary>
     [Fact]
-    public void AlternateAdapterResolvesInheritedPipelineField()
+    public void DerivedComputeOwnerCapturesInheritedAuthoredResources()
     {
         string source = """
             internal interface IResources
             {
                 [ShaderBinding("source", ShaderBindingKind.Sampler, 3, ShaderStageKind.Compute)]
-                VanillaGraphicsExpanded.Rendering.GpuTexture Source { set; }
+                VanillaGraphicsExpanded.Rendering.GpuTextureRef Source { get; }
             }
-            internal abstract class Adapter
+            internal abstract partial class Family : VanillaGraphicsExpanded.Rendering.GpuComputeProgram, IResources
             {
-                protected readonly VanillaGraphicsExpanded.Rendering.GpuComputePipeline pipeline = new();
-                public object Layout => pipeline.ProgramLayout;
+                public VanillaGraphicsExpanded.Rendering.GpuTextureRef Source { get; } = new(new object());
             }
             """ + Header + """
-            internal partial class Shader : Adapter, IResources { }
+            internal partial class Shader : Family { }
             public static class Proof
             {
                 public static string Run()
                 {
-                    var shader = new Shader(); var texture = new VanillaGraphicsExpanded.Rendering.GpuTexture();
-                    VanillaGraphicsExpanded.Rendering.ShaderBindingAccess.ExpectedLayout = shader.Layout;
-                    VanillaGraphicsExpanded.Rendering.ShaderBindingAccess.ExpectedTexture = texture;
-                    ((IResources)shader).Source = texture;
-                    return VanillaGraphicsExpanded.Rendering.ShaderBindingAccess.Calls;
+                    var shader = new Shader(); return (shader.CaptureBindings().Samplers[0].Texture == shader.Source).ToString();
                 }
             }
             """;
-        Assert.Equal("True:source;", GeneratorFixture.Generate(source, supportSource: BindingTests.RuntimeBindingSupport).Run());
-        GeneratorFixture.Generate(source, true, supportSource: BindingTests.RuntimeBindingSupport).Compile();
+        Assert.Equal("True", GeneratorFixture.Generate(source, supportSource: RuntimeCaptureSupport.Source).Run());
     }
 
     /// <summary>Diamonds retain one owner and derived redeclarations explicitly replace the inherited index.</summary>
@@ -189,15 +128,15 @@ public sealed class InterfaceBindingTests
                 VanillaGraphicsExpanded.Rendering.GpuTexture Source { ACCESSOR }
             }
             """.Replace("ACCESSOR", defaultBody ? "set { Observation.Calls++; }" : "set;") + Header +
-            "internal partial class Shader : VanillaGraphicsExpanded.Rendering.Shaders.GpuProgram, ISource { protected override void Submit() { } " +
+            "internal partial class Shader : VanillaGraphicsExpanded.Rendering.Shaders.GpuProgram, ISource { protected override VanillaGraphicsExpanded.Rendering.RHI.RHIResourceBindings CaptureBindingsCore() => new(Shader); " +
             (defaultBody ? "" : explicitImplementation
                 ? "VanillaGraphicsExpanded.Rendering.GpuTexture ISource.Source { set { Observation.Calls++; } }"
                 : "public VanillaGraphicsExpanded.Rendering.GpuTexture Source { set { Observation.Calls++; } }") +
             "}" + """
             public static class Proof { public static string Run() { ISource shader = new Shader(); shader.Source = new(); return Observation.Calls.ToString(); } }
             """;
-        Assert.Equal("1", GeneratorFixture.Generate(source, supportSource: BindingTests.RuntimeBindingSupport).Run());
-        GeneratorFixture.Generate(source, true, supportSource: BindingTests.RuntimeBindingSupport).Compile();
+        Assert.Equal("1", GeneratorFixture.Generate(source, supportSource: RuntimeCaptureSupport.Source).Run());
+        GeneratorFixture.Generate(source, true, supportSource: RuntimeCaptureSupport.Source).Compile();
     }
 
     /// <summary>An unannotated defining partial property preserves its authored name and is completed from interface metadata.</summary>
@@ -211,9 +150,9 @@ public sealed class InterfaceBindingTests
             }
             """ + Header + """
             internal partial class Shader : VanillaGraphicsExpanded.Rendering.Shaders.GpuProgram, ISource
-            { protected override void Submit() { } public partial VanillaGraphicsExpanded.Rendering.GpuTexture Source { set; } }
+            { public partial VanillaGraphicsExpanded.Rendering.GpuTexture Source { set; } }
             """;
-        var result = GeneratorFixture.Generate(source, supportSource: BindingTests.RuntimeBindingSupport);
+        var result = GeneratorFixture.Generate(source, supportSource: RuntimeCaptureSupport.Source);
         result.Compile();
         Assert.Contains(result.Generated, s => s.Contains("public partial global::VanillaGraphicsExpanded.Rendering.GpuTexture Source"));
     }
@@ -292,8 +231,8 @@ public sealed class InterfaceBindingTests
             [ShaderBindingSet(typeof(ISource))] internal static partial class Shader { }
             public static class Proof { public static string Run() => Shader.Contract.Stages[0].Bindings.Samplers["source"].Slot.ToString(); }
             """;
-        Assert.Equal("3", GeneratorFixture.Generate(source, supportSource: BindingTests.RuntimeBindingSupport).Run());
-        var offline = GeneratorFixture.Generate(source, true, supportSource: BindingTests.RuntimeBindingSupport);
+        Assert.Equal("3", GeneratorFixture.Generate(source, supportSource: RuntimeCaptureSupport.Source).Run());
+        var offline = GeneratorFixture.Generate(source, true, supportSource: RuntimeCaptureSupport.Source);
         offline.Compile();
         Assert.All(offline.Generated, s => Assert.DoesNotContain("GpuTexture", s));
     }
@@ -379,25 +318,30 @@ public sealed class InterfaceBindingTests
     }
     /// <summary>Authored resource getters preserve nullable state while capture freezes the supplied identity.</summary>
     [Fact]
-    public void AuthoredTextureSettersPreserveNamesAndNullBehavior()
+    public void AuthoredTextureAccessorsPreserveNullBehavior()
     {
         string source = """
-            interface IInputs
+            internal interface IInputs
             {
-                [ShaderBinding("depth", ShaderBindingKind.Sampler, 1, ShaderStageKind.Compute)] int PrimaryDepth { set; }
-                [ShaderBinding("history", ShaderBindingKind.Sampler, 2, ShaderStageKind.Compute)] VanillaGraphicsExpanded.Rendering.GpuTexture? History { set; }
+                [ShaderBinding("history", ShaderBindingKind.Sampler, 1, ShaderStageKind.Compute)]
+                VanillaGraphicsExpanded.Rendering.GpuTexture History { get; set; }
             }
             """ + Header + """
-            internal partial class Shader : IInputs
+            internal partial class Shader : VanillaGraphicsExpanded.Rendering.GpuComputeProgram, IInputs
             {
-                public string Calls = "";
-                public int PrimaryDepth { set => Calls += "nearest:" + value + ";"; }
-                public VanillaGraphicsExpanded.Rendering.GpuTexture? History { set => Calls += value == null ? "unbind;" : "history;"; }
+                public VanillaGraphicsExpanded.Rendering.GpuTexture History { get; set; }
             }
-            public static class Proof { public static string Run() { var shader = new Shader(); shader.PrimaryDepth = 7; shader.History = null; return shader.Calls; } }
+            public static class Proof
+            {
+                public static string Run()
+                {
+                    var shader = new Shader(); shader.History = new(); var first = shader.CaptureBindings();
+                    shader.History = null; var cleared = shader.CaptureBindings();
+                    return (first.Samplers[0].Texture.Resource != null) + ":" + (cleared.Samplers[0].Texture.Resource == null);
+                }
+            }
             """;
-        Assert.Equal("nearest:7;unbind;", GeneratorFixture.Generate(source, supportSource: BindingTests.RuntimeBindingSupport).Run());
-        GeneratorFixture.Generate(source, true, supportSource: BindingTests.RuntimeBindingSupport).Compile();
+        Assert.Equal("True:True", GeneratorFixture.Generate(source, supportSource: RuntimeCaptureSupport.Source).Run());
     }
 
     /// <summary>A texture ID requires authored target/sampler selection instead of a guessed generated binding.</summary>
@@ -406,7 +350,7 @@ public sealed class InterfaceBindingTests
     {
         string source = "interface IInputs { [ShaderBinding(\"depth\", ShaderBindingKind.Sampler, 1, ShaderStageKind.Compute)] int PrimaryDepth { set; } }" +
             Header + "internal partial class Shader : IInputs { }";
-        Assert.Contains(GeneratorFixture.Generate(source).Diagnostics, d => d.GetMessage().Contains("authored setter"));
+        Assert.Contains(GeneratorFixture.Generate(source).Diagnostics, d => d.GetMessage().Contains("unsupported type/accessors for Sampler", StringComparison.OrdinalIgnoreCase));
     }
 
     /// <summary>Public GPU buffer types produce directly callable properties on public shader owners.</summary>
@@ -420,25 +364,23 @@ public sealed class InterfaceBindingTests
                 [ShaderBinding("Work", ShaderBindingKind.StorageBlock, 2, ShaderStageKind.Compute)] VanillaGraphicsExpanded.Rendering.GpuShaderStorageBuffer Work { set; }
             }
             """ + Header + """
-            public partial class Shader : VanillaGraphicsExpanded.Rendering.Shaders.GpuProgram, IInputs { protected override void Submit() { } }
+            public partial class Shader : VanillaGraphicsExpanded.Rendering.Shaders.GpuProgram, IInputs { }
             public static class Proof
             {
                 public static string Run()
                 {
                     var shader = new Shader();
                     var buffer = new VanillaGraphicsExpanded.Rendering.GpuUniformBuffer();
-                    VanillaGraphicsExpanded.Rendering.ShaderBindingAccess.ExpectedLayout = shader.ProgramLayout;
-                    VanillaGraphicsExpanded.Rendering.ShaderBindingAccess.ExpectedUniform = buffer;
                     shader.Parameters = buffer;
                     var storage = new VanillaGraphicsExpanded.Rendering.GpuShaderStorageBuffer();
-                    VanillaGraphicsExpanded.Rendering.ShaderBindingAccess.ExpectedStorage = storage;
                     shader.Work = storage;
-                    return VanillaGraphicsExpanded.Rendering.ShaderBindingAccess.Calls;
+                    var captured = shader.CaptureBindings();
+                    return object.ReferenceEquals(captured.Buffers[0].Buffer.Resource, buffer) + ":" + object.ReferenceEquals(captured.Buffers[1].Buffer.Resource, storage);
                 }
             }
             """;
-        string support = BindingTests.RuntimeBindingSupport;
-        Assert.Equal("True:Params;True:Work;", GeneratorFixture.Generate(source, supportSource: support).Run());
+        string support = RuntimeCaptureSupport.Source;
+        Assert.Equal("True:True", GeneratorFixture.Generate(source, supportSource: support).Run());
         GeneratorFixture.Generate(source, true, supportSource: support).Compile();
     }
     #endregion

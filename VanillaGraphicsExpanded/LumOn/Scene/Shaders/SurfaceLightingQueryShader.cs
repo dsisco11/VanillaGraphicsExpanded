@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.ShaderCompilation;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Contracts;
 namespace VanillaGraphicsExpanded.LumOn.Scene.Shaders;
@@ -9,5 +10,5 @@ namespace VanillaGraphicsExpanded.LumOn.Scene.Shaders;
 internal sealed partial class SurfaceLightingQueryShader : TraceGeometryComputeShader, ISurfaceLightingQueryShaderBindings
 {
     /// <summary>Adopts the linked executable for retained input submission.</summary>
-    public SurfaceLightingQueryShader(GpuComputePipeline pipeline) : base(pipeline) { }
+    public SurfaceLightingQueryShader(ComputeShaderAsset pipeline) : base(pipeline) { }
 }

@@ -142,7 +142,7 @@ public partial class LumOnDebugShaderProgram : LumOnShaderProgram, ILumOnDebugSh
     /// <summary>
     /// Primary depth texture.
     /// </summary>
-    public partial int PrimaryDepth { set; }
+    public partial GpuTextureRef PrimaryDepth { set; }
 
     /// <summary>
     /// G-buffer normals texture.
@@ -152,7 +152,7 @@ public partial class LumOnDebugShaderProgram : LumOnShaderProgram, ILumOnDebugSh
     /// <summary>
     /// PatchId G-buffer (RGBA32UI) used by LumonScene debug views.
     /// </summary>
-    public partial int GBufferPatchId { set; }
+    public partial GpuTextureRef GBufferPatchId { set; }
 
     /// <summary>
     /// Probe anchor positions (posWS.xyz, valid).

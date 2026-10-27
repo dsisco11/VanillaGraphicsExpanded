@@ -30,10 +30,10 @@ public abstract partial class GpuProgram : IDisposable, IGpuProgram
     #region Fields
 
     private GpuProgramLayout? programLayout;
-    private GpuProgramObject? executable;
+    private RHI.RHIShader? executable;
 
     /// <summary>Gets the installed native executable without transferring ownership.</summary>
-    public int ProgramId => executable?.ProgramId ?? 0;
+    public int ProgramId => executable?.Program.ProgramId ?? 0;
     /// <summary>Names this declaration for lookup and diagnostics.</summary>
     public string PassName { get; set; } = string.Empty;
     /// <summary>Selects the built asset domain.</summary>
@@ -62,7 +62,15 @@ public abstract partial class GpuProgram : IDisposable, IGpuProgram
     /// <summary>
     /// Returns <c>true</c> when this program has a non-zero <see cref="ProgramId"/>.
     /// </summary>
-    public bool IsLinked => ProgramId != 0 && !lifetime.IsRetired && executable?.NeedsNativePreparation != true;
+    public bool IsLinked
+    {
+        get
+        {
+            if (lifetime.IsRetired || executable is null) return false;
+            try { executable.RequireUsable(); return true; }
+            catch (InvalidOperationException) { return false; }
+        }
+    }
 
     /// <summary>
     /// Program identity used for GL debug labels and explicit catalog lookup by generic owners.
@@ -121,42 +129,6 @@ public abstract partial class GpuProgram : IDisposable, IGpuProgram
         AssetDomain = source.Domain;
     }
 
-    #endregion
-
-
-    #region Program Binding
-
-    /// <summary>Publishes inputs and restores the enclosing owner's inputs on scope exit.</summary>
-    public ProgramUseScope UseScope() => (ProgramUseScope)((IGpuProgram)this).BeginUse();
-    /// <summary>Lets complete boundaries restore resource snapshots without redundant publication.</summary>
-    internal ProgramUseScope UseScope(bool replayInputs) => (ProgramUseScope)((IGpuProgram)this).BeginUse(replayInputs);
-    /// <summary>Captures restoration in the existing context-aware program tracker.</summary>
-    IDisposable IGpuProgram.OpenUseScope(bool replayInputs) => new ProgramUseScope(StateCache.Current.CaptureProgramScope(replayInputs));
-    /// <summary>
-    /// Attempts to bind this program.
-    /// </summary>
-    public bool TryUse()
-    {
-        try { Use(); return true; }
-        catch { return false; }
-    }
-    /// <summary>
-    /// Unbinds any program (binds program 0).
-    /// </summary>
-    public static void Unuse()
-    {
-        StateCache.Current.UnbindProgram();
-    }
-
-    /// <summary>Shares one exactly-once restoration token between scope copies.</summary>
-    public readonly struct ProgramUseScope : IDisposable
-    {
-        private readonly IDisposable? token;
-        /// <summary>Wraps the existing program tracker token.</summary>
-        internal ProgramUseScope(IDisposable token) => this.token = token;
-        /// <summary>Restores through the originating tracked lifetime.</summary>
-        public void Dispose() => token?.Dispose();
-    }
     #endregion
 
 

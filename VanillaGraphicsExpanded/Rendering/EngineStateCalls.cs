@@ -83,11 +83,11 @@ internal static partial class EngineStateCalls
 
     #region Bindings
     /// <summary>Records a native executable switch while retaining the surrounding engine shader lifecycle.</summary>
-    public static void UseProgram(int program) => CurrentCache.ExecuteCoreUseProgram(program);
+    public static void UseProgram(int program) => OpenGLProgramCalls.ExecuteCoreUseProgram(program);
     /// <summary>Publishes the selected vertex array and its element-buffer association.</summary>
-    public static void BindVertexArray(int array) => CurrentCache.ExecuteCoreBindVertexArray(array);
+    public static void BindVertexArray(int array) => OpenGLVertexCalls.ExecuteCoreBindVertexArray(array);
     /// <summary>Preserves combined and independent read/draw framebuffer targets.</summary>
-    public static void BindFramebuffer(FramebufferTarget target, int framebuffer) => CurrentCache.ExecuteFramebufferBinding(target, framebuffer);
+    public static void BindFramebuffer(FramebufferTarget target, int framebuffer) => OpenGLFramebufferSelection.ExternalBind(target, framebuffer);
     /// <summary>Publishes a renderbuffer binding, preserving unsupported enum behavior.</summary>
     public static void BindRenderbuffer(RenderbufferTarget target, int renderbuffer) => OpenGLImageBindingCalls.BindRenderbuffer(target, renderbuffer);
     /// <summary>Preserves the original native active-unit call without suppression.</summary>
@@ -105,9 +105,9 @@ internal static partial class EngineStateCalls
         OpenGLBufferBindingCalls.BindBufferRange(target, index, buffer, offset, size);
     /// <summary>Publishes an image unit including the complete image-view selection.</summary>
     public static void BindImageTexture(int unit, int texture, int level, bool layered, int layer, TextureAccess access, SizedInternalFormat format) =>
-        CurrentCache.BindImageTexture(unit, texture, level, layered, layer, access, format);
+        OpenGLImageBindingCalls.BindImageTexture(unit, texture, level, layered, layer, access, format);
     /// <summary>Publishes a separable shader pipeline binding.</summary>
-    public static void BindProgramPipeline(int pipeline) => CurrentCache.ExecuteCoreBindProgramPipeline(pipeline);
+    public static void BindProgramPipeline(int pipeline) => OpenGLProgramCalls.ExecuteCoreBindProgramPipeline(pipeline);
 
     #endregion
 
@@ -120,14 +120,8 @@ internal static partial class EngineStateCalls
     public static void DeleteBuffers(int count, ref int buffers) => OpenGLBufferDeletionCalls.Core.DeleteBuffers(count, ref buffers);
     /// <summary>Invalidates sampler bindings after engine retirement.</summary>
     public static void DeleteSampler(int sampler) => OpenGLImageDeletionCalls.Core.DeleteSampler(sampler);
-    /// <summary>Invalidates read/draw framebuffer bindings after engine retirement.</summary>
-    public static void DeleteFramebuffer(int framebuffer) => CurrentCache.DeleteFramebuffer(framebuffer);
     /// <summary>Observes engine renderbuffer retirement through the shared binding owner.</summary>
     public static void DeleteRenderbuffer(int renderbuffer) => OpenGLImageDeletionCalls.Core.DeleteRenderbuffer(renderbuffer);
-    /// <summary>Invalidates vertex-array-owned associations after engine retirement.</summary>
-    public static void DeleteVertexArray(int array) => CurrentCache.DeleteVertexArray(array);
-    /// <summary>Preserves deferred native program deletion and invalidates executable knowledge.</summary>
-    public static void DeleteProgram(int program) => CurrentCache.DeleteProgram(program);
     #endregion
     #endregion
     #region Private

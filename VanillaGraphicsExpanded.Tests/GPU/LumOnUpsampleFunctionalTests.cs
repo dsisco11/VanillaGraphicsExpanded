@@ -221,7 +221,7 @@ public class LumOnUpsampleFunctionalTests : LumOnShaderFunctionalTestBase
 
         // Bind inputs
         programId.IndirectHalf = halfResTex;
-        programId.PrimaryDepth = depthTex.TextureId;
+        programId.PrimaryDepth = depthTex;
         using var surfaceInput1 = LayeredTestTexture.Create(normalTex, null, null);
         programId.GBufferSurface = surfaceInput1;
 
@@ -301,7 +301,7 @@ public class LumOnUpsampleFunctionalTests : LumOnShaderFunctionalTestBase
 
             // Bind inputs
             programId.IndirectHalf = halfResTex;
-            programId.PrimaryDepth = depthTex.TextureId;
+            programId.PrimaryDepth = depthTex;
             using var surfaceInput2 = LayeredTestTexture.Create(normalTex, null, null);
             programId.GBufferSurface = surfaceInput2;
 
@@ -378,7 +378,7 @@ public class LumOnUpsampleFunctionalTests : LumOnShaderFunctionalTestBase
         SetupUpsampleUniforms(programId);
 
         programId.IndirectHalf = halfResTex;
-        programId.PrimaryDepth = depthTex.TextureId;
+        programId.PrimaryDepth = depthTex;
         using var surfaceInput3 = LayeredTestTexture.Create(normalTex, null, null);
         programId.GBufferSurface = surfaceInput3;
 
@@ -478,7 +478,7 @@ public class LumOnUpsampleFunctionalTests : LumOnShaderFunctionalTestBase
         SetupUpsampleUniforms(programId, depthSigma: 0.1f);
 
         programId.IndirectHalf = halfResTex;
-        programId.PrimaryDepth = depthTex.TextureId;
+        programId.PrimaryDepth = depthTex;
         using var surfaceInput4 = LayeredTestTexture.Create(normalTex, null, null);
         programId.GBufferSurface = surfaceInput4;
 
@@ -548,7 +548,7 @@ public class LumOnUpsampleFunctionalTests : LumOnShaderFunctionalTestBase
         SetupUpsampleUniforms(programId);
 
         programId.IndirectHalf = halfResTex;
-        programId.PrimaryDepth = depthTex.TextureId;
+        programId.PrimaryDepth = depthTex;
         using var surfaceInput5 = LayeredTestTexture.Create(normalTex, null, null);
         programId.GBufferSurface = surfaceInput5;
 
@@ -615,7 +615,7 @@ public class LumOnUpsampleFunctionalTests : LumOnShaderFunctionalTestBase
         SetupUpsampleUniforms(programId);
 
         programId.IndirectHalf = halfResTex;
-        programId.PrimaryDepth = depthTex.TextureId;
+        programId.PrimaryDepth = depthTex;
         using var surfaceInput6 = LayeredTestTexture.Create(normalTex, null, null);
         programId.GBufferSurface = surfaceInput6;
 
@@ -681,7 +681,7 @@ public class LumOnUpsampleFunctionalTests : LumOnShaderFunctionalTestBase
             SetupUpsampleUniforms(programId);
 
             programId.IndirectHalf = halfResTex;
-            programId.PrimaryDepth = depthTex.TextureId;
+            programId.PrimaryDepth = depthTex;
             using var surfaceInput7 = LayeredTestTexture.Create(normalTex, null, null);
             programId.GBufferSurface = surfaceInput7;
 
@@ -705,7 +705,7 @@ public class LumOnUpsampleFunctionalTests : LumOnShaderFunctionalTestBase
             SetupUpsampleUniforms(programId);
 
             programId.IndirectHalf = halfResTex;
-            programId.PrimaryDepth = depthTex.TextureId;
+            programId.PrimaryDepth = depthTex;
             using var surfaceInput8 = LayeredTestTexture.Create(normalTex, null, null);
             programId.GBufferSurface = surfaceInput8;
 
@@ -762,7 +762,7 @@ public class LumOnUpsampleFunctionalTests : LumOnShaderFunctionalTestBase
             SetupUpsampleUniforms(programId, spatialSigma: 0.5f);
 
             programId.IndirectHalf = halfResTex;
-            programId.PrimaryDepth = depthTex.TextureId;
+            programId.PrimaryDepth = depthTex;
             using var surfaceInput9 = LayeredTestTexture.Create(normalTex, null, null);
             programId.GBufferSurface = surfaceInput9;
 
@@ -796,7 +796,7 @@ public class LumOnUpsampleFunctionalTests : LumOnShaderFunctionalTestBase
             SetupUpsampleUniforms(programId, spatialSigma: 4.0f);
 
             programId.IndirectHalf = halfResTex;
-            programId.PrimaryDepth = depthTex.TextureId;
+            programId.PrimaryDepth = depthTex;
             using var surfaceInput10 = LayeredTestTexture.Create(normalTex, null, null);
             programId.GBufferSurface = surfaceInput10;
 
@@ -870,7 +870,7 @@ public class LumOnUpsampleFunctionalTests : LumOnShaderFunctionalTestBase
         SetupUpsampleUniforms(programId, depthSigma: 0.05f);  // Strict depth filtering
 
         programId.IndirectHalf = halfResTex;
-        programId.PrimaryDepth = depthTex.TextureId;
+        programId.PrimaryDepth = depthTex;
         using var surfaceInput11 = LayeredTestTexture.Create(normalTex, null, null);
         programId.GBufferSurface = surfaceInput11;
 

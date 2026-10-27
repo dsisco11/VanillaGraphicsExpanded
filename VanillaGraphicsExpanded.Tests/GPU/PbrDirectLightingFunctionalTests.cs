@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using System.Numerics;
 
@@ -38,7 +39,7 @@ public sealed class PbrDirectLightingFunctionalTests : LumOnShaderFunctionalTest
         using var depth = TestFramework.CreateTexture(1, 1, PixelInternalFormat.R32f, [0f]);
         using var normal = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, [.5f, .5f, 1f, 1f]);
         using var material = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, [.5f, 0f, 0f, 0f]);
-        using var shadow = TestFramework.CreateTexture(1, 1, PixelInternalFormat.R32f, [1f]);
+        using var shadow = CreateShadowTexture();
         RenderDirectLighting(program, output, albedo, depth, normal, material, shadow, shadow,
             (0, 0, 1), (0, 0, 0), 0, default, default,
             authored: [new(new(0, 0, distance - 1), Vector3.One, lumens, 100)]);
@@ -70,7 +71,7 @@ public sealed class PbrDirectLightingFunctionalTests : LumOnShaderFunctionalTest
         using var depth = TestFramework.CreateTexture(1, 1, PixelInternalFormat.R32f, new[] { 0f });
         using var normal = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, new[] { .5f, .5f, 1f, 1f });
         using var material = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, new[] { .8f, metallic, 0f, transmission });
-        using var shadow = TestFramework.CreateTexture(1, 1, PixelInternalFormat.R32f, new[] { 1f });
+        using var shadow = CreateShadowTexture();
         RenderDirectLighting(program, output, color, depth, normal, material, shadow, shadow,
             lightDirection: (0f, 0f, -1f), rgbaLightIn: (1f, 1f, 1f), pointLightCount: 0,
             pointLightPos0: (0f, 0f, 0f), pointLightColor0: (0f, 0f, 0f));
@@ -109,7 +110,7 @@ public sealed class PbrDirectLightingFunctionalTests : LumOnShaderFunctionalTest
             using var primaryDepth = TestFramework.CreateTexture(1, 1, PixelInternalFormat.R32f, new[] { 0.0f });
             using var gBufferNormal = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, new[] { 0.5f, 0.5f, 1.0f, 1.0f });
             using var gBufferMaterial = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, new[] { roughness, 0.0f, 0.0f, 1.0f });
-            using var dummyShadow = TestFramework.CreateTexture(1, 1, PixelInternalFormat.R32f, new[] { 1.0f });
+            using var dummyShadow = CreateShadowTexture();
 
             RenderDirectLighting(programId, output,
                 primaryScene, primaryDepth, gBufferNormal, gBufferMaterial,
@@ -152,7 +153,7 @@ public sealed class PbrDirectLightingFunctionalTests : LumOnShaderFunctionalTest
             // Roughness, metallic, emissiveScalar, reflectivity
             using var gBufferMaterial = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, new[] { 0.5f, 0.0f, 0.0f, 0.0f });
 
-            using var dummyShadow = TestFramework.CreateTexture(1, 1, PixelInternalFormat.R32f, new[] { 1.0f });
+            using var dummyShadow = CreateShadowTexture();
 
             RenderDirectLighting(programId, output,
                 primaryScene, primaryDepth, gBufferNormal, gBufferMaterial,
@@ -194,7 +195,7 @@ public sealed class PbrDirectLightingFunctionalTests : LumOnShaderFunctionalTest
             using var primaryScene = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, new[] { 0.7f, 0.7f, 0.7f, 1f });
             using var primaryDepth = TestFramework.CreateTexture(1, 1, PixelInternalFormat.R32f, new[] { 0.0f });
             using var gBufferNormal = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, new[] { 0.5f, 0.5f, 1.0f, 1.0f });
-            using var dummyShadow = TestFramework.CreateTexture(1, 1, PixelInternalFormat.R32f, new[] { 1.0f });
+            using var dummyShadow = CreateShadowTexture();
 
             // Metallic = 1, emissive = 0
             using var gBufferMaterialMetal = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, new[] { 0.2f, 1.0f, 0.0f, 1.0f });
@@ -234,7 +235,7 @@ public sealed class PbrDirectLightingFunctionalTests : LumOnShaderFunctionalTest
         using var depth = TestFramework.CreateTexture(1, 1, PixelInternalFormat.R32f, [0f]);
         using var normal = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, [.5f, .5f, 1f, 1f]);
         using var material = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, [.5f, 0f, 0f, 0f]);
-        using var shadow = TestFramework.CreateTexture(1, 1, PixelInternalFormat.R32f, [1f]);
+        using var shadow = CreateShadowTexture();
         RenderDirectLighting(program, output, albedo, depth, normal, material, shadow, shadow,
             (0, 0, 1), (0, 0, 0), 1, (0, 0, 0), (2, 3, 4), inverseViewYaw: inverseViewYaw);
         var diffuse = ReadPixelFromAttachment(output, 0);
@@ -265,7 +266,7 @@ public sealed class PbrDirectLightingFunctionalTests : LumOnShaderFunctionalTest
         using var depth = TestFramework.CreateTexture(1, 1, PixelInternalFormat.R32f, new[] { 0f });
         using var normal = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, new[] { .5f, .5f, 1f, 1f });
         using var material = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, new[] { .5f, metallic, 0f, materialAlpha });
-        using var shadow = TestFramework.CreateTexture(1, 1, PixelInternalFormat.R32f, new[] { 1f });
+        using var shadow = CreateShadowTexture();
 
         RenderDirectLighting(program, output, albedo, depth, normal, material, shadow, shadow,
             (0f, 0f, 1f), (1f, 1f, 1f), 0, default, default);
@@ -301,7 +302,7 @@ public sealed class PbrDirectLightingFunctionalTests : LumOnShaderFunctionalTest
         using var depth = TestFramework.CreateTexture(1, 1, PixelInternalFormat.R32f, new[] { 0f });
         using var normal = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, new[] { .5f, .5f, 1f, 1f });
         using var material = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, new[] { .5f, 0f, 0f, 0f });
-        using var shadow = TestFramework.CreateTexture(1, 1, PixelInternalFormat.R32f, new[] { 1f });
+        using var shadow = CreateShadowTexture();
 
         RenderDirectLighting(program, output, albedo, depth, normal, material, shadow, shadow,
             (0f, 0f, lightZ), (irradiance, irradiance, irradiance), 0, default, default);
@@ -336,7 +337,7 @@ public sealed class PbrDirectLightingFunctionalTests : LumOnShaderFunctionalTest
             using var gBufferNormal = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, new[] { 0.5f, 0.5f, 1.0f, 1.0f });
 
             using var gBufferMaterial = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, new[] { 0.5f, 0.0f, emissiveScalar, 1.0f });
-            using var dummyShadow = TestFramework.CreateTexture(1, 1, PixelInternalFormat.R32f, new[] { 1.0f });
+            using var dummyShadow = CreateShadowTexture();
 
             // No lights at all
             RenderDirectLighting(programId, output,
@@ -387,7 +388,7 @@ public sealed class PbrDirectLightingFunctionalTests : LumOnShaderFunctionalTest
             using var primaryDepth = TestFramework.CreateTexture(1, 1, PixelInternalFormat.R32f, new[] { 0.0f });
             using var gBufferNormal = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, new[] { 0.5f, 0.5f, 1.0f, 1.0f });
             using var gBufferMaterial = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, new[] { 0.4f, 0.0f, 0.0f, 0.0f });
-            using var dummyShadow = TestFramework.CreateTexture(1, 1, PixelInternalFormat.R32f, new[] { 1.0f });
+            using var dummyShadow = CreateShadowTexture();
 
             // Depth zero at the center reconstructs viewPos=(0,0,-1).
             // Vanilla passes model-view transformed positions to applyLight, so its light arrays
@@ -468,6 +469,13 @@ public sealed class PbrDirectLightingFunctionalTests : LumOnShaderFunctionalTest
         }
 }
 
+    /// <summary>Supplies real depth storage for the comparison-sampler contract.</summary>
+    private static DepthTexture CreateShadowTexture()
+    {
+        var texture=new DepthTexture(1,1,PixelInternalFormat.DepthComponent32f);
+        texture.UploadDataImmediate([1f]);return texture;
+    }
+
     /// <summary>Uses the reusable binary direct-lighting fixture.</summary>
     private PBRDirectLightingShaderProgram CompilePbrDirectLightingProgram() => Programs.Create<PBRDirectLightingShaderProgram>();
 
@@ -504,8 +512,8 @@ public sealed class PbrDirectLightingFunctionalTests : LumOnShaderFunctionalTest
         DynamicTexture2D primaryDepth,
         DynamicTexture2D gBufferNormal,
         DynamicTexture2D gBufferMaterial,
-        DynamicTexture2D shadowNear,
-        DynamicTexture2D shadowFar,
+        DepthTexture shadowNear,
+        DepthTexture shadowFar,
         (float x, float y, float z) lightDirection,
         (float r, float g, float b) rgbaLightIn,
         int pointLightCount,
@@ -515,7 +523,7 @@ public sealed class PbrDirectLightingFunctionalTests : LumOnShaderFunctionalTest
         float inverseViewYaw = 0,
         PunctualLight[]? authored = null)
     {
-        output.BindWithViewport();
+        FramebufferTestSetup.BindForEngineRendering(output);
         GL.ClearColor(0f, 0f, 0f, 0f);
         GL.Clear(ClearBufferMask.ColorBufferBit);
 
@@ -525,11 +533,11 @@ public sealed class PbrDirectLightingFunctionalTests : LumOnShaderFunctionalTest
         using var surface = LayeredTestTexture.Create(gBufferNormal, gBufferMaterial, environment);
         programId.GBufferSurface = surface;
         using var position = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba32f, new float[4]);
-        programId.GBufferPosition = position.TextureId;
-        programId.PrimaryScene = primaryScene.TextureId;
-        programId.PrimaryDepth = primaryDepth.TextureId;
-        programId.ShadowMapNear = shadowNear.TextureId;
-        programId.ShadowMapFar = shadowFar.TextureId;
+        programId.GBufferPosition = position;
+        programId.PrimaryScene = primaryScene;
+        programId.PrimaryDepth = primaryDepth;
+        programId.ShadowMapNear = shadowNear;
+        programId.ShadowMapFar = shadowFar;
 
         // Identity matrices
         float[] identity =
@@ -601,7 +609,7 @@ public sealed class PbrDirectLightingFunctionalTests : LumOnShaderFunctionalTest
         DynamicTexture2D gBufferNormal,
         DynamicTexture2D primaryDepth)
     {
-        output.BindWithViewport();
+        FramebufferTestSetup.BindForEngineRendering(output);
         GL.ClearColor(0f, 0f, 0f, 0f);
         GL.Clear(ClearBufferMask.ColorBufferBit);
 
@@ -610,12 +618,12 @@ public sealed class PbrDirectLightingFunctionalTests : LumOnShaderFunctionalTest
         programId.DirectLighting = lightingArray;
         using var position = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba32f, new float[4]);
         using var environment = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, new float[4]);
-        programId.GBufferPosition = position.TextureId;
+        programId.GBufferPosition = position;
         using var surface = LayeredTestTexture.Create(gBufferNormal, gBufferMaterial, environment);
         programId.GBufferSurface = surface;
         programId.IndirectDiffuse = indirectDiffuse;
-        programId.GBufferAlbedo = gBufferAlbedo.TextureId;
-        programId.PrimaryDepth = primaryDepth.TextureId;
+        programId.GBufferAlbedo = gBufferAlbedo;
+        programId.PrimaryDepth = primaryDepth;
 
         // Disable LumOn + fog
         programId.IndirectIntensity = 0f;
@@ -638,7 +646,11 @@ public sealed class PbrDirectLightingFunctionalTests : LumOnShaderFunctionalTest
         GL.Disable(EnableCap.DepthTest);
         GL.Disable(EnableCap.Blend);
 
-        TestFramework.RenderQuadTo(programId, output);
+        // This oracle inspects final color only; refraction outputs are deliberately discarded.
+        var pass=FramebufferTestSetup.DescribeAttachments(output,[
+            new(AttachmentIndex:0,Load:AttachmentLoad.Clear,Clear:ColorClearValue.Float(0,0,0,0)),
+            new(DiscardOutput:true),new(DiscardOutput:true)]);
+        TestFramework.RenderQuadTo(programId, pass);
 
         GpuFramebuffer.Unbind();
     }

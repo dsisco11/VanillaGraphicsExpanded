@@ -1,3 +1,5 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
+using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.PBR;
 using VanillaGraphicsExpanded.Rendering;
@@ -31,12 +33,12 @@ public sealed class PbrBlockFieldRasterTests(HeadlessGLFixture fixture) : Render
         using var texture = framework.CreateTexture(1, 1, PixelInternalFormat.Rgba32f, [1f, 1f, 1f, 1f]);
         using var camera = TestFrameCamera.CreateIdentity(8, 8);
         camera.SetLightingCalibration(LightingCalibration.Default);
-        Assert.True(camera.TryBindToSlot(GpuBindingRegistry.Ubo.Frame));
+        Assert.True(RHICommandContext.Current.OpenGL.BindEngineUniform(GpuBindingRegistry.Ubo.Frame, camera.Capture()));
         int buffer = GL.GenBuffer();
         try
         {
-            StateCache.Current.UseProgram(program.ProgramId);
-            StateCache.Current.BindVertexArray(vao.VertexArrayId);
+            OpenGLProgramSelection.Select(StateCache.Current, program.ProgramId);
+            OpenGLVertexSelection.Bind(StateCache.Current, vao.VertexArrayId);
             // The lower edge spans neutral floor to torch. All three clip-space W values are one,
             // so interior samples have a known affine raw field without a hand-authored fragment varying.
             float floor = 10f / 255;
@@ -70,7 +72,7 @@ public sealed class PbrBlockFieldRasterTests(HeadlessGLFixture fixture) : Render
             texture.Bind(0);
             GL.Disable(EnableCap.DepthTest); GL.Disable(EnableCap.Blend); GL.Disable(EnableCap.CullFace);
             GL.Disable(EnableCap.ScissorTest); GL.ColorMask(true, true, true, true);
-            target.BindWithViewport(); GL.DrawArrays(PrimitiveType.Triangles, 0, 3);
+            FramebufferTestSetup.BindForEngineRendering(target); GL.DrawArrays(PrimitiveType.Triangles, 0, 3);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
             float[] pixels = target[7].ReadPixels();
             for (int column = 0; column < 7; column++)

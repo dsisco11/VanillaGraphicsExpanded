@@ -31,13 +31,9 @@ internal abstract class TerrainCaptureProgram : GpuProgram
     }
     #endregion
     #region Protected API
-    /// <summary>Validates and publishes the numeric block through the prepared shader contract.</summary>
-    protected override void Submit()
-    {
-        var block = ShaderPreparedSubmission.Resolve(this, GpuBindingEntry.Identity(ShaderBindingKind.UniformBlock, "TerrainCaptureInputs"));
-        ShaderPreparedSubmission.ValidateUniformBlock(block, inputs);
-        ShaderPreparedSubmission.UniformBlock(block, inputs);
-    }
+    /// <summary>Captures the fixture block without allocating uniform storage or binding a native executable.</summary>
+    protected override VanillaGraphicsExpanded.Rendering.RHI.RHIResourceBindings CaptureBindingsCore() =>
+        new(Shader, uniforms: [new(GpuBindingEntry.Identity(ShaderBindingKind.UniformBlock, "TerrainCaptureInputs"), inputs.Capture())]);
     #endregion
 }
 

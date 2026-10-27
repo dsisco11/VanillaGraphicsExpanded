@@ -12,9 +12,9 @@ namespace VanillaGraphicsExpanded.PBR.Atmosphere.Celestial;
 /// <summary>Owns one persistent immutable instance stream and its procedural six-vertex billboard geometry.</summary>
 internal sealed class CelestialStarGeometry : IDisposable
 {
-    internal static readonly VertexLayoutDesc Layout = new([
-        new(0, 4, VertexAttribPointerType.Float, VertexInterpretation.Floating, 0, 0, 32, 1),
-        new(1, 4, VertexAttribPointerType.Float, VertexInterpretation.Floating, 0, 16, 32, 1)]);
+    internal static readonly RHIVertexLayout Layout = new([
+        new(0, 4, VertexComponentFormat.Float, VertexInterpretation.Floating, 0, 0, 32, 1),
+        new(1, 4, VertexComponentFormat.Float, VertexInterpretation.Floating, 0, 16, 32, 1)]);
     private readonly GpuResourceCollection owned = new();
     /// <summary>Contains the VAO borrowing this owner's instance stream.</summary>
     internal ArrayGraphicsGeometry Geometry { get; }
@@ -36,7 +36,7 @@ internal sealed class CelestialStarGeometry : IDisposable
             }
             var stream = owned.Own(RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = "Celestial.Stars" }).RequireResource());
             stream.UploadData(data);
-            Geometry = new(Layout, PrimitiveType.Triangles, new Dictionary<int,GpuVbo> { [0] = stream });
+            Geometry = new(Layout, PrimitiveTopology.Triangles, new Dictionary<int,GpuVbo> { [0] = stream });
         }
         catch { owned.Dispose(); throw; }
     }

@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.ShaderCompilation;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Contracts;
 
@@ -14,7 +15,7 @@ internal sealed partial class LumonSceneSurfaceLightingShader : TraceGeometryCom
     /// <summary>Retains an explicit calibration publication for isolated compute submission.</summary>
     internal VgeFrameUniformBuffer FrameInputs { set { RequireInputMutation(); frameInputs = value; } }
     /// <summary>Adopts the linked executable for retained input submission.</summary>
-    public LumonSceneSurfaceLightingShader(GpuComputePipeline pipeline) : base(pipeline) { }
+    public LumonSceneSurfaceLightingShader(ComputeShaderAsset pipeline) : base(pipeline) { }
     #endregion
     #region Private
     /// <summary>Uses the shared world calibration unless the caller supplied an isolated snapshot.</summary>

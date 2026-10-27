@@ -11,18 +11,18 @@ internal sealed class AmbientOcclusionPass : IDisposable
     private readonly MinimumChildMaskPass minimumChildren=new();
     private long targetStorageBytes;
     private DynamicTexture2D? raw,filtered,output;
-    private StaticGpuFramebuffer? rawTarget,filteredTarget,outputTarget;
+    private RHIRenderPassDescription? rawTarget,filteredTarget,outputTarget;
     private AmbientOcclusionQuality quality;
     private PostSsaoShaderProgram? horizon;
     private AmbientOcclusionFilterShaderProgram? filter;
-    private GraphicsPipeline? horizonPipeline,filterPipeline;
+    private RHIGraphicsPipeline? horizonPipeline,filterPipeline;
     #region Public API
     /// <summary>Publishes visibility and its receiver depth only after the owner completes submission.</summary>
     internal GpuTexture? Texture=>output;
     /// <summary>Reports allocated texel bytes without including driver metadata.</summary>
     internal long StorageBytes => targetStorageBytes+minimumChildren.StorageBytes;
     /// <summary>Reuses stable resources and prepares all executable contracts outside the command boundary.</summary>
-    internal GraphicsPipeline[] Prepare(PostprocessDraw draw,int width,int height,int nativeQuality,
+    internal RHIGraphicsPipeline[] Prepare(PostprocessDraw draw,int width,int height,int nativeQuality,
         PostSsaoShaderProgram horizon,AmbientOcclusionFilterShaderProgram filter,MinimumChildMaskShaderProgram masks)
     {
         quality=AmbientOcclusionQuality.FromNative(nativeQuality);
@@ -38,13 +38,13 @@ internal sealed class AmbientOcclusionPass : IDisposable
         this.horizon=horizon;this.filter=filter;
         if(!horizon.EnsureReady() || !filter.EnsureReady())
             throw new InvalidOperationException("Ambient occlusion shaders are unavailable.");
-        horizonPipeline=draw.Prepare(horizon,rawTarget!.PreservePass);
-        filterPipeline=draw.Prepare(filter,filteredTarget!.PreservePass);
+        horizonPipeline=draw.Prepare(horizon,rawTarget!);
+        filterPipeline=draw.Prepare(filter,filteredTarget!);
         var maskPipeline=minimumChildren.Prepare(draw,width,height,masks);
         return [maskPipeline,horizonPipeline,filterPipeline];
     }
     /// <summary>Samples the shared hierarchy, integrates horizons and reconstructs visibility without feedback or history.</summary>
-    internal void Render(GraphicsCommandContext commands,PostprocessDraw draw,GpuTexture depth,GpuTexture surface,DynamicTexture2D hierarchy,VgeFrameUniformBuffer camera)
+    internal void Render(RHICommandContext commands,PostprocessDraw draw,GpuTexture depth,GpuTexture surface,DynamicTexture2D hierarchy,VgeFrameUniformBuffer camera)
     {
         var frame=new System.Numerics.Vector4(0,0,quality.Divisor,0);
         // Release one quarter of retained cosine-space occlusion per weaker radial observation; this is not a world-space thickness.
@@ -55,13 +55,13 @@ internal sealed class AmbientOcclusionPass : IDisposable
         horizon.DepthHierarchy=hierarchy;
         horizon.MinimumChildren=minimumChildren.Texture;
         horizon.Capture(camera,frame,sampling,distance);
-        draw.Submit(commands,horizonPipeline!,rawTarget!.PreservePass);
+        draw.Submit(commands,horizonPipeline!,rawTarget!,horizon!.CaptureBindings());
         filter!.DepthImage=depth;filter.SurfaceImage=surface;filter.SourceImage=raw;
         filter.Capture(camera,frame,sampling,distance);
-        draw.Submit(commands,filterPipeline!,filteredTarget!.PreservePass);
+        draw.Submit(commands,filterPipeline!,filteredTarget!,filter!.CaptureBindings());
         filter.SourceImage=filtered;frame.W=1;
         filter.Capture(camera,frame,sampling,distance);
-        draw.Submit(commands,filterPipeline!,outputTarget!.PreservePass);
+        draw.Submit(commands,filterPipeline!,outputTarget!,filter!.CaptureBindings());
     }
     /// <summary>Withdraws all resources together; no prior-frame image survives retirement.</summary>
     public void Dispose() {
@@ -72,11 +72,10 @@ internal sealed class AmbientOcclusionPass : IDisposable
     #endregion
     #region Private
     /// <summary>Owns sized storage and registers framebuffer borrowers in the same retirement collection.</summary>
-    private StaticGpuFramebuffer Create(int width,int height,PixelInternalFormat format,string name,out DynamicTexture2D texture) {
+    private RHIRenderPassDescription Create(int width,int height,PixelInternalFormat format,string name,out DynamicTexture2D texture) {
         texture=resources.Own(RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Format((OpenTK.Graphics.OpenGL.PixelInternalFormat)(format)), Width = System.Math.Max(1, width), Height = System.Math.Max(1, height), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = $"AmbientOcclusion.{name}" }).RequireResource());
         targetStorageBytes+=(long)width*height*8;
-        var attachment=resources.Own(GpuFramebufferAttachment.FromTexture(texture));
-        return resources.Own(StaticGpuFramebuffer.Create([attachment],debugName:$"AmbientOcclusion.{name}"));
+        return new([new(Image:RHIAttachment.FromTexture(texture))],label:$"AmbientOcclusion.{name}");
     }
     #endregion
 }

@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using System.Reactive.Linq;
 using VanillaGraphicsExpanded.ModSystems;
@@ -52,9 +53,9 @@ internal sealed class LightShaftOcclusionRenderer : IRenderer
         var settings=enablement.Settings.Value.Postprocess;
         draw??=new(); depth??=resources.Own(new BorrowedTexture(primary.DepthTextureId));
         var pipeline=shafts.Prepare(api,draw,primary.Width,primary.Height,native.LightShaftQuality,settings.LightShaftSamples,occlusionOnly:true);
-        if(!GraphicsCommandContext.TryRun("LightShafts.Occlusion",[pipeline],true,commands=>
-            shafts.Render(commands,draw,api,VgeFrameRenderer.Current,depth,depth,depth,(null,0),settings,occlusionOnly:true)))
-            throw new InvalidOperationException("Light-shaft occlusion graphics boundary was rejected.");
+        var commands=RHICommandContext.Current;
+        using var boundary=commands.EnterBoundary(new("LightShafts.Occlusion",true,graphics:[pipeline],operations:BoundaryOperations.RenderPasses));
+        boundary.Run(()=>shafts.Render(commands,draw,api,VgeFrameRenderer.Current,depth,depth,depth,(null,0),settings,occlusionOnly:true));
         published=true;
     }
     /// <summary>Withdraws publication before unregistering and deleting its resources.</summary>
@@ -76,6 +77,6 @@ internal sealed class LightShaftOcclusionRenderer : IRenderer
         published=false; draw?.Dispose(); draw=null; shafts.Dispose(); resources.Dispose(); resources=new(); depth=null;
     }
     /// <summary>Invalidates screen and executable state on shader reload.</summary>
-    private bool Reload() { Retire(); return true; }
+    private bool Reload() { published=false; return true; }
     #endregion
 }

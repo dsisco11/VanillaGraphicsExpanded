@@ -114,7 +114,7 @@ public sealed class AtmosphereSkyIntegrationTests(HeadlessGLFixture fixture) : R
                 if (cycle == 3) events.Raise(value => value.LeaveWorld += null!);
                 Assert.False(AtmosphereSkyDrawHook.Prefix());
                 Assert.True(gbuffer.EnsureBuffers(2, 2));
-                engine.BindWithViewport();
+                FramebufferTestSetup.BindForEngineRendering(engine);
                 GL.ClearBuffer(ClearBuffer.Color, 0, new float[4]);
                 GL.ClearBuffer(ClearBuffer.Color, 1, new float[4]);
                 // Seed every attached metadata buffer so omitted writes cannot pass as coincidental zeros.
@@ -128,7 +128,7 @@ public sealed class AtmosphereSkyIntegrationTests(HeadlessGLFixture fixture) : R
                     else GL.ClearBuffer(ClearBuffer.Color, attachment, Enumerable.Repeat((float)attachment, 4).ToArray());
                 }
                 ShaderProgramBase.CurrentShaderProgram = null;
-                StateCache.Current.UseProgram(0);
+                OpenGLProgramSelection.Select(StateCache.Current, 0);
                 OpenGLImageBindings.BindTexture(StateCache.Current, TextureTarget.Texture2D, 0, liquidDepth.TextureId);
 #if DEBUG
                 long before = StateCache.Current.DrawSubmissions;
@@ -216,7 +216,7 @@ public sealed class AtmosphereSkyIntegrationTests(HeadlessGLFixture fixture) : R
         {
             lifetime.Shutdown();
             ShaderProgramBase.CurrentShaderProgram = null;
-            StateCache.Current.UseProgram(0);
+            OpenGLProgramSelection.Select(StateCache.Current, 0);
         }
     }
     #endregion

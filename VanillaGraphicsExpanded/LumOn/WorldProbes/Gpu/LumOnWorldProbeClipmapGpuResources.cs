@@ -23,8 +23,8 @@ internal sealed partial class LumOnWorldProbeClipmapGpuResources : IDisposable
 
     private readonly Texture2D debugState0;
 
-    private readonly StaticGpuFramebuffer fbo;
-    private readonly StaticGpuFramebuffer radianceFbo;
+    private readonly RHIRenderPassDescription metadataPass;
+    private readonly RHIRenderPassDescription radiancePass;
 
     public int Resolution => resolution;
     public int Levels => levels;
@@ -82,22 +82,16 @@ internal sealed partial class LumOnWorldProbeClipmapGpuResources : IDisposable
             // R=stale, G=in-flight, B=valid, A=1.
             debugState0 = owned.Own(RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba16, Width = System.Math.Max(1, AtlasWidth), Height = System.Math.Max(1, AtlasHeight), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "WorldProbe_DebugState0" }).RequireResource());
 
-            // NOTE: Radiance atlas has different dimensions than per-probe scalar atlases, so it must live in its own FBO.
-            radianceFbo = owned.Own(StaticGpuFramebuffer.Create([owned.Own(GpuFramebufferAttachment.FromTexture(radianceAtlas))],
-            debugName: "WorldProbe_RadianceAtlasFbo"));
-
-            // Per-probe scalar outputs.
-            fbo = owned.Own(StaticGpuFramebuffer.Create([owned.Own(GpuFramebufferAttachment.FromTexture(vis0)),
-            owned.Own(GpuFramebufferAttachment.FromTexture(dist0)), owned.Own(GpuFramebufferAttachment.FromTexture(meta0))],
-            debugName: "WorldProbe_ClipmapFbo"));
+            // Radiance and scalar images have independent extents and therefore independent pass intentions.
+            radiancePass=new([new(Image:RHIAttachment.FromTexture(radianceAtlas))],label:"WorldProbe.RadianceAtlas");
+            metadataPass=new([new(Image:RHIAttachment.FromTexture(vis0)),new(Image:RHIAttachment.FromTexture(dist0)),
+                new(Image:RHIAttachment.FromTexture(meta0))],label:"WorldProbe.Metadata");
 
             Label(radianceAtlas);
             Label(vis0);
             Label(dist0);
             Label(meta0);
             Label(debugState0);
-            GlDebug.TryLabelFramebuffer(fbo.FboId, fbo.DebugName);
-            GlDebug.TryLabelFramebuffer(radianceFbo.FboId, radianceFbo.DebugName);
 
             InitializeHistoryInvalidation(api);
             ClearAll();
@@ -110,10 +104,10 @@ internal sealed partial class LumOnWorldProbeClipmapGpuResources : IDisposable
     }
 
     /// <summary>Supplies the fixed three-output scalar atlas destination.</summary>
-    public StaticGpuFramebuffer GetFbo() => fbo;
+    public RHIRenderPassDescription MetadataPass => metadataPass;
 
     /// <summary>Supplies the fixed radiance atlas destination independently of resident probe contents.</summary>
-    public StaticGpuFramebuffer GetRadianceFbo() => radianceFbo;
+    public RHIRenderPassDescription RadiancePass => radiancePass;
 
     public void UploadDebugState0(ushort[] data)
     {

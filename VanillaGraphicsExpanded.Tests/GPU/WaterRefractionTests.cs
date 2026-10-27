@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Numerics;
@@ -188,9 +189,9 @@ public sealed class WaterRefractionTests(HeadlessGLFixture fixture, ITestOutputH
         program.WaterMediumRecordsTexture = mediumRecord;
         program.RefractionColorTexture = sceneColor;
         program.RefractionDepthTexture = sceneDepth;
-        program.TerrainTexture = terrain.TextureId;
+        program.TerrainTexture = terrain;
         program.MaterialParamsTexture = material;
-        program.DepthTexture = depth.TextureId;
+        program.DepthTexture = depth;
         program.AerialRadianceTexture = aerial;
         program.AerialAttenuationTexture = aerial;
         program.ShadowRanges = Vector4.Zero;
@@ -212,8 +213,8 @@ public sealed class WaterRefractionTests(HeadlessGLFixture fixture, ITestOutputH
         {
             // Constant cascade coordinates and depth zero establish complete solar occlusion.
             shadow.UploadDataImmediate(new float[] { 0 });
-            program.ShadowMapNear = shadow.TextureId;
-            program.ShadowMapFar = shadow.TextureId;
+            program.ShadowMapNear = shadow;
+            program.ShadowMapFar = shadow;
             program.ShadowRanges = new(100, 100, 0, 0);
             float[] matrix = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, .5f, .5f, .5f, 1];
             program.ShadowMatrixNear = matrix;
@@ -305,7 +306,7 @@ public sealed class WaterRefractionTests(HeadlessGLFixture fixture, ITestOutputH
         var state = StateCache.Current;
         using var fixedFunction = LegacyFixedFunctionReference.Capture(state);
         using var framebuffer = state.BindFramebufferScope(FramebufferTarget.Framebuffer, target.FboId);
-        target.BindWithViewport();
+        FramebufferTestSetup.BindForEngineRendering(target);
 
         state.Apply(new GlPipelineDesc(defaultMask: GlPipelineStateMask.From(GlPipelineStateId.DepthTestEnable)
             .With(GlPipelineStateId.CullFaceEnable).With(GlPipelineStateId.ScissorTestEnable).With(GlPipelineStateId.ColorMask)
@@ -313,27 +314,27 @@ public sealed class WaterRefractionTests(HeadlessGLFixture fixture, ITestOutputH
         using var vao = GpuVao.Create("Test.WaterCapture");
         using var vertices = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = "Test.WaterCapture.Vertices" }).RequireResource();
         using var flags = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = "Test.WaterCapture.Flags" }).RequireResource();
-        using var binding = vao.BindScope();
+        using var binding = StateCache.Current.BindVertexArrayScope(vao.VertexArrayId);
         using var indices = RHICommandContext.Current.CreateIndexBuffer(new RHIBufferDescription { Role = BufferRole.Index, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = "Test.WaterCapture.Indices" }).RequireResource();
         indices.UploadIndices(new uint[] { 0, 1, 2, 3, 4, 5 });
         using (vertices.BindScope())
         {
             vertices.UploadData(new float[6 * 11]);
-            vao.AttribPointer(0, 3, VertexAttribPointerType.Float, false, 44, 0);
-            vao.AttribPointer(1, 2, VertexAttribPointerType.Float, false, 44, 12);
-            vao.AttribPointer(2, 4, VertexAttribPointerType.Float, false, 44, 20);
-            vao.AttribPointer(4, 2, VertexAttribPointerType.Float, false, 44, 36);
+            using (StateCache.Current.BindVertexArrayScope(vao.VertexArrayId)) OpenGLVertexCalls.ExecuteCoreVertexAttribPointer(0, 3, VertexAttribPointerType.Float, false, 44, 0);
+            using (StateCache.Current.BindVertexArrayScope(vao.VertexArrayId)) OpenGLVertexCalls.ExecuteCoreVertexAttribPointer(1, 2, VertexAttribPointerType.Float, false, 44, 12);
+            using (StateCache.Current.BindVertexArrayScope(vao.VertexArrayId)) OpenGLVertexCalls.ExecuteCoreVertexAttribPointer(2, 4, VertexAttribPointerType.Float, false, 44, 20);
+            using (StateCache.Current.BindVertexArrayScope(vao.VertexArrayId)) OpenGLVertexCalls.ExecuteCoreVertexAttribPointer(4, 2, VertexAttribPointerType.Float, false, 44, 36);
         }
         using (flags.BindScope())
         {
             flags.UploadData(new int[18]);
-            vao.AttribIPointer(3, 1, VertexAttribIntegerType.Int, 12, 0);
-            vao.AttribIPointer(5, 1, VertexAttribIntegerType.Int, 12, 4);
-            vao.AttribIPointer(6, 1, VertexAttribIntegerType.Int, 12, 8);
+            using (StateCache.Current.BindVertexArrayScope(vao.VertexArrayId)) OpenGLVertexCalls.ExecuteCoreVertexAttribIPointer(3, 1, VertexAttribIntegerType.Int, 12, 0);
+            using (StateCache.Current.BindVertexArrayScope(vao.VertexArrayId)) OpenGLVertexCalls.ExecuteCoreVertexAttribIPointer(5, 1, VertexAttribIntegerType.Int, 12, 4);
+            using (StateCache.Current.BindVertexArrayScope(vao.VertexArrayId)) OpenGLVertexCalls.ExecuteCoreVertexAttribIPointer(6, 1, VertexAttribIntegerType.Int, 12, 8);
         }
         float validationSky = 1;
         program.RefractionEnabled = false;
-        target.Clear(0, 0, 0, 0);
+        FramebufferTestSetup.ClearAttachments(target, 0, 0, 0, 0);
         DrawBoundary(2, true);
         var baseline = target[1].ReadPixelsRegion(center, center, 1, 1);
         var baselineAccumulation = target[3].ReadPixelsRegion(center, center, 1, 1);
@@ -341,7 +342,7 @@ public sealed class WaterRefractionTests(HeadlessGLFixture fixture, ITestOutputH
         if (compatibility == FlowCase) program.Animation = new(0, 1, 0, 0);
         program.RefractionEnabled = true;
         Assert.Equal(1f, BitConverter.ToSingle(((ILiquidShaderProgramBindings)program).FrameParameters.Bytes.Slice(1352, 4)));
-        target.Clear(0, 0, 0, 0);
+        FramebufferTestSetup.ClearAttachments(target, 0, 0, 0, 0);
         DrawBoundary(2, true);
         var actual = target[1].ReadPixelsRegion(center, center, 1, 1);
         Assert.All(actual, value => Assert.True(float.IsFinite(value)));
@@ -373,7 +374,7 @@ public sealed class WaterRefractionTests(HeadlessGLFixture fixture, ITestOutputH
             Assert.All(accumulation.Take(3), value => Assert.InRange(MathF.Abs(value), 0, .00001f));
             // Restore sunlight and verify its independent Beer-Lambert/Henyey-Greenstein prediction.
             shadow!.UploadDataImmediate(new float[] { 1 });
-            target.Clear(0, 0, 0, 0);
+            FramebufferTestSetup.ClearAttachments(target, 0, 0, 0, 0);
             DrawBoundary(2, true);
             AssertReceiverGradient(target[3].ReadPixelsRegion(center, center, 1, 1), true, 1, refractionQuality);
         }
@@ -463,7 +464,7 @@ public sealed class WaterRefractionTests(HeadlessGLFixture fixture, ITestOutputH
                 foreach (bool enabled in new[] { false, true })
                 {
                     validationSky = sky; program.RefractionEnabled = enabled;
-                    target.Clear(0, 0, 0, 0); DrawBoundary(2, true);
+                    FramebufferTestSetup.ClearAttachments(target, 0, 0, 0, 0); DrawBoundary(2, true);
                     for (int attachment = 0; attachment < 6; attachment++)
                     {
                         float[] values = target[attachment].ReadPixelsRegion(center, center, 1, 1);
@@ -488,7 +489,7 @@ public sealed class WaterRefractionTests(HeadlessGLFixture fixture, ITestOutputH
                         program.SetFogSphereCount(0);
                         sharedLights.Capture(light == 2 ? 1 : 0, [0, 0, -12], [10000, 10000, 10000]);
                         program.RefractionEnabled = enabled;
-                        target.Clear(0, 0, 0, 0); DrawBoundary(2, true);
+                        FramebufferTestSetup.ClearAttachments(target, 0, 0, 0, 0); DrawBoundary(2, true);
                         for (int attachment = 0; attachment < 6; attachment++)
                         {
                             float[] values = target[attachment].ReadPixelsRegion(center, center, 1, 1);
@@ -531,11 +532,13 @@ public sealed class WaterRefractionTests(HeadlessGLFixture fixture, ITestOutputH
                 int measuredDraws = phaseMeasurement ? 128 : 16;
                 for (int sample = phaseMeasurement ? -5 : -2; sample < (phaseMeasurement ? 10 : 5); sample++)
                 {
-                    DrawBoundary(2, true); target.Clear(0, 0, 0, 0);
+                    DrawBoundary(2, true); FramebufferTestSetup.ClearAttachments(target, 0, 0, 0, 0);
                     using var elapsed = GpuTimerQuery.Create();
-                    using var shader = program.UseScope();
+                    using var shader = ShaderBindingTestPipeline.Create(program);
+        RHICommandContext.Current.SetPipeline(shader);
+        RHICommandContext.Current.BindResources(program.CaptureBindings());
                     elapsed.Begin();
-                    for (int draw = 0; draw < measuredDraws; draw++) vao.DrawElements(PrimitiveType.Triangles, indices);
+                    for (int draw = 0; draw < measuredDraws; draw++) GL.DrawElements(PrimitiveType.Triangles, indices.IndexCount, DrawElementsType.UnsignedInt, IntPtr.Zero);
                     elapsed.End();
                     double milliseconds = elapsed.GetResultNanoseconds() / 1e6;
                     if (sample >= 0) output.WriteLine($"surface-cost quality={refractionQuality} workload={workload} sample={sample} gpuMs={milliseconds:R} viewport=512x512 draws={measuredDraws}");
@@ -576,7 +579,7 @@ public sealed class WaterRefractionTests(HeadlessGLFixture fixture, ITestOutputH
                         compressed.Write(System.Runtime.InteropServices.MemoryMarshal.AsBytes(pixels.AsSpan()));
                     }
                 }
-                target.BindWithViewport();
+                FramebufferTestSetup.BindForEngineRendering(target);
             }
         }
 
@@ -623,9 +626,11 @@ public sealed class WaterRefractionTests(HeadlessGLFixture fixture, ITestOutputH
             }
             using (vertices.BindScope()) vertices.UploadData(data);
             using (flags.BindScope()) flags.UploadData(packed);
-            target.BindWithViewport();
-            using var shader = program.UseScope();
-            vao.DrawElements(PrimitiveType.Triangles, indices);
+            FramebufferTestSetup.BindForEngineRendering(target);
+            using var shader = ShaderBindingTestPipeline.Create(program);
+        RHICommandContext.Current.SetPipeline(shader);
+        RHICommandContext.Current.BindResources(program.CaptureBindings());
+            GL.DrawElements(PrimitiveType.Triangles, indices.IndexCount, DrawElementsType.UnsignedInt, IntPtr.Zero);
         }
     }
     #endregion

@@ -1,4 +1,6 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.Pipeline;
 using VanillaGraphicsExpanded.Rendering.Pipeline.Descriptions;
 using VanillaGraphicsExpanded.Rendering.Pipeline.State;
@@ -10,13 +12,13 @@ internal sealed partial class StateCache
 {
     #region Private
     /// <summary>Keeps draw test dependencies independent from write masks established by attachment clears.</summary>
-    private void ApplyPipelineDepthStencil(GraphicsPipelineDesc pipeline, GraphicsDynamicState dynamics,
+    private void ApplyPipelineDepthStencil(RHIGraphicsPipelineDescription pipeline, RHIDynamicState dynamics,
         GraphicsStateRelevance relevance)
     {
         var value = pipeline.DepthStencil;
         var depthGroups = relevance.Depth;
         if (depthGroups.HasFlag(DepthStateKnowledge.TestEnabled)) SetCapability(EnableCap.DepthTest, value.DepthTest);
-        if (depthGroups.HasFlag(DepthStateKnowledge.Comparison)) SetDepthFunc(value.DepthComparison);
+        if (depthGroups.HasFlag(DepthStateKnowledge.Comparison)) SetDepthFunc(OpenGLDepthStencilValues.DepthComparison(value.DepthComparison));
         if (depthGroups.HasFlag(DepthStateKnowledge.WriteEnabled)) SetDepthWriteMask(value.DepthWrite);
         if (depthGroups.HasFlag(DepthStateKnowledge.DepthRange)) SetDepthRange(value.DepthRangeNear, value.DepthRangeFar);
         var stencilGroups = relevance.Stencil;
@@ -24,15 +26,17 @@ internal sealed partial class StateCache
         var refs = pipeline.Dynamics.HasFlag(DynamicPipelineState.StencilReference)
             ? dynamics.StencilReference!.Value : (Front: 0, Back: 0);
         if (stencilGroups.HasFlag(StencilStateKnowledge.FrontStencilFunction))
-            SetStencilFunction(StencilFace.Front, value.Front.Comparison, refs.Front, value.Front.ReadMask);
+            SetStencilFunction(StencilFace.Front, OpenGLDepthStencilValues.StencilComparison(value.Front.Comparison), refs.Front, value.Front.ReadMask);
         if (stencilGroups.HasFlag(StencilStateKnowledge.BackStencilFunction))
-            SetStencilFunction(StencilFace.Back, value.Back.Comparison, refs.Back, value.Back.ReadMask);
+            SetStencilFunction(StencilFace.Back, OpenGLDepthStencilValues.StencilComparison(value.Back.Comparison), refs.Back, value.Back.ReadMask);
         if (stencilGroups.HasFlag(StencilStateKnowledge.FrontStencilMask)) SetStencilWriteMask(StencilFace.Front, value.Front.WriteMask);
         if (stencilGroups.HasFlag(StencilStateKnowledge.BackStencilMask)) SetStencilWriteMask(StencilFace.Back, value.Back.WriteMask);
         if (stencilGroups.HasFlag(StencilStateKnowledge.FrontStencilOperation))
-            SetStencilOperation(StencilFace.Front, value.Front.Fail, value.Front.DepthFail, value.Front.Pass);
+            SetStencilOperation(StencilFace.Front, OpenGLDepthStencilValues.ToNativeStencilOperation(value.Front.Fail),
+                OpenGLDepthStencilValues.ToNativeStencilOperation(value.Front.DepthFail), OpenGLDepthStencilValues.ToNativeStencilOperation(value.Front.Pass));
         if (stencilGroups.HasFlag(StencilStateKnowledge.BackStencilOperation))
-            SetStencilOperation(StencilFace.Back, value.Back.Fail, value.Back.DepthFail, value.Back.Pass);
+            SetStencilOperation(StencilFace.Back, OpenGLDepthStencilValues.ToNativeStencilOperation(value.Back.Fail),
+                OpenGLDepthStencilValues.ToNativeStencilOperation(value.Back.DepthFail), OpenGLDepthStencilValues.ToNativeStencilOperation(value.Back.Pass));
     }
     #endregion
 }

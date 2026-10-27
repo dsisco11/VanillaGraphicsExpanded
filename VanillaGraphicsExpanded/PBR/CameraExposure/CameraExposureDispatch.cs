@@ -34,16 +34,16 @@ internal static class CameraExposureDispatch
     /// <summary>Restores prepared resource slots and publishes writes to reduction and subsequent graphics consumers.</summary>
     internal static bool TryRun(CameraHistogramShaderProgram histogram, CameraAdaptShaderProgram adaptation)
     {
-        // Reflection remains executable-owned; the boundary only borrows the prepared footprints.
-        var resources = EngineBoundaryResources.From(histogram.ProgramLayout.BinaryInterface!.PreparedBindings)
-            .Union(EngineBoundaryResources.From(adaptation.ProgramLayout.BinaryInterface!.PreparedBindings));
-        return EngineBoundaryExecution.TryRun(new("Camera.Exposure"), resources, _ =>
+        var context=RHICommandContext.Current;
+        if(!context.TryEnterBoundary(new("Camera.Exposure",true,compute:[histogram.Pipeline,adaptation.Pipeline]),out var boundary)) return false;
+        using(boundary) boundary!.Run(()=>
         {
             histogram.Dispatch(CameraExposureTargets.HistogramGroupCount);
             RHICommandContext.Current.Barrier(new(ResourceAccess.ShaderStorage));
             adaptation.Dispatch(1);
             RHICommandContext.Current.Barrier(new(ResourceAccess.ShaderStorage));
         });
+        return true;
     }
     /// <summary>Publishes frozen scale writes through the existing prepared resource and restoration boundary.</summary>
     internal static bool TryFreeze(FrameLightingShaderProgram program)
@@ -51,12 +51,14 @@ internal static class CameraExposureDispatch
         GpuSupport.EnsureCurrentContext();
         if (!SupportsLighting(GpuSupport.Graphics))
             throw new InvalidOperationException("Physical frame storage requires five SSBO slots, two fragment storage blocks and the shared frame UBO.");
-        var resources = EngineBoundaryResources.From(program.ProgramLayout.BinaryInterface!.PreparedBindings);
-        return EngineBoundaryExecution.TryRun(new("Camera.FrozenLighting"), resources, _ =>
+        var context=RHICommandContext.Current;
+        if(!context.TryEnterBoundary(new("Camera.FrozenLighting",true,compute:[program.Pipeline]),out var boundary)) return false;
+        using(boundary) boundary!.Run(()=>
         {
             program.Dispatch(1);
             RHICommandContext.Current.Barrier(new(ResourceAccess.ShaderStorage));
         });
+        return true;
     }
     #endregion
 }

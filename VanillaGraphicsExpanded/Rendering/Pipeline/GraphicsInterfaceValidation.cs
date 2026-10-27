@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using System.Linq;
 using System.Collections.Generic;
@@ -13,17 +14,16 @@ internal static class GraphicsInterfaceValidation
 {
     #region Public API
     /// <summary>Rejects mismatched interfaces before publishing a realization.</summary>
-    internal static void Validate(GraphicsPipelineDesc description, GraphicsExecutableInterface executable)
+    internal static void Validate(RHIGraphicsPipelineDescription description, GraphicsExecutableInterface executable)
     {
-        ValidateDeclarations(executable);
         if (executable.GeometryInput is { } expected)
         {
             var produced = executable.TessellationOutput ?? description.Assembly.Topology switch
             {
-                PrimitiveType.LineStrip or PrimitiveType.LineLoop => PrimitiveType.Lines,
-                PrimitiveType.TriangleStrip or PrimitiveType.TriangleFan => PrimitiveType.Triangles,
-                PrimitiveType.LineStripAdjacency => PrimitiveType.LinesAdjacency,
-                PrimitiveType.TriangleStripAdjacency => PrimitiveType.TrianglesAdjacency,
+                PrimitiveTopology.LineStrip or PrimitiveTopology.LineLoop => PrimitiveTopology.Lines,
+                PrimitiveTopology.TriangleStrip or PrimitiveTopology.TriangleFan => PrimitiveTopology.Triangles,
+                PrimitiveTopology.LineStripAdjacency => PrimitiveTopology.LinesAdjacency,
+                PrimitiveTopology.TriangleStripAdjacency => PrimitiveTopology.TrianglesAdjacency,
                 var topology => topology
             };
             if (produced != expected) throw new InvalidOperationException("Geometry input is incompatible with the preceding primitive topology.");
@@ -63,11 +63,12 @@ internal static class GraphicsInterfaceValidation
                 }
             }
     }
-    /// <summary>Checks compiler declarations before a linked candidate can replace an installed executable.</summary>
-    internal static void ValidateDeclarations(GraphicsExecutableInterface executable)
+    /// <summary>Checks asset-selected compiler facts against the immutable linked snapshot without altering it.</summary>
+    internal static void ValidateDeclarations(GraphicsExecutableInterface executable,
+        IReadOnlyList<PackagedInterfaceVariable> inputs, IReadOnlyList<PackagedInterfaceVariable> outputs)
     {
-        ValidateVariables(executable.Inputs, executable.DeclaredInputs);
-        ValidateVariables(executable.Outputs, executable.DeclaredOutputs);
+        ValidateVariables(executable.Inputs, inputs);
+        ValidateVariables(executable.Outputs, outputs);
     }
     #endregion
 

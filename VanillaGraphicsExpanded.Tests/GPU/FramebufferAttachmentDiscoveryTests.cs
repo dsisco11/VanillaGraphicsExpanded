@@ -22,10 +22,12 @@ public sealed class FramebufferAttachmentDiscoveryTests(HeadlessGLFixture fixtur
         using var depth = new DepthTexture(2, 2, PixelInternalFormat.DepthComponent24);
         using var source = DynamicGpuFramebuffer.CreateSingle(color, depth)!;
         using var destination = CreateRenderTarget(2, 2, PixelInternalFormat.Rgba32f);
-        using var blitter = new GpuFramebufferBlitter(source, destination);
+        using var destinationDepth = new DepthTexture(2,2,PixelInternalFormat.DepthComponent24);
+        destination.Attach(destinationDepth);
+        var copy = FramebufferTestSetup.DescribeCopy(source, destination, retireDepth ? ImageAspects.Depth : ImageAspects.Color);
         if (retireDepth) depth.Dispose();
         else color.Dispose();
-        Assert.Throws<InvalidOperationException>(() => blitter.Blit());
+        Assert.Throws<InvalidOperationException>(() => RHICommandContext.Current.BlitImages(copy));
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
     /// <summary>Covered aliases retain observed ordinary attachment provenance and copy the selected array layer.</summary>
@@ -47,8 +49,12 @@ public sealed class FramebufferAttachmentDiscoveryTests(HeadlessGLFixture fixtur
             using var external = DynamicGpuFramebuffer.Wrap(source.FboId, width: 2, height: 2);
             using var output = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba32f, Width = System.Math.Max(1, 2), Height = System.Math.Max(1, 2), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
             using var destination = DynamicGpuFramebuffer.CreateSingle(output)!;
-            using var blitter = new GpuFramebufferBlitter(external, destination);
-            blitter.Blit();
+            var imported = GpuFramebufferAttachmentDiscovery.Read(external, FramebufferAttachment.ColorAttachment0);
+            using var importedTexture = new BorrowedTexture(imported.TextureId);
+            int selection = imported.Layer ?? (imported.CubeFace is { } face ? (int)face-(int)TextureTarget.TextureCubeMapPositiveX : 0);
+            var copy = new RHIImageBlit(RHIAttachment.FromTexture(importedTexture,new(imported.MipLevel,selection)),
+                new(0,0,2,2),FramebufferTestSetup.Select(destination.GetAttachment(FramebufferAttachment.ColorAttachment0)!),new(0,0,2,2));
+            RHICommandContext.Current.BlitImages(copy);
             Assert.Equal(new[] { 0.25f, 0.5f, 0.75f, 1f }, destination[0].ReadPixels()[..4]);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
@@ -59,7 +65,7 @@ public sealed class FramebufferAttachmentDiscoveryTests(HeadlessGLFixture fixtur
     [Theory]
     [InlineData(0)]
     [InlineData(1)]
-    public void LocalArrayAliasRejectsAmbiguousReplay(int layer)
+    public void LocalArrayAliasImportsSelectedImage(int layer)
     {
         EnsureContextValid();
         if (!GpuSupport.Graphics.SupportsOvrMultiview) return;
@@ -70,7 +76,8 @@ public sealed class FramebufferAttachmentDiscoveryTests(HeadlessGLFixture fixtur
         using var external = DynamicGpuFramebuffer.Wrap(source.FboId, width: 2, height: 2);
         using var output = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba32f, Width = System.Math.Max(1, 2), Height = System.Math.Max(1, 2), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         using var destination = DynamicGpuFramebuffer.CreateSingle(output)!;
-        Assert.Throws<NotSupportedException>(() => new GpuFramebufferBlitter(external, destination));
+        var imported=GpuFramebufferAttachmentDiscovery.Read(external,FramebufferAttachment.ColorAttachment0);
+        Assert.Equal(texture.TextureId,imported.TextureId);Assert.Equal(layer,imported.Layer);
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
 
@@ -98,8 +105,11 @@ public sealed class FramebufferAttachmentDiscoveryTests(HeadlessGLFixture fixtur
             GL.ClearBuffer(ClearBuffer.Color, 0, new[] { 0.125f, 0.25f, 0.5f, 1f });
             using var external = DynamicGpuFramebuffer.Wrap(source.FboId, width: 2, height: 2);
             using var destination = CreateRenderTarget(2, 2, PixelInternalFormat.Rgba32f);
-            using var blitter = new GpuFramebufferBlitter(external, destination);
-            blitter.Blit();
+            var imported=GpuFramebufferAttachmentDiscovery.Read(external,FramebufferAttachment.ColorAttachment0);
+            using var borrowedTexture=new BorrowedTexture(imported.TextureId);
+            var copy=new RHIImageBlit(RHIAttachment.FromTexture(borrowedTexture,new(imported.MipLevel,(int)imported.CubeFace!.Value-(int)TextureTarget.TextureCubeMapPositiveX)),
+                new(0,0,2,2),FramebufferTestSetup.Select(destination.GetAttachment(FramebufferAttachment.ColorAttachment0)!),new(0,0,2,2));
+            RHICommandContext.Current.BlitImages(copy);
             Assert.Equal(new[] { 0.125f, 0.25f, 0.5f, 1f }, destination[0].ReadPixels()[..4]);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }

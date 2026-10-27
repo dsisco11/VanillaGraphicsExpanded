@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering;
 using System;
 using System.Collections.Generic;
 
@@ -85,13 +86,14 @@ internal sealed class MaterialAtlasNormalDepthBuildRunner
                 continue;
             }
 
+            using var albedo = new BorrowedTexture(page.AtlasTextureId);
             _ = bakeByPage.TryGetValue(page.AtlasTextureId, out List<MaterialAtlasNormalDepthBuildPlan.BakeJob>? bakeJobs);
             _ = overridesByPage.TryGetValue(page.AtlasTextureId, out List<MaterialAtlasNormalDepthBuildPlan.OverrideJob>? overrideJobs);
 
             // Clear once per page, then bake per rect.
             MaterialAtlasNormalDepthGpuBuilder.ClearAtlasPage(
                 capi,
-                destNormalDepthTexId: pageTextures.NormalDepthTexture.TextureId,
+                destNormalDepthTexId: pageTextures.NormalDepthTexture,
                 atlasWidth: page.Width,
                 atlasHeight: page.Height);
 
@@ -128,8 +130,8 @@ internal sealed class MaterialAtlasNormalDepthBuildRunner
 
                     if (MaterialAtlasNormalDepthGpuBuilder.BakePerRect(
                         capi,
-                        baseAlbedoAtlasPageTexId: page.AtlasTextureId,
-                        destNormalDepthTexId: pageTextures.NormalDepthTexture.TextureId,
+                        baseAlbedoAtlasPageTexId: albedo,
+                        destNormalDepthTexId: pageTextures.NormalDepthTexture,
                         atlasWidth: page.Width,
                         atlasHeight: page.Height,
                         rectX: job.Rect.X,

@@ -1,3 +1,5 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
+using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.PBR.Tessellation;
 using VanillaGraphicsExpanded.Rendering;
@@ -83,7 +85,7 @@ internal sealed class TerrainDetailWorkload : IDisposable
                     """).Commit();
                 stages = stages with { Evaluation = tree.ToText() };
             }
-            Assert.True(TerrainTessellationLinker.TryCreate(vs,fs,stages,TerrainTessellationPatches.EnabledDefine,out int id,out string error),error);
+            Assert.True(TerrainShaderTestFixture.LinkTessellation(vs,fs,stages,TerrainTessellationPatches.EnabledDefine,out int id,out string error),error);
             programs.Add("adaptive",GpuProgramObject.Adopt(id));
         }
         string includes=Path.Combine(AppContext.BaseDirectory,"assets","shaders","includes");
@@ -104,7 +106,7 @@ internal sealed class TerrainDetailWorkload : IDisposable
         var missing=framework.CreateTexture(64,64,PixelInternalFormat.R32f,new float[4096]);resources.Add(missing);
         var zeroAmplitude=framework.CreateTexture(2,1,PixelInternalFormat.Rgba32f,[0,0,1,1,0,0,0,0]);resources.Add(zeroAmplitude);
         bindHeight=mode=>{if(mode=="adaptiveMissing")missing.Bind(0);else indices.Bind(0);if(mode=="adaptiveZeroAmplitude")zeroAmplitude.Bind(2);else records.Bind(2);if(mode=="adaptiveNeutral")neutral.Bind(1);else raised.Bind(1);};
-        var target=framework.CreateTestGBuffer(256,256,PixelInternalFormat.Rgba32f);resources.Add(target);bindTarget=()=>target.BindWithViewport();readTarget=()=>target[0].ReadPixels();
+        var target=framework.CreateTestGBuffer(256,256,PixelInternalFormat.Rgba32f);resources.Add(target);bindTarget=()=>FramebufferTestSetup.BindForEngineRendering(target);readTarget=()=>target[0].ReadPixels();
     }
 
     /// <summary>Selects one immutable shader variant and publishes identical inputs outside timing.</summary>
@@ -112,10 +114,10 @@ internal sealed class TerrainDetailWorkload : IDisposable
     {
         int id=programs[mode.StartsWith("adaptive",StringComparison.Ordinal)?"adaptive":mode].ProgramId;
         topology=mode is "triangles" or "relief" or "reliefOff" ? PrimitiveType.Triangles : PrimitiveType.Patches;
-        StateCache.Current.UseProgram(id);StateCache.Current.BindVertexArray(vao.VertexArrayId);StateCache.Current.SetPatchVertices(3);
+        OpenGLProgramSelection.Select(StateCache.Current, id);OpenGLVertexSelection.Bind(StateCache.Current, vao.VertexArrayId);StateCache.Current.SetPatchVertices(3);
         bindTarget();bindHeight(mode);
         // Publish this fixture's actual view instead of inheriting a prior test's camera range.
-        Assert.True(camera.TryBindToSlot(GpuBindingRegistry.Ubo.Frame));
+        Assert.True(RHICommandContext.Current.OpenGL.BindEngineUniform(GpuBindingRegistry.Ubo.Frame, camera.Capture()));
         GL.Disable(EnableCap.DepthTest);GL.Disable(EnableCap.CullFace);GL.Disable(EnableCap.Blend);
         var layout=GpuProgramLayout.TryBuild(id);
         ShaderTestFramework.SetUniform(layout.GetUniformLocation(id,"vge_displacementTex"),0);
@@ -139,7 +141,7 @@ internal sealed class TerrainDetailWorkload : IDisposable
     /// <summary>Restores topology state and releases all owned rendering resources.</summary>
     public void Dispose()
     {
-        StateCache.Current.UseProgram(0);StateCache.Current.BindVertexArray(0);StateCache.Current.SetPatchVertices(oldPatch);
+        OpenGLProgramSelection.Select(StateCache.Current, 0);OpenGLVertexSelection.Bind(StateCache.Current, 0);StateCache.Current.SetPatchVertices(oldPatch);
         foreach(var resource in resources)resource.Dispose();foreach(var program in programs.Values)program.Dispose();vao.Dispose();shaders.Dispose();framework.Dispose();
     }
     #endregion

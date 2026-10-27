@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Contracts;
 
 namespace VanillaGraphicsExpanded.DebugView;
@@ -9,5 +10,5 @@ internal interface IDebugTextureBindings
     /// <summary>Binds the selected debug texture to the stable fragment sampler slot.</summary>
     [ShaderBinding("scene", ShaderBindingKind.Sampler, 0, ShaderStageKind.Fragment,
         TextureTarget = ShaderTextureTarget.Texture2D, Sampler = ShaderSamplerPolicy.NearestClamp)]
-    int Scene { set; }
+    GpuTextureRef Scene { set; }
 }

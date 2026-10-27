@@ -193,13 +193,13 @@ internal sealed partial class GpuResourceManager : IRenderer, IDisposable
                         RHICommandContext.Current.OpenGL.DeleteBuffer((int)command.Id);
                         break;
                     case GpuResourceKind.VertexArray:
-                        StateCache.Current.DeleteVertexArray((int)command.Id);
+                        VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.OpenGL.DeleteVertexArray((int)command.Id);
                         break;
                     case GpuResourceKind.Texture:
                         RHICommandContext.Current.OpenGL.DeleteTexture((int)command.Id);
                         break;
                     case GpuResourceKind.Framebuffer:
-                        StateCache.Current.DeleteFramebuffer((int)command.Id);
+                        VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.OpenGL.DeleteFramebuffer((int)command.Id);
                         break;
                     case GpuResourceKind.Renderbuffer:
                         RHICommandContext.Current.OpenGL.DeleteRenderbuffer((int)command.Id);
@@ -208,7 +208,7 @@ internal sealed partial class GpuResourceManager : IRenderer, IDisposable
                         RHICommandContext.Current.OpenGL.DeleteQuery((int)command.Id);
                         break;
                     case GpuResourceKind.Program:
-                        StateCache.Current.DeleteProgram((int)command.Id);
+                        VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.OpenGL.DeleteProgram((int)command.Id);
                         break;
                     case GpuResourceKind.TransformFeedback:
                         RHICommandContext.Current.OpenGL.DeleteTransformFeedback((int)command.Id);
@@ -217,10 +217,10 @@ internal sealed partial class GpuResourceManager : IRenderer, IDisposable
                         RHICommandContext.Current.OpenGL.DeleteSampler((int)command.Id);
                         break;
                     case GpuResourceKind.ProgramPipeline:
-                        StateCache.Current.DeleteProgramPipeline((int)command.Id);
+                        VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.OpenGL.DeleteProgramPipeline((int)command.Id);
                         break;
                     case GpuResourceKind.Shader:
-                        StateCache.Current.DeleteShader((int)command.Id);
+                        VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.OpenGL.DeleteShader((int)command.Id);
                         break;
                     case GpuResourceKind.Sync:
                         RHICommandContext.Current.OpenGL.DeleteSync((IntPtr)command.Id);

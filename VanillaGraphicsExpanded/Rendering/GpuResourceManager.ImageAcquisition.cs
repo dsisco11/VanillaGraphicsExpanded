@@ -31,7 +31,7 @@ internal sealed partial class GpuResourceManager
     internal static void AcquireImageMetadata(GpuFramebufferAttachment image, GpuTextureMetadata? acquiredTexture = null,
         GpuRenderbufferMetadata? acquiredRenderbuffer = null)
     {
-        if (image.IsDisposed || image.ResourceId == 0 || Integration.RenderContextRegistry.Current() == default) return;
+        if (image.IsDisposed || image.ResourceId == 0) return;
         if (image.ResourceManager is { } manager && manager.CanAcquireWrapperMetadata(image))
         {
             var original = manager.GetResourceRegistration(image);
@@ -63,9 +63,9 @@ internal sealed partial class GpuResourceManager
         if (image.Resource is { } owner)
         {
             if (!owner.IsValid) throw new InvalidOperationException("The selected image owner has retired.");
-            if (owner is GpuTexture textureOwner) acquiredTexture = textureOwner.MetadataSnapshot;
-            else if (owner is GpuTextureView view) acquiredTexture = view.MetadataSnapshot;
-            else if (owner is GpuRenderbuffer renderbufferOwner) acquiredRenderbuffer = renderbufferOwner.MetadataSnapshot;
+            if (owner is GpuResource<GpuTextureMetadata> textureOwner) acquiredTexture = RequireTextureReferenceMetadata(textureOwner);
+            else if (owner is GpuResource<GpuRenderbufferMetadata> renderbufferOwner
+                && TryGetRenderbufferReferenceMetadata(renderbufferOwner, out var facts)) acquiredRenderbuffer = facts;
         }
         GpuImageMetadata? projected = null;
         if (image.Kind == GpuResourceKind.Renderbuffer)

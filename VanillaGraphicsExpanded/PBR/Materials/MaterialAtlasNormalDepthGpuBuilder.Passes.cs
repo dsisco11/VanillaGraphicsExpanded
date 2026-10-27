@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using VanillaGraphicsExpanded.Rendering.Pipeline;
 using VanillaGraphicsExpanded.Rendering.Pipeline.Passes;
 using System;
@@ -21,7 +22,7 @@ internal static partial class MaterialAtlasNormalDepthGpuBuilder
 {
     #region Private
     /// <summary>Extracts linear luminance from one source atlas rectangle.</summary>
-    private static void RunLuminancePass(BakeDrawContext draw, int atlasTexId, (int x, int y, int w, int h) atlasRectPx, DynamicTexture2D dst)
+    private static void RunLuminancePass(BakeDrawContext draw, GpuTextureRef atlasTexId, (int x, int y, int w, int h) atlasRectPx, DynamicTexture2D dst)
     {
         draw.SetTarget(dst);
         progLuminance!.atlas = atlasTexId;
@@ -206,12 +207,12 @@ internal static partial class MaterialAtlasNormalDepthGpuBuilder
 
     /// <summary>Writes normals and normalized height only into the selected atlas rectangle.</summary>
     private static void RunPackToAtlas(BakeDrawContext draw,
-        int dstAtlasTexId,
+        GpuTextureRef dstAtlasTexId,
         (int x, int y) viewportOriginPx,
         (int w, int h) tileSizePx,
         (int w, int h) solverSizePx,
         DynamicTexture2D heightTex,
-        int baseAlbedoAtlasTexId,
+        GpuTextureRef baseAlbedoAtlasTexId,
         float normalStrength,
         float normalScale,
         float depthScale)

@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System.Collections;
 using System.Reflection;
 using OpenTK.Graphics.OpenGL;
@@ -22,7 +23,7 @@ public sealed class EngineBoundaryContextTests(HeadlessGLFixture fixture) : Rend
     {
         EnsureContextValid();
         using var programs = new ComponentShaderPrograms();
-        var sentinel = programs.Create<GpuProgramUseScopeTests.CountingShader>();
+        var sentinel = programs.Create<RasterDepthCopyShaderProgram>();
         var cache = StateCache.Current;
         cache.SetCapability(EnableCap.DepthTest, true);
         Assert.True(cache.TryBeginEngineBoundary(new EngineBoundaryDeclaration("ContextBoundary",
@@ -75,7 +76,7 @@ public sealed class EngineBoundaryContextTests(HeadlessGLFixture fixture) : Rend
             lock (registrations) registrations[original.Handle] = registration;
             boundary.Dispose();
             Assert.True(GL.IsEnabled(EnableCap.DepthTest), $"Restoration depth={boundary.Snapshot.Depth.TestEnabled}; observer={observer.Calls}; original={original}; current={RenderContextRegistry.Current()}");
-            StateCache.Current.UnbindProgram();
+            OpenGLProgramSelection.Select(StateCache.Current, 0);
             cache.SetCapability(EnableCap.DepthTest, false);
         }
         Assert.Equal(1, observer.Calls);

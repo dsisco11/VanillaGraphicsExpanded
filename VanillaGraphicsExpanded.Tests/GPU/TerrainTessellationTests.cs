@@ -1,3 +1,5 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
+using VanillaGraphicsExpanded.Rendering.RHI;
 using VanillaGraphicsExpanded.PBR.Materials;
 using VanillaGraphicsExpanded.Rendering;
 using OpenTK.Graphics.OpenGL;
@@ -14,8 +16,36 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GPU")]
 public sealed class TerrainTessellationTests : RenderTestBase
 {
-    /// <summary>Uses the shared headless context.</summary>
-    public TerrainTessellationTests(HeadlessGLFixture fixture) : base(fixture) { }
+    private readonly ProvokingVertexMode previousProvokingVertex;
+    private bool conventionRestored;
+
+    #region Public API
+    /// <summary>Establishes terrain's required flat-output convention independently of preceding fixtures.</summary>
+    public TerrainTessellationTests(HeadlessGLFixture fixture) : base(fixture)
+    {
+        EnsureContextValid();
+        // Other boundary tests intentionally exercise first-vertex state on the shared context.
+        previousProvokingVertex = (ProvokingVertexMode)GL.GetInteger(GetPName.ProvokingVertex);
+        StateCache.Current.Invalidate(EPipelineState.ProvokingVertex);
+        StateCache.Current.SetProvokingVertex(ProvokingVertexMode.LastVertexConvention);
+    }
+    #endregion
+
+    #region Protected
+    /// <summary>Returns the shared context's incoming convention after all terrain resources are released.</summary>
+    protected override void Dispose(bool disposing)
+    {
+        try { base.Dispose(disposing); }
+        finally
+        {
+            if (disposing && !conventionRestored)
+            {
+                StateCache.Current.SetProvokingVertex(previousProvokingVertex);
+                conventionRestored = true;
+            }
+        }
+    }
+    #endregion
 
     #region Coherent production publication
     /// <summary>Ordinary modes never replace a successfully linked terrain program with tessellation.</summary>
@@ -108,24 +138,24 @@ public sealed class TerrainTessellationTests : RenderTestBase
         int vertex = shaders.Compile(ShaderType.VertexShader, PbrSurfaceInstalledShaderTests.Build("chunkshadowmap.vsh", 2, 0, 0, 0, 0));
         int fragment = shaders.Compile(ShaderType.FragmentShader, PbrSurfaceInstalledShaderTests.Build("chunkshadowmap.fsh", 2, 0, 0, 0, 0));
         var sources = TerrainTessellationTestAssets.Generate(shaders.Source(vertex));
-        Assert.True(TerrainTessellationLinker.TryCreate(vertex, fragment, sources,
+        Assert.True(TerrainShaderTestFixture.LinkTessellation(vertex, fragment, sources,
             TerrainTessellationPatches.EnabledDefine, out int tessellated, out string error), error);
         using var program = GpuProgramObject.Adopt(tessellated);
         using var ordinary = GpuProgramObject.Adopt(TerrainShaderTestFixture.Link(vertex, fragment));
         using var vao = GpuVao.Create();
         using var framework = new ShaderTestFramework();
         using var target = framework.CreateTestGBuffer(4, 4, PixelInternalFormat.Rgba32f);
-        target.BindWithViewport();
-        StateCache.Current.BindVertexArray(vao.VertexArrayId);
-        StateCache.Current.UseProgram(tessellated);
+        FramebufferTestSetup.BindForEngineRendering(target);
+        OpenGLVertexSelection.Bind(StateCache.Current, vao.VertexArrayId);
+        OpenGLProgramSelection.Select(StateCache.Current, tessellated);
         Assert.Equal(ErrorCode.NoError, GL.GetError());
         // This is the primitive submitted by the engine's non-grouped entity shadow path.
         GL.DrawArrays(PrimitiveType.Triangles, 0, 3);
         Assert.Equal(ErrorCode.InvalidOperation, GL.GetError());
-        StateCache.Current.UseProgram(ordinary.ProgramId);
+        OpenGLProgramSelection.Select(StateCache.Current, ordinary.ProgramId);
         GL.DrawArrays(PrimitiveType.Triangles, 0, 3);
         Assert.Equal(ErrorCode.NoError, GL.GetError());
-        StateCache.Current.UseProgram(0);
+        OpenGLProgramSelection.Select(StateCache.Current, 0);
     }
 
     /// <summary>Compiles installed alpha-tested terrain shadow stages with both terrain mesh layouts.</summary>
@@ -139,7 +169,7 @@ public sealed class TerrainTessellationTests : RenderTestBase
         int vertex=shaders.Compile(ShaderType.VertexShader,PbrSurfaceInstalledShaderTests.Build("chunkshadowmap.vsh",2,0,0,ssbo,0));
         int fragment=shaders.Compile(ShaderType.FragmentShader,PbrSurfaceInstalledShaderTests.Build("chunkshadowmap.fsh",2,0,0,ssbo,0));
         var sources=TerrainTessellationTestAssets.Generate(shaders.Source(vertex));
-        Assert.True(TerrainTessellationLinker.TryCreate(vertex,fragment,sources,TerrainTessellationPatches.EnabledDefine, out int program,out string error),error);
+        Assert.True(TerrainShaderTestFixture.LinkTessellation(vertex,fragment,sources,TerrainTessellationPatches.EnabledDefine, out int program,out string error),error);
         GpuProgramObject.Adopt(program).Dispose();
     }
     #endregion
@@ -158,7 +188,7 @@ public sealed class TerrainTessellationTests : RenderTestBase
         int vertex = shaders.Compile(ShaderType.VertexShader, PbrSurfaceInstalledShaderTests.Build(family + ".vsh", 2, 0, ssao, ssbo, 0));
         int fragment = shaders.Compile(ShaderType.FragmentShader, PbrSurfaceInstalledShaderTests.Build(family + ".fsh", 2, 0, ssao, ssbo, 0));
         var sources = TerrainTessellationTestAssets.Generate(shaders.Source(vertex));
-        Assert.True(TerrainTessellationLinker.TryCreate(vertex, fragment, sources, TerrainTessellationPatches.EnabledDefine, out int program, out string error), error);
+        Assert.True(TerrainShaderTestFixture.LinkTessellation(vertex, fragment, sources, TerrainTessellationPatches.EnabledDefine, out int program, out string error), error);
         GpuProgramObject.Adopt(program).Dispose();
     }
     /// <summary>Installing a tessellated executable preserves engine stage objects and scopes topology to its managed owner.</summary>
@@ -264,19 +294,19 @@ public sealed class TerrainTessellationTests : RenderTestBase
         try
         {
             ordinary = TerrainShaderTestFixture.Link(vertex, fragment);
-            Assert.True(TerrainTessellationLinker.TryCreate(vertex, fragment, TerrainTessellationTestAssets.Generate(shaders.Source(vertex)), TerrainTessellationPatches.EnabledDefine, out tessellated, out string error), error);
+            Assert.True(TerrainShaderTestFixture.LinkTessellation(vertex, fragment, TerrainTessellationTestAssets.Generate(shaders.Source(vertex)), TerrainTessellationPatches.EnabledDefine, out tessellated, out string error), error);
             using var framework = new ShaderTestFramework();
             using var target = framework.CreateTestGBuffer(16, 16, PixelInternalFormat.Rgba32f, 2);
             using var camera = TestFrameCamera.CreateIdentity(16,16);
-            Assert.True(camera.TryBindToSlot(GpuBindingRegistry.Ubo.Frame));
-            target.BindWithViewport();
+            Assert.True(RHICommandContext.Current.OpenGL.BindEngineUniform(GpuBindingRegistry.Ubo.Frame, camera.Capture()));
+            FramebufferTestSetup.BindForEngineRendering(target);
             GL.Disable(EnableCap.DepthTest); GL.Disable(EnableCap.Blend); GL.Disable(EnableCap.CullFace);
-            StateCache.Current.BindVertexArray(vao);
-            StateCache.Current.UseProgram(ordinary); GL.DrawArrays(PrimitiveType.Triangles, 0, 3);
+            OpenGLVertexSelection.Bind(StateCache.Current, vao);
+            OpenGLProgramSelection.Select(StateCache.Current, ordinary); GL.DrawArrays(PrimitiveType.Triangles, 0, 3);
             var expected = target[0].ReadPixels();
             var expectedCoordinates = target[1].ReadPixels();
             StateCache.Current.SetPatchVertices( 3);
-            StateCache.Current.UseProgram(tessellated);
+            OpenGLProgramSelection.Select(StateCache.Current, tessellated);
             var layout = GpuProgramLayout.TryBuild(tessellated);
             ShaderTestFramework.SetUniform(layout.GetUniformLocation(tessellated, "vge_displacementEnabled"), 0);
             ShaderTestFramework.SetUniform(layout.GetUniformLocation(tessellated, "vge_displacementReactive"), 0);
@@ -290,7 +320,7 @@ public sealed class TerrainTessellationTests : RenderTestBase
         }
         finally
         {
-            StateCache.Current.UseProgram(0); StateCache.Current.BindVertexArray(0); StateCache.Current.SetPatchVertices( previousPatchVertices);
+            OpenGLProgramSelection.Select(StateCache.Current, 0); OpenGLVertexSelection.Bind(StateCache.Current, 0); StateCache.Current.SetPatchVertices( previousPatchVertices);
              if (ordinary != 0) GpuProgramObject.Adopt(ordinary).Dispose(); if (tessellated != 0) GpuProgramObject.Adopt(tessellated).Dispose();
 
         }

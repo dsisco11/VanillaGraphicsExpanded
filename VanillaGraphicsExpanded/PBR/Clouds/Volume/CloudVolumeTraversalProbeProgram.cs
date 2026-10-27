@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.ShaderCompilation;
 using System;
 using System.Numerics;
 using VanillaGraphicsExpanded.Rendering;
@@ -17,7 +18,7 @@ internal sealed partial class CloudVolumeTraversalProbeProgram:GpuComputeProgram
     internal static CloudVolumeTraversalProbeProgram Create(ICoreAPI api)
     {
         var layout=new GpuProgramLayout();layout.RegisterContract(Contract.Stages[0].Bindings);
-        if(!GpuComputePipeline.TryCreateFromAssets(api,new ShaderSettings(Contract),out var pipeline,out string log,
+        if(!ComputeShaderAsset.TryCreateFromAssets(api,new ShaderSettings(Contract),out var pipeline,out string log,
             "Cloud.Volume.TraversalProbe",layout:layout))throw new InvalidOperationException(log);
         return new(pipeline!);
     }
@@ -38,7 +39,7 @@ internal sealed partial class CloudVolumeTraversalProbeProgram:GpuComputeProgram
     #endregion
     #region Private
     /// <summary>Adopts the executable and its authored query.</summary>
-    private CloudVolumeTraversalProbeProgram(GpuComputePipeline pipeline):base(pipeline)=>OwnUniformBuffer(inputs);
+    private CloudVolumeTraversalProbeProgram(ComputeShaderAsset pipeline):base(pipeline)=>OwnUniformBuffer(inputs);
     /// <summary>Publishes the staged bounded diagnostic record.</summary>
     CpuUniformBuffer ICloudVolumeTraversalProbeBindings.Inputs=>inputs;
     #endregion

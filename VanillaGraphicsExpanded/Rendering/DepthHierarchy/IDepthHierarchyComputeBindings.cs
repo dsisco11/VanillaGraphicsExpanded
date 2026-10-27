@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using VanillaGraphicsExpanded.Rendering.Contracts;
 namespace VanillaGraphicsExpanded.Rendering;
 /// <summary>Declares retained inputs and explicit mip views for shared depth generation.</summary>
@@ -15,24 +16,24 @@ internal interface IDepthHierarchyComputeBindings
     GpuShaderStorageBuffer? Tail { set; }
     /// <summary>Supplies the explicit level-0 output view.</summary>
     [ShaderBinding("mip0", ShaderBindingKind.Image, 0, ShaderStageKind.Compute)]
-    GpuTextureBinding Mip0 { set; }
+    RHIImageBinding Mip0 { set; }
     /// <summary>Supplies the explicit level-1 output view.</summary>
     [ShaderBinding("mip1", ShaderBindingKind.Image, 1, ShaderStageKind.Compute)]
-    GpuTextureBinding Mip1 { set; }
+    RHIImageBinding Mip1 { set; }
     /// <summary>Supplies the explicit level-2 output view.</summary>
     [ShaderBinding("mip2", ShaderBindingKind.Image, 2, ShaderStageKind.Compute)]
-    GpuTextureBinding Mip2 { set; }
+    RHIImageBinding Mip2 { set; }
     /// <summary>Supplies the explicit level-3 output view.</summary>
     [ShaderBinding("mip3", ShaderBindingKind.Image, 3, ShaderStageKind.Compute)]
-    GpuTextureBinding Mip3 { set; }
+    RHIImageBinding Mip3 { set; }
     /// <summary>Supplies the explicit level-4 output view.</summary>
     [ShaderBinding("mip4", ShaderBindingKind.Image, 4, ShaderStageKind.Compute)]
-    GpuTextureBinding Mip4 { set; }
+    RHIImageBinding Mip4 { set; }
     /// <summary>Supplies the explicit level-5 output view.</summary>
     [ShaderBinding("mip5", ShaderBindingKind.Image, 5, ShaderStageKind.Compute)]
-    GpuTextureBinding Mip5 { set; }
+    RHIImageBinding Mip5 { set; }
     /// <summary>Supplies the explicit level-6 output view.</summary>
     [ShaderBinding("mip6", ShaderBindingKind.Image, 6, ShaderStageKind.Compute)]
-    GpuTextureBinding Mip6 { set; }
+    RHIImageBinding Mip6 { set; }
     #endregion
 }

@@ -50,7 +50,7 @@ internal sealed class PbrLumOnPipelineTargets : IDisposable
                     _resources.Own(new GpuFramebufferAttachment(screenW, screenH, PixelInternalFormat.Rgba32f, debugName: "Test.Velocity")),
                 },
                 depth: null,
-                debugName: "Test.VelocityFbo"));
+                debugName: "Test.VelocityPass"));
 
             // HZB depth pyramid: 4x4 -> 2x2 -> 1x1
             Hzb = new DepthHierarchyPass();
@@ -100,7 +100,7 @@ internal sealed class PbrLumOnPipelineTargets : IDisposable
                     _resources.Own(new GpuFramebufferAttachment(halfW, halfH, PixelInternalFormat.Rgba16f, debugName: "Test.IndirectHalf")),
                 },
                 depth: null,
-                debugName: "Test.IndirectHalfFbo"));
+                debugName: "Test.IndirectHalfPass"));
 
             // Upsample output (full-res)
             IndirectFull = _resources.Own(DynamicGpuFramebuffer.Create(
@@ -109,7 +109,7 @@ internal sealed class PbrLumOnPipelineTargets : IDisposable
                     _resources.Own(new GpuFramebufferAttachment(screenW, screenH, PixelInternalFormat.Rgba16f, debugName: "Test.IndirectFull")),
                 },
                 depth: null,
-                debugName: "Test.IndirectFullFbo"));
+                debugName: "Test.IndirectFullPass"));
 
             // Final composite output
             Composite = _resources.Own(DynamicGpuFramebuffer.Create(

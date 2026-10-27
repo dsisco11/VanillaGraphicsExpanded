@@ -18,9 +18,13 @@ internal sealed class GpuPreparedBindings
     /// <summary>Describes one contract entry without exposing reflection uniform locations.</summary>
     internal readonly record struct Entry(GpuBindingEntry Contract, bool Active, ActiveUniformType Type,
         IReadOnlyList<bool> ActiveElements, int MinimumSize = 0);
+    /// <summary>Retains an active array element's original authored identity and precomputed slot projection.</summary>
+    internal readonly record struct ActiveEntry(ulong Identity, int Element, Entry Binding);
 
     /// <summary>Provides deterministic contract indices independent of GPU binding slots.</summary>
     internal IReadOnlyList<Entry> Entries { get; }
+    /// <summary>Gets active scalar slot projections prepared once, without per-submission record allocation.</summary>
+    internal IReadOnlyList<ActiveEntry> ActiveEntries { get; }
 
     #region Public API
     /// <summary>Validates supplied executable facts and prepares fixed assignments without acquiring native metadata.</summary>
@@ -116,9 +120,24 @@ internal sealed class GpuPreparedBindings
             if (!matched.Contains(resource))
                 throw new InvalidOperationException($"Linked {resource.Kind} slot {resource.Slot} has no binding contract entry.");
         Entries = Array.AsReadOnly(entries.ToArray());
+        var activeEntries = new List<ActiveEntry>();
         foreach (var entry in entries)
+        {
             if (!entriesByIdentity.TryAdd(GpuBindingEntry.Identity(entry.Contract.Kind, entry.Contract.Name), entry))
                 throw new InvalidOperationException("Conflicting generated resource identities.");
+            for (int element = 0; element < entry.ActiveElements.Count; element++)
+            {
+                if (!entry.ActiveElements[element]) continue;
+                var projected = entry with
+                {
+                    Active = true,
+                    Contract = entry.Contract with { Binding = entry.Contract.Binding with
+                        { Slot = entry.Contract.Binding.Slot + element, ArrayLength = 1 } }
+                };
+                activeEntries.Add(new(GpuBindingEntry.Identity(entry.Contract.Kind, entry.Contract.Name), element, projected));
+            }
+        }
+        ActiveEntries = Array.AsReadOnly(activeEntries.ToArray());
     }
 
     /// <summary>Selects prepared activity by generated numeric identity; excluded variant inputs remain inactive.</summary>

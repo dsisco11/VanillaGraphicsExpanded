@@ -11,6 +11,8 @@ internal interface ICloudVolumeConsumer : IRenderer, IDisposable
     bool Prepare();
     /// <summary>Withdraws retained state at explicit recovery boundaries.</summary>
     void Reset();
+    /// <summary>Withdraws producer readiness while retaining installed renderer contracts for atomic shader replacement.</summary>
+    void WithdrawForReload();
     /// <summary>Reserves current and retained physical response before Opaque.</summary>
     float Maximum(AtmosphereLighting lighting,float localFogMaximum);
 }

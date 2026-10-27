@@ -13,11 +13,17 @@ internal sealed class EngineBoundaryResources
     internal IReadOnlyList<int> Images { get; }
     internal IReadOnlyList<(BufferRangeTarget Target, int Slot)> Buffers { get; }
 
+    internal bool Geometry { get; }
+    internal bool Framebuffers { get; }
+    internal bool ProgramSelection { get; }
+
     #region Public API
     /// <summary>Copies explicit helper slots and the selector families the declared work can actually change.</summary>
     internal EngineBoundaryResources(IEnumerable<(int Unit, TextureTarget Target)>? textures = null,
-        IEnumerable<int>? images = null, IEnumerable<(BufferRangeTarget Target, int Slot)>? buffers = null)
+        IEnumerable<int>? images = null, IEnumerable<(BufferRangeTarget Target, int Slot)>? buffers = null,
+        bool geometry = true, bool framebuffers = true, bool programSelection = true)
     {
+        Geometry = geometry; Framebuffers = framebuffers; ProgramSelection = programSelection;
         Textures = Array.AsReadOnly((textures ?? []).Distinct().ToArray());
         Images = Array.AsReadOnly((images ?? []).Distinct().ToArray());
         Buffers = Array.AsReadOnly((buffers ?? []).Distinct().ToArray());
@@ -52,11 +58,12 @@ internal sealed class EngineBoundaryResources
                     case ShaderBindingKind.AtomicCounter: buffers.Add((BufferRangeTarget.AtomicCounterBuffer, slot)); break;
                 }
             }
-        return new(textures, images, buffers);
+        return new(textures, images, buffers, geometry: false, framebuffers: false);
     }
 
     /// <summary>Combines participating shader and helper footprints without sharing mutable lists.</summary>
     internal EngineBoundaryResources Union(EngineBoundaryResources other) =>
-        new(Textures.Concat(other.Textures), Images.Concat(other.Images), Buffers.Concat(other.Buffers));
+        new(Textures.Concat(other.Textures), Images.Concat(other.Images), Buffers.Concat(other.Buffers),
+            Geometry || other.Geometry, Framebuffers || other.Framebuffers, ProgramSelection || other.ProgramSelection);
     #endregion
 }

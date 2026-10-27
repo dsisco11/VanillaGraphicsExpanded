@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System.Runtime.CompilerServices;
 using HarmonyLib;
 using OpenTK.Graphics.OpenGL;
@@ -26,12 +27,12 @@ public sealed partial class GpuProgramMetadataInterceptionTests
         {
             using var a = CreateProgram(out int shaderA);
             using var b = CreateProgram(out int shaderB);
-            StateCache.Current.DeleteShader(shaderA);
-            StateCache.Current.DeleteShader(shaderB);
+            VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.OpenGL.DeleteShader(shaderA);
+            VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.OpenGL.DeleteShader(shaderB);
             var manager = GpuResourceManagerSystem.CurrentManager!;
             var entryA = manager.GetResourceRegistration(a)!;
             var entryB = manager.GetResourceRegistration(b)!;
-            StateCache.Current.UseProgram(a.ProgramId);
+            OpenGLProgramSelection.Select(StateCache.Current, a.ProgramId);
             ulong revisionA = entryA.MetadataRevision;
             ulong revisionB = entryB.MetadataRevision;
 
@@ -49,10 +50,10 @@ public sealed partial class GpuProgramMetadataInterceptionTests
                 prefix: new HarmonyMethod(typeof(GpuProgramMetadataInterceptionTests), nameof(CountFullProgramRestore)));
             restoredProgramCalls = 0;
             Assert.Equal(b.ProgramId, StateCache.Current.GetCurrentProgram());
-            StateCache.Current.UseProgram(b.ProgramId);
+            OpenGLProgramSelection.Select(StateCache.Current, b.ProgramId);
             Assert.Equal(1, restoredProgramCalls);
 
-            StateCache.Current.UseProgram(a.ProgramId);
+            OpenGLProgramSelection.Select(StateCache.Current, a.ProgramId);
             int unlinked = GL.CreateProgram();
             try
             {
@@ -60,14 +61,14 @@ public sealed partial class GpuProgramMetadataInterceptionTests
                 Assert.Equal(ErrorCode.InvalidOperation, GL.GetError());
                 Assert.Equal(a.ProgramId, GL.GetInteger(GetPName.CurrentProgram));
             }
-            finally { StateCache.Current.DeleteProgram(unlinked); }
+            finally { VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.OpenGL.DeleteProgram(unlinked); }
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
         finally
         {
             harmony.UnpatchAll(harmony.Id);
             units.UnpatchAll(units.Id);
-            StateCache.Current.UseProgram(0);
+            OpenGLProgramSelection.Select(StateCache.Current, 0);
             fixture.CleanupGpuResources();
             StateCache.Current.InvalidateAll();
         }
@@ -87,8 +88,8 @@ public sealed partial class GpuProgramMetadataInterceptionTests
         try
         {
             using var program = CreateProgram(out int shader);
-            StateCache.Current.DeleteShader(shader);
-            StateCache.Current.UseProgram(program.ProgramId);
+            VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.OpenGL.DeleteShader(shader);
+            OpenGLProgramSelection.Select(StateCache.Current, program.ProgramId);
             DesktopSelect(unsigned, true, native);
             Assert.Equal(program.ProgramId, GL.GetInteger(GetPName.CurrentProgram));
             Assert.Equal(program.ProgramId, StateCache.Current.GetCurrentProgram());
@@ -96,17 +97,17 @@ public sealed partial class GpuProgramMetadataInterceptionTests
             harmony.Patch(AccessTools.Method(typeof(GL), nameof(GL.UseProgram), [typeof(int)]),
                 prefix: new HarmonyMethod(typeof(GpuProgramMetadataInterceptionTests), nameof(CountFullProgramRestore)));
             restoredProgramCalls = 0;
-            StateCache.Current.UseProgram(program.ProgramId);
+            OpenGLProgramSelection.Select(StateCache.Current, program.ProgramId);
             Assert.Equal(1, restoredProgramCalls);
-            StateCache.Current.UseProgram(program.ProgramId);
+            OpenGLProgramSelection.Select(StateCache.Current, program.ProgramId);
             Assert.Equal(1, restoredProgramCalls);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
         finally
         {
             harmony.UnpatchAll(harmony.Id);
-            StateCache.Current.UseProgram(0);
-            StateCache.Current.DeleteProgram(native);
+            OpenGLProgramSelection.Select(StateCache.Current, 0);
+            VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.OpenGL.DeleteProgram(native);
             fixture.CleanupGpuResources();
             StateCache.Current.InvalidateAll();
         }
@@ -133,10 +134,10 @@ public sealed partial class GpuProgramMetadataInterceptionTests
         }
         catch
         {
-            StateCache.Current.DeleteProgram(program);
+            VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.OpenGL.DeleteProgram(program);
             throw;
         }
-        finally { StateCache.Current.DeleteShader(vertex); }
+        finally { VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.OpenGL.DeleteShader(vertex); }
     }
 
     /// <summary>Records native capability separately from correctness assertions.</summary>

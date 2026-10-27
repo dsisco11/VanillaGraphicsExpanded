@@ -25,7 +25,7 @@ internal sealed partial class GpuResourceManager
         public void Validate(in GpuShaderInitialization initialization) => initialization.Validate();
         /// <inheritdoc />
         public GpuShaderMetadata? Initialize(StateCache cache, in GpuShaderInitialization initialization, out nint id)
-            => cache.CreateShader(initialization, out id);
+            => RHI.RHICommandContext.Current.OpenGL.InitializeShader(initialization, out id);
         #endregion
     }
 
@@ -39,7 +39,7 @@ internal sealed partial class GpuResourceManager
         public void Validate(in GpuProgramInitialization initialization) { }
         /// <inheritdoc />
         public GpuProgramMetadata? Initialize(StateCache cache, in GpuProgramInitialization initialization, out nint id)
-            => cache.CreateProgram(out id);
+            => RHI.RHICommandContext.Current.OpenGL.InitializeProgram(out id);
         #endregion
     }
 }

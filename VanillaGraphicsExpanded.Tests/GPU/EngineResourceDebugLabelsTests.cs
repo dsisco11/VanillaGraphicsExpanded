@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
 using System.Runtime.CompilerServices;
@@ -111,7 +112,7 @@ public sealed class EngineResourceDebugLabelsTests(HeadlessGLFixture fixture) : 
         vertices.UploadData(new float[] { 0, 0, 0 });
         flags.UploadData(new int[] { 0 });
         indices.UploadIndices(new uint[] { 0 });
-        using var vaoBinding = vao.BindScope();
+        using var vaoBinding = StateCache.Current.BindVertexArrayScope(vao.VertexArrayId);
         using var bufferBinding = vertices.BindScope();
         var mesh = new VAO { VaoId = vao.VertexArrayId, xyzVboId = vertices.BufferId, flagsVboId = flags.BufferId, vboIdIndex = indices.BufferId };
         // This shell borrows GPU handles; its engine finalizer must not run ownership diagnostics.
@@ -151,8 +152,8 @@ public sealed class EngineResourceDebugLabelsTests(HeadlessGLFixture fixture) : 
         using var vao = GpuVao.Create();
         using var vao2 = GpuVao.Create();
         // A generated VAO name becomes an object only after its first bind, as in engine allocation.
-        using (vao.BindScope()) { }
-        using (vao2.BindScope()) { }
+        using (StateCache.Current.BindVertexArrayScope(vao.VertexArrayId)) { }
+        using (StateCache.Current.BindVertexArrayScope(vao2.VertexArrayId)) { }
         var first = new VAO { VaoId = vao.VertexArrayId };
         var second = new VAO { VaoId = vao2.VertexArrayId };
         GC.SuppressFinalize(first);

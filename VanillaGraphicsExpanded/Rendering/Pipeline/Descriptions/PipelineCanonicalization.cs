@@ -1,5 +1,4 @@
 using System.Linq;
-using OpenTK.Graphics.OpenGL;
 
 namespace VanillaGraphicsExpanded.Rendering.Pipeline.Descriptions;
 
@@ -22,10 +21,7 @@ internal static class PipelineCanonicalization
 
     #endregion
 
-    #region Equation semantics
-    /// <summary>Identifies equations whose results depend on authored factors.</summary>
-    public static bool UsesFactors(BlendEquationMode equation) => equation is not (BlendEquationMode.Min or BlendEquationMode.Max);
-    #endregion
+
     #endregion
 
     #region Private

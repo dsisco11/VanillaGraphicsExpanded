@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Reflection;
 using HarmonyLib;
 using OpenTK.Graphics.OpenGL;
@@ -63,7 +64,7 @@ public sealed class SceneColorParticleIntegrationTests(HeadlessGLFixture fixture
         using var primary = DynamicGpuFramebuffer.Create([material, glow], depth);
         using var other = CreateRenderTarget(2, 2, PixelInternalFormat.Rgba32f);
         using var capture = new SceneColorParticleTargets(primary);
-        primary.BindWithViewport();
+        FramebufferTestSetup.BindForEngineRendering(primary);
         GL.Disable(EnableCap.ScissorTest);
         GL.DepthMask(true);
         GL.ColorMask(true, true, true, true);

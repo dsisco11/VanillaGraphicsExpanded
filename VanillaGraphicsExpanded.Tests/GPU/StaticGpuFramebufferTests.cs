@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Reflection;
 using OpenTK.Graphics.OpenGL;
@@ -41,9 +42,9 @@ public sealed class StaticGpuFramebufferTests(HeadlessGLFixture fixture, ITestOu
         Assert.Throws<InvalidOperationException>(() => alias.SetAttachment(FramebufferAttachment.ColorAttachment0, attachment));
         Assert.Throws<InvalidOperationException>(() => alias.RemoveAttachment(FramebufferAttachment.ColorAttachment0));
         Assert.Throws<InvalidOperationException>(() => alias.Resize(3, 3));
-        Assert.Throws<InvalidOperationException>(() => StateCache.Current.DeleteFramebuffer(target.FboId));
+        Assert.Throws<InvalidOperationException>(() => VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.OpenGL.DeleteFramebuffer(target.FboId));
         target.Bind();
-        Assert.Throws<InvalidOperationException>(() => StateCache.Current.SetDrawBuffer(DrawBufferMode.None));
+        Assert.Throws<InvalidOperationException>(() => OpenGLFramebufferRouting.SetDrawBuffer(StateCache.Current, DrawBufferMode.None));
         texture.UploadDataImmediate(Enumerable.Repeat(.375f, 16).ToArray());
         Assert.All(texture.ReadPixels(), value => Assert.Equal(.375f, value));
         target.Dispose();
@@ -64,9 +65,9 @@ public sealed class StaticGpuFramebufferTests(HeadlessGLFixture fixture, ITestOu
         int id = (int)target.Detach(); try
         {
             Assert.True(array.Resize(3, 3, 3));
-            StateCache.Current.DeleteFramebuffer(id);
+            VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.OpenGL.DeleteFramebuffer(id);
         }
-        finally { if (GL.IsFramebuffer(id)) StateCache.Current.DeleteFramebuffer(id); }
+        finally { if (GL.IsFramebuffer(id)) VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.OpenGL.DeleteFramebuffer(id); }
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
     /// <summary>Construction rejects untracked native images and releases guards retained before that rejection.</summary>
@@ -142,14 +143,14 @@ public sealed class StaticGpuFramebufferTests(HeadlessGLFixture fixture, ITestOu
             StateCache.Current.RequireMutableFramebufferConfiguration(id);
             target.Dispose();
             Assert.True(GL.IsFramebuffer(id));
-            StateCache.Current.DeleteFramebuffer(id);
+            VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.OpenGL.DeleteFramebuffer(id);
             Assert.False(GL.IsFramebuffer(id));
         }
         finally
         {
             VanillaGraphicsExpanded.Rendering.Integration.RenderContextRegistry.Retire(replacement);
             VanillaGraphicsExpanded.Rendering.Integration.RenderContextRegistry.RegisterCurrent(fixture, static _ => true);
-            if (GL.IsFramebuffer(id)) StateCache.Current.DeleteFramebuffer(id);
+            if (GL.IsFramebuffer(id)) VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.OpenGL.DeleteFramebuffer(id);
         }
     }
     #endregion
@@ -166,8 +167,9 @@ public sealed class StaticGpuFramebufferTests(HeadlessGLFixture fixture, ITestOu
         using var target = StaticGpuFramebuffer.Create([image]);
         using var incoming = CreateRenderTarget(1, 1, PixelInternalFormat.Rgba32f);
         incoming.Bind();
-        var pass = new RenderPassDesc(target, [new(0, AttachmentLoad.Clear, Clear: ColorClearValue.Float(.25f, .5f, .75f, 1))]);
-        Assert.Throws<InvalidOperationException>(() => new RenderPassDesc(target, [new(-1)]));
+        var pass = FramebufferTestSetup.DescribeAttachments(target, [new(AttachmentIndex:0, Load:AttachmentLoad.Clear, Clear: ColorClearValue.Float(.25f, .5f, .75f, 1))]);
+        Assert.Throws<InvalidOperationException>(() => FramebufferTestSetup.DescribeAttachments(target, [new(AttachmentIndex: -1)]));
+        RenderPassTestBoundary.Run(commands => { commands.BeginRenderPass(pass); commands.EndRenderPass(); });
         StateCache.Current.Invalidate(EPipelineState.FramebufferRouting);
         using (var work = new FramebufferRoutingWorkCapture()) using (var calls = new GraphicsTransitionCapture())
         {
@@ -177,24 +179,26 @@ public sealed class StaticGpuFramebufferTests(HeadlessGLFixture fixture, ITestOu
                 {
                     for (int step = 0; step < 3; step++)
                     {
-                        using var active = RenderPass.Begin(pass, boundary);
+                        boundary.BeginRenderPass(pass); boundary.EndRenderPass();
                     }
                 });
             }
-            else Assert.True(GraphicsCommandContext.TryRun("Tests.StaticFramebuffer", [], true, commands =>
-            {
+            else {
+    var commands=RHICommandContext.Current;
+    using var scope76=commands.EnterBoundary(new("Tests.StaticFramebuffer",true,graphics:System.Linq.Enumerable.Select<RHIGraphicsPipeline,RHIGraphicsPipelineRef>([],value=>value),operations:BoundaryOperations.RenderPasses));
+    scope76.Run(()=>{
                 for (int step = 0; step < 3; step++)
                 {
-                    commands.BeginPass(pass);
-                    commands.EndPass();
+                    commands.BeginRenderPass(pass);
+                    commands.EndRenderPass();
                 }
-            }));
+            });
+}
             Assert.Equal(0, work.DynamicApplications);
             Assert.Equal(0, work.Captures);
-            Assert.Equal(0, work.StaticChecks);
             Assert.Equal(0, work.CompletenessChecks);
             Assert.DoesNotContain(calls.Calls, call => call.StartsWith("Routing"));
-            output.WriteLine("STATIC_FRAMEBUFFER_WORK=" + System.Text.Json.JsonSerializer.Serialize(new { standalone, work.DynamicApplications, work.Captures, work.StaticChecks, work.CompletenessChecks, calls = calls.Calls }));
+            output.WriteLine("STATIC_FRAMEBUFFER_WORK=" + System.Text.Json.JsonSerializer.Serialize(new { standalone, work.DynamicApplications, work.Captures,  work.CompletenessChecks, calls = calls.Calls }));
         }
         Assert.Equal(incoming.FboId, GL.GetInteger(GetPName.DrawFramebufferBinding));
         Assert.Equal(.25f, texture.ReadPixels()[0]);

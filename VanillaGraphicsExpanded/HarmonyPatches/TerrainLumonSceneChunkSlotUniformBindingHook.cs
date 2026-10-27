@@ -82,12 +82,12 @@ internal static class TerrainLumonSceneChunkSlotUniformBindingHook
                 lastAppliedVersionByProgramId[programId] = version;
 
                 if (slotBlockIndex >= 0)
-                    StateCache.Current.UniformBlockBinding(programId, slotBlockIndex, LumonSceneChunkSlotUniformState.Binding);
+                    OpenGLProgramAssignments.UniformBlockBinding(programId, slotBlockIndex, LumonSceneChunkSlotUniformState.Binding);
 
                 // The sampler uniform value (texture unit) is per-program; update it when state changes.
                 if (genLoc >= 0 && LumonSceneChunkSlotUniformState.GenerationTextureId != 0)
                 {
-                    StateCache.Current.SetProgramUniformUnit(programId, genLoc, LumonSceneChunkSlotUniformState.GenerationTextureUnit);
+                    OpenGLProgramAssignments.SetUnit(programId, genLoc, LumonSceneChunkSlotUniformState.GenerationTextureUnit);
                 }
             }
 

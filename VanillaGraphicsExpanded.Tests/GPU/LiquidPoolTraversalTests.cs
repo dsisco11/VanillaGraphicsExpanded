@@ -56,8 +56,8 @@ public sealed class LiquidPoolTraversalTests(HeadlessGLFixture fixture) : Render
         else program = programs.Create<LiquidShaderProgram>(owner =>
         {
             owner.FrameInputs = camera; owner.LightsInputs = lights;
-            owner.TerrainTexture = texture.TextureId; owner.DepthTexture = texture.TextureId;
-            owner.MaterialParamsTexture = texture; owner.ShadowMapNear = texture.TextureId; owner.ShadowMapFar = texture.TextureId;
+            owner.TerrainTexture = texture; owner.DepthTexture = texture;
+            owner.MaterialParamsTexture = texture; owner.ShadowMapNear = texture; owner.ShadowMapFar = texture;
             owner.AerialRadianceTexture = volume; owner.AerialAttenuationTexture = volume;
         });
         float[] identity = [1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1];
@@ -93,7 +93,7 @@ public sealed class LiquidPoolTraversalTests(HeadlessGLFixture fixture) : Render
         {
             // Unknown cull modes select the engine's Hide-only visibility branch, avoiding fabricated frustum behavior.
             Action traverse = () => manager.Render(player, "origin", (EnumFrustumCullMode)999);
-            Action run = () => Assert.True(submission.Run(program, [manager], new(target, depth ? [new(0)] : [new(0), new(-1, DiscardOutput: true), new(-1, DiscardOutput: true), new(-1, DiscardOutput: true), new(-1, DiscardOutput: true), new(-1, DiscardOutput: true)]), new(), depth ? [new ColorBlendDesc()] : Enumerable.Repeat(new ColorBlendDesc(), 6).ToArray(), traverse));
+            Action run = () => Assert.True(submission.Run(program, [manager], FramebufferTestSetup.DescribeAttachments(target, depth ? [new(AttachmentIndex:0)] : [new(AttachmentIndex:0), new(DiscardOutput:true), new(DiscardOutput:true), new(DiscardOutput:true), new(DiscardOutput:true), new(DiscardOutput:true)]), new(), depth ? [new ColorBlendDesc()] : Enumerable.Repeat(new ColorBlendDesc(), 6).ToArray(), traverse));
             AccessTools.Field(typeof(MeshDataPool), "dimensionId").SetValue(storage.Pool, 2);
             observe = () =>
             {
@@ -121,9 +121,9 @@ public sealed class LiquidPoolTraversalTests(HeadlessGLFixture fixture) : Render
                 Assert.Equal(new float[] { 13, 23, 33, .35f }, bytes[16..]);
             };
             run(); Assert.Equal(2, draws);
-            using (program.UseScope()) { Assert.Equal(identity, ReadDraw()[..16]); Assert.Equal(0, ReadDraw()[19]); }
+            using (var bindingPipeline = ShaderBindingTestPipeline.Create(program)) { RHICommandContext.Current.SetPipeline(bindingPipeline); RHICommandContext.Current.BindResources(program.CaptureBindings()); Assert.Equal(identity, ReadDraw()[..16]); Assert.Equal(0, ReadDraw()[19]); }
             // Shadow pass matrices and opaque dispatch cannot replace or upload the already shared frame again.
-            Assert.True(sharedFrame.TryBindToSlot(GpuBindingRegistry.Ubo.Frame));
+            Assert.True(RHICommandContext.Current.OpenGL.BindEngineUniform(GpuBindingRegistry.Ubo.Frame, sharedFrame.Capture()));
             var firstBinding = FrameBinding();
             Assert.True(GpuUniformRingSystem.TryGetCurrent(out var ring));
 #if DEBUG
@@ -134,7 +134,7 @@ public sealed class LiquidPoolTraversalTests(HeadlessGLFixture fixture) : Render
             publisher.OnRenderFrame(.016f, EnumRenderStage.Opaque);
             Assert.Same(sharedFrame, VgeFrameRenderer.Current);
             Assert.Equal(publishedBytes, sharedFrame.Bytes.ToArray());
-            Assert.True(sharedFrame.TryBindToSlot(GpuBindingRegistry.Ubo.Frame));
+            Assert.True(RHICommandContext.Current.OpenGL.BindEngineUniform(GpuBindingRegistry.Ubo.Frame, sharedFrame.Capture()));
             Assert.Equal(firstBinding, FrameBinding());
 #if DEBUG
             Assert.Equal(uploads, ring.AllocationsWritten);
@@ -142,7 +142,7 @@ public sealed class LiquidPoolTraversalTests(HeadlessGLFixture fixture) : Render
             observe = () => throw new ArithmeticException("Draw observer failure.");
             Assert.Throws<ArithmeticException>(run);
             Assert.Null(LiquidGraphicsSubmission.ActiveInputs);
-            using (program.UseScope()) { Assert.Equal(identity, ReadDraw()[..16]); Assert.Equal(0, ReadDraw()[19]); }
+            using (var bindingPipeline = ShaderBindingTestPipeline.Create(program)) { RHICommandContext.Current.SetPipeline(bindingPipeline); RHICommandContext.Current.BindResources(program.CaptureBindings()); Assert.Equal(identity, ReadDraw()[..16]); Assert.Equal(0, ReadDraw()[19]); }
             dimension.Verify(value => value.GetRenderOffset(.125f), Times.Exactly(2));
             dimension.Verify(value => value.GetRenderTransformMatrix(engineView, player), Times.Exactly(2));
             Assert.Equal(ErrorCode.NoError, GL.GetError());

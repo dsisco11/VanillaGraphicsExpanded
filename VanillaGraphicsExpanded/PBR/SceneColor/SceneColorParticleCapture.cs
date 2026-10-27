@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using VanillaGraphicsExpanded.Rendering.Pipeline;
 using VanillaGraphicsExpanded.Rendering.Pipeline.Descriptions;
@@ -54,7 +55,7 @@ internal sealed partial class SceneColorParticleCapture : IRenderer
         unregisterResize();
         Retire();
         geometry.Dispose();
-        pipelineLifetime.Dispose();
+        
     }
     #endregion
 
@@ -87,7 +88,7 @@ internal sealed partial class SceneColorParticleCapture : IRenderer
             if (ssaoRestore?.EnsureReady() != true) return false;
         }
         targets ??= new SceneColorParticleTargets(gbuffer.PrimaryFramebuffer, hasSsao);
-        PreparePipeline(ref resolvePipeline, resolve, targets.ResolveTarget.PreservePass);
+        PreparePipeline(ref resolvePipeline, resolve, targets.ResolvePass);
         prepared = true;
         return true;
     }
@@ -111,27 +112,29 @@ internal sealed partial class SceneColorParticleCapture : IRenderer
         resolve.BeforeDepth = targets.BeforeDepth;
         resolve.AfterDepth = targets.AfterDepth;
         resolve.ParticleColor = targets.ParticleColor;
-        var pipeline = PreparePipeline(ref resolvePipeline, resolve, targets.ResolveTarget.PreservePass);
-        published = GraphicsCommandContext.TryRun("SceneColor.Particles.Resolve", [pipeline], true,
-            commands => Submit(commands, pipeline, targets.ResolveTarget.PreservePass));
+        var pipeline = PreparePipeline(ref resolvePipeline, resolve, targets.ResolvePass);
+        var commands=RHICommandContext.Current;
+        if(!commands.TryEnterBoundary(new("SceneColor.Particles.Resolve",true,graphics:[pipeline],operations:BoundaryOperations.RenderPasses),out var boundary)) return;
+        using(boundary) boundary!.Run(()=>Submit(commands,pipeline,targets.ResolvePass,resolve.CaptureBindings()));
+        published=true;
     }
 
     /// <summary>Selects corrected material depth only after current-frame receiver separation has completed.</summary>
-    internal static int ReceiverDepth(ICoreClientAPI api, int visibilityDepth)
-        => ReceiverDepthTexture(api)?.TextureId ?? visibilityDepth;
+    internal static GpuTextureRef ReceiverDepth(ICoreClientAPI api, GpuTextureRef visibilityDepth)
+        => ReceiverDepthTexture(api) is { } corrected ? corrected : visibilityDepth;
 
     /// <summary>Lends the existing corrected material-depth texture after current-frame receiver separation.</summary>
     internal static GpuTexture? ReceiverDepthTexture(ICoreClientAPI api)
         => active is { published: true, targets: { IsCurrent: true } } capture && ReferenceEquals(capture.api, api)
-            ? capture.targets.ResolveTarget[0] : null;
+            ? capture.targets.MaterialDepth : null;
 
     /// <summary>Lends the completed current-frame particle layer to the opaque HDR handoff.</summary>
     internal static DynamicTexture2D? Layer(ICoreClientAPI api)
         => active is { published: true, targets: { IsCurrent: true } } capture && ReferenceEquals(capture.api, api)
-            ? capture.targets.ResolveTarget[1] : null;
+            ? capture.targets.VisibleRadiance : null;
 
     /// <summary>Resolves the active SSAO helper before the composite captures its resource footprint.</summary>
-    internal static GraphicsPipeline? PrepareSsaoPipeline(ICoreClientAPI api)
+    internal static RHIGraphicsPipeline? PrepareSsaoPipeline(ICoreClientAPI api)
     {
         if (active is not { published: true, targets: { IsCurrent: true, HasSsao: true }, ssaoRestore: { } shader } capture
             || !ReferenceEquals(capture.api, api)) return null;
@@ -140,7 +143,7 @@ internal sealed partial class SceneColorParticleCapture : IRenderer
     }
 
     /// <summary>Returns original particle metadata to engine SSAO only after deferred material composition finishes.</summary>
-    internal static void RestoreSsao(ICoreClientAPI api, GraphicsCommandContext? commands = null)
+    internal static void RestoreSsao(ICoreClientAPI api, RHICommandContext? commands = null)
     {
         if (active is not { published: true, targets: { IsCurrent: true, HasSsao: true }, ssaoRestore: { } shader } capture
             || !ReferenceEquals(capture.api, api)) return;
@@ -150,14 +153,14 @@ internal sealed partial class SceneColorParticleCapture : IRenderer
         shader.ParticleNormal = capture.targets.DrawTarget[2];
         shader.ParticlePosition = capture.targets.DrawTarget[3];
         if (commands is not null)
-            capture.Submit(commands, capture.ssaoPipeline
-                ?? throw new InvalidOperationException("SSAO pipeline was not prepared before boundary entry."), capture.targets.SsaoPass!);
+            capture.Submit(commands, (capture.ssaoPipeline
+                ?? throw new InvalidOperationException("SSAO pipeline was not prepared before boundary entry.")).Pipeline, capture.targets.SsaoPass!,shader.CaptureBindings());
         else
         {
             var pipeline = PrepareSsaoPipeline(api)!;
-            if (!GraphicsCommandContext.TryRun("SceneColor.Particles.SsaoRestore", [pipeline], true,
-                context => capture.Submit(context, pipeline, capture.targets.SsaoPass!)))
-                throw new InvalidOperationException("SSAO restoration boundary unavailable.");
+            var context=RHICommandContext.Current;
+            using var boundary=context.EnterBoundary(new("SceneColor.Particles.SsaoRestore",true,graphics:[pipeline],operations:BoundaryOperations.RenderPasses));
+            boundary.Run(()=>capture.Submit(context,pipeline,capture.targets.SsaoPass!,shader.CaptureBindings()));
         }
     }
     #endregion

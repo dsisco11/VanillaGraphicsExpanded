@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.ShaderCompilation;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using System.Collections.Generic;
@@ -29,8 +30,10 @@ internal sealed partial class LumOnWorldProbeClipmapGpuResources
     private void InitializeHistoryInvalidation(ICoreAPI api)
     {
         queuedHistorySlots = new bool[checked(levels * resolution * resolution * resolution)];
-        if (!GpuComputePipeline.TryCreateFromAssets(api, WorldProbeHistoryClearShader.Contract.Identity,
-            out var created, out _, out string log, preferSpirv: true))
+        if (!ComputeShaderAsset.TryCreateFromAssets(api: api,
+            settings: new global::VanillaGraphicsExpanded.Rendering.Contracts.ShaderSettings(global::VanillaGraphicsExpanded.Rendering.Contracts.GpuShaderContracts.Registry.FindProgram(WorldProbeHistoryClearShader.Contract.Identity)),
+            pipeline: out var created,
+            infoLog: out string log))
             throw new InvalidOperationException("Cannot initialize world-probe history: " + log);
         historyClear = new(created!);
         historyClearSlots = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StreamDraw, Label = null }).RequireResource();
@@ -60,7 +63,12 @@ internal sealed partial class LumOnWorldProbeClipmapGpuResources
     {
         int count = PendingInvalidationCount;
         if (count == 0) return;
-        int[] descriptors = new int[clearAllHistory ? 4 : checked(count + 4)];
+        if(!historyClear!.EnsureReady())throw new InvalidOperationException(historyClear.PreparationLog);
+        int minimum=historyClear.ProgramLayout.BinaryInterface!.PreparedBindings.Resolve(
+            global::VanillaGraphicsExpanded.Rendering.Contracts.GpuBindingEntry.Identity(
+                global::VanillaGraphicsExpanded.Rendering.Contracts.ShaderBindingKind.StorageBlock,"HistoryClearSlots")).MinimumSize;
+        // The runtime array still contributes to the linked block minimum during a whole-history clear.
+        int[] descriptors = new int[Math.Max(clearAllHistory ? 4 : checked(count + 4),(minimum + 3) / 4)];
         descriptors[0] = count;
         descriptors[1] = resolution;
         descriptors[2] = worldProbeTileSize;
@@ -70,13 +78,15 @@ internal sealed partial class LumOnWorldProbeClipmapGpuResources
         historyClearSlots!.EnsureCapacity(bytes);
         historyClearSlots.UploadSubData<int>(descriptors, 0, bytes);
         historyClear!.HistoryClearSlots = new(historyClearSlots, 0, bytes);
-        historyClear.radianceAtlas = new(radianceAtlas, TextureAccess.WriteOnly, Format: SizedInternalFormat.Rgba16f);
-        historyClear.visibilityAtlas = new(vis0, TextureAccess.WriteOnly, Format: SizedInternalFormat.Rgba16f);
-        historyClear.distanceAtlas = new(dist0, TextureAccess.WriteOnly, Format: SizedInternalFormat.Rg16f);
-        historyClear.metadataAtlas = new(meta0, TextureAccess.WriteOnly, Format: SizedInternalFormat.Rg32f);
+        historyClear.radianceAtlas = new(radianceAtlas, ImageAccess.WriteOnly, Format: TextureFormat.Rgba16f);
+        historyClear.visibilityAtlas = new(vis0, ImageAccess.WriteOnly, Format: TextureFormat.Rgba16f);
+        historyClear.distanceAtlas = new(dist0, ImageAccess.WriteOnly, Format: TextureFormat.Rg16f);
+        historyClear.metadataAtlas = new(meta0, ImageAccess.WriteOnly, Format: TextureFormat.Rg32f);
         // Use a second dispatch dimension when the slot count exceeds GL's guaranteed X limit.
         int groupsX = Math.Min(count, 65535);
-        historyClear.Dispatch(groupsX, (count + groupsX - 1) / groupsX, 1);
+        var dispatchContext=RHICommandContext.Current;
+        using var dispatchBoundary=dispatchContext.EnterBoundary(new("WorldProbe.Invalidate",true,compute:[historyClear.Pipeline]));
+        dispatchBoundary.Run(()=>historyClear.Dispatch(groupsX, (count + groupsX - 1) / groupsX, 1));
         RHICommandContext.Current.Barrier(new(ResourceAccess.Image | ResourceAccess.TextureFetch |
             ResourceAccess.Framebuffer | ResourceAccess.TextureUpdate));
         InvalidationDispatchCount++;

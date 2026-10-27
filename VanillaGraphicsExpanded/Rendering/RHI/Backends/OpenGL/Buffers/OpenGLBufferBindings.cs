@@ -71,6 +71,7 @@ internal static class OpenGLBufferBindings
         Legacy.BufferTarget.CopyWriteBuffer => Native.BufferTarget.CopyWriteBuffer,
         Legacy.BufferTarget.DrawIndirectBuffer => Native.BufferTarget.DrawIndirectBuffer,
         Legacy.BufferTarget.DispatchIndirectBuffer => Native.BufferTarget.DispatchIndirectBuffer,
+        Legacy.BufferTarget.ParameterBuffer => Native.BufferTarget.ParameterBuffer,
         Legacy.BufferTarget.PixelPackBuffer => Native.BufferTarget.PixelPackBuffer,
         Legacy.BufferTarget.PixelUnpackBuffer => Native.BufferTarget.PixelUnpackBuffer,
         Legacy.BufferTarget.TransformFeedbackBuffer => Native.BufferTarget.TransformFeedbackBuffer,

@@ -4,7 +4,7 @@ namespace VanillaGraphicsExpanded.Rendering.Pipeline.Descriptions;
 
 /// <summary>Declares draw-supplied values; none may be silently inherited by a complete pipeline.</summary>
 [Flags]
-internal enum DynamicPipelineState
+public enum DynamicPipelineState
 {
     None = 0,
     Viewport = 1,

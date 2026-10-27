@@ -1,17 +1,17 @@
-using OpenTK.Graphics.OpenGL;
+using VanillaGraphicsExpanded.Rendering.RHI;
 
 namespace VanillaGraphicsExpanded.Rendering.Pipeline.Descriptions;
 
 /// <summary>Blend and write policy for a fragment draw-output slot, not an attachment index.</summary>
-internal sealed record ColorBlendDesc
+public sealed record ColorBlendDesc
 {
     public bool Enabled { get; init; }
-    public BlendEquationMode RgbEquation { get; init; } = BlendEquationMode.FuncAdd;
-    public BlendEquationMode AlphaEquation { get; init; } = BlendEquationMode.FuncAdd;
-    public BlendingFactorSrc SourceRgb { get; init; } = BlendingFactorSrc.One;
-    public BlendingFactorDest DestinationRgb { get; init; } = BlendingFactorDest.Zero;
-    public BlendingFactorSrc SourceAlpha { get; init; } = BlendingFactorSrc.One;
-    public BlendingFactorDest DestinationAlpha { get; init; } = BlendingFactorDest.Zero;
+    public BlendOperation RgbEquation { get; init; } = BlendOperation.Add;
+    public BlendOperation AlphaEquation { get; init; } = BlendOperation.Add;
+    public BlendFactor SourceRgb { get; init; } = BlendFactor.One;
+    public BlendFactor DestinationRgb { get; init; } = BlendFactor.Zero;
+    public BlendFactor SourceAlpha { get; init; } = BlendFactor.One;
+    public BlendFactor DestinationAlpha { get; init; } = BlendFactor.Zero;
     public bool WriteRed { get; init; } = true;
     public bool WriteGreen { get; init; } = true;
     public bool WriteBlue { get; init; } = true;

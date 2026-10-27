@@ -77,7 +77,7 @@ public partial class LumOnUpsampleShaderProgram : LumOnShaderProgram, ILumOnUpsa
     /// <summary>
     /// Primary depth texture for edge-aware upsampling.
     /// </summary>
-    public partial int PrimaryDepth { set; }
+    public partial GpuTextureRef PrimaryDepth { set; }
 
     /// <summary>
     /// G-buffer normals for edge-aware upsampling.

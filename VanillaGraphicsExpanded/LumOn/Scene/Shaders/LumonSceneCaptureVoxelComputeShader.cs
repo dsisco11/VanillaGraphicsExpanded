@@ -1,3 +1,5 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
+using VanillaGraphicsExpanded.Rendering.ShaderCompilation;
 using VanillaGraphicsExpanded.Rendering.Contracts;
 using System;
 using System.Diagnostics;
@@ -52,15 +54,10 @@ internal sealed partial class LumonSceneCaptureVoxelComputeShader : TraceGeometr
     {
         shader = null;
 
-        if (!GpuComputePipeline.TryCreateFromAssets(
-            api: api,
-            shaderName: ShaderName,
+        if (!ComputeShaderAsset.TryCreateFromAssets(api: api,
+            settings: new global::VanillaGraphicsExpanded.Rendering.Contracts.ShaderSettings(global::VanillaGraphicsExpanded.Rendering.Contracts.GpuShaderContracts.Registry.FindProgram(ShaderName)),
             pipeline: out var pipeline,
-            sourceCode: out _,
             infoLog: out infoLog,
-            preferSpirv: preferSpirv,
-            stageExtension: "csh",
-            defines: null,
             debugName: debugName,
             log: api.Logger,
             layout: new LumonSceneComputeProgramLayouts.CaptureVoxel()))
@@ -79,7 +76,7 @@ internal sealed partial class LumonSceneCaptureVoxelComputeShader : TraceGeometr
     }
 
     /// <summary>Retains DepthAtlasImage for the next dispatch submission.</summary>
-    public void BindDepthAtlasImage(GpuTexture depthAtlas, TextureAccess access = TextureAccess.WriteOnly)
+    public void BindDepthAtlasImage(GpuTexture depthAtlas, ImageAccess access = ImageAccess.WriteOnly)
     {
         if (depthAtlas is null) throw new ArgumentNullException(nameof(depthAtlas));
 
@@ -88,11 +85,11 @@ internal sealed partial class LumonSceneCaptureVoxelComputeShader : TraceGeometr
             Level: 0,
             Layered: true,
             Layer: 0,
-            Format: SizedInternalFormat.R16f);
+            Format: TextureFormat.R16f);
     }
 
     /// <summary>Retains MaterialAtlasImage for the next dispatch submission.</summary>
-    public void BindMaterialAtlasImage(GpuTexture materialAtlas, TextureAccess access = TextureAccess.WriteOnly)
+    public void BindMaterialAtlasImage(GpuTexture materialAtlas, ImageAccess access = ImageAccess.WriteOnly)
     {
         if (materialAtlas is null) throw new ArgumentNullException(nameof(materialAtlas));
 
@@ -101,7 +98,7 @@ internal sealed partial class LumonSceneCaptureVoxelComputeShader : TraceGeometr
             Level: 0,
             Layered: true,
             Layer: 0,
-            Format: SizedInternalFormat.Rgba8);
+            Format: TextureFormat.Rgba8);
     }
 
     /// <summary>Retains CaptureWorkSsbo for the next dispatch submission.</summary>
@@ -149,7 +146,7 @@ internal sealed partial class LumonSceneCaptureVoxelComputeShader : TraceGeometr
 
     #region Private
     /// <summary>Adopts the executable and attaches the input mutation guard.</summary>
-    private LumonSceneCaptureVoxelComputeShader(GpuComputePipeline pipeline) : base(pipeline)
+    private LumonSceneCaptureVoxelComputeShader(ComputeShaderAsset pipeline) : base(pipeline)
     {
         OwnUniformBuffer(parameters);
     }

@@ -1,3 +1,5 @@
+using VanillaGraphicsExpanded.Tests.GPU.Helpers;
+using VanillaGraphicsExpanded.Rendering.ShaderCompilation;
 using VanillaGraphicsExpanded.Rendering.Contracts;
 using System;
 using System.IO;
@@ -25,7 +27,7 @@ public sealed class GpuComputePipelineSpirvIntegrationTests : RenderTestBase
     {
         EnsureContextValid();
 
-        bool supportsSpirv = GpuShaderModule.SupportsSpirv();
+        bool supportsSpirv = GpuSupport.Graphics.SupportsArbGlSpirv;
         Assert.True(supportsSpirv, "GPU shader tests require GL_ARB_gl_spirv support.");
 
         string spvPath = Path.Combine(
@@ -48,7 +50,7 @@ public sealed class GpuComputePipelineSpirvIntegrationTests : RenderTestBase
             // Relocation changes neither the contract identity nor the required binary/metadata pairing.
             File.Copy(Path.Combine(Path.GetDirectoryName(spvPath)!, ShaderBinaryDigest.FileName),
                 Path.Combine(directory, ShaderBinaryDigest.FileName));
-            bool ok = GpuComputePipeline.TryLoadFromSpirv(
+            bool ok = ComputeShaderAsset.TryLoadFromSpirv(
                 spirvBinaryPath: renamed,
                 settings: new ShaderSettings(GpuShaderContracts.Registry.FindProgram("lumonscene_feedback_mark_pages")),
                 pipeline: out var pipeline,

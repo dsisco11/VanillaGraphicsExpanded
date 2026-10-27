@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Contracts;
 
@@ -18,7 +19,7 @@ internal interface ICloudVolumeDirectBindings
     GpuShaderStorageBuffer? Occupancy {set;}
     /// <summary>Updates an ordered source channel while preserving its companion channel.</summary>
     [ShaderBinding("directOutput",ShaderBindingKind.Image,0,ShaderStageKind.Compute,TextureTarget=ShaderTextureTarget.Texture3D)]
-    GpuTextureBinding Direct {set;}
+    RHIImageBinding Direct {set;}
     /// <summary>Reads bounded selected jobs and reports failed transport without stamping completion.</summary>
     [ShaderBinding("DirectScratch",ShaderBindingKind.StorageBlock,1,ShaderStageKind.Compute)]
     GpuShaderStorageBuffer? Scratch {set;}

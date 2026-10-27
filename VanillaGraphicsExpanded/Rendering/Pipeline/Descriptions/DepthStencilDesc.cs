@@ -1,12 +1,12 @@
-using OpenTK.Graphics.OpenGL;
+using VanillaGraphicsExpanded.Rendering.RHI;
 
 namespace VanillaGraphicsExpanded.Rendering.Pipeline.Descriptions;
 
 /// <summary>Immutable depth and stencil intent, independent of mutable cache knowledge.</summary>
-internal sealed record DepthStencilDesc
+public sealed record DepthStencilDesc
 {
     public bool DepthTest { get; init; }
-    public DepthFunction DepthComparison { get; init; } = DepthFunction.Less;
+    public ComparisonFunction DepthComparison { get; init; } = ComparisonFunction.Less;
     public bool DepthWrite { get; init; }
     public bool StencilTest { get; init; }
     public StencilFaceDesc Front { get; init; } = new();

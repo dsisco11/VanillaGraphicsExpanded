@@ -33,26 +33,28 @@ public sealed class AtmosphereSunBloomTests(HeadlessGLFixture fixture) : LumOnSh
         using var extracted=TestFramework.CreateTestGBuffer(32,32,PixelInternalFormat.Rgba32f);
         using var horizontal=TestFramework.CreateTestGBuffer(32,32,PixelInternalFormat.Rgba32f);
         using var halo=TestFramework.CreateTestGBuffer(32,32,PixelInternalFormat.Rgba32f);
-        using var lifetime=new GraphicsPipelineLifetime();
-        var layout=new VertexLayoutDesc([]);
-        using var geometry=new ArrayGraphicsGeometry(layout,PrimitiveType.Triangles,new Dictionary<int,GpuVbo>(),proceduralVertices:6);
-        using var metadata=new RenderPassTargets(new RenderPassDesc(scene,[new(0),new(1)]));
-        var coverageBlend=new ColorBlendDesc {Enabled=true,SourceRgb=BlendingFactorSrc.SrcAlpha,DestinationRgb=BlendingFactorDest.OneMinusSrcAlpha};
-        using var solarPipeline=new GraphicsPipeline(lifetime,new(sun.GraphicsIdentity!,layout,metadata.Signature,DynamicPipelineState.Viewport,
-            depthStencil:new(){DepthTest=true,DepthWrite=true},blending:[coverageBlend,coverageBlend]),sun);
+        
+        var layout=new RHIVertexLayout([]);
+        using var geometry=new ArrayGraphicsGeometry(layout,PrimitiveTopology.Triangles,new Dictionary<int,GpuVbo>(),proceduralVertices:6);
+        var metadata = RHICommandContext.Current.DescribeRenderTargets(FramebufferTestSetup.DescribeAttachments(scene, [new(AttachmentIndex:0),new(AttachmentIndex:1)]));
+        var coverageBlend=new ColorBlendDesc {Enabled=true,SourceRgb=BlendFactor.SourceAlpha,DestinationRgb=BlendFactor.OneMinusSourceAlpha};
+        using var solarPipeline=RHICommandContext.Current.CreateGraphicsPipeline(new(sun.Shader,layout,metadata,DynamicPipelineState.Viewport,
+            depthStencil:new(){DepthTest=true,DepthWrite=true},blending:[coverageBlend,coverageBlend])).RequireResource();
         using var draw=new PostprocessDraw();
         double baseline=0;
         // Native sky attenuation has already been applied to disk RGB. Bloom never adds another solar source.
         foreach(var (radiance,horizon,blocked,ev,ratio) in new[]{(100f,-1f,false,0f,1f),(25f,-1f,false,0f,.25f),(100f,0f,false,0f,.5f),(.01f,-1f,false,0f,0f),(100f,-1f,true,0f,0f),(0f,-1f,false,0f,0f),(100f,-1f,false,-20f,0f)})
         {
             sun.Capture(new(radiance,radiance*.5f,radiance*.25f),horizon);
-            var pass=new RenderPassDesc(scene,[new(0,AttachmentLoad.Clear,Clear:ColorClearValue.Float(0,0,0,0)),new(1,AttachmentLoad.Clear,Clear:ColorClearValue.Float(0,0,0,0))],
-                new(DepthLoad:AttachmentLoad.Clear,ClearDepth:blocked ? .5f : 1f));
-            Assert.True(GraphicsCommandContext.TryRun("Tests.SolarBloomSource",[solarPipeline],true,commands=>
+            var pass=FramebufferTestSetup.DescribeAttachments(scene, [new(AttachmentIndex:0, Load:AttachmentLoad.Clear,Clear:ColorClearValue.Float(0,0,0,0)),new(AttachmentIndex:1, Load:AttachmentLoad.Clear,Clear:ColorClearValue.Float(0,0,0,0))], new(DepthLoad:AttachmentLoad.Clear,ClearDepth:blocked ? .5f : 1f));
             {
-                commands.BeginPass(pass);commands.SetPipeline(solarPipeline);commands.SetDynamicState(new(){Viewport=commands.PassViewport});
-                commands.Draw(geometry,new(0,6));commands.EndPass();
-            }));
+    var commands=RHICommandContext.Current;
+    using var scope9=commands.EnterBoundary(new("Tests.SolarBloomSource",true,graphics:System.Linq.Enumerable.Select<RHIGraphicsPipeline,RHIGraphicsPipelineRef>([solarPipeline],value=>value),operations:BoundaryOperations.RenderPasses));
+    scope9.Run(()=>{
+                commands.BeginRenderPass(pass);commands.SetPipeline(solarPipeline);commands.SetDynamicState(new(){Viewport=commands.PassViewport});
+                commands.Draw(geometry.Inputs,new(0,6));commands.EndRenderPass();
+            });
+}
             float[] solar=color.ReadPixels();
             float[] markers=glow.ReadPixels();
             for(int i=0;i<markers.Length;i+=4)Assert.Equal(0,markers[i]);
@@ -94,24 +96,25 @@ public sealed class AtmosphereSunBloomTests(HeadlessGLFixture fixture) : LumOnSh
         using var glow = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba32f, Width = System.Math.Max(1, 32), Height = System.Math.Max(1, 32), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         using var depth = new DepthTexture(32, 32, PixelInternalFormat.DepthComponent32f);
         using var scene = DynamicGpuFramebuffer.CreateMRT([color, glow], depth)!;
-        using var lifetime = new GraphicsPipelineLifetime();
-        var layout = new VertexLayoutDesc([]);
-        using var geometry = new ArrayGraphicsGeometry(layout, PrimitiveType.Triangles, new Dictionary<int, GpuVbo>(), proceduralVertices: 6);
-        using var metadata = new RenderPassTargets(new RenderPassDesc(scene, [new(0), new(1)]));
+        var layout = new RHIVertexLayout([]);
+        using var geometry = new ArrayGraphicsGeometry(layout, PrimitiveTopology.Triangles, new Dictionary<int, GpuVbo>(), proceduralVertices: 6);
+        var metadata = RHICommandContext.Current.DescribeRenderTargets(FramebufferTestSetup.DescribeAttachments(scene, [new(AttachmentIndex:0), new(AttachmentIndex:1)]));
         var mask = new ColorBlendDesc { WriteRed = !queryOnly, WriteGreen = !queryOnly, WriteBlue = !queryOnly, WriteAlpha = !queryOnly };
-        using var pipeline = new GraphicsPipeline(lifetime, new(sun.GraphicsIdentity!, layout, metadata.Signature, DynamicPipelineState.Viewport,
-            depthStencil: new() { DepthTest = true, DepthWrite = !queryOnly }, blending: [mask, mask]), sun);
+        using var pipeline = RHICommandContext.Current.CreateGraphicsPipeline(new(sun.Shader, layout, metadata, DynamicPipelineState.Viewport,
+            depthStencil: new() { DepthTest = true, DepthWrite = !queryOnly }, blending: [mask, mask])).RequireResource();
         // The clear stands for already-rasterized opaque geometry; the query's color masks must also hold on clear sky.
-        var pass = new RenderPassDesc(scene, [new(0, AttachmentLoad.Clear, Clear: ColorClearValue.Float(0, 0, 0, 0)), new(1, AttachmentLoad.Clear, Clear: ColorClearValue.Float(0, 0, 0, 0))],
-            new(DepthLoad: AttachmentLoad.Clear, ClearDepth: wallDepth));
-        Assert.True(GraphicsCommandContext.TryRun("Tests.SolarOcclusion", [pipeline], true, commands =>
+        var pass = FramebufferTestSetup.DescribeAttachments(scene, [new(AttachmentIndex:0, Load:AttachmentLoad.Clear, Clear: ColorClearValue.Float(0, 0, 0, 0)), new(AttachmentIndex:1, Load:AttachmentLoad.Clear, Clear: ColorClearValue.Float(0, 0, 0, 0))], new(DepthLoad: AttachmentLoad.Clear, ClearDepth: wallDepth));
         {
-            commands.BeginPass(pass);
+    var commands=RHICommandContext.Current;
+    using var scope10=commands.EnterBoundary(new("Tests.SolarOcclusion",true,graphics:System.Linq.Enumerable.Select<RHIGraphicsPipeline,RHIGraphicsPipelineRef>([pipeline],value=>value),operations:BoundaryOperations.RenderPasses));
+    scope10.Run(()=>{
+            commands.BeginRenderPass(pass);
             commands.SetPipeline(pipeline);
             commands.SetDynamicState(new() { Viewport = commands.PassViewport });
-            commands.Draw(geometry, new(0, 6));
-            commands.EndPass();
-        }));
+            commands.Draw(geometry.Inputs, new(0, 6));
+            commands.EndRenderPass();
+        });
+}
         Assert.Equal(visible, color.ReadPixels().Any(value => value > 0));
         Assert.Equal(visible, glow.ReadPixels().Any(value => value > 0));
         Assert.Equal(ErrorCode.NoError, GL.GetError());
@@ -123,7 +126,11 @@ public sealed class AtmosphereSunBloomTests(HeadlessGLFixture fixture) : LumOnSh
     private static void SubmitBloom(PostprocessDraw draw,BloomShaderProgram shader,GpuFramebuffer target)
     {
         var pipeline=draw.Prepare(shader,target.PostprocessPass());
-        Assert.True(GraphicsCommandContext.TryRun("Tests.SolarBloom",[pipeline],true,commands=>draw.Submit(commands,pipeline,target.PostprocessPass())));
+        {
+    var commands=RHICommandContext.Current;
+    using var scope11=commands.EnterBoundary(new("Tests.SolarBloom",true,graphics:System.Linq.Enumerable.Select<RHIGraphicsPipeline,RHIGraphicsPipelineRef>([pipeline],value=>value),operations:BoundaryOperations.RenderPasses));
+    scope11.Run(()=>draw.Submit(commands,pipeline,target.PostprocessPass(), shader.CaptureBindings()));
+}
     }
     #endregion
 }

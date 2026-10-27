@@ -87,19 +87,20 @@ public sealed class FramebufferAttachmentNotificationTests(HeadlessGLFixture fix
         replacement.UploadDataImmediate(Enumerable.Repeat(9f, 16).ToArray());
         int notifications = 0;
         wrapped.AttachmentsChanged += () => notifications++;
-        using var blitter = new GpuFramebufferBlitter(wrapped, destination);
-        blitter.Blit();
+        var copy = FramebufferTestSetup.DescribeCopy(source, destination);
+        RHICommandContext.Current.BlitImages(copy);
         Assert.All(destination[0].ReadPixels(), value => Assert.Equal(3f, value));
 
         // Engine-side mutation deliberately bypasses the wrapper. If Blit queries or
         // reattaches each frame, this copy would incorrectly observe the new image.
         source.Attach(replacement);
-        blitter.Blit();
+        RHICommandContext.Current.BlitImages(copy);
         Assert.Equal(0, notifications);
         Assert.All(destination[0].ReadPixels(), value => Assert.Equal(3f, value));
         wrapped.RefreshWrappedFramebuffer(source.FboId, 2, 2);
+        copy=FramebufferTestSetup.DescribeCopy(source, destination);
         Assert.Equal(1, notifications);
-        blitter.Blit();
+        RHICommandContext.Current.BlitImages(copy);
         Assert.All(destination[0].ReadPixels(), value => Assert.Equal(9f, value));
         Assert.True(GL.IsTexture(first.TextureId));
         Assert.True(GL.IsTexture(replacement.TextureId));
@@ -114,7 +115,7 @@ public sealed class FramebufferAttachmentNotificationTests(HeadlessGLFixture fix
         using var scope = StateCache.Current.BindFramebufferScope();
         using var source = CreateMRTRenderTarget(2, 2, PixelInternalFormat.Rgba32f, PixelInternalFormat.Rgba32f);
         using var destination = CreateRenderTarget(2, 2, PixelInternalFormat.Rgba32f);
-        using var blitter = new GpuFramebufferBlitter(source, destination);
+        var copy = FramebufferTestSetup.DescribeCopy(source, destination);
         int notifications = 0;
         source.AttachmentsChanged += () =>
         {
@@ -129,40 +130,44 @@ public sealed class FramebufferAttachmentNotificationTests(HeadlessGLFixture fix
         Assert.Equal(1, notifications);
         Assert.True(destination.Resize(4, 3));
         source[0].UploadDataImmediate(Enumerable.Repeat(7f, 4 * 3 * 4).ToArray());
-        blitter.Blit();
+        copy=FramebufferTestSetup.DescribeCopy(source,destination);
+        RHICommandContext.Current.BlitImages(copy);
         Assert.All(destination[0].ReadPixels(), value => Assert.Equal(7f, value));
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
 
     /// <summary>Target retirement emits once and cannot leave a configured blitter able to copy stale storage.</summary>
     [Fact]
-    public void RetirementWithdrawsConfiguredCopyTargets()
+    public void ImageCopyRetainsStorageIndependentlyOfFramebufferLifetime()
     {
         EnsureContextValid();
         using var scope = StateCache.Current.BindFramebufferScope();
         using var source = CreateRenderTarget(2, 2, PixelInternalFormat.Rgba32f);
         using var destination = CreateRenderTarget(2, 2, PixelInternalFormat.Rgba32f);
-        using var blitter = new GpuFramebufferBlitter(source, destination);
+        var copy = FramebufferTestSetup.DescribeCopy(source, destination);
         int notifications = 0;
         source.AttachmentsChanged += () => notifications++;
         source.Dispose();
         Assert.Equal(1, notifications);
         source.Dispose();
         Assert.Equal(1, notifications);
-        Assert.Throws<ObjectDisposedException>(() => blitter.Blit());
+        RHICommandContext.Current.BlitImages(copy);
+        Assert.True(copy.Source.Texture.IsValid);
+        copy.Source.Texture.Resource!.Dispose();
+        Assert.ThrowsAny<InvalidOperationException>(()=>RHICommandContext.Current.BlitImages(copy));
         Assert.True(destination.IsValid);
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
 
     /// <summary>Disposal removes target subscriptions so still-live framebuffers do not retain the blitter.</summary>
     [Fact]
-    public void DisposedBlitterIsNotRetainedByLiveTargets()
+    public void ReleasedTransferIntentIsNotRetainedByLiveTargets()
     {
         EnsureContextValid();
         using var scope = StateCache.Current.BindFramebufferScope();
         using var source = CreateRenderTarget(2, 2, PixelInternalFormat.Rgba32f);
         using var destination = CreateRenderTarget(2, 2, PixelInternalFormat.Rgba32f);
-        var retired = CreateDisposedBlitter(source, destination);
+        var retired = CreateReleasedTransferIntent(source, destination);
         GC.Collect();
         GC.WaitForPendingFinalizers();
         GC.Collect();
@@ -178,11 +183,11 @@ public sealed class FramebufferAttachmentNotificationTests(HeadlessGLFixture fix
     #region Private
     /// <summary>Ends the local strong-reference lifetime before checking event subscriber retention.</summary>
     [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
-    private static WeakReference CreateDisposedBlitter(GpuFramebuffer source, GpuFramebuffer destination)
+    private static WeakReference CreateReleasedTransferIntent(GpuFramebuffer source, GpuFramebuffer destination)
     {
-        using var blitter = new GpuFramebufferBlitter(source, destination);
-        blitter.Blit();
-        return new WeakReference(blitter);
+        var copy = FramebufferTestSetup.DescribeCopy(source, destination);
+        RHICommandContext.Current.BlitImages(copy);
+        return new WeakReference((object)copy);
     }
     #endregion
 }

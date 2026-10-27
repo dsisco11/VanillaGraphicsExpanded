@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -26,6 +27,10 @@ public abstract partial class GpuFramebuffer : GpuResource<GpuFramebufferMetadat
     public override nint ResourceId { get => fboId; protected set => fboId = (int)value; }
     /// <summary>Gets the framebuffer name, or zero after retirement.</summary>
     public int FboId => fboId;
+    /// <summary>Identifies native ownership for explicit external-surface admission.</summary>
+    internal bool OwnsNativeFramebuffer => ownsFramebuffer;
+    /// <summary>Exposes only externally owned framebuffer identity to pass consumers.</summary>
+    internal RHI.RHISurfaceRef SurfaceReference => new(this);
     /// <summary>Gets the number of occupied color slots, excluding sparse holes.</summary>
     public int ColorAttachmentCount => metadata.Attachments?.Keys.Count(IsColorSlot) ?? attachments.Keys.Count(IsColorSlot);
     /// <summary>Reports whether a depth image is configured.</summary>
@@ -86,58 +91,25 @@ public abstract partial class GpuFramebuffer : GpuResource<GpuFramebufferMetadat
         if (bindingTarget is not (FramebufferTarget.Framebuffer or FramebufferTarget.DrawFramebuffer))
             throw new ArgumentOutOfRangeException(nameof(bindingTarget));
         ValidateAttachments();
-        StateCache.Current.BindFramebufferResource(this, bindingTarget);
+        OpenGLFramebufferConfiguration.BindFramebufferResource(this, bindingTarget);
         if (attachmentsDirty)
         {
             StateCache.Current.RequireMutableFramebufferConfiguration(fboId);
             // Shared image changes can affect several FBOs; refresh each FBO lazily
             // at its next use while preserving its independently configured routing.
-            StateCache.Current.ReattachFramebuffer(this, attachments);
+            OpenGLFramebufferConfiguration.ReattachFramebuffer(this, attachments);
             attachmentsDirty = false;
         }
     }
     /// <summary>Binds the default framebuffer.</summary>
-    public static void Unbind() => StateCache.Current.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
-    /// <summary>Binds this framebuffer and its selected image dimensions as the viewport.</summary>
-    public void BindWithViewport()
-    {
-        Bind();
-        StateCache.Current.ApplyDynamic(new Pipeline.State.DynamicDrawState { Width = Width, Height = Height });
-    }
-    /// <summary>Clears the currently bound framebuffer with the requested aspects.</summary>
-    public void Clear(ClearBufferMask mask = ClearBufferMask.ColorBufferBit)
-    {
-        ObjectDisposedException.ThrowIf(IsDisposed, this);
-        GL.Clear(mask);
-    }
-    /// <summary>Sets the clear color and clears the currently bound framebuffer.</summary>
-    public void Clear(float r, float g, float b, float a, ClearBufferMask mask = ClearBufferMask.ColorBufferBit)
-    {
-        ObjectDisposedException.ThrowIf(IsDisposed, this);
-        StateCache.Current.SetClearColor(r, g, b, a);
-        GL.Clear(mask);
-    }
-    /// <summary>Binds and clears this framebuffer, leaving it bound for subsequent drawing.</summary>
-    public void BindAndClear(float r = 0, float g = 0, float b = 0, float a = 0,
-        ClearBufferMask mask = ClearBufferMask.ColorBufferBit)
-    {
-        Bind();
-        Clear(r, g, b, a, mask);
-    }
+    public static void Unbind() => OpenGLFramebufferSelection.Bind(StateCache.Current, FramebufferTarget.Framebuffer, 0);
     /// <summary>Checks completeness in all builds while preserving separate read and draw bindings.</summary>
     public bool CheckStatus(out string? errorMessage)
     {
         if (IsDisposed) { errorMessage = "Framebuffer has retired."; return false; }
-        using var bindings = StateCache.Current.BindFramebufferScope();
-        Bind();
-        var status = GL.CheckFramebufferStatus(FramebufferTarget.Framebuffer);
-        errorMessage = status == FramebufferErrorCode.FramebufferComplete ? null : $"Framebuffer incomplete: {status}";
-        return errorMessage is null;
+        try { ValidateAttachments(); OpenGLFramebufferCompleteness.RequireComplete(fboId); errorMessage=null; return true; }
+        catch (InvalidOperationException error) { errorMessage=error.Message; return false; }
     }
-    /// <summary>Saves the current draw framebuffer binding for legacy callers.</summary>
-    public static int SaveBinding() => StateCache.Current.GetCurrentFramebuffer(FramebufferTarget.Framebuffer);
-    /// <summary>Restores both framebuffer targets for callers with one saved binding.</summary>
-    public static void RestoreBinding(int fboId) => StateCache.Current.BindFramebuffer(FramebufferTarget.Framebuffer, fboId);
     /// <summary>Sets the debug label on the framebuffer object.</summary>
     public override void SetDebugName(string? debugName)
     {
@@ -222,15 +194,27 @@ public abstract partial class GpuFramebuffer : GpuResource<GpuFramebufferMetadat
     }
 
     /// <summary>Allocates an owned framebuffer or borrows an explicit external handle.</summary>
-    private protected GpuFramebuffer(bool ownsFramebuffer, int id = 0, string? name = null, int width = 0, int height = 0)
+    private protected GpuFramebuffer(bool ownsFramebuffer, int id = 0, string? name = null, int width = 0, int height = 0,
+        GpuFramebufferInitialization initialization = default)
     {
         this.ownsFramebuffer = ownsFramebuffer;
         fboId = ownsFramebuffer ? 0 : id;
         wrappedWidth = width; wrappedHeight = height;
         if (ownsFramebuffer)
         {
-            if (!GpuResourceManager.CreateFramebuffer(new GpuFramebufferInitialization(), this, out _).HasValue)
+            if (!GpuResourceManager.CreateFramebuffer(initialization, this, out _).HasValue)
                 throw new InvalidOperationException("Framebuffer allocation failed.");
+            foreach (var pair in initialization.Attachments)
+            {
+                if (pair.Key == FramebufferAttachment.DepthStencilAttachment)
+                {
+                    attachments[FramebufferAttachment.DepthAttachment] = pair.Value;
+                    attachments[FramebufferAttachment.StencilAttachment] = pair.Value;
+                }
+                else attachments[pair.Key] = pair.Value;
+                pair.Value.Observe(this);
+            }
+            reconciledAttachmentDescriptors = metadata.Attachments;
         }
         else ResourceManager?.RegisterWrapperDeclaration(this);
         SetDebugName(name);

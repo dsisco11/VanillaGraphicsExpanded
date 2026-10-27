@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.ShaderCompilation;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.PBR.Liquids;
 using VanillaGraphicsExpanded.Rendering.Contracts;
@@ -61,7 +62,7 @@ public sealed class PreparedBindingTests(HeadlessGLFixture fixture) : RenderTest
     {
         EnsureContextValid();
         string path = Path.Combine(AppContext.BaseDirectory, "assets", "shaders", "tests", "prepared_binding.csh.spv");
-        Assert.True(GpuComputePipeline.TryLoadFromSpirv(path, new ShaderSettings(PreparedBindingComputeShader.Contract),
+        Assert.True(ComputeShaderAsset.TryLoadFromSpirv(path, new ShaderSettings(PreparedBindingComputeShader.Contract),
             out var pipeline, out string log), log);
         using (pipeline)
         {
@@ -80,7 +81,7 @@ public sealed class PreparedBindingTests(HeadlessGLFixture fixture) : RenderTest
     {
         EnsureContextValid();
         string path = Path.Combine(AppContext.BaseDirectory, "assets", "shaders", "tests", "prepared_binding.csh.spv");
-        Assert.True(GpuComputePipeline.TryLoadFromSpirv(path, new ShaderSettings(PreparedBindingComputeShader.Contract),
+        Assert.True(ComputeShaderAsset.TryLoadFromSpirv(path, new ShaderSettings(PreparedBindingComputeShader.Contract),
             out var pipeline, out string log), log);
         using (pipeline)
         {

@@ -49,6 +49,45 @@ Deferred program linking retains its separate submission/completion boundary. Sn
 availability and dependent notification. Selected framebuffer images project backing metadata without
 another canonical entry or reader when facts are available.
 
+## Shader executable ownership
+
+Shader asset selection, digest validation, permutations and binary-cache policy live in
+`ShaderCompilation`. Frozen `RHIShaderDescription` inputs specify stage code, entry points,
+specializations and authored bindings. The backend creates stages/programs through the manager, links
+or installs a selected binary, publishes one canonical executable snapshot and prepares its interface.
+SPIR-V input admission checks the selected entry-point name and execution model before native ingestion;
+this declaration check does not reflect resource bindings or replace native compiler diagnostics.
+Temporary stages are retired after completion. Pending creation exposes outcomes rather than a partial
+executable; cancellation retires only its candidate allocations against their original context.
+
+`RHIShader` owns one ready `GpuProgramObject` and immutable prepared interface. Its consumer ref retains
+that exact generation and rejects native executable changes or retirement without querying or repairing
+metadata. `ComputeShaderAsset` owns a compatible RHI shader and lightweight compute PSO set; it has no
+native registration. Asset replacement builds a fresh set before transferring ownership, preserving the
+installed set on failure. Program and stage wrappers own identity, canonical metadata and native lifetime;
+compilation and linking belong to backend execution rather than wrapper methods.
+Compute dispatch guards both its selected realization and native executable against retirement and
+rejects recursive submission or pipeline-selection changes. Managed retirement unbinds a selected owned
+program before deletion, preventing subsequent scopes from capturing a deleted restoration target.
+Exact external deletion preserves OpenGL's deferred current-program behavior.
+
+Graphics description depth/stencil comparisons, stencil updates, blend equations/factors and raster
+conventions use project-owned RHI enums. OpenGL translation selects named enum members explicitly;
+semantic values do not share native token numbering. The state cache retains native observation and
+restoration values. Blend validation and state relevance share operand-dependency rules, including
+MIN/MAX factor independence and dynamic constant requirements.
+
+`RHIVertexLayout` copies and sorts `RHIVertexAttribute` declarations and compares their complete packing
+structurally. Component storage and shader interpretation use project-owned enums; no buffer identity
+belongs to the layout. Duplicate locations, incompatible component interpretations and inconsistent
+strides or divisors on a shared binding reject without a graphics context. Native configuration and
+external attribute checks translate storage through explicit backend mappings.
+
+Engine terrain replacement uses an explicit OpenGL integration handoff that preserves borrowed engine
+vertex/fragment stages, validates original identities before installation and retires the old program.
+Post-install cleanup failure is reported separately from candidate failure, so installed topology remains
+recognized. This native ownership operation is not exposed through the portable shader description.
+
 ## Buffer execution
 
 `RHICommandContext` admits desktop OpenGL 4.5 and required core buffer and image entry points for its original

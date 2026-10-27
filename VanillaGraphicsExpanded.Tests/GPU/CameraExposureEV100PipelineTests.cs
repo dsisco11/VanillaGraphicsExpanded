@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Numerics;
 using Newtonsoft.Json;
 using OpenTK.Graphics.OpenGL;
@@ -74,7 +75,11 @@ public sealed class CameraExposureEV100PipelineTests(HeadlessGLFixture fixture) 
         final.CaptureLocal(localPolicy);
         using var display = TestFramework.CreateTestGBuffer(1, 1, PixelInternalFormat.Rgba32f);
         using var draw = new PostprocessDraw(); var pipeline = draw.Prepare(final,display.PostprocessPass());
-        Assert.True(GraphicsCommandContext.TryRun("Tests.EV100.Final", [pipeline], true, commands => draw.Submit(commands, pipeline,display.PostprocessPass())));
+        {
+    var commands=RHICommandContext.Current;
+    using var scope22=commands.EnterBoundary(new("Tests.EV100.Final",true,graphics:System.Linq.Enumerable.Select<RHIGraphicsPipeline,RHIGraphicsPipelineRef>([pipeline],value=>value),operations:BoundaryOperations.RenderPasses));
+    scope22.Run(()=>draw.Submit(commands, pipeline,display.PostprocessPass(), final.CaptureBindings()));
+}
         double correction = local ? Math.Clamp(.5 * (pivot - gain - Math.Log2(nits)), -4, 4) : 0;
         float exposed = (float)(nits * Math.Pow(2, gain + correction));
         float expected = FilmicGradingReference.Quantize(FilmicGradingReference.Lookup(new(exposed), controls).X);

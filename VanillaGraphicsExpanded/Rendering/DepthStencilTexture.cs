@@ -14,12 +14,7 @@ public sealed class DepthStencilTexture : DynamicTexture2D
         string? debugName = null)
         : base(width, height, ValidateFormat(format), TextureFilterMode.Nearest, debugName) { }
 
-    /// <inheritdoc />
-    public override void Clear()
-    {
-        if (!IsValid) throw new InvalidOperationException("Depth-stencil texture is invalid.");
-        GL.Clear(ClearBufferMask.DepthBufferBit | ClearBufferMask.StencilBufferBit);
-    }
+
 
     /// <summary>Reads the stencil aspect as unsigned bytes.</summary>
     public byte[] ReadStencilPixels()

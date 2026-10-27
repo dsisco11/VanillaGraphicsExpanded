@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using VanillaGraphicsExpanded.Rendering.RHI;
 
 namespace VanillaGraphicsExpanded.Rendering;
 
@@ -18,88 +19,22 @@ internal interface IGpuProgram : IShaderSubmissionTarget, IDisposable
     bool RequiresPreparation { get; }
     /// <summary>Prepares the owner's fixed executable selection without binding resources or dispatching work.</summary>
     bool PrepareExecutable();
-    /// <summary>Establishes the family's existing activation ownership before publication.</summary>
-    void BindExecutable();
-    /// <summary>Publishes retained inputs through the authored or generated Submit override.</summary>
-    void PublishInputs();
-    /// <summary>Clears this family's failed activation.</summary>
-    void ClearActivation(bool bindingEntered);
-    /// <summary>Captures the existing family restoration scope before activation.</summary>
-    IDisposable OpenUseScope(bool replayInputs);
-    /// <summary>Releases the family's singular native executable owner.</summary>
+    /// <summary>Freezes desired inputs for the exact installed executable without native inspection or allocation.</summary>
+    RHIResourceBindings CaptureBindings();
+    /// <summary>Releases the singular executable owner through existing retirement authority.</summary>
     void ReleaseExecutable();
     /// <summary>Releases extra asset-owned resources after retirement closes admission.</summary>
     void ReleaseResources();
     #endregion
-
-    #region Default workflows
-    #region Preparation and activation
-    /// <summary>Checks lifecycle admission before family-specific demand preparation.</summary>
+    #region Preparation and retirement
+    /// <summary>Checks CPU admission before family-specific executable preparation.</summary>
     bool Prepare()
     {
         Lifetime.RequireOutsidePublication();
         if (Lifetime.IsRetired || !Lifetime.IsSubmissionAdmitted) return false;
         return PrepareExecutable();
     }
-
-    /// <summary>Publishes all desired inputs even when the executable is already bound.</summary>
-    void Activate()
-    {
-        // Reject recursion before this call owns cleanup of an activation.
-        Lifetime.RequireMutation();
-        Lifetime.RequireSubmissionAdmission();
-        if (RequiresPreparation) Lifetime.RequireUnborrowed();
-        bool bindingEntered = false;
-        try
-        {
-            if (!Prepare()) throw new InvalidOperationException("GPU program preparation failed.");
-            // Family cleanup may withdraw an already-active failed graphics generation, but
-            // a new compute owner cannot clear an unrelated binding before entering its bind.
-            bindingEntered = true;
-            BindExecutable();
-            PublishGuardedInputs();
-        }
-        catch (Exception failure)
-        {
-            try { ClearActivation(bindingEntered); }
-            catch (Exception cleanup) { throw new AggregateException(failure, cleanup); }
-            throw;
-        }
-    }
-
-    /// <summary>Replays retained inputs for an already validated borrowed executable without demand replacement.</summary>
-    void ReplayInputs()
-    {
-        Lifetime.RequireMutation();
-        Lifetime.RequireSubmissionAdmission();
-        try { PublishGuardedInputs(); }
-        catch (Exception failure)
-        {
-            try { ClearActivation(true); }
-            catch (Exception cleanup) { throw new AggregateException(failure, cleanup); }
-            throw;
-        }
-    }
-    #endregion
-    #region Scoped use and lifetime
-    /// <summary>Enters the established family scope after rejecting recursive or retired use.</summary>
-    IDisposable BeginUse(bool replayInputs = true)
-    {
-        Lifetime.RequireMutation();
-        Lifetime.RequireSubmissionAdmission();
-        if (RequiresPreparation) Lifetime.RequireUnborrowed();
-        var scope = OpenUseScope(replayInputs);
-        try { Activate(); return scope; }
-        catch (Exception activation)
-        {
-            // A failed publication still owes the enclosing scope its restoration.
-            try { scope.Dispose(); }
-            catch (Exception restoration) { throw new AggregateException(activation, restoration); }
-            throw;
-        }
-    }
-
-    /// <summary>Marks terminal lifetime once and attempts every independent cleanup operation.</summary>
+    /// <summary>Closes lifetime once and attempts each independent resource cleanup while preserving all failures.</summary>
     void Retire()
     {
         if (Lifetime.IsRetired) return;
@@ -113,27 +48,16 @@ internal interface IGpuProgram : IShaderSubmissionTarget, IDisposable
         catch (Exception failure) { (failures ??= new()).Add(failure); }
         try { ReleaseExecutable(); }
         catch (Exception failure) { (failures ??= new()).Add(failure); }
-        if (failures != null) throw new AggregateException(failures);
+        if (failures is not null) throw new AggregateException(failures);
     }
     /// <summary>Adopts a CPU block and guards its writes and future captures with this same logical asset lifetime.</summary>
     T RegisterUniform<T>(T buffer) where T : CpuUniformBuffer
     {
         ArgumentNullException.ThrowIfNull(buffer); Lifetime.RequireMutation();
         if (!Lifetime.OwnedUniforms.Contains(buffer)) Lifetime.OwnedUniforms.Add(buffer);
-        buffer.SetWriteGuard(Lifetime.RequireMutation);
+        buffer.SetWriteGuard(Lifetime.RequireMutation); buffer.SetCaptureGuard(Lifetime.RequireLive);
         return buffer;
     }
     #endregion
-    #endregion
-    #endregion
-
-    #region Private
-    /// <summary>Brackets retained publication with the shared mutation guard.</summary>
-    private void PublishGuardedInputs()
-    {
-        Lifetime.IsPublishing = true;
-        try { PublishInputs(); }
-        finally { Lifetime.IsPublishing = false; }
-    }
     #endregion
 }

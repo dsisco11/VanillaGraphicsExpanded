@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.ShaderCompilation;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Contracts;
 
@@ -11,5 +12,5 @@ namespace VanillaGraphicsExpanded.LumOn.Scene.Shaders;
 internal sealed partial class LumonSceneResetIrradianceComputeShader : GpuComputeProgram, ILumonSceneResetIrradianceComputeShaderBindings
 {
     /// <summary>Adopts the executable and its retained resource contract.</summary>
-    public LumonSceneResetIrradianceComputeShader(GpuComputePipeline pipeline) : base(pipeline) { }
+    public LumonSceneResetIrradianceComputeShader(ComputeShaderAsset pipeline) : base(pipeline) { }
 }

@@ -21,7 +21,7 @@ internal sealed partial class GpuResourceManager
         public void Validate(in GpuVertexArrayInitialization initialization) { }
         /// <inheritdoc />
         public GpuVertexArrayMetadata? Initialize(StateCache cache, in GpuVertexArrayInitialization initialization, out nint id)
-            => cache.CreateVertexArray(out id);
+            => RHI.RHICommandContext.Current.OpenGL.CreateVertexArray(out id);
         #endregion
     }
     #endregion

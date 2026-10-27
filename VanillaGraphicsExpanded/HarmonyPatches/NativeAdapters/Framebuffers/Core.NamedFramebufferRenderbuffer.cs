@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
@@ -10,10 +11,10 @@ internal static unsafe partial class Core
     #region Internal API
     /// <summary>Forwards the exact signature to the backend execution boundary.</summary>
     internal static void NamedFramebufferRenderbuffer(int @framebuffer, FramebufferAttachment @attachment, RenderbufferTarget @renderbuffertarget, int @renderbuffer)
-        => StateCache.Current.ExecuteCoreNamedFramebufferRenderbuffer(@framebuffer, @attachment, @renderbuffertarget, @renderbuffer);
+        => OpenGLFramebufferCalls.ExecuteCoreNamedFramebufferRenderbuffer(@framebuffer, @attachment, @renderbuffertarget, @renderbuffer);
 
     /// <summary>Forwards the exact signature to the backend execution boundary.</summary>
     internal static void NamedFramebufferRenderbuffer(uint @framebuffer, FramebufferAttachment @attachment, RenderbufferTarget @renderbuffertarget, uint @renderbuffer)
-        => StateCache.Current.ExecuteCoreNamedFramebufferRenderbuffer(@framebuffer, @attachment, @renderbuffertarget, @renderbuffer);
+        => OpenGLFramebufferCalls.ExecuteCoreNamedFramebufferRenderbuffer(@framebuffer, @attachment, @renderbuffertarget, @renderbuffer);
     #endregion
 }

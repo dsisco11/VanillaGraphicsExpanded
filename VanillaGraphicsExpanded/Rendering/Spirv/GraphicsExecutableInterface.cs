@@ -1,8 +1,8 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using OpenTK.Graphics.OpenGL;
-using VanillaGraphicsExpanded.Rendering.Contracts;
 
 namespace VanillaGraphicsExpanded.Rendering.Spirv;
 
@@ -13,71 +13,41 @@ internal sealed class GraphicsExecutableInterface
     internal readonly record struct Variable(int Location, ActiveAttribType Type, int ArraySize, int LocationIndex);
     internal IReadOnlyList<Variable> Inputs { get; }
     internal IReadOnlyList<Variable> Outputs { get; }
-    internal IReadOnlyList<PackagedInterfaceVariable> DeclaredInputs { get; }
-    internal IReadOnlyList<PackagedInterfaceVariable> DeclaredOutputs { get; }
-    internal PrimitiveType? GeometryInput { get; }
-    internal PrimitiveType? TessellationOutput { get; }
-#if DEBUG
-    internal int ReflectionQueries { get; private set; }
-#endif
+    internal PrimitiveTopology? GeometryInput { get; }
+    internal PrimitiveTopology? TessellationOutput { get; }
 
     #region Public API
-    /// <summary>Inspects the linked interface once and the exact captured binary used for specialization or binary-cache loading.</summary>
-    internal GraphicsExecutableInterface(int program, ShaderLoadPlan plan, Func<ShaderStageSelection, PackagedStageInterface> readInterface)
+    /// <summary>Projects linked numeric locations from the manager snapshot without repeating native reflection.</summary>
+    internal GraphicsExecutableInterface(GpuProgramMetadata metadata)
     {
-        using var errors = new GlDebug.ErrorScope("Graphics executable interface preparation");
-        Inputs = ReadVariables(program, ProgramInterface.ProgramInput);
-        Outputs = ReadVariables(program, ProgramInterface.ProgramOutput);
-        DeclaredInputs = readInterface(plan.Stages.Single(stage => stage.Stage.Kind == ShaderStageKind.Vertex)).Inputs;
-        DeclaredOutputs = readInterface(plan.Stages.Single(stage => stage.Stage.Kind == ShaderStageKind.Fragment)).Outputs;
-        if (plan.Stages.Any(s => s.Stage.Kind == ShaderStageKind.Geometry))
-        {
-            GL.GetProgram(program, GetProgramParameterName.GeometryInputType, out int input);
-#if DEBUG
-            ReflectionQueries++;
-#endif
-            GeometryInput = (PrimitiveType)input;
-        }
-        if (plan.Stages.Any(s => s.Stage.Kind == ShaderStageKind.TessellationEvaluation))
-        {
-            GL.GetProgram(program, GetProgramParameterName.TessGenMode, out int mode);
-            GL.GetProgram(program, GetProgramParameterName.TessGenPointMode, out int points);
-#if DEBUG
-            ReflectionQueries += 2;
-#endif
-            TessellationOutput = points != 0 ? PrimitiveType.Points
-                : (All)mode == All.Isolines ? PrimitiveType.Lines : PrimitiveType.Triangles;
-        }
+        if (!metadata.ExecutableAvailable || metadata.Resources.IsDefault)
+            throw new InvalidOperationException("A complete linked interface snapshot is required.");
+        Inputs = ReadPublishedVariables(metadata, ProgramInterface.ProgramInput);
+        Outputs = ReadPublishedVariables(metadata, ProgramInterface.ProgramOutput);
+        GeometryInput = metadata.GeometryInput;
+        TessellationOutput = metadata.TessellationOutput;
     }
     #endregion
 
     #region Private
-    /// <summary>Retains numeric locations without requiring optional SPIR-V debug names.</summary>
-    private IReadOnlyList<Variable> ReadVariables(int program, ProgramInterface kind)
+    /// <summary>Requires represented native properties rather than substituting missing interface data with zeros.</summary>
+    private static IReadOnlyList<Variable> ReadPublishedVariables(GpuProgramMetadata metadata, ProgramInterface kind)
     {
-        GL.GetProgramInterface(program, kind, ProgramInterfaceParameter.ActiveResources, out int count);
-#if DEBUG
-        ReflectionQueries++;
-#endif
-        ProgramProperty[] properties = kind == ProgramInterface.ProgramOutput
-            ? [ProgramProperty.Location, ProgramProperty.Type, ProgramProperty.ArraySize, ProgramProperty.LocationIndex]
-            : [ProgramProperty.Location, ProgramProperty.Type, ProgramProperty.ArraySize];
-        int[] values = new int[properties.Length];
         var result = new List<Variable>();
-        for (int index = 0; index < count; index++)
+        foreach (var resource in metadata.Resources.Where(resource => resource.Interface == kind))
         {
-            GL.GetProgramResource(program, kind, index, properties.Length, properties, values.Length, out _, values);
-#if DEBUG
-            ReflectionQueries++;
-#endif
-            // Built-ins have no user location; custom clip distances are unsupported.
-            if (values[0] >= 0)
-            {
-                if (values[2] < 1) throw new InvalidOperationException("Invalid linked interface array extent.");
-                result.Add(new(values[0], (ActiveAttribType)values[1], values[2], values.Length == 4 ? values[3] : 0));
-            }
+            int location = Property(resource, ProgramProperty.Location);
+            if (location < 0) continue;
+            int count = Property(resource, ProgramProperty.ArraySize);
+            if (count < 1) throw new InvalidOperationException("Invalid linked interface array extent.");
+            result.Add(new(location, (ActiveAttribType)Property(resource, ProgramProperty.Type), count,
+                kind == ProgramInterface.ProgramOutput ? Property(resource, ProgramProperty.LocationIndex) : 0));
         }
         return Array.AsReadOnly(result.ToArray());
     }
+    /// <summary>Reads one already-published scalar resource property.</summary>
+    private static int Property(GpuProgramResourceMetadata resource, ProgramProperty property)
+        => resource.Properties.TryGetValue(property, out var values) && values.Length == 1 ? values[0]
+            : throw new InvalidOperationException("The linked interface snapshot is incomplete.");
     #endregion
 }

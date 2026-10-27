@@ -185,7 +185,7 @@ public class LumOnCombineFunctionalTests : LumOnShaderFunctionalTestBase
             specularAOStrength: 1.0f,
             invProjection: invProj);
 
-        programId.PrimaryDepth = depthTex.TextureId;
+        programId.PrimaryDepth = depthTex;
 
         using var anchorInputs1 = LayeredTestTexture.Create(dummyTex, dummyTex);
         programId.ProbeAnchors = anchorInputs1;
@@ -216,7 +216,7 @@ public class LumOnCombineFunctionalTests : LumOnShaderFunctionalTestBase
             diffuseAOStrength: 1.0f,
             specularAOStrength: 1.0f,
             invProjection: invProj);
-        programId.PrimaryDepth = depthTex.TextureId;
+        programId.PrimaryDepth = depthTex;
 
         programId.IndirectDiffuseFull = indirectTex;
         programId.GBufferAlbedo = albedoTex;
@@ -283,7 +283,7 @@ public class LumOnCombineFunctionalTests : LumOnShaderFunctionalTestBase
             specularAOStrength: 1.0f,
             invProjection: invProj);
 
-        programId.PrimaryDepth = depthTex.TextureId;
+        programId.PrimaryDepth = depthTex;
 
         using var anchorInputs2 = LayeredTestTexture.Create(dummyTex, dummyTex);
         programId.ProbeAnchors = anchorInputs2;
@@ -313,7 +313,7 @@ public class LumOnCombineFunctionalTests : LumOnShaderFunctionalTestBase
             diffuseAOStrength: 1.0f,
             specularAOStrength: 1.0f,
             invProjection: invProj);
-        programId.PrimaryDepth = depthTex.TextureId;
+        programId.PrimaryDepth = depthTex;
 
         programId.IndirectDiffuseFull = indirectTex;
         programId.GBufferAlbedo = albedoTex;
@@ -386,7 +386,7 @@ public class LumOnCombineFunctionalTests : LumOnShaderFunctionalTestBase
                 specularAOStrength: 0.0f,
                 invProjection: invProj);
 
-            programId.PrimaryDepth = depthTex.TextureId;
+            programId.PrimaryDepth = depthTex;
 
             using var anchorInputs3 = LayeredTestTexture.Create(dummyTex, dummyTex);
             programId.ProbeAnchors = anchorInputs3;
@@ -470,10 +470,10 @@ public class LumOnCombineFunctionalTests : LumOnShaderFunctionalTestBase
         // Bind inputs
         programId.SceneDirect = sceneDirectTex;
         programId.IndirectDiffuse = indirectTex;
-        programId.GBufferAlbedo = albedoTex.TextureId;
+        programId.GBufferAlbedo = albedoTex;
         using var surfaceInput6 = LayeredTestTexture.Create(null, materialTex, null);
         programId.GBufferSurface = surfaceInput6;
-        programId.PrimaryDepth = depthTex.TextureId;
+        programId.PrimaryDepth = depthTex;
 
         TestFramework.RenderQuadTo(programId, outputGBuffer);
 
@@ -547,10 +547,10 @@ public class LumOnCombineFunctionalTests : LumOnShaderFunctionalTestBase
 
         programId.SceneDirect = sceneDirectTex;
         programId.IndirectDiffuse = indirectTex;
-        programId.GBufferAlbedo = albedoTex.TextureId;
+        programId.GBufferAlbedo = albedoTex;
         using var surfaceInput7 = LayeredTestTexture.Create(null, materialTex, null);
         programId.GBufferSurface = surfaceInput7;
-        programId.PrimaryDepth = depthTex.TextureId;
+        programId.PrimaryDepth = depthTex;
 
         TestFramework.RenderQuadTo(programId, outputGBuffer);
 
@@ -626,10 +626,10 @@ public class LumOnCombineFunctionalTests : LumOnShaderFunctionalTestBase
 
         programId.SceneDirect = sceneDirectTex;
         programId.IndirectDiffuse = indirectTex;
-        programId.GBufferAlbedo = albedoTex.TextureId;
+        programId.GBufferAlbedo = albedoTex;
         using var surfaceInput8 = LayeredTestTexture.Create(null, materialTex, null);
         programId.GBufferSurface = surfaceInput8;
-        programId.PrimaryDepth = depthTex.TextureId;
+        programId.PrimaryDepth = depthTex;
 
         TestFramework.RenderQuadTo(programId, outputGBuffer);
 
@@ -704,10 +704,10 @@ public class LumOnCombineFunctionalTests : LumOnShaderFunctionalTestBase
 
         programId.SceneDirect = sceneDirectTex;
         programId.IndirectDiffuse = indirectTex;
-        programId.GBufferAlbedo = albedoTex.TextureId;
+        programId.GBufferAlbedo = albedoTex;
         using var surfaceInput9 = LayeredTestTexture.Create(null, materialTex, null);
         programId.GBufferSurface = surfaceInput9;
-        programId.PrimaryDepth = depthTex.TextureId;
+        programId.PrimaryDepth = depthTex;
 
         TestFramework.RenderQuadTo(programId, outputGBuffer);
 
@@ -779,10 +779,10 @@ public class LumOnCombineFunctionalTests : LumOnShaderFunctionalTestBase
 
         programId.SceneDirect = sceneDirectTex;
         programId.IndirectDiffuse = indirectTex;
-        programId.GBufferAlbedo = albedoTex.TextureId;
+        programId.GBufferAlbedo = albedoTex;
         using var surfaceInput10 = LayeredTestTexture.Create(null, materialTex, null);
         programId.GBufferSurface = surfaceInput10;
-        programId.PrimaryDepth = depthTex.TextureId;
+        programId.PrimaryDepth = depthTex;
 
         TestFramework.RenderQuadTo(programId, outputGBuffer);
 
@@ -856,10 +856,10 @@ public class LumOnCombineFunctionalTests : LumOnShaderFunctionalTestBase
 
         programId.SceneDirect = sceneDirectTex;
         programId.IndirectDiffuse = indirectTex;
-        programId.GBufferAlbedo = albedoTex.TextureId;
+        programId.GBufferAlbedo = albedoTex;
         using var surfaceInput11 = LayeredTestTexture.Create(null, materialTex, null);
         programId.GBufferSurface = surfaceInput11;
-        programId.PrimaryDepth = depthTex.TextureId;
+        programId.PrimaryDepth = depthTex;
 
         TestFramework.RenderQuadTo(programId, outputGBuffer);
 
@@ -932,10 +932,10 @@ public class LumOnCombineFunctionalTests : LumOnShaderFunctionalTestBase
 
         programId.SceneDirect = sceneDirectTex;
         programId.IndirectDiffuse = indirectTex;
-        programId.GBufferAlbedo = albedoTex.TextureId;
+        programId.GBufferAlbedo = albedoTex;
         using var surfaceInput12 = LayeredTestTexture.Create(null, materialTex, null);
         programId.GBufferSurface = surfaceInput12;
-        programId.PrimaryDepth = depthTex.TextureId;
+        programId.PrimaryDepth = depthTex;
 
         TestFramework.RenderQuadTo(programId, outputGBuffer);
         var outputData = outputGBuffer[0].ReadPixels();
@@ -999,10 +999,10 @@ public class LumOnCombineFunctionalTests : LumOnShaderFunctionalTestBase
 
             programId.SceneDirect = sceneDirectTex;
             programId.IndirectDiffuse = indirectTex;
-            programId.GBufferAlbedo = albedoTex.TextureId;
+            programId.GBufferAlbedo = albedoTex;
             using var surfaceInput13 = LayeredTestTexture.Create(null, materialTex, null);
             programId.GBufferSurface = surfaceInput13;
-            programId.PrimaryDepth = depthTex.TextureId;
+            programId.PrimaryDepth = depthTex;
 
             TestFramework.RenderQuadTo(programId, outputGBuffer);
             var outputData = outputGBuffer[0].ReadPixels();
@@ -1032,10 +1032,10 @@ public class LumOnCombineFunctionalTests : LumOnShaderFunctionalTestBase
 
             programId.SceneDirect = sceneDirectTex;
             programId.IndirectDiffuse = indirectTex;
-            programId.GBufferAlbedo = albedoTex.TextureId;
+            programId.GBufferAlbedo = albedoTex;
             using var surfaceInput14 = LayeredTestTexture.Create(null, materialTex, null);
             programId.GBufferSurface = surfaceInput14;
-            programId.PrimaryDepth = depthTex.TextureId;
+            programId.PrimaryDepth = depthTex;
 
             TestFramework.RenderQuadTo(programId, outputGBuffer);
             var outputData = outputGBuffer[0].ReadPixels();
@@ -1065,10 +1065,10 @@ public class LumOnCombineFunctionalTests : LumOnShaderFunctionalTestBase
 
             programId.SceneDirect = sceneDirectTex;
             programId.IndirectDiffuse = indirectTex;
-            programId.GBufferAlbedo = albedoTex.TextureId;
+            programId.GBufferAlbedo = albedoTex;
             using var surfaceInput15 = LayeredTestTexture.Create(null, materialTex, null);
             programId.GBufferSurface = surfaceInput15;
-            programId.PrimaryDepth = depthTex.TextureId;
+            programId.PrimaryDepth = depthTex;
 
             TestFramework.RenderQuadTo(programId, outputGBuffer);
             var outputData = outputGBuffer[0].ReadPixels();

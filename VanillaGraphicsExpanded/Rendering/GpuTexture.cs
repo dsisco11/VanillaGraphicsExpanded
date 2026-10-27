@@ -112,7 +112,7 @@ public abstract partial class GpuTexture : GpuResource<GpuTextureMetadata>, IDis
         }
 
         var sizedFormat = format ?? (SizedInternalFormat)internalFormat;
-        StateCache.Current.BindImageTexture(unit, textureId, level, layered, layer, access, sizedFormat);
+        OpenGLImageSlotBindings.BindImageTexture(StateCache.Current, unit, textureId, level, layered, layer, access, sizedFormat);
     }
 
     /// <summary>Binds this live allocation and restores the previous binding when the scope ends.</summary>

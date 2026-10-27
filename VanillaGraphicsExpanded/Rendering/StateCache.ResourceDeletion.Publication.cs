@@ -20,6 +20,7 @@ internal sealed partial class StateCache
         CancelResourceOperation(kind, nativeId);
         GpuResourceManagerSystem.CurrentManager?.ObserveDeletion(kind, nativeId);
         int id = unchecked((int)nativeId);
+        RHI.RHICommandContext.NotifyResourceDeleted(this, kind, id);
         // Reconcile only the bindings whose native command has an implicit unbinding effect.
         switch (kind)
         {
@@ -62,7 +63,6 @@ internal sealed partial class StateCache
                 break;
             case GpuResourceKind.Program:
                 RecordBoundaryRetirement(EPipelineState.Program, id);
-                ProgramScopeTracker.MarkDeleted(id);
                 break;
             case GpuResourceKind.ProgramPipeline:
                 RecordBoundaryRetirement(EPipelineState.ProgramPipeline, id);
@@ -81,31 +81,19 @@ internal sealed partial class StateCache
     private static bool WasResourceDeleted(GpuResourceKind kind, nint nativeId)
     {
         int id = unchecked((int)nativeId);
-        // Programs and shaders remain native objects while referenced, even after successful
-        // deletion. Their delete-status flag proves retirement independently of physical storage.
-        if (kind == GpuResourceKind.Program)
-        {
-            if (!GL.IsProgram(id)) return true;
-            GL.GetProgram(id, GetProgramParameterName.DeleteStatus, out int status);
-            return status != 0;
-        }
-        if (kind == GpuResourceKind.Shader)
-        {
-            if (!GL.IsShader(id)) return true;
-            GL.GetShader(id, ShaderParameter.DeleteStatus, out int status);
-            return status != 0;
-        }
         return kind switch
         {
+            GpuResourceKind.Shader => RHI.Backends.OpenGL.OpenGLRenderingDeletionCalls.WasDeletedExternal(kind, nativeId),
+            GpuResourceKind.Program => RHI.Backends.OpenGL.OpenGLRenderingDeletionCalls.WasDeletedExternal(kind, nativeId),
             GpuResourceKind.Buffer => RHI.Backends.OpenGL.OpenGLBufferDeletionCalls.WasDeleted(id),
             GpuResourceKind.Texture => RHI.Backends.OpenGL.OpenGLImageDeletionCalls.WasDeleted(kind, id),
             GpuResourceKind.Renderbuffer => RHI.Backends.OpenGL.OpenGLImageDeletionCalls.WasDeleted(kind, id),
-            GpuResourceKind.Framebuffer => !GL.IsFramebuffer(id),
-            GpuResourceKind.VertexArray => !GL.IsVertexArray(id),
+            GpuResourceKind.Framebuffer => RHI.Backends.OpenGL.OpenGLRenderingDeletionCalls.WasDeletedExternal(kind, nativeId),
+            GpuResourceKind.VertexArray => RHI.Backends.OpenGL.OpenGLRenderingDeletionCalls.WasDeletedExternal(kind, nativeId),
             GpuResourceKind.Sampler => RHI.Backends.OpenGL.OpenGLImageDeletionCalls.WasDeleted(kind, id),
             GpuResourceKind.Query => RHI.Backends.OpenGL.OpenGLAuxiliaryDeletionCalls.WasDeleted(kind, nativeId),
             GpuResourceKind.Sync => RHI.Backends.OpenGL.OpenGLAuxiliaryDeletionCalls.WasDeleted(kind, nativeId),
-            GpuResourceKind.ProgramPipeline => !GL.IsProgramPipeline(id),
+            GpuResourceKind.ProgramPipeline => RHI.Backends.OpenGL.OpenGLRenderingDeletionCalls.WasDeletedExternal(kind, nativeId),
             GpuResourceKind.TransformFeedback => RHI.Backends.OpenGL.OpenGLAuxiliaryDeletionCalls.WasDeleted(kind, nativeId),
             GpuResourceKind.Semaphore => RHI.Backends.OpenGL.OpenGLAuxiliaryDeletionCalls.WasDeleted(kind, nativeId),
             GpuResourceKind.MemoryObject => RHI.Backends.OpenGL.OpenGLAuxiliaryDeletionCalls.WasDeleted(kind, nativeId),

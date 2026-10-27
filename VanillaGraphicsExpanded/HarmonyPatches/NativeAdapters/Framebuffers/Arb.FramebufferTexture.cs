@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
@@ -10,10 +11,10 @@ internal static unsafe partial class Arb
     #region Internal API
     /// <summary>Forwards the exact signature to the backend execution boundary.</summary>
     internal static void FramebufferTexture(FramebufferTarget @target, FramebufferAttachment @attachment, int @texture, int @level)
-        => StateCache.Current.ExecuteArbFramebufferTexture(@target, @attachment, @texture, @level);
+        => OpenGLFramebufferCalls.ExecuteArbFramebufferTexture(@target, @attachment, @texture, @level);
 
     /// <summary>Forwards the exact signature to the backend execution boundary.</summary>
     internal static void FramebufferTexture(FramebufferTarget @target, FramebufferAttachment @attachment, uint @texture, int @level)
-        => StateCache.Current.ExecuteArbFramebufferTexture(@target, @attachment, @texture, @level);
+        => OpenGLFramebufferCalls.ExecuteArbFramebufferTexture(@target, @attachment, @texture, @level);
     #endregion
 }

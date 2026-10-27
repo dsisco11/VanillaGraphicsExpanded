@@ -21,7 +21,7 @@ public sealed class PhotometricFramePublicationTests
         var moon = FrameLightingBounds.FromPublications(night, lights, LightingCalibration.Default, false, 1, Vector3.One, 0, 0);
         double equivalent = .1f / (MathF.PI * MathF.Pow(MathF.Sin(night.MoonAngularRadius), 2));
         double guard = 1 + 256.0 / (1 << 23);
-        Assert.InRange(Math.Abs(moon.WaterReflection - dark.WaterReflection - 2 * equivalent * guard), 0, .0001);
+        Assert.InRange(Math.Abs(moon.WaterReflection - dark.WaterReflection - 3 * equivalent * guard), 0, .0001);
         Assert.True(moon.Surface > dark.Surface);
         Assert.Throws<ArgumentException>(() => FrameLightingBounds.FromPublications(night with { MoonAngularRadius = .001f },
             lights, LightingCalibration.Default, false, 1, Vector3.One, 0, 0));
@@ -44,7 +44,7 @@ public sealed class PhotometricFramePublicationTests
         double indirect = lumon ? Math.Max(block / Math.PI,
             (1.28 * LightingStorage.DirectionalMaximum + 9.36161e-7) * gain * 7) : 11 + block / Math.PI;
         double disk = AtmosphereSolarDisk.Radiance(atmosphere).Z;
-        double expectedSurface = .9 * disk * guard + (66560 + 1 / Math.PI) * lights.SummedCandelaMaximum
+        double expectedSurface = 3 * disk * guard + (40000000 + 1 / Math.PI) * lights.SummedCandelaMaximum
             + 2 * 17 * guard / Math.PI + indirect * guard + 5 * guard;
         Assert.InRange(Math.Abs(actual.Surface - expectedSurface), 0, .000001);
         Assert.Equal(132, actual.AirSky);

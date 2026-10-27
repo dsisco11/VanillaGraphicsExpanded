@@ -1,3 +1,6 @@
+using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
+using System;
+using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Contracts;
@@ -7,8 +10,17 @@ using VanillaGraphicsExpanded.Rendering.Pipeline.Descriptions;
 namespace VanillaGraphicsExpanded.Tests;
 
 /// <summary>Checks immutable potential native write groups independently of active state application.</summary>
-public sealed class GraphicsStateRelevanceTests
+[Collection("GPU")]
+[Trait("Category", "GPU")]
+public sealed class GraphicsStateRelevanceTests : IDisposable
 {
+    private readonly GraphicsStateShaders stateShaders = new();
+    /// <summary>Retires test-owned executable generations after state assertions complete.</summary>
+    public void Dispose() => stateShaders.Dispose();
+
+    /// <summary>Acquires the fixture context before creating ready shader references.</summary>
+    public GraphicsStateRelevanceTests(HeadlessGLFixture fixture) { fixture.MakeCurrent(); }
+
     #region Public API
     #region Primitive and raster dependencies
     /// <summary>Filled polygons retain facing policy while sizes and disabled payloads remain dormant.</summary>
@@ -31,17 +43,17 @@ public sealed class GraphicsStateRelevanceTests
 
     /// <summary>Input lines and wireframe polygons both require line controls, while only polygons use facing.</summary>
     [Theory]
-    [InlineData(PrimitiveType.Lines)]
-    [InlineData(PrimitiveType.LineStrip)]
-    [InlineData(PrimitiveType.LineLoop)]
-    [InlineData(PrimitiveType.LinesAdjacency)]
-    [InlineData(PrimitiveType.LineStripAdjacency)]
-    public void LinePrimitivesUseLineGroupsWithoutPolygonFacing(PrimitiveType topology)
+    [InlineData(PrimitiveTopology.Lines)]
+    [InlineData(PrimitiveTopology.LineStrip)]
+    [InlineData(PrimitiveTopology.LineLoop)]
+    [InlineData(PrimitiveTopology.LinesAdjacency)]
+    [InlineData(PrimitiveTopology.LineStripAdjacency)]
+    public void LinePrimitivesUseLineGroupsWithoutPolygonFacing(PrimitiveTopology topology)
     {
         var value = Derive(assembly: new() { Topology = topology });
         Assert.True(value.Rasterizer.HasFlag(RasterizerStateKnowledge.LineWidth | RasterizerStateKnowledge.LineSmooth));
         Assert.False(value.Rasterizer.HasFlag(RasterizerStateKnowledge.FrontFace));
-        var wireframe = Derive(raster: new() { PolygonMode = PolygonMode.Line });
+        var wireframe = Derive(raster: new() { PolygonMode = RasterizerFillMode.Line });
         Assert.True(wireframe.Rasterizer.HasFlag(RasterizerStateKnowledge.LineWidth | RasterizerStateKnowledge.LineSmooth
             | RasterizerStateKnowledge.FrontFace | RasterizerStateKnowledge.PolygonModes));
     }
@@ -52,28 +64,28 @@ public sealed class GraphicsStateRelevanceTests
     [InlineData(true)]
     public void PointSizeModeControlsOnlyFixedSize(bool programmable)
     {
-        var value = Derive(assembly: new() { Topology = PrimitiveType.Points }, raster: new() { ProgramPointSize = programmable });
+        var value = Derive(assembly: new() { Topology = PrimitiveTopology.Points }, raster: new() { ProgramPointSize = programmable });
         Assert.Equal(!programmable, value.Rasterizer.HasFlag(RasterizerStateKnowledge.PointSize));
         Assert.True(value.Rasterizer.HasFlag(RasterizerStateKnowledge.ProgramPointSize
             | RasterizerStateKnowledge.PointSpriteOrigin));
         Assert.False(value.Rasterizer.HasFlag(RasterizerStateKnowledge.PolygonModes));
         Assert.False(value.Rasterizer.HasFlag(RasterizerStateKnowledge.LineWidth));
-        Assert.True(Derive(raster: new() { PolygonMode = PolygonMode.Point }).Rasterizer.HasFlag(RasterizerStateKnowledge.PointSize));
+        Assert.True(Derive(raster: new() { PolygonMode = RasterizerFillMode.Point }).Rasterizer.HasFlag(RasterizerStateKnowledge.PointSize));
     }
 
     /// <summary>Polygon offset payloads require the enable corresponding to the selected polygon mode.</summary>
     [Theory]
-    [InlineData(PolygonMode.Fill)]
-    [InlineData(PolygonMode.Line)]
-    [InlineData(PolygonMode.Point)]
-    public void PolygonOffsetsFollowSelectedRasterMode(PolygonMode mode)
+    [InlineData(RasterizerFillMode.Fill)]
+    [InlineData(RasterizerFillMode.Line)]
+    [InlineData(RasterizerFillMode.Point)]
+    public void PolygonOffsetsFollowSelectedRasterMode(RasterizerFillMode mode)
     {
         var all = Derive(raster: new() { PolygonMode = mode, OffsetFill = true, OffsetLine = true, OffsetPoint = true });
         Assert.True(all.Rasterizer.HasFlag(RasterizerStateKnowledge.PolygonOffset));
-        if (mode != PolygonMode.Fill)
+        if (mode != RasterizerFillMode.Fill)
             Assert.Equal(RasterizerStateKnowledge.None, all.Rasterizer & (RasterizerStateKnowledge.PolygonSmooth));
-        var inactive = Derive(raster: new() { PolygonMode = mode, OffsetFill = mode != PolygonMode.Fill,
-            OffsetLine = mode != PolygonMode.Line, OffsetPoint = mode != PolygonMode.Point });
+        var inactive = Derive(raster: new() { PolygonMode = mode, OffsetFill = mode != RasterizerFillMode.Fill,
+            OffsetLine = mode != RasterizerFillMode.Line, OffsetPoint = mode != RasterizerFillMode.Point });
         Assert.False(inactive.Rasterizer.HasFlag(RasterizerStateKnowledge.PolygonOffset));
     }
 
@@ -81,9 +93,9 @@ public sealed class GraphicsStateRelevanceTests
     [Fact]
     public void UnknownShaderOutputsKeepAllPrimitiveGroupsConservative()
     {
-        foreach (var value in new[] { Derive(extraStages: [ShaderStageKind.Geometry], assembly: new() { Topology = PrimitiveType.Points }),
+        foreach (var value in new[] { Derive(extraStages: [ShaderStageKind.Geometry], assembly: new() { Topology = PrimitiveTopology.Points }),
             Derive(extraStages: [ShaderStageKind.TessellationControl, ShaderStageKind.TessellationEvaluation],
-                assembly: new() { Topology = PrimitiveType.Patches }) })
+                assembly: new() { Topology = PrimitiveTopology.Patches }) })
         {
             Assert.True(value.Rasterizer.HasFlag(RasterizerStateKnowledge.LineWidth | RasterizerStateKnowledge.PointSize
                 | RasterizerStateKnowledge.PolygonModes | RasterizerStateKnowledge.FrontFace));
@@ -99,7 +111,7 @@ public sealed class GraphicsStateRelevanceTests
         var absent = Derive();
         Assert.Equal(DepthStateKnowledge.DepthRange, absent.Depth);
         Assert.Equal(StencilStateKnowledge.None, absent.Stencil);
-        var target = new RenderTargetSignature([new(PixelInternalFormat.Rgba16f)], PixelInternalFormat.Depth24Stencil8);
+        var target = new RenderTargetSignature([new(TextureFormat.Rgba16f)], TextureFormat.Depth24Stencil8);
         var disabled = Derive(targets: target);
         Assert.Equal(DepthStateKnowledge.DepthRange | DepthStateKnowledge.TestEnabled, disabled.Depth);
         Assert.Equal(StencilStateKnowledge.TestEnabled, disabled.Stencil);
@@ -112,7 +124,7 @@ public sealed class GraphicsStateRelevanceTests
     [Fact]
     public void SparseAndIntegerOutputsKeepOnlyApplicableNativeGroups()
     {
-        var target = new RenderTargetSignature([new(null, true), new(PixelInternalFormat.Rgba16f), new(PixelInternalFormat.Rgba8ui)]);
+        var target = new RenderTargetSignature([new(null, true), new(TextureFormat.Rgba16f), new(TextureFormat.Rgba8ui)]);
         var value = Derive(targets: target, blends: [new(), new() { Enabled = true }, new()]);
         Assert.Equal(3, value.Blending.Count);
         Assert.Equal(BlendStateKnowledge.None, value.Blending[0]);
@@ -125,15 +137,15 @@ public sealed class GraphicsStateRelevanceTests
     [Fact]
     public void EquationsAndConstantFactorsRespectCombinedWrites()
     {
-        var min = new ColorBlendDesc { Enabled = true, RgbEquation = BlendEquationMode.Min,
-            AlphaEquation = BlendEquationMode.Max, SourceRgb = BlendingFactorSrc.ConstantColor };
+        var min = new ColorBlendDesc { Enabled = true, RgbEquation = BlendOperation.Minimum,
+            AlphaEquation = BlendOperation.Maximum, SourceRgb = BlendFactor.ConstantColor };
         var unused = Derive(blends: [min]);
         Assert.Equal(BlendStateKnowledge.Enabled | BlendStateKnowledge.Equations | BlendStateKnowledge.WriteMask, unused.Blending[0]);
         Assert.False(unused.Dynamic.HasFlag(DynamicDrawStateKnowledge.BlendConstant));
-        var factor = Derive(blends: [min with { AlphaEquation = BlendEquationMode.FuncAdd }]);
+        var factor = Derive(blends: [min with { AlphaEquation = BlendOperation.Add }]);
         Assert.Equal(BlendStateKnowledge.All, factor.Blending[0]);
         Assert.False(factor.Dynamic.HasFlag(DynamicDrawStateKnowledge.BlendConstant));
-        var constant = Derive(blends: [min with { AlphaEquation = BlendEquationMode.FuncAdd, SourceAlpha = BlendingFactorSrc.ConstantAlpha }]);
+        var constant = Derive(blends: [min with { AlphaEquation = BlendOperation.Add, SourceAlpha = BlendFactor.ConstantAlpha }]);
         Assert.True(constant.Dynamic.HasFlag(DynamicDrawStateKnowledge.BlendConstant));
         Assert.False(Derive(blends: [min with { Enabled = false }]).Dynamic.HasFlag(DynamicDrawStateKnowledge.BlendConstant));
     }
@@ -145,11 +157,11 @@ public sealed class GraphicsStateRelevanceTests
         var value = Derive(caps: Capabilities() with { IndependentBlend = false }, blends: [new() { Enabled = true }]);
         Assert.Equal(BlendStateKnowledge.Equations | BlendStateKnowledge.Factors, value.GlobalBlend);
         Assert.Equal(BlendStateKnowledge.Enabled | BlendStateKnowledge.WriteMask, value.Blending[0]);
-        var min = new ColorBlendDesc { Enabled = true, RgbEquation = BlendEquationMode.Min, AlphaEquation = BlendEquationMode.Max };
-        var target = new RenderTargetSignature([new(PixelInternalFormat.Rgba16f), new(PixelInternalFormat.Rgba16f)]);
+        var min = new ColorBlendDesc { Enabled = true, RgbEquation = BlendOperation.Minimum, AlphaEquation = BlendOperation.Maximum };
+        var target = new RenderTargetSignature([new(TextureFormat.Rgba16f), new(TextureFormat.Rgba16f)]);
         // Ignored authored factors may differ without requiring independent native equations/factors.
         var ignored = Derive(caps: Capabilities() with { IndependentBlend = false }, targets: target,
-            blends: [min, min with { SourceRgb = BlendingFactorSrc.SrcAlpha }]);
+            blends: [min, min with { SourceRgb = BlendFactor.SourceAlpha }]);
         Assert.Equal(BlendStateKnowledge.Equations, ignored.GlobalBlend);
     }
     #endregion
@@ -180,7 +192,7 @@ public sealed class GraphicsStateRelevanceTests
         Assert.Equal(enables, Derive(assembly: new() { FixedIndexRestart = true }).Assembly);
         Assert.Equal(enables | PrimitiveAssemblyStateKnowledge.PatchVertices,
             Derive(extraStages: [ShaderStageKind.TessellationControl, ShaderStageKind.TessellationEvaluation],
-                assembly: new() { Topology = PrimitiveType.Patches }).Assembly);
+                assembly: new() { Topology = PrimitiveTopology.Patches }).Assembly);
     }
 
     /// <summary>Unproved state dependencies remain conservative and deriving metadata cannot narrow active authority.</summary>
@@ -205,7 +217,7 @@ public sealed class GraphicsStateRelevanceTests
     [InlineData(true)]
     public void PreparedRelevanceRetainsSparseGroupsAndGlobalAliases(bool independent)
     {
-        var target = new RenderTargetSignature([new(null, true), new(PixelInternalFormat.Rgba16f), new(PixelInternalFormat.Rgba8ui)]);
+        var target = new RenderTargetSignature([new(null, true), new(TextureFormat.Rgba16f), new(TextureFormat.Rgba8ui)]);
         var relevance = Derive(caps: Capabilities() with { IndependentBlend = independent }, targets: target,
             blends: [new(), new() { Enabled = true }, new()], sampling: new() { MaskEnabled = true });
         var coverage = PipelineStateCoverage.From(relevance);
@@ -228,21 +240,21 @@ public sealed class GraphicsStateRelevanceTests
 
     #region Private
     /// <summary>Derives metadata with controlled capabilities and without native shader queries.</summary>
-    private static GraphicsStateRelevance Derive(GraphicsCapabilities? caps = null, RenderTargetSignature? targets = null,
+    private GraphicsStateRelevance Derive(GraphicsCapabilities? caps = null, RenderTargetSignature? targets = null,
         DepthStencilDesc? depth = null, RasterizerDesc? raster = null, ColorBlendDesc[]? blends = null,
         SamplingDesc? sampling = null, PrimitiveAssemblyDesc? assembly = null, ShaderStageKind[]? extraStages = null) =>
         GraphicsStateRelevance.Derive(Description(caps, targets, depth, raster, blends, sampling, assembly, extraStages), caps ?? Capabilities());
 
     /// <summary>Builds one complete structural declaration with all dynamic slots explicitly required.</summary>
-    private static GraphicsPipelineDesc Description(GraphicsCapabilities? caps = null, RenderTargetSignature? targets = null,
+    private RHIGraphicsPipelineDescription Description(GraphicsCapabilities? caps = null, RenderTargetSignature? targets = null,
         DepthStencilDesc? depth = null, RasterizerDesc? raster = null, ColorBlendDesc[]? blends = null,
         SamplingDesc? sampling = null, PrimitiveAssemblyDesc? assembly = null, ShaderStageKind[]? extraStages = null)
     {
         var kinds = new[] { ShaderStageKind.Vertex, ShaderStageKind.Fragment }.Concat(extraStages ?? []);
         var contract = new GpuShaderContract("relevance", kinds.Select(kind =>
             new ShaderStageContract(kind.ToString(), kind.ToString(), kind, new())), 1);
-        return new(new("test", new(new ShaderSettings(contract))), new([]), targets ?? new([new(PixelInternalFormat.Rgba16f)]),
-            DynamicPipelineState.All, caps ?? Capabilities(), depth, raster, blends, sampling, assembly);
+        return new(stateShaders.Get(contract.Stages.Select(stage => stage.Kind)), new([]), targets ?? new([new(TextureFormat.Rgba16f)]),
+            DynamicPipelineState.All, depth, raster, blends, sampling, assembly);
     }
 
     /// <summary>Supplies deterministic supported limits and a compatibility profile without acquiring a native context.</summary>

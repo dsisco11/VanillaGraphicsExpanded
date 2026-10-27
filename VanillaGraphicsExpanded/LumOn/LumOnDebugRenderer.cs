@@ -703,11 +703,11 @@ public sealed partial class LumOnDebugRenderer : IRenderer, IDisposable
 
 
         // Bind textures
-        shader.PrimaryDepth = PBR.SceneColor.SceneColorParticleCapture.ReceiverDepth(capi, primaryFb.DepthTextureId);
+        shader.PrimaryDepth = PBR.SceneColor.SceneColorParticleCapture.ReceiverDepth(capi, gBufferManager!.PrimaryDepthTexture);
         // Use VGE's G-buffer normal (ColorAttachment4) which contains world-space normals
         // encoded to [0,1] via the shader patching system
         shader.GBufferSurface = gBufferManager?.SurfaceTexture;
-        shader.GBufferPatchId = gBufferManager?.PatchIdTextureId ?? 0;
+        shader.GBufferPatchId = gBufferManager is null ? default : gBufferManager.PatchIdTexture;
         shader.ProbeAnchors = bufferManager?.ProbeAnchors;
         shader.RadianceTexture0 = default;
         shader.RadianceTexture1 = default;
@@ -872,8 +872,7 @@ public sealed partial class LumOnDebugRenderer : IRenderer, IDisposable
         shader.WorldProbeEffectGain = float.IsFinite(lum.WorldProbeEffectGain)
             ? Math.Clamp(lum.WorldProbeEffectGain, 1f, 1000f) : 10f;
 
-        debugSubmission.Draw("LumOn." + shader.PassName, shader, quadMeshRef,
-            EngineFullscreenGeometry.Layout, new(0, 6), PrimitiveType.Triangles);
+        debugSubmission.DrawIndexed("LumOn." + shader.PassName, shader, quadMeshRef.Inputs, new(0, 6), PrimitiveTopology.Triangles);
 
         // Store current matrix for next frame's reprojection
     }
@@ -965,14 +964,14 @@ public sealed partial class LumOnDebugRenderer : IRenderer, IDisposable
         // Match the engine's high-precision rendering convention: vertices are
         // world - CameraPos, then transformed by the full CameraMatrixOriginf.
         shader.WorldOffset = new Vec3f(0, 0, 0);
-        debugSubmission.Draw("LumOn.Bounds", shader, clipmapBoundsGeometry, DebugLineLayout,
-            new(0, clipmapBoundsCount), PrimitiveType.Lines, depthTest: true, lineWidth: 2);
+        debugSubmission.Draw("LumOn.Bounds", shader, clipmapBoundsGeometry.Inputs,
+            new(0, clipmapBoundsCount), PrimitiveTopology.Lines, depthTest: true, lineWidth: 2);
         if (clipmapProbePointsCount > 0 && clipmapProbePointsGeometry is not null)
-            debugSubmission.Draw("LumOn.Points", shader, clipmapProbePointsGeometry, DebugPointLayout,
-                new(0, clipmapProbePointsCount), PrimitiveType.Points, depthTest: true, pointSize: 3.5f);
+            debugSubmission.Draw("LumOn.Points", shader, clipmapProbePointsGeometry.Inputs,
+                new(0, clipmapProbePointsCount), PrimitiveTopology.Points, depthTest: true, pointSize: 3.5f);
         if (hasClosestProbeMarker && closestProbeMarkerGeometry is not null)
-            debugSubmission.Draw("LumOn.Marker", shader, closestProbeMarkerGeometry, DebugPointLayout,
-                new(0, 1), PrimitiveType.Points, pointSize: 10);
+            debugSubmission.Draw("LumOn.Marker", shader, closestProbeMarkerGeometry.Inputs,
+                new(0, 1), PrimitiveTopology.Points, pointSize: 10);
     }
     /// <summary>Submits this debug view through its declared geometry, targets and complete pipeline.</summary>
     private void RenderWorldProbeQueuedTraceRaysLive()
@@ -1038,8 +1037,8 @@ public sealed partial class LumOnDebugRenderer : IRenderer, IDisposable
         int stride = Marshal.SizeOf<LineVertex>();
         clipmapQueuedTraceRaysVbo.UploadData(clipmapQueuedTraceRayVertices, clipmapQueuedTraceRayVertexCount * stride);
         shader.WorldOffset = new Vec3f(0, 0, 0);
-        debugSubmission.Draw("LumOn.TraceRays", shader, clipmapQueuedTraceRaysGeometry, DebugLineLayout,
-            new(0, clipmapQueuedTraceRayVertexCount), PrimitiveType.Lines, depthTest: true, lineWidth: 1.5f);
+        debugSubmission.Draw("LumOn.TraceRays", shader, clipmapQueuedTraceRaysGeometry.Inputs,
+            new(0, clipmapQueuedTraceRayVertexCount), PrimitiveTopology.Lines, depthTest: true, lineWidth: 1.5f);
     }
     /// <summary>Publishes private geometry configuration over reusable streaming buffers.</summary>
     private void EnsureClipmapQueuedTraceRaysGlObjects()
@@ -1061,7 +1060,7 @@ public sealed partial class LumOnDebugRenderer : IRenderer, IDisposable
         {
             clipmapQueuedTraceRaysVbo = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StreamDraw, Label = "VGE_WorldProbeQueuedTraceRays_VBO" }).RequireResource();
 
-            clipmapQueuedTraceRaysGeometry = new(DebugLineLayout, PrimitiveType.Lines,
+            clipmapQueuedTraceRaysGeometry = new(DebugLineLayout, PrimitiveTopology.Lines,
                 new Dictionary<int, GpuVbo> { [0] = clipmapQueuedTraceRaysVbo });
         }
         catch
@@ -1093,7 +1092,7 @@ public sealed partial class LumOnDebugRenderer : IRenderer, IDisposable
         {
             clipmapBoundsVbo = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StreamDraw, Label = "VGE_WorldProbeClipmapBoundsLines_VBO" }).RequireResource();
 
-            clipmapBoundsGeometry = new(DebugLineLayout, PrimitiveType.Lines,
+            clipmapBoundsGeometry = new(DebugLineLayout, PrimitiveTopology.Lines,
                 new Dictionary<int, GpuVbo> { [0] = clipmapBoundsVbo });
         }
         catch
@@ -1132,7 +1131,7 @@ public sealed partial class LumOnDebugRenderer : IRenderer, IDisposable
         {
             clipmapProbePointsColorVbo = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StreamDraw, Label = "VGE_WorldProbeClipmapProbePoints_Color_VBO" }).RequireResource();
 
-            clipmapProbePointsGeometry = new(DebugPointLayout, PrimitiveType.Points,
+            clipmapProbePointsGeometry = new(DebugPointLayout, PrimitiveTopology.Points,
                 new Dictionary<int, GpuVbo> { [0] = clipmapProbePositionsVbo, [1] = clipmapProbePointsColorVbo });
         }
         catch
@@ -1259,7 +1258,7 @@ public sealed partial class LumOnDebugRenderer : IRenderer, IDisposable
             clipmapProbeOrbsColorVbo = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StreamDraw, Label = "VGE_WorldProbeClipmapProbeOrbs_Color_VBO" }).RequireResource();
             clipmapProbeOrbsAtlasVbo = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StreamDraw, Label = "VGE_WorldProbeClipmapProbeOrbs_Atlas_VBO" }).RequireResource();
 
-            clipmapProbeOrbsGeometry = new(DebugOrbLayout, PrimitiveType.Points,
+            clipmapProbeOrbsGeometry = new(DebugOrbLayout, PrimitiveTopology.Points,
                 new Dictionary<int, GpuVbo> { [0] = clipmapProbePositionsVbo, [1] = clipmapProbeOrbsColorVbo, [2] = clipmapProbeOrbsAtlasVbo });
         }
         catch
@@ -1298,7 +1297,7 @@ public sealed partial class LumOnDebugRenderer : IRenderer, IDisposable
             closestProbeMarkerPosVbo = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StreamDraw, Label = "VGE_WorldProbeClosestProbeMarker_Pos_VBO" }).RequireResource();
             closestProbeMarkerColorVbo = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StreamDraw, Label = "VGE_WorldProbeClosestProbeMarker_Color_VBO" }).RequireResource();
 
-            closestProbeMarkerGeometry = new(DebugPointLayout, PrimitiveType.Points,
+            closestProbeMarkerGeometry = new(DebugPointLayout, PrimitiveTopology.Points,
                 new Dictionary<int, GpuVbo> { [0] = closestProbeMarkerPosVbo, [1] = closestProbeMarkerColorVbo });
         }
         catch
@@ -1460,8 +1459,8 @@ public sealed partial class LumOnDebugRenderer : IRenderer, IDisposable
         shader.FrameUniformBuffer = uniformBuffers.FrameUbo;
         shader.WorldProbeUniformBuffer = uniformBuffers.WorldProbeUbo;
 
-        debugSubmission.Draw("LumOn.Orbs", shader, clipmapProbeOrbsGeometry, DebugOrbLayout,
-            new(0, clipmapProbeOrbsCount), PrimitiveType.Points, depthTest: true,
+        debugSubmission.Draw("LumOn.Orbs", shader, clipmapProbeOrbsGeometry.Inputs,
+            new(0, clipmapProbeOrbsCount), PrimitiveTopology.Points, depthTest: true,
             pointSize: 18, programPointSize: true, depthWrite: true, blending: OrbBlending);
         if (hasClosestProbeMarker && closestProbeMarkerGeometry is not null)
         {
@@ -1469,8 +1468,7 @@ public sealed partial class LumOnDebugRenderer : IRenderer, IDisposable
             if (markerShader.EnsureReady())
             {
                 markerShader.WorldOffset = new Vec3f(0, 0, 0);
-                debugSubmission.Draw("LumOn.OrbMarker", markerShader, closestProbeMarkerGeometry,
-                    DebugPointLayout, new(0, 1), PrimitiveType.Points, pointSize: 12);
+                debugSubmission.Draw("LumOn.OrbMarker", markerShader, closestProbeMarkerGeometry.Inputs, new(0, 1), PrimitiveTopology.Points, pointSize: 12);
             }
         }
     }
@@ -1930,20 +1928,19 @@ public sealed partial class LumOnDebugRenderer : IRenderer, IDisposable
             return;
         }
 
-        if (!TerrainMaterialParamsTextureBindingHook.TryGetLastBoundNormalDepthTextureId(out int texId, out int _))
+        if (!TerrainMaterialParamsTextureBindingHook.TryGetLastBoundNormalDepthTexture(out var texture, out int _))
         {
             return;
         }
 
-        if (texId == 0)
+        if (texture.IsEmpty)
         {
             return;
         }
 
         var shader = GpuShaderProgramLibraries.Get<DebugTextureShaderProgram>(capi, "debug_texture");
-        shader.Scene = texId;
-        debugSubmission.Draw("LumOn.NormalDepthAtlas", shader, quadMeshRef,
-            EngineFullscreenGeometry.Layout, new(0, 6), PrimitiveType.Triangles);
+        shader.Scene = texture;
+        debugSubmission.DrawIndexed("LumOn.NormalDepthAtlas", shader, quadMeshRef.Inputs, new(0, 6), PrimitiveTopology.Triangles);
     }
 
     private static bool IsDirectLightingMode(LumOnDebugMode mode) =>

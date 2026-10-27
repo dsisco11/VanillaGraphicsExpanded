@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.PBR;
 using VanillaGraphicsExpanded.Rendering;
@@ -194,13 +195,13 @@ public sealed class PbrDirectLightingShadowTests : LumOnShaderFunctionalTestBase
         GL.TextureSubImage2D(shadow.TextureId, 0, 0, 0, 1, 1, PixelFormat.DepthComponent, PixelType.Float, new[] { shadowDepth });
         using var farShadow = new DepthTexture(1, 1, PixelInternalFormat.DepthComponent32f);
         GL.TextureSubImage2D(farShadow.TextureId, 0, 0, 0, 1, 1, PixelFormat.DepthComponent, PixelType.Float, new[] { farDepth ?? shadowDepth });
-        program.PrimaryScene = albedo.TextureId;
-        program.PrimaryDepth = depth.TextureId;
+        program.PrimaryScene = albedo;
+        program.PrimaryDepth = depth;
         using var surface = LayeredTestTexture.Create(normal, material, environment);
         program.GBufferSurface = surface;
-        program.GBufferPosition = position.TextureId;
-        program.ShadowMapNear = shadow.TextureId;
-        program.ShadowMapFar = farShadow.TextureId;
+        program.GBufferPosition = position;
+        program.ShadowMapNear = shadow;
+        program.ShadowMapFar = farShadow;
         float[] identity = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
         float[] inverseProjection = (float[])identity.Clone();
         inverseProjection[12] = projectionOffset;
@@ -221,7 +222,7 @@ public sealed class PbrDirectLightingShadowTests : LumOnShaderFunctionalTestBase
         using var sharedLights = new VgeLightsUniformBuffer();
         sharedLights.Capture(pointLight ? 1 : 0, pointLight ? [0f, 0f, 0f] : [], pointLight ? [1f, 1f, 1f] : []);
         program.LightsInputs = sharedLights;
-        output.BindWithViewport();
+        FramebufferTestSetup.BindForEngineRendering(output);
         TestFramework.RenderQuadTo(program, output);
 
         var result = new float[12];

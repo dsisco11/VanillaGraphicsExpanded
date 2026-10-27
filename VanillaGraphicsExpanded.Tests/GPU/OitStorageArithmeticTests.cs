@@ -95,8 +95,8 @@ public sealed class OitStorageArithmeticTests(HeadlessGLFixture fixture) : Rende
         GL.ProgramUniform4(program.ProgramId, color, 8f, 4f, 2f, .75f);
         GL.ProgramUniform1(program.ProgramId, depth, 0f);
         framework.RenderQuadTo(program.ProgramId, output); // Initializes geometry and fullscreen state.
-        output.BindWithViewport();
-        output.Clear(0, 0, 0, 0);
+        FramebufferTestSetup.BindForEngineRendering(output);
+        FramebufferTestSetup.ClearAttachments(output,0,0,0,0);
         GL.ClearBuffer(ClearBuffer.Color, 0, new[] { 1f, 1f, 1f, 1f });
         GL.ClearBuffer(ClearBuffer.Color, 1, new[] { 1f, 1f, 1f, 1f });
         GL.Enable(EnableCap.Blend);

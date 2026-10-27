@@ -6,6 +6,16 @@ namespace VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 internal static class OpenGLImageBindingCalls
 {
     #region Internal API
+    /// <summary>Forwards the native image selector exactly once and retains no unproven acceptance in the cache.</summary>
+    internal static void BindImageTexture(int unit, int texture, int level, bool layered, int layer, TextureAccess access, SizedInternalFormat format)
+    {
+        var cache = EngineStateCalls.CurrentCache;
+        bool represented = unit >= 0 && unit < GpuSupport.MaxImageUnits;
+        if (represented) cache.ForgetImageBinding(unit);
+        try { GL.BindImageTexture(unit, texture, level, layered, layer, access, format); }
+        finally { if (represented) cache.ForgetImageBinding(unit); }
+    }
+
     /// <summary>Executes the original active-unit overload and withdraws uncertain selection before dispatch.</summary>
     internal static void ActiveTexture(TextureUnit texture)
     {

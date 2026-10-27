@@ -22,21 +22,21 @@ internal interface IPBRDirectLightingShaderProgramBindings : VanillaGraphicsExpa
     CpuUniformBuffer Parameters { get; }
     /// <summary>Declares the primaryScene Sampler slot.</summary>
     [ShaderBinding("primaryScene", ShaderBindingKind.Sampler, 0, ShaderStageKind.Vertex, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.Texture2D, Sampler = ShaderSamplerPolicy.LinearClamp)]
-    int PrimaryScene { set; }
+    GpuTextureRef PrimaryScene { set; }
     /// <summary>Declares the primaryDepth Sampler slot.</summary>
     [ShaderBinding("primaryDepth", ShaderBindingKind.Sampler, 1, ShaderStageKind.Vertex, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.Texture2D, Sampler = ShaderSamplerPolicy.NearestClamp)]
-    int PrimaryDepth { set; }
+    GpuTextureRef PrimaryDepth { set; }
     /// <summary>Declares the gBufferPosition Sampler slot.</summary>
     [ShaderBinding("gBufferPosition", ShaderBindingKind.Sampler, 2, ShaderStageKind.Vertex, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.Texture2D, Sampler = ShaderSamplerPolicy.NearestClamp)]
-    int GBufferPosition { set; }
+    GpuTextureRef GBufferPosition { set; }
     /// <summary>Declares the normal, material and environment surface array sampler.</summary>
     [ShaderBinding("gBufferSurface", ShaderBindingKind.Sampler, 3, ShaderStageKind.Vertex, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.Texture2DArray, Sampler = ShaderSamplerPolicy.NearestClamp)]
     GpuTextureRef GBufferSurface { set; }
     /// <summary>Declares the shadowMapNear Sampler slot.</summary>
     [ShaderBinding("shadowMapNear", ShaderBindingKind.Sampler, 4, ShaderStageKind.Vertex, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.Texture2D, Sampler = ShaderSamplerPolicy.ShadowCompareLinearClamp, Required = false)]
-    int ShadowMapNear { set; }
+    GpuTextureRef ShadowMapNear { set; }
     /// <summary>Declares the shadowMapFar Sampler slot.</summary>
     [ShaderBinding("shadowMapFar", ShaderBindingKind.Sampler, 5, ShaderStageKind.Vertex, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.Texture2D, Sampler = ShaderSamplerPolicy.ShadowCompareLinearClamp, Required = false)]
-    int ShadowMapFar { set; }
+    GpuTextureRef ShadowMapFar { set; }
     #endregion
 }

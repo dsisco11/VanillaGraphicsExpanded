@@ -27,7 +27,7 @@ public sealed class ShaderLightingResourcesTests : RenderTestBase
         var independent = second.EnsureScreen(4, 4, 2);
         var original = BorrowScreen(screen);
         var other = BorrowScreen(independent);
-        var framebuffers = BorrowFramebuffers(screen);
+        var framebuffers = BorrowPasses(screen);
         var world = first.EnsureWorldProbes(1, 1, 8);
         var worldTextures = BorrowWorld(world);
         var otherWorld = second.EnsureWorldProbes(1, 1, 8);
@@ -45,7 +45,7 @@ public sealed class ShaderLightingResourcesTests : RenderTestBase
             // Ping-pong changes roles, not allocation identity or the independent branch's generation.
             Assert.Equal(original.Select(t => t.TextureId).Order(), BorrowScreen(screen).Select(t => t.TextureId).Order());
             Assert.All(BorrowScreen(screen), texture => Assert.DoesNotContain(texture, other));
-            Assert.Equal(framebuffers.Select(f => f.FboId).Order(), BorrowFramebuffers(screen).Select(f => f.FboId).Order());
+            Assert.All(BorrowPasses(screen), pass => Assert.Contains(pass, framebuffers));
             Assert.Same(independentHistory, independent.ScreenProbeAtlasHistoryTex);
             Assert.All(independentHistory.ReadPixels(), value => Assert.Equal(.75f, value));
             Assert.All(worldTextures, texture => Assert.True(texture.IsValid));
@@ -68,10 +68,10 @@ public sealed class ShaderLightingResourcesTests : RenderTestBase
         var engineDepth = branch.Scene.Engine.Depth;
         var world = branch.EnsureWorldProbes(1, 1, 8);
         var retired = BorrowScreen(screen);
-        var retiredFbos = BorrowFramebuffers(screen);
+        var retiredFbos = BorrowPasses(screen);
         Assert.Same(screen, branch.EnsureScreen(8, 6, 2));
         Assert.All(retired, texture => Assert.False(texture.IsValid));
-        Assert.All(retiredFbos, fbo => Assert.False(fbo.IsValid));
+        Assert.All(retiredFbos, pass => Assert.All(pass.Colors, color => Assert.False(color.Image!.Value.Texture.IsValid)));
         Assert.Same(world, branch.EnsureWorldProbes(1, 1, 8));
         Assert.True(engineDepth.IsValid);
         retired = BorrowScreen(screen);
@@ -116,11 +116,11 @@ public sealed class ShaderLightingResourcesTests : RenderTestBase
     ];
 
     /// <summary>Observes framebuffers with stable roles; the private history framebuffer participates in ping-pong separately.</summary>
-    private static GpuFramebuffer[] BorrowFramebuffers(LumOnBufferManager screen) =>
+    private static VanillaGraphicsExpanded.Rendering.RHI.RHIRenderPassDescription[] BorrowPasses(LumOnBufferManager screen) =>
     [
-        screen.ProbeAnchorFbo!, screen.ProbeTraceMaskFbo!, screen.ScreenProbeAtlasTraceFbo!,
-        screen.ScreenProbeAtlasFilteredFbo!, screen.ProbeSh9Fbo!, screen.IndirectHalfFbo!,
-        screen.IndirectFullFbo!, screen.SurfaceAlbedoFbo!, screen.VelocityFbo!
+        screen.ProbeAnchorPass!, screen.ProbeTraceMaskPass!, screen.ScreenProbeAtlasTracePass!,
+        screen.ScreenProbeAtlasFilteredPass!, screen.ProbeSh9Pass!, screen.IndirectHalfPass!,
+        screen.IndirectFullPass!, screen.SurfaceAlbedoPass!, screen.VelocityPass!
     ];
 
     /// <summary>Observes the complete world-probe texture family owned by the production topology.</summary>

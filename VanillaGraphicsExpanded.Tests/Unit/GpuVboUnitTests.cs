@@ -22,21 +22,6 @@ public class GpuVboUnitTests
         Assert.True(true); // Placeholder assertion for API design verification
     }
 
-    [Fact]
-    public void Create_DefaultParameters_HasExpectedSignature()
-    {
-        // This test documents and verifies the expected method signature
-        // Without GL context, we can't create actual VBOs, but we can verify the API design
-        
-        // Verify the Create method exists with expected default parameters
-        var createMethod = typeof(GpuVbo).GetMethod("Create", 
-            new[] { typeof(BufferTarget), typeof(BufferUsageHint), typeof(string) });
-        
-        Assert.NotNull(createMethod);
-        Assert.True(createMethod.IsStatic);
-        Assert.True(createMethod.IsPublic);
-    }
-
     [Theory]
     [InlineData(BufferTarget.ArrayBuffer)]
     [InlineData(BufferTarget.ElementArrayBuffer)]

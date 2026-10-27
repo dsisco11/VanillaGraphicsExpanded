@@ -38,13 +38,13 @@ internal interface IPbrHeightBakeShaderProgramBindings
     GpuTextureRef g3 { set; }
     /// <summary>Retains the albedoAtlas input for its consuming passes.</summary>
     [ShaderBinding("u_albedoAtlas", ShaderBindingKind.Sampler, 1, ShaderStageKind.Fragment, Programs = new[] { "PackToAtlasContract" }, TextureTarget = ShaderTextureTarget.Texture2D, Sampler = ShaderSamplerPolicy.NearestClamp)]
-    int albedoAtlas { set; }
+    GpuTextureRef albedoAtlas { set; }
     /// <summary>Retains the fineH input for its consuming passes.</summary>
     [ShaderBinding("u_fineH", ShaderBindingKind.Sampler, 0, ShaderStageKind.Fragment, Programs = new[] { "ProlongateAddContract" })]
     GpuTextureRef fineH { set; }
     /// <summary>Retains the atlas input for its consuming passes.</summary>
     [ShaderBinding("u_atlas", ShaderBindingKind.Sampler, 0, ShaderStageKind.Fragment, Programs = new[] { "LuminanceContract" }, TextureTarget = ShaderTextureTarget.Texture2D, Sampler = ShaderSamplerPolicy.NearestClamp)]
-    int atlas { set; }
+    GpuTextureRef atlas { set; }
     /// <summary>Retains the g1 input for its consuming passes.</summary>
     [ShaderBinding("u_g1", ShaderBindingKind.Sampler, 0, ShaderStageKind.Fragment, Programs = new[] { "CombineContract" })]
     GpuTextureRef g1 { set; }

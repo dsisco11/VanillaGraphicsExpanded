@@ -116,8 +116,8 @@ internal sealed class CloudStoredVolumeViewScene:IDisposable
         using var raw=new CloudVolumeViewTargets(material.Width,material.Height,4);
         using var destination=new CloudVolumeViewTargets(material.Width,material.Height,2,true);
         destination.ConfigureDiagnostics(diagnostics);
-        using var lifetime=new GraphicsPipelineLifetime();using var pass=new CloudVolumeViewPass(temporalProgram,lifetime);
-        using var geometry=new ArrayGraphicsGeometry(CloudVolumeViewRenderer.Layout,PrimitiveType.Triangles,
+        using var pass=new CloudVolumeViewPass(temporalProgram);
+        using var geometry=new ArrayGraphicsGeometry(CloudVolumeViewRenderer.Layout,PrimitiveTopology.Triangles,
             new Dictionary<int,GpuVbo>(),proceduralVertices:3);
         using var noise=CloudBlueNoiseTexture.Create();noise.EnsureCreated();
         raw.Images[0].UploadDataImmediate(cloud);raw.Images[1].UploadDataImmediate(bins);raw.Images[2].UploadDataImmediate(metadata);
@@ -131,7 +131,7 @@ internal sealed class CloudStoredVolumeViewScene:IDisposable
             projection,camera.CurrentViewProjection,new(frameValues[96],frameValues[97]),frameValues[98],input.Frame,
             new(frameValues[100],frameValues[101],frameValues[102]),new(frameValues[104],frameValues[105],frameValues[106]),frameValues[107],
             new(frameValues[124],frameValues[125]),deltaTime:frameValues[126],fogMinimum:frameValues[103]);
-        temporalProgram.Temporal.Capture(translation,destination.Target.Width,destination.Target.Height,input.Frame,true);
+        temporalProgram.Temporal.Capture(translation,destination.Width,destination.Height,input.Frame,true);
         lighting.Capture(1,input.Frame);
         try
         {
@@ -140,8 +140,12 @@ internal sealed class CloudStoredVolumeViewScene:IDisposable
             temporalProgram.PreviousCloud=previous.Images[0];temporalProgram.PreviousBins=previous.Images[1];
             temporalProgram.PreviousMetadata=previous.Images[2];temporalProgram.PreviousAge=previous.Images[3];temporalProgram.Diagnostics=default;
             temporalProgram.MaterialDepth=material;temporalProgram.VisibilityDepth=visibility;temporalProgram.LiquidDepth=liquid;
-            pass.Prepare(destination.Target,destination.FilterOutputs,false);
-            Assert.True(GraphicsCommandContext.TryRun("Tests.Cloud.Temporal.Authored",[pass.Pipeline!],true,commands=>pass.Draw(commands,geometry)));
+            pass.Prepare(destination.FilterPass,false);
+            {
+    var commands=RHICommandContext.Current;
+    using var scope39=commands.EnterBoundary(new("Tests.Cloud.Temporal.Authored",true,graphics:System.Linq.Enumerable.Select<RHIGraphicsPipeline,RHIGraphicsPipelineRef>([pass.Pipeline!],value=>value),operations:BoundaryOperations.RenderPasses));
+    scope39.Run(()=>pass.Draw(commands,geometry.Inputs));
+}
             return [destination.Images[0].ReadPixels(),destination.Images[1].ReadPixels(),destination.Images[2].ReadPixels(),
                 destination.Diagnostics?.ReadPixels()??[],destination.Images[3].ReadPixels()];
         }
@@ -225,10 +229,13 @@ internal sealed class CloudStoredVolumeViewScene:IDisposable
     internal void PrepareDraw(CloudVolumeViewSettings settings,float scale=1,float? clear=null)
     {
         lighting.Capture(scale,input.Frame);Assert.True(renderer.Prepare(settings),renderer.Failure);
-        RenderPassColor[] colors=Enumerable.Range(0,6).Select(i=>new RenderPassColor(i,AttachmentLoad.Clear,
+        RHIColorAttachment[] colors=Enumerable.Range(0,6).Select(i=>new RHIColorAttachment(AttachmentIndex:i,Load:AttachmentLoad.Clear,
             Clear:clear is {} c?ColorClearValue.Float(c,c,c,c):i<2?ColorClearValue.Float(1,1,1,1):ColorClearValue.Float(0,0,0,0))).ToArray();
-        Assert.True(GraphicsCommandContext.TryRun("Tests.Cloud.StoredVolume.Clear",[],true,commands=>
-            {commands.BeginPass(new RenderPassDesc(output.Target,colors));commands.EndPass();}));
+        {
+    var commands=RHICommandContext.Current;
+    using var scope40=commands.EnterBoundary(new("Tests.Cloud.StoredVolume.Clear",true,graphics:System.Linq.Enumerable.Select<RHIGraphicsPipeline,RHIGraphicsPipelineRef>([],value=>value),operations:BoundaryOperations.RenderPasses));
+    scope40.Run(()=>{commands.BeginRenderPass(FramebufferTestSetup.DescribeAttachments(output.Target, colors));commands.EndRenderPass();});
+}
         preparedScene=new CloudVolumeViewScene(camera,lighting.Buffer,Atmosphere,material,visibility,liquid,aerial,attenuation,shafts,Underwater);
     }
     /// <summary>Submits only the actual typed view draw, without preparation, clearing or readback.</summary>
@@ -263,10 +270,9 @@ internal sealed class CloudStoredVolumeViewScene:IDisposable
     /// <summary>Replaces storage behind the same retained image owner to exercise target realization invalidation.</summary>
     internal void RefreshOutputMetadata()
     {
-        var old=output.Target.GetAttachment(FramebufferAttachment.ColorAttachment0)!;
-        var replacement=Own(GpuFramebufferAttachment.FromTexture(output.Images[0]));
-        output.Target.SetAttachment(FramebufferAttachment.ColorAttachment0,replacement);
-        old.Dispose();
+        int width=output.Images[0].Width,height=output.Images[0].Height;
+        Assert.True(output.Images[0].Resize(width+1,height));
+        Assert.True(output.Images[0].Resize(width,height));
     }
     /// <summary>Exercises the same screen-resource retirement boundary used by client resize and reload.</summary>
     internal void ReleaseViewTargets()

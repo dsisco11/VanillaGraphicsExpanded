@@ -1,5 +1,6 @@
+using VanillaGraphicsExpanded.Rendering.ShaderCompilation;
 using System;
-using OpenTK.Graphics.OpenGL;
+using VanillaGraphicsExpanded.Rendering.RHI;
 using VanillaGraphicsExpanded.Rendering.Shaders;
 
 namespace VanillaGraphicsExpanded.Rendering;
@@ -7,8 +8,8 @@ namespace VanillaGraphicsExpanded.Rendering;
 /// <summary>Owns retained compute inputs and publishes them before executing work.</summary>
 internal abstract partial class GpuComputeProgram : IGpuProgram
 {
-    protected GpuComputePipeline pipeline;
-    private readonly Func<GpuComputePipeline?>? rebuild;
+    protected ComputeShaderAsset pipeline;
+    private readonly Func<ComputeShaderAsset?>? rebuild;
     private readonly Func<string>? rebuildDiagnostic;
     private readonly Integration.ClientRenderingLifetime? renderingLifetime;
     private readonly IDisposable? reloadRegistration;
@@ -17,7 +18,21 @@ internal abstract partial class GpuComputeProgram : IGpuProgram
     private ulong executableRevision, assetGeneration;
     private readonly GpuProgramLifetime lifetime = new();
 
+    /// <summary>Gets the exact installed executable for immutable capture, independently of pending asset settings.</summary>
+    internal RHIShaderRef Shader => pipeline.Shader;
+    /// <summary>Gets the exact installed compute realization for explicit boundary admission.</summary>
+    internal RHIComputePipelineRef Pipeline => pipeline.Pipeline;
+
     #region Public API
+    /// <summary>Freezes retained compute inputs without native preparation, metadata access or physical uniform allocation.</summary>
+    public RHIResourceBindings CaptureBindings()
+    {
+        lifetime.RequireMutation(); lifetime.RequireSubmissionAdmission();
+        if (Shader.IsEmpty) throw new InvalidOperationException("Prepare a compute executable before capturing bindings.");
+        lifetime.IsPublishing = true;
+        try { return CaptureBindingsCore(); }
+        finally { lifetime.IsPublishing = false; }
+    }
     #region Executable state
     /// <summary>Gets the current executable identifier.</summary>
     public int ProgramId => pipeline.ProgramId;
@@ -32,20 +47,15 @@ internal abstract partial class GpuComputeProgram : IGpuProgram
     #endregion
 
     #region Submission and execution
-    /// <summary>Activates the executable and publishes the complete retained input set.</summary>
-    public void Use() => ((IGpuProgram)this).Activate();
-
-    /// <summary>Ends only this owner's current direct activation.</summary>
-    public void Stop() => StateCache.Current.StopProgram(this);
-
-    /// <summary>Publishes inputs and restores the previous executable on scope exit.</summary>
-    public IDisposable UseScope() => ((IGpuProgram)this).BeginUse();
-
     /// <summary>Publishes current inputs immediately before dispatching the requested work.</summary>
     public virtual void Dispatch(int x, int y = 1, int z = 1)
     {
-        using var scope = UseScope();
-        GL.DispatchCompute(x, y, z);
+        RequireInputMutation();
+        if (!EnsureReady()) throw new InvalidOperationException("Compute executable preparation failed.");
+        var context = RHICommandContext.Current;
+        context.SetPipeline(pipeline.Pipeline);
+        context.BindResources(CaptureBindings());
+        context.Dispatch(new(x, y, z));
     }
 
     /// <summary>Publishes retained inputs before executing previously produced indirect arguments.</summary>
@@ -53,9 +63,12 @@ internal abstract partial class GpuComputeProgram : IGpuProgram
     {
         ArgumentNullException.ThrowIfNull(arguments);
         if (!arguments.IsValid) throw new ObjectDisposedException(nameof(arguments));
-        using var scope = UseScope();
-        using var binding = arguments.BindDispatchScope();
-        GL.DispatchComputeIndirect(offset);
+        RequireInputMutation();
+        if (!EnsureReady()) throw new InvalidOperationException("Compute executable preparation failed.");
+        var context = RHICommandContext.Current;
+        context.SetPipeline(pipeline.Pipeline);
+        context.BindResources(CaptureBindings());
+        context.DispatchIndirect(new RHIBufferRange(arguments, offset, 12));
     }
     #endregion
 
@@ -67,10 +80,10 @@ internal abstract partial class GpuComputeProgram : IGpuProgram
 
     #region Protected API
     /// <summary>Adopts the existing compute executable and its preparation policy.</summary>
-    protected GpuComputeProgram(GpuComputePipeline pipeline)
+    protected GpuComputeProgram(ComputeShaderAsset pipeline)
     {
         this.pipeline = pipeline ?? throw new ArgumentNullException(nameof(pipeline));
-        lifetime.NativeExecutable = pipeline;
+        lifetime.NativeExecutable = pipeline.NativeProgram;
         rebuild = pipeline.Rebuild;
         rebuildDiagnostic = pipeline.RebuildDiagnostic;
         renderingLifetime = pipeline.RenderingLifetime;
@@ -88,20 +101,11 @@ internal abstract partial class GpuComputeProgram : IGpuProgram
     /// <summary>Releases feature-owned resources after terminal admission closes.</summary>
     protected virtual void ReleaseResources() { }
     /// <summary>Implemented by generated binding-contract publication.</summary>
-    protected abstract void Submit();
+    protected abstract RHIResourceBindings CaptureBindingsCore();
     #endregion
 
     #region Private
     #region Workflow hooks
-    /// <summary>Admits compute ownership without consulting engine shader state.</summary>
-    void IGpuProgram.BindExecutable() => StateCache.Current.ActivateProgram(this);
-    /// <summary>Publishes the complete authored or generated input set.</summary>
-    void IGpuProgram.PublishInputs() => Submit();
-    /// <summary>Clears only the failing admitted compute activation.</summary>
-    void IGpuProgram.ClearActivation(bool bindingEntered)
-    {
-        if (bindingEntered) StateCache.Current.StopProgram(this);
-    }
     /// <summary>Identifies the installed compute executable generation.</summary>
     ulong IGpuProgram.ExecutableRevision => executableRevision;
     /// <summary>Reports whether current compute assets require initial preparation or executable replacement.</summary>
@@ -111,8 +115,6 @@ internal abstract partial class GpuComputeProgram : IGpuProgram
     /// <summary>Exposes stable lifecycle data solely to the common workflow.</summary>
     GpuProgramLifetime IGpuProgram.Lifetime => lifetime;
 
-    /// <summary>Captures the enclosing managed generation through the existing tracker.</summary>
-    IDisposable IGpuProgram.OpenUseScope(bool replayInputs) => StateCache.Current.CaptureProgramScope(replayInputs);
 
     /// <summary>Routes interface disposal through the same terminal facade.</summary>
     void IDisposable.Dispose() => Dispose();

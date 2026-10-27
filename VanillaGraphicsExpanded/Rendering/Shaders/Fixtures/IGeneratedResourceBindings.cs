@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Contracts;
 
@@ -13,7 +14,7 @@ internal interface IGeneratedResourceBindings
 
     /// <summary>Binds the output image while preserving its explicit view parameters.</summary>
     [ShaderBinding("outImg", ShaderBindingKind.Image, 0, ShaderStageKind.Compute)]
-    GpuTextureBinding Output { set; }
+    RHIImageBinding Output { set; }
 
     /// <summary>Exercises an optional resource absent from the linked fixture.</summary>
     [ShaderBinding("unusedTexture", ShaderBindingKind.Sampler, 7, ShaderStageKind.Compute, Required = false)]

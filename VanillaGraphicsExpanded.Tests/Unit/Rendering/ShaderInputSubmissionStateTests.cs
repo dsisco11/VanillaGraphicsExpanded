@@ -51,46 +51,6 @@ public sealed class ShaderInputSubmissionStateTests
         Assert.True(parameters.IsDirty);
     }
 
-    /// <summary>Mutation and recursive activation are rejected only during publication, then edits resume.</summary>
-    [Fact]
-    public void SubmissionRejectsMutationAndReentrancyThenReleasesGuard()
-    {
-        var shader = new GuardedShader { Value = 7 };
-        shader.Publish();
-        Assert.Equal(7, shader.Value);
-        shader.Value = 9;
-        Assert.Equal(9, shader.Value);
-        shader.Fail = true;
-        Assert.Throws<InvalidOperationException>(shader.Publish);
-        shader.Value = 11;
-        Assert.Equal(11, shader.Value);
-    }
     #endregion
 
-    #region Private
-    /// <summary>Exercises the production submission boundary with a CPU-only implementation.</summary>
-    private sealed class GuardedShader : GeneratedAccessorShader, IGpuProgram
-    {
-        private int value;
-        /// <summary>Retains one guarded runtime value.</summary>
-        public int Value { get => value; set { RequireInputMutation(); this.value = value; } }
-        /// <summary>Requests an exception after checking the guard.</summary>
-        public bool Fail { get; set; }
-        /// <summary>Invokes the real publication coordinator without invoking OpenGL activation.</summary>
-        public void Publish() => ((IGpuProgram)this).Activate();
-        /// <summary>Supplies ready CPU-only preparation for workflow guard verification.</summary>
-        bool IGpuProgram.PrepareExecutable() => true;
-        /// <summary>Avoids native binding in the CPU-only guard fixture.</summary>
-        void IGpuProgram.BindExecutable() { }
-        /// <summary>Owns no native activation to clear in the CPU-only fixture.</summary>
-        void IGpuProgram.ClearActivation(bool bindingEntered) { }
-        /// <summary>Verifies both mutation and recursive executable work are forbidden while publishing.</summary>
-        protected override void Submit()
-        {
-            Assert.Throws<InvalidOperationException>(() => Value = 23);
-            Assert.Throws<InvalidOperationException>(RequireOutsideSubmission);
-            if (Fail) throw new InvalidOperationException("Controlled submission failure.");
-        }
-    }
-    #endregion
 }

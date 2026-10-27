@@ -1,3 +1,5 @@
+using VanillaGraphicsExpanded.Rendering.Pipeline;
+using System;
 using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
@@ -12,8 +14,12 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 /// <summary>Proves the fullscreen consumer's state footprint with deterministic real MRT drawing.</summary>
 [Collection("GPU")]
 [Trait("Category", "GPU")]
-public sealed class CompleteGraphicsDrawTests(HeadlessGLFixture fixture)
+public sealed class CompleteGraphicsDrawTests(HeadlessGLFixture fixture) : IDisposable
 {
+    private readonly GraphicsStateShaders stateShaders = new();
+    /// <summary>Retires test-owned executable generations after state assertions complete.</summary>
+    public void Dispose() => stateShaders.Dispose();
+
     #region Public API
     /// <summary>Disabled culling still establishes authored winding because fragments observe gl_FrontFacing.</summary>
     [Theory]
@@ -22,19 +28,31 @@ public sealed class CompleteGraphicsDrawTests(HeadlessGLFixture fixture)
     public void FrontFacingIsObservableWithCullingDisabled(bool clockwise)
     {
         fixture.MakeCurrent(); using var draw = new FullscreenDraw(facing: true);
-        var cache = StateCache.Current; cache.UseProgram(0);
+        var cache = StateCache.Current; OpenGLProgramSelection.Select(cache, 0);
         var baseline = Description();
-        var description = new GraphicsPipelineDesc(baseline.Shader, baseline.VertexLayout, baseline.Targets, baseline.Dynamics,
-            rasterizer: new() { Cull = false, FrontFace = clockwise ? FrontFaceDirection.Cw : FrontFaceDirection.Ccw });
+        var description = new RHIGraphicsPipelineDescription(baseline.Shader, baseline.VertexLayout, baseline.Targets, baseline.Dynamics,
+            rasterizer: new() { Cull = false, FrontFace = clockwise ? FrontFaceWinding.Clockwise : FrontFaceWinding.CounterClockwise });
         GL.FrontFace(clockwise ? FrontFaceDirection.Ccw : FrontFaceDirection.Cw); GL.Enable(EnableCap.CullFace);
         cache.InvalidateAll(); int inherited = GL.GetInteger(GetPName.FrontFace);
         try
         {
-            Assert.True(CompleteGraphicsBoundary.TryRun("FacingWithoutCull", [description], [], true, _ =>
+            Assert.True(((Func<bool>)(() => {
+                if (!true) return false;
+                var coverage = PipelineStateCoverage.Empty;
+                foreach (RHIGraphicsPipelineDescription declaration in new RHIGraphicsPipelineDescription[] {description})
+                    coverage = coverage.Union(PipelineStateCoverage.From(VanillaGraphicsExpanded.Rendering.Pipeline.GraphicsStateRelevance.Derive(declaration, GpuSupport.Graphics)));
+                if (!StateCache.Current.TryBeginEngineBoundary(new EngineBoundaryDeclaration("FacingWithoutCull", coverage), out var restored,
+                    new EngineBoundaryResources(geometry: true, programSelection: true))) return false;
+                using (restored) {
+                    Action<EngineBoundaryScope> operation = _ =>
             {
                 cache.ApplyGraphicsState(description, new() { Viewport = new() { Width = 8, Height = 8 } });
                 Assert.False(GL.IsEnabled(EnableCap.CullFace)); draw.Render();
-            }));
+            };
+                    restored!.Run(() => operation(restored));
+                }
+                return true;
+            }))());
             Assert.Equal(inherited, GL.GetInteger(GetPName.FrontFace)); Assert.True(GL.IsEnabled(EnableCap.CullFace));
             draw.AssertFacingPixels(front: !clockwise); Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
@@ -53,20 +71,32 @@ public sealed class CompleteGraphicsDrawTests(HeadlessGLFixture fixture)
         GL.DepthRange(.25, .75); cache.InvalidateAll();
         var description = Description(); var expected = new InvalidOperationException("after draw");
 #if DEBUG
-        long submissions = cache.DrawSubmissions;
+        long submissions = draw.Submissions;
 #endif
         try
         {
-            bool Run() => CompleteGraphicsBoundary.TryRun("FullscreenFixture", [description], [], true, _ =>
+            bool Run() => ((Func<bool>)(() => {
+                if (!true) return false;
+                var coverage = PipelineStateCoverage.Empty;
+                foreach (RHIGraphicsPipelineDescription declaration in new RHIGraphicsPipelineDescription[] {description})
+                    coverage = coverage.Union(PipelineStateCoverage.From(VanillaGraphicsExpanded.Rendering.Pipeline.GraphicsStateRelevance.Derive(declaration, GpuSupport.Graphics)));
+                if (!StateCache.Current.TryBeginEngineBoundary(new EngineBoundaryDeclaration("FullscreenFixture", coverage), out var restored,
+                    new EngineBoundaryResources(geometry: true, programSelection: true))) return false;
+                using (restored) {
+                    Action<EngineBoundaryScope> operation = _ =>
             {
-                cache.ApplyGraphicsState(description, new GraphicsDynamicState { Viewport = new() { Width = 8, Height = 8 } });
+                cache.ApplyGraphicsState(description, new RHIDynamicState { Viewport = new() { Width = 8, Height = 8 } });
                 draw.Render();
                 if (fail) throw expected;
-            });
+            };
+                    restored!.Run(() => operation(restored));
+                }
+                return true;
+            }))();
             if (fail) Assert.Same(expected, Assert.Throws<InvalidOperationException>(() => Run()));
             else Assert.True(Run());
 #if DEBUG
-            Assert.Equal(submissions + 1, cache.DrawSubmissions);
+            Assert.Equal(submissions + 1, draw.Submissions);
 #endif
             Assert.True(GL.IsEnabled(EnableCap.RasterizerDiscard)); Assert.True(GL.IsEnabled(EnableCap.ScissorTest));
             Assert.True(GL.IsEnabled(EnableCap.SampleMask));
@@ -75,10 +105,22 @@ public sealed class CompleteGraphicsDrawTests(HeadlessGLFixture fixture)
             Assert.Equal(0, GL.GetInteger(GetPName.CurrentProgram));
             draw.AssertPixels(); Assert.Equal(ErrorCode.NoError, GL.GetError());
             bool called = false;
-            Assert.False(CompleteGraphicsBoundary.TryRun("ExcludedConditional", [description], [], false, _ => called = true));
+            Assert.False(((Func<bool>)(() => {
+                if (!false) return false;
+                var coverage = PipelineStateCoverage.Empty;
+                foreach (RHIGraphicsPipelineDescription declaration in new RHIGraphicsPipelineDescription[] {description})
+                    coverage = coverage.Union(PipelineStateCoverage.From(VanillaGraphicsExpanded.Rendering.Pipeline.GraphicsStateRelevance.Derive(declaration, GpuSupport.Graphics)));
+                if (!StateCache.Current.TryBeginEngineBoundary(new EngineBoundaryDeclaration("ExcludedConditional", coverage), out var restored,
+                    new EngineBoundaryResources(geometry: true, programSelection: true))) return false;
+                using (restored) {
+                    Action<EngineBoundaryScope> operation = _ => called = true;
+                    restored!.Run(() => operation(restored));
+                }
+                return true;
+            }))());
             Assert.False(called);
         }
-        finally { cache.ApplyGraphicsState(description, new GraphicsDynamicState { Viewport = new() { Width = 8, Height = 8 } }); }
+        finally { cache.ApplyGraphicsState(description, new RHIDynamicState { Viewport = new() { Width = 8, Height = 8 } }); }
     }
 
     /// <summary>Global fallback uses enabled output intent even when an earlier disabled output retains different factors.</summary>
@@ -95,15 +137,23 @@ public sealed class CompleteGraphicsDrawTests(HeadlessGLFixture fixture)
             // The real context supports global blending; only the optional independent path is disabled.
             capabilityField.SetValue(null, original with { IndependentBlend = false });
             var baseline = Description();
-            var description = new GraphicsPipelineDesc(baseline.Shader, baseline.VertexLayout, baseline.Targets,
-                baseline.Dynamics, blending: [new() { SourceRgb = BlendingFactorSrc.Zero, DestinationRgb = BlendingFactorDest.One },
+            var description = new RHIGraphicsPipelineDescription(baseline.Shader, baseline.VertexLayout, baseline.Targets,
+                baseline.Dynamics, blending: [new() { SourceRgb = BlendFactor.Zero, DestinationRgb = BlendFactor.One },
                     new() { Enabled = true }, new()]);
             GL.Disable(EnableCap.ScissorTest); GL.Disable(EnableCap.RasterizerDiscard); GL.ColorMask(true, true, true, true);
             for (int slot = 0; slot < 3; slot++) GL.ClearBuffer(ClearBuffer.Color, slot, new float[4]);
             GL.BlendFunc(BlendingFactor.Zero, BlendingFactor.One);
             GL.BlendEquation(BlendEquationMode.FuncAdd);
             cache.InvalidateAll();
-            Assert.True(CompleteGraphicsBoundary.TryRun("GlobalBlendFallback", [description], [], true, _ =>
+            Assert.True(((Func<bool>)(() => {
+                if (!true) return false;
+                var coverage = PipelineStateCoverage.Empty;
+                foreach (RHIGraphicsPipelineDescription declaration in new RHIGraphicsPipelineDescription[] {description})
+                    coverage = coverage.Union(PipelineStateCoverage.From(VanillaGraphicsExpanded.Rendering.Pipeline.GraphicsStateRelevance.Derive(declaration, GpuSupport.Graphics)));
+                if (!StateCache.Current.TryBeginEngineBoundary(new EngineBoundaryDeclaration("GlobalBlendFallback", coverage), out var restored,
+                    new EngineBoundaryResources(geometry: true, programSelection: true))) return false;
+                using (restored) {
+                    Action<EngineBoundaryScope> operation = _ =>
             {
                 cache.ApplyGraphicsState(description, new() { Viewport = new() { Width = 8, Height = 8 } });
                 GL.GetInteger((GetIndexedPName)GetPName.BlendSrcRgb, 1, out int source);
@@ -111,7 +161,11 @@ public sealed class CompleteGraphicsDrawTests(HeadlessGLFixture fixture)
                 Assert.Equal((int)BlendingFactorSrc.One, source);
                 Assert.Equal((int)BlendingFactorDest.Zero, destination);
                 draw.Render();
-            }));
+            };
+                    restored!.Run(() => operation(restored));
+                }
+                return true;
+            }))());
             draw.AssertPixels();
             for (int slot = 0; slot < cache.MaxDrawBuffers; slot++)
             {
@@ -135,10 +189,10 @@ public sealed class CompleteGraphicsDrawTests(HeadlessGLFixture fixture)
     #endregion
     #region Private
     /// <summary>Uses the lighting consumer's three-color fullscreen shape without migrating its production renderer.</summary>
-    private static GraphicsPipelineDesc Description()
+    private RHIGraphicsPipelineDescription Description()
     {
         var contract = new GpuShaderContract("fullscreen", [new("fullscreen.vsh", "fullscreen.vsh", ShaderStageKind.Vertex, new()), new("fullscreen.fsh", "fullscreen.fsh", ShaderStageKind.Fragment, new())], 1);
-        return new(new("fixture", new(new ShaderSettings(contract))), new([]), new([new(PixelInternalFormat.Rgba8), new(PixelInternalFormat.Rgba8), new(PixelInternalFormat.Rgba8)]), DynamicPipelineState.Viewport);
+        return new(stateShaders.Get(contract.Stages.Select(stage => stage.Kind)), new([]), new([new(TextureFormat.Rgba8), new(TextureFormat.Rgba8), new(TextureFormat.Rgba8)]), DynamicPipelineState.Viewport);
     }
 
     /// <summary>Owns three output images and an indexed fullscreen triangle using the production draw owner.</summary>
@@ -148,6 +202,8 @@ public sealed class CompleteGraphicsDrawTests(HeadlessGLFixture fixture)
         private readonly int[] colors = new int[3];
         private readonly GpuVao vao;
         private readonly GpuEbo indices;
+        /// <summary>Counts explicit native reference draws independently of production submission instrumentation.</summary>
+        internal int Submissions { get; private set; }
         #region Public API
         /// <summary>Loads deterministic binaries and creates an independent render target.</summary>
         public FullscreenDraw(bool facing = false)
@@ -158,7 +214,7 @@ public sealed class CompleteGraphicsDrawTests(HeadlessGLFixture fixture)
             program = GL.CreateProgram(); GL.AttachShader(program, vs); GL.AttachShader(program, fs); GL.LinkProgram(program);
             GL.GetProgram(program, GetProgramParameterName.LinkStatus, out int linked); Assert.True(linked != 0, GL.GetProgramInfoLog(program));
             GL.DeleteShader(vs); GL.DeleteShader(fs);
-            vao = GpuVao.Create(); vao.Bind(); indices = RHICommandContext.Current.CreateIndexBuffer(new RHIBufferDescription { Role = BufferRole.Index, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = null }).RequireResource(); indices.UploadIndices(new uint[] { 0, 1, 2 });
+            vao = GpuVao.Create(); OpenGLVertexSelection.Bind(StateCache.Current, vao.VertexArrayId); indices = RHICommandContext.Current.CreateIndexBuffer(new RHIBufferDescription { Role = BufferRole.Index, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = null }).RequireResource(); indices.UploadIndices(new uint[] { 0, 1, 2 });
             framebuffer = GL.GenFramebuffer(); GL.BindFramebuffer(FramebufferTarget.Framebuffer, framebuffer);
             for (int i = 0; i < colors.Length; i++)
             {
@@ -171,7 +227,19 @@ public sealed class CompleteGraphicsDrawTests(HeadlessGLFixture fixture)
             StateCache.Current.InvalidateAll();
         }
         /// <summary>Issues one native indexed draw after the caller establishes complete state.</summary>
-        public void Render() { using var shader = StateCache.Current.UseProgramScope(program); vao.DrawElements(PrimitiveType.Triangles, indices); }
+        public void Render()
+        {
+            int previous = GL.GetInteger(GetPName.CurrentProgram);
+            using var selection = StateCache.Current.BindVertexArrayScope(vao.VertexArrayId);
+            try
+            {
+                OpenGLProgramSelection.Select(StateCache.Current, program);
+                OpenTK.Graphics.OpenGL4.GL.VertexArrayElementBuffer(vao.VertexArrayId, indices.BufferId);
+                GL.DrawElements(PrimitiveType.Triangles, 3, DrawElementsType.UnsignedInt, IntPtr.Zero);
+                Submissions++;
+            }
+            finally { OpenGLProgramSelection.Select(StateCache.Current, previous); }
+        }
         /// <summary>Checks all pixels of all outputs, independent of GL state metadata.</summary>
         public void AssertPixels()
         {
@@ -195,7 +263,7 @@ public sealed class CompleteGraphicsDrawTests(HeadlessGLFixture fixture)
         /// <summary>Releases fixture resources while the collection context remains active.</summary>
         public void Dispose()
         {
-            StateCache.Current.UseProgram(0); indices.Dispose(); vao.Dispose(); GL.DeleteProgram(program);
+            OpenGLProgramSelection.Select(StateCache.Current, 0); indices.Dispose(); vao.Dispose(); GL.DeleteProgram(program);
             GL.BindFramebuffer(FramebufferTarget.Framebuffer, 0); GL.DeleteFramebuffer(framebuffer);
             foreach (int color in colors) GL.DeleteRenderbuffer(color); StateCache.Current.InvalidateAll();
         }

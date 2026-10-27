@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.ShaderCompilation;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using System.Numerics;
@@ -30,8 +31,10 @@ internal sealed class WorldProbeHybridCommit : IDisposable
     /// <summary>Loads the commit program before any atlas write can be submitted.</summary>
     public WorldProbeHybridCommit(ICoreAPI api)
     {
-        if (!GpuComputePipeline.TryCreateFromAssets(api, WorldProbeCommitShader.Contract.Identity,
-            out var program, out _, out string log, preferSpirv: true))
+        if (!ComputeShaderAsset.TryCreateFromAssets(api: api,
+            settings: new global::VanillaGraphicsExpanded.Rendering.Contracts.ShaderSettings(global::VanillaGraphicsExpanded.Rendering.Contracts.GpuShaderContracts.Registry.FindProgram(WorldProbeCommitShader.Contract.Identity)),
+            pipeline: out var program,
+            infoLog: out string log))
         { staging.Dispose(); throw new InvalidOperationException(log); }
         pipeline = new(program!);
     }
@@ -76,11 +79,14 @@ internal sealed class WorldProbeHybridCommit : IDisposable
         if (!lease.IsCurrent) return false;
         pipeline.ResidentAnswers = lease.Answers.Binding;
         pipeline.Commit = new(staging, 0, bytes);
-        pipeline.radianceAtlas = new(resources.ProbeRadianceAtlas, TextureAccess.WriteOnly, Format: SizedInternalFormat.Rgba16f);
-        pipeline.visibilityAtlas = new(resources.ProbeVis0, TextureAccess.WriteOnly, Format: SizedInternalFormat.Rgba16f);
-        pipeline.distanceAtlas = new(resources.ProbeDist0, TextureAccess.WriteOnly, Format: SizedInternalFormat.Rg16f);
-        pipeline.metadataAtlas = new(resources.ProbeMeta0, TextureAccess.WriteOnly, Format: SizedInternalFormat.Rg32f);
-        pipeline.Dispatch(1);
+        pipeline.radianceAtlas = new(resources.ProbeRadianceAtlas, ImageAccess.WriteOnly, Format: TextureFormat.Rgba16f);
+        pipeline.visibilityAtlas = new(resources.ProbeVis0, ImageAccess.WriteOnly, Format: TextureFormat.Rgba16f);
+        pipeline.distanceAtlas = new(resources.ProbeDist0, ImageAccess.WriteOnly, Format: TextureFormat.Rg16f);
+        pipeline.metadataAtlas = new(resources.ProbeMeta0, ImageAccess.WriteOnly, Format: TextureFormat.Rg32f);
+        if(!pipeline.EnsureReady())throw new InvalidOperationException(pipeline.PreparationLog);
+        var dispatchContext=RHICommandContext.Current;
+        using var dispatchBoundary=dispatchContext.EnterBoundary(new("WorldProbe.HybridCommit",true,compute:[pipeline.Pipeline]));
+        dispatchBoundary.Run(()=>pipeline.Dispatch(1));
         RHICommandContext.Current.Barrier(new(ResourceAccess.Image | ResourceAccess.TextureFetch |
             ResourceAccess.Framebuffer | ResourceAccess.TextureUpdate));
         return true;

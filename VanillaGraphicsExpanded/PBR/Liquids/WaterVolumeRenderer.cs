@@ -21,8 +21,7 @@ internal sealed class WaterVolumeRenderer : IRenderer
     private readonly LiquidGraphicsSubmission submission;
     private readonly Action unregisterResize;
     private static WaterVolumeRenderer? active;
-    private GpuFramebuffer? target;
-    private RenderPassDesc? volumePass;
+    private RHIRenderPassDescription? volumePass;
     private Texture3D? transport;
     private GpuResourceCollection? targetResources;
     private WaterVolumeFrame? completed;
@@ -77,18 +76,17 @@ internal sealed class WaterVolumeRenderer : IRenderer
             capturedCamera.ClipPlanes.X, capturedCamera.ClipPlanes.Y)) return;
         try
         {
-            if (target is not null && (target.Width != primary.Width || target.Height != primary.Height)) Retire();
-            if (target is null)
+            source.PrepareTextureInputs(api, atlases);
+            if (transport is not null && (transport.Width != primary.Width || transport.Height != primary.Height)) Retire();
+            if (transport is null)
             {
                 var resources = new GpuResourceCollection();
                 try
                 {
                     transport = resources.Own(RHICommandContext.Current.CreateTexture3D(new RHITextureDescription { Dimension = TextureDimension.TwoArray, Format = TextureFormat.Rgba32f, Width = System.Math.Max(1, primary.Width), Height = System.Math.Max(1, primary.Height), Depth = System.Math.Max(1, 2), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "Water.Transport" }).RequireResource());
-                    var optical = resources.Own(GpuFramebufferAttachment.FromTexture(transport, layer: WaterVolumeFrame.OpticalLayer));
-                    var illumination = resources.Own(GpuFramebufferAttachment.FromTexture(transport, layer: WaterVolumeFrame.SourceLayer));
-                    var fixedTarget = resources.Own(StaticGpuFramebuffer.Create([optical, illumination], debugName: "Water.Transport.Framebuffer"));
-                    target = fixedTarget;
-                    volumePass = new(fixedTarget, LiquidPipelineStates.VolumeOutputs);
+                    volumePass = new([
+                        new(Image:RHIAttachment.FromTexture(transport,new(Layer:WaterVolumeFrame.OpticalLayer)),Load:AttachmentLoad.Clear,Clear:ColorClearValue.Float(0,0,0,0)),
+                        new(Image:RHIAttachment.FromTexture(transport,new(Layer:WaterVolumeFrame.SourceLayer)),Load:AttachmentLoad.Clear,Clear:ColorClearValue.Float(0,0,0,0))],label:"Water.Transport");
                     targetResources = resources;
                 }
                 catch { resources.Dispose(); throw; }
@@ -100,11 +98,11 @@ internal sealed class WaterVolumeRenderer : IRenderer
             program.WaveFrame = waves;
             program.ResetModelTransform();
             program.ForcedTransparency = 0;
-            program.DepthTexture = SceneColor.SceneColorParticleCapture.ReceiverDepth(api, primary.DepthTextureId);
-            program.ShadowMapNear = api.Render.FrameBuffers[(int)EnumFrameBuffer.ShadowmapNear]?.DepthTextureId ?? 0;
-            program.ShadowMapFar = api.Render.FrameBuffers[(int)EnumFrameBuffer.ShadowmapFar]?.DepthTextureId ?? 0;
+            program.DepthTexture = SceneColor.SceneColorParticleCapture.ReceiverDepth(api, source.PrimaryDepth);
+            program.ShadowMapNear = source.ShadowNear;
+            program.ShadowMapFar = source.ShadowFar;
             MaterialAtlasSystem.Instance.TextureStore.TryGetPageTextures(atlases[0], out var initialMaterial);
-            program.TerrainTexture = atlases[0];
+            program.TerrainTexture = source.AtlasTexture(0);
             program.MaterialParamsTexture = initialMaterial.MaterialParamsTexture;
             LiquidRenderer.BindWaterMedium(program, MaterialAtlasSystem.Instance.TextureStore, atlases[0]);
             program.LightShaftOcclusion = Postprocessing.LightShaftOcclusionRenderer.Texture;
@@ -116,7 +114,7 @@ internal sealed class WaterVolumeRenderer : IRenderer
                 for (int i = 0; i < atlases.Length; i++)
                 {
                     MaterialAtlasSystem.Instance.TextureStore.TryGetPageTextures(atlases[i], out var material);
-                    program.TerrainTexture = atlases[i];
+                    program.TerrainTexture = source.AtlasTexture(i);
                     program.MaterialParamsTexture = material.MaterialParamsTexture;
                     LiquidRenderer.BindWaterMedium(program, MaterialAtlasSystem.Instance.TextureStore, atlases[i]);
                     pools[i].Render(api.World.Player.Entity.CameraPos, "origin", EnumFrustumCullMode.CullNormal);
@@ -185,7 +183,6 @@ internal sealed class WaterVolumeRenderer : IRenderer
         composed = false;
         targetResources?.Dispose();
         targetResources = null;
-        target = null;
         volumePass = null;
         transport = null;
     }

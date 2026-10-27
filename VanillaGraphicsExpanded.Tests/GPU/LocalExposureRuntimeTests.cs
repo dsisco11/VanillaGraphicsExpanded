@@ -288,7 +288,11 @@ public sealed class LocalExposureRuntimeTests(HeadlessGLFixture fixture, ITestOu
         program.Capture(false, new(controls ?? new(1, 1, 1, 0), Vector4.Zero, Vector4.Zero), new(6, automatic ? 1 : 0, 0, MathF.Log2(.18f)));
         program.CaptureLocal(settings);
         var pipeline = draw.Prepare(program,target.PostprocessPass());
-        Assert.True(GraphicsCommandContext.TryRun("Tests.LocalExposure.Final", [pipeline], true, c => draw.Submit(c, pipeline,target.PostprocessPass())));
+        {
+    var c=RHICommandContext.Current;
+    using var scope62=c.EnterBoundary(new("Tests.LocalExposure.Final",true,graphics:System.Linq.Enumerable.Select<RHIGraphicsPipeline,RHIGraphicsPipelineRef>([pipeline],value=>value),operations:BoundaryOperations.RenderPasses));
+    scope62.Run(()=>draw.Submit(c, pipeline,target.PostprocessPass(), program.CaptureBindings()));
+}
         Assert.Equal(ErrorCode.NoError, GL.GetError());
         return target[0].ReadPixels();
     }

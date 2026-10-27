@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.ShaderCompilation;
 using VanillaGraphicsExpanded.Rendering.Contracts;
 using System;
 using System.IO;
@@ -11,7 +12,7 @@ public sealed class GpuComputePipelineSpirvLoadTests
     [Fact]
     public void TryLoadFromSpirv_EmptyPath_ReturnsFalse()
     {
-        bool ok = GpuComputePipeline.TryLoadFromSpirv(
+        bool ok = ComputeShaderAsset.TryLoadFromSpirv(
             spirvBinaryPath: "",
             settings: new ShaderSettings(GpuShaderContracts.Registry.FindProgram("lumonscene_feedback_mark_pages")),
             pipeline: out var pipeline,
@@ -27,7 +28,7 @@ public sealed class GpuComputePipelineSpirvLoadTests
     {
         string path = Path.Combine(Path.GetTempPath(), $"vge-missing-{Guid.NewGuid():N}.spv");
 
-        bool ok = GpuComputePipeline.TryLoadFromSpirv(
+        bool ok = ComputeShaderAsset.TryLoadFromSpirv(
             spirvBinaryPath: path,
             settings: new ShaderSettings(GpuShaderContracts.Registry.FindProgram("lumonscene_feedback_mark_pages")),
             pipeline: out var pipeline,
@@ -47,7 +48,7 @@ public sealed class GpuComputePipelineSpirvLoadTests
         {
             File.WriteAllBytes(path, Array.Empty<byte>());
 
-            bool ok = GpuComputePipeline.TryLoadFromSpirv(
+            bool ok = ComputeShaderAsset.TryLoadFromSpirv(
                 spirvBinaryPath: path,
                 settings: new ShaderSettings(GpuShaderContracts.Registry.FindProgram("lumonscene_feedback_mark_pages")),
             pipeline: out var pipeline,

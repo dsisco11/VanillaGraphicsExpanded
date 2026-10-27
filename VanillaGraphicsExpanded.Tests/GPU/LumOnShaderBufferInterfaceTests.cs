@@ -44,13 +44,15 @@ public sealed class LumOnShaderBufferInterfaceTests : RenderTestBase
         ((ILumOnWorldProbeShader)program).WorldProbeUniformBuffer = world;
         bool consumesEffectFrame = program.ProgramLayout.BinaryInterface!.GetUniformBlockIndex(LumOnUniformBuffers.FrameBlockName) >= 0;
         int previousFrameBinding = BoundBuffer(LumOnUniformBuffers.FrameBinding);
-        using (program.UseScope())
+        using var pipeline = ShaderBindingTestPipeline.Create(program);
+        RHICommandContext.Current.SetPipeline(pipeline);
+        RHICommandContext.Current.BindResources(program.CaptureBindings());
         {
             Assert.Equal(consumesEffectFrame ? frame.BufferId : previousFrameBinding, BoundBuffer(LumOnUniformBuffers.FrameBinding));
             Assert.Equal(world.BufferId, BoundBuffer(LumOnUniformBuffers.WorldProbeBinding));
             ((ILumOnFrameShader)program).FrameUniformBuffer = replacement;
             Assert.Equal(consumesEffectFrame ? frame.BufferId : previousFrameBinding, BoundBuffer(LumOnUniformBuffers.FrameBinding));
-            program.Use();
+            RHICommandContext.Current.BindResources(program.CaptureBindings());
             Assert.Equal(consumesEffectFrame ? replacement.BufferId : previousFrameBinding, BoundBuffer(LumOnUniformBuffers.FrameBinding));
             Assert.Equal(world.BufferId, BoundBuffer(LumOnUniformBuffers.WorldProbeBinding));
         }
@@ -106,7 +108,9 @@ public sealed class LumOnShaderBufferInterfaceTests : RenderTestBase
         var surface = new PartitionBounds(new(16, 0, 0), new(32, 32, 32));
         scene.SetWindow(new(near, surface, window, 32, 32));
         BindScene(program, scene);
-        using var active = program.UseScope();
+        using var pipeline = ShaderBindingTestPipeline.Create(program);
+        RHICommandContext.Current.SetPipeline(pipeline);
+        RHICommandContext.Current.BindResources(program.CaptureBindings());
         byte[] defaults = ReadNearFieldParameters();
         Assert.Equal(32, BitConverter.ToInt32(defaults, 12));
         Assert.Equal(256, BitConverter.ToInt32(defaults, 16));
@@ -116,7 +120,7 @@ public sealed class LumOnShaderBufferInterfaceTests : RenderTestBase
         var origins = new PartitionBounds(new(2, 3, 4), new(8, 9, 10));
         var policy = new LumOnNearFieldTraceSettings(7, origins, 12);
         BindScene(program, scene, policy);
-        program.Use();
+        RHICommandContext.Current.BindResources(program.CaptureBindings());
         byte[] configured = ReadNearFieldParameters();
         Assert.Equal(defaults[..16], configured[..16]);
         Assert.Equal(defaults[64..], configured[64..]);
@@ -126,16 +130,16 @@ public sealed class LumOnShaderBufferInterfaceTests : RenderTestBase
         Assert.Equal(12f, BitConverter.ToSingle(configured, 44));
 
         BindScene(program, scene, new LumOnNearFieldTraceSettings(9));
-        program.Use();
+        RHICommandContext.Current.BindResources(program.CaptureBindings());
         byte[] unrestricted = ReadNearFieldParameters();
         Assert.Equal(0, BitConverter.ToInt32(unrestricted, 24));
         Assert.Equal(defaults[64..], unrestricted[64..]);
 
         BindScene(program, scene);
-        program.Use();
+        RHICommandContext.Current.BindResources(program.CaptureBindings());
         Assert.Equal(defaults, ReadNearFieldParameters());
         BindScene(program, null, policy);
-        program.Use();
+        RHICommandContext.Current.BindResources(program.CaptureBindings());
         byte[] unavailable = ReadNearFieldParameters();
         Assert.Equal(0, BitConverter.ToInt32(unavailable, 12));
         Assert.Equal(0, BitConverter.ToInt32(unavailable, 76));
@@ -153,7 +157,7 @@ public sealed class LumOnShaderBufferInterfaceTests : RenderTestBase
         switch (program)
         {
             case LumOnScreenProbeAtlasTraceShaderProgram trace:
-                trace.PrimaryDepth = texture.TextureId; var surfaceInput1 = inputs.Own(LayeredTestTexture.Create(null, texture, null));
+                trace.PrimaryDepth = texture; var surfaceInput1 = inputs.Own(LayeredTestTexture.Create(null, texture, null));
         trace.GBufferSurface = surfaceInput1;
                 var anchorInputs1 = inputs.Own(LayeredTestTexture.Create(texture, texture));
         trace.ProbeAnchors = anchorInputs1;
@@ -162,14 +166,14 @@ public sealed class LumOnShaderBufferInterfaceTests : RenderTestBase
                 trace.ProbeTraceMask = texture;
                 break;
             case LumOnScreenProbeAtlasGatherShaderProgram gather:
-                gather.PrimaryDepth = texture.TextureId; var surfaceInput2 = inputs.Own(LayeredTestTexture.Create(texture, null, null));
+                gather.PrimaryDepth = texture; var surfaceInput2 = inputs.Own(LayeredTestTexture.Create(texture, null, null));
         gather.GBufferSurface = surfaceInput2;
                 var anchorInputs2 = inputs.Own(LayeredTestTexture.Create(texture, texture));
         gather.ProbeAnchors = anchorInputs2;
                 gather.ScreenProbeAtlas = texture;
                 break;
             case LumOnProbeSh9GatherShaderProgram sh9:
-                sh9.PrimaryDepth = texture.TextureId; var surfaceInput3 = inputs.Own(LayeredTestTexture.Create(texture, null, null));
+                sh9.PrimaryDepth = texture; var surfaceInput3 = inputs.Own(LayeredTestTexture.Create(texture, null, null));
         sh9.GBufferSurface = surfaceInput3;
                 var anchorInputs3 = inputs.Own(LayeredTestTexture.Create(texture, texture));
         sh9.ProbeAnchors = anchorInputs3;
@@ -177,7 +181,7 @@ public sealed class LumOnShaderBufferInterfaceTests : RenderTestBase
         sh9.ProbeSh9 = shInputs4;
                 break;
             case LumOnDebugShaderProgram debug:
-                debug.PrimaryDepth = texture.TextureId; var surfaceInput4 = inputs.Own(LayeredTestTexture.Create(texture, null, null));
+                debug.PrimaryDepth = texture; var surfaceInput4 = inputs.Own(LayeredTestTexture.Create(texture, null, null));
         debug.GBufferSurface = surfaceInput4;
                 break;
         }

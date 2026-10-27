@@ -11,15 +11,15 @@ internal interface ISceneColorParticleShaderProgramBindings
     #region Public API
     /// <summary>Samples the final engine visibility depth.</summary>
     [ShaderBinding("visibilityDepth", ShaderBindingKind.Sampler, 0, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.Texture2D, Sampler = ShaderSamplerPolicy.NearestClamp)]
-    int VisibilityDepth { set; }
+    GpuTextureRef VisibilityDepth { set; }
     /// <summary>Samples material depth from before particle submission.</summary>
     [ShaderBinding("beforeDepth", ShaderBindingKind.Sampler, 1, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.Texture2D, Sampler = ShaderSamplerPolicy.NearestClamp)]
-    int BeforeDepth { set; }
+    GpuTextureRef BeforeDepth { set; }
     /// <summary>Samples visibility depth immediately after particle submission.</summary>
     [ShaderBinding("afterDepth", ShaderBindingKind.Sampler, 2, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.Texture2D, Sampler = ShaderSamplerPolicy.NearestClamp)]
-    int AfterDepth { set; }
+    GpuTextureRef AfterDepth { set; }
     /// <summary>Samples premultiplied particle radiance and accumulated coverage.</summary>
     [ShaderBinding("particleColor", ShaderBindingKind.Sampler, 3, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.Texture2D, Sampler = ShaderSamplerPolicy.NearestClamp)]
-    int ParticleColor { set; }
+    GpuTextureRef ParticleColor { set; }
     #endregion
 }

@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using VanillaGraphicsExpanded.LumOn;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.LumOn.Shaders;
@@ -32,7 +33,7 @@ public abstract class SurfaceLightingTemporalTestBase : SurfaceLightingHitTestBa
             consume: traced =>
             {
                 Accumulate(traced, history);
-                result = new(traced[0].ReadPixels(), traced[1].ReadPixels(),
+                result = new(traced.Colors[0].Image!.Value.Texture.ReadPixels(), traced.Colors[1].Image!.Value.Texture.ReadPixels(),
                     new HitPixels(history.Buffers.ScreenProbeAtlasCurrentTex!.ReadPixels(), history.Buffers.ScreenProbeAtlasMetaCurrentTex!.ReadPixels()), history.ResetThisFrame);
             });
         history.EndFrame();
@@ -40,7 +41,7 @@ public abstract class SurfaceLightingTemporalTestBase : SurfaceLightingHitTestBa
     }
 
     /// <summary>Runs production temporal blending against the previous ping-pong generation without CPU radiance injection.</summary>
-    private void Accumulate(GpuFramebuffer traced, SurfaceLightingHistoryFixture history)
+    private void Accumulate(RHIRenderPassDescription traced, SurfaceLightingHistoryFixture history)
     {
         var program = temporalProgram ??= Programs.Create<LumOnScreenProbeAtlasTemporalShaderProgram>(shader => shader.TexelsPerFrame = SurfaceLightingHistoryFixture.DirectionsPerFrame);
         var anchor = history.Buffers.ProbeAnchors!;
@@ -50,10 +51,10 @@ public abstract class SurfaceLightingTemporalTestBase : SurfaceLightingHitTestBa
         mask.UploadDataImmediate(new float[mask.Width*mask.Height*2]);
         velocity.UploadDataImmediate(new float[velocity.Width*velocity.Height*4]);
         var jitter = GetOrCreatePmjJitterTexture(1, 0);
-        program.ScreenProbeAtlasCurrent = traced[0];
+        program.ScreenProbeAtlasCurrent = traced.Colors[0].Image!.Value.Texture;
         program.ScreenProbeAtlasHistory = history.Buffers.ScreenProbeAtlasHistoryTex;
         program.ProbeAnchors = anchor;
-        program.ScreenProbeAtlasMetaCurrent = traced[1];
+        program.ScreenProbeAtlasMetaCurrent = traced.Colors[1].Image!.Value.Texture;
         program.ScreenProbeAtlasMetaHistory = history.Buffers.ScreenProbeAtlasMetaHistoryTex;
         program.VelocityTex = velocity;
         program.PmjJitter = jitter;
@@ -61,7 +62,7 @@ public abstract class SurfaceLightingTemporalTestBase : SurfaceLightingHitTestBa
         UpdateAndBindLumOnFrameUbo(program, frameIndex: history.FrameIndex, anchorJitterEnabled: 0, enableVelocityReprojection: 0);
         program.TemporalAlpha = .9f;
         program.HitDistanceRejectThreshold = .3f;
-        TestFramework.RenderQuadTo(program, history.Buffers.ScreenProbeAtlasCurrentFbo!);
+        TestFramework.RenderQuadTo(program, history.Buffers.ScreenProbeAtlasCurrentPass!);
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
     #endregion

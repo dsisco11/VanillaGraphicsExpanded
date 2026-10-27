@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using System.Collections.Generic;
 using OpenTK.Graphics.OpenGL;
@@ -9,15 +10,10 @@ namespace VanillaGraphicsExpanded.PBR.SceneColor;
 /// <summary>Isolates ordered particle radiance while borrowing the engine's visibility depth and glow images.</summary>
 internal sealed class SceneColorParticleTargets : IDisposable
 {
-    private static readonly GlPipelineDesc CopyPipeline = new(
-        defaultMask: GlPipelineStateMask.From(GlPipelineStateId.ScissorTestEnable),
-        nonDefaultMask: default, name: "SceneColor.Particles.DepthCopy");
     private readonly List<GpuResource> ownedImages = new();
     private readonly GpuFramebuffer primary;
-    private GpuFramebuffer? beforeTarget;
-    private GpuFramebuffer? afterTarget;
-    private GpuFramebufferBlitter? beforeCopy;
-    private GpuFramebufferBlitter? afterCopy;
+    private BorrowedTexture? visibilityDepthInput;
+    private BorrowedTexture? normalOutput,positionOutput;
     private bool captureStarted;
     private bool disposed;
 
@@ -25,21 +21,23 @@ internal sealed class SceneColorParticleTargets : IDisposable
     /// <summary>Gets particle radiance, borrowed glow and optional isolated SSAO outputs.</summary>
     internal GpuFramebuffer DrawTarget { get; private set; } = null!;
     /// <summary>Gets the resolve destination for material receiver depth and visible premultiplied particles.</summary>
-    internal StaticGpuFramebuffer ResolveTarget { get; private set; } = null!;
-    /// <summary>Gets the borrowed engine SSAO output destination when those attachments exist.</summary>
-    internal GpuFramebuffer? SsaoTarget { get; private set; }
+    internal RHIRenderPassDescription ResolvePass { get; private set; } = null!;
+    /// <summary>Gets owned corrected material depth after resolve.</summary>
+    internal DynamicTexture2D MaterialDepth { get; private set; } = null!;
+    /// <summary>Gets owned premultiplied particle radiance after resolve.</summary>
+    internal DynamicTexture2D VisibleRadiance { get; private set; } = null!;
     /// <summary>Retains the engine-backed SSAO restoration intentions for this primary publication.</summary>
-    internal RenderPassDesc? SsaoPass { get; private set; }
+    internal RHIRenderPassDescription? SsaoPass { get; private set; }
     /// <summary>Reports whether the original particle SSAO outputs have isolated storage.</summary>
-    internal bool HasSsao => SsaoTarget is not null;
+    internal bool HasSsao => SsaoPass is not null;
     /// <summary>Gets straight-alpha-blended radiance, with accumulated coverage in alpha.</summary>
-    internal int ParticleColor => DrawTarget.GetColorTextureId(0);
+    internal GpuTextureRef ParticleColor { get; }
     /// <summary>Gets the depth before the original particle callback.</summary>
-    internal int BeforeDepth => beforeTarget?.GetDepthTextureId() ?? 0;
+    internal GpuTextureRef BeforeDepth { get; }
     /// <summary>Gets the engine depth immediately after the original particle callback.</summary>
-    internal int AfterDepth => afterTarget?.GetDepthTextureId() ?? 0;
+    internal GpuTextureRef AfterDepth { get; }
     /// <summary>Gets the depth image used by the engine for particle visibility and later opaque draws.</summary>
-    internal int VisibilityDepth => DrawTarget.GetDepthTextureId();
+    internal GpuTextureRef VisibilityDepth => visibilityDepthInput;
     /// <summary>Reports a completed pair of depth snapshots from one particle invocation.</summary>
     internal bool Captured { get; private set; }
     /// <summary>Reports whether the borrowed primary publication still matches this allocation.</summary>
@@ -61,6 +59,12 @@ internal sealed class SceneColorParticleTargets : IDisposable
             var color = Allocate(PixelInternalFormat.Rgba16f, "Radiance");
             var before = Allocate(depth.InternalFormat, "BeforeDepth");
             var after = Allocate(depth.InternalFormat, "AfterDepth");
+            // Owned allocations already have canonical texture recipients. Retain those
+            // directly; only the engine visibility image needs external admission.
+            ParticleColor = new((GpuResource<GpuTextureMetadata>)color.Resource!);
+            BeforeDepth = new((GpuResource<GpuTextureMetadata>)before.Resource!);
+            AfterDepth = new((GpuResource<GpuTextureMetadata>)after.Resource!);
+            BorrowedTexture.GetOrReplace(ref visibilityDepthInput, depth.TextureId);
             var receiver = Allocate(PixelInternalFormat.R32f, "ReceiverDepth");
             var visible = Allocate(PixelInternalFormat.Rgba16f, "VisibleRadiance");
             if (captureSsao)
@@ -70,18 +74,14 @@ internal sealed class SceneColorParticleTargets : IDisposable
                 DrawTarget = DynamicGpuFramebuffer.Create([color, glow, normal, position], depth, "SceneColor.Particles.Draw");
                 // Deferred lighting keeps the original position attachment until
                 // composition finishes. Only then are surviving particle values restored.
-                SsaoTarget = DynamicGpuFramebuffer.Create([
-                    GpuFramebufferAttachmentDiscovery.Read(primary, FramebufferAttachment.ColorAttachment2),
-                    GpuFramebufferAttachmentDiscovery.Read(primary, FramebufferAttachment.ColorAttachment3)],
-                    debugName: "SceneColor.Particles.SsaoRestore");
-                SsaoPass = new(SsaoTarget, [new(0), new(1)]);
+                BorrowedTexture.GetOrReplace(ref normalOutput,GpuFramebufferAttachmentDiscovery.Read(primary,FramebufferAttachment.ColorAttachment2).TextureId);
+                BorrowedTexture.GetOrReplace(ref positionOutput,GpuFramebufferAttachmentDiscovery.Read(primary,FramebufferAttachment.ColorAttachment3).TextureId);
+                SsaoPass=new([new(Image:RHIAttachment.FromTexture(normalOutput)),new(Image:RHIAttachment.FromTexture(positionOutput))],label:"SceneColor.Particles.SsaoRestore");
             }
             else DrawTarget = DynamicGpuFramebuffer.Create([color, glow], depth, "SceneColor.Particles.Draw");
-            beforeTarget = StaticGpuFramebuffer.Create([], before, "SceneColor.Particles.Before");
-            afterTarget = StaticGpuFramebuffer.Create([], after, "SceneColor.Particles.After");
-            ResolveTarget = StaticGpuFramebuffer.Create([receiver, visible], debugName: "SceneColor.Particles.Resolve");
-            beforeCopy = new(primary, beforeTarget, ClearBufferMask.DepthBufferBit);
-            afterCopy = new(primary, afterTarget, ClearBufferMask.DepthBufferBit);
+            MaterialDepth=(DynamicTexture2D)receiver.Resource!;
+            VisibleRadiance=(DynamicTexture2D)visible.Resource!;
+            ResolvePass=new([new(Image:RHIAttachment.FromTexture(MaterialDepth)),new(Image:RHIAttachment.FromTexture(VisibleRadiance))],label:"SceneColor.Particles.Resolve");
             primary.AttachmentsChanged += Invalidate;
             IsCurrent = true;
         }
@@ -95,7 +95,7 @@ internal sealed class SceneColorParticleTargets : IDisposable
         if (!IsCurrent) throw new InvalidOperationException("Particle capture belongs to an expired primary publication.");
         Captured = false;
         captureStarted = false;
-        CopyDepth(beforeCopy!);
+        CopyDepth(BeforeDepth);
         // Clear storage directly so indexed write masks and borrowed glow/depth
         // remain untouched. Unsupported setup cannot publish an HDR capture.
         DrawTarget[0].ClearToZero();
@@ -110,7 +110,7 @@ internal sealed class SceneColorParticleTargets : IDisposable
         if (!IsCurrent || !captureStarted)
             throw new InvalidOperationException("Particle capture has no matching current-frame start.");
         captureStarted = false;
-        CopyDepth(afterCopy!);
+        CopyDepth(AfterDepth);
         Captured = true;
     }
 
@@ -127,14 +127,11 @@ internal sealed class SceneColorParticleTargets : IDisposable
         if (disposed) return;
         disposed = true;
         primary.AttachmentsChanged -= Invalidate;
+        visibilityDepthInput?.Dispose();
+        visibilityDepthInput = null;
         Invalidate();
-        beforeCopy?.Dispose();
-        afterCopy?.Dispose();
         DrawTarget?.Dispose();
-        ResolveTarget?.Dispose();
-        SsaoTarget?.Dispose();
-        beforeTarget?.Dispose();
-        afterTarget?.Dispose();
+        normalOutput?.Dispose();positionOutput?.Dispose();
         foreach (var image in ownedImages) image.Dispose();
         ownedImages.Clear();
     }
@@ -142,14 +139,11 @@ internal sealed class SceneColorParticleTargets : IDisposable
 
     #region Private
     /// <summary>Copies the whole depth image without disturbing indexed G-buffer blend or write masks.</summary>
-    private static void CopyDepth(GpuFramebufferBlitter copy)
+    private void CopyDepth(GpuTextureRef destination)
     {
-        var state = StateCache.Current;
-        using var scissor = state.PreserveScissorState();
-        // Describe only the state this copy owns; a broad legacy restoration
-        // would overwrite unrelated indexed blend settings on the G-buffer.
-        state.Apply(CopyPipeline);
-        copy.Blit();
+        var area=new RenderArea(0,0,primary.Width,primary.Height);
+        RHICommandContext.Current.BlitImages(new(RHIAttachment.FromTexture(VisibilityDepth),area,
+            RHIAttachment.FromTexture(destination),area,ImageAspects.Depth));
     }
 
     /// <summary>Tracks owned allocations immediately so partial setup failures cannot leak storage.</summary>

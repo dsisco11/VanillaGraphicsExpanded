@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Numerics;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
@@ -30,23 +31,25 @@ public sealed class TerrainCaptureOcclusionTests(HeadlessGLFixture fixture) : Lu
         TerrainCaptureProgram shader = topsoil ? Programs.Create<TopsoilTerrainCaptureProgram>() : Programs.Create<OpaqueTerrainCaptureProgram>();
         shader.Capture(new(.45f, .5f, .537f, alpha), cutoff);
         using var target = TestFramework.CreateTestGBuffer(1, 1, PixelInternalFormat.Rgba16f);
-        using var lifetime = new GraphicsPipelineLifetime();
-        var layout = new VertexLayoutDesc([]);
-        using var geometry = new ArrayGraphicsGeometry(layout, PrimitiveType.Triangles, new Dictionary<int, GpuVbo>(), proceduralVertices: 3);
-        using var metadata = new RenderPassTargets(new RenderPassDesc(target, [new(0)]));
-        var blend = new ColorBlendDesc { Enabled = true, SourceRgb = BlendingFactorSrc.SrcAlpha, DestinationRgb = BlendingFactorDest.OneMinusSrcAlpha };
-        using var pipeline = new GraphicsPipeline(lifetime, new(shader.GraphicsIdentity!, layout, metadata.Signature, DynamicPipelineState.Viewport, blending: [blend]), shader);
+        var layout = new RHIVertexLayout([]);
+        using var geometry = new ArrayGraphicsGeometry(layout, PrimitiveTopology.Triangles, new Dictionary<int, GpuVbo>(), proceduralVertices: 3);
+        var metadata = RHICommandContext.Current.DescribeRenderTargets(FramebufferTestSetup.DescribeAttachments(target, [new(AttachmentIndex:0)]));
+        var blend = new ColorBlendDesc { Enabled = true, SourceRgb = BlendFactor.SourceAlpha, DestinationRgb = BlendFactor.OneMinusSourceAlpha };
+        using var pipeline = RHICommandContext.Current.CreateGraphicsPipeline(new(shader.Shader, layout, metadata, DynamicPipelineState.Viewport, blending: [blend])).RequireResource();
         // These are the captured HDR sun channels before opaque terrain. Alpha blending must not retain any fraction.
         float[] background = [804, 732, 449.25f, 1];
-        var pass = new RenderPassDesc(target, [new(0, AttachmentLoad.Clear, Clear: ColorClearValue.Float(background[0], background[1], background[2], 1))]);
-        Assert.True(GraphicsCommandContext.TryRun("Tests.TerrainCaptureOcclusion", [pipeline], true, commands =>
+        var pass = FramebufferTestSetup.DescribeAttachments(target, [new(AttachmentIndex:0, Load:AttachmentLoad.Clear, Clear: ColorClearValue.Float(background[0], background[1], background[2], 1))]);
         {
-            commands.BeginPass(pass);
+    var commands=RHICommandContext.Current;
+    using var scope83=commands.EnterBoundary(new("Tests.TerrainCaptureOcclusion",true,graphics:System.Linq.Enumerable.Select<RHIGraphicsPipeline,RHIGraphicsPipelineRef>([pipeline],value=>value),operations:BoundaryOperations.RenderPasses));
+    scope83.Run(()=>{
+            commands.BeginRenderPass(pass);
             commands.SetPipeline(pipeline);
             commands.SetDynamicState(new() { Viewport = commands.PassViewport });
-            commands.Draw(geometry, new(0, 3));
-            commands.EndPass();
-        }));
+            commands.Draw(geometry.Inputs, new(0, 3));
+            commands.EndRenderPass();
+        });
+}
         float[] actual = target[0].ReadPixels();
         float[] material = [Linear(.45f), Linear(.5f), Linear(.537f), 1];
         float[] expected = alpha < cutoff ? background : material;

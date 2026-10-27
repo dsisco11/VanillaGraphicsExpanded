@@ -66,15 +66,15 @@ public sealed partial class PBRDirectLightingShaderProgram : GpuProgram, IPBRDir
     /// <summary>
     /// Primary scene color (baseColor) texture (texture unit 0).
     /// </summary>
-    public partial int PrimaryScene { set; }
+    public partial GpuTextureRef PrimaryScene { set; }
 
     /// <summary>
     /// Primary depth texture (texture unit 1).
     /// </summary>
-    public partial int PrimaryDepth { set; }
+    public partial GpuTextureRef PrimaryDepth { set; }
 
     /// <summary>Unbiased first-person view-space positions, independent of visibility depth.</summary>
-    public partial int GBufferPosition { set; }
+    public partial GpuTextureRef GBufferPosition { set; }
 
     /// <summary>Normal, material and environmental-irradiance layers for deferred lighting.</summary>
     public partial GpuTextureRef GBufferSurface { set; }
@@ -83,13 +83,13 @@ public sealed partial class PBRDirectLightingShaderProgram : GpuProgram, IPBRDir
     /// Near shadow map (texture unit 4).
     /// Expected to be the depth texture of EnumFrameBuffer.ShadowmapNear.
     /// </summary>
-    public partial int ShadowMapNear { set; }
+    public partial GpuTextureRef ShadowMapNear { set; }
 
     /// <summary>
     /// Far shadow map (texture unit 5).
     /// Expected to be the depth texture of EnumFrameBuffer.ShadowmapFar.
     /// </summary>
-    public partial int ShadowMapFar { set; }
+    public partial GpuTextureRef ShadowMapFar { set; }
 
     #endregion
 

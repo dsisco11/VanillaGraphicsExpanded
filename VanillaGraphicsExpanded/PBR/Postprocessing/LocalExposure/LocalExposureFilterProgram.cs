@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.ShaderCompilation;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Contracts;
 namespace VanillaGraphicsExpanded.PBR.Postprocessing.LocalExposure;
@@ -8,6 +9,6 @@ internal sealed partial class LocalExposureFilterProgram : GpuComputeProgram,ILo
 {
     #region Public API
     /// <summary>Adopts the existing typed compute pipeline.</summary>
-    public LocalExposureFilterProgram(GpuComputePipeline pipeline) : base(pipeline) { }
+    public LocalExposureFilterProgram(ComputeShaderAsset pipeline) : base(pipeline) { }
     #endregion
 }

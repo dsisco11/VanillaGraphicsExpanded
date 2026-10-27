@@ -1,5 +1,8 @@
+using VanillaGraphicsExpanded.Tests.GPU.Helpers;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
+using VanillaGraphicsExpanded.Rendering.RHI;
+using VanillaGraphicsExpanded.PBR.Tessellation;
 
 namespace VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 
@@ -9,10 +12,27 @@ internal sealed class TerrainShaderTestFixture : IDisposable
     private readonly Dictionary<int, (GpuShaderModule Module, string Source)> stages = new();
 
     #region Shader lifecycle
+    /// <summary>Exercises the backend's explicit borrowed-stage integration using the same CPU source policy as engine replacement.</summary>
+    internal static bool LinkTessellation(int vertex, int fragment, TerrainTessellationStages.Sources sources,
+        string prefix, out int program, out string error)
+    {
+        program = 0;
+        error = string.Empty;
+        try
+        {
+            var stages = TerrainTessellationStages.Describe(sources, prefix);
+            var result = RHICommandContext.Current.OpenGL.CreateEngineTessellationProgram(vertex, fragment, stages.Control, stages.Evaluation, null);
+            if (!result.TryGetResource(out var owner)) { error = result.Diagnostics ?? "Tessellation linking failed."; return false; }
+            using (owner) program = (int)owner!.Detach();
+            return true;
+        }
+        catch (Exception failure) { error = failure.Message; return false; }
+    }
+
     /// <summary>Compiles through the production module abstraction and owns the result until fixture disposal.</summary>
     internal int Compile(ShaderType type, string source)
     {
-        Assert.True(GpuShaderModule.TryCompileGlsl(type, source, out var module, out string error), error);
+        var module = RHICommandContext.Current.OpenGL.CompileExternalStage(new(PrecompiledStageFixture.Stage(type), source)).RequireResource();
         stages.Add(module!.ShaderId, (module, source));
         return module.ShaderId;
     }
@@ -21,7 +41,7 @@ internal sealed class TerrainShaderTestFixture : IDisposable
     internal int Load(ShaderType type, string path)
     {
         byte[] binary = File.ReadAllBytes(Path.Combine(AppContext.BaseDirectory, "assets", "shaders", path + ".spv"));
-        Assert.True(GpuShaderModule.TryLoadSpirv(type, binary, "main", [], out var module, out string error), error);
+        var module = RHICommandContext.Current.OpenGL.CompileExternalStage(new(PrecompiledStageFixture.Stage(type), binary)).RequireResource();
         stages.Add(module!.ShaderId, (module, string.Empty));
         return module.ShaderId;
     }
@@ -33,9 +53,9 @@ internal sealed class TerrainShaderTestFixture : IDisposable
     internal static int Link(int vertex, int fragment)
     {
         using var program = GpuProgramObject.Create();
-        program.AttachShader(vertex);
-        program.AttachShader(fragment);
-        Assert.True(program.TryLink(out string error), error);
+        GL.AttachShader(program.ProgramId, vertex);
+        GL.AttachShader(program.ProgramId, fragment);
+        Assert.True(NativeProgramFixture.Link(program, out string error), error);
         return (int)program.Detach();
     }
 

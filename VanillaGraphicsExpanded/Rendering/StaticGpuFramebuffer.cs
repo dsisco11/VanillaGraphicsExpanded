@@ -31,35 +31,20 @@ public sealed class StaticGpuFramebuffer : GpuFramebuffer
     #endregion
 
     #region Internal API
-    /// <summary>Retains the full-target preserving pass for this immutable output route.</summary>
-    internal RenderPassDesc PreservePass { get; }
     #region Declaration admission
     /// <summary>Certifies the immutable route once when a reusable pass declaration is constructed.</summary>
-    internal override void ValidatePassRouting(IReadOnlyList<DrawBuffersEnum> route)
+    internal override void ValidateDeclaredRouting(ReadOnlySpan<DrawBuffersEnum> route)
     {
         ObjectDisposedException.ThrowIf(IsDisposed, this);
-        for (int i = 0; i < Math.Max(route.Count, routing.Length); i++)
-            if ((i < route.Count ? route[i] : DrawBuffersEnum.None) !=
+        for (int i = 0; i < Math.Max(route.Length, routing.Length); i++)
+            if ((i < route.Length ? route[i] : DrawBuffersEnum.None) !=
                 (i < routing.Length ? routing[i] : DrawBuffersEnum.None))
                 throw new InvalidOperationException("A static framebuffer pass must use its constructor-declared routing.");
     }
-    /// <summary>Rejects attempts to restore a different route; the constructor-declared route is already installed.</summary>
-    internal override void RestoreDrawRouting(DrawBuffersEnum[] route) => ValidatePassRouting(route);
     /// <summary>Returns an independent immutable configuration snapshot for explicit state observations.</summary>
-    internal DrawBuffersEnum[] CaptureRouting() => (DrawBuffersEnum[])routing.Clone();
+    internal override DrawBuffersEnum[] CaptureDeclaredRouting() => (DrawBuffersEnum[])routing.Clone();
     #endregion
-    #region Pass submission
-    /// <summary>Binds the immutable target without live routing lookup, comparison, capture or restoration.</summary>
-    internal override IDisposable? BeginPassRouting(RenderPassDesc description, RenderPassSequence? sequence)
-    {
-        if (sequence is null)
-            return StateCache.Current.BindFramebufferScope(FramebufferTarget.DrawFramebuffer, FboId);
-        sequence.BindStatic(this);
-        return null;
-    }
-    /// <summary>Uses construction-time completeness proof because both image bindings and routing are immutable.</summary>
-    internal override void ValidatePassCompleteness(IReadOnlyList<DrawBuffersEnum> route) { }
-    #endregion
+
     #endregion
 
     #region Protected API
@@ -93,11 +78,9 @@ public sealed class StaticGpuFramebuffer : GpuFramebuffer
                     throw new ArgumentException("Static framebuffers require managed attachment storage with tracked allocation ownership.");
                 Freeze(image); Freeze(storage);
             }
-            configurationOwner.RegisterStaticFramebuffer(this);
+            configurationOwner.RegisterImmutableFramebuffer(this);
             Integration.RenderContextRegistry.Retiring += OnContextRetiring;
-            // Fixed output routing permits one declaration for every preserving use of this allocation.
-            PreservePass = new(this, routing.Select(output => new RenderPassColor(output == DrawBuffersEnum.None
-                ? -1 : (int)output - (int)DrawBuffersEnum.ColorAttachment0)));
+
         }
         catch { Dispose(); throw; }
     }
@@ -116,7 +99,7 @@ public sealed class StaticGpuFramebuffer : GpuFramebuffer
     private void ReleaseConfiguration(int id)
     {
         Integration.RenderContextRegistry.Retiring -= OnContextRetiring;
-        configurationOwner.UnregisterStaticFramebuffer(id, this);
+        configurationOwner.UnregisterImmutableFramebuffer(id, this);
         foreach (var resource in frozen) resource.ReleasePassReference();
         frozen.Clear();
     }
@@ -124,7 +107,7 @@ public sealed class StaticGpuFramebuffer : GpuFramebuffer
     private void OnContextRetiring((nint Handle, long Generation) context)
     {
         if (context != configurationContext) return;
-        configurationOwner.UnregisterStaticFramebuffer(FboId, this);
+        configurationOwner.UnregisterImmutableFramebuffer(FboId, this);
         Integration.RenderContextRegistry.Retiring -= OnContextRetiring;
     }
     #endregion

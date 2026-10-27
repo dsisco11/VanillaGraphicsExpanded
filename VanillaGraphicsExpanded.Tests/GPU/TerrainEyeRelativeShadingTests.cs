@@ -1,3 +1,5 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Numerics;
 using System.Text.RegularExpressions;
 using OpenTK.Graphics.OpenGL;
@@ -40,7 +42,7 @@ public sealed class TerrainEyeRelativeShadingTests : RenderTestBase
             GL.GetProgram(program, GetProgramParameterName.LinkStatus, out int linked);
             Assert.True(linked != 0, GL.GetProgramInfoLog(program));
             var layout = BuiltShaderFixture.Layout(program, "tests/eye-relative.vsh", "tests/eye-relative.fsh");
-            StateCache.Current.UseProgram(program); StateCache.Current.BindVertexArray(vao);
+            OpenGLProgramSelection.Select(StateCache.Current, program); OpenGLVertexSelection.Bind(StateCache.Current, vao);
             texture.Bind(0);
             // This fixture owns non-mipmapped atlas sampling, independent of earlier render passes.
             GpuSampler.Unbind(0); GpuSampler.Unbind(1); GpuSampler.Unbind(2);
@@ -73,19 +75,19 @@ public sealed class TerrainEyeRelativeShadingTests : RenderTestBase
                 float c=MathF.Cos(radians),s=MathF.Sin(radians);
                 float[] view=[c,s,0,0,-s,c,0,0,0,0,1,0,-c*eye.X+s*eye.Y,-s*eye.X-c*eye.Y,-eye.Z,1];
                 using var frameCamera = TestFrameCamera.Create(Vintagestory.API.MathTools.Mat4f.Create(), view, 2, 2);
-                Assert.True(frameCamera.TryBindToSlot(GpuBindingRegistry.Ubo.Frame));
+                Assert.True(RHICommandContext.Current.OpenGL.BindEngineUniform(GpuBindingRegistry.Ubo.Frame, frameCamera.Capture()));
                 UboPacking.WriteVec3(inputBytes, 0, position.X, position.Y, position.Z);
                 UboPacking.WriteInt32(inputBytes, 12, mode);
                 inputs.SetBytes(inputBytes);
-                Assert.True(inputs.TryBindToSlot(GpuBindingRegistry.Ubo.ShaderInputs));
-                target.BindWithViewport(); GL.DrawArrays(PrimitiveType.Triangles,0,3);
+                Assert.True(RHICommandContext.Current.OpenGL.BindEngineUniform(GpuBindingRegistry.Ubo.ShaderInputs, inputs.Capture()));
+                FramebufferTestSetup.BindForEngineRendering(target); GL.DrawArrays(PrimitiveType.Triangles,0,3);
                 float[] pixel=new float[4]; GL.ReadPixels(0,0,1,1,PixelFormat.Rgba,PixelType.Float,pixel);
                 return pixel;
             }
         }
         finally
         {
-            StateCache.Current.UseProgram(0); GL.DeleteVertexArray(vao); GL.DeleteProgram(program); GL.DeleteShader(vs); GL.DeleteShader(fs);
+            OpenGLProgramSelection.Select(StateCache.Current, 0); GL.DeleteVertexArray(vao); GL.DeleteProgram(program); GL.DeleteShader(vs); GL.DeleteShader(fs);
             StateCache.Current.InvalidateAll();
         }
     }

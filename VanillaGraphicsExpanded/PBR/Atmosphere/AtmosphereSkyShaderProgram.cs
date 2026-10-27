@@ -14,6 +14,7 @@ internal sealed partial class AtmosphereSkyShaderProgram : GpuProgram, IAtmosphe
 {
     private readonly AtmosphereSkyInputs inputs;
     private VgeFrameUniformBuffer? frameInputs;
+    private BorrowedTexture? liquidDepthInput;
 
     #region Public API
     /// <summary>Uses the offline sky declaration for demand loading and reload.</summary>
@@ -28,9 +29,9 @@ internal sealed partial class AtmosphereSkyShaderProgram : GpuProgram, IAtmosphe
     }
 
     /// <summary>Samples the coherently published two-lobe atmosphere lookup.</summary>
-    public partial int SkyLookup { set; }
+    public partial GpuTextureRef SkyLookup { set; }
     /// <summary>Samples engine liquid depth for shoreline and underwater masking.</summary>
-    public partial int LiquidDepth { set; }
+    public partial GpuTextureRef LiquidDepth { set; }
 
     /// <summary>Borrows a frame snapshot for alternate views and fixtures.</summary>
     internal VgeFrameUniformBuffer? FrameInputs
@@ -43,13 +44,22 @@ internal sealed partial class AtmosphereSkyShaderProgram : GpuProgram, IAtmosphe
     internal void Capture(ICoreClientAPI api, AtmosphereLighting lighting, bool sceneLinear)
     {
         inputs.Capture(api, lighting, sceneLinear);
-        SkyLookup = AtmosphereModSystem.SkyTextureId;
-        LiquidDepth = api.Render.FrameBuffers[(int)EnumFrameBuffer.LiquidDepth].DepthTextureId;
+        SkyLookup = AtmosphereModSystem.SkyTexture;
+        LiquidDepth = BorrowedTexture.GetOrReplace(ref liquidDepthInput,
+            api.Render.FrameBuffers[(int)EnumFrameBuffer.LiquidDepth].DepthTextureId);
     }
 
     /// <summary>Publishes the matching view-ray transforms and spatial effects in one block.</summary>
     CpuUniformBuffer IAtmosphereSkyShaderProgramBindings.Inputs => inputs;
     /// <summary>Shares the camera snapshot without per-sky matrix publication.</summary>
     CpuUniformBuffer IAtmosphereSkyShaderProgramBindings.FrameInputs => frameInputs ?? VgeFrameRenderer.Current;
+    #endregion
+
+    #region Protected API
+    /// <summary>Retires the engine depth recipient without deleting externally owned storage.</summary>
+    protected override void ReleaseResources()
+    {
+        liquidDepthInput?.Dispose(); liquidDepthInput = null;
+    }
     #endregion
 }

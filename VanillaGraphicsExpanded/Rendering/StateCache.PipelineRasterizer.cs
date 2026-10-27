@@ -1,3 +1,5 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering.Pipeline;
@@ -8,7 +10,7 @@ internal sealed partial class StateCache
 {
     #region Public API
     /// <summary>Disables custom clip distances and establishes origin/depth conventions.</summary>
-    internal void ApplyConfigurableRaster(GraphicsPipelineDesc pipeline)
+    internal void ApplyConfigurableRaster(RHIGraphicsPipelineDescription pipeline)
     {
         ArgumentNullException.ThrowIfNull(pipeline);
         var value = pipeline.Rasterizer;
@@ -21,13 +23,13 @@ internal sealed partial class StateCache
 
     #region Private
     /// <summary>Establishes only raster groups that can affect the prepared emitted primitive families.</summary>
-    private void ApplyPipelineRasterizer(GraphicsPipelineDesc pipeline, RasterizerStateKnowledge relevant)
+    private void ApplyPipelineRasterizer(RHIGraphicsPipelineDescription pipeline, RasterizerStateKnowledge relevant)
     {
         var value = pipeline.Rasterizer;
         if (relevant.HasFlag(RasterizerStateKnowledge.CullEnabled)) SetCapability(EnableCap.CullFace, value.Cull);
-        if (relevant.HasFlag(RasterizerStateKnowledge.CullMode)) SetCullMode(value.CullMode);
-        if (relevant.HasFlag(RasterizerStateKnowledge.FrontFace)) SetFrontFace(value.FrontFace);
-        if (relevant.HasFlag(RasterizerStateKnowledge.PolygonModes)) SetPolygonMode(value.PolygonMode);
+        if (relevant.HasFlag(RasterizerStateKnowledge.CullMode)) SetCullMode(OpenGLRasterizerValues.CullMode(value.CullMode));
+        if (relevant.HasFlag(RasterizerStateKnowledge.FrontFace)) SetFrontFace(OpenGLRasterizerValues.FrontFace(value.FrontFace));
+        if (relevant.HasFlag(RasterizerStateKnowledge.PolygonModes)) SetPolygonMode(OpenGLRasterizerValues.PolygonMode(value.PolygonMode));
         if (relevant.HasFlag(RasterizerStateKnowledge.PolygonOffset)) SetPolygonOffset(value.DepthBiasFactor, value.DepthBiasUnits);
         if (relevant.HasFlag(RasterizerStateKnowledge.PolygonOffsetFill)) SetPolygonOffsetFillEnabled(value.OffsetFill);
         if (relevant.HasFlag(RasterizerStateKnowledge.PolygonOffsetLine)) SetPolygonOffsetLineEnabled(value.OffsetLine);
@@ -38,7 +40,7 @@ internal sealed partial class StateCache
         if (relevant.HasFlag(RasterizerStateKnowledge.ScissorEnabled)) SetCapability(EnableCap.ScissorTest, value.Scissor);
         if (relevant.HasFlag(RasterizerStateKnowledge.LineWidth)) SetLineWidth(value.LineWidth);
         if (relevant.HasFlag(RasterizerStateKnowledge.PointSize)) SetPointSize(value.PointSize);
-        if (relevant.HasFlag(RasterizerStateKnowledge.ProvokingVertex)) SetProvokingVertex(value.ProvokingVertex);
+        if (relevant.HasFlag(RasterizerStateKnowledge.ProvokingVertex)) SetProvokingVertex(OpenGLRasterizerValues.ProvokingVertex(value.ProvokingVertex));
         ApplyConfigurableRaster(value, relevant);
     }
 
@@ -49,8 +51,8 @@ internal sealed partial class StateCache
         // Custom shader clipping is unsupported; never inherit the engine's enabled distances.
         if (relevant.HasFlag(RasterizerStateKnowledge.ClipDistances))
             for (int i = 0; i < caps.MaxClipDistances; i++) SetClipDistance(i, false);
-        if (relevant.HasFlag(RasterizerStateKnowledge.ClipControl)) SetClipControl(value.ClipOrigin, value.ClipDepth);
-        if (relevant.HasFlag(RasterizerStateKnowledge.PointSpriteOrigin)) SetPointSpriteOrigin(value.PointSpriteOrigin);
+        if (relevant.HasFlag(RasterizerStateKnowledge.ClipControl)) SetClipControl(OpenGLRasterizerValues.ClipOrigin(value.ClipOrigin), OpenGLRasterizerValues.ClipDepth(value.ClipDepth));
+        if (relevant.HasFlag(RasterizerStateKnowledge.PointSpriteOrigin)) SetPointSpriteOrigin(OpenGLRasterizerValues.ToNativePointSpriteOrigin(value.PointSpriteOrigin));
         if (relevant.HasFlag(RasterizerStateKnowledge.LineSmooth)) SetLineSmooth(value.LineSmooth);
         if (relevant.HasFlag(RasterizerStateKnowledge.PolygonSmooth)) SetPolygonSmooth(value.PolygonSmooth);
     }

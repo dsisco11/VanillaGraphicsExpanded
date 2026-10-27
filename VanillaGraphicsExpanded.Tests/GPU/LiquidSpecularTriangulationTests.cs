@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Numerics;
 using System.Runtime.InteropServices;
@@ -41,11 +42,11 @@ public sealed class LiquidSpecularTriangulationTests(HeadlessGLFixture fixture) 
         material.UploadDataImmediate([.2f, 0, 0, 1]);
         depth.UploadDataImmediate(new float[] { 1 });
         aerial.UploadDataImmediate(new float[8], 0, 0, 0, 1, 2, 1, 0);
-        program.TerrainTexture = terrain.TextureId;
+        program.TerrainTexture = terrain;
         program.MaterialParamsTexture = material;
-        program.DepthTexture = depth.TextureId;
-        program.ShadowMapNear = depth.TextureId;
-        program.ShadowMapFar = depth.TextureId;
+        program.DepthTexture = depth;
+        program.ShadowMapNear = depth;
+        program.ShadowMapFar = depth;
         program.AerialRadianceTexture = aerial;
         program.AerialAttenuationTexture = aerial;
         program.ShadowRanges = Vector4.Zero;
@@ -75,7 +76,7 @@ public sealed class LiquidSpecularTriangulationTests(HeadlessGLFixture fixture) 
         using var vertices = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = "Test.LiquidTriangulation.Vertices" }).RequireResource();
         using var flags = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = "Test.LiquidTriangulation.Flags" }).RequireResource();
         using var indices = RHICommandContext.Current.CreateIndexBuffer(new RHIBufferDescription { Role = BufferRole.Index, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = "Test.LiquidTriangulation.Indices" }).RequireResource();
-        using var vertexBinding = vao.BindScope();
+        using var vertexBinding = StateCache.Current.BindVertexArrayScope(vao.VertexArrayId);
         using (vertices.BindScope())
         {
             vertices.UploadData(new float[] {
@@ -83,10 +84,10 @@ public sealed class LiquidSpecularTriangulationTests(HeadlessGLFixture fixture) 
                  2,-1,-4, .5f,.5f, 0,0,0,1, 0,0,
                  2,-1,-8, .5f,.5f, 0,0,0,1, 0,0,
                 -2,-.45f,-8, .5f,.5f, 0,0,0,1, 0,0 });
-            vao.AttribPointer(0, 3, VertexAttribPointerType.Float, false, 44, 0);
-            vao.AttribPointer(1, 2, VertexAttribPointerType.Float, false, 44, 12);
-            vao.AttribPointer(2, 4, VertexAttribPointerType.Float, false, 44, 20);
-            vao.AttribPointer(4, 2, VertexAttribPointerType.Float, false, 44, 36);
+            using (StateCache.Current.BindVertexArrayScope(vao.VertexArrayId)) OpenGLVertexCalls.ExecuteCoreVertexAttribPointer(0, 3, VertexAttribPointerType.Float, false, 44, 0);
+            using (StateCache.Current.BindVertexArrayScope(vao.VertexArrayId)) OpenGLVertexCalls.ExecuteCoreVertexAttribPointer(1, 2, VertexAttribPointerType.Float, false, 44, 12);
+            using (StateCache.Current.BindVertexArrayScope(vao.VertexArrayId)) OpenGLVertexCalls.ExecuteCoreVertexAttribPointer(2, 4, VertexAttribPointerType.Float, false, 44, 20);
+            using (StateCache.Current.BindVertexArrayScope(vao.VertexArrayId)) OpenGLVertexCalls.ExecuteCoreVertexAttribPointer(4, 2, VertexAttribPointerType.Float, false, 44, 36);
         }
         using (flags.BindScope())
         {
@@ -98,9 +99,9 @@ public sealed class LiquidSpecularTriangulationTests(HeadlessGLFixture fixture) 
                 up,0,1 | (255 << 2),
                 up,0,1 | (255 << 2)
             });
-            vao.AttribIPointer(3, 1, VertexAttribIntegerType.Int, 12, 0);
-            vao.AttribIPointer(5, 1, VertexAttribIntegerType.Int, 12, 4);
-            vao.AttribIPointer(6, 1, VertexAttribIntegerType.Int, 12, 8);
+            using (StateCache.Current.BindVertexArrayScope(vao.VertexArrayId)) OpenGLVertexCalls.ExecuteCoreVertexAttribIPointer(3, 1, VertexAttribIntegerType.Int, 12, 0);
+            using (StateCache.Current.BindVertexArrayScope(vao.VertexArrayId)) OpenGLVertexCalls.ExecuteCoreVertexAttribIPointer(5, 1, VertexAttribIntegerType.Int, 12, 4);
+            using (StateCache.Current.BindVertexArrayScope(vao.VertexArrayId)) OpenGLVertexCalls.ExecuteCoreVertexAttribIPointer(6, 1, VertexAttribIntegerType.Int, 12, 8);
         }
         var liquidPipeline = new GlPipelineDesc(
             defaultMask: GlPipelineStateMask.From(GlPipelineStateId.DepthTestEnable)
@@ -140,21 +141,23 @@ public sealed class LiquidSpecularTriangulationTests(HeadlessGLFixture fixture) 
             program.CaptureMode = 1;
             Assert.True(program.EnsureReady(), string.Join("\n", assets.Logs));
 
-            program.TerrainTexture = terrain.TextureId;
+            program.TerrainTexture = terrain;
             program.MaterialParamsTexture = material;
-            program.DepthTexture = depth.TextureId;
-            program.ShadowMapNear = depth.TextureId;
-            program.ShadowMapFar = depth.TextureId;
+            program.DepthTexture = depth;
+            program.ShadowMapNear = depth;
+            program.ShadowMapFar = depth;
 
             float[] radiance;
             // Each executable borrow ends before changing variants or retiring the fixture registry.
-            using (program.UseScope())
+            using (var bindingPipeline1 = ShaderBindingTestPipeline.Create(program))
             {
+                RHICommandContext.Current.SetPipeline(bindingPipeline1);
+                RHICommandContext.Current.BindResources(program.CaptureBindings());
                 state.Apply(liquidPipeline);
                 indices.UploadIndices(topology);
-                target.BindWithViewport();
-                target.Clear(0, 0, 0, 0);
-                vao.DrawElements(PrimitiveType.Triangles, indices);
+                FramebufferTestSetup.BindForEngineRendering(target);
+                FramebufferTestSetup.ClearAttachments(target, 0, 0, 0, 0);
+                GL.DrawElements(PrimitiveType.Triangles, indices.IndexCount, DrawElementsType.UnsignedInt, IntPtr.Zero);
                 radiance = target[0].ReadPixels();
             }
             if (capture is not null)
@@ -165,11 +168,13 @@ public sealed class LiquidSpecularTriangulationTests(HeadlessGLFixture fixture) 
                 // The wire variant shares the production vertex stage and marks actual GL-rasterized edges.
                 program.CaptureMode = 2;
                 Assert.True(program.EnsureReady(), string.Join("\n", assets.Logs));
-                using var wireScope = program.UseScope();
+                using var wireScope = ShaderBindingTestPipeline.Create(program);
+        RHICommandContext.Current.SetPipeline(wireScope);
+        RHICommandContext.Current.BindResources(program.CaptureBindings());
                 state.Apply(liquidPipeline);
-                target.BindWithViewport();
+                FramebufferTestSetup.BindForEngineRendering(target);
                 GL.PolygonMode(MaterialFace.FrontAndBack, PolygonMode.Line);
-                try { vao.DrawElements(PrimitiveType.Triangles, indices); }
+                try { GL.DrawElements(PrimitiveType.Triangles, indices.IndexCount, DrawElementsType.UnsignedInt, IntPtr.Zero); }
                 finally { GL.PolygonMode(MaterialFace.FrontAndBack, PolygonMode.Fill); }
                 capture.Capture(target, Path.Combine(Path.GetDirectoryName(capturePath!) ?? string.Empty,
                     Path.GetFileNameWithoutExtension(capturePath) + $"-{label}-Wire.bmp"));

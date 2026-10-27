@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Collections.Immutable;
 using System.Numerics;
 using OpenTK.Graphics.OpenGL;
@@ -55,7 +56,11 @@ public sealed class AtmosphereAerialLookupTests(HeadlessGLFixture fixture) : Lum
             Vector3 direction = new(MathF.Cos(elevation) * MathF.Cos(azimuth), MathF.Sin(elevation), MathF.Cos(elevation) * MathF.Sin(azimuth));
             program.Capture(direction*distance,visibility);
             var pipeline=draw.Prepare(program,target.PostprocessPass());
-            Assert.True(GraphicsCommandContext.TryRun("Tests.Aerial",[pipeline],true,commands=>draw.Submit(commands,pipeline,target.PostprocessPass())));
+            {
+    var commands=RHICommandContext.Current;
+    using var scope6=commands.EnterBoundary(new("Tests.Aerial",true,graphics:System.Linq.Enumerable.Select<RHIGraphicsPipeline,RHIGraphicsPipelineRef>([pipeline],value=>value),operations:BoundaryOperations.RenderPasses));
+    scope6.Run(()=>draw.Submit(commands,pipeline,target.PostprocessPass(), program.CaptureBindings()));
+}
             float[] actual = target[0].ReadPixels();
             float lobe = .05f * AtmosphereMieTransport.Factor(direction.Y) * visibility;
             for (int c = 0; c < 3; c++) actual[c] -= lobe;
@@ -65,7 +70,11 @@ public sealed class AtmosphereAerialLookupTests(HeadlessGLFixture fixture) : Lum
         }
         program.Capture(Vector3.Zero,1);
         var identityPipeline=draw.Prepare(program,target.PostprocessPass());
-        Assert.True(GraphicsCommandContext.TryRun("Tests.AerialIdentity",[identityPipeline],true,commands=>draw.Submit(commands,identityPipeline,target.PostprocessPass())));
+        {
+    var commands=RHICommandContext.Current;
+    using var scope7=commands.EnterBoundary(new("Tests.AerialIdentity",true,graphics:System.Linq.Enumerable.Select<RHIGraphicsPipeline,RHIGraphicsPipelineRef>([identityPipeline],value=>value),operations:BoundaryOperations.RenderPasses));
+    scope7.Run(()=>draw.Submit(commands,identityPipeline,target.PostprocessPass(), program.CaptureBindings()));
+}
         Assert.Equal(new[] { 1f, 1f, 1f, 1f }, target[0].ReadPixels());
     }
     /// <summary>Spatial shaft occlusion removes atmospheric in-scattering without changing surface transmission or enclosure identity.</summary>
@@ -87,7 +96,11 @@ public sealed class AtmosphereAerialLookupTests(HeadlessGLFixture fixture) : Lum
         {
             program.Capture(new(100,0,0),availability);
             var pipeline=draw.Prepare(program,target.PostprocessPass());
-            Assert.True(GraphicsCommandContext.TryRun("Tests.AerialOcclusion",[pipeline],true,commands=>draw.Submit(commands,pipeline,target.PostprocessPass())));
+            {
+    var commands=RHICommandContext.Current;
+    using var scope8=commands.EnterBoundary(new("Tests.AerialOcclusion",true,graphics:System.Linq.Enumerable.Select<RHIGraphicsPipeline,RHIGraphicsPipelineRef>([pipeline],value=>value),operations:BoundaryOperations.RenderPasses));
+    scope8.Run(()=>draw.Submit(commands,pipeline,target.PostprocessPass(), program.CaptureBindings()));
+}
             float[] actual=target[0].ReadPixels();
             float[] expected=availability>0?new[]{2.6f,1.6f,1.1f,1f,.6f,.6f,.6f,1f}:Enumerable.Repeat(1f,8).ToArray();
             for(int i=0;i<8;i++)Assert.InRange(actual[i],expected[i]-.002f,expected[i]+.002f);

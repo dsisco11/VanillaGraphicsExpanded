@@ -42,27 +42,30 @@ public sealed class PackedCompositeColorTests(HeadlessGLFixture fixture) : LumOn
         using var target = TestFramework.CreateTestGBuffer(1,1,PixelInternalFormat.R11fG11fB10f,PixelInternalFormat.Rgba16f,PixelInternalFormat.R32f);
         using var positions = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = null }).RequireResource(); positions.UploadData(new float[] {-1,-1,0, 3,-1,0, -1,3,0});
         using var uv = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = null }).RequireResource(); uv.UploadData(new float[] {0,0, 2,0, 0,2});
-        using var geometry = new ArrayGraphicsGeometry(EngineFullscreenGeometry.Layout, PrimitiveType.Triangles,
+        using var geometry = new ArrayGraphicsGeometry(EngineFullscreenGeometry.Layout, PrimitiveTopology.Triangles,
             new Dictionary<int,GpuVbo> { [0]=positions, [1]=uv });
-        using var lifetime = new GraphicsPipelineLifetime();
-        var passDescription = new RenderPassDesc(target,[new(0),new(1),new(2)]);
-        using var pass = new RenderPassTargets(passDescription);
-        shader.DirectLighting=lighting;shader.IndirectDiffuse=indirect;shader.GBufferAlbedo=albedo.TextureId;
-        shader.GBufferSurface=surface;shader.GBufferPosition=position.TextureId;shader.PrimaryDepth=depth.TextureId;
+        var passDescription = FramebufferTestSetup.DescribeAttachments(target, [new(AttachmentIndex:0),new(AttachmentIndex:1),new(AttachmentIndex:2)]);
+        var pass = RHICommandContext.Current.DescribeRenderTargets(passDescription);
+        shader.DirectLighting=lighting;shader.IndirectDiffuse=indirect;shader.GBufferAlbedo=albedo;
+        shader.GBufferSurface=surface;shader.GBufferPosition=position;shader.PrimaryDepth=depth;
         using var frameCamera = TestFrameCamera.Create([1,0,0,0,0,1,0,0,0,0,-4,0,receiverX,0,0,1],
             [1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1]);
         shader.FrameInputs = frameCamera;
 
         shader.IndirectTint=new(1,1,1);shader.IndirectIntensity=0;shader.DiffuseAOStrength=1;shader.SpecularAOStrength=1;
         shader.SetAtmosphere(null);shader.SetWaterVolume(null);shader.SetUnderwater(false);
-        using var pipeline = new GraphicsPipeline(lifetime,new(shader.GraphicsIdentity!,EngineFullscreenGeometry.Layout,pass.Signature,DynamicPipelineState.Viewport),shader);
+        using var pipeline = RHICommandContext.Current.CreateGraphicsPipeline(new(shader.Shader,EngineFullscreenGeometry.Layout,pass,DynamicPipelineState.Viewport)).RequireResource();
 
         shader.RefractionSourceEnabled=true;
         shader.SetAmbientOcclusion(null);
-        Assert.True(GraphicsCommandContext.TryRun("Tests.PackedComposite",[pipeline],true,commands=> {
-            commands.BeginPass(passDescription);commands.SetPipeline(pipeline);
-            commands.SetDynamicState(new(){Viewport=commands.PassViewport});commands.Draw(geometry,new(0,3));commands.EndPass();
-        }));
+        {
+    var commands=RHICommandContext.Current;
+    using var scope69=commands.EnterBoundary(new("Tests.PackedComposite",true,graphics:System.Linq.Enumerable.Select<RHIGraphicsPipeline,RHIGraphicsPipelineRef>([pipeline],value=>value),operations:BoundaryOperations.RenderPasses));
+    scope69.Run(()=>{
+            commands.BeginRenderPass(passDescription);commands.SetPipeline(pipeline);
+            commands.SetDynamicState(new(){Viewport=commands.PassViewport});commands.Draw(geometry.Inputs,new(0,3));commands.EndRenderPass();
+        });
+}
         // Check each channel against its own mantissa precision; blue has one fewer bit.
         float[] expected=[1.13f,2.27f,4.39f];
         float[] packed=target[0].ReadPixels();
@@ -77,15 +80,19 @@ public sealed class PackedCompositeColorTests(HeadlessGLFixture fixture) : LumOn
         // The immediate scene-linear handoff samples missing RGB alpha as one.
         var resolve=Programs.Create<PBRDisplayResolveShaderProgram>();
         using var handoff=TestFramework.CreateTestGBuffer(1,1,PixelInternalFormat.Rgba32f);
-        resolve.PrimaryScene=target[0].TextureId;resolve.PrimaryDepth=depth.TextureId;
+        resolve.PrimaryScene=target[0];resolve.PrimaryDepth=depth;
         resolve.SceneLinear=1;resolve.ParticleLayerEnabled=0;
-        var handoffDescription=new RenderPassDesc(handoff,[new(0)]);
-        using var handoffPass=new RenderPassTargets(handoffDescription);
-        using var handoffPipeline=new GraphicsPipeline(lifetime,new(resolve.GraphicsIdentity!,EngineFullscreenGeometry.Layout,handoffPass.Signature,DynamicPipelineState.Viewport),resolve);
-        Assert.True(GraphicsCommandContext.TryRun("Tests.PackedCompositeHandoff",[handoffPipeline],true,commands=> {
-            commands.BeginPass(handoffDescription);commands.SetPipeline(handoffPipeline);
-            commands.SetDynamicState(new(){Viewport=commands.PassViewport});commands.Draw(geometry,new(0,3));commands.EndPass();
-        }));
+        var handoffDescription=FramebufferTestSetup.DescribeAttachments(handoff, [new(AttachmentIndex:0)]);
+        var handoffPass = RHICommandContext.Current.DescribeRenderTargets(handoffDescription);
+        using var handoffPipeline=RHICommandContext.Current.CreateGraphicsPipeline(new(resolve.Shader,EngineFullscreenGeometry.Layout,handoffPass,DynamicPipelineState.Viewport)).RequireResource();
+        {
+    var commands=RHICommandContext.Current;
+    using var scope70=commands.EnterBoundary(new("Tests.PackedCompositeHandoff",true,graphics:System.Linq.Enumerable.Select<RHIGraphicsPipeline,RHIGraphicsPipelineRef>([handoffPipeline],value=>value),operations:BoundaryOperations.RenderPasses));
+    scope70.Run(()=>{
+            commands.BeginRenderPass(handoffDescription);commands.SetPipeline(handoffPipeline);
+            commands.SetDynamicState(new(){Viewport=commands.PassViewport});commands.Draw(geometry.Inputs,new(0,3));commands.EndRenderPass();
+        });
+}
         Assert.Equal(new[]{packed[0],packed[1],packed[2],1f},handoff[0].ReadPixels());
 
         // The production display shader must accept RGB scene storage and still publish opaque RGBA.
@@ -97,8 +104,11 @@ public sealed class PackedCompositeColorTests(HeadlessGLFixture fixture) : LumOn
         display.Capture(false,new(new(1,1,1,0),Vector4.Zero,Vector4.Zero),Vector4.Zero);
         using var draw=new PostprocessDraw();
         var displayPipeline=draw.Prepare(display,output.PostprocessPass());
-        Assert.True(GraphicsCommandContext.TryRun("Tests.PackedCompositeDisplay",[displayPipeline],true,
-            commands=>draw.Submit(commands,displayPipeline,output.PostprocessPass())));
+        {
+    var commands=RHICommandContext.Current;
+    using var scope71=commands.EnterBoundary(new("Tests.PackedCompositeDisplay",true,graphics:System.Linq.Enumerable.Select<RHIGraphicsPipeline,RHIGraphicsPipelineRef>([displayPipeline],value=>value),operations:BoundaryOperations.RenderPasses));
+    scope71.Run(()=>draw.Submit(commands,displayPipeline,output.PostprocessPass(), display.CaptureBindings()));
+}
         float[] resolved=output[0].ReadPixels();
         Vector3 encoded=FilmicGradingReference.Lookup(new(packed[0],packed[1],packed[2]),new(1,1,1,0));
         for(int channel=0;channel<3;channel++)

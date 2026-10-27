@@ -164,7 +164,7 @@ internal sealed partial class StateCache
 
     public void UnbindProgram()
     {
-        UseProgram(0);
+        OpenGLProgramSelection.Select(this,0);
     }
 
     public int GetCurrentVao()
@@ -186,7 +186,7 @@ internal sealed partial class StateCache
 
     public void UnbindVertexArray()
     {
-        BindVertexArray(0);
+        OpenGLVertexSelection.Bind(this,0);
     }
 
     public VaoScope BindVertexArrayScope(int vaoId)
@@ -243,33 +243,6 @@ internal sealed partial class StateCache
         return GetCurrentFramebuffer(target);
     }
 
-    /// <summary>Skips a framebuffer bind only when every affected direction already matches.</summary>
-    public void BindFramebuffer(FramebufferTarget target, int fboId)
-    {
-        // A combined bind changes both directions, even when the draw alias already matches.
-        bool unchanged = target switch
-        {
-            FramebufferTarget.Framebuffer => currentReadFramebuffer == fboId && currentDrawFramebuffer == fboId,
-            FramebufferTarget.ReadFramebuffer => currentReadFramebuffer == fboId,
-            FramebufferTarget.DrawFramebuffer => currentDrawFramebuffer == fboId,
-            _ => false
-        };
-        if (unchanged) return;
-        try
-        {
-            GL.BindFramebuffer(target, fboId);
-            SetFramebufferCache(target, fboId);
-        }
-        catch when (!restoringBoundary && !resolvingBoundary && activeBoundary is null)
-        {
-        }
-    }
-
-    public void UnbindFramebuffer(FramebufferTarget target)
-    {
-        BindFramebuffer(target, 0);
-    }
-
     /// <summary>Preserves actual bindings, optionally binding a temporary target; combined scopes preserve read and draw independently.</summary>
     public FramebufferScope BindFramebufferScope(FramebufferTarget target = FramebufferTarget.Framebuffer, int? fboId = null)
     {
@@ -278,7 +251,7 @@ internal sealed partial class StateCache
             : GetCurrentFramebuffer(FramebufferTarget.ReadFramebuffer);
         int previousDraw = target == FramebufferTarget.ReadFramebuffer ? 0
             : GetCurrentFramebuffer(FramebufferTarget.DrawFramebuffer);
-        if (fboId.HasValue) BindFramebuffer(target, fboId.Value);
+        if (fboId.HasValue) OpenGLFramebufferSelection.Bind(this, target, fboId.Value);
         return new FramebufferScope(this, target, previousRead, previousDraw);
     }
 
@@ -304,9 +277,9 @@ internal sealed partial class StateCache
         public void Dispose()
         {
             if (target != FramebufferTarget.DrawFramebuffer)
-                cache.BindFramebuffer(FramebufferTarget.ReadFramebuffer, previousRead);
+                OpenGLFramebufferSelection.Bind(cache, FramebufferTarget.ReadFramebuffer, previousRead);
             if (target != FramebufferTarget.ReadFramebuffer)
-                cache.BindFramebuffer(FramebufferTarget.DrawFramebuffer, previousDraw);
+                OpenGLFramebufferSelection.Bind(cache, FramebufferTarget.DrawFramebuffer, previousDraw);
         }
         #endregion
     }
@@ -347,7 +320,7 @@ internal sealed partial class StateCache
 
     public void UnbindProgramPipeline()
     {
-        BindProgramPipeline(0);
+        OpenGLProgramPipelineSelection.Bind(this,0);
     }
 
     public ProgramPipelineScope BindProgramPipelineScope(int pipelineId)
@@ -415,14 +388,14 @@ internal sealed partial class StateCache
     {
         protected override int GetCurrent() => StateCache.Current.GetCurrentVao();
 
-        protected override void Bind(int id) => StateCache.Current.BindVertexArray(id);
+        protected override void Bind(int id) => OpenGLVertexSelection.Bind(StateCache.Current,id);
     }
 
     private sealed class ProgramPipelineScopeTracker : BindScopeTracker<ProgramPipelineScopeTracker>
     {
         protected override int GetCurrent() => StateCache.Current.GetCurrentProgramPipeline();
 
-        protected override void Bind(int id) => StateCache.Current.BindProgramPipeline(id);
+        protected override void Bind(int id) => OpenGLProgramPipelineSelection.Bind(StateCache.Current,id);
     }
 
     private sealed class RenderbufferScopeTracker : BindScopeTracker<RenderbufferScopeTracker>
@@ -769,6 +742,7 @@ internal sealed partial class StateCache
             BufferTarget.CopyWriteBuffer => (GetPName)All.CopyWriteBuffer, // GL_COPY_WRITE_BUFFER_BINDING
             BufferTarget.DrawIndirectBuffer => GetPName.DrawIndirectBufferBinding,
             BufferTarget.DispatchIndirectBuffer => GetPName.DispatchIndirectBufferBinding,
+            BufferTarget.ParameterBuffer => GetPName.ParameterBufferBinding,
             BufferTarget.PixelPackBuffer => GetPName.PixelPackBufferBinding,
             BufferTarget.PixelUnpackBuffer => GetPName.PixelUnpackBufferBinding,
             BufferTarget.UniformBuffer => GetPName.UniformBufferBinding,

@@ -1,3 +1,5 @@
+using VanillaGraphicsExpanded.Tests.GPU.Helpers;
+using VanillaGraphicsExpanded.Rendering.ShaderCompilation;
 using VanillaGraphicsExpanded.Rendering.Contracts;
 using System;
 using System.Collections.Concurrent;
@@ -18,7 +20,7 @@ public sealed class ComputeProgram : IDisposable
     private static readonly ConcurrentDictionary<int, string> ProgramIdToShaderFile = new();
 
     private int _programId;
-    private GpuComputePipeline? _pipeline;
+    private ComputeShaderAsset? _pipeline;
     private bool _disposed;
 
     public string ShaderFile { get; }
@@ -26,7 +28,7 @@ public sealed class ComputeProgram : IDisposable
     public int ProgramId => _programId;
 
     /// <summary>Retains the loaded pipeline and its uniform lookup identity.</summary>
-    private ComputeProgram(GpuComputePipeline pipeline, string shaderFile)
+    private ComputeProgram(ComputeShaderAsset pipeline, string shaderFile)
     {
         _pipeline = pipeline ?? throw new ArgumentNullException(nameof(pipeline));
         _programId = pipeline.ProgramId;
@@ -51,10 +53,10 @@ public sealed class ComputeProgram : IDisposable
 
         string spvPath = Path.Combine(AppContext.BaseDirectory, "assets", "shaders", selected.BinaryPath);
 
-        Assert.True(GpuShaderModule.SupportsSpirv(), "GPU compute tests require SPIR-V support; GLSL fallback is not permitted.");
+        Assert.True(GpuSupport.Graphics.SupportsArbGlSpirv, "GPU compute tests require SPIR-V support; GLSL fallback is not permitted.");
         Assert.True(File.Exists(spvPath), $"SPIR-V test asset missing: {spvPath}. Build the test project before running tests.");
 
-        bool ok = GpuComputePipeline.TryLoadFromSpirv(
+        bool ok = ComputeShaderAsset.TryLoadFromSpirv(
             spirvBinaryPath: spvPath,
             settings: settings,
             pipeline: out var pipeline,

@@ -13,27 +13,8 @@ internal sealed partial class StateCache
 
 
 
-    /// <summary>Records implicit read/draw unbinding without losing the surviving direction.</summary>
-    internal void DeleteFramebuffer(int framebuffer)
-    {
-        RequireMutableFramebufferConfiguration(framebuffer);
-        GL.DeleteFramebuffer(framebuffer);
-        CompleteResourceDeletion(GpuResourceKind.Framebuffer, framebuffer);
-    }
 
-    /// <summary>Removes only the deleted VAO's element association and resets selection when bound.</summary>
-    internal void DeleteVertexArray(int array)
-    {
-        GL.DeleteVertexArray(array);
-        CompleteResourceDeletion(GpuResourceKind.VertexArray, array);
-    }
 
-    /// <summary>Marks a program for deletion without changing its current binding snapshot.</summary>
-    internal void DeleteProgram(int program)
-    {
-        GL.DeleteProgram(program);
-        CompleteResourceDeletion(GpuResourceKind.Program, program);
-    }
     #endregion
     #endregion
 

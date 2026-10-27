@@ -79,24 +79,26 @@ public sealed class MoonDiskDrawTests(HeadlessGLFixture fixture) : LumOnShaderFu
         using var color = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba32f, Width = System.Math.Max(1, size), Height = System.Math.Max(1, size), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         using var glow = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba32f, Width = System.Math.Max(1, size), Height = System.Math.Max(1, size), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         using var target = DynamicGpuFramebuffer.CreateMRT([color, glow])!;
-        using var geometry = new ArrayGraphicsGeometry(CelestialDrawPass.FullscreenLayout, PrimitiveType.Triangles,
+        using var geometry = new ArrayGraphicsGeometry(CelestialDrawPass.FullscreenLayout, PrimitiveTopology.Triangles,
             new Dictionary<int, GpuVbo>(), proceduralVertices: 3);
-        using var lifetime = new GraphicsPipelineLifetime();
-        var pass = new RenderPassDesc(target, [new(0, AttachmentLoad.Clear, Clear: ColorClearValue.Float(0,0,0,0)),
-            new(1, AttachmentLoad.Clear, Clear: ColorClearValue.Float(0,0,0,0))]);
-        using var metadata = new RenderPassTargets(pass);
-        var blend = new ColorBlendDesc { Enabled = true, SourceRgb = BlendingFactorSrc.One, DestinationRgb = BlendingFactorDest.One };
-        using var pipeline = new GraphicsPipeline(lifetime, new(shader.GraphicsIdentity!, CelestialDrawPass.FullscreenLayout,
-            metadata.Signature, DynamicPipelineState.Viewport, blending: [blend, blend]), shader);
+        var pass = FramebufferTestSetup.DescribeAttachments(target, [new(AttachmentIndex:0, Load:AttachmentLoad.Clear, Clear: ColorClearValue.Float(0,0,0,0)),
+            new(AttachmentIndex:1, Load:AttachmentLoad.Clear, Clear: ColorClearValue.Float(0,0,0,0))]);
+        var metadata = RHICommandContext.Current.DescribeRenderTargets(pass);
+        var blend = new ColorBlendDesc { Enabled = true, SourceRgb = BlendFactor.One, DestinationRgb = BlendFactor.One };
+        using var pipeline = RHICommandContext.Current.CreateGraphicsPipeline(new(shader.Shader, CelestialDrawPass.FullscreenLayout,
+            metadata, DynamicPipelineState.Viewport, blending: [blend, blend])).RequireResource();
         int framebuffer = GL.GetInteger(GetPName.DrawFramebufferBinding);
         bool depth = GL.IsEnabled(EnableCap.DepthTest), blending = GL.IsEnabled(EnableCap.Blend);
         GL.GetBoolean(GetPName.DepthWritemask, out bool writes);
-        Assert.True(GraphicsCommandContext.TryRun("Tests.MoonDisk", [pipeline], true, commands =>
         {
-            commands.BeginPass(pass); commands.SetPipeline(pipeline);
+    var commands=RHICommandContext.Current;
+    using var scope63=commands.EnterBoundary(new("Tests.MoonDisk",true,graphics:System.Linq.Enumerable.Select<RHIGraphicsPipeline,RHIGraphicsPipelineRef>([pipeline],value=>value),operations:BoundaryOperations.RenderPasses));
+    scope63.Run(()=>{
+            commands.BeginRenderPass(pass); commands.SetPipeline(pipeline);
             commands.SetDynamicState(new() { Viewport = commands.PassViewport });
-            commands.Draw(geometry, new(0,3)); commands.EndPass();
-        }));
+            commands.Draw(geometry.Inputs, new(0,3)); commands.EndRenderPass();
+        });
+}
         Assert.Equal(framebuffer, GL.GetInteger(GetPName.DrawFramebufferBinding));
         Assert.Equal(depth, GL.IsEnabled(EnableCap.DepthTest)); Assert.Equal(blending, GL.IsEnabled(EnableCap.Blend));
         GL.GetBoolean(GetPName.DepthWritemask, out bool currentWrites); Assert.Equal(writes, currentWrites);

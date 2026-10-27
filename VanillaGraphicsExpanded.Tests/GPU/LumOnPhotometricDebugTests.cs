@@ -40,7 +40,7 @@ public sealed class LumOnPhotometricDebugTests(HeadlessGLFixture fixture) : LumO
         UpdateAndBindLumOnFrameUbo(program, screenWidth: 1, screenHeight: 1);
         using var depth = TestFramework.CreateTexture(1, 1, PixelInternalFormat.R32f, [.75f]);
         using var publication = new TestFrameLightingPublication();
-        program.FrameLightingInputs = publication.Buffer; program.PrimaryDepth = depth.TextureId;
+        program.FrameLightingInputs = publication.Buffer; program.PrimaryDepth = depth;
         using var output = TestFramework.CreateTestGBuffer(1, 1, PixelInternalFormat.Rgba32f);
         foreach (float scale in new[] { 1f, .25f })
         {

@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.ShaderCompilation;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Contracts;
 
@@ -14,5 +15,5 @@ namespace VanillaGraphicsExpanded.PBR.Atmosphere;
 internal sealed partial class AtmosphereComputePrograms : GpuComputeProgram, IAtmosphereComputeProgramsBindings
 {
     /// <summary>Adopts one linked atmosphere pass and its generated resource API.</summary>
-    public AtmosphereComputePrograms(GpuComputePipeline pipeline) : base(pipeline) { }
+    public AtmosphereComputePrograms(ComputeShaderAsset pipeline) : base(pipeline) { }
 }

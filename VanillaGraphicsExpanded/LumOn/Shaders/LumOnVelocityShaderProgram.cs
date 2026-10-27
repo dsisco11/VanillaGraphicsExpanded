@@ -47,9 +47,9 @@ public partial class LumOnVelocityShaderProgram : LumOnShaderProgram, ILumOnVelo
     /// <summary>
     /// Primary depth texture (current frame).
     /// </summary>
-    public partial int PrimaryDepth { set; }
+    public partial GpuTextureRef PrimaryDepth { set; }
     /// <summary>Surface identity includes the local displacement-history rejection flag.</summary>
-    public partial int PatchIdentity { set; }
+    public partial GpuTextureRef PatchIdentity { set; }
 
     #endregion
 

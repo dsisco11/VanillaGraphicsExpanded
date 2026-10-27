@@ -30,7 +30,7 @@ internal interface ILumOnDebugShaderProgramBindings : VanillaGraphicsExpanded.PB
     CpuUniformBuffer Parameters { get; }
     /// <summary>Declares the primaryDepth Sampler slot.</summary>
     [ShaderBinding("primaryDepth", ShaderBindingKind.Sampler, 1, ShaderStageKind.Vertex, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.Texture2D, Sampler = ShaderSamplerPolicy.NearestClamp)]
-    int PrimaryDepth { set; }
+    GpuTextureRef PrimaryDepth { set; }
     /// <summary>Declares the normal, material and environment surface array sampler.</summary>
     [ShaderBinding("gBufferSurface", ShaderBindingKind.Sampler, 2, ShaderStageKind.Vertex, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.Texture2DArray, Sampler = ShaderSamplerPolicy.NearestClamp)]
     GpuTextureRef GBufferSurface { set; }
@@ -102,7 +102,7 @@ internal interface ILumOnDebugShaderProgramBindings : VanillaGraphicsExpanded.PB
     GpuTextureRef ProbePisEnergy { set; }
     /// <summary>Declares the gBufferPatchId Sampler slot.</summary>
     [ShaderBinding("gBufferPatchId", ShaderBindingKind.Sampler, 25, ShaderStageKind.Vertex, ShaderStageKind.Fragment, Required = false, TextureTarget = ShaderTextureTarget.Texture2D, Sampler = ShaderSamplerPolicy.NearestClamp)]
-    int GBufferPatchId { set; }
+    GpuTextureRef GBufferPatchId { set; }
     /// <summary>Declares the vge_lumonScenePageTableMip0 Sampler slot.</summary>
     [ShaderBinding("vge_lumonScenePageTableMip0", ShaderBindingKind.Sampler, 26, ShaderStageKind.Vertex, ShaderStageKind.Fragment, Required = false, TextureTarget = ShaderTextureTarget.Texture2DArray)]
     GpuTextureRef LumonScenePageTableMip0 { set; }

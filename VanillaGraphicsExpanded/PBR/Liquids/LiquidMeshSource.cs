@@ -8,7 +8,7 @@ using Vintagestory.Client.NoObf;
 namespace VanillaGraphicsExpanded.PBR.Liquids;
 
 /// <summary>Tracks engine-owned liquid managers without capturing atlas arrays across their replacement.</summary>
-internal sealed class LiquidMeshSource(ChunkRenderer renderer, Vec2f tileSize)
+internal sealed partial class LiquidMeshSource(ChunkRenderer renderer, Vec2f tileSize) : System.IDisposable
 {
     private static readonly ConditionalWeakTable<ICoreClientAPI, LiquidMeshSource> sources = new();
     // The manager exposes draw statistics, but those are cached by prior culling.
@@ -60,12 +60,16 @@ internal sealed class LiquidMeshSource(ChunkRenderer renderer, Vec2f tileSize)
     /// <summary>Publishes the completed renderer and its atlas metric after engine construction.</summary>
     internal static void Register(ICoreClientAPI api, ChunkRenderer renderer, Vec2f tileSize)
     {
-        sources.Remove(api);
+        Remove(api);
         sources.Add(api, new(renderer, tileSize));
     }
     /// <summary>Returns current world resources without querying private fields each frame.</summary>
     internal static bool TryGet(ICoreClientAPI api, out LiquidMeshSource source) => sources.TryGetValue(api, out source!);
     /// <summary>Drops borrowed world references when the client leaves its world.</summary>
-    internal static void Remove(ICoreClientAPI api) => sources.Remove(api);
+    internal static void Remove(ICoreClientAPI api)
+    {
+        if (sources.TryGetValue(api, out var source)) source.Dispose();
+        sources.Remove(api);
+    }
     #endregion
 }

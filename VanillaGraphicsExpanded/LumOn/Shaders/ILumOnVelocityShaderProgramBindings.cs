@@ -17,10 +17,10 @@ internal interface ILumOnVelocityShaderProgramBindings
     GpuUniformBuffer? LumOnFrame { get; }
     /// <summary>Declares the primaryDepth Sampler slot.</summary>
     [ShaderBinding("primaryDepth", ShaderBindingKind.Sampler, 0, ShaderStageKind.Vertex, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.Texture2D, Sampler = ShaderSamplerPolicy.NearestClamp)]
-    int PrimaryDepth { set; }
+    GpuTextureRef PrimaryDepth { set; }
     /// <summary>Declares the gBufferPatchId Sampler slot.</summary>
     [ShaderBinding("gBufferPatchId", ShaderBindingKind.Sampler, 1, ShaderStageKind.Vertex, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.Texture2D, Sampler = ShaderSamplerPolicy.NearestClamp)]
-    int PatchIdentity { set; }
+    GpuTextureRef PatchIdentity { set; }
     /// <summary>Supplies optional shared world-probe storage.</summary>
     [ShaderBinding("LumOnWorldProbeUBO", ShaderBindingKind.UniformBlock, GpuBindingRegistry.Ubo.WorldProbe, ShaderStageKind.Vertex, ShaderStageKind.Fragment, Required = false)]
     GpuUniformBuffer? LumOnWorldProbe { get; }

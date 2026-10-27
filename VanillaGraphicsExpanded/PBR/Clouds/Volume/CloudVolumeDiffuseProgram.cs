@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.ShaderCompilation;
 using System;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Contracts;
@@ -25,7 +26,7 @@ internal sealed partial class CloudVolumeDiffuseProgram:GpuComputeProgram,ICloud
     internal static CloudVolumeDiffuseProgram Create(ICoreAPI api,bool shadows,int quality=2)
     {
         var layout=new GpuProgramLayout();layout.RegisterContract(Contract.Stages[0].Bindings);
-        if(!GpuComputePipeline.TryCreateFromAssets(api,new ShaderSettings(Contract).With(SelfShadow,shadows).With(Quality,quality),out var pipeline,
+        if(!ComputeShaderAsset.TryCreateFromAssets(api,new ShaderSettings(Contract).With(SelfShadow,shadows).With(Quality,quality),out var pipeline,
             out string log,"Cloud.Volume.Diffuse",layout:layout))throw new InvalidOperationException(log);
         return new(pipeline!);
     }
@@ -52,7 +53,7 @@ internal sealed partial class CloudVolumeDiffuseProgram:GpuComputeProgram,ICloud
     #endregion
     #region Private
     /// <summary>Owns the executable's single packed transport record.</summary>
-    private CloudVolumeDiffuseProgram(GpuComputePipeline pipeline):base(pipeline)=>OwnUniformBuffer(inputs);
+    private CloudVolumeDiffuseProgram(ComputeShaderAsset pipeline):base(pipeline)=>OwnUniformBuffer(inputs);
     /// <summary>Supplies the complete staged gather contract.</summary>
     CpuUniformBuffer ICloudVolumeDiffuseBindings.Inputs=>inputs;
     #endregion

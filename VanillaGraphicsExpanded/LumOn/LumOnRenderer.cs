@@ -164,7 +164,6 @@ public partial class LumOnRenderer : IRenderer, IDisposable
         primaryBuffers.HasPublishedIndirect = false;
         primaryBuffers.WorldProbeSuppressedLighting = null;
         isFirstFrame = true;
-        DisposeGraphicsPipelines();
         return true;
     }
     private void RegisterWorldEvents()
@@ -519,7 +518,7 @@ public partial class LumOnRenderer : IRenderer, IDisposable
 
     private void RenderVelocityPass(FrameBufferRef primaryFb)
     {
-        if (bufferManager.VelocityFbo is null)
+        if (bufferManager.VelocityPass is null)
         {
             lightingPassesComplete = false;
             return;
@@ -537,15 +536,15 @@ public partial class LumOnRenderer : IRenderer, IDisposable
         shader.FrameUniformBuffer = uniformBuffers.FrameUbo;
         shader.WorldProbeUniformBuffer = uniformBuffers.WorldProbeUbo;
 
-        shader.PrimaryDepth = PBR.SceneColor.SceneColorParticleCapture.ReceiverDepth(capi, primaryFb.DepthTextureId);
-        shader.PatchIdentity = gBufferManager!.PatchIdTextureId;
+        shader.PrimaryDepth = PBR.SceneColor.SceneColorParticleCapture.ReceiverDepth(capi, gBufferManager!.PrimaryDepthTexture);
+        shader.PatchIdentity = gBufferManager!.PatchIdTexture;
 
         if (!shader.EnsureReady())
         {
             lightingPassesComplete = false;
             return;
         }
-        if (!SubmitFullscreen(shader, bufferManager.VelocityFbo, true)) lightingPassesComplete = false;
+        if (!SubmitFullscreen(shader, bufferManager.VelocityPass, true)) lightingPassesComplete = false;
 
     }
 
@@ -573,7 +572,7 @@ public partial class LumOnRenderer : IRenderer, IDisposable
 
         using var gpuScope = GlGpuProfiler.Instance.Scope(shader.PassName);
 
-        var fbo = bufferManager.ProbeAnchorFbo;
+        var fbo = bufferManager.ProbeAnchorPass;
         if (fbo is null)
         {
             lightingPassesComplete = false;
@@ -584,7 +583,7 @@ public partial class LumOnRenderer : IRenderer, IDisposable
         shader.WorldProbeUniformBuffer = uniformBuffers.WorldProbeUbo;
 
         // Bind G-buffer textures
-        shader.PrimaryDepth = PBR.SceneColor.SceneColorParticleCapture.ReceiverDepth(capi, primaryFb.DepthTextureId);
+        shader.PrimaryDepth = PBR.SceneColor.SceneColorParticleCapture.ReceiverDepth(capi, gBufferManager!.PrimaryDepthTexture);
         shader.GBufferSurface = gBufferManager?.SurfaceTexture;
 
         shader.PmjJitter = pmjJitter;
@@ -625,7 +624,7 @@ public partial class LumOnRenderer : IRenderer, IDisposable
 
         using var gpuScope = GlGpuProfiler.Instance.Scope(shader.PassName);
 
-        var fbo = bufferManager.ProbeTraceMaskFbo;
+        var fbo = bufferManager.ProbeTraceMaskPass;
         if (fbo is null || primaryBuffers.ProbeTraceMaskTex is null)
             return;
 
@@ -672,7 +671,7 @@ public partial class LumOnRenderer : IRenderer, IDisposable
 
         using var gpuScope = GlGpuProfiler.Instance.Scope(shader.PassName);
 
-        var fbo = bufferManager.ScreenProbeAtlasTraceFbo;
+        var fbo = bufferManager.ScreenProbeAtlasTracePass;
         if (fbo is null)
         {
             lightingPassesComplete = false;
@@ -753,7 +752,7 @@ public partial class LumOnRenderer : IRenderer, IDisposable
         shader.ProbeTraceMask = primaryBuffers.ProbeTraceMaskTex;
 
         // Bind scene depth for ray marching
-        shader.PrimaryDepth = PBR.SceneColor.SceneColorParticleCapture.ReceiverDepth(capi, primaryFb.DepthTextureId);
+        shader.PrimaryDepth = PBR.SceneColor.SceneColorParticleCapture.ReceiverDepth(capi, gBufferManager!.PrimaryDepthTexture);
 
         // Bind LumOn-owned albedo plus VGE material properties for hit radiance sampling.
         shader.SurfaceAlbedo = primaryBuffers.SurfaceAlbedoTex;
@@ -812,7 +811,7 @@ public partial class LumOnRenderer : IRenderer, IDisposable
 
         using var gpuScope = GlGpuProfiler.Instance.Scope(shader.PassName);
 
-        var fbo = bufferManager.ScreenProbeAtlasCurrentFbo;
+        var fbo = bufferManager.ScreenProbeAtlasCurrentPass;
         if (fbo is null)
         {
             lightingPassesComplete = false;
@@ -909,7 +908,7 @@ public partial class LumOnRenderer : IRenderer, IDisposable
 
         using var gpuScope = GlGpuProfiler.Instance.Scope(shader.PassName);
 
-        var outFbo = bufferManager.ProbeSh9Fbo;
+        var outFbo = bufferManager.ProbeSh9Pass;
         if (outFbo is null)
         {
             lightingPassesComplete = false;
@@ -959,7 +958,7 @@ public partial class LumOnRenderer : IRenderer, IDisposable
 
         using var gpuScope = GlGpuProfiler.Instance.Scope(shader.PassName);
 
-        var fbo = bufferManager.IndirectHalfFbo;
+        var fbo = bufferManager.IndirectHalfPass;
         if (fbo is null)
         {
             lightingPassesComplete = false;
@@ -1005,7 +1004,7 @@ public partial class LumOnRenderer : IRenderer, IDisposable
 
         shader.ProbeAnchors = primaryBuffers.ProbeAnchors;
 
-        shader.PrimaryDepth = PBR.SceneColor.SceneColorParticleCapture.ReceiverDepth(capi, primaryFb.DepthTextureId);
+        shader.PrimaryDepth = PBR.SceneColor.SceneColorParticleCapture.ReceiverDepth(capi, gBufferManager!.PrimaryDepthTexture);
         shader.GBufferSurface = gBufferManager?.SurfaceTexture;
 
         shader.WorldProbeRadianceAtlas = hasWorldProbe ? worldProbeResources.ProbeRadianceAtlas : null;
@@ -1040,7 +1039,7 @@ public partial class LumOnRenderer : IRenderer, IDisposable
 
         using var gpuScope = GlGpuProfiler.Instance.Scope(shader.PassName);
 
-        var fbo = bufferManager.IndirectHalfFbo;
+        var fbo = bufferManager.IndirectHalfPass;
         if (fbo is null)
         {
             lightingPassesComplete = false;
@@ -1091,7 +1090,7 @@ public partial class LumOnRenderer : IRenderer, IDisposable
         shader.ProbeAnchors = primaryBuffers.ProbeAnchors;
 
         // Bind G-buffer for pixel info
-        shader.PrimaryDepth = PBR.SceneColor.SceneColorParticleCapture.ReceiverDepth(capi, primaryFb.DepthTextureId);
+        shader.PrimaryDepth = PBR.SceneColor.SceneColorParticleCapture.ReceiverDepth(capi, gBufferManager!.PrimaryDepthTexture);
         shader.GBufferSurface = gBufferManager?.SurfaceTexture;
 
         shader.WorldProbeRadianceAtlas = hasWorldProbe ? worldProbeResources.ProbeRadianceAtlas : null;
@@ -1172,7 +1171,7 @@ public partial class LumOnRenderer : IRenderer, IDisposable
 
         using var gpuScope = GlGpuProfiler.Instance.Scope(shader.PassName);
 
-        var fbo = bufferManager.ScreenProbeAtlasFilteredFbo;
+        var fbo = bufferManager.ScreenProbeAtlasFilteredPass;
         if (fbo is null)
         {
             lightingPassesComplete = false;
@@ -1226,9 +1225,9 @@ public partial class LumOnRenderer : IRenderer, IDisposable
 
         // Preferred path: write to full-res indirect buffer for the final composite.
         // This keeps the primary scene untouched until PBRCompositeRenderer merges everything.
-        var fullResFbo = bufferManager.IndirectFullFbo;
+        var fullResFbo = bufferManager.IndirectFullPass;
         // Composition owns publication. Never add GI into the material-color target on failure.
-        if (fullResFbo?.IsValid != true)
+        if (fullResFbo is null)
         {
             lightingPassesComplete = false;
             return;
@@ -1241,7 +1240,7 @@ public partial class LumOnRenderer : IRenderer, IDisposable
         shader.IndirectHalf = bufferManager.IndirectHalfTex!;
 
         // Retain G-buffer guides for edge-aware upsampling.
-        shader.PrimaryDepth = PBR.SceneColor.SceneColorParticleCapture.ReceiverDepth(capi, primaryFb.DepthTextureId);
+        shader.PrimaryDepth = PBR.SceneColor.SceneColorParticleCapture.ReceiverDepth(capi, gBufferManager!.PrimaryDepthTexture);
         shader.GBufferSurface = gBufferManager?.SurfaceTexture;
 
         // Bilateral upsample parameters (SPG-008 Section 3.1)

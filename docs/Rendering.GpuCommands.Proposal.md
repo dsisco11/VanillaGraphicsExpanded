@@ -57,6 +57,10 @@ required to adopt this policy. It does not require changing the host engine's co
 Core DSA and multi-bind are baseline facilities. Optional features beyond 4.5 retain explicit capability
 checks. Exact engine adapters retain their original OpenTK signatures at the external boundary.
 
+The `RHI` namespace and major abstraction names identify the rendering hardware boundary. Enums use
+descriptive domain names such as `ComparisonFunction`, `BlendOperation`, `TextureFormat` and
+`ResourceAccess`, without an `RHI` or `E` prefix.
+
 The command API uses project-owned descriptors/enums for formats, dimensions, access, pipeline state,
 vertex layout and synchronization intent. No public operation accepts an OpenTK enum, binding target,
 DSA flag, GL method name or native overload selector. Migration proceeds through complete operation-family
@@ -92,7 +96,7 @@ usage guards, not methods on the reference itself. Imported resources keep their
 | Shader work | Create an executable from stage-code inputs through the shader contract below. Compilation, linking, binary installation and native stage configuration are backend details. Existing deferred link completion remains internal to pending creation; it is not command-list GPU completion. |
 | Upload/copy/clear/mips | Typed buffer ranges, texture regions, row/slice pitches and view-relative subresources. Upload, copy and clear can be recorded. Mip generation is immediate initially because mutable generation can change storage facts. Contents never become canonical metadata. |
 | Binding/passes | Set pipeline, bind resource table, set dynamic state, begin/end render pass. Include explicit image level/layer/access/format and attachment load/store/clear intent. Preserve full-input validation and alias feedback checks. Recordable. |
-| Draw/dispatch | Direct, indexed, instanced and indirect draw/dispatch with explicit offsets/counts. Vertex/index semantics stay above GL addressing. Recordable; no reordering. |
+| Draw/dispatch | Direct, indexed, instanced and indirect draw/dispatch with explicit offsets/counts. Preserve noninstanced indexed batching through `DrawIndexedBatch` and stable supplied intervals. Vertex/index semantics stay above GL addressing. Recordable; no reordering. |
 | Synchronization | Resource access barriers, fence insertion, GPU waits and external semaphore operations. Backend maps supported access intent; no inferred render graph. CPU waits are explicit immediate calls. Imported-handle ownership is never inferred from a command. |
 | Queries/readback | Begin/end timestamp or statistics operations and enqueue readback into owned staging storage are recordable. Typed result requests expose `Pending`, `Ready`, `Failed` or `Cancelled`; polling/waiting/mapping is explicit and immediate. Raw client pointers and mapped spans are never recorded. |
 

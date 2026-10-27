@@ -1,3 +1,5 @@
+using VanillaGraphicsExpanded.Rendering.ShaderCompilation;
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using VanillaGraphicsExpanded.ModSystems;
 using VanillaGraphicsExpanded.PBR.Atmosphere;
@@ -17,11 +19,10 @@ namespace VanillaGraphicsExpanded.PBR.Clouds;
 internal sealed class CloudSimpleRenderer : IDisposable
 {
     private readonly ICoreClientAPI api;
-    private readonly GraphicsPipelineLifetime lifetime = new();
     private readonly Action unregisterResize;
     private GpuFramebuffer? target;
     private BorrowedTexture? liquidDepth;
-    private GraphicsPipeline? pipeline;
+    private GraphicsPipelineAsset? pipeline;
     private CloudSimpleProgram? program;
     private bool failed, disposed;
 
@@ -74,22 +75,24 @@ internal sealed class CloudSimpleRenderer : IDisposable
                 target?.Dispose(); target = replacement;
             }
             using var geometry = new CloudSimpleGeometry(input.Mesh, input.Count);
-            var pass = new RenderPassDesc(target, LiquidPipelineStates.SurfaceOutputs);
-            using var metadata = new RenderPassTargets(pass);
-            var description = new GraphicsPipelineDesc(program.GraphicsIdentity!, CloudSimpleGeometry.Layout, metadata.Signature,
+            var pass = new RHIRenderPassDescription(target.SurfaceReference, LiquidPipelineStates.SurfaceOutputs);
+            var signature=RHICommandContext.Current.DescribeRenderTargets(pass);
+            var description = new RHIGraphicsPipelineDescription(program.Shader, CloudSimpleGeometry.Layout, signature,
                 DynamicPipelineState.Viewport, depthStencil: LiquidPipelineStates.Surface,
                 blending: LiquidPipelineStates.SurfaceBlending);
-            if (pipeline is null || pipeline.Description != description || !ReferenceEquals(pipeline.Shader, program)
-                || pipeline.ExecutableRevision != program.ExecutableRevision)
+            if (pipeline is null || pipeline.Description != description || pipeline.Description.Shader != program.Shader)
             {
-                var replacement = new GraphicsPipeline(lifetime, description, program); pipeline?.Dispose(); pipeline = replacement;
+                var replacement = new GraphicsPipelineAsset(program,description); pipeline?.Dispose(); pipeline = replacement;
             }
-            if (!GraphicsCommandContext.TryRun("Cloud.Simple", [pipeline], true, commands =>
+            var commands=RHICommandContext.Current;
+            using var boundary=commands.EnterBoundary(new("Cloud.Simple",true,graphics:[pipeline.Pipeline],operations:BoundaryOperations.RenderPasses));
+            boundary.Run(()=>
             {
-                commands.BeginPass(pass); commands.SetPipeline(pipeline);
+                commands.BeginRenderPass(pass); commands.SetPipeline(pipeline.Pipeline);
                 commands.SetDynamicState(new() { Viewport = commands.PassViewport });
-                commands.Draw(geometry, new(0, 36, 0, input.Count)); commands.EndPass();
-            })) throw new InvalidOperationException("Simple cloud graphics boundary was rejected.");
+                commands.BindResources(program.CaptureBindings());
+                commands.DrawIndexed(geometry.Inputs, new(0, 36, InstanceCount:input.Count)); commands.EndRenderPass();
+            });
         }
         catch (Exception error) when (!EngineBoundaryRestoreException.IsRestorationFailure(error))
         {
@@ -102,7 +105,7 @@ internal sealed class CloudSimpleRenderer : IDisposable
     public void Dispose()
     {
         if (disposed) return; disposed = true;
-        RenderingCleanup.Run(unregisterResize, Reset, lifetime.Dispose);
+        RenderingCleanup.Run(unregisterResize, Reset);
     }
 
     /// <summary>Retries resources at existing reload/resize boundaries without relinquishing visible ownership.</summary>
@@ -111,6 +114,13 @@ internal sealed class CloudSimpleRenderer : IDisposable
         failed = false; program = null;
         RenderingCleanup.Run(() => { pipeline?.Dispose(); pipeline = null; }, () => { target?.Dispose(); target = null; },
             () => { liquidDepth?.Dispose(); liquidDepth = null; });
+    }
+
+    /// <summary>Allows preparation to retry without retiring the installed renderer contract before replacement succeeds.</summary>
+    internal void WithdrawForReload()
+    {
+        failed = false;
+        liquidDepth?.Dispose(); liquidDepth = null;
     }
     #endregion
 }

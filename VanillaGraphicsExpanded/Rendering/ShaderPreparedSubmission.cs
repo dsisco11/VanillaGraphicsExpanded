@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System;
 using System.Collections.Generic;
@@ -38,7 +39,7 @@ internal static class ShaderPreparedSubmission
         ValidateImage(binding, DefaultImageView(binding, texture), ref history);
 
     /// <summary>Checks image lifetime every use while revalidating only changed view/allocation facts.</summary>
-    internal static void ValidateImage(GpuPreparedBindings.Entry binding, GpuTextureBinding image, ref ShaderInputValidation history)
+    internal static void ValidateImage(GpuPreparedBindings.Entry binding, RHIImageBinding image, ref ShaderInputValidation history)
     {
         if (!binding.Active) return;
         bool valid = GpuResourceManager.ValidateTextureReferenceInput(image.Texture.Resource);
@@ -80,18 +81,10 @@ internal static class ShaderPreparedSubmission
             !ShaderResourceFormatCompatibility.Matches(binding.Type, texture.RequireImage(0).Format)))
             throw new InvalidOperationException($"Incompatible texture target for {binding.Contract.Name}.");
     }
-    /// <summary>Checks borrowed engine texture validity at the ownership boundary.</summary>
-    internal static int ValidateSampler(GpuPreparedBindings.Entry binding, int texture)
-    {
-        if (!binding.Active) return texture;
-        bool valid = texture > 0 && GL.IsTexture(texture);
-        Require(binding, valid);
-        return valid ? texture : 0;
-    }
     /// <summary>Checks a retained default image allocation.</summary>
     internal static void ValidateImage(GpuPreparedBindings.Entry binding, GpuTextureRef texture) => ValidateImage(binding, DefaultImageView(binding, texture));
     /// <summary>Checks image view bounds before any resource in the input set is published.</summary>
-    internal static void ValidateImage(GpuPreparedBindings.Entry binding, GpuTextureBinding image)
+    internal static void ValidateImage(GpuPreparedBindings.Entry binding, RHIImageBinding image)
     {
         if (!binding.Active) return;
         bool valid = GpuResourceManager.ValidateTextureReferenceInput(image.Texture.Resource);
@@ -110,11 +103,11 @@ internal static class ShaderPreparedSubmission
                 or TextureTarget.TextureCubeMapArray => TextureTarget.Texture2D,
             _ => target
         };
-        var format = image.Format ?? (SizedInternalFormat)selected.Format;
+        var format = image.Format is { } supplied ? OpenGLImageValues.Format(supplied) : selected.Format;
         if (image.Layer < 0 || (!image.Layered && image.Layer >= layers) ||
-            image.Access is not (TextureAccess.ReadOnly or TextureAccess.WriteOnly or TextureAccess.ReadWrite) ||
-            !ImageFormatCompatibility.Matches(image.Texture.RequireImage(image.Level).Format, format) ||
-            !ShaderResourceFormatCompatibility.Matches(binding.Type, (PixelInternalFormat)format) ||
+            image.Access is not (ImageAccess.ReadOnly or ImageAccess.WriteOnly or ImageAccess.ReadWrite) ||
+            !ImageFormatCompatibility.Matches(image.Texture.RequireImage(image.Level).Format, (SizedInternalFormat)format) ||
+            !ShaderResourceFormatCompatibility.Matches(binding.Type, format) ||
             GpuPreparedBindings.CompatibleTextureTarget(binding.Type) != (int)viewTarget)
             throw new InvalidOperationException($"Invalid image view for {binding.Contract.Name}.");
     }
@@ -145,78 +138,6 @@ internal static class ShaderPreparedSubmission
     internal static void ValidateAtomicCounter(GpuPreparedBindings.Entry binding, GpuAtomicCounterBuffer? buffer) => ValidateBuffer(binding, buffer);
     #endregion
 
-    #region Publication
-    /// <summary>Publishes consecutive array slots while skipping optimized-away elements.</summary>
-    internal static void SamplerArray(GpuPreparedBindings.Entry binding, IReadOnlyList<GpuTextureRef>? textures)
-    {
-        if (!binding.Active) return;
-        for (int element = 0; element < binding.ActiveElements.Count; element++)
-            Sampler(Element(binding, element), textures is not null && element < textures.Count ? textures[element] : default);
-    }
-    /// <summary>Publishes the managed allocation currently owned by the retained wrapper.</summary>
-    internal static void Sampler(GpuPreparedBindings.Entry binding, GpuTextureRef texture)
-    {
-        if (!binding.Active) return;
-        bool valid = GpuResourceManager.ValidateTextureReferenceInput(texture.Resource);
-        BindSampler(binding, valid ? texture.TextureId : 0,
-            valid ? texture.Target : (TextureTarget)GpuPreparedBindings.CompatibleTextureTarget(binding.Type));
-    }
-    /// <summary>Publishes an engine handle using the authored target policy.</summary>
-    internal static void Sampler(GpuPreparedBindings.Entry binding, int texture)
-    {
-        if (!binding.Active) return;
-        // External allocation identity is unknowable from an integer; force its bind through the cache boundary.
-        StateCache.Current.InvalidateTextureUnit(binding.Contract.Binding.Slot);
-        BindSampler(binding, texture, (TextureTarget)binding.Contract.Binding.TextureTarget);
-    }
-    /// <summary>Publishes a default image view through the context-wide cache.</summary>
-    internal static void Image(GpuPreparedBindings.Entry binding, GpuTextureRef texture) => Image(binding, DefaultImageView(binding, texture));
-    /// <summary>Publishes every image-view parameter, or clears an absent optional allocation.</summary>
-    internal static void Image(GpuPreparedBindings.Entry binding, GpuTextureBinding image)
-    {
-        if (!binding.Active) return;
-        bool valid = GpuResourceManager.ValidateTextureReferenceInput(image.Texture.Resource);
-        StateCache.Current.BindImageTexture(binding.Contract.Binding.Slot, valid ? image.Texture.TextureId : 0,
-            valid ? image.Level : 0, valid && image.Layered, valid ? image.Layer : 0, valid ? image.Access : TextureAccess.ReadOnly,
-            valid ? image.Format ?? (SizedInternalFormat)image.Texture.RequireImage(image.Level).Format : SizedInternalFormat.Rgba8);
-    }
-    /// <summary>Publishes uniform storage directly to its prepared slot.</summary>
-    internal static void UniformBlock(GpuPreparedBindings.Entry binding, GpuUniformBuffer? buffer)
-    {
-        if (!binding.Active) return;
-        if (buffer?.IsValid == true) buffer.BindBase(binding.Contract.Binding.Slot);
-        else OpenGLBufferBindings.BindBufferBase(StateCache.Current, BufferRangeTarget.UniformBuffer, binding.Contract.Binding.Slot, 0);
-    }
-    /// <summary>Leaves content upload and dirty-state commitment with the CPU block and ring owners.</summary>
-    internal static void UniformBlock(GpuPreparedBindings.Entry binding, CpuUniformBuffer? buffer)
-    {
-        if (!binding.Active) return;
-        if (buffer == null) OpenGLBufferBindings.BindBufferBase(StateCache.Current, BufferRangeTarget.UniformBuffer, binding.Contract.Binding.Slot, 0);
-        else if (!buffer.TryBindToSlot(binding.Contract.Binding.Slot)) throw new InvalidOperationException($"Could not publish {binding.Contract.Name}.");
-    }
-    /// <summary>Publishes or clears a complete storage allocation.</summary>
-    internal static void StorageBlock(GpuPreparedBindings.Entry binding, GpuShaderStorageBuffer? buffer)
-    {
-        if (!binding.Active) return;
-        if (buffer?.IsValid == true) buffer.BindBase(binding.Contract.Binding.Slot);
-        else OpenGLBufferBindings.BindBufferBase(StateCache.Current, BufferRangeTarget.ShaderStorageBuffer, binding.Contract.Binding.Slot, 0);
-    }
-    /// <summary>Publishes the initialized storage range or clears optional absent storage.</summary>
-    internal static void StorageBlock(GpuPreparedBindings.Entry binding, GpuStorageBufferBinding range)
-    {
-        if (!binding.Active) return;
-        if (range.Buffer?.IsValid == true)
-            OpenGLBufferBindings.BindBufferRange(StateCache.Current, BufferRangeTarget.ShaderStorageBuffer, binding.Contract.Binding.Slot, range.Buffer.BufferId, range.OffsetBytes, range.SizeBytes);
-        else OpenGLBufferBindings.BindBufferBase(StateCache.Current, BufferRangeTarget.ShaderStorageBuffer, binding.Contract.Binding.Slot, 0);
-    }
-    /// <summary>Publishes counter storage without repeating executable inspection.</summary>
-    internal static void AtomicCounter(GpuPreparedBindings.Entry binding, GpuAtomicCounterBuffer? buffer)
-    {
-        if (!binding.Active) return;
-        if (buffer?.IsValid == true) buffer.BindBase(binding.Contract.Binding.Slot);
-        else OpenGLBufferBindings.BindBufferBase(StateCache.Current, BufferRangeTarget.AtomicCounterBuffer, binding.Contract.Binding.Slot, 0);
-    }
-    #endregion
     #endregion
 
     #region Private
@@ -230,7 +151,7 @@ internal static class ShaderPreparedSubmission
     }
 
     /// <summary>Selects the whole allocation for layered shader types when the property supplies no explicit view.</summary>
-    private static GpuTextureBinding DefaultImageView(GpuPreparedBindings.Entry binding, GpuTextureRef texture)
+    private static RHIImageBinding DefaultImageView(GpuPreparedBindings.Entry binding, GpuTextureRef texture)
     {
         var target = (TextureTarget)GpuPreparedBindings.CompatibleTextureTarget(binding.Type);
         return new(texture!, Layered: target is TextureTarget.Texture3D or TextureTarget.Texture2DArray or TextureTarget.TextureCubeMap);
@@ -246,22 +167,6 @@ internal static class ShaderPreparedSubmission
     {
         if (binding.Active && binding.Contract.Binding.Required && !valid)
             throw new InvalidOperationException($"Shader requires a valid {binding.Contract.Name} resource.");
-    }
-    /// <summary>Restores the shared slot through the existing context cache, independently of local property equality.</summary>
-    private static void BindSampler(GpuPreparedBindings.Entry binding, int texture, TextureTarget target)
-    {
-        int unit = binding.Contract.Binding.Slot;
-        int sampler = (ShaderSamplerPolicy)binding.Contract.Binding.Sampler switch
-        {
-            ShaderSamplerPolicy.Default => 0,
-            ShaderSamplerPolicy.NearestClamp => GpuSamplers.NearestClamp.SamplerId,
-            ShaderSamplerPolicy.LinearClamp => GpuSamplers.LinearClamp.SamplerId,
-            ShaderSamplerPolicy.ShadowCompareLinearClamp => GpuSamplers.ShadowCompareLinearClamp.SamplerId,
-            _ => throw new InvalidOperationException("Unknown sampler policy.")
-        };
-        var cache = StateCache.Current;
-        if (!cache.TryGetCachedBoundTexture(target, unit, out int previous) || previous != texture) OpenGLImageBindings.BindTexture(cache, target, unit, texture);
-        if (!cache.TryGetCachedBoundSampler(unit, out int previousSampler) || previousSampler != sampler) OpenGLImageBindings.BindSampler(cache, unit, sampler);
     }
     #endregion
 }

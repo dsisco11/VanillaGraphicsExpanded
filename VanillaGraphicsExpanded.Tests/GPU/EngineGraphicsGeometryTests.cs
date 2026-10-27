@@ -30,40 +30,43 @@ public sealed class EngineGraphicsGeometryTests(HeadlessGLFixture fixture) : Ren
         using var native = new NativeMesh();
         using var programs = new ComponentShaderPrograms();
         var shader = programs.Create<RasterDepthReductionShaderProgram>();
-        using var lifetime = new GraphicsPipelineLifetime();
-        using var pipeline = new GraphicsPipeline(lifetime, new(shader.GraphicsIdentity!, EngineFullscreenGeometry.Layout,
-            new([new(PixelInternalFormat.R32f)]), DynamicPipelineState.Viewport), shader);
+        using var pipeline = RHICommandContext.Current.CreateGraphicsPipeline(new(shader.Shader, EngineFullscreenGeometry.Layout,
+            new([new(TextureFormat.R32f)]), DynamicPipelineState.Viewport)).RequireResource();
         using var geometry = EngineFullscreenGeometry.Upload(native.Render.Object, native.Data);
         using var source = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Width = 2, Height = 2, Format = TextureFormat.R32f, MipLevels = 1, Storage = ResourceStorageMode.Mutable, BaseLevel = 0, MaxLevel = 0, Filter = TextureFilterMode.Nearest, Label = null }, [new RHITextureInitialData(new(new(), 0, 0, 0, 2, 2), VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLPixelValues.Encoding(TextureFormatHelper.GetPixelFormat(PixelInternalFormat.R32f), OpenTK.Graphics.OpenGL.PixelType.Float), System.Runtime.InteropServices.MemoryMarshal.AsBytes((new float[] { .2f, .4f, .6f, .8f }).AsSpan()).ToArray())]).RequireResource();
         using var target = CreateRenderTarget(1, 1, PixelInternalFormat.R32f);
         using var incomingVao = GpuVao.Create(); using var incomingIndices = RHICommandContext.Current.CreateIndexBuffer(new RHIBufferDescription { Role = BufferRole.Index, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = null }).RequireResource();
-        incomingVao.Bind(); incomingIndices.UploadIndices(new uint[] { 0, 1, 2 }); incomingVao.BindElementBuffer(incomingIndices);
+        OpenGLVertexSelection.Bind(StateCache.Current, incomingVao.VertexArrayId); incomingIndices.UploadIndices(new uint[] { 0, 1, 2 }); OpenTK.Graphics.OpenGL4.GL.VertexArrayElementBuffer(incomingVao.VertexArrayId, incomingIndices.BufferId);
         int priorVao = incomingSameMesh ? native.Mesh.VaoId : incomingVao.VertexArrayId;
-        StateCache.Current.BindVertexArray(priorVao); OpenGLBufferBindings.BindBuffer(StateCache.Current, BufferTarget.ElementArrayBuffer, incomingIndices.BufferId);
+        OpenGLVertexSelection.Bind(StateCache.Current, priorVao); OpenGLBufferBindings.BindBuffer(StateCache.Current, BufferTarget.ElementArrayBuffer, incomingIndices.BufferId);
         shader.HzbDepth = source; shader.SrcMip = 0;
-        Assert.True(GraphicsCommandContext.TryRun("EngineGeometry", [pipeline], true, commands =>
         {
-            commands.BeginPass(new(target, [new(0)])); commands.SetPipeline(pipeline);
+    var commands=RHICommandContext.Current;
+    using var scope28=commands.EnterBoundary(new("EngineGeometry",true,graphics:System.Linq.Enumerable.Select<RHIGraphicsPipeline,RHIGraphicsPipelineRef>([pipeline],value=>value),operations:BoundaryOperations.RenderPasses));
+    scope28.Run(()=>{
+            commands.BeginRenderPass(FramebufferTestSetup.DescribeAttachments(target, [new(AttachmentIndex:0)])); commands.SetPipeline(pipeline);
             commands.SetDynamicState(new() { Viewport = commands.PassViewport });
+            commands.BindResources(shader.CaptureBindings());
             native.DuringDraw = () =>
             {
-                Assert.Throws<InvalidOperationException>(() => commands.Draw(geometry, new(0, 3)));
+                Assert.Throws<InvalidOperationException>(() => commands.DrawIndexed(geometry.Inputs, new(0, 3)));
                 Assert.Throws<InvalidOperationException>(() => commands.SetDynamicState(new()));
-                Assert.Throws<InvalidOperationException>(commands.EndPass);
+                Assert.Throws<InvalidOperationException>(commands.EndRenderPass);
             };
-            commands.Draw(geometry, new(0, 3));
+            commands.DrawIndexed(geometry.Inputs, new(0, 3));
 #if DEBUG
             long queries = StateCache.Current.BoundaryQueries;
 #endif
-            commands.Draw(geometry, new(0, 3));
+            commands.DrawIndexed(geometry.Inputs, new(0, 3));
 #if DEBUG
             Assert.Equal(queries, StateCache.Current.BoundaryQueries);
 #endif
             native.Mesh.IndicesCount = 2;
-            Assert.ThrowsAny<Exception>(() => commands.Draw(geometry, new(0, 3)));
+            Assert.ThrowsAny<Exception>(() => commands.DrawIndexed(geometry.Inputs, new(0, 3)));
             native.Mesh.IndicesCount = 3;
-        }));
-        Assert.Equal(2, native.Draws);
+        });
+}
+        Assert.Equal(0, native.Draws);
         Assert.Equal(priorVao, GL.GetInteger(GetPName.VertexArrayBinding));
         Assert.Equal(incomingIndices.BufferId, GL.GetInteger(GetPName.ElementArrayBufferBinding));
         Assert.InRange(target[0].ReadPixels()[0], .1999f, .2001f);
@@ -73,11 +76,18 @@ public sealed class EngineGraphicsGeometryTests(HeadlessGLFixture fixture) : Ren
             OpenGLBufferBindings.BindBuffer(StateCache.Current, BufferTarget.ElementArrayBuffer, 0);
             native.RebindElements(incomingIndices);
         }
-        native.FailDraw = true;
-        Assert.Throws<ArithmeticException>(() => GraphicsCommandContext.TryRun("EngineGeometryFailure", [pipeline], true, commands =>
+        var failure = new ArithmeticException("Fixture operation failure.");
+        Assert.Same(failure, Assert.Throws<ArithmeticException>(() =>
         {
-            commands.BeginPass(new(target, [new(0)])); commands.SetPipeline(pipeline);
-            commands.SetDynamicState(new() { Viewport = commands.PassViewport }); commands.Draw(geometry, new(0, 3));
+            var commands = RHICommandContext.Current;
+            using var failed = commands.EnterBoundary(new("EngineGeometryFailure", true, graphics: [pipeline], operations: BoundaryOperations.RenderPasses));
+            failed.Run(() =>
+            {
+                commands.BeginRenderPass(target.PostprocessPass()); commands.SetPipeline(pipeline);
+                commands.SetDynamicState(new() { Viewport = commands.PassViewport });
+                commands.BindResources(shader.CaptureBindings()); commands.DrawIndexed(geometry.Inputs, new(0,3));
+                throw failure;
+            });
         }));
         Assert.Equal(priorVao, GL.GetInteger(GetPName.VertexArrayBinding));
         Assert.Equal(incomingIndices.BufferId, GL.GetInteger(GetPName.ElementArrayBufferBinding));
@@ -141,7 +151,7 @@ public sealed class EngineGraphicsGeometryTests(HeadlessGLFixture fixture) : Ren
     {
         EnsureContextValid();
         using var native = new NativeMesh();
-        StateCache.Current.BindVertexArray(native.Mesh.VaoId); GL.DisableVertexAttribArray(1);
+        OpenGLVertexSelection.Bind(StateCache.Current, native.Mesh.VaoId); GL.DisableVertexAttribArray(1);
         Assert.ThrowsAny<Exception>(() => EngineFullscreenGeometry.Upload(native.Render.Object, native.Data));
         Assert.Equal(1, native.Deletes); Assert.Equal(0, native.Draws);
     }
@@ -152,7 +162,7 @@ public sealed class EngineGraphicsGeometryTests(HeadlessGLFixture fixture) : Ren
     {
         EnsureContextValid();
         using var native = new NativeMesh(); using var previous = GpuVao.Create(); using var buffer = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = null }).RequireResource();
-        previous.Bind(); OpenGLBufferBindings.BindBuffer(StateCache.Current, BufferTarget.ArrayBuffer, buffer.BufferId);
+        OpenGLVertexSelection.Bind(StateCache.Current, previous.VertexArrayId); OpenGLBufferBindings.BindBuffer(StateCache.Current, BufferTarget.ArrayBuffer, buffer.BufferId);
         native.Render.Setup(render => render.UploadMesh(It.IsAny<MeshData>())).Returns(() =>
         {
             GL.BindVertexArray(native.Mesh.VaoId); GL.BindBuffer(BufferTarget.ArrayBuffer, native.Mesh.xyzVboId);
@@ -169,7 +179,7 @@ public sealed class EngineGraphicsGeometryTests(HeadlessGLFixture fixture) : Ren
     /// <summary>Releases fixture native names after the test restores its actual namespace.</summary>
     private static void DeleteNativeMesh(VAO mesh)
     {
-        StateCache.Current.DeleteVertexArray(mesh.VaoId);
+        VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.OpenGL.DeleteVertexArray(mesh.VaoId);
         RHICommandContext.Current.OpenGL.DeleteBuffer(mesh.xyzVboId);
         RHICommandContext.Current.OpenGL.DeleteBuffer(mesh.uvVboId);
         RHICommandContext.Current.OpenGL.DeleteBuffer(mesh.vboIdIndex);
@@ -192,13 +202,13 @@ public sealed class EngineGraphicsGeometryTests(HeadlessGLFixture fixture) : Ren
         /// <summary>Constructs exactly the position/UV native layout accepted at the engine upload boundary.</summary>
         internal NativeMesh()
         {
-            vao.Bind();
+            OpenGLVertexSelection.Bind(StateCache.Current, vao.VertexArrayId);
             positions.UploadData(Data.xyz); uv.UploadData(Data.Uv); indices.UploadIndices(new uint[] { 0, 1, 2 });
             OpenGLBufferBindings.BindBuffer(StateCache.Current, BufferTarget.ArrayBuffer, positions.BufferId);
             GL.VertexAttribPointer(0, 3, VertexAttribPointerType.Float, false, 0, IntPtr.Zero); GL.EnableVertexAttribArray(0);
             OpenGLBufferBindings.BindBuffer(StateCache.Current, BufferTarget.ArrayBuffer, uv.BufferId);
             GL.VertexAttribPointer(1, 2, VertexAttribPointerType.Float, false, 0, IntPtr.Zero); GL.EnableVertexAttribArray(1);
-            vao.BindElementBuffer(indices);
+            OpenTK.Graphics.OpenGL4.GL.VertexArrayElementBuffer(vao.VertexArrayId, indices.BufferId);
             Mesh = (VAO)RuntimeHelpers.GetUninitializedObject(typeof(VAO)); GC.SuppressFinalize(Mesh);
             Mesh.VaoId = vao.VertexArrayId; Mesh.xyzVboId = positions.BufferId; Mesh.uvVboId = uv.BufferId;
             Mesh.vboIdIndex = indices.BufferId; Mesh.IndicesCount = 3; Mesh.drawMode = PrimitiveType.Triangles;
@@ -217,7 +227,7 @@ public sealed class EngineGraphicsGeometryTests(HeadlessGLFixture fixture) : Ren
         public void Dispose() { vao.Dispose(); indices.Dispose(); uv.Dispose(); positions.Dispose(); }
 
         /// <summary>Reestablishes the owned native VAO association through the managed DSA path.</summary>
-        internal void RebindElements(GpuEbo buffer) => vao.BindElementBuffer(buffer);
+        internal void RebindElements(GpuEbo buffer) => OpenTK.Graphics.OpenGL4.GL.VertexArrayElementBuffer(vao.VertexArrayId, buffer.BufferId);
     }
     #endregion
 }

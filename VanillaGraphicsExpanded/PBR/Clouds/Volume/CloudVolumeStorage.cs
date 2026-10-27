@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using System.Numerics;
 using OpenTK.Graphics.OpenGL;
@@ -129,7 +130,7 @@ internal sealed class CloudVolumeStorage(Func<CloudVolumeMaintenanceProgram> cre
                 fields.Encoding.Scale == target.Scale && fields.DiffuseSpareScale == target.Scale;
             copy!.Capture(fields.Domain, fields.Encoding, target, repair); copy.Source = fields.Diffuse;
             copy.Scratch = fields.Scratch;
-            copy.Destination = new(fields.DiffuseSpare, TextureAccess.WriteOnly, Layered: true);
+            copy.Destination = new(fields.DiffuseSpare, ImageAccess.WriteOnly, Layered: true);
             // The lighting selector emits zero groups for an empty diffuse list. No CPU count decision is required.
             submission.Run(copy, () =>
             {
@@ -212,10 +213,10 @@ internal sealed class CloudVolumeStorage(Func<CloudVolumeMaintenanceProgram> cre
     {
         var target = next ?? fields.Domain;
         maintenance!.Capture(target, next is null ? null : fields.Domain, fallback, start, count);
-        maintenance.Density = new(fields.Density, TextureAccess.ReadWrite, Layered: true);
-        maintenance.Direct = new(fields.Direct, TextureAccess.WriteOnly, Layered: true);
-        maintenance.Diffuse = new(fields.Diffuse, TextureAccess.WriteOnly, Layered: true);
-        maintenance.Spare = new(fields.DiffuseSpare, TextureAccess.WriteOnly, Layered: true);
+        maintenance.Density = new(fields.Density, ImageAccess.ReadWrite, Layered: true);
+        maintenance.Direct = new(fields.Direct, ImageAccess.WriteOnly, Layered: true);
+        maintenance.Diffuse = new(fields.Diffuse, ImageAccess.WriteOnly, Layered: true);
+        maintenance.Spare = new(fields.DiffuseSpare, ImageAccess.WriteOnly, Layered: true);
         maintenance.Regions = fields.Regions; maintenance.Occupancy = fields.Occupancy;maintenance.Scratch=fields.Scratch;
         submission.Run(maintenance, () => maintenance.Dispatch(count));
     }

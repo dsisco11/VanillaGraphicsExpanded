@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering.Pipeline.Descriptions;
@@ -49,13 +50,13 @@ internal readonly record struct ShaderInterfaceShape(VertexInterpretation Interp
     };
 
     /// <summary>Checks storage interpretation and integer signedness without requiring shader input debug names.</summary>
-    internal bool Accepts(VertexAttributeDesc attribute)
+    internal bool Accepts(RHIVertexAttribute attribute)
     {
         if (Interpretation == VertexInterpretation.Floating)
             return attribute.Interpretation is VertexInterpretation.Floating or VertexInterpretation.Normalized;
         if (Interpretation != attribute.Interpretation) return false;
         return Interpretation != VertexInterpretation.Integer || Unsigned == (attribute.Storage is
-            VertexAttribPointerType.UnsignedByte or VertexAttribPointerType.UnsignedShort or VertexAttribPointerType.UnsignedInt);
+            VertexComponentFormat.UnsignedByte or VertexComponentFormat.UnsignedShort or VertexComponentFormat.UnsignedInt);
     }
     #endregion
 }

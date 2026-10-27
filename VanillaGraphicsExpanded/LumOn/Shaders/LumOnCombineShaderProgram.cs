@@ -77,7 +77,7 @@ public partial class LumOnCombineShaderProgram : LumOnShaderProgram, ILumOnCombi
     /// <summary>
     /// G-Buffer albedo texture for material modulation.
     /// </summary>
-    public partial int GBufferAlbedo { set; }
+    public partial GpuTextureRef GBufferAlbedo { set; }
 
     /// <summary>
     /// G-Buffer material properties (roughness, metallic, etc.).
@@ -87,7 +87,7 @@ public partial class LumOnCombineShaderProgram : LumOnShaderProgram, ILumOnCombi
     /// <summary>
     /// Primary depth texture for sky detection.
     /// </summary>
-    public partial int PrimaryDepth { set; }
+    public partial GpuTextureRef PrimaryDepth { set; }
 
     #endregion
 

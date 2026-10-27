@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.PBR.CameraExposure;
@@ -64,12 +65,12 @@ public sealed class CameraExposureShaderTests(HeadlessGLFixture fixture) : LumOn
                 Assert.Equal(external.BufferId,selected);
             }
             AssertClose(0,ExposureTestStorage.Read<float>(targets.WriteTarget)[0]);
-            StateCache.Current.UseProgram(meter.ProgramId);
+            OpenGLProgramSelection.Select(StateCache.Current, meter.ProgramId);
             Assert.False(CameraExposureDispatch.TryRun(meter,adapt));
             Assert.Equal(published,targets.Exposure.BufferId);
             Assert.Equal(meter.ProgramId,GL.GetInteger(GetPName.CurrentProgram));
         }
-        finally { StateCache.Current.UnbindProgram();for(int slot=0;slot<3;slot++)GpuShaderStorageBuffer.UnbindBase(slot); }
+        finally { OpenGLProgramSelection.Select(StateCache.Current, 0);for(int slot=0;slot<3;slot++)GpuShaderStorageBuffer.UnbindBase(slot); }
         Assert.Equal(ErrorCode.NoError,GL.GetError());
     }
     #region Metering

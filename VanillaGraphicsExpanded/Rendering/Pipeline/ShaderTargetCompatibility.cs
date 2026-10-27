@@ -1,4 +1,4 @@
-using OpenTK.Graphics.OpenGL;
+using VanillaGraphicsExpanded.Rendering.RHI;
 using VanillaGraphicsExpanded.Rendering.Pipeline.Descriptions;
 
 namespace VanillaGraphicsExpanded.Rendering.Pipeline;
@@ -8,24 +8,24 @@ internal static class ShaderTargetCompatibility
 {
     #region Public API
     /// <summary>Requires enough stored components and matching signed, unsigned or floating shader output class.</summary>
-    internal static bool Accepts(PixelInternalFormat format, ShaderInterfaceShape output)
+    internal static bool Accepts(TextureFormat format, ShaderInterfaceShape output)
     {
         bool integer = TargetFormatPolicy.IsInteger(format);
-        bool unsigned = format is PixelInternalFormat.R8ui or PixelInternalFormat.R16ui or PixelInternalFormat.R32ui
-            or PixelInternalFormat.Rg8ui or PixelInternalFormat.Rg16ui or PixelInternalFormat.Rg32ui
-            or PixelInternalFormat.Rgb8ui or PixelInternalFormat.Rgb16ui or PixelInternalFormat.Rgb32ui
-            or PixelInternalFormat.Rgba8ui or PixelInternalFormat.Rgba16ui or PixelInternalFormat.Rgba32ui or PixelInternalFormat.Rgb10A2ui;
+        bool unsigned = format is TextureFormat.R8ui or TextureFormat.R16ui or TextureFormat.R32ui
+            or TextureFormat.Rg8ui or TextureFormat.Rg16ui or TextureFormat.Rg32ui
+            or TextureFormat.Rgb8ui or TextureFormat.Rgb16ui or TextureFormat.Rgb32ui
+            or TextureFormat.Rgba8ui or TextureFormat.Rgba16ui or TextureFormat.Rgba32ui or TextureFormat.Rgb10A2ui;
         int components = format switch
         {
-            PixelInternalFormat.R8 or PixelInternalFormat.R16 or PixelInternalFormat.R16f or PixelInternalFormat.R32f
-                or PixelInternalFormat.R8i or PixelInternalFormat.R16i or PixelInternalFormat.R32i
-                or PixelInternalFormat.R8ui or PixelInternalFormat.R16ui or PixelInternalFormat.R32ui => 1,
-            PixelInternalFormat.Rg8 or PixelInternalFormat.Rg16 or PixelInternalFormat.Rg16f or PixelInternalFormat.Rg32f
-                or PixelInternalFormat.Rg8i or PixelInternalFormat.Rg16i or PixelInternalFormat.Rg32i
-                or PixelInternalFormat.Rg8ui or PixelInternalFormat.Rg16ui or PixelInternalFormat.Rg32ui => 2,
-            PixelInternalFormat.R11fG11fB10f or PixelInternalFormat.Rgb8 or PixelInternalFormat.Rgb16 or PixelInternalFormat.Rgb16f or PixelInternalFormat.Rgb32f
-                or PixelInternalFormat.Rgb8i or PixelInternalFormat.Rgb16i or PixelInternalFormat.Rgb32i
-                or PixelInternalFormat.Rgb8ui or PixelInternalFormat.Rgb16ui or PixelInternalFormat.Rgb32ui or PixelInternalFormat.Srgb8 => 3,
+            TextureFormat.R8 or TextureFormat.R16 or TextureFormat.R16f or TextureFormat.R32f
+                or TextureFormat.R8i or TextureFormat.R16i or TextureFormat.R32i
+                or TextureFormat.R8ui or TextureFormat.R16ui or TextureFormat.R32ui => 1,
+            TextureFormat.Rg8 or TextureFormat.Rg16 or TextureFormat.Rg16f or TextureFormat.Rg32f
+                or TextureFormat.Rg8i or TextureFormat.Rg16i or TextureFormat.Rg32i
+                or TextureFormat.Rg8ui or TextureFormat.Rg16ui or TextureFormat.Rg32ui => 2,
+            TextureFormat.R11fG11fB10f or TextureFormat.Rgb8 or TextureFormat.Rgb16 or TextureFormat.Rgb16f or TextureFormat.Rgb32f
+                or TextureFormat.Rgb8i or TextureFormat.Rgb16i or TextureFormat.Rgb32i
+                or TextureFormat.Rgb8ui or TextureFormat.Rgb16ui or TextureFormat.Rgb32ui or TextureFormat.Srgb8 => 3,
             _ => 4
         };
         return TargetFormatPolicy.IsColor(format) && components >= output.Components

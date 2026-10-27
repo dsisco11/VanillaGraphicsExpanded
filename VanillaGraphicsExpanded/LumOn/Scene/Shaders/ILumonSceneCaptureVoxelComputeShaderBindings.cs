@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Contracts;
 
@@ -15,10 +16,10 @@ internal interface ILumonSceneCaptureVoxelComputeShaderBindings
     CpuUniformBuffer Parameters { get; }
     /// <summary>Declares the vge_depthAtlas Image slot.</summary>
     [ShaderBinding("vge_depthAtlas", ShaderBindingKind.Image, 0, ShaderStageKind.Compute)]
-    GpuTextureBinding DepthAtlas { set; }
+    RHIImageBinding DepthAtlas { set; }
     /// <summary>Declares the vge_materialAtlas Image slot.</summary>
     [ShaderBinding("vge_materialAtlas", ShaderBindingKind.Image, 1, ShaderStageKind.Compute)]
-    GpuTextureBinding MaterialAtlas { set; }
+    RHIImageBinding MaterialAtlas { set; }
     /// <summary>Declares the VgeCaptureWork StorageBlock slot.</summary>
     [ShaderBinding("VgeCaptureWork", ShaderBindingKind.StorageBlock, 0, ShaderStageKind.Compute)]
     GpuShaderStorageBuffer CaptureWork { set; }

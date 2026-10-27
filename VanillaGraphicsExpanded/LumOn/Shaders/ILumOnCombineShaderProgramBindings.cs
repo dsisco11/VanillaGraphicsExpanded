@@ -27,13 +27,13 @@ internal interface ILumOnCombineShaderProgramBindings : VanillaGraphicsExpanded.
     GpuTextureRef IndirectDiffuse { set; }
     /// <summary>Declares the gBufferAlbedo Sampler slot.</summary>
     [ShaderBinding("gBufferAlbedo", ShaderBindingKind.Sampler, 2, ShaderStageKind.Vertex, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.Texture2D, Sampler = ShaderSamplerPolicy.NearestClamp)]
-    int GBufferAlbedo { set; }
+    GpuTextureRef GBufferAlbedo { set; }
     /// <summary>Declares the normal, material and environment surface array sampler.</summary>
     [ShaderBinding("gBufferSurface", ShaderBindingKind.Sampler, 3, ShaderStageKind.Vertex, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.Texture2DArray, Sampler = ShaderSamplerPolicy.NearestClamp)]
     GpuTextureRef GBufferSurface { set; }
     /// <summary>Declares the primaryDepth Sampler slot.</summary>
     [ShaderBinding("primaryDepth", ShaderBindingKind.Sampler, 4, ShaderStageKind.Vertex, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.Texture2D, Sampler = ShaderSamplerPolicy.NearestClamp)]
-    int PrimaryDepth { set; }
+    GpuTextureRef PrimaryDepth { set; }
     /// <summary>Declares the normal, material and environment surface array sampler.</summary>
 
     #endregion

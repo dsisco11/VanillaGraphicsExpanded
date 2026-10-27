@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
 
 using VanillaGraphicsExpanded.Rendering;
@@ -84,7 +85,7 @@ public sealed class PbrMaterialParamsTextureSmokeTests
 
             // The compiled sampler contract already selects texture unit zero.
 
-            output.BindWithViewport();
+            FramebufferTestSetup.BindForEngineRendering(output);
             GL.ClearColor(0, 0, 0, 0);
             GL.Clear(ClearBufferMask.ColorBufferBit);
 

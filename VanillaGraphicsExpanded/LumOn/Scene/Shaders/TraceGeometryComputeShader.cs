@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.ShaderCompilation;
 using VanillaGraphicsExpanded.LumOn.Scene.Geometry;
 using VanillaGraphicsExpanded.LumOn.Shaders;
 using VanillaGraphicsExpanded.Rendering;
@@ -12,7 +13,7 @@ internal abstract partial class TraceGeometryComputeShader : GpuComputeProgram, 
 
     #region Public API
     /// <summary>Adopts the executable and guards changes to the geometry domain.</summary>
-    protected TraceGeometryComputeShader(GpuComputePipeline pipeline) : base(pipeline)
+    protected TraceGeometryComputeShader(ComputeShaderAsset pipeline) : base(pipeline)
         => OwnUniformBuffer(geometryParameters);
 
     /// <summary>Retains the scene and domain together without issuing GPU commands.</summary>

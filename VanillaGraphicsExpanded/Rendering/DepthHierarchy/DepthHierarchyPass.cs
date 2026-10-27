@@ -23,6 +23,9 @@ internal sealed class DepthHierarchyPass : IDisposable
     internal void Prepare(int width, int height, DepthHierarchyComputeShader shader)
     {
         if (width < 1 || height < 1) throw new ArgumentOutOfRangeException(nameof(width));
+        if (!shader.EnsureReady()) throw new InvalidOperationException(shader.PreparationLog);
+        var binding=shader.ProgramLayout.BinaryInterface!.PreparedBindings.Resolve(
+            Contracts.GpuBindingEntry.Identity(Contracts.ShaderBindingKind.StorageBlock,"DepthHierarchyTail"));
         var limits = GpuSupport.Graphics;
         if (!limits.SupportsArbComputeShader || !limits.SupportsArbShaderStorageBufferObject || !limits.SupportsArbShaderImageLoadStore
             || limits.MaxComputeWorkGroupSize.Length < 1 || limits.MaxComputeWorkGroupCount.Length < 2
@@ -50,6 +53,8 @@ internal sealed class DepthHierarchyPass : IDisposable
 #endif
                     if (level > 6) ScratchBytes += bytes;
                 }
+                // Include the linked block minimum even when this extent never writes a coarse-tail element.
+                ScratchBytes=Math.Max(ScratchBytes,binding.MinimumSize);
                 if (ScratchBytes > limits.MaxShaderStorageBlockSize)
                     throw new InvalidOperationException("Depth hierarchy tail exceeds the storage-block limit.");
                 tail = resources.Own(RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = "DepthHierarchy.Tail" }).RequireResource());
@@ -58,16 +63,15 @@ internal sealed class DepthHierarchyPass : IDisposable
             catch { Dispose(); throw; }
         }
         this.shader = shader;
-        if (!shader.EnsureReady()) throw new InvalidOperationException(shader.PreparationLog);
         shader.SetExtent(width, height, Texture.MipLevels);
         shader.Tail = tail;
-        shader.Mip0 = new GpuTextureBinding(Texture, TextureAccess.ReadWrite, Math.Min(0, Texture.MipLevels - 1));
-        shader.Mip1 = new GpuTextureBinding(Texture, TextureAccess.ReadWrite, Math.Min(1, Texture.MipLevels - 1));
-        shader.Mip2 = new GpuTextureBinding(Texture, TextureAccess.ReadWrite, Math.Min(2, Texture.MipLevels - 1));
-        shader.Mip3 = new GpuTextureBinding(Texture, TextureAccess.ReadWrite, Math.Min(3, Texture.MipLevels - 1));
-        shader.Mip4 = new GpuTextureBinding(Texture, TextureAccess.ReadWrite, Math.Min(4, Texture.MipLevels - 1));
-        shader.Mip5 = new GpuTextureBinding(Texture, TextureAccess.ReadWrite, Math.Min(5, Texture.MipLevels - 1));
-        shader.Mip6 = new GpuTextureBinding(Texture, TextureAccess.ReadWrite, Math.Min(6, Texture.MipLevels - 1));
+        shader.Mip0 = new RHIImageBinding(Texture, ImageAccess.ReadWrite, Math.Min(0, Texture.MipLevels - 1));
+        shader.Mip1 = new RHIImageBinding(Texture, ImageAccess.ReadWrite, Math.Min(1, Texture.MipLevels - 1));
+        shader.Mip2 = new RHIImageBinding(Texture, ImageAccess.ReadWrite, Math.Min(2, Texture.MipLevels - 1));
+        shader.Mip3 = new RHIImageBinding(Texture, ImageAccess.ReadWrite, Math.Min(3, Texture.MipLevels - 1));
+        shader.Mip4 = new RHIImageBinding(Texture, ImageAccess.ReadWrite, Math.Min(4, Texture.MipLevels - 1));
+        shader.Mip5 = new RHIImageBinding(Texture, ImageAccess.ReadWrite, Math.Min(5, Texture.MipLevels - 1));
+        shader.Mip6 = new RHIImageBinding(Texture, ImageAccess.ReadWrite, Math.Min(6, Texture.MipLevels - 1));
     }
     /// <summary>Generates every mip in one dispatch, transfers only the coarse tail and publishes sampling visibility.</summary>
     internal void Render(GpuTexture depth)
@@ -75,10 +79,9 @@ internal sealed class DepthHierarchyPass : IDisposable
         var texture = Texture ?? throw new InvalidOperationException("Depth hierarchy is not prepared.");
         var program = shader ?? throw new InvalidOperationException("Depth hierarchy executable is missing.");
         program.PrimaryDepth = depth;
-        var prepared = program.ProgramLayout.BinaryInterface?.PreparedBindings
-            ?? throw new InvalidOperationException("Depth hierarchy bindings are unavailable.");
-        if (!EngineBoundaryExecution.TryRun(new EngineBoundaryDeclaration("DepthHierarchy"),
-            EngineBoundaryResources.From(prepared), _ =>
+        var commands=RHICommandContext.Current;
+        using var scope=commands.EnterBoundary(new("DepthHierarchy",true,compute:[program.Pipeline]));
+        scope.Run(()=>
             {
                 int boundary = Math.Min(6, texture.MipLevels - 1);
                 program.Dispatch(Math.Max(1, texture.Width >> boundary), Math.Max(1, texture.Height >> boundary));
@@ -86,7 +89,7 @@ internal sealed class DepthHierarchyPass : IDisposable
                 RHICommandContext.Current.Barrier(new(ResourceAccess.Image | ResourceAccess.ShaderStorage
                     | ResourceAccess.PixelTransfer | ResourceAccess.TextureFetch | ResourceAccess.TextureUpdate));
                 if (texture.MipLevels > 7) TransferTail(texture);
-            })) throw new InvalidOperationException("Depth hierarchy compute boundary rejected.");
+            });
     }
     /// <summary>Retires staging storage and shared texture together before a resize or executable reload.</summary>
     public void Dispose()

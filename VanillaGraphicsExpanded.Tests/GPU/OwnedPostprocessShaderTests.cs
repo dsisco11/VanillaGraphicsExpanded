@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Numerics;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.PBR.Postprocessing;
@@ -227,7 +228,11 @@ public sealed class OwnedPostprocessShaderTests(HeadlessGLFixture fixture, ITest
         var settings=new PostprocessParameters(.125f,0,.5f,levels,0,1,16);
         var pipeline=owner.Prepare(assets.Api,submission,width,height,levels);
         var first=owner.Texture;
-        Assert.True(GraphicsCommandContext.TryRun("Tests.BloomOwner",[pipeline],true,commands=>owner.Render(commands,submission,source,(null,-20),settings)));
+        {
+    var commands=RHICommandContext.Current;
+    using var scope64=commands.EnterBoundary(new("Tests.BloomOwner",true,graphics:System.Linq.Enumerable.Select<RHIGraphicsPipeline,RHIGraphicsPipelineRef>([pipeline],value=>value),operations:BoundaryOperations.RenderPasses));
+    scope64.Run(()=>owner.Render(commands,submission,source,(null,-20),settings));
+}
         float[] actual=first.ReadPixels();
         for(int pixel=0;pixel<actual.Length;pixel+=4)
         {
@@ -237,7 +242,11 @@ public sealed class OwnedPostprocessShaderTests(HeadlessGLFixture fixture, ITest
         }
         owner.Prepare(assets.Api,submission,width,height,levels);
         Assert.Same(first,owner.Texture);
-        Assert.True(GraphicsCommandContext.TryRun("Tests.BloomOwner.Reused",[pipeline],true,commands=>owner.Render(commands,submission,source,(null,-20),settings)));
+        {
+    var commands=RHICommandContext.Current;
+    using var scope65=commands.EnterBoundary(new("Tests.BloomOwner.Reused",true,graphics:System.Linq.Enumerable.Select<RHIGraphicsPipeline,RHIGraphicsPipelineRef>([pipeline],value=>value),operations:BoundaryOperations.RenderPasses));
+    scope65.Run(()=>owner.Render(commands,submission,source,(null,-20),settings));
+}
         declarations.AssertReusable();
         owner.Prepare(assets.Api,submission,width+2,height+2,levels);
         Assert.NotSame(first,owner.Texture);Assert.Equal(0,first.TextureId);
@@ -267,7 +276,11 @@ public sealed class OwnedPostprocessShaderTests(HeadlessGLFixture fixture, ITest
         {
             var settings=new PostprocessParameters(1,0,0,levels,0,1,16);
             var pipeline=owner.Prepare(assets.Api,submission,257,129,levels);
-            Assert.True(GraphicsCommandContext.TryRun("Tests.BloomImpulse",[pipeline],true,commands=>owner.Render(commands,submission,source,(null,0),settings)));
+            {
+    var commands=RHICommandContext.Current;
+    using var scope66=commands.EnterBoundary(new("Tests.BloomImpulse",true,graphics:System.Linq.Enumerable.Select<RHIGraphicsPipeline,RHIGraphicsPipelineRef>([pipeline],value=>value),operations:BoundaryOperations.RenderPasses));
+    scope66.Run(()=>owner.Render(commands,submission,source,(null,0),settings));
+}
             float[] halo=owner.Texture.ReadPixels();int support=0;
             for(int y=0;y<65;y++)for(int x=0;x<129;x++)
             {
@@ -305,7 +318,11 @@ public sealed class OwnedPostprocessShaderTests(HeadlessGLFixture fixture, ITest
         for(int sample=-2;sample<5;sample++)
         {
             using var timer=GpuTimerQuery.Create();timer.Begin();
-            Assert.True(GraphicsCommandContext.TryRun("Tests.BloomTiming",[pipeline],true,commands=>owner.Render(commands,submission,source,(null,0),settings)));
+            {
+    var commands=RHICommandContext.Current;
+    using var scope67=commands.EnterBoundary(new("Tests.BloomTiming",true,graphics:System.Linq.Enumerable.Select<RHIGraphicsPipeline,RHIGraphicsPipelineRef>([pipeline],value=>value),operations:BoundaryOperations.RenderPasses));
+    scope67.Run(()=>owner.Render(commands,submission,source,(null,0),settings));
+}
             timer.End();double elapsed=timer.GetResultNanoseconds()/1e6;
             if(sample>=0)timings.Add(elapsed);
         }
@@ -330,8 +347,11 @@ public sealed class OwnedPostprocessShaderTests(HeadlessGLFixture fixture, ITest
     {
         draw??=new PostprocessDraw();
         var pipeline=draw.Prepare(program,target.PostprocessPass());
-        Assert.True(GraphicsCommandContext.TryRun("Tests.Postprocess",[pipeline],true,
-            commands=>draw.Submit(commands,pipeline,target.PostprocessPass())));
+        {
+    var commands=RHICommandContext.Current;
+    using var scope68=commands.EnterBoundary(new("Tests.Postprocess",true,graphics:System.Linq.Enumerable.Select<RHIGraphicsPipeline,RHIGraphicsPipelineRef>([pipeline],value=>value),operations:BoundaryOperations.RenderPasses));
+    scope68.Run(()=>draw.Submit(commands,pipeline,target.PostprocessPass(), program.CaptureBindings()));
+}
         Assert.Equal(ErrorCode.NoError,GL.GetError());
     }
     #endregion

@@ -1,20 +1,20 @@
 using System;
 using System.Collections.Generic;
-using OpenTK.Graphics.OpenGL;
+using VanillaGraphicsExpanded.Rendering.RHI;
 
 namespace VanillaGraphicsExpanded.Rendering.Pipeline.Descriptions;
 
 /// <summary>Exact normalized output formats and samples, independent of dimensions and resource names.</summary>
-internal sealed record RenderTargetSignature
+public sealed record RenderTargetSignature
 {
     public PipelineValues<ColorTargetSlot> Colors { get; }
-    public PixelInternalFormat? DepthStencilFormat { get; }
+    public TextureFormat? DepthStencilFormat { get; }
     public int Samples { get; }
-    private bool FormatHasDepth => DepthStencilFormat is PixelInternalFormat.DepthComponent16 or PixelInternalFormat.DepthComponent24
-        or PixelInternalFormat.DepthComponent32 or PixelInternalFormat.DepthComponent32f
-        or PixelInternalFormat.Depth24Stencil8 or PixelInternalFormat.Depth32fStencil8;
-    private bool FormatHasStencil => DepthStencilFormat is PixelInternalFormat.Depth24Stencil8 or PixelInternalFormat.Depth32fStencil8
-        or TextureFormatHelper.StencilIndex8;
+    private bool FormatHasDepth => DepthStencilFormat is TextureFormat.DepthComponent16 or TextureFormat.DepthComponent24
+        or TextureFormat.DepthComponent32 or TextureFormat.DepthComponent32f
+        or TextureFormat.Depth24Stencil8 or TextureFormat.Depth32fStencil8;
+    private bool FormatHasStencil => DepthStencilFormat is TextureFormat.Depth24Stencil8 or TextureFormat.Depth32fStencil8
+        or TextureFormat.StencilIndex8;
     /// <summary>Identifies an attached depth aspect independently of packed storage's available aspects.</summary>
     public bool HasDepth { get; }
     /// <summary>Identifies an attached stencil aspect independently of packed storage's available aspects.</summary>
@@ -22,7 +22,7 @@ internal sealed record RenderTargetSignature
 
     #region Public API
     /// <summary>Preserves sparse slots and rejects unknown, unsized and non-renderable format declarations.</summary>
-    public RenderTargetSignature(IEnumerable<ColorTargetSlot> colors, PixelInternalFormat? depthStencilFormat = null, int samples = 1,
+    public RenderTargetSignature(IEnumerable<ColorTargetSlot> colors, TextureFormat? depthStencilFormat = null, int samples = 1,
         bool? hasDepth = null, bool? hasStencil = null)
     {
         Colors = new(colors);

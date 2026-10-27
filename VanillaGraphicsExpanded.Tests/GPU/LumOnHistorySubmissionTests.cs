@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.LumOn;
 using VanillaGraphicsExpanded.Rendering;
@@ -69,12 +70,18 @@ public sealed class LumOnHistorySubmissionTests(HeadlessGLFixture fixture) : Ren
 #endif
         using var hostile = new HostileFullscreenState();
         var expected = new ArithmeticException("after clear");
-        bool Run() => GraphicsCommandContext.TryRun("ClearOnlyFixture", [], true, commands =>
+        bool Run()
         {
-            commands.BeginPass(new(target, [new(0, AttachmentLoad.Clear, Clear: ColorClearValue.Float(.25f, .5f, .75f, 1))]));
+            var commands=RHICommandContext.Current;
+            using var boundary=commands.EnterBoundary(new("ClearOnlyFixture",true,operations:BoundaryOperations.RenderPasses));
+            boundary.Run(()=>
+            {
+            commands.BeginRenderPass(FramebufferTestSetup.DescribeAttachments(target, [new(AttachmentIndex:0, Load:AttachmentLoad.Clear, Clear: ColorClearValue.Float(.25f, .5f, .75f, 1))]));
             if (fail) throw expected;
-            commands.EndPass();
-        });
+            commands.EndRenderPass();
+            });
+            return true;
+        }
         if (fail) Assert.Same(expected, Assert.Throws<ArithmeticException>(() => Run())); else Assert.True(Run());
         hostile.AssertRestored();
         float[] pixels = target[0].ReadPixels();

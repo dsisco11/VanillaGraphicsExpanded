@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.PBR.Materials;
 using VanillaGraphicsExpanded.Rendering;
@@ -56,7 +57,7 @@ public sealed class TerrainReliefBindingsTests : RenderTestBase
         var owner=new LinkedProgram { ProgramId=program.ProgramId,PassName=pass,AssetDomain="game" };
         owner.Populate();
         var cache=StateCache.Current;
-        cache.UseProgram(program.ProgramId);
+        OpenGLProgramSelection.Select(cache, program.ProgramId);
         try
         {
             TerrainReliefBindings.Register(owner);
@@ -97,7 +98,7 @@ public sealed class TerrainReliefBindingsTests : RenderTestBase
                 Assert.Equal(expected ? name=="vge_displacementTex"?TerrainReliefBindings.IndexUnit:name=="vge_displacementRecords"?TerrainReliefBindings.RecordUnit:TerrainReliefBindings.HeightUnit : 0,unit);
             }
         }
-        finally { cache.UseProgram(0);TerrainReliefBindings.Reset();cache.InvalidateAll(); }
+        finally { OpenGLProgramSelection.Select(cache, 0);TerrainReliefBindings.Reset();cache.InvalidateAll(); }
     }
     #endregion
 

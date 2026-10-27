@@ -16,26 +16,13 @@ internal sealed class GpuProgramLifetime
     {
         if (!IsSubmissionAdmitted) throw new InvalidOperationException("GPU program submission admission is closed.");
     }
-    /// <summary>Counts current and suspended scope references to the installed generation.</summary>
-    internal int BorrowCount { get; private set; }
     /// <summary>Reuses the native resource borrow contract when the family already has a resource owner.</summary>
     internal GpuResource? NativeExecutable { get; set; }
-    /// <summary>Retains the installed generation and its existing native owner together.</summary>
-    internal void RetainBorrow()
-    {
-        NativeExecutable?.RetainPassReference();
-        BorrowCount++;
-    }
-    /// <summary>Releases the same generation borrow without retiring native storage.</summary>
-    internal void ReleaseBorrow()
-    {
-        BorrowCount--;
-        NativeExecutable?.ReleasePassReference();
-    }
     /// <summary>Rejects retirement or replacement while scopes retain executable ownership.</summary>
     internal void RequireUnborrowed()
     {
-        if (BorrowCount != 0) throw new InvalidOperationException("GPU program generation is borrowed by an active use lifetime.");
+        if (NativeExecutable?.UsageReferences.Pass > 0)
+            throw new InvalidOperationException("GPU program generation is borrowed by an active use lifetime.");
     }
     /// <summary>Reports terminal owner retirement independently of executable invalidation.</summary>
     internal bool IsRetired { get; set; }
@@ -51,8 +38,10 @@ internal sealed class GpuProgramLifetime
     /// <summary>Rejects retained-input mutation and retirement while publication is active.</summary>
     internal void RequireMutation()
     {
-        ObjectDisposedException.ThrowIf(IsRetired, this);
+        RequireLive();
         RequireOutsidePublication();
     }
+    /// <summary>Checks terminal logical retirement without preventing read-only capture during its owner guard.</summary>
+    internal void RequireLive() => ObjectDisposedException.ThrowIf(IsRetired, this);
     #endregion
 }

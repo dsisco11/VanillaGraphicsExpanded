@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.ShaderCompilation;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Contracts;
 using VanillaGraphicsExpanded.Rendering.Shaders;
@@ -17,10 +18,10 @@ internal sealed partial class FrameLightingShaderProgram : GpuComputeProgram, IF
     {
         var layout = new GpuProgramLayout();
         layout.RegisterContract(Contract.Stages[0].Bindings);
-        return new(GpuComputePipeline.DeclareFromAssets(api, new ShaderSettings(Contract), layout: layout));
+        return new(ComputeShaderAsset.DeclareFromAssets(api, new ShaderSettings(Contract), layout: layout));
     }
     /// <summary>Owns retained input packing for repeated allocation-free submissions.</summary>
-    public FrameLightingShaderProgram(GpuComputePipeline pipeline) : base(pipeline)
+    public FrameLightingShaderProgram(ComputeShaderAsset pipeline) : base(pipeline)
     {
         inputs = OwnUniformBuffer(new FrameLightingInputs());
     }

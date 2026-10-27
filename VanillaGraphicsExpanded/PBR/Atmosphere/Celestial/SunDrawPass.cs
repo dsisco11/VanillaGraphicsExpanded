@@ -1,3 +1,5 @@
+using VanillaGraphicsExpanded.Rendering.ShaderCompilation;
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using System.Collections.Generic;
 using System.Numerics;
@@ -18,11 +20,10 @@ internal sealed class SunDrawPass : IDisposable
     private static SunDrawPass? active;
     private readonly ICoreClientAPI api;
     private readonly GBufferManager gbuffer;
-    private readonly GraphicsPipelineLifetime lifetime = new();
     private readonly IDisposable reload;
     private readonly Action unregisterResize;
     private ArrayGraphicsGeometry? geometry;
-    private GraphicsPipeline? pipeline;
+    private GraphicsPipelineAsset? pipeline;
     private AtmosphereLighting? publication;
     private (nint Handle, long Generation) context;
     private uint frameIndex;
@@ -67,7 +68,7 @@ internal sealed class SunDrawPass : IDisposable
         if (disposed) return; disposed = true;
         if (ReferenceEquals(active, this)) active = null;
         api.Event.LeaveWorld -= Reset; unregisterResize(); reload.Dispose();
-        Rendering.Integration.RenderingCleanup.Run(Reset, lifetime.Dispose);
+        Rendering.Integration.RenderingCleanup.Run(Reset);
     }
     #endregion
 
@@ -94,7 +95,7 @@ internal sealed class SunDrawPass : IDisposable
         if (radiance == Vector3.Zero) return;
         var program = GpuShaderProgramLibraries.Get<SunProgram>(api, "celestial_sun");
         if (program?.EnsureReady() != true) throw new InvalidOperationException("Owned solar executable is unavailable.");
-        geometry ??= new(CelestialDrawPass.FullscreenLayout, PrimitiveType.Triangles,
+        geometry ??= new(CelestialDrawPass.FullscreenLayout, PrimitiveTopology.Triangles,
             new Dictionary<int, GpuVbo>(), proceduralVertices: 3);
         publication = lighting; frameIndex = VgeFrameRenderer.Current.FrameIndex; admitted = true;
     }
@@ -113,21 +114,22 @@ internal sealed class SunDrawPass : IDisposable
         float maximumScale = AtmosphereSolarDiskStorage.MaximumScale(AtmosphereSolarDisk.Radiance(publication!), glare.Bloom, glare.Shafts);
         if (maximumScale <= 0) throw new InvalidOperationException("Solar storage headroom could not be certified.");
         program.DrawInputs.Capture(publication!, maximumScale);
-        var pass = new RenderPassDesc(target, [new(0), new(1)]);
-        using var metadata = new RenderPassTargets(pass);
-        var blend = new ColorBlendDesc { Enabled = true, SourceRgb = BlendingFactorSrc.One, DestinationRgb = BlendingFactorDest.One,
-            SourceAlpha = BlendingFactorSrc.Zero, DestinationAlpha = BlendingFactorDest.One };
-        var description = new GraphicsPipelineDesc(program.GraphicsIdentity!, CelestialDrawPass.FullscreenLayout,
-            metadata.Signature, DynamicPipelineState.Viewport, blending: [blend, blend]);
-        if (pipeline is null || pipeline.Description != description || pipeline.ExecutableRevision != program.ExecutableRevision)
+        var pass = new RHIRenderPassDescription(target.SurfaceReference,[new(AttachmentIndex:0),new(AttachmentIndex:1)]);
+        var signature=RHICommandContext.Current.DescribeRenderTargets(pass);
+        var blend = new ColorBlendDesc { Enabled = true, SourceRgb = BlendFactor.One, DestinationRgb = BlendFactor.One,
+            SourceAlpha = BlendFactor.Zero, DestinationAlpha = BlendFactor.One };
+        var description = new RHIGraphicsPipelineDescription(program.Shader, CelestialDrawPass.FullscreenLayout,
+            signature, DynamicPipelineState.Viewport, blending: [blend, blend]);
+        if (pipeline is null || pipeline.Description != description || pipeline.Description.Shader != program.Shader)
         {
-            var candidate = new GraphicsPipeline(lifetime, description, program); pipeline?.Dispose(); pipeline = candidate;
+            var candidate = new GraphicsPipelineAsset(program,description); pipeline?.Dispose(); pipeline = candidate;
         }
-        return new SkyDraw("Celestial.Sun", [pipeline], commands =>
+        return new SkyDraw("Celestial.Sun", [pipeline.Pipeline], commands =>
         {
-            commands.BeginPass(pass); commands.SetPipeline(pipeline);
+            commands.BeginRenderPass(pass); commands.SetPipeline(pipeline.Pipeline);
             commands.SetDynamicState(new() { Viewport = commands.PassViewport });
-            commands.Draw(geometry!, new(0, 3)); commands.EndPass();
+            commands.BindResources(program.CaptureBindings());
+            commands.Draw(geometry!.Inputs,new(0,3)); commands.EndRenderPass();
         }, ReportFailure);
     }
     /// <summary>Withdraws frame admission and retires resources without restoring native callbacks.</summary>
@@ -138,6 +140,6 @@ internal sealed class SunDrawPass : IDisposable
             () => { pipeline?.Dispose(); pipeline = null; }, () => { geometry?.Dispose(); geometry = null; });
     }
     /// <summary>Retries admission after shader reload without changing renderer registration.</summary>
-    private bool Reload() { Reset(); return true; }
+    private bool Reload() { failed=false; return true; }
     #endregion
 }

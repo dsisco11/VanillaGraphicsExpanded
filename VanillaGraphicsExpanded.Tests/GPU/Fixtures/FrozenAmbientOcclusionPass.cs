@@ -15,14 +15,14 @@ internal sealed class FrozenAmbientOcclusionPass : IDisposable
     private int nativeQuality;
     private AoHorizonReferenceProgram? horizon;
     private AmbientOcclusionFilterShaderProgram? filter;
-    private GraphicsPipeline? horizonPipeline,filterPipeline;
+    private RHIGraphicsPipeline? horizonPipeline,filterPipeline;
     #region Public API
     /// <summary>Publishes visibility and its receiver depth only after the owner completes submission.</summary>
     internal GpuTexture? Texture=>output;
     /// <summary>Reports allocated texel bytes without including driver metadata.</summary>
     internal long StorageBytes { get; private set; }
     /// <summary>Reuses stable resources and prepares all executable contracts outside the command boundary.</summary>
-    internal GraphicsPipeline[] Prepare(PostprocessDraw draw,int width,int height,int nativeQuality,
+    internal RHIGraphicsPipeline[] Prepare(PostprocessDraw draw,int width,int height,int nativeQuality,
         AoHorizonReferenceProgram horizon,AmbientOcclusionFilterShaderProgram filter)
     {
         quality=AmbientOcclusionQuality.FromNative(nativeQuality);this.nativeQuality=nativeQuality;
@@ -43,20 +43,20 @@ internal sealed class FrozenAmbientOcclusionPass : IDisposable
         return [horizonPipeline,filterPipeline];
     }
     /// <summary>Samples the shared hierarchy, integrates horizons and reconstructs visibility without feedback or history.</summary>
-    internal void Render(GraphicsCommandContext commands,PostprocessDraw draw,GpuTexture depth,GpuTexture surface,DynamicTexture2D hierarchy,VgeFrameUniformBuffer camera)
+    internal void Render(RHICommandContext commands,PostprocessDraw draw,GpuTexture depth,GpuTexture surface,DynamicTexture2D hierarchy,VgeFrameUniformBuffer camera)
     {
         var frame=new System.Numerics.Vector4(0,0,quality.Divisor,0);
         // Release one quarter of retained cosine-space occlusion per weaker radial observation; this is not a world-space thickness.
         var sampling=new System.Numerics.Vector4(1.25f,0.25f,quality.Directions,quality.Steps);
         var distance=new System.Numerics.Vector4(64,96,0,0);
         horizon!.Capture(depth,surface,hierarchy,camera,nativeQuality);
-        draw.Submit(commands,horizonPipeline!,rawTarget!.PostprocessPass());
+        draw.Submit(commands,horizonPipeline!,rawTarget!.PostprocessPass(),horizon.CaptureBindings());
         filter!.DepthImage=depth;filter.SurfaceImage=surface;filter.SourceImage=raw;
         filter.Capture(camera,frame,sampling,distance);
-        draw.Submit(commands,filterPipeline!,filteredTarget!.PostprocessPass());
+        draw.Submit(commands,filterPipeline!,filteredTarget!.PostprocessPass(),filter.CaptureBindings());
         filter.SourceImage=filtered;frame.W=1;
         filter.Capture(camera,frame,sampling,distance);
-        draw.Submit(commands,filterPipeline!,outputTarget!.PostprocessPass());
+        draw.Submit(commands,filterPipeline!,outputTarget!.PostprocessPass(),filter.CaptureBindings());
     }
     /// <summary>Withdraws all resources together; no prior-frame image survives retirement.</summary>
     public void Dispose() {

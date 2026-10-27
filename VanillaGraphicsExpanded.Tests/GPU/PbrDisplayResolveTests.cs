@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.PBR;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
@@ -23,10 +24,10 @@ public sealed class PbrDisplayResolveTests : LumOnShaderFunctionalTestBase
             new[] { 0f, 1f, 4f, .5f, -.5f, .125f, 16f, 1f, .125f, .5f, .75f, .25f });
         using var depth = TestFramework.CreateTexture(3, 1, PixelInternalFormat.R32f, new[] { .5f, .9999993f, 1f });
         using var output = TestFramework.CreateTestGBuffer(3, 1, PixelInternalFormat.Rgba8);
-        output.BindWithViewport();
+        FramebufferTestSetup.BindForEngineRendering(output);
         {
-            program.PrimaryScene = scene.TextureId;
-            program.PrimaryDepth = depth.TextureId;
+            program.PrimaryScene = scene;
+            program.PrimaryDepth = depth;
             GL.Disable(EnableCap.Blend);
             GL.Disable(EnableCap.DepthTest);
             GL.Disable(EnableCap.FramebufferSrgb);
@@ -53,10 +54,10 @@ public sealed class PbrDisplayResolveTests : LumOnShaderFunctionalTestBase
             new[] { scale, scale * .25f, scale * .0625f, .37f, scale, scale * .25f, scale * .0625f, .37f });
         using var depth = TestFramework.CreateTexture(2, 1, PixelInternalFormat.R32f, new[] { .5f, .5f });
         using var output = TestFramework.CreateTestGBuffer(2, 1, PixelInternalFormat.Rgba32f);
-        output.BindWithViewport();
+        FramebufferTestSetup.BindForEngineRendering(output);
         {
-            program.PrimaryScene = scene.TextureId;
-            program.PrimaryDepth = depth.TextureId;
+            program.PrimaryScene = scene;
+            program.PrimaryDepth = depth;
             GL.Disable(EnableCap.Blend);
             GL.Disable(EnableCap.DepthTest);
             GL.Disable(EnableCap.FramebufferSrgb);
@@ -100,10 +101,10 @@ public sealed class PbrDisplayResolveTests : LumOnShaderFunctionalTestBase
         using var scene = TestFramework.CreateTexture(width, 8, PixelInternalFormat.Rgba32f, pixels);
         using var depth = TestFramework.CreateTexture(width, 8, PixelInternalFormat.R32f, depths);
         using var output = TestFramework.CreateTestGBuffer(width, 8, PixelInternalFormat.Rgba8);
-        output.BindWithViewport();
+        FramebufferTestSetup.BindForEngineRendering(output);
         {
-            program.PrimaryScene = scene.TextureId;
-            program.PrimaryDepth = depth.TextureId;
+            program.PrimaryScene = scene;
+            program.PrimaryDepth = depth;
             GL.Disable(EnableCap.Blend);
             GL.Disable(EnableCap.DepthTest);
             GL.Disable(EnableCap.FramebufferSrgb);
@@ -185,10 +186,10 @@ public sealed class PbrDisplayResolveTests : LumOnShaderFunctionalTestBase
         // A second draw must reproduce the exact pattern, without temporal noise.
         float[] Render(VanillaGraphicsExpanded.Rendering.GpuFramebuffer? destination = null)
         {
-            (destination ?? output).BindWithViewport();
+            FramebufferTestSetup.BindForEngineRendering(destination ?? output);
             {
-                program.PrimaryScene = scene.TextureId;
-                program.PrimaryDepth = depth.TextureId;
+                program.PrimaryScene = scene;
+                program.PrimaryDepth = depth;
                 GL.Disable(EnableCap.Blend);
                 GL.Disable(EnableCap.DepthTest);
                 GL.Disable(EnableCap.FramebufferSrgb);

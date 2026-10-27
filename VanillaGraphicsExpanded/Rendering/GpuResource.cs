@@ -198,6 +198,8 @@ public abstract partial class GpuResource : IDisposable
                 else if (kind == GpuResourceKind.TransformFeedback) RHICommandContext.Current.OpenGL.DeleteTransformFeedback((int)id);
                 else if (kind == GpuResourceKind.Semaphore) RHICommandContext.Current.OpenGL.DeleteSemaphore((int)id);
                 else if (kind == GpuResourceKind.MemoryObject) RHICommandContext.Current.OpenGL.DeleteMemoryObject((int)id);
+                else if (kind == GpuResourceKind.Shader) RHICommandContext.Current.OpenGL.DeleteShader((int)id);
+                else if (kind == GpuResourceKind.Program) RHICommandContext.Current.OpenGL.DeleteProgram((int)id);
                 else DeleteOrEnqueue(kind, id);
             }
             return;
@@ -275,13 +277,13 @@ public abstract partial class GpuResource : IDisposable
                     RHICommandContext.Current.OpenGL.DeleteBuffer((int)id);
                     break;
                 case GpuResourceKind.VertexArray:
-                    StateCache.Current.DeleteVertexArray((int)id);
+                    VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.OpenGL.DeleteVertexArray((int)id);
                     break;
                 case GpuResourceKind.Texture:
                     RHICommandContext.Current.OpenGL.DeleteTexture((int)id);
                     break;
                 case GpuResourceKind.Framebuffer:
-                    StateCache.Current.DeleteFramebuffer((int)id);
+                    VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.OpenGL.DeleteFramebuffer((int)id);
                     break;
                 case GpuResourceKind.Renderbuffer:
                     RHICommandContext.Current.OpenGL.DeleteRenderbuffer((int)id);
@@ -290,7 +292,7 @@ public abstract partial class GpuResource : IDisposable
                     RHICommandContext.Current.OpenGL.DeleteQuery((int)id);
                     break;
                 case GpuResourceKind.Program:
-                    StateCache.Current.DeleteProgram((int)id);
+                    VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.OpenGL.DeleteProgram((int)id);
                     break;
                 case GpuResourceKind.TransformFeedback:
                     RHICommandContext.Current.OpenGL.DeleteTransformFeedback((int)id);
@@ -299,10 +301,10 @@ public abstract partial class GpuResource : IDisposable
                     RHICommandContext.Current.OpenGL.DeleteSampler((int)id);
                     break;
                 case GpuResourceKind.ProgramPipeline:
-                    StateCache.Current.DeleteProgramPipeline((int)id);
+                    VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.OpenGL.DeleteProgramPipeline((int)id);
                     break;
                 case GpuResourceKind.Shader:
-                    StateCache.Current.DeleteShader((int)id);
+                    VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.OpenGL.DeleteShader((int)id);
                     break;
                 case GpuResourceKind.Sync:
                     RHICommandContext.Current.OpenGL.DeleteSync((IntPtr)id);

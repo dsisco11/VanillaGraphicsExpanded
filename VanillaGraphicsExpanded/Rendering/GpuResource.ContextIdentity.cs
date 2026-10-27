@@ -12,7 +12,7 @@ public abstract partial class GpuResource
     internal static unsafe (nint Handle, long Generation) CaptureCreationContext(GpuResourceKind kind)
     {
         var context = RenderContextRegistry.Current();
-        return context == default && kind is GpuResourceKind.Buffer or GpuResourceKind.Texture or GpuResourceKind.Renderbuffer or GpuResourceKind.Sampler or GpuResourceKind.Sync or GpuResourceKind.Query or GpuResourceKind.TransformFeedback or GpuResourceKind.Semaphore or GpuResourceKind.MemoryObject ? ((nint)GLFW.GetCurrentContext(), 0) : context;
+        return context == default && kind is GpuResourceKind.Buffer or GpuResourceKind.Texture or GpuResourceKind.Renderbuffer or GpuResourceKind.Sampler or GpuResourceKind.Sync or GpuResourceKind.Query or GpuResourceKind.TransformFeedback or GpuResourceKind.Semaphore or GpuResourceKind.MemoryObject or GpuResourceKind.Shader or GpuResourceKind.Program or GpuResourceKind.Framebuffer or GpuResourceKind.VertexArray or GpuResourceKind.ProgramPipeline ? ((nint)GLFW.GetCurrentContext(), 0) : context;
     }
 
     /// <summary>Rejects resource use in a foreign namespace without native metadata discovery.</summary>

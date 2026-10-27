@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using VanillaGraphicsExpanded.Rendering.Shaders;
 using System;
 using OpenTK.Graphics.OpenGL;
@@ -5,6 +6,7 @@ using VanillaGraphicsExpanded.ModSystems;
 using VanillaGraphicsExpanded.Rendering;
 using Vintagestory.Client.NoObf;
 using VanillaGraphicsExpanded.PBR.Materials;
+using VanillaGraphicsExpanded.Rendering.Integration.OpenGL;
 
 namespace VanillaGraphicsExpanded.PBR.Tessellation;
 
@@ -63,14 +65,13 @@ internal static class TerrainTessellationPrograms
                 throw new NotSupportedException("Insufficient adaptive tessellation texture or subdivision limits.");
             if (program.GeometryShader is not null)
                 throw new NotSupportedException("Terrain geometry-stage modifications are not supported by the identity path.");
-            if (!TerrainTessellationLinker.TryCreate(program.VertexShader.ShaderId, program.FragmentShader.ShaderId,
-                sources, program.VertexShader.PrefixCode,
-                out int candidate, out string error, $"{(string.IsNullOrWhiteSpace(program.AssetDomain) ? "game" : program.AssetDomain)}:{program.PassName}")) throw new InvalidOperationException(error);
-            int ordinary = program.ProgramId;
-            program.ProgramId = candidate;
+            var stages = TerrainTessellationStages.Describe(sources, program.VertexShader.PrefixCode);
+            var retirementError = OpenGLEngineShaderPrograms.ReplaceWithTessellation(program, stages.Control, stages.Evaluation,
+                $"{(string.IsNullOrWhiteSpace(program.AssetDomain) ? "game" : program.AssetDomain)}:{program.PassName}");
             ShaderCapabilities.Publish(program, ShaderCapability.TerrainDisplacement);
             if (Requested) family[program.PassName switch { "chunkopaque" => 0, "chunktopsoil" => 1, _ => 2 }].SetTarget(program);
-            StateCache.Current.DeleteProgram(ordinary);
+            if (retirementError is not null)
+                Log?.Invoke($"[VGE] {program.PassName}: tessellation installed, but previous executable retirement failed: {retirementError.Message}");
         }
         catch (Exception ex)
         {

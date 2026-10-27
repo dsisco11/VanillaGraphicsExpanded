@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Contracts;
 
@@ -15,10 +16,10 @@ internal interface ICloudVolumeDensityBindings
     GpuTextureRef Map { set; }
     /// <summary>Owns the single persistent circular descriptor snapshot.</summary>
     [ShaderBinding("descriptors",ShaderBindingKind.Image,0,ShaderStageKind.Compute,TextureTarget=ShaderTextureTarget.Texture2D)]
-    GpuTextureBinding Descriptors { set; }
+    RHIImageBinding Descriptors { set; }
     /// <summary>Compares and writes representable cell-average extinction in selected complete physical blocks.</summary>
     [ShaderBinding("densityOutput",ShaderBindingKind.Image,1,ShaderStageKind.Compute,TextureTarget=ShaderTextureTarget.Texture3D)]
-    GpuTextureBinding Density { set; }
+    RHIImageBinding Density { set; }
     /// <summary>Reads stored density exactly while repairing conservative filter-footprint occupancy.</summary>
     [ShaderBinding("storedDensity",ShaderBindingKind.Sampler,1,ShaderStageKind.Compute,TextureTarget=ShaderTextureTarget.Texture3D,Sampler=ShaderSamplerPolicy.Default)]
     GpuTextureRef StoredDensity { set; }

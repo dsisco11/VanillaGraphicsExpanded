@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -27,7 +28,7 @@ internal sealed class DebugRenderTarget : IDisposable
     }
 
     /// <summary>Resolves the actual bound draw target, retaining exact published formats across unchanged debug draws.</summary>
-    internal RenderPassDesc GetPass(int colorCount = 1)
+    internal RHIRenderPassDescription GetPass(int colorCount = 1)
     {
         int id = StateCache.Current.GetCurrentFramebuffer(FramebufferTarget.DrawFramebuffer);
         if (dirty || windowWidth != api.Render.FrameWidth || windowHeight != api.Render.FrameHeight)
@@ -51,8 +52,8 @@ internal sealed class DebugRenderTarget : IDisposable
             targets[id] = target = replacement;
         }
         return target.Surface is { } surface
-            ? new(target, [new(-1, SurfaceBuffer: surface.Buffer)])
-            : new(target, Enumerable.Range(0, colorCount).Select(i => new RenderPassColor(i)).ToArray());
+            ? new(target.SurfaceReference, [new(WindowBuffer:surface.Buffer==DrawBuffersEnum.FrontLeft?SurfaceColorBuffer.FrontLeft:SurfaceColorBuffer.BackLeft)])
+            : new(target.SurfaceReference, Enumerable.Range(0,colorCount).Select(i=>new RHIColorAttachment(AttachmentIndex:i)));
     }
 
     /// <summary>Releases wrappers and callbacks while preserving externally owned images and the window.</summary>

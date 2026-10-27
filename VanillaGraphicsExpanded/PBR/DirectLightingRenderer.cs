@@ -1,3 +1,5 @@
+using VanillaGraphicsExpanded.Rendering.ShaderCompilation;
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering.Pipeline;
@@ -24,7 +26,7 @@ public sealed partial class DirectLightingRenderer : IRenderer, IDisposable
     private const double RenderOrderValue = 9.0;
     private const int RenderRangeValue = 1;
     private static readonly RenderTargetSignature LightingTargets = new([
-        new(PixelInternalFormat.Rgba16f), new(PixelInternalFormat.Rgba16f), new(PixelInternalFormat.Rgba16f)]);
+        new(TextureFormat.Rgba16f), new(TextureFormat.Rgba16f), new(TextureFormat.Rgba16f)]);
 
     private readonly ICoreClientAPI capi;
     private readonly IDisposable? reloadPreload;
@@ -32,8 +34,7 @@ public sealed partial class DirectLightingRenderer : IRenderer, IDisposable
     private readonly DirectLightingBufferManager bufferManager;
 
     private EngineFullscreenGeometry? geometry;
-    private readonly GraphicsPipelineLifetime pipelineLifetime = new();
-    private GraphicsPipeline? lightingPipeline;
+    private GraphicsPipelineAsset? lightingPipeline;
 
 
     public double RenderOrder => RenderOrderValue;
@@ -84,32 +85,30 @@ public sealed partial class DirectLightingRenderer : IRenderer, IDisposable
         if (pipeline is null) return false;
         bool rendered = false;
         // This ordinary opaque callback executes outside conditional rendering and transform feedback.
-        if (!GraphicsCommandContext.TryRun("PBR.DirectLighting", [pipeline], true,
-            commands => rendered = RenderLightingWithinBoundary(commands, pipeline, isolated)))
-            throw new InvalidOperationException("Direct lighting engine boundary unavailable.");
+        var commands = RHICommandContext.Current;
+        using var boundary = commands.EnterBoundary(new("PBR.DirectLighting", true, graphics: [pipeline], operations: BoundaryOperations.RenderPasses));
+        boundary.Run(() => rendered = RenderLightingWithinBoundary(commands, pipeline, isolated));
         return rendered;
     }
 
     /// <summary>Refreshes the borrowed realization only after a successful executable publication.</summary>
-    internal GraphicsPipeline? PrepareBoundaryPipeline()
+    internal RHIGraphicsPipeline? PrepareBoundaryPipeline()
     {
         StateCache.Current.RequireOutsideEngineBoundary();
         if (geometry is null) return null;
         var shader = GpuShaderProgramLibraries.Get<PBRDirectLightingShaderProgram>(capi, "pbr_direct_lighting");
         if (shader?.EnsureReady() != true) return null;
-        if (lightingPipeline is not null && ReferenceEquals(lightingPipeline.Shader, shader)
-            && lightingPipeline.ExecutableRevision == shader.ExecutableRevision) return lightingPipeline;
+        if (lightingPipeline is not null && lightingPipeline.Description.Shader == shader.Shader) return lightingPipeline.Pipeline;
         // Keep the previous realization until its replacement validates; native names are not identity.
-        var replacement = new GraphicsPipeline(pipelineLifetime,
-            new(shader.GraphicsIdentity!, EngineFullscreenGeometry.Layout, LightingTargets,
-                DynamicPipelineState.Viewport, label: "PBR.DirectLighting"), shader);
+        var replacement = new GraphicsPipelineAsset(shader,new(shader.Shader, EngineFullscreenGeometry.Layout, LightingTargets,
+                DynamicPipelineState.Viewport, label: "PBR.DirectLighting"));
         lightingPipeline?.Dispose();
         lightingPipeline = replacement;
-        return replacement;
+        return replacement.Pipeline;
     }
 
     /// <summary>Draws shared lighting work without nesting an engine restoration boundary.</summary>
-    internal bool RenderLightingWithinBoundary(GraphicsCommandContext commands, GraphicsPipeline pipeline,
+    internal bool RenderLightingWithinBoundary(RHICommandContext commands, RHIGraphicsPipeline pipeline,
         DirectLightingTargets? isolated = null)
     {
         if (geometry is null)
@@ -138,8 +137,8 @@ public sealed partial class DirectLightingRenderer : IRenderer, IDisposable
         // Compute inverse matrices
 
         // Shader program
-        var shader = (PBRDirectLightingShaderProgram)pipeline.Shader;
-        if (shader.RequiresPreparation || shader.IsRetired)
+        var shader = GpuShaderProgramLibraries.Get<PBRDirectLightingShaderProgram>(capi, "pbr_direct_lighting");
+        if (shader is null || shader.Shader != pipeline.Description.Shader || shader.RequiresPreparation || shader.IsRetired)
         {
             return false;
         }
@@ -151,11 +150,12 @@ public sealed partial class DirectLightingRenderer : IRenderer, IDisposable
         using var cpuScope = Profiler.BeginScope("PBR.DirectLighting", "Render");
         using (GlGpuProfiler.Instance.Scope("PBR.DirectLighting"))
         {
-            commands.BeginPass(pass);
+            commands.BeginRenderPass(pass);
             commands.SetPipeline(pipeline);
             commands.SetDynamicState(new() { Viewport = commands.PassViewport });
-            commands.Draw(geometry, new(0, 6));
-            commands.EndPass();
+            commands.BindResources(shader.CaptureBindings());
+            commands.DrawIndexed(geometry.Inputs, new(0, 6));
+            commands.EndRenderPass();
         }
 
         return true;
@@ -168,9 +168,11 @@ public sealed partial class DirectLightingRenderer : IRenderer, IDisposable
     public void Dispose()
     {
         reloadPreload?.Dispose();
+        shadowNearInput?.Dispose(); shadowNearInput = null;
+        shadowFarInput?.Dispose(); shadowFarInput = null;
         lightingPipeline?.Dispose();
         lightingPipeline = null;
-        pipelineLifetime.Dispose();
+        
         geometry?.Dispose();
         geometry = null;
 

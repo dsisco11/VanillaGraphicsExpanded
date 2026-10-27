@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.ShaderCompilation;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Contracts;
 using VanillaGraphicsExpanded.Rendering.Shaders;
@@ -18,10 +19,10 @@ internal sealed partial class CameraAdaptShaderProgram : GpuComputeProgram, ICam
     {
         var layout = new GpuProgramLayout();
         layout.RegisterContract(Contract.Stages[0].Bindings);
-        return new(GpuComputePipeline.DeclareFromAssets(api, new ShaderSettings(Contract), layout: layout));
+        return new(ComputeShaderAsset.DeclareFromAssets(api, new ShaderSettings(Contract), layout: layout));
     }
     /// <summary>Creates the retained metering parameter block.</summary>
-    public CameraAdaptShaderProgram(GpuComputePipeline pipeline) : base(pipeline)
+    public CameraAdaptShaderProgram(ComputeShaderAsset pipeline) : base(pipeline)
     {
         inputs = OwnUniformBuffer(new CameraExposureInputs());
     }

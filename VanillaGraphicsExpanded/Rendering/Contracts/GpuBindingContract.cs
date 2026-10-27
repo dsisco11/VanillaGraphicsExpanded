@@ -46,8 +46,9 @@ public sealed class GpuBindingContract
     /// <summary>Merges compatible stage declarations and rejects conflicting names or occupied resource ranges.</summary>
     internal static GpuBindingContract Merge(IEnumerable<GpuBindingContract> contracts)
     {
+        var sources = contracts.ToArray();
         var result = new GpuBindingContract();
-        foreach (var contract in contracts)
+        foreach (var contract in sources)
             foreach (var source in contract.ResourceMaps())
             {
                 var target = result.ResourceMaps().Single(map => map.Kind == source.Kind).Values;
@@ -58,6 +59,12 @@ public sealed class GpuBindingContract
                     target[pair.Key] = pair.Value;
                 }
             }
+        foreach (var contract in sources)
+        {
+            MergeLocations(result.UniformLocations, contract.UniformLocations);
+            MergeLocations(result.VaryingLocations, contract.VaryingLocations);
+            MergeLocations(result.FragmentOutputLocations, contract.FragmentOutputLocations);
+        }
         foreach (var map in result.ResourceMaps())
         {
             KeyValuePair<string, Binding>? previous = null;
@@ -82,6 +89,17 @@ public sealed class GpuBindingContract
         yield return (ShaderBindingKind.UniformBlock, UniformBlocks);
         yield return (ShaderBindingKind.StorageBlock, StorageBlocks);
         yield return (ShaderBindingKind.AtomicCounter, AtomicCounters);
+    }
+
+    /// <summary>Preserves authored location declarations while rejecting disagreement between stage contracts.</summary>
+    private static void MergeLocations(IDictionary<string, int> target, IDictionary<string, int> source)
+    {
+        foreach (var pair in source)
+        {
+            if (target.TryGetValue(pair.Key, out int previous) && previous != pair.Value)
+                throw new ArgumentException($"Incompatible location for '{pair.Key}' across shader stages.");
+            target[pair.Key] = pair.Value;
+        }
     }
 
     /// <summary>Copies mutable declarations into a binding contract whose dictionaries reject mutation.</summary>

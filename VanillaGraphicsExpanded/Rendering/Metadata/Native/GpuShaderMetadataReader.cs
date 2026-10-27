@@ -1,4 +1,4 @@
-using OpenTK.Graphics.OpenGL;
+using VanillaGraphicsExpanded.Rendering.RHI;
 
 namespace VanillaGraphicsExpanded.Rendering;
 
@@ -9,19 +9,9 @@ internal sealed class GpuShaderMetadataReader : IGpuResourceMetadataReader<GpuSh
 
     #region Public API
     /// <inheritdoc />
-    public bool IsResource(nint id) => id != 0 && GL.IsShader(unchecked((int)id));
+    public bool IsResource(nint id) => RHICommandContext.Current.OpenGL.IsShaderResource(id);
 
     /// <inheritdoc />
-    public bool TryRead(nint id, out GpuShaderMetadata metadata)
-    {
-        metadata = default;
-        if (!IsResource(id)) return false;
-        GL.GetShader(unchecked((int)id), ShaderParameter.DeleteStatus, out int deleting);
-        if (deleting != 0) return false;
-        GL.GetShader(unchecked((int)id), ShaderParameter.ShaderType, out int stage);
-        if (stage == 0) return false;
-        metadata = new((ShaderType)stage);
-        return true;
-    }
+    public bool TryRead(nint id, out GpuShaderMetadata metadata) => RHICommandContext.Current.OpenGL.ReadShaderMetadata(id, out metadata);
     #endregion
 }

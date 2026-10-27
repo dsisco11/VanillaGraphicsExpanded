@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Numerics;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Tests.GPU.Helpers;
@@ -177,8 +178,9 @@ public sealed class FinalDisplayShaderTests(HeadlessGLFixture fixture, ITestOutp
     {
         using var draw = new PostprocessDraw();
         var pipeline = draw.Prepare(shader,target.PostprocessPass());
-        Assert.True(VanillaGraphicsExpanded.Rendering.Pipeline.GraphicsCommandContext.TryRun("Tests.FinalDisplay", [pipeline], true,
-            commands => draw.Submit(commands, pipeline,target.PostprocessPass())));
+        var commands=RHICommandContext.Current;
+        using var boundary=commands.EnterBoundary(new("Tests.FinalDisplay",true,graphics:[pipeline],operations:BoundaryOperations.RenderPasses));
+        boundary.Run(()=>draw.Submit(commands,pipeline,target.PostprocessPass(),shader.CaptureBindings()));
         Assert.Equal(ErrorCode.NoError,GL.GetError());
     }
     #endregion

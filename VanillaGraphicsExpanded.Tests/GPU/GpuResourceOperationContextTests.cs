@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
@@ -39,13 +40,10 @@ public sealed class GpuResourceOperationContextTests(HeadlessGLFixture fixture)
             {
                 Assert.Throws<InvalidOperationException>(() => { using var operation = new GpuResourceManager.MetadataOperation<GpuBufferMetadata>(buffer, GpuMetadataChange.Storage); });
                 Assert.Throws<InvalidOperationException>(() => GpuResourceManager.AcquireTextureCommandInput(texture));
-                Assert.Throws<InvalidOperationException>(() => StateCache.Current.SubmitProgramLink(program));
-                Assert.Throws<InvalidOperationException>(() => StateCache.Current.LinkProgram(program));
+                Assert.Throws<InvalidOperationException>(() => VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.OpenGL.SubmitProgramExecutable(program));
+                Assert.Throws<InvalidOperationException>(() => OpenGLProgramCalls.ExecuteCoreLinkProgram(program.ProgramId));
                 Assert.Throws<InvalidOperationException>(() => GpuResourceManager.RequireProgramSnapshot(program));
-                int selected = 0, stride = 0, divisor = 0;
-                nint offset = 0;
-                Assert.Throws<InvalidOperationException>(() => GpuResourceManager.AcquireVertexBindingFacts(vao, vao.VertexArrayId, 0, origin,
-                    GpuVertexBindingFields.Buffer, ref selected, ref offset, ref stride, ref divisor));
+                Assert.Throws<InvalidOperationException>(() => GpuResourceManager.AcquireEngineGeometryConfiguration(vao, new([]), [], default));
             };
             if (worker)
             {

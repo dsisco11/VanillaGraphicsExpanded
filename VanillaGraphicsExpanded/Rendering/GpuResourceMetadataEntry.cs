@@ -125,7 +125,6 @@ internal sealed class GpuResourceMetadataEntry<TMetadata> : GpuResourceRegistrat
             try
             {
                 if (resource is GpuProgramObject program) program.OnNativeProgramMetadataChanged(change, available);
-                else if (resource is GpuComputePipeline compute) compute.OnNativeProgramMetadataChanged(change, available);
             }
             catch (Exception error) { (failures ??= new()).Add(error); }
         }

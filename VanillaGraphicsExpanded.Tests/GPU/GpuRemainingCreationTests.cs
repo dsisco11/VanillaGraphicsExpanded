@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using HarmonyLib;
 using OpenTK.Graphics.OpenGL;
@@ -27,7 +28,7 @@ public sealed class GpuRemainingCreationTests(HeadlessGLFixture fixture, Xunit.I
             using var previousPipeline = GpuProgramPipeline.Create();
             using var previousSampler = RHICommandContext.Current.CreateSampler(new RHISamplerDescription {  }).RequireResource();
             previousSampler.Bind(0);
-            using var vaoScope = previousVao.BindScope();
+            using var vaoScope = StateCache.Current.BindVertexArrayScope(previousVao.VertexArrayId);
             using var pipelineScope = StateCache.Current.BindProgramPipelineScope(previousPipeline.PipelineId);
             using var observation = new CreationQueryObservation();
             using var vao = GpuVao.Create();
@@ -235,7 +236,7 @@ public sealed class GpuRemainingCreationTests(HeadlessGLFixture fixture, Xunit.I
         {
             Deleted.Clear();
             foreach (string name in new[] { "DeleteVertexArray", "DeleteProgramPipeline", "DeleteSampler", "DeleteQuery", "DeleteTransformFeedback" })
-                harmony.Patch(AccessTools.Method(name is "DeleteSampler" or "DeleteQuery" or "DeleteTransformFeedback" ? typeof(OpenTK.Graphics.OpenGL4.GL) : typeof(GL), name, [typeof(int)]), prefix: new HarmonyMethod(typeof(DeletionObservation), nameof(CountInteger)));
+                harmony.Patch(AccessTools.Method(typeof(OpenTK.Graphics.OpenGL4.GL), name, [typeof(int)]), prefix: new HarmonyMethod(typeof(DeletionObservation), nameof(CountInteger)));
             harmony.Patch(AccessTools.Method(typeof(OpenTK.Graphics.OpenGL4.GL), "DeleteSync", [typeof(IntPtr)]), prefix: new HarmonyMethod(typeof(DeletionObservation), nameof(CountPointer)));
             foreach (string name in new[] { "DeleteSemaphore", "DeleteMemoryObject" })
                 harmony.Patch(AccessTools.Method(typeof(GL.Ext), name, [typeof(int)]), prefix: new HarmonyMethod(typeof(DeletionObservation), nameof(CountInteger)));

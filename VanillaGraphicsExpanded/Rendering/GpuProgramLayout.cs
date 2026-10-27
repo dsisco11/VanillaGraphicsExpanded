@@ -71,7 +71,7 @@ public partial class GpuProgramLayout
 #if DEBUG
         UniformNameResolutions++;
 #endif
-        return BinaryInterface?.GetUniformLocation(name) ?? GL.GetUniformLocation(programId, name);
+        return BinaryInterface?.GetUniformLocation(name) ?? OpenGLProgramQueries.GetUniformLocation(programId, name);
     }
 
 #if DEBUG
@@ -83,7 +83,7 @@ public partial class GpuProgramLayout
     private void GetResourceName(int programId, ProgramInterface kind, int index, int capacity, out int length, out string name)
     {
         if (BinaryInterface != null) BinaryInterface.GetProgramResourceName(kind, index, capacity, out length, out name);
-        else GL.GetProgramResourceName(programId, kind, index, capacity, out length, out name);
+        else OpenGLProgramQueries.GetProgramResourceName(programId, kind, index, capacity, out length, out name);
     }
 
     #endregion
@@ -616,7 +616,7 @@ public partial class GpuProgramLayout
             // Prefer explicit bindings when present (skip redundant assignment if the block is already bound correctly).
             try
             {
-                GL.GetActiveUniformBlock(programId, blockIndex, ActiveUniformBlockParameter.UniformBlockBinding, out int current);
+                OpenGLProgramQueries.GetActiveUniformBlock(programId, blockIndex, ActiveUniformBlockParameter.UniformBlockBinding, out int current);
                 if (current == spec.BindingOrUnit)
                 {
                     continue;
@@ -629,7 +629,7 @@ public partial class GpuProgramLayout
 
             try
             {
-                StateCache.Current.UniformBlockBinding(programId, blockIndex, spec.BindingOrUnit);
+                OpenGLProgramAssignments.UniformBlockBinding(programId, blockIndex, spec.BindingOrUnit);
             }
             catch (Exception ex)
             {
@@ -663,7 +663,7 @@ public partial class GpuProgramLayout
 
             try
             {
-                StateCache.Current.ShaderStorageBlockBinding(programId, blockIndex, spec.BindingOrUnit);
+                OpenGLProgramAssignments.ShaderStorageBlockBinding(programId, blockIndex, spec.BindingOrUnit);
             }
             catch (Exception ex)
             {
@@ -699,7 +699,7 @@ public partial class GpuProgramLayout
 
             try
             {
-                GL.GetUniform(programId, loc, out int current);
+                OpenGLProgramQueries.GetUniform(programId, loc, out int current);
                 if (current == spec.BindingOrUnit)
                 {
                     continue;
@@ -712,7 +712,7 @@ public partial class GpuProgramLayout
 
             // Publication failure must reach preparation; stale native unit facts cannot
             // be treated as a successfully applied authored contract.
-            StateCache.Current.SetProgramUniformUnit(programId, loc, spec.BindingOrUnit);
+            OpenGLProgramAssignments.SetUnit(programId, loc, spec.BindingOrUnit);
         }
     }
 
@@ -807,7 +807,7 @@ public partial class GpuProgramLayout
         int index = -1;
         try
         {
-            index = BinaryInterface?.GetUniformBlockIndex(blockName) ?? GL.GetUniformBlockIndex(programId, blockName);
+            index = BinaryInterface?.GetUniformBlockIndex(blockName) ?? OpenGLProgramQueries.GetUniformBlockIndex(programId, blockName);
         }
         catch
         {
@@ -834,7 +834,7 @@ public partial class GpuProgramLayout
         int index = -1;
         try
         {
-            index = BinaryInterface?.GetStorageBlockIndex(blockName) ?? GL.GetProgramResourceIndex(programId, ProgramInterface.ShaderStorageBlock, blockName);
+            index = BinaryInterface?.GetStorageBlockIndex(blockName) ?? OpenGLProgramQueries.GetProgramResourceIndex(programId, ProgramInterface.ShaderStorageBlock, blockName);
         }
         catch
         {
@@ -853,13 +853,13 @@ public partial class GpuProgramLayout
                 ? Contracts.ShaderBindingKind.UniformBlock : Contracts.ShaderBindingKind.StorageBlock);
         try
         {
-            GL.GetProgramInterface(programId, programInterface, ProgramInterfaceParameter.ActiveResources, out int count);
+            OpenGLProgramQueries.GetProgramInterface(programId, programInterface, ProgramInterfaceParameter.ActiveResources, out int count);
             if (count <= 0)
             {
                 return EmptyBindings;
             }
 
-            GL.GetProgramInterface(programId, programInterface, ProgramInterfaceParameter.MaxNameLength, out int maxNameLen);
+            OpenGLProgramQueries.GetProgramInterface(programId, programInterface, ProgramInterfaceParameter.MaxNameLength, out int maxNameLen);
             if (maxNameLen <= 0)
             {
                 maxNameLen = 256;
@@ -877,7 +877,7 @@ public partial class GpuProgramLayout
                     continue;
                 }
 
-                GL.GetProgramResource(programId, programInterface, i, props.Length, props, values.Length, out _, values);
+                OpenGLProgramQueries.GetProgramResource(programId, programInterface, i, props.Length, props, values.Length, out _, values);
                 bindings[name] = values[0];
             }
 
@@ -896,13 +896,13 @@ public partial class GpuProgramLayout
             return (prepared.ActiveBindings(Contracts.ShaderBindingKind.Sampler), prepared.ActiveBindings(Contracts.ShaderBindingKind.Image));
         try
         {
-            GL.GetProgramInterface(programId, ProgramInterface.Uniform, ProgramInterfaceParameter.ActiveResources, out int count);
+            OpenGLProgramQueries.GetProgramInterface(programId, ProgramInterface.Uniform, ProgramInterfaceParameter.ActiveResources, out int count);
             if (count <= 0)
             {
                 return (EmptyBindings, EmptyBindings);
             }
 
-            GL.GetProgramInterface(programId, ProgramInterface.Uniform, ProgramInterfaceParameter.MaxNameLength, out int maxNameLen);
+            OpenGLProgramQueries.GetProgramInterface(programId, ProgramInterface.Uniform, ProgramInterfaceParameter.MaxNameLength, out int maxNameLen);
             if (maxNameLen <= 0)
             {
                 maxNameLen = 256;
@@ -917,7 +917,7 @@ public partial class GpuProgramLayout
 
             for (int i = 0; i < count; i++)
             {
-                GL.GetProgramResource(programId, ProgramInterface.Uniform, i, props.Length, props, values.Length, out _, values);
+                OpenGLProgramQueries.GetProgramResource(programId, ProgramInterface.Uniform, i, props.Length, props, values.Length, out _, values);
 
                 int typeValue = values[0];
                 int location = values[1];
@@ -944,7 +944,7 @@ public partial class GpuProgramLayout
 
                 name = NormalizeUniformName(name);
 
-                GL.GetUniform(programId, location, out int unitOrBinding);
+                OpenGLProgramQueries.GetUniform(programId, location, out int unitOrBinding);
 
                 if (isSampler)
                 {
@@ -1370,7 +1370,7 @@ public partial class GpuProgramLayout
             return false;
         }
 
-        StateCache.Current.BindImageTexture(unit, textureId, level, layered, layer, access, format);
+        OpenGLImageSlotBindings.BindImageTexture(StateCache.Current, unit, textureId, level, layered, layer, access, format);
         return true;
     }
 
@@ -1408,7 +1408,7 @@ public partial class GpuProgramLayout
             return false;
         }
 
-        StateCache.Current.BindImageTexture(unit, textureId, level, layered, layer, access, format);
+        OpenGLImageSlotBindings.BindImageTexture(StateCache.Current, unit, textureId, level, layered, layer, access, format);
         return true;
     }
 

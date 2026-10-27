@@ -50,15 +50,15 @@ public sealed class CloudVolumeComputeWorkTests(HeadlessGLFixture fixture,Xunit.
         var batch=new CloudVolumeWorkBatch(fields,light,1,1,0,0,0,3,0,true,true,commands);
         using var solar=CloudVolumeDirectProgram.Create(Programs.Api,1);using var lunar=CloudVolumeDirectProgram.Create(Programs.Api,2);
         solar.Capture(domain,light.Sun,0);lunar.Capture(domain,light.Moon,0);
-        foreach(var p in new[]{solar,lunar}){p.Density=fields.Density;p.Occupancy=fields.Occupancy;p.Scratch=fields.Scratch;p.Direct=new(fields.Direct,TextureAccess.ReadWrite,Layered:true);}
+        foreach(var p in new[]{solar,lunar}){p.Density=fields.Density;p.Occupancy=fields.Occupancy;p.Scratch=fields.Scratch;p.Direct=new(fields.Direct,ImageAccess.ReadWrite,Layered:true);}
         using var diffuse=CloudVolumeDiffuseProgram.Create(Programs.Api,true);diffuse.Capture(batch,fields.Encoding);
         diffuse.Density=fields.Density;diffuse.Direct=fields.Direct;diffuse.Source=fields.Diffuse;diffuse.Occupancy=fields.Occupancy;
-        diffuse.Scratch=fields.Scratch;diffuse.Destination=new(fields.DiffuseSpare,TextureAccess.WriteOnly,Layered:true);
+        diffuse.Scratch=fields.Scratch;diffuse.Destination=new(fields.DiffuseSpare,ImageAccess.WriteOnly,Layered:true);
         // Typed dispatches isolate transport from selection, copy, completion and CPU status polling.
         Measure("Direct transport (256 lanes, 64 source-matched groups)",()=>{solar.DispatchIndirect(commands,24);Barrier();lunar.DispatchIndirect(commands,36);});
         Measure("Diffuse transport (256 lanes, 256 cooperative groups)",()=>diffuse.DispatchIndirect(commands,12));
         using var copy=CloudVolumeCopyProgram.Create(Programs.Api);copy.Capture(domain,fields.Encoding,fields.Encoding);
-        copy.Scratch=fields.Scratch;copy.Source=fields.Diffuse;copy.Destination=new(fields.DiffuseSpare,TextureAccess.WriteOnly,Layered:true);
+        copy.Scratch=fields.Scratch;copy.Source=fields.Diffuse;copy.Destination=new(fields.DiffuseSpare,ImageAccess.WriteOnly,Layered:true);
         Measure("Diffuse full-field copy",()=>copy.Dispatch(domain.BlocksX,domain.BlocksY,domain.BlocksX));
         Measure("Combined selected transport and coherent copy",()=>{solar.DispatchIndirect(commands,24);Barrier();lunar.DispatchIndirect(commands,36);Barrier();copy.Dispatch(domain.BlocksX,domain.BlocksY,domain.BlocksX);Barrier();diffuse.DispatchIndirect(commands,12);});
         // Keep resources, shader inputs and work identical while changing only boundary ownership.
@@ -110,7 +110,7 @@ public sealed class CloudVolumeComputeWorkTests(HeadlessGLFixture fixture,Xunit.
         header[38]=32;for(int i=0;i<32;i++)header[17280+i]=(uint)(1+i+domain.BlocksX*(4+domain.BlocksY));
         scratch.UploadData(header);
         using var copy=CloudVolumeCopyProgram.Create(Programs.Api);copy.Scratch=scratch;copy.Source=source;
-        copy.Destination=new(target,TextureAccess.WriteOnly,Layered:true);copy.Capture(domain,encoding,encoding);
+        copy.Destination=new(target,ImageAccess.WriteOnly,Layered:true);copy.Capture(domain,encoding,encoding);
         Measure("Maximum-domain full diffuse copy",()=>copy.Dispatch(domain.BlocksX,domain.BlocksY,domain.BlocksX));
         copy.Capture(domain,encoding,encoding,repair:true);
         Measure("Maximum-domain bounded repair (32 complete interior blocks)",()=>copy.Dispatch(32));
@@ -228,13 +228,13 @@ public sealed class CloudVolumeComputeWorkTests(HeadlessGLFixture fixture,Xunit.
         using var summary=RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = null }).RequireResource();summary.UploadData(new uint[8]);
         using var generation=CloudVolumeDensityProgram.Create(Programs.Api,3,true,quality:quality);
         generation.Capture(d,fields.DensityState.WindowX,fields.DensityState.WindowZ,fields.DensityState,1000,false);
-        generation.Descriptors=new(fields.Descriptors,TextureAccess.ReadWrite);generation.Density=new(fields.Density,TextureAccess.ReadWrite,Layered:true);
+        generation.Descriptors=new(fields.Descriptors,ImageAccess.ReadWrite);generation.Density=new(fields.Density,ImageAccess.ReadWrite,Layered:true);
         generation.Regions=fields.Regions;generation.Occupancy=fields.Occupancy;generation.Scratch=fields.Scratch;generation.Summary=summary;
         Measure($"Quality {quality} generation32 fixed blocks",()=>generation.Dispatch(32));
         using var solar=CloudVolumeDirectProgram.Create(Programs.Api,1,quality);
         using var lunar=CloudVolumeDirectProgram.Create(Programs.Api,2,quality);
         solar.Capture(d,lighting.Sun,0);lunar.Capture(d,lighting.Moon,0);
-        foreach(var p in new[]{solar,lunar}){p.Density=fields.Density;p.Occupancy=fields.Occupancy;p.Scratch=fields.Scratch;p.Direct=new(fields.Direct,TextureAccess.ReadWrite,Layered:true);}
+        foreach(var p in new[]{solar,lunar}){p.Density=fields.Density;p.Occupancy=fields.Occupancy;p.Scratch=fields.Scratch;p.Direct=new(fields.Direct,ImageAccess.ReadWrite,Layered:true);}
         Measure($"Quality {quality} direct64 fixed block-source jobs",()=>{solar.Dispatch(32);Barrier();lunar.Dispatch(32);});
         output.WriteLine($"Quality {quality} pass bracket: guarded {d.Size}x66x{d.Size}, storage bytes={d.Bytes}; identical32 physical blocks, typed generation and direct programs, allocation/compilation outside warmup+three query samples; CPU submission included.");
     }

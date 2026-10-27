@@ -12,6 +12,8 @@ internal sealed class EngineBoundaryScope : IDisposable
     private bool consumed;
     private bool executing;
     internal PipelineStateSnapshot Snapshot { get; }
+    /// <summary>Reports completed restoration or context abandonment without initiating cleanup.</summary>
+    internal bool IsConsumed => consumed;
 
     #region Public API
     /// <summary>Retains an independently owned snapshot after complete entry resolution.</summary>
@@ -42,16 +44,6 @@ internal sealed class EngineBoundaryScope : IDisposable
         }
         finally { cache.ReleaseEngineBoundary(this); }
         if (failures.Count != 0) throw new AggregateException(failures);
-    }
-
-    /// <summary>Activates an already prepared shader and defers its existing ownership scope to ordered cleanup.</summary>
-    internal void Activate(Shaders.GpuProgram program)
-    {
-        ObjectDisposedException.ThrowIf(consumed, this);
-        if (!executing) throw new InvalidOperationException("Shader activation requires a running boundary.");
-        if (program.RequiresPreparation || program.IsRetired)
-            throw new InvalidOperationException("Boundary shaders must be prepared before entry.");
-        AddCleanup(EngineBoundaryCleanup.Shader, program.UseScope(false));
     }
 
     /// <summary>Runs optional work and preserves its exception alongside any independent cleanup failures.</summary>

@@ -11,31 +11,31 @@ namespace VanillaGraphicsExpanded.PBR.Postprocessing;
 internal sealed class RetainedPostprocessRenderer : IDisposable
 {
     private GpuResourceCollection resources=new();
-    private StaticGpuFramebuffer? lumaTarget;
+    private RHIRenderPassDescription? lumaTarget;
     private DynamicTexture2D? lumaImage;
     private PostLumaShaderProgram? luma;
-    private GraphicsPipeline? lumaPipeline;
+    private RHIGraphicsPipeline? lumaPipeline;
     #region Public API
     /// <summary>Publishes unexposed scene color and its perceptual antialiasing metric.</summary>
     internal GpuTexture Luma=>lumaImage!;
     /// <summary>Prepares the owned scene target outside submission.</summary>
-    internal IEnumerable<GraphicsPipeline> Prepare(ICoreClientAPI api,PostprocessDraw draw)
+    internal IEnumerable<RHIGraphicsPipeline> Prepare(ICoreClientAPI api,PostprocessDraw draw)
     {
         var primary=api.Render.FrameBuffers[(int)EnumFrameBuffer.Primary];
         luma=GpuShaderProgramLibraries.Get<PostLumaShaderProgram>(api,"pbr_post_luma");
         if(luma?.EnsureReady()!=true) throw new InvalidOperationException("Owned luminance shader unavailable.");
         lumaTarget??=CreateTarget(resources,primary.Width,primary.Height,"Luma",out lumaImage);
-        yield return lumaPipeline=draw.Prepare(luma,lumaTarget.PreservePass);
+        yield return lumaPipeline=draw.Prepare(luma,lumaTarget);
 
     }
     /// <summary>Preserves scene RGB while preparing an exposure-aware luminance metric.</summary>
-    internal void Render(GraphicsCommandContext commands,PostprocessDraw draw,EnginePostprocessInputs engine,
+    internal void Render(RHICommandContext commands,PostprocessDraw draw,EnginePostprocessInputs engine,
         GpuTexture scene,(GpuShaderStorageBuffer? Buffer,float ManualLogGain) exposure)
     {
         luma!.SourceImage=scene;
         luma.ExposureBuffer=exposure.Buffer;
         luma.Capture(new(0,0,engine.Fxaa?1:0,exposure.Buffer is not null?1:0),new(0,0,0,exposure.ManualLogGain));
-        draw.Submit(commands,lumaPipeline!,lumaTarget!.PreservePass);
+        draw.Submit(commands,lumaPipeline!,lumaTarget!,luma!.CaptureBindings());
     }
     /// <summary>Retires owned targets and clears publication before a new resource lifetime.</summary>
     public void Dispose()
@@ -46,11 +46,10 @@ internal sealed class RetainedPostprocessRenderer : IDisposable
     #endregion
     #region Private
     /// <summary>Allocates sized storage and registers its image and framebuffer with the lifetime owner.</summary>
-    private static StaticGpuFramebuffer CreateTarget(GpuResourceCollection collection,int width,int height,string name,out DynamicTexture2D image)
+    private static RHIRenderPassDescription CreateTarget(GpuResourceCollection collection,int width,int height,string name,out DynamicTexture2D image)
     {
         image=collection.Own(RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba16f, Width = System.Math.Max(1, width), Height = System.Math.Max(1, height), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = $"Postprocess.{name}" }).RequireResource());
-        var attachment=collection.Own(GpuFramebufferAttachment.FromTexture(image));
-        return collection.Own(StaticGpuFramebuffer.Create([attachment],debugName:$"Postprocess.{name}"));
+        return new([new(Image:RHIAttachment.FromTexture(image))],label:$"Postprocess.{name}");
     }
     #endregion
 }

@@ -1,3 +1,5 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
+using VanillaGraphicsExpanded.Rendering.ShaderCompilation;
 using VanillaGraphicsExpanded.Rendering.Contracts;
 using System;
 using System.Buffers.Binary;
@@ -47,15 +49,10 @@ internal sealed partial class LumonSceneRelightVoxelDdaComputeShader : TraceGeom
     {
         shader = null;
 
-        if (!GpuComputePipeline.TryCreateFromAssets(
-            api: api,
-            shaderName: ShaderName,
+        if (!ComputeShaderAsset.TryCreateFromAssets(api: api,
+            settings: new global::VanillaGraphicsExpanded.Rendering.Contracts.ShaderSettings(global::VanillaGraphicsExpanded.Rendering.Contracts.GpuShaderContracts.Registry.FindProgram(ShaderName)),
             pipeline: out var pipeline,
-            sourceCode: out _,
             infoLog: out infoLog,
-            preferSpirv: preferSpirv,
-            stageExtension: "csh",
-            defines: null,
             debugName: debugName,
             log: api.Logger,
             layout: new LumonSceneComputeProgramLayouts.RelightVoxelDda()))
@@ -82,33 +79,15 @@ internal sealed partial class LumonSceneRelightVoxelDdaComputeShader : TraceGeom
     public void BindPatchMetaSsbo(GpuShaderStorageBuffer ssbo)
     { PatchMetadata = ssbo; }
 
-    /// <summary>Retains DepthAtlas for the next dispatch submission.</summary>
-    public void BindDepthAtlas(int textureId)
-    { DepthAtlas = textureId; }
 
-    /// <summary>Retains MaterialAtlas for the next dispatch submission.</summary>
-    public void BindMaterialAtlas(int textureId)
-    { MaterialAtlas = textureId; }
 
-    /// <summary>Retains the light-color lookup texture until dispatch.</summary>
-    public void BindLightColorLut(int textureId)
-    { LightColorLut = textureId; }
 
-    /// <summary>Retains BlockLevelScalarLut for the next dispatch submission.</summary>
-    public void BindBlockLevelScalarLut(int textureId)
-    { BlockLevelScalarLut = textureId; }
 
-    /// <summary>Retains SunLevelScalarLut for the next dispatch submission.</summary>
-    public void BindSunLevelScalarLut(int textureId)
-    { SunLevelScalarLut = textureId; }
 
-    /// <summary>Retains the surface lookup texture until dispatch.</summary>
-    public void BindSurfaceLut(int textureId)
-    { SurfaceLut = textureId; }
 
     /// <summary>Retains IrradianceAtlasImage for the next dispatch submission.</summary>
-    public void BindIrradianceAtlasImage(GpuTexture irradianceAtlas, TextureAccess access = TextureAccess.ReadWrite)
-    { IrradianceAtlas = new(irradianceAtlas, Access: access, Layered: true, Format: SizedInternalFormat.Rgba16f); }
+    public void BindIrradianceAtlasImage(GpuTexture irradianceAtlas, ImageAccess access = ImageAccess.ReadWrite)
+    { IrradianceAtlas = new(irradianceAtlas, Access: access, Layered: true, Format: TextureFormat.Rgba16f); }
 
     /// <summary>Retains DebugCounters for the next dispatch submission.</summary>
     public void BindDebugCounters(GpuAtomicCounterBuffer? debugCounters)
@@ -156,7 +135,7 @@ internal sealed partial class LumonSceneRelightVoxelDdaComputeShader : TraceGeom
 
     #region Private
     /// <summary>Adopts the executable and attaches the input mutation guard.</summary>
-    private LumonSceneRelightVoxelDdaComputeShader(GpuComputePipeline pipeline) : base(pipeline)
+    private LumonSceneRelightVoxelDdaComputeShader(ComputeShaderAsset pipeline) : base(pipeline)
     {
         OwnUniformBuffer(parameters);
     }

@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using HarmonyLib;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Pipeline.Passes;
@@ -9,7 +10,7 @@ internal sealed class StaticPassDeclarationCapture : IDisposable
 {
     [ThreadStatic] private static StaticPassDeclarationCapture? active;
     private readonly Harmony harmony = new("Tests.StaticPassDeclarationCapture");
-    private readonly Dictionary<(GpuFramebuffer Target, string Contract), RenderPassDesc> declarations = new();
+    private readonly Dictionary<(string Target, string Contract), int> declarations = new();
     private readonly List<string> rebuilt = new();
     private int repetitions;
 
@@ -21,8 +22,8 @@ internal sealed class StaticPassDeclarationCapture : IDisposable
         active = this;
         try
         {
-            harmony.Patch(AccessTools.Method(typeof(RenderPass), nameof(RenderPass.Begin)),
-                prefix: new HarmonyMethod(typeof(StaticPassDeclarationCapture), nameof(Observe)));
+            harmony.Patch(AccessTools.Method(typeof(RHICommandContext), nameof(RHICommandContext.BeginRenderPass)),
+                postfix: new HarmonyMethod(typeof(StaticPassDeclarationCapture), nameof(Observe)));
         }
         catch { Dispose(); throw; }
     }
@@ -45,35 +46,32 @@ internal sealed class StaticPassDeclarationCapture : IDisposable
 
     #region Private
     /// <summary>Groups immutable intentions by their complete value contract, separately for each physical target instance.</summary>
-    private static void Observe(RenderPassDesc description)
+    private static void Observe(RHIRenderPassDescription description)
     {
-        if (active is not { } capture || description.Target is not StaticGpuFramebuffer) return;
-        string contract = string.Join("|", description.Colors.Select(DescribeColor))
-            + ";" + description.DepthStencil + ";" + description.Area;
-        var key = (description.Target, contract);
-        if (!capture.declarations.TryAdd(key, description))
+        if(active is not {} capture || !description.Surface.IsEmpty)return;
+        string target=string.Join("|",description.Colors.Select(color=>DescribeImage(color.Image)))+";"+DescribeImage(description.DepthStencil);
+        string contract=string.Join("|",description.Colors.Select(DescribeColor))+";"+description.Actions+";"+description.Area;
+        Assert.True(StateCache.Current.TryGetCachedCurrentFramebuffer(OpenTK.Graphics.OpenGL.FramebufferTarget.DrawFramebuffer,out int realized));
+        var key=(target,contract);
+        if(!capture.declarations.TryAdd(key,realized))
         {
             capture.repetitions++;
-            if (!ReferenceEquals(capture.declarations[key], description))
-                capture.rebuilt.Add($"{description.Target.FboId}: {contract}");
+            if(capture.declarations[key]!=realized)capture.rebuilt.Add(target+": "+contract);
         }
     }
 
-    /// <summary>Includes exact typed clear payload bits so distinct clear intentions cannot share an observation key.</summary>
-    private static string DescribeColor(RenderPassColor color)
+    /// <summary>Identifies retained image selections without resolving metadata or querying the driver.</summary>
+    private static string DescribeImage(RHIAttachment? image) => image is {} value
+        ? $"{value.Texture.GetHashCode()}:{value.Renderbuffer.GetHashCode()}:{value.Subresource}:{value.Layered}" : "none";
+
+    /// <summary>Includes exact clear scalar bits without inspecting private implementation fields.</summary>
+    private static string DescribeColor(RHIColorAttachment color)
     {
-        string contract = $"{color.Attachment}:{color.Load}:{color.Store}:{color.DiscardOutput}:{color.SurfaceBuffer}";
-        if (color.Clear is null) return contract;
-        // Clear storage deliberately has no public inspection API. Inspect its immutable
-        // primitive arrays in this observer without exposing test readback in production.
-        foreach (var field in typeof(ColorClearValue).GetFields(System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic))
-            if (field.GetValue(color.Clear) is Array values)
-            {
-                byte[] bytes = new byte[Buffer.ByteLength(values)];
-                Buffer.BlockCopy(values, 0, bytes, 0, bytes.Length);
-                contract += $":{field.Name}:{Convert.ToHexString(bytes)}";
-            }
-        return contract;
+        string contract=$"{color.AttachmentIndex}:{color.Load}:{color.Store}:{color.DiscardOutput}:{color.WindowBuffer}";
+        if(color.Clear is not {} clear)return contract;
+        if(!clear.FloatComponents.IsEmpty)return contract+":f:"+string.Join(",",clear.FloatComponents.ToArray().Select(BitConverter.SingleToInt32Bits));
+        if(!clear.SignedComponents.IsEmpty)return contract+":i:"+string.Join(",",clear.SignedComponents.ToArray());
+        return contract+":u:"+string.Join(",",clear.UnsignedComponents.ToArray());
     }
     #endregion
 }

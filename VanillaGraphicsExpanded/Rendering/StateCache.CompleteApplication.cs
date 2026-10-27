@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using VanillaGraphicsExpanded.Rendering.Pipeline;
 using VanillaGraphicsExpanded.Rendering.Pipeline.Descriptions;
@@ -10,15 +11,15 @@ internal sealed partial class StateCache
 {
     #region Public API
     /// <summary>Uses the same prepared relevance and native write groups declared at boundary entry.</summary>
-    internal void ApplyGraphicsState(GraphicsPipeline pipeline, GraphicsDynamicState dynamics)
+    internal void ApplyGraphicsState(RHIGraphicsPipeline pipeline, RHIDynamicState dynamics)
     {
         ArgumentNullException.ThrowIfNull(pipeline);
-        pipeline.Validate();
+        pipeline.RequireShader();
         ApplyGraphicsState(pipeline.Description, dynamics, pipeline.Relevance, pipeline.Coverage);
     }
 
     /// <summary>Derives conservative emitted-primitive relevance for low-level callers without a prepared executable.</summary>
-    internal void ApplyGraphicsState(GraphicsPipelineDesc pipeline, GraphicsDynamicState dynamics)
+    internal void ApplyGraphicsState(RHIGraphicsPipelineDescription pipeline, RHIDynamicState dynamics)
     {
         ArgumentNullException.ThrowIfNull(pipeline);
         var relevance = GraphicsStateRelevance.Derive(pipeline, GpuSupport.Graphics);
@@ -29,12 +30,12 @@ internal sealed partial class StateCache
     #region Private
     #region Application
     /// <summary>Validates the whole request before category owners apply relevant groups through normal cached setters.</summary>
-    private void ApplyGraphicsState(GraphicsPipelineDesc pipeline, GraphicsDynamicState dynamics,
+    private void ApplyGraphicsState(RHIGraphicsPipelineDescription pipeline, RHIDynamicState dynamics,
         GraphicsStateRelevance relevance, PipelineStateCoverage coverage)
     {
         ArgumentNullException.ThrowIfNull(dynamics);
         PipelineDescriptionValidation.Validate(pipeline, GpuSupport.Graphics);
-        ValidateGraphicsDynamics(pipeline, dynamics);
+        dynamics.ValidateFor(pipeline);
         ValidateBoundaryMutation(coverage);
         EnsureViewportLimits();
         // Skipped groups keep their actual cached values and knowledge, never the dormant declaration.
@@ -48,10 +49,14 @@ internal sealed partial class StateCache
     }
 
     /// <summary>Applies only consumed dynamic tuples; undeclared values retain concrete defaults when relevant.</summary>
-    private void ApplyPipelineDynamics(GraphicsPipelineDesc pipeline, GraphicsDynamicState dynamics,
+    private void ApplyPipelineDynamics(RHIGraphicsPipelineDescription pipeline, RHIDynamicState dynamics,
         DynamicDrawStateKnowledge relevant)
     {
-        if (relevant.HasFlag(DynamicDrawStateKnowledge.Viewport)) ApplyDynamic(dynamics.Viewport!.Value);
+        if (relevant.HasFlag(DynamicDrawStateKnowledge.Viewport))
+        {
+            var viewport = dynamics.Viewport!.Value;
+            ApplyDynamic(new DynamicDrawState { X = viewport.X, Y = viewport.Y, Width = viewport.Width, Height = viewport.Height });
+        }
         if (relevant.HasFlag(DynamicDrawStateKnowledge.Scissor))
         {
             var scissor = pipeline.Dynamics.HasFlag(DynamicPipelineState.Scissor)
@@ -67,22 +72,5 @@ internal sealed partial class StateCache
     }
     #endregion
 
-    #region Validation
-    /// <summary>Retains explicit dynamic-value requirements even when their static feature is dormant.</summary>
-    private static void ValidateGraphicsDynamics(GraphicsPipelineDesc pipeline, GraphicsDynamicState value)
-    {
-        if (value.Viewport is not { } viewport || viewport.Width < 0 || viewport.Height < 0)
-            throw new ArgumentException("A valid viewport is required.", nameof(value));
-        if (pipeline.Dynamics.HasFlag(DynamicPipelineState.Scissor)
-            && (value.Scissor is not { } scissor || scissor.Width < 0 || scissor.Height < 0))
-            throw new ArgumentException("A valid scissor rectangle is required.", nameof(value));
-        if (pipeline.Dynamics.HasFlag(DynamicPipelineState.StencilReference)
-            && (value.StencilReference is not { } references || references.Front < 0 || references.Front > 255 || references.Back < 0 || references.Back > 255))
-            throw new ArgumentException("Stencil references are required.", nameof(value));
-        if (pipeline.Dynamics.HasFlag(DynamicPipelineState.BlendConstant)
-            && (value.BlendConstant is not { } blend || !float.IsFinite(blend.R) || !float.IsFinite(blend.G) || !float.IsFinite(blend.B) || !float.IsFinite(blend.A)))
-            throw new ArgumentException("A finite blend constant is required.", nameof(value));
-    }
-    #endregion
     #endregion
 }

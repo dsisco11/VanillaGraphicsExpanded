@@ -26,21 +26,21 @@ public sealed class DirectLightingBufferOwnershipTests(HeadlessGLFixture fixture
         using var buffers = new DirectLightingBufferManager(assets.Api);
         Assert.True(buffers.EnsureBuffers(8, 6));
         var original = buffers.Radiance!;
-        var framebuffer = Assert.IsType<StaticGpuFramebuffer>(buffers.DirectLightingFbo);
+        var pass = Assert.IsType<RHIRenderPassDescription>(buffers.LightingPass);
         Assert.True(buffers.EnsureBuffers(8, 6));
         Assert.Same(original, buffers.Radiance);
         Assert.True(buffers.EnsureBuffers(13, 9));
         Assert.True(original.IsDisposed);
-        Assert.True(framebuffer.IsDisposed);
+        Assert.All(pass.Colors, output => Assert.False(output.Image!.Value.Texture.IsValid));
         var resized = buffers.Radiance!;
         Assert.Equal(13, resized.Width);
         Assert.Equal(9, resized.Height);
         Assert.Equal(3, resized.Depth);
         for (int layer = 0; layer < 3; layer++)
         {
-            var attachment = buffers.DirectLightingFbo!.GetAttachment(FramebufferAttachment.ColorAttachment0 + layer)!;
-            Assert.Same(resized, attachment.Resource);
-            Assert.Equal(layer, attachment.Layer);
+            var attachment = buffers.LightingPass!.Colors[layer].Image!.Value;
+            Assert.Equal((GpuTextureRef)resized, attachment.Texture);
+            Assert.Equal(layer, attachment.Subresource.Layer);
         }
         buffers.Dispose();
         Assert.True(resized.IsDisposed);
@@ -48,7 +48,7 @@ public sealed class DirectLightingBufferOwnershipTests(HeadlessGLFixture fixture
 
     /// <summary>Image declaration defers framebuffer realization and retires its sole owned allocation.</summary>
     [Fact]
-    public void ConstructorFailureReleasesEarlierAllocationAndRestoresFramebuffer()
+    public void ConstructorDefersFramebufferRealizationAndRetiresImage()
     {
         EnsureContextValid();
         using var incoming = DynamicGpuFramebuffer.CreateEmpty();
@@ -63,12 +63,17 @@ public sealed class DirectLightingBufferOwnershipTests(HeadlessGLFixture fixture
                 postfix: new HarmonyMethod(typeof(DirectLightingBufferOwnershipTests), nameof(CaptureRadianceAllocation)));
             harmony.Patch(AccessTools.Method(typeof(StaticGpuFramebuffer), nameof(StaticGpuFramebuffer.Create)),
                 prefix: new HarmonyMethod(typeof(DirectLightingBufferOwnershipTests), nameof(FailFramebufferAllocation)));
-            Assert.Throws<InvalidOperationException>(() => new DirectLightingTargets(8, 6));
+            using (var targets = new DirectLightingTargets(8, 6))
+            {
+                Assert.Equal(3,targets.Pass.Colors.Length);
+                Assert.Same(partialTexture,targets.Radiance);
+                Assert.Equal(incoming.FboId,GL.GetInteger(GetPName.FramebufferBinding));
+            }
             Assert.NotNull(partialTexture);
             Assert.True(partialTexture.IsDisposed);
             Assert.False(GL.IsTexture(partialTextureId));
             Assert.Equal(incoming.FboId, GL.GetInteger(GetPName.FramebufferBinding));
-            Assert.Equal(incoming.FboId, GpuFramebuffer.SaveBinding());
+            Assert.Equal(incoming.FboId, StateCache.Current.GetCurrentFramebuffer(FramebufferTarget.Framebuffer));
         }
         finally
         {
@@ -86,7 +91,7 @@ public sealed class DirectLightingBufferOwnershipTests(HeadlessGLFixture fixture
     /// <summary>Rejects eager framebuffer realization during image-only declaration.</summary>
     private static void FailFramebufferAllocation(string? debugName)
     {
-        if (debugName == "DirectLightingFBO") throw new InvalidOperationException("Injected allocation failure.");
+        throw new InvalidOperationException("Image declaration must defer native framebuffer realization.");
     }
 
     /// <summary>Retains the radiance array identity so its cleanup can be observed after framebuffer allocation failure.</summary>

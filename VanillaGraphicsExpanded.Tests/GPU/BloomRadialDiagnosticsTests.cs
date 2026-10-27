@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Globalization;
 using System.Text;
 using OpenTK.Graphics.OpenGL;
@@ -35,7 +36,11 @@ public sealed class BloomRadialDiagnosticsTests(HeadlessGLFixture fixture,ITestO
             float[] input=Impulse(size,size*.5-.5,size*.5-.5);
             for(int i=0;i<input.Length;i++)input[i]*=scale;
             using var source=TestFramework.CreateTexture(size,size,PixelInternalFormat.Rgba32f,input);
-            Assert.True(GraphicsCommandContext.TryRun("Tests.BloomPrecision",[pipeline],true,c=>owner.Render(c,draw,source,(null,0),settings)));
+            {
+    var c=RHICommandContext.Current;
+    using var scope14=c.EnterBoundary(new("Tests.BloomPrecision",true,graphics:System.Linq.Enumerable.Select<RHIGraphicsPipeline,RHIGraphicsPipelineRef>([pipeline],value=>value),operations:BoundaryOperations.RenderPasses));
+    scope14.Run(()=>owner.Render(c,draw,source,(null,0),settings));
+}
             float[] physical=owner.Texture.ReadPixels();
             for(int i=0;i<physical.Length;i+=4)physical[i]/=scale;
             if(reference is null){reference=physical;continue;}
@@ -88,7 +93,11 @@ public sealed class BloomRadialDiagnosticsTests(HeadlessGLFixture fixture,ITestO
             {
                 var settings=new PostprocessParameters(1,0,0,levels,0,1,16);
                 var pipeline=owner.Prepare(assets.Api,draw,size,size,levels);
-                Assert.True(GraphicsCommandContext.TryRun("Tests.BloomRadial",[pipeline],true,c=>owner.Render(c,draw,source,(null,0),settings)));
+                {
+    var c=RHICommandContext.Current;
+    using var scope15=c.EnterBoundary(new("Tests.BloomRadial",true,graphics:System.Linq.Enumerable.Select<RHIGraphicsPipeline,RHIGraphicsPipelineRef>([pipeline],value=>value),operations:BoundaryOperations.RenderPasses));
+    scope15.Run(()=>owner.Render(c,draw,source,(null,0),settings));
+}
                 float[] halo=owner.Texture.ReadPixels();int width=owner.Texture.Width;
                 Assert.All(halo.Where((_,i)=>i%4==0),v=>Assert.True(float.IsFinite(v)&&v>=0));
                 double energy=priorEnergy+energies[levels-1];

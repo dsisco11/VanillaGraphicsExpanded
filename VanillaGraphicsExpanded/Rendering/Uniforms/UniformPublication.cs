@@ -11,6 +11,7 @@ internal sealed class UniformPublication : IDisposable
     private UniformStorageVersion? retained;
     private ulong revision;
     private bool disposed;
+    private bool consumed;
 
     /// <summary>Describes one candidate without committing ownership or dirty CPU work.</summary>
     internal readonly record struct Candidate(GpuUniformRingBuffer.Allocation Transient, UniformStorageVersion? Retained)
@@ -21,6 +22,8 @@ internal sealed class UniformPublication : IDisposable
     }
 
     #region Public API
+    /// <summary>Checks the original logical lifetime without allocating storage or consulting a native context.</summary>
+    internal void RequireUsable() => ObjectDisposedException.ThrowIf(disposed, this);
     /// <summary>Fixes lifetime policy for this logical instance.</summary>
     internal UniformPublication(UniformBufferUsage usage)
     {
@@ -44,13 +47,42 @@ internal sealed class UniformPublication : IDisposable
         return new(ring.AllocateAndWrite(bytes), null);
     }
 
+    /// <summary>Finds only a completed publication reusable for this execution, never a promised recording upload.</summary>
+    internal bool TryGetCommitted(GpuUniformRingBuffer ring, ulong contentRevision, out Candidate candidate)
+    {
+        RequireUsable();
+        ring.RequireOpenPublication();
+        candidate = default;
+        if (!ReferenceEquals(allocator, ring) || revision != contentRevision
+            || usage == UniformBufferUsage.SingleDraw && consumed) return false;
+        if (usage == UniformBufferUsage.MultiFrame)
+        {
+            if (retained is null || !ring.PersistentStorage.IsCurrent(retained)) return false;
+            candidate = new(default, retained);
+            return true;
+        }
+        if (!ring.CanReuse(transient)) return false;
+        candidate = new(transient, null);
+        return true;
+    }
+
+    /// <summary>Consumes a single-draw version only when an actual native rendering command is about to use it.</summary>
+    internal void MarkExecution(ulong contentRevision)
+    {
+        RequireUsable();
+        if (revision == contentRevision) consumed = true;
+    }
+
     /// <summary>Commits only after binding succeeds, recording even unchanged persistent rebindings.</summary>
     internal void Commit(GpuUniformRingBuffer ring, in Candidate candidate, ulong contentRevision)
     {
         ObjectDisposedException.ThrowIf(disposed, this);
+        bool sameVersion = ReferenceEquals(allocator, ring) && revision == contentRevision
+            && ReferenceEquals(retained, candidate.Retained) && transient.Equals(candidate.Transient);
         candidate.Retained?.Owner.MarkUsed(candidate.Retained);
         if (retained is not null && !ReferenceEquals(retained, candidate.Retained)) retained.Owner.Release(retained);
         allocator = ring; transient = candidate.Transient; retained = candidate.Retained; revision = contentRevision;
+        if (!sameVersion) consumed = false;
     }
 
     /// <summary>Releases only a newly reserved candidate; failed publication preserves the previous version.</summary>

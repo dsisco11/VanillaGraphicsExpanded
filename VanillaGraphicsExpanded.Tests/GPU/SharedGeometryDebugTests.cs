@@ -96,9 +96,9 @@ public sealed class SharedGeometryDebugTests : LumOnShaderFunctionalTestBase
             SceneInputs.Engine.Depth.UploadDataImmediate(CreateUniformDepthData(ScreenWidth,ScreenHeight,.5f));
             SceneInputs.Terrain.Surface.UploadDataImmediate(CreateUniformNormalData(ScreenWidth,ScreenHeight,0,0,1), 0, 0, 0, ScreenWidth, ScreenHeight, 1);
             SceneInputs.Terrain.PatchId.UploadDataImmediate(new uint[ScreenWidth * ScreenHeight * 4]);
-            program.PrimaryDepth = SceneInputs.Engine.Depth.TextureId;
+            program.PrimaryDepth = SceneInputs.Engine.Depth;
             program.GBufferSurface = SceneInputs.Terrain.Surface;
-            program.GBufferPatchId = SceneInputs.Terrain.PatchId.TextureId;
+            program.GBufferPatchId = SceneInputs.Terrain.PatchId;
             program.TraceSceneLegacy = scene.Legacy;
             var output = SceneInputs.Engine.Output;
             TestFramework.RenderQuadTo(program, output);

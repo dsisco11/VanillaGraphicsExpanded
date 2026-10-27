@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using System.Linq;
 using VanillaGraphicsExpanded.Rendering.Pipeline;
@@ -99,8 +100,10 @@ internal sealed class WaterRefractionCapture : IRenderer
         if (directPipeline is null || compositePipelines is null) return;
         try
         {
-            GraphicsCommandContext.TryRun("WaterRefraction.PreOverlay",
-                new[] { directPipeline }.Concat(compositePipelines).ToArray(), true, commands =>
+            var commands=RHICommandContext.Current;
+            var permitted=new[] {directPipeline}.Concat(compositePipelines).Select(value=>(RHIGraphicsPipelineRef)value);
+            if(!commands.TryEnterBoundary(new("WaterRefraction.PreOverlay",true,graphics:permitted,operations:BoundaryOperations.RenderPasses),out var boundary)) return;
+            using(boundary) boundary!.Run(()=>
                 {
                     // Allocation belongs inside the same preservation contract as both draws.
                     if (lighting?.IsValid != true || lighting.Radiance.Width != width || lighting.Radiance.Height != height)

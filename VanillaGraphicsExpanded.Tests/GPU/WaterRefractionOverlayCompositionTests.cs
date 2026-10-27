@@ -62,11 +62,11 @@ public sealed class WaterRefractionOverlayCompositionTests(HeadlessGLFixture fix
         using var directLighting = LayeredTestTexture.Create(direct, zero, zero);
         program.DirectLighting = directLighting;
         program.IndirectDiffuse = zero;
-        program.GBufferAlbedo = zero.TextureId;
+        program.GBufferAlbedo = zero;
         using var surface = LayeredTestTexture.Create(normal, zero, zero);
         program.GBufferSurface = surface;
-        program.GBufferPosition = position.TextureId;
-        program.PrimaryDepth = depth.TextureId;
+        program.GBufferPosition = position;
+        program.PrimaryDepth = depth;
         using var frameCamera = TestFrameCamera.Create([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 20, 0, 0, 0, 0, 1], [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1]);
         program.FrameInputs = frameCamera;
 

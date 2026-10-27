@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.ShaderCompilation;
 using System;
 using VanillaGraphicsExpanded.Rendering.Contracts;
 using Vintagestory.API.Common;
@@ -15,7 +16,7 @@ internal sealed partial class DepthHierarchyComputeShader : GpuComputeProgram, I
     {
         var layout = new GpuProgramLayout();
         layout.RegisterContract(Contract.Stages[0].Bindings);
-        if (!GpuComputePipeline.TryCreateFromAssets(api, new ShaderSettings(Contract), out var pipeline,
+        if (!ComputeShaderAsset.TryCreateFromAssets(api, new ShaderSettings(Contract), out var pipeline,
             out string log, "DepthHierarchy.Compute", layout: layout))
             throw new InvalidOperationException("Depth hierarchy compute shader unavailable: " + log);
         return new DepthHierarchyComputeShader(pipeline!);
@@ -30,7 +31,7 @@ internal sealed partial class DepthHierarchyComputeShader : GpuComputeProgram, I
     #endregion
     #region Private
     /// <summary>Adopts the linked executable and guards retained parameter mutation.</summary>
-    private DepthHierarchyComputeShader(GpuComputePipeline pipeline) : base(pipeline)
+    private DepthHierarchyComputeShader(ComputeShaderAsset pipeline) : base(pipeline)
     {
         OwnUniformBuffer(parameters);
     }

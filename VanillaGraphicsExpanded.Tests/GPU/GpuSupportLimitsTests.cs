@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Contracts;
@@ -191,14 +192,16 @@ public sealed class GpuSupportLimitsTests(HeadlessGLFixture fixture)
         var contract = new GpuShaderContract("support-test", [
             new ShaderStageContract("test.vsh", "test.vsh", ShaderStageKind.Vertex, bindings),
             new ShaderStageContract("test.fsh", "test.fsh", ShaderStageKind.Fragment, bindings)], 1);
-        var shader = new ShaderPipelineIdentity("test", new(new ShaderSettings(contract)));
-        var targets = new RenderTargetSignature([new(PixelInternalFormat.Rgba16f)]);
-        var valid = new VertexAttributeDesc(0, 3, VertexAttribPointerType.Float, VertexInterpretation.Floating, 0, 0, 12);
-        var description = new GraphicsPipelineDesc(shader, new([valid]), targets, DynamicPipelineState.Viewport);
+        using var shaderOwner = new GraphicsStateShaders();
+        var shader = shaderOwner.Get();
+        var targets = new RenderTargetSignature([new(TextureFormat.Rgba16f)]);
+        var valid = new RHIVertexAttribute(0, 3, VertexComponentFormat.Float, VertexInterpretation.Floating, 0, 0, 12);
+        var description = new RHIGraphicsPipelineDescription(shader, new([valid]), targets, DynamicPipelineState.Viewport);
         Assert.Equal(targets, description.Targets);
         // A location at the exclusive native limit proves omitted injection uses actual shared support.
-        Assert.Throws<NotSupportedException>(() => new GraphicsPipelineDesc(shader,
-            new([valid with { Location = GpuSupport.MaxVertexAttribs }]), targets, DynamicPipelineState.Viewport));
+        var excessive = new RHIGraphicsPipelineDescription(shader,
+            new([valid with { Location = GpuSupport.MaxVertexAttribs }]), targets, DynamicPipelineState.Viewport);
+        Assert.Throws<NotSupportedException>(() => RHICommandContext.Current.CreateGraphicsPipeline(excessive).RequireResource());
 #if DEBUG
         Assert.Equal(captures, GpuSupport.CaptureCount);
 #endif

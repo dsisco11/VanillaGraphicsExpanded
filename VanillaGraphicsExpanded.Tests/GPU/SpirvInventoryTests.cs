@@ -1,3 +1,7 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
+using VanillaGraphicsExpanded.Tests.GPU.Helpers;
+using VanillaGraphicsExpanded.Rendering.RHI;
+using VanillaGraphicsExpanded.Rendering.ShaderCompilation;
 using System.Diagnostics;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
@@ -47,7 +51,7 @@ public sealed class SpirvInventoryTests : IDisposable
         var selected = new ShaderLoadPlan(new ShaderSettings(Registry.FindProgram("tests/GpuProgramLayoutBindingTests_1"))).Stages.Single();
         GpuShaderModule? shader = null; int program = 0;
         try {
-            shader = SpirvStageLoader.Load(selected, assets.Read);
+            shader = PrecompiledStageFixture.Load(selected, assets.Read);
             program = GL.CreateProgram(); GL.AttachShader(program, shader.ShaderId); GL.LinkProgram(program);
             GL.GetProgram(program, GetProgramParameterName.LinkStatus, out int linked);
             Assert.True(linked != 0, GL.GetProgramInfoLog(program));
@@ -74,17 +78,16 @@ public sealed class SpirvInventoryTests : IDisposable
     {
         fixture.EnsureContextValid();
         var selected = new ShaderLoadPlan(Settings(identity, key)).Stages.Single();
-        GpuComputePipeline? previous = null;
+        ComputeShaderAsset? previous = null;
         try {
             for (int generation = 0; generation < 3; generation++) {
-                using var module = SpirvStageLoader.Load(selected, Read);
                 var layout = new GpuProgramLayout(); layout.RegisterContract(selected.Stage.Bindings);
-                Assert.True(GpuComputePipeline.TryCreate(module, out var current, out string log, layout: layout), log);
+                Assert.True(ComputeShaderAsset.TryLoadFromSpirv(Path.Combine(Root, selected.BinaryPath), Settings(identity, key), out var current, out string log, layout: layout), log);
                 using (current) {
                     Assert.NotNull(current); previous?.Dispose(); Assert.True(GL.IsProgram(current.ProgramId));
-                    current.Use(); Assert.Equal(current.ProgramId, GL.GetInteger(GetPName.CurrentProgram));
+                    current.Pipeline.RequirePipeline().RequireShader();
                     // The next activation uses StateCache; release through that same owner.
-                    StateCache.Current.UseProgram(0);
+                    OpenGLProgramSelection.Select(StateCache.Current, 0);
                     int id = current.ProgramId; current.Dispose(); Assert.False(GL.IsProgram(id));
                     Assert.Equal(ErrorCode.NoError, GL.GetError()); previous = current;
                 }
@@ -103,8 +106,8 @@ public sealed class SpirvInventoryTests : IDisposable
     {
         fixture.EnsureContextValid();
         var selected = Assert.Single(Registry.Binaries, b => b.Stage.Identity == identity && b.Key == key);
-        using var shader = SpirvStageLoader.Load(selected, Read);
-        Assert.True(GL.IsShader(shader.ShaderId)); output.WriteLine("Selected stage: " + SpirvStageLoader.LastTiming);
+        using var shader = PrecompiledStageFixture.Load(selected, Read);
+        Assert.True(GL.IsShader(shader.ShaderId));
     }
 
     /// <summary>Links every explicit graphics pairing from one coherent settings snapshot.</summary>
@@ -115,7 +118,7 @@ public sealed class SpirvInventoryTests : IDisposable
         fixture.EnsureContextValid();
         var handles = new List<GpuShaderModule>(); int program = 0;
         try {
-            foreach (var stage in new ShaderLoadPlan(Settings(identity, key)).Stages) handles.Add(SpirvStageLoader.Load(stage, Read));
+            foreach (var stage in new ShaderLoadPlan(Settings(identity, key)).Stages) handles.Add(PrecompiledStageFixture.Load(stage, Read));
             program = GL.CreateProgram(); foreach (var shader in handles) GL.AttachShader(program, shader.ShaderId);
             long started = Stopwatch.GetTimestamp(); GL.LinkProgram(program);
             output.WriteLine($"Link only: {Stopwatch.GetElapsedTime(started).TotalMilliseconds:F3} ms");

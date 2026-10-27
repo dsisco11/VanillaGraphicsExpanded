@@ -28,7 +28,7 @@ public sealed class StaticTargetMigrationTests(HeadlessGLFixture fixture, ITestO
         using var optical = GpuFramebufferAttachment.FromTexture(transport, layer: 0);
         using var illumination = GpuFramebufferAttachment.FromTexture(transport, layer: 1);
         using var target = StaticGpuFramebuffer.Create([optical, illumination]);
-        var pass = new RenderPassDesc(target, LiquidPipelineStates.VolumeOutputs);
+        var pass = FramebufferTestSetup.DescribeAttachments(target, [new(AttachmentIndex:0,Load:AttachmentLoad.Clear,Clear:ColorClearValue.Float(0,0,0,0)),new(AttachmentIndex:1,Load:AttachmentLoad.Clear,Clear:ColorClearValue.Float(0,0,0,0))]);
         Assert.All(pass.Colors, color => Assert.Equal(AttachmentLoad.Clear, color.Load));
         using var declarations = new StaticPassDeclarationCapture();
         GL.Disable(EnableCap.ScissorTest);
@@ -39,11 +39,14 @@ public sealed class StaticTargetMigrationTests(HeadlessGLFixture fixture, ITestO
             // New nonzero data makes a missing clear observable independently each frame.
             GL.ClearTexImage(transport.TextureId, 0, PixelFormat.Rgba, PixelType.Float,
                 new[] { frame + 1f, 2f, 3f, 4f });
-            Assert.True(GraphicsCommandContext.TryRun("Tests.WaterVolume.Clear", [], true, commands =>
             {
-                commands.BeginPass(pass);
-                commands.EndPass();
-            }));
+    var commands=RHICommandContext.Current;
+    using var scope77=commands.EnterBoundary(new("Tests.WaterVolume.Clear",true,graphics:System.Linq.Enumerable.Select<RHIGraphicsPipeline,RHIGraphicsPipelineRef>([],value=>value),operations:BoundaryOperations.RenderPasses));
+    scope77.Run(()=>{
+                commands.BeginRenderPass(pass);
+                commands.EndRenderPass();
+            });
+}
             for (int layer = 0; layer < 2; layer++)
                 Assert.All(LayeredTestTexture.Read(transport, layer), value => Assert.Equal(0, value));
         }
@@ -78,30 +81,30 @@ public sealed class StaticTargetMigrationTests(HeadlessGLFixture fixture, ITestO
         EnsureContextValid();
         using var targets = new LumOnTargets(8, 6, 2, 2, 4, 3);
         var framebuffers = typeof(LumOnTargets).GetProperties(BindingFlags.Instance | BindingFlags.Public)
-            .Where(property => typeof(GpuFramebuffer).IsAssignableFrom(property.PropertyType))
-            .Select(property => Assert.IsType<StaticGpuFramebuffer>(property.GetValue(targets))).ToArray();
+            .Where(property => property.PropertyType == typeof(RHIRenderPassDescription))
+            .Select(property => Assert.IsType<RHIRenderPassDescription>(property.GetValue(targets))).ToArray();
         Assert.Equal(11, framebuffers.Length);
         var clear = framebuffers.ToDictionary(target => target, target => targets.GetPass(target, true));
         foreach (var target in framebuffers)
         {
-            Assert.Same(target.PreservePass, targets.GetPass(target, false));
+            Assert.Same(target, targets.GetPass(target, false));
             Assert.Same(clear[target], targets.GetPass(target, true));
             Assert.All(clear[target].Colors, color => Assert.Equal(AttachmentLoad.Clear, color.Load));
         }
 
         // Change roles only: the immutable target and its declarations stay paired with storage.
-        var originalCurrent = targets.ScreenProbeAtlasCurrentFbo;
-        var originalHistory = targets.ScreenProbeAtlasHistoryFbo;
-        (targets.ScreenProbeAtlasCurrentFbo, targets.ScreenProbeAtlasHistoryFbo) =
-            (targets.ScreenProbeAtlasHistoryFbo, targets.ScreenProbeAtlasCurrentFbo);
+        var originalCurrent = targets.ScreenProbeAtlasCurrentPass;
+        var originalHistory = targets.ScreenProbeAtlasHistoryPass;
+        (targets.ScreenProbeAtlasCurrentPass, targets.ScreenProbeAtlasHistoryPass) =
+            (targets.ScreenProbeAtlasHistoryPass, targets.ScreenProbeAtlasCurrentPass);
         (targets.ScreenProbeAtlasCurrentTex, targets.ScreenProbeAtlasHistoryTex) =
             (targets.ScreenProbeAtlasHistoryTex, targets.ScreenProbeAtlasCurrentTex);
         (targets.ScreenProbeAtlasMetaCurrentTex, targets.ScreenProbeAtlasMetaHistoryTex) =
             (targets.ScreenProbeAtlasMetaHistoryTex, targets.ScreenProbeAtlasMetaCurrentTex);
-        Assert.Same(originalHistory, targets.ScreenProbeAtlasCurrentFbo);
-        Assert.Same(originalCurrent, targets.ScreenProbeAtlasHistoryFbo);
-        Assert.Same(targets.ScreenProbeAtlasCurrentTex, targets.ScreenProbeAtlasCurrentFbo[0]);
-        Assert.Same(clear[(StaticGpuFramebuffer)originalHistory], targets.GetPass(targets.ScreenProbeAtlasCurrentFbo, true));
+        Assert.Same(originalHistory, targets.ScreenProbeAtlasCurrentPass);
+        Assert.Same(originalCurrent, targets.ScreenProbeAtlasHistoryPass);
+        Assert.Equal((GpuTextureRef)targets.ScreenProbeAtlasCurrentTex, targets.ScreenProbeAtlasCurrentPass.Colors[0].Image!.Value.Texture);
+        Assert.Same(clear[originalHistory], targets.GetPass(targets.ScreenProbeAtlasCurrentPass, true));
 
         // Clear loads obey native write masks and scissor; establish complete-image
         // writes before observing routing so prior hostile-state fixtures cannot clip them.
@@ -109,16 +112,13 @@ public sealed class StaticTargetMigrationTests(HeadlessGLFixture fixture, ITestO
         GL.ColorMask(true, true, true, true);
         StateCache.Current.Invalidate(EPipelineState.ScissorTest | EPipelineState.ColorMask);
         AssertStaticSubmissionHasNoRoutingWork(framebuffers.Select(target => clear[target]).ToArray());
-        foreach (var target in framebuffers)
-            foreach (var image in target.AttachmentImages.Select(pair => pair.Value))
+        foreach (var pass in framebuffers)
+            foreach (var output in pass.Colors)
             {
-                float[] pixels = image.Resource switch
-                {
-                    DynamicTexture2D texture => texture.ReadPixels(),
-                    Texture3D texture => LayeredTestTexture.Read(texture, image.Layer!.Value),
-                    _ => throw new InvalidOperationException("Unexpected LumOn attachment storage.")
-                };
-                Assert.All(pixels, value => Assert.Equal(0, value));
+                var image=output.Image!.Value;
+                float[] pixels=image.Texture.Resource is Texture3D array
+                    ? LayeredTestTexture.Read(array,image.Subresource.Layer) : image.Texture.ReadPixels();
+                Assert.All(pixels,value=>Assert.Equal(0,value));
             }
     }
 
@@ -131,39 +131,36 @@ public sealed class StaticTargetMigrationTests(HeadlessGLFixture fixture, ITestO
         using var probes = new LumOnWorldProbeClipmapGpuResources(assets.Api, 2, 1, 2);
         using var direct = new DirectLightingTargets(4, 3);
         using var post = new PostprocessImage(3, 2, "Tests.StaticPostprocess");
-        var targets = new[]
-        {
-            Assert.IsType<StaticGpuFramebuffer>(probes.GetFbo()),
-            Assert.IsType<StaticGpuFramebuffer>(probes.GetRadianceFbo()),
-            Assert.IsType<StaticGpuFramebuffer>(direct.Framebuffer),
-            Assert.IsType<StaticGpuFramebuffer>(post.Target)
-        };
-        Assert.Throws<InvalidOperationException>(direct.Radiance.Dispose);
-        Assert.Throws<InvalidOperationException>(() => post.Texture.Resize(4, 3));
-        AssertStaticSubmissionHasNoRoutingWork(targets.Select(target => target.PreservePass).ToArray());
+        RHIRenderPassDescription[] targets=[probes.MetadataPass,probes.RadiancePass,direct.Pass,post.Pass];
+        AssertStaticSubmissionHasNoRoutingWork(targets);
+        Assert.True(direct.Radiance.IsValid);Assert.True(post.Texture.IsValid);
     }
     #endregion
 
     #region Private
     /// <summary>Submits every retained contract repeatedly and captures real native calls and all avoided managed work.</summary>
-    private void AssertStaticSubmissionHasNoRoutingWork(RenderPassDesc[] passes)
+    private void AssertStaticSubmissionHasNoRoutingWork(RHIRenderPassDescription[] passes)
     {
+        // Cold realization establishes the reusable native targets before repeated-work observation.
+        RenderPassTestBoundary.Run(commands => { foreach (var pass in passes) { commands.BeginRenderPass(pass); commands.EndRenderPass(); } });
         using var work = new FramebufferRoutingWorkCapture();
         using var native = new GraphicsTransitionCapture();
         using var declarations = new StaticPassDeclarationCapture();
-        Assert.True(GraphicsCommandContext.TryRun("Tests.StaticTargetMigration", [], true, commands =>
         {
+    var commands=RHICommandContext.Current;
+    using var scope78=commands.EnterBoundary(new("Tests.StaticTargetMigration",true,graphics:System.Linq.Enumerable.Select<RHIGraphicsPipeline,RHIGraphicsPipelineRef>([],value=>value),operations:BoundaryOperations.RenderPasses));
+    scope78.Run(()=>{
             for (int frame = 0; frame < 3; frame++)
                 foreach (var pass in passes)
                 {
-                    commands.BeginPass(pass);
-                    commands.EndPass();
+                    commands.BeginRenderPass(pass);
+                    commands.EndRenderPass();
                 }
-        }));
+        });
+}
         declarations.AssertReusable(passes.Length, passes.Length * 2);
         Assert.Equal(0, work.DynamicApplications);
         Assert.Equal(0, work.Captures);
-        Assert.Equal(0, work.StaticChecks);
         Assert.Equal(0, work.CompletenessChecks);
         Assert.DoesNotContain(native.Calls, call => call.StartsWith("Routing"));
         output.WriteLine("STATIC_TARGET_MIGRATION=" + System.Text.Json.JsonSerializer.Serialize(new
@@ -172,7 +169,7 @@ public sealed class StaticTargetMigrationTests(HeadlessGLFixture fixture, ITestO
             frames = 3,
             work.DynamicApplications,
             work.Captures,
-            work.StaticChecks,
+            
             work.CompletenessChecks,
             calls = native.Calls
         }));

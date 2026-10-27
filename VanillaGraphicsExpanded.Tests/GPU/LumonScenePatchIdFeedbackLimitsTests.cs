@@ -68,8 +68,8 @@ public sealed class LumonScenePatchIdFeedbackLimitsTests : RenderTestBase
 
         // Pass A: mark pages.
         markComputeProgram.BindDebugCounters(markCounters);
-        markComputeProgram.BindPatchIdGBuffer(patchIdGBuffer.TextureId);
-        markComputeProgram.BindChunkSlotGenerationTex(genTex.TextureId);
+        markComputeProgram.PatchIdG = patchIdGBuffer;
+        markComputeProgram.ChunkSlotGenerationTex = genTex;
 
         markComputeProgram.FrameStamp = 1u;
         markComputeProgram.BindPageUsageStampImage(usageStamp);
@@ -81,8 +81,8 @@ public sealed class LumonScenePatchIdFeedbackLimitsTests : RenderTestBase
         // Pass B: compact.
         compactComputeProgram.BindRequestCounter(pageRequestCounter);
         compactComputeProgram.BindRequestsSsbo(pageRequests);
-        compactComputeProgram.BindPageUsageStamp(usageStamp.TextureId);
-        compactComputeProgram.BindPageTableMip0(pageTableMip0.TextureId);
+        compactComputeProgram.PageUsageStamp = usageStamp;
+        compactComputeProgram.PageTableMip0 = pageTableMip0;
 
         compactComputeProgram.MaxRequests = (uint)desiredPages;
         compactComputeProgram.FrameStamp = 1u;
@@ -155,8 +155,8 @@ public sealed class LumonScenePatchIdFeedbackLimitsTests : RenderTestBase
         using var markCounters = CreateAtomicCounterBuffer(initialValue: 0u, counterCount: 3);
 
         markComputeProgram.BindDebugCounters(markCounters);
-        markComputeProgram.BindPatchIdGBuffer(patchIdGBuffer.TextureId);
-        markComputeProgram.BindChunkSlotGenerationTex(genTex.TextureId);
+        markComputeProgram.PatchIdG = patchIdGBuffer;
+        markComputeProgram.ChunkSlotGenerationTex = genTex;
 
         markComputeProgram.FrameStamp = 1u;
         markComputeProgram.BindPageUsageStampImage(usageStamp);
@@ -167,8 +167,8 @@ public sealed class LumonScenePatchIdFeedbackLimitsTests : RenderTestBase
 
         compactComputeProgram.BindRequestCounter(pageRequestCounter);
         compactComputeProgram.BindRequestsSsbo(pageRequests);
-        compactComputeProgram.BindPageUsageStamp(usageStamp.TextureId);
-        compactComputeProgram.BindPageTableMip0(pageTableMip0.TextureId);
+        compactComputeProgram.PageUsageStamp = usageStamp;
+        compactComputeProgram.PageTableMip0 = pageTableMip0;
 
         compactComputeProgram.MaxRequests = (uint)desiredPages;
         compactComputeProgram.FrameStamp = 1u;
@@ -227,8 +227,8 @@ public sealed class LumonScenePatchIdFeedbackLimitsTests : RenderTestBase
         using var markCounters = CreateAtomicCounterBuffer(initialValue: 0u, counterCount: 3);
 
         markComputeProgram.BindDebugCounters(markCounters);
-        markComputeProgram.BindPatchIdGBuffer(patchIdGBuffer.TextureId);
-        markComputeProgram.BindChunkSlotGenerationTex(genTex.TextureId);
+        markComputeProgram.PatchIdG = patchIdGBuffer;
+        markComputeProgram.ChunkSlotGenerationTex = genTex;
 
         markComputeProgram.FrameStamp = 1u;
         markComputeProgram.BindPageUsageStampImage(usageStamp);
@@ -239,8 +239,8 @@ public sealed class LumonScenePatchIdFeedbackLimitsTests : RenderTestBase
 
         compactComputeProgram.BindRequestCounter(pageRequestCounter);
         compactComputeProgram.BindRequestsSsbo(pageRequests);
-        compactComputeProgram.BindPageUsageStamp(usageStamp.TextureId);
-        compactComputeProgram.BindPageTableMip0(pageTableMip0.TextureId);
+        compactComputeProgram.PageUsageStamp = usageStamp;
+        compactComputeProgram.PageTableMip0 = pageTableMip0;
 
         compactComputeProgram.MaxRequests = (uint)desiredPages;
         compactComputeProgram.FrameStamp = 1u;
@@ -284,8 +284,8 @@ public sealed class LumonScenePatchIdFeedbackLimitsTests : RenderTestBase
 
         compactComputeProgram.BindRequestCounter(pageRequestCounter);
         compactComputeProgram.BindRequestsSsbo(pageRequests);
-        compactComputeProgram.BindPageUsageStamp(usageStamp.TextureId);
-        compactComputeProgram.BindPageTableMip0(pageTableMip0.TextureId);
+        compactComputeProgram.PageUsageStamp = usageStamp;
+        compactComputeProgram.PageTableMip0 = pageTableMip0;
 
         compactComputeProgram.MaxRequests = 8u;
         compactComputeProgram.FrameStamp = 2u;

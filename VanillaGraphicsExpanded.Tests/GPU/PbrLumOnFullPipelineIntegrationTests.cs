@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using VanillaGraphicsExpanded.LumOn;
 using VanillaGraphicsExpanded.PBR;
 using VanillaGraphicsExpanded.Rendering.Shaders;
@@ -158,8 +159,8 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
                 pbrDirectProg.LightsInputs = sharedLights;
             }
 
-            pbrDirectProg.PrimaryScene = primaryScene.TextureId;
-            pbrDirectProg.PrimaryDepth = primaryDepth.TextureId;
+            pbrDirectProg.PrimaryScene = primaryScene;
+            pbrDirectProg.PrimaryDepth = primaryDepth;
 
             // This synthetic outdoor scene has full propagated sunlight at every receiver.
             using var directEnvironment = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, [0f, 0f, 0f, 1f]);
@@ -167,10 +168,10 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
             pbrDirectProg.GBufferSurface = surface;
             pbrCompositeProg.GBufferSurface = surface;
             using var receiverPosition = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba32f, new float[4]);
-            pbrDirectProg.GBufferPosition = receiverPosition.TextureId;
-            pbrCompositeProg.GBufferPosition = receiverPosition.TextureId;
-            pbrDirectProg.ShadowMapNear = shadowNear.TextureId;
-            pbrDirectProg.ShadowMapFar = shadowFar.TextureId;
+            pbrDirectProg.GBufferPosition = receiverPosition;
+            pbrCompositeProg.GBufferPosition = receiverPosition;
+            pbrDirectProg.ShadowMapNear = shadowNear;
+            pbrDirectProg.ShadowMapFar = shadowFar;
 
             // Binding audit (used samplers only)
             AssertSamplerBinding("Stage: PBR Direct", pbrDirectProg, "primaryScene", primaryScene);
@@ -204,8 +205,8 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
 
             using var patchIdentity=TestFramework.CreateTexture(ScreenWidth,ScreenHeight,PixelInternalFormat.Rgba32ui);
             patchIdentity.UploadDataImmediate(new uint[ScreenWidth*ScreenHeight*4]);
-            velocityProg.PatchIdentity=patchIdentity.TextureId;
-            velocityProg.PrimaryDepth = primaryDepth.TextureId;
+            velocityProg.PatchIdentity=patchIdentity;
+            velocityProg.PrimaryDepth = primaryDepth;
 
             AssertSamplerBinding("Stage: Velocity", velocityProg, "primaryDepth", primaryDepth);
             AssertGBufferFboAttachments("Stage: Velocity", targets.Velocity);
@@ -256,7 +257,7 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
             // Phase 23: UBO-backed probe params.
             anchorProg.DepthDiscontinuityThreshold = .1f;
 
-            anchorProg.PrimaryDepth = primaryDepth.TextureId;
+            anchorProg.PrimaryDepth = primaryDepth;
             anchorProg.GBufferSurface = surface;
             anchorProg.PmjJitter = GetOrCreatePmjJitterTexture(1);
 
@@ -308,7 +309,7 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
 
             using var anchorInputs1 = LayeredTestTexture.Create(targets.ProbeAnchor[0], targets.ProbeAnchor[1]);
             traceProg.ProbeAnchors = anchorInputs1;
-            traceProg.PrimaryDepth = primaryDepth.TextureId;
+            traceProg.PrimaryDepth = primaryDepth;
             traceProg.SurfaceAlbedo = gBufferAlbedo;
             traceProg.GBufferSurface = surface;
             traceProg.ScreenProbeAtlasHistory = historyRadiance;
@@ -427,7 +428,7 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
             gatherProg.ScreenProbeAtlas = targets.AtlasFiltered[0];
             using var anchorInputs2 = LayeredTestTexture.Create(targets.ProbeAnchor[0], targets.ProbeAnchor[1]);
             gatherProg.ProbeAnchors = anchorInputs2;
-            gatherProg.PrimaryDepth = primaryDepth.TextureId;
+            gatherProg.PrimaryDepth = primaryDepth;
             gatherProg.GBufferSurface = surface;
 
             AssertSamplerBinding("Stage: Gather", gatherProg, "octahedralAtlas", targets.AtlasFiltered[0]);
@@ -455,7 +456,7 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
             upsampleProg.UpsampleDepthSigma = .1f; upsampleProg.UpsampleNormalSigma = 16; upsampleProg.UpsampleSpatialSigma = 1; upsampleProg.HoleFillMinConfidence = .05f; upsampleProg.HoleFillRadius = 2;
 
             upsampleProg.IndirectHalf = targets.IndirectHalf[0];
-            upsampleProg.PrimaryDepth = primaryDepth.TextureId;
+            upsampleProg.PrimaryDepth = primaryDepth;
             upsampleProg.GBufferSurface = surface;
 
             AssertSamplerBinding("Stage: Upsample", upsampleProg, "indirectHalf", targets.IndirectHalf[0]);
@@ -479,10 +480,10 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
             using var fullDirectLighting = LayeredTestTexture.Create(targets.DirectLightingMrt[0], targets.DirectLightingMrt[1], targets.DirectLightingMrt[2]);
             pbrCompositeProg.DirectLighting = fullDirectLighting;
             pbrCompositeProg.IndirectDiffuse = targets.IndirectFull[0];
-            pbrCompositeProg.GBufferAlbedo = gBufferAlbedo.TextureId;
+            pbrCompositeProg.GBufferAlbedo = gBufferAlbedo;
             pbrCompositeProg.GBufferSurface = surface;
             pbrCompositeProg.GBufferSurface = surface;
-            pbrCompositeProg.PrimaryDepth = primaryDepth.TextureId;
+            pbrCompositeProg.PrimaryDepth = primaryDepth;
 
             AssertSamplerBinding("Stage: Composite (full)", pbrCompositeProg, "directLighting", fullDirectLighting);
             AssertSamplerBinding("Stage: Composite (full)", pbrCompositeProg, "indirectDiffuse", targets.IndirectFull[0]);
@@ -503,10 +504,10 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
             using var baselineDirectLighting = LayeredTestTexture.Create(targets.DirectLightingMrt[0], targets.DirectLightingMrt[1], targets.DirectLightingMrt[2]);
             pbrCompositeProg.DirectLighting = baselineDirectLighting;
             pbrCompositeProg.IndirectDiffuse = zeroIndirectFull;
-            pbrCompositeProg.GBufferAlbedo = gBufferAlbedo.TextureId;
+            pbrCompositeProg.GBufferAlbedo = gBufferAlbedo;
             pbrCompositeProg.GBufferSurface = surface;
             pbrCompositeProg.GBufferSurface = surface;
-            pbrCompositeProg.PrimaryDepth = primaryDepth.TextureId;
+            pbrCompositeProg.PrimaryDepth = primaryDepth;
 
             AssertSamplerBinding("Stage: Composite (baseline)", pbrCompositeProg, "directLighting", baselineDirectLighting);
             AssertSamplerBinding("Stage: Composite (baseline)", pbrCompositeProg, "indirectDiffuse", zeroIndirectFull);
@@ -537,10 +538,10 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
             using var injectedDirectLighting = LayeredTestTexture.Create(targets.DirectLightingMrt[0], targets.DirectLightingMrt[1], targets.DirectLightingMrt[2]);
             pbrCompositeProg.DirectLighting = injectedDirectLighting;
             pbrCompositeProg.IndirectDiffuse = injectedIndirectFull;
-            pbrCompositeProg.GBufferAlbedo = gBufferAlbedo.TextureId;
+            pbrCompositeProg.GBufferAlbedo = gBufferAlbedo;
             pbrCompositeProg.GBufferSurface = surface;
             pbrCompositeProg.GBufferSurface = surface;
-            pbrCompositeProg.PrimaryDepth = primaryDepth.TextureId;
+            pbrCompositeProg.PrimaryDepth = primaryDepth;
 
             AssertSamplerBinding("Stage: Composite (injected)", pbrCompositeProg, "directLighting", injectedDirectLighting);
             AssertSamplerBinding("Stage: Composite (injected)", pbrCompositeProg, "indirectDiffuse", injectedIndirectFull);
@@ -672,7 +673,9 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
     /// <summary>Submits the retained inputs before observing the actual driver sampler binding.</summary>
     private static void AssertSamplerBinding(string stage, GpuProgram program, string samplerUniform, GpuTexture expectedTexture)
     {
-        using var use = program.UseScope();
+        using var use = ShaderBindingTestPipeline.Create(program);
+        RHICommandContext.Current.SetPipeline(use);
+        RHICommandContext.Current.BindResources(program.CaptureBindings());
         ArgumentNullException.ThrowIfNull(expectedTexture);
         Assert.True(expectedTexture.IsValid, $"{stage}: expected texture for '{samplerUniform}' is invalid/disposed");
         Assert.NotEqual(0, expectedTexture.TextureId);
@@ -702,7 +705,7 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
         Assert.True(target.IsValid, $"{stage}: target GBuffer is invalid/disposed");
 
         // Bind (so we can query attachment state) and restore.
-        target.BindWithViewport();
+        FramebufferTestSetup.BindForEngineRendering(target);
 
         // Ensure we are querying the correct FBO.
         GL.GetInteger(GetPName.FramebufferBinding, out int boundFbo);

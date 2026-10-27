@@ -12,36 +12,7 @@ public sealed class BindingTests
         }
         """;
 
-    internal const string RuntimeBindingSupport = """
-            namespace VanillaGraphicsExpanded.Rendering
-            {
-                public class GpuTexture { }
-                public struct GpuTextureBinding { }
-                public class GpuUniformBuffer { }
-                public class GpuShaderStorageBuffer { }
-                public class GpuComputePipeline { public object ProgramLayout = new(); public int ProgramId = 42; }
-                public static class ShaderBindingAccess
-                {
-                    public static string Calls = "";
-                    public static object ExpectedLayout;
-                    public static object ExpectedTexture;
-                    public static object ExpectedUniform;
-                    public static object ExpectedStorage;
-                    public static void Sampler(object layout, int program, string name, GpuTexture value)
-                    { Calls += (object.ReferenceEquals(layout, ExpectedLayout) && program == 42 && object.ReferenceEquals(value, ExpectedTexture)) + ":" + name + ";"; }
-                    public static void Image(object layout, int program, string name, GpuTextureBinding value)
-                    { Calls += (object.ReferenceEquals(layout, ExpectedLayout) && program == 42) + ":" + name + ";"; }
-                    public static void Image(object layout, int program, string name, GpuTexture value)
-                    { Calls += (object.ReferenceEquals(layout, ExpectedLayout) && program == 42 && object.ReferenceEquals(value, ExpectedTexture)) + ":" + name + ";"; }
-                    public static void UniformBlock(object layout, int program, string name, GpuUniformBuffer value)
-                    { Calls += (object.ReferenceEquals(layout, ExpectedLayout) && program == 42 && object.ReferenceEquals(value, ExpectedUniform)) + ":" + name + ";"; }
-                    public static void StorageBlock(object layout, int program, string name, GpuShaderStorageBuffer value)
-                    { Calls += (object.ReferenceEquals(layout, ExpectedLayout) && program == 42 && object.ReferenceEquals(value, ExpectedStorage)) + ":" + name + ";"; }
-                }
-            }
-            namespace VanillaGraphicsExpanded.Rendering.Shaders
-            { public class GpuProgram { public object ProgramLayout = new(); public int ProgramId = 42; protected virtual void Submit() { } } }
-            """;
+    internal const string RuntimeBindingSupport = RuntimeCaptureSupport.Source;
 
     #region Public API
     /// <summary>Every independent namespace retains its index and required-resource policy in both consumers.</summary>

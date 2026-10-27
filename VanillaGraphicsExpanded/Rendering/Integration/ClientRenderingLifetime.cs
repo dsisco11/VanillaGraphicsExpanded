@@ -135,7 +135,6 @@ internal sealed class ClientRenderingLifetime
     {
         if (retiring != context || closed) return;
         StateCache.Current.AbandonEngineBoundary(context);
-        StateCache.AbandonProgramContext(context);
         Shutdown();
     }
     /// <summary>Releases a feature registration exactly once.</summary>

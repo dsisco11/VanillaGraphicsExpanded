@@ -1,3 +1,5 @@
+using VanillaGraphicsExpanded.Rendering.ShaderCompilation;
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using System.Collections.Generic;
 using OpenTK.Graphics.OpenGL;
@@ -17,11 +19,10 @@ internal sealed class MoonDrawPass : IDisposable
     private static MoonDrawPass? active;
     private readonly ICoreClientAPI api;
     private readonly GBufferManager gbuffer;
-    private readonly GraphicsPipelineLifetime lifetime=new();
     private readonly IDisposable reload;
     private readonly Action unregisterResize;
     private ArrayGraphicsGeometry? geometry;
-    private GraphicsPipeline? pipeline;
+    private GraphicsPipelineAsset? pipeline;
     private AtmosphereLighting? publication;
     private MoonDisk disk;
     private (nint Handle,long Generation) context;
@@ -70,7 +71,7 @@ internal sealed class MoonDrawPass : IDisposable
         if(disposed) return;disposed=true;
         if(ReferenceEquals(active,this)) active=null;
         api.Event.LeaveWorld-=Reset;unregisterResize();reload.Dispose();
-        Rendering.Integration.RenderingCleanup.Run(Reset,lifetime.Dispose);
+        Rendering.Integration.RenderingCleanup.Run(Reset);
     }
     #endregion
     #region Private
@@ -96,7 +97,7 @@ internal sealed class MoonDrawPass : IDisposable
         if(disk.Radiance==System.Numerics.Vector3.Zero) return;
         var program=GpuShaderProgramLibraries.Get<MoonProgram>(api,"celestial_moon");
         if(program?.EnsureReady()!=true) throw new InvalidOperationException("Owned lunar executable is unavailable.");
-        geometry ??= new(CelestialDrawPass.FullscreenLayout,PrimitiveType.Triangles,
+        geometry ??= new(CelestialDrawPass.FullscreenLayout,PrimitiveTopology.Triangles,
             new Dictionary<int,GpuVbo>(),proceduralVertices:3);
         program.DrawInputs.Capture(disk);
         maximum=disk.MaximumNits;frameIndex=VgeFrameRenderer.Current.FrameIndex;admitted=true;
@@ -111,21 +112,22 @@ internal sealed class MoonDrawPass : IDisposable
         if(primary is null || target.FboId!=primary.FboId || api.Render.CurrentFrameBuffer?.FboId!=primary.FboId
             || !target.HasRenderPassMetadata) return null;
         var program=GpuShaderProgramLibraries.Get<MoonProgram>(api,"celestial_moon")!;
-        var pass=new RenderPassDesc(target,[new(0),new(1)]);
-        using var metadata=new RenderPassTargets(pass);
-        var blend=new ColorBlendDesc {Enabled=true,SourceRgb=BlendingFactorSrc.One,DestinationRgb=BlendingFactorDest.One,
-            SourceAlpha=BlendingFactorSrc.Zero,DestinationAlpha=BlendingFactorDest.One};
-        var description=new GraphicsPipelineDesc(program.GraphicsIdentity!,CelestialDrawPass.FullscreenLayout,
-            metadata.Signature,DynamicPipelineState.Viewport,blending:[blend,blend]);
-        if(pipeline is null || pipeline.Description!=description || pipeline.ExecutableRevision!=program.ExecutableRevision)
+        var pass=new RHIRenderPassDescription(target.SurfaceReference,[new(AttachmentIndex:0),new(AttachmentIndex:1)]);
+        var signature=RHICommandContext.Current.DescribeRenderTargets(pass);
+        var blend=new ColorBlendDesc {Enabled=true,SourceRgb=BlendFactor.One,DestinationRgb=BlendFactor.One,
+            SourceAlpha=BlendFactor.Zero,DestinationAlpha=BlendFactor.One};
+        var description=new RHIGraphicsPipelineDescription(program.Shader,CelestialDrawPass.FullscreenLayout,
+            signature,DynamicPipelineState.Viewport,blending:[blend,blend]);
+        if(pipeline is null || pipeline.Description!=description || pipeline.Description.Shader != program.Shader)
         {
-            var candidate=new GraphicsPipeline(lifetime,description,program);pipeline?.Dispose();pipeline=candidate;
+            var candidate=new GraphicsPipelineAsset(program,description);pipeline?.Dispose();pipeline=candidate;
         }
-        return new SkyDraw("Celestial.Moon", [pipeline], commands=>
+        return new SkyDraw("Celestial.Moon", [pipeline.Pipeline], commands=>
         {
-            commands.BeginPass(pass);commands.SetPipeline(pipeline);
+            commands.BeginRenderPass(pass);commands.SetPipeline(pipeline.Pipeline);
             commands.SetDynamicState(new(){Viewport=commands.PassViewport});
-            commands.Draw(geometry!,new(0,3));commands.EndPass();
+            commands.BindResources(program.CaptureBindings());
+            commands.Draw(geometry!.Inputs,new(0,3));commands.EndRenderPass();
         }, ReportFailure);
     }
     /// <summary>Retires frame and executable resources without reactivating native callbacks.</summary>
@@ -136,6 +138,6 @@ internal sealed class MoonDrawPass : IDisposable
             ()=>{pipeline?.Dispose();pipeline=null;},()=>{geometry?.Dispose();geometry=null;});
     }
     /// <summary>Retries source and executable admission after a shader reload.</summary>
-    private bool Reload() {Reset();return true;}
+    private bool Reload() { failed=false; return true; }
     #endregion
 }

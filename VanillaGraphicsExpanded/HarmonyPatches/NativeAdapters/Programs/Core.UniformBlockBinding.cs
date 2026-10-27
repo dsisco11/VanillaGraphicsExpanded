@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
@@ -10,10 +11,10 @@ internal static unsafe partial class Core
     #region Internal API
     /// <summary>Forwards the exact signature to the backend execution boundary.</summary>
     internal static void UniformBlockBinding(int @program, int @uniformBlockIndex, int @uniformBlockBinding)
-        => StateCache.Current.ExecuteCoreUniformBlockBinding(@program, @uniformBlockIndex, @uniformBlockBinding);
+        => OpenGLProgramCalls.ExecuteCoreUniformBlockBinding(@program, @uniformBlockIndex, @uniformBlockBinding);
 
     /// <summary>Forwards the exact signature to the backend execution boundary.</summary>
     internal static void UniformBlockBinding(uint @program, uint @uniformBlockIndex, uint @uniformBlockBinding)
-        => StateCache.Current.ExecuteCoreUniformBlockBinding(@program, @uniformBlockIndex, @uniformBlockBinding);
+        => OpenGLProgramCalls.ExecuteCoreUniformBlockBinding(@program, @uniformBlockIndex, @uniformBlockBinding);
     #endregion
 }

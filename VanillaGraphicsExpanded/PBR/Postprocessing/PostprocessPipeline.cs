@@ -1,3 +1,5 @@
+using System.Linq;
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using System.Reactive.Linq;
 using System.Reactive.Disposables;
@@ -30,8 +32,7 @@ internal sealed class PostprocessPipeline : IRenderer
     private GpuResourceCollection resources=new();
     private BorrowedTexture? scene,glow,depth;
     private PostprocessDraw? draw;
-    private GpuFramebuffer? finalTarget;
-    private RenderPassDesc? finalPass;
+    private RHIRenderPassDescription? finalPass;
     private EnginePostprocessInputs frameEffects;
     private PostprocessImage? neutral;
     private PostprocessParameters settings;
@@ -116,12 +117,7 @@ internal sealed class PostprocessPipeline : IRenderer
             localSettings.Enabled ? "pbr_final_local_exposure" : "pbr_final");
         if(shader?.EnsureReady()!=true) throw new InvalidOperationException("Owned final display shader unavailable.");
         // Only the presentation destination is borrowed; every sampled postprocess output is owned.
-        if(finalTarget is null)
-        {
-            var attachment=resources.Own(GpuFramebufferAttachment.FromTexture(scene!));
-            finalTarget=resources.Own(DynamicGpuFramebuffer.Create([attachment],debugName:"Postprocess.Final"));
-            finalPass=new(finalTarget,[new(0)]);
-        }
+        finalPass??=new([new(Image:RHIAttachment.FromTexture(scene!))],label:"Postprocess.Final");
         var exposure=CameraExposureRenderer.DisplayExposure();
         shader.SceneImage=retained.Luma; shader.BloomImage=bloomTexture; shader.ShaftImage=rayTexture;
         shader.ExposureBuffer=exposure.Buffer;
@@ -130,9 +126,9 @@ internal sealed class PostprocessPipeline : IRenderer
         shader.GradingLookup=grading.Prepare(api,display.Grading);
         shader.Capture(frameEffects.Fxaa,display,new(exposure.ManualLogGain,exposure.Buffer is null?0:1,0,CameraExposureRenderer.DisplayLogMiddleGray));
         var pipeline=draw!.Prepare(shader,finalPass!);
-        if(!GraphicsCommandContext.TryRun("Postprocess.Final",[pipeline],true,
-            commands=>draw.Submit(commands,pipeline,finalPass!)))
-            throw new InvalidOperationException("VGE final composition graphics boundary was rejected.");
+        var commands=RHICommandContext.Current;
+        using var boundary=commands.EnterBoundary(new("Postprocess.Final",true,graphics:[pipeline],operations:BoundaryOperations.RenderPasses));
+        boundary.Run(()=>draw.Submit(commands,pipeline,finalPass!,shader.CaptureBindings()));
         published=captured=false;
     }
     /// <summary>Executes owned glare and luminance preparation, publishing only after complete success.</summary>
@@ -146,7 +142,7 @@ internal sealed class PostprocessPipeline : IRenderer
         draw??=new(); neutral??=new(1,1,"Postprocess.Neutral",clear:true);
         bool useBloom=engine.Bloom&&enablement.Bloom.Value;
         bool useRays=engine.LightShafts&&enablement.LightShaftRadiance.Value;
-        var pipelines=new List<GraphicsPipeline>();
+        var pipelines=new List<RHIGraphicsPipeline>();
         // Capture typed inputs once for this framebuffer publication, before entering a pass.
         scene??=resources.Own(new BorrowedTexture(primary.ColorTextureIds[0]));
         // Publish scene-only guidance before bloom captures source-local exposure.
@@ -159,12 +155,14 @@ internal sealed class PostprocessPipeline : IRenderer
         if(useRays) depth??=resources.Own(new BorrowedTexture(primary.DepthTextureId));
         if(useRays) glow??=resources.Own(new BorrowedTexture(primary.ColorTextureIds[1]));
         pipelines.AddRange(retained.Prepare(api,draw));
-        if(!GraphicsCommandContext.TryRun("Postprocess.Scene",pipelines,true,commands=>{
+        var commands=RHICommandContext.Current;
+        using var boundary=commands.EnterBoundary(new("Postprocess.Scene",true,graphics:pipelines.Select(value=>(RHIGraphicsPipelineRef)value),operations:BoundaryOperations.RenderPasses));
+        boundary.Run(()=>{
             // Metering precedes generated glare; glare cannot feed back into the camera.
             if(useBloom) bloom.Render(commands,draw,scene,exposure,settings);
             if(useRays) rays.Render(commands,draw,api,VgeFrameRenderer.Current,scene,glow!,depth!,exposure,settings);
             retained.Render(commands,draw,engine,scene,exposure);
-        })) throw new InvalidOperationException("VGE postprocessing graphics boundary was rejected.");
+        });
         frameEffects=engine;
         bloomTexture=useBloom?bloom.Texture:neutral.Texture;
         rayTexture=useRays?rays.Texture:neutral.Texture;
@@ -184,10 +182,10 @@ internal sealed class PostprocessPipeline : IRenderer
     {
         published=captured=false; bloomTexture=rayTexture=null;
         Diagnostics.ExposureSnapshotLog.Cancel();
-        draw?.Dispose(); draw=null; bloom.Dispose(); rays.Dispose(); retained.Dispose(); local.Dispose(); resources.Dispose(); resources=new(); finalTarget=null; finalPass=null; scene=glow=depth=null; neutral?.Dispose(); neutral=null;
+        draw?.Dispose(); draw=null; bloom.Dispose(); rays.Dispose(); retained.Dispose(); local.Dispose(); resources.Dispose(); resources=new(); finalPass=null; scene=glow=depth=null; neutral?.Dispose(); neutral=null;
     }
     /// <summary>Withdraws all executable-dependent publication during shader reload.</summary>
-    private bool Reload() { Retire(); grading.Invalidate(); return true; }
+    private bool Reload() { published=captured=false; bloomTexture=rayTexture=null; grading.Invalidate(); return true; }
     /// <summary>Retires size-dependent passes and persistent display transforms when the world leaves.</summary>
     private void RetireWorld() => Rendering.Integration.RenderingCleanup.Run(Retire,grading.Dispose);
     #endregion

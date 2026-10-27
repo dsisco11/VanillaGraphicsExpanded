@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
@@ -87,7 +88,7 @@ internal sealed class CloudVolumeDirect(Func<int,CloudVolumeDirectProgram> creat
 
     /// <summary>Binds only volume-owned density, visibility, occupancy and existing queue scratch.</summary>
     private static void Bind(CloudVolumeDirectProgram p,CloudVolumeFields fields)
-    {p.Density=fields.Density;p.Occupancy=fields.Occupancy;p.Scratch=fields.Scratch;p.Direct=new(fields.Direct,TextureAccess.ReadWrite,Layered:true);}
+    {p.Density=fields.Density;p.Occupancy=fields.Occupancy;p.Scratch=fields.Scratch;p.Direct=new(fields.Direct,ImageAccess.ReadWrite,Layered:true);}
     /// <summary>Orders image/channel writes and checks context/source certificates around each submission.</summary>
     private void Run(CloudVolumeDirectProgram p,Action dispatch,Func<bool> current)
     {

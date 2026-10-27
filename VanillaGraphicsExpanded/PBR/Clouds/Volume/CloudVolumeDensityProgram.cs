@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.ShaderCompilation;
 using System;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Contracts;
@@ -28,7 +29,7 @@ internal sealed partial class CloudVolumeDensityProgram : GpuComputeProgram, ICl
     internal static CloudVolumeDensityProgram Create(ICoreAPI api,int operation,bool detail,PackedUniformBuffer? shared=null,int quality=2)
     {
         var layout=new GpuProgramLayout();layout.RegisterContract(Contract.Stages[0].Bindings);
-        if(!GpuComputePipeline.TryCreateFromAssets(api,new ShaderSettings(Contract).With(Operation,operation).With(Detail,detail).With(Quality,quality),
+        if(!ComputeShaderAsset.TryCreateFromAssets(api,new ShaderSettings(Contract).With(Operation,operation).With(Detail,detail).With(Quality,quality),
             out var pipeline,out string log,"Cloud.Volume.Density",layout:layout)) throw new InvalidOperationException(log);
         return new(pipeline!,shared);
     }
@@ -51,7 +52,7 @@ internal sealed partial class CloudVolumeDensityProgram : GpuComputeProgram, ICl
     #endregion
     #region Private
     /// <summary>Adopts the pipeline and its bounded uniform record.</summary>
-    private CloudVolumeDensityProgram(GpuComputePipeline pipeline,PackedUniformBuffer? shared):base(pipeline)
+    private CloudVolumeDensityProgram(ComputeShaderAsset pipeline,PackedUniformBuffer? shared):base(pipeline)
     {inputs=shared??OwnUniformBuffer(new PackedUniformBuffer(128));}
     /// <summary>Publishes the captured generation identity.</summary>
     CpuUniformBuffer ICloudVolumeDensityBindings.Inputs=>inputs;

@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Threading;
-using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering.Contracts;
 using VanillaGraphicsExpanded.Rendering.ProgramBinaries;
 
@@ -21,9 +20,8 @@ internal sealed partial class ShaderLinkBatch : IDisposable
     private readonly object assets;
     private readonly string domain;
     private readonly CancellationToken cancellation;
-    private readonly GetProgramParameterName completionQuery;
     private readonly Queue<ShaderLoadPlan> waiting;
-    private readonly List<(ShaderLoadPlan Plan, PendingShaderProgram? Program, Exception? Error)> submitted = new();
+    private readonly List<(ShaderLoadPlan Plan, ShaderAssetCandidate? Program, Exception? Error)> submitted = new();
     private readonly int limit;
     private readonly int thread = Environment.CurrentManagedThreadId;
     private readonly (nint Handle, long Generation) context = Integration.RenderContextRegistry.Current();
@@ -31,7 +29,7 @@ internal sealed partial class ShaderLinkBatch : IDisposable
     private bool assetsInvalidated;
     internal bool Enabled { get; }
     internal int Outstanding => submitted.Count;
-    internal int CompletedOutstanding => submitted.Count(entry => entry.Program?.Validated == true);
+    internal int CompletedOutstanding => submitted.Count(entry => entry.Program?.IsReady == true);
 #if DEBUG
     internal int PeakOutstanding { get; private set; }
     internal double SubmissionMilliseconds { get; private set; }
@@ -58,15 +56,13 @@ internal sealed partial class ShaderLinkBatch : IDisposable
         disable |= forceSynchronous;
         bool arb = !disable && GpuSupport.Graphics.SupportsArbParallelShaderCompile;
         Enabled = arb || (!disable && GpuSupport.Graphics.SupportsKhrParallelShaderCompile);
-        completionQuery = arb ? (GetProgramParameterName)ArbParallelShaderCompile.CompletionStatusArb
-            : (GetProgramParameterName)KhrParallelShaderCompile.CompletionStatusKhr;
         current = this;
         try { if (Enabled) Fill(); }
         catch { Dispose(); throw; }
     }
 
     /// <summary>Consumes only an exact plan from the same asset owner and domain, without publishing its handle.</summary>
-    internal static PendingShaderProgram? Take(object assets, string domain, ShaderLoadPlan plan)
+    internal static ShaderAssetCandidate? Take(object assets, string domain, ShaderLoadPlan plan)
     {
         var batch = current;
         if (batch == null) return null;
@@ -162,7 +158,7 @@ internal sealed partial class ShaderLinkBatch : IDisposable
 #if DEBUG
                 long started = Stopwatch.GetTimestamp();
 #endif
-                var pending = new PendingShaderProgram(plan, source.Read, source.Digest, completionQuery);
+                var pending = new ShaderAssetCandidate(plan, source.Read, source.Digest);
 #if DEBUG
                 SubmissionMilliseconds += Stopwatch.GetElapsedTime(started).TotalMilliseconds;
 #endif

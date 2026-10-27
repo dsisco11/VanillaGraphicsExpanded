@@ -490,20 +490,19 @@ internal sealed partial class LumonSceneFeedbackUpdateRenderer : IRenderer, IDis
             using var gpuScope = GlGpuProfiler.Instance.Scope("Feedback.MarkPages");
 
             feedbackMarkShader.BindDebugCounters(feedbackMarkDebugCounters);
-            feedbackMarkShader.BindPatchIdGBuffer(patchIdTex);
+            feedbackMarkShader.PatchIdG = gBufferManager.PatchIdTexture;
 
-            int genTexId = (slotGenerationTex is not null && slotGenerationTex.IsValid)
-                ? slotGenerationTex.TextureId
-                : 0;
+            feedbackMarkShader.ChunkSlotGenerationTex = slotGenerationTex;
 
-            feedbackMarkShader.BindChunkSlotGenerationTex(genTexId);
-
-            feedbackMarkShader.BindPageUsageStampImage(pageUsageStamp!, access: TextureAccess.ReadWrite);
+            feedbackMarkShader.BindPageUsageStampImage(pageUsageStamp!, access: ImageAccess.ReadWrite);
             feedbackMarkShader.FrameStamp = frameStamp;
 
             int gx = (capi.Render.FrameWidth + 7) / 8;
             int gy = (capi.Render.FrameHeight + 7) / 8;
-            feedbackMarkShader!.Dispatch(gx, gy, 1);
+            if(!feedbackMarkShader!.EnsureReady())throw new InvalidOperationException(feedbackMarkShader!.PreparationLog);
+            var dispatchContext=RHICommandContext.Current;
+            using var dispatchBoundary=dispatchContext.EnterBoundary(new("Scene.FeedbackMark",true,compute:[feedbackMarkShader!.Pipeline]));
+            dispatchBoundary.Run(()=>feedbackMarkShader!.Dispatch(gx, gy, 1));
         }
 
         // MarkPages writes vge_pageUsageStamp via imageAtomics; CompactPages reads it via sampler fetch.
@@ -516,8 +515,8 @@ internal sealed partial class LumonSceneFeedbackUpdateRenderer : IRenderer, IDis
         {
             using var gpuScope = GlGpuProfiler.Instance.Scope("Feedback.CompactPages");
 
-            feedbackCompactShader.BindPageUsageStamp(pageUsageStamp!.TextureId);
-            feedbackCompactShader.BindPageTableMip0(nearGpu.PageTable.PageTableMip0.TextureId);
+            feedbackCompactShader.PageUsageStamp = pageUsageStamp!;
+            feedbackCompactShader.PageTableMip0 = nearGpu.PageTable.PageTableMip0;
 
             feedbackCompactShader.BindRequestCounter(nearGpu.PageRequests.Counter);
             feedbackCompactShader.BindRequestsSsbo(nearGpu.PageRequests.Items);
@@ -536,7 +535,10 @@ internal sealed partial class LumonSceneFeedbackUpdateRenderer : IRenderer, IDis
             // v2: only emit unmapped pages. We no longer rely on the bounded request list to "keep alive" resident pages;
             // residency is bound to the chunk-slot window (pages are released on slot reassignment/world leave).
             feedbackCompactShader.CompactMode = 1u;
-            feedbackCompactShader!.Dispatch(gx, 1, 1);
+            if(!feedbackCompactShader!.EnsureReady())throw new InvalidOperationException(feedbackCompactShader!.PreparationLog);
+            var dispatchContext=RHICommandContext.Current;
+            using var dispatchBoundary=dispatchContext.EnterBoundary(new("Scene.FeedbackCompact",true,compute:[feedbackCompactShader!.Pipeline]));
+            dispatchBoundary.Run(()=>feedbackCompactShader!.Dispatch(gx, 1, 1));
         }
 
         RHICommandContext.Current.Barrier(new(ResourceAccess.ShaderStorage | ResourceAccess.AtomicCounter));
@@ -1975,8 +1977,8 @@ internal sealed partial class LumonSceneFeedbackUpdateRenderer : IRenderer, IDis
             captureVoxelShader.BindPatchMetaSsbo(nearGpu.PatchMetadata.Ssbo);
             captureVoxelShader.BindChunkSlotInfoSsbo(slotInfoBuffer.Ssbo);
 
-            captureVoxelShader.BindDepthAtlasImage(atlases.DepthAtlas, access: TextureAccess.WriteOnly);
-            captureVoxelShader.BindMaterialAtlasImage(atlases.MaterialAtlas, access: TextureAccess.WriteOnly);
+            captureVoxelShader.BindDepthAtlasImage(atlases.DepthAtlas, access: ImageAccess.WriteOnly);
+            captureVoxelShader.BindMaterialAtlasImage(atlases.MaterialAtlas, access: ImageAccess.WriteOnly);
 
             captureVoxelShader.BindSharedGeometry(traceGeometry?.PrepareScene());
             captureVoxelShader.SetAtlasLayout(
@@ -1990,7 +1992,10 @@ internal sealed partial class LumonSceneFeedbackUpdateRenderer : IRenderer, IDis
             int gx = (tileSize + 7) / 8;
             int gy = (tileSize + 7) / 8;
             captureVoxelShader.Diagnostics.Enabled = config.LumOn.LumonScene.SurfaceWorkDiagnosticsEnabled;
-            captureVoxelShader.Dispatch(gx, gy, captureCount);
+            if(!captureVoxelShader.EnsureReady())throw new InvalidOperationException(captureVoxelShader.PreparationLog);
+            var dispatchContext=RHICommandContext.Current;
+            using var dispatchBoundary=dispatchContext.EnterBoundary(new("Scene.VoxelCapture",true,compute:[captureVoxelShader.Pipeline]));
+            dispatchBoundary.Run(()=>captureVoxelShader.Dispatch(gx, gy, captureCount));
         }
 
         // Capture writes:

@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using System.Collections.Generic;
 using VanillaGraphicsExpanded.Rendering.Pipeline.Descriptions;
@@ -101,7 +102,7 @@ internal sealed class PipelineStateCoverage
     }
 
     /// <summary>Requests explicit conservative helper authority; prepared draws use their relevance overload.</summary>
-    internal static PipelineStateCoverage From(GraphicsPipelineDesc descriptor)
+    internal static PipelineStateCoverage From(RHIGraphicsPipelineDescription descriptor)
     {
         ArgumentNullException.ThrowIfNull(descriptor);
         return FullGraphics;

@@ -1,3 +1,5 @@
+using VanillaGraphicsExpanded.Rendering.ShaderCompilation;
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using System.Collections.Generic;
 using System.Numerics;
@@ -18,18 +20,17 @@ internal sealed class CelestialDrawPass : IDisposable
     private static CelestialDrawPass? active;
     private readonly ICoreClientAPI api;
     private readonly GBufferManager gbuffer;
-    private readonly GraphicsPipelineLifetime lifetime = new();
     private readonly IDisposable reload;
     private readonly Action unregisterResize;
     private ArrayGraphicsGeometry? fullscreen;
     private (nint Handle, long Generation) context;
-    private GraphicsPipeline? galaxyPipeline, starPipeline;
+    private GraphicsPipelineAsset? galaxyPipeline, starPipeline;
     private CelestialResourceSet? source;
     private AtmosphereLighting? atmosphere;
     private bool failed, disposed;
     private float maximum;
     private uint frameIndex;
-    internal static readonly VertexLayoutDesc FullscreenLayout = new([]);
+    internal static readonly RHIVertexLayout FullscreenLayout = new([]);
 
     #region Public API
     /// <summary>Reports the owned draw lifecycle independently of resource readiness.</summary>
@@ -72,7 +73,7 @@ internal sealed class CelestialDrawPass : IDisposable
         if (disposed) return; disposed = true;
         if (ReferenceEquals(active,this)) active = null;
         api.Event.LeaveWorld -= Reset; unregisterResize(); reload.Dispose();
-        Rendering.Integration.RenderingCleanup.Run(Reset,lifetime.Dispose);
+        Rendering.Integration.RenderingCleanup.Run(Reset);
     }
     #endregion
     #region Private
@@ -94,7 +95,7 @@ internal sealed class CelestialDrawPass : IDisposable
         var galaxy = GpuShaderProgramLibraries.Get<CelestialGalaxyProgram>(api,"celestial_galaxy");
         if (stars?.EnsureReady() != true || galaxy?.EnsureReady() != true)
             throw new InvalidOperationException("Owned celestial executables are unavailable.");
-        fullscreen ??= new(FullscreenLayout,PrimitiveType.Triangles,new Dictionary<int,GpuVbo>(),proceduralVertices:3);
+        fullscreen ??= new(FullscreenLayout,PrimitiveTopology.Triangles,new Dictionary<int,GpuVbo>(),proceduralVertices:3);
         float bound = CelestialDrawAdmission.MaximumNits(completed.Source,VgeFrameRenderer.Current);
         var transmission = AtmosphereModSystem.ExternalTransmissionTexture;
         if (transmission is not { IsValid: true }) return;
@@ -116,29 +117,32 @@ internal sealed class CelestialDrawPass : IDisposable
             || !target.HasRenderPassMetadata) return null;
         var stars = GpuShaderProgramLibraries.Get<CelestialStarProgram>(api,"celestial_stars")!;
         var galaxy = GpuShaderProgramLibraries.Get<CelestialGalaxyProgram>(api,"celestial_galaxy")!;
-        var pass = new RenderPassDesc(target,[new(0),new(1)]);
-        using var metadata = new RenderPassTargets(pass);
-        var blend = new ColorBlendDesc { Enabled = true, SourceRgb = BlendingFactorSrc.One,
-            DestinationRgb = BlendingFactorDest.One, SourceAlpha = BlendingFactorSrc.Zero, DestinationAlpha = BlendingFactorDest.One };
-        galaxyPipeline = PreparePipeline(galaxyPipeline,galaxy,FullscreenLayout,metadata.Signature,blend);
-        starPipeline = PreparePipeline(starPipeline,stars,CelestialStarGeometry.Layout,metadata.Signature,blend);
-        return new SkyDraw("Celestial.Sky", [galaxyPipeline,starPipeline], commands =>
+        var pass = new RHIRenderPassDescription(target.SurfaceReference,[new(AttachmentIndex:0),new(AttachmentIndex:1)]);
+        var signature=RHICommandContext.Current.DescribeRenderTargets(pass);
+        var blend = new ColorBlendDesc { Enabled = true, SourceRgb = BlendFactor.One,
+            DestinationRgb = BlendFactor.One, SourceAlpha = BlendFactor.Zero, DestinationAlpha = BlendFactor.One };
+        galaxyPipeline = PreparePipeline(galaxyPipeline,galaxy,FullscreenLayout,signature,blend);
+        starPipeline = PreparePipeline(starPipeline,stars,CelestialStarGeometry.Layout,signature,blend);
+        return new SkyDraw("Celestial.Sky", [galaxyPipeline.Pipeline,starPipeline.Pipeline], commands =>
         {
-            commands.BeginPass(pass);
-            commands.SetPipeline(galaxyPipeline);
+            commands.BeginRenderPass(pass);
+            commands.SetPipeline(galaxyPipeline.Pipeline);
             commands.SetDynamicState(new() { Viewport = commands.PassViewport });
-            commands.Draw(fullscreen!,new(0,3));
-            commands.SetPipeline(starPipeline); commands.Draw(source!.Stars.Geometry,new(0,6,InstanceCount:source.Stars.Count));
-            commands.EndPass();
+            commands.BindResources(galaxy.CaptureBindings());
+            commands.Draw(fullscreen!.Inputs,new(0,3));
+            commands.SetPipeline(starPipeline.Pipeline);
+            commands.BindResources(stars.CaptureBindings());
+            commands.Draw(source!.Stars.Geometry.Inputs,new(0,6,InstanceCount:source.Stars.Count));
+            commands.EndRenderPass();
         }, ReportFailure);
     }
     /// <summary>Reuses the existing pipeline until its executable or target signature changes.</summary>
-    private GraphicsPipeline PreparePipeline(GraphicsPipeline? old, GpuProgram program, VertexLayoutDesc layout,
+    private GraphicsPipelineAsset PreparePipeline(GraphicsPipelineAsset? old, GpuProgram program, RHIVertexLayout layout,
         RenderTargetSignature signature, ColorBlendDesc blend)
     {
-        var description = new GraphicsPipelineDesc(program.GraphicsIdentity!,layout,signature,DynamicPipelineState.Viewport,blending:[blend,blend]);
-        if (old is not null && old.Description == description && old.ExecutableRevision == program.ExecutableRevision) return old;
-        var candidate = new GraphicsPipeline(lifetime,description,program); old?.Dispose(); return candidate;
+        var description = new RHIGraphicsPipelineDescription(program.Shader,layout,signature,DynamicPipelineState.Viewport,blending:[blend,blend]);
+        if (old is not null && old.Description == description && old.Description.Shader == program.Shader) return old;
+        var candidate = new GraphicsPipelineAsset(program,description); old?.Dispose(); return candidate;
     }
     #endregion
 
@@ -160,7 +164,7 @@ internal sealed class CelestialDrawPass : IDisposable
             () => { fullscreen?.Dispose(); fullscreen = null; });
     }
     /// <summary>Retries executable preparation while retaining independently completed source resources.</summary>
-    private bool Reload() { Reset(); return true; }
+    private bool Reload() { failed=false; return true; }
     #endregion
     #endregion
 }

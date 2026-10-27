@@ -30,7 +30,7 @@ public sealed class CommandBindingKnowledgeTests(HeadlessGLFixture fixture)
         try
         {
             using var before = GpuVao.Create(); using var after = GpuVao.Create();
-            before.Bind();
+            OpenGLVertexSelection.Bind(StateCache.Current, before.VertexArrayId);
             harmony.Patch(((Action<int>)GL.BindVertexArray).Method,
                 prefix: new HarmonyMethod(typeof(CommandBindingKnowledgeTests), nameof(ReadIntermediateVao)));
             intermediateVao = null;
@@ -57,8 +57,8 @@ public sealed class CommandBindingKnowledgeTests(HeadlessGLFixture fixture)
             using var pipeline = GpuProgramPipeline.Create();
             using var framebuffer = DynamicGpuFramebuffer.CreateEmpty("ExternalSelector");
             var cache = StateCache.Current;
-            cache.BindVertexArray(vao.VertexArrayId); cache.BindProgramPipeline(pipeline.PipelineId);
-            cache.BindFramebuffer(FramebufferTarget.ReadFramebuffer, framebuffer.FboId); cache.UseProgram(0);
+            OpenGLVertexSelection.Bind(cache, vao.VertexArrayId); OpenGLProgramPipelineSelection.Bind(cache, pipeline.PipelineId);
+            OpenGLFramebufferSelection.Bind(cache, FramebufferTarget.ReadFramebuffer, framebuffer.FboId); OpenGLProgramSelection.Select(cache, 0);
             using var capture = new BindingCallCapture();
             SelectExternal(vao.VertexArrayId, pipeline.PipelineId, framebuffer.FboId);
             SelectExternal(vao.VertexArrayId, pipeline.PipelineId, framebuffer.FboId);
@@ -98,18 +98,18 @@ public sealed class CommandBindingKnowledgeTests(HeadlessGLFixture fixture)
             GL.DetachShader(executable, module); GL.DeleteShader(module);
             using var program = GpuProgramObject.Adopt(executable);
             var cache = StateCache.Current;
-            cache.BindVertexArray(0); cache.BindProgramPipeline(0); cache.UseProgram(0);
+            OpenGLVertexSelection.Bind(cache, 0); OpenGLProgramPipelineSelection.Bind(cache, 0); OpenGLProgramSelection.Select(cache, 0);
             using var capture = new BindingCallCapture();
             // Calibrate the observed query overload before accepting zero-query evidence.
             GL.GetInteger(GetPName.VertexArrayBinding);
             Assert.Equal(1, capture.Calls(nameof(GL.GetInteger)));
             capture.Reset();
-            cache.BindVertexArray(vao.VertexArrayId);
-            cache.BindVertexArray(vao.VertexArrayId);
-            cache.BindProgramPipeline(pipeline.PipelineId);
-            cache.BindProgramPipeline(pipeline.PipelineId);
-            cache.UseProgram(program.ProgramId);
-            cache.UseProgram(program.ProgramId);
+            OpenGLVertexSelection.Bind(cache, vao.VertexArrayId);
+            OpenGLVertexSelection.Bind(cache, vao.VertexArrayId);
+            OpenGLProgramPipelineSelection.Bind(cache, pipeline.PipelineId);
+            OpenGLProgramPipelineSelection.Bind(cache, pipeline.PipelineId);
+            OpenGLProgramSelection.Select(cache, program.ProgramId);
+            OpenGLProgramSelection.Select(cache, program.ProgramId);
             Assert.Equal(1, capture.Calls(nameof(GL.BindVertexArray)));
             Assert.Equal(1, capture.Calls(nameof(GL.BindProgramPipeline)));
             Assert.Equal(1, capture.Calls(nameof(GL.UseProgram)));
@@ -135,8 +135,8 @@ public sealed class CommandBindingKnowledgeTests(HeadlessGLFixture fixture)
             using var draw = DynamicGpuFramebuffer.CreateEmpty("Draw");
             using var temporary = DynamicGpuFramebuffer.CreateEmpty("Temporary");
             var cache = StateCache.Current;
-            cache.BindFramebuffer(FramebufferTarget.ReadFramebuffer, read.FboId);
-            cache.BindFramebuffer(FramebufferTarget.DrawFramebuffer, draw.FboId);
+            OpenGLFramebufferSelection.Bind(cache, FramebufferTarget.ReadFramebuffer, read.FboId);
+            OpenGLFramebufferSelection.Bind(cache, FramebufferTarget.DrawFramebuffer, draw.FboId);
             using var capture = new BindingCallCapture();
             using (cache.BindFramebufferScope(FramebufferTarget.Framebuffer, temporary.FboId)) { }
             Assert.Equal(0, capture.Calls(nameof(GL.GetInteger)));
@@ -184,14 +184,14 @@ public sealed class CommandBindingKnowledgeTests(HeadlessGLFixture fixture)
             using var temporary = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = null }).RequireResource(); temporary.Allocate(128);
             using var second = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = null }).RequireResource(); second.Allocate(128);
             var cache = StateCache.Current;
-            later.Bind(); OpenGLBufferBindings.BindBuffer(cache, BufferTarget.ElementArrayBuffer, second.BufferId);
-            original.Bind(); OpenGLBufferBindings.BindBuffer(cache, BufferTarget.ElementArrayBuffer, first.BufferId);
+            OpenGLVertexSelection.Bind(StateCache.Current, later.VertexArrayId); OpenGLBufferBindings.BindBuffer(cache, BufferTarget.ElementArrayBuffer, second.BufferId);
+            OpenGLVertexSelection.Bind(StateCache.Current, original.VertexArrayId); OpenGLBufferBindings.BindBuffer(cache, BufferTarget.ElementArrayBuffer, first.BufferId);
             using var capture = new BindingCallCapture();
-            using (cache.BindBufferScope(BufferTarget.ElementArrayBuffer, temporary.BufferId)) later.Bind();
+            using (cache.BindBufferScope(BufferTarget.ElementArrayBuffer, temporary.BufferId)) OpenGLVertexSelection.Bind(StateCache.Current, later.VertexArrayId);
             Assert.Equal(0, capture.Calls(nameof(GL.GetInteger)));
             Assert.Equal(later.VertexArrayId, cache.GetCurrentVao());
             Assert.Equal(second.BufferId, cache.GetBoundBuffer(BufferTarget.ElementArrayBuffer));
-            original.Bind();
+            OpenGLVertexSelection.Bind(StateCache.Current, original.VertexArrayId);
             Assert.Equal(first.BufferId, cache.GetBoundBuffer(BufferTarget.ElementArrayBuffer));
             Assert.Equal(first.BufferId, GL.GetInteger(GetPName.ElementArrayBufferBinding));
             Assert.Equal(ErrorCode.NoError, GL.GetError());
@@ -210,13 +210,13 @@ public sealed class CommandBindingKnowledgeTests(HeadlessGLFixture fixture)
         {
             using var vao = GpuVao.Create();
             using var buffer = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = null }).RequireResource(); buffer.Allocate(128);
-            vao.Bind();
+            OpenGLVertexSelection.Bind(StateCache.Current, vao.VertexArrayId);
             var cache = StateCache.Current;
             OpenGLBufferBindings.BindBuffer(cache, BufferTarget.ElementArrayBuffer, buffer.BufferId);
             var entry = GpuResourceManagerSystem.CurrentManager!.GetResourceRegistration(vao)!;
             ulong revision = entry.MetadataRevision;
             using var capture = new BindingCallCapture();
-            cache.EnableVertexAttribArray(0);
+            OpenGLVertexCalls.ExecuteCoreEnableVertexAttribArray(0);
             OpenGLBufferBindings.BindBuffer(cache, BufferTarget.ElementArrayBuffer, buffer.BufferId);
             Assert.Equal(revision + 1, entry.MetadataRevision);
             Assert.Equal(0, capture.Calls(nameof(GL.GetInteger)));
@@ -240,25 +240,17 @@ public sealed class CommandBindingKnowledgeTests(HeadlessGLFixture fixture)
             using var capability = new DirectStateAccessCapabilityScope(true);
             using var vao = GpuVao.Create();
             using var buffer = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = null }).RequireResource(); buffer.Allocate(256);
-            var helper = vao.GetBinding(2);
-            var copied = helper;
             using var capture = new BindingCallCapture();
-            helper = helper.BindVertexBuffer(buffer.BufferId, 32, 24).SetDivisor(3);
-            Assert.Equal(buffer.BufferId, helper.BufferId);
-            Assert.Equal(32, helper.BaseOffsetBytes);
-            Assert.Equal(24, helper.StrideBytes);
-            Assert.Equal(3, helper.Divisor);
+            var before = StateCache.Current.VertexConfigurationEpoch;
+            OpenGLVertexCalls.ExecuteCoreVertexArrayVertexBuffer(vao.VertexArrayId, 2, buffer.BufferId, (IntPtr)32, 24);
+            OpenGLVertexCalls.ExecuteCoreVertexArrayBindingDivisor(vao.VertexArrayId, 2, 3);
+            Assert.NotEqual(before, StateCache.Current.VertexConfigurationEpoch);
             Assert.Equal(0, capture.Calls(nameof(GL.GetVertexArrayIndexed)));
             Assert.Equal(0, capture.Calls(nameof(GL.GetVertexArrayIndexed64)));
-            Assert.Equal(buffer.BufferId, copied.BufferId);
-            Assert.Equal(1, capture.Calls(nameof(GL.GetVertexArrayIndexed)));
-            Assert.Equal(0, capture.Calls(nameof(GL.GetVertexArrayIndexed64)));
-            capture.Reset();
-            Assert.Equal(3, copied.Divisor);
-            Assert.Equal(1, capture.Calls(nameof(GL.GetVertexArrayIndexed)));
-            capture.Reset();
-            Assert.Equal(3, copied.Divisor);
-            Assert.Equal(0, capture.Calls(nameof(GL.GetVertexArrayIndexed)));
+            GL.GetVertexArrayIndexed(vao.VertexArrayId, 2, (VertexArrayIndexedParameter)All.VertexBindingBuffer, out int selected);
+            GL.GetVertexArrayIndexed(vao.VertexArrayId, 2, (VertexArrayIndexedParameter)All.VertexBindingStride, out int stride);
+            GL.GetVertexArrayIndexed(vao.VertexArrayId, 2, (VertexArrayIndexedParameter)All.VertexBindingDivisor, out int divisor);
+            Assert.Equal(buffer.BufferId, selected); Assert.Equal(24, stride); Assert.Equal(3, divisor);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
         finally { fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }

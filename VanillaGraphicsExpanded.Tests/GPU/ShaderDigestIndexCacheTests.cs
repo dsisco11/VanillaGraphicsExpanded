@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.ShaderCompilation;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.HarmonyPatches;
 using VanillaGraphicsExpanded.Rendering;
@@ -33,7 +34,7 @@ public sealed class ShaderDigestIndexCacheTests(HeadlessGLFixture fixture) : Ren
             for (int generation = 0; generation < 3; generation++)
             {
                 Assert.True(program.CompileAndLink(), string.Join('\n', assets.Logs));
-                Assert.True(GpuComputePipeline.TryCreateFromAssets(assets.Api, settings, out var pipeline, out string log,
+                Assert.True(ComputeShaderAsset.TryCreateFromAssets(assets.Api, settings, out var pipeline, out string log,
                     ct: TestContext.Current.CancellationToken), log);
                 pipeline!.Dispose();
             }
@@ -118,7 +119,7 @@ public sealed class ShaderDigestIndexCacheTests(HeadlessGLFixture fixture) : Ren
     {
         #region Submission
         /// <summary>Retains this owner's explicit external input publication contract.</summary>
-        protected override void Submit() { }
+        protected override VanillaGraphicsExpanded.Rendering.RHI.RHIResourceBindings CaptureBindingsCore() => new(Shader);
         #endregion
 
         /// <summary>Supplies the engine wrappers required by the binary graphics loader.</summary>

@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
@@ -45,11 +46,11 @@ public sealed class EngineBoundaryBindingTests(HeadlessGLFixture fixture)
             scope!.Run(() =>
             {
                 OpenGLImageBindings.BindTexture(cache, TextureTarget.Texture2D, 2, 0); OpenGLImageBindings.BindSampler(cache, 2, 0);
-                cache.BindImageTexture(1, 0, 0, false, 0, TextureAccess.ReadOnly, SizedInternalFormat.Rgba8);
+                OpenGLImageSlotBindings.BindImageTexture(cache, 1, 0, 0, false, 0, TextureAccess.ReadOnly, SizedInternalFormat.Rgba8);
                 OpenGLBufferBindings.BindBufferBase(cache, BufferRangeTarget.UniformBuffer, 1, 0);
                 OpenGLBufferBindings.BindBufferBase(cache, BufferRangeTarget.ShaderStorageBuffer, 2, 0);
-                cache.BindVertexArray(0); OpenGLBufferBindings.BindBuffer(cache, BufferTarget.ArrayBuffer, 0);
-                cache.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
+                OpenGLVertexSelection.Bind(cache, 0);
+                OpenGLFramebufferSelection.Bind(cache, FramebufferTarget.Framebuffer, 0);
                 if (invalidate) cache.Invalidate(EPipelineState.Bindings);
             });
             Assert.Equal((int)TextureUnit.Texture5, GL.GetInteger(GetPName.ActiveTexture));
@@ -126,101 +127,56 @@ public sealed class EngineBoundaryBindingTests(HeadlessGLFixture fixture)
     }
 
     #endregion
-    #region Shader ownership
-    /// <summary>The existing UseScope restores real engine ownership before borrowed binding and pipeline handoff.</summary>
+    #region Executable restoration
+    /// <summary>Restoration selects the original native executable without activating shader owners or replaying inputs.</summary>
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void ExistingShaderOwnerRestoresOnSuccessAndDrawFailure(bool failDraw)
+    public void OriginalExecutableRestoresOnSuccessAndOperationFailure(bool fail)
     {
-        fixture.MakeCurrent(); using var programs = new ComponentShaderPrograms();
-        var previous = programs.Create<GpuProgramUseScopeTests.CountingShader>();
-        var inner = programs.Create<GpuProgramUseScopeTests.CountingShader>(); Assert.True(inner.EnsureReady());
-        using (previous.UseScope())
+        fixture.MakeCurrent();
+        using var programs=new ComponentShaderPrograms();
+        var previous=programs.Create<RasterDepthCopyShaderProgram>();
+        var inner=programs.Create<RasterDepthCopyShaderProgram>();
+        var commands=RHICommandContext.Current;
+        using var source=commands.CreateTexture2D(new(){Dimension=TextureDimension.Two,Width=1,Height=1,
+            Format=TextureFormat.R32f,MipLevels=1,Storage=ResourceStorageMode.Mutable}).RequireResource();
+        inner.PrimaryDepth=source;
+        using var pipeline=commands.CreateGraphicsPipeline(new(inner.Shader,new([]),new([new(TextureFormat.R32f)]),
+            VanillaGraphicsExpanded.Rendering.Pipeline.Descriptions.DynamicPipelineState.Viewport)).RequireResource();
+        OpenGLProgramSelection.Select(StateCache.Current,previous.ProgramId);
+        var expected=new ArithmeticException("fixture operation");
+        void Execute()
         {
-            var footprint = EngineBoundaryResources.From(inner.ProgramLayout.BinaryInterface!.PreparedBindings);
-            var operationFailure = new InvalidOperationException("draw");
-            Action run = () => Assert.True(EngineBoundaryExecution.TryRun(new EngineBoundaryDeclaration("Shader"), footprint, scope =>
+            using var boundary=commands.EnterBoundary(new("Tests.ExecutableRestore",true,graphics:[pipeline]));
+            boundary.Run(()=>
             {
-                scope.AddCleanup(EngineBoundaryCleanup.Shader, inner.UseScope());
-                Assert.Same(inner, StateCache.ActiveProgram);
-                if (failDraw) throw operationFailure;
-            }));
-            if (failDraw) Assert.Same(operationFailure, Assert.Throws<InvalidOperationException>(run)); else run();
-            Assert.Same(previous, StateCache.ActiveProgram);
-            Assert.Equal(previous.ProgramId, GL.GetInteger(GetPName.CurrentProgram));
-            Assert.True(StateCache.Current.TryGetCachedCurrentProgram(out int cached)); Assert.Equal(previous.ProgramId, cached);
+                commands.SetPipeline(pipeline);commands.BindResources(inner.CaptureBindings());
+                Assert.Equal(inner.ProgramId,GL.GetInteger(GetPName.CurrentProgram));
+                if(fail)throw expected;
+            });
         }
-    }
-
-    /// <summary>Unowned executable footprints are rejected before the optional operation starts.</summary>
-    [Fact]
-    public void UnownedProgramIsRejectedBeforeOperation()
-    {
-        fixture.MakeCurrent(); using var programs = new ComponentShaderPrograms();
-        var shader = programs.Create<GpuProgramUseScopeTests.CountingShader>(); Assert.True(shader.EnsureReady());
-        var cache = StateCache.Current; cache.UseProgram(shader.ProgramId);
         try
         {
-            bool ran = false;
-            Assert.False(EngineBoundaryExecution.TryRun(new EngineBoundaryDeclaration("Foreign"), new EngineBoundaryResources(), _ => ran = true));
-            Assert.False(ran); Assert.Equal(shader.ProgramId, GL.GetInteger(GetPName.CurrentProgram));
+            if(fail)Assert.Same(expected,Assert.Throws<ArithmeticException>(Execute));else Execute();
+            Assert.Equal(previous.ProgramId,GL.GetInteger(GetPName.CurrentProgram));
+            Assert.True(StateCache.Current.TryGetCachedCurrentProgram(out int cached));Assert.Equal(previous.ProgramId,cached);
         }
-        finally { cache.UseProgram(0); }
-    }
-
-    /// <summary>A real prior-owner activation failure remains visible alongside the draw error.</summary>
-    [Fact]
-    public void ShaderReactivationFailureIsNotOptionalFallback()
-    {
-        fixture.MakeCurrent(); using var programs = new ComponentShaderPrograms();
-        var previous = programs.Create<GpuProgramUseScopeTests.CountingShader>();
-        var inner = programs.Create<GpuProgramUseScopeTests.CountingShader>(); Assert.True(inner.EnsureReady());
-        using (previous.UseScope())
-        {
-            try
-            {
-                var failure = Assert.Throws<AggregateException>(() => EngineBoundaryExecution.TryRun(
-                    new EngineBoundaryDeclaration("ShaderFailure"), EngineBoundaryResources.From(inner.ProgramLayout.BinaryInterface!.PreparedBindings), scope =>
-                    {
-                        scope.AddCleanup(EngineBoundaryCleanup.Shader, inner.UseScope());
-                        previous.FailSubmission = true;
-                        throw new InvalidOperationException("draw failure");
-                    }));
-                Assert.True(EngineBoundaryRestoreException.IsRestorationFailure(failure));
-                Assert.Equal("draw failure", failure.InnerExceptions[0].Message);
-                Assert.False(StateCache.Current.TryGetCachedCurrentProgram(out _));
-                Assert.Equal(0, GL.GetInteger(GetPName.CurrentProgram));
-            }
-            finally { previous.FailSubmission = false; previous.Use(); }
-        }
+        finally{OpenGLProgramSelection.Select(StateCache.Current,0);}
     }
 
     /// <summary>Pipeline selection cannot widen an already admitted execution footprint.</summary>
     [Fact]
-    public void ActivationAndRollbackFailuresBothSurvive()
+    public void UndeclaredExecutableRejectsBeforePublication()
     {
-        fixture.MakeCurrent(); using var programs = new ComponentShaderPrograms();
-        var previous = programs.Create<GpuProgramUseScopeTests.CountingShader>();
-        var inner = programs.Create<GpuProgramUseScopeTests.CountingShader>();
-        Assert.True(inner.EnsureReady());
-        using (previous.UseScope())
-        {
-            try
-            {
-                var result = Assert.Throws<AggregateException>(() => EngineBoundaryExecution.TryRun(
-                    new EngineBoundaryDeclaration("ActivationFailure"), EngineBoundaryResources.From(inner.ProgramLayout.BinaryInterface!.PreparedBindings), scope =>
-                    {
-                        previous.FailSubmission = true; inner.FailSubmission = true;
-                        scope.AddCleanup(EngineBoundaryCleanup.Shader, inner.UseScope());
-                    }));
-                Assert.Equal(2, result.InnerExceptions.Count);
-                Assert.IsType<InvalidOperationException>(result.InnerExceptions[0]);
-                Assert.True(EngineBoundaryRestoreException.IsRestorationFailure(result));
-                Assert.False(StateCache.Current.TryGetCachedCurrentProgram(out _));
-            }
-            finally { previous.FailSubmission = false; inner.FailSubmission = false; previous.Use(); }
-        }
+        fixture.MakeCurrent();using var programs=new ComponentShaderPrograms();
+        var shader=programs.Create<RasterDepthCopyShaderProgram>();var commands=RHICommandContext.Current;
+        using var pipeline=commands.CreateGraphicsPipeline(new(shader.Shader,new([]),new([new(TextureFormat.R32f)]),
+            VanillaGraphicsExpanded.Rendering.Pipeline.Descriptions.DynamicPipelineState.Viewport)).RequireResource();
+        int previous=GL.GetInteger(GetPName.CurrentProgram);
+        using var boundary=commands.EnterBoundary(new("Tests.UndeclaredExecutable",true));
+        boundary.Run(()=>Assert.Throws<InvalidOperationException>(()=>commands.SetPipeline(pipeline)));
+        Assert.Equal(previous,GL.GetInteger(GetPName.CurrentProgram));
     }
     #endregion
     #endregion

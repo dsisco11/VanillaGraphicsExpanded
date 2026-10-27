@@ -1,3 +1,5 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System.Reflection;
 using HarmonyLib;
 using OpenTK.Graphics.OpenGL;
@@ -30,7 +32,7 @@ internal sealed class PsoNativeCallCapture : IDisposable
                 !p.ParameterType.IsPointer && !p.ParameterType.IsByRef && !p.ParameterType.IsArray && p.ParameterType != typeof(uint))))
             harmony.Patch(method, prefix: new HarmonyMethod(AccessTools.Method(typeof(PsoNativeCallCapture), nameof(Observe))));
         // Observe the typed draw because optimized state helpers may already be inlined.
-        var apply = AccessTools.Method(typeof(GraphicsCommandContext), "Draw");
+        var apply = AccessTools.Method(typeof(RHICommandContext), "Draw");
         harmony.Patch(apply, prefix: new HarmonyMethod(AccessTools.Method(typeof(PsoNativeCallCapture), nameof(Application))),
             postfix: new HarmonyMethod(AccessTools.Method(typeof(PsoNativeCallCapture), nameof(DrawCompleted))));
         harmony.Patch(AccessTools.Method(typeof(StateCache), "RestoreBoundaryState"),
@@ -44,7 +46,7 @@ internal sealed class PsoNativeCallCapture : IDisposable
 
     #region Private
     /// <summary>Labels the complete typed draw, excluding fixture preparation and pass loads.</summary>
-    private static void Application(GraphicsPipeline? ___pipeline)
+    private static void Application(RHIGraphicsPipeline? ___pipeline)
     {
         if (active is not { } capture || ___pipeline is null) return;
         var pipeline=___pipeline.Description;
@@ -53,7 +55,7 @@ internal sealed class PsoNativeCallCapture : IDisposable
             pipeline.Targets.Colors[slot].Format is null ? "hole" : blend.Enabled ? "blend" : "replace")));
     }
     /// <summary>Verifies actual active blend factors before boundary handback, independent of inlined GL wrappers.</summary>
-    private static void DrawCompleted(GraphicsPipeline? ___pipeline)
+    private static void DrawCompleted(RHIGraphicsPipeline? ___pipeline)
     {
         if(active is {} capture && ___pipeline is {} pipeline && pipeline.Description.Blending.Any(blend=>blend.Enabled))
         {
@@ -63,10 +65,10 @@ internal sealed class PsoNativeCallCapture : IDisposable
             {
                 var blend=pipeline.Description.Blending[slot];
                 if(!blend.Enabled || pipeline.Description.Targets.Colors[slot].Format is null)continue;
-                Assert.Equal(((int)blend.SourceRgb).ToString(),state["BlendSrcRgb:"+slot]);
-                Assert.Equal(((int)blend.DestinationRgb).ToString(),state["BlendDstRgb:"+slot]);
-                Assert.Equal(((int)blend.SourceAlpha).ToString(),state["BlendSrcAlpha:"+slot]);
-                Assert.Equal(((int)blend.DestinationAlpha).ToString(),state["BlendDstAlpha:"+slot]);
+                Assert.Equal(((int)OpenGLBlendValues.SourceFactor(blend.SourceRgb)).ToString(),state["BlendSrcRgb:"+slot]);
+                Assert.Equal(((int)OpenGLBlendValues.DestinationFactor(blend.DestinationRgb)).ToString(),state["BlendDstRgb:"+slot]);
+                Assert.Equal(((int)OpenGLBlendValues.SourceFactor(blend.SourceAlpha)).ToString(),state["BlendSrcAlpha:"+slot]);
+                Assert.Equal(((int)OpenGLBlendValues.DestinationFactor(blend.DestinationAlpha)).ToString(),state["BlendDstAlpha:"+slot]);
             }
             capture.Events.Add("validated:active-blend-factors");
         }

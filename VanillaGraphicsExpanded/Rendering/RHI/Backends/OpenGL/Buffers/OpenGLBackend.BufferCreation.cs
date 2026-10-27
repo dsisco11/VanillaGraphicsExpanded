@@ -13,8 +13,8 @@ internal sealed partial class OpenGLBackend
         var request = description;
         RequireContext();
         request.Validate();
-        if (request.Access.HasFlag(global::VanillaGraphicsExpanded.Rendering.RHI.StorageAccess.Sparse) && !Capabilities.SparseBuffers) throw new NotSupportedException("Sparse buffers are unavailable.");
-        if (request.Access.HasFlag(global::VanillaGraphicsExpanded.Rendering.RHI.StorageAccess.Sparse) && !initialData.Bytes.IsEmpty)
+        if (request.Access.HasFlag(StorageAccess.Sparse) && !Capabilities.SparseBuffers) throw new NotSupportedException("Sparse buffers are unavailable.");
+        if (request.Access.HasFlag(StorageAccess.Sparse) && !initialData.Bytes.IsEmpty)
             throw new ArgumentException("Sparse storage starts uncommitted; commit pages before uploading content.");
         if (initialData.Offset < 0 || initialData.Offset > request.Capacity
             || initialData.Bytes.Length > request.Capacity - initialData.Offset
@@ -73,13 +73,13 @@ internal sealed partial class OpenGLBackend
         else
         {
             OpenTK.Graphics.OpenGL.BufferStorageFlags flags = 0;
-            if ((description.Access & global::VanillaGraphicsExpanded.Rendering.RHI.StorageAccess.Read) != 0) flags |= OpenTK.Graphics.OpenGL.BufferStorageFlags.MapReadBit;
-            if ((description.Access & global::VanillaGraphicsExpanded.Rendering.RHI.StorageAccess.Write) != 0) flags |= OpenTK.Graphics.OpenGL.BufferStorageFlags.MapWriteBit;
-            if ((description.Access & global::VanillaGraphicsExpanded.Rendering.RHI.StorageAccess.Persistent) != 0) flags |= OpenTK.Graphics.OpenGL.BufferStorageFlags.MapPersistentBit;
-            if ((description.Access & global::VanillaGraphicsExpanded.Rendering.RHI.StorageAccess.Coherent) != 0) flags |= OpenTK.Graphics.OpenGL.BufferStorageFlags.MapCoherentBit;
-            if ((description.Access & global::VanillaGraphicsExpanded.Rendering.RHI.StorageAccess.DynamicUpdates) != 0) flags |= OpenTK.Graphics.OpenGL.BufferStorageFlags.DynamicStorageBit;
-            if ((description.Access & global::VanillaGraphicsExpanded.Rendering.RHI.StorageAccess.ClientStorage) != 0) flags |= OpenTK.Graphics.OpenGL.BufferStorageFlags.ClientStorageBit;
-            if ((description.Access & global::VanillaGraphicsExpanded.Rendering.RHI.StorageAccess.Sparse) != 0) flags |= (OpenTK.Graphics.OpenGL.BufferStorageFlags)OpenTK.Graphics.OpenGL.ArbSparseBuffer.SparseStorageBitArb;
+            if ((description.Access & StorageAccess.Read) != 0) flags |= OpenTK.Graphics.OpenGL.BufferStorageFlags.MapReadBit;
+            if ((description.Access & StorageAccess.Write) != 0) flags |= OpenTK.Graphics.OpenGL.BufferStorageFlags.MapWriteBit;
+            if ((description.Access & StorageAccess.Persistent) != 0) flags |= OpenTK.Graphics.OpenGL.BufferStorageFlags.MapPersistentBit;
+            if ((description.Access & StorageAccess.Coherent) != 0) flags |= OpenTK.Graphics.OpenGL.BufferStorageFlags.MapCoherentBit;
+            if ((description.Access & StorageAccess.DynamicUpdates) != 0) flags |= OpenTK.Graphics.OpenGL.BufferStorageFlags.DynamicStorageBit;
+            if ((description.Access & StorageAccess.ClientStorage) != 0) flags |= OpenTK.Graphics.OpenGL.BufferStorageFlags.ClientStorageBit;
+            if ((description.Access & StorageAccess.Sparse) != 0) flags |= (OpenTK.Graphics.OpenGL.BufferStorageFlags)OpenTK.Graphics.OpenGL.ArbSparseBuffer.SparseStorageBitArb;
             request.StorageFlags = flags;
         }
         return request;

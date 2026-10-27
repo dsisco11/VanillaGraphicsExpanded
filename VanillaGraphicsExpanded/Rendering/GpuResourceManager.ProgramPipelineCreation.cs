@@ -21,7 +21,7 @@ internal sealed partial class GpuResourceManager
         public void Validate(in GpuProgramPipelineInitialization initialization) { }
         /// <inheritdoc />
         public GpuProgramPipelineMetadata? Initialize(StateCache cache, in GpuProgramPipelineInitialization initialization, out nint id)
-            => cache.CreateProgramPipeline(out id);
+            => RHI.RHICommandContext.Current.OpenGL.InitializeProgramPipeline(out id);
         #endregion
     }
     #endregion

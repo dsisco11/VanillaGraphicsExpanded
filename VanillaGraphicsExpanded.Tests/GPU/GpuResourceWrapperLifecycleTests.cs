@@ -108,7 +108,7 @@ public sealed class GpuResourceWrapperLifecycleTests(HeadlessGLFixture fixture)
     {
         using var lifetime = StartManager();
         int original = GL.GenFramebuffer();
-        StateCache.Current.BindFramebuffer(FramebufferTarget.Framebuffer, original);
+        OpenGLFramebufferSelection.Bind(StateCache.Current, FramebufferTarget.Framebuffer, original);
         using var external = DynamicGpuFramebuffer.Wrap(original, width: 4, height: 4);
         using var oldAlias = DynamicGpuFramebuffer.Wrap(original, width: 4, height: 4);
         var old = lifetime.Manager.GetResourceRegistration(external)!;
@@ -119,9 +119,9 @@ public sealed class GpuResourceWrapperLifecycleTests(HeadlessGLFixture fixture)
             if (reuseId) lifetime.Manager.ObserveDeletion(GpuResourceKind.Framebuffer, original);
             else
             {
-                StateCache.Current.DeleteFramebuffer(original);
+                VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.OpenGL.DeleteFramebuffer(original);
                 replacement = GL.GenFramebuffer();
-                StateCache.Current.BindFramebuffer(FramebufferTarget.Framebuffer, replacement);
+                OpenGLFramebufferSelection.Bind(StateCache.Current, FramebufferTarget.Framebuffer, replacement);
             }
             external.RefreshWrappedFramebuffer(replacement, 4, 4);
             Assert.True(external.IsValid);
@@ -131,7 +131,7 @@ public sealed class GpuResourceWrapperLifecycleTests(HeadlessGLFixture fixture)
             Assert.False(lifetime.Manager.IsResourceMetadataAvailable(external));
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { StateCache.Current.DeleteFramebuffer(replacement); }
+        finally { VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.OpenGL.DeleteFramebuffer(replacement); }
     }
 
     /// <summary>Native one-dimensional array discovery preserves layer zero as one unit-height plane.</summary>
@@ -146,7 +146,7 @@ public sealed class GpuResourceWrapperLifecycleTests(HeadlessGLFixture fixture)
             OpenGLImageBindings.BindTexture(StateCache.Current, TextureTarget.Texture1DArray, 0, texture);
             GL.TexImage2D(TextureTarget.Texture1DArray, 0, PixelInternalFormat.Rgba8, 8, 3, 0,
                 PixelFormat.Rgba, PixelType.UnsignedByte, IntPtr.Zero);
-            StateCache.Current.BindFramebuffer(FramebufferTarget.Framebuffer, framebuffer);
+            OpenGLFramebufferSelection.Bind(StateCache.Current, FramebufferTarget.Framebuffer, framebuffer);
             GL.FramebufferTextureLayer(FramebufferTarget.Framebuffer, FramebufferAttachment.ColorAttachment0, texture, 0, 0);
             using var external = DynamicGpuFramebuffer.Wrap(framebuffer, width: 8, height: 1);
             using var image = GpuFramebufferAttachmentDiscovery.Read(external, FramebufferAttachment.ColorAttachment0, forceNative: true);
@@ -159,7 +159,7 @@ public sealed class GpuResourceWrapperLifecycleTests(HeadlessGLFixture fixture)
         }
         finally
         {
-            StateCache.Current.DeleteFramebuffer(framebuffer);
+            VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.OpenGL.DeleteFramebuffer(framebuffer);
             RHICommandContext.Current.OpenGL.DeleteTexture(texture);
         }
     }
@@ -332,7 +332,7 @@ public sealed class GpuResourceWrapperLifecycleTests(HeadlessGLFixture fixture)
         {
             RHICommandContext.Current.OpenGL.DeleteTexture(texture.TextureId);
             RHICommandContext.Current.OpenGL.DeleteBuffer(buffer.BufferId);
-            StateCache.Current.DeleteFramebuffer(framebuffer.FboId);
+            VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.OpenGL.DeleteFramebuffer(framebuffer.FboId);
         }
     }
 
@@ -531,7 +531,7 @@ public sealed class GpuResourceWrapperLifecycleTests(HeadlessGLFixture fixture)
         using var sentinel = new DynamicGpuFramebuffer(true);
         sentinel.Bind();
         var cache = StateCache.Current;
-        cache.BindFramebuffer(FramebufferTarget.ReadFramebuffer, owner.FboId);
+        OpenGLFramebufferSelection.Bind(cache, FramebufferTarget.ReadFramebuffer, owner.FboId);
         var harmony = Patch(nameof(DeleteNativeExtensionFramebuffer));
         try
         {

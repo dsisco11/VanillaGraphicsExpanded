@@ -1,3 +1,5 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
+using VanillaGraphicsExpanded.Rendering.ShaderCompilation;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using VanillaGraphicsExpanded.Rendering.Pipeline.Passes;
 using VanillaGraphicsExpanded.Rendering.Pipeline;
@@ -90,12 +92,16 @@ public sealed class ShaderRegistryLifetimeTests(HeadlessGLFixture fixture) : Ren
         var owner = registry.Get<RasterDepthCopyShaderProgram>(RasterDepthCopyShaderProgram.Contract.Identity)!;
         using var depth = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.R32f, Width = System.Math.Max(1, 1), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         owner.PrimaryDepth = depth;
-        using (owner.UseScope())
+        Assert.True(owner.EnsureReady());
+        var executable = ((IGpuProgram)owner).Lifetime.NativeExecutable!;
+        executable.RetainPassReference();
+        try
         {
             Assert.Throws<InvalidOperationException>(registry.BeginReload);
             Assert.False(owner.RequiresPreparation);
             Assert.False(registry.IsReloading);
         }
+        finally { executable.ReleasePassReference(); }
     }
 
     #endregion
@@ -110,13 +116,16 @@ public sealed class ShaderRegistryLifetimeTests(HeadlessGLFixture fixture) : Ren
         using var cache = DriverProgramCache.UseStoreForTesting(null);
         using var assets = new BinaryShaderApiFixture();
         var settings = new ShaderSettings(GpuShaderContracts.Registry.FindProgram("tests/GpuUniformRingBufferIntegrationTests_1"));
-        using var owner = new ComputeOwner(GpuComputePipeline.DeclareFromAssets(assets.Api, settings));
+        using var owner = new ComputeOwner(ComputeShaderAsset.DeclareFromAssets(assets.Api, settings));
         Assert.True(owner.EnsureReady());
         var block = owner.Block;
         block.SetBytes(new byte[16]);
         int old = owner.ProgramId;
         ulong revision = ((IGpuProgram)owner).ExecutableRevision;
-        using (owner.UseScope()) Assert.Throws<InvalidOperationException>(owner.InvalidateAssets);
+        var executable = ((IGpuProgram)owner).Lifetime.NativeExecutable!;
+        executable.RetainPassReference();
+        try { Assert.Throws<InvalidOperationException>(owner.InvalidateAssets); }
+        finally { executable.ReleasePassReference(); }
         owner.InvalidateAssets();
         Assert.False(owner.IsValid);
         if (failedReplacement) assets.BeforeRead = path => { if (path.EndsWith(".spv")) assets.Overrides[path] = new byte[20]; };
@@ -174,8 +183,7 @@ public sealed class ShaderRegistryLifetimeTests(HeadlessGLFixture fixture) : Ren
             var state = StateCache.Current;
             state.Invalidate(EPipelineState.Program);
             Assert.False(state.TryGetCachedCurrentProgram(out _));
-            Assert.Throws<InvalidOperationException>(() => owner.UseScope());
-            Assert.Throws<InvalidOperationException>(() => ((IGpuProgram)owner).ReplayInputs());
+            Assert.Throws<InvalidOperationException>(() => owner.CaptureBindings());
             // Scope capture would resolve the unknown native binding; closed admission must leave it unknown.
             Assert.False(state.TryGetCachedCurrentProgram(out _));
             registry.Dispose();
@@ -220,7 +228,7 @@ public sealed class ShaderRegistryLifetimeTests(HeadlessGLFixture fixture) : Ren
         using var cache = DriverProgramCache.UseStoreForTesting(null);
         using var assets = new BinaryShaderApiFixture();
         var settings = new ShaderSettings(GpuShaderContracts.Registry.FindProgram("tests/GpuUniformRingBufferIntegrationTests_1"));
-        using var owner = new ComputeOwner(GpuComputePipeline.DeclareFromAssets(assets.Api, settings));
+        using var owner = new ComputeOwner(ComputeShaderAsset.DeclareFromAssets(assets.Api, settings));
         Assert.True(owner.EnsureReady());
         owner.InvalidateAssets();
         bool changed = false;
@@ -279,13 +287,14 @@ public sealed class ShaderRegistryLifetimeTests(HeadlessGLFixture fixture) : Ren
         using var assets = new BinaryShaderApiFixture();
         var registry = GpuShaderProgramLibraries.Require(assets.Api);
         var lifetime = ClientRenderingLifetime.Find(assets.Api)!;
-        using var compute = new ComputeOwner(GpuComputePipeline.DeclareFromAssets(assets.Api,
+        using var compute = new ComputeOwner(ComputeShaderAsset.DeclareFromAssets(assets.Api,
             new ShaderSettings(GpuShaderContracts.Registry.FindProgram("tests/GpuUniformRingBufferIntegrationTests_1"))));
         IDisposable? scope = null; int id = 0;
         lifetime.Attach(() => { compute.Dispose(); registry.Dispose(); });
         try
         {
-            scope = compute.UseScope(); id = compute.ProgramId;
+            Assert.True(compute.EnsureReady());
+            scope = RHICommandContext.Current.EnterBoundary(new("Tests.Compute.ContextRetirement", true, compute:[compute.Pipeline])); id = compute.ProgramId;
             if (discoveredDead) { alive = false; Assert.Equal(default, RenderContextRegistry.Current()); }
             else RenderContextRegistry.Retire(contextOwner);
             Assert.True(lifetime.IsClosed); Assert.True(registry.IsClosed);
@@ -297,7 +306,7 @@ public sealed class ShaderRegistryLifetimeTests(HeadlessGLFixture fixture) : Ren
         {
             RenderContextRegistry.Retire(contextOwner);
             RenderContextRegistry.RegisterCurrent(fixture, static _ => true);
-            StateCache.Current.UseProgram(0);
+            OpenGLProgramSelection.Select(StateCache.Current, 0);
             if (id != 0 && GL.IsProgram(id)) GL.DeleteProgram(id);
             lifetime.Shutdown();
         }
@@ -315,15 +324,16 @@ public sealed class ShaderRegistryLifetimeTests(HeadlessGLFixture fixture) : Ren
         lifetime.Attach(() => { target.Dispose(); texture.Dispose(); });
         var cache = StateCache.Current;
         var coverage = PipelineStateCoverage.FullGraphics.Union(new(clearColor: true));
-        Assert.True(cache.TryBeginEngineBoundary(new EngineBoundaryDeclaration("RetirementPass", coverage), out var boundary));
-        var pass = RenderPass.Begin(new(target, [new(0)]), boundary!);
-        Assert.Throws<InvalidOperationException>(target.Dispose);
+        var commands=RHICommandContext.Current;
+        var boundary=commands.EnterBoundary(new("RetirementPass",true,operations:BoundaryOperations.RenderPasses));
+        commands.BeginRenderPass(FramebufferTestSetup.DescribeAttachments(target));
+        Assert.Throws<InvalidOperationException>(texture.Dispose);
         try
         {
             RenderContextRegistry.Retire(fixture);
             Assert.True(lifetime.IsClosed); Assert.True(registry.IsClosed);
             Assert.False(target.IsValid); Assert.False(texture.IsValid);
-            pass.Dispose(); boundary!.Dispose();
+            Assert.Throws<InvalidOperationException>(boundary.Dispose);
             RenderContextRegistry.RegisterCurrent(fixture, static _ => true);
             Assert.True(cache.TryBeginEngineBoundary(new EngineBoundaryDeclaration("ReplacementPass", coverage), out var replacement));
             replacement!.Dispose();
@@ -365,15 +375,14 @@ public sealed class ShaderRegistryLifetimeTests(HeadlessGLFixture fixture) : Ren
         using var assets = new BinaryShaderApiFixture();
         var registry = GpuShaderProgramLibraries.Require(assets.Api);
         var lifetime = ClientRenderingLifetime.Find(assets.Api)!;
-        using var compute = new ComputeOwner(GpuComputePipeline.DeclareFromAssets(assets.Api,
+        using var compute = new ComputeOwner(ComputeShaderAsset.DeclareFromAssets(assets.Api,
             new ShaderSettings(GpuShaderContracts.Registry.FindProgram("tests/GpuUniformRingBufferIntegrationTests_1"))));
         Assert.True(compute.EnsureReady());
         lifetime.Attach(() =>
         {
             var cache = StateCache.Current; cache.Invalidate(EPipelineState.Program);
             Assert.False(compute.EnsureReady());
-            Assert.Throws<InvalidOperationException>(() => compute.UseScope());
-            Assert.Throws<InvalidOperationException>(() => ((IGpuProgram)compute).ReplayInputs());
+            Assert.Throws<InvalidOperationException>(() => compute.CaptureBindings());
             Assert.False(cache.TryGetCachedCurrentProgram(out _));
             compute.Dispose();
         });
@@ -390,9 +399,9 @@ public sealed class ShaderRegistryLifetimeTests(HeadlessGLFixture fixture) : Ren
     {
         internal PackedUniformBuffer Block { get; }
         /// <summary>Adopts one feature-owned pipeline and CPU block.</summary>
-        internal ComputeOwner(GpuComputePipeline pipeline) : base(pipeline) => Block = OwnUniformBuffer(new PackedUniformBuffer(16));
+        internal ComputeOwner(ComputeShaderAsset pipeline) : base(pipeline) => Block = OwnUniformBuffer(new PackedUniformBuffer(16));
         /// <summary>Uses no resources during the lifecycle-only binding probe.</summary>
-        protected override void Submit() { }
+        protected override VanillaGraphicsExpanded.Rendering.RHI.RHIResourceBindings CaptureBindingsCore() => new(Shader);
     }
     #endregion
 }

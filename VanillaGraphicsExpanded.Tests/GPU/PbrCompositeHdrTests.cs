@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Collections.Immutable;
 using System.Numerics;
 using VanillaGraphicsExpanded.ModSystems;
@@ -49,9 +50,9 @@ public sealed class PbrCompositeHdrTests : LumOnShaderFunctionalTestBase
         program.DirectLighting = receiverDirectLighting;
         using var surface = LayeredTestTexture.Create(normal, zero, zero);
         program.GBufferSurface = surface;
-        program.IndirectDiffuse = zero; program.GBufferAlbedo = zero.TextureId;
-        program.GBufferPosition = position.TextureId;
-        program.PrimaryDepth = depth.TextureId;
+        program.IndirectDiffuse = zero; program.GBufferAlbedo = zero;
+        program.GBufferPosition = position;
+        program.PrimaryDepth = depth;
         using var frameCamera = TestFrameCamera.Create([1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1], [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1]);
         program.FrameInputs = frameCamera;
 
@@ -107,13 +108,13 @@ public sealed class PbrCompositeHdrTests : LumOnShaderFunctionalTestBase
         atmosphereOwner.Publish(snapshot);
         using var surface = LayeredTestTexture.Create(normal, unused, environment);
         using var fogDirectLighting = LayeredTestTexture.Create(direct, specular, emission);
-        output.BindWithViewport();
+        FramebufferTestSetup.BindForEngineRendering(output);
         {
             program.DirectLighting = fogDirectLighting;
-            program.IndirectDiffuse = unused; program.GBufferAlbedo = unused.TextureId;
+            program.IndirectDiffuse = unused; program.GBufferAlbedo = unused;
             program.GBufferSurface = surface;
-            program.GBufferPosition = position.TextureId;
-            program.PrimaryDepth = depth.TextureId;
+            program.GBufferPosition = position;
+            program.PrimaryDepth = depth;
             using var frameCamera = TestFrameCamera.Create([1,0,0,0, 0,1,0,0, 0,0,2000,0, 0,0,0,1], [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1], fogColor: new(.5f, .25f, .125f), fogDensity: fog > 0 ? .0002f : 0, fogMinimum: fog);
             program.FrameInputs = frameCamera;
             program.SetAtmosphere(AtmosphereModSystem.Lighting);
@@ -204,13 +205,13 @@ public sealed class PbrCompositeHdrTests : LumOnShaderFunctionalTestBase
             AerialRadiance = ImmutableArray.CreateRange(new float[96]),
             AerialAttenuation = ImmutableArray.CreateRange(new float[96]) };
         atmosphereOwner.Publish(snapshot);
-        output.BindWithViewport();
+        FramebufferTestSetup.BindForEngineRendering(output);
         using var waterDirectLighting = LayeredTestTexture.Create(direct, zero, zero);
         program.DirectLighting = waterDirectLighting;
         using var surface = LayeredTestTexture.Create(normal, zero, zero);
         program.GBufferSurface = surface;
-        program.IndirectDiffuse = zero; program.GBufferAlbedo = sky ? direct.TextureId : zero.TextureId;
-        program.GBufferPosition = zero.TextureId; program.PrimaryDepth = depth.TextureId;
+        program.IndirectDiffuse = zero; program.GBufferAlbedo = sky ? direct : zero;
+        program.GBufferPosition = zero; program.PrimaryDepth = depth;
         using var frameCamera = TestFrameCamera.Create([1,0,0,0, 0,1,0,0, 0,0,20,0, 0,0,0,1], [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1], fogColor: Vector3.One, fogDensity: 10, fogMinimum: 1);
         program.FrameInputs = frameCamera;
 
@@ -221,7 +222,8 @@ public sealed class PbrCompositeHdrTests : LumOnShaderFunctionalTestBase
         program.SetWaterVolume(new WaterVolumeFrame(waterArray, underwater && mappedCamera ? medium : null,
             SourceUpper: Vector3.One));
         var cpuParameters = ((IPBRCompositeShaderProgramBindings)program).Parameters.Bytes.ToArray();
-        Assert.Equal(160, cpuParameters.Length);
+        // The std140 contract includes twelve vec4 values, including both scattering directions.
+        Assert.Equal(192, cpuParameters.Length);
         Assert.Equal(1f, BitConverter.ToSingle(cpuParameters, 92));
         Assert.Equal(underwater && mappedCamera ? 1f : 0f, BitConverter.ToSingle(cpuParameters, 108));
         TestFramework.RenderQuadTo(program, output);

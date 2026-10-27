@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
@@ -10,34 +11,34 @@ internal static unsafe partial class Ext
     #region Internal API
     /// <summary>Forwards the exact signature to the backend execution boundary.</summary>
     internal static void ProgramUniform1(int @program, int @location, int @count, ref int @value)
-        => StateCache.Current.ExecuteExtProgramUniform1(@program, @location, @count, ref @value);
+        => OpenGLProgramCalls.ExecuteExtProgramUniform1(@program, @location, @count, ref @value);
 
     /// <summary>Forwards the exact signature to the backend execution boundary.</summary>
     internal static void ProgramUniform1(int @program, int @location, int @count, int[] @value)
-        => StateCache.Current.ExecuteExtProgramUniform1(@program, @location, @count, @value);
+        => OpenGLProgramCalls.ExecuteExtProgramUniform1(@program, @location, @count, @value);
 
     /// <summary>Forwards the exact signature to the backend execution boundary.</summary>
     internal static void ProgramUniform1(int @program, int @location, int @count, int* @value)
-        => StateCache.Current.ExecuteExtProgramUniform1(@program, @location, @count, @value);
+        => OpenGLProgramCalls.ExecuteExtProgramUniform1(@program, @location, @count, @value);
 
     /// <summary>Forwards the exact signature to the backend execution boundary.</summary>
     internal static void ProgramUniform1(int @program, int @location, int @v0)
-        => StateCache.Current.ExecuteExtProgramUniform1(@program, @location, @v0);
+        => OpenGLProgramCalls.ExecuteExtProgramUniform1(@program, @location, @v0);
 
     /// <summary>Forwards the exact signature to the backend execution boundary.</summary>
     internal static void ProgramUniform1(uint @program, int @location, int @count, ref int @value)
-        => StateCache.Current.ExecuteExtProgramUniform1(@program, @location, @count, ref @value);
+        => OpenGLProgramCalls.ExecuteExtProgramUniform1(@program, @location, @count, ref @value);
 
     /// <summary>Forwards the exact signature to the backend execution boundary.</summary>
     internal static void ProgramUniform1(uint @program, int @location, int @count, int[] @value)
-        => StateCache.Current.ExecuteExtProgramUniform1(@program, @location, @count, @value);
+        => OpenGLProgramCalls.ExecuteExtProgramUniform1(@program, @location, @count, @value);
 
     /// <summary>Forwards the exact signature to the backend execution boundary.</summary>
     internal static void ProgramUniform1(uint @program, int @location, int @count, int* @value)
-        => StateCache.Current.ExecuteExtProgramUniform1(@program, @location, @count, @value);
+        => OpenGLProgramCalls.ExecuteExtProgramUniform1(@program, @location, @count, @value);
 
     /// <summary>Forwards the exact signature to the backend execution boundary.</summary>
     internal static void ProgramUniform1(uint @program, int @location, int @v0)
-        => StateCache.Current.ExecuteExtProgramUniform1(@program, @location, @v0);
+        => OpenGLProgramCalls.ExecuteExtProgramUniform1(@program, @location, @v0);
     #endregion
 }

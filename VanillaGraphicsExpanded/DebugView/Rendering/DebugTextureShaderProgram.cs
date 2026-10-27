@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Contracts;
 using VanillaGraphicsExpanded.Rendering.Shaders;
 
@@ -17,6 +18,6 @@ internal sealed partial class DebugTextureShaderProgram : GpuProgram, IDebugText
     public DebugTextureShaderProgram() => ProgramLayout.RegisterContract(Contract.Stages[1].Bindings);
 
     /// <summary>Supplies the displayed image using the shared nearest-clamp sampler.</summary>
-    public partial int Scene { set; }
+    public partial GpuTextureRef Scene { set; }
     #endregion
 }

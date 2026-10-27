@@ -24,13 +24,12 @@ public sealed class SurfaceRenderPassTests(HeadlessGLFixture fixture) : RenderTe
         EnsureContextValid();
         using var bindings = StateCache.Current.BindFramebufferScope();
         using var surface = DynamicGpuFramebuffer.Wrap(0, width: 4, height: 4);
-        Assert.Throws<NotSupportedException>(() => GraphicsCommandContext.TryRun("UnknownSurface", [], true,
-            commands => commands.BeginPass(new(surface, [new(-1, SurfaceBuffer: DrawBuffersEnum.BackLeft)]))));
+        Assert.Throws<NotSupportedException>(() => RHICommandContext.Current.DescribeRenderTargets(FramebufferTestSetup.DescribeAttachments(surface, [new(WindowBuffer: SurfaceColorBuffer.BackLeft)])));
         surface.PublishSurfaceMetadata(4, 4);
         var metadata = surface.Surface!;
         Assert.Equal(0, surface.ColorAttachmentCount);
         Assert.Empty(surface.AttachmentImages);
-        StateCache.Current.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
+        OpenGLFramebufferSelection.Bind(StateCache.Current, FramebufferTarget.Framebuffer, 0);
         Assert.Equal(GL.GetInteger(GetPName.Doublebuffer) != 0 ? DrawBuffersEnum.BackLeft : DrawBuffersEnum.FrontLeft, metadata.Buffer);
         Assert.Equal(Math.Max(1, GL.GetInteger(GetPName.Samples)), metadata.Samples);
         var attachment = metadata.Buffer == DrawBuffersEnum.BackLeft ? FramebufferAttachment.BackLeft : FramebufferAttachment.FrontLeft;
@@ -46,13 +45,16 @@ public sealed class SurfaceRenderPassTests(HeadlessGLFixture fixture) : RenderTe
         Assert.Equal(stencilBits > 0, metadata.HasStencil);
         using (var hostile = new HostileFullscreenState())
         {
-            Assert.True(GraphicsCommandContext.TryRun("PublishedSurface", [], true, commands =>
             {
-                commands.BeginPass(new(surface, [new(-1, AttachmentLoad.Clear, Clear: ColorClearValue.Float(1, 0, 0, 1), SurfaceBuffer: metadata.Buffer)]));
+    var commands=RHICommandContext.Current;
+    using var scope80=commands.EnterBoundary(new("PublishedSurface",true,graphics:System.Linq.Enumerable.Select<RHIGraphicsPipeline,RHIGraphicsPipelineRef>([],value=>value),operations:BoundaryOperations.RenderPasses));
+    scope80.Run(()=>{
+                commands.BeginRenderPass(FramebufferTestSetup.DescribeAttachments(surface, [new(Load:AttachmentLoad.Clear, Clear: ColorClearValue.Float(1, 0, 0, 1), WindowBuffer: metadata.Buffer == DrawBuffersEnum.BackLeft ? SurfaceColorBuffer.BackLeft : SurfaceColorBuffer.FrontLeft)]));
                 Assert.Throws<InvalidOperationException>(() => surface.PublishSurfaceMetadata(3, 3));
                 Assert.Equal(4, commands.PassViewport.Width);
-                commands.EndPass();
-            }));
+                commands.EndRenderPass();
+            });
+}
             hostile.AssertRestored();
             GL.ReadBuffer((ReadBufferMode)metadata.Buffer);
             using var pack = OpenGLPixelLayouts.PackScope(StateCache.Current, new(1));
@@ -61,15 +63,17 @@ public sealed class SurfaceRenderPassTests(HeadlessGLFixture fixture) : RenderTe
             Assert.Equal(255, pixels[0]); Assert.Equal(0, pixels[1]); Assert.Equal(0, pixels[2]);
         }
         surface.PublishSurfaceMetadata(3, 2);
-        Assert.True(GraphicsCommandContext.TryRun("ResizedSurface", [], true, commands =>
         {
-            commands.BeginPass(new(surface, [new(-1, SurfaceBuffer: metadata.Buffer)]));
+    var commands=RHICommandContext.Current;
+    using var scope81=commands.EnterBoundary(new("ResizedSurface",true,graphics:System.Linq.Enumerable.Select<RHIGraphicsPipeline,RHIGraphicsPipelineRef>([],value=>value),operations:BoundaryOperations.RenderPasses));
+    scope81.Run(()=>{
+            commands.BeginRenderPass(FramebufferTestSetup.DescribeAttachments(surface, [new(WindowBuffer: metadata.Buffer == DrawBuffersEnum.BackLeft ? SurfaceColorBuffer.BackLeft : SurfaceColorBuffer.FrontLeft)]));
             Assert.Equal(3, commands.PassViewport.Width); Assert.Equal(2, commands.PassViewport.Height);
-            commands.EndPass();
-        }));
+            commands.EndRenderPass();
+        });
+}
         var wrong = metadata.Buffer == DrawBuffersEnum.BackLeft ? DrawBuffersEnum.FrontLeft : DrawBuffersEnum.BackLeft;
-        Assert.Throws<ArgumentException>(() => GraphicsCommandContext.TryRun("WrongSurfaceRoute", [], true,
-            commands => commands.BeginPass(new(surface, [new(-1, SurfaceBuffer: wrong)]))));
+        Assert.Throws<ArgumentException>(() => RHICommandContext.Current.DescribeRenderTargets(FramebufferTestSetup.DescribeAttachments(surface, [new(WindowBuffer: wrong == DrawBuffersEnum.BackLeft ? SurfaceColorBuffer.BackLeft : SurfaceColorBuffer.FrontLeft)])));
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
 
@@ -84,24 +88,26 @@ public sealed class SurfaceRenderPassTests(HeadlessGLFixture fixture) : RenderTe
         var metadata = surface.Surface!;
         using var programs = new ComponentShaderPrograms();
         var shader = programs.Create<RasterDepthReductionShaderProgram>();
-        using var lifetime = new GraphicsPipelineLifetime();
-        var layout = new VertexLayoutDesc([new(0, 3, VertexAttribPointerType.Float, VertexInterpretation.Floating, 0, 0, 12)]);
-        using var pipeline = new GraphicsPipeline(lifetime, new(shader.GraphicsIdentity!, layout,
-            new([new(metadata.Color)], metadata.DepthStencil, metadata.Samples, metadata.HasDepth, metadata.HasStencil), DynamicPipelineState.Viewport), shader);
+        var layout = new RHIVertexLayout([new(0, 3, VertexComponentFormat.Float, VertexInterpretation.Floating, 0, 0, 12)]);
+        using var pipeline = RHICommandContext.Current.CreateGraphicsPipeline(new(shader.Shader, layout,
+            new([new(OpenGLImageValues.Format(metadata.Color))], metadata.DepthStencil is { } format ? OpenGLImageValues.Format(format) : null, metadata.Samples, metadata.HasDepth, metadata.HasStencil), DynamicPipelineState.Viewport)).RequireResource();
         using var buffer = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = null }).RequireResource();
         buffer.UploadData(new float[] { -1, -1, 0, 3, -1, 0, -1, 3, 0 });
-        using var geometry = new ArrayGraphicsGeometry(layout, PrimitiveType.Triangles, new Dictionary<int, GpuVbo> { [0] = buffer });
+        using var geometry = new ArrayGraphicsGeometry(layout, PrimitiveTopology.Triangles, new Dictionary<int, GpuVbo> { [0] = buffer });
         using var source = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Width = 2, Height = 2, Format = TextureFormat.R32f, MipLevels = 1, Storage = ResourceStorageMode.Mutable, BaseLevel = 0, MaxLevel = 0, Filter = TextureFilterMode.Nearest, Label = null }, [new RHITextureInitialData(new(new(), 0, 0, 0, 2, 2), VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLPixelValues.Encoding(TextureFormatHelper.GetPixelFormat(PixelInternalFormat.R32f), OpenTK.Graphics.OpenGL.PixelType.Float), System.Runtime.InteropServices.MemoryMarshal.AsBytes((new float[] { .25f, .5f, .75f, 1 }).AsSpan()).ToArray())]).RequireResource();
         shader.HzbDepth = source; shader.SrcMip = 0;
         using var hostile = new HostileFullscreenState();
-        Assert.True(GraphicsCommandContext.TryRun("DrawSurface", [pipeline], true, commands =>
         {
-            commands.BeginPass(new(surface, [new(-1, SurfaceBuffer: metadata.Buffer)]));
+    var commands=RHICommandContext.Current;
+    using var scope82=commands.EnterBoundary(new("DrawSurface",true,graphics:System.Linq.Enumerable.Select<RHIGraphicsPipeline,RHIGraphicsPipelineRef>([pipeline],value=>value),operations:BoundaryOperations.RenderPasses));
+    scope82.Run(()=>{
+            commands.BeginRenderPass(FramebufferTestSetup.DescribeAttachments(surface, [new(WindowBuffer: metadata.Buffer == DrawBuffersEnum.BackLeft ? SurfaceColorBuffer.BackLeft : SurfaceColorBuffer.FrontLeft)]));
             commands.SetPipeline(pipeline); commands.SetDynamicState(new() { Viewport = commands.PassViewport });
-            commands.Draw(geometry, new(0, 3)); commands.EndPass();
-        }));
+            commands.BindResources(shader.CaptureBindings()); commands.Draw(geometry.Inputs, new(0, 3)); commands.EndRenderPass();
+        });
+}
         hostile.AssertRestored();
-        StateCache.Current.BindFramebuffer(FramebufferTarget.ReadFramebuffer, 0); GL.ReadBuffer((ReadBufferMode)metadata.Buffer);
+        OpenGLFramebufferSelection.Bind(StateCache.Current, FramebufferTarget.ReadFramebuffer, 0); GL.ReadBuffer((ReadBufferMode)metadata.Buffer);
         using var pack = OpenGLPixelLayouts.PackScope(StateCache.Current, new(1));
         byte[] pixels = new byte[4]; GL.ReadPixels(0, 0, 1, 1, PixelFormat.Rgba, PixelType.UnsignedByte, pixels);
         Assert.InRange(pixels[0], (byte)63, (byte)65);

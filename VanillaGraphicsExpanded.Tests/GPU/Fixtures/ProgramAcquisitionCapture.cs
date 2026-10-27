@@ -23,8 +23,9 @@ internal sealed class ProgramAcquisitionCapture : IDisposable
         active = this;
         var prefix = new HarmonyMethod(typeof(ProgramAcquisitionCapture), nameof(Count));
         harmony.Patch(typeof(GpuProgramMetadataReader).GetMethod(nameof(GpuProgramMetadataReader.TryRead))!, prefix: prefix);
-        foreach (var method in typeof(GL).GetMethods(BindingFlags.Public | BindingFlags.Static))
-            if (method.Name is "GetProgramInterface" or "GetProgramResource" or "GetUniform" or "GetActiveAtomicCounterBuffer")
+        foreach (var type in new[] { typeof(GL), typeof(OpenTK.Graphics.OpenGL4.GL) })
+        foreach (var method in type.GetMethods(BindingFlags.Public | BindingFlags.Static))
+            if (!method.ContainsGenericParameters && method.Name is ("GetProgramInterface" or "GetProgramResource" or "GetUniform" or "GetActiveAtomicCounterBuffer"))
                 harmony.Patch(method, prefix: prefix);
     }
 
@@ -34,6 +35,10 @@ internal sealed class ProgramAcquisitionCapture : IDisposable
         int before = Reads;
         GL.GetProgramInterface(program, ProgramInterface.Uniform, ProgramInterfaceParameter.ActiveResources, out int count);
         Assert.True(count >= 0);
+        Assert.True(Reads > before);
+        before = Reads;
+        OpenTK.Graphics.OpenGL4.GL.GetProgramInterface(program, OpenTK.Graphics.OpenGL4.ProgramInterface.Uniform, OpenTK.Graphics.OpenGL4.ProgramInterfaceParameter.ActiveResources, out int nativeCount);
+        Assert.True(nativeCount >= 0);
         Assert.True(Reads > before);
         Reset();
     }

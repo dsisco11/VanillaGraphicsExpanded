@@ -1,3 +1,5 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
+using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
@@ -52,14 +54,14 @@ public sealed class PbrInstalledCoverageTests(HeadlessGLFixture fixture) : Rende
         using var target = framework.CreateTestGBuffer(1, 1, PixelInternalFormat.Rgba32f, oit > 0 ? 6 : 2);
         using var texture = framework.CreateTexture(1, 1, PixelInternalFormat.Rgba32f, new[] { .2f, .4f, .6f, alpha });
         var layout = GpuProgramLayout.TryBuild(program.ProgramId);
-        StateCache.Current.UseProgram(program.ProgramId); StateCache.Current.BindVertexArray(vao.VertexArrayId);
+        OpenGLProgramSelection.Select(StateCache.Current, program.ProgramId); OpenGLVertexSelection.Bind(StateCache.Current, vao.VertexArrayId);
         texture.Bind(0);
         ShaderTestFramework.SetUniform(layout.GetUniformLocation(program.ProgramId, family == "standard" ? "tex" : "entityTex"), 0);
         ShaderTestFramework.SetUniform(layout.GetUniformLocation(program.ProgramId, "vge_pbrRoute"), route);
         ShaderTestFramework.SetUniform(layout.GetUniformLocation(program.ProgramId, "vge_atmosphereAerialRadiance"), 11);
         ShaderTestFramework.SetUniform(layout.GetUniformLocation(program.ProgramId, "vge_atmosphereAerialAttenuation"), 12);
         GL.Disable(EnableCap.DepthTest); GL.Disable(EnableCap.Blend); GL.Disable(EnableCap.CullFace);
-        target.BindWithViewport(); GL.DrawArrays(PrimitiveType.Triangles, 0, 3);
+        FramebufferTestSetup.BindForEngineRendering(target); GL.DrawArrays(PrimitiveType.Triangles, 0, 3);
         float[] actual = target[oit > 0 ? 1 : 0].ReadPixels();
         float expected = oit > 0 ? 1 - alpha : route == 1 ? 1 : alpha;
         Assert.InRange(actual[3], expected - 1e-6f, expected + 1e-6f);

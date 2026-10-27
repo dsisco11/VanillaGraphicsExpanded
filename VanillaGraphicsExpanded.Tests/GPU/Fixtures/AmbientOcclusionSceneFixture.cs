@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Diagnostics;
 using System.Numerics;
 using HarmonyLib;
@@ -92,8 +93,11 @@ internal sealed class AmbientOcclusionSceneFixture : IDisposable
     {
         var pipelines=owner.Prepare(draw,Width,Height,quality,horizon,filter,maskShader);
         hierarchy.Render(Depth);
-        Assert.True(GraphicsCommandContext.TryRun("Tests.AmbientOcclusionScene",pipelines,true,
-            commands=>owner.Render(commands,draw,Depth,Surface,hierarchy.Texture!,Camera)));
+        {
+    var commands=RHICommandContext.Current;
+    using var scope31=commands.EnterBoundary(new("Tests.AmbientOcclusionScene",true,graphics:System.Linq.Enumerable.Select<RHIGraphicsPipeline,RHIGraphicsPipelineRef>(pipelines,value=>value),operations:BoundaryOperations.RenderPasses));
+    scope31.Run(()=>owner.Render(commands,draw,Depth,Surface,hierarchy.Texture!,Camera));
+}
         Assert.Equal(ErrorCode.NoError,GL.GetError());
     }
 
@@ -112,8 +116,11 @@ internal sealed class AmbientOcclusionSceneFixture : IDisposable
     {
         hierarchy.Render(Depth);
         var maskPipeline=comparisonMasks.Prepare(draw,Width,Height,maskShader);
-        Assert.True(GraphicsCommandContext.TryRun("Tests.AoComparisonMasks",[maskPipeline],true,
-            commands=>comparisonMasks.Render(commands,draw,hierarchy.Texture!)));
+        {
+    var commands=RHICommandContext.Current;
+    using var scope32=commands.EnterBoundary(new("Tests.AoComparisonMasks",true,graphics:System.Linq.Enumerable.Select<RHIGraphicsPipeline,RHIGraphicsPipelineRef>([maskPipeline],value=>value),operations:BoundaryOperations.RenderPasses));
+    scope32.Run(()=>comparisonMasks.Render(commands,draw,hierarchy.Texture!));
+}
         reference.Capture(Depth, Surface, hierarchy.Texture!, Camera, nativeQuality);
         var quality = AmbientOcclusionQuality.FromNative(nativeQuality);
         horizon.DepthImage = Depth; horizon.SurfaceImage = Surface; horizon.DepthHierarchy = hierarchy.Texture;
@@ -124,10 +131,16 @@ internal sealed class AmbientOcclusionSceneFixture : IDisposable
         var currentPipeline = draw.Prepare(horizon,currentTarget.PostprocessPass());
         // Preparation, hierarchy/mask generation and descriptor mutation are excluded from horizon-only timing.
         return (
-            () => Assert.True(GraphicsCommandContext.TryRun("Tests.AoReference", [referencePipeline], true,
-                commands => draw.Submit(commands, referencePipeline,referenceTarget.PostprocessPass()))),
-            () => Assert.True(GraphicsCommandContext.TryRun("Tests.AoCurrent", [currentPipeline], true,
-                commands => draw.Submit(commands, currentPipeline,currentTarget.PostprocessPass()))));
+            () => {
+    var commands=RHICommandContext.Current;
+    using var scope33=commands.EnterBoundary(new("Tests.AoReference",true,graphics:System.Linq.Enumerable.Select<RHIGraphicsPipeline,RHIGraphicsPipelineRef>([referencePipeline],value=>value),operations:BoundaryOperations.RenderPasses));
+    scope33.Run(()=>draw.Submit(commands, referencePipeline,referenceTarget.PostprocessPass(), reference.CaptureBindings()));
+},
+            () => {
+    var commands=RHICommandContext.Current;
+    using var scope34=commands.EnterBoundary(new("Tests.AoCurrent",true,graphics:System.Linq.Enumerable.Select<RHIGraphicsPipeline,RHIGraphicsPipelineRef>([currentPipeline],value=>value),operations:BoundaryOperations.RenderPasses));
+    scope34.Run(()=>draw.Submit(commands, currentPipeline,currentTarget.PostprocessPass(), horizon.CaptureBindings()));
+});
     }
 
     /// <summary>Measures matched, prepared GPU work and CPU submission, excluding target creation, readback and query waits.</summary>
@@ -140,8 +153,11 @@ internal sealed class AmbientOcclusionSceneFixture : IDisposable
             using var timer=GpuTimerQuery.Create();
             long start=Stopwatch.GetTimestamp();timer.Begin();
             hierarchy.Render(Depth);
-            Assert.True(GraphicsCommandContext.TryRun("Tests.AmbientOcclusionMeasurement",pipelines,true,
-                commands=>owner.Render(commands,draw,Depth,Surface,hierarchy.Texture!,Camera)));
+            {
+    var commands=RHICommandContext.Current;
+    using var scope35=commands.EnterBoundary(new("Tests.AmbientOcclusionMeasurement",true,graphics:System.Linq.Enumerable.Select<RHIGraphicsPipeline,RHIGraphicsPipelineRef>(pipelines,value=>value),operations:BoundaryOperations.RenderPasses));
+    scope35.Run(()=>owner.Render(commands,draw,Depth,Surface,hierarchy.Texture!,Camera));
+}
             timer.End();cpu[sample]=Stopwatch.GetElapsedTime(start).TotalMilliseconds;
             gpu[sample]=timer.GetResultNanoseconds()/1e6;
         }

@@ -1,3 +1,5 @@
+using VanillaGraphicsExpanded.Rendering.Contracts;
+using VanillaGraphicsExpanded.Rendering.ShaderCompilation;
 using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using VanillaGraphicsExpanded.Rendering.Shaders;
@@ -24,35 +26,30 @@ public sealed class GeneratedResourceBindingTests : RenderTestBase
     public void TypedAssignmentsDriveComputeAndSkipInactiveResources()
     {
         EnsureContextValid();
-        int module = BuiltShaderFixture.Load("tests/GpuProgramLayoutBindingTests_1.csh", ShaderType.ComputeShader);
-        int program = GL.CreateProgram();
+        string path = Path.Combine(AppContext.BaseDirectory,"assets","shaders","tests","GpuProgramLayoutBindingTests_1.csh.spv");
+        var settings = new ShaderSettings(VanillaGraphicsExpanded.Rendering.Contracts.GpuShaderContracts.Registry.FindProgram("tests/GpuProgramLayoutBindingTests_1"));
+        Assert.True(ComputeShaderAsset.TryLoadFromSpirv(path,settings,out var first,out string log),log);
+        using var shader = new GeneratedResourceBindingShader(first!);
+        Assert.True(ComputeShaderAsset.TryLoadFromSpirv(path,settings,out var second,out log),log);
+        using var direct = new GeneratedTextureImageShader(second!);
         try
         {
-            GL.AttachShader(program, module);
-            TestShaderInterfaces.LinkProgram(program);
-            GL.GetProgram(program, GetProgramParameterName.LinkStatus, out int linked);
-            Assert.True(linked != 0, GL.GetProgramInfoLog(program));
-            var shader = new GeneratedResourceBindingShader();
-            using var shaderHandle = new BorrowedProgramFixture(shader, program);
-            shader.ProgramLayout.BinaryInterface = TestShaderInterfaces.BuildLayout(program).BinaryInterface;
-            shader.ProgramLayout.RebuildCache(program);
             using var input = RHICommandContext.Current.CreateTexture3D(new RHITextureDescription { Dimension = TextureDimension.Three, Format = TextureFormat.R32ui, Width = System.Math.Max(1, 1), Height = System.Math.Max(1, 1), Depth = System.Math.Max(1, 1), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "GeneratedBinding.Input" }).RequireResource();
             using var output = RHICommandContext.Current.CreateTexture3D(new RHITextureDescription { Dimension = TextureDimension.Three, Format = TextureFormat.R32ui, Width = System.Math.Max(1, 1), Height = System.Math.Max(1, 1), Depth = System.Math.Max(1, 1), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "GeneratedBinding.Output" }).RequireResource();
             input.UploadDataImmediate(new uint[] { 123 }, 0, 0, 0, 1, 1, 1, 0);
             output.UploadDataImmediate(new uint[1], 0, 0, 0, 1, 1, 1, 0);
 
             // Readback depends on both assignments reaching the binary's actual binding units.
-            GL.UseProgram(program);
-            // The texture-only property must infer format and use the same defaults as an explicit view.
-            var direct = new GeneratedTextureImageShader();
-            using var directHandle = new BorrowedProgramFixture(direct, program);
-            direct.ProgramLayout.BinaryInterface = shader.ProgramLayout.BinaryInterface;
-            direct.ProgramLayout.RebuildCache(program);
+            // The texture-only property infers the canonical image defaults.
             GL.GetInteger((GetIndexedPName)All.ImageBindingName, 0, out int priorImage);
             direct.Image = output;
             GL.GetInteger((GetIndexedPName)All.ImageBindingName, 0, out int stagedImage);
             Assert.Equal(priorImage, stagedImage);
-            Publish(direct);
+            var context=RHICommandContext.Current;
+            context.SetPipeline(direct.Pipeline);
+            context.BindResources(new(direct.Shader,
+                samplers:[new(VanillaGraphicsExpanded.Rendering.Contracts.GpuBindingEntry.Identity(VanillaGraphicsExpanded.Rendering.Contracts.ShaderBindingKind.Sampler,"uOcc"), input)],
+                images:direct.CaptureBindings().Images));
             GL.GetInteger((GetIndexedPName)All.ImageBindingName, 0, out int imageName);
             GL.GetInteger((GetIndexedPName)All.ImageBindingAccess, 0, out int imageAccess);
             GL.GetInteger((GetIndexedPName)All.ImageBindingFormat, 0, out int imageFormat);
@@ -70,15 +67,16 @@ public sealed class GeneratedResourceBindingTests : RenderTestBase
             OpenGLImageBindings.ActiveTexture(StateCache.Current, 3);
             GL.GetInteger(GetPName.TextureBinding3D, out int priorInput);
             shader.Input = input;
-            shader.Output = new(output, Access: TextureAccess.WriteOnly, Layered: true, Format: SizedInternalFormat.R32ui);
+            shader.Output = new(output, Access: ImageAccess.WriteOnly, Layered: true, Format: TextureFormat.R32ui);
             shader.Unused = input;
             GL.GetInteger(GetPName.TextureBinding3D, out int stagedInput);
             Assert.Equal(priorInput, stagedInput);
-            Publish(shader);
+            context.SetPipeline(shader.Pipeline);
+            context.BindResources(shader.CaptureBindings());
             OpenGLImageBindings.ActiveTexture(StateCache.Current, 7);
             GL.GetInteger(GetPName.TextureBinding3D, out int unusedBinding);
             Assert.Equal(0, unusedBinding);
-            GL.DispatchCompute(1, 1, 1);
+            context.Dispatch(new(1));
             GL.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
             GpuTestFence.WaitForGpuOrSkip("Generated resource binding dispatch");
             uint[] result = new uint[1];
@@ -86,28 +84,18 @@ public sealed class GeneratedResourceBindingTests : RenderTestBase
             OpenGLImageBindings.BindTexture(StateCache.Current, TextureTarget.Texture3D, StateCache.Current.GetActiveTextureUnit(), output.TextureId);
             GL.GetTexImage(TextureTarget.Texture3D, 0, PixelFormat.RedInteger, PixelType.UnsignedInt, result);
             Assert.Equal(123u, result[0]);
-            // Optional active absence explicitly clears a binding left by the preceding owner.
-            var optional = shader.ProgramLayout.BinaryInterface!.PreparedBindings.Resolve(
-                VanillaGraphicsExpanded.Rendering.Contracts.GpuBindingEntry.Identity(VanillaGraphicsExpanded.Rendering.Contracts.ShaderBindingKind.Sampler, "uOcc"));
-            optional = optional with { Contract = optional.Contract with { Binding = optional.Contract.Binding with { Required = false } } };
-            ShaderPreparedSubmission.ValidateSampler(optional, (GpuTexture?)null);
-            ShaderPreparedSubmission.Sampler(optional, (GpuTexture?)null);
-            OpenGLImageBindings.ActiveTexture(StateCache.Current, 3);
-            GL.GetInteger(GetPName.TextureBinding3D, out int clearedInput);
-            Assert.Equal(0, clearedInput);
+            // The fixed contract cannot be weakened by changing a copied prepared entry.
+            Assert.Throws<InvalidOperationException>(() => context.BindResources(new(shader.Shader, images:shader.CaptureBindings().Images)));
+            OpenGLImageBindings.ActiveTexture(StateCache.Current,3);
+            GL.GetInteger(GetPName.TextureBinding3D,out int retainedInput);
+            Assert.Equal(input.TextureId,retainedInput);
         }
         finally
         {
             GL.UseProgram(0);
             OpenGLImageBindings.BindTexture(StateCache.Current, TextureTarget.Texture3D, StateCache.Current.GetActiveTextureUnit(), 0);
-            TestShaderInterfaces.DeleteProgram(program);
-            TestShaderInterfaces.DeleteShader(module);
         }
     }
     #endregion
 
-    #region Private
-    /// <summary>Runs production publication for a fixture-owned executable without invoking asset readiness.</summary>
-    private static void Publish(GpuProgram shader) => ((IGpuProgram)shader).ReplayInputs();
-    #endregion
 }

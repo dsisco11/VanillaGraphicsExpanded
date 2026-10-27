@@ -273,7 +273,7 @@ public class LumOnProbeAtlasProjectSHFunctionalTests : LumOnShaderFunctionalTest
         atlasGatherId.ScreenProbeAtlas = atlasTex;
         using var anchorInputs1 = LayeredTestTexture.Create(anchorPosTex, anchorNormTex);
         atlasGatherId.ProbeAnchors = anchorInputs1;
-        atlasGatherId.PrimaryDepth = depthTex.TextureId;
+        atlasGatherId.PrimaryDepth = depthTex;
         using var surfaceInput1 = LayeredTestTexture.Create(gbufNormTex, null, null);
         atlasGatherId.GBufferSurface = surfaceInput1;
 

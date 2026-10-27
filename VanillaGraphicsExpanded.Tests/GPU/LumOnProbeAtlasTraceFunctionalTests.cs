@@ -333,7 +333,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
         // Bind inputs
         using var anchorInputs1 = LayeredTestTexture.Create(anchorPosTex, anchorNormalTex);
         programId.ProbeAnchors = anchorInputs1;
-        programId.PrimaryDepth = depthTex.TextureId;
+        programId.PrimaryDepth = depthTex;
         programId.HzbDepth = depthTex;
         programId.SurfaceAlbedo = colorTex;
         programId.ScreenProbeAtlasHistory = historyTex;
@@ -429,7 +429,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
 
         using var anchorInputs2 = LayeredTestTexture.Create(anchorPosTex, anchorNormalTex);
         programId.ProbeAnchors = anchorInputs2;
-        programId.PrimaryDepth = depthTex.TextureId;
+        programId.PrimaryDepth = depthTex;
         programId.HzbDepth = depthTex;
         programId.SurfaceAlbedo = colorTex;
         programId.ScreenProbeAtlasHistory = historyTex;
@@ -522,7 +522,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
 
         using var anchorInputs3 = LayeredTestTexture.Create(anchorPosTex, anchorNormalTex);
         programId.ProbeAnchors = anchorInputs3;
-        programId.PrimaryDepth = depthTex.TextureId;
+        programId.PrimaryDepth = depthTex;
         programId.HzbDepth = depthTex;
         programId.SurfaceAlbedo = colorTex;
         programId.ScreenProbeAtlasHistory = historyTex;
@@ -608,7 +608,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
 
         using var anchorInputs4 = LayeredTestTexture.Create(anchorPosTex, anchorNormalTex);
         programId.ProbeAnchors = anchorInputs4;
-        programId.PrimaryDepth = depthTex.TextureId;
+        programId.PrimaryDepth = depthTex;
         programId.HzbDepth = depthTex;
         programId.SurfaceAlbedo = colorTex;
         programId.ScreenProbeAtlasHistory = historyTex;
@@ -704,7 +704,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
 
         using var anchorInputs5 = LayeredTestTexture.Create(anchorPosTex, anchorNormalTex);
         programId.ProbeAnchors = anchorInputs5;
-        programId.PrimaryDepth = depthTex.TextureId;
+        programId.PrimaryDepth = depthTex;
         programId.HzbDepth = depthTex;
         programId.SurfaceAlbedo = colorTex;
         programId.ScreenProbeAtlasHistory = historyTex;
@@ -809,7 +809,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
 
         using var anchorInputs6 = LayeredTestTexture.Create(anchorPosTex, anchorNormalTex);
         programId.ProbeAnchors = anchorInputs6;
-        programId.PrimaryDepth = depthTex.TextureId;
+        programId.PrimaryDepth = depthTex;
         programId.HzbDepth = depthTex;
         programId.SurfaceAlbedo = colorTex;
         programId.ScreenProbeAtlasHistory = historyTex;
@@ -891,7 +891,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
 
             using var anchorInputs7 = LayeredTestTexture.Create(anchorPosTex, anchorNormalTex);
             programId.ProbeAnchors = anchorInputs7;
-            programId.PrimaryDepth = depthTex.TextureId;
+            programId.PrimaryDepth = depthTex;
             programId.HzbDepth = depthTex;
             programId.SurfaceAlbedo = colorTex;
             programId.ScreenProbeAtlasHistory = historyTex;
@@ -928,7 +928,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
 
             using var anchorInputs8 = LayeredTestTexture.Create(anchorPosTex, anchorNormalTex);
             programId.ProbeAnchors = anchorInputs8;
-            programId.PrimaryDepth = depthTex.TextureId;
+            programId.PrimaryDepth = depthTex;
             programId.HzbDepth = depthTex;
             programId.SurfaceAlbedo = colorTex;
             programId.ScreenProbeAtlasHistory = historyTex;
@@ -1002,7 +1002,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
 
         using var anchorInputs9 = LayeredTestTexture.Create(anchorPosTex, anchorNormalTex);
         programId.ProbeAnchors = anchorInputs9;
-        programId.PrimaryDepth = depthTex.TextureId;
+        programId.PrimaryDepth = depthTex;
         programId.HzbDepth = depthTex;
         programId.SurfaceAlbedo = colorTex;
         programId.ScreenProbeAtlasHistory = historyTex;
@@ -1095,7 +1095,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
 
         using var anchorInputs10 = LayeredTestTexture.Create(anchorPosTex, anchorNormalTex);
         programId.ProbeAnchors = anchorInputs10;
-        programId.PrimaryDepth = depthTex.TextureId;
+        programId.PrimaryDepth = depthTex;
         programId.HzbDepth = depthTex;
         programId.SurfaceAlbedo = colorTex;
         programId.ScreenProbeAtlasHistory = historyTex;
@@ -1171,7 +1171,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
 
         using var anchorInputs11 = LayeredTestTexture.Create(anchorPosTex, anchorNormalTex);
         programId.ProbeAnchors = anchorInputs11;
-        programId.PrimaryDepth = depthTex.TextureId;
+        programId.PrimaryDepth = depthTex;
         programId.HzbDepth = depthTex;
         programId.SurfaceAlbedo = colorTex;
         programId.ScreenProbeAtlasHistory = historyTex;
@@ -1232,7 +1232,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
 
             using var anchorInputs12 = LayeredTestTexture.Create(anchorPosTex, anchorNormalTex);
             programId.ProbeAnchors = anchorInputs12;
-            programId.PrimaryDepth = depthTex.TextureId;
+            programId.PrimaryDepth = depthTex;
             programId.HzbDepth = depthTex;
             programId.SurfaceAlbedo = colorTex;
             programId.ScreenProbeAtlasHistory = historyTex;
@@ -1277,7 +1277,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
 
             using var anchorInputs13 = LayeredTestTexture.Create(anchorPosTex, anchorNormalTex);
             programId.ProbeAnchors = anchorInputs13;
-            programId.PrimaryDepth = depthTex.TextureId;
+            programId.PrimaryDepth = depthTex;
             programId.HzbDepth = depthTex;
             programId.SurfaceAlbedo = colorTex;
             programId.ScreenProbeAtlasHistory = historyTex;
@@ -1355,7 +1355,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
 
             using var anchorInputs14 = LayeredTestTexture.Create(anchorPosTex, anchorNormalTex);
             programId.ProbeAnchors = anchorInputs14;
-            programId.PrimaryDepth = depthTex.TextureId;
+            programId.PrimaryDepth = depthTex;
             programId.HzbDepth = depthTex;
             programId.SurfaceAlbedo = colorTex;
             programId.ScreenProbeAtlasHistory = historyTex;
@@ -1399,7 +1399,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
 
             using var anchorInputs15 = LayeredTestTexture.Create(anchorPosTex, anchorNormalTex);
             programId.ProbeAnchors = anchorInputs15;
-            programId.PrimaryDepth = depthTex.TextureId;
+            programId.PrimaryDepth = depthTex;
             programId.HzbDepth = depthTex;
             programId.SurfaceAlbedo = colorTex;
             programId.ScreenProbeAtlasHistory = historyTex;
@@ -1474,7 +1474,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
 
             using var anchorInputs16 = LayeredTestTexture.Create(anchorPosTex, anchorNormalTex);
             programId.ProbeAnchors = anchorInputs16;
-            programId.PrimaryDepth = depthTex.TextureId;
+            programId.PrimaryDepth = depthTex;
             programId.HzbDepth = depthTex;
             programId.SurfaceAlbedo = colorTex;
             programId.ScreenProbeAtlasHistory = historyTex;
@@ -1519,7 +1519,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
 
             using var anchorInputs17 = LayeredTestTexture.Create(anchorPosTex, anchorNormalTex);
             programId.ProbeAnchors = anchorInputs17;
-            programId.PrimaryDepth = depthTex.TextureId;
+            programId.PrimaryDepth = depthTex;
             programId.HzbDepth = depthTex;
             programId.SurfaceAlbedo = colorTex;
             programId.ScreenProbeAtlasHistory = historyTex;
@@ -1597,7 +1597,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
 
             using var anchorInputs18 = LayeredTestTexture.Create(anchorPosTex, anchorNormalTex);
             programId.ProbeAnchors = anchorInputs18;
-            programId.PrimaryDepth = depthTex.TextureId;
+            programId.PrimaryDepth = depthTex;
             programId.HzbDepth = depthTex;
             programId.SurfaceAlbedo = colorTex;
             programId.ScreenProbeAtlasHistory = historyTex;
@@ -1634,7 +1634,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
 
             using var anchorInputs19 = LayeredTestTexture.Create(anchorPosTex, anchorNormalTex);
             programId.ProbeAnchors = anchorInputs19;
-            programId.PrimaryDepth = depthTex.TextureId;
+            programId.PrimaryDepth = depthTex;
             programId.HzbDepth = depthTex;
             programId.SurfaceAlbedo = colorTex;
             programId.ScreenProbeAtlasHistory = historyTex;
@@ -1713,7 +1713,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
 
             using var anchorInputs20 = LayeredTestTexture.Create(anchorPosTex, anchorNormalTex);
             programId.ProbeAnchors = anchorInputs20;
-            programId.PrimaryDepth = depthTex.TextureId;
+            programId.PrimaryDepth = depthTex;
             programId.HzbDepth = depthTex;
             programId.SurfaceAlbedo = colorTex;
             programId.ScreenProbeAtlasHistory = historyTex;
@@ -1756,7 +1756,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
 
             using var anchorInputs21 = LayeredTestTexture.Create(anchorPosTex, anchorNormalTex);
             programId.ProbeAnchors = anchorInputs21;
-            programId.PrimaryDepth = depthTex.TextureId;
+            programId.PrimaryDepth = depthTex;
             programId.HzbDepth = depthTex;
             programId.SurfaceAlbedo = colorTex;
             programId.ScreenProbeAtlasHistory = historyTex;
@@ -1830,7 +1830,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
 
         using var anchorInputs22 = LayeredTestTexture.Create(anchorPosTex, anchorNormalTex);
         programId.ProbeAnchors = anchorInputs22;
-        programId.PrimaryDepth = depthTex.TextureId;
+        programId.PrimaryDepth = depthTex;
         programId.HzbDepth = depthTex;
         programId.SurfaceAlbedo = colorTex;
         programId.ScreenProbeAtlasHistory = historyTex;
@@ -1916,7 +1916,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
 
             using var anchorInputs23 = LayeredTestTexture.Create(anchorPosTex, anchorNormalTex);
             programId.ProbeAnchors = anchorInputs23;
-            programId.PrimaryDepth = depthTex.TextureId;
+            programId.PrimaryDepth = depthTex;
             programId.HzbDepth = depthTex;
             programId.SurfaceAlbedo = colorTex;
             programId.ScreenProbeAtlasHistory = historyTex;
@@ -1970,7 +1970,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
 
             using var anchorInputs24 = LayeredTestTexture.Create(anchorPosTex, anchorNormalTex);
             programId.ProbeAnchors = anchorInputs24;
-            programId.PrimaryDepth = depthTex.TextureId;
+            programId.PrimaryDepth = depthTex;
             programId.HzbDepth = depthTex;
             programId.SurfaceAlbedo = colorTex;
             programId.ScreenProbeAtlasHistory = historyTex;

@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using System.Collections.Generic;
@@ -120,6 +121,8 @@ public sealed class GpuFramebufferAttachment : GpuResource<GpuImageMetadata>
     public int Samples => metadata.Samples;
     /// <summary>Gets the image format used to validate attachment aspects.</summary>
     public PixelInternalFormat InternalFormat => metadata.Format;
+    /// <summary>Projects the published image format for semantic pipeline inputs without native discovery.</summary>
+    public TextureFormat Format => RHI.Backends.OpenGL.OpenGLImageValues.Format(metadata.Format);
     /// <summary>Gets the live texture name, or zero for renderbuffer images and retired attachments.</summary>
     public int TextureId => renderbuffer ? 0 : (int)ResourceId;
     /// <summary>Gets the live renderbuffer name, or zero for texture images and retired attachments.</summary>
@@ -215,7 +218,7 @@ public sealed class GpuFramebufferAttachment : GpuResource<GpuImageMetadata>
 
     /// <summary>Selects the native attachment command for this image while StateCache validates and publishes its result.</summary>
     internal void AttachTo(GpuFramebuffer framebuffer, FramebufferAttachment slot,
-        StateCache.FramebufferOperation? operation = null)
+        OpenGLFramebufferConfiguration.FramebufferOperation? operation = null)
     {
         try
         {
@@ -224,7 +227,7 @@ public sealed class GpuFramebufferAttachment : GpuResource<GpuImageMetadata>
             if (target == TextureTarget.Texture2DArray && attachmentMode == GpuFramebufferAttachmentMode.Unknown
                 && GpuSupport.Graphics.SupportsOvrMultiview)
                 throw new NotSupportedException("Native attachment queries do not establish ordinary versus multiview replay semantics.");
-            cache.FramebufferTexture(framebuffer, slot, this, operation);
+            OpenGLFramebufferConfiguration.FramebufferTexture(framebuffer, slot, this, operation);
         }
         catch { operation?.Interrupt(); throw; }
     }
@@ -257,6 +260,13 @@ public sealed class GpuFramebufferAttachment : GpuResource<GpuImageMetadata>
         if (!compatible) throw new ArgumentException("Storage format does not match the attachment point.", nameof(slot));
     }
 
+
+    /// <summary>Projects a retained renderbuffer consumer using only its existing manager-certified snapshot.</summary>
+    internal static GpuFramebufferAttachment FromRenderbufferReference(GpuRenderbufferRef reference)
+    {
+        if (!reference.IsValid) throw new InvalidOperationException("Renderbuffer metadata is unavailable.");
+        return new(reference.RequireResource(), false, 0, null);
+    }
 
     /// <summary>Builds a borrowed image discovered from an external framebuffer without claiming storage ownership.</summary>
     internal static GpuFramebufferAttachment FromExternalImage(int id, bool renderbuffer, TextureTarget target,
@@ -315,8 +325,9 @@ public sealed class GpuFramebufferAttachment : GpuResource<GpuImageMetadata>
         BaseView = baseView;
         ViewCount = viewCount;
         attachmentMode = mode;
-        renderbuffer = resource is GpuRenderbuffer;
-        target = cubeFace ?? (resource is GpuTexture texture ? texture.TextureTarget : resource is GpuTextureView view ? view.Target : 0);
+        renderbuffer = resource is GpuResource<GpuRenderbufferMetadata>;
+        target = cubeFace ?? (resource is GpuResource<GpuTextureMetadata> texture
+            ? GpuResourceManager.RequireTextureReferenceMetadata(texture).Target : 0);
         ValidateSelection();
         GpuResourceManager.AcquireImageMetadata(this);
         GpuFramebufferAttachmentObservers.Register(resource, this);

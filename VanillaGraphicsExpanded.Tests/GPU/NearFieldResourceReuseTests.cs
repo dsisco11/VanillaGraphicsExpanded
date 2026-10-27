@@ -58,9 +58,9 @@ public sealed class NearFieldResourceReuseTests : NearFieldShaderTestBase
         var screen = first.EnsureScreen(4, 4, 2);
         var other = second.EnsureScreen(4, 4, 2);
         other.ScreenProbeAtlasTraceTex!.UploadDataImmediate(Enumerable.Repeat(.75f, 16 * 16 * 4).ToArray());
-        var output = screen.ScreenProbeAtlasTraceFbo!;
+        var output = screen.ScreenProbeAtlasTracePass!;
         var history = screen.ScreenProbeAtlasHistoryTex!;
-        var radiance = output[0];
+        var radiance = output.Colors[0].Image!.Value.Texture;
         first.Scene.EnsureSize(4, 4);
         var depth = first.Scene.Engine.Depth;
         float[]? prior = null;

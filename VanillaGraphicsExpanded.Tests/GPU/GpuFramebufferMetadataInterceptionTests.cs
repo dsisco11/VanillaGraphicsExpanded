@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Runtime.CompilerServices;
 using HarmonyLib;
@@ -34,8 +35,8 @@ public sealed class GpuFramebufferMetadataInterceptionTests(HeadlessGLFixture fi
             var entry = (GpuResourceMetadataEntry<GpuFramebufferMetadata>)manager.GetResourceRegistration(framebuffer)!;
             using var alias = new FramebufferAlias(framebuffer.FboId); manager.AssociateResource(entry, alias);
             ulong revision = framebuffer.AttachmentRevision;
-            StateCache.Current.BindFramebuffer(FramebufferTarget.DrawFramebuffer, framebuffer.FboId);
-            StateCache.Current.BindFramebuffer(FramebufferTarget.ReadFramebuffer, readSentinel);
+            OpenGLFramebufferSelection.Bind(StateCache.Current, FramebufferTarget.DrawFramebuffer, framebuffer.FboId);
+            OpenGLFramebufferSelection.Bind(StateCache.Current, FramebufferTarget.ReadFramebuffer, readSentinel);
             StateCache.Current.InvalidateAll();
             using var capabilities = new DirectStateAccessCapabilityScope(variant != 9);
             int resource = variant is 4 or 5 ? renderbuffer.RenderbufferId : variant is 6 or 7 or 11 ? volume.TextureId : second.TextureId;
@@ -63,7 +64,7 @@ public sealed class GpuFramebufferMetadataInterceptionTests(HeadlessGLFixture fi
             Assert.Equal((int)All.None, type);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { harmony.UnpatchAll(harmony.Id); StateCache.Current.DeleteFramebuffer(readSentinel); fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { harmony.UnpatchAll(harmony.Id); VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.OpenGL.DeleteFramebuffer(readSentinel); fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
     }
 
     /// <summary>Attachmentless defaults and rejected requests remain representable with split binding preservation.</summary>
@@ -78,8 +79,8 @@ public sealed class GpuFramebufferMetadataInterceptionTests(HeadlessGLFixture fi
             var manager = GpuResourceManagerSystem.CurrentManager!;
             var entry = manager.AcquireResource(GpuResourceKind.Framebuffer, target, GpuFramebufferMetadataReader.Instance)!;
             using var alias = new FramebufferAlias(target); manager.AssociateResource(entry, alias);
-            StateCache.Current.BindFramebuffer(FramebufferTarget.DrawFramebuffer, target);
-            StateCache.Current.BindFramebuffer(FramebufferTarget.ReadFramebuffer, sentinel);
+            OpenGLFramebufferSelection.Bind(StateCache.Current, FramebufferTarget.DrawFramebuffer, target);
+            OpenGLFramebufferSelection.Bind(StateCache.Current, FramebufferTarget.ReadFramebuffer, sentinel);
             StateCache.Current.InvalidateAll();
             using var capabilities = new DirectStateAccessCapabilityScope(variant != 3);
             SetDefault(variant, target, FramebufferDefaultParameter.FramebufferDefaultWidth, 17);
@@ -94,7 +95,7 @@ public sealed class GpuFramebufferMetadataInterceptionTests(HeadlessGLFixture fi
             Assert.Equal(sentinel, GL.GetInteger(GetPName.ReadFramebufferBinding));
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { harmony.UnpatchAll(harmony.Id); StateCache.Current.DeleteFramebuffer(target); StateCache.Current.DeleteFramebuffer(sentinel); fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { harmony.UnpatchAll(harmony.Id); VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.OpenGL.DeleteFramebuffer(target); VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.OpenGL.DeleteFramebuffer(sentinel); fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
     }
     /// <summary>Unknown binding recovery preserves a pending error, and rejected image selection retains the real attachment.</summary>
     [Theory]
@@ -109,7 +110,7 @@ public sealed class GpuFramebufferMetadataInterceptionTests(HeadlessGLFixture fi
             using var image = GpuFramebufferAttachment.FromTexture(texture);
             using var framebuffer = DynamicGpuFramebuffer.Create([image])!;
             var entry = (GpuResourceMetadataEntry<GpuFramebufferMetadata>)GpuResourceManagerSystem.CurrentManager!.GetResourceRegistration(framebuffer)!;
-            StateCache.Current.BindFramebuffer(FramebufferTarget.DrawFramebuffer, framebuffer.FboId);
+            OpenGLFramebufferSelection.Bind(StateCache.Current, FramebufferTarget.DrawFramebuffer, framebuffer.FboId);
             StateCache.Current.InvalidateAll();
             using var capabilities = new DirectStateAccessCapabilityScope(direct);
             GL.Enable((EnableCap)(-1));
@@ -165,7 +166,7 @@ public sealed class GpuFramebufferMetadataInterceptionTests(HeadlessGLFixture fi
             Assert.True(entry.IsUsable);
             Assert.Equal(ErrorCode.NoError,GL.GetError());
         }
-        finally { harmony.UnpatchAll(harmony.Id); StateCache.Current.DeleteFramebuffer(framebuffer); fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { harmony.UnpatchAll(harmony.Id); VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.OpenGL.DeleteFramebuffer(framebuffer); fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
     }
     /// <summary>A changed originating context prevents observation and helper callbacks while leaving facts withdrawn.</summary>
     [Fact]

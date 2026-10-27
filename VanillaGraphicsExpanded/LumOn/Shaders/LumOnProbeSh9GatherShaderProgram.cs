@@ -115,7 +115,7 @@ public partial class LumOnProbeSh9GatherShaderProgram : LumOnShaderProgram, ILum
 
     #region GBuffer Inputs
 
-    public partial int PrimaryDepth { set; }
+    public partial GpuTextureRef PrimaryDepth { set; }
     public partial GpuTextureRef GBufferSurface { set; }
 
     #endregion

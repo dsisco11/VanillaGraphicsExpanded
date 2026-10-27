@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
@@ -46,7 +47,7 @@ internal sealed class CloudVolumeDiffuse(Func<bool,CloudVolumeDiffuseProgram> cr
             var p=Prepare(batch.Direct);p.Capture(batch,bounds.Encoding);
             p.Density=fields.Density;p.Direct=batch.Direct?fields.Direct:null;p.Source=fields.Diffuse;
             p.Occupancy=fields.Occupancy;p.Scratch=fields.Scratch;
-            p.Destination=new(fields.DiffuseSpare,TextureAccess.WriteOnly,Layered:true);
+            p.Destination=new(fields.DiffuseSpare,ImageAccess.WriteOnly,Layered:true);
             if(!storage.UpdateDiffuse(bounds.Encoding,current,_=>
                 {
                     Run(p,batch,current);

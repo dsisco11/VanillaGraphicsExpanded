@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using System.Collections.Generic;
 using System.Numerics;
@@ -20,14 +21,14 @@ internal sealed class BloomRenderer : IDisposable
     private readonly List<PostprocessImage> levels = new(), scratch = new();
     private int width, height, requestedLevels;
     private BloomShaderProgram? shader;
-    private GraphicsPipeline? pipeline;
+    private RHIGraphicsPipeline? pipeline;
 
     #region Public API
     /// <summary>Publishes the completed half-resolution sum of all Gaussian scales.</summary>
     internal DynamicTexture2D Texture => scratch[0].Texture;
 
     /// <summary>Recreates the complete pyramid only when size or configured scale count changes.</summary>
-    internal GraphicsPipeline Prepare(ICoreClientAPI api, PostprocessDraw draw, int frameWidth, int frameHeight, int levelCount,
+    internal RHIGraphicsPipeline Prepare(ICoreClientAPI api, PostprocessDraw draw, int frameWidth, int frameHeight, int levelCount,
         LocalExposure.LocalExposureParameters localSettings = default, GpuTexture? localBase = null, float logMiddleGray = 0)
     {
         levelCount = Math.Clamp(levelCount, 1, Scales.Length);
@@ -55,11 +56,11 @@ internal sealed class BloomRenderer : IDisposable
         if (shader?.EnsureReady() != true) throw new InvalidOperationException("Owned bloom shader unavailable.");
         shader.LocalBase = localSettings.Enabled ? localBase : null;
         shader.CaptureLocal(localSettings, logMiddleGray);
-        return pipeline = draw.Prepare(shader, levels[0].Target.PreservePass);
+        return pipeline = draw.Prepare(shader, levels[0].Pass);
     }
 
     /// <summary>Extracts once, filters independent scales, then accumulates their normalized tinted energy.</summary>
-    internal void Render(GraphicsCommandContext commands, PostprocessDraw draw, GpuTexture scene,
+    internal void Render(RHICommandContext commands, PostprocessDraw draw, GpuTexture scene,
         (GpuShaderStorageBuffer? Buffer, float ManualLogGain) exposure, PostprocessParameters settings)
     {
         // Finish reduction before overwriting any level with its Gaussian result.
@@ -70,7 +71,7 @@ internal sealed class BloomRenderer : IDisposable
             shader.ExposureBuffer = exposure.Buffer;
             shader.Capture(new(0, 0, i == 0 ? 0 : 1, exposure.Buffer is not null ? 1 : 0),
                 new(settings.BloomThreshold, settings.BloomKnee, settings.BloomStrength, exposure.ManualLogGain));
-            draw.Submit(commands, pipeline!, levels[i].Target.PreservePass);
+            draw.Submit(commands, pipeline!, levels[i].Pass,shader!.CaptureBindings());
         }
         float totalEnergy = 0;
         for (int i = 0; i < levels.Count; i++)
@@ -80,10 +81,10 @@ internal sealed class BloomRenderer : IDisposable
             shader!.SecondaryImage = scene;
             shader.SourceImage = levels[i].Texture;
             shader.CaptureGaussian(Scales[i].Radius, vertical: false);
-            draw.Submit(commands, pipeline!, scratch[i].Target.PreservePass);
+            draw.Submit(commands, pipeline!, scratch[i].Pass,shader!.CaptureBindings());
             shader.SourceImage = scratch[i].Texture;
             shader.CaptureGaussian(Scales[i].Radius, vertical: true);
-            draw.Submit(commands, pipeline!, levels[i].Target.PreservePass);
+            draw.Submit(commands, pipeline!, levels[i].Pass,shader!.CaptureBindings());
         }
         // Reuse horizontal scratch after all filters finish. Every scale enters the sum exactly once.
         for (int i = levels.Count - 1; i >= 0; i--)
@@ -93,7 +94,7 @@ internal sealed class BloomRenderer : IDisposable
             shader.SecondaryImage = hasCoarser ? scratch[i + 1].Texture : scene;
             shader.Capture(new(0, 0, 4, hasCoarser ? 1 : 0),
                 new(Scales[i].Tint * (Scales[i].Energy / totalEnergy), 0));
-            draw.Submit(commands, pipeline!, scratch[i].Target.PreservePass);
+            draw.Submit(commands, pipeline!, scratch[i].Pass,shader!.CaptureBindings());
         }
     }
 

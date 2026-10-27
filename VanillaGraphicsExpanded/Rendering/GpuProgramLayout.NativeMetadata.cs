@@ -11,14 +11,17 @@ public partial class GpuProgramLayout
     private GpuProgramMetadata? nativeMetadata;
 
     #region Internal API
-    /// <summary>Recovers only mutable legacy assignments when no registered owner observed the commands.</summary>
-    internal void RefreshLocalProgramAssignments(GpuProgramObject owner)
+    /// <summary>Installs one ready RHI interface without independently preparing or reflecting a second table generation.</summary>
+    internal void InstallFixedExecutable(RHI.RHIShader shader)
     {
-        if (compiledContract || uniformBlockContract.Count + shaderStorageBlockContract.Count + samplerContract.Count + imageContract.Count == 0) return;
-        GpuResourceManager.RefreshLocalProgramAssignments(owner, uniformBlockContract.Keys, shaderStorageBlockContract.Keys,
-            samplerContract.Keys.Concat(imageContract.Keys));
+        shader.RequireUsable();
+        var owner = shader.Program;
+        BinaryInterface = shader.Interface;
+        nativeMetadata = GpuResourceManager.RequireProgramSnapshot(owner);
+        NativeMetadataRevision = owner.ResourceManager?.GetResourceRegistration(owner)?.MetadataRevision ?? 0;
+        RebuildCache(owner.ProgramId);
+        owner.SetPreparedLayout(this);
     }
-
     /// <summary>Gets the canonical revision used by this derived layout, independently of owner installation revisions.</summary>
     internal ulong NativeMetadataRevision { get; private set; }
 

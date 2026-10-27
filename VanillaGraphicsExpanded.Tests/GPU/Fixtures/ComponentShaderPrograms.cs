@@ -64,9 +64,9 @@ internal sealed class ComponentShaderPrograms : IDisposable
     /// <summary>Releases programs while their engine boundary and graphics context are still available.</summary>
     public void Dispose()
     {
-        foreach (var program in programs) { program.Stop(); program.Dispose(); }
+        foreach (var program in programs) { program.Dispose(); }
         programs.Clear();
-        foreach (var program in computePrograms) { program.Stop(); program.Dispose(); }
+        foreach (var program in computePrograms) { program.Dispose(); }
         computePrograms.Clear();
         frameLighting.Dispose();
         platform.Dispose();

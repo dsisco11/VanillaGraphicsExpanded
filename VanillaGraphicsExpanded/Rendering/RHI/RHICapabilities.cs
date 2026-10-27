@@ -36,6 +36,8 @@ public sealed class RHICapabilities
     public bool SpirvShaders => source.SupportsArbGlSpirv;
     /// <summary>Reports support for optional deferred shader compilation.</summary>
     public bool ParallelShaderCompilation => source.SupportsArbParallelShaderCompile || source.SupportsKhrParallelShaderCompile;
+    /// <summary>Reports native indirect-count support from the cached API version or extension inventory.</summary>
+    public bool IndirectDrawCount { get; }
     /// <summary>Reports support for optional external semaphore operations.</summary>
     public bool ExternalSemaphores => source.SupportsExtSemaphore;
     /// <summary>Reports support for optional external memory objects.</summary>
@@ -61,6 +63,8 @@ public sealed class RHICapabilities
     internal RHICapabilities(GraphicsCapabilities source)
     {
         this.source = source;
+        IndirectDrawCount = source.ApiVersion is { } version && version >= new System.Version(4, 6)
+            || GpuSupport.Supports("GL_ARB_indirect_parameters");
         PipelineStatistics = GpuSupport.Supports("GL_ARB_pipeline_statistics_query");
         ExternalMemoryWin32 = GpuSupport.Supports("GL_EXT_memory_object_win32");
         ExternalSemaphoresWin32 = GpuSupport.Supports("GL_EXT_semaphore_win32");

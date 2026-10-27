@@ -17,9 +17,9 @@ internal interface IAtmosphereSkyShaderProgramBindings : VanillaGraphicsExpanded
     CpuUniformBuffer Inputs { get; }
     /// <summary>Uses the lookup texture's repeat-U and clamp-V filtering contract.</summary>
     [ShaderBinding("skyLookup", ShaderBindingKind.Sampler, 0, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.Texture2D)]
-    int SkyLookup { set; }
+    GpuTextureRef SkyLookup { set; }
     /// <summary>Uses the engine liquid-depth sampler with explicit nearest edge-clamped reads.</summary>
     [ShaderBinding("liquidDepth", ShaderBindingKind.Sampler, 1, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.Texture2D, Sampler = ShaderSamplerPolicy.NearestClamp)]
-    int LiquidDepth { set; }
+    GpuTextureRef LiquidDepth { set; }
     #endregion
 }

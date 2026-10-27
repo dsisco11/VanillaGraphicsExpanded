@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System.Runtime.CompilerServices;
 using HarmonyLib;
 using OpenTK.Graphics.OpenGL;
@@ -25,23 +26,23 @@ public sealed class GpuFramebufferRoutingInterceptionTests(HeadlessGLFixture fix
             var entry = manager.AcquireResource(GpuResourceKind.Framebuffer,target,GpuFramebufferMetadataReader.Instance)!;
             ulong revision = entry.MetadataRevision;
             var cache=StateCache.Current;
-            cache.BindFramebuffer(FramebufferTarget.DrawFramebuffer,target);
-            cache.BindFramebuffer(FramebufferTarget.ReadFramebuffer,sentinel);
-            cache.SetDrawBuffer(DrawBufferMode.ColorAttachment0);
-            _=cache.CaptureFramebufferDrawRouting(target);
+            OpenGLFramebufferSelection.Bind(cache, FramebufferTarget.DrawFramebuffer,target);
+            OpenGLFramebufferSelection.Bind(cache, FramebufferTarget.ReadFramebuffer,sentinel);
+            OpenGLFramebufferRouting.SetDrawBuffer(cache, DrawBufferMode.ColorAttachment0);
+            _=OpenGLFramebufferRouting.Capture(cache, target);
             GL.Enable((EnableCap)(-1));
             DrawRoute(variant,target,DrawBuffersEnum.ColorAttachment1);
-            Assert.Equal(DrawBuffersEnum.ColorAttachment1,cache.CaptureFramebufferDrawRouting(target)[0]);
+            Assert.Equal(DrawBuffersEnum.ColorAttachment1,OpenGLFramebufferRouting.Capture(cache, target)[0]);
             Assert.Equal(ErrorCode.InvalidEnum,GL.GetError());
             DrawRoute(variant,target,(DrawBuffersEnum)(-1));
-            Assert.Equal(DrawBuffersEnum.ColorAttachment1,cache.CaptureFramebufferDrawRouting(target)[0]);
+            Assert.Equal(DrawBuffersEnum.ColorAttachment1,OpenGLFramebufferRouting.Capture(cache, target)[0]);
             Assert.NotEqual(ErrorCode.NoError,GL.GetError());
             Assert.Equal(target,GL.GetInteger(GetPName.DrawFramebufferBinding));
             Assert.Equal(sentinel,GL.GetInteger(GetPName.ReadFramebufferBinding));
             Assert.Equal(revision,entry.MetadataRevision);
             Assert.Equal(ErrorCode.NoError,GL.GetError());
         }
-        finally { harmony.UnpatchAll(harmony.Id); StateCache.Current.DeleteFramebuffer(target); StateCache.Current.DeleteFramebuffer(sentinel); fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { harmony.UnpatchAll(harmony.Id); VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.OpenGL.DeleteFramebuffer(target); VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.OpenGL.DeleteFramebuffer(sentinel); fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
     }
     /// <summary>Read routing changes only the selected read buffer and leaves resource metadata and split bindings intact.</summary>
     [Theory]
@@ -54,8 +55,8 @@ public sealed class GpuFramebufferRoutingInterceptionTests(HeadlessGLFixture fix
         {
             var entry=GpuResourceManagerSystem.CurrentManager!.AcquireResource(GpuResourceKind.Framebuffer,target,GpuFramebufferMetadataReader.Instance)!;
             ulong revision=entry.MetadataRevision;
-            StateCache.Current.BindFramebuffer(FramebufferTarget.ReadFramebuffer,target);
-            StateCache.Current.BindFramebuffer(FramebufferTarget.DrawFramebuffer,sentinel);
+            OpenGLFramebufferSelection.Bind(StateCache.Current, FramebufferTarget.ReadFramebuffer,target);
+            OpenGLFramebufferSelection.Bind(StateCache.Current, FramebufferTarget.DrawFramebuffer,sentinel);
             ReadRoute(variant,target);
             Assert.Equal((int)ReadBufferMode.ColorAttachment1,GL.GetInteger(GetPName.ReadBuffer));
             Assert.Equal(target,GL.GetInteger(GetPName.ReadFramebufferBinding));
@@ -63,7 +64,7 @@ public sealed class GpuFramebufferRoutingInterceptionTests(HeadlessGLFixture fix
             Assert.Equal(revision,entry.MetadataRevision);
             Assert.Equal(ErrorCode.NoError,GL.GetError());
         }
-        finally { harmony.UnpatchAll(harmony.Id); StateCache.Current.DeleteFramebuffer(target); StateCache.Current.DeleteFramebuffer(sentinel); fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { harmony.UnpatchAll(harmony.Id); VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.OpenGL.DeleteFramebuffer(target); VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.OpenGL.DeleteFramebuffer(sentinel); fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
     }
     /// <summary>Owned attachment publication invalidates other helpers while retaining the origin's owning image reference.</summary>
     [Fact]

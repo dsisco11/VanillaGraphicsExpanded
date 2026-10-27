@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.ShaderCompilation;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Numerics;
 using OpenTK.Graphics.OpenGL;
@@ -21,9 +22,9 @@ public sealed class ShaderUniformStateTests(HeadlessGLFixture fixture) : RenderT
         EnsureContextValid();
         string path = Path.Combine(AppContext.BaseDirectory, "assets", "shaders", "tests", "uniform_state.csh.spv");
         var settings = new ShaderSettings(UniformStateComputeShader.Contract);
-        Assert.True(GpuComputePipeline.TryLoadFromSpirv(path, settings, out var first, out string log), log);
-        Assert.True(GpuComputePipeline.TryLoadFromSpirv(path, settings.With(UniformStateComputeShader.Alternate, true), out var second, out log), log);
-        Assert.True(GpuComputePipeline.TryLoadFromSpirv(path, settings, out var replacement, out log), log);
+        Assert.True(ComputeShaderAsset.TryLoadFromSpirv(path, settings, out var first, out string log), log);
+        Assert.True(ComputeShaderAsset.TryLoadFromSpirv(path, settings.With(UniformStateComputeShader.Alternate, true), out var second, out log), log);
+        Assert.True(ComputeShaderAsset.TryLoadFromSpirv(path, settings, out var replacement, out log), log);
         using var a = first!;
         using var b = second!;
         using var c = replacement!;
@@ -36,13 +37,12 @@ public sealed class ShaderUniformStateTests(HeadlessGLFixture fixture) : RenderT
         // The same desired values must reach each executable, including A after B and a fresh A replacement.
         foreach (var pipeline in new[] { a, a, b, a, c })
         {
-            var owner = new SubmissionTarget(pipeline);
-            using (pipeline.UseScope())
-            {
-                Assert.True(inputs.TryBindTo(owner, "UniformStateInputs", "Fixture.Inputs"));
-                output.BindImageUnit(0, TextureAccess.WriteOnly);
-                pipeline.Dispatch(1);
-            }
+            var context = RHICommandContext.Current;
+            context.SetPipeline(pipeline.Pipeline);
+            context.BindResources(new(pipeline.Shader,
+                images: [new(GpuBindingEntry.Identity(ShaderBindingKind.Image, "result"), new RHIImageBinding(output, ImageAccess.WriteOnly))],
+                uniforms: [new(GpuBindingEntry.Identity(ShaderBindingKind.UniformBlock, "UniformStateInputs"), inputs.Capture())]));
+            context.Dispatch(new(1));
             RHICommandContext.Current.Barrier(new(ResourceAccess.Image | ResourceAccess.Framebuffer));
             Assert.Equal(ReferenceEquals(pipeline, b) ? new float[] { 8, 6, 1, 2 } : new float[] { 7, 5, 0, 1 }, output.ReadPixels());
         }
@@ -57,7 +57,7 @@ public sealed class ShaderUniformStateTests(HeadlessGLFixture fixture) : RenderT
     {
         EnsureContextValid();
         string path = Path.Combine(AppContext.BaseDirectory, "assets", "shaders", "tests", "uniform_state.csh.spv");
-        Assert.True(GpuComputePipeline.TryLoadFromSpirv(path, new ShaderSettings(UniformStateComputeShader.Contract),
+        Assert.True(ComputeShaderAsset.TryLoadFromSpirv(path, new ShaderSettings(UniformStateComputeShader.Contract),
             out var pipeline, out string log), log);
         using var shader = new UniformStateComputeShader(pipeline!);
         using var output = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba32f, Width = System.Math.Max(1, 1), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
@@ -73,7 +73,7 @@ public sealed class ShaderUniformStateTests(HeadlessGLFixture fixture) : RenderT
 #if DEBUG
         Assert.Equal(0, ring.AllocationsWritten - allocations);
 #endif
-        shader.Output = new(output, TextureAccess.WriteOnly);
+        shader.Output = new(output, ImageAccess.WriteOnly);
         shader.Dispatch(1);
         RHICommandContext.Current.Barrier(new(ResourceAccess.Image | ResourceAccess.Framebuffer));
         Assert.Equal(new float[] { 0, 5, 0, 0 }, output.ReadPixels());
@@ -92,7 +92,7 @@ public sealed class ShaderUniformStateTests(HeadlessGLFixture fixture) : RenderT
 #if DEBUG
         Assert.Equal(1, ring.AllocationsWritten - allocations);
 #endif
-        shader.Output = new(output, TextureAccess.WriteOnly);
+        shader.Output = new(output, ImageAccess.WriteOnly);
         Assert.Equal(7, shader.Scalar);
         Assert.Equal(new float[] { 4, 6 }, shader.Values);
         shader.Dispatch(1);
@@ -114,7 +114,7 @@ public sealed class ShaderUniformStateTests(HeadlessGLFixture fixture) : RenderT
 
     #region Private
     /// <summary>Exposes the selected prepared executable through the production uniform publication boundary.</summary>
-    private sealed record SubmissionTarget(GpuComputePipeline Pipeline) : IShaderSubmissionTarget
+    private sealed record SubmissionTarget(ComputeShaderAsset Pipeline) : IShaderSubmissionTarget
     {
         public int ProgramId => Pipeline.ProgramId;
         public GpuProgramLayout ProgramLayout => Pipeline.ProgramLayout;

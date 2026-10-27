@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Numerics;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Contracts;
@@ -41,16 +42,11 @@ internal sealed class SolarRasterProgram : GpuProgram
     #endregion
     #region Protected API
     /// <summary>Publishes the guarded numeric block through the prepared shader submission contract.</summary>
-    protected override void Submit()
+    protected override RHIResourceBindings CaptureBindingsCore()
     {
-        var shared = ShaderPreparedSubmission.Resolve(this, GpuBindingEntry.Identity(ShaderBindingKind.UniformBlock, "VgeFrameUBO"));
-        var camera = frame ?? throw new InvalidOperationException("Solar fixture requires a shared camera snapshot.");
-        ShaderPreparedSubmission.ValidateUniformBlock(shared, camera);
-        ShaderPreparedSubmission.UniformBlock(shared, camera);
-        var block=ShaderPreparedSubmission.Resolve(this,GpuBindingEntry.Identity(ShaderBindingKind.UniformBlock,"SunInputs"));
-        ShaderPreparedSubmission.ValidateUniformBlock(block,inputs);
-        ShaderPreparedSubmission.UniformBlock(block,inputs);
-        lighting.Bind();
+        return new(Shader,uniforms:[new(GpuBindingEntry.Identity(ShaderBindingKind.UniformBlock,"VgeFrameUBO"),frame?.Capture()),
+            new(GpuBindingEntry.Identity(ShaderBindingKind.UniformBlock,"SunInputs"),inputs.Capture())],
+            buffers:[new(GpuBindingEntry.Identity(ShaderBindingKind.StorageBlock,"FrameLighting"),BufferRole.ShaderStorage,lighting.Buffer)]);
     }
     /// <summary>Retires the borrowed storage publication with its independent raster fixture.</summary>
     protected override void ReleaseResources()

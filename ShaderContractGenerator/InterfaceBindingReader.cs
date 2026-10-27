@@ -28,10 +28,6 @@ internal static class InterfaceBindingReader
         foreach (var property in Properties(owner))
         {
             var implementation = Implementation(owner, property);
-            // Existing engine texture IDs carry target/sampler policy in their authored setter.
-            // Keep that implementation boundary rather than guessing a texture target for an ID.
-            if (property.Type.SpecialType == SpecialType.System_Int32 && NeedsImplementation(implementation) && !RuntimeSubmissionEmitter.GeneratesSubmission(owner))
-                throw new ArgumentException($"Texture-ID binding '{property.Name}' requires an authored setter that selects its texture target and sampler policy.");
             if (implementation == null && owner.GetMembers(property.Name).Length != 0)
                 throw new ArgumentException($"Interface binding '{property.Name}' conflicts with an incompatible concrete member.");
             if (implementation != null)
@@ -44,8 +40,8 @@ internal static class InterfaceBindingReader
                     throw new ArgumentException($"Interface binding '{property.Name}' has incompatible defining partial accessors.");
             }
             if (!property.Type.ToDisplayString().StartsWith(Prefix, StringComparison.Ordinal) &&
-                NeedsImplementation(implementation) && !BindingReader.HasRuntimeTarget(owner))
-                throw new ArgumentException($"Interface binding '{property.Name}' requires a GpuProgram/GpuComputeProgram owner or an accessible owning GpuComputePipeline field named 'pipeline'.");
+                NeedsImplementation(implementation) && !BindingReader.HasProgramFacade(owner))
+                throw new ArgumentException($"Interface binding '{property.Name}' requires a GpuProgram/GpuComputeProgram binding-capture owner.");
         }
     }
 
@@ -58,7 +54,9 @@ internal static class InterfaceBindingReader
     /// <summary>Emits ordinary public members or completes authored partial properties without duplicating concrete/default bodies.</summary>
     public static string EmitProperties(INamedTypeSymbol owner)
     {
-        if (RuntimeSubmissionEmitter.GeneratesSubmission(owner)) return RuntimeSubmissionEmitter.EmitProperties(owner);
+        // A specialized capture override still uses retained inputs; it must never restore
+        // the former immediate native setter path simply by owning its capture body.
+        if (RuntimeBindingCaptureEmitter.IsRuntimeOwner(owner)) return RuntimeBindingCaptureEmitter.EmitProperties(owner);
         var text = new StringBuilder();
         foreach (var property in Properties(owner))
         {
@@ -87,15 +85,7 @@ internal static class InterfaceBindingReader
             if (property.GetMethod != null)
                 text.Append("get => new ").Append(type).Append('(').Append(Quote(Text(attribute, 0))).Append(", ")
                     .Append(Argument(attribute, 2).Value).Append(", ").Append(Named(attribute, "Required").Value is false ? "false" : "true").Append("); ");
-            else
-            {
-                string target = !BindingReader.HasProgramFacade(owner) && BindingReader.HasLegacyPipelineTarget(owner)
-                    ? "pipeline.ProgramLayout, pipeline.ProgramId" : "ProgramLayout, ProgramId";
-                var kind = BindingReader.ReadKind(attribute);
-                text.Append("set => global::VanillaGraphicsExpanded.Rendering.ShaderBindingAccess.")
-                    .Append(kind).Append('(').Append(target).Append(", ")
-                    .Append(Quote(Text(attribute, 0))).Append(", value); ");
-            }
+            else throw new ArgumentException($"Binding '{property.Name}' requires a runtime capture owner; descriptor-only owners cannot publish resource setters.");
             text.Append("}\n");
         }
         return text.ToString();

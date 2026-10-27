@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using VanillaGraphicsExpanded.Rendering.Integration;
@@ -186,20 +187,21 @@ public sealed class SceneColorRuntimeTests(HeadlessGLFixture fixture, ITestOutpu
             lightingPublication.OnRenderFrame(0, EnumRenderStage.Before);
             lightingPublication.OnRenderFrame(0, EnumRenderStage.Opaque);
             SceneLightingPublicationRenderer.RequireNativeInputs("particlescube");
-            engine.BindWithViewport();
+            FramebufferTestSetup.BindForEngineRendering(engine);
             // Author a complete sky background regardless of inherited scissor or write masks.
             // The clear pass preserves that hostile state for subsequent rendering/handoff checks.
             bool inheritedScissorEnabled = GL.IsEnabled(EnableCap.ScissorTest);
             int[] inheritedScissor = new int[4];
             GL.GetInteger(GetPName.ScissorBox, inheritedScissor);
-            var clearSky = new RenderPassDesc(engine,
-                [new(0, AttachmentLoad.Clear, Clear: ColorClearValue.Float(0, 0, 0, 0))],
-                new(DepthLoad: AttachmentLoad.Clear, ClearDepth: 1));
-            Assert.True(GraphicsCommandContext.TryRun("Tests.SceneColor.ClearSky", [], true, commands =>
+            var clearSky = FramebufferTestSetup.DescribeAttachments(engine, [new(AttachmentIndex:0, Load:AttachmentLoad.Clear, Clear: ColorClearValue.Float(0, 0, 0, 0))], new(DepthLoad: AttachmentLoad.Clear, ClearDepth: 1));
             {
-                commands.BeginPass(clearSky);
-                commands.EndPass();
-            }));
+    var commands=RHICommandContext.Current;
+    using var scope74=commands.EnterBoundary(new("Tests.SceneColor.ClearSky",true,graphics:System.Linq.Enumerable.Select<RHIGraphicsPipeline,RHIGraphicsPipelineRef>([],value=>value),operations:BoundaryOperations.RenderPasses));
+    scope74.Run(()=>{
+                commands.BeginRenderPass(clearSky);
+                commands.EndRenderPass();
+            });
+}
             Assert.All(ReadPrimaryDepth(engine.FboId), value => Assert.Equal(1f, value));
             Assert.Equal(inheritedScissorEnabled, GL.IsEnabled(EnableCap.ScissorTest));
             int[] restoredScissor = new int[4];
@@ -334,12 +336,12 @@ public sealed class SceneColorRuntimeTests(HeadlessGLFixture fixture, ITestOutpu
 
             // The preceding assertions already qualified sky/composition. A uniform completed scene now gives
             // an independent analytic local base for the manual, history-free final integration check.
-            engine.BindWithViewport();
+            FramebufferTestSetup.BindForEngineRendering(engine);
             GL.ClearBuffer(ClearBuffer.Color,0,handedOff.Take(4).ToArray());
             post.OnRenderFrame(0, EnumRenderStage.Before);
             post.Render(new(false, false, ssaoQuality > 0, false, ssaoQuality));
             var displayParameters = new FinalDisplayParameters(new(1,1,1,0),Vector4.Zero,Vector4.Zero);
-            engine.BindWithViewport();
+            FramebufferTestSetup.BindForEngineRendering(engine);
             GL.GetInteger(GetPName.DrawBuffer0, out int beforeDrawRoute);
             using (var textureScope = StateCache.Current.BindTextureScope(TextureTarget.Texture2D, 15, postStorage.TextureId))
             using (var samplerScope = StateCache.Current.BindSamplerScope(15, GpuSamplers.LinearClamp.SamplerId))
@@ -475,7 +477,7 @@ public sealed class SceneColorRuntimeTests(HeadlessGLFixture fixture, ITestOutpu
             ShaderPrograms.Final = previousFinal;
             registry.SetValue(null, previousPrograms);
             ShaderProgramBase.CurrentShaderProgram = null;
-            StateCache.Current.UseProgram(0);
+            OpenGLProgramSelection.Select(StateCache.Current, 0);
         }
     }
     #endregion

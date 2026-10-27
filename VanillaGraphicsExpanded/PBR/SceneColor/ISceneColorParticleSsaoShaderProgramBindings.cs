@@ -11,13 +11,13 @@ internal interface ISceneColorParticleSsaoShaderProgramBindings
     #region Public API
     /// <summary>Samples the current engine depth without attaching it to the output target.</summary>
     [ShaderBinding("visibilityDepth", ShaderBindingKind.Sampler, 0, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.Texture2D, Sampler = ShaderSamplerPolicy.NearestClamp)]
-    int VisibilityDepth { set; }
+    GpuTextureRef VisibilityDepth { set; }
     /// <summary>Samples the material depth before particle submission.</summary>
     [ShaderBinding("beforeDepth", ShaderBindingKind.Sampler, 1, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.Texture2D, Sampler = ShaderSamplerPolicy.NearestClamp)]
-    int BeforeDepth { set; }
+    GpuTextureRef BeforeDepth { set; }
     /// <summary>Samples visibility immediately after particle submission.</summary>
     [ShaderBinding("afterDepth", ShaderBindingKind.Sampler, 2, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.Texture2D, Sampler = ShaderSamplerPolicy.NearestClamp)]
-    int AfterDepth { set; }
+    GpuTextureRef AfterDepth { set; }
     /// <summary>Samples the original cube shader's SSAO normal output.</summary>
     [ShaderBinding("particleNormal", ShaderBindingKind.Sampler, 3, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.Texture2D, Sampler = ShaderSamplerPolicy.NearestClamp)]
     GpuTextureRef ParticleNormal { set; }

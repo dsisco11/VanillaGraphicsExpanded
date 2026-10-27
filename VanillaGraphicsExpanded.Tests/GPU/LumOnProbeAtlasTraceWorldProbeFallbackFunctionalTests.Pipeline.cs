@@ -46,18 +46,18 @@ public partial class LumOnProbeAtlasTraceWorldProbeFallbackFunctionalTests
                 var buffers = resources.EnsureScreen(ScreenWidth, ScreenHeight, ProbeSpacing);
                 var trace = buffers.ScreenProbeAtlasHistoryTex!;
                 trace.UploadDataImmediate(branch == 0 ? normalTrace : suppressedTrace);
-                var first = buffers.ScreenProbeAtlasCurrentFbo!;
-                var second = buffers.ScreenProbeAtlasTraceFbo!;
-                var filtered = buffers.ScreenProbeAtlasFilteredFbo!;
-                var projected = buffers.ProbeSh9Fbo!;
-                var output = buffers.IndirectHalfFbo!;
+                var first = buffers.ScreenProbeAtlasCurrentPass!;
+                var second = buffers.ScreenProbeAtlasTracePass!;
+                var filtered = buffers.ScreenProbeAtlasFilteredPass!;
+                var projected = buffers.ProbeSh9Pass!;
+                var output = buffers.IndirectHalfPass!;
                 for (int frame = 0; frame < 2; frame++)
                 {
                     UpdateAndBindLumOnFrameUbo(temporal, frameIndex: frame, historyValid: frame, enableVelocityReprojection: 0);
-                    temporal.ScreenProbeAtlasCurrent = frame == 0 ? trace : first[0];
-                    temporal.ScreenProbeAtlasHistory = frame == 0 ? trace : first[0];
-                    temporal.ScreenProbeAtlasMetaCurrent = frame == 0 ? meta : first[1];
-                    temporal.ScreenProbeAtlasMetaHistory = frame == 0 ? meta : first[1];
+                    temporal.ScreenProbeAtlasCurrent = frame == 0 ? trace : first.Colors[0].Image!.Value.Texture;
+                    temporal.ScreenProbeAtlasHistory = frame == 0 ? trace : first.Colors[0].Image!.Value.Texture;
+                    temporal.ScreenProbeAtlasMetaCurrent = frame == 0 ? meta : first.Colors[1].Image!.Value.Texture;
+                    temporal.ScreenProbeAtlasMetaHistory = frame == 0 ? meta : first.Colors[1].Image!.Value.Texture;
                     temporal.ProbeAnchors = anchors;
                     temporal.PmjJitter = GetOrCreatePmjJitterTexture(1);
                     temporal.VelocityTex = buffers.VelocityTex;
@@ -67,14 +67,14 @@ public partial class LumOnProbeAtlasTraceWorldProbeFallbackFunctionalTests
                 }
                 {
                     UpdateAndBindLumOnFrameUbo(filter);
-                    filter.ScreenProbeAtlas = second[0]; filter.ScreenProbeAtlasMeta = second[1]; filter.ProbeAnchors = anchors;
+                    filter.ScreenProbeAtlas = second.Colors[0].Image!.Value.Texture; filter.ScreenProbeAtlasMeta = second.Colors[1].Image!.Value.Texture; filter.ProbeAnchors = anchors;
                     filter.FilterRadius = 1; filter.HitDistanceSigma = 1;
                     TestFramework.RenderQuadTo(filter, filtered);
                 }
                 if (sh9)
                 {
                     UpdateAndBindLumOnFrameUbo(project);
-                    project.ScreenProbeAtlas = filtered[0]; project.ScreenProbeAtlasMeta = second[1]; project.ProbeAnchors = anchors;
+                    project.ScreenProbeAtlas = filtered.Colors[0].Image!.Value.Texture; project.ScreenProbeAtlasMeta = second.Colors[1].Image!.Value.Texture; project.ProbeAnchors = anchors;
                     TestFramework.RenderQuadTo(project, projected);
                 }
                 {
@@ -82,21 +82,21 @@ public partial class LumOnProbeAtlasTraceWorldProbeFallbackFunctionalTests
                     if (shGather != null)
                     {
                         shGather.ProbeAnchors = anchors;
-                        shGather.PrimaryDepth = depth.TextureId; shGather.GBufferSurface = normals;
+                        shGather.PrimaryDepth = depth; shGather.GBufferSurface = normals;
                         shGather.ProbeSh9 = buffers.ProbeSh9;
                         shGather.Intensity = 1; shGather.IndirectTint = [1,1,1];
                     }
                     else
                     {
-                        atlasGather!.ScreenProbeAtlas = filtered[0];
+                        atlasGather!.ScreenProbeAtlas = filtered.Colors[0].Image!.Value.Texture;
                         atlasGather.ProbeAnchors = anchors;
-                        atlasGather.PrimaryDepth = depth.TextureId; atlasGather.GBufferSurface = normals;
+                        atlasGather.PrimaryDepth = depth; atlasGather.GBufferSurface = normals;
                         atlasGather.Intensity = 1; atlasGather.IndirectTint = [1,1,1];
                         atlasGather.LeakThreshold = .5f; atlasGather.SampleStride = 1;
                     }
                     TestFramework.RenderQuadTo(gather, output);
                 }
-                gathered[branch] = output[0].ReadPixels();
+                gathered[branch] = output.Colors[0].Image!.Value.Texture.ReadPixels();
             }
             for (int i = 0; i < gathered[0].Length; i += 4)
             {

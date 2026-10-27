@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering;
 using System.Runtime.CompilerServices;
 using FluffyClouds;
 using HarmonyLib;
@@ -113,8 +114,9 @@ public sealed class CloudLifecycleTests(HeadlessGLFixture fixture)
         events.Raise(value => value.LevelFinalize += null); runtime.Update();
         var renderer = new VanillaGraphicsExpanded.PBR.Clouds.Volume.CloudStoredVolumeConsumer(api.Object, runtime,()=>VanillaGraphicsExpanded.PBR.Clouds.Volume.CloudVolumeViewSettings.Default);
         var storage = new VanillaGraphicsExpanded.PBR.Clouds.Volume.CloudVolumeViewTargets(1,1,2);
-        int framebuffer=storage.Target.FboId;
-        AccessTools.Field(renderer.GetType(),"target").SetValue(renderer,storage.Target);
+        using var framebufferOwner = DynamicGpuFramebuffer.CreateMRT(storage.Images)!;
+        int framebuffer=framebufferOwner.FboId;
+        AccessTools.Field(renderer.GetType(),"target").SetValue(renderer,framebufferOwner);
         Assert.True(runtime.Ownership.TryActivate(CloudMode.Volumetric, renderer, true));
         events.Setup(value => value.UnregisterRenderer(renderer, EnumRenderStage.OIT)).Throws(new InvalidOperationException("event teardown"));
         var error = Assert.Throws<AggregateException>(() => runtime.Ownership.Dispose());

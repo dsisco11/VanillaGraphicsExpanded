@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.PBR.Liquids;
 using VanillaGraphicsExpanded.Rendering;
@@ -48,15 +49,14 @@ public sealed class LiquidProductionPipelineTests(HeadlessGLFixture fixture) : R
                     PixelInternalFormat.Rgba16f, PixelInternalFormat.Rgba16f)
                 : CreateMRTRenderTarget(1, 1, PixelInternalFormat.Rgba32f, PixelInternalFormat.Rgba32f);
             var outputs = route == "depth" ? LiquidPipelineStates.DepthOutputs
-                : route == "surface" ? LiquidPipelineStates.SurfaceOutputs : LiquidPipelineStates.VolumeOutputs;
-            using var targets = new RenderPassTargets(new(target, outputs));
-            using var lifetime = new GraphicsPipelineLifetime();
-            using var pipeline = new GraphicsPipeline(lifetime, new(shader.GraphicsIdentity!, EngineLiquidPoolGeometry.Layout,
-                targets.Signature, DynamicPipelineState.Viewport,
+                : route == "surface" ? LiquidPipelineStates.SurfaceOutputs : [new RHIColorAttachment(AttachmentIndex:0),new RHIColorAttachment(AttachmentIndex:1)];
+            var targets = RHICommandContext.Current.DescribeRenderTargets(FramebufferTestSetup.DescribeAttachments(target,outputs));
+            using var pipeline = RHICommandContext.Current.CreateGraphicsPipeline(new(shader.Shader, EngineLiquidPoolGeometry.Layout,
+                targets, DynamicPipelineState.Viewport,
                 depthStencil: route == "depth" ? LiquidPipelineStates.Depth : new(),
                 blending: route == "depth" ? LiquidPipelineStates.DepthBlending
-                    : route == "surface" ? LiquidPipelineStates.SurfaceBlending : LiquidPipelineStates.VolumeBlending), shader);
-            pipeline.ValidateTargets(targets.Signature);
+                    : route == "surface" ? LiquidPipelineStates.SurfaceBlending : LiquidPipelineStates.VolumeBlending)).RequireResource();
+            pipeline.ValidateTargets(targets);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
         finally { GpuShaderProgramLibraries.Dispose(assets.Api); }

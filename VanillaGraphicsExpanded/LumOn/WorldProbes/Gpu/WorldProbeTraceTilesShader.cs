@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.ShaderCompilation;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Contracts;
 
@@ -11,5 +12,5 @@ namespace VanillaGraphicsExpanded.LumOn.WorldProbes.Gpu;
 internal sealed partial class WorldProbeTraceTilesShader : GpuComputeProgram, IWorldProbeTraceTilesShaderBindings
 {
     /// <summary>Adopts the executable and its retained resource contract.</summary>
-    public WorldProbeTraceTilesShader(GpuComputePipeline pipeline) : base(pipeline) { }
+    public WorldProbeTraceTilesShader(ComputeShaderAsset pipeline) : base(pipeline) { }
 }

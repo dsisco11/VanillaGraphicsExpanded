@@ -84,11 +84,11 @@ public sealed class BindingSuppressionTests(HeadlessGLFixture fixture)
         int read = GL.GenFramebuffer(), draw = GL.GenFramebuffer();
         try
         {
-            cache.BindFramebuffer(FramebufferTarget.ReadFramebuffer, read);
-            cache.BindFramebuffer(FramebufferTarget.DrawFramebuffer, draw);
+            OpenGLFramebufferSelection.Bind(cache, FramebufferTarget.ReadFramebuffer, read);
+            OpenGLFramebufferSelection.Bind(cache, FramebufferTarget.DrawFramebuffer, draw);
             Assert.Equal(draw, cache.GetCurrentFramebuffer(FramebufferTarget.Framebuffer));
             Assert.Equal(read, cache.GetCurrentFramebuffer(FramebufferTarget.ReadFramebuffer));
-            cache.BindFramebuffer(FramebufferTarget.Framebuffer, draw);
+            OpenGLFramebufferSelection.Bind(cache, FramebufferTarget.Framebuffer, draw);
             Assert.Equal(draw, GL.GetInteger(GetPName.ReadFramebufferBinding));
             Assert.Equal(draw, GL.GetInteger(GetPName.DrawFramebufferBinding));
             Assert.Equal(ErrorCode.NoError, GL.GetError());
@@ -115,7 +115,7 @@ public sealed class BindingSuppressionTests(HeadlessGLFixture fixture)
             GL.BindBuffer(BufferTarget.ElementArrayBuffer, buffer);
             GL.BindVertexArray(0);
             cache.InvalidateAll();
-            cache.BindVertexArray(vao);
+            OpenGLVertexSelection.Bind(cache, vao);
             Assert.Equal(buffer, cache.GetBoundBuffer(BufferTarget.ElementArrayBuffer));
             OpenGLBufferBindings.BindBuffer(cache, BufferTarget.ElementArrayBuffer, 0);
             Assert.Equal(0, GL.GetInteger(GetPName.ElementArrayBufferBinding));

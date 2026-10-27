@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.ShaderCompilation;
 using System;
 using System.Numerics;
 using VanillaGraphicsExpanded.Rendering;
@@ -29,7 +30,7 @@ internal sealed partial class CloudVolumeWorkProgram : GpuComputeProgram,ICloudV
     internal static CloudVolumeWorkProgram Create(ICoreAPI api,int operation,bool largeBudget=false,PackedUniformBuffer? shared=null,int quality=2)
     {
         var layout=new GpuProgramLayout();layout.RegisterContract(Contract.Stages[0].Bindings);
-        if(!GpuComputePipeline.TryCreateFromAssets(api,new ShaderSettings(Contract).With(Operation,operation).With(LargeBudget,largeBudget).With(Quality,quality),out var pipeline,
+        if(!ComputeShaderAsset.TryCreateFromAssets(api,new ShaderSettings(Contract).With(Operation,operation).With(LargeBudget,largeBudget).With(Quality,quality),out var pipeline,
             out string log,"Cloud.Volume.Work",layout:layout))throw new InvalidOperationException(log);
         return new(pipeline!,shared);
     }
@@ -53,7 +54,7 @@ internal sealed partial class CloudVolumeWorkProgram : GpuComputeProgram,ICloudV
     #endregion
     #region Private
     /// <summary>Adopts the pipeline and frozen work parameters.</summary>
-    private CloudVolumeWorkProgram(GpuComputePipeline pipeline,PackedUniformBuffer? shared):base(pipeline)
+    private CloudVolumeWorkProgram(ComputeShaderAsset pipeline,PackedUniformBuffer? shared):base(pipeline)
     {inputs=shared??OwnUniformBuffer(new PackedUniformBuffer(208));}
     /// <summary>Publishes the complete work record.</summary>
     CpuUniformBuffer ICloudVolumeWorkBindings.Inputs=>inputs;

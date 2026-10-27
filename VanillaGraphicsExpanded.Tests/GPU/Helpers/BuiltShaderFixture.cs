@@ -1,3 +1,5 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
+using VanillaGraphicsExpanded.Tests.GPU.Helpers;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering.Contracts;
 using VanillaGraphicsExpanded.Rendering.Spirv;
@@ -14,21 +16,20 @@ internal static class BuiltShaderFixture
     public static int Load(string identity, ShaderType type, IReadOnlyDictionary<string, string?>? defines = null)
     {
         var stage = GpuShaderContracts.Registry.FindStage(identity);
-        if (SpirvStageLoader.ToShaderType(stage.Kind) != type) throw new ArgumentException("Stage kind mismatch: " + identity);
+        if (!PrecompiledStageFixture.Matches(stage.Kind, type)) throw new ArgumentException("Stage kind mismatch: " + identity);
         var owner = GpuShaderContracts.Registry.Programs.Values.OrderBy(p => p.Identity, StringComparer.Ordinal).First(p => p.Stages.Any(s => s.Identity == identity));
         var selected = new ShaderLoadPlan(new ShaderSettings(owner, defines)).Stages.Single(s => s.Stage.Identity == identity);
-        using var loaded = SpirvStageLoader.Load(selected,
+        using var loaded = PrecompiledStageFixture.Load(selected,
             path => File.ReadAllBytes(Path.Combine(AppContext.BaseDirectory, "assets", "shaders", path)));
-        TestShaderInterfaces.TrackShader(loaded.ShaderId, loaded.BindingContract!);
+        TestShaderInterfaces.TrackShader(loaded.ShaderId, selected.Stage.Bindings);
         return (int)loaded.Detach();
     }
     /// <summary>Loads a fixed test stage with source-authored numeric locations and transfers its native ownership.</summary>
     public static int LoadFixture(string path, ShaderType type)
     {
         byte[] binary = File.ReadAllBytes(Path.Combine(AppContext.BaseDirectory, "assets", "shaders", path + ".spv"));
-        if (!VanillaGraphicsExpanded.Rendering.GpuShaderModule.TryLoadSpirv(type, binary, "main", [], out var module, out string error) || module == null)
-            throw new InvalidOperationException(error);
-        using (module) return (int)module.Detach();
+        using var module = RHICommandContext.Current.OpenGL.CompileExternalStage(new(PrecompiledStageFixture.Stage(type), binary)).RequireResource();
+        return (int)module.Detach();
     }
     /// <summary>Builds the numeric interface for fixture programs without relying on stripped binary names.</summary>
     public static VanillaGraphicsExpanded.Rendering.GpuProgramLayout Layout(int program, params string[] stages)

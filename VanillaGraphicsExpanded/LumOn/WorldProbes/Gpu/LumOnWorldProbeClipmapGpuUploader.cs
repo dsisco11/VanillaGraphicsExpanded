@@ -43,9 +43,9 @@ internal sealed partial class LumOnWorldProbeClipmapGpuUploader : IDisposable
 
         try
         {
-            probeGeometry = new(ProbeLayout, PrimitiveType.Points, new Dictionary<int, GpuVbo> { [0] = probeVbo });
+            probeGeometry = new(ProbeLayout, PrimitiveTopology.Points, new Dictionary<int, GpuVbo> { [0] = probeVbo });
             tileVbo = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StreamDraw, Label = "VGE_WorldProbeTileResolve_VBO" }).RequireResource();
-            tileGeometry = new(TileLayout, PrimitiveType.Points, new Dictionary<int, GpuVbo> { [0] = tileVbo });
+            tileGeometry = new(TileLayout, PrimitiveTopology.Points, new Dictionary<int, GpuVbo> { [0] = tileVbo });
         }
         catch
         {
@@ -195,24 +195,25 @@ internal sealed partial class LumOnWorldProbeClipmapGpuUploader : IDisposable
         }
 
         using var gpuScope = GlGpuProfiler.Instance.Scope("LumOn.WorldProbe.UploadResolve");
-        var radianceTarget = resources.GetRadianceFbo();
-        var metadataTarget = resources.GetFbo();
+        var radianceTarget = resources.RadiancePass;
+        var metadataTarget = resources.MetadataPass;
         var tileState = PreparePipeline(ref tilePipeline, tileProg, TileLayout, radianceTarget);
         var probeState = PreparePipeline(ref probePipeline, probeProg, ProbeLayout, metadataTarget);
-        bool submitted = GraphicsCommandContext.TryRun("LumOn.WorldProbe.UploadResolve", [tileState, probeState], true, commands =>
+        var commands=RHICommandContext.Current;
+        if(!commands.TryEnterBoundary(new("LumOn.WorldProbe.UploadResolve",true,graphics:[tileState,probeState],operations:BoundaryOperations.RenderPasses),out var boundary)) return 0;
+        using(boundary) boundary!.Run(()=>
         {
             // Publish radiance first; metadata becomes visible only after both sequential passes succeed.
             if (tileVertices.Count > 0)
             {
                 tileProg.AtlasSize = new Vec2f(resources.RadianceAtlasWidth, resources.RadianceAtlasHeight);
                 tileVbo.UploadData((ReadOnlySpan<TileResolveVertex>)CollectionsMarshal.AsSpan(tileVertices));
-                Submit(commands, tileState, tileGeometry, radianceTarget, tileVertices.Count);
+                Submit(commands, tileState, tileGeometry, radianceTarget, tileVertices.Count,tileProg.CaptureBindings());
             }
             probeProg.AtlasSize = new Vec2f(resources.AtlasWidth, resources.AtlasHeight);
             probeVbo.UploadData((ReadOnlySpan<ProbeResolveVertex>)CollectionsMarshal.AsSpan(probeVertices));
-            Submit(commands, probeState, probeGeometry, metadataTarget, probeVertices.Count);
+            Submit(commands, probeState, probeGeometry, metadataTarget, probeVertices.Count,probeProg.CaptureBindings());
         });
-        if (!submitted) return 0;
         return usedProbes;
     }
 
@@ -230,7 +231,6 @@ internal sealed partial class LumOnWorldProbeClipmapGpuUploader : IDisposable
         tileGeometry.Dispose();
         tileVbo.Dispose();
         tilePipeline?.Dispose();
-        pipelineLifetime.Dispose();
     }
 
     [StructLayout(LayoutKind.Sequential, Pack = 4)]

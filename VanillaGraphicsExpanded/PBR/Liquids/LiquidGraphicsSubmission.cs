@@ -1,3 +1,5 @@
+using VanillaGraphicsExpanded.Rendering.ShaderCompilation;
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -20,12 +22,11 @@ internal sealed class LiquidGraphicsSubmission : IDisposable
         AccessTools.FieldRefAccess<MeshDataPoolManager, List<MeshDataPool>>("pools");
     [ThreadStatic] private static LiquidGraphicsSubmission? active;
     private readonly Dictionary<MeshDataPool, EngineLiquidPoolGeometry> geometry = new();
-    private readonly GraphicsPipelineLifetime lifetime = new();
     private readonly Action unregister;
     private readonly ICoreClientAPI api;
     private GpuFramebuffer? borrowed;
-    private GraphicsPipeline? pipeline;
-    private GraphicsCommandContext? commands;
+    private GraphicsPipelineAsset? pipeline;
+    private RHICommandContext? commands;
     private bool dirty = true;
     private GpuProgram? inputOwner;
     private LiquidPoolInputAdapter? inputAdapter;
@@ -54,7 +55,7 @@ internal sealed class LiquidGraphicsSubmission : IDisposable
     }
 
     /// <summary>Prepares storage before entry, then lets engine managers stage uniforms before intercepted complete draws.</summary>
-    internal bool Run(GpuProgram shader, MeshDataPoolManager[] managers, RenderPassDesc pass,
+    internal bool Run(GpuProgram shader, MeshDataPoolManager[] managers, RHIRenderPassDescription pass,
         DepthStencilDesc depth, IReadOnlyList<ColorBlendDesc> blends, Action renderManagers)
     {
         if (!shader.EnsureReady()) return false;
@@ -72,28 +73,30 @@ internal sealed class LiquidGraphicsSubmission : IDisposable
             var candidate = new EngineLiquidPoolGeometry(pool);
             existing?.Dispose(); geometry[pool] = candidate;
         }
-        using var targets = new RenderPassTargets(pass);
-        var description = new GraphicsPipelineDesc(shader.GraphicsIdentity!, EngineLiquidPoolGeometry.Layout,
-            targets.Signature, DynamicPipelineState.Viewport, depthStencil: depth, blending: blends);
-        if (pipeline is null || pipeline.Description != description || !ReferenceEquals(pipeline.Shader, shader)
-            || pipeline.ExecutableRevision != shader.ExecutableRevision)
+        var signature=RHICommandContext.Current.DescribeRenderTargets(pass);
+        var description = new RHIGraphicsPipelineDescription(shader.Shader, EngineLiquidPoolGeometry.Layout,
+            signature, DynamicPipelineState.Viewport, depthStencil: depth, blending: blends);
+        if (pipeline is null || pipeline.Description != description || pipeline.Description.Shader != shader.Shader)
         {
-            var candidate = new GraphicsPipeline(lifetime, description, shader);
+            var candidate = new GraphicsPipelineAsset(shader,description);
             pipeline?.Dispose(); pipeline = candidate;
         }
-        return GraphicsCommandContext.TryRun(shader.PassName, [pipeline], true, context =>
+        var context=RHICommandContext.Current;
+        if(!context.TryEnterBoundary(new(shader.PassName,true,graphics:[pipeline.Pipeline],operations:BoundaryOperations.RenderPasses),out var boundary)) return false;
+        using(boundary) boundary!.Run(()=>
         {
             if (active is not null) throw new InvalidOperationException("Liquid pool submissions cannot nest.");
-            context.BeginPass(pass);
-            context.SetPipeline(pipeline);
+            context.BeginRenderPass(pass);
+            context.SetPipeline(pipeline.Pipeline);
             context.SetDynamicState(new() { Viewport = context.PassViewport });
             // The narrow input bridge stages retained values before Draw publishes them.
             var engine = (Vintagestory.Client.RenderAPIBase)api.Render;
             bool previous = LiquidMeshSource.UseSsbo(engine);
             commands = context; active = this;
-            try { LiquidMeshSource.UseSsbo(engine) = false; renderManagers(); context.EndPass(); }
+            try { LiquidMeshSource.UseSsbo(engine) = false; renderManagers(); context.EndRenderPass(); }
             finally { LiquidMeshSource.UseSsbo(engine) = previous; active = null; commands = null; }
         });
+        return true;
     }
 
     /// <summary>Returns the input-only bridge solely during the existing active submission lifetime.</summary>
@@ -106,7 +109,12 @@ internal sealed class LiquidGraphicsSubmission : IDisposable
         if (active is null) return false;
         if (!active.geometry.TryGetValue(pool, out var geometry))
             throw new InvalidOperationException("Engine submitted an unprepared liquid pool.");
-        if (pool.indicesGroupsCount > 0) active.commands!.Draw(geometry, new(0, pool.indicesGroupsCount));
+        if (pool.indicesGroupsCount > 0)
+        {
+            var draws = geometry.CaptureDraws();
+            active.commands!.BindResources(active.inputOwner!.CaptureBindings());
+            active.commands.DrawIndexedBatch(geometry.Inputs, draws);
+        }
         return true;
     }
 
@@ -115,7 +123,7 @@ internal sealed class LiquidGraphicsSubmission : IDisposable
     {
         unregister(); api.Event.LeaveWorld -= Invalidate;
         foreach (var entry in geometry.Values) entry.Dispose();
-        geometry.Clear(); pipeline?.Dispose(); lifetime.Dispose(); borrowed?.Dispose();
+        geometry.Clear(); pipeline?.Dispose();  borrowed?.Dispose();
     }
     #endregion
 

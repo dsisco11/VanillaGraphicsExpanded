@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Numerics;
 using System.Runtime.InteropServices;
@@ -41,11 +42,11 @@ public sealed class LiquidSunHighlightTests(HeadlessGLFixture fixture) : RenderT
         material.UploadDataImmediate([.25f, 0, 0, 1]);
         depth.UploadDataImmediate(new float[] { 1 });
         aerial.UploadDataImmediate(new float[8], 0, 0, 0, 1, 2, 1, 0);
-        program.TerrainTexture = terrain.TextureId;
+        program.TerrainTexture = terrain;
         program.MaterialParamsTexture = material;
-        program.DepthTexture = depth.TextureId;
-        program.ShadowMapNear = depth.TextureId;
-        program.ShadowMapFar = depth.TextureId;
+        program.DepthTexture = depth;
+        program.ShadowMapNear = depth;
+        program.ShadowMapFar = depth;
         program.AerialRadianceTexture = aerial;
         program.AerialAttenuationTexture = aerial;
         program.ShadowRanges = Vector4.Zero;
@@ -70,7 +71,7 @@ public sealed class LiquidSunHighlightTests(HeadlessGLFixture fixture) : RenderT
         using var vertices = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = "Test.LiquidSun.Vertices" }).RequireResource();
         using var flags = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = "Test.LiquidSun.Flags" }).RequireResource();
         using var indices = RHICommandContext.Current.CreateIndexBuffer(new RHIBufferDescription { Role = BufferRole.Index, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = "Test.LiquidSun.Indices" }).RequireResource();
-        using var vertexBinding = vao.BindScope();
+        using var vertexBinding = StateCache.Current.BindVertexArrayScope(vao.VertexArrayId);
         // Supply every input through vertex buffers instead of mutable global constant attributes.
         using (vertices.BindScope())
         {
@@ -79,17 +80,17 @@ public sealed class LiquidSunHighlightTests(HeadlessGLFixture fixture) : RenderT
                  10,-1,-1, .5f,.5f, 0,0,0,1, 0,0,
                  10,-1,-20,.5f,.5f, 0,0,0,1, 0,0,
                 -10,-1,-20,.5f,.5f, 0,0,0,1, 0,0 });
-            vao.AttribPointer(0, 3, VertexAttribPointerType.Float, false, 44, 0);
-            vao.AttribPointer(1, 2, VertexAttribPointerType.Float, false, 44, 12);
-            vao.AttribPointer(2, 4, VertexAttribPointerType.Float, false, 44, 20);
-            vao.AttribPointer(4, 2, VertexAttribPointerType.Float, false, 44, 36);
+            using (StateCache.Current.BindVertexArrayScope(vao.VertexArrayId)) OpenGLVertexCalls.ExecuteCoreVertexAttribPointer(0, 3, VertexAttribPointerType.Float, false, 44, 0);
+            using (StateCache.Current.BindVertexArrayScope(vao.VertexArrayId)) OpenGLVertexCalls.ExecuteCoreVertexAttribPointer(1, 2, VertexAttribPointerType.Float, false, 44, 12);
+            using (StateCache.Current.BindVertexArrayScope(vao.VertexArrayId)) OpenGLVertexCalls.ExecuteCoreVertexAttribPointer(2, 4, VertexAttribPointerType.Float, false, 44, 20);
+            using (StateCache.Current.BindVertexArrayScope(vao.VertexArrayId)) OpenGLVertexCalls.ExecuteCoreVertexAttribPointer(4, 2, VertexAttribPointerType.Float, false, 44, 36);
         }
         using (flags.BindScope())
         {
             flags.UploadData(new int[12]);
-            vao.AttribIPointer(3, 1, VertexAttribIntegerType.Int, 12, 0);
-            vao.AttribIPointer(5, 1, VertexAttribIntegerType.Int, 12, 4);
-            vao.AttribIPointer(6, 1, VertexAttribIntegerType.Int, 12, 8);
+            using (StateCache.Current.BindVertexArrayScope(vao.VertexArrayId)) OpenGLVertexCalls.ExecuteCoreVertexAttribIPointer(3, 1, VertexAttribIntegerType.Int, 12, 0);
+            using (StateCache.Current.BindVertexArrayScope(vao.VertexArrayId)) OpenGLVertexCalls.ExecuteCoreVertexAttribIPointer(5, 1, VertexAttribIntegerType.Int, 12, 4);
+            using (StateCache.Current.BindVertexArrayScope(vao.VertexArrayId)) OpenGLVertexCalls.ExecuteCoreVertexAttribIPointer(6, 1, VertexAttribIntegerType.Int, 12, 8);
         }
         indices.UploadIndices(new uint[] { 0, 1, 2, 0, 2, 3 });
         state.Apply(new GlPipelineDesc(
@@ -111,14 +112,16 @@ public sealed class LiquidSunHighlightTests(HeadlessGLFixture fixture) : RenderT
         {
             var view = Matrix4x4.CreateRotationX(-pitch * MathF.PI / 180);
             program.ModelViewMatrix = Flatten(view);
-            using var active = program.UseScope();
+            using var active = ShaderBindingTestPipeline.Create(program);
+        RHICommandContext.Current.SetPipeline(active);
+        RHICommandContext.Current.BindResources(program.CaptureBindings());
             var sun = Vector4.Transform(new Vector4(0, 1, -5, 0), view * projection); sunY = sun.Y / sun.W;
             var receiver = Vector4.Transform(new Vector4(0, -1, -5, 1), view * projection);
             int x = (int)((receiver.X / receiver.W * .5f + .5f) * size), y = (int)((receiver.Y / receiver.W * .5f + .5f) * size);
             // Status checks and texture readback release their framebuffer binding.
-            target.BindWithViewport();
-            target.Clear(0, 0, 0, 0);
-            vao.DrawElements(PrimitiveType.Triangles, indices);
+            FramebufferTestSetup.BindForEngineRendering(target);
+            FramebufferTestSetup.ClearAttachments(target, 0, 0, 0, 0);
+            GL.DrawElements(PrimitiveType.Triangles, indices.IndexCount, DrawElementsType.UnsignedInt, IntPtr.Zero);
             // Attachment 3 is the first OIT radiance/weight output.
             float[] pixel = target[3].ReadPixelsRegion(x, y, 1, 1);
             return pixel[0] / pixel[3];

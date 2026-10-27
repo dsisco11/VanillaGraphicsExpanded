@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using System.Linq;
 using VanillaGraphicsExpanded.Rendering.Pipeline;
@@ -37,7 +38,6 @@ public sealed class LumOnBufferManager : IDisposable
     private int halfResHeight;
 
     private LumOnTargets? targets;
-    private GpuFramebufferBlitter? surfaceAlbedoBlitter;
 
     // Double-buffer swap index (0 or 1)
     private int currentBufferIndex;
@@ -67,7 +67,7 @@ public sealed class LumOnBufferManager : IDisposable
     /// <summary>
     /// FBO for probe anchor pass output (position + normal).
     /// </summary>
-    public Rendering.GpuFramebuffer? ProbeAnchorFbo => targets?.ProbeAnchorFbo;
+    public Rendering.RHI.RHIRenderPassDescription? ProbeAnchorPass => targets?.ProbeAnchorPass;
 
     /// <summary>
     /// Array containing probe positions in layer 0 and normals in layer 1.
@@ -94,7 +94,7 @@ public sealed class LumOnBufferManager : IDisposable
     /// <summary>
     /// FBO for the probe trace mask pass.
     /// </summary>
-    public Rendering.GpuFramebuffer? ProbeTraceMaskFbo => targets?.ProbeTraceMaskFbo;
+    public Rendering.RHI.RHIRenderPassDescription? ProbeTraceMaskPass => targets?.ProbeTraceMaskPass;
 
     // ═══════════════════════════════════════════════════════════════
     // Screen-Probe Atlas (2D atlas)
@@ -115,7 +115,7 @@ public sealed class LumOnBufferManager : IDisposable
     /// <summary>
     /// FBO for probe-atlas trace output.
     /// </summary>
-    public Rendering.GpuFramebuffer? ScreenProbeAtlasTraceFbo => targets?.ScreenProbeAtlasTraceFbo;
+    public Rendering.RHI.RHIRenderPassDescription? ScreenProbeAtlasTracePass => targets?.ScreenProbeAtlasTracePass;
 
     /// <summary>
     /// 2D atlas for current frame probe-atlas radiance (after temporal blend).
@@ -140,12 +140,12 @@ public sealed class LumOnBufferManager : IDisposable
     /// <summary>
     /// FBO for probe-atlas filtered output.
     /// </summary>
-    public Rendering.GpuFramebuffer? ScreenProbeAtlasFilteredFbo => targets?.ScreenProbeAtlasFilteredFbo;
+    public Rendering.RHI.RHIRenderPassDescription? ScreenProbeAtlasFilteredPass => targets?.ScreenProbeAtlasFilteredPass;
 
     /// <summary>
     /// FBO for SH9 projection output (7 MRT attachments).
     /// </summary>
-    public Rendering.GpuFramebuffer? ProbeSh9Fbo => targets?.ProbeSh9Fbo;
+    public Rendering.RHI.RHIRenderPassDescription? ProbeSh9Pass => targets?.ProbeSh9Pass;
 
     /// <summary>Seven array layers containing the packed SH9 projection coefficients.</summary>
     public Texture3D? ProbeSh9 => targets?.ProbeSh9;
@@ -154,7 +154,7 @@ public sealed class LumOnBufferManager : IDisposable
     /// <summary>
     /// FBO for probe-atlas current output.
     /// </summary>
-    public Rendering.GpuFramebuffer? ScreenProbeAtlasCurrentFbo => targets?.ScreenProbeAtlasCurrentFbo;
+    public Rendering.RHI.RHIRenderPassDescription? ScreenProbeAtlasCurrentPass => targets?.ScreenProbeAtlasCurrentPass;
 
     /// <summary>
     /// 2D atlas for history probe-atlas radiance (previous frame).
@@ -188,7 +188,7 @@ public sealed class LumOnBufferManager : IDisposable
     /// <summary>
     /// FBO for half-resolution indirect diffuse output.
     /// </summary>
-    public Rendering.GpuFramebuffer? IndirectHalfFbo => targets?.IndirectHalfFbo;
+    public Rendering.RHI.RHIRenderPassDescription? IndirectHalfPass => targets?.IndirectHalfPass;
 
     /// <summary>
     /// Texture for half-resolution indirect diffuse.
@@ -198,7 +198,7 @@ public sealed class LumOnBufferManager : IDisposable
     /// <summary>
     /// FBO for full-resolution indirect diffuse output.
     /// </summary>
-    public Rendering.GpuFramebuffer? IndirectFullFbo => targets?.IndirectFullFbo;
+    public Rendering.RHI.RHIRenderPassDescription? IndirectFullPass => targets?.IndirectFullPass;
 
     /// <summary>
     /// Texture for full-resolution indirect diffuse (final output).
@@ -215,7 +215,7 @@ public sealed class LumOnBufferManager : IDisposable
     /// <summary>
     /// FBO for the captured surface albedo (used for blitting from the primary attachment).
     /// </summary>
-    public Rendering.GpuFramebuffer? SurfaceAlbedoFbo => targets?.SurfaceAlbedoFbo;
+    public Rendering.RHI.RHIRenderPassDescription? SurfaceAlbedoPass => targets?.SurfaceAlbedoPass;
 
     /// <summary>
     /// Captured surface albedo sampled by screen-probe ray hits.
@@ -225,7 +225,7 @@ public sealed class LumOnBufferManager : IDisposable
     /// <summary>
     /// FBO for velocity output (full resolution).
     /// </summary>
-    public Rendering.GpuFramebuffer? VelocityFbo => targets?.VelocityFbo;
+    public Rendering.RHI.RHIRenderPassDescription? VelocityPass => targets?.VelocityPass;
 
     /// <summary>
     /// Velocity texture (RGBA32F): RG = velocityUv, A = packed flags.
@@ -327,7 +327,7 @@ public sealed class LumOnBufferManager : IDisposable
         {
             (targets.ScreenProbeAtlasCurrentTex, targets.ScreenProbeAtlasHistoryTex) = (targets.ScreenProbeAtlasHistoryTex, targets.ScreenProbeAtlasCurrentTex);
             (targets.ScreenProbeAtlasMetaCurrentTex, targets.ScreenProbeAtlasMetaHistoryTex) = (targets.ScreenProbeAtlasMetaHistoryTex, targets.ScreenProbeAtlasMetaCurrentTex);
-            (targets.ScreenProbeAtlasCurrentFbo, targets.ScreenProbeAtlasHistoryFbo) = (targets.ScreenProbeAtlasHistoryFbo, targets.ScreenProbeAtlasCurrentFbo);
+            (targets.ScreenProbeAtlasCurrentPass, targets.ScreenProbeAtlasHistoryPass) = (targets.ScreenProbeAtlasHistoryPass, targets.ScreenProbeAtlasCurrentPass);
         }
 
         currentBufferIndex = 1 - currentBufferIndex;
@@ -347,18 +347,20 @@ public sealed class LumOnBufferManager : IDisposable
         if (!isInitialized)
             return;
 
-        GpuFramebuffer?[] history = [targets?.ScreenProbeAtlasTraceFbo, targets?.ScreenProbeAtlasCurrentFbo,
-            targets?.ScreenProbeAtlasHistoryFbo, targets?.ScreenProbeAtlasFilteredFbo, targets?.ProbeSh9Fbo,
-            targets?.IndirectHalfFbo, targets?.IndirectFullFbo, targets?.ProbeTraceMaskFbo, targets?.VelocityFbo];
-        if (!GraphicsCommandContext.TryRun("LumOn.ClearHistory", [], true, commands =>
+        RHIRenderPassDescription?[] history = [targets?.ScreenProbeAtlasTracePass, targets?.ScreenProbeAtlasCurrentPass,
+            targets?.ScreenProbeAtlasHistoryPass, targets?.ScreenProbeAtlasFilteredPass, targets?.ProbeSh9Pass,
+            targets?.IndirectHalfPass, targets?.IndirectFullPass, targets?.ProbeTraceMaskPass, targets?.VelocityPass];
+        var commands=RHICommandContext.Current;
+        using var boundary=commands.EnterBoundary(new("LumOn.ClearHistory",true,operations:BoundaryOperations.RenderPasses));
+        boundary.Run(()=>
         {
             foreach (var target in history)
             {
                 if (target is null) continue;
-                commands.BeginPass(GetPass(target, clear: true));
-                commands.EndPass();
+                commands.BeginRenderPass(GetPass(target, clear: true));
+                commands.EndRenderPass();
             }
-        })) throw new InvalidOperationException("History clear boundary unavailable.");
+        });
         capi.Logger.Debug("[LumOn] Cleared probe history buffers");
     }
 
@@ -379,20 +381,22 @@ public sealed class LumOnBufferManager : IDisposable
     /// </summary>
     public void CaptureSurfaceAlbedo()
     {
-        if (!isInitialized || targets?.SurfaceAlbedoFbo == null)
+        if (!isInitialized || targets?.SurfaceAlbedoPass == null)
             return;
 
-        var source = GBufferManager.Instance?.PrimaryFramebuffer;
-        if (source?.IsValid != true) return;
-        surfaceAlbedoBlitter ??= new GpuFramebufferBlitter(source, targets.SurfaceAlbedoFbo);
-        surfaceAlbedoBlitter.Blit();
+        var source = GBufferManager.Instance?.PrimaryColorTexture ?? default;
+        if (!source.IsValid) return;
+        var image=source.RequireImage(0);
+        RHICommandContext.Current.BlitImages(new(RHIAttachment.FromTexture(source),new(0,0,image.Width,image.Height),
+            RHIAttachment.FromTexture(targets.SurfaceAlbedoTex),new(0,0,targets.SurfaceAlbedoTex.Width,targets.SurfaceAlbedoTex.Height)));
+
     }
 
     #endregion
 
     #region Internal API
     /// <summary>Returns the physical target's retained preserving or zero-clear declaration.</summary>
-    internal RenderPassDesc GetPass(GpuFramebuffer target, bool clear)
+    internal RHIRenderPassDescription GetPass(RHIRenderPassDescription target, bool clear)
         => (targets ?? throw new InvalidOperationException("LumOn targets are unavailable.")).GetPass(target, clear);
     #endregion
 
@@ -428,8 +432,6 @@ public sealed class LumOnBufferManager : IDisposable
     private void DeleteBuffers()
     {
         HasPublishedIndirect = false;
-        surfaceAlbedoBlitter?.Dispose();
-        surfaceAlbedoBlitter = null;
         targets?.Dispose();
         targets = null;
         isInitialized = false;

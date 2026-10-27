@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using VanillaGraphicsExpanded.PBR;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
@@ -19,14 +20,17 @@ public sealed class DirectLightingSubmissionTests(HeadlessGLFixture fixture, ITe
     public void ProductionMatchesReferenceAcrossFrozenReceivers(int width, int height)
     {
         EnsureContextValid();
+        // This integration fixture exercises the installed manager registry, including per-allocation geometry revisions.
+        fixture.InitializeResourceDisposal();
+        try
+        {
         using var scene = new DirectLightingComparisonFixture(width, height);
         using var declarations = new StaticPassDeclarationCapture();
         output.WriteLine($"{GL.GetString(StringName.Vendor)} / {GL.GetString(StringName.Renderer)} / {GL.GetString(StringName.Version)}; {width}x{height}");
         var timer = System.Diagnostics.Stopwatch.StartNew();
         var prepared = scene.Candidate.PrepareBoundaryPipeline()!; timer.Stop();
         output.WriteLine($"Prepared realization {timer.Elapsed.TotalMilliseconds:F3} ms; single nonstructural production variant; no specialization overrides; DropShadowIntensity controls cascades.");
-        output.WriteLine($"Active borrowed integer sampler entries: {prepared.Bindings.Entries.Count(entry => entry.Active && entry.Contract.Kind == VanillaGraphicsExpanded.Rendering.Contracts.ShaderBindingKind.Sampler)}; each active sampler performs GL.IsTexture validation per submission, excluded from boundary-query counters.");
-        Assert.IsType<StaticGpuFramebuffer>(scene.Actual.Framebuffer);
+        Assert.IsType<RHIRenderPassDescription>(scene.Actual.Pass);
         for (int kind = 0; kind < 7; kind++)
         {
             scene.Inputs(kind); scene.DrawReference(); Hostile();
@@ -50,7 +54,7 @@ public sealed class DirectLightingSubmissionTests(HeadlessGLFixture fixture, ITe
         scene.Neutral();
         Assert.True(scene.Candidate.RenderLighting());
         for (int attachment = 0; attachment < 3; attachment++)
-            Assert.Equal(LayeredTestTexture.Read(scene.Actual.Radiance, attachment), LayeredTestTexture.Read(Assert.IsType<Texture3D>(scene.Normal.GetAttachment(FramebufferAttachment.ColorAttachment0 + attachment)!.Resource), attachment));
+            Assert.Equal(LayeredTestTexture.Read(scene.Actual.Radiance, attachment), LayeredTestTexture.Read(Assert.IsType<Texture3D>(scene.Normal.Colors[attachment].Image!.Value.Texture.Resource), attachment));
         var unchangedPipeline = scene.Candidate.PrepareBoundaryPipeline();
         // Publish the changed inputs through the candidate first, so reference activation cannot hide skipped updates.
         scene.Inputs(2, .25f); Hostile();
@@ -63,22 +67,22 @@ public sealed class DirectLightingSubmissionTests(HeadlessGLFixture fixture, ITe
         Assert.True(scene.Candidate.RenderLighting(scene.Actual));
         scene.Neutral();
         var pipeline = scene.Candidate.PrepareBoundaryPipeline()!;
-        var shader = pipeline.Shader;
 #if DEBUG
-        int reflection = shader.GraphicsInterface!.ReflectionQueries;
+        using var reflection = new ProgramAcquisitionCapture();
+        int reflectionReads = reflection.Reads;
         long queries = StateCache.Current.BoundaryQueries, calls = StateCache.Current.FixedFunctionCalls;
 #endif
         timer.Restart();
         Assert.True(scene.Candidate.RenderLighting(scene.Actual));
         timer.Stop();
 #if DEBUG
-        output.WriteLine($"Whole repeated submission {timer.Elapsed.TotalMilliseconds:F3} ms; fixed-function calls {StateCache.Current.FixedFunctionCalls - calls}; repeated production draw boundary queries: {StateCache.Current.BoundaryQueries - queries}; graphics reflection queries: {shader.GraphicsInterface.ReflectionQueries - reflection}");
+        output.WriteLine($"Whole repeated submission {timer.Elapsed.TotalMilliseconds:F3} ms; fixed-function calls {StateCache.Current.FixedFunctionCalls - calls}; repeated production draw boundary queries: {StateCache.Current.BoundaryQueries - queries}; graphics reflection queries: {reflection.Reads - reflectionReads}");
 #endif
         Assert.Same(pipeline, scene.Candidate.PrepareBoundaryPipeline());
 #if DEBUG
-        Assert.Equal(reflection, shader.GraphicsInterface.ReflectionQueries);
+        Assert.Equal(reflectionReads, reflection.Reads);
 #endif
-        shader.InvalidateAssets();
+        scene.FailPreparation(false);
         Assert.True(scene.Candidate.RenderLighting(scene.Actual)); Compare(scene, false);
         Assert.NotSame(pipeline, scene.Candidate.PrepareBoundaryPipeline());
         scene.ResizeOutputs(17, 13);
@@ -92,6 +96,8 @@ public sealed class DirectLightingSubmissionTests(HeadlessGLFixture fixture, ITe
         scene.FailDraw = false;
         Assert.True(scene.Candidate.RenderLighting(scene.Actual)); Compare(scene, false);
         declarations.AssertReusable();
+        }
+        finally { fixture.CleanupGpuResources(); }
     }
     #endregion
 

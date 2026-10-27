@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Contracts;
 namespace VanillaGraphicsExpanded.PBR.Postprocessing.LocalExposure;
@@ -14,6 +15,6 @@ internal interface ILocalExposureFilterBindings
     GpuTextureRef LogImage { set; }
     /// <summary>Receives the current-frame edge-preserving base and validity.</summary>
     [ShaderBinding("baseOutput",ShaderBindingKind.Image,0,ShaderStageKind.Compute)]
-    GpuTextureBinding BaseOutput { set; }
+    RHIImageBinding BaseOutput { set; }
     #endregion
 }

@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.PBR.Atmosphere;
@@ -26,8 +27,8 @@ public sealed class AtmosphereSunRasterTests(HeadlessGLFixture fixture) : Render
         using var framework = new ShaderTestFramework();
         using var target = framework.CreateTestGBuffer(1, 1, PixelInternalFormat.Rgba32f);
         var layout = BuiltShaderFixture.Layout(program.ProgramId, "tests/sun-segment.fsh");
-        StateCache.Current.UseProgram(program.ProgramId);
-        StateCache.Current.BindVertexArray(vao.VertexArrayId);
+        OpenGLProgramSelection.Select(StateCache.Current, program.ProgramId);
+        OpenGLVertexSelection.Bind(StateCache.Current, vao.VertexArrayId);
         GL.Disable(EnableCap.DepthTest); GL.Disable(EnableCap.Blend); GL.Disable(EnableCap.CullFace);
         using var inputs = new PackedUniformBuffer(16);
         byte[] inputBytes = new byte[16];
@@ -35,10 +36,10 @@ public sealed class AtmosphereSunRasterTests(HeadlessGLFixture fixture) : Render
         foreach (float sign in new[] { -1f, 1f })
         {
             float elevation = sign * (1 - MathF.Pow(10, -exponent)) * AtmosphereSolarDisk.AngularRadius;
-            target.BindWithViewport();
+            FramebufferTestSetup.BindForEngineRendering(target);
             UboPacking.WriteFloat(inputBytes, 0, elevation);
             inputs.SetBytes(inputBytes);
-            Assert.True(inputs.TryBindToSlot(GpuBindingRegistry.Ubo.ShaderInputs));
+            Assert.True(RHICommandContext.Current.OpenGL.BindEngineUniform(GpuBindingRegistry.Ubo.ShaderInputs, inputs.Capture()));
             GL.DrawArrays(PrimitiveType.Triangles, 0, 3);
             float[] actual = target[0].ReadPixels();
             float visible = AtmosphereSolarDisk.Visibility(elevation, 0);
@@ -69,8 +70,8 @@ public sealed class AtmosphereSunRasterTests(HeadlessGLFixture fixture) : Render
         using var glow = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba32f, Width = System.Math.Max(1, 64), Height = System.Math.Max(1, 64), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         using var target = DynamicGpuFramebuffer.CreateMRT([color, glow], depth)!;
         var layout = BuiltShaderFixture.Layout(program.ProgramId, "tests/sun-raster.vsh", fragmentPath);
-        StateCache.Current.UseProgram(program.ProgramId);
-        StateCache.Current.BindVertexArray(vao.VertexArrayId);
+        OpenGLProgramSelection.Select(StateCache.Current, program.ProgramId);
+        OpenGLVertexSelection.Bind(StateCache.Current, vao.VertexArrayId);
         GL.Enable(EnableCap.DepthTest); GL.DepthFunc(DepthFunction.Less); GL.DepthMask(true);
         GL.Disable(EnableCap.Blend); GL.Disable(EnableCap.CullFace);
         using var inputs = new PackedUniformBuffer(64);
@@ -81,16 +82,16 @@ public sealed class AtmosphereSunRasterTests(HeadlessGLFixture fixture) : Render
         float[]? baseline = null;
         for (int iteration = 0; iteration < 4; iteration++)
         {
-            target.BindWithViewport();
+            FramebufferTestSetup.BindForEngineRendering(target);
             GL.ClearColor(0, 0, 0, 0); GL.ClearDepth(iteration == 3 ? .5 : 1);
             GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
             float[] view = Vintagestory.API.MathTools.Mat4f.Create();
             view[12] = iteration * 37f; view[13] = iteration * -19f; view[14] = iteration * 123f;
             using var camera = TestFrameCamera.CreateSolar(64,64,view);
-            Assert.True(camera.TryBindToSlot(GpuBindingRegistry.Ubo.Frame));
+            Assert.True(RHICommandContext.Current.OpenGL.BindEngineUniform(GpuBindingRegistry.Ubo.Frame, camera.Capture()));
             UboPacking.WriteVec4(inputBytes, 16, 0f, 0f, -1f, iteration == 2 ? 0f : -1f);
             inputs.SetBytes(inputBytes);
-            Assert.True(inputs.TryBindToSlot(GpuBindingRegistry.Ubo.ShaderInputs));
+            Assert.True(RHICommandContext.Current.OpenGL.BindEngineUniform(GpuBindingRegistry.Ubo.ShaderInputs, inputs.Capture()));
             GL.DrawArrays(PrimitiveType.Triangles, 0, 6);
             float[] pixels = target[0].ReadPixels();
             float[] glowPixels = target[1].ReadPixels();

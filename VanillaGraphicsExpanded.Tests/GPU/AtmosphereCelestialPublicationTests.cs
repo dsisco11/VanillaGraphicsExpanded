@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Collections.Immutable;
 using System.Diagnostics;
@@ -214,7 +215,7 @@ public sealed class AtmosphereCelestialPublicationTests(HeadlessGLFixture fixtur
             foreach (Vector3 direction in new[] { Vector3.UnitX, Vector3.UnitY, Vector3.UnitZ })
             {
                 // The framework unbinds the program after each submission.
-                StateCache.Current.UseProgram(program);
+                OpenGLProgramSelection.Select(StateCache.Current, program);
                 GL.Uniform3(GL.GetUniformLocation(program, "ray"), direction.X, direction.Y, direction.Z);
                 framework.RenderQuadTo(program, output);
                 float expected = smooth + solar * AtmosphereMieTransport.Factor(direction.X) + lunar * AtmosphereMieTransport.Factor(direction.Y);

@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
@@ -29,7 +30,7 @@ public sealed class DynamicTextureCubeTests(HeadlessGLFixture fixture) : RenderT
             using var image = GpuFramebufferAttachment.FromTexture(cube, mip, cubeFace: TextureTarget.TextureCubeMapPositiveX + face);
             using var target = DynamicGpuFramebuffer.Create([image]);
             using var binding = StateCache.Current.BindFramebufferScope();
-            StateCache.Current.BindFramebuffer(FramebufferTarget.DrawFramebuffer, target.FboId);
+            OpenGLFramebufferSelection.Bind(StateCache.Current, FramebufferTarget.DrawFramebuffer, target.FboId);
             GL.ClearBuffer(ClearBuffer.Color, 0, new[] { (face + 1) / 8f, .5f, .25f, 1f });
         }
         using var textureBinding = cube.BindScope(0);
@@ -53,7 +54,7 @@ public sealed class DynamicTextureCubeTests(HeadlessGLFixture fixture) : RenderT
         using var image = GpuFramebufferAttachment.FromTexture(cube, cubeFace: TextureTarget.TextureCubeMapPositiveX);
         using var target = DynamicGpuFramebuffer.Create([image]);
         using var binding = StateCache.Current.BindFramebufferScope();
-        StateCache.Current.BindFramebuffer(FramebufferTarget.DrawFramebuffer, target.FboId);
+        OpenGLFramebufferSelection.Bind(StateCache.Current, FramebufferTarget.DrawFramebuffer, target.FboId);
         GL.ClearBuffer(ClearBuffer.Color, 0, new uint[] { 7, 0, 0, 0 });
         using var textureBinding = cube.BindScope(0);
         uint[] data = new uint[4];

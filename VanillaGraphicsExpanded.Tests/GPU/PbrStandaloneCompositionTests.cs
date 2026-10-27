@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.PBR;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
@@ -37,14 +38,14 @@ public sealed class PbrStandaloneCompositionTests : LumOnShaderFunctionalTestBas
         using var depth = TestFramework.CreateTexture(1, 1, PixelInternalFormat.R32f, new[] { .25f });
         using var output = TestFramework.CreateTestGBuffer(1, 1, PixelInternalFormat.Rgba16f);
         using var position = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba32f, new float[4]);
-        program.GBufferPosition = position.TextureId;
-        output.BindWithViewport();
+        program.GBufferPosition = position;
+        FramebufferTestSetup.BindForEngineRendering(output);
         {
             using var directLighting = LayeredTestTexture.Create(zero, zero, emission);
             program.DirectLighting = directLighting;
-            program.IndirectDiffuse = indirect; program.GBufferAlbedo = albedo.TextureId;
+            program.IndirectDiffuse = indirect; program.GBufferAlbedo = albedo;
             using var surface = LayeredTestTexture.Create(normal, material, environment);
-            program.GBufferSurface = surface; program.PrimaryDepth = depth.TextureId;
+            program.GBufferSurface = surface; program.PrimaryDepth = depth;
 
             using var frameCamera = TestFrameCamera.Create([1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1], [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1]);
             program.FrameInputs = frameCamera;

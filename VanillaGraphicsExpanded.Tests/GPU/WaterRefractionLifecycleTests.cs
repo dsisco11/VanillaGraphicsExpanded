@@ -20,16 +20,14 @@ public sealed class WaterRefractionLifecycleTests(HeadlessGLFixture fixture) : R
         using var bindings = StateCache.Current.BindFramebufferScope();
         using var source = new WaterRefractionScene();
         var target = source.BeginCapture(2, 2)!;
-        Assert.IsType<StaticGpuFramebuffer>(target);
-        Assert.Null(target.GetAttachment(FramebufferAttachment.ColorAttachment0));
-        Assert.Same(source.Color, target[1]);
-        Assert.Same(source.Depth, target[2]);
-        Assert.Null(target.GetAttachment(FramebufferAttachment.ColorAttachment3));
-        target.Bind();
-        Assert.Equal((int)DrawBuffersEnum.None, GL.GetInteger(GetPName.DrawBuffer0));
-        Assert.Equal((int)DrawBuffersEnum.ColorAttachment1, GL.GetInteger(GetPName.DrawBuffer1));
-        Assert.Equal((int)DrawBuffersEnum.ColorAttachment2, GL.GetInteger(GetPName.DrawBuffer2));
-        Assert.Equal((int)ReadBufferMode.ColorAttachment1, GL.GetInteger(GetPName.ReadBuffer));
+        Assert.IsType<RHIRenderPassDescription>(target);
+        Assert.True(target.Colors[0].DiscardOutput);
+        Assert.Equal((GpuTextureRef)source.Color!, target.Colors[1].Image!.Value.Texture);
+        Assert.Equal((GpuTextureRef)source.Depth!, target.Colors[2].Image!.Value.Texture);
+        Assert.Equal(3, target.Colors.Length);
+        var context=RHICommandContext.Current;
+        using (var boundary=context.EnterBoundary(new("Tests.Water.CaptureTargets",true,operations:BoundaryOperations.RenderPasses)))
+            boundary.Run(()=>{ context.BeginRenderPass(target); context.EndRenderPass(); });
         source.Publish();
         Assert.True(source.Published);
         Assert.Same(target, source.BeginCapture(2, 2));
@@ -72,7 +70,7 @@ public sealed class WaterRefractionLifecycleTests(HeadlessGLFixture fixture) : R
             config.WaterRefractionEnabled = true;
             var target = source.BeginFrame(config.WaterRefractionEnabled, composite)!;
             Assert.False(source.Published);
-            Assert.Same(composite, target[0]);
+            Assert.Equal((GpuTextureRef)composite, target.Colors[0].Image!.Value.Texture);
             Assert.NotSame(composite, source.Color);
             Assert.NotEqual(composite.TextureId, source.Color!.TextureId);
             source.Color.UploadDataImmediate(Enumerable.Repeat(.5f, 16).ToArray());

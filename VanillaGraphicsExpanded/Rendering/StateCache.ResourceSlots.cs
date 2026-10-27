@@ -35,7 +35,7 @@ internal sealed partial class StateCache
     internal long SamplerBindCount { get; private set; }
 #endif
     /// <summary>Includes all parameters that select an image view.</summary>
-    private readonly record struct ImageBinding(int Texture, int Level, bool Layered, int Layer, TextureAccess Access, SizedInternalFormat Format);
+    internal readonly record struct ImageBinding(int Texture, int Level, bool Layered, int Layer, TextureAccess Access, SizedInternalFormat Format);
     /// <summary>Distinguishes whole-buffer bindings from ranges even when their offsets match.</summary>
     private readonly record struct IndexedBufferBinding(int Buffer, nint Offset, nint Size, bool Range);
 
@@ -46,19 +46,23 @@ internal sealed partial class StateCache
         indexedBufferBindings.Remove((BufferRangeTarget.UniformBuffer, slot));
         bufferBindingByTarget.Remove(BufferTarget.UniformBuffer);
     }
-    /// <summary>Publishes an image view only when the current context assignment differs.</summary>
-    internal void BindImageTexture(int unit, int texture, int level, bool layered, int layer, TextureAccess access, SizedInternalFormat format)
+    /// <summary>Compares every image-view selector using the existing knowledge store.</summary>
+    internal bool NeedsImageBinding(int unit, ImageBinding binding)
     {
-        var binding = new ImageBinding(texture, level, layered, layer, access, format);
 #if DEBUG
         ImageCacheChecks++;
 #endif
-        if (imageBindings.TryGetValue(unit, out var previous) && previous == binding) return;
-        GL.BindImageTexture(unit, texture, level, layered, layer, access, format);
+        return !imageBindings.TryGetValue(unit, out var previous) || previous != binding;
+    }
+    /// <summary>Withdraws only the affected image slot before native mutation.</summary>
+    internal void ForgetImageBinding(int unit) => imageBindings.Remove(unit);
+    /// <summary>Records a completed native image assignment without executing another command.</summary>
+    internal void EstablishImageBinding(int unit, ImageBinding binding)
+    {
+        imageBindings[unit] = binding;
 #if DEBUG
         ResourceSlotBindCount++;
 #endif
-        imageBindings[unit] = binding;
     }
 
     /// <summary>Reports a retained image assignment without querying driver state.</summary>

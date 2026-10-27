@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.ShaderCompilation;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using System.Collections.Immutable;
@@ -50,12 +51,12 @@ internal sealed class AtmosphereGpuComputation : IDisposable
     /// <summary>Creates all programs before taking ownership; failure releases every partially created resource.</summary>
     internal static AtmosphereGpuComputation Create(ICoreAPI api)
     {
-        GpuComputePipeline? scattering = null, sky = null, lighting = null;
+        ComputeShaderAsset? scattering = null, sky = null, lighting = null;
         try
         {
-            if (!GpuComputePipeline.TryCreateFromAssets(api, new ShaderSettings(AtmosphereComputePrograms.Scattering), out scattering, out string log)
-                || !GpuComputePipeline.TryCreateFromAssets(api, new ShaderSettings(AtmosphereComputePrograms.Sky), out sky, out log)
-                || !GpuComputePipeline.TryCreateFromAssets(api, new ShaderSettings(AtmosphereComputePrograms.Lighting), out lighting, out log))
+            if (!ComputeShaderAsset.TryCreateFromAssets(api, new ShaderSettings(AtmosphereComputePrograms.Scattering), out scattering, out string log)
+                || !ComputeShaderAsset.TryCreateFromAssets(api, new ShaderSettings(AtmosphereComputePrograms.Sky), out sky, out log)
+                || !ComputeShaderAsset.TryCreateFromAssets(api, new ShaderSettings(AtmosphereComputePrograms.Lighting), out lighting, out log))
                 throw new InvalidOperationException("Atmosphere compute linking failed: " + log);
             return new(scattering!, sky!, lighting!);
         }
@@ -63,7 +64,7 @@ internal sealed class AtmosphereGpuComputation : IDisposable
     }
 
     /// <summary>Allocates bounded persistent storage; table capacity covers all admitted quality levels.</summary>
-    private AtmosphereGpuComputation(GpuComputePipeline scattering, GpuComputePipeline sky, GpuComputePipeline lighting)
+    private AtmosphereGpuComputation(ComputeShaderAsset scattering, ComputeShaderAsset sky, ComputeShaderAsset lighting)
     {
         this.scattering = new(scattering); this.sky = new(sky); this.lighting = new(lighting);
         GpuShaderStorageBuffer? parameters = null, source = null;
@@ -133,8 +134,14 @@ internal sealed class AtmosphereGpuComputation : IDisposable
         if (sourceKey != (request.Weather, request.Quality, request.Albedo) && nextCell < budget.Width * budget.Height)
         {
             int count = Math.Min(CellsPerDispatch, budget.Width * budget.Height - nextCell);
-            scattering.Dispatch(count);
-            RHICommandContext.Current.Barrier(new(ResourceAccess.ShaderStorage));
+            if(!scattering.EnsureReady())throw new InvalidOperationException(scattering.PreparationLog);
+            var commands=RHICommandContext.Current;
+            using var boundary=commands.EnterBoundary(new("Atmosphere.Scattering",true,compute:[scattering.Pipeline]));
+            boundary.Run(()=>
+            {
+                scattering.Dispatch(count);
+                commands.Barrier(new(ResourceAccess.ShaderStorage));
+            });
             nextCell += count;
             // A zero-time poll on the next frame gates further work; never drain an entire table in one frame.
             batch = RHICommandContext.Current.InsertFence();
@@ -149,10 +156,16 @@ internal sealed class AtmosphereGpuComputation : IDisposable
         output.PrepareGpuWrite(countOutput);
         sky.AtmosphereOutput = output.Buffer;
         lighting.AtmosphereOutput = output.Buffer;
+        if(!sky.EnsureReady()||!lighting.EnsureReady())throw new InvalidOperationException("Atmosphere output executables are unavailable.");
+        var outputContext=RHICommandContext.Current;
+        using var outputBoundary=outputContext.EnterBoundary(new("Atmosphere.Output",true,compute:[sky.Pipeline,lighting.Pipeline]));
+        outputBoundary.Run(()=>
+        {
         sky.Dispatch((Math.Max(request.Width * request.Height,AtmosphereExternalTransmission.SampleCount) + 63) >> 6);
         RHICommandContext.Current.Barrier(new(ResourceAccess.ShaderStorage));
         lighting.Dispatch(1);
         RHICommandContext.Current.Barrier(new(ResourceAccess.BufferUpdate));
+        });
         output.Submit(countOutput);
     }
 

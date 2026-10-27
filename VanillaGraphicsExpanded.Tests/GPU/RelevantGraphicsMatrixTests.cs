@@ -1,3 +1,7 @@
+using VanillaGraphicsExpanded.Rendering.Pipeline;
+using System;
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
+using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Contracts;
@@ -11,17 +15,21 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 /// <summary>Qualifies dormant-to-active native transitions across target aspects and independent selector families.</summary>
 [Collection("GPU")]
 [Trait("Category", "GPU")]
-public sealed class RelevantGraphicsMatrixTests(HeadlessGLFixture fixture)
+public sealed class RelevantGraphicsMatrixTests(HeadlessGLFixture fixture) : IDisposable
 {
+    private readonly GraphicsStateShaders stateShaders = new();
+    /// <summary>Retires test-owned executable generations after state assertions complete.</summary>
+    public void Dispose() => stateShaders.Dispose();
+
     #region Public API
     /// <summary>Integer outputs bypass blending while float outputs and color masks establish their own routed intent.</summary>
     [Fact]
     public void MixedIntegerAndFloatingRoutesPreserveIntegerBlendPayloads()
     {
-        fixture.MakeCurrent(); var cache = StateCache.Current; cache.UseProgram(0);
+        fixture.MakeCurrent(); var cache = StateCache.Current; OpenGLProgramSelection.Select(cache, 0);
         var baseline = Description();
-        var description = new GraphicsPipelineDesc(baseline.Shader, baseline.VertexLayout,
-            new([new(PixelInternalFormat.Rgba8ui), new(null, true), new(PixelInternalFormat.Rgba8)]),
+        var description = new RHIGraphicsPipelineDescription(baseline.Shader, baseline.VertexLayout,
+            new([new(TextureFormat.Rgba8ui), new(null, true), new(TextureFormat.Rgba8)]),
             DynamicPipelineState.Viewport, blending: [new() { WriteRed = false }, new(), new()]);
         foreach (int slot in new[] { 0, 1, 2 })
         {
@@ -32,7 +40,15 @@ public sealed class RelevantGraphicsMatrixTests(HeadlessGLFixture fixture)
         cache.InvalidateAll();
         try
         {
-            Assert.True(CompleteGraphicsBoundary.TryRun("IntegerAndSparseRoutes", [description], [], true, _ =>
+            Assert.True(((Func<bool>)(() => {
+                if (!true) return false;
+                var coverage = PipelineStateCoverage.Empty;
+                foreach (RHIGraphicsPipelineDescription declaration in new RHIGraphicsPipelineDescription[] {description})
+                    coverage = coverage.Union(PipelineStateCoverage.From(VanillaGraphicsExpanded.Rendering.Pipeline.GraphicsStateRelevance.Derive(declaration, GpuSupport.Graphics)));
+                if (!StateCache.Current.TryBeginEngineBoundary(new EngineBoundaryDeclaration("IntegerAndSparseRoutes", coverage), out var restored,
+                    new EngineBoundaryResources(geometry: true, programSelection: true))) return false;
+                using (restored) {
+                    Action<EngineBoundaryScope> operation = _ =>
             {
                 cache.ApplyGraphicsState(description, Dynamics());
                 Assert.True(GL.IsEnabled(IndexedEnableCap.Blend, 0)); Assert.True(GL.IsEnabled(IndexedEnableCap.Blend, 1));
@@ -45,7 +61,11 @@ public sealed class RelevantGraphicsMatrixTests(HeadlessGLFixture fixture)
                     GL.GetInteger((GetIndexedPName)GetPName.BlendSrcRgb, slot, out int source);
                     Assert.Equal((int)BlendEquationMode.Max, equation); Assert.Equal((int)BlendingFactorSrc.SrcAlpha, source);
                 }
-            }));
+            };
+                    restored!.Run(() => operation(restored));
+                }
+                return true;
+            }))());
             foreach (int slot in new[] { 0, 1, 2 }) Assert.True(GL.IsEnabled(IndexedEnableCap.Blend, slot));
             bool[] restored = new bool[4]; GL.GetBoolean(GetIndexedPName.ColorWritemask, 0, restored); Assert.All(restored, Assert.True);
         }
@@ -59,14 +79,14 @@ public sealed class RelevantGraphicsMatrixTests(HeadlessGLFixture fixture)
     [InlineData(true)]
     public void DepthStencilAspectsAndTestsControlPayloadApplication(bool fail)
     {
-        fixture.MakeCurrent(); var cache = StateCache.Current; cache.UseProgram(0);
-        var intent = new DepthStencilDesc { DepthTest = true, DepthWrite = true, DepthComparison = DepthFunction.Greater,
-            StencilTest = true, Front = new() { Comparison = StencilFunction.Equal, ReadMask = 0x71, WriteMask = 0x37,
-                Pass = StencilOp.Replace }, Back = new() { Comparison = StencilFunction.Notequal, ReadMask = 0x62,
-                WriteMask = 0x46, Pass = StencilOp.Incr } };
+        fixture.MakeCurrent(); var cache = StateCache.Current; OpenGLProgramSelection.Select(cache, 0);
+        var intent = new DepthStencilDesc { DepthTest = true, DepthWrite = true, DepthComparison = ComparisonFunction.Greater,
+            StencilTest = true, Front = new() { Comparison = ComparisonFunction.Equal, ReadMask = 0x71, WriteMask = 0x37,
+                Pass = StencilOperation.Replace }, Back = new() { Comparison = ComparisonFunction.NotEqual, ReadMask = 0x62,
+                WriteMask = 0x46, Pass = StencilOperation.IncrementClamp } };
         var absent = Description(depth: intent with { DepthTest = false, DepthWrite = false, StencilTest = false });
-        var disabled = Description(depth: intent with { DepthTest = false, StencilTest = false }, aspects: PixelInternalFormat.Depth24Stencil8);
-        var active = Description(depth: intent, aspects: PixelInternalFormat.Depth24Stencil8);
+        var disabled = Description(depth: intent with { DepthTest = false, StencilTest = false }, aspects: TextureFormat.Depth24Stencil8);
+        var active = Description(depth: intent, aspects: TextureFormat.Depth24Stencil8);
         GL.Enable(EnableCap.DepthTest); GL.Enable(EnableCap.StencilTest); GL.DepthFunc(DepthFunction.Lequal); GL.DepthMask(false);
         GL.StencilFuncSeparate(StencilFace.Front, StencilFunction.Greater, 3, 0x53);
         GL.StencilFuncSeparate(StencilFace.Back, StencilFunction.Less, 4, 0x64);
@@ -77,7 +97,15 @@ public sealed class RelevantGraphicsMatrixTests(HeadlessGLFixture fixture)
         var expected = new InvalidOperationException("matrix after dormant final operation");
         try
         {
-            bool Run() => CompleteGraphicsBoundary.TryRun("RelevantAspects", [absent, disabled, active], [], true, _ =>
+            bool Run() => ((Func<bool>)(() => {
+                if (!true) return false;
+                var coverage = PipelineStateCoverage.Empty;
+                foreach (RHIGraphicsPipelineDescription declaration in new RHIGraphicsPipelineDescription[] {absent, disabled, active})
+                    coverage = coverage.Union(PipelineStateCoverage.From(VanillaGraphicsExpanded.Rendering.Pipeline.GraphicsStateRelevance.Derive(declaration, GpuSupport.Graphics)));
+                if (!StateCache.Current.TryBeginEngineBoundary(new EngineBoundaryDeclaration("RelevantAspects", coverage), out var restored,
+                    new EngineBoundaryResources(geometry: true, programSelection: true))) return false;
+                using (restored) {
+                    Action<EngineBoundaryScope> operation = _ =>
             {
                 cache.ApplyGraphicsState(absent, Dynamics()); Assert.Equal(inherited, ReadDepthStencil());
                 cache.ApplyGraphicsState(disabled, Dynamics());
@@ -93,7 +121,11 @@ public sealed class RelevantGraphicsMatrixTests(HeadlessGLFixture fixture)
                 var activated = ReadDepthStencil();
                 cache.ApplyGraphicsState(absent, Dynamics()); Assert.Equal(activated, ReadDepthStencil());
                 if (fail) throw expected;
-            });
+            };
+                    restored!.Run(() => operation(restored));
+                }
+                return true;
+            }))();
             if (fail) Assert.Same(expected, Assert.Throws<InvalidOperationException>(() => Run())); else Assert.True(Run());
             Assert.Equal(inherited, ReadDepthStencil());
         }
@@ -105,13 +137,13 @@ public sealed class RelevantGraphicsMatrixTests(HeadlessGLFixture fixture)
     [Fact]
     public void SamplingAndAssemblyPayloadsActivateThenRestore()
     {
-        fixture.MakeCurrent(); var cache = StateCache.Current; cache.UseProgram(0);
+        fixture.MakeCurrent(); var cache = StateCache.Current; OpenGLProgramSelection.Select(cache, 0);
         var dormant = Description(sampling: new() { Coverage = .75f, CoverageInvert = false, Masks = new([0x0f0ff0f0u]),
                 MinimumSampleShading = .625f }, assembly: new() { RestartIndex = 23, PatchVertices = 4 });
         var enabled = Description(sampling: dormant.Sampling with { CoverageEnabled = true, MaskEnabled = true, SampleShading = true },
             assembly: dormant.Assembly with { Restart = true });
         var fixedRestart = Description(assembly: new() { FixedIndexRestart = true, RestartIndex = 29 });
-        var patches = Description(assembly: new() { Topology = PrimitiveType.Patches, PatchVertices = 4 });
+        var patches = Description(assembly: new() { Topology = PrimitiveTopology.Patches, PatchVertices = 4 });
         GL.SampleCoverage(.375f, true); GL.MinSampleShading(.25f); GL.PrimitiveRestartIndex(17); GL.PatchParameter(PatchParameterInt.PatchVertices, 3);
         GL.Disable(EnableCap.SampleCoverage); GL.Disable(EnableCap.SampleMask); GL.Disable(EnableCap.SampleShading);
         GL.Disable(EnableCap.PrimitiveRestart); GL.Disable(EnableCap.PrimitiveRestartFixedIndex);
@@ -119,7 +151,15 @@ public sealed class RelevantGraphicsMatrixTests(HeadlessGLFixture fixture)
         cache.InvalidateAll(); var inherited = ReadSamplingAssembly();
         try
         {
-            Assert.True(CompleteGraphicsBoundary.TryRun("RelevantSamplingAssembly", [dormant, enabled, fixedRestart, patches], [], true, _ =>
+            Assert.True(((Func<bool>)(() => {
+                if (!true) return false;
+                var coverage = PipelineStateCoverage.Empty;
+                foreach (RHIGraphicsPipelineDescription declaration in new RHIGraphicsPipelineDescription[] {dormant, enabled, fixedRestart, patches})
+                    coverage = coverage.Union(PipelineStateCoverage.From(VanillaGraphicsExpanded.Rendering.Pipeline.GraphicsStateRelevance.Derive(declaration, GpuSupport.Graphics)));
+                if (!StateCache.Current.TryBeginEngineBoundary(new EngineBoundaryDeclaration("RelevantSamplingAssembly", coverage), out var restored,
+                    new EngineBoundaryResources(geometry: true, programSelection: true))) return false;
+                using (restored) {
+                    Action<EngineBoundaryScope> operation = _ =>
             {
                 cache.ApplyGraphicsState(dormant, Dynamics()); Assert.Equal(inherited, ReadSamplingAssembly());
                 cache.ApplyGraphicsState(enabled, Dynamics());
@@ -138,7 +178,11 @@ public sealed class RelevantGraphicsMatrixTests(HeadlessGLFixture fixture)
                 cache.ApplyGraphicsState(dormant, Dynamics());
                 Assert.Equal(4, GL.GetInteger(GetPName.PatchVertices)); Assert.Equal(23, GL.GetInteger(GetPName.PrimitiveRestartIndex));
                 Assert.Equal(.75f, GL.GetFloat(GetPName.SampleCoverageValue)); Assert.Equal(.625f, GL.GetFloat(GetPName.MinSampleShadingValue));
-            }));
+            };
+                    restored!.Run(() => operation(restored));
+                }
+                return true;
+            }))());
             Assert.Equal(inherited, ReadSamplingAssembly());
         }
         finally { GL.Disable(EnableCap.SampleCoverage); GL.Disable(EnableCap.SampleMask); GL.Disable(EnableCap.SampleShading);
@@ -149,23 +193,23 @@ public sealed class RelevantGraphicsMatrixTests(HeadlessGLFixture fixture)
 
     #region Private
     /// <summary>Uses a complete declaration with explicit stencil dynamics, including dormant declarations.</summary>
-    private static GraphicsPipelineDesc Description(DepthStencilDesc? depth = null, PixelInternalFormat? aspects = null,
+    private RHIGraphicsPipelineDescription Description(DepthStencilDesc? depth = null, TextureFormat? aspects = null,
         SamplingDesc? sampling = null, PrimitiveAssemblyDesc? assembly = null)
     {
         var stages = new List<ShaderStageContract> { new("matrix.vsh", "matrix.vsh", ShaderStageKind.Vertex, new()),
             new("matrix.fsh", "matrix.fsh", ShaderStageKind.Fragment, new()) };
-        if (assembly?.Topology == PrimitiveType.Patches)
+        if (assembly?.Topology == PrimitiveTopology.Patches)
         {
             stages.Add(new("matrix.tcs", "matrix.tcs", ShaderStageKind.TessellationControl, new()));
             stages.Add(new("matrix.tes", "matrix.tes", ShaderStageKind.TessellationEvaluation, new()));
         }
         var contract = new GpuShaderContract("matrix", stages, 1);
-        return new(new("matrix", new(new ShaderSettings(contract))), new([]), new([new(PixelInternalFormat.Rgba8)], aspects),
+        return new(stateShaders.Get(contract.Stages.Select(stage => stage.Kind)), new([]), new([new(TextureFormat.Rgba8)], aspects),
             DynamicPipelineState.Viewport | DynamicPipelineState.StencilReference, depthStencil: depth, sampling: sampling, assembly: assembly);
     }
 
     /// <summary>Supplies valid retained intent even to draws that do not use stencil references.</summary>
-    private static GraphicsDynamicState Dynamics() => new() { Viewport = new() { Width = 8, Height = 8 }, StencilReference = (5, 6) };
+    private static RHIDynamicState Dynamics() => new() { Viewport = new() { Width = 8, Height = 8 }, StencilReference = (5, 6) };
 
     /// <summary>Reads both stencil faces and all depth values independently from the shared cache.</summary>
     private static int[] ReadDepthStencil() => [GL.IsEnabled(EnableCap.DepthTest) ? 1 : 0, GL.IsEnabled(EnableCap.StencilTest) ? 1 : 0,

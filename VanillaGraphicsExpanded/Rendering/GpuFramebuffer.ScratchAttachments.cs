@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using OpenTK.Graphics.OpenGL;
 
 namespace VanillaGraphicsExpanded.Rendering;
@@ -11,7 +12,7 @@ public abstract partial class GpuFramebuffer
     {
         SetAttachment(ColorSlot(attachmentIndex), GpuFramebufferAttachment.FromTexture(texture, mipLevel));
         Bind();
-        StateCache.Current.SetDrawBuffer(DrawBufferMode.ColorAttachment0 + attachmentIndex);
+        OpenGLFramebufferRouting.SetDrawBuffer(StateCache.Current,DrawBufferMode.ColorAttachment0 + attachmentIndex);
     }
 
     /// <summary>Borrows an external 2D color image and selects its draw destination.</summary>
@@ -19,7 +20,7 @@ public abstract partial class GpuFramebuffer
     {
         SetAttachment(ColorSlot(attachmentIndex), GpuFramebufferAttachment.FromTextureId(textureId, mipLevel));
         Bind();
-        StateCache.Current.SetDrawBuffer(DrawBufferMode.ColorAttachment0 + attachmentIndex);
+        OpenGLFramebufferRouting.SetDrawBuffer(StateCache.Current,DrawBufferMode.ColorAttachment0 + attachmentIndex);
     }
 
     /// <summary>Borrows one 3D or array layer and selects it for scratch reads and writes.</summary>
@@ -27,7 +28,7 @@ public abstract partial class GpuFramebuffer
     {
         SetAttachment(ColorSlot(attachmentIndex), GpuFramebufferAttachment.FromTexture(texture, layer: layer));
         Bind();
-        StateCache.Current.SetDrawBuffer(DrawBufferMode.ColorAttachment0 + attachmentIndex);
+        OpenGLFramebufferRouting.SetDrawBuffer(StateCache.Current,DrawBufferMode.ColorAttachment0 + attachmentIndex);
         GL.ReadBuffer(ReadBufferMode.ColorAttachment0 + attachmentIndex);
     }
 

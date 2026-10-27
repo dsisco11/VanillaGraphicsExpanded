@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Runtime.CompilerServices;
 using HarmonyLib;
@@ -23,8 +24,8 @@ public sealed partial class GpuProgramMetadataInterceptionTests
             bool supported=Enumerable.Range(0,GL.GetInteger(GetPName.NumExtensions)).Any(index=>GL.GetString(StringNameIndexed.Extensions,index)=="GL_ARB_bindless_texture");
             output.WriteLine("Native GL_ARB_bindless_texture="+supported+"; this case uses a controlled native boundary, not native handle residency.");
             PatchOpaqueBoundary(harmony,variant);
-            using var program=CreateProgram(out int shader,true); StateCache.Current.DeleteShader(shader);
-            var layout=PrepareArrayLayout(program); StateCache.Current.UseProgram(program.ProgramId);
+            using var program=CreateProgram(out int shader,true); VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.OpenGL.DeleteShader(shader);
+            var layout=PrepareArrayLayout(program); OpenGLProgramSelection.Select(StateCache.Current, program.ProgramId);
             using var alias=new ProgramAlias(program.ProgramId); GpuResourceManager.AcquireWrapperMetadata(alias,GpuProgramMetadataReader.Instance);
             var manager=GpuResourceManagerSystem.CurrentManager!; var entry=(GpuResourceMetadataEntry<GpuProgramMetadata>)manager.GetResourceRegistration(program)!;
             var snapshot=entry.Metadata; int location=GL.GetUniformLocation(program.ProgramId,"inputs[0]");
@@ -34,11 +35,11 @@ public sealed partial class GpuProgramMetadataInterceptionTests
             Assert.False(manager.IsResourceMetadataAvailable(program)); Assert.False(manager.IsResourceMetadataAvailable(alias)); Assert.Throws<InvalidOperationException>(()=>layout.BinaryInterface);
             Assert.False(manager.RefreshMetadata(entry,GpuMetadataChange.None)); Assert.False(manager.RefreshMetadata(entry,GpuMetadataChange.Metadata));
             Assert.Throws<InvalidOperationException>(()=>manager.PublishMetadata(entry,snapshot,GpuMetadataChange.Metadata));
-            using var replacement=CreateProgram(out int replacementShader,true); StateCache.Current.DeleteShader(replacementShader);
+            using var replacement=CreateProgram(out int replacementShader,true); VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.OpenGL.DeleteShader(replacementShader);
             Assert.True(manager.IsResourceMetadataAvailable(replacement)); Assert.NotSame(entry,manager.GetResourceRegistration(replacement));
             Assert.Equal(ErrorCode.NoError,GL.GetError());
         }
-        finally { StateCache.Current.UseProgram(0); harmony.UnpatchAll(harmony.Id); fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { OpenGLProgramSelection.Select(StateCache.Current, 0); harmony.UnpatchAll(harmony.Id); fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
     }
     /// <summary>Ignored locations, empty vectors and ordinary numeric destinations do not withdraw unit metadata.</summary>
     [Theory]
@@ -48,13 +49,13 @@ public sealed partial class GpuProgramMetadataInterceptionTests
         fixture.EnsureContextValid(); fixture.InitializeResourceDisposal(); var harmony=Patch(nameof(SetOpaqueHandle));
         try
         {
-            PatchOpaqueBoundary(harmony,2); using var program=CreateProgram(out int shader); StateCache.Current.DeleteShader(shader); StateCache.Current.UseProgram(program.ProgramId);
+            PatchOpaqueBoundary(harmony,2); using var program=CreateProgram(out int shader); VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.OpenGL.DeleteShader(shader); OpenGLProgramSelection.Select(StateCache.Current, program.ProgramId);
             var manager=GpuResourceManagerSystem.CurrentManager!; var entry=manager.GetResourceRegistration(program)!; ulong revision=entry.MetadataRevision;
             int location=mode==0?-1:GL.GetUniformLocation(program.ProgramId,mode==1?"numericValue":"inputs[0]");
             SetOpaqueHandle(2,program.ProgramId,location,mode==2?0:1,ulong.MaxValue);
             Assert.True(manager.IsResourceMetadataAvailable(program)); Assert.Equal(revision,entry.MetadataRevision); Assert.Equal(ErrorCode.NoError,GL.GetError());
         }
-        finally { StateCache.Current.UseProgram(0); harmony.UnpatchAll(harmony.Id); fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { OpenGLProgramSelection.Select(StateCache.Current, 0); harmony.UnpatchAll(harmony.Id); fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
     }
     /// <summary>Real opaque sampler and image handles pass through native setters while withdrawing unit-based preparation.</summary>
     [Theory]
@@ -91,14 +92,14 @@ public sealed partial class GpuProgramMetadataInterceptionTests
                 ulong handle=unchecked((ulong)(image?GL.Arb.GetImageHandle((uint)texture.TextureId,0,false,0,(PixelFormat)SizedInternalFormat.Rgba32f):GL.Arb.GetTextureHandle((uint)texture.TextureId)));
                 Assert.NotEqual(0UL,handle); Assert.Equal(ErrorCode.NoError,GL.GetError());
                 output.WriteLine($"Native {(image?"image":"sampler")} handle=0x{handle:X16}; no residency needed for assignment/readback (no shader execution).");
-                StateCache.Current.UseProgram(program.ProgramId); int location=GL.GetUniformLocation(program.ProgramId,image?"images[0]":"inputs[0]");
+                OpenGLProgramSelection.Select(StateCache.Current, program.ProgramId); int location=GL.GetUniformLocation(program.ProgramId,image?"images[0]":"inputs[0]");
                 SetOpaqueHandle(variant,program.ProgramId,location,1,handle); Assert.Equal(ErrorCode.NoError,GL.GetError());
                 GL.Arb.GetUniform((uint)program.ProgramId,location,out ulong actual); Assert.Equal(handle,actual); Assert.Equal(ErrorCode.NoError,GL.GetError());
                 Assert.False(manager.IsResourceMetadataAvailable(program)); Assert.False(manager.IsResourceMetadataAvailable(alias)); Assert.Throws<InvalidOperationException>(()=>layout.BinaryInterface);
-                using var replacement=CreateProgram(out int replacementShader,true); StateCache.Current.DeleteShader(replacementShader); Assert.True(manager.IsResourceMetadataAvailable(replacement));
+                using var replacement=CreateProgram(out int replacementShader,true); VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.OpenGL.DeleteShader(replacementShader); Assert.True(manager.IsResourceMetadataAvailable(replacement));
             }
         }
-        finally { StateCache.Current.UseProgram(0); if(shader!=0) StateCache.Current.DeleteShader(shader); if(native!=0) StateCache.Current.DeleteProgram(native); harmony.UnpatchAll(harmony.Id); fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { OpenGLProgramSelection.Select(StateCache.Current, 0); if(shader!=0) VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.OpenGL.DeleteShader(shader); if(native!=0) VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.OpenGL.DeleteProgram(native); harmony.UnpatchAll(harmony.Id); fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
     }
     #endregion
     #region Private

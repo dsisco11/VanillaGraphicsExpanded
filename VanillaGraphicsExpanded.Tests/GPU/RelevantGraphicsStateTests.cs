@@ -1,3 +1,7 @@
+using VanillaGraphicsExpanded.Rendering.Pipeline;
+using System;
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
+using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
 using ErrorCode = OpenTK.Graphics.OpenGL.ErrorCode;
 using OpenTK.Windowing.Desktop;
@@ -14,24 +18,36 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 /// <summary>Checks dormant native state, later activation and union restoration independently of cache contents.</summary>
 [Collection("GPU")]
 [Trait("Category", "GPU")]
-public sealed class RelevantGraphicsStateTests(HeadlessGLFixture fixture)
+public sealed class RelevantGraphicsStateTests(HeadlessGLFixture fixture) : IDisposable
 {
+    private readonly GraphicsStateShaders stateShaders = new();
+    /// <summary>Retires test-owned executable generations after state assertions complete.</summary>
+    public void Dispose() => stateShaders.Dispose();
+
     #region Public API
     /// <summary>Wireframe and offsets become active only for their primitive kind.</summary>
     [Fact]
     public void PolygonModesActivateOffsetAndLinePayloads()
     {
         using var context = new WideLineContext(fixture);
-        var cache = StateCache.Current; cache.UseProgram(0);
+        var cache = StateCache.Current; OpenGLProgramSelection.Select(cache, 0);
         var fill = Description(raster: new() { LineWidth = 2,
             OffsetLine = true, DepthBiasFactor = 2, DepthBiasUnits = 3 });
-        var wire = Description(raster: fill.Rasterizer with { PolygonMode = PolygonMode.Line });
-        var point = Description(raster: new() { PolygonMode = PolygonMode.Point, PointSize = 3,
+        var wire = Description(raster: fill.Rasterizer with { PolygonMode = RasterizerFillMode.Line });
+        var point = Description(raster: new() { PolygonMode = RasterizerFillMode.Point, PointSize = 3,
             OffsetPoint = true, DepthBiasFactor = 4, DepthBiasUnits = 5 });
         GL.LineWidth(4);
         GL.PolygonOffset(6, 7); GL.Disable(EnableCap.PolygonOffsetLine); GL.Disable(EnableCap.PolygonOffsetPoint);
         GL.PointSize(5); cache.InvalidateAll();
-        Assert.True(CompleteGraphicsBoundary.TryRun("PrimitiveMatrix", [fill, wire, point], [], true, _ =>
+        Assert.True(((Func<bool>)(() => {
+                if (!true) return false;
+                var coverage = PipelineStateCoverage.Empty;
+                foreach (RHIGraphicsPipelineDescription declaration in new RHIGraphicsPipelineDescription[] {fill, wire, point})
+                    coverage = coverage.Union(PipelineStateCoverage.From(VanillaGraphicsExpanded.Rendering.Pipeline.GraphicsStateRelevance.Derive(declaration, GpuSupport.Graphics)));
+                if (!StateCache.Current.TryBeginEngineBoundary(new EngineBoundaryDeclaration("PrimitiveMatrix", coverage), out var restored,
+                    new EngineBoundaryResources(geometry: true, programSelection: true))) return false;
+                using (restored) {
+                    Action<EngineBoundaryScope> operation = _ =>
         {
             cache.ApplyGraphicsState(fill, Dynamics());
             Assert.Equal(4, GL.GetFloat(GetPName.LineWidth)); Assert.Equal(6, GL.GetFloat(GetPName.PolygonOffsetFactor)); Assert.Equal(7, GL.GetFloat(GetPName.PolygonOffsetUnits));
@@ -43,7 +59,11 @@ public sealed class RelevantGraphicsStateTests(HeadlessGLFixture fixture)
             Assert.Equal(5, GL.GetFloat(GetPName.PolygonOffsetUnits));
             cache.ApplyGraphicsState(fill, Dynamics()); Assert.Equal(3, GL.GetFloat(GetPName.PointSize));
             Assert.Equal(4, GL.GetFloat(GetPName.PolygonOffsetFactor)); Assert.Equal(5, GL.GetFloat(GetPName.PolygonOffsetUnits));
-        }));
+        };
+                    restored!.Run(() => operation(restored));
+                }
+                return true;
+            }))());
         Assert.Equal(4, GL.GetFloat(GetPName.LineWidth)); Assert.Equal(5, GL.GetFloat(GetPName.PointSize));
         Assert.False(GL.IsEnabled(EnableCap.PolygonOffsetLine));
         Assert.False(GL.IsEnabled(EnableCap.PolygonOffsetPoint)); Assert.Equal(6, GL.GetFloat(GetPName.PolygonOffsetFactor));
@@ -57,7 +77,7 @@ public sealed class RelevantGraphicsStateTests(HeadlessGLFixture fixture)
     public void UnknownOutputPrimitiveAppliesConservativeNativeGroups(bool tessellation)
     {
         using var context = new WideLineContext(fixture);
-        var cache = StateCache.Current; cache.UseProgram(0);
+        var cache = StateCache.Current; OpenGLProgramSelection.Select(cache, 0);
         var stages = new List<ShaderStageContract> { new("unknown.vsh", "unknown.vsh", ShaderStageKind.Vertex, new()),
             new("unknown.fsh", "unknown.fsh", ShaderStageKind.Fragment, new()) };
         if (tessellation)
@@ -67,16 +87,28 @@ public sealed class RelevantGraphicsStateTests(HeadlessGLFixture fixture)
         }
         else stages.Add(new("unknown.gsh", "unknown.gsh", ShaderStageKind.Geometry, new()));
         var contract = new GpuShaderContract("unknown-output", stages, 1);
-        var description = new GraphicsPipelineDesc(new("fixture", new(new ShaderSettings(contract))), new([]),
-            new([new(PixelInternalFormat.Rgba8)]), DynamicPipelineState.Viewport,
+        var description = new RHIGraphicsPipelineDescription(stateShaders.Get(contract.Stages.Select(stage => stage.Kind)), new([]),
+            new([new(TextureFormat.Rgba8)]), DynamicPipelineState.Viewport,
             rasterizer: new() { LineWidth = 2, PointSize = 3 },
-            assembly: new() { Topology = tessellation ? PrimitiveType.Patches : PrimitiveType.Triangles });
+            assembly: new() { Topology = tessellation ? PrimitiveTopology.Patches : PrimitiveTopology.Triangles });
         GL.LineWidth(4); GL.PointSize(5); cache.InvalidateAll();
-        Assert.True(CompleteGraphicsBoundary.TryRun("UnknownOutputMatrix", [description], [], true, _ =>
+        Assert.True(((Func<bool>)(() => {
+                if (!true) return false;
+                var coverage = PipelineStateCoverage.Empty;
+                foreach (RHIGraphicsPipelineDescription declaration in new RHIGraphicsPipelineDescription[] {description})
+                    coverage = coverage.Union(PipelineStateCoverage.From(VanillaGraphicsExpanded.Rendering.Pipeline.GraphicsStateRelevance.Derive(declaration, GpuSupport.Graphics)));
+                if (!StateCache.Current.TryBeginEngineBoundary(new EngineBoundaryDeclaration("UnknownOutputMatrix", coverage), out var restored,
+                    new EngineBoundaryResources(geometry: true, programSelection: true))) return false;
+                using (restored) {
+                    Action<EngineBoundaryScope> operation = _ =>
         {
             cache.ApplyGraphicsState(description, Dynamics());
             Assert.Equal(2, GL.GetFloat(GetPName.LineWidth)); Assert.Equal(3, GL.GetFloat(GetPName.PointSize));
-        }));
+        };
+                    restored!.Run(() => operation(restored));
+                }
+                return true;
+            }))());
         Assert.Equal(4, GL.GetFloat(GetPName.LineWidth)); Assert.Equal(5, GL.GetFloat(GetPName.PointSize));
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
@@ -89,14 +121,22 @@ public sealed class RelevantGraphicsStateTests(HeadlessGLFixture fixture)
     {
         using var context = new WideLineContext(fixture);
         var cache = StateCache.Current;
-        cache.UseProgram(0);
+        OpenGLProgramSelection.Select(cache, 0);
         var triangle = Description(raster: new() { LineWidth = 2 });
-        var line = Description(raster: new() { LineWidth = 2 }, topology: PrimitiveType.Lines);
+        var line = Description(raster: new() { LineWidth = 2 }, topology: PrimitiveTopology.Lines);
         GL.LineWidth(4); cache.InvalidateAll(); Assert.Equal(ErrorCode.NoError, GL.GetError());
         var expected = new InvalidOperationException("after final dormant draw");
         try
         {
-            bool Run() => CompleteGraphicsBoundary.TryRun("RelevantWidth", [triangle, line], [], true, _ =>
+            bool Run() => ((Func<bool>)(() => {
+                if (!true) return false;
+                var coverage = PipelineStateCoverage.Empty;
+                foreach (RHIGraphicsPipelineDescription declaration in new RHIGraphicsPipelineDescription[] {triangle, line})
+                    coverage = coverage.Union(PipelineStateCoverage.From(VanillaGraphicsExpanded.Rendering.Pipeline.GraphicsStateRelevance.Derive(declaration, GpuSupport.Graphics)));
+                if (!StateCache.Current.TryBeginEngineBoundary(new EngineBoundaryDeclaration("RelevantWidth", coverage), out var restored,
+                    new EngineBoundaryResources(geometry: true, programSelection: true))) return false;
+                using (restored) {
+                    Action<EngineBoundaryScope> operation = _ =>
             {
                 cache.ApplyGraphicsState(triangle, Dynamics());
                 Assert.Equal(4, GL.GetFloat(GetPName.LineWidth));
@@ -112,7 +152,11 @@ public sealed class RelevantGraphicsStateTests(HeadlessGLFixture fixture)
                 cache.ApplyGraphicsState(triangle, Dynamics());
                 Assert.Equal(2, GL.GetFloat(GetPName.LineWidth));
                 if (fail) throw expected;
-            });
+            };
+                    restored!.Run(() => operation(restored));
+                }
+                return true;
+            }))();
             if (fail) Assert.Same(expected, Assert.Throws<InvalidOperationException>(() => Run()));
             else Assert.True(Run(), cache.BoundaryEntryFailure?.ToString());
             Assert.Equal(4, GL.GetFloat(GetPName.LineWidth));
@@ -125,16 +169,24 @@ public sealed class RelevantGraphicsStateTests(HeadlessGLFixture fixture)
     [Fact]
     public void ScissorAndPointPayloadsBecomeRelevantWithoutInheritingIntent()
     {
-        fixture.MakeCurrent(); var cache = StateCache.Current; cache.UseProgram(0);
+        fixture.MakeCurrent(); var cache = StateCache.Current; OpenGLProgramSelection.Select(cache, 0);
         var triangle = Description(raster: new() { PointSize = 2 });
         var clipped = Description(raster: new() { Scissor = true });
-        var shaderPoints = Description(raster: new() { ProgramPointSize = true, PointSize = 2 }, topology: PrimitiveType.Points);
-        var fixedPoints = Description(raster: new() { PointSize = 2 }, topology: PrimitiveType.Points);
+        var shaderPoints = Description(raster: new() { ProgramPointSize = true, PointSize = 2 }, topology: PrimitiveTopology.Points);
+        var fixedPoints = Description(raster: new() { PointSize = 2 }, topology: PrimitiveTopology.Points);
         GL.Enable(EnableCap.ScissorTest); GL.Scissor(1, 2, 3, 4); GL.PointSize(4);
         GL.Disable(EnableCap.ProgramPointSize); cache.InvalidateAll();
         try
         {
-            Assert.True(CompleteGraphicsBoundary.TryRun("RelevantPayload", [triangle, clipped, shaderPoints, fixedPoints], [], true, _ =>
+            Assert.True(((Func<bool>)(() => {
+                if (!true) return false;
+                var coverage = PipelineStateCoverage.Empty;
+                foreach (RHIGraphicsPipelineDescription declaration in new RHIGraphicsPipelineDescription[] {triangle, clipped, shaderPoints, fixedPoints})
+                    coverage = coverage.Union(PipelineStateCoverage.From(VanillaGraphicsExpanded.Rendering.Pipeline.GraphicsStateRelevance.Derive(declaration, GpuSupport.Graphics)));
+                if (!StateCache.Current.TryBeginEngineBoundary(new EngineBoundaryDeclaration("RelevantPayload", coverage), out var restored,
+                    new EngineBoundaryResources(geometry: true, programSelection: true))) return false;
+                using (restored) {
+                    Action<EngineBoundaryScope> operation = _ =>
             {
                 cache.ApplyGraphicsState(triangle, Dynamics());
                 Assert.False(GL.IsEnabled(EnableCap.ScissorTest)); AssertScissor(1, 2, 3, 4);
@@ -147,7 +199,11 @@ public sealed class RelevantGraphicsStateTests(HeadlessGLFixture fixture)
                 Assert.False(GL.IsEnabled(EnableCap.ProgramPointSize)); Assert.Equal(2, GL.GetFloat(GetPName.PointSize));
                 cache.ApplyGraphicsState(triangle, Dynamics());
                 Assert.Equal(2, GL.GetFloat(GetPName.PointSize)); AssertScissor(0, 0, 0, 0);
-            }));
+            };
+                    restored!.Run(() => operation(restored));
+                }
+                return true;
+            }))());
             Assert.True(GL.IsEnabled(EnableCap.ScissorTest)); AssertScissor(1, 2, 3, 4);
             Assert.False(GL.IsEnabled(EnableCap.ProgramPointSize)); Assert.Equal(4, GL.GetFloat(GetPName.PointSize));
         }
@@ -161,14 +217,14 @@ public sealed class RelevantGraphicsStateTests(HeadlessGLFixture fixture)
     {
         fixture.MakeCurrent();
         var cache = StateCache.Current;
-        cache.UseProgram(0);
-        var sparse = Description(targets: new([new(PixelInternalFormat.Rgba8), new(null, true), new(PixelInternalFormat.Rgba8)]));
+        OpenGLProgramSelection.Select(cache, 0);
+        var sparse = Description(targets: new([new(TextureFormat.Rgba8), new(null, true), new(TextureFormat.Rgba8)]));
         var active = Description(targets: sparse.Targets,
-            blending: [new(), new(), new() { Enabled = true, RgbEquation = BlendEquationMode.Min,
-                AlphaEquation = BlendEquationMode.FuncAdd, SourceRgb = BlendingFactorSrc.SrcAlpha,
-                DestinationRgb = BlendingFactorDest.OneMinusSrcAlpha, SourceAlpha = BlendingFactorSrc.ConstantAlpha,
-                DestinationAlpha = BlendingFactorDest.OneMinusConstantAlpha }]);
-        var routed = Description(targets: new([new(PixelInternalFormat.Rgba8), new(PixelInternalFormat.Rgba8), new(PixelInternalFormat.Rgba8)]),
+            blending: [new(), new(), new() { Enabled = true, RgbEquation = BlendOperation.Minimum,
+                AlphaEquation = BlendOperation.Add, SourceRgb = BlendFactor.SourceAlpha,
+                DestinationRgb = BlendFactor.OneMinusSourceAlpha, SourceAlpha = BlendFactor.ConstantAlpha,
+                DestinationAlpha = BlendFactor.OneMinusConstantAlpha }]);
+        var routed = Description(targets: new([new(TextureFormat.Rgba8), new(TextureFormat.Rgba8), new(TextureFormat.Rgba8)]),
             blending: [new(), new() { WriteRed = false, WriteBlue = false }, new()]);
         // Slot one is a hole, while slot two transitions from dormant factors to active alpha factors.
         for (int slot = 1; slot <= 2; slot++)
@@ -179,7 +235,15 @@ public sealed class RelevantGraphicsStateTests(HeadlessGLFixture fixture)
         }
         GL.BlendColor(.2f, .3f, .4f, .5f); cache.InvalidateAll();
         bool[] inheritedMask = new bool[4]; GL.GetBoolean(GetIndexedPName.ColorWritemask, 1, inheritedMask);
-        Assert.True(CompleteGraphicsBoundary.TryRun("RelevantSparseBlend", [sparse, active, routed], [], true, _ =>
+        Assert.True(((Func<bool>)(() => {
+                if (!true) return false;
+                var coverage = PipelineStateCoverage.Empty;
+                foreach (RHIGraphicsPipelineDescription declaration in new RHIGraphicsPipelineDescription[] {sparse, active, routed})
+                    coverage = coverage.Union(PipelineStateCoverage.From(VanillaGraphicsExpanded.Rendering.Pipeline.GraphicsStateRelevance.Derive(declaration, GpuSupport.Graphics)));
+                if (!StateCache.Current.TryBeginEngineBoundary(new EngineBoundaryDeclaration("RelevantSparseBlend", coverage), out var restored,
+                    new EngineBoundaryResources(geometry: true, programSelection: true))) return false;
+                using (restored) {
+                    Action<EngineBoundaryScope> operation = _ =>
         {
             cache.ApplyGraphicsState(sparse, Dynamics());
             Assert.True(GL.IsEnabled(IndexedEnableCap.Blend, 1));
@@ -198,7 +262,11 @@ public sealed class RelevantGraphicsStateTests(HeadlessGLFixture fixture)
             cache.ApplyGraphicsState(sparse, Dynamics());
             GL.GetBoolean(GetIndexedPName.ColorWritemask, 1, mask);
             Assert.Equal(new[] { false, true, false, true }, mask);
-        }));
+        };
+                    restored!.Run(() => operation(restored));
+                }
+                return true;
+            }))());
         for (int slot = 1; slot <= 2; slot++)
         {
             Assert.True(GL.IsEnabled(IndexedEnableCap.Blend, slot));
@@ -215,20 +283,20 @@ public sealed class RelevantGraphicsStateTests(HeadlessGLFixture fixture)
 
     #region Private
     /// <summary>Provides the only declared dynamic slot, retaining concrete defaults for omitted slots.</summary>
-    private static GraphicsDynamicState Dynamics() => new() { Viewport = new() { Width = 8, Height = 8 },
+    private static RHIDynamicState Dynamics() => new() { Viewport = new() { Width = 8, Height = 8 },
         Scissor = (0, 0, 0, 0), BlendConstant = (0, 0, 0, 0) };
 
     /// <summary>Builds complete descriptor-only intent without claiming knowledge of an executable's output primitives.</summary>
-    private static GraphicsPipelineDesc Description(RasterizerDesc? raster = null, PrimitiveType topology = PrimitiveType.Triangles,
+    private RHIGraphicsPipelineDescription Description(RasterizerDesc? raster = null, PrimitiveTopology topology = PrimitiveTopology.Triangles,
         RenderTargetSignature? targets = null, ColorBlendDesc[]? blending = null)
     {
         var contract = new GpuShaderContract("relevant", [new("relevant.vsh", "relevant.vsh", ShaderStageKind.Vertex, new()),
             new("relevant.fsh", "relevant.fsh", ShaderStageKind.Fragment, new())], 1);
         var dynamics = DynamicPipelineState.Viewport;
         if (raster?.Scissor == true) dynamics |= DynamicPipelineState.Scissor;
-        if (blending?.Any(value => value.Enabled && value.SourceAlpha == BlendingFactorSrc.ConstantAlpha) == true)
+        if (blending?.Any(value => value.Enabled && value.SourceAlpha == BlendFactor.ConstantAlpha) == true)
             dynamics |= DynamicPipelineState.BlendConstant;
-        return new(new("fixture", new(new ShaderSettings(contract))), new([]), targets ?? new([new(PixelInternalFormat.Rgba8)]),
+        return new(stateShaders.Get(contract.Stages.Select(stage => stage.Kind)), new([]), targets ?? new([new(TextureFormat.Rgba8)]),
             dynamics, rasterizer: raster, blending: blending, assembly: new() { Topology = topology });
     }
 

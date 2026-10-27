@@ -19,7 +19,7 @@ public sealed class GpuProgramSamplerRetirementTests(HeadlessGLFixture fixture) 
     #region Engine handoff
     /// <summary>The normal interface Stop path retires shadow comparison samplers before engine texture reuse.</summary>
     [Fact]
-    public void DirectLightingStopRetiresContractSamplers()
+    public void DirectLightingBoundaryRestoresContractSamplers()
     {
         EnsureContextValid();
         using var programs = new ComponentShaderPrograms();
@@ -33,20 +33,23 @@ public sealed class GpuProgramSamplerRetirementTests(HeadlessGLFixture fixture) 
         unrelated.Bind(9);
         try
         {
-            program.PrimaryScene = input.TextureId;
-            program.PrimaryDepth = depth.TextureId;
-            program.GBufferPosition = input.TextureId;
+            program.PrimaryScene = input;
+            program.PrimaryDepth = depth;
+            program.GBufferPosition = input;
             using var surfaceInput1 = LayeredTestTexture.Create(input, null, null);
             program.GBufferSurface = surfaceInput1;
-            program.ShadowMapNear = depth.TextureId;
-            program.ShadowMapFar = depth.TextureId;
-            program.Use();
+            program.ShadowMapNear = depth;
+            program.ShadowMapFar = depth;
+            using var pipeline = ShaderBindingTestPipeline.Create(program);
+            var context=RHICommandContext.Current;
+            using var boundary=context.EnterBoundary(new("Tests.ShadowSampler.Restoration",true,graphics:[pipeline]));
+            context.SetPipeline(pipeline);context.BindResources(program.CaptureBindings());
             GL.GetInteger((GetIndexedPName)GetPName.SamplerBinding, 4, out int nearSampler);
             GL.GetInteger((GetIndexedPName)GetPName.SamplerBinding, 5, out int farSampler);
             Assert.NotEqual(0, nearSampler);
             Assert.NotEqual(0, farSampler);
             // The concrete VGE facade withdraws the generated sampler footprint.
-            program.Stop();
+            boundary.Dispose();
             GL.GetInteger((GetIndexedPName)GetPName.SamplerBinding, 4, out nearSampler);
             GL.GetInteger((GetIndexedPName)GetPName.SamplerBinding, 5, out farSampler);
             Assert.Equal(0, nearSampler);
@@ -74,13 +77,13 @@ public sealed class GpuProgramSamplerRetirementTests(HeadlessGLFixture fixture) 
         using var framework = new ShaderTestFramework();
         using var texture = framework.CreateTexture(1, 1, PixelInternalFormat.Rgba32f, [.2f, .4f, .6f, 1f]);
         using var target = framework.CreateTestGBuffer(1, 1, PixelInternalFormat.Rgba32f);
-        StateCache.Current.UseProgram(program.ProgramId);
-        StateCache.Current.BindVertexArray(vao.VertexArrayId);
+        OpenGLProgramSelection.Select(StateCache.Current, program.ProgramId);
+        OpenGLVertexSelection.Bind(StateCache.Current, vao.VertexArrayId);
         ShaderTestFramework.SetUniform(0, 5);
         // Intentionally bypass VGE texture binding: vanilla does not clear foreign sampler objects.
         GL.ActiveTexture(TextureUnit.Texture5);
         GL.BindTexture(TextureTarget.Texture2D, texture.TextureId);
-        target.BindWithViewport();
+        FramebufferTestSetup.BindForEngineRendering(target);
         GL.Disable(EnableCap.DepthTest); GL.Disable(EnableCap.Blend); GL.Disable(EnableCap.CullFace);
         GL.DrawArrays(PrimitiveType.Triangles, 0, 3);
         Assert.Equal(new[] { .2f, .4f, .6f, 1f }, target[0].ReadPixels());

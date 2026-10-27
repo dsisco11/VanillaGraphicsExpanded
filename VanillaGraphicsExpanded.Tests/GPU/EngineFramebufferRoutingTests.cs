@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System.Runtime.CompilerServices;
 using HarmonyLib;
 using OpenTK.Graphics.OpenGL;
@@ -23,7 +24,7 @@ public sealed class EngineFramebufferRoutingTests(HeadlessGLFixture fixture) : R
         using var target = CreateMRTRenderTarget(2, 2, PixelInternalFormat.Rgba32f, PixelInternalFormat.Rgba32f);
         target.Bind();
         var cache = StateCache.Current;
-        cache.SetDrawBuffer(DrawBufferMode.ColorAttachment0);
+        OpenGLFramebufferRouting.SetDrawBuffer(cache, DrawBufferMode.ColorAttachment0);
         var harmony = new Harmony("Tests.EngineFramebufferRouting");
         try
         {
@@ -34,8 +35,8 @@ public sealed class EngineFramebufferRoutingTests(HeadlessGLFixture fixture) : R
             ChangeRouting(array);
             // Exact intercepted calls remain observable even when their routing arguments repeat.
             Assert.Equal(2, calls.Calls.Count(call => call.StartsWith("Routing")));
-            Assert.Equal(DrawBuffersEnum.ColorAttachment1, cache.CaptureFramebufferDrawRouting(target.FboId)[0]);
-            cache.SetDrawBuffer(DrawBufferMode.ColorAttachment0);
+            Assert.Equal(DrawBuffersEnum.ColorAttachment1, OpenGLFramebufferRouting.Capture(cache, target.FboId)[0]);
+            OpenGLFramebufferRouting.SetDrawBuffer(cache, DrawBufferMode.ColorAttachment0);
             Assert.Equal(3, calls.Calls.Count(call => call.StartsWith("Routing")));
             Assert.Equal((int)DrawBufferMode.ColorAttachment0, GL.GetInteger(GetPName.DrawBuffer0));
             Assert.Equal(ErrorCode.NoError, GL.GetError());

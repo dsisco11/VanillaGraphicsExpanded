@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
@@ -8,23 +9,23 @@ namespace VanillaGraphicsExpanded.HarmonyPatches.NativeAdapters.FramebufferRouti
 internal static unsafe partial class Ext
 {
     #region Internal API
-    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
-    internal static void FramebufferDrawBuffers(int @framebuffer, int @n, ref DrawBufferMode @bufs) => StateCache.Current.ExecuteExtFramebufferDrawBuffers(@framebuffer, @n, ref @bufs);
+    /// <summary>Forwards the exact signature to the backend execution boundary.</summary>
+    internal static void FramebufferDrawBuffers(int @framebuffer, int @n, ref DrawBufferMode @bufs) => OpenGLFramebufferRoutingCalls.ExecuteExtFramebufferDrawBuffers(@framebuffer, @n, ref @bufs);
 
-    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
-    internal static void FramebufferDrawBuffers(int @framebuffer, int @n, DrawBufferMode[] @bufs) => StateCache.Current.ExecuteExtFramebufferDrawBuffers(@framebuffer, @n, @bufs);
+    /// <summary>Forwards the exact signature to the backend execution boundary.</summary>
+    internal static void FramebufferDrawBuffers(int @framebuffer, int @n, DrawBufferMode[] @bufs) => OpenGLFramebufferRoutingCalls.ExecuteExtFramebufferDrawBuffers(@framebuffer, @n, @bufs);
 
-    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
-    internal static void FramebufferDrawBuffers(int @framebuffer, int @n, DrawBufferMode* @bufs) => StateCache.Current.ExecuteExtFramebufferDrawBuffers(@framebuffer, @n, @bufs);
+    /// <summary>Forwards the exact signature to the backend execution boundary.</summary>
+    internal static void FramebufferDrawBuffers(int @framebuffer, int @n, DrawBufferMode* @bufs) => OpenGLFramebufferRoutingCalls.ExecuteExtFramebufferDrawBuffers(@framebuffer, @n, @bufs);
 
-    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
-    internal static void FramebufferDrawBuffers(uint @framebuffer, int @n, ref DrawBufferMode @bufs) => StateCache.Current.ExecuteExtFramebufferDrawBuffers(@framebuffer, @n, ref @bufs);
+    /// <summary>Forwards the exact signature to the backend execution boundary.</summary>
+    internal static void FramebufferDrawBuffers(uint @framebuffer, int @n, ref DrawBufferMode @bufs) => OpenGLFramebufferRoutingCalls.ExecuteExtFramebufferDrawBuffers(@framebuffer, @n, ref @bufs);
 
-    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
-    internal static void FramebufferDrawBuffers(uint @framebuffer, int @n, DrawBufferMode[] @bufs) => StateCache.Current.ExecuteExtFramebufferDrawBuffers(@framebuffer, @n, @bufs);
+    /// <summary>Forwards the exact signature to the backend execution boundary.</summary>
+    internal static void FramebufferDrawBuffers(uint @framebuffer, int @n, DrawBufferMode[] @bufs) => OpenGLFramebufferRoutingCalls.ExecuteExtFramebufferDrawBuffers(@framebuffer, @n, @bufs);
 
-    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
-    internal static void FramebufferDrawBuffers(uint @framebuffer, int @n, DrawBufferMode* @bufs) => StateCache.Current.ExecuteExtFramebufferDrawBuffers(@framebuffer, @n, @bufs);
+    /// <summary>Forwards the exact signature to the backend execution boundary.</summary>
+    internal static void FramebufferDrawBuffers(uint @framebuffer, int @n, DrawBufferMode* @bufs) => OpenGLFramebufferRoutingCalls.ExecuteExtFramebufferDrawBuffers(@framebuffer, @n, @bufs);
 
     #endregion
 }

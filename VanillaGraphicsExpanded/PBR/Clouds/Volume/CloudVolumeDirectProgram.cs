@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.ShaderCompilation;
 using System;
 using System.Numerics;
 using VanillaGraphicsExpanded.Rendering;
@@ -26,7 +27,7 @@ internal sealed partial class CloudVolumeDirectProgram:GpuComputeProgram,ICloudV
     internal static CloudVolumeDirectProgram Create(ICoreAPI api,int operation,int quality=2)
     {
         var layout=new GpuProgramLayout();layout.RegisterContract(Contract.Stages[0].Bindings);
-        if(!GpuComputePipeline.TryCreateFromAssets(api,new ShaderSettings(Contract).With(Operation,operation).With(Quality,quality),out var pipeline,
+        if(!ComputeShaderAsset.TryCreateFromAssets(api,new ShaderSettings(Contract).With(Operation,operation).With(Quality,quality),out var pipeline,
             out string log,"Cloud.Volume.Direct",layout:layout))throw new InvalidOperationException(log);
         return new(pipeline!);
     }
@@ -47,7 +48,7 @@ internal sealed partial class CloudVolumeDirectProgram:GpuComputeProgram,ICloudV
     #endregion
     #region Private
     /// <summary>Adopts the executable and its single immutable parameter record.</summary>
-    private CloudVolumeDirectProgram(GpuComputePipeline pipeline):base(pipeline)=>OwnUniformBuffer(inputs);
+    private CloudVolumeDirectProgram(ComputeShaderAsset pipeline):base(pipeline)=>OwnUniformBuffer(inputs);
     /// <summary>Supplies the complete staged transport record.</summary>
     CpuUniformBuffer ICloudVolumeDirectBindings.Inputs=>inputs;
     #endregion

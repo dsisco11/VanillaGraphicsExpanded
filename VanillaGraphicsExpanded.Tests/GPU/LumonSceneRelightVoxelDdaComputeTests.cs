@@ -87,14 +87,14 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
         computeProgram.BindDebugCounters(debugCounter.Buffer);
 
         // Samplers use layout(binding=N): bind textures to those units.
-        computeProgram.BindDepthAtlas(depthAtlas.TextureId);
-        computeProgram.BindMaterialAtlas(materialAtlas.TextureId);
+        computeProgram.DepthAtlas = depthAtlas;
+        computeProgram.MaterialAtlas = materialAtlas;
 
-        computeProgram.BindLightColorLut(lightColorLut.TextureId);
-        computeProgram.BindBlockLevelScalarLut(blockScalar.TextureId);
-        computeProgram.BindSunLevelScalarLut(sunScalar.TextureId);
+        computeProgram.LightColorLut = lightColorLut;
+        computeProgram.BlockLevelScalarLut = blockScalar;
+        computeProgram.SunLevelScalarLut = sunScalar;
 
-        computeProgram.BindSurfaceLut(surfaceLut.TextureId);
+        computeProgram.SurfaceLut = surfaceLut;
 
         // Output image binding matches shader: layout(binding=0, rgba16f) image2DArray.
         computeProgram.BindIrradianceAtlasImage(irradiance);
@@ -171,16 +171,16 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
         computeProgram.BindPatchMetaSsbo(patchMetaSsbo);
         computeProgram.BindDebugCounters(debugCounter.Buffer);
 
-        computeProgram.BindDepthAtlas(depthAtlas.TextureId);
-        computeProgram.BindMaterialAtlas(materialAtlas.TextureId);
+        computeProgram.DepthAtlas = depthAtlas;
+        computeProgram.MaterialAtlas = materialAtlas;
 
-        computeProgram.BindLightColorLut(lightColorLut.TextureId);
-        computeProgram.BindBlockLevelScalarLut(blockScalar.TextureId);
-        computeProgram.BindSunLevelScalarLut(sunScalar.TextureId);
+        computeProgram.LightColorLut = lightColorLut;
+        computeProgram.BlockLevelScalarLut = blockScalar;
+        computeProgram.SunLevelScalarLut = sunScalar;
 
-        computeProgram.BindSurfaceLut(surfaceLut.TextureId);
+        computeProgram.SurfaceLut = surfaceLut;
 
-        computeProgram.BindSurfaceLut(surfaceLut.TextureId);
+        computeProgram.SurfaceLut = surfaceLut;
 
         computeProgram.BindIrradianceAtlasImage(irradiance);
 
@@ -252,14 +252,14 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
         computeProgram.BindPatchMetaSsbo(patchMetaSsbo);
         computeProgram.BindDebugCounters(debugCounter.Buffer);
 
-        computeProgram.BindDepthAtlas(depthAtlas.TextureId);
-        computeProgram.BindMaterialAtlas(materialAtlas.TextureId);
+        computeProgram.DepthAtlas = depthAtlas;
+        computeProgram.MaterialAtlas = materialAtlas;
 
-        computeProgram.BindLightColorLut(lightColorLut.TextureId);
-        computeProgram.BindBlockLevelScalarLut(blockScalar.TextureId);
-        computeProgram.BindSunLevelScalarLut(sunScalar.TextureId);
+        computeProgram.LightColorLut = lightColorLut;
+        computeProgram.BlockLevelScalarLut = blockScalar;
+        computeProgram.SunLevelScalarLut = sunScalar;
 
-        computeProgram.BindSurfaceLut(surfaceLut.TextureId);
+        computeProgram.SurfaceLut = surfaceLut;
 
         computeProgram.BindIrradianceAtlasImage(irradiance);
 
@@ -340,13 +340,13 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
         computeProgram.BindPatchMetaSsbo(patchMetaSsbo);
         computeProgram.BindDebugCounters(debugCounter.Buffer);
 
-        computeProgram.BindDepthAtlas(depthAtlas.TextureId);
-        computeProgram.BindMaterialAtlas(materialAtlas.TextureId);
+        computeProgram.DepthAtlas = depthAtlas;
+        computeProgram.MaterialAtlas = materialAtlas;
 
-        computeProgram.BindLightColorLut(lightColorLut.TextureId);
-        computeProgram.BindBlockLevelScalarLut(blockScalar.TextureId);
-        computeProgram.BindSunLevelScalarLut(sunScalar.TextureId);
-        computeProgram.BindSurfaceLut(surfaceLut.TextureId);
+        computeProgram.LightColorLut = lightColorLut;
+        computeProgram.BlockLevelScalarLut = blockScalar;
+        computeProgram.SunLevelScalarLut = sunScalar;
+        computeProgram.SurfaceLut = surfaceLut;
 
         computeProgram.BindIrradianceAtlasImage(irradiance);
 
@@ -448,14 +448,14 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
         computeProgram.BindPatchMetaSsbo(patchMetaSsbo);
         computeProgram.BindDebugCounters(debugCounter.Buffer);
 
-        computeProgram.BindDepthAtlas(depthAtlas.TextureId);
-        computeProgram.BindMaterialAtlas(materialAtlas.TextureId);
+        computeProgram.DepthAtlas = depthAtlas;
+        computeProgram.MaterialAtlas = materialAtlas;
 
-        computeProgram.BindLightColorLut(lightColorLut.TextureId);
-        computeProgram.BindBlockLevelScalarLut(blockScalar.TextureId);
-        computeProgram.BindSunLevelScalarLut(sunScalar.TextureId);
+        computeProgram.LightColorLut = lightColorLut;
+        computeProgram.BlockLevelScalarLut = blockScalar;
+        computeProgram.SunLevelScalarLut = sunScalar;
 
-        computeProgram.BindSurfaceLut(surfaceLut.TextureId);
+        computeProgram.SurfaceLut = surfaceLut;
 
         computeProgram.BindIrradianceAtlasImage(irradiance);
 
@@ -536,13 +536,13 @@ public sealed class LumonSceneRelightVoxelDdaComputeTests : RenderTestBase
         computeProgram.BindPatchMetaSsbo(patchMetaSsbo);
         computeProgram.BindDebugCounters(debugCounter.Buffer);
 
-        computeProgram.BindDepthAtlas(depthAtlas.TextureId);
-        computeProgram.BindMaterialAtlas(materialAtlas.TextureId);
+        computeProgram.DepthAtlas = depthAtlas;
+        computeProgram.MaterialAtlas = materialAtlas;
 
-        computeProgram.BindLightColorLut(lightColorLut.TextureId);
-        computeProgram.BindBlockLevelScalarLut(blockScalar.TextureId);
-        computeProgram.BindSunLevelScalarLut(sunScalar.TextureId);
-        computeProgram.BindSurfaceLut(surfaceLut.TextureId);
+        computeProgram.LightColorLut = lightColorLut;
+        computeProgram.BlockLevelScalarLut = blockScalar;
+        computeProgram.SunLevelScalarLut = sunScalar;
+        computeProgram.SurfaceLut = surfaceLut;
 
         computeProgram.BindIrradianceAtlasImage(irradiance);
 

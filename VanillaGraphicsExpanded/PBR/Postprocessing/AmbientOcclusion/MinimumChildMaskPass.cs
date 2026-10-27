@@ -8,16 +8,16 @@ namespace VanillaGraphicsExpanded.PBR.Postprocessing;
 internal sealed class MinimumChildMaskPass : IDisposable
 {
     private GpuResourceCollection resources = new();
-    private StaticGpuFramebuffer[] targets = [];
+    private RHIRenderPassDescription[] targets = [];
     private MinimumChildMaskShaderProgram? shader;
-    private GraphicsPipeline? pipeline;
+    private RHIGraphicsPipeline? pipeline;
     #region Public API
     /// <summary>Gets membership storage; mip zero corresponds to shared hierarchy level one.</summary>
     internal DynamicTexture2D? Texture { get; private set; }
     /// <summary>Gets allocated R16UI texel payload, excluding driver padding.</summary>
     internal long StorageBytes { get; private set; }
     /// <summary>Checks context limits and reuses storage and PSOs until extent or executable changes.</summary>
-    internal GraphicsPipeline Prepare(PostprocessDraw draw,int width,int height,MinimumChildMaskShaderProgram shader)
+    internal RHIGraphicsPipeline Prepare(PostprocessDraw draw,int width,int height,MinimumChildMaskShaderProgram shader)
     {
         if(width<1 || height<1 || width>GpuSupport.MaxTextureSize || height>GpuSupport.MaxTextureSize)
             throw new ArgumentOutOfRangeException(nameof(width),"AO mask extent exceeds context limits.");
@@ -32,11 +32,10 @@ internal sealed class MinimumChildMaskPass : IDisposable
             try
             {
                 Texture=resources.Own(RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.R16ui, Width = System.Math.Max(1, mw), Height = System.Math.Max(1, mh), MipLevels = Math.Max(1,levels), Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (Math.Max(1,levels)) - 1, Label = "AmbientOcclusion.MinimumChildren" }).RequireResource());
-                targets=new StaticGpuFramebuffer[Math.Max(1,levels)];
+                targets=new RHIRenderPassDescription[Math.Max(1,levels)];
                 for(int level=0;level<targets.Length;level++)
                 {
-                    var attachment=resources.Own(GpuFramebufferAttachment.FromTexture(Texture,mipLevel:level));
-                    targets[level]=resources.Own(StaticGpuFramebuffer.Create([attachment],debugName:$"AmbientOcclusion.MinimumChildren.Mip{level}"));
+                    targets[level]=new([new(Image:RHIAttachment.FromTexture(Texture,new(level)))],label:$"AmbientOcclusion.MinimumChildren.Mip{level}");
                     StorageBytes+=2L*Math.Max(1,mw>>level)*Math.Max(1,mh>>level);
                 }
             }
@@ -44,11 +43,11 @@ internal sealed class MinimumChildMaskPass : IDisposable
         }
         this.shader=shader;
         if(!shader.EnsureReady()) throw new InvalidOperationException("AO minimum-child shader is unavailable.");
-        pipeline=draw.Prepare(shader,targets[0].PreservePass);
+        pipeline=draw.Prepare(shader,targets[0]);
         return pipeline;
     }
     /// <summary>Builds all used levels before horizon sampling, preserving conservative odd-axis child membership.</summary>
-    internal void Render(GraphicsCommandContext commands,PostprocessDraw draw,DynamicTexture2D hierarchy)
+    internal void Render(RHICommandContext commands,PostprocessDraw draw,DynamicTexture2D hierarchy)
     {
         var program=shader??throw new InvalidOperationException("AO masks are not prepared.");
         program.Hierarchy=hierarchy;
@@ -56,7 +55,7 @@ internal sealed class MinimumChildMaskPass : IDisposable
         for(int level=1;level<=levels;level++)
         {
             program.Capture(level);
-            draw.Submit(commands,pipeline!,targets[level-1].PreservePass);
+            draw.Submit(commands,pipeline!,targets[level-1],program.CaptureBindings());
         }
         // Completed integer color writes feed the subsequent horizon sampler in the same boundary.
         RHICommandContext.Current.Barrier(new(ResourceAccess.Framebuffer|ResourceAccess.TextureFetch));

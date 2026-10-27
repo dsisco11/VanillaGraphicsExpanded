@@ -254,8 +254,8 @@ public sealed class GpuResourceMetadataRegistryTests
     {
         using var manager = CreateManager();
         var entry = manager.RegisterCreatedResource<GpuTextureMetadata>(GpuResourceKind.Texture, 7);
-        using var image = GpuFramebufferAttachment.FromExternalImage(7, false, TextureTarget.Texture2DArray, 1, 2);
-        using var missing = GpuFramebufferAttachment.FromExternalImage(7, false, TextureTarget.Texture2DArray, 1, 9);
+        using var image = GpuFramebufferAttachment.FromExternalImage(7, false, TextureTarget.Texture2DArray, 1, 2, ProjectionSeed(TextureTarget.Texture2DArray,1));
+        using var missing = GpuFramebufferAttachment.FromExternalImage(7, false, TextureTarget.Texture2DArray, 1, 9, ProjectionSeed(TextureTarget.Texture2DArray,1));
         manager.AssociateImageResource(entry, missing);
         manager.AssociateImageResource(entry, image);
         var levels = ImmutableArray.Create(new GpuTextureLevelMetadata(1, 0, 8, 4, 3, PixelInternalFormat.Rgba16f, 0, true));
@@ -274,7 +274,7 @@ public sealed class GpuResourceMetadataRegistryTests
     {
         using var manager = CreateManager();
         var entry = manager.RegisterCreatedResource<GpuTextureMetadata>(GpuResourceKind.Texture, 7);
-        using var image = GpuFramebufferAttachment.FromExternalImage(7, false, TextureTarget.Texture1DArray, 0, null);
+        using var image = GpuFramebufferAttachment.FromExternalImage(7, false, TextureTarget.Texture1DArray, 0, null, ProjectionSeed(TextureTarget.Texture1DArray,0));
         manager.AssociateImageResource(entry, image);
         var levels = ImmutableArray.Create(new GpuTextureLevelMetadata(0, 0, 8, 3, 1, PixelInternalFormat.Rgba8, 0, true));
         manager.PublishMetadata(entry, new(TextureTarget.Texture1DArray, levels, true, 1, 0, 0), GpuMetadataChange.Storage);
@@ -288,7 +288,7 @@ public sealed class GpuResourceMetadataRegistryTests
     {
         using var manager = CreateManager();
         var entry = manager.RegisterCreatedResource<GpuTextureMetadata>(GpuResourceKind.Texture, 7);
-        using var image = GpuFramebufferAttachment.FromExternalImage(7, false, TextureTarget.TextureCubeMap, 0, null);
+        using var image = GpuFramebufferAttachment.FromExternalImage(7, false, TextureTarget.TextureCubeMap, 0, null, ProjectionSeed(TextureTarget.TextureCubeMap,0));
         manager.AssociateImageResource(entry, image);
         var faces = Enumerable.Range(0, 6).Select(face => new GpuTextureLevelMetadata(0,
             TextureTarget.TextureCubeMapPositiveX + face, 8, 8, 1, PixelInternalFormat.Rgba8, 0, true)).ToImmutableArray();
@@ -500,6 +500,15 @@ public sealed class GpuResourceMetadataRegistryTests
     #endregion
 
     #region Private
+    /// <summary>Supplies initial fixture image facts without discovering a nonexistent native object.</summary>
+    private static GpuTextureMetadata ProjectionSeed(TextureTarget target,int level)
+    {
+        var levels=target==TextureTarget.TextureCubeMap
+            ? Enumerable.Range(0,6).Select(face=>new GpuTextureLevelMetadata(level,TextureTarget.TextureCubeMapPositiveX+face,8,8,1,PixelInternalFormat.Rgba8,0,true)).ToImmutableArray()
+            : ImmutableArray.Create(new GpuTextureLevelMetadata(level,0,8,target==TextureTarget.Texture1DArray?10:4,10,PixelInternalFormat.Rgba8,0,true));
+        return new(target,levels,true,level+1,0,level);
+    }
+
     /// <summary>Creates a context-scoped registry without loading or invoking native graphics.</summary>
     private static GpuResourceManager CreateManager() => new(static () => (1, 1), static _ => true);
 

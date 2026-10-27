@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Integration;
 using VanillaGraphicsExpanded.Rendering.Pipeline;
@@ -165,7 +166,7 @@ public sealed class PipelineStateCoverageTests
     [Fact]
     public void ClearEnvelopeIsIndependentFromCompleteDrawFields()
     {
-        var value = RenderPassOperations.ClearCoverage;
+        var value = OpenGLRenderPassOperations.ClearCoverage;
         Assert.True(value.CompleteGraphics);
         Assert.Equal(DepthStateKnowledge.WriteEnabled, value.Depth);
         Assert.Equal(RasterizerStateKnowledge.RasterizerDiscard | RasterizerStateKnowledge.ScissorEnabled, value.Rasterizer);

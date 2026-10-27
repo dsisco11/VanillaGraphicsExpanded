@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
@@ -111,11 +112,11 @@ public sealed class GpuResourceKindLifecycleTests(HeadlessGLFixture fixture, ITe
         switch (resource)
         {
             case GpuVbo buffer: buffer.Allocate(16); break;
-            case GpuVao array: array.Bind(); break;
+            case GpuVao array: OpenGLVertexSelection.Bind(StateCache.Current, array.VertexArrayId); break;
             case GpuFramebuffer framebuffer: framebuffer.Bind(); break;
             case GpuQuery: break;
             case GpuTransformFeedback: break;
-            case GpuProgramPipeline pipeline: pipeline.Bind(); break;
+            case GpuProgramPipeline pipeline: OpenGLProgramPipelineSelection.Bind(StateCache.Current, pipeline.PipelineId); break;
         }
     }
 

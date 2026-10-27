@@ -162,7 +162,7 @@ public partial class LumOnScreenProbeAtlasTraceShaderProgram : LumOnShaderProgra
     /// <summary>
     /// Primary depth texture for ray marching.
     /// </summary>
-    public partial int PrimaryDepth { set; }
+    public partial GpuTextureRef PrimaryDepth { set; }
 
     /// <summary>
     /// LumOn-owned captured surface albedo.

@@ -1,5 +1,5 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
-using OpenTK.Graphics.OpenGL;
 
 namespace VanillaGraphicsExpanded.Rendering.Pipeline.Descriptions;
 
@@ -8,28 +8,31 @@ internal static class PipelineFixedFunctionValidation
 {
     #region Public API
     /// <summary>Rejects non-finite, unsupported and out-of-range state even when its category is disabled.</summary>
-    public static void Validate(GraphicsPipelineDesc value, GraphicsCapabilities caps)
+    public static void Validate(RHIGraphicsPipelineDescription value, GraphicsCapabilities caps)
+    {
+        ValidateShape(value);
+        Range(value.Rasterizer.LineWidth, caps.MinLineWidth, caps.MaxLineWidth);
+        Range(value.Rasterizer.PointSize, caps.MinPointSize, caps.MaxPointSize);
+        if (value.Sampling.Masks is { } masks && masks.Count > caps.MaxSampleMaskWords)
+            throw new NotSupportedException("Too many sample-mask words.");
+        if (caps.MaxClipDistances < 0 || caps.MaxClipDistances > 32)
+            throw new NotSupportedException("The clip-distance limit exceeds the supported mask width.");
+    }
+    /// <summary>Validates authored enums, scalar domains and stencil representation without device discovery.</summary>
+    internal static void ValidateShape(RHIGraphicsPipelineDescription value)
     {
         var depth = value.DepthStencil;
         Defined(depth.DepthComparison);
         ValidateStencil(depth.Front); ValidateStencil(depth.Back);
         var raster = value.Rasterizer;
         Defined(raster.CullMode); Defined(raster.FrontFace); Defined(raster.PolygonMode); Defined(raster.ProvokingVertex);
+        Defined(raster.ClipOrigin); Defined(raster.ClipDepth); Defined(raster.PointSpriteOrigin);
         Finite(raster.DepthBiasFactor); Finite(raster.DepthBiasUnits);
+        Finite(raster.LineWidth); Finite(raster.PointSize);
         if (raster.LineWidth <= 0 || raster.PointSize <= 0)
             throw new ArgumentOutOfRangeException(nameof(value), "Line width and point size must be positive.");
-        Range(raster.LineWidth, caps.MinLineWidth, caps.MaxLineWidth);
-        Range(raster.PointSize, caps.MinPointSize, caps.MaxPointSize);
-        if (raster.DepthClamp && !caps.DepthClamp) throw new NotSupportedException("Depth clamping is unavailable.");
-
-        ValidateRaster(raster, caps);
-
-        var sampling = value.Sampling;
-        Range(sampling.Coverage, 0, 1); Range(sampling.MinimumSampleShading, 0, 1);
-        if (sampling.Masks is { } masks && masks.Count > caps.MaxSampleMaskWords)
-            throw new NotSupportedException("Too many sample-mask words.");
-        if (sampling.SampleShading && !caps.SampleShading)
-            throw new NotSupportedException("Sample shading is unavailable.");
+        Range(value.Sampling.Coverage, 0, 1);
+        Range(value.Sampling.MinimumSampleShading, 0, 1);
     }
     /// <summary>Checks static raster settings independently of a linked executable.</summary>
     internal static void ValidateRaster(RasterizerDesc raster, GraphicsCapabilities caps)
@@ -37,8 +40,6 @@ internal static class PipelineFixedFunctionValidation
         Defined(raster.ClipOrigin); Defined(raster.ClipDepth); Defined(raster.PointSpriteOrigin);
         if (caps.MaxClipDistances < 0 || caps.MaxClipDistances > 32)
             throw new NotSupportedException("The clip-distance limit exceeds the supported mask width.");
-        if (!caps.ClipControl && (raster.ClipOrigin != ClipOrigin.LowerLeft || raster.ClipDepth != ClipDepthMode.NegativeOneToOne))
-            throw new NotSupportedException("Clip control is unavailable.");
     }
     #endregion
 

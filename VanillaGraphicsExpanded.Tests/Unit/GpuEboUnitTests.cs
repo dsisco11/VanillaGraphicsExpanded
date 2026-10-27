@@ -22,21 +22,6 @@ public class GpuEboUnitTests
         Assert.True(true); // Placeholder assertion for API design verification
     }
 
-    [Fact]
-    public void Create_HasExpectedSignature()
-    {
-        // This test documents and verifies the expected method signature
-        // Without GL context, we can't create actual EBOs, but we can verify the API design
-        
-        // Verify the Create method exists with expected parameters
-        var createMethod = typeof(GpuEbo).GetMethod("Create", 
-            new[] { typeof(BufferUsageHint), typeof(string) });
-        
-        Assert.NotNull(createMethod);
-        Assert.True(createMethod.IsStatic);
-        Assert.True(createMethod.IsPublic);
-    }
-
     [Theory]
     [InlineData(DrawElementsType.UnsignedByte)]
     [InlineData(DrawElementsType.UnsignedShort)]

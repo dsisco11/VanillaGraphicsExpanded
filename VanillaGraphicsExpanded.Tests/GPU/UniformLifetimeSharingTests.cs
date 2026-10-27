@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.LumOn;
 using VanillaGraphicsExpanded.LumOn.Shaders;
@@ -27,10 +28,10 @@ public sealed class UniformLifetimeSharingTests(HeadlessGLFixture fixture) : Ren
         try
         {
             block.Write(3f);
-            Assert.True(block.TryBindToSlot(13));
+            Assert.True(RHICommandContext.Current.OpenGL.BindEngineUniform(13, block.Capture()));
             block.Write(7f);
             Assert.True(block.IsDirty);
-            Assert.True(block.TryBindToSlot(14));
+            Assert.True(RHICommandContext.Current.OpenGL.BindEngineUniform(14, block.Capture()));
             Assert.Equal(3f, ReadSlot(13));
             Assert.Equal(7f, ReadSlot(14));
             Assert.False(block.IsDirty);
@@ -56,9 +57,9 @@ public sealed class UniformLifetimeSharingTests(HeadlessGLFixture fixture) : Ren
         try
         {
             block.Write(3f);
-            Assert.True(block.TryBindToSlot(13));
+            Assert.True(RHICommandContext.Current.OpenGL.BindEngineUniform(13, block.Capture()));
             block.Write(7f);
-            Assert.Throws<InvalidOperationException>(() => block.TryBindToSlot(13));
+            Assert.Throws<InvalidOperationException>(() => RHICommandContext.Current.OpenGL.BindEngineUniform(13, block.Capture()));
             Assert.True(block.IsDirty);
             Assert.Equal(3f, ReadSlot(13));
 #if DEBUG
@@ -66,7 +67,7 @@ public sealed class UniformLifetimeSharingTests(HeadlessGLFixture fixture) : Ren
 #endif
             ring.EndFrame();
             ring.BeginFrame(1);
-            Assert.True(block.TryBindToSlot(13));
+            Assert.True(RHICommandContext.Current.OpenGL.BindEngineUniform(13, block.Capture()));
             Assert.Equal(7f, ReadSlot(13));
             Assert.False(block.IsDirty);
             ring.EndFrame();
@@ -76,7 +77,7 @@ public sealed class UniformLifetimeSharingTests(HeadlessGLFixture fixture) : Ren
 
     /// <summary>Independent snapshots explicitly restore their retained ranges without copying CPU contents.</summary>
     [Fact]
-    public void NestedResolveScopesRestorePersistentContentsWithoutCopying()
+    public void CapturedResolveVersionsRestorePersistentContentsWithoutCopying()
     {
         EnsureContextValid();
         using var programs = new ComponentShaderPrograms();
@@ -89,13 +90,14 @@ public sealed class UniformLifetimeSharingTests(HeadlessGLFixture fixture) : Ren
         GpuUniformRingSystem.SetCurrent(ring);
         try
         {
-            using (outer.UseScope())
-            {
-                Assert.Equal(64f, ReadSlot(GpuBindingRegistry.Ubo.Object));
-                using (inner.UseScope())
-                    Assert.Equal(128f, ReadSlot(GpuBindingRegistry.Ubo.Object));
-                Assert.Equal(64f, ReadSlot(GpuBindingRegistry.Ubo.Object));
-            }
+            var outerSnapshot = ResolveSnapshot(outer);
+            var innerSnapshot = ResolveSnapshot(inner);
+            Assert.True(RHICommandContext.Current.OpenGL.BindEngineUniform(GpuBindingRegistry.Ubo.Object, outerSnapshot));
+            Assert.Equal(64f, ReadSlot(GpuBindingRegistry.Ubo.Object));
+            Assert.True(RHICommandContext.Current.OpenGL.BindEngineUniform(GpuBindingRegistry.Ubo.Object, innerSnapshot));
+            Assert.Equal(128f, ReadSlot(GpuBindingRegistry.Ubo.Object));
+            Assert.True(RHICommandContext.Current.OpenGL.BindEngineUniform(GpuBindingRegistry.Ubo.Object, outerSnapshot));
+            Assert.Equal(64f, ReadSlot(GpuBindingRegistry.Ubo.Object));
 #if DEBUG
             Assert.Equal(2, ring.PersistentStorage.AllocationsWritten);
             Assert.Equal(3, ring.PersistentStorage.Bindings);
@@ -118,13 +120,13 @@ public sealed class UniformLifetimeSharingTests(HeadlessGLFixture fixture) : Ren
         try
         {
             shader.AtlasSize = new(64, 32);
-            using (shader.UseScope()) { }
+            Assert.True(RHICommandContext.Current.OpenGL.BindEngineUniform(GpuBindingRegistry.Ubo.Object, ResolveSnapshot(shader)));
 #if DEBUG
             Assert.Equal(1, ring.PersistentStorage.AllocationsWritten);
 #endif
             shader.InvalidateAssets();
             shader.EnsureReady();
-            using (shader.UseScope()) { }
+            Assert.True(RHICommandContext.Current.OpenGL.BindEngineUniform(GpuBindingRegistry.Ubo.Object, ResolveSnapshot(shader)));
 #if DEBUG
             Assert.Equal(1, ring.PersistentStorage.AllocationsWritten);
 #endif
@@ -158,18 +160,18 @@ public sealed class UniformLifetimeSharingTests(HeadlessGLFixture fixture) : Ren
             byte[] bytes = new byte[16];
             BitConverter.TryWriteBytes(bytes, 1f);
             block.SetBytes(bytes);
-            Assert.True(block.TryBindToSlot(13));
+            Assert.True(RHICommandContext.Current.OpenGL.BindEngineUniform(13, block.Capture()));
             BitConverter.TryWriteBytes(bytes, 2f);
             block.SetBytes(bytes);
             // Inject a driver error before the next native upload's success check.
             GL.Enable((EnableCap)(-1));
-            Assert.Throws<InvalidOperationException>(() => block.TryBindToSlot(13));
+            Assert.Throws<InvalidOperationException>(() => RHICommandContext.Current.OpenGL.BindEngineUniform(13, block.Capture()));
             Assert.True(block.IsDirty);
             Assert.Equal(1f, ReadSlot(13));
 #if DEBUG
             Assert.Equal(1, usage == UniformBufferUsage.MultiFrame ? ring.PersistentStorage.AllocationsWritten : ring.AllocationsWritten);
 #endif
-            Assert.True(block.TryBindToSlot(13));
+            Assert.True(RHICommandContext.Current.OpenGL.BindEngineUniform(13, block.Capture()));
             Assert.False(block.IsDirty);
             Assert.Equal(2f, ReadSlot(13));
 #if DEBUG
@@ -199,31 +201,29 @@ public sealed class UniformLifetimeSharingTests(HeadlessGLFixture fixture) : Ren
         GpuUniformRingSystem.SetCurrent(ring);
         try
         {
-            Assert.True(block.TryBindTo(first, LumOnUpsampleParamsUbo.BlockName, "Shared.Persistent"));
-            Assert.True(block.TryBindTo(second, LumOnUpsampleParamsUbo.BlockName, "Shared.Persistent"));
+            Assert.True(RHICommandContext.Current.OpenGL.BindEngineUniform(GpuBindingRegistry.Ubo.Object, block.Capture()));
+            Assert.True(RHICommandContext.Current.OpenGL.BindEngineUniform(GpuBindingRegistry.Ubo.Object, block.Capture()));
             Assert.Equal(0.25f, ReadSlot(14));
             ring.EndFrame();
             ring.BeginFrame(1);
             first.InvalidateAssets();
             first.EnsureReady();
-            Assert.True(block.TryBindTo(first, LumOnUpsampleParamsUbo.BlockName, "Shared.Persistent"));
+            Assert.True(RHICommandContext.Current.OpenGL.BindEngineUniform(GpuBindingRegistry.Ubo.Object, block.Capture()));
             first.Dispose();
-            Assert.True(block.TryBindTo(second, LumOnUpsampleParamsUbo.BlockName, "Shared.Persistent"));
-            Assert.True(block.TryBindToSlot(13));
+            Assert.True(RHICommandContext.Current.OpenGL.BindEngineUniform(GpuBindingRegistry.Ubo.Object, block.Capture()));
+            Assert.True(RHICommandContext.Current.OpenGL.BindEngineUniform(13, block.Capture()));
             Assert.Equal(0.25f, ReadSlot(13));
 #if DEBUG
             Assert.Equal(1, ring.PersistentStorage.AllocationsWritten);
             Assert.Equal(32, ring.PersistentStorage.BytesWritten);
             Assert.Equal(5, ring.PersistentStorage.Bindings);
 #endif
-            using var incompatible = new PackedUniformBuffer(16, UniformBufferUsage.MultiFrame);
-            Assert.Throws<InvalidOperationException>(() => incompatible.TryBindTo(second, LumOnUpsampleParamsUbo.BlockName, "Wrong.Layout"));
 #if DEBUG
             Assert.Equal(1, ring.PersistentStorage.AllocationsWritten);
 #endif
             // CPU packing disposal deliberately resets publication; unlike logical disposal it remains publishable.
             block.Dispose();
-            Assert.True(block.TryBindToSlot(14));
+            Assert.True(RHICommandContext.Current.OpenGL.BindEngineUniform(14, block.Capture()));
             Assert.Equal(0.25f, ReadSlot(14));
 #if DEBUG
             Assert.Equal(2, ring.PersistentStorage.AllocationsWritten);
@@ -235,6 +235,11 @@ public sealed class UniformLifetimeSharingTests(HeadlessGLFixture fixture) : Ren
     #endregion
 
     #region Private
+    /// <summary>Extracts the generated resolve block snapshot for an explicitly qualified engine integration slot.</summary>
+    private static RHIUniformSnapshot ResolveSnapshot(LumOnWorldProbeClipmapResolveShaderProgram shader)
+        => shader.CaptureBindings().Uniforms.Single(value => value.Identity == VanillaGraphicsExpanded.Rendering.Contracts.GpuBindingEntry.Identity(
+            VanillaGraphicsExpanded.Rendering.Contracts.ShaderBindingKind.UniformBlock, LumOnWorldProbeResolveParamsUbo.BlockName)).Snapshot!;
+
     /// <summary>Exercises the supported direct-write path without typed packing setters.</summary>
     private sealed class DirectWriteBlock() : CpuUniformBuffer(16)
     {

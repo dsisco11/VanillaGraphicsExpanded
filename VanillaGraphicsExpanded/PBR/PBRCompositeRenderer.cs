@@ -1,3 +1,4 @@
+using System.Linq;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using System.Collections.Generic;
@@ -47,13 +48,8 @@ public sealed partial class PBRCompositeRenderer : IRenderer, IDisposable
     /// <summary>Frame-scoped clean world source captured before local hand projection begins.</summary>
     internal Liquids.WaterRefractionScene? PreOverlayScene { get; set; }
 
-    private StaticGpuFramebuffer? compositeFbo;
-    private GpuFramebufferAttachment? compositeImage;
-    private RenderPassDesc? compositePass, primaryResolvePass;
-    private GpuFramebuffer? primaryResolveFbo;
-    private FrameBufferRef? primaryResolveSource;
-    private int primaryResolveSourceId;
-    private int primaryResolveColorId;
+    private RHIRenderPassDescription? compositePass, primaryResolvePass;
+    private GpuTextureRef primaryResolveInput;
     private DynamicTexture2D? compositeColorTex;
 
     /// <summary>Pre-display lighting retained by this renderer; sky pixels retain the engine's color convention.</summary>
@@ -141,19 +137,20 @@ public sealed partial class PBRCompositeRenderer : IRenderer, IDisposable
                 if (disabled) RefractionScene.Dispose();
                 return;
             }
-            if (!GraphicsCommandContext.TryRun("PBR.Composite", pipelines, true, commands =>
+            var commands=RHICommandContext.Current;
+            using var boundary=commands.EnterBoundary(new("PBR.Composite",true,graphics:pipelines.Select(value=>(RHIGraphicsPipelineRef)value),operations:BoundaryOperations.RenderPasses));
+            boundary.Run(()=>
                 {
                     // Option retirement is also part of the handoff, even when no shader can draw.
                     if (disabled) RefractionScene.Dispose();
                     RenderCompositeWithinBoundary(commands, stage, capture, isolatedLighting);
-                }))
-                throw new InvalidOperationException("Composite engine boundary unavailable.");
+                });
         }
         catch { publication.Invalidate(); throw; }
     }
 
     /// <summary>Executes composition and its helper passes under an established engine boundary.</summary>
-    internal void RenderCompositeWithinBoundary(GraphicsCommandContext commands, EnumRenderStage stage,
+    internal void RenderCompositeWithinBoundary(RHICommandContext commands, EnumRenderStage stage,
         Liquids.WaterRefractionScene? capture = null, DirectLightingTargets? isolatedLighting = null)
     {
         var publication = capture ?? RefractionScene;
@@ -210,7 +207,7 @@ public sealed partial class PBRCompositeRenderer : IRenderer, IDisposable
 
         // Render into a scratch buffer to avoid sampling from the same texture we're writing to
         // (Primary ColorAttachment0 is also used as gBufferAlbedo / primaryScene input).
-        StaticGpuFramebuffer? refractionTarget = null;
+        RHIRenderPassDescription? refractionTarget = null;
         try
         {
             refractionTarget = capture is null
@@ -233,9 +230,9 @@ public sealed partial class PBRCompositeRenderer : IRenderer, IDisposable
         shader.SetAmbientOcclusion(Postprocessing.AmbientOcclusionRenderer.Texture);
 
         // GBuffer inputs
-        shader.GBufferAlbedo = primaryFb.ColorTextureIds[0];
-        shader.GBufferPosition = gBufferManager.PositionTextureId;
-        shader.PrimaryDepth = SceneColor.SceneColorParticleCapture.ReceiverDepth(capi, primaryFb.DepthTextureId);
+        shader.GBufferAlbedo = gBufferManager.PrimaryColorTexture;
+        shader.GBufferPosition = gBufferManager.PositionTexture;
+        shader.PrimaryDepth = SceneColor.SceneColorParticleCapture.ReceiverDepth(capi, gBufferManager!.PrimaryDepthTexture);
 
         // Only ordinary color consumes atmospheric, fog and signed-volume transport.
         if (capture is null)
@@ -257,9 +254,9 @@ public sealed partial class PBRCompositeRenderer : IRenderer, IDisposable
         using var cpuScope = Profiler.BeginScope("PBR.Composite", "Render");
         using (GlGpuProfiler.Instance.Scope("PBR.Composite"))
         {
-            SubmitFullscreen(commands, capture is not null ? capturePipeline!
-                : refractionTarget is not null ? receiverPipeline! : compositePipeline!,
-                refractionTarget?.PreservePass ?? compositePass!);
+            SubmitFullscreen(commands, capture is not null ? capturePipeline!.Pipeline
+                : refractionTarget is not null ? receiverPipeline!.Pipeline : compositePipeline!.Pipeline,
+                refractionTarget ?? compositePass!,shader.CaptureBindings());
         }
 
         if (capture is not null)
@@ -272,8 +269,8 @@ public sealed partial class PBRCompositeRenderer : IRenderer, IDisposable
         // The source is our scratch texture, so this draw has no color attachment feedback.
         // Borrow only primary color; this FBO owns its routing and never owns the engine texture.
 
-        display!.PrimaryScene = compositeColorTex!.TextureId;
-        display.PrimaryDepth = primaryFb.DepthTextureId;
+        display!.PrimaryScene = compositeColorTex!;
+        display.PrimaryDepth = gBufferManager.PrimaryDepthTexture;
         // Preserve radiance until the engine final display boundary on a prepared HDR frame.
         display.SceneLinear = 1;
         var particleLayer = SceneColor.SceneColorParticleCapture.Layer(capi);
@@ -281,7 +278,7 @@ public sealed partial class PBRCompositeRenderer : IRenderer, IDisposable
         display.ParticleLayerEnabled = particleLayer is null ? 0 : 1;
         using (GlGpuProfiler.Instance.Scope("PBR.DisplayResolve"))
         {
-            SubmitFullscreen(commands, displayPipeline!, primaryResolvePass!);
+            SubmitFullscreen(commands, displayPipeline!.Pipeline, primaryResolvePass!,display.CaptureBindings());
         }
         // Deferred receivers are no longer needed this frame. Publish the original
         // particle normal/position values before engine SSAO consumes its attachments.
@@ -315,7 +312,7 @@ public sealed partial class PBRCompositeRenderer : IRenderer, IDisposable
     #region Private
     #region Publication
     /// <summary>Publishes restored receivers only after an optional geometry-aware reduction completes.</summary>
-    private void PublishRefractionScene(GraphicsCommandContext commands)
+    private void PublishRefractionScene(RHICommandContext commands)
     {
         // Reduction consumes the final restored pair, after the ordinary scene handoff.
         // Optional publication failure retains ordinary straight-through liquid rendering.
@@ -331,7 +328,7 @@ public sealed partial class PBRCompositeRenderer : IRenderer, IDisposable
                         reduction.SourceColor = color;
                         reduction.SourceDepth = depth;
                         using (GlGpuProfiler.Instance.Scope("PBR.WaterReceiverReduction"))
-                            SubmitFullscreen(commands, reductionPipeline!, RefractionScene.ReductionPass!);
+                            SubmitFullscreen(commands, reductionPipeline!.Pipeline, RefractionScene.ReductionPass!,reduction.CaptureBindings());
                     });
             }
         }
@@ -375,11 +372,9 @@ public sealed partial class PBRCompositeRenderer : IRenderer, IDisposable
         try
         {
             compositeColorTex = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.R11fG11fB10f, Width = System.Math.Max(1, width), Height = System.Math.Max(1, height), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "PBRComposite" }).RequireResource();
-            compositeImage = GpuFramebufferAttachment.FromTexture(compositeColorTex);
-            compositeFbo = StaticGpuFramebuffer.Create([compositeImage], debugName: "PBRCompositeFBO");
-            // The shader exposes two additional discarded outputs, distinct from the common preserving pass.
-            compositePass = new(compositeFbo, CompositeOutputs);
-            if (compositeColorTex.IsValid && compositeFbo.IsValid) return true;
+            // Sparse discarded outputs remain explicit, while the backend realizes only the routed image.
+            compositePass = new([new(Image:RHIAttachment.FromTexture(compositeColorTex)),new(DiscardOutput:true),new(DiscardOutput:true)],label:"PBR.Composite");
+            if (compositeColorTex.IsValid) return true;
             ReleaseCompositeTargets();
             return false;
         }
@@ -389,25 +384,16 @@ public sealed partial class PBRCompositeRenderer : IRenderer, IDisposable
     /// <summary>Prepares separate composition and borrowed primary destinations without drawing or publishing.</summary>
     private bool PrepareTargets(FrameBufferRef primary)
     {
-        if (compositeFbo is not { IsValid: true } || compositeColorTex is not { IsValid: true }
-            || compositeFbo.Width != primary.Width || compositeFbo.Height != primary.Height)
+        if (compositeColorTex is not { IsValid:true } || compositeColorTex.Width!=primary.Width || compositeColorTex.Height!=primary.Height)
+            if (!ReplaceCompositeTargets(primary.Width,primary.Height)) return false;
+        var color=gBufferManager.PrimaryColorTexture;
+        if(!color.IsValid) return false;
+        if(primaryResolvePass is null || primaryResolveInput!=color)
         {
-            if (!ReplaceCompositeTargets(primary.Width, primary.Height)) return false;
+            primaryResolvePass=new([new(Image:RHIAttachment.FromTexture(color))],label:"PBR.PrimaryResolve");
+            primaryResolveInput=color;
         }
-        if (primaryResolveFbo is not { IsValid: true }
-            || !ReferenceEquals(primaryResolveSource, primary)
-            || primaryResolveSourceId != primary.FboId
-            || primaryResolveColorId != primary.ColorTextureIds[0])
-        {
-            ReleasePrimaryResolve();
-            primaryResolveFbo = DynamicGpuFramebuffer.CreateEmpty("PBR.PrimaryResolve");
-            primaryResolveFbo.Attach(primary.ColorTextureIds[0]);
-            primaryResolvePass = new(primaryResolveFbo, SingleOutput);
-            primaryResolveSource = primary;
-            primaryResolveSourceId = primary.FboId;
-            primaryResolveColorId = primary.ColorTextureIds[0];
-        }
-        return primaryResolveFbo.IsValid;
+        return true;
     }
 
     #endregion
@@ -419,7 +405,7 @@ public sealed partial class PBRCompositeRenderer : IRenderer, IDisposable
         RefractionScene.Dispose();
         PreOverlayScene?.Invalidate();
         var primaryFb = capi.Render.FrameBuffers[(int)EnumFrameBuffer.Primary];
-        if (primaryFb is not null && compositeFbo is { IsValid: true })
+        if (primaryFb is not null && compositeColorTex is { IsValid: true })
         {
             ReplaceCompositeTargets(primaryFb.Width, primaryFb.Height);
         }
@@ -436,12 +422,8 @@ public sealed partial class PBRCompositeRenderer : IRenderer, IDisposable
     private void ReleaseCompositeTargets()
     {
         RefractionScene.Dispose();
-        compositeFbo?.Dispose();
         ReleasePrimaryResolve();
-        compositeFbo = null;
         compositePass = null;
-        compositeImage?.Dispose();
-        compositeImage = null;
         compositeColorTex?.Dispose();
         compositeColorTex = null;
     }
@@ -449,12 +431,8 @@ public sealed partial class PBRCompositeRenderer : IRenderer, IDisposable
     /// <summary>Retires the borrowed primary attachment and its cached source identity together.</summary>
     private void ReleasePrimaryResolve()
     {
-        primaryResolveFbo?.Dispose();
-        primaryResolveFbo = null;
-        primaryResolvePass = null;
-        primaryResolveSource = null;
-        primaryResolveSourceId = 0;
-        primaryResolveColorId = 0;
+        primaryResolvePass=null;
+        primaryResolveInput=default;
     }
     #endregion
     #endregion

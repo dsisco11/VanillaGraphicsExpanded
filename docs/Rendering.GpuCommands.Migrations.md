@@ -461,3 +461,140 @@ the second code review, checked each accepted C/D unit against implementation an
 no unresolved required implementation or source-closure issue. Unexecuted external-producer cases and
 the disclosed broader test limitations remain qualification limits, not successful native evidence.
 Shader/PSO/render submission and recorded lists remain outstanding under E/F.
+
+## Rendering migration qualification (Phase 5)
+
+Implementation is in progress. The entire E unit remains open; no shader-only or PSO-only acceptance
+is claimed, and the Phase 5 checklist remains unchecked.
+
+| Work package | Consulted authority | Current implementation / evidence |
+| --- | --- | --- |
+| Executable inputs, creation and lifetime | Proposal shader creation/ownership and backend publication; Contracts executable/factory/failure contracts; GpuResources initialization and retirement; archived creation handoff; Inventory program/shader schemas and guards | Frozen code, typed specialization and binding descriptions; fixed ready shader refs; pending candidate ownership; backend allocation, linking, canonical output queries and opaque binary export. New lifecycle tests use existing precompiled SPIR-V. Graphics and compute asset owners now create final RHI shaders; compute policy owns a compatible managed PSO without native re-registration. Cache policy selects/evicts/persists opaque binaries above backend execution. Obsolete pending native-program, stage-loader and wrapper compile/link execution APIs are removed. Full E integration remains outstanding. |
+| Exact retirement and engine handoff | Proposal permanent engine boundary; API coverage P1/L1 allowed owners; Inventory original-entry retirement | Rendering-object deletion overloads use focused backend modules with original-loader external outcomes and admitted managed outcomes. Engine terrain replacement has an explicit integration-owned create/identity-check/install/retire handoff; terrain policy no longer reaches through the context to its backend. Broader caller closure remains under verification. |
+| PSO, geometry, targets, bindings, context and renderers | Proposal graphics/compute realization, replacement, pass targets, uniforms and boundary admission; Contracts E signatures; this document's inseparable E work packages; prepared resource submission | Compute realization/ref and direct/indirect execution now use the final context/backend; existing graphics PSOs, geometry, target realization, uniform snapshots and full declared-pipeline boundary admission remain outstanding. Recording remains F. |
+
+Baseline source commit: `487605beb84f7f9f0e78bef1f8f3c3a5da437e07`. Delegated baseline Debug build
+passed; the selected 46-class regression passed **917/918**, with the existing
+`GpuProgramCandidateMetadataTests.SubmissionDefersQueriesAndPreparationReusesSnapshot` assertion
+failing at line 40. Logs, exact selection and DLL identities are retained in `artifacts/rhi-phase5`.
+These are baseline receipts, not implementation qualification. Initial executable lifecycle tests
+passed **2/2** after correcting their canonical fixture asset path; broader candidate checks are pending.
+
+Intermediate checks: Debug shader/asset/declaration checks passed **29/29**; the subsequent
+asset/execution/terrain selection passed **76/77**. Its sole test discarded known stage facts through
+a raw local detach/re-adopt; that test now retains the typed native owner for its snapshot assertion.
+The expanded shader-closure selection completed with **659/664** passing. Three failures observe old
+loader entry points, one lacks stage-operation diagnostic context, and one uniform-publication failure
+passes alone with the same binaries. Exact logs, TRX and runtime identities are retained under
+`artifacts/rhi-phase5/debug-shader-closure*`. The corrected observer selection passes; replacement then
+exposed a native error from mismatched SPIR-V stage ingestion. Entry-point admission now rejects that
+input before native submission. A separate isolated regression proves that a deleted current program
+could be captured and later restored after its native name was freed; managed retirement now unbinds
+that selected owned executable first. Exact external deferred deletion is preserved. The focused
+retirement/input/compute/publication selection passes **15/15** (`debug-retirement-fix-small.trx`);
+the broader lifecycle and replacement selection passes **516/516** on the same candidate
+(`debug-retirement-fix-lifecycle.trx`). Compute submission also guards PSO
+retirement and recursive pipeline changes. Unused legacy metadata transfer/recovery methods are removed.
+`retirement-fix-identities.json` identifies the tested runtime and test assemblies. Subsequent
+`GpuProgramObject` visibility-region/comment organization does not alter executable behavior; a later
+build must qualify the complete rendering migration's final source candidate.
+None of these receipts qualifies the whole E unit.
+
+Graphics state-description migration now replaces depth/stencil, blend and raster enum inputs directly,
+including authored renderer/test descriptions and relevance/validation consumers. Explicit native value
+translation remains in the backend; native cache observation/restoration schemas are unchanged. These
+are value conversions rather than alternate execution APIs. Debug depth/stencil selection passes **66/66**
+(`depth-stencil.trx`); blend/draw selection passes **133/133** (`blend.trx`). Expanded raster/boundary
+selection passes **158/159** (`raster.trx`). Its sole failure expects an upload to leave unpack alignment
+changed, contrary to the image restoration contract. That test now checks preserved native/cache state
+and uploaded content; focused revalidation passes **46/46** (`raster-restoration.trx`).
+The old vertex-layout/attribute/interpretation types are replaced directly by the public RHI contracts,
+with copied read-only attributes, structural identity, semantic component formats and explicit native
+storage translation. All existing consumers use the new types. The approved enum naming uses descriptive
+domain names without an RHI/E prefix; namespaces and major abstractions retain RHI. Enum declarations
+and callers are renamed directly, with no compatibility aliases. The resumed vertex/state/shader and
+representative resource selection passes **285/285** (`enum-naming-attempt3.trx`); its build and assembly
+identities are retained alongside the receipt. That supersedes the earlier interrupted vertex test run.
+Primitive topology inputs and linked-stage facts now use the same semantic contract, with explicit backend
+conversion. Target signatures, sized-format compatibility and typed clear validation use `TextureFormat`;
+pass setup projects existing canonical attachment facts without querying native state. Renderer descriptions
+use the attachment's semantic format accessor, keeping backend conversion out of authored target policy.
+These input changes do not yet replace the existing graphics realization or pass execution APIs.
+
+The topology/state run initially passed **244/248**; all four failures belong to terrain tessellation,
+whose **13/13** tests passed alone on the same binaries. Boundary fixtures intentionally leave first-vertex
+provocation, while terrain requires last-vertex provocation. The terrain fixture now establishes and restores
+its required convention; the production admission guard is unchanged. The combined target/state/pass/terrain
+and boundary selection passes **145/145** (`target-formats-attempt4.trx`). Expanded renderer/material/target
+integration passes **173/189**, with sixteen cases stopping at one stale uniform-size assertion before drawing
+(`target-integration.trx`). Both the source baseline and current composite block allocate 192 bytes and the
+shader declares twelve vectors; the test's 160-byte expectation and constructor's ten-vector comment are
+corrected to that existing contract. Pixel expectations and tolerances are unchanged. Final delegated Debug
+build and the same expanded selection pass **189/189**, including all sixteen water-transmission pixel
+checks (`target-integration-attempt2.trx`); build logs, selection and assembly identities share that prefix.
+Attachment-based pass descriptions, full geometry execution, fixed graphics realizations, atomic graphics reload and
+complete E caller closure remain outstanding.
+
+The subsequent bulk graphics replacement is open and unqualified. `RHIGraphicsPipelineDescription`
+now selects `RHIShaderRef`, freezes behavior without context/device discovery and compares exact generation
+identity. The public immutable state values are reused directly. `CreateGraphicsPipeline` validates the
+published interface and cached device limits, derives relevance once, and returns a managed
+`RHIGraphicsPipeline` with a consumer-only reference and original-context/submission guards. It neither
+registers a native PSO nor links/reflects the executable again. The previous graphics realization class
+and descriptor are removed; renderer construction sites call the final factory directly. Asset-selection
+identity no longer determines PSO reuse. No compatibility constructors or aliases are provided.
+
+The binding portion of the same bulk candidate uses immutable `RHIResourceBindings` and
+`RHIUniformSnapshot` inputs. Generated accessors retain desired resources; capture copies changed CPU
+versions without slot publication or allocation. Execution validates the full interface-qualified set,
+borrows original backing resources through native dispatch, and commits only the captured uniform
+revision. Core texture/sampler multi-bind uses existing slot knowledge; absent textures retain
+target-specific clears so unrelated targets are preserved. Image requests use `RHIImageBinding`,
+`ImageAccess` and `TextureFormat`, with native translation confined to the backend. Controlled sampler
+producers retain existing texture references; primary engine images are borrowed at framebuffer
+publication. The CPU block's named/slot execution APIs, generated immediate-setter executor and raw-ID
+sampler validator are removed. Injected engine uniform slots use the same backend uniform publisher.
+
+Geometry replacement is included in this unqualified source batch. `RHIGeometryInputs` freezes stream
+and index intervals; direct, indexed, noninstanced indexed-batch and indirect backend dispatch validate
+known bounds without scanning index values or reading generated arguments. Controlled VAO creation and
+named configuration use core 4.5 backend modules, existing manager registration and existing executed
+selector knowledge. Private realizations retire through the originating disposal queue. Engine mesh
+admission now routes configuration reads through the manager/backend and supplies certified packets;
+the fullscreen, array, managed, cloud and liquid-pool producers expose data instead of native draws.
+The old shader-owner activation/replay tracker, GraphicsCommandContext, GraphicsDraw and the former
+renderer-lifetime placeholder are removed. Production rendering callers now enter explicit
+RHIBoundaryDescription scopes on RHICommandContext, select fixed pipelines, publish captured bindings
+and issue the final draw/dispatch operations. Existing cache snapshots restore executed program/slot
+values without shader-owner activation or input replay. Compute-only declarations exclude unrelated
+framebuffer, raster, clear and geometry state; undeclared pipelines and pass effects are rejected.
+
+Attachment descriptions now cover postprocessing, direct lighting, water transport/refraction, cloud
+view intermediates, LumOn and atlas baking. Their owners retain images and pure intentions instead of
+portable framebuffer execution. The backend realizes named core framebuffers by original associations,
+selected image/configuration fingerprints and routing; clear/load/store actions do not enter the key.
+Repeated immutable descriptions reuse certified targets without native descriptor queries or new target
+allocation. Failed candidates do not publish, replacement/deletion makes old configurations ineligible,
+and context retirement queues private targets through existing original-lifetime cleanup. Selected image
+facts in realization keys are checked against current canonical publications, never used as another
+metadata authority. Explicit engine/window surfaces retain external ownership and specialized routing
+restoration. The particle engine redirection remains an explicit native integration destination.
+
+Named image blits use the same private target service, preserving source/destination conversion and
+resolve rules as distinct from bitwise CopyTexture. They validate represented aspects, scalar classes,
+samples, rectangles and shared-image overlap before target/native effects, borrow original resources
+through dispatch, and preserve scissor/sRGB state. The celestial scratch-to-cube transfer retains its
+format-converting blit semantics. Native framebuffer routing execution and original external-overload
+program/vertex/framebuffer dispatch move behind backend modules; canonical metadata observation and
+executed-state knowledge stay in the existing cache/manager. The previous GpuVao configuration/draw
+facade, GpuVertexAttribBinding fallback helper and helper-only reader are removed; engine geometry
+admission uses the manager-owned geometry reader instead.
+
+Production source compiles in the canonical Debug configuration. Renderer-owned pipeline assets now
+prepare complete candidate shader/pipeline sets and install them atomically; failed candidates preserve
+the installed set. Standalone compute producers have explicit declared boundaries. Test callers remain
+under migration from retired activation, synthetic identity, framebuffer ownership and wrapper draw APIs;
+production compilation alone does not qualify this integration. The current bulk pass replaces those
+callers directly and adds final geometry-range and framebuffer-feedback regressions. Combined tests,
+second review and independent audit remain outstanding. The preceding 189-case receipt predates this
+candidate and cannot qualify the replacement.

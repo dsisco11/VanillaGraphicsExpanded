@@ -17,11 +17,11 @@ public sealed partial class SceneColorParticleSsaoShaderProgram : GpuProgram, IS
         ProgramLayout.RegisterContract(Contract.Stages[1].Bindings);
     }
     /// <summary>Receives engine visibility after all opaque submissions.</summary>
-    public partial int VisibilityDepth { set; }
+    public partial GpuTextureRef VisibilityDepth { set; }
     /// <summary>Receives depth before cube particles overwrite visibility.</summary>
-    public partial int BeforeDepth { set; }
+    public partial GpuTextureRef BeforeDepth { set; }
     /// <summary>Receives depth after the original cube-particle draw.</summary>
-    public partial int AfterDepth { set; }
+    public partial GpuTextureRef AfterDepth { set; }
     /// <summary>Receives isolated original particle normal metadata.</summary>
     public partial GpuTextureRef ParticleNormal { set; }
     /// <summary>Receives isolated original particle position metadata.</summary>

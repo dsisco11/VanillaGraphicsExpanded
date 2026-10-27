@@ -13,12 +13,7 @@ public sealed class DepthTexture : DynamicTexture2D
         string? debugName = null)
         : base(width, height, ValidateFormat(format), TextureFilterMode.Nearest, debugName) { }
 
-    /// <inheritdoc />
-    public override void Clear()
-    {
-        if (!IsValid) throw new InvalidOperationException("Depth texture is invalid.");
-        GL.Clear(ClearBufferMask.DepthBufferBit);
-    }
+
 
 
 

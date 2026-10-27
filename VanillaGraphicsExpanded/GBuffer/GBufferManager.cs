@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System;
 using Vintagestory.API.Client;
 using OpenTK.Graphics.OpenGL;
@@ -91,6 +92,9 @@ public sealed partial class GBufferManager : IDisposable
     /// </summary>
     public int PatchIdTextureId => patchIdTex?.TextureId ?? 0;
 
+    /// <summary>Supplies the current patch identity image without transferring its storage ownership.</summary>
+    public GpuTextureRef PatchIdTexture => patchIdTex;
+
 
     /// <summary>
     /// Whether the G-buffer textures have been created and are ready for attachment.
@@ -149,6 +153,7 @@ public sealed partial class GBufferManager : IDisposable
         // Reborrow engine position and attach owned targets even when dimensions are unchanged:
         // an equal-sized rebuild still replaces the primary FBO and deletes its old position texture.
         PrepareReceiverPosition(primaryFb, width, height);
+        PublishPrimaryInputs(primaryFb);
         AttachToFramebuffer(primaryFb.FboId);
         // Normal primary loads can repeat setup without changing any attachment identity.
         if (primaryRefreshPending || attachmentsRecreated || PrimaryFramebuffer.FboId != primaryFb.FboId)
@@ -188,7 +193,7 @@ public sealed partial class GBufferManager : IDisposable
             DrawBuffersEnum.ColorAttachment6,
             DrawBuffersEnum.ColorAttachment7   // VGE: Local environment
         ];
-        StateCache.Current.SetDrawBuffers(8, drawBuffers);
+        OpenGLFramebufferRouting.SetDrawBuffers(StateCache.Current,8, drawBuffers);
 
         // Per-buffer blend control requires GL 4.0+ / ARB_draw_buffers_blend
         ApplyGBufferBlendState(forceDirty: true);
@@ -350,6 +355,7 @@ public sealed partial class GBufferManager : IDisposable
 
             // Re-attach to framebuffer
             PrepareReceiverPosition(primaryFb, screenWidth, screenHeight);
+            PublishPrimaryInputs(primaryFb);
             AttachToFramebuffer(primaryFb.FboId);
             PrimaryFramebuffer.RefreshWrappedFramebuffer(primaryFb.FboId, screenWidth, screenHeight, publishPassMetadata: true);
 
@@ -389,6 +395,8 @@ public sealed partial class GBufferManager : IDisposable
     {
         fallbackPosition?.Dispose();
         fallbackPosition = null;
+        borrowedPosition?.Dispose();
+        borrowedPosition = null;
         PositionTextureId = 0;
 
         bool externallyDeleted = RelinquishIfDeleted(surfaceTex) | RelinquishIfDeleted(patchIdTex);
@@ -466,7 +474,7 @@ public sealed partial class GBufferManager : IDisposable
     private void DetachFromFramebuffer(int fboId)
     {
         var gl = StateCache.Current;
-        gl.BindFramebuffer(FramebufferTarget.Framebuffer, fboId);
+        OpenGLFramebufferSelection.Bind(gl, FramebufferTarget.Framebuffer, fboId);
 
         // Detach our color textures (ColorAttachment4-7)
         gl.FramebufferTexture2D(
@@ -500,9 +508,9 @@ public sealed partial class GBufferManager : IDisposable
             DrawBuffersEnum.ColorAttachment2,
             DrawBuffersEnum.ColorAttachment3
         };
-        StateCache.Current.SetDrawBuffers(4, drawBuffers);
+        OpenGLFramebufferRouting.SetDrawBuffers(StateCache.Current,4, drawBuffers);
 
-        gl.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
+        OpenGLFramebufferSelection.Bind(gl, FramebufferTarget.Framebuffer, 0);
 
         capi.Logger.Notification("[VGE] G-buffer detached from Primary framebuffer");
         if (PrimaryFramebuffer.IsValid && PrimaryFramebuffer.FboId == fboId)
@@ -519,6 +527,7 @@ public sealed partial class GBufferManager : IDisposable
     public void Dispose()
     {
         unregisterResize();
+        RetirePrimaryInputs();
         PrimaryFramebuffer.Dispose();
         // Clean up textures (framebuffer attachment cleanup happens via UnloadGBuffer hook)
         DeleteTextures();

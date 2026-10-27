@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.ShaderCompilation;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Contracts;
 namespace VanillaGraphicsExpanded.LumOn.WorldProbes.Gpu;
@@ -10,5 +11,5 @@ namespace VanillaGraphicsExpanded.LumOn.WorldProbes.Gpu;
 internal sealed partial class WorldProbeCompletionShader : GpuComputeProgram, IWorldProbeCompletionShaderBindings
 {
     /// <summary>Adopts the executable and its retained resource contract.</summary>
-    public WorldProbeCompletionShader(GpuComputePipeline pipeline) : base(pipeline) { }
+    public WorldProbeCompletionShader(ComputeShaderAsset pipeline) : base(pipeline) { }
 }

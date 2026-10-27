@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using VanillaGraphicsExpanded.Rendering.Spirv;
 
 namespace VanillaGraphicsExpanded.Rendering;
@@ -20,7 +21,7 @@ internal struct ShaderInputValidation
 
     /// <summary>Captures the resource facts on which compatibility depends, independently of wrapper equality.</summary>
     internal readonly record struct InputKey(object Resource, nint Handle, int Target, int Format,
-        int Width, int Height, int Depth, int Mips, GpuTextureBinding View, nint Offset, nint Size, nint Capacity,
+        int Width, int Height, int Depth, int Mips, RHIImageBinding View, nint Offset, nint Size, nint Capacity,
         (ulong Metadata, ulong Storage) Revisions);
 
     #region Public API
@@ -58,7 +59,7 @@ internal struct ShaderInputValidation
     }
 
     /// <summary>Captures current published identity and image facts independently of reference equality.</summary>
-    internal static InputKey TextureKey(GpuTextureRef texture, GpuTextureBinding view = default)
+    internal static InputKey TextureKey(GpuTextureRef texture, RHIImageBinding view = default)
     {
         var data = texture.RequireMetadata();
         var image = texture.RequireImage(view.Level);

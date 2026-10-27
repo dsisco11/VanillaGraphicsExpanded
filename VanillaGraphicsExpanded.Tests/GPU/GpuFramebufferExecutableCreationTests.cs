@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using HarmonyLib;
 using OpenTK.Graphics.OpenGL;
@@ -85,7 +86,7 @@ public sealed class GpuFramebufferExecutableCreationTests(HeadlessGLFixture fixt
             var original = entry.Metadata.Attachments[FramebufferAttachment.ColorAttachment0];
             PatchQueries(harmony);
             queries = 0; queriedSlots.Clear();
-            StateCache.Current.ExecuteCoreNamedFramebufferTexture(framebuffer.FboId, FramebufferAttachment.ColorAttachment1, second.TextureId, 0);
+            OpenGLFramebufferCalls.ExecuteCoreNamedFramebufferTexture(framebuffer.FboId, FramebufferAttachment.ColorAttachment1, second.TextureId, 0);
             Assert.True(queries > 0);
             Assert.Equal(FramebufferAttachment.ColorAttachment1, Assert.Single(queriedSlots));
             Assert.Equal(original, entry.Metadata.Attachments[FramebufferAttachment.ColorAttachment0]);
@@ -94,7 +95,7 @@ public sealed class GpuFramebufferExecutableCreationTests(HeadlessGLFixture fixt
             {
                 var attachments = entry.Metadata.Attachments;
                 queries = 0; queriedSlots.Clear();
-                StateCache.Current.ExecuteCoreNamedFramebufferParameter(framebuffer.FboId, FramebufferDefaultParameter.FramebufferDefaultWidth, 17);
+                OpenGLFramebufferCalls.ExecuteCoreNamedFramebufferParameter(framebuffer.FboId, FramebufferDefaultParameter.FramebufferDefaultWidth, 17);
                 Assert.Equal(1, queries);
                 Assert.Empty(queriedSlots);
                 Assert.Equal(17, entry.Metadata.DefaultWidth);

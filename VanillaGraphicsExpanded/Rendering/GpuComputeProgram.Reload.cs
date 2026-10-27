@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.ShaderCompilation;
 using System;
 namespace VanillaGraphicsExpanded.Rendering;
 /// <summary>Replaces feature-owned compute executables without retiring retained input storage.</summary>
@@ -31,16 +32,16 @@ internal abstract partial class GpuComputeProgram
         if (!reloadRequired)
         {
             ulong preparingAssets = assetGeneration;
-            bool ready = pipeline.EnsureReady();
+            bool ready = pipeline.EnsureReady(() => !lifetime.IsRetired && preparingAssets == assetGeneration);
             if (lifetime.IsRetired || preparingAssets != assetGeneration) return false;
-            if (ready && executableRevision == 0) executableRevision = 1;
+            if (ready) { lifetime.NativeExecutable = pipeline.NativeProgram; if (executableRevision == 0) executableRevision = 1; }
             return ready;
         }
         if (reloadFailed || rebuild is null) return false;
         RequireReloadBoundary();
         var context = Integration.RenderContextRegistry.Current();
         ulong assets = assetGeneration;
-        GpuComputePipeline? candidate;
+        ComputeShaderAsset? candidate;
         try { candidate = rebuild(); }
         catch (Exception error)
         {
@@ -57,7 +58,7 @@ internal abstract partial class GpuComputeProgram
         // Publish executable, interface and revision together; retained generated values and CPU blocks remain on this wrapper.
         var previous = pipeline;
         pipeline = candidate;
-        lifetime.NativeExecutable = candidate;
+        lifetime.NativeExecutable = candidate.NativeProgram;
         executableRevision++;
         reloadRequired = false;
         previous.Dispose();

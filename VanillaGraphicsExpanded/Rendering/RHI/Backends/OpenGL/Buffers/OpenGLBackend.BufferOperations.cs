@@ -37,7 +37,7 @@ internal sealed partial class OpenGLBackend
             if (!complete && !initialData.IsEmpty)
             {
                 InitializeBufferRange(nativeId, 0, initialData.Length, (nint)bytes,
-                    request.Mode == ResourceStorageMode.Mutable || (request.Access & global::VanillaGraphicsExpanded.Rendering.RHI.StorageAccess.DynamicUpdates) != 0, operation);
+                    request.Mode == ResourceStorageMode.Mutable || (request.Access & StorageAccess.DynamicUpdates) != 0, operation);
             }
         }
         RequireContext();
@@ -105,7 +105,7 @@ internal sealed partial class OpenGLBackend
         if (initialization.Mode == GpuBufferStorageMode.Mutable)
             GL.NamedBufferData(name, initialization.Capacity, complete ? data : 0, OpenGLBufferValues.Usage(OpenGLBufferValues.Usage(initialization.Usage)));
         else
-            GL.NamedBufferStorage(name, initialization.Capacity, complete ? data : 0, StorageAccess(initialization.StorageFlags));
+            GL.NamedBufferStorage(name, initialization.Capacity, complete ? data : 0, ToCoreStorageFlags(initialization.StorageFlags));
         RequireContext();
         if (!complete && byteCount != 0) InitializeBufferRange(name, offset, byteCount, data,
             initialization.Mode == GpuBufferStorageMode.Mutable || (initialization.StorageFlags & OpenTK.Graphics.OpenGL.BufferStorageFlags.DynamicStorageBit) != 0);
@@ -214,7 +214,7 @@ internal sealed partial class OpenGLBackend
     }
 
     /// <summary>Translates retained initialization flags explicitly at the private native boundary.</summary>
-    private static Native.BufferStorageFlags StorageAccess(OpenTK.Graphics.OpenGL.BufferStorageFlags flags)
+    private static Native.BufferStorageFlags ToCoreStorageFlags(OpenTK.Graphics.OpenGL.BufferStorageFlags flags)
     {
         Native.BufferStorageFlags result = 0;
         if ((flags & OpenTK.Graphics.OpenGL.BufferStorageFlags.MapReadBit) != 0) result |= Native.BufferStorageFlags.MapReadBit;

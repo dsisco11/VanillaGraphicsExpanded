@@ -84,7 +84,7 @@ public partial class LumOnProbeAnchorShaderProgram : LumOnShaderProgram, ILumOnP
     /// <summary>
     /// Primary depth texture for position reconstruction.
     /// </summary>
-    public partial int PrimaryDepth { set; }
+    public partial GpuTextureRef PrimaryDepth { set; }
 
     /// <summary>
     /// G-buffer world-space normals.

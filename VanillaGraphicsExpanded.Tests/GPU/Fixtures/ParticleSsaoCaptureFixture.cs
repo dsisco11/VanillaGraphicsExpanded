@@ -78,7 +78,7 @@ internal sealed class ParticleSsaoCaptureFixture : IDisposable
         program.BeforeDepth = Targets.BeforeDepth;
         program.AfterDepth = Targets.AfterDepth;
         program.ParticleColor = Targets.ParticleColor;
-        framework.RenderQuadTo(program, Targets.ResolveTarget);
+        framework.RenderQuadTo(program, Targets.ResolvePass);
     }
 
     /// <summary>Runs the compiled production SSAO restoration without clearing borrowed receiver images.</summary>
@@ -89,8 +89,7 @@ internal sealed class ParticleSsaoCaptureFixture : IDisposable
         program.AfterDepth = Targets.AfterDepth;
         program.ParticleNormal = Targets.DrawTarget[2];
         program.ParticlePosition = Targets.DrawTarget[3];
-        Targets.SsaoTarget!.BindWithViewport();
-        framework.RenderQuad(program);
+        framework.RenderQuadTo(program, Targets.SsaoPass!);
     }
     #endregion
 

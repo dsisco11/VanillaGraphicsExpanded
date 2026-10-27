@@ -1,3 +1,5 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
+using System.Linq;
 using System;
 using System.Reactive.Linq;
 using VanillaGraphicsExpanded.Rendering;
@@ -58,9 +60,9 @@ internal sealed class AmbientOcclusionRenderer : IRenderer
         if(!ReferenceEquals(DepthHierarchyRenderer.View,VgeFrameRenderer.Current) ||
             DepthHierarchyRenderer.FrameIndex!=UboPacking.ReadUInt32(VgeFrameRenderer.Current.Bytes,396)) throw new InvalidOperationException("AO hierarchy view mismatch.");
         var pipelines=pass.Prepare(draw,primary.Width,primary.Height,settings.SsaoQuality,horizon,filter,masks);
-        if(!GraphicsCommandContext.TryRun("AmbientOcclusion",pipelines,true,commands=>
-            pass.Render(commands,draw,receiverDepth,surface,hierarchy,VgeFrameRenderer.Current)))
-            throw new InvalidOperationException("AO graphics boundary rejected.");
+        var commands=RHICommandContext.Current;
+        using var boundary=commands.EnterBoundary(new("AmbientOcclusion",true,graphics:pipelines.Select(value=>(RHIGraphicsPipelineRef)value),operations:BoundaryOperations.RenderPasses));
+        boundary.Run(()=>pass.Render(commands,draw,receiverDepth,surface,hierarchy,VgeFrameRenderer.Current));
         published=true;
     }
     /// <summary>Unregisters callbacks before retiring resources and withdrawing publication.</summary>
@@ -78,6 +80,6 @@ internal sealed class AmbientOcclusionRenderer : IRenderer
     /// <summary>Retires executable references before target and external texture borrowers.</summary>
     private void Retire() {published=false;draw?.Dispose();draw=null;pass.Dispose();resources.Dispose();resources=new();depth=null;}
     /// <summary>Withdraws outputs when executable generations change.</summary>
-    private bool Reload() {Retire();return true;}
+    private bool Reload() {published=false;return true;}
     #endregion
 }

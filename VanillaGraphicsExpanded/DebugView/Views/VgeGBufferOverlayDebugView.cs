@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using VanillaGraphicsExpanded.Rendering.Pipeline;
 using VanillaGraphicsExpanded.Rendering.Shaders;
 using System;
@@ -149,28 +150,29 @@ public static partial class VgeBuiltInDebugViews
                 if (surface is null || gBufferManager.SurfaceTexture is null) return;
                 surface.MaterialLayer = GBufferOverlayViewState.Mode == GBufferOverlayMode.Material;
                 surface.Scene = gBufferManager.SurfaceTexture;
-                submission.Draw("GBufferOverlay", surface, geometry, EngineFullscreenGeometry.Layout, new(0, 6), PrimitiveType.Triangles);
+                submission.DrawIndexed("GBufferOverlay", surface, geometry.Inputs, new(0, 6), PrimitiveTopology.Triangles);
                 return;
             }
-            int textureId = GetTextureId();
-            if (textureId == 0)
+            var texture = GetTexture();
+            if (texture.IsEmpty)
             {
                 return;
             }
 
             var shader = GpuShaderProgramLibraries.Get<DebugTextureShaderProgram>(capi, "debug_texture");
             if (shader is null) return;
-            shader.Scene = textureId;
-            submission.Draw("GBufferOverlay", shader, geometry, EngineFullscreenGeometry.Layout, new(0, 6), PrimitiveType.Triangles);
+            shader.Scene = texture;
+            submission.DrawIndexed("GBufferOverlay", shader, geometry.Inputs, new(0, 6), PrimitiveTopology.Triangles);
         }
 
-        private int GetTextureId()
+        /// <summary>Selects the existing primary image recipient without native lookup during shader capture.</summary>
+        private GpuTextureRef GetTexture()
         {
             return GBufferOverlayViewState.Mode switch
             {
-                GBufferOverlayMode.Depth => capi.Render.FrameBuffers[(int)EnumFrameBuffer.Primary].DepthTextureId,
-                GBufferOverlayMode.PrimaryColor => capi.Render.FrameBuffers[(int)EnumFrameBuffer.Primary].ColorTextureIds[0],
-                _ => 0
+                GBufferOverlayMode.Depth => gBufferManager.PrimaryDepthTexture,
+                GBufferOverlayMode.PrimaryColor => gBufferManager.PrimaryColorTexture,
+                _ => default
             };
         }
 

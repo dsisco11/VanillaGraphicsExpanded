@@ -38,20 +38,20 @@ public sealed class DebugGraphicsSubmissionTests(HeadlessGLFixture fixture) : Re
         using var first = CreateRenderTarget(8, 8, PixelInternalFormat.Rgba32f);
         using var second = CreateRenderTarget(8, 8, PixelInternalFormat.Rgba32f);
         using var owner = new DebugRenderTarget(api);
-        first.Bind(); var firstPublication = owner.GetPass().Target;
+        first.Bind(); var firstPublication = owner.GetPass().Surface.RequireSurface();
         ulong revision = firstPublication.AttachmentRevision;
-        second.Bind(); var secondPublication = owner.GetPass().Target;
-        first.Bind(); Assert.Same(firstPublication, owner.GetPass().Target);
+        second.Bind(); var secondPublication = owner.GetPass().Surface.RequireSurface();
+        first.Bind(); Assert.Same(firstPublication, owner.GetPass().Surface.RequireSurface());
         Assert.Equal(revision, firstPublication.AttachmentRevision);
 
         // Engine framebuffer rebuild invalidation retires publications, never their borrowed storage.
         ScreenResourceManager.HandleScreenResize();
-        var rebuilt = owner.GetPass().Target;
+        var rebuilt = owner.GetPass().Surface.RequireSurface();
         Assert.NotSame(firstPublication, rebuilt);
         Assert.True(firstPublication.IsDisposed); Assert.True(secondPublication.IsDisposed);
-        second.Bind(); var rebuiltSecond = owner.GetPass().Target;
+        second.Bind(); var rebuiltSecond = owner.GetPass().Surface.RequireSurface();
         windowSize = 6;
-        var resized = owner.GetPass().Target;
+        var resized = owner.GetPass().Surface.RequireSurface();
         Assert.NotSame(rebuiltSecond, resized);
         Assert.True(rebuilt.IsDisposed); Assert.True(rebuiltSecond.IsDisposed);
         owner.Dispose(); Assert.True(resized.IsDisposed);
@@ -62,9 +62,9 @@ public sealed class DebugGraphicsSubmissionTests(HeadlessGLFixture fixture) : Re
 
     /// <summary>Line and point policies override hostile state while preserving borrowed targets through resize and teardown.</summary>
     [Theory]
-    [InlineData(PrimitiveType.Lines)]
-    [InlineData(PrimitiveType.Points)]
-    public void PrimitiveSubmissionRestoresStateAndRefreshesTargets(PrimitiveType topology)
+    [InlineData(PrimitiveTopology.Lines)]
+    [InlineData(PrimitiveTopology.Points)]
+    public void PrimitiveSubmissionRestoresStateAndRefreshesTargets(PrimitiveTopology topology)
     {
         EnsureContextValid();
         using var assets = new BinaryShaderApiFixture();
@@ -74,8 +74,8 @@ public sealed class DebugGraphicsSubmissionTests(HeadlessGLFixture fixture) : Re
         using var frameCamera = TestFrameCamera.CreateIdentity(8, 8);
         shader.FrameInputs = frameCamera;
         shader.WorldOffset = new(0, 0, 0);
-        var layout = new VertexLayoutDesc([new(0, 3, VertexAttribPointerType.Float, VertexInterpretation.Floating, 0, 0, 28),
-            new(1, 4, VertexAttribPointerType.Float, VertexInterpretation.Floating, 0, 12, 28)]);
+        var layout = new RHIVertexLayout([new(0, 3, VertexComponentFormat.Float, VertexInterpretation.Floating, 0, 0, 28),
+            new(1, 4, VertexComponentFormat.Float, VertexInterpretation.Floating, 0, 12, 28)]);
         using var vertices = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = null }).RequireResource();
         vertices.UploadData(new float[] { -.75f, 0, 0, 1, 0, 0, 1, .75f, 0, 0, 1, 0, 0, 1 });
         using var geometry = new ArrayGraphicsGeometry(layout, topology, new Dictionary<int, GpuVbo> { [0] = vertices });
@@ -86,13 +86,13 @@ public sealed class DebugGraphicsSubmissionTests(HeadlessGLFixture fixture) : Re
             target.Resize(size, size); target[0].UploadDataImmediate(new float[size * size * 4]);
             target.Bind(); ScreenResourceManager.HandleScreenResize();
             using var hostile = new HostileFullscreenState();
-            Assert.True(submission.Draw("primitive", shader, geometry, layout, new(0, 2), topology, pointSize: 3));
+            Assert.True(submission.Draw("primitive", shader, geometry.Inputs, new(0, 2), topology, pointSize: 3));
             hostile.AssertRestored();
             Assert.Equal(target.FboId, GL.GetInteger(GetPName.DrawFramebufferBinding));
             Assert.Contains(target[0].ReadPixels(), value => value > .9f);
         }
         shader.InvalidateAssets(); target.Bind();
-        Assert.True(submission.Draw("primitive", shader, geometry, layout, new(0, 2), topology));
+        Assert.True(submission.Draw("primitive", shader, geometry.Inputs, new(0, 2), topology));
         submission.Dispose();
         Assert.True(target.IsValid); Assert.True(vertices.IsValid); Assert.True(shader.IsLinked);
         Assert.Equal(ErrorCode.NoError, GL.GetError());
@@ -106,20 +106,20 @@ public sealed class DebugGraphicsSubmissionTests(HeadlessGLFixture fixture) : Re
         using var assets = new BinaryShaderApiFixture();
         using var programs = new ComponentShaderPrograms();
         var shader = programs.Create<DebugTextureShaderProgram>();
-        var layout = new VertexLayoutDesc([new(0, 3, VertexAttribPointerType.Float, VertexInterpretation.Floating, 0, 0, 20),
-            new(1, 2, VertexAttribPointerType.Float, VertexInterpretation.Floating, 0, 12, 20)]);
+        var layout = new RHIVertexLayout([new(0, 3, VertexComponentFormat.Float, VertexInterpretation.Floating, 0, 0, 20),
+            new(1, 2, VertexComponentFormat.Float, VertexInterpretation.Floating, 0, 12, 20)]);
         using var vertices = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = null }).RequireResource();
         vertices.UploadData(new float[] { -1, -1, 0, 0, 0, 3, -1, 0, 2, 0, -1, 3, 0, 0, 2 });
-        using var geometry = new ArrayGraphicsGeometry(layout, PrimitiveType.Triangles, new Dictionary<int, GpuVbo> { [0] = vertices });
+        using var geometry = new ArrayGraphicsGeometry(layout, PrimitiveTopology.Triangles, new Dictionary<int, GpuVbo> { [0] = vertices });
         using var source = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Width = 1, Height = 1, Format = TextureFormat.Rgba32f, MipLevels = 1, Storage = ResourceStorageMode.Mutable, BaseLevel = 0, MaxLevel = 0, Filter = TextureFilterMode.Nearest, Label = null }, [new RHITextureInitialData(new(new(), 0, 0, 0, 1, 1), VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLPixelValues.Encoding(TextureFormatHelper.GetPixelFormat(PixelInternalFormat.Rgba32f), OpenTK.Graphics.OpenGL.PixelType.Float), System.Runtime.InteropServices.MemoryMarshal.AsBytes((new float[] { .25f, .5f, .75f, 1 }).AsSpan()).ToArray())]).RequireResource();
         using var target = CreateRenderTarget(8, 8, PixelInternalFormat.Rgba32f);
         using var submission = new DebugGraphicsSubmission(Api(assets));
-        shader.Scene = source.TextureId;
+        shader.Scene = source;
         foreach (int id in new[] { target.FboId, 0 })
         {
-            StateCache.Current.BindFramebuffer(FramebufferTarget.Framebuffer, id);
+            OpenGLFramebufferSelection.Bind(StateCache.Current, FramebufferTarget.Framebuffer, id);
             using var hostile = new HostileFullscreenState();
-            Assert.True(submission.Draw("texture", shader, geometry, layout, new(0, 3), PrimitiveType.Triangles));
+            Assert.True(submission.Draw("texture", shader, geometry.Inputs, new(0, 3), PrimitiveTopology.Triangles));
             hostile.AssertRestored(); Assert.Equal(id, GL.GetInteger(GetPName.DrawFramebufferBinding));
             if (id != 0) Assert.Equal(.25f, target[0].ReadPixels()[0]);
             else
@@ -153,11 +153,11 @@ public sealed class DebugGraphicsSubmissionTests(HeadlessGLFixture fixture) : Re
         shader.WorldProbeRadianceAtlas = probes.Resources.ProbeRadianceAtlas;
         shader.WorldProbeVis0 = probes.Resources.ProbeVis0; shader.WorldProbeDebugState0 = probes.Resources.ProbeDebugState0;
         probes.Resources.ProbeDebugState0.UploadDataImmediate(new float[4]);
-        var layout = new VertexLayoutDesc([new(0, 3, VertexAttribPointerType.Float, VertexInterpretation.Floating, 0, 0, 36),
-            new(1, 4, VertexAttribPointerType.Float, VertexInterpretation.Floating, 0, 12, 36),
-            new(2, 2, VertexAttribPointerType.Float, VertexInterpretation.Floating, 0, 28, 36)]);
+        var layout = new RHIVertexLayout([new(0, 3, VertexComponentFormat.Float, VertexInterpretation.Floating, 0, 0, 36),
+            new(1, 4, VertexComponentFormat.Float, VertexInterpretation.Floating, 0, 12, 36),
+            new(2, 2, VertexComponentFormat.Float, VertexInterpretation.Floating, 0, 28, 36)]);
         using var vertices = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = null }).RequireResource(); vertices.UploadData(new float[] { 0, 0, 0, 1, 1, 1, 1, 0, 0 });
-        using var geometry = new ArrayGraphicsGeometry(layout, PrimitiveType.Points, new Dictionary<int, GpuVbo> { [0] = vertices });
+        using var geometry = new ArrayGraphicsGeometry(layout, PrimitiveTopology.Points, new Dictionary<int, GpuVbo> { [0] = vertices });
         using var target = CreateMRTRenderTarget(8, 8, PixelInternalFormat.Rgb8, PixelInternalFormat.R16f,
             PixelInternalFormat.Rgba8, PixelInternalFormat.Rgba16f, PixelInternalFormat.Rgba16f, PixelInternalFormat.Rgba16f);
         using var depth = new DepthTexture(8, 8, PixelInternalFormat.DepthComponent24);
@@ -171,7 +171,7 @@ public sealed class DebugGraphicsSubmissionTests(HeadlessGLFixture fixture) : Re
         using var submission = new DebugGraphicsSubmission(Api(assets));
         using (var hostile = new HostileFullscreenState())
         {
-            Assert.True(submission.Draw("orbs", shader, geometry, layout, new(0, 1), PrimitiveType.Points,
+            Assert.True(submission.Draw("orbs", shader, geometry.Inputs, new(0, 1), PrimitiveTopology.Points,
                 depthTest: true, pointSize: 6, programPointSize: true, depthWrite: true, blending: blending));
             hostile.AssertRestored();
         }

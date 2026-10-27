@@ -77,7 +77,7 @@ internal sealed class LiquidDepthRenderer : IDisposable
             var waves = LiquidWaveFrame.Capture(api);
             program.WaveFrame = waves;
             program.ResetModelTransform();
-            if (!submission.Run(program, pools[..atlases.Length], new(submission.Borrow(target), LiquidPipelineStates.DepthOutputs),
+            if (!submission.Run(program, pools[..atlases.Length], new(submission.Borrow(target).SurfaceReference, LiquidPipelineStates.DepthOutputs),
                 LiquidPipelineStates.Depth, LiquidPipelineStates.DepthBlending, () =>
                 {
                     beganSubmission = true;

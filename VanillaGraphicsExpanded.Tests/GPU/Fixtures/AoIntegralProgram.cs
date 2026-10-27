@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Numerics;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Contracts;
@@ -24,9 +25,9 @@ internal sealed class AoIntegralProgram : GpuProgram
     #endregion
     #region Protected API
     /// <summary>Publishes the complete immutable angular parameter slice.</summary>
-    protected override void Submit() {
-        var block=ShaderPreparedSubmission.Resolve(this,GpuBindingEntry.Identity(ShaderBindingKind.UniformBlock,"AoIntegralTestInputs"));
-        ShaderPreparedSubmission.ValidateUniformBlock(block,inputs);ShaderPreparedSubmission.UniformBlock(block,inputs);
+    protected override RHIResourceBindings CaptureBindingsCore()
+    {
+        return new(Shader,uniforms:[new(GpuBindingEntry.Identity(ShaderBindingKind.UniformBlock,"AoIntegralTestInputs"),inputs.Capture())]);
     }
     #endregion
 }

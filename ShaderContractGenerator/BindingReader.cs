@@ -158,17 +158,17 @@ internal static class BindingReader
         bool descriptor = type == Prefix + "Shader" + kind + "Binding";
         string? resourceType = kind switch
         {
-            ShaderBindingKind.Sampler => "GpuTexture", ShaderBindingKind.AtomicCounter => "GpuAtomicCounterBuffer", ShaderBindingKind.Image => "GpuTextureBinding", ShaderBindingKind.UniformBlock => "GpuUniformBuffer", ShaderBindingKind.StorageBlock => "GpuShaderStorageBuffer", _ => null
+            ShaderBindingKind.Sampler => "GpuTexture", ShaderBindingKind.AtomicCounter => "GpuAtomicCounterBuffer", ShaderBindingKind.Image => null, ShaderBindingKind.UniformBlock => "GpuUniformBuffer", ShaderBindingKind.StorageBlock => "GpuShaderStorageBuffer", _ => null
         };
         type = type.TrimEnd('?');
-        bool cpuBuffer = kind == ShaderBindingKind.UniformBlock && RuntimeSubmissionEmitter.IsCpuBuffer(property.Type);
+        bool cpuBuffer = kind == ShaderBindingKind.UniformBlock && RuntimeBindingCaptureEmitter.IsCpuBuffer(property.Type);
         bool textureResource = kind is ShaderBindingKind.Sampler or ShaderBindingKind.Image && IsTextureResource(property.Type);
         bool textureView = kind == ShaderBindingKind.Sampler && type == "VanillaGraphicsExpanded.Rendering.GpuTextureView";
         bool textureReference = kind is ShaderBindingKind.Sampler or ShaderBindingKind.Image && type == "VanillaGraphicsExpanded.Rendering.GpuTextureRef";
         bool textureArray = kind == ShaderBindingKind.Sampler && property.Type is IArrayTypeSymbol { Rank: 1 } array
             && array.ElementType.ToDisplayString() == "VanillaGraphicsExpanded.Rendering.GpuTextureRef";
-        bool resource = textureArray || textureReference || textureView || textureResource || (kind == ShaderBindingKind.StorageBlock && type == "VanillaGraphicsExpanded.Rendering.GpuStorageBufferBinding") || cpuBuffer || (resourceType != null && type == "VanillaGraphicsExpanded.Rendering." + resourceType) ||
-            (contract && kind == ShaderBindingKind.Sampler && property.Type.SpecialType == SpecialType.System_Int32) ||
+        bool imageView = kind == ShaderBindingKind.Image && type == "VanillaGraphicsExpanded.Rendering.RHI.RHIImageBinding";
+        bool resource = imageView || textureArray || textureReference || textureView || textureResource || (kind == ShaderBindingKind.StorageBlock && type == "VanillaGraphicsExpanded.Rendering.GpuStorageBufferBinding") || cpuBuffer || (resourceType != null && type == "VanillaGraphicsExpanded.Rendering." + resourceType) ||
             (kind == ShaderBindingKind.Image && type == "VanillaGraphicsExpanded.Rendering.GpuTexture");
         if (kind == ShaderBindingKind.UniformLocation && !descriptor)
             throw new ArgumentException($"Numeric input '{property.Name}' must use a uniform block; UniformLocation supplies layout metadata only.");
@@ -186,35 +186,11 @@ internal static class BindingReader
             if (candidate.ToDisplayString().TrimEnd('?') == "VanillaGraphicsExpanded.Rendering.GpuTexture") return true;
         return false;
     }
-    /// <summary>Finds the established runtime layout boundary without emitting engine types offline.</summary>
-    internal static bool HasRuntimeTarget(INamedTypeSymbol type)
-        => HasProgramFacade(type) || HasLegacyPipelineTarget(type);
-
     /// <summary>Uses family facades even when an authored Submit overrides automatic publication.</summary>
     internal static bool HasProgramFacade(INamedTypeSymbol type)
     {
         for (var owner = type; owner != null; owner = owner.BaseType)
             if (owner.ToDisplayString() is "VanillaGraphicsExpanded.Rendering.Shaders.GpuProgram" or "VanillaGraphicsExpanded.Rendering.GpuComputeProgram") return true;
-        return false;
-    }
-
-    /// <summary>Recognizes the legacy direct-pipeline adapter only when its field is accessible.</summary>
-    internal static bool HasLegacyPipelineTarget(INamedTypeSymbol type)
-    {
-        // Family owners use their program facade. This alternate path supports authored adapters
-        // outside the family and must match validation and emission exactly.
-        for (var owner = type; owner != null; owner = owner.BaseType)
-        {
-            var members = owner.GetMembers("pipeline");
-            if (members.Length == 0) continue;
-            // A nearer declaration shadows the base field even when its type is unsuitable.
-            bool sameAssembly = SymbolEqualityComparer.Default.Equals(owner.ContainingAssembly, type.ContainingAssembly);
-            return members.OfType<IFieldSymbol>().Any(field =>
-                field.Type.ToDisplayString() == "VanillaGraphicsExpanded.Rendering.GpuComputePipeline" &&
-                (SymbolEqualityComparer.Default.Equals(owner, type) || field.DeclaredAccessibility is
-                    Accessibility.Protected or Accessibility.ProtectedOrInternal or Accessibility.Public ||
-                    sameAssembly && field.DeclaredAccessibility is Accessibility.Internal or Accessibility.ProtectedAndInternal));
-        }
         return false;
     }
 

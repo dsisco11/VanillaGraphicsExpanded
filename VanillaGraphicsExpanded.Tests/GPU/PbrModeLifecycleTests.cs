@@ -167,8 +167,10 @@ public sealed class PbrModeLifecycleTests : RenderTestBase
         Assert.False(later.HasPublishedIndirect);
         Assert.InRange(Compose(), 0, .001f);
         // Re-publish the retained absent input after a live provider was withdrawn.
-        using (shader.UseScope())
-        {
+        using (var bindingPipeline2 = ShaderBindingTestPipeline.Create(shader))
+            {
+                RHICommandContext.Current.SetPipeline(bindingPipeline2);
+                RHICommandContext.Current.BindResources(shader.CaptureBindings());
             int previousUnit = GL.GetInteger(GetPName.ActiveTexture);
             GL.ActiveTexture(TextureUnit.Texture4);
             Assert.Equal(0, GL.GetInteger(GetPName.TextureBinding2D));

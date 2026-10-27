@@ -12,7 +12,7 @@ public sealed class GeneratedShaderCatalogTests
     {
         var generated = GeneratedShaderCatalog.Programs();
         // Keep the aggregate inventory together so drift reports every changed count.
-        Assert.Equal((Programs: 177, Stages: 226, Assignments: 488, Binaries: 503),
+        Assert.Equal((Programs: 183, Stages: 232, Assignments: 792, Binaries: 807),
             (Programs: generated.Count,
                 Stages: generated.SelectMany(p => p.Stages).Select(s => s.Identity).Distinct().Count(),
                 Assignments: generated.Sum(p => p.Assignments.Count),
@@ -21,7 +21,7 @@ public sealed class GeneratedShaderCatalogTests
         Assert.All(generated, program => Assert.Same(program, GpuShaderContracts.Registry.FindProgram(program.Identity)));
         // The build tool omits diagnostic tests/ programs from the distributable catalog.
         var packaged = generated.Where(program => !program.Identity.StartsWith("tests/", StringComparison.Ordinal));
-        Assert.Equal(458, new ShaderVariantResolver(packaged).Binaries.Count);
+        Assert.Equal(761, new ShaderVariantResolver(packaged).Binaries.Count);
     }
 
     /// <summary>Isolated fixtures stay explicit and cannot silently enter the packaged program set.</summary>

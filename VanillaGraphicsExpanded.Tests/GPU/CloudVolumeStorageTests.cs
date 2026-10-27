@@ -72,7 +72,7 @@ public sealed class CloudVolumeStorageTests(HeadlessGLFixture fixture) : LumOnSh
         var grown = new CloudVolumeEncoding(new Vector3(1e8f));
         var cache=StateCache.Current;
         OpenGLImageBindings.BindTexture(cache, TextureTarget.Texture3D,0,fields.Density.TextureId);
-        cache.BindImageTexture(0,fields.Density.TextureId,0,true,0,TextureAccess.ReadOnly,SizedInternalFormat.R16f);
+        OpenGLImageSlotBindings.BindImageTexture(cache, 0,fields.Density.TextureId,0,true,0,TextureAccess.ReadOnly,SizedInternalFormat.R16f);
         fields.Regions.BindBase(0);
         int boundaries=submission.Boundaries,dispatches=submission.Dispatches,barriers=submission.Barriers;
         submission.Batch(storage.SubmissionPrograms,()=>
@@ -93,7 +93,7 @@ public sealed class CloudVolumeStorageTests(HeadlessGLFixture fixture) : LumOnSh
         Assert.True(storage.PublishPending(()=>true,()=>true)); Assert.False(density.IsValid);
         fields=storage.Published;
         OpenGLImageBindings.BindTexture(cache, TextureTarget.Texture3D,0,fields.Density.TextureId);
-        cache.BindImageTexture(0,fields.Density.TextureId,0,true,0,TextureAccess.ReadOnly,SizedInternalFormat.R16f);
+        OpenGLImageSlotBindings.BindImageTexture(cache, 0,fields.Density.TextureId,0,true,0,TextureAccess.ReadOnly,SizedInternalFormat.R16f);
         fields.Regions.BindBase(0);
         var stable=fields.Diffuse; var stableEncoding=fields.Encoding; int certificates=0;
         var failure=Assert.Throws<InvalidOperationException>(()=>submission.Batch(storage.SubmissionPrograms,()=>

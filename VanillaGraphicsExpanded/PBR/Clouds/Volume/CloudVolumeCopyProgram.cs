@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.ShaderCompilation;
 using System;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Contracts;
@@ -16,7 +17,7 @@ internal sealed partial class CloudVolumeCopyProgram : GpuComputeProgram, ICloud
     internal static CloudVolumeCopyProgram Create(ICoreAPI api)
     {
         var layout = new GpuProgramLayout(); layout.RegisterContract(Contract.Stages[0].Bindings);
-        if (!GpuComputePipeline.TryCreateFromAssets(api, new ShaderSettings(Contract), out var pipeline,
+        if (!ComputeShaderAsset.TryCreateFromAssets(api, new ShaderSettings(Contract), out var pipeline,
             out string log, "Cloud.Volume.Copy", layout: layout)) throw new InvalidOperationException(log);
         return new(pipeline!);
     }
@@ -31,7 +32,7 @@ internal sealed partial class CloudVolumeCopyProgram : GpuComputeProgram, ICloud
     #endregion
     #region Private
     /// <summary>Adopts the executable and its complete copy parameters.</summary>
-    private CloudVolumeCopyProgram(GpuComputePipeline pipeline) : base(pipeline) => OwnUniformBuffer(inputs);
+    private CloudVolumeCopyProgram(ComputeShaderAsset pipeline) : base(pipeline) => OwnUniformBuffer(inputs);
     /// <summary>Publishes the staged field encoding record.</summary>
     CpuUniformBuffer ICloudVolumeCopyBindings.Inputs => inputs;
     #endregion

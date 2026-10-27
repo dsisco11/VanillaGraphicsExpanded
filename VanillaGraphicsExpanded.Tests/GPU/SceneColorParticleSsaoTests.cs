@@ -17,8 +17,8 @@ public sealed class SceneColorParticleSsaoTests(HeadlessGLFixture fixture) : Lum
         EnsureShaderTestAvailable();
         using var scene = new ParticleSsaoCaptureFixture();
         Assert.IsType<DynamicGpuFramebuffer>(scene.Targets.DrawTarget);
-        Assert.IsType<DynamicGpuFramebuffer>(scene.Targets.SsaoTarget);
-        Assert.IsType<StaticGpuFramebuffer>(scene.Targets.ResolveTarget);
+        Assert.IsType<VanillaGraphicsExpanded.Rendering.RHI.RHIRenderPassDescription>(scene.Targets.SsaoPass);
+        Assert.IsType<VanillaGraphicsExpanded.Rendering.RHI.RHIRenderPassDescription>(scene.Targets.ResolvePass);
         float[] originalNormals = scene.Normal.ReadPixels();
         float[] originalPositions = scene.Position.ReadPixels();
         scene.CaptureUploadedSamples();
@@ -28,7 +28,7 @@ public sealed class SceneColorParticleSsaoTests(HeadlessGLFixture fixture) : Lum
 
         scene.ResolveReceivers(Programs.Create<SceneColorParticleShaderProgram>(), TestFramework);
 
-        Assert.Equal(new[] { .75f, .75f, .75f, .75f }, scene.Targets.ResolveTarget[0].ReadPixels());
+        Assert.Equal(new[] { .75f, .75f, .75f, .75f }, scene.Targets.MaterialDepth.ReadPixels());
         Assert.Equal(originalNormals, scene.Normal.ReadPixels());
         Assert.Equal(originalPositions, scene.Position.ReadPixels());
     }
@@ -46,7 +46,7 @@ public sealed class SceneColorParticleSsaoTests(HeadlessGLFixture fixture) : Lum
         scene.CaptureUploadedSamples();
         scene.ReplaceForegroundReceiver();
         scene.ResolveReceivers(Programs.Create<SceneColorParticleShaderProgram>(), TestFramework);
-        Assert.Equal(new[] { .75f, .75f, .25f, .75f }, scene.Targets.ResolveTarget[0].ReadPixels());
+        Assert.Equal(new[] { .75f, .75f, .25f, .75f }, scene.Targets.MaterialDepth.ReadPixels());
 
         scene.RestoreMetadata(Programs.Create<SceneColorParticleSsaoShaderProgram>(), TestFramework);
 

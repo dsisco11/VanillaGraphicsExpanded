@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System.Numerics;
 using System.Text.RegularExpressions;
 using OpenTK.Graphics.OpenGL;
@@ -271,7 +272,7 @@ public sealed class LocalExposurePrototypeTests(HeadlessGLFixture fixture, ITest
             using var sourceScope = StateCache.Current.BindTextureScope(TextureTarget.Texture2D, 0, input.TextureId);
             using var baseScope = StateCache.Current.BindTextureScope(TextureTarget.Texture2D, 1, baseImage?.TextureId ?? input.TextureId);
             using var gradeScope = StateCache.Current.BindTextureScope(TextureTarget.Texture3D, 2, grading?.TextureId ?? 0);
-            StateCache.Current.UseProgram(program);
+            OpenGLProgramSelection.Select(StateCache.Current, program);
             GL.Uniform1(GL.GetUniformLocation(program, "sourceImage"), 0); GL.Uniform1(GL.GetUniformLocation(program, "baseImage"), 1);
             GL.Uniform1(GL.GetUniformLocation(program, "gradingLookup"), 2);
             GL.Uniform1(GL.GetUniformLocation(program, "storage"), storage);
@@ -283,7 +284,7 @@ public sealed class LocalExposurePrototypeTests(HeadlessGLFixture fixture, ITest
             Assert.Equal(ErrorCode.NoError, GL.GetError());
             return target[0].ReadPixels();
         }
-        finally { StateCache.Current.UseProgram(0); GL.DeleteProgram(program); GL.DeleteShader(vertex); GL.DeleteShader(shader); }
+        finally { OpenGLProgramSelection.Select(StateCache.Current, 0); GL.DeleteProgram(program); GL.DeleteShader(vertex); GL.DeleteShader(shader); }
     }
 
     #endregion

@@ -57,7 +57,6 @@ internal static partial class MaterialAtlasNormalDepthGpuBuilder
 
     private static bool initialized;
     private static ArrayGraphicsGeometry? geometry;
-    private static GpuFramebuffer? scratchFbo;
     private const int MaxDebugTilesPerPage = 3;
     private const int FlatnessSampleStride = 128;
     private const float FlatnessVarianceEpsilon = 0.0025f;
@@ -99,15 +98,15 @@ internal static partial class MaterialAtlasNormalDepthGpuBuilder
     /// <summary>Bakes each admitted texture rectangle through one restored graphics boundary.</summary>
     public static void BakePerTexture(
         ICoreClientAPI capi,
-        int baseAlbedoAtlasPageTexId,
-        int destNormalDepthTexId,
+        GpuTextureRef baseAlbedoAtlasPageTexId,
+        GpuTextureRef destNormalDepthTexId,
         int atlasWidth,
         int atlasHeight,
         IEnumerable<TextureAtlasPosition> texturePositions)
     {
         ArgumentNullException.ThrowIfNull(capi);
-        if (baseAlbedoAtlasPageTexId == 0) throw new ArgumentOutOfRangeException(nameof(baseAlbedoAtlasPageTexId));
-        if (destNormalDepthTexId == 0) throw new ArgumentOutOfRangeException(nameof(destNormalDepthTexId));
+        if (baseAlbedoAtlasPageTexId.IsEmpty) throw new ArgumentOutOfRangeException(nameof(baseAlbedoAtlasPageTexId));
+        if (destNormalDepthTexId.IsEmpty) throw new ArgumentOutOfRangeException(nameof(destNormalDepthTexId));
         if (atlasWidth <= 0) throw new ArgumentOutOfRangeException(nameof(atlasWidth));
         if (atlasHeight <= 0) throw new ArgumentOutOfRangeException(nameof(atlasHeight));
         ArgumentNullException.ThrowIfNull(texturePositions);
@@ -123,7 +122,7 @@ internal static partial class MaterialAtlasNormalDepthGpuBuilder
         }
 
         // Filter to just this atlas page.
-        var positions = texturePositions.Where(p => p is not null && p.atlasTextureId == baseAlbedoAtlasPageTexId).ToArray();
+        var positions = texturePositions.Where(p => p is not null && p.atlasTextureId == baseAlbedoAtlasPageTexId.TextureId).ToArray();
         if (positions.Length == 0)
         {
             // Nothing to bake for this atlas page.
@@ -443,26 +442,24 @@ internal static partial class MaterialAtlasNormalDepthGpuBuilder
     /// </summary>
     public static void ClearAtlasPage(
         ICoreClientAPI capi,
-        int destNormalDepthTexId,
+        GpuTextureRef destNormalDepthTexId,
         int atlasWidth,
         int atlasHeight)
     {
         ArgumentNullException.ThrowIfNull(capi);
-        if (destNormalDepthTexId == 0) throw new ArgumentOutOfRangeException(nameof(destNormalDepthTexId));
+        if (destNormalDepthTexId.IsEmpty) throw new ArgumentOutOfRangeException(nameof(destNormalDepthTexId));
         if (atlasWidth <= 0) throw new ArgumentOutOfRangeException(nameof(atlasWidth));
         if (atlasHeight <= 0) throw new ArgumentOutOfRangeException(nameof(atlasHeight));
 
         // Clearing is a resource load operation; it does not require a shader executable.
-        using var image = GpuFramebufferAttachment.FromTextureId(destNormalDepthTexId);
-        using var target = DynamicGpuFramebuffer.CreateEmpty("MaterialAtlas.Clear");
-        target.SetAttachment(FramebufferAttachment.ColorAttachment0, image);
-        if (!GraphicsCommandContext.TryRun("MaterialAtlas.Clear", [], true, commands =>
+        var commands=RHICommandContext.Current;
+        using var boundary=commands.EnterBoundary(new("MaterialAtlas.Clear",true,operations:BoundaryOperations.RenderPasses));
+        boundary.Run(()=>
         {
-            commands.BeginPass(new(target,
-                [new(0, AttachmentLoad.Clear, Clear: ColorClearValue.Float(0.5f, 0.5f, 1, 0.5f))],
-                area: new(0, 0, atlasWidth, atlasHeight)));
-            commands.EndPass();
-        })) throw new InvalidOperationException("Atlas clear boundary unavailable.");
+            commands.BeginRenderPass(new([new(Image:RHIAttachment.FromTexture(destNormalDepthTexId),Load:AttachmentLoad.Clear,
+                Clear:ColorClearValue.Float(.5f,.5f,1,.5f))],area:new(0,0,atlasWidth,atlasHeight)));
+            commands.EndRenderPass();
+        });
     }
 
     /// <summary>
@@ -471,8 +468,8 @@ internal static partial class MaterialAtlasNormalDepthGpuBuilder
     /// </summary>
     public static bool BakePerRect(
         ICoreClientAPI capi,
-        int baseAlbedoAtlasPageTexId,
-        int destNormalDepthTexId,
+        GpuTextureRef baseAlbedoAtlasPageTexId,
+        GpuTextureRef destNormalDepthTexId,
         int atlasWidth,
         int atlasHeight,
         int rectX,
@@ -483,8 +480,8 @@ internal static partial class MaterialAtlasNormalDepthGpuBuilder
         float depthScale)
     {
         ArgumentNullException.ThrowIfNull(capi);
-        if (baseAlbedoAtlasPageTexId == 0) throw new ArgumentOutOfRangeException(nameof(baseAlbedoAtlasPageTexId));
-        if (destNormalDepthTexId == 0) throw new ArgumentOutOfRangeException(nameof(destNormalDepthTexId));
+        if (baseAlbedoAtlasPageTexId.IsEmpty) throw new ArgumentOutOfRangeException(nameof(baseAlbedoAtlasPageTexId));
+        if (destNormalDepthTexId.IsEmpty) throw new ArgumentOutOfRangeException(nameof(destNormalDepthTexId));
         if (atlasWidth <= 0) throw new ArgumentOutOfRangeException(nameof(atlasWidth));
         if (atlasHeight <= 0) throw new ArgumentOutOfRangeException(nameof(atlasHeight));
         if (rectX < 0 || rectY < 0) throw new ArgumentOutOfRangeException("rect origin must be non-negative");
@@ -592,7 +589,7 @@ internal static partial class MaterialAtlasNormalDepthGpuBuilder
     }
 
     /// <summary>Clears the selected atlas within the already established bake boundary.</summary>
-    private static void ClearAtlasPageUnsafe(BakeDrawContext draw, int destNormalDepthTexId, int atlasWidth, int atlasHeight)
+    private static void ClearAtlasPageUnsafe(BakeDrawContext draw, GpuTextureRef destNormalDepthTexId, int atlasWidth, int atlasHeight)
     {
         draw.SetAtlasTarget(destNormalDepthTexId, 0, 0, atlasWidth, atlasHeight);
         // Identity defaults: flat normal and neutral height (0.5 encoded).
@@ -601,10 +598,9 @@ internal static partial class MaterialAtlasNormalDepthGpuBuilder
 
 
     /// <summary>Reads one atlas pixel while preserving framebuffer and pixel-pack bindings.</summary>
-    private static (float a, (float r, float g, float b) rgb) ReadAtlasPixelRgba(int atlasTexId, int x, int y)
+    private static (float a, (float r, float g, float b) rgb) ReadAtlasPixelRgba(GpuTextureRef atlasTexId, int x, int y)
     {
-        using var texture = new BorrowedTexture(atlasTexId);
-        using var request = RHICommandContext.Current.EnqueueReadback(new RHIReadbackDescription(texture,
+        using var request = RHICommandContext.Current.EnqueueReadback(new RHIReadbackDescription(atlasTexId,
             new(new(0), x, y, 0, 1, 1, 1), new(PixelChannelLayout.Rgba, PixelComponentType.Float)));
         if (request.Wait() != CompletionStatus.Ready)
             throw new InvalidOperationException("Atlas readback failed.", request.Error);
@@ -635,8 +631,7 @@ internal static partial class MaterialAtlasNormalDepthGpuBuilder
         try
         {
             // Minimal GL objects.
-            geometry = new(new([]), PrimitiveType.Triangles, new Dictionary<int, GpuVbo>(), 3);
-            scratchFbo = DynamicGpuFramebuffer.CreateEmpty("vge_bake_scratch");
+            geometry = new(new([]), PrimitiveTopology.Triangles, new Dictionary<int, GpuVbo>(), 3);
 
             // Compile all programs using VGE's shader pipeline (imports, diagnostics, debug labels).
             // Each pass shares the same fullscreen vertex stage, but has its own fragment stage.
@@ -695,7 +690,6 @@ internal static partial class MaterialAtlasNormalDepthGpuBuilder
             progLuminance = progGauss1D = progSub = progCombine = progGradient = progDivergence = null;
             progJacobi = progResidual = progRestrict = progProlongateAdd = progNormalize = progPackToAtlas = progCopy = null;
             geometry?.Dispose(); geometry = null;
-            scratchFbo?.Dispose(); scratchFbo = null;
             throw;
         }
     }

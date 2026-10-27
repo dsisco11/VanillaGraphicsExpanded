@@ -1,3 +1,5 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
+using VanillaGraphicsExpanded.Rendering.ShaderCompilation;
 using VanillaGraphicsExpanded.Rendering.Contracts;
 using System;
 using System.Diagnostics;
@@ -33,15 +35,10 @@ internal sealed partial class LumonSceneFeedbackMarkPagesComputeShader : GpuComp
     {
         shader = null;
 
-        if (!GpuComputePipeline.TryCreateFromAssets(
-            api: api,
-            shaderName: ShaderName,
+        if (!ComputeShaderAsset.TryCreateFromAssets(api: api,
+            settings: new global::VanillaGraphicsExpanded.Rendering.Contracts.ShaderSettings(global::VanillaGraphicsExpanded.Rendering.Contracts.GpuShaderContracts.Registry.FindProgram(ShaderName)),
             pipeline: out var pipeline,
-            sourceCode: out _,
             infoLog: out infoLog,
-            preferSpirv: preferSpirv,
-            stageExtension: "csh",
-            defines: null,
             debugName: debugName,
             log: api.Logger,
             layout: new LumonSceneComputeProgramLayouts.FeedbackMarkPages()))
@@ -73,17 +70,11 @@ internal sealed partial class LumonSceneFeedbackMarkPagesComputeShader : GpuComp
     public void BindDebugCounters(GpuAtomicCounterBuffer? debugCounters)
     { DebugCounters = debugCounters; }
 
-    /// <summary>Retains PatchIdGBuffer for the next dispatch submission.</summary>
-    public void BindPatchIdGBuffer(int textureId)
-    { PatchIdG = textureId; }
 
-    /// <summary>Retains ChunkSlotGenerationTex for the next dispatch submission.</summary>
-    public void BindChunkSlotGenerationTex(int textureId)
-    { ChunkSlotGenerationTex = textureId; }
 
     /// <summary>Retains PageUsageStampImage for the next dispatch submission.</summary>
-    public void BindPageUsageStampImage(GpuTexture texture, TextureAccess access = TextureAccess.ReadWrite)
-    { PageUsageStamp = new GpuTextureBinding(texture, Access: access, Layered: true, Format: SizedInternalFormat.R32ui); }
+    public void BindPageUsageStampImage(GpuTexture texture, ImageAccess access = ImageAccess.ReadWrite)
+    { PageUsageStamp = new RHIImageBinding(texture, Access: access, Layered: true, Format: TextureFormat.R32ui); }
 
     /// <summary>Supplies retained packed dispatch parameters.</summary>
     CpuUniformBuffer ILumonSceneFeedbackMarkPagesComputeShaderBindings.Parameters => parameters;
@@ -91,7 +82,7 @@ internal sealed partial class LumonSceneFeedbackMarkPagesComputeShader : GpuComp
 
     #region Private
     /// <summary>Adopts the executable and attaches the input mutation guard.</summary>
-    private LumonSceneFeedbackMarkPagesComputeShader(GpuComputePipeline pipeline) : base(pipeline)
+    private LumonSceneFeedbackMarkPagesComputeShader(ComputeShaderAsset pipeline) : base(pipeline)
     {
         OwnUniformBuffer(parameters);
     }

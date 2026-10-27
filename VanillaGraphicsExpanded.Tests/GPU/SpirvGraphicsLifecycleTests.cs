@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Diagnostics;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering.Spirv;
@@ -113,7 +114,6 @@ public sealed class SpirvGraphicsLifecycleTests : RenderTestBase
             assets.Overrides.Clear();
             Assert.True(program.CompileAndLink());
 #if DEBUG
-            output.WriteLine($"Runtime reload driver link: {program.LastSpirvLinkMilliseconds:F3} ms");
 #endif
         }
         finally
@@ -178,7 +178,7 @@ public sealed class SpirvGraphicsLifecycleTests : RenderTestBase
     {
         #region Submission
         /// <summary>Retains this owner's explicit external input publication contract.</summary>
-        protected override void Submit() { }
+        protected override VanillaGraphicsExpanded.Rendering.RHI.RHIResourceBindings CaptureBindingsCore() => new(Shader);
         #endregion
 
         /// <summary>Exposes prepared diagnostic locations including inactive contract entries.</summary>
@@ -208,9 +208,7 @@ public sealed class SpirvGraphicsLifecycleTests : RenderTestBase
         try
         {
             vertex = BuiltShaderFixture.Load("tests/render_infrastructure.vsh", ShaderType.VertexShader);
-            output.WriteLine("Vertex: " + SpirvStageLoader.LastTiming);
             fragment = BuiltShaderFixture.Load("tests/render_infrastructure.fsh", ShaderType.FragmentShader);
-            output.WriteLine("Fragment: " + SpirvStageLoader.LastTiming);
             program = GL.CreateProgram();
             GL.AttachShader(program, vertex); GL.AttachShader(program, fragment);
             long start = Stopwatch.GetTimestamp();
@@ -219,7 +217,7 @@ public sealed class SpirvGraphicsLifecycleTests : RenderTestBase
             GL.GetProgram(program, GetProgramParameterName.LinkStatus, out int linked);
             Assert.True(linked != 0, GL.GetProgramInfoLog(program));
             using var target = CreateRenderTarget(8, 8, PixelInternalFormat.Rgba32f);
-            target.BindWithViewport();
+            FramebufferTestSetup.BindForEngineRendering(target);
             start = Stopwatch.GetTimestamp();
             for (int i = 0; i < 8; i++) RenderFullscreenQuad(program);
             GL.Finish();

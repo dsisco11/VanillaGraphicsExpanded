@@ -14,10 +14,10 @@ internal interface ILumonSceneFeedbackCompactPagesComputeShaderBindings
     CpuUniformBuffer Parameters { get; }
     /// <summary>Declares the vge_pageUsageStamp Sampler slot.</summary>
     [ShaderBinding("vge_pageUsageStamp", ShaderBindingKind.Sampler, 0, ShaderStageKind.Compute, TextureTarget = ShaderTextureTarget.Texture2DArray, Sampler = ShaderSamplerPolicy.NearestClamp)]
-    int PageUsageStamp { set; }
+    GpuTextureRef PageUsageStamp { set; }
     /// <summary>Declares the vge_pageTableMip0 Sampler slot.</summary>
     [ShaderBinding("vge_pageTableMip0", ShaderBindingKind.Sampler, 1, ShaderStageKind.Compute, TextureTarget = ShaderTextureTarget.Texture2DArray, Sampler = ShaderSamplerPolicy.NearestClamp)]
-    int PageTableMip0 { set; }
+    GpuTextureRef PageTableMip0 { set; }
     /// <summary>Declares the VgePageRequests StorageBlock slot.</summary>
     [ShaderBinding("VgePageRequests", ShaderBindingKind.StorageBlock, 0, ShaderStageKind.Compute)]
     GpuShaderStorageBuffer PageRequests { set; }

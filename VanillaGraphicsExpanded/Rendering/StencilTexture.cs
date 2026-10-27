@@ -12,12 +12,7 @@ public sealed class StencilTexture : DynamicTexture2D
     public StencilTexture(int width, int height, string? debugName = null)
         : base(width, height, TextureFormatHelper.StencilIndex8, TextureFilterMode.Nearest, debugName) { }
 
-    /// <inheritdoc />
-    public override void Clear()
-    {
-        if (!IsValid) throw new InvalidOperationException("Stencil texture is invalid.");
-        GL.Clear(ClearBufferMask.StencilBufferBit);
-    }
+
 
     /// <summary>Reads stencil indices as unsigned bytes.</summary>
     public byte[] ReadStencilPixels()

@@ -8,7 +8,7 @@ public sealed class ShaderMigrationBaselineTests
     #region Migration evidence
     /// <summary>Program settings, finite availability branches and binary paths match the current catalog contract.</summary>
     [Fact]
-    public void GeneratedDeclarationsPreserveCompiledBaseline()
+    public void GeneratedDeclarationsMatchCatalogSnapshot()
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);
         while (directory != null && !File.Exists(Path.Combine(directory.FullName, "VanillaGraphicsExpanded.sln"))) directory = directory.Parent;

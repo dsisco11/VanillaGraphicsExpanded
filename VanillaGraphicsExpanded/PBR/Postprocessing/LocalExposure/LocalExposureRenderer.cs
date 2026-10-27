@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.ShaderCompilation;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using OpenTK.Graphics.OpenGL;
@@ -46,20 +47,20 @@ internal sealed class LocalExposureRenderer : IDisposable
         Prepare(api,width,height);
         reduce!.FrameLightingInputs=lighting;
         reduce.SceneRadiance=scene;
-        reduce.LogOutput=new(logarithms!,TextureAccess.WriteOnly,Format:SizedInternalFormat.Rg32f);
+        reduce.LogOutput=new(logarithms!,ImageAccess.WriteOnly,Format:TextureFormat.Rg32f);
         inputs!.Capture(settings.RangeWidth);
         filter!.Inputs=inputs;
         filter.LogImage=logarithms!;
-        filter.BaseOutput=new(baseImage!,TextureAccess.WriteOnly,Format:SizedInternalFormat.Rg32f);
-        var borrowed=EngineBoundaryResources.From(reduce.ProgramLayout.BinaryInterface!.PreparedBindings)
-            .Union(EngineBoundaryResources.From(filter.ProgramLayout.BinaryInterface!.PreparedBindings));
-        if(!EngineBoundaryExecution.TryRun(new("Postprocess.LocalExposure"),borrowed,_=>
+        filter.BaseOutput=new(baseImage!,ImageAccess.WriteOnly,Format:TextureFormat.Rg32f);
+        var commands=RHICommandContext.Current;
+        using var boundary=commands.EnterBoundary(new("Postprocess.LocalExposure",true,compute:[reduce.Pipeline,filter.Pipeline]));
+        boundary.Run(()=>
         {
             reduce.Dispatch((width+7)/8,(height+7)/8);
             RHICommandContext.Current.Barrier(new(ResourceAccess.Image|ResourceAccess.TextureFetch));
             filter.Dispatch((width+7)/8,(height+7)/8);
             RHICommandContext.Current.Barrier(new(ResourceAccess.Image|ResourceAccess.TextureFetch));
-        })) throw new InvalidOperationException("Local exposure compute boundary was rejected.");
+        });
         published=true;
         return baseImage!;
     }
@@ -91,15 +92,19 @@ internal sealed class LocalExposureRenderer : IDisposable
         {
             if(reduce is null)
             {
-                if(!GpuComputePipeline.TryCreateFromAssets(api,LocalExposureReduceProgram.Contract.Identity,
-                    out var pipeline,out _,out string log,preferSpirv:true))
+                if(!ComputeShaderAsset.TryCreateFromAssets(api: api,
+            settings: new global::VanillaGraphicsExpanded.Rendering.Contracts.ShaderSettings(global::VanillaGraphicsExpanded.Rendering.Contracts.GpuShaderContracts.Registry.FindProgram(LocalExposureReduceProgram.Contract.Identity)),
+            pipeline: out var pipeline,
+            infoLog: out string log))
                     throw new InvalidOperationException(log);
                 reduce=new LocalExposureReduceProgram(pipeline!);
             }
             if(filter is null)
             {
-                if(!GpuComputePipeline.TryCreateFromAssets(api,LocalExposureFilterProgram.Contract.Identity,
-                    out var pipeline,out _,out string log,preferSpirv:true))
+                if(!ComputeShaderAsset.TryCreateFromAssets(api: api,
+            settings: new global::VanillaGraphicsExpanded.Rendering.Contracts.ShaderSettings(global::VanillaGraphicsExpanded.Rendering.Contracts.GpuShaderContracts.Registry.FindProgram(LocalExposureFilterProgram.Contract.Identity)),
+            pipeline: out var pipeline,
+            infoLog: out string log))
                     throw new InvalidOperationException(log);
                 filter=new LocalExposureFilterProgram(pipeline!);
             }

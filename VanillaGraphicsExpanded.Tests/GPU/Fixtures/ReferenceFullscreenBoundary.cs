@@ -27,7 +27,9 @@ internal static class ReferenceFullscreenBoundary
             if (prepared is null) return false;
             resources = resources.Union(EngineBoundaryResources.From(prepared));
         }
-        return EngineBoundaryExecution.TryRun(new EngineBoundaryDeclaration(name, coverage), resources, operation);
+        if (!StateCache.Current.TryBeginEngineBoundary(new EngineBoundaryDeclaration(name, coverage), out var boundary, resources)) return false;
+        using (boundary) { operation(boundary!); }
+        return true;
     }
     #endregion
 }

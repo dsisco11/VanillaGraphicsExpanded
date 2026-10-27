@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.ShaderCompilation;
 using VanillaGraphicsExpanded.Rendering.Contracts;
 using System;
 using System.Diagnostics;
@@ -38,15 +39,10 @@ internal sealed partial class LumonSceneFeedbackCompactPagesComputeShader : GpuC
     {
         shader = null;
 
-        if (!GpuComputePipeline.TryCreateFromAssets(
-            api: api,
-            shaderName: ShaderName,
+        if (!ComputeShaderAsset.TryCreateFromAssets(api: api,
+            settings: new global::VanillaGraphicsExpanded.Rendering.Contracts.ShaderSettings(global::VanillaGraphicsExpanded.Rendering.Contracts.GpuShaderContracts.Registry.FindProgram(ShaderName)),
             pipeline: out var pipeline,
-            sourceCode: out _,
             infoLog: out infoLog,
-            preferSpirv: preferSpirv,
-            stageExtension: "csh",
-            defines: null,
             debugName: debugName,
             log: api.Logger,
             layout: new LumonSceneComputeProgramLayouts.FeedbackCompactPages()))
@@ -64,13 +60,7 @@ internal sealed partial class LumonSceneFeedbackCompactPagesComputeShader : GpuC
         return true;
     }
 
-    /// <summary>Retains PageUsageStamp for the next dispatch submission.</summary>
-    public void BindPageUsageStamp(int textureId)
-    { PageUsageStamp = textureId; }
 
-    /// <summary>Retains PageTableMip0 for the next dispatch submission.</summary>
-    public void BindPageTableMip0(int textureId)
-    { PageTableMip0 = textureId; }
 
     /// <summary>Retains RequestCounter for the next dispatch submission.</summary>
     public void BindRequestCounter(GpuAtomicCounterBuffer counter)
@@ -126,7 +116,7 @@ internal sealed partial class LumonSceneFeedbackCompactPagesComputeShader : GpuC
 
     #region Private
     /// <summary>Adopts the executable and attaches the input mutation guard.</summary>
-    private LumonSceneFeedbackCompactPagesComputeShader(GpuComputePipeline pipeline) : base(pipeline)
+    private LumonSceneFeedbackCompactPagesComputeShader(ComputeShaderAsset pipeline) : base(pipeline)
     {
         OwnUniformBuffer(parameters);
     }

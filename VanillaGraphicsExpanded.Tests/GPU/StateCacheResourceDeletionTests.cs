@@ -52,9 +52,9 @@ public sealed class StateCacheResourceDeletionTests(HeadlessGLFixture fixture) :
         try
         {
             cache.InvalidateAll();
-            cache.BindFramebuffer(FramebufferTarget.ReadFramebuffer, retired);
-            cache.BindFramebuffer(FramebufferTarget.DrawFramebuffer, survivor);
-            EngineStateCalls.DeleteFramebuffer(retired);
+            OpenGLFramebufferSelection.Bind(cache, FramebufferTarget.ReadFramebuffer, retired);
+            OpenGLFramebufferSelection.Bind(cache, FramebufferTarget.DrawFramebuffer, survivor);
+            VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLRenderingDeletionCalls.Core.DeleteFramebuffer(retired);
             Assert.True(cache.TryGetCachedCurrentFramebuffer(FramebufferTarget.ReadFramebuffer, out int read));
             Assert.Equal(0, read);
             Assert.True(cache.TryGetCachedCurrentFramebuffer(FramebufferTarget.DrawFramebuffer, out int draw));
@@ -62,7 +62,7 @@ public sealed class StateCacheResourceDeletionTests(HeadlessGLFixture fixture) :
             Assert.Equal(0, GL.GetInteger(GetPName.ReadFramebufferBinding));
             Assert.Equal(survivor, GL.GetInteger(GetPName.DrawFramebufferBinding));
             cache.InvalidateAll();
-            EngineStateCalls.DeleteFramebuffer(survivor);
+            VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLRenderingDeletionCalls.Core.DeleteFramebuffer(survivor);
             Assert.False(cache.TryGetCachedCurrentFramebuffer(FramebufferTarget.ReadFramebuffer, out _));
             Assert.False(cache.TryGetCachedCurrentFramebuffer(FramebufferTarget.DrawFramebuffer, out _));
             Assert.Equal(ErrorCode.NoError, GL.GetError());
@@ -82,17 +82,17 @@ public sealed class StateCacheResourceDeletionTests(HeadlessGLFixture fixture) :
         try
         {
             cache.InvalidateAll();
-            cache.BindVertexArray(retired);
+            OpenGLVertexSelection.Bind(cache, retired);
             OpenGLBufferBindings.BindBuffer(cache, BufferTarget.ElementArrayBuffer, buffer);
-            cache.BindVertexArray(survivor);
+            OpenGLVertexSelection.Bind(cache, survivor);
             OpenGLBufferBindings.BindBuffer(cache, BufferTarget.ElementArrayBuffer, buffer);
-            EngineStateCalls.DeleteVertexArray(retired);
+            VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLRenderingDeletionCalls.Core.DeleteVertexArray(retired);
             Assert.True(cache.TryGetCachedCurrentVao(out int selected));
             Assert.Equal(survivor, selected);
             Assert.True(cache.TryGetCachedBoundBuffer(BufferTarget.ElementArrayBuffer, out int element));
             Assert.Equal(buffer, element);
             Assert.Equal(buffer, GL.GetInteger(GetPName.ElementArrayBufferBinding));
-            EngineStateCalls.DeleteVertexArray(survivor);
+            VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLRenderingDeletionCalls.Core.DeleteVertexArray(survivor);
             Assert.True(cache.TryGetCachedCurrentVao(out selected));
             Assert.Equal(0, selected);
             Assert.Equal(0, GL.GetInteger(GetPName.VertexArrayBinding));
@@ -139,12 +139,12 @@ public sealed class StateCacheResourceDeletionTests(HeadlessGLFixture fixture) :
         try
         {
             cache.InvalidateAll();
-            cache.BindVertexArray(array);
+            OpenGLVertexSelection.Bind(cache, array);
             OpenGLBufferBindings.BindBuffer(cache, BufferTarget.ElementArrayBuffer, buffer);
-            cache.BindVertexArray(0);
+            OpenGLVertexSelection.Bind(cache, 0);
             EngineStateCalls.DeleteBuffers(1, ref buffer);
             // GL keeps storage referenced by unbound containers until their attachment is released.
-            cache.BindVertexArray(array);
+            OpenGLVertexSelection.Bind(cache, array);
             Assert.False(cache.TryGetCachedBoundBuffer(BufferTarget.ElementArrayBuffer, out _));
             int native = GL.GetInteger(GetPName.ElementArrayBufferBinding);
             Assert.Equal(buffer, native);
@@ -170,13 +170,13 @@ public sealed class StateCacheResourceDeletionTests(HeadlessGLFixture fixture) :
             GL.LinkProgram(program);
             GL.GetProgram(program, GetProgramParameterName.LinkStatus, out int linked);
             Assert.Equal(1, linked);
-            cache.UseProgram(program);
-            EngineStateCalls.DeleteProgram(program);
+            OpenGLProgramSelection.Select(cache, program);
+            VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLRenderingDeletionCalls.Core.DeleteProgram(program);
             Assert.True(cache.TryGetCachedCurrentProgram(out int selected));
             Assert.Equal(program, selected);
             Assert.Equal(program, GL.GetInteger(GetPName.CurrentProgram));
             Assert.True(GL.IsProgram(program));
-            cache.UseProgram(0);
+            OpenGLProgramSelection.Select(cache, 0);
             Assert.False(GL.IsProgram(program));
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }

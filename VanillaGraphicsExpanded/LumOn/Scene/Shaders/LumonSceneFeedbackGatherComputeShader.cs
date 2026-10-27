@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.ShaderCompilation;
 using VanillaGraphicsExpanded.Rendering.Contracts;
 using System;
 using System.Diagnostics;
@@ -44,15 +45,10 @@ internal sealed partial class LumonSceneFeedbackGatherComputeShader : GpuCompute
     {
         shader = null;
 
-        if (!GpuComputePipeline.TryCreateFromAssets(
-            api: api,
-            shaderName: ShaderName,
+        if (!ComputeShaderAsset.TryCreateFromAssets(api: api,
+            settings: new global::VanillaGraphicsExpanded.Rendering.Contracts.ShaderSettings(global::VanillaGraphicsExpanded.Rendering.Contracts.GpuShaderContracts.Registry.FindProgram(ShaderName)),
             pipeline: out var pipeline,
-            sourceCode: out _,
             infoLog: out infoLog,
-            preferSpirv: preferSpirv,
-            stageExtension: "csh",
-            defines: null,
             debugName: debugName,
             log: api.Logger,
             layout: new LumonSceneComputeProgramLayouts.FeedbackGather()))
@@ -70,9 +66,6 @@ internal sealed partial class LumonSceneFeedbackGatherComputeShader : GpuCompute
         return true;
     }
 
-    /// <summary>Retains PatchIdGBuffer for the next dispatch submission.</summary>
-    public void BindPatchIdGBuffer(int textureId)
-    { PatchIdG = textureId; }
 
     /// <summary>Retains RequestCounter for the next dispatch submission.</summary>
     public void BindRequestCounter(GpuAtomicCounterBuffer counter)
@@ -117,7 +110,7 @@ internal sealed partial class LumonSceneFeedbackGatherComputeShader : GpuCompute
 
     #region Private
     /// <summary>Adopts the executable and attaches the input mutation guard.</summary>
-    private LumonSceneFeedbackGatherComputeShader(GpuComputePipeline pipeline) : base(pipeline)
+    private LumonSceneFeedbackGatherComputeShader(ComputeShaderAsset pipeline) : base(pipeline)
     {
         OwnUniformBuffer(parameters);
     }

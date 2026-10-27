@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using HarmonyLib;
 using Moq;
@@ -79,7 +80,7 @@ public sealed class FrameShaderBindingHookTests(HeadlessGLFixture fixture) : Ren
             Assert.Throws<InvalidOperationException>(() => VgeFrameRenderer.Current);
             using var foreign = new PackedUniformBuffer(VgeFrameUniformBuffer.PackedSize);
             foreign.SetBytes(new byte[VgeFrameUniformBuffer.PackedSize]);
-            Assert.True(foreign.TryBindToSlot(GpuBindingRegistry.Ubo.Frame));
+            Assert.True(RHICommandContext.Current.OpenGL.BindEngineUniform(GpuBindingRegistry.Ubo.Frame, foreign.Capture()));
             var unrelated = Binding();
             Assert.Throws<InvalidOperationException>(() => VgeFrameRenderer.Current);
             engine.Use();
@@ -87,7 +88,7 @@ public sealed class FrameShaderBindingHookTests(HeadlessGLFixture fixture) : Ren
             events.Render(EnumRenderStage.Before);
             events.Render(EnumRenderStage.Opaque);
             byte[] expected = VgeFrameRenderer.Current.Bytes.ToArray();
-            Assert.True(foreign.TryBindToSlot(GpuBindingRegistry.Ubo.Frame));
+            Assert.True(RHICommandContext.Current.OpenGL.BindEngineUniform(GpuBindingRegistry.Ubo.Frame, foreign.Capture()));
             AtmosphereSunDrawHook.Prefix(out bool outer);
             try
             {
@@ -145,7 +146,7 @@ public sealed class FrameShaderBindingHookTests(HeadlessGLFixture fixture) : Ren
         {
             harmony.UnpatchAll(harmony.Id);FrameShaderBindingHook.ClearUniformCache();
             ShaderProgramBase.CurrentShaderProgram=previous;
-            StateCache.Current.UseProgram(0);
+            OpenGLProgramSelection.Select(StateCache.Current, 0);
         }
     }
 
@@ -211,7 +212,7 @@ public sealed class FrameShaderBindingHookTests(HeadlessGLFixture fixture) : Ren
             ConfigModSystem.Config.ShadingQuality=previousQuality;
             MicrofacetEnergyLookup.Prepare();
             harmony.UnpatchAll(harmony.Id);FrameShaderBindingHook.ClearUniformCache();
-            ShaderProgramBase.CurrentShaderProgram=previousProgram;StateCache.Current.UseProgram(0);
+            ShaderProgramBase.CurrentShaderProgram=previousProgram;OpenGLProgramSelection.Select(StateCache.Current, 0);
         }
     }
     #endregion

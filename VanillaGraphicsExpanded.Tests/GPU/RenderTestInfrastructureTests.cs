@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
@@ -122,7 +123,7 @@ public class RenderTestInfrastructureTests : RenderTestBase
         gBuffer.Bind();
         AssertNoGLError("Bind");
         
-        gBuffer.Clear(1.0f, 0.5f, 0.25f, 1.0f);
+        FramebufferTestSetup.ClearAttachments(gBuffer, 1.0f, 0.5f, 0.25f, 1.0f);
         AssertNoGLError("Clear");
         
         GpuFramebuffer.Unbind();
@@ -158,8 +159,8 @@ public class RenderTestInfrastructureTests : RenderTestBase
 
         using var gBuffer = CreateRenderTarget(64, 64, PixelInternalFormat.Rgba16f);
         
-        gBuffer.BindWithViewport();
-        gBuffer.Clear(0f, 0f, 0f, 0f);
+        FramebufferTestSetup.BindForEngineRendering(gBuffer);
+        FramebufferTestSetup.ClearAttachments(gBuffer, 0f, 0f, 0f, 0f);
 
         RenderFullscreenQuad(programId);
         AssertNoGLError("RenderFullscreenQuad");
@@ -193,7 +194,7 @@ public class RenderTestInfrastructureTests : RenderTestBase
         
         // Clear to a known color
         gBuffer.Bind();
-        gBuffer.Clear(0.25f, 0.5f, 0.75f, 1.0f);
+        FramebufferTestSetup.ClearAttachments(gBuffer, 0.25f, 0.5f, 0.75f, 1.0f);
         GpuFramebuffer.Unbind();
 
         var pixels = ReadPixelsFloat(gBuffer);
@@ -217,7 +218,7 @@ public class RenderTestInfrastructureTests : RenderTestBase
         
         // Clear to a known color (roughly 64, 128, 192, 255 in byte values)
         gBuffer.Bind();
-        gBuffer.Clear(0.25f, 0.5f, 0.75f, 1.0f);
+        FramebufferTestSetup.ClearAttachments(gBuffer, 0.25f, 0.5f, 0.75f, 1.0f);
         GpuFramebuffer.Unbind();
 
         var pixels = ReadPixelsByte(gBuffer);
@@ -238,7 +239,7 @@ public class RenderTestInfrastructureTests : RenderTestBase
 
         using var gBuffer = CreateRenderTarget(8, 8, PixelInternalFormat.Rgba16f);
         gBuffer.Bind();
-        gBuffer.Clear(0.1f, 0.2f, 0.3f, 0.4f);
+        FramebufferTestSetup.ClearAttachments(gBuffer, 0.1f, 0.2f, 0.3f, 0.4f);
         GpuFramebuffer.Unbind();
 
         var (r, g, b, a) = ReadPixel(gBuffer, 4, 4);

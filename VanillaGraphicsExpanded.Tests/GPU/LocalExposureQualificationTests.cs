@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.ShaderCompilation;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Diagnostics;
 using System.Numerics;
@@ -54,7 +55,7 @@ public sealed class LocalExposureQualificationTests(HeadlessGLFixture fixture, I
             final.SceneImage = source; final.LocalBase = baseImage;
             final.Capture(false, new(controls, Vector4.Zero, Vector4.Zero), new(ev, 1, 0, MathF.Log2(.18f))); final.CaptureLocal(policy);
             var pipeline = draw.Prepare(final,target.PostprocessPass());
-            Submit(draw, pipeline, target);
+            Submit(draw, pipeline, target,final.CaptureBindings());
             float[] actual = target[0].ReadPixels(); double worst = 0, minStops = 0, maxStops = 0;
             double[] corrections = new double[pixels.Length];
             for (int i = 0; i < pixels.Length; i++)
@@ -112,19 +113,25 @@ public sealed class LocalExposureQualificationTests(HeadlessGLFixture fixture, I
             program.Capture(false, new(new(1, 1, 1, 0), Vector4.Zero, Vector4.Zero), new(6, 1, 0, MathF.Log2(.18f))); program.CaptureLocal(policy);
         }
         var globalPipeline = draw.Prepare(baseline,target.PostprocessPass()); var localPipeline = draw.Prepare(final,target.PostprocessPass());
-        Action global = () => Submit(draw, globalPipeline, target);
-        Action local = () => { owner.Render(Programs.Api, source, policy); Submit(draw, localPipeline, target); };
-        Action finalOnly = () => Submit(draw, localPipeline, target);
+        Action global = () => Submit(draw, globalPipeline, target,final.CaptureBindings());
+        Action local = () => { owner.Render(Programs.Api, source, policy); Submit(draw, localPipeline, target,final.CaptureBindings()); };
+        Action finalOnly = () => Submit(draw, localPipeline, target,final.CaptureBindings());
         Action spatialOnly = () => owner.Render(Programs.Api, source, policy);
-        Assert.True(GpuComputePipeline.TryCreateFromAssets(Programs.Api, LocalExposureReduceProgram.Contract.Identity, out var reducePipeline, out _, out _, preferSpirv: true));
+        Assert.True(ComputeShaderAsset.TryCreateFromAssets(api: Programs.Api,
+            settings: new global::VanillaGraphicsExpanded.Rendering.Contracts.ShaderSettings(global::VanillaGraphicsExpanded.Rendering.Contracts.GpuShaderContracts.Registry.FindProgram(LocalExposureReduceProgram.Contract.Identity)),
+            pipeline: out var reducePipeline,
+            infoLog: out _));
         using var reduce = new LocalExposureReduceProgram(reducePipeline!); Assert.True(reduce.EnsureReady());
-        Assert.True(GpuComputePipeline.TryCreateFromAssets(Programs.Api, LocalExposureFilterProgram.Contract.Identity, out var filterPipeline, out _, out _, preferSpirv: true));
+        Assert.True(ComputeShaderAsset.TryCreateFromAssets(api: Programs.Api,
+            settings: new global::VanillaGraphicsExpanded.Rendering.Contracts.ShaderSettings(global::VanillaGraphicsExpanded.Rendering.Contracts.GpuShaderContracts.Registry.FindProgram(LocalExposureFilterProgram.Contract.Identity)),
+            pipeline: out var filterPipeline,
+            infoLog: out _));
         using var filter = new LocalExposureFilterProgram(filterPipeline!); Assert.True(filter.EnsureReady());
         using var inputs = new LocalExposureInputs(); inputs.Capture(1);
         reduce.FrameLightingInputs = lighting.Buffer; reduce.SceneRadiance = source;
-        reduce.LogOutput = new(owner.Logarithms, TextureAccess.WriteOnly, Format: SizedInternalFormat.Rg32f);
+        reduce.LogOutput = new(owner.Logarithms, ImageAccess.WriteOnly, Format: TextureFormat.Rg32f);
         filter.Inputs = inputs; filter.LogImage = owner.Logarithms;
-        filter.BaseOutput = new(spatial, TextureAccess.WriteOnly, Format: SizedInternalFormat.Rg32f);
+        filter.BaseOutput = new(spatial, ImageAccess.WriteOnly, Format: TextureFormat.Rg32f);
         Action reduceOnly = () => { reduce.Dispatch(32, 18); RHICommandContext.Current.Barrier(new(ResourceAccess.Image | ResourceAccess.TextureFetch)); };
         Action filterOnly = () => { filter.Dispatch(32, 18); RHICommandContext.Current.Barrier(new(ResourceAccess.Image | ResourceAccess.TextureFetch)); };
         for (int i = 0; i < 3; i++) { global(); local(); } GL.Finish();
@@ -152,8 +159,12 @@ public sealed class LocalExposureQualificationTests(HeadlessGLFixture fixture, I
         PixelInternalFormat.Rgba32f, pixels.SelectMany(c => new[] { c.X * scale, c.Y * scale, c.Z * scale, 1f }).ToArray());
 
     /// <summary>Submits the prepared production display executable through its restoring boundary.</summary>
-    private static void Submit(PostprocessDraw draw, GraphicsPipeline pipeline, GpuFramebuffer target) =>
-        Assert.True(GraphicsCommandContext.TryRun("Tests.LocalQualification.Final", [pipeline], true, commands => draw.Submit(commands, pipeline,target.PostprocessPass())));
+    private static void Submit(PostprocessDraw draw, RHIGraphicsPipeline pipeline, GpuFramebuffer target, RHIResourceBindings inputs)
+        {
+    var commands=RHICommandContext.Current;
+    using var scope61=commands.EnterBoundary(new("Tests.LocalQualification.Final",true,graphics:System.Linq.Enumerable.Select<RHIGraphicsPipeline,RHIGraphicsPipelineRef>([pipeline],value=>value),operations:BoundaryOperations.RenderPasses));
+    scope61.Run(()=>draw.Submit(commands, pipeline,target.PostprocessPass(),inputs));
+}
 
     /// <summary>Uses independent timestamp objects around completed GPU work, excluding blocking result waits from host submission.</summary>
     private static (double Gpu, double Cpu) Measure(Action submit)

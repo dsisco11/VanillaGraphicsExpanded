@@ -1,3 +1,5 @@
+using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
+using VanillaGraphicsExpanded.Rendering.RHI;
 using SceneColor = VanillaGraphicsExpanded.PBR.SceneColor;
 using VanillaGraphicsExpanded.PBR;
 using System;
@@ -139,23 +141,32 @@ internal sealed class DirectLightingReferenceRenderer : IRenderer, IDisposable
 
         // Bind output MRT FBO
         StateCache.Current.Apply(LightingPipeline);
-        var target = isolated?.Framebuffer ?? bufferManager.DirectLightingFbo!;
-        target.BindWithViewport();
-        target.Clear(0, 0, 0, 0);
+        var radiance = isolated?.Radiance ?? bufferManager.Radiance!;
+        using var diffuse = GpuFramebufferAttachment.FromTexture(radiance, layer: 0);
+        using var specular = GpuFramebufferAttachment.FromTexture(radiance, layer: 1);
+        using var emission = GpuFramebufferAttachment.FromTexture(radiance, layer: 2);
+        using var target = DynamicGpuFramebuffer.Create([diffuse, specular, emission])!;
+        FramebufferTestSetup.BindForEngineRendering(target);
+        for (int output=0; output<3; output++) OpenTK.Graphics.OpenGL.GL.ClearBuffer(OpenTK.Graphics.OpenGL.ClearBuffer.Color,output,new float[4]);
 
 
 
         // Bind input textures
-        shader.PrimaryScene = primaryFb.ColorTextureIds[0];
-        shader.PrimaryDepth = SceneColor.SceneColorParticleCapture.ReceiverDepth(capi, primaryFb.DepthTextureId);
+        using var primaryColor = new BorrowedTexture(primaryFb.ColorTextureIds[0]);
+        using var primaryDepth = new BorrowedTexture(primaryFb.DepthTextureId);
+        shader.PrimaryScene = primaryColor;
+        shader.PrimaryDepth = SceneColor.SceneColorParticleCapture.ReceiverDepth(capi, primaryDepth);
         shader.GBufferSurface = gBufferManager.SurfaceTexture;
-        shader.GBufferPosition = gBufferManager.PositionTextureId;
+        using var position = new BorrowedTexture(gBufferManager.PositionTextureId);
+        shader.GBufferPosition = position;
 
         // Shadow maps (depth textures)
         var shadowNearFb = capi.Render.FrameBuffers[(int)EnumFrameBuffer.ShadowmapNear];
         var shadowFarFb = capi.Render.FrameBuffers[(int)EnumFrameBuffer.ShadowmapFar];
-        if (shadowNearFb != null) shader.ShadowMapNear = shadowNearFb.DepthTextureId;
-        if (shadowFarFb != null) shader.ShadowMapFar = shadowFarFb.DepthTextureId;
+        using var shadowNear = shadowNearFb is null ? null : new BorrowedTexture(shadowNearFb.DepthTextureId);
+        using var shadowFar = shadowFarFb is null ? null : new BorrowedTexture(shadowFarFb.DepthTextureId);
+        shader.ShadowMapNear = shadowNear;
+        shader.ShadowMapFar = shadowFar;
 
         // Matrices
         using var frameCamera = TestFrameCamera.CreateFromInverseView(invProjectionMatrix, invModelViewMatrix, target.Width, target.Height,
@@ -188,7 +199,9 @@ internal sealed class DirectLightingReferenceRenderer : IRenderer, IDisposable
         using var cpuScope = Profiler.BeginScope("PBR.DirectLighting", "Render");
         using (GlGpuProfiler.Instance.Scope("PBR.DirectLighting"))
         {
-            scope.Activate(shader);
+            using var bindingPipeline = ShaderBindingTestPipeline.Create(shader);
+            RHICommandContext.Current.SetPipeline(bindingPipeline);
+            RHICommandContext.Current.BindResources(shader.CaptureBindings());
             capi.Render.RenderMesh(quadMeshRef);
         }
 

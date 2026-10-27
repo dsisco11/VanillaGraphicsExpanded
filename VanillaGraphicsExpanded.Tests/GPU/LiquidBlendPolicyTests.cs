@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.PBR.Liquids;
 using VanillaGraphicsExpanded.Rendering;
@@ -31,18 +32,20 @@ public sealed class LiquidBlendPolicyTests(HeadlessGLFixture fixture) : RenderTe
     {
         EnsureContextValid(); using var programs = new ComponentShaderPrograms(); var shader = programs.Create<BlendProgram>();
         using var target = CreateMRTRenderTarget(1, 1, PixelInternalFormat.Rgba32f, PixelInternalFormat.Rgba32f);
-        using var lifetime = new GraphicsPipelineLifetime();
-        using var pipeline = new GraphicsPipeline(lifetime, new(shader.GraphicsIdentity!, new([]),
-            new([new(PixelInternalFormat.Rgba32f), new(PixelInternalFormat.Rgba32f)]), DynamicPipelineState.Viewport,
-            blending: [output < 6 ? LiquidPipelineStates.SurfaceBlending[output] : LiquidPipelineStates.VolumeBlending[output - 6], new()]), shader);
-        using var geometry = new ArrayGraphicsGeometry(new([]), PrimitiveType.Triangles, new Dictionary<int, GpuVbo>(), 3);
-        Assert.True(GraphicsCommandContext.TryRun("LiquidBlendPolicy", [pipeline], true, commands =>
+        using var pipeline = RHICommandContext.Current.CreateGraphicsPipeline(new(shader.Shader, new([]),
+            new([new(TextureFormat.Rgba32f), new(TextureFormat.Rgba32f)]), DynamicPipelineState.Viewport,
+            blending: [output < 6 ? LiquidPipelineStates.SurfaceBlending[output] : LiquidPipelineStates.VolumeBlending[output - 6], new()])).RequireResource();
+        using var geometry = new ArrayGraphicsGeometry(new([]), PrimitiveTopology.Triangles, new Dictionary<int, GpuVbo>(), 3);
         {
+    var commands=RHICommandContext.Current;
+    using var scope60=commands.EnterBoundary(new("LiquidBlendPolicy",true,graphics:System.Linq.Enumerable.Select<RHIGraphicsPipeline,RHIGraphicsPipelineRef>([pipeline],value=>value),operations:BoundaryOperations.RenderPasses));
+    scope60.Run(()=>{
             var clear = ColorClearValue.Float(.2f, .4f, .6f, .8f);
-            commands.BeginPass(new(target, [new(0, AttachmentLoad.Clear, Clear: clear), new(1)]));
+            commands.BeginRenderPass(FramebufferTestSetup.DescribeAttachments(target, [new(AttachmentIndex:0, Load:AttachmentLoad.Clear, Clear: clear), new(AttachmentIndex:1)]));
             commands.SetPipeline(pipeline); commands.SetDynamicState(new() { Viewport = commands.PassViewport });
-            commands.Draw(geometry, new(0, 3));
-        }));
+            commands.Draw(geometry.Inputs, new(0, 3));
+        });
+}
         var actual = target[0].ReadPixels(); var expected = new[] { red, green, blue, alpha };
         for (int channel = 0; channel < 4; channel++) Assert.InRange(actual[channel], expected[channel] - .0001f, expected[channel] + .0001f);
         Assert.Equal(ErrorCode.NoError, GL.GetError());
@@ -56,7 +59,7 @@ public sealed class LiquidBlendPolicyTests(HeadlessGLFixture fixture) : RenderTe
         /// <summary>Creates the component shader owner.</summary>
         public BlendProgram() { }
         /// <summary>The fixture has no resource or parameter inputs to publish.</summary>
-        protected override void Submit() { }
+        protected override VanillaGraphicsExpanded.Rendering.RHI.RHIResourceBindings CaptureBindingsCore() => new(Shader);
         /// <summary>Declares the already packaged red/half-alpha outputs.</summary>
         internal override GpuShaderContract ProgramContract => FramebufferBlendShaderProgram.Contract;
     }

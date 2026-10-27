@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using System.Linq;
 using OpenTK.Graphics.OpenGL;
@@ -27,7 +28,7 @@ internal sealed class GraphicsStateRelevance
     /// <summary>Derives without native queries; absent emitted-primitive metadata takes the conservative path.</summary>
     /// <remarks>Current dynamic values do not select relevance. Future dynamic selectors must declare
     /// their potential union before boundary entry and resolve operation groups before application.</remarks>
-    internal static GraphicsStateRelevance Derive(GraphicsPipelineDesc description, GraphicsCapabilities capabilities,
+    internal static GraphicsStateRelevance Derive(RHIGraphicsPipelineDescription description, GraphicsCapabilities capabilities,
         GraphicsExecutableInterface? executable = null)
     {
         ArgumentNullException.ThrowIfNull(description);
@@ -39,8 +40,8 @@ internal sealed class GraphicsStateRelevance
 
     #region Private
     #region Derivation
-    /// <summary>Builds separate category groups and expands global blend aliases without touching the shared cache.</summary>
-    private GraphicsStateRelevance(GraphicsPipelineDesc description, GraphicsCapabilities caps,
+    /// <summary>Builds relevance from validated immutable inputs without repeating validation or touching the shared cache.</summary>
+    internal GraphicsStateRelevance(RHIGraphicsPipelineDescription description, GraphicsCapabilities caps,
         GraphicsExecutableInterface? executable)
     {
         var depth = description.DepthStencil;
@@ -75,7 +76,7 @@ internal sealed class GraphicsStateRelevance
         Assembly = PrimitiveAssemblyStateKnowledge.PrimitiveRestart;
         if (caps.FixedIndexRestart) Assembly |= PrimitiveAssemblyStateKnowledge.PrimitiveRestartFixedIndex;
         if (assembly.Restart && !assembly.FixedIndexRestart) Assembly |= PrimitiveAssemblyStateKnowledge.RestartIndex;
-        if (assembly.Topology == PrimitiveType.Patches) Assembly |= PrimitiveAssemblyStateKnowledge.PatchVertices;
+        if (assembly.Topology == PrimitiveTopology.Patches) Assembly |= PrimitiveAssemblyStateKnowledge.PatchVertices;
 
         var outputs = new BlendStateKnowledge[description.Targets.Colors.Count];
         for (int slot = 0; slot < outputs.Length; slot++)
@@ -88,33 +89,33 @@ internal sealed class GraphicsStateRelevance
             outputs[slot] |= BlendStateKnowledge.Enabled;
             if (!blend.Enabled) continue;
             var payload = BlendStateKnowledge.Equations;
-            bool rgb = PipelineCanonicalization.UsesFactors(blend.RgbEquation);
-            bool alpha = PipelineCanonicalization.UsesFactors(blend.AlphaEquation);
+            bool rgb = PipelineBlendSemantics.UsesFactors(blend.RgbEquation);
+            bool alpha = PipelineBlendSemantics.UsesFactors(blend.AlphaEquation);
             if (rgb || alpha) payload |= BlendStateKnowledge.Factors;
             if (caps.IndependentBlend) outputs[slot] |= payload;
             else GlobalBlend |= payload; // Global factor/equation calls write every native output slot.
-            if (rgb && (IsConstant((int)blend.SourceRgb) || IsConstant((int)blend.DestinationRgb))
-                || alpha && (IsConstant((int)blend.SourceAlpha) || IsConstant((int)blend.DestinationAlpha)))
+            if (rgb && (PipelineBlendSemantics.UsesConstant(blend.SourceRgb) || PipelineBlendSemantics.UsesConstant(blend.DestinationRgb))
+                || alpha && (PipelineBlendSemantics.UsesConstant(blend.SourceAlpha) || PipelineBlendSemantics.UsesConstant(blend.DestinationAlpha)))
                 Dynamic |= DynamicDrawStateKnowledge.BlendConstant;
         }
         Blending = new(outputs);
     }
 
     /// <summary>Uses existing verified tessellation metadata; geometry output is not currently retained.</summary>
-    private static PrimitiveKinds ResolvePrimitives(GraphicsPipelineDesc description, GraphicsExecutableInterface? executable)
+    private static PrimitiveKinds ResolvePrimitives(RHIGraphicsPipelineDescription description, GraphicsExecutableInterface? executable)
     {
-        var stages = description.Shader.Stages;
-        if (stages.Any(s => s.Stage.Kind == ShaderStageKind.Geometry)) return PrimitiveKinds.All;
-        bool tessellation = stages.Any(s => s.Stage.Kind == ShaderStageKind.TessellationEvaluation);
+        var stages = description.Shader.Describe().Stages;
+        if (stages.Any(s => s.Stage == ShaderStage.Geometry)) return PrimitiveKinds.All;
+        bool tessellation = stages.Any(s => s.Stage == ShaderStage.TessellationEvaluation);
         if (tessellation && executable?.TessellationOutput is null) return PrimitiveKinds.All;
         var topology = tessellation ? executable!.TessellationOutput!.Value : description.Assembly.Topology;
         return topology switch
         {
-            PrimitiveType.Points => PrimitiveKinds.Points,
-            PrimitiveType.Lines or PrimitiveType.LineStrip or PrimitiveType.LineLoop
-                or PrimitiveType.LinesAdjacency or PrimitiveType.LineStripAdjacency => PrimitiveKinds.Lines,
-            PrimitiveType.Triangles or PrimitiveType.TriangleStrip or PrimitiveType.TriangleFan
-                or PrimitiveType.TrianglesAdjacency or PrimitiveType.TriangleStripAdjacency => PrimitiveKinds.Polygons,
+            PrimitiveTopology.Points => PrimitiveKinds.Points,
+            PrimitiveTopology.Lines or PrimitiveTopology.LineStrip or PrimitiveTopology.LineLoop
+                or PrimitiveTopology.LinesAdjacency or PrimitiveTopology.LineStripAdjacency => PrimitiveKinds.Lines,
+            PrimitiveTopology.Triangles or PrimitiveTopology.TriangleStrip or PrimitiveTopology.TriangleFan
+                or PrimitiveTopology.TrianglesAdjacency or PrimitiveTopology.TriangleStripAdjacency => PrimitiveKinds.Polygons,
             _ => PrimitiveKinds.All
         };
     }
@@ -124,8 +125,8 @@ internal sealed class GraphicsStateRelevance
         GraphicsCapabilities caps)
     {
         bool polygons = primitives.HasFlag(PrimitiveKinds.Polygons);
-        bool lines = primitives.HasFlag(PrimitiveKinds.Lines) || polygons && raster.PolygonMode == PolygonMode.Line;
-        bool points = primitives.HasFlag(PrimitiveKinds.Points) || polygons && raster.PolygonMode == PolygonMode.Point;
+        bool lines = primitives.HasFlag(PrimitiveKinds.Lines) || polygons && raster.PolygonMode == RasterizerFillMode.Line;
+        bool points = primitives.HasFlag(PrimitiveKinds.Points) || polygons && raster.PolygonMode == RasterizerFillMode.Point;
         var groups = RasterizerStateKnowledge.ScissorEnabled | RasterizerStateKnowledge.ProvokingVertex
             | RasterizerStateKnowledge.ClipDistances | RasterizerStateKnowledge.RasterizerDiscard;
         if (caps.ClipControl) groups |= RasterizerStateKnowledge.ClipControl;
@@ -134,18 +135,18 @@ internal sealed class GraphicsStateRelevance
         {
             groups |= RasterizerStateKnowledge.CullEnabled | RasterizerStateKnowledge.FrontFace
                 | RasterizerStateKnowledge.PolygonModes;
-            if (raster.PolygonMode == PolygonMode.Fill) groups |= RasterizerStateKnowledge.PolygonSmooth;
+            if (raster.PolygonMode == RasterizerFillMode.Fill) groups |= RasterizerStateKnowledge.PolygonSmooth;
             if (raster.Cull) groups |= RasterizerStateKnowledge.CullMode;
             var offset = raster.PolygonMode switch
             {
-                PolygonMode.Line => RasterizerStateKnowledge.PolygonOffsetLine,
-                PolygonMode.Point => RasterizerStateKnowledge.PolygonOffsetPoint,
+                RasterizerFillMode.Line => RasterizerStateKnowledge.PolygonOffsetLine,
+                RasterizerFillMode.Point => RasterizerStateKnowledge.PolygonOffsetPoint,
                 _ => RasterizerStateKnowledge.PolygonOffsetFill
             };
             groups |= offset;
-            if (raster.PolygonMode == PolygonMode.Fill && raster.OffsetFill
-                || raster.PolygonMode == PolygonMode.Line && raster.OffsetLine
-                || raster.PolygonMode == PolygonMode.Point && raster.OffsetPoint)
+            if (raster.PolygonMode == RasterizerFillMode.Fill && raster.OffsetFill
+                || raster.PolygonMode == RasterizerFillMode.Line && raster.OffsetLine
+                || raster.PolygonMode == RasterizerFillMode.Point && raster.OffsetPoint)
                 groups |= RasterizerStateKnowledge.PolygonOffset;
         }
         if (lines)
@@ -160,10 +161,6 @@ internal sealed class GraphicsStateRelevance
         return groups;
     }
 
-    /// <summary>Recognizes native constant factors without confusing their source/destination enum wrappers.</summary>
-    private static bool IsConstant(int factor) => factor is
-        (int)BlendingFactorSrc.ConstantColor or (int)BlendingFactorSrc.OneMinusConstantColor
-        or (int)BlendingFactorSrc.ConstantAlpha or (int)BlendingFactorSrc.OneMinusConstantAlpha;
     #endregion
     #endregion
 

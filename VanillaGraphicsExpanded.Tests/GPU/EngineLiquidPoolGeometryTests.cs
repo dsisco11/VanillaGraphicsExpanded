@@ -27,37 +27,39 @@ public sealed class EngineLiquidPoolGeometryTests(HeadlessGLFixture fixture) : R
         EnsureContextValid();
         using var storage = new LiquidPoolStorage(); using var geometry = new EngineLiquidPoolGeometry(storage.Pool);
         using var programs = new ComponentShaderPrograms(); var shader = programs.Create<RasterDepthReductionShaderProgram>();
-        using var lifetime = new GraphicsPipelineLifetime();
-        using var pipeline = new GraphicsPipeline(lifetime, new(shader.GraphicsIdentity!, EngineLiquidPoolGeometry.Layout,
-            new([new(PixelInternalFormat.R32f)]), DynamicPipelineState.Viewport), shader);
+        using var pipeline = RHICommandContext.Current.CreateGraphicsPipeline(new(shader.Shader, EngineLiquidPoolGeometry.Layout,
+            new([new(TextureFormat.R32f)]), DynamicPipelineState.Viewport)).RequireResource();
         using var source = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Width = 2, Height = 2, Format = TextureFormat.R32f, MipLevels = 1, Storage = ResourceStorageMode.Mutable, BaseLevel = 0, MaxLevel = 0, Filter = TextureFilterMode.Nearest, Label = null }, [new RHITextureInitialData(new(new(), 0, 0, 0, 2, 2), VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLPixelValues.Encoding(TextureFormatHelper.GetPixelFormat(PixelInternalFormat.R32f), OpenTK.Graphics.OpenGL.PixelType.Float), System.Runtime.InteropServices.MemoryMarshal.AsBytes((new float[] { .2f, .4f, .6f, .8f }).AsSpan()).ToArray())]).RequireResource();
         using var target = CreateRenderTarget(1, 1, PixelInternalFormat.R32f);
         shader.HzbDepth = source; shader.SrcMip = 0;
-        Assert.True(GraphicsCommandContext.TryRun("LiquidPoolFixture", [pipeline], true, commands =>
         {
-            commands.BeginPass(new(target, [new(0)])); commands.SetPipeline(pipeline);
-            commands.SetDynamicState(new() { Viewport = commands.PassViewport }); commands.Draw(geometry, new(0, 1));
+    var commands=RHICommandContext.Current;
+    using var scope29=commands.EnterBoundary(new("LiquidPoolFixture",true,graphics:System.Linq.Enumerable.Select<RHIGraphicsPipeline,RHIGraphicsPipelineRef>([pipeline],value=>value),operations:BoundaryOperations.RenderPasses));
+    scope29.Run(()=>{
+            commands.BeginRenderPass(FramebufferTestSetup.DescribeAttachments(target, [new(AttachmentIndex:0)])); commands.SetPipeline(pipeline);
+            commands.SetDynamicState(new() { Viewport = commands.PassViewport }); commands.BindResources(shader.CaptureBindings()); commands.DrawIndexedBatch(geometry.Inputs, geometry.CaptureDraws());
 #if DEBUG
             long draws = StateCache.Current.DrawSubmissions, queries = StateCache.Current.BoundaryQueries;
 #endif
-            commands.Draw(geometry, new(0, 1));
+            commands.DrawIndexedBatch(geometry.Inputs, geometry.CaptureDraws());
 #if DEBUG
             Assert.Equal(queries, StateCache.Current.BoundaryQueries);
 #endif
             storage.Pool.indicesStartsByte[1] = 1;
-            Assert.ThrowsAny<Exception>(() => commands.Draw(geometry, new(0, 1)));
+            Assert.ThrowsAny<Exception>(() => commands.DrawIndexedBatch(geometry.Inputs, geometry.CaptureDraws()));
             storage.Pool.indicesStartsByte[1] = 0; storage.Pool.indicesSizes[0] = 6;
-            Assert.ThrowsAny<Exception>(() => commands.Draw(geometry, new(0, 1)));
+            Assert.ThrowsAny<Exception>(() => commands.DrawIndexedBatch(geometry.Inputs, geometry.CaptureDraws()));
             storage.Pool.indicesSizes[0] = 3; storage.Location.VerticesEnd = 4;
-            Assert.ThrowsAny<Exception>(() => commands.Draw(geometry, new(0, 1)));
+            Assert.ThrowsAny<Exception>(() => commands.DrawIndexedBatch(geometry.Inputs, geometry.CaptureDraws()));
             storage.Location.VerticesEnd = 3;
 #if DEBUG
             Assert.Equal(draws + 1, StateCache.Current.DrawSubmissions);
 #endif
-        }));
+        });
+}
         Assert.InRange(target[0].ReadPixels()[0], .1999f, .2001f);
         int original = storage.Mesh.customDataIntVboId; storage.Mesh.customDataIntVboId = 0;
-        Assert.False(geometry.IsCurrent); Assert.Throws<InvalidOperationException>(() => geometry.Validate(pipeline.Description, new(0, 1)));
+        Assert.False(geometry.IsCurrent); Assert.Throws<InvalidOperationException>(() => geometry.Inputs);
         storage.Mesh.customDataIntVboId = original; geometry.Dispose(); Assert.True(GL.IsVertexArray(storage.Mesh.VaoId));
         Assert.False(geometry.IsCurrent); Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
@@ -112,7 +114,7 @@ public sealed class EngineLiquidPoolGeometryTests(HeadlessGLFixture fixture) : R
     public void SignedIntegerAttributeRejectsPublication(int location)
     {
         EnsureContextValid(); using var storage = new LiquidPoolStorage();
-        StateCache.Current.BindVertexArray(storage.Mesh.VaoId);
+        OpenGLVertexSelection.Bind(StateCache.Current, storage.Mesh.VaoId);
         OpenGLBufferBindings.BindBuffer(StateCache.Current, BufferTarget.ArrayBuffer, location == 3 ? storage.Mesh.flagsVboId : storage.Mesh.customDataIntVboId);
         GL.VertexAttribIPointer(location, 1, VertexAttribIntegerType.Int, location == 3 ? 4 : 8, (IntPtr)(location == 6 ? 4 : 0));
         Assert.Throws<InvalidOperationException>(() => new EngineLiquidPoolGeometry(storage.Pool));
@@ -123,7 +125,7 @@ public sealed class EngineLiquidPoolGeometryTests(HeadlessGLFixture fixture) : R
     public void InvalidCustomIntegerStrideRejectsPublication()
     {
         EnsureContextValid(); using var storage = new LiquidPoolStorage();
-        StateCache.Current.BindVertexArray(storage.Mesh.VaoId);
+        OpenGLVertexSelection.Bind(StateCache.Current, storage.Mesh.VaoId);
         OpenGLBufferBindings.BindBuffer(StateCache.Current, BufferTarget.ArrayBuffer, storage.Mesh.customDataIntVboId);
         GL.VertexAttribIPointer(5, 1, VertexAttribIntegerType.UnsignedInt, 0, IntPtr.Zero);
         Assert.Throws<InvalidOperationException>(() => new EngineLiquidPoolGeometry(storage.Pool));
@@ -145,25 +147,25 @@ internal sealed class LiquidPoolStorage : IDisposable
     /// <summary>Configures separate engine streams and the shared interleaved pair of integer attributes.</summary>
     internal LiquidPoolStorage()
     {
-        vao.Bind(); indices.UploadIndices(new uint[] { 0, 1, 2 }); vao.BindElementBuffer(indices);
+        OpenGLVertexSelection.Bind(StateCache.Current, vao.VertexArrayId); indices.UploadIndices(new uint[] { 0, 1, 2 }); OpenTK.Graphics.OpenGL4.GL.VertexArrayElementBuffer(vao.VertexArrayId, indices.BufferId);
         streams[0].UploadData(new float[] { -1, -1, 0, 3, -1, 0, -1, 3, 0 });
         streams[1].UploadData(new float[6]); streams[2].UploadData(Enumerable.Repeat((byte)255, 12).ToArray());
         streams[3].UploadData(new int[3]); streams[4].UploadData(new float[6]); streams[5].UploadData(new int[6]);
         // Describe the installed AllocateEmptyMesh/AddCustoms contract independently of the adapter.
-        VertexAttributeDesc[] nativeAttributes = [
-            new(0, 3, VertexAttribPointerType.Float, VertexInterpretation.Floating, 0, 0, 12),
-            new(1, 2, VertexAttribPointerType.Float, VertexInterpretation.Floating, 1, 0, 8),
-            new(2, 4, VertexAttribPointerType.UnsignedByte, VertexInterpretation.Normalized, 2, 0, 4),
-            new(3, 1, VertexAttribPointerType.UnsignedInt, VertexInterpretation.Integer, 3, 0, 4),
-            new(4, 2, VertexAttribPointerType.Float, VertexInterpretation.Floating, 4, 0, 8),
-            new(5, 1, VertexAttribPointerType.UnsignedInt, VertexInterpretation.Integer, 5, 0, 8),
-            new(6, 1, VertexAttribPointerType.UnsignedInt, VertexInterpretation.Integer, 5, 4, 8)];
+        RHIVertexAttribute[] nativeAttributes = [
+            new(0, 3, VertexComponentFormat.Float, VertexInterpretation.Floating, 0, 0, 12),
+            new(1, 2, VertexComponentFormat.Float, VertexInterpretation.Floating, 1, 0, 8),
+            new(2, 4, VertexComponentFormat.UnsignedByte, VertexInterpretation.Normalized, 2, 0, 4),
+            new(3, 1, VertexComponentFormat.UnsignedInt, VertexInterpretation.Integer, 3, 0, 4),
+            new(4, 2, VertexComponentFormat.Float, VertexInterpretation.Floating, 4, 0, 8),
+            new(5, 1, VertexComponentFormat.UnsignedInt, VertexInterpretation.Integer, 5, 0, 8),
+            new(6, 1, VertexComponentFormat.UnsignedInt, VertexInterpretation.Integer, 5, 4, 8)];
         foreach (var attribute in nativeAttributes)
         {
             OpenGLBufferBindings.BindBuffer(StateCache.Current, BufferTarget.ArrayBuffer, streams[attribute.Binding].BufferId);
             if (attribute.Interpretation == VertexInterpretation.Integer)
                 GL.VertexAttribIPointer(attribute.Location, attribute.Components, VertexAttribIntegerType.UnsignedInt, attribute.Stride, (IntPtr)attribute.Offset);
-            else GL.VertexAttribPointer(attribute.Location, attribute.Components, attribute.Storage,
+            else GL.VertexAttribPointer(attribute.Location, attribute.Components, OpenGLVertexValues.FloatingStorage(attribute.Storage),
                 attribute.Interpretation == VertexInterpretation.Normalized, attribute.Stride, (IntPtr)attribute.Offset);
             GL.EnableVertexAttribArray(attribute.Location);
         }

@@ -47,7 +47,7 @@ public class LumOnVelocityFunctionalTests : LumOnShaderFunctionalTestBase
             historyValid: historyValid);
         var identity=TestFramework.CreateTexture(ScreenWidth,ScreenHeight,PixelInternalFormat.Rgba32ui);
         identity.UploadDataImmediate(new uint[ScreenWidth*ScreenHeight*4]);
-        programId.PatchIdentity=identity.TextureId;
+        programId.PatchIdentity=identity;
 
     }
 
@@ -104,10 +104,10 @@ public class LumOnVelocityFunctionalTests : LumOnShaderFunctionalTestBase
         using var identity=TestFramework.CreateTexture(ScreenWidth,ScreenHeight,PixelInternalFormat.Rgba32ui);
         var ids=new uint[ScreenWidth*ScreenHeight*4];for(int i=3;i<ids.Length;i+=4)ids[i]=(1u<<16)|27u;
         identity.UploadDataImmediate(ids);
-        program.PatchIdentity=identity.TextureId;
+        program.PatchIdentity=identity;
         using var depth=TestFramework.CreateTexture(ScreenWidth,ScreenHeight,PixelInternalFormat.R32f,CreateUniformDepthData(ScreenWidth,ScreenHeight,.5f));
         using var target=TestFramework.CreateTestGBuffer(ScreenWidth,ScreenHeight,PixelInternalFormat.Rgba32f);
-        var matrix=LumOnTestInputFactory.CreateIdentityMatrix();SetupVelocityUniforms(program,matrix,matrix,1);program.PrimaryDepth=depth.TextureId;program.PatchIdentity=identity.TextureId;
+        var matrix=LumOnTestInputFactory.CreateIdentityMatrix();SetupVelocityUniforms(program,matrix,matrix,1);program.PrimaryDepth=depth;program.PatchIdentity=identity;
         Assert.True(program.ProgramLayout.TryGetContractSamplerSpec("gBufferPatchId",out int contractUnit,out bool required));Assert.Equal(1,contractUnit);
         int identityLocation=program.ProgramLayout.GetUniformLocation(program.ProgramId,"gBufferPatchId");
         GL.GetUniform(program.ProgramId,identityLocation,out int identityUnit);Assert.Equal(1,identityUnit);
@@ -138,7 +138,7 @@ public class LumOnVelocityFunctionalTests : LumOnShaderFunctionalTestBase
         temporal.Commit();
         temporal.Capture(current, origin + .0625, 32.125, -origin - .03125);
         SetupVelocityUniforms(program, current, temporal.PreviousViewProjection, historyValid ? 1 : 0);
-        program.PrimaryDepth = depth.TextureId;
+        program.PrimaryDepth = depth;
         TestFramework.RenderQuadTo(program, target);
         var pixels = ReadPixelsFloat(target);
         for (int y = 1; y < ScreenHeight - 1; y++)
@@ -176,7 +176,7 @@ public class LumOnVelocityFunctionalTests : LumOnShaderFunctionalTestBase
 
         SetupVelocityUniforms(programId, invCurr, prev, historyValid: 1);
 
-        programId.PrimaryDepth = depthTex.TextureId;
+        programId.PrimaryDepth = depthTex;
         TestFramework.RenderQuadTo(programId, outRt);
 
         var pixels = ReadPixelsFloat(outRt);
@@ -222,7 +222,7 @@ public class LumOnVelocityFunctionalTests : LumOnShaderFunctionalTestBase
 
         SetupVelocityUniforms(programId, invCurr, prev, historyValid: 1);
 
-        programId.PrimaryDepth = depthTex.TextureId;
+        programId.PrimaryDepth = depthTex;
         TestFramework.RenderQuadTo(programId, outRt);
 
         var pixels = ReadPixelsFloat(outRt);
@@ -263,7 +263,7 @@ public class LumOnVelocityFunctionalTests : LumOnShaderFunctionalTestBase
 
         SetupVelocityUniforms(programId, invCurr, prev, historyValid: 1);
 
-        programId.PrimaryDepth = depthTex.TextureId;
+        programId.PrimaryDepth = depthTex;
         TestFramework.RenderQuadTo(programId, outRt);
 
         var pixels = ReadPixelsFloat(outRt);

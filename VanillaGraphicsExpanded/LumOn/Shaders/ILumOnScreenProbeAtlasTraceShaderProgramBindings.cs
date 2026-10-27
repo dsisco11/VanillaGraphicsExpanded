@@ -22,7 +22,7 @@ internal interface ILumOnScreenProbeAtlasTraceShaderProgramBindings
     GpuTextureRef ProbeAnchors { set; }
     /// <summary>Declares the primaryDepth Sampler slot.</summary>
     [ShaderBinding("primaryDepth", ShaderBindingKind.Sampler, 2, ShaderStageKind.Vertex, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.Texture2D, Sampler = ShaderSamplerPolicy.NearestClamp)]
-    int PrimaryDepth { set; }
+    GpuTextureRef PrimaryDepth { set; }
     /// <summary>Declares the surfaceAlbedo Sampler slot.</summary>
     [ShaderBinding("surfaceAlbedo", ShaderBindingKind.Sampler, 3, ShaderStageKind.Vertex, ShaderStageKind.Fragment)]
     GpuTextureRef SurfaceAlbedo { set; }

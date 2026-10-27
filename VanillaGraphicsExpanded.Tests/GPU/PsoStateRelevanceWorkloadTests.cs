@@ -78,20 +78,22 @@ public sealed class PsoStateRelevanceWorkloadTests(HeadlessGLFixture fixture, IT
         program.AtlasSize = new(8, 8);
         using var image = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Width = 8, Height = 8, Format = TextureFormat.Rgba32f, MipLevels = 1, Storage = ResourceStorageMode.Mutable, BaseLevel = 0, MaxLevel = 0, Filter = TextureFilterMode.Nearest, Label = null }, [new RHITextureInitialData(new(new(), 0, 0, 0, 8, 8), VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLPixelValues.Encoding(TextureFormatHelper.GetPixelFormat(PixelInternalFormat.Rgba32f), OpenTK.Graphics.OpenGL.PixelType.Float), System.Runtime.InteropServices.MemoryMarshal.AsBytes((new float[8 * 8 * 4]).AsSpan()).ToArray())]).RequireResource();
         using var target = DynamicGpuFramebuffer.CreateSingle(image)!;
-        var pass = new RenderPassDesc(target, [new(0)]);
-        using var metadata = new RenderPassTargets(pass);
-        var layout = new VertexLayoutDesc([new(0, 2, VertexAttribPointerType.Float, VertexInterpretation.Floating, 0, 0, 24),
-            new(1, 4, VertexAttribPointerType.Float, VertexInterpretation.Floating, 0, 8, 24)]);
+        var pass = FramebufferTestSetup.DescribeAttachments(target, [new(AttachmentIndex:0)]);
+        var metadata = RHICommandContext.Current.DescribeRenderTargets(pass);
+        var layout = new RHIVertexLayout([new(0, 2, VertexComponentFormat.Float, VertexInterpretation.Floating, 0, 0, 24),
+            new(1, 4, VertexComponentFormat.Float, VertexInterpretation.Floating, 0, 8, 24)]);
         using var buffer = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = null }).RequireResource(); buffer.UploadData(new float[] { 3, 4, .75f, .125f, .5f, 1 });
-        using var geometry = new ArrayGraphicsGeometry(layout, PrimitiveType.Points, new Dictionary<int, GpuVbo> { [0] = buffer });
-        using var lifetime = new GraphicsPipelineLifetime();
-        using var pipeline = new GraphicsPipeline(lifetime, new(program.GraphicsIdentity!, layout, metadata.Signature,
-            DynamicPipelineState.Viewport, assembly: new() { Topology = PrimitiveType.Points }), program);
-        return Measure(() => Assert.True(GraphicsCommandContext.TryRun("Pso.PointResolve", [pipeline], true, commands =>
-        {
-            commands.BeginPass(pass); commands.SetPipeline(pipeline); commands.SetDynamicState(new() { Viewport = commands.PassViewport });
-            commands.Draw(geometry, new(0, 1)); commands.EndPass();
-        })), () => [image.ReadPixels()]);
+        using var geometry = new ArrayGraphicsGeometry(layout, PrimitiveTopology.Points, new Dictionary<int, GpuVbo> { [0] = buffer });
+        using var pipeline = RHICommandContext.Current.CreateGraphicsPipeline(new(program.Shader, layout, metadata,
+            DynamicPipelineState.Viewport, assembly: new() { Topology = PrimitiveTopology.Points })).RequireResource();
+        return Measure(() => {
+    var commands=RHICommandContext.Current;
+    using var scope73=commands.EnterBoundary(new("Pso.PointResolve",true,graphics:System.Linq.Enumerable.Select<RHIGraphicsPipeline,RHIGraphicsPipelineRef>([pipeline],value=>value),operations:BoundaryOperations.RenderPasses));
+    scope73.Run(()=>{
+            commands.BeginRenderPass(pass); commands.SetPipeline(pipeline); commands.SetDynamicState(new() { Viewport = commands.PassViewport });
+            commands.Draw(geometry.Inputs, new(0, 1)); commands.EndRenderPass();
+        });
+}, () => [image.ReadPixels()]);
     }
     #endregion
 

@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.ShaderCompilation;
 using System;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Contracts;
@@ -20,7 +21,7 @@ internal sealed partial class CloudVolumePublishProgram:GpuComputeProgram,ICloud
     internal static CloudVolumePublishProgram Create(ICoreAPI api,int operation,PackedUniformBuffer shared)
     {
         var layout=new GpuProgramLayout();layout.RegisterContract(Contract.Stages[0].Bindings);
-        if(!GpuComputePipeline.TryCreateFromAssets(api,new ShaderSettings(Contract).With(Operation,operation),out var pipeline,out string log,
+        if(!ComputeShaderAsset.TryCreateFromAssets(api,new ShaderSettings(Contract).With(Operation,operation),out var pipeline,out string log,
             "Cloud.Volume.Publish",layout:layout))throw new InvalidOperationException(log);
         return new(pipeline!,shared);
     }
@@ -33,7 +34,7 @@ internal sealed partial class CloudVolumePublishProgram:GpuComputeProgram,ICloud
     #endregion
     #region Private
     /// <summary>Borrows the owner's shared publication record for one compiled operation.</summary>
-    private CloudVolumePublishProgram(GpuComputePipeline pipeline,PackedUniformBuffer shared):base(pipeline)=>inputs=shared;
+    private CloudVolumePublishProgram(ComputeShaderAsset pipeline,PackedUniformBuffer shared):base(pipeline)=>inputs=shared;
     /// <summary>Publishes the frozen copy mask.</summary>
     CpuUniformBuffer ICloudVolumePublishBindings.Inputs=>inputs;
     #endregion

@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Contracts;
 
@@ -21,13 +22,13 @@ internal interface ICloudVolumePublishBindings
     GpuTextureRef Diffuse {set;}
     /// <summary>Writes drawable extinction without touching solver storage.</summary>
     [ShaderBinding("targetDensity",ShaderBindingKind.Image,0,ShaderStageKind.Compute,TextureTarget=ShaderTextureTarget.Texture3D)]
-    GpuTextureBinding TargetDensity {set;}
+    RHIImageBinding TargetDensity {set;}
     /// <summary>Writes drawable direct visibility.</summary>
     [ShaderBinding("targetDirect",ShaderBindingKind.Image,1,ShaderStageKind.Compute,TextureTarget=ShaderTextureTarget.Texture3D)]
-    GpuTextureBinding TargetDirect {set;}
+    RHIImageBinding TargetDirect {set;}
     /// <summary>Writes drawable diffuse irradiance.</summary>
     [ShaderBinding("targetDiffuse",ShaderBindingKind.Image,2,ShaderStageKind.Compute,TextureTarget=ShaderTextureTarget.Texture3D)]
-    GpuTextureBinding TargetDiffuse {set;}
+    RHIImageBinding TargetDiffuse {set;}
     /// <summary>Consumes dirty flags only after fenced completion.</summary>
     [ShaderBinding("PublishRegions",ShaderBindingKind.StorageBlock,0,ShaderStageKind.Compute)]
     GpuShaderStorageBuffer? Regions {set;}

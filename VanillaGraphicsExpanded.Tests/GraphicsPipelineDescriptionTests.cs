@@ -1,3 +1,6 @@
+using VanillaGraphicsExpanded.Tests.GPU;
+using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
+using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Contracts;
@@ -6,8 +9,17 @@ using VanillaGraphicsExpanded.Rendering.Pipeline.Descriptions;
 namespace VanillaGraphicsExpanded.Tests;
 
 /// <summary>Exercises immutable graphics description contracts without native graphics state.</summary>
-public sealed class GraphicsPipelineDescriptionTests
+[Collection("GPU")]
+[Trait("Category", "GPU")]
+public sealed class GraphicsPipelineDescriptionTests : IDisposable
 {
+    private readonly ComponentShaderPrograms programs;
+    private readonly RasterDepthReductionShaderProgram program;
+    /// <summary>Supplies a real fixed executable before testing pure descriptions with synthetic device limits.</summary>
+    public GraphicsPipelineDescriptionTests(HeadlessGLFixture fixture)
+    { fixture.MakeCurrent();programs=new();program=programs.Create<RasterDepthReductionShaderProgram>(); }
+    /// <summary>Retires fixture-owned executables after description assertions complete.</summary>
+    public void Dispose()=>programs.Dispose();
     #region Public API
     #region Construction and publication
     /// <summary>Omissions resolve to project defaults and independent inputs produce equal reusable identities.</summary>
@@ -24,14 +36,14 @@ public sealed class GraphicsPipelineDescriptionTests
         Assert.Equal(first.GetHashCode(), second.GetHashCode());
         Assert.False(first.DepthStencil.DepthTest);
         Assert.False(first.DepthStencil.DepthWrite);
-        Assert.Equal(DepthFunction.Less, first.DepthStencil.DepthComparison);
+        Assert.Equal(ComparisonFunction.Less, first.DepthStencil.DepthComparison);
         Assert.Equal(0, first.DepthStencil.DepthRangeNear);
         Assert.Equal(1, first.DepthStencil.DepthRangeFar);
         Assert.False(first.Rasterizer.Cull);
-        Assert.Equal(PolygonMode.Fill, first.Rasterizer.PolygonMode);
+        Assert.Equal(RasterizerFillMode.Fill, first.Rasterizer.PolygonMode);
         Assert.Equal(1, first.Rasterizer.LineWidth);
         Assert.Equal(1, first.Rasterizer.PointSize);
-        Assert.Equal(PrimitiveType.Triangles, first.Assembly.Topology);
+        Assert.Equal(PrimitiveTopology.Triangles, first.Assembly.Topology);
         Assert.True(first.Sampling.Multisample);
         Assert.Equal(uint.MaxValue, first.Sampling.GetMaskWord(0));
         Assert.False(first.Output.FramebufferSrgb);
@@ -44,18 +56,18 @@ public sealed class GraphicsPipelineDescriptionTests
     [Fact]
     public void PublishedCollectionsDoNotAliasCallerStorage()
     {
-        ColorTargetSlot[] colors = [new(PixelInternalFormat.Rgba16f)];
-        VertexAttributeDesc[] attributes = [Attribute()];
+        ColorTargetSlot[] colors = [new(TextureFormat.Rgba16f)];
+        RHIVertexAttribute[] attributes = [Attribute()];
         ColorBlendDesc[] blends = [new()];
         uint[] masks = [0x12345678, uint.MaxValue];
         var pipeline = Create(targets: new(colors), layout: new(attributes), blending: blends,
             sampling: new() { MaskEnabled = true, Masks = new(masks) });
         int hash = pipeline.GetHashCode();
-        colors[0] = new(PixelInternalFormat.Rgba32f);
+        colors[0] = new(TextureFormat.Rgba32f);
         attributes[0] = Attribute() with { Location = 2 };
         blends[0] = new() { WriteRed = false };
         masks[0] = 0;
-        Assert.Equal(PixelInternalFormat.Rgba16f, pipeline.Targets.Colors[0].Format);
+        Assert.Equal(TextureFormat.Rgba16f, pipeline.Targets.Colors[0].Format);
         Assert.Equal(0, pipeline.VertexLayout.Attributes[0].Location);
         Assert.True(pipeline.Blending[0].WriteRed);
         Assert.Equal(0x12345678u, pipeline.Sampling.GetMaskWord(0));
@@ -68,14 +80,14 @@ public sealed class GraphicsPipelineDescriptionTests
     public void DisabledValuesRetainAuthoredIntentAndIdentity()
     {
         var baseline = Create();
-        GraphicsPipelineDesc[] dormant = [
-            Create(depth: new() { DepthComparison = DepthFunction.Greater }),
-            Create(depth: new() { Front = new() { Pass = StencilOp.Replace } }),
+        RHIGraphicsPipelineDescription[] dormant = [
+            Create(depth: new() { DepthComparison = ComparisonFunction.Greater }),
+            Create(depth: new() { Front = new() { Pass = StencilOperation.Replace } }),
             Create(depth: new() { Back = new() { WriteMask = 15 } }),
-            Create(rasterizer: new() { CullMode = CullFaceMode.Front }),
+            Create(rasterizer: new() { CullMode = RasterizerCullMode.Front }),
             Create(rasterizer: new() { DepthBiasFactor = 3 }),
-            Create(blending: [new() { SourceRgb = BlendingFactorSrc.SrcAlpha }]),
-            Create(blending: [new() { RgbEquation = BlendEquationMode.Min }]),
+            Create(blending: [new() { SourceRgb = BlendFactor.SourceAlpha }]),
+            Create(blending: [new() { RgbEquation = BlendOperation.Minimum }]),
             Create(sampling: new() { Coverage = .3f }),
             Create(sampling: new() { CoverageInvert = true }),
             Create(sampling: new() { MinimumSampleShading = .5f }),
@@ -87,16 +99,16 @@ public sealed class GraphicsPipelineDescriptionTests
             Assert.NotEqual(baseline, authored);
             Assert.NotEqual(baseline.GetHashCode(), authored.GetHashCode());
         }
-        var retained = Create(rasterizer: new() { CullMode = CullFaceMode.Front, DepthBiasFactor = 3 },
-            depth: new() { DepthComparison = DepthFunction.Greater, Front = new() { Pass = StencilOp.Replace } },
-            blending: [new() { SourceRgb = BlendingFactorSrc.SrcAlpha }],
+        var retained = Create(rasterizer: new() { CullMode = RasterizerCullMode.Front, DepthBiasFactor = 3 },
+            depth: new() { DepthComparison = ComparisonFunction.Greater, Front = new() { Pass = StencilOperation.Replace } },
+            blending: [new() { SourceRgb = BlendFactor.SourceAlpha }],
             sampling: new() { Coverage = .3f, CoverageInvert = true, MinimumSampleShading = .5f, Masks = new([17u]) },
             assembly: new() { RestartIndex = 17, PatchVertices = 7 });
-        Assert.Equal(DepthFunction.Greater, retained.DepthStencil.DepthComparison);
-        Assert.Equal(StencilOp.Replace, retained.DepthStencil.Front.Pass);
-        Assert.Equal(CullFaceMode.Front, retained.Rasterizer.CullMode);
+        Assert.Equal(ComparisonFunction.Greater, retained.DepthStencil.DepthComparison);
+        Assert.Equal(StencilOperation.Replace, retained.DepthStencil.Front.Pass);
+        Assert.Equal(RasterizerCullMode.Front, retained.Rasterizer.CullMode);
         Assert.Equal(3, retained.Rasterizer.DepthBiasFactor);
-        Assert.Equal(BlendingFactorSrc.SrcAlpha, retained.Blending[0].SourceRgb);
+        Assert.Equal(BlendFactor.SourceAlpha, retained.Blending[0].SourceRgb);
         Assert.Equal(.3f, retained.Sampling.Coverage);
         Assert.True(retained.Sampling.CoverageInvert);
         Assert.Equal(.5f, retained.Sampling.MinimumSampleShading);
@@ -105,9 +117,9 @@ public sealed class GraphicsPipelineDescriptionTests
         Assert.Equal(17u, retained.Assembly.RestartIndex);
         Assert.Equal(7, retained.Assembly.PatchVertices);
         Assert.NotEqual(Create(rasterizer: new() { Cull = true }),
-            Create(rasterizer: new() { Cull = true, CullMode = CullFaceMode.Front }));
+            Create(rasterizer: new() { Cull = true, CullMode = RasterizerCullMode.Front }));
         Assert.NotEqual(Create(blending: [new() { Enabled = true }]),
-            Create(blending: [new() { Enabled = true, SourceRgb = BlendingFactorSrc.SrcAlpha }]));
+            Create(blending: [new() { Enabled = true, SourceRgb = BlendFactor.SourceAlpha }]));
         Assert.NotEqual(Create(), Create(blending: [new() { WriteAlpha = false }]));
     }
 
@@ -115,12 +127,12 @@ public sealed class GraphicsPipelineDescriptionTests
     [Fact]
     public void OnlyLosslessRepresentationsNormalize()
     {
-        var minimum = new ColorBlendDesc { Enabled = true, RgbEquation = BlendEquationMode.Min,
-            AlphaEquation = BlendEquationMode.Max, SourceRgb = BlendingFactorSrc.SrcAlpha,
-            DestinationRgb = BlendingFactorDest.DstColor, SourceAlpha = BlendingFactorSrc.DstAlpha,
-            DestinationAlpha = BlendingFactorDest.One };
+        var minimum = new ColorBlendDesc { Enabled = true, RgbEquation = BlendOperation.Minimum,
+            AlphaEquation = BlendOperation.Maximum, SourceRgb = BlendFactor.SourceAlpha,
+            DestinationRgb = BlendFactor.DestinationColor, SourceAlpha = BlendFactor.DestinationAlpha,
+            DestinationAlpha = BlendFactor.One };
         Assert.Equal(minimum, Create(blending: [minimum]).Blending[0]);
-        Assert.NotEqual(Create(blending: [minimum]), Create(blending: [minimum with { SourceRgb = BlendingFactorSrc.One }]));
+        Assert.NotEqual(Create(blending: [minimum]), Create(blending: [minimum with { SourceRgb = BlendFactor.One }]));
         Assert.Equal(Create(depth: new() { Front = new() { ReadMask = 255, WriteMask = 255 } }), Create());
         Assert.Equal(Create(sampling: new() { Masks = new([17u]) }),
             Create(sampling: new() { Masks = new([17u, uint.MaxValue]) }));
@@ -132,19 +144,19 @@ public sealed class GraphicsPipelineDescriptionTests
     public void ActiveConfigurationChangesIdentity()
     {
         var baseline = Create();
-        GraphicsPipelineDesc[] variants = [
+        RHIGraphicsPipelineDescription[] variants = [
             Create(shader: Shader("other")),
             Create(layout: new([Attribute() with { Divisor = 1 }])),
-            Create(targets: new([new(PixelInternalFormat.Rgba32f)])),
+            Create(targets: new([new(TextureFormat.Rgba32f)])),
             Create(dynamics: DynamicPipelineState.Viewport | DynamicPipelineState.Scissor),
-            Create(rasterizer: new() { FrontFace = FrontFaceDirection.Cw }),
+            Create(rasterizer: new() { FrontFace = FrontFaceWinding.Clockwise }),
             Create(rasterizer: new() { ProgramPointSize = true }),
             Create(rasterizer: new() { OffsetFill = true, DepthBiasUnits = 1 }),
             Create(rasterizer: new() { Discard = true }),
-            Create(depth: new() { DepthTest = true }, targets: new([new(PixelInternalFormat.Rgba16f)], PixelInternalFormat.DepthComponent24)),
+            Create(depth: new() { DepthTest = true }, targets: new([new(TextureFormat.Rgba16f)], TextureFormat.DepthComponent24)),
             Create(sampling: new() { AlphaToCoverage = true }),
             Create(sampling: new() { Multisample = false }),
-            Create(assembly: new() { Topology = PrimitiveType.Lines }),
+            Create(assembly: new() { Topology = PrimitiveTopology.Lines }),
             Create(output: new() { Dither = true })
         ];
         foreach (var variant in variants) Assert.NotEqual(baseline, variant);
@@ -160,12 +172,12 @@ public sealed class GraphicsPipelineDescriptionTests
         Assert.ThrowsAny<ArgumentException>(() => Create(dynamics: (DynamicPipelineState)128));
         Assert.ThrowsAny<ArgumentException>(() => Create(rasterizer: new() { Scissor = true }));
         Assert.ThrowsAny<ArgumentException>(() => Create(depth: new() { StencilTest = true },
-            targets: new([new(PixelInternalFormat.Rgba16f)], PixelInternalFormat.Depth24Stencil8)));
-        Assert.ThrowsAny<ArgumentException>(() => Create(blending: [new() { Enabled = true, SourceRgb = BlendingFactorSrc.ConstantColor }]));
+            targets: new([new(TextureFormat.Rgba16f)], TextureFormat.Depth24Stencil8)));
+        Assert.ThrowsAny<ArgumentException>(() => Create(blending: [new() { Enabled = true, SourceRgb = BlendFactor.ConstantColor }]));
         Create(rasterizer: new() { Scissor = true }, dynamics: DynamicPipelineState.Viewport | DynamicPipelineState.Scissor);
-        Create(depth: new() { StencilTest = true }, targets: new([new(PixelInternalFormat.Rgba16f)], PixelInternalFormat.Depth24Stencil8),
+        Create(depth: new() { StencilTest = true }, targets: new([new(TextureFormat.Rgba16f)], TextureFormat.Depth24Stencil8),
             dynamics: DynamicPipelineState.Viewport | DynamicPipelineState.StencilReference);
-        Create(blending: [new() { Enabled = true, SourceRgb = BlendingFactorSrc.ConstantColor }],
+        Create(blending: [new() { Enabled = true, SourceRgb = BlendFactor.ConstantColor }],
             dynamics: DynamicPipelineState.Viewport | DynamicPipelineState.BlendConstant);
     }
 
@@ -173,16 +185,16 @@ public sealed class GraphicsPipelineDescriptionTests
     [Fact]
     public void TargetSignaturesPreserveExactFormatsAndSparseDiscardPolicy()
     {
-        Assert.Equal(new RenderTargetSignature([new(PixelInternalFormat.Rgba8)], samples: 0),
-            new RenderTargetSignature([new(PixelInternalFormat.Rgba8)], samples: 1));
-        Assert.NotEqual(new RenderTargetSignature([new(PixelInternalFormat.Rgba8)]), new RenderTargetSignature([new(PixelInternalFormat.Srgb8Alpha8)]));
-        var sparse = new RenderTargetSignature([new(null, true), new(PixelInternalFormat.Rgba16f)]);
+        Assert.Equal(new RenderTargetSignature([new(TextureFormat.Rgba8)], samples: 0),
+            new RenderTargetSignature([new(TextureFormat.Rgba8)], samples: 1));
+        Assert.NotEqual(new RenderTargetSignature([new(TextureFormat.Rgba8)]), new RenderTargetSignature([new(TextureFormat.Srgb8Alpha8)]));
+        var sparse = new RenderTargetSignature([new(null, true), new(TextureFormat.Rgba16f)]);
         Assert.Equal(2, sparse.Colors.Count);
         Assert.Null(sparse.Colors[0].Format);
-        Assert.NotEqual(sparse, new RenderTargetSignature([new(null), new(PixelInternalFormat.Rgba16f)]));
-        Assert.NotEqual(sparse, new RenderTargetSignature([new(PixelInternalFormat.Rgba16f), new(null, true)]));
-        Assert.ThrowsAny<ArgumentException>(() => new RenderTargetSignature([new(PixelInternalFormat.Rgba)]));
-        Assert.ThrowsAny<ArgumentException>(() => new RenderTargetSignature([new(PixelInternalFormat.Rgba8, true)]));
+        Assert.NotEqual(sparse, new RenderTargetSignature([new(null), new(TextureFormat.Rgba16f)]));
+        Assert.NotEqual(sparse, new RenderTargetSignature([new(TextureFormat.Rgba16f), new(null, true)]));
+        Assert.ThrowsAny<ArgumentException>(() => new RenderTargetSignature([new(TextureFormat.Rgba)]));
+        Assert.ThrowsAny<ArgumentException>(() => new RenderTargetSignature([new(TextureFormat.Rgba8, true)]));
         Assert.ThrowsAny<ArgumentException>(() => new RenderTargetSignature([], samples: -1));
     }
 
@@ -191,15 +203,15 @@ public sealed class GraphicsPipelineDescriptionTests
     public void CapabilityLimitsBoundDescriptionsWithoutChangingIdentity()
     {
         Assert.Equal(Create(), Create(capabilities: Capabilities() with { MaxSamples = 16, MaxDrawBuffers = 16 }));
-        Assert.Throws<NotSupportedException>(() => Create(targets: new([new(PixelInternalFormat.Rgba16f)], samples: 16)));
+        Assert.Throws<NotSupportedException>(() => Create(targets: new([new(TextureFormat.Rgba16f)], samples: 16)));
         Assert.Throws<NotSupportedException>(() => Create(layout: new([Attribute() with { Location = 16 }])));
         Assert.Throws<NotSupportedException>(() => Create(layout: new([Attribute() with { Binding = 16 }])));
         Assert.Throws<NotSupportedException>(() => Create(layout: new([Attribute() with { Stride = 4096 }])));
         Assert.ThrowsAny<ArgumentException>(() => Create(rasterizer: new() { LineWidth = 17 }));
         Assert.ThrowsAny<ArgumentException>(() => Create(rasterizer: new() { PointSize = 65 }));
-        Assert.ThrowsAny<ArgumentException>(() => Create(depth: new() { DepthComparison = (DepthFunction)(-1) }));
+        Assert.ThrowsAny<ArgumentException>(() => Create(depth: new() { DepthComparison = (ComparisonFunction)(-1) }));
         Assert.ThrowsAny<ArgumentException>(() => Create(depth: new() { StencilTest = true, Front = new() { ReadMask = 256 } },
-            targets: new([new(PixelInternalFormat.Rgba16f)], PixelInternalFormat.Depth24Stencil8), dynamics: DynamicPipelineState.Viewport | DynamicPipelineState.StencilReference));
+            targets: new([new(TextureFormat.Rgba16f)], TextureFormat.Depth24Stencil8), dynamics: DynamicPipelineState.Viewport | DynamicPipelineState.StencilReference));
     }
     /// <summary>Malformed layouts and unsupported scalar representations reject before pipeline publication.</summary>
     [Fact]
@@ -207,12 +219,12 @@ public sealed class GraphicsPipelineDescriptionTests
     {
         var first = Attribute();
         var second = Attribute() with { Location = 1, Binding = 1 };
-        Assert.Equal(new VertexLayoutDesc([first, second]), new VertexLayoutDesc([second, first]));
-        Assert.ThrowsAny<ArgumentException>(() => new VertexLayoutDesc([first, first]));
-        Assert.ThrowsAny<ArgumentException>(() => new VertexLayoutDesc([first with { Components = 5 }]));
-        Assert.ThrowsAny<ArgumentException>(() => new VertexLayoutDesc([first with { Offset = 1 }]));
-        Assert.ThrowsAny<ArgumentException>(() => new VertexLayoutDesc([first with { Interpretation = VertexInterpretation.Integer }]));
-        Assert.ThrowsAny<ArgumentException>(() => new VertexLayoutDesc([first, first with { Location = 1, Divisor = 1 }]));
+        Assert.Equal(new RHIVertexLayout([first, second]), new RHIVertexLayout([second, first]));
+        Assert.ThrowsAny<ArgumentException>(() => new RHIVertexLayout([first, first]));
+        Assert.ThrowsAny<ArgumentException>(() => new RHIVertexLayout([first with { Components = 5 }]));
+        Assert.ThrowsAny<ArgumentException>(() => new RHIVertexLayout([first with { Offset = 1 }]));
+        Assert.ThrowsAny<ArgumentException>(() => new RHIVertexLayout([first with { Interpretation = VertexInterpretation.Integer }]));
+        Assert.ThrowsAny<ArgumentException>(() => new RHIVertexLayout([first, first with { Location = 1, Divisor = 1 }]));
     }
 
     /// <summary>Invalid combinations, nonfinite values and unavailable native features reject in Release as well as Debug.</summary>
@@ -221,12 +233,12 @@ public sealed class GraphicsPipelineDescriptionTests
     {
         Assert.ThrowsAny<ArgumentException>(() => Create(depth: new() { DepthTest = true }));
         Assert.ThrowsAny<ArgumentException>(() => Create(blending: []));
-        Assert.ThrowsAny<ArgumentException>(() => Create(blending: [new() { Enabled = true }], targets: new([new(PixelInternalFormat.Rgba8ui)])));
+        Assert.ThrowsAny<ArgumentException>(() => Create(blending: [new() { Enabled = true }], targets: new([new(TextureFormat.Rgba8ui)])));
         Assert.ThrowsAny<ArgumentException>(() => Create(rasterizer: new() { LineWidth = float.NaN }));
         Assert.ThrowsAny<ArgumentException>(() => Create(rasterizer: new() { PointSize = 0 }));
         Assert.ThrowsAny<ArgumentException>(() => Create(sampling: new() { CoverageEnabled = true, Coverage = 2 }));
         Assert.Throws<NotSupportedException>(() => Create(sampling: new() { MaskEnabled = true, Masks = new([1u, 2u, 3u]) }));
-        Assert.ThrowsAny<ArgumentException>(() => Create(assembly: new() { Topology = PrimitiveType.Patches }));
+        Assert.ThrowsAny<ArgumentException>(() => Create(assembly: new() { Topology = PrimitiveTopology.Patches }));
         Assert.Throws<NotSupportedException>(() => Create(capabilities: Capabilities() with { Graphics33 = false }));
         Assert.ThrowsAny<ArgumentException>(() => Create(capabilities: Capabilities() with { MaxDrawBuffers = 0 }));
         Assert.Throws<NotSupportedException>(() => Create(capabilities: Capabilities() with { DepthClamp = false }, rasterizer: new() { DepthClamp = true }));
@@ -240,11 +252,11 @@ public sealed class GraphicsPipelineDescriptionTests
     {
         Assert.ThrowsAny<ArgumentException>(() => Create(depth: new() { Front = new() { ReadMask = 256 } }));
         Assert.ThrowsAny<ArgumentException>(() => Create(depth: new() { Back = new() { WriteMask = 256 } }));
-        Assert.ThrowsAny<ArgumentException>(() => Create(depth: new() { Front = new() { Pass = (StencilOp)(-1) } }));
-        Assert.ThrowsAny<ArgumentException>(() => Create(rasterizer: new() { CullMode = (CullFaceMode)(-1) }));
+        Assert.ThrowsAny<ArgumentException>(() => Create(depth: new() { Front = new() { Pass = (StencilOperation)(-1) } }));
+        Assert.ThrowsAny<ArgumentException>(() => Create(rasterizer: new() { CullMode = (RasterizerCullMode)(-1) }));
         Assert.ThrowsAny<ArgumentException>(() => Create(rasterizer: new() { DepthBiasFactor = float.NaN }));
-        Assert.ThrowsAny<ArgumentException>(() => Create(blending: [new() { SourceRgb = (BlendingFactorSrc)(-1) }]));
-        Assert.ThrowsAny<ArgumentException>(() => Create(blending: [new() { RgbEquation = (BlendEquationMode)(-1) }]));
+        Assert.ThrowsAny<ArgumentException>(() => Create(blending: [new() { SourceRgb = (BlendFactor)(-1) }]));
+        Assert.ThrowsAny<ArgumentException>(() => Create(blending: [new() { RgbEquation = (BlendOperation)(-1) }]));
         Assert.ThrowsAny<ArgumentException>(() => Create(sampling: new() { Coverage = 2 }));
         Assert.ThrowsAny<ArgumentException>(() => Create(sampling: new() { MinimumSampleShading = float.NaN }));
         Assert.Throws<NotSupportedException>(() => Create(sampling: new() { Masks = new([1u, 2u, 3u]) }));
@@ -258,12 +270,12 @@ public sealed class GraphicsPipelineDescriptionTests
     public void RasterFieldsAreIndependentlyIdentified()
     {
         var baseline = new RasterizerDesc { Cull = true, OffsetFill = true };
-        RasterizerDesc[] variants = [baseline with { Cull = false }, baseline with { CullMode = CullFaceMode.Front },
-            baseline with { FrontFace = FrontFaceDirection.Cw }, baseline with { PolygonMode = PolygonMode.Line },
+        RasterizerDesc[] variants = [baseline with { Cull = false }, baseline with { CullMode = RasterizerCullMode.Front },
+            baseline with { FrontFace = FrontFaceWinding.Clockwise }, baseline with { PolygonMode = RasterizerFillMode.Line },
             baseline with { OffsetFill = false }, baseline with { OffsetLine = true }, baseline with { OffsetPoint = true },
             baseline with { DepthBiasFactor = 1 }, baseline with { DepthBiasUnits = 1 }, baseline with { DepthClamp = true },
             baseline with { Discard = true }, baseline with { Scissor = true },
-            baseline with { ProvokingVertex = ProvokingVertexMode.FirstVertexConvention }, baseline with { LineWidth = 2 },
+            baseline with { ProvokingVertex = ProvokingVertexConvention.First }, baseline with { LineWidth = 2 },
             baseline with { PointSize = 2 }, baseline with { ProgramPointSize = true }];
         var original = Create(rasterizer: baseline, dynamics: DynamicPipelineState.Viewport | DynamicPipelineState.Scissor);
         foreach (var changed in variants)
@@ -274,17 +286,17 @@ public sealed class GraphicsPipelineDescriptionTests
     [Fact]
     public void DepthAndStencilFieldsAreIndependentlyIdentified()
     {
-        var target = new RenderTargetSignature([new(PixelInternalFormat.Rgba16f)], PixelInternalFormat.Depth24Stencil8);
+        var target = new RenderTargetSignature([new(TextureFormat.Rgba16f)], TextureFormat.Depth24Stencil8);
         var baseline = new DepthStencilDesc { DepthTest = true, StencilTest = true };
         var original = Create(depth: baseline, targets: target, dynamics: DynamicPipelineState.Viewport | DynamicPipelineState.StencilReference);
-        StencilFaceDesc[] faces = [new() { Comparison = StencilFunction.Equal }, new() { ReadMask = 15 },
-            new() { WriteMask = 15 }, new() { Fail = StencilOp.Replace }, new() { DepthFail = StencilOp.Incr }, new() { Pass = StencilOp.Invert }];
+        StencilFaceDesc[] faces = [new() { Comparison = ComparisonFunction.Equal }, new() { ReadMask = 15 },
+            new() { WriteMask = 15 }, new() { Fail = StencilOperation.Replace }, new() { DepthFail = StencilOperation.IncrementClamp }, new() { Pass = StencilOperation.Invert }];
         foreach (var face in faces)
         {
             Assert.NotEqual(original, Create(depth: baseline with { Front = face }, targets: target, dynamics: original.Dynamics));
             Assert.NotEqual(original, Create(depth: baseline with { Back = face }, targets: target, dynamics: original.Dynamics));
         }
-        foreach (var changed in new[] { baseline with { DepthTest = false }, baseline with { DepthComparison = DepthFunction.Greater },
+        foreach (var changed in new[] { baseline with { DepthTest = false }, baseline with { DepthComparison = ComparisonFunction.Greater },
             baseline with { DepthWrite = true }, baseline with { StencilTest = false } })
             Assert.NotEqual(original, Create(depth: changed, targets: target, dynamics: original.Dynamics));
     }
@@ -294,10 +306,10 @@ public sealed class GraphicsPipelineDescriptionTests
     public void BlendFieldsAreIndependentlyIdentified()
     {
         var baseline = new ColorBlendDesc { Enabled = true };
-        ColorBlendDesc[] variants = [baseline with { Enabled = false }, baseline with { RgbEquation = BlendEquationMode.FuncSubtract },
-            baseline with { AlphaEquation = BlendEquationMode.FuncReverseSubtract }, baseline with { SourceRgb = BlendingFactorSrc.SrcAlpha },
-            baseline with { DestinationRgb = BlendingFactorDest.One }, baseline with { SourceAlpha = BlendingFactorSrc.Zero },
-            baseline with { DestinationAlpha = BlendingFactorDest.One }, baseline with { WriteRed = false },
+        ColorBlendDesc[] variants = [baseline with { Enabled = false }, baseline with { RgbEquation = BlendOperation.Subtract },
+            baseline with { AlphaEquation = BlendOperation.ReverseSubtract }, baseline with { SourceRgb = BlendFactor.SourceAlpha },
+            baseline with { DestinationRgb = BlendFactor.One }, baseline with { SourceAlpha = BlendFactor.Zero },
+            baseline with { DestinationAlpha = BlendFactor.One }, baseline with { WriteRed = false },
             baseline with { WriteGreen = false }, baseline with { WriteBlue = false }, baseline with { WriteAlpha = false }];
         var original = Create(blending: [baseline]);
         foreach (var changed in variants) Assert.NotEqual(original, Create(blending: [changed]));
@@ -323,21 +335,9 @@ public sealed class GraphicsPipelineDescriptionTests
     [Fact]
     public void ShaderSpecializationsAndBindingLayoutsChangeIdentity()
     {
-        var option = new ShaderOption<int>("QUALITY", 1, [1, 2]);
-        /// <summary>Rebuilds each owner so equality cannot succeed through shared references.</summary>
-        ShaderPipelineIdentity Identity(int quality, int slot)
-        {
-            var selected = new GpuBindingContract();
-            selected.RegisterUniformBlockBinding("Parameters", slot);
-            var contract = new GpuShaderContract("test", [
-                new ShaderStageContract("test.vsh", "test.vsh", ShaderStageKind.Vertex, selected),
-                new ShaderStageContract("test.fsh", "test.fsh", ShaderStageKind.Fragment, selected,
-                    specializations: [new(0, option)])], 1, options: [option]);
-            return new("test", new(new ShaderSettings(contract).With(option, quality)));
-        }
-        Assert.Equal(Identity(1, 0), Identity(1, 0));
-        Assert.NotEqual(Identity(1, 0), Identity(2, 0));
-        Assert.NotEqual(Identity(1, 0), Identity(1, 1));
+        var another=programs.Create<RasterDepthReductionShaderProgram>();
+        Assert.NotEqual(Create(),Create(shader:another.Shader));
+        Assert.Equal(Create(),Create(shader:program.Shader));
     }
 
     /// <summary>Primitive restart and paired tessellation configuration remain explicit and capability bounded.</summary>
@@ -348,14 +348,7 @@ public sealed class GraphicsPipelineDescriptionTests
         Assert.NotEqual(Create(assembly: new() { Restart = true }), Create(assembly: new() { Restart = true, RestartIndex = 12 }));
         Assert.NotEqual(Create(), Create(assembly: new() { FixedIndexRestart = true }));
         Assert.ThrowsAny<ArgumentException>(() => Create(assembly: new() { Restart = true, FixedIndexRestart = true }));
-        var stages = new[] { ShaderStageKind.Vertex, ShaderStageKind.Fragment, ShaderStageKind.TessellationControl, ShaderStageKind.TessellationEvaluation };
-        var contract = new GpuShaderContract("tess", stages.Select(kind => new ShaderStageContract(kind.ToString(), kind.ToString(), kind, new())), 1);
-        var shader = new ShaderPipelineIdentity("test", new(new ShaderSettings(contract)));
-        var assembly = new PrimitiveAssemblyDesc { Topology = PrimitiveType.Patches };
-        Assert.NotEqual(Create(shader: shader, assembly: assembly), Create(shader: shader, assembly: assembly with { PatchVertices = 4 }));
-        Assert.Throws<NotSupportedException>(() => Create(shader: shader, assembly: assembly, capabilities: Capabilities() with { Tessellation = false }));
-        Assert.Throws<NotSupportedException>(() => Create(shader: shader, assembly: assembly with { PatchVertices = 33 }));
-        Assert.ThrowsAny<ArgumentException>(() => Create(shader: shader));
+        Assert.ThrowsAny<ArgumentException>(()=>Create(assembly:new(){Topology=PrimitiveTopology.Patches}));
     }
     #endregion
     #region Compatibility
@@ -368,8 +361,8 @@ public sealed class GraphicsPipelineDescriptionTests
             GlPipelineStateId.CullFaceEnable, GlPipelineStateId.ColorMask, GlPipelineStateId.ScissorTestEnable, GlPipelineStateId.LineWidth, GlPipelineStateId.PointSize];
         for (int index = 0; index < ids.Length; index++) Assert.Equal(index, (int)ids[index]);
         Assert.Equal(12, (int)GlPipelineStateId.Count);
-        Assert.False(typeof(GraphicsPipelineDesc).IsAssignableFrom(typeof(GlPipelineDesc)));
-        Assert.DoesNotContain(typeof(GraphicsPipelineDesc).GetConstructors(), constructor =>
+        Assert.False(typeof(RHIGraphicsPipelineDescription).IsAssignableFrom(typeof(GlPipelineDesc)));
+        Assert.DoesNotContain(typeof(RHIGraphicsPipelineDescription).GetConstructors(), constructor =>
             constructor.GetParameters().Any(parameter => parameter.ParameterType == typeof(GlPipelineDesc)));
     }
     #endregion
@@ -378,26 +371,22 @@ public sealed class GraphicsPipelineDescriptionTests
 
     #region Private
     /// <summary>Builds a representative fullscreen description while allowing one contract to vary.</summary>
-    private static GraphicsPipelineDesc Create(ShaderPipelineIdentity? shader = null, VertexLayoutDesc? layout = null,
+    private RHIGraphicsPipelineDescription Create(RHIShaderRef? shader = null, RHIVertexLayout? layout = null,
         RenderTargetSignature? targets = null, DynamicPipelineState dynamics = DynamicPipelineState.Viewport,
         GraphicsCapabilities? capabilities = null, DepthStencilDesc? depth = null, RasterizerDesc? rasterizer = null,
         IEnumerable<ColorBlendDesc>? blending = null, SamplingDesc? sampling = null, PrimitiveAssemblyDesc? assembly = null,
-        OutputDesc? output = null, string? label = null) => new(shader ?? Shader(), layout ?? new([Attribute()]),
-            targets ?? new([new(PixelInternalFormat.Rgba16f)]), dynamics, capabilities ?? Capabilities(),
-            depth, rasterizer, blending, sampling, assembly, output, label);
-
-    /// <summary>Projects independent shader declarations through the production load-plan contract.</summary>
-    private static ShaderPipelineIdentity Shader(string domain = "test")
+        OutputDesc? output = null, string? label = null)
     {
-        var bindings = new GpuBindingContract();
-        var contract = new GpuShaderContract("test", [
-            new ShaderStageContract("test.vsh", "test.vsh", ShaderStageKind.Vertex, bindings),
-            new ShaderStageContract("test.fsh", "test.fsh", ShaderStageKind.Fragment, bindings)], 1);
-        return new(domain, new(new ShaderSettings(contract)));
+        var description=new RHIGraphicsPipelineDescription(shader??Shader(),layout??new([Attribute()]),targets??new([new(TextureFormat.Rgba16f)]),dynamics,
+            depth,rasterizer,blending,sampling,assembly,output,label);
+        PipelineDescriptionValidation.Validate(description,capabilities??Capabilities());return description;
     }
 
+    /// <summary>Projects independent shader declarations through the production load-plan contract.</summary>
+    private RHIShaderRef Shader(string domain="test")=>domain=="test"?program.Shader:programs.Create<RasterDepthReductionShaderProgram>().Shader;
+
     /// <summary>Provides one valid tightly packed position stream.</summary>
-    private static VertexAttributeDesc Attribute() => new(0, 3, VertexAttribPointerType.Float, VertexInterpretation.Floating, 0, 0, 12);
+    private static RHIVertexAttribute Attribute() => new(0, 3, VertexComponentFormat.Float, VertexInterpretation.Floating, 0, 0, 12);
 
     /// <summary>Supplies deterministic capability limits without querying or creating a graphics context.</summary>
     private static GraphicsCapabilities Capabilities() => new()

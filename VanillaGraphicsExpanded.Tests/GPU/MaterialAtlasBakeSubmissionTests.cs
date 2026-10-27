@@ -41,14 +41,14 @@ public sealed class MaterialAtlasBakeSubmissionTests(HeadlessGLFixture fixture) 
         transfer.AllocateOrphan(128 * 128 * 16);
         using var hostilePack = OpenGLPixelLayouts.PackScope(StateCache.Current, new(8, RowLength: 73, SkipRows: 2, SkipPixels: 3));
         using var hostileTransfer = StateCache.Current.BindBufferScope(BufferTarget.PixelPackBuffer, transfer.BufferId);
-        StateCache.Current.BindFramebuffer(FramebufferTarget.DrawFramebuffer, caller.FboId);
-        StateCache.Current.BindFramebuffer(FramebufferTarget.ReadFramebuffer, read.FboId);
+        OpenGLFramebufferSelection.Bind(StateCache.Current, FramebufferTarget.DrawFramebuffer, caller.FboId);
+        OpenGLFramebufferSelection.Bind(StateCache.Current, FramebufferTarget.ReadFramebuffer, read.FboId);
         StateCache.Current.ApplyDynamic(new() { X = 1, Y = 0, Width = 2, Height = 2 });
         try
         {
             using (var hostile = new HostileFullscreenState())
             {
-                MaterialAtlasNormalDepthGpuBuilder.ClearAtlasPage(assets.Api, destination.TextureId, edge, edge);
+                MaterialAtlasNormalDepthGpuBuilder.ClearAtlasPage(assets.Api, destination, edge, edge);
                 hostile.AssertRestored(); AssertBindings();
             }
             Assert.True(ReadDestination()[0] == .5f, $"Clear failed: {StateCache.Current.BoundaryEntryFailure}; {string.Join(Environment.NewLine, assets.Logs)}");
@@ -71,8 +71,8 @@ public sealed class MaterialAtlasBakeSubmissionTests(HeadlessGLFixture fixture) 
             };
             using (var hostile = new HostileFullscreenState())
             {
-                Assert.False(MaterialAtlasNormalDepthGpuBuilder.BakePerRect(assets.Api, source.TextureId,
-                    destination.TextureId, edge, edge, origin, origin, size, size, 1, 1));
+                Assert.False(MaterialAtlasNormalDepthGpuBuilder.BakePerRect(assets.Api, source,
+                    destination, edge, edge, origin, origin, size, size, 1, 1));
                 hostile.AssertRestored(); AssertBindings();
             }
             assets.BeforeRead = null;
@@ -90,8 +90,8 @@ public sealed class MaterialAtlasBakeSubmissionTests(HeadlessGLFixture fixture) 
             AssertPixels(ReadDestination(), (_, _) => sentinel);
             using (var hostile = new HostileFullscreenState())
             {
-                Assert.True(MaterialAtlasNormalDepthGpuBuilder.BakePerRect(assets.Api, source.TextureId,
-                    destination.TextureId, edge, edge, origin, origin, size, size, 1, 1), string.Join(Environment.NewLine, assets.Logs));
+                Assert.True(MaterialAtlasNormalDepthGpuBuilder.BakePerRect(assets.Api, source,
+                    destination, edge, edge, origin, origin, size, size, 1, 1), string.Join(Environment.NewLine, assets.Logs));
                 hostile.AssertRestored(); AssertBindings();
             }
             float[] rectangle = ReadDestination();
@@ -111,14 +111,14 @@ public sealed class MaterialAtlasBakeSubmissionTests(HeadlessGLFixture fixture) 
             using (var hostile = new HostileFullscreenState())
             {
                 // The invalid sampler fails after pass entry; optional bake catches the error only after restoration.
-                Assert.False(MaterialAtlasNormalDepthGpuBuilder.BakePerRect(assets.Api, int.MaxValue,
-                    destination.TextureId, edge, edge, origin, origin, size, size, 1, 1));
+                Assert.False(MaterialAtlasNormalDepthGpuBuilder.BakePerRect(assets.Api, default(GpuTextureRef),
+                    destination, edge, edge, origin, origin, size, size, 1, 1));
                 hostile.AssertRestored(); AssertBindings();
             }
             Assert.Equal(rectangle, ReadDestination());
             using (var hostile = new HostileFullscreenState())
             {
-                MaterialAtlasNormalDepthGpuBuilder.BakePerTexture(assets.Api, source.TextureId, destination.TextureId, edge, edge,
+                MaterialAtlasNormalDepthGpuBuilder.BakePerTexture(assets.Api, source, destination, edge, edge,
                     [new TextureAtlasPosition { atlasTextureId = source.TextureId, x1 = .25f, y1 = .25f, x2 = .75f, y2 = .75f }]);
                 hostile.AssertRestored(); AssertBindings();
             }
@@ -177,7 +177,7 @@ public sealed class MaterialAtlasBakeSubmissionTests(HeadlessGLFixture fixture) 
         /// <summary>Releases borrowed pipelines before test-created programs, intermediates and geometry.</summary>
         public void Dispose()
         {
-            var pipelines = (Dictionary<PbrHeightBakeShaderProgram, GraphicsPipeline>)Owner.GetField("Pipelines", Flags)!.GetValue(null)!;
+            var pipelines = (Dictionary<PbrHeightBakeShaderProgram, RHIGraphicsPipeline>)Owner.GetField("Pipelines", Flags)!.GetValue(null)!;
             foreach (var pipeline in pipelines.Values) pipeline.Dispose(); pipelines.Clear();
             foreach (var field in Owner.GetFields(Flags).Where(field => !field.IsInitOnly && !field.IsLiteral))
             {

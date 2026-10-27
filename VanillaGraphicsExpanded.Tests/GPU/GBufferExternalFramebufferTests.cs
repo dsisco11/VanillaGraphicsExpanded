@@ -50,7 +50,7 @@ public sealed class GBufferExternalFramebufferTests(HeadlessGLFixture fixture) :
         try
         {
             harmony.CreateClassProcessor(typeof(FramebufferBindingHook)).Patch();
-            primary.BindWithViewport();
+            FramebufferTestSetup.BindForEngineRendering(primary);
             // Invoke the installed engine setter: its raw GL bind must be observed by the production hook.
             setter.Invoke(platform, [new FrameBufferRef { FboId = oit.FboId, Width = 1, Height = 1 }]);
             Assert.Equal(oit.FboId, StateCache.Current.GetCurrentFramebuffer(FramebufferTarget.Framebuffer));

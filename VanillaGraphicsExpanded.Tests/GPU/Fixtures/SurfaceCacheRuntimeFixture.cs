@@ -227,7 +227,7 @@ internal sealed partial class SurfaceCacheRuntimeFixture : IDisposable
             Terrain.UploadFeedback(Buffers,pixels);
         }
         Events.Render(EnumRenderStage.Done);
-        Terrain.Output.BindWithViewport();
+        FramebufferTestSetup.BindForEngineRendering(Terrain.Output);
         Events.Render(EnumRenderStage.AfterBlit);
         Frames++;
         Assert.Equal(ErrorCode.NoError, GL.GetError());
@@ -329,7 +329,7 @@ internal sealed partial class SurfaceCacheRuntimeFixture : IDisposable
     /// <summary>Reads the rendered viewer output without inspecting shader internals.</summary>
     public float[] ReadPixels()
     {
-        Terrain.Output.BindWithViewport();
+        FramebufferTestSetup.BindForEngineRendering(Terrain.Output);
         float[] result = new float[edge*edge*4];
         GL.ReadPixels(0, 0, edge, edge, PixelFormat.Rgba, PixelType.Float, result);
         return result;

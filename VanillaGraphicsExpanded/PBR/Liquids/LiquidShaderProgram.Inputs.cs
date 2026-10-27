@@ -39,9 +39,9 @@ internal sealed partial class LiquidShaderProgram
     /// <summary>Retains the hardware-depth image from the same opaque invocation.</summary>
     public partial GpuTextureRef RefractionDepthTexture { set; }
     /// <summary>Retains the borrowed TerrainTexture with its declared target and sampler.</summary>
-    public partial int TerrainTexture { set; }
+    public partial GpuTextureRef TerrainTexture { set; }
     /// <summary>Retains the borrowed DepthTexture with its declared target and sampler.</summary>
-    public partial int DepthTexture { set; }
+    public partial GpuTextureRef DepthTexture { set; }
     /// <summary>Retains the borrowed MaterialParamsTexture with its declared target and sampler.</summary>
     public partial GpuTextureRef MaterialParamsTexture { set; }
     /// <summary>Binds the current material-medium index image.</summary>
@@ -49,9 +49,9 @@ internal sealed partial class LiquidShaderProgram
     /// <summary>Binds the current material-medium coefficient table.</summary>
     public partial GpuTextureRef WaterMediumRecordsTexture { set; }
     /// <summary>Retains the borrowed ShadowMapNear with its declared target and sampler.</summary>
-    public partial int ShadowMapNear { set; }
+    public partial GpuTextureRef ShadowMapNear { set; }
     /// <summary>Retains the borrowed ShadowMapFar with its declared target and sampler.</summary>
-    public partial int ShadowMapFar { set; }
+    public partial GpuTextureRef ShadowMapFar { set; }
     /// <summary>Stages current-frame occlusion for aerial in-scattering.</summary>
     public partial GpuTextureRef LightShaftOcclusion { set; }
     /// <summary>Stages atmospheric radiance.</summary>

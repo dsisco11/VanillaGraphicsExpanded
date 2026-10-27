@@ -20,7 +20,7 @@ public sealed class VgeShaderProgramTests
         public int RecompileRequests { get; private set; }
 
         /// <summary>Has no GPU inputs in this settings-only fixture.</summary>
-        protected override void Submit() { }
+        protected override VanillaGraphicsExpanded.Rendering.RHI.RHIResourceBindings CaptureBindingsCore() => new(Shader);
 
         /// <summary>Counts notifications through the existing scheduler boundary.</summary>
         protected override void RequestRecompile()

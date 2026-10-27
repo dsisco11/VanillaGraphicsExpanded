@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Numerics;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Tests.GPU.Helpers;
@@ -173,8 +174,11 @@ public sealed class LightShaftShaderTests(HeadlessGLFixture fixture, ITestOutput
         shader.FrameInputs = camera;
         draw??=new PostprocessDraw();
         var pipeline=draw.Prepare(shader,target.PostprocessPass());
-        Assert.True(GraphicsCommandContext.TryRun("Tests.Postprocess",[pipeline],true,
-            commands=>draw.Submit(commands,pipeline,target.PostprocessPass())));
+        {
+    var commands=RHICommandContext.Current;
+    using var scope59=commands.EnterBoundary(new("Tests.Postprocess",true,graphics:System.Linq.Enumerable.Select<RHIGraphicsPipeline,RHIGraphicsPipelineRef>([pipeline],value=>value),operations:BoundaryOperations.RenderPasses));
+    scope59.Run(()=>draw.Submit(commands,pipeline,target.PostprocessPass(), shader.CaptureBindings()));
+}
         Assert.Equal(ErrorCode.NoError,GL.GetError());
     }
     #endregion

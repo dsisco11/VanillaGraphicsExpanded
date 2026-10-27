@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Text.Json;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;

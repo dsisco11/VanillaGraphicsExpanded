@@ -30,12 +30,13 @@ public sealed class AtmosphereGpuComputationTests(HeadlessGLFixture fixture, ITe
         using var requests = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = null }).RequireResource();
         requests.EnsureCapacity(64, growExponentially: false);
         using var counter = new ComponentAtomicCounters(0, 1);
-        outer.BindPageUsageStamp(texture.TextureId);
-        outer.BindPageTableMip0(texture.TextureId);
+        outer.PageUsageStamp = texture;
+        outer.PageTableMip0 = texture;
         outer.BindRequestsSsbo(requests);
         outer.BindRequestCounter(counter.Buffer);
         using var gpu = AtmosphereGpuComputation.Create(assets.Api);
-        using var scope = outer.UseScope();
+        RHICommandContext.Current.SetPipeline(outer.Pipeline);
+        RHICommandContext.Current.BindResources(outer.CaptureBindings());
         Complete(gpu, Vector3.UnitY, 0, 0);
         // Observe the driver after the whole producer finishes, including its cleanup path.
         Assert.Equal(outer.ProgramId, GL.GetInteger(GetPName.CurrentProgram));

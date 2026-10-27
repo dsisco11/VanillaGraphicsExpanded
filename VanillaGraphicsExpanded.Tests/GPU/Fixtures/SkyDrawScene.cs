@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
@@ -22,15 +23,15 @@ internal sealed class SkyDrawScene : IDisposable
     private readonly DynamicTexture2D sentinel, clearImage;
     private readonly GpuSampler sampler;
     private readonly GpuFramebuffer target, incoming, read, auxiliary;
-    private readonly GraphicsPipeline[] pipelines;
+    private readonly RHIGraphicsPipeline[] pipelines;
     private readonly ArrayGraphicsGeometry geometry;
-    private readonly RenderPassDesc[,] passes = new RenderPassDesc[4, 2];
-    private readonly RenderPassDesc clearPass;
+    private readonly RHIRenderPassDescription[,] passes = new RHIRenderPassDescription[4, 2];
+    private readonly RHIRenderPassDescription clearPass;
     private static readonly DrawBuffersEnum[] NativeRouting =
         [DrawBuffersEnum.None, DrawBuffersEnum.ColorAttachment0, DrawBuffersEnum.ColorAttachment1];
     internal readonly List<string> Events = new();
     internal readonly List<int> Rendered = new();
-    internal readonly HashSet<GraphicsCommandContext> Contexts = new();
+    internal readonly HashSet<RHICommandContext> Contexts = new();
     internal SkyDrawTestPass[] Passes { get; }
     internal int FailAt = -1;
 
@@ -49,39 +50,38 @@ internal sealed class SkyDrawScene : IDisposable
             {
                 var color = colors[index].Select((value, channel) => layer == 1 && channel < 3 ? value * .5f : value).ToArray();
                 inputs[index, layer] = Own(RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Width = 1, Height = 1, Format = TextureFormat.Rgba32f, MipLevels = 1, Storage = ResourceStorageMode.Mutable, BaseLevel = 0, MaxLevel = 0, Filter = TextureFilterMode.Nearest, Label = null }, [new RHITextureInitialData(new(new(), 0, 0, 0, 1, 1), VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLPixelValues.Encoding(TextureFormatHelper.GetPixelFormat(PixelInternalFormat.Rgba32f), OpenTK.Graphics.OpenGL.PixelType.Float), System.Runtime.InteropServices.MemoryMarshal.AsBytes((color).AsSpan()).ToArray())]).RequireResource());
-                shaders[index].Scene = inputs[index, 0].TextureId;
+                shaders[index].Scene = inputs[index, 0];
             }
         sentinel = Own(RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Width = 1, Height = 1, Format = TextureFormat.Rgba32f, MipLevels = 1, Storage = ResourceStorageMode.Mutable, BaseLevel = 0, MaxLevel = 0, Filter = TextureFilterMode.Nearest, Label = null }, [new RHITextureInitialData(new(new(), 0, 0, 0, 1, 1), VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLPixelValues.Encoding(TextureFormatHelper.GetPixelFormat(PixelInternalFormat.Rgba32f), OpenTK.Graphics.OpenGL.PixelType.Float), System.Runtime.InteropServices.MemoryMarshal.AsBytes((new float[] { 0f, 0f, 0f, 1f }).AsSpan()).ToArray())]).RequireResource());
         sampler = Own(RHICommandContext.Current.CreateSampler(new RHISamplerDescription {  }).RequireResource());
-        native.Scene = sentinel.TextureId;
+        native.Scene = sentinel;
         outputs = Enumerable.Range(0, 2).Select(_ => Own(RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba32f, Width = System.Math.Max(1, 4), Height = System.Math.Max(1, 3), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource())).ToArray();
         target = Own(DynamicGpuFramebuffer.CreateMRT(outputs)!);
         incoming = CreateTarget();
         read = CreateTarget();
         clearImage = Own(RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba32f, Width = System.Math.Max(1, 2), Height = System.Math.Max(1, 2), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource());
         auxiliary = Own(DynamicGpuFramebuffer.CreateSingle(clearImage)!);
-        clearPass = new(auxiliary, [new(0, AttachmentLoad.Clear, Clear: ColorClearValue.Float(.125f, .25f, .5f, 1))]);
+        clearPass = FramebufferTestSetup.DescribeAttachments(auxiliary, [new(AttachmentIndex: 0, Load: AttachmentLoad.Clear, Clear: ColorClearValue.Float(.125f, .25f, .5f, 1))]);
 
-        var layout = new VertexLayoutDesc([new(0, 3, VertexAttribPointerType.Float, VertexInterpretation.Floating, 0, 0, 20),
-            new(1, 2, VertexAttribPointerType.Float, VertexInterpretation.Floating, 0, 12, 20)]);
+        var layout = new RHIVertexLayout([new(0, 3, VertexComponentFormat.Float, VertexInterpretation.Floating, 0, 0, 20),
+            new(1, 2, VertexComponentFormat.Float, VertexInterpretation.Floating, 0, 12, 20)]);
         var vertices = Own(RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = null }).RequireResource());
         vertices.UploadData(new float[] { -1, -1, 0, 0, 0, 3, -1, 0, 2, 0, -1, 3, 0, 0, 2 });
-        geometry = Own(new ArrayGraphicsGeometry(layout, PrimitiveType.Triangles, new Dictionary<int, GpuVbo> { { 0, vertices } }));
-        var lifetime = Own(new GraphicsPipelineLifetime());
-        pipelines = new GraphicsPipeline[4];
+        geometry = Own(new ArrayGraphicsGeometry(layout, PrimitiveTopology.Triangles, new Dictionary<int, GpuVbo> { { 0, vertices } }));
+        
+        pipelines = new RHIGraphicsPipeline[4];
         for (int index = 0; index < 4; index++)
         {
             var blend = index == 0 ? new ColorBlendDesc() : new ColorBlendDesc
             {
                 Enabled = true,
-                DestinationRgb = index == 3 ? BlendingFactorDest.SrcAlpha : BlendingFactorDest.One,
-                DestinationAlpha = index == 3 ? BlendingFactorDest.SrcAlpha : BlendingFactorDest.One
+                DestinationRgb = index == 3 ? BlendFactor.SourceAlpha : BlendFactor.One,
+                DestinationAlpha = index == 3 ? BlendFactor.SourceAlpha : BlendFactor.One
             };
-            pipelines[index] = Own(new GraphicsPipeline(lifetime,
-                new(shaders[index].GraphicsIdentity!, layout, new([new(PixelInternalFormat.Rgba32f)]),
-                    DynamicPipelineState.Viewport, blending: [blend]), shaders[index]));
+            pipelines[index] = Own(RHICommandContext.Current.CreateGraphicsPipeline(new(shaders[index].Shader, layout, new([new(TextureFormat.Rgba32f)]),
+                    DynamicPipelineState.Viewport, blending: [blend])).RequireResource());
             for (int layer = 0; layer < 2; layer++)
-                passes[index, layer] = new(target, [new(layer, index == 0 ? AttachmentLoad.Clear : AttachmentLoad.Preserve,
+                passes[index, layer] = FramebufferTestSetup.DescribeAttachments(target, [new(AttachmentIndex: layer, Load: index == 0 ? AttachmentLoad.Clear : AttachmentLoad.Preserve,
                     Clear: index == 0 ? ColorClearValue.Float(0, 0, 0, 0) : null)]);
         }
         Passes = Enumerable.Range(0, 4).Select(index => new SkyDrawTestPass(index,
@@ -96,8 +96,8 @@ internal sealed class SkyDrawScene : IDisposable
         Contexts.Clear();
         foreach (var image in outputs) image.UploadDataImmediate(new float[4 * 3 * 4]);
         target.Bind();
-        StateCache.Current.SetDrawBuffers(NativeRouting.Length, NativeRouting);
-        native.Use();
+        OpenGLFramebufferRouting.SetDrawBuffers(StateCache.Current, NativeRouting.Length, NativeRouting);
+        OpenGLProgramSelection.Select(StateCache.Current, native.ProgramId);
         GL.BindFramebuffer(FramebufferTarget.DrawFramebuffer, incoming.FboId);
         GL.BindFramebuffer(FramebufferTarget.ReadFramebuffer, read.FboId);
         GL.ActiveTexture(TextureUnit.Texture0);
@@ -122,17 +122,21 @@ internal sealed class SkyDrawScene : IDisposable
     {
         foreach (var source in Passes)
             if (source.PrepareDraw() is { } work)
-                Assert.True(GraphicsCommandContext.TryRun(work.Name, work.Pipelines, true, work.Execute));
+                {
+    var commands=RHICommandContext.Current;
+    using var scope42=commands.EnterBoundary(new(work.Name,true,graphics:System.Linq.Enumerable.Select<RHIGraphicsPipeline,RHIGraphicsPipelineRef>(work.Pipelines,value=>value),operations:BoundaryOperations.RenderPasses));
+    scope42.Run(()=>work.Execute(commands));
+}
     }
 
     /// <summary>Prepares all optional passes before entering the one production shared graphics boundary.</summary>
     internal void DrawShared() => SkyDraw.Run(Passes.Select(source => source.PrepareDraw()).OfType<SkyDraw>().ToArray());
     /// <summary>Exercises clear-only work and a different destination inside the same declared context.</summary>
-    internal void DrawClear(GraphicsCommandContext commands)
+    internal void DrawClear(RHICommandContext commands)
     {
         Contexts.Add(commands);
-        commands.BeginPass(clearPass);
-        commands.EndPass();
+        commands.BeginRenderPass(clearPass);
+        commands.EndRenderPass();
     }
 
     /// <summary>Retires only the executable to exercise per-submission preflight isolation.</summary>
@@ -146,7 +150,8 @@ internal sealed class SkyDrawScene : IDisposable
         Assert.Equal(incoming.FboId, GL.GetInteger(GetPName.DrawFramebufferBinding));
         Assert.Equal(read.FboId, GL.GetInteger(GetPName.ReadFramebufferBinding));
         Assert.Equal(native.ProgramId, GL.GetInteger(GetPName.CurrentProgram));
-        Assert.Same(native, StateCache.ActiveProgram);
+        Assert.True(StateCache.Current.TryGetCachedCurrentProgram(out int restoredProgram));
+        Assert.Equal(native.ProgramId, restoredProgram);
         Assert.Equal((int)TextureUnit.Texture5, GL.GetInteger(GetPName.ActiveTexture));
         GL.ActiveTexture(TextureUnit.Texture0);
         Assert.Equal(sentinel.TextureId, GL.GetInteger(GetPName.TextureBinding2D));
@@ -181,7 +186,7 @@ internal sealed class SkyDrawScene : IDisposable
     /// <summary>Releases resources after coordinator/engine state has returned to the fixture's native program.</summary>
     public void Dispose()
     {
-        native.Stop();
+        OpenGLProgramSelection.Select(StateCache.Current, 0);
         for (int index = owned.Count - 1; index >= 0; index--) owned[index].Dispose();
     }
     #endregion
@@ -189,19 +194,20 @@ internal sealed class SkyDrawScene : IDisposable
 
     #region Private
     /// <summary>Writes sky and glow with distinct sources, and optionally interrupts an already-active pass.</summary>
-    private void Draw(GraphicsCommandContext commands, int index)
+    private void Draw(RHICommandContext commands, int index)
     {
         Contexts.Add(commands);
         Events.Add("draw:sky" + index);
         for (int layer = 0; layer < 2; layer++)
         {
-            commands.BeginPass(passes[index, layer]);
+            commands.BeginRenderPass(passes[index, layer]);
             if (FailAt == index) throw new ArithmeticException("Injected sky draw failure.");
-            shaders[index].Scene = inputs[index, layer].TextureId;
+            shaders[index].Scene = inputs[index, layer];
             commands.SetPipeline(pipelines[index]);
             commands.SetDynamicState(new() { Viewport = commands.PassViewport });
-            commands.Draw(geometry, new(0, 3));
-            commands.EndPass();
+            commands.BindResources(shaders[index].CaptureBindings());
+            commands.Draw(geometry.Inputs, new(0, 3));
+            commands.EndRenderPass();
         }
         Rendered.Add(index);
     }

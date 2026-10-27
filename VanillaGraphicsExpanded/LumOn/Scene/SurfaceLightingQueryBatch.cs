@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.ShaderCompilation;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using OpenTK.Graphics.OpenGL;
@@ -22,8 +23,10 @@ internal sealed class SurfaceLightingQueryBatch : IDisposable
     /// <summary>Loads the production SPIR-V query program once per consumer lifetime.</summary>
     public SurfaceLightingQueryBatch(ICoreAPI api)
     {
-        if (!GpuComputePipeline.TryCreateFromAssets(api, SurfaceLightingQueryShader.Contract.Identity,
-            out var created, out _, out string log, preferSpirv:true)) throw new InvalidOperationException(log);
+        if (!ComputeShaderAsset.TryCreateFromAssets(api: api,
+            settings: new global::VanillaGraphicsExpanded.Rendering.Contracts.ShaderSettings(global::VanillaGraphicsExpanded.Rendering.Contracts.GpuShaderContracts.Registry.FindProgram(SurfaceLightingQueryShader.Contract.Identity)),
+            pipeline: out var created,
+            infoLog: out string log)) throw new InvalidOperationException(log);
         pipeline=new(created!);
     }
 
@@ -42,7 +45,10 @@ internal sealed class SurfaceLightingQueryBatch : IDisposable
         pipeline.SurfaceSlots = snapshot.Slots; pipeline.SurfaceReady = snapshot.Readiness;
         // Bind the exact active range: retained buffer capacity must not become extra queries.
         pipeline.SurfaceQueries = new(queue.Buffer, 0, count << 6);
-        pipeline.Dispatch((count+63)/64,1,1);
+        if(!pipeline.EnsureReady())throw new InvalidOperationException(pipeline.PreparationLog);
+        var dispatchContext=RHICommandContext.Current;
+        using var dispatchBoundary=dispatchContext.EnterBoundary(new("SurfaceLighting.Query",true,compute:[pipeline.Pipeline]));
+        dispatchBoundary.Run(()=>pipeline.Dispatch((count+63)/64,1,1));
         RHICommandContext.Current.Barrier(new(ResourceAccess.ShaderStorage|ResourceAccess.BufferUpdate));
         queue.Submit(count);
     }

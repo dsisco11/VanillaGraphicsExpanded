@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.PBR.Liquids;
@@ -80,12 +81,12 @@ public sealed class WaterRefractionReductionTests(HeadlessGLFixture fixture, ITe
             using var vao=GpuVao.Create("Test.WaterReduction.Measurement");
             using var vertices=RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = "Test.WaterReduction.Vertices" }).RequireResource();
             using var indices=RHICommandContext.Current.CreateIndexBuffer(new RHIBufferDescription { Role = BufferRole.Index, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = "Test.WaterReduction.Indices" }).RequireResource();
-            using var geometry=vao.BindScope();
+            using var geometry=StateCache.Current.BindVertexArrayScope(vao.VertexArrayId);
             indices.UploadIndices(new uint[] {0,1,2});
             using(vertices.BindScope())
             {
                 vertices.UploadData(new float[] {-1,-1,0,3,-1,0,-1,3,0});
-                vao.AttribPointer(0,3,VertexAttribPointerType.Float,false,12,0);
+                using (StateCache.Current.BindVertexArrayScope(vao.VertexArrayId)) OpenGLVertexCalls.ExecuteCoreVertexAttribPointer(0,3,VertexAttribPointerType.Float,false,12,0);
             }
             output.WriteLine($"reduction-device renderer={GL.GetString(StringName.Renderer)} version={GL.GetString(StringName.Version)}");
             foreach(string workload in new[] {"invalid","descending","ascending","mixed"})
@@ -99,14 +100,16 @@ public sealed class WaterRefractionReductionTests(HeadlessGLFixture fixture, ITe
                 }
                 measuredDepth.UploadDataImmediate(measuredDepths);
                 TestFramework.RenderQuadTo(program,measuredTarget);
-                measuredTarget.BindWithViewport();
-                using var activation=program.UseScope();
-                using var measuredGeometry=vao.BindScope();
+                FramebufferTestSetup.BindForEngineRendering(measuredTarget);
+                using var activation = ShaderBindingTestPipeline.Create(program);
+        RHICommandContext.Current.SetPipeline(activation);
+        RHICommandContext.Current.BindResources(program.CaptureBindings());
+                using var measuredGeometry=StateCache.Current.BindVertexArrayScope(vao.VertexArrayId);
                 for(int sample=-5;sample<10;sample++)
                 {
                     using var elapsed=GpuTimerQuery.Create();
                     elapsed.Begin();
-                    for(int draw=0;draw<128;draw++) vao.DrawElements(PrimitiveType.Triangles,indices);
+                    for(int draw=0;draw<128;draw++) GL.DrawElements(PrimitiveType.Triangles, indices.IndexCount, DrawElementsType.UnsignedInt, IntPtr.Zero);
                     elapsed.End();
                     double milliseconds=elapsed.GetResultNanoseconds()/1e6;
                     if(sample>=0) output.WriteLine($"reduction-cost workload={workload} sample={sample} gpuMs={milliseconds:R} source=512x512 draws=128");

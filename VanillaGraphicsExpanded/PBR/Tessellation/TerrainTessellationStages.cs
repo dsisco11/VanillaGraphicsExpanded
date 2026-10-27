@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Text;
 using System.Linq;
 using TinyTokenizer.Ast;
+using VanillaGraphicsExpanded.Rendering.RHI;
 
 namespace VanillaGraphicsExpanded.PBR.Tessellation;
 
@@ -13,6 +14,15 @@ internal static class TerrainTessellationStages
     internal sealed record Sources(string Control, string Evaluation);
 
     #region Interface preparation
+    /// <summary>Freezes selected engine-prefix policy into stage code without issuing native creation or linking commands.</summary>
+    internal static (RHIShaderStageDescription Control, RHIShaderStageDescription Evaluation) Describe(Sources sources, string prefixCode)
+    {
+        // The engine independently selects its vertex/fragment versions. These additional stages require GLSL 4.0.
+        string header = $"#version 400 core\n{prefixCode}\n\n";
+        return (new(ShaderStage.TessellationControl, header + sources.Control),
+            new(ShaderStage.TessellationEvaluation, header + sources.Evaluation));
+    }
+
     /// <summary>Retains source preprocessing guards and derives interpolation from declarations, without driver reflection.</summary>
     internal static Sources Generate(string vertexSource, Sources templates, bool depthBias = false)
     {

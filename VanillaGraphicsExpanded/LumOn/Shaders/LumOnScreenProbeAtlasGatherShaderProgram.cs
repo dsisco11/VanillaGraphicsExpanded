@@ -123,7 +123,7 @@ public partial class LumOnScreenProbeAtlasGatherShaderProgram : LumOnShaderProgr
     /// <summary>
     /// Primary depth texture (G-buffer).
     /// </summary>
-    public partial int PrimaryDepth { set; }
+    public partial GpuTextureRef PrimaryDepth { set; }
 
     /// <summary>
     /// G-buffer normals (world-space, encoded).

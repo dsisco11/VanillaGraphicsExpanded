@@ -9,96 +9,37 @@ internal sealed partial class StateCache
 {
     private readonly Dictionary<int, DrawBuffersEnum[]> framebufferDrawRouting = new();
 
-    #region Public API
-    #region Publication
-    /// <summary>Publishes the current draw framebuffer's complete output mapping, disabling unspecified trailing slots.</summary>
-    internal void SetDrawBuffers(int count, DrawBuffersEnum[] buffers)
+    #region Internal API
+    /// <summary>Returns a private snapshot of established routing, including immutable configuration declarations.</summary>
+    internal bool TryCopyFramebufferDrawRouting(int framebuffer,out DrawBuffersEnum[] route)
     {
-        var route = NormalizeDrawRouting(count, buffers);
-        ApplyFramebufferDrawRouting(GetCurrentFramebuffer(FramebufferTarget.DrawFramebuffer), route, count, false, false);
+        if(immutableFramebuffers.TryGetValue(framebuffer,out var immutable))
+        { route=immutable.CaptureDeclaredRouting();return true; }
+        if(framebufferDrawRouting.TryGetValue(framebuffer,out var stored))
+        { route=(DrawBuffersEnum[])stored.Clone();return true; }
+        route=[];return false;
     }
-
-    /// <summary>Publishes a single selector, preserving grouped default-window selectors such as Back.</summary>
-    internal void SetDrawBuffer(DrawBufferMode buffer)
+    /// <summary>Compares all effective slots without allocating normalized request storage on the suppression path.</summary>
+    internal bool MatchesFramebufferDrawRouting(int framebuffer,ReadOnlySpan<DrawBuffersEnum> route)
     {
-        var route = NormalizeDrawRouting(1, [(DrawBuffersEnum)buffer]);
-        ApplyFramebufferDrawRouting(GetCurrentFramebuffer(FramebufferTarget.DrawFramebuffer), route, 1, true, false);
+        if(!framebufferDrawRouting.TryGetValue(framebuffer,out var previous))return false;
+        for(int i=0;i<Math.Max(previous.Length,route.Length);i++)
+            if((i<previous.Length?previous[i]:DrawBuffersEnum.None)!=(i<route.Length?route[i]:DrawBuffersEnum.None))return false;
+        return true;
     }
-
-    /// <summary>Restores an explicit target without binding it when unchanged or when named operations are available.</summary>
-    internal void RestoreFramebufferDrawRouting(int framebuffer, DrawBuffersEnum[] buffers)
+    /// <summary>Certifies an immutable declaration or leaves mutable native routing to its backend owner.</summary>
+    internal bool ValidateImmutableFramebufferRouting(int framebuffer,ReadOnlySpan<DrawBuffersEnum> route)
     {
-        ArgumentNullException.ThrowIfNull(buffers);
-        if (framebuffer < 0) throw new ArgumentOutOfRangeException(nameof(framebuffer));
-        var route = NormalizeDrawRouting(buffers.Length, buffers);
-        bool single = framebuffer == 0;
-        for (int i = 1; i < route.Length; i++) single &= route[i] == DrawBuffersEnum.None;
-        ApplyFramebufferDrawRouting(framebuffer, route, single ? 1 : buffers.Length, single, true);
+        if(!immutableFramebuffers.TryGetValue(framebuffer,out var immutable))return false;
+        immutable.ValidateDeclaredRouting(route);return true;
     }
-    #endregion
-
-    #region Capture and invalidation
-    /// <summary>Returns an independent copy of the bound target's route, querying only unknown framebuffer identities.</summary>
-    internal DrawBuffersEnum[] CaptureFramebufferDrawRouting(int framebuffer)
+    /// <summary>Stores only a backend-owned completed route, padding unspecified outputs with None.</summary>
+    internal void RememberFramebufferDrawRouting(int framebuffer,ReadOnlySpan<DrawBuffersEnum> route)
     {
-        if (GetCurrentFramebuffer(FramebufferTarget.DrawFramebuffer) != framebuffer)
-            throw new InvalidOperationException("Routing capture requires the selected draw framebuffer.");
-        if (staticFramebuffers.TryGetValue(framebuffer, out var immutable)) return immutable.CaptureRouting();
-        if (!framebufferDrawRouting.TryGetValue(framebuffer, out var route))
-        {
-            route = new DrawBuffersEnum[GpuSupport.Graphics.MaxDrawBuffers];
-            for (int i = 0; i < route.Length; i++)
-            {
-                int value = -1;
-                GL.GetInteger(GetPName.DrawBuffer0 + i, out value);
-                if (value < 0) throw new InvalidOperationException("Framebuffer routing is unavailable.");
-                route[i] = (DrawBuffersEnum)value;
-            }
-            framebufferDrawRouting.Add(framebuffer, route);
-        }
-        return (DrawBuffersEnum[])route.Clone();
+        var stored=new DrawBuffersEnum[GpuSupport.Graphics.MaxDrawBuffers];
+        route.CopyTo(stored);framebufferDrawRouting[framebuffer]=stored;
     }
-
-    /// <summary>Forgets a retired, transferred or externally republished framebuffer identity without native mutation.</summary>
-    internal void InvalidateFramebufferDrawRouting(int framebuffer) => framebufferDrawRouting.Remove(framebuffer);
-    #endregion
-    #endregion
-
-    #region Private
-    /// <summary>Copies caller storage and pads every unspecified output with None for complete comparisons.</summary>
-    private static DrawBuffersEnum[] NormalizeDrawRouting(int count, DrawBuffersEnum[] buffers)
-    {
-        ArgumentNullException.ThrowIfNull(buffers);
-        int limit = GpuSupport.Graphics.MaxDrawBuffers;
-        if (count < 0 || count > buffers.Length || count > limit) throw new ArgumentOutOfRangeException(nameof(count));
-        var route = new DrawBuffersEnum[limit];
-        buffers.AsSpan(0, count).CopyTo(route);
-        return route;
-    }
-
-    /// <summary>Changes only unknown or different mappings and publishes knowledge after checked native success.</summary>
-    private void ApplyFramebufferDrawRouting(int framebuffer, DrawBuffersEnum[] route, int count, bool single, bool restore)
-    {
-        if (staticFramebuffers.TryGetValue(framebuffer, out var immutable))
-        {
-            immutable.ValidatePassRouting(route);
-            return;
-        }
-        if (framebufferDrawRouting.TryGetValue(framebuffer, out var previous) && previous.AsSpan().SequenceEqual(route)) return;
-        // A rejected native operation must not leave either the old or attempted mapping trusted.
-        framebufferDrawRouting.Remove(framebuffer);
-        using (var errors = new GlDebug.ErrorScope("Framebuffer routing publication"))
-        {
-            if (restore && framebuffer != 0 && GpuSupport.Graphics.SupportsArbDirectStateAccess)
-                GL.NamedFramebufferDrawBuffers(framebuffer, count, route);
-            else
-            {
-                if (restore) BindFramebuffer(FramebufferTarget.DrawFramebuffer, framebuffer);
-                if (single) GL.DrawBuffer((DrawBufferMode)route[0]);
-                else GL.DrawBuffers(count, route);
-            }
-        }
-        framebufferDrawRouting[framebuffer] = route;
-    }
+    /// <summary>Withdraws routing for a retired, transferred or externally changed framebuffer without native calls.</summary>
+    internal void InvalidateFramebufferDrawRouting(int framebuffer)=>framebufferDrawRouting.Remove(framebuffer);
     #endregion
 }

@@ -17,7 +17,7 @@ internal interface ILumonSceneFeedbackGatherComputeShaderBindings
     CpuUniformBuffer Parameters { get; }
     /// <summary>Declares the vge_patchIdGBuffer Sampler slot.</summary>
     [ShaderBinding("vge_patchIdGBuffer", ShaderBindingKind.Sampler, 0, ShaderStageKind.Compute, TextureTarget = ShaderTextureTarget.Texture2D, Sampler = ShaderSamplerPolicy.NearestClamp)]
-    int PatchIdG { set; }
+    GpuTextureRef PatchIdG { set; }
     /// <summary>Declares the VgePageRequests StorageBlock slot.</summary>
     [ShaderBinding("VgePageRequests", ShaderBindingKind.StorageBlock, 0, ShaderStageKind.Compute)]
     GpuShaderStorageBuffer PageRequests { set; }

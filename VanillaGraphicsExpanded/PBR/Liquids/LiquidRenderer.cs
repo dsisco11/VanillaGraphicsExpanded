@@ -99,6 +99,7 @@ internal sealed class LiquidRenderer : IRenderer
             var waterSettings = ConfigModSystem.Config;
             // Missing atlas or atmosphere data retains vanilla ownership for the entire invocation.
             if (!source.TryGetAtlasPools(out var atlases, out var pools) || !CanTakeOwnership(api, atlases)) return;
+            source.PrepareTextureInputs(api, atlases);
             var store = MaterialAtlasSystem.Instance.TextureStore;
             program.CaptureFrameInputs(api, source.TileSize);
             program.VolumeTransportEnabled = WaterVolumeRenderer.WasComposed(api);
@@ -114,19 +115,19 @@ internal sealed class LiquidRenderer : IRenderer
             program.WaveFrame = waves;
             program.ResetModelTransform();
             program.ForcedTransparency = 0;
-            program.DepthTexture = buffers[(int)EnumFrameBuffer.Primary].DepthTextureId;
-            program.ShadowMapNear = buffers[(int)EnumFrameBuffer.ShadowmapNear]?.DepthTextureId ?? 0;
-            program.ShadowMapFar = buffers[(int)EnumFrameBuffer.ShadowmapFar]?.DepthTextureId ?? 0;
+            program.DepthTexture = source.PrimaryDepth;
+            program.ShadowMapNear = source.ShadowNear;
+            program.ShadowMapFar = source.ShadowFar;
             program.LightShaftOcclusion = Postprocessing.LightShaftOcclusionRenderer.Texture;
             program.AerialRadianceTexture = AtmosphereModSystem.AerialRadianceTexture;
             program.AerialAttenuationTexture = AtmosphereModSystem.AerialAttenuationTexture;
             // Establish complete initial state before entering the engine pool loop.
             if (atlases.Length == 0) return;
             store.TryGetPageTextures(atlases[0], out var initialMaterial);
-            program.TerrainTexture = atlases[0];
+            program.TerrainTexture = source.AtlasTexture(0);
             program.MaterialParamsTexture = initialMaterial.MaterialParamsTexture;
             BindWaterMedium(program, store, atlases[0]);
-            submission.Run(program, pools[..atlases.Length], new(submission.Borrow(transparent), LiquidPipelineStates.SurfaceOutputs),
+            submission.Run(program, pools[..atlases.Length], new(submission.Borrow(transparent).SurfaceReference, LiquidPipelineStates.SurfaceOutputs),
                 LiquidPipelineStates.Surface, LiquidPipelineStates.SurfaceBlending, () =>
             {
                 // Once submission begins, a partial failure must not draw the same water twice.
@@ -134,7 +135,7 @@ internal sealed class LiquidRenderer : IRenderer
                 for (int i = 0; i < atlases.Length; i++)
                 {
                     store.TryGetPageTextures(atlases[i], out var material);
-                    program.TerrainTexture = atlases[i];
+                    program.TerrainTexture = source.AtlasTexture(i);
                     program.MaterialParamsTexture = material.MaterialParamsTexture;
                     BindWaterMedium(program, store, atlases[i]);
                     pools[i].Render(api.World.Player.Entity.CameraPos, "origin", EnumFrustumCullMode.CullNormal);

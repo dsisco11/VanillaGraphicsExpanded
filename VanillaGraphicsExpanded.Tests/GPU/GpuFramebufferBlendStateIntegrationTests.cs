@@ -44,33 +44,35 @@ public sealed class GpuFramebufferBlendStateIntegrationTests(HeadlessGLFixture f
         using var t0 = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba8, Width = System.Math.Max(1, 1), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         using var t1 = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba8, Width = System.Math.Max(1, 1), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         using var framebuffer = DynamicGpuFramebuffer.CreateMRT([t0, t1])!;
-        using var lifetime = new GraphicsPipelineLifetime();
         var first = maskOnly ? new ColorBlendDesc { WriteGreen = false, WriteBlue = false, WriteAlpha = false }
             : new ColorBlendDesc
             {
                 Enabled = true,
-                SourceRgb = BlendingFactorSrc.SrcAlpha,
-                DestinationRgb = BlendingFactorDest.OneMinusSrcAlpha,
-                SourceAlpha = BlendingFactorSrc.SrcAlpha,
-                DestinationAlpha = BlendingFactorDest.OneMinusSrcAlpha
+                SourceRgb = BlendFactor.SourceAlpha,
+                DestinationRgb = BlendFactor.OneMinusSourceAlpha,
+                SourceAlpha = BlendFactor.SourceAlpha,
+                DestinationAlpha = BlendFactor.OneMinusSourceAlpha
             };
-        using var pipeline = new GraphicsPipeline(lifetime, new(shader.GraphicsIdentity!, new([]),
-            new([new(PixelInternalFormat.Rgba8), new(PixelInternalFormat.Rgba8)]), DynamicPipelineState.Viewport,
-            blending: [first, new()]), shader);
-        using var geometry = new ArrayGraphicsGeometry(new([]), PrimitiveType.Triangles, new Dictionary<int, GpuVbo>(), 3);
+        using var pipeline = RHICommandContext.Current.CreateGraphicsPipeline(new(shader.Shader, new([]),
+            new([new(TextureFormat.Rgba8), new(TextureFormat.Rgba8)]), DynamicPipelineState.Viewport,
+            blending: [first, new()])).RequireResource();
+        using var geometry = new ArrayGraphicsGeometry(new([]), PrimitiveTopology.Triangles, new Dictionary<int, GpuVbo>(), 3);
         var cache = StateCache.Current;
         cache.SetBlendEnabled(incomingBlend);
         try
         {
-            Assert.True(GraphicsCommandContext.TryRun("IndexedBlend", [pipeline], true, commands =>
             {
+    var commands=RHICommandContext.Current;
+    using var scope46=commands.EnterBoundary(new("IndexedBlend",true,graphics:System.Linq.Enumerable.Select<RHIGraphicsPipeline,RHIGraphicsPipelineRef>([pipeline],value=>value),operations:BoundaryOperations.RenderPasses));
+    scope46.Run(()=>{
                 var clear = ColorClearValue.Float(0, 0, 1, 1);
-                commands.BeginPass(new(framebuffer, [new(0, AttachmentLoad.Clear, Clear: clear), new(1, AttachmentLoad.Clear, Clear: clear)]));
+                commands.BeginRenderPass(FramebufferTestSetup.DescribeAttachments(framebuffer, [new(AttachmentIndex:0, Load:AttachmentLoad.Clear, Clear: clear), new(AttachmentIndex:1, Load:AttachmentLoad.Clear, Clear: clear)]));
                 commands.SetPipeline(pipeline);
                 commands.SetDynamicState(new() { Viewport = commands.PassViewport });
-                commands.Draw(geometry, new(0, 3));
-                commands.EndPass();
-            }));
+                commands.Draw(geometry.Inputs, new(0, 3));
+                commands.EndRenderPass();
+            });
+}
             Assert.Equal(incomingBlend, GL.IsEnabled(IndexedEnableCap.Blend, 0));
             Assert.Equal(incomingBlend, GL.IsEnabled(IndexedEnableCap.Blend, 1));
             using var bindings = cache.BindFramebufferScope();
@@ -91,7 +93,7 @@ public sealed class GpuFramebufferBlendStateIntegrationTests(HeadlessGLFixture f
         /// <summary>Creates the test program for the standard component shader owner.</summary>
         public BlendProgram() { }
         /// <summary>The constant-color fixture has no resource or uniform inputs.</summary>
-        protected override void Submit() { }
+        protected override VanillaGraphicsExpanded.Rendering.RHI.RHIResourceBindings CaptureBindingsCore() => new(Shader);
         /// <summary>Publishes the packaged fixture's exact executable declaration.</summary>
         internal override GpuShaderContract ProgramContract => FramebufferBlendShaderProgram.Contract;
     }

@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Contracts;
 namespace VanillaGraphicsExpanded.PBR.Postprocessing;
@@ -10,6 +11,6 @@ internal interface IColorGradingProgramBindings
     CpuUniformBuffer GradingInputs { set; }
     /// <summary>Supplies the unpublished complete three-dimensional output.</summary>
     [ShaderBinding("gradedOutput",ShaderBindingKind.Image,0,ShaderStageKind.Compute)]
-    GpuTextureBinding GradedOutput { set; }
+    RHIImageBinding GradedOutput { set; }
     #endregion
 }

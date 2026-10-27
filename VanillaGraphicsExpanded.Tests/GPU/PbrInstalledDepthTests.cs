@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
@@ -50,8 +51,8 @@ public sealed class PbrInstalledDepthTests(HeadlessGLFixture fixture) : RenderTe
         var depthAttachment = attachments.Own(GpuFramebufferAttachment.FromTexture(depth));
         using var target = DynamicGpuFramebuffer.Create(colors, depthAttachment);
         var layout = GpuProgramLayout.TryBuild(program.ProgramId);
-        StateCache.Current.UseProgram(program.ProgramId);
-        StateCache.Current.BindVertexArray(vao.VertexArrayId);
+        OpenGLProgramSelection.Select(StateCache.Current, program.ProgramId);
+        OpenGLVertexSelection.Bind(StateCache.Current, vao.VertexArrayId);
         vertices.UploadData<float>([-1, -1, -.5f, 3, -1, -.5f, -1, 3, -.5f]);
         vertices.Bind();
         GL.EnableVertexAttribArray(0);
@@ -72,7 +73,7 @@ public sealed class PbrInstalledDepthTests(HeadlessGLFixture fixture) : RenderTe
         ShaderTestFramework.SetUniform(layout.GetUniformLocation(program.ProgramId, "vge_atmosphereAerialAttenuation"), 12);
         ShaderTestFramework.SetUniform(layout.GetUniformLocation(program.ProgramId, "depthOffset"), -.05f);
         texture.Bind(0);
-        target.BindWithViewport();
+        FramebufferTestSetup.BindForEngineRendering(target);
         GL.Enable(EnableCap.DepthTest); GL.DepthFunc(DepthFunction.Less); GL.DepthMask(true);
         GL.Disable(EnableCap.Blend); GL.Disable(EnableCap.CullFace);
         GL.ClearColor(0, 0, 0, 0); GL.ClearDepth(1); GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);

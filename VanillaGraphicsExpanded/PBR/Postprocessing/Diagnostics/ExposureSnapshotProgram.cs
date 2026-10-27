@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.ShaderCompilation;
 using System.Numerics;
 using VanillaGraphicsExpanded.PBR.CameraExposure;
 using VanillaGraphicsExpanded.PBR.Postprocessing.LocalExposure;
@@ -22,10 +23,10 @@ internal sealed partial class ExposureSnapshotProgram : GpuComputeProgram, IExpo
     {
         var layout = new GpuProgramLayout();
         layout.RegisterContract(Contract.Stages[0].Bindings);
-        return new(GpuComputePipeline.DeclareFromAssets(api, new ShaderSettings(Contract), layout: layout));
+        return new(ComputeShaderAsset.DeclareFromAssets(api, new ShaderSettings(Contract), layout: layout));
     }
     /// <summary>Owns the short-lived diagnostic parameter block.</summary>
-    public ExposureSnapshotProgram(GpuComputePipeline pipeline) : base(pipeline)
+    public ExposureSnapshotProgram(ComputeShaderAsset pipeline) : base(pipeline)
     {
         inputs = OwnUniformBuffer(new SnapshotInputs());
     }

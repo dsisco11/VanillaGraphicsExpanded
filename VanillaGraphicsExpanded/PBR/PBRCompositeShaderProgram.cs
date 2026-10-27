@@ -90,15 +90,15 @@ public sealed partial class PBRCompositeShaderProgram : GpuProgram, IPBRComposit
 
     public partial GpuTextureRef IndirectDiffuse { set; }
 
-    public partial int GBufferAlbedo { set; }
+    public partial GpuTextureRef GBufferAlbedo { set; }
 
     /// <summary>Supplies normal, material and environmental-irradiance layers.</summary>
     public partial GpuTextureRef GBufferSurface { set; }
 
-    public partial int PrimaryDepth { set; }
+    public partial GpuTextureRef PrimaryDepth { set; }
 
     /// <summary>Unbiased first-person view-space positions, independent of visibility depth.</summary>
-    public partial int GBufferPosition { set; }
+    public partial GpuTextureRef GBufferPosition { set; }
 
     /// <summary>Supplies optical-depth and scattering-source layers from the completed water capture.</summary>
     public partial GpuTextureRef WaterTransport { set; }

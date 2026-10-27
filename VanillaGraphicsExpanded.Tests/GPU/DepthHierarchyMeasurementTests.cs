@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Diagnostics;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
@@ -28,8 +29,11 @@ public sealed class DepthHierarchyMeasurementTests(HeadlessGLFixture fixture, IT
         var pipelines=raster.Prepare(draw,width,height,Programs.Create<RasterDepthCopyShaderProgram>(),Programs.Create<RasterDepthReductionShaderProgram>());
         /// <summary>Submits the former chain through its graphics boundary.</summary>
         void RenderRaster() {
-            Assert.True(GraphicsCommandContext.TryRun("Tests.HzbRasterReference",pipelines,true,
-                commands=>raster.Render(commands,draw,source)));
+            {
+    var commands=RHICommandContext.Current;
+    using var scope27=commands.EnterBoundary(new("Tests.HzbRasterReference",true,graphics:System.Linq.Enumerable.Select<RHIGraphicsPipeline,RHIGraphicsPipelineRef>(pipelines,value=>value),operations:BoundaryOperations.RenderPasses));
+    scope27.Run(()=>raster.Render(commands,draw,source));
+}
         }
         compute.Render(source); RenderRaster();
         for(int level=0;level<compute.Texture!.MipLevels;level++)

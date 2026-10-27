@@ -189,7 +189,7 @@ public partial class LumOnProbeAtlasProjectSh9FunctionalTests
         using var shInputs2 = LayeredTestTexture.Create(packed[0], packed[1], packed[2], packed[3], packed[4], packed[5], packed[6]);
         program.ProbeSh9 = shInputs2;
         using var anchorInputs1 = LayeredTestTexture.Create(anchors, normals);
-        program.ProbeAnchors = anchorInputs1; program.PrimaryDepth = depth.TextureId; using var surfaceInput1 = LayeredTestTexture.Create(guides, null, null);
+        program.ProbeAnchors = anchorInputs1; program.PrimaryDepth = depth; using var surfaceInput1 = LayeredTestTexture.Create(guides, null, null);
         program.GBufferSurface = surfaceInput1;
         TestFramework.RenderQuadTo(program, output);
         var result = output[0].ReadPixels();

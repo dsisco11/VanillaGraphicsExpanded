@@ -36,8 +36,8 @@ public sealed class GpuTextureAttachmentRepairTests(HeadlessGLFixture fixture)
             if (managed) Assert.True(source.Resize(8, 4, 1));
             else Assert.Throws<AggregateException>(() => source.Resize(8, 4, 1));
             Assert.Throws<InvalidOperationException>(() => framebuffer.Bind());
-            StateCache.Current.BindFramebuffer(FramebufferTarget.ReadFramebuffer, read.FboId);
-            StateCache.Current.BindFramebuffer(FramebufferTarget.DrawFramebuffer, draw.FboId);
+            OpenGLFramebufferSelection.Bind(StateCache.Current, FramebufferTarget.ReadFramebuffer, read.FboId);
+            OpenGLFramebufferSelection.Bind(StateCache.Current, FramebufferTarget.DrawFramebuffer, draw.FboId);
             // Each repair must operate independently of the still-invalid neighboring slot.
             if (replace) framebuffer.SetAttachment(FramebufferAttachment.ColorAttachment0, valid);
             else Assert.True(framebuffer.RemoveAttachment(FramebufferAttachment.ColorAttachment0));

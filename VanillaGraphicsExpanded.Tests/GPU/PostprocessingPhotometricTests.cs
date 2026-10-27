@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Numerics;
 using VanillaGraphicsExpanded.PBR.Atmosphere;
 using OpenTK.Graphics.OpenGL;
@@ -114,7 +115,7 @@ public sealed class PostprocessingPhotometricTests(HeadlessGLFixture fixture) : 
         using var source = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba32f, [float.NaN, 1f, 1f, 1f]);
         using var target = TestFramework.CreateTestGBuffer(1, 1, PixelInternalFormat.Rgba16f);
         using var draw = new PostprocessDraw();
-        target.BindAndClear(.25f, .5f, .75f, .125f);
+        FramebufferTestSetup.ClearAttachments(target, .25f, .5f, .75f, .125f);
         shader.SourceImage = source; shader.SecondaryImage = source;
         shader.Capture(new(0, 0, 1, 0), Vector4.Zero);
         Submit(draw, shader, target);
@@ -196,8 +197,11 @@ public sealed class PostprocessingPhotometricTests(HeadlessGLFixture fixture) : 
     private static void Submit(PostprocessDraw draw, GpuProgram shader, GpuFramebuffer target)
     {
         var pipeline = draw.Prepare(shader,target.PostprocessPass());
-        Assert.True(GraphicsCommandContext.TryRun("Tests.PhotometricPost", [pipeline], true,
-            commands => draw.Submit(commands, pipeline,target.PostprocessPass())));
+        {
+    var commands=RHICommandContext.Current;
+    using var scope72=commands.EnterBoundary(new("Tests.PhotometricPost",true,graphics:System.Linq.Enumerable.Select<RHIGraphicsPipeline,RHIGraphicsPipelineRef>([pipeline],value=>value),operations:BoundaryOperations.RenderPasses));
+    scope72.Run(()=>draw.Submit(commands, pipeline,target.PostprocessPass(), shader.CaptureBindings()));
+}
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
     #endregion

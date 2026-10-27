@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
@@ -10,34 +11,34 @@ internal static unsafe partial class Arb
     #region Internal API
     /// <summary>Forwards the exact signature to the backend execution boundary.</summary>
     internal static void UniformHandle(int @location, int @count, ref long @value)
-        => StateCache.Current.ExecuteArbUniformHandle(@location, @count, ref @value);
+        => OpenGLProgramCalls.ExecuteArbUniformHandle(@location, @count, ref @value);
 
     /// <summary>Forwards the exact signature to the backend execution boundary.</summary>
     internal static void UniformHandle(int @location, int @count, long[] @value)
-        => StateCache.Current.ExecuteArbUniformHandle(@location, @count, @value);
+        => OpenGLProgramCalls.ExecuteArbUniformHandle(@location, @count, @value);
 
     /// <summary>Forwards the exact signature to the backend execution boundary.</summary>
     internal static void UniformHandle(int @location, int @count, long* @value)
-        => StateCache.Current.ExecuteArbUniformHandle(@location, @count, @value);
+        => OpenGLProgramCalls.ExecuteArbUniformHandle(@location, @count, @value);
 
     /// <summary>Forwards the exact signature to the backend execution boundary.</summary>
     internal static void UniformHandle(int @location, int @count, ref ulong @value)
-        => StateCache.Current.ExecuteArbUniformHandle(@location, @count, ref @value);
+        => OpenGLProgramCalls.ExecuteArbUniformHandle(@location, @count, ref @value);
 
     /// <summary>Forwards the exact signature to the backend execution boundary.</summary>
     internal static void UniformHandle(int @location, int @count, ulong[] @value)
-        => StateCache.Current.ExecuteArbUniformHandle(@location, @count, @value);
+        => OpenGLProgramCalls.ExecuteArbUniformHandle(@location, @count, @value);
 
     /// <summary>Forwards the exact signature to the backend execution boundary.</summary>
     internal static void UniformHandle(int @location, int @count, ulong* @value)
-        => StateCache.Current.ExecuteArbUniformHandle(@location, @count, @value);
+        => OpenGLProgramCalls.ExecuteArbUniformHandle(@location, @count, @value);
 
     /// <summary>Forwards the exact signature to the backend execution boundary.</summary>
     internal static void UniformHandle(int @location, long @value)
-        => StateCache.Current.ExecuteArbUniformHandle(@location, @value);
+        => OpenGLProgramCalls.ExecuteArbUniformHandle(@location, @value);
 
     /// <summary>Forwards the exact signature to the backend execution boundary.</summary>
     internal static void UniformHandle(int @location, ulong @value)
-        => StateCache.Current.ExecuteArbUniformHandle(@location, @value);
+        => OpenGLProgramCalls.ExecuteArbUniformHandle(@location, @value);
     #endregion
 }

@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering.Pipeline;
 using VanillaGraphicsExpanded.Rendering.Pipeline.Descriptions;
@@ -10,19 +11,19 @@ public sealed class ShaderInterfaceCompatibilityTests
     #region Public API
     /// <summary>Normalized integer storage feeds floating inputs, while integer and double inputs retain their interpretation.</summary>
     [Theory]
-    [InlineData(ActiveAttribType.FloatVec4, VertexAttribPointerType.UnsignedByte, (int)VertexInterpretation.Normalized, true)]
-    [InlineData(ActiveAttribType.IntVec4, VertexAttribPointerType.Int, (int)VertexInterpretation.Integer, true)]
-    [InlineData(ActiveAttribType.IntVec4, VertexAttribPointerType.UnsignedInt, (int)VertexInterpretation.Integer, false)]
-    [InlineData(ActiveAttribType.UnsignedIntVec4, VertexAttribPointerType.UnsignedInt, (int)VertexInterpretation.Integer, true)]
-    [InlineData(ActiveAttribType.UnsignedIntVec4, VertexAttribPointerType.Int, (int)VertexInterpretation.Integer, false)]
-    [InlineData(ActiveAttribType.DoubleVec4, VertexAttribPointerType.Double, (int)VertexInterpretation.Double, true)]
-    [InlineData(ActiveAttribType.DoubleVec4, VertexAttribPointerType.Float, (int)VertexInterpretation.Floating, false)]
-    public void VertexScalarCompatibility(ActiveAttribType type, VertexAttribPointerType storage, int interpretation, bool accepted)
+    [InlineData(ActiveAttribType.FloatVec4, VertexComponentFormat.UnsignedByte, (int)VertexInterpretation.Normalized, true)]
+    [InlineData(ActiveAttribType.IntVec4, VertexComponentFormat.SignedInt, (int)VertexInterpretation.Integer, true)]
+    [InlineData(ActiveAttribType.IntVec4, VertexComponentFormat.UnsignedInt, (int)VertexInterpretation.Integer, false)]
+    [InlineData(ActiveAttribType.UnsignedIntVec4, VertexComponentFormat.UnsignedInt, (int)VertexInterpretation.Integer, true)]
+    [InlineData(ActiveAttribType.UnsignedIntVec4, VertexComponentFormat.SignedInt, (int)VertexInterpretation.Integer, false)]
+    [InlineData(ActiveAttribType.DoubleVec4, VertexComponentFormat.Double, (int)VertexInterpretation.Double, true)]
+    [InlineData(ActiveAttribType.DoubleVec4, VertexComponentFormat.Float, (int)VertexInterpretation.Floating, false)]
+    public void VertexScalarCompatibility(ActiveAttribType type, VertexComponentFormat storage, int interpretation, bool accepted)
     {
         var shape = ShaderInterfaceShape.From(type);
-        var attribute = new VertexAttributeDesc(0, 4, storage, (VertexInterpretation)interpretation, 0, 0, 32, 2);
+        var attribute = new RHIVertexAttribute(0, 4, storage, (VertexInterpretation)interpretation, 0, 0, 32, 2);
         Assert.Equal(accepted, shape.Accepts(attribute));
-        Assert.Equal(2, new VertexLayoutDesc([attribute]).Attributes[0].Divisor);
+        Assert.Equal(2, new RHIVertexLayout([attribute]).Attributes[0].Divisor);
     }
 
     /// <summary>Rectangular matrices retain their independent column count and row component count.</summary>
@@ -38,25 +39,14 @@ public sealed class ShaderInterfaceCompatibilityTests
 
     /// <summary>Output formats retain signedness and sufficient stored component coverage.</summary>
     [Theory]
-    [InlineData(PixelInternalFormat.Rgba8, ActiveAttribType.FloatVec4, true)]
-    [InlineData(PixelInternalFormat.Rg16f, ActiveAttribType.FloatVec4, false)]
-    [InlineData(PixelInternalFormat.Rgba8ui, ActiveAttribType.IntVec4, false)]
-    [InlineData(PixelInternalFormat.Rgba8ui, ActiveAttribType.UnsignedIntVec4, true)]
-    [InlineData(PixelInternalFormat.Rgba8i, ActiveAttribType.IntVec4, true)]
-    [InlineData(PixelInternalFormat.Rgba16f, ActiveAttribType.UnsignedIntVec4, false)]
-    public void FragmentScalarAndComponents(PixelInternalFormat format, ActiveAttribType type, bool accepted) =>
+    [InlineData(TextureFormat.Rgba8, ActiveAttribType.FloatVec4, true)]
+    [InlineData(TextureFormat.Rg16f, ActiveAttribType.FloatVec4, false)]
+    [InlineData(TextureFormat.Rgba8ui, ActiveAttribType.IntVec4, false)]
+    [InlineData(TextureFormat.Rgba8ui, ActiveAttribType.UnsignedIntVec4, true)]
+    [InlineData(TextureFormat.Rgba8i, ActiveAttribType.IntVec4, true)]
+    [InlineData(TextureFormat.Rgba16f, ActiveAttribType.UnsignedIntVec4, false)]
+    public void FragmentScalarAndComponents(TextureFormat format, ActiveAttribType type, bool accepted) =>
         Assert.Equal(accepted, ShaderTargetCompatibility.Accepts(format, ShaderInterfaceShape.From(type)));
 
-    /// <summary>Renderer lifetimes reject foreign-thread use without making graphics calls there.</summary>
-    [Fact]
-    public void RendererLifetimeRejectsCrossThreadUse()
-    {
-        using var lifetime = new GraphicsPipelineLifetime();
-        Exception? caught = null;
-        var worker = new Thread(() => caught = Record.Exception(lifetime.Validate));
-        worker.Start(); worker.Join();
-        Assert.IsType<InvalidOperationException>(caught);
-        lifetime.Validate();
-    }
     #endregion
 }

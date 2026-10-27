@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Contracts;
 
@@ -27,6 +28,6 @@ internal interface ICloudVolumeDiffuseBindings
     GpuShaderStorageBuffer? Scratch {set;}
     /// <summary>Writes only selected nodes in the already copied spare field.</summary>
     [ShaderBinding("diffuseWrite",ShaderBindingKind.Image,0,ShaderStageKind.Compute,TextureTarget=ShaderTextureTarget.Texture3D)]
-    GpuTextureBinding Destination {set;}
+    RHIImageBinding Destination {set;}
     #endregion
 }

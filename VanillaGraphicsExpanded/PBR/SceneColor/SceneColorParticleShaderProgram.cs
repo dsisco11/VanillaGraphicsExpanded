@@ -18,13 +18,13 @@ public sealed partial class SceneColorParticleShaderProgram : GpuProgram, IScene
     }
 
     /// <summary>Receives current engine depth without sampling an active output attachment.</summary>
-    public partial int VisibilityDepth { set; }
+    public partial GpuTextureRef VisibilityDepth { set; }
     /// <summary>Receives the depth snapshot preceding the unchanged particle callback.</summary>
-    public partial int BeforeDepth { set; }
+    public partial GpuTextureRef BeforeDepth { set; }
     /// <summary>Receives the depth snapshot following the unchanged particle callback.</summary>
-    public partial int AfterDepth { set; }
+    public partial GpuTextureRef AfterDepth { set; }
     /// <summary>Receives linear premultiplied particle radiance and coverage.</summary>
-    public partial int ParticleColor { set; }
+    public partial GpuTextureRef ParticleColor { set; }
     #endregion
 
     #region Internal API

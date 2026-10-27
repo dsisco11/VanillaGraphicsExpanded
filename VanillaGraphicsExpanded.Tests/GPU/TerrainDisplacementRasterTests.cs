@@ -1,3 +1,5 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
+using VanillaGraphicsExpanded.Rendering.RHI;
 using VanillaGraphicsExpanded.Rendering;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.PBR.Tessellation;
@@ -85,7 +87,7 @@ public sealed class TerrainDisplacementRasterTests : RenderTestBase
         int oldPatch=StateCache.Current.PatchVertices;
         try
         {
-            Assert.True(TerrainTessellationLinker.TryCreate(vertex,fragment,TerrainTessellationTestAssets.Generate(source,depthBias:mode==12),TerrainTessellationPatches.EnabledDefine, out program,out string error),error);
+            Assert.True(TerrainShaderTestFixture.LinkTessellation(vertex,fragment,TerrainTessellationTestAssets.Generate(source,depthBias:mode==12),TerrainTessellationPatches.EnabledDefine, out program,out string error),error);
             using var framework=new ShaderTestFramework();
             using var amplitude=framework.CreateTexture(16,16,PixelInternalFormat.R32f,Enumerable.Range(0,256).Select(i => mode is 10 or 11 ? (i%16<8 ? 1f : 2f) : mode==6 ? 0f : mode==8 ? 2f : 1f).ToArray());
             using var records=framework.CreateTexture(mode is 10 or 11 ? 4 : 2,1,PixelInternalFormat.Rgba32f,mode is 10 or 11 ? new float[] {0,0,.5f,1,.04f,0,0,0, .5f,0,.5f,1,.02f,0,0,0} : new float[] {0,0,mode==7 ? .5f : 1f,1,.04f,0,0,0});
@@ -93,9 +95,9 @@ public sealed class TerrainDisplacementRasterTests : RenderTestBase
             using var atlas=framework.CreateTexture(16,16,PixelInternalFormat.Rgba32f,pixels);
             using var target=framework.CreateTestGBuffer(16,16,PixelInternalFormat.Rgba32f);
             using var camera = TestFrameCamera.CreateIdentity(128,128);
-            Assert.True(camera.TryBindToSlot(GpuBindingRegistry.Ubo.Frame));
+            Assert.True(RHICommandContext.Current.OpenGL.BindEngineUniform(GpuBindingRegistry.Ubo.Frame, camera.Capture()));
             var layout = GpuProgramLayout.TryBuild(program);
-            target.BindWithViewport(); StateCache.Current.UseProgram(program); StateCache.Current.BindVertexArray(vao);
+            FramebufferTestSetup.BindForEngineRendering(target); OpenGLProgramSelection.Select(StateCache.Current, program); OpenGLVertexSelection.Bind(StateCache.Current, vao);
             amplitude.Bind(0); atlas.Bind(1); records.Bind(2);
             ShaderTestFramework.SetUniform(layout.GetUniformLocation(program,"vge_displacementTex"),0);
             ShaderTestFramework.SetUniform(layout.GetUniformLocation(program,"vge_normalDepthTex"),1);
@@ -152,7 +154,7 @@ public sealed class TerrainDisplacementRasterTests : RenderTestBase
             }
             if(mode<10) Assert.InRange(actual[center+3],.999f,1.001f);
         }
-        finally { StateCache.Current.UseProgram(0); StateCache.Current.BindVertexArray(0); StateCache.Current.SetPatchVertices(oldPatch);  if(program!=0)GpuProgramObject.Adopt(program).Dispose();   }
+        finally { OpenGLProgramSelection.Select(StateCache.Current, 0); OpenGLVertexSelection.Bind(StateCache.Current, 0); StateCache.Current.SetPatchVertices(oldPatch);  if(program!=0)GpuProgramObject.Adopt(program).Dispose();   }
     }
     #endregion
 }

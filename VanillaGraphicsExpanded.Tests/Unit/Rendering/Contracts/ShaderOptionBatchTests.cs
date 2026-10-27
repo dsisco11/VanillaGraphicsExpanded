@@ -198,7 +198,7 @@ public sealed class ShaderOptionBatchTests(ITestOutputHelper output)
     {
         #region Submission
         /// <summary>Retains this owner's explicit external input publication contract.</summary>
-        protected override void Submit() { }
+        protected override VanillaGraphicsExpanded.Rendering.RHI.RHIResourceBindings CaptureBindingsCore() => new(Shader);
         #endregion
 
         internal static readonly ShaderOption<bool> First = new("FIRST", false);

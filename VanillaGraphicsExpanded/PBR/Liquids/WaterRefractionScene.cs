@@ -9,9 +9,9 @@ namespace VanillaGraphicsExpanded.PBR.Liquids;
 /// <summary>Owns optional immutable opaque radiance/depth publication for liquid refraction.</summary>
 internal sealed class WaterRefractionScene : IDisposable
 {
-    private StaticGpuFramebuffer? target;
-    private StaticGpuFramebuffer? reducedTarget;
-    private GpuFramebufferAttachment[] targetImages = [], reducedImages = [];
+    private RHIRenderPassDescription? target;
+    private RHIRenderPassDescription? reducedTarget;
+    private GpuTextureRef compositeInput;
     private bool failed;
     private int backgroundScale = 1;
     private DynamicTexture2D? reducedColor;
@@ -20,7 +20,7 @@ internal sealed class WaterRefractionScene : IDisposable
     #region Public API
     #region Publication and resolution
     /// <summary>Supplies the fixed reduction declaration for the currently owned reduced allocation.</summary>
-    internal RenderPassDesc? ReductionPass => reducedTarget?.PreservePass;
+    internal RHIRenderPassDescription? ReductionPass => reducedTarget;
     /// <summary>Supplies the selected background divisor; changing it withdraws current publication.</summary>
     internal int BackgroundScale
     {
@@ -50,22 +50,22 @@ internal sealed class WaterRefractionScene : IDisposable
 
     #region Frame lifecycle
     /// <summary>Invalidates the preceding frame and prepares borrowed composite plus owned snapshot outputs.</summary>
-    internal StaticGpuFramebuffer? BeginFrame(bool enabled, DynamicTexture2D? compositeColor, int backgroundScale = 1)
+    internal RHIRenderPassDescription? BeginFrame(bool enabled, DynamicTexture2D? compositeColor, int backgroundScale = 1)
         => PrepareFrame(enabled && compositeColor?.IsValid == true, compositeColor?.Width ?? 0,
             compositeColor?.Height ?? 0, compositeColor, backgroundScale);
 
     /// <summary>Prepares full-resolution receiver-only capture without borrowing an ordinary composite image.</summary>
-    internal StaticGpuFramebuffer? BeginCapture(int width, int height)
+    internal RHIRenderPassDescription? BeginCapture(int width, int height)
         => PrepareFrame(true, width, height, null, 1);
 
     /// <summary>Publishes after the owning composite finishes its coherent radiance/depth draw.</summary>
-    internal void Publish(Action<GpuFramebuffer, DynamicTexture2D, DynamicTexture2D>? reduce = null)
+    internal void Publish(Action<RHIRenderPassDescription, DynamicTexture2D, DynamicTexture2D>? reduce = null)
     {
         Published = false;
-        if (target?.IsValid != true || SourceColor?.IsValid != true || SourceDepth?.IsValid != true) return;
+        if (target is null || SourceColor?.IsValid != true || SourceDepth?.IsValid != true) return;
         if (BackgroundScale == 2)
         {
-            if (reducedTarget?.IsValid != true || reduce is null) return;
+            if (reducedTarget is null || reducedColor?.IsValid != true || reducedDepth?.IsValid != true || reduce is null) return;
             // Publication follows the complete reduction. Exceptions leave the old pair unavailable.
             reduce(reducedTarget, SourceColor, SourceDepth);
         }
@@ -80,10 +80,8 @@ internal sealed class WaterRefractionScene : IDisposable
     {
         Published = false;
         failed = false;
-        target?.Dispose();
         target = null;
-        foreach (var image in targetImages) image.Dispose();
-        targetImages = [];
+        compositeInput=default;
         SourceColor?.Dispose();
         SourceColor = null;
         SourceDepth?.Dispose();
@@ -95,7 +93,7 @@ internal sealed class WaterRefractionScene : IDisposable
 
     #region Private
     /// <summary>Allocates coherent receiver storage and routes its fixed output locations for capture or ordinary composition.</summary>
-    private StaticGpuFramebuffer? PrepareFrame(bool enabled, int width, int height, DynamicTexture2D? compositeColor, int backgroundScale)
+    private RHIRenderPassDescription? PrepareFrame(bool enabled, int width, int height, DynamicTexture2D? compositeColor, int backgroundScale)
     {
         Published = false;
         BackgroundScale = backgroundScale;
@@ -107,24 +105,20 @@ internal sealed class WaterRefractionScene : IDisposable
         // A failed allocation retains straight-through rendering until toggle, resize or world reset.
         if (failed) return null;
         // Recreate the attachment set together; a resized/replaced composite cannot retain old source storage.
-        if (target is not null && (!target.IsValid || SourceColor?.IsValid != true || SourceDepth?.IsValid != true
+        if (target is not null && (SourceColor?.IsValid != true || SourceDepth?.IsValid != true
             || SourceColor.Width != width || SourceColor.Height != height
-            || !ReferenceEquals(target.GetAttachment(FramebufferAttachment.ColorAttachment0)?.Resource, compositeColor))) Dispose();
+            || compositeInput != (GpuTextureRef)compositeColor)) Dispose();
         if (target is null)
         {
             try
             {
                 SourceColor = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba16f, Width = System.Math.Max(1, width), Height = System.Math.Max(1, height), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "WaterRefraction.Radiance" }).RequireResource();
                 SourceDepth = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.R32f, Width = System.Math.Max(1, width), Height = System.Math.Max(1, height), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "WaterRefraction.Depth" }).RequireResource();
-                targetImages = compositeColor is null
-                    ? [GpuFramebufferAttachment.FromTexture(SourceColor), GpuFramebufferAttachment.FromTexture(SourceDepth)]
-                    : [GpuFramebufferAttachment.FromTexture(compositeColor), GpuFramebufferAttachment.FromTexture(SourceColor),
-                        GpuFramebufferAttachment.FromTexture(SourceDepth)];
-                target = StaticGpuFramebuffer.Create(targetImages,
-                    debugName: compositeColor is null ? "WaterRefraction.Capture" : "WaterRefraction.Publication",
-                    firstColorAttachment: compositeColor is null ? 1 : 0);
-                if (target is null) throw new InvalidOperationException("Water refraction framebuffer unavailable.");
-                if (!target.IsValid) throw new InvalidOperationException("Water refraction framebuffer invalid.");
+                compositeInput=compositeColor;
+                target = new([
+                    compositeColor is null ? new() : new RHIColorAttachment(Image:RHIAttachment.FromTexture(compositeColor)),
+                    new(Image:RHIAttachment.FromTexture(SourceColor)),new(Image:RHIAttachment.FromTexture(SourceDepth))],
+                    label:compositeColor is null ? "WaterRefraction.Capture" : "WaterRefraction.Publication");
             }
             catch { Dispose(); failed = true; throw; }
         }
@@ -139,10 +133,8 @@ internal sealed class WaterRefractionScene : IDisposable
                 int reducedHeight = (height + 1) / 2;
                 reducedColor = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba16f, Width = System.Math.Max(1, reducedWidth), Height = System.Math.Max(1, reducedHeight), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "WaterRefraction.ReducedRadiance" }).RequireResource();
                 reducedDepth = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba32f, Width = System.Math.Max(1, reducedWidth), Height = System.Math.Max(1, reducedHeight), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "WaterRefraction.ReducedDepthAndUv" }).RequireResource();
-                reducedImages = [GpuFramebufferAttachment.FromTexture(reducedColor), GpuFramebufferAttachment.FromTexture(reducedDepth)];
-                reducedTarget = StaticGpuFramebuffer.Create(reducedImages,
-                    debugName: "WaterRefraction.Reduction") ?? throw new InvalidOperationException("Water receiver reduction unavailable.");
-                if (!reducedTarget.IsValid) throw new InvalidOperationException("Water receiver reduction target invalid.");
+                reducedTarget=new([new(Image:RHIAttachment.FromTexture(reducedColor)),new(Image:RHIAttachment.FromTexture(reducedDepth))],
+                    label:"WaterRefraction.Reduction");
             }
             catch { Dispose(); failed = true; throw; }
         }
@@ -152,10 +144,7 @@ internal sealed class WaterRefractionScene : IDisposable
     /// <summary>Retires only reduction storage when full-size backgrounds are selected.</summary>
     private void RetireReduced()
     {
-        reducedTarget?.Dispose();
         reducedTarget = null;
-        foreach (var image in reducedImages) image.Dispose();
-        reducedImages = [];
         reducedColor?.Dispose();
         reducedColor = null;
         reducedDepth?.Dispose();

@@ -1,3 +1,5 @@
+using VanillaGraphicsExpanded.Rendering.ShaderCompilation;
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
@@ -11,44 +13,43 @@ namespace VanillaGraphicsExpanded.LumOn.WorldProbes.Gpu;
 /// <summary>Declares point-stream layouts and complete state for ordered atlas publication.</summary>
 internal sealed partial class LumOnWorldProbeClipmapGpuUploader
 {
-    private static readonly VertexLayoutDesc ProbeLayout = new([
-        new(0, 2, VertexAttribPointerType.Float, VertexInterpretation.Floating, 0, 0, 40),
-        new(1, 3, VertexAttribPointerType.Float, VertexInterpretation.Floating, 0, 8, 40),
-        new(2, 1, VertexAttribPointerType.Float, VertexInterpretation.Floating, 0, 20, 40),
-        new(3, 1, VertexAttribPointerType.Float, VertexInterpretation.Floating, 0, 24, 40),
-        new(4, 1, VertexAttribPointerType.Float, VertexInterpretation.Floating, 0, 28, 40),
-        new(5, 1, VertexAttribPointerType.Float, VertexInterpretation.Floating, 0, 32, 40),
-        new(6, 1, VertexAttribPointerType.UnsignedInt, VertexInterpretation.Integer, 0, 36, 40)]);
-    private static readonly VertexLayoutDesc TileLayout = new([
-        new(0, 2, VertexAttribPointerType.Float, VertexInterpretation.Floating, 0, 0, 24),
-        new(1, 4, VertexAttribPointerType.Float, VertexInterpretation.Floating, 0, 8, 24)]);
-    private readonly GraphicsPipelineLifetime pipelineLifetime = new();
-    private GraphicsPipeline? tilePipeline, probePipeline;
+    private static readonly RHIVertexLayout ProbeLayout = new([
+        new(0, 2, VertexComponentFormat.Float, VertexInterpretation.Floating, 0, 0, 40),
+        new(1, 3, VertexComponentFormat.Float, VertexInterpretation.Floating, 0, 8, 40),
+        new(2, 1, VertexComponentFormat.Float, VertexInterpretation.Floating, 0, 20, 40),
+        new(3, 1, VertexComponentFormat.Float, VertexInterpretation.Floating, 0, 24, 40),
+        new(4, 1, VertexComponentFormat.Float, VertexInterpretation.Floating, 0, 28, 40),
+        new(5, 1, VertexComponentFormat.Float, VertexInterpretation.Floating, 0, 32, 40),
+        new(6, 1, VertexComponentFormat.UnsignedInt, VertexInterpretation.Integer, 0, 36, 40)]);
+    private static readonly RHIVertexLayout TileLayout = new([
+        new(0, 2, VertexComponentFormat.Float, VertexInterpretation.Floating, 0, 0, 24),
+        new(1, 4, VertexComponentFormat.Float, VertexInterpretation.Floating, 0, 8, 24)]);
+    private GraphicsPipelineAsset? tilePipeline, probePipeline;
 
     #region Private
     /// <summary>Revalidates executable and exact target interfaces before beginning either publication pass.</summary>
-    private GraphicsPipeline PreparePipeline(ref GraphicsPipeline? slot, GpuProgram shader,
-        VertexLayoutDesc layout, StaticGpuFramebuffer target)
+    private RHIGraphicsPipeline PreparePipeline(ref GraphicsPipelineAsset? slot, GpuProgram shader,
+        RHIVertexLayout layout, RHIRenderPassDescription target)
     {
-        using var metadata = new RenderPassTargets(target.PreservePass);
-        if (slot is not null && ReferenceEquals(slot.Shader, shader)
-            && slot.ExecutableRevision == shader.ExecutableRevision && slot.Description.Targets == metadata.Signature) return slot;
-        var replacement = new GraphicsPipeline(pipelineLifetime,
-            new(shader.GraphicsIdentity!, layout, metadata.Signature, DynamicPipelineState.Viewport,
-                assembly: new() { Topology = PrimitiveType.Points }, rasterizer: new() { PointSize = 1 }), shader);
+        var signature=RHICommandContext.Current.DescribeRenderTargets(target);
+        if (slot is not null && slot.Description.Shader == shader.Shader && slot.Description.Targets == signature) return slot.Pipeline;
+        var replacement = new GraphicsPipelineAsset(shader,new(shader.Shader, layout, signature, DynamicPipelineState.Viewport,
+                assembly: new() { Topology = PrimitiveTopology.Points }, rasterizer: new() { PointSize = 1 }));
         slot?.Dispose();
-        return slot = replacement;
+        slot = replacement;
+        return replacement.Pipeline;
     }
 
     /// <summary>Writes admitted points without clearing other resident probes or changing their storage ownership.</summary>
-    private static void Submit(GraphicsCommandContext commands, GraphicsPipeline pipeline,
-        ArrayGraphicsGeometry geometry, StaticGpuFramebuffer target, int count)
+    private static void Submit(RHICommandContext commands, RHIGraphicsPipeline pipeline,
+        ArrayGraphicsGeometry geometry, RHIRenderPassDescription target, int count, RHIResourceBindings inputs)
     {
-        commands.BeginPass(target.PreservePass);
+        commands.BeginRenderPass(target);
         commands.SetPipeline(pipeline);
         commands.SetDynamicState(new() { Viewport = commands.PassViewport });
-        commands.Draw(geometry, new(0, count));
-        commands.EndPass();
+        commands.BindResources(inputs);
+        commands.Draw(geometry.Inputs, new(0, count));
+        commands.EndRenderPass();
     }
     #endregion
 }

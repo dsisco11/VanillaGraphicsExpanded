@@ -91,13 +91,14 @@ public sealed class LightingResourceOwnershipTests : RenderTestBase
         buffers.RequestRecreateBuffers("resource owner contract");
         Assert.False(buffers.EnsureBuffers(8,6));
         Assert.False(previous.IsValid);
-        int savedFramebuffer = GpuFramebuffer.SaveBinding();
-        try
-        {
-            buffers.ScreenProbeAtlasCurrentFbo!.Bind();
-            Assert.Equal(FramebufferErrorCode.FramebufferComplete,GL.CheckFramebufferStatus(FramebufferTarget.Framebuffer));
-        }
-        finally { GpuFramebuffer.RestoreBinding(savedFramebuffer); }
+        var context=VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current;
+        using(var boundary=context.EnterBoundary(new("Tests.LumOn.TargetCompletion",true,operations:VanillaGraphicsExpanded.Rendering.RHI.BoundaryOperations.RenderPasses)))
+            boundary.Run(()=>
+            {
+                context.BeginRenderPass(buffers.ScreenProbeAtlasCurrentPass!);
+                Assert.Equal(FramebufferErrorCode.FramebufferComplete,GL.CheckFramebufferStatus(FramebufferTarget.Framebuffer));
+                context.EndRenderPass();
+            });
         buffers.Dispose();
         Assert.Equal(ErrorCode.NoError,GL.GetError());
     }

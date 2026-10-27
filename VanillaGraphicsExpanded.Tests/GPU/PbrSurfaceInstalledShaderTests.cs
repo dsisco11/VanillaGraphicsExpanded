@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using VanillaGraphicsExpanded.Rendering.Shaders;
 using System.Text.RegularExpressions;
 using OpenTK.Graphics.OpenGL;
@@ -45,7 +46,7 @@ public sealed class PbrSurfaceInstalledShaderTests : RenderTestBase
             GL.GetProgram(program, GetProgramParameterName.LinkStatus, out int linked);
             Assert.True(linked != 0, GL.GetProgramInfoLog(program));
             using var frame = new VgeFrameUniformBuffer();
-            Assert.True(frame.TryBindToSlot(GpuBindingRegistry.Ubo.Frame));
+            Assert.True(RHICommandContext.Current.OpenGL.BindEngineUniform(GpuBindingRegistry.Ubo.Frame, frame.Capture()));
             GL.UseProgram(program); GL.BindVertexArray(vao);
             float alpha = fullSky ? 1 : family == "standard" ? .03f : 7f / 255;
             if (family == "standard") GL.Uniform4(GL.GetUniformLocation(program, "rgbaLightIn"), 1f, 1f, 1f, alpha);

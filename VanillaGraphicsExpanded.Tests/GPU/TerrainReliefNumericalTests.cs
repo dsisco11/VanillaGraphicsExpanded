@@ -1,3 +1,5 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
+using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
@@ -46,17 +48,17 @@ public sealed class TerrainReliefNumericalTests : RenderTestBase
         using var inputs = new PackedUniformBuffer(16);
         byte[] inputBytes = new byte[16];
         var layout=BuiltShaderFixture.Layout(id,fragmentPath);
-        StateCache.Current.UseProgram(id); StateCache.Current.BindVertexArray(vao.VertexArrayId);
+        OpenGLProgramSelection.Select(StateCache.Current, id); OpenGLVertexSelection.Bind(StateCache.Current, vao.VertexArrayId);
         heights.Bind(0); indices.Bind(1); records.Bind(2);
         ShaderTestFramework.SetUniform(layout.GetUniformLocation(id,"vge_normalDepthTex"),0);
         ShaderTestFramework.SetUniform(layout.GetUniformLocation(id,"vge_displacementTex"),1);
         ShaderTestFramework.SetUniform(layout.GetUniformLocation(id,"vge_displacementRecords"),2);
         UboPacking.WriteVec2(inputBytes, 8, scale, distance);
         using var frameCamera = TestFrameCamera.CreateIdentity(32, 32);
-        Assert.True(frameCamera.TryBindToSlot(GpuBindingRegistry.Ubo.Frame));
+        Assert.True(RHICommandContext.Current.OpenGL.BindEngineUniform(GpuBindingRegistry.Ubo.Frame, frameCamera.Capture()));
         inputs.SetBytes(inputBytes);
-        Assert.True(inputs.TryBindToSlot(GpuBindingRegistry.Ubo.ShaderInputs));
-        target.BindWithViewport(); GL.Disable(EnableCap.DepthTest);GL.Disable(EnableCap.Blend);GL.Disable(EnableCap.CullFace);
+        Assert.True(RHICommandContext.Current.OpenGL.BindEngineUniform(GpuBindingRegistry.Ubo.ShaderInputs, inputs.Capture()));
+        FramebufferTestSetup.BindForEngineRendering(target); GL.Disable(EnableCap.DepthTest);GL.Disable(EnableCap.Blend);GL.Disable(EnableCap.CullFace);
         GL.DrawArrays(PrimitiveType.Triangles,0,3);
         float[] pixels=target[0].ReadPixels(); int center=(16*32+16)*4;
         if(direction==0) Assert.InRange(pixels[center],-.000001f,.000001f);
@@ -66,7 +68,7 @@ public sealed class TerrainReliefNumericalTests : RenderTestBase
             Assert.InRange(pixels[center]*direction,expected*.92f,expected*1.02f);
         }
         for(int i=0;i<pixels.Length;i+=4) { Assert.True(float.IsFinite(pixels[i]));Assert.InRange(Math.Abs(pixels[i]),0,.031251f);Assert.InRange(pixels[i+2],0,1); }
-        StateCache.Current.UseProgram(0);StateCache.Current.BindVertexArray(0);
+        OpenGLProgramSelection.Select(StateCache.Current, 0);OpenGLVertexSelection.Bind(StateCache.Current, 0);
     }
     #endregion
 }

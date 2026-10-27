@@ -1,3 +1,5 @@
+using VanillaGraphicsExpanded.Rendering.ShaderCompilation;
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Pipeline;
@@ -10,31 +12,30 @@ namespace VanillaGraphicsExpanded.PBR.SceneColor;
 /// <summary>Owns the two-output receiver and SSAO graphics realizations without owning their shaders.</summary>
 internal sealed partial class SceneColorParticleCapture
 {
-    private readonly GraphicsPipelineLifetime pipelineLifetime = new();
-    private GraphicsPipeline? resolvePipeline, ssaoPipeline;
+    private GraphicsPipelineAsset? resolvePipeline, ssaoPipeline;
 
     #region Private
     /// <summary>Validates borrowed target metadata and atomically replaces an obsolete executable realization.</summary>
-    private GraphicsPipeline PreparePipeline(ref GraphicsPipeline? slot, GpuProgram shader, RenderPassDesc pass)
+    private RHIGraphicsPipeline PreparePipeline(ref GraphicsPipelineAsset? slot, GpuProgram shader, RHIRenderPassDescription pass)
     {
         StateCache.Current.RequireOutsideEngineBoundary();
-        using var metadata = new RenderPassTargets(pass);
-        if (slot is not null && ReferenceEquals(slot.Shader, shader)
-            && slot.ExecutableRevision == shader.ExecutableRevision && slot.Description.Targets == metadata.Signature) return slot;
-        var replacement = new GraphicsPipeline(pipelineLifetime,
-            new(shader.GraphicsIdentity!, EngineFullscreenGeometry.Layout, metadata.Signature, DynamicPipelineState.Viewport), shader);
+        var signature=RHICommandContext.Current.DescribeRenderTargets(pass);
+        if (slot is not null && slot.Description.Shader == shader.Shader && slot.Description.Targets == signature) return slot.Pipeline;
+        var replacement = new GraphicsPipelineAsset(shader,new(shader.Shader, EngineFullscreenGeometry.Layout, signature, DynamicPipelineState.Viewport));
         slot?.Dispose();
-        return slot = replacement;
+        slot = replacement;
+        return replacement.Pipeline;
     }
 
     /// <summary>Preserves the borrowed outputs outside the fullscreen resolve and restores shader ownership after submission.</summary>
-    private void Submit(GraphicsCommandContext commands, GraphicsPipeline pipeline, RenderPassDesc pass)
+    private void Submit(RHICommandContext commands, RHIGraphicsPipeline pipeline, RHIRenderPassDescription pass,RHIResourceBindings inputs)
     {
-        commands.BeginPass(pass);
+        commands.BeginRenderPass(pass);
         commands.SetPipeline(pipeline);
         commands.SetDynamicState(new() { Viewport = commands.PassViewport });
-        commands.Draw(geometry, new(0, 6));
-        commands.EndPass();
+        commands.BindResources(inputs);
+        commands.DrawIndexed(geometry.Inputs,new(0,6));
+        commands.EndRenderPass();
     }
     #endregion
 }

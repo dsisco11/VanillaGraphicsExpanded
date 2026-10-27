@@ -34,16 +34,16 @@ public class GlStateCacheUnbindIntegrationTests
         // Program
         using (var program = SimpleProgram.Create("Test.Program"))
         {
-            StateCache.Current.UseProgram(program.ProgramId);
+            OpenGLProgramSelection.Select(StateCache.Current, program.ProgramId);
             Assert.Equal(program.ProgramId, StateCache.Current.GetCurrentProgram());
 
-            StateCache.Current.UnbindProgram();
+            OpenGLProgramSelection.Select(StateCache.Current, 0);
             Assert.Equal(0, StateCache.Current.GetCurrentProgram());
         }
 
         // VAO
         int vao = GL.GenVertexArray();
-        StateCache.Current.BindVertexArray(vao);
+        OpenGLVertexSelection.Bind(StateCache.Current, vao);
         Assert.Equal(vao, StateCache.Current.GetCurrentVao());
         StateCache.Current.UnbindVertexArray();
         Assert.Equal(0, StateCache.Current.GetCurrentVao());
@@ -51,15 +51,15 @@ public class GlStateCacheUnbindIntegrationTests
 
         // FBO
         int fbo = GL.GenFramebuffer();
-        StateCache.Current.BindFramebuffer(FramebufferTarget.Framebuffer, fbo);
+        OpenGLFramebufferSelection.Bind(StateCache.Current, FramebufferTarget.Framebuffer, fbo);
         Assert.Equal(fbo, StateCache.Current.GetCurrentFramebuffer(FramebufferTarget.Framebuffer));
-        StateCache.Current.UnbindFramebuffer(FramebufferTarget.Framebuffer);
+        OpenGLFramebufferSelection.Bind(StateCache.Current,FramebufferTarget.Framebuffer,0);
         Assert.Equal(0, StateCache.Current.GetCurrentFramebuffer(FramebufferTarget.Framebuffer));
         GL.DeleteFramebuffer(fbo);
 
         // Program pipeline
         int pipeline = GL.GenProgramPipeline();
-        StateCache.Current.BindProgramPipeline(pipeline);
+        OpenGLProgramPipelineSelection.Bind(StateCache.Current, pipeline);
         Assert.Equal(pipeline, StateCache.Current.GetCurrentProgramPipeline());
         StateCache.Current.UnbindProgramPipeline();
         Assert.Equal(0, StateCache.Current.GetCurrentProgramPipeline());

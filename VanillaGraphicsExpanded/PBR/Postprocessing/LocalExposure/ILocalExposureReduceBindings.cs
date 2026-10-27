@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Contracts;
 using VanillaGraphicsExpanded.PBR.CameraExposure;
@@ -13,6 +14,6 @@ internal interface ILocalExposureReduceBindings : IPhotometricFrameBindings
     GpuTextureRef SceneRadiance { set; }
     /// <summary>Receives physical log luminance and explicit validity for every coarse cell.</summary>
     [ShaderBinding("logOutput",ShaderBindingKind.Image,0,ShaderStageKind.Compute)]
-    GpuTextureBinding LogOutput { set; }
+    RHIImageBinding LogOutput { set; }
     #endregion
 }

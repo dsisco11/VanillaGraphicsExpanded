@@ -294,7 +294,7 @@ public partial class LumOnProbeAtlasProjectSh9FunctionalTests : LumOnShaderFunct
 
         using var anchorInputs1 = LayeredTestTexture.Create(anchorPosTex, anchorNormTex);
         sh9GatherId.ProbeAnchors = anchorInputs1;
-        sh9GatherId.PrimaryDepth = depthTex.TextureId;
+        sh9GatherId.PrimaryDepth = depthTex;
         using var surfaceInput1 = LayeredTestTexture.Create(gbufNormTex, null, null);
         sh9GatherId.GBufferSurface = surfaceInput1;
 
@@ -310,7 +310,7 @@ public partial class LumOnProbeAtlasProjectSh9FunctionalTests : LumOnShaderFunct
         atlasGatherId.ScreenProbeAtlas = atlasTex;
         using var anchorInputs2 = LayeredTestTexture.Create(anchorPosTex, anchorNormTex);
         atlasGatherId.ProbeAnchors = anchorInputs2;
-        atlasGatherId.PrimaryDepth = depthTex.TextureId;
+        atlasGatherId.PrimaryDepth = depthTex;
         using var surfaceInput2 = LayeredTestTexture.Create(gbufNormTex, null, null);
         atlasGatherId.GBufferSurface = surfaceInput2;
 

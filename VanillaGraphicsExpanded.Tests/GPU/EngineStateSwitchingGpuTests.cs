@@ -68,10 +68,10 @@ public sealed class EngineStateSwitchingGpuTests(HeadlessGLFixture fixture) : Re
             EngineStateCalls.DeleteBuffers(1, ref buffer);
             Assert.True(cache.TryGetCachedCurrentFramebuffer(FramebufferTarget.DrawFramebuffer, out var cachedFramebuffer));
             Assert.Equal(framebuffer, cachedFramebuffer);
-            EngineStateCalls.DeleteFramebuffer(framebuffer);
+            VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLRenderingDeletionCalls.Core.DeleteFramebuffer(framebuffer);
             Assert.True(cache.TryGetCachedCurrentVao(out cachedArray));
             Assert.Equal(array, cachedArray);
-            EngineStateCalls.DeleteVertexArray(array);
+            VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLRenderingDeletionCalls.Core.DeleteVertexArray(array);
             Assert.True(cache.TryGetCachedActiveTextureUnit(out activeUnit));
             Assert.Equal(0, activeUnit);
             Assert.Equal(0, cache.GetBoundTexture(TextureTarget.Texture2D, 0));

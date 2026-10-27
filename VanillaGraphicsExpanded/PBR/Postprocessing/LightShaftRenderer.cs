@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using System.Numerics;
 using VanillaGraphicsExpanded.ModSystems;
@@ -11,7 +12,7 @@ internal sealed class LightShaftRenderer : IDisposable
 {
     private PostprocessImage? first,second,bloom,occlusion;
     private LightShaftShaderProgram? shader;
-    private GraphicsPipeline? pipeline;
+    private RHIGraphicsPipeline? pipeline;
     private int passes,samples;
     #region Public API
     /// <summary>Publishes unexposed shaft bloom for additive final composition.</summary>
@@ -19,7 +20,7 @@ internal sealed class LightShaftRenderer : IDisposable
     /// <summary>Publishes visibility for atmospheric scattering consumers, never whole-scene multiplication.</summary>
     internal DynamicTexture2D Occlusion=>occlusion!.Texture;
     /// <summary>Prepares persistent reduced-resolution resources under native quality and configured work limits.</summary>
-    internal GraphicsPipeline Prepare(ICoreClientAPI api,PostprocessDraw draw,int width,int height,int quality=1,int sampleLimit=32,bool occlusionOnly=false)
+    internal RHIGraphicsPipeline Prepare(ICoreClientAPI api,PostprocessDraw draw,int width,int height,int quality=1,int sampleLimit=32,bool occlusionOnly=false)
     {
         int frameWidth=width,frameHeight=height;
         int divisor=quality>=2?2:4;
@@ -37,10 +38,10 @@ internal sealed class LightShaftRenderer : IDisposable
         samples=Math.Clamp(Math.Min(sampleLimit,quality>=3?64:quality>=2?32:16),1,64);
         shader=GpuShaderProgramLibraries.Get<LightShaftShaderProgram>(api,"pbr_lightshafts");
         if(shader?.EnsureReady()!=true) throw new InvalidOperationException("Owned solar-shaft shader unavailable.");
-        return pipeline=draw.Prepare(shader,first.Target.PreservePass);
+        return pipeline=draw.Prepare(shader,first.Pass);
     }
     /// <summary>Extracts unexposed HDR glare, filters both independent signals, and publishes separate outputs.</summary>
-    internal void Render(GraphicsCommandContext commands,PostprocessDraw draw,ICoreClientAPI api,VgeFrameUniformBuffer frame,
+    internal void Render(RHICommandContext commands,PostprocessDraw draw,ICoreClientAPI api,VgeFrameUniformBuffer frame,
         GpuTexture scene,GpuTexture glow,GpuTexture depth,(GpuShaderStorageBuffer? Buffer,float ManualLogGain) exposure,PostprocessParameters settings,bool occlusionOnly=false)
     {
         var lighting=AtmosphereModSystem.Lighting??throw new InvalidOperationException("Atmospheric lighting is unavailable for solar shafts.");
@@ -65,7 +66,7 @@ internal sealed class LightShaftRenderer : IDisposable
         shader.ExposureBuffer=exposure.Buffer;
         shader.Capture(new(0,0,occlusionOnly?4:0,exposure.Buffer is null?0:1),
             new(settings.BloomThreshold,settings.LightShaftLimit,settings.LightShaftStrength,exposure.ManualLogGain),sun,solar);
-        draw.Submit(commands,pipeline!,first!.Target.PreservePass);
+        draw.Submit(commands,pipeline!,first!.Pass,shader!.CaptureBindings());
         // Ping-pong keeps every sampling source distinct from the active draw attachment.
         PostprocessImage source=first,destination=second!;
         for(int pass=0;pass<passes;pass++)
@@ -73,12 +74,12 @@ internal sealed class LightShaftRenderer : IDisposable
             float step=.04f*MathF.Pow(3,pass+3-passes);
             shader.SourceImage=source.Texture;
             shader.Capture(new(0,0,1,samples),new(step,0,0,0),sun,solar);
-            draw.Submit(commands,pipeline!,destination.Target.PreservePass);
+            draw.Submit(commands,pipeline!,destination.Pass,shader!.CaptureBindings());
             (source,destination)=(destination,source);
         }
         shader.SourceImage=source.Texture;
         shader.Capture(new(0,0,occlusionOnly?3:2,0),Vector4.Zero,sun,solar);
-        draw.Submit(commands,pipeline!,occlusionOnly?occlusion!.Target.PreservePass:bloom!.Target.PreservePass);
+        draw.Submit(commands,pipeline!,occlusionOnly?occlusion!.Pass:bloom!.Pass,shader!.CaptureBindings());
     }
     /// <summary>Retires all shaft-only storage and publication together.</summary>
     public void Dispose()

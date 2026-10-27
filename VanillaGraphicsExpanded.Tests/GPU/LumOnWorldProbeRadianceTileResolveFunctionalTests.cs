@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using VanillaGraphicsExpanded.LumOn;
 using System;
 
@@ -44,7 +45,7 @@ public sealed class LumOnWorldProbeRadianceTileResolveFunctionalTests : LumOnSha
 
             using var output = TestFramework.CreateTestGBuffer(width, height, PixelInternalFormat.Rgba16f);
 
-            output.BindWithViewport();
+            FramebufferTestSetup.BindForEngineRendering(output);
             GL.ClearColor(0f, 0f, 0f, 0f);
             GL.Clear(ClearBufferMask.ColorBufferBit);
 
@@ -71,7 +72,8 @@ public sealed class LumOnWorldProbeRadianceTileResolveFunctionalTests : LumOnSha
             GL.VertexAttribPointer(1, 4, VertexAttribPointerType.Float, false, stride, 2 * sizeof(float));
 
             program.AtlasSize = new(width, height);
-            using var use = program.UseScope();
+            using var use=ShaderBindingTestPipeline.Create(program);
+        RHICommandContext.Current.SetPipeline(use);RHICommandContext.Current.BindResources(program.CaptureBindings());
             GL.DrawArrays(PrimitiveType.Points, 0, 1);
 
             GL.BindVertexArray(0);

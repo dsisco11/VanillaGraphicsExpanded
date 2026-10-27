@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.PBR.CameraExposure;
 using VanillaGraphicsExpanded.Rendering;
@@ -36,13 +37,15 @@ internal class RasterCameraExposureShader : GpuProgram
     #endregion
     #region Protected API
     /// <summary>Publishes the original parameter and nearest-clamped texture inputs.</summary>
-    protected override void Submit()
+    protected override RHIResourceBindings CaptureBindingsCore()
     {
-        inputs.BindTo(this,"CameraExposureInputs","Tests.RasterExposure");
         bool adaptation=Previous is not null;
-        if(adaptation) Frame!.BindTo(this,"VgeFrameUBO","Tests.RasterExposure.Frame");
-        ProgramLayout.TryBindSamplerTexture(adaptation?"histogram":"sceneRadiance",TextureTarget.Texture2D,Source!.TextureId,GpuSamplers.NearestClamp);
-        if(adaptation) ProgramLayout.TryBindSamplerTexture("previousExposure",TextureTarget.Texture2D,Previous!.TextureId,GpuSamplers.NearestClamp);
+        return new(Shader,samplers:adaptation
+            ? [new(GpuBindingEntry.Identity(ShaderBindingKind.Sampler,"histogram"),Source),new(GpuBindingEntry.Identity(ShaderBindingKind.Sampler,"previousExposure"),Previous)]
+            : [new(GpuBindingEntry.Identity(ShaderBindingKind.Sampler,"sceneRadiance"),Source)],
+            uniforms:adaptation
+            ? [new(GpuBindingEntry.Identity(ShaderBindingKind.UniformBlock,"CameraExposureInputs"),inputs.Capture()),new(GpuBindingEntry.Identity(ShaderBindingKind.UniformBlock,"VgeFrameUBO"),Frame?.Capture())]
+            : [new(GpuBindingEntry.Identity(ShaderBindingKind.UniformBlock,"CameraExposureInputs"),inputs.Capture())]);
     }
     #endregion
 }

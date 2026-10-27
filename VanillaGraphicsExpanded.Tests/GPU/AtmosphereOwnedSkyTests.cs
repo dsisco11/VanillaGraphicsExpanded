@@ -1,3 +1,5 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Collections.Immutable;
 using System.Numerics;
 using System.Reflection;
@@ -485,9 +487,9 @@ public sealed class AtmosphereOwnedSkyTests(HeadlessGLFixture fixture) : LumOnSh
             inputs.Float(92,replacedBackground);
             Vector3 moon = AtmosphereModSystem.Lighting.Moon;
             inputs.Vector(96, moon.X, moon.Y, moon.Z);
-            program.SkyLookup = AtmosphereModSystem.SkyTextureId;
-            program.LiquidDepth = depth.TextureId;
-            Target.BindWithViewport();
+            program.SkyLookup = AtmosphereModSystem.SkyTexture;
+            program.LiquidDepth = depth;
+            FramebufferTestSetup.BindForEngineRendering(Target);
             // Metadata belongs to other passes; preserve recognizable contents while drawing the sky.
             GL.DrawBuffers(8, Enumerable.Range(0, 8).Select(i => DrawBuffersEnum.ColorAttachment0 + i).ToArray()); StateCache.Current.Invalidate(EPipelineState.FramebufferRouting);
             for (int attachment = 2; attachment < 8; attachment++)
@@ -497,9 +499,11 @@ public sealed class AtmosphereOwnedSkyTests(HeadlessGLFixture fixture) : LumOnSh
             }
             GL.DrawBuffers(2, new[] { DrawBuffersEnum.ColorAttachment0, DrawBuffersEnum.ColorAttachment1 }); StateCache.Current.Invalidate(EPipelineState.FramebufferRouting);
             StateCache.Current.Apply(new GlPipelineDesc(defaultMask: GlPipelineStateMask.From(GlPipelineStateId.DepthTestEnable).With(GlPipelineStateId.BlendEnable).With(GlPipelineStateId.CullFaceEnable).With(GlPipelineStateId.ScissorTestEnable).With(GlPipelineStateId.ColorMask), nonDefaultMask: GlPipelineStateMask.From(GlPipelineStateId.DepthWriteMask), depthWriteMask: false));
-            using (program.UseScope())
-            using (vao.BindScope())
+            using (var bindingPipeline = ShaderBindingTestPipeline.Create(program))
+            using (StateCache.Current.BindVertexArrayScope(vao.VertexArrayId))
             {
+                RHICommandContext.Current.SetPipeline(bindingPipeline);
+                RHICommandContext.Current.BindResources(program.CaptureBindings());
                 inputs.Publish();
                 GL.DrawArrays(PrimitiveType.Triangles, 0, 3);
             }

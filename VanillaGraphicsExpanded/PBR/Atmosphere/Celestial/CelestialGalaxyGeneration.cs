@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.ShaderCompilation;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using System.Collections.Generic;
@@ -15,10 +16,9 @@ internal sealed class CelestialGalaxyGeneration : IDisposable
     private readonly CelestialGenerationProgram program;
     private readonly CelestialSource source;
     private readonly CelestialResidual residual;
-    private readonly GraphicsPipelineLifetime lifetime = new();
     private readonly GpuResourceCollection owned = new();
     private ArrayGraphicsGeometry? scratchGeometry;
-    private GraphicsPipeline? scratchPipeline;
+    private GraphicsPipelineAsset? scratchPipeline;
     private DynamicTextureCube? cube;
     private GpuFence? fence;
     private bool submitted;
@@ -60,21 +60,20 @@ internal sealed class CelestialGalaxyGeneration : IDisposable
             var indexData = new float[4096 * indexHeight * 4]; values.CopyTo(indexData);
             var indices = owned.Own(RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba32f, Width = System.Math.Max(1, 4096), Height = System.Math.Max(1, indexHeight), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource()); indices.UploadData(indexData);
             var scratch = owned.Own(RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba32f, Width = System.Math.Max(1, CelestialResidual.TileSize), Height = System.Math.Max(1, CelestialResidual.TileSize), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource());
-            var image = owned.Own(GpuFramebufferAttachment.FromTexture(scratch));
-            var target = owned.Own(StaticGpuFramebuffer.Create([image], debugName: "Celestial.GenerationScratch"));
-            var layout = new VertexLayoutDesc([]);
-            var geometry = scratchGeometry = new ArrayGraphicsGeometry(layout, PrimitiveType.Triangles,
+
+            var layout = new RHIVertexLayout([]);
+            var geometry = scratchGeometry = new ArrayGraphicsGeometry(layout, PrimitiveTopology.Triangles,
                 new Dictionary<int, GpuVbo>(), proceduralVertices: 3);
-            var pass = target.PreservePass;
-            using var metadata = new RenderPassTargets(pass);
-            var pipeline = scratchPipeline = new GraphicsPipeline(lifetime, new(program.GraphicsIdentity!, layout, metadata.Signature, DynamicPipelineState.Viewport), program);
+            var pass = new RHIRenderPassDescription([new(Image:RHIAttachment.FromTexture(scratch))],label:"Celestial.GenerationScratch");
+            var signature=RHICommandContext.Current.DescribeRenderTargets(pass);
+            scratchPipeline = new GraphicsPipelineAsset(program,new(program.Shader, layout, signature, DynamicPipelineState.Viewport));
+            var pipeline = scratchPipeline.Pipeline;
             program.Catalog = catalog; program.Indices = indices; program.ParentMap = cube;
             int baseTiles = (source.Quality.FaceSize + 127) / 128;
             for (int level = 0; level < cube.StorageMipLevels; level++) for (int face = 0; face < 6; face++)
             {
                 int size = Math.Max(1, source.Quality.FaceSize >> level);
-                using var destinationImage = GpuFramebufferAttachment.FromTexture(cube, level, cubeFace: TextureTarget.TextureCubeMapPositiveX + face);
-                using var destination = StaticGpuFramebuffer.Create([destinationImage], debugName: $"Celestial.Destination.Face{face}.Mip{level}");
+
                 for (int y = 0; y < size; y += 128) for (int x = 0; x < size; x += 128)
                 {
                     int tile = face * baseTiles * baseTiles + y / 128 * baseTiles + x / 128;
@@ -82,20 +81,20 @@ internal sealed class CelestialGalaxyGeneration : IDisposable
                     program.SetTile(face, size, x, y, level == 0 ? offsets[tile] : 0, count,
                         level - 1, Math.Max(1, source.Quality.FaceSize >> Math.Max(0, level - 1)), source);
                     int width = Math.Min(128, size - x), height = Math.Min(128, size - y);
-                    if (!GraphicsCommandContext.TryRun("Celestial.Generate", [pipeline], true, commands =>
+                    var commands=RHICommandContext.Current;
+                    using var boundary=commands.EnterBoundary(new("Celestial.Generate",true,graphics:[pipeline],operations:BoundaryOperations.RenderPasses));
+                    boundary.Run(()=>
                     {
-                        commands.BeginPass(pass); commands.SetPipeline(pipeline);
-                        commands.SetDynamicState(new() { Viewport = new Rendering.Pipeline.State.DynamicDrawState { Width = width, Height = height } });
-                        commands.Draw(geometry, new(0, 3)); commands.EndPass();
-                    })) throw new InvalidOperationException("Celestial generation boundary rejected.");
+                        commands.BeginRenderPass(pass); commands.SetPipeline(pipeline);
+                        commands.SetDynamicState(new() { Viewport = new RHIViewport(0,0,width,height) });
+                        commands.BindResources(program.CaptureBindings());
+                        commands.Draw(geometry.Inputs, new(0, 3)); commands.EndRenderPass();
+                    });
                     // Scratch decouples sampling a parent mip from writing the cube, avoiding texture feedback.
-                    using var bindings = StateCache.Current.BindFramebufferScope();
-                    StateCache.Current.BindFramebuffer(FramebufferTarget.ReadFramebuffer, target.FboId);
-                    StateCache.Current.BindFramebuffer(FramebufferTarget.DrawFramebuffer, destination.FboId);
-                    GL.BlitFramebuffer(0, 0, width, height, x, y, x + width, y + height, ClearBufferMask.ColorBufferBit, BlitFramebufferFilter.Nearest);
+                    commands.BlitImages(new(RHIAttachment.FromTexture(scratch),new(0,0,width,height),
+                        RHIAttachment.FromTexture(cube,new(level,face)),new(x,y,width,height)));
                 }
             }
-            if (GL.GetError() != ErrorCode.NoError) throw new InvalidOperationException("Celestial raster generation failed.");
             fence = RHICommandContext.Current.InsertFence(); RHICommandContext.Current.Flush();
         }
         catch { Dispose(); throw; }
@@ -129,7 +128,7 @@ internal sealed class CelestialGalaxyGeneration : IDisposable
         Rendering.Integration.RenderingCleanup.Run(
             () => { var owner = fence; fence = null; owner?.Dispose(); },
             () => { var owner = cube; cube = null; owner?.Dispose(); },
-            ReleaseScratch, lifetime.Dispose);
+            ReleaseScratch);
     }
     #endregion
 

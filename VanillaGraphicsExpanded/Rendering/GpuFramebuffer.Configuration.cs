@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -16,23 +17,19 @@ public abstract partial class GpuFramebuffer
         ArgumentNullException.ThrowIfNull(colors);
         if (firstColorAttachment < 0 || firstColorAttachment > 31 || colors.Count > 32 - firstColorAttachment)
             throw new ArgumentOutOfRangeException(nameof(firstColorAttachment));
-        using var bindings = StateCache.Current.BindFramebufferScope();
         for (int i = 0; i < colors.Count; i++) SetAttachmentCore(ColorSlot(firstColorAttachment + i), colors[i]);
         if (depth is not null) SetAttachmentCore(depth.DepthStencilSlot, depth);
-        Bind();
         // Preserve shader locations without allocating dummy storage for leading holes.
         var route = colors.Count == 0 ? Array.Empty<DrawBuffersEnum>()
             : Enumerable.Range(0, firstColorAttachment + colors.Count)
                 .Select(i => i < firstColorAttachment ? DrawBuffersEnum.None : DrawBuffersEnum.ColorAttachment0 + i).ToArray();
         if (route.Length == 0)
         {
-            StateCache.Current.SetDrawBuffer(DrawBufferMode.None);
-            GL.ReadBuffer(ReadBufferMode.None);
+            OpenGLFramebufferConfiguration.ConfigureRouting(this, route, ReadBufferMode.None);
         }
         else
         {
-            StateCache.Current.SetDrawBuffers(route.Length, route);
-            GL.ReadBuffer(ReadBufferMode.ColorAttachment0 + firstColorAttachment);
+            OpenGLFramebufferConfiguration.ConfigureRouting(this, route, ReadBufferMode.ColorAttachment0 + firstColorAttachment);
         }
         if (!CheckStatus(out var error)) throw new InvalidOperationException(error);
         return route;
@@ -46,7 +43,6 @@ public abstract partial class GpuFramebuffer
         ObjectDisposedException.ThrowIf(IsDisposed, this);
         if (fboId == 0) throw new InvalidOperationException("The default framebuffer cannot accept attachments.");
         attachment.ValidateSlot(slot);
-        using var bindings = StateCache.Current.BindFramebufferScope(FramebufferTarget.Framebuffer, fboId);
         // Repair only the requested slot. Rendering validation would reject an invalid outgoing
         // image before it can be replaced. Other pending replacements remain dirty until Bind.
         attachment.AttachTo(this, slot);
@@ -75,7 +71,7 @@ public abstract partial class GpuFramebuffer
         using var bindings = StateCache.Current.BindFramebufferScope(FramebufferTarget.Framebuffer, fboId);
         // Detachment must remain possible when the outgoing image is unavailable. Keep any
         // other pending replacements dirty so their native attachments refresh at rendering use.
-        StateCache.Current.FramebufferTexture(this, slot, null);
+        OpenGLFramebufferConfiguration.FramebufferTexture(this, slot, null);
         if (slot == FramebufferAttachment.DepthStencilAttachment)
         {
             attachments.Remove(FramebufferAttachment.DepthAttachment);

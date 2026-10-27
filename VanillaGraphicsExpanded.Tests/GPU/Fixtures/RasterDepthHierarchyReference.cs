@@ -12,14 +12,14 @@ internal sealed class RasterDepthHierarchyReference : IDisposable
     private GpuFramebuffer[] targets=[];
     private RasterDepthCopyShaderProgram? copy;
     private RasterDepthReductionShaderProgram? reduce;
-    private GraphicsPipeline? copyPipeline,reducePipeline;
+    private RHIGraphicsPipeline? copyPipeline,reducePipeline;
     #region Public API
     /// <summary>Gets the owned hierarchy; consumers borrow this instance.</summary>
     internal DynamicTexture2D? Texture {get;private set;}
     /// <summary>Gets logical payload bytes across every allocated mip.</summary>
     internal long StorageBytes {get;private set;}
     /// <summary>Allocates once per extent and prepares executable contracts outside submission.</summary>
-    internal GraphicsPipeline[] Prepare(PostprocessDraw draw,int width,int height,RasterDepthCopyShaderProgram copy,RasterDepthReductionShaderProgram reduce) {
+    internal RHIGraphicsPipeline[] Prepare(PostprocessDraw draw,int width,int height,RasterDepthCopyShaderProgram copy,RasterDepthReductionShaderProgram reduce) {
         if(Texture is null || Texture.Width!=width || Texture.Height!=height) {
             Dispose();
             try {
@@ -40,16 +40,16 @@ internal sealed class RasterDepthHierarchyReference : IDisposable
         return [copyPipeline,reducePipeline];
     }
     /// <summary>Generates all mips, excluding the attached destination from the sampled texture's accessible levels.</summary>
-    internal void Render(GraphicsCommandContext commands,PostprocessDraw draw,GpuTexture depth) {
+    internal void Render(RHICommandContext commands,PostprocessDraw draw,GpuTexture depth) {
         var texture=Texture??throw new InvalidOperationException("Depth hierarchy is not prepared.");
         copy!.PrimaryDepth=depth;
-        draw.Submit(commands,copyPipeline!,targets[0].PostprocessPass());
+        draw.Submit(commands,copyPipeline!,targets[0].PostprocessPass(),copy.CaptureBindings());
         try {
             reduce!.HzbDepth=texture;reduce.SrcMip=0;
             for(int level=1;level<texture.MipLevels;level++) {
                 // Texel-fetch LOD zero is relative to BASE_LEVEL. Only the completed source mip is accessible.
                 texture.SetMipRange(level-1,level-1);
-                draw.Submit(commands,reducePipeline!,targets[level].PostprocessPass());
+                draw.Submit(commands,reducePipeline!,targets[level].PostprocessPass(),reduce.CaptureBindings());
             }
         } finally {texture.SetMipRange(0,texture.MipLevels-1);}
     }

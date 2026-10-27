@@ -211,7 +211,7 @@ internal sealed class CloudVolumeDensity(Func<int,PackedUniformBuffer?,CloudVolu
         var domain=new CloudVolumeDomain(input.Storage.Width,input.Placement,0,0);
         programs[0]!.Capture(domain,0,0,new CloudVolumeDensityState(),input.Frame,false);
         programs[0]!.Map=map;programs[0]!.Summary=summary;
-        programs[0]!.Descriptors=new(nativeSnapshot,TextureAccess.WriteOnly);
+        programs[0]!.Descriptors=new(nativeSnapshot,ImageAccess.WriteOnly);
         Check(current);Run(0,()=>programs[0]!.Dispatch((input.Storage.Width*input.Storage.Width+63)/64));Check(current);
         programs[0]!.Map=default;
     }
@@ -309,8 +309,8 @@ internal sealed class CloudVolumeDensity(Func<int,PackedUniformBuffer?,CloudVolu
     private void Configure(int op,CloudVolumeFields fields,long x,long z,uint completedFrame,bool initial,int shift=0)
     {
         var p=programs[op]!;p.Capture(fields.Domain,x,z,fields.DensityState,completedFrame,initial,shift);
-        p.Descriptors=new(fields.Descriptors,op==1?TextureAccess.ReadWrite:TextureAccess.ReadOnly);
-        p.Density=new(fields.Density,op==3?TextureAccess.ReadWrite:TextureAccess.WriteOnly,Layered:true);p.StoredDensity=fields.Density;
+        p.Descriptors=new(fields.Descriptors,op==1?ImageAccess.ReadWrite:ImageAccess.ReadOnly);
+        p.Density=new(fields.Density,op==3?ImageAccess.ReadWrite:ImageAccess.WriteOnly,Layered:true);p.StoredDensity=fields.Density;
         p.Regions=fields.Regions;p.Occupancy=fields.Occupancy;p.Scratch=fields.Scratch;p.Summary=summary;
         p.Commands=new(commands,0,12);
     }

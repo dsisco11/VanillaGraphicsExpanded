@@ -1,3 +1,5 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
+using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Integration;
@@ -123,9 +125,11 @@ public sealed class SparseStateCoverageTests(HeadlessGLFixture fixture) : Render
         cache.SetColorMask(GlColorMask.FromRgba(false, false, false, false));
         try
         {
-            Assert.True(GraphicsCommandContext.TryRun("ClearOnlySparse", [], true, commands =>
             {
-                commands.BeginPass(new(target, [new(0, AttachmentLoad.Clear,
+    var commands=RHICommandContext.Current;
+    using var scope75=commands.EnterBoundary(new("ClearOnlySparse",true,graphics:System.Linq.Enumerable.Select<RHIGraphicsPipeline,RHIGraphicsPipelineRef>([],value=>value),operations:BoundaryOperations.RenderPasses));
+    scope75.Run(()=>{
+                commands.BeginRenderPass(FramebufferTestSetup.DescribeAttachments(target, [new(AttachmentIndex:0, Load:AttachmentLoad.Clear,
                     Clear: ColorClearValue.Float(1, .5f, .75f, 1))], area: new(1, 1, 2, 2)));
 #if DEBUG
                 long calls = cache.FixedFunctionCalls;
@@ -137,7 +141,8 @@ public sealed class SparseStateCoverageTests(HeadlessGLFixture fixture) : Render
 #if DEBUG
                 Assert.Equal(calls, cache.FixedFunctionCalls);
 #endif
-            }));
+            });
+}
             Assert.True(GL.IsEnabled(EnableCap.ScissorTest));
             int[] box = new int[4]; GL.GetInteger(GetPName.ScissorBox, box); Assert.Equal(new[] { 0, 0, 1, 1 }, box);
             bool[] mask = new bool[4]; GL.GetBoolean(GetIndexedPName.ColorWritemask, 0, mask); Assert.All(mask, Assert.False);
@@ -174,7 +179,7 @@ public sealed class SparseStateCoverageTests(HeadlessGLFixture fixture) : Render
 #if DEBUG
             long calls = cache.FixedFunctionCalls;
 #endif
-            boundary!.Run(() => RenderPassOperations.Load(description, new(0, 0, 2, 2)));
+            boundary!.Run(() => OpenGLRenderPassOperations.Load(description, new(0, 0, 2, 2)));
 #if DEBUG
             Assert.Equal(calls, cache.FixedFunctionCalls);
 #endif

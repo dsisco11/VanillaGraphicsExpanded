@@ -26,6 +26,8 @@ public sealed class AtmosphereModSystem : ModSystem, IRenderer
     internal CelestialResourceSet? CelestialSource => celestial?.Completed;
     internal static AtmosphereLighting? Lighting { get; private set; }
     internal static int SkyTextureId { get; private set; }
+    /// <summary>Lends the sky lookup from the coherently installed atmospheric generation.</summary>
+    internal static Rendering.GpuTextureRef SkyTexture { get; private set; }
     internal static int AerialRadianceTextureId { get; private set; }
     internal static int AerialAttenuationTextureId { get; private set; }
     /// <summary>Returns the borrowed radiance volume from the published atmosphere generation.</summary>
@@ -64,7 +66,7 @@ public sealed class AtmosphereModSystem : ModSystem, IRenderer
         ambientPublication?.Dispose();
         AerialRadianceTexture = null; AerialAttenuationTexture = null;
         ExternalTransmissionTexture = null;
-        Lighting = null; SkyTextureId = 0; AerialRadianceTextureId = 0; AerialAttenuationTextureId = 0;
+        Lighting = null; SkyTextureId = 0; SkyTexture = default; AerialRadianceTextureId = 0; AerialAttenuationTextureId = 0;
         seasonInputs = new();
         Rendering.Integration.RenderingCleanup.Run(
             () => { var owner = celestial; celestial = null; owner?.Dispose(); },
@@ -182,7 +184,7 @@ public sealed class AtmosphereModSystem : ModSystem, IRenderer
             // Handles and fences belong to the old namespace. Recreate the existing backend;
             // celestial lifetime independently abandons its dead sets and restarts load preparation.
             pendingPublication = null; Lighting = null;
-            SkyTextureId = AerialRadianceTextureId = AerialAttenuationTextureId = 0;
+            SkyTextureId = AerialRadianceTextureId = AerialAttenuationTextureId = 0; SkyTexture = default;
             AerialRadianceTexture = AerialAttenuationTexture = null; ExternalTransmissionTexture = null;
             Rendering.Integration.RenderingCleanup.Run(
                 () => { computation?.Dispose(); computation = null; },
@@ -212,6 +214,7 @@ public sealed class AtmosphereModSystem : ModSystem, IRenderer
         AerialAttenuationTexture = textures.Attenuation;
         ExternalTransmissionTexture = textures.ExternalTransmission;
         SkyTextureId = textures.Sky.TextureId;
+        SkyTexture = textures.Sky;
         AerialRadianceTextureId = textures.Radiance.TextureId;
         AerialAttenuationTextureId = textures.Attenuation.TextureId;
         Lighting = ready with { ReconstructionMaximumNits = textures.ReconstructionMaximumNits };

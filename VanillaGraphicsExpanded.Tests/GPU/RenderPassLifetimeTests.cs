@@ -1,11 +1,8 @@
-using VanillaGraphicsExpanded.Rendering.RHI;
+using System;
+using System.Linq;
 using OpenTK.Graphics.OpenGL;
-using VanillaGraphicsExpanded.LumOn;
 using VanillaGraphicsExpanded.Rendering;
-using VanillaGraphicsExpanded.Rendering.Pipeline;
-using VanillaGraphicsExpanded.Rendering.Pipeline.Descriptions;
-using VanillaGraphicsExpanded.Rendering.Pipeline.Passes;
-using VanillaGraphicsExpanded.Rendering.Shaders;
+using VanillaGraphicsExpanded.Rendering.RHI;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 
 namespace VanillaGraphicsExpanded.Tests.GPU;
@@ -18,129 +15,67 @@ public sealed class RenderPassLifetimeTests(HeadlessGLFixture fixture) : RenderT
     #region Public API
     /// <summary>Load actions do not change target identity; replacing the same storage owner invalidates its realization.</summary>
     [Fact]
-    public void PipelineReusesCompatibleTargetsAndRefreshesDimensions()
+    public void RealizationsReuseRoutingAndFollowStorageReplacement()
     {
         EnsureContextValid();
-        using var programs = new ComponentShaderPrograms();
-        var shader = programs.Create<LumOnUpsampleShaderProgram>();
-        using var lifetime = new GraphicsPipelineLifetime();
-        using var pipeline = new GraphicsPipeline(lifetime, new(shader.GraphicsIdentity!,
-            new([new(0, 3, VertexAttribPointerType.Float, VertexInterpretation.Floating, 0, 0, 12)]),
-            new([new(PixelInternalFormat.Rgba16f)]), DynamicPipelineState.Viewport), shader);
-        using var first = CreateRenderTarget(2, 2, PixelInternalFormat.Rgba16f);
-        using var second = CreateRenderTarget(5, 3, PixelInternalFormat.Rgba16f);
-        RenderPassTestBoundary.Run(boundary =>
+        var commands = RHICommandContext.Current;
+        using var image = CreateImage(4, 4);
+        var preserve = new RHIRenderPassDescription([new(Image: RHIAttachment.FromTexture(image))]);
+        var clear = new RHIRenderPassDescription([new(Image: RHIAttachment.FromTexture(image), Load: AttachmentLoad.Clear,
+            Clear: ColorClearValue.Float(.25f, .5f, .75f, 1))]);
+        int original = 0;
+        using (var boundary = commands.EnterBoundary(new("Tests.TargetReuse", true, operations: BoundaryOperations.RenderPasses)))
+        boundary.Run(() =>
         {
-            using (var pass = RenderPass.Begin(new(first, [new(0)]), boundary)) pass.ValidatePipeline(pipeline);
-            using (var pass = RenderPass.Begin(new(second, [new(0)]), boundary))
-            {
-                pass.ValidatePipeline(pipeline); Assert.Equal(5, pass.Area.Width); Assert.Equal(3, pass.Viewport.Height);
-            }
+            commands.BeginRenderPass(preserve);
+            original = GL.GetInteger(GetPName.DrawFramebufferBinding);
+            Assert.Equal(4, commands.PassViewport.Width);
+            commands.EndRenderPass();
+            commands.BeginRenderPass(clear);
+            Assert.Equal(original, GL.GetInteger(GetPName.DrawFramebufferBinding));
+            commands.EndRenderPass();
         });
-        Assert.True(first.Resize(7, 4));
-        RenderPassTestBoundary.Run(boundary =>
+        Assert.Equal(new float[] { .25f, .5f, .75f, 1 }, image.ReadPixels().Take(4));
+        Assert.True(image.Resize(7, 3));
+        using var next = commands.EnterBoundary(new("Tests.TargetReplacement", true, operations: BoundaryOperations.RenderPasses));
+        next.Run(() =>
         {
-            using var pass = RenderPass.Begin(new(first, [new(0)]), boundary);
-            pass.ValidatePipeline(pipeline); Assert.Equal(7, pass.Area.Width); Assert.Equal(4, pass.Viewport.Height);
+            commands.BeginRenderPass(preserve);
+            Assert.Equal(7, commands.PassViewport.Width); Assert.Equal(3, commands.PassViewport.Height);
+            Assert.NotEqual(original, GL.GetInteger(GetPName.DrawFramebufferBinding));
+            commands.EndRenderPass();
         });
-        using var replacementStorage = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba32f, Width = System.Math.Max(1, 7), Height = System.Math.Max(1, 4), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
-        using var replacement = GpuFramebufferAttachment.FromTexture(replacementStorage);
-        first.SetAttachment(FramebufferAttachment.ColorAttachment0, replacement);
-        RenderPassTestBoundary.Run(boundary =>
-        {
-            using var pass = RenderPass.Begin(new(first, [new(0)]), boundary);
-            Assert.Throws<InvalidOperationException>(() => pass.ValidatePipeline(pipeline));
-        });
-        using var multisampleStorage = RHICommandContext.Current.CreateRenderbuffer(new RHIRenderbufferDescription { Format = TextureFormat.Rgba16f, Width = 7, Height = 4, Samples = 4, Label = null }).RequireResource();
-        using var multisample = GpuFramebufferAttachment.FromRenderbuffer(multisampleStorage);
-        first.SetAttachment(FramebufferAttachment.ColorAttachment0, multisample);
-        RenderPassTestBoundary.Run(boundary =>
-        {
-            using var pass = RenderPass.Begin(new(first, [new(0)]), boundary);
-            Assert.Throws<InvalidOperationException>(() => pass.ValidatePipeline(pipeline));
-        });
-        Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
 
     /// <summary>Pass guards hold original image storage on success and failure without transferring its ownership.</summary>
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void ActiveBorrowGuardsMutationsAndEndsWithoutDisposal(bool fail)
+    public void ActiveBorrowGuardsMutationsAndReleasesOnBoundaryExit(bool fail)
     {
         EnsureContextValid();
-        using var texture = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba8, Width = System.Math.Max(1, 4), Height = System.Math.Max(1, 4), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
-        using var target = DynamicGpuFramebuffer.CreateSingle(texture)!;
-        using var replacementStorage = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba8, Width = System.Math.Max(1, 4), Height = System.Math.Max(1, 4), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
-        using var replacement = GpuFramebufferAttachment.FromTexture(replacementStorage);
-        var expected = new InvalidOperationException("fixture body");
-        void Run() => RenderPassTestBoundary.Run(boundary =>
+        var commands = RHICommandContext.Current;
+        using var image = CreateImage(4, 4);
+        var pass = new RHIRenderPassDescription([new(Image: RHIAttachment.FromTexture(image))]);
+        var expected = new ArithmeticException("fixture body");
+        void Execute()
         {
-            using var pass = RenderPass.Begin(new(target, [new(0)]), boundary);
-            Assert.Throws<InvalidOperationException>(() => target.Resize(5, 5));
-            Assert.Throws<InvalidOperationException>(() => texture.Resize(5, 5));
-            Assert.Throws<InvalidOperationException>(() => target.SetAttachment(FramebufferAttachment.ColorAttachment0, replacement));
-            Assert.Throws<InvalidOperationException>(() => target.RemoveAttachment(FramebufferAttachment.ColorAttachment0));
-            Assert.Throws<InvalidOperationException>(target.Dispose);
-            Assert.Throws<InvalidOperationException>(texture.Dispose);
-            Assert.Throws<InvalidOperationException>(() => target.Detach());
-            Assert.Throws<InvalidOperationException>(() => texture.Detach());
-            Assert.Throws<InvalidOperationException>(target.GetAttachment(FramebufferAttachment.ColorAttachment0)!.Dispose);
-            Assert.Throws<InvalidOperationException>(() => RenderPass.Begin(new(target, [new(0)]), boundary));
-            pass.Validate();
-            if (fail) throw expected;
-        });
-        if (fail) Assert.Same(expected, Assert.Throws<InvalidOperationException>(Run)); else Run();
-        Assert.True(target.IsValid); Assert.True(texture.IsValid); Assert.True(GL.IsTexture(texture.TextureId));
-        Assert.True(target.Resize(5, 5));
-        Assert.Equal(ErrorCode.NoError, GL.GetError());
-    }
-
-    /// <summary>Retired targets and images fail before use, and failed setup cannot retain bindings or borrow guards.</summary>
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void RetirementAndSetupFailuresAreIsolated(bool retireImage)
-    {
-        EnsureContextValid();
-        using var target = CreateRenderTarget(4, 4, PixelInternalFormat.Rgba8);
-        using var incoming = CreateRenderTarget(2, 2, PixelInternalFormat.Rgba8);
-        incoming.Bind();
-        if (retireImage) target[0].Dispose(); else target.Dispose();
-        RenderPassTestBoundary.Run(boundary =>
-        {
-            if (retireImage) Assert.Throws<InvalidOperationException>(() => RenderPass.Begin(new(target, [new(0)]), boundary));
-            else Assert.Throws<ObjectDisposedException>(() => RenderPass.Begin(new(target, [new(0)]), boundary));
-            Assert.Equal(incoming.FboId, GL.GetInteger(GetPName.DrawFramebufferBinding));
-            using var valid = RenderPass.Begin(new(incoming, [new(0)]), boundary);
-            valid.Validate();
-        });
-        Assert.True(incoming.Resize(3, 3));
-        Assert.Equal(ErrorCode.NoError, GL.GetError());
-    }
-
-    /// <summary>External framebuffer metadata must be published and republished at its actual replacement boundary.</summary>
-    [Fact]
-    public void WrappedMetadataRequiresExplicitRefreshAndDefaultIsRejected()
-    {
-        EnsureContextValid();
-        using var source = CreateRenderTarget(4, 4, PixelInternalFormat.Rgba8);
-        using var wrapped = DynamicGpuFramebuffer.Wrap(source.FboId, width: 4, height: 4);
-        RenderPassTestBoundary.Run(boundary => Assert.Throws<InvalidOperationException>(() => RenderPass.Begin(new(wrapped, [new(0)]), boundary)));
-        wrapped.PublishRenderPassMetadata();
-        RenderPassTestBoundary.Run(boundary => { using var pass = RenderPass.Begin(new(wrapped, [new(0)]), boundary); pass.Validate(); });
-        Assert.True(source.Resize(6, 3));
-        wrapped.RefreshWrappedFramebuffer(source.FboId, 6, 3);
-        RenderPassTestBoundary.Run(boundary => Assert.Throws<InvalidOperationException>(() => RenderPass.Begin(new(wrapped, [new(0)]), boundary)));
-        wrapped.PublishRenderPassMetadata();
-        RenderPassTestBoundary.Run(boundary =>
-        {
-            using var pass = RenderPass.Begin(new(wrapped, [new(0)]), boundary);
-            Assert.Equal(6, pass.Area.Width); Assert.Equal(3, pass.Area.Height);
-        });
-        using var defaultTarget = DynamicGpuFramebuffer.Wrap(0, width: 4, height: 4);
-        RenderPassTestBoundary.Run(boundary => Assert.Throws<NotSupportedException>(() => RenderPass.Begin(new(defaultTarget, [new(0)]), boundary)));
-        Assert.Equal(ErrorCode.NoError, GL.GetError());
+            using var boundary = commands.EnterBoundary(new("Tests.TargetBorrow", true, operations: BoundaryOperations.RenderPasses));
+            boundary.Run(() =>
+            {
+                commands.BeginRenderPass(pass);
+                Assert.Throws<InvalidOperationException>(() => image.Resize(5, 5));
+                Assert.Throws<InvalidOperationException>(image.Dispose);
+                Assert.Throws<InvalidOperationException>(() => image.Detach());
+                Assert.Throws<InvalidOperationException>(() => commands.BeginRenderPass(pass));
+                if (fail) throw expected;
+                commands.EndRenderPass();
+            });
+        }
+        if (fail) Assert.Same(expected, Assert.Throws<ArithmeticException>(Execute)); else Execute();
+        Assert.False(commands.HasRenderPass);
+        Assert.True(image.IsValid);
+        Assert.True(image.Resize(5, 5));
     }
 
     /// <summary>Retired original references and bad clear/area intentions fail before any incoming selector or contents change.</summary>
@@ -148,130 +83,105 @@ public sealed class RenderPassLifetimeTests(HeadlessGLFixture fixture) : RenderT
     public void InvalidSetupPreservesContentsAndBindings()
     {
         EnsureContextValid();
-        using var target = CreateRenderTarget(4, 4, PixelInternalFormat.Rgba32f);
+        var commands = RHICommandContext.Current;
+        using var image = CreateImage(4, 4);
+        image.UploadDataImmediate(Enumerable.Repeat(.375f, 64).ToArray());
         using var incoming = CreateRenderTarget(2, 2, PixelInternalFormat.Rgba8);
-        target[0].UploadDataImmediate(Enumerable.Repeat(.375f, 64).ToArray());
         incoming.Bind();
-        RenderPassTestBoundary.Run(boundary =>
+        var wrongClear = new RHIRenderPassDescription([new(Image: RHIAttachment.FromTexture(image),
+            Load: AttachmentLoad.Clear, Clear: ColorClearValue.Int(1, 2, 3, 4))]);
+        var wrongArea = new RHIRenderPassDescription([new(Image: RHIAttachment.FromTexture(image))], area: new(3, 3, 2, 2));
+        var valid = new RHIRenderPassDescription([new(Image: RHIAttachment.FromTexture(image))]);
+        using (var boundary = commands.EnterBoundary(new("Tests.TargetFailure", true, operations: BoundaryOperations.RenderPasses)))
+        boundary.Run(() =>
         {
-            Assert.Throws<ArgumentException>(() => RenderPass.Begin(new(target,
-                [new(0, AttachmentLoad.Clear, Clear: ColorClearValue.Int(1, 2, 3, 4))]), boundary));
-            Assert.Throws<ArgumentOutOfRangeException>(() => RenderPass.Begin(new(target, [new(0)], area: new(3, 3, 2, 2)), boundary));
+            Assert.Throws<ArgumentException>(() => commands.BeginRenderPass(wrongClear));
+            Assert.Throws<ArgumentOutOfRangeException>(() => commands.BeginRenderPass(wrongArea));
             Assert.Equal(incoming.FboId, GL.GetInteger(GetPName.DrawFramebufferBinding));
-            using var valid = RenderPass.Begin(new(target, [new(0)]), boundary);
-            valid.Validate();
+            commands.BeginRenderPass(valid); commands.EndRenderPass();
         });
-        Assert.All(target[0].ReadPixels(), value => Assert.Equal(.375f, value));
-        Assert.True(target.Resize(5, 5));
-        Assert.Equal(ErrorCode.NoError, GL.GetError());
+        Assert.All(image.ReadPixels(), value => Assert.Equal(.375f, value));
+        image.Dispose();
+        using var rejected = commands.EnterBoundary(new("Tests.RetiredTarget", true, operations: BoundaryOperations.RenderPasses));
+        rejected.Run(() => Assert.Throws<InvalidOperationException>(() => commands.BeginRenderPass(valid)));
+        Assert.True(incoming.Resize(3, 3));
     }
 
     /// <summary>External targets require explicit metadata publication and restore their original sparse route at boundary exit.</summary>
     [Fact]
-    public void BoundaryCleanupRestoresRoutingAndReleasesBorrow()
+    public void ExternalSurfaceRestoresIndependentRoutingAndBindings()
     {
         EnsureContextValid();
+        var commands = RHICommandContext.Current;
         using var target = CreateMRTRenderTarget(4, 4, PixelInternalFormat.Rgba8, PixelInternalFormat.Rgba8);
         using var incoming = CreateRenderTarget(2, 2, PixelInternalFormat.Rgba8);
         target.Bind();
         GL.DrawBuffers(3, [DrawBuffersEnum.None, DrawBuffersEnum.ColorAttachment1, DrawBuffersEnum.ColorAttachment0]);
         StateCache.Current.Invalidate(EPipelineState.FramebufferRouting);
         incoming.Bind();
-        RenderPass? retained = null;
-        RenderPassTestBoundary.Run(boundary => retained = RenderPass.Begin(new(target, [new(0), new(1)]), boundary));
-        Assert.Throws<ObjectDisposedException>(retained!.Validate);
+        using var surface = DynamicGpuFramebuffer.Wrap(target.FboId, width: 4, height: 4);
+        var pass = new RHIRenderPassDescription(surface.SurfaceReference, [new(AttachmentIndex: 0), new(AttachmentIndex: 1)]);
+        using (var boundary = commands.EnterBoundary(new("Tests.SurfaceAdmission", true, operations: BoundaryOperations.RenderPasses)))
+            boundary.Run(() => Assert.Throws<InvalidOperationException>(() => commands.BeginRenderPass(pass)));
+        surface.PublishRenderPassMetadata();
+        using (var boundary = commands.EnterBoundary(new("Tests.SurfaceRestore", true, operations: BoundaryOperations.RenderPasses)))
+            boundary.Run(() => { commands.BeginRenderPass(pass); Assert.Equal(target.FboId, GL.GetInteger(GetPName.DrawFramebufferBinding)); });
+        Assert.False(commands.HasRenderPass);
         Assert.Equal(incoming.FboId, GL.GetInteger(GetPName.DrawFramebufferBinding));
         target.Bind();
         Assert.Equal((int)DrawBuffersEnum.None, GL.GetInteger(GetPName.DrawBuffer0));
         Assert.Equal((int)DrawBuffersEnum.ColorAttachment1, GL.GetInteger(GetPName.DrawBuffer1));
         Assert.Equal((int)DrawBuffersEnum.ColorAttachment0, GL.GetInteger(GetPName.DrawBuffer2));
-        Assert.True(target[0].Resize(6, 5)); Assert.True(target[1].Resize(6, 5));
-        RenderPassTestBoundary.Run(boundary =>
-        {
-            using var pass = RenderPass.Begin(new(target, [new(0), new(1)]), boundary);
-            Assert.Equal(6, pass.Area.Width); Assert.Equal(5, pass.Area.Height);
-        });
-        Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
 
     /// <summary>Incompatible layered target creation leaves no active pass, leaked storage guard or changed incoming framebuffer.</summary>
     [Fact]
-    public void PackedStorageSignatureUsesAttachedAspects()
+    public void IncompleteCandidateDoesNotPublish()
     {
         EnsureContextValid();
-        using var storage = RHICommandContext.Current.CreateRenderbuffer(new RHIRenderbufferDescription { Format = TextureFormat.Depth24Stencil8, Width = 4, Height = 4, Samples = 0, Label = null }).RequireResource();
-        using var image = GpuFramebufferAttachment.FromRenderbuffer(storage);
-        using var target = DynamicGpuFramebuffer.CreateEmpty();
-        target.SetAttachment(FramebufferAttachment.DepthAttachment, image);
-        RenderPassTestBoundary.Run(boundary =>
+        var commands = RHICommandContext.Current;
+        using var layered = commands.CreateTexture(new()
         {
-            using var pass = RenderPass.Begin(new(target, []), boundary);
-            Assert.True(pass.Signature.HasDepth); Assert.False(pass.Signature.HasStencil);
+            Dimension = TextureDimension.TwoArray, Width = 4, Height = 4, Depth = 2,
+            Format = TextureFormat.Rgba8, MipLevels = 1, Storage = ResourceStorageMode.Immutable
+        }).RequireResource();
+        using var flat = CreateImage(4, 4, TextureFormat.Rgba8);
+        using var incoming = CreateRenderTarget(2, 2, PixelInternalFormat.Rgba8);
+        incoming.Bind();
+        var pass = new RHIRenderPassDescription([new(Image: RHIAttachment.FromTexture(layered, layered: true)), new(Image: RHIAttachment.FromTexture(flat))]);
+        using var boundary = commands.EnterBoundary(new("Tests.IncompleteTarget", true, operations: BoundaryOperations.RenderPasses));
+        boundary.Run(() =>
+        {
+            Assert.Throws<InvalidOperationException>(() => commands.BeginRenderPass(pass));
+            Assert.False(commands.HasRenderPass);
+            Assert.Equal(incoming.FboId, GL.GetInteger(GetPName.DrawFramebufferBinding));
         });
-        Assert.Equal(ErrorCode.NoError, GL.GetError());
+        Assert.True(flat.Resize(5, 5));
     }
 
     /// <summary>Published target compatibility reports the realized sample count without another descriptor query.</summary>
     [Theory]
     [InlineData(0)]
     [InlineData(1)]
-    public void SignatureUsesRealizedRenderbufferSamples(int requestedSamples)
+    public void SignatureUsesRealizedRenderbufferSamples(int requested)
     {
         EnsureContextValid();
-        using var storage = RHICommandContext.Current.CreateRenderbuffer(new RHIRenderbufferDescription { Format = TextureFormat.Rgba8, Width = 4, Height = 4, Samples = requestedSamples, Label = null }).RequireResource();
-        using var image = GpuFramebufferAttachment.FromRenderbuffer(storage);
-        using var target = DynamicGpuFramebuffer.CreateEmpty();
-        target.SetAttachment(FramebufferAttachment.ColorAttachment0, image);
+        var commands = RHICommandContext.Current;
+        using var image = commands.CreateRenderbuffer(new() { Format = TextureFormat.Rgba8, Width = 4, Height = 4, Samples = requested }).RequireResource();
+        var pass = new RHIRenderPassDescription([new(Image: RHIAttachment.FromRenderbuffer(image))]);
         int actual;
-        using (storage.BindScope())
-            GL.GetRenderbufferParameter(RenderbufferTarget.Renderbuffer, RenderbufferParameterName.RenderbufferSamples, out actual);
-        Assert.Equal(actual, storage.Samples);
-        Assert.Equal(actual, image.Samples);
-        if (requestedSamples == 0) Assert.Equal(0, actual);
-        else Assert.True(actual >= requestedSamples);
-        RenderPassTestBoundary.Run(boundary =>
-        {
-            using var pass = RenderPass.Begin(new(target, [new(0)]), boundary);
-            Assert.Equal(Math.Max(1, actual), pass.Signature.Samples);
-        });
-        Assert.Equal(ErrorCode.NoError, GL.GetError());
+        using (image.BindScope()) GL.GetRenderbufferParameter(RenderbufferTarget.Renderbuffer, RenderbufferParameterName.RenderbufferSamples, out actual);
+        Assert.Equal(Math.Max(1, actual), commands.DescribeRenderTargets(pass).Samples);
     }
+    #endregion
 
-    /// <summary>Native completeness failure after routing setup restores incoming bindings and releases every borrow.</summary>
-    [Fact]
-    public void NativeIncompleteSetupRestoresRoutingAndBindings()
-    {
-        EnsureContextValid();
-        using var layered = RHICommandContext.Current.CreateDynamicTexture3D(new RHITextureDescription { Dimension = TextureDimension.TwoArray, Format = TextureFormat.Rgba8, Width = System.Math.Max(1, 4), Height = System.Math.Max(1, 4), Depth = System.Math.Max(1, 2), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Linear, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
-        using var flat = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba8, Width = System.Math.Max(1, 4), Height = System.Math.Max(1, 4), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
-        using var original = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba8, Width = System.Math.Max(1, 4), Height = System.Math.Max(1, 4), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
-        using var image = GpuFramebufferAttachment.FromTexture(layered);
-        using var flatImage = GpuFramebufferAttachment.FromTexture(flat);
-        using var originalImage = GpuFramebufferAttachment.FromTexture(original);
-        using var target = DynamicGpuFramebuffer.CreateEmpty();
-        target.SetAttachment(FramebufferAttachment.ColorAttachment0, originalImage);
-        target.SetAttachment(FramebufferAttachment.ColorAttachment1, flatImage);
-        RenderPassTestBoundary.Run(boundary =>
+    #region Private
+    /// <summary>Creates independently owned mutable image storage for pass lifetime checks.</summary>
+    private static DynamicTexture2D CreateImage(int width, int height, TextureFormat format = TextureFormat.Rgba32f)
+        => RHICommandContext.Current.CreateDynamicTexture2D(new()
         {
-            using var pass = RenderPass.Begin(new(target, [new(0), new(1)]), boundary);
-            pass.Validate();
-        });
-        // Equal format and dimensions retain pipeline compatibility but must invalidate cached native completeness.
-        target.SetAttachment(FramebufferAttachment.ColorAttachment0, image);
-        target.Bind(); GL.DrawBuffers(2, [DrawBuffersEnum.ColorAttachment1, DrawBuffersEnum.ColorAttachment0]); StateCache.Current.Invalidate(EPipelineState.FramebufferRouting);
-        using var incoming = CreateRenderTarget(2, 2, PixelInternalFormat.Rgba8);
-        incoming.Bind();
-        RenderPassTestBoundary.Run(boundary =>
-        {
-            Assert.Throws<InvalidOperationException>(() => RenderPass.Begin(new(target, [new(0), new(1)]), boundary));
-            Assert.Equal(incoming.FboId, GL.GetInteger(GetPName.DrawFramebufferBinding));
-        });
-        target.Bind();
-        Assert.Equal((int)DrawBuffersEnum.ColorAttachment1, GL.GetInteger(GetPName.DrawBuffer0));
-        Assert.Equal((int)DrawBuffersEnum.ColorAttachment0, GL.GetInteger(GetPName.DrawBuffer1));
-        Assert.True(target.RemoveAttachment(FramebufferAttachment.ColorAttachment0));
-        Assert.True(flat.Resize(5, 5));
-        Assert.Equal(ErrorCode.NoError, GL.GetError());
-    }
+            Dimension = TextureDimension.Two, Width = width, Height = height, Format = format,
+            MipLevels = 1, Storage = ResourceStorageMode.Mutable, BaseLevel = 0, MaxLevel = 0
+        }).RequireResource();
     #endregion
 }

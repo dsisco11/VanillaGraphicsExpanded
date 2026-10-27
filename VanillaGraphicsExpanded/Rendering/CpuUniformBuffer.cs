@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using System.Numerics;
 using VanillaGraphicsExpanded.Rendering.Uniforms;
@@ -19,11 +20,15 @@ public abstract class CpuUniformBuffer : IDisposable
     private int dirtyStartBytes;
     private int dirtyEndExclusiveBytes;
     private Action? writeGuard;
+    private Action? captureGuard;
     private ulong contentRevision;
     private UniformPublication? publication;
+    private RHIUniformSnapshot? snapshot;
 
     /// <summary>Attaches an owning shader's edit contract without affecting standalone packed buffers.</summary>
     internal void SetWriteGuard(Action guard) => writeGuard = guard ?? throw new ArgumentNullException(nameof(guard));
+    /// <summary>Attaches logical owner retirement checks independently of the edit-during-capture guard.</summary>
+    internal void SetCaptureGuard(Action guard) => captureGuard = guard ?? throw new ArgumentNullException(nameof(guard));
 
     #region Public API
     /// <summary>Fixed publication lifetime; replacement requires a new logical instance.</summary>
@@ -75,6 +80,25 @@ public abstract class CpuUniformBuffer : IDisposable
     /// Callers must call <see cref="MarkDirty"/> after modifying the span.
     /// </summary>
     protected Span<byte> DataWritable { get { writeGuard?.Invoke(); return data; } }
+
+    /// <summary>Captures one immutable logical version without allocating GPU storage or clearing pending edits.</summary>
+    public RHIUniformSnapshot Capture()
+    {
+        captureGuard?.Invoke();
+        var owner = publication ??= new UniformPublication(Usage);
+        if (snapshot is null || snapshot.ContentRevision != contentRevision || !ReferenceEquals(snapshot.Publication, owner))
+            snapshot = new RHIUniformSnapshot(this, owner, data, contentRevision, Usage);
+        return snapshot;
+    }
+
+    /// <summary>Clears dirty work only when successful execution published the current captured CPU version.</summary>
+    internal void CommitCaptured(RHIUniformSnapshot captured)
+    {
+        if (!ReferenceEquals(publication, captured.Publication) || contentRevision != captured.ContentRevision) return;
+        isDirty = false;
+        dirtyStartBytes = int.MaxValue;
+        dirtyEndExclusiveBytes = 0;
+    }
 
     #region Typed parameter writes
     // An unchanged write leaves every previously dirty byte pending.
@@ -190,80 +214,13 @@ public abstract class CpuUniformBuffer : IDisposable
         if (endExclusive > dirtyEndExclusiveBytes) dirtyEndExclusiveBytes = endExclusive;
     }
 
-    /// <summary>
-    /// Uploads and binds this block using the currently-active UBO ring (if any).
-    /// </summary>
-    /// <remarks>
-    /// This is a convenience entrypoint for existing call sites.
-    /// If the ring isn't active on the calling thread, this is a no-op.
-    /// </remarks>
-    public void BindTo(Shaders.GpuProgram program, string blockName, string debugName)
-    {
-        // Preserve the convenience API's no-op behavior when no publication boundary is available.
-        _ = TryBindTo(program, blockName, debugName);
-    }
-
-    /// <summary>Publishes a complete block and reports whether the active ring bound it successfully.</summary>
-    public bool TryBindTo(Shaders.GpuProgram program, string blockName, string debugName)
-        => TryBindTo((IShaderSubmissionTarget)program, blockName, debugName);
-
-    /// <summary>Publishes through the common graphics or compute executable boundary.</summary>
-    internal bool TryBindTo(IShaderSubmissionTarget program, string blockName, string debugName)
-    {
-        ArgumentNullException.ThrowIfNull(program);
-        ArgumentException.ThrowIfNullOrWhiteSpace(blockName);
-        ArgumentException.ThrowIfNullOrWhiteSpace(debugName);
-
-
-        if (Bytes.Length == 0)
-        {
-            return false;
-        }
-
-        // Prepared interface extents survive reload with the executable; never infer layout from a block name alone.
-        if (program.ProgramLayout.BinaryInterface is { } binary)
-            foreach (var binding in binary.PreparedBindings.Entries)
-                if (binding.Contract.Kind == Contracts.ShaderBindingKind.UniformBlock && binding.Contract.Name == blockName)
-                    ShaderPreparedSubmission.ValidateUniformBlock(binding, this);
-
-        return Publish(null, program, blockName);
-    }
-
-    /// <summary>Publishes to a preparation-validated slot through the same logical version owner.</summary>
-    internal bool TryBindToSlot(int slot) => Publish(slot, null, null);
-
-    /// <summary>Resets compatibility publication without making the CPU packing object terminal.</summary>
+    /// <summary>Retires captured logical versions while allowing the CPU packing object to be reused.</summary>
     public void Dispose()
     {
         publication?.Dispose();
         publication = null;
+        snapshot = null;
     }
     #endregion
 
-    #region Private
-    /// <summary>Commits complete contents only after a successful bind and releases failed reservations.</summary>
-    private bool Publish(int? slot, IShaderSubmissionTarget? program, string? blockName)
-    {
-        if (!GpuUniformRingSystem.TryGetCurrent(out var ring)) return false;
-        var owner = publication ??= new UniformPublication(Usage);
-        var candidate = owner.Prepare(ring, Bytes, contentRevision);
-        try
-        {
-            if (!candidate.Buffer.IsValid) throw new InvalidOperationException("Uniform storage was retired before binding.");
-            if (slot.HasValue) candidate.Buffer.BindPublicationRange(slot.Value, candidate.Offset, candidate.Size);
-            else if (!program!.ProgramLayout.TryBindUniformBlockRange(program.ProgramId, blockName!,
-                candidate.Buffer, candidate.Offset, candidate.Size, warn: null))
-            {
-                owner.Abort(candidate);
-                return false;
-            }
-            owner.Commit(ring, candidate, contentRevision);
-            isDirty = false;
-            dirtyStartBytes = int.MaxValue;
-            dirtyEndExclusiveBytes = 0;
-            return true;
-        }
-        catch { owner.Abort(candidate); throw; }
-    }
-    #endregion
 }

@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.ShaderCompilation;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Runtime.InteropServices;
 using OpenTK.Graphics.OpenGL;
@@ -85,11 +86,11 @@ internal sealed class SharedSurfacePageFixture : IDisposable
         relightWork.UploadSubData<LumonSceneRelightWorkGpu>([new(1, 0, 0, 0)], 0, 16);
         relight.BindSharedGeometry(scene);
         relight.BindRelightWorkSsbo(relightWork); relight.BindPatchMetaSsbo(metadata);
-        relight.BindDepthAtlas(depth.TextureId); relight.BindMaterialAtlas(material.TextureId);
-        relight.BindLightColorLut(scene.LightColors.TextureId);
-        relight.BindBlockLevelScalarLut(scene.BlockLevels.TextureId);
-        relight.BindSunLevelScalarLut(scene.SunLevels.TextureId);
-        relight.BindSurfaceLut(scene.Surfaces.TextureId);
+        relight.DepthAtlas = depth; relight.MaterialAtlas = material;
+        relight.LightColorLut = scene.LightColors;
+        relight.BlockLevelScalarLut = scene.BlockLevels;
+        relight.SunLevelScalarLut = scene.SunLevels;
+        relight.SurfaceLut = scene.Surfaces;
         relight.BindIrradianceAtlasImage(irradiance);
         relight.SetAtlasLayout(Size, 1, 1, 0);
         relight.SetRelightParams(Size * Size, rays, steps, false);
@@ -104,10 +105,12 @@ internal sealed class SharedSurfacePageFixture : IDisposable
     public void ResetLighting()
     {
         Assert.Equal(ErrorCode.NoError, GL.GetError());
-        Assert.True(GpuComputePipeline.TryCreateFromAssets(assets.Api, "lumonscene_reset_irradiance",
-            out var loaded, out _, out string log, preferSpirv: true), log);
+        Assert.True(ComputeShaderAsset.TryCreateFromAssets(api: assets.Api,
+            settings: new global::VanillaGraphicsExpanded.Rendering.Contracts.ShaderSettings(global::VanillaGraphicsExpanded.Rendering.Contracts.GpuShaderContracts.Registry.FindProgram("lumonscene_reset_irradiance")),
+            pipeline: out var loaded,
+            infoLog: out string log), log);
         using var reset = new LumonSceneResetIrradianceComputeShader(loaded!);
-        reset.irradianceAtlas = new(irradiance, TextureAccess.WriteOnly, Layered: true, Format: SizedInternalFormat.Rgba16f);
+        reset.irradianceAtlas = new(irradiance, ImageAccess.WriteOnly, Layered: true, Format: TextureFormat.Rgba16f);
         Dispatch(() => reset.Dispatch(1, 1, 1));
     }
     #endregion

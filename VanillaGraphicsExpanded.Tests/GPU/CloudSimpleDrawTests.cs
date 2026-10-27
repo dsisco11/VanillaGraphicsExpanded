@@ -126,10 +126,10 @@ public sealed class CloudSimpleDrawTests(HeadlessGLFixture fixture) : LumOnShade
         Assert.Throws<InvalidOperationException>(()=>new CloudSimpleGeometry(native.Mesh,2));
         // A new managed identity has no previous receipt, so a malformed divisor is checked at acquisition.
         using var malformed=new NativeCloud(5,.1f,0,short.MaxValue,.1f,0,0);
-        StateCache.Current.BindVertexArray(malformed.Mesh.VaoId); GL.VertexAttribDivisor(4,0);
+        OpenGLVertexSelection.Bind(StateCache.Current, malformed.Mesh.VaoId); GL.VertexAttribDivisor(4,0);
         Assert.Throws<NotSupportedException>(()=>new CloudSimpleGeometry(malformed.Mesh,1));
         using var packed=new NativeCloud(5,.1f,0,short.MaxValue,.1f,0,0);
-        StateCache.Current.BindVertexArray(packed.Mesh.VaoId);
+        OpenGLVertexSelection.Bind(StateCache.Current, packed.Mesh.VaoId);
         OpenGLBufferBindings.BindBuffer(StateCache.Current, BufferTarget.ArrayBuffer,packed.Mesh.customDataShortVboId);
         GL.VertexAttribPointer(3,2,VertexAttribPointerType.Short,true,0,IntPtr.Zero);
         Assert.Throws<NotSupportedException>(()=>new CloudSimpleGeometry(packed.Mesh,1));
@@ -175,21 +175,24 @@ public sealed class CloudSimpleDrawTests(HeadlessGLFixture fixture) : LumOnShade
         using var a2=RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba32f, Width = System.Math.Max(1, size), Height = System.Math.Max(1, size), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         using var depth=new DepthTexture(size,size,PixelInternalFormat.DepthComponent32f);
         using var target=DynamicGpuFramebuffer.CreateMRT([reveal,overall,glow,a0,a1,a2],depth)!;
-        var pass=new RenderPassDesc(target,[new(0,AttachmentLoad.Clear,Clear:ColorClearValue.Float(1,1,1,1)),
-            new(1,AttachmentLoad.Clear,Clear:ColorClearValue.Float(1,1,1,1)),
-            new(2,AttachmentLoad.Clear,Clear:ColorClearValue.Float(0,0,0,0)),
-            new(3,AttachmentLoad.Clear,Clear:ColorClearValue.Float(0,0,0,0)),
-            new(4,AttachmentLoad.Clear,Clear:ColorClearValue.Float(0,0,0,0)),
-            new(5,AttachmentLoad.Clear,Clear:ColorClearValue.Float(0,0,0,0))],new(DepthLoad:AttachmentLoad.Clear,ClearDepth:opaqueDepth));
-        using var metadata=new RenderPassTargets(pass); using var lifetime=new GraphicsPipelineLifetime();
-        using var pipeline=new GraphicsPipeline(lifetime,new(program.GraphicsIdentity!,CloudSimpleGeometry.Layout,metadata.Signature,
-            DynamicPipelineState.Viewport,depthStencil:LiquidPipelineStates.Surface,blending:LiquidPipelineStates.SurfaceBlending),program);
+        var pass=FramebufferTestSetup.DescribeAttachments(target, [new(AttachmentIndex:0, Load:AttachmentLoad.Clear,Clear:ColorClearValue.Float(1,1,1,1)),
+            new(AttachmentIndex:1, Load:AttachmentLoad.Clear,Clear:ColorClearValue.Float(1,1,1,1)),
+            new(AttachmentIndex:2, Load:AttachmentLoad.Clear,Clear:ColorClearValue.Float(0,0,0,0)),
+            new(AttachmentIndex:3, Load:AttachmentLoad.Clear,Clear:ColorClearValue.Float(0,0,0,0)),
+            new(AttachmentIndex:4, Load:AttachmentLoad.Clear,Clear:ColorClearValue.Float(0,0,0,0)),
+            new(AttachmentIndex:5, Load:AttachmentLoad.Clear,Clear:ColorClearValue.Float(0,0,0,0))], new(DepthLoad:AttachmentLoad.Clear,ClearDepth:opaqueDepth));
+        var metadata = RHICommandContext.Current.DescribeRenderTargets(pass); 
+        using var pipeline=RHICommandContext.Current.CreateGraphicsPipeline(new(program.Shader,CloudSimpleGeometry.Layout,metadata,
+            DynamicPipelineState.Viewport,depthStencil:LiquidPipelineStates.Surface,blending:LiquidPipelineStates.SurfaceBlending)).RequireResource();
         int priorVao=GL.GetInteger(GetPName.VertexArrayBinding); bool priorDepth=GL.IsEnabled(EnableCap.DepthTest);
-        Assert.True(GraphicsCommandContext.TryRun("Tests.Cloud.Simple",[pipeline],true,commands=>
         {
-            commands.BeginPass(pass); commands.SetPipeline(pipeline); commands.SetDynamicState(new(){Viewport=commands.PassViewport});
-            commands.Draw(geometry,new(0,36)); commands.EndPass();
-        }));
+    var commands=RHICommandContext.Current;
+    using var scope24=commands.EnterBoundary(new("Tests.Cloud.Simple",true,graphics:System.Linq.Enumerable.Select<RHIGraphicsPipeline,RHIGraphicsPipelineRef>([pipeline],value=>value),operations:BoundaryOperations.RenderPasses));
+    scope24.Run(()=>{
+            commands.BeginRenderPass(pass); commands.SetPipeline(pipeline); commands.SetDynamicState(new(){Viewport=commands.PassViewport});
+            commands.DrawIndexed(geometry.Inputs,new(0,36)); commands.EndRenderPass();
+        });
+}
         Assert.Equal(priorVao,GL.GetInteger(GetPName.VertexArrayBinding)); Assert.Equal(priorDepth,GL.IsEnabled(EnableCap.DepthTest));
         Assert.False(native.Mesh.Disposed); Assert.True(GL.IsBuffer(native.Mesh.customDataShortVboId));
         float[] accumulation=a0.ReadPixels(), reveals=overall.ReadPixels(), glows=glow.ReadPixels();
@@ -216,14 +219,14 @@ public sealed class CloudSimpleDrawTests(HeadlessGLFixture fixture) : LumOnShade
         /// <summary>Authors the native representation independently of the production adapter's layout descriptor.</summary>
         internal NativeCloud(int face,float neighbor,short tileX,short brightness,float thickness,float thin,float undulation)
         {
-            vao.Bind();
+            OpenGLVertexSelection.Bind(StateCache.Current, vao.VertexArrayId);
             float[] positions=new float[72]; new float[]{-4,-4,-10,4,-4,-10,4,4,-10,-4,4,-10}.CopyTo(positions,0);
             streams[0].UploadData(positions); streams[1].UploadData(Enumerable.Repeat((byte)255,96).ToArray());
             streams[2].UploadData(Enumerable.Repeat((uint)face,24).ToArray());
             short n=(short)MathF.Round(neighbor*32767);
             streams[3].UploadData(new short[]{tileX,0,n,n,n,n,(short)MathF.Round(thickness*32767),brightness,
                 (short)MathF.Round(thin*32767),(short)MathF.Round(undulation*32767),short.MaxValue,0});
-            uint[] elements=new uint[36]; new uint[]{0,1,2,0,2,3}.CopyTo(elements,0); indices.UploadIndices(elements); vao.BindElementBuffer(indices);
+            uint[] elements=new uint[36]; new uint[]{0,1,2,0,2,3}.CopyTo(elements,0); indices.UploadIndices(elements); OpenTK.Graphics.OpenGL4.GL.VertexArrayElementBuffer(vao.VertexArrayId, indices.BufferId);
             int[] components=[3,4,1,2,4,1,1,1,1,1]; int[] offsets=[0,0,0,0,4,12,14,16,18,20];
             for(int i=0;i<10;i++)
             {

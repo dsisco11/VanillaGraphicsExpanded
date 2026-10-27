@@ -153,10 +153,10 @@ public sealed class LumonSceneMultiSlotMaterialCaptureConvergenceTests : RenderT
         {
             // Pass A: mark.
             markShader.BindDebugCounters(markCounters.Buffer);
-            markShader.BindPatchIdGBuffer(patchIdGBuffer.TextureId);
-            markShader.BindChunkSlotGenerationTex(genTex.TextureId);
+            markShader.PatchIdG = patchIdGBuffer;
+            markShader.ChunkSlotGenerationTex = genTex;
             markShader.FrameStamp = frameStamp;
-            markShader.BindPageUsageStampImage(usageStamp, access: TextureAccess.ReadWrite);
+            markShader.BindPageUsageStampImage(usageStamp, access: ImageAccess.ReadWrite);
             markShader.Dispatch((gW + 7) / 8, (gH + 7) / 8, 1);
             GL.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
 
@@ -166,8 +166,8 @@ public sealed class LumonSceneMultiSlotMaterialCaptureConvergenceTests : RenderT
             pageRequestCounter.UploadZeros(counterCount: 1);
             compactShader.BindRequestCounter(pageRequestCounter.Buffer);
             compactShader.BindRequestsSsbo(pageRequests);
-            compactShader.BindPageUsageStamp(usageStamp.TextureId);
-            compactShader.BindPageTableMip0(pageTableMip0.TextureId);
+            compactShader.PageUsageStamp = usageStamp;
+            compactShader.PageTableMip0 = pageTableMip0;
             compactShader.MaxRequests = (uint)maxRequestsPerFrame;
             compactShader.FrameStamp = frameStamp;
             compactShader.ScanOffset = scanOffset;

@@ -143,7 +143,7 @@ public sealed class LumOnHzbFunctionalTests : LumOnShaderFunctionalTestBase
         // Render with coarse mip 0
             using var anchorInputs1 = LayeredTestTexture.Create(probePos, probeNorm);
             progMip0.ProbeAnchors = anchorInputs1;
-            progMip0.PrimaryDepth = primaryDepth.TextureId;
+            progMip0.PrimaryDepth = primaryDepth;
             progMip0.SurfaceAlbedo = primaryColor;
             using var surfaceInput1 = LayeredTestTexture.Create(null, material, null);
             progMip0.GBufferSurface = surfaceInput1;
@@ -171,7 +171,7 @@ public sealed class LumOnHzbFunctionalTests : LumOnShaderFunctionalTestBase
         {
             using var anchorInputs2 = LayeredTestTexture.Create(probePos, probeNorm);
             progMip1.ProbeAnchors = anchorInputs2;
-            progMip1.PrimaryDepth = primaryDepth.TextureId;
+            progMip1.PrimaryDepth = primaryDepth;
             progMip1.SurfaceAlbedo = primaryColor;
             using var surfaceInput2 = LayeredTestTexture.Create(null, material, null);
             progMip1.GBufferSurface = surfaceInput2;

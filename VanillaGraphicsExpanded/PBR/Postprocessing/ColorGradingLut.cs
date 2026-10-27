@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.ShaderCompilation;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using System.Numerics;
@@ -29,8 +30,10 @@ internal sealed class ColorGradingLut : IDisposable
         context=current;
         if(generator is null)
         {
-            if(!GpuComputePipeline.TryCreateFromAssets(api,ColorGradingProgram.Contract.Identity,
-                out var pipeline,out _,out string log,preferSpirv:true))
+            if(!ComputeShaderAsset.TryCreateFromAssets(api: api,
+            settings: new global::VanillaGraphicsExpanded.Rendering.Contracts.ShaderSettings(global::VanillaGraphicsExpanded.Rendering.Contracts.GpuShaderContracts.Registry.FindProgram(ColorGradingProgram.Contract.Identity)),
+            pipeline: out var pipeline,
+            infoLog: out string log))
                 throw new InvalidOperationException("Display lookup executable unavailable: "+log);
             generator=new(pipeline!);
         }
@@ -40,8 +43,11 @@ internal sealed class ColorGradingLut : IDisposable
         spare??=RHICommandContext.Current.CreateDynamicTexture3D(new RHITextureDescription { Dimension = TextureDimension.Three, Format = TextureFormat.Rgba16f, Width = System.Math.Max(1, Size), Height = System.Math.Max(1, Size), Depth = System.Math.Max(1, Size), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Linear, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         spare.SetTexWrap(SamplerAddressMode.ClampToEdge,SamplerAddressMode.ClampToEdge,SamplerAddressMode.ClampToEdge);
         generator.GradingInputs=inputs;
-        generator.GradedOutput=new(spare,TextureAccess.WriteOnly,Layered:true,Format:SizedInternalFormat.Rgba16f);
-        generator.Dispatch(Size/4,Size/4,Size/4);
+        generator.GradedOutput=new(spare,ImageAccess.WriteOnly,Layered:true,Format:TextureFormat.Rgba16f);
+        if(!generator.EnsureReady())throw new InvalidOperationException(generator.PreparationLog);
+        var dispatchContext=RHICommandContext.Current;
+        using var dispatchBoundary=dispatchContext.EnterBoundary(new("ColorGrading.Generate",true,compute:[generator.Pipeline]));
+        dispatchBoundary.Run(()=>generator.Dispatch(Size/4,Size/4,Size/4));
         // The following final draw is ordered after generation; no fence polling or CPU readback is needed.
         RHICommandContext.Current.Barrier(new(ResourceAccess.Image|ResourceAccess.TextureFetch));
         (completed,spare)=(spare,completed); key=controls; Generation++;

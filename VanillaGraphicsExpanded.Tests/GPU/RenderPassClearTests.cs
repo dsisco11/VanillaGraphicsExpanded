@@ -40,12 +40,14 @@ public sealed class RenderPassClearTests(HeadlessGLFixture fixture) : RenderTest
         {
             RenderPassTestBoundary.Run(boundary =>
             {
-                using var pass = RenderPass.Begin(new(target,
-                    [new(2, AttachmentLoad.Clear, Clear: ColorClearValue.Int(-3, 7, -16777217, 19)),
-                     new(-1, DiscardOutput: true),
-                     new(0, AttachmentLoad.Clear, Clear: ColorClearValue.Float(.25f, .5f, .75f, 1)),
-                     new(4, AttachmentLoad.Clear, Clear: ColorClearValue.UInt(3, 7, 4294967294, 19))]), boundary);
-                pass.Validate();
+                boundary.BeginRenderPass(FramebufferTestSetup.DescribeAttachments(target,
+                    [new(AttachmentIndex:2, Load:AttachmentLoad.Clear, Clear: ColorClearValue.Int(-3, 7, -16777217, 19)),
+                     new(AttachmentIndex:-1, DiscardOutput: true),
+                     new(AttachmentIndex:0, Load:AttachmentLoad.Clear, Clear: ColorClearValue.Float(.25f, .5f, .75f, 1)),
+                     new(AttachmentIndex:4, Load:AttachmentLoad.Clear, Clear: ColorClearValue.UInt(3, 7, 4294967294, 19))]));
+                Assert.True(boundary.HasRenderPass);
+                using var reads = StateCache.Current.BindFramebufferScope();
+                OpenGLFramebufferSelection.Bind(StateCache.Current, FramebufferTarget.ReadFramebuffer, target.FboId);
                 using var pack = OpenGLPixelLayouts.PackScope(StateCache.Current, new(1));
                 GL.ReadBuffer(ReadBufferMode.ColorAttachment2);
                 int[] signedPixels = new int[64]; GL.ReadPixels(0, 0, 4, 4, PixelFormat.RgbaInteger, PixelType.Int, signedPixels);
@@ -84,9 +86,9 @@ public sealed class RenderPassClearTests(HeadlessGLFixture fixture) : RenderTest
         {
             RenderPassTestBoundary.Run(boundary =>
             {
-                using var pass = RenderPass.Begin(new(target, [], new(
+                boundary.BeginRenderPass(FramebufferTestSetup.DescribeAttachments(target, [], new(
                     DepthLoad: clearDepth ? AttachmentLoad.Clear : AttachmentLoad.Preserve, ClearDepth: .75f,
-                    StencilLoad: clearDepth ? AttachmentLoad.Preserve : AttachmentLoad.Clear, ClearStencil: 0x59)), boundary);
+                    StencilLoad: clearDepth ? AttachmentLoad.Preserve : AttachmentLoad.Clear, ClearStencil: 0x59)));
             });
             Assert.All(texture.ReadPixels(), value => Assert.InRange(value, clearDepth ? .749f : .249f, clearDepth ? .751f : .251f));
             Assert.All(texture.ReadStencilPixels(), value => Assert.Equal(clearDepth ? (byte)0x36 : (byte)0x59, value));
@@ -109,11 +111,11 @@ public sealed class RenderPassClearTests(HeadlessGLFixture fixture) : RenderTest
         target[1].UploadDataImmediate(Enumerable.Repeat(.75f, 64).ToArray());
         RenderPassTestBoundary.Run(boundary =>
         {
-            using var pass = RenderPass.Begin(new(target,
-                [new(0, discard ? AttachmentLoad.Discard : AttachmentLoad.Clear,
-                    discard ? AttachmentStore.Discard : AttachmentStore.Preserve,
-                    discard ? null : ColorClearValue.Float(1, 1, 1, 1)), new(1)], area: new(1, 1, 2, 2)), boundary);
-            Assert.Equal(2, pass.Area.Width); Assert.Equal(2, pass.Area.Height);
+            boundary.BeginRenderPass(FramebufferTestSetup.DescribeAttachments(target,
+                [new(AttachmentIndex:0, Load:discard ? AttachmentLoad.Discard : AttachmentLoad.Clear,
+                    Store:discard ? AttachmentStore.Discard : AttachmentStore.Preserve,
+                    Clear:discard ? null : ColorClearValue.Float(1, 1, 1, 1)), new(AttachmentIndex:1)], area: new(1, 1, 2, 2)));
+            Assert.Equal(2, boundary.PassViewport.Width); Assert.Equal(2, boundary.PassViewport.Height);
         });
         Assert.All(target[1].ReadPixels(), value => Assert.Equal(.75f, value));
         float[] pixels = target[0].ReadPixels();
@@ -141,11 +143,11 @@ public sealed class RenderPassClearTests(HeadlessGLFixture fixture) : RenderTest
         StateCache.Current.InvalidateAll();
         RenderPassTestBoundary.Run(boundary =>
         {
-            using var pass = RenderPass.Begin(new(target, [], new(
+            boundary.BeginRenderPass(FramebufferTestSetup.DescribeAttachments(target, [], new(
                 DepthLoad: discardDepth ? AttachmentLoad.Discard : AttachmentLoad.Preserve,
                 DepthStore: discardDepth ? AttachmentStore.Discard : AttachmentStore.Preserve,
                 StencilLoad: discardDepth ? AttachmentLoad.Preserve : AttachmentLoad.Discard,
-                StencilStore: discardDepth ? AttachmentStore.Preserve : AttachmentStore.Discard)), boundary);
+                StencilStore: discardDepth ? AttachmentStore.Preserve : AttachmentStore.Discard)));
         });
         // Only the retained aspect has a defined value under a discard contract.
         if (discardDepth) Assert.All(texture.ReadStencilPixels(), value => Assert.Equal((byte)0x47, value));

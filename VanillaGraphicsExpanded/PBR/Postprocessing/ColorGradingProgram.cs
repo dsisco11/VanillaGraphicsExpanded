@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.ShaderCompilation;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Contracts;
 namespace VanillaGraphicsExpanded.PBR.Postprocessing;
@@ -9,6 +10,6 @@ internal sealed partial class ColorGradingProgram : GpuComputeProgram,IColorGrad
 {
     #region Public API
     /// <summary>Adopts the existing compute pipeline and generated resource contract.</summary>
-    public ColorGradingProgram(GpuComputePipeline pipeline) : base(pipeline) { }
+    public ColorGradingProgram(ComputeShaderAsset pipeline) : base(pipeline) { }
     #endregion
 }

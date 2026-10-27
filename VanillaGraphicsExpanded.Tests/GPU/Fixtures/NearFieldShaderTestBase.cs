@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Numerics;
 using VanillaGraphicsExpanded.LumOn;
 using VanillaGraphicsExpanded.LumOn.WorldProbes.Gpu;
@@ -28,7 +29,7 @@ public abstract class NearFieldShaderTestBase : LumOnShaderFunctionalTestBase
     #region Shader Harness
     /// <summary>Runs the production shader with the production sixteen-unit texture layout.</summary>
     private protected (float[] Radiance, float[] Meta) Trace(NearFieldVoxelFixture? fixture, int budget = 256, bool suppress = false, float cacheDistance = 100, float emissionBoost = 1, VanillaGraphicsExpanded.Numerics.VectorInt3 worldOffset = default, int cacheResolution = 1,
-        bool directionalCache = false, float anchorX = 0, float screenDepth = 1, bool nearFieldTracing = true, float screenEmission = 0, bool worldCache = true, VanillaGraphicsExpanded.WorldPartition.PartitionBounds? supportedOrigins = null, float maximumTraceReach = 0, float cacheSpacing = 8, VanillaGraphicsExpanded.LumOn.Scene.Geometry.TraceGeometryGpuScene? shared = null, VanillaGraphicsExpanded.LumOn.Scene.SurfaceLightingSnapshot? surfaceLighting = null, Vector3? anchorPosition = null, VanillaGraphicsExpanded.Numerics.Vector3d matrixRemainder = default, Action<GpuFramebuffer>? consume = null, VanillaGraphicsExpanded.LumOn.WorldProbes.Gpu.LumOnWorldProbeClipmapGpuResources? worldResources = null, GpuTexture? history = null, GpuTexture? historyMeta = null, int texelsPerFrame = 64, int frameIndex = 0, float rayMaxDistance = 4, ShaderLightingResources? resources = null)
+        bool directionalCache = false, float anchorX = 0, float screenDepth = 1, bool nearFieldTracing = true, float screenEmission = 0, bool worldCache = true, VanillaGraphicsExpanded.WorldPartition.PartitionBounds? supportedOrigins = null, float maximumTraceReach = 0, float cacheSpacing = 8, VanillaGraphicsExpanded.LumOn.Scene.Geometry.TraceGeometryGpuScene? shared = null, VanillaGraphicsExpanded.LumOn.Scene.SurfaceLightingSnapshot? surfaceLighting = null, Vector3? anchorPosition = null, VanillaGraphicsExpanded.Numerics.Vector3d matrixRemainder = default, Action<RHIRenderPassDescription>? consume = null, VanillaGraphicsExpanded.LumOn.WorldProbes.Gpu.LumOnWorldProbeClipmapGpuResources? worldResources = null, GpuTexture? history = null, GpuTexture? historyMeta = null, int texelsPerFrame = 64, int frameIndex = 0, float rayMaxDistance = 4, ShaderLightingResources? resources = null)
     {
         var key = new TraceProgramKey(nearFieldTracing, emissionBoost, texelsPerFrame, worldCache,
             cacheResolution, cacheSpacing, worldResources?.WorldProbeTileSize ?? 16, rayMaxDistance);
@@ -58,7 +59,7 @@ public abstract class NearFieldShaderTestBase : LumOnShaderFunctionalTestBase
         anchors.UploadDataImmediate(CreateUniformColorData(anchors.Width, anchors.Height, anchorPosition?.X ?? anchorX, anchorPosition?.Y ?? 0, anchorPosition?.Z ?? -5, 1), 0, 0, 0, anchors.Width, anchors.Height, 1);
         anchors.UploadDataImmediate(CreateUniformColorData(anchors.Width, anchors.Height, .5f, .5f, 1, 0), 0, 0, 1, anchors.Width, anchors.Height, 1);
         program.ProbeAnchors = anchors;
-        program.PrimaryDepth = Populate(terrain.Depth, screenDepth).TextureId;
+        program.PrimaryDepth = Populate(terrain.Depth, screenDepth);
         program.SurfaceAlbedo = Populate(buffers.SurfaceAlbedoTex!, 1, 1, 1, 1);
         program.GBufferSurface = gbuffer.Surface;
         program.ScreenProbeAtlasHistory = history ?? Populate(buffers.ScreenProbeAtlasHistoryTex!, 0, 0, 0, 0);
@@ -80,9 +81,9 @@ public abstract class NearFieldShaderTestBase : LumOnShaderFunctionalTestBase
 
         program.SuppressWorldProbeRadiance = suppress;
         program.IndirectTint = new(1,1,1);
-        var output = buffers.ScreenProbeAtlasTraceFbo!;
+        var output = buffers.ScreenProbeAtlasTracePass!;
         TestFramework.RenderQuadTo(program, output);
-        var result = (output[0].ReadPixels(), output[1].ReadPixels());
+        var result = (output.Colors[0].Image!.Value.Texture.ReadPixels(), output.Colors[1].Image!.Value.Texture.ReadPixels());
         consume?.Invoke(output);
         // Test expectations describe physical hit luminance; storage metadata and borrowed consumers stay encoded.
         for (int offset = 0; offset < result.Item1.Length; offset += 4)

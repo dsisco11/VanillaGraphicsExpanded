@@ -1,3 +1,5 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System;
 using System.Collections.Generic;
 using OpenTK.Graphics.OpenGL;
@@ -16,7 +18,7 @@ internal sealed class RenderPassTargets : IDisposable
 
     #region Public API
     /// <summary>Resolves exact formats, samples and area before any target mutation or clear.</summary>
-    internal RenderPassTargets(RenderPassDesc description)
+    internal RenderPassTargets(RenderPassDesc description, bool retain = true)
     {
         target = description.Target;
         target.ValidateAttachments();
@@ -25,8 +27,8 @@ internal sealed class RenderPassTargets : IDisposable
             var surface = target.Surface ?? throw new NotSupportedException("Strict passes require published window-surface metadata.");
             if (description.Colors.Count != 1 || description.Colors[0].SurfaceBuffer != surface.Buffer)
                 throw new ArgumentException("Window passes require their published front/back color route.");
-            description.Colors[0].Clear?.Validate(surface.Color);
-            Signature = new([new(surface.Color)], surface.DepthStencil, surface.Samples, surface.HasDepth, surface.HasStencil);
+            description.Colors[0].Clear?.Validate(OpenGLImageValues.Format(surface.Color));
+            Signature = new([new(OpenGLImageValues.Format(surface.Color))], surface.DepthStencil is { } surfaceDepth ? OpenGLImageValues.Format(surfaceDepth) : null, surface.Samples, surface.HasDepth, surface.HasStencil);
             Area = description.Area ?? new(0, 0, target.Width, target.Height);
             if (Area.X < 0 || Area.Y < 0 || Area.Width <= 0 || Area.Height <= 0
                 || (long)Area.X + Area.Width > target.Width || (long)Area.Y + Area.Height > target.Height)
@@ -35,7 +37,7 @@ internal sealed class RenderPassTargets : IDisposable
                 || (!surface.HasStencil && (description.DepthStencil.StencilLoad != AttachmentLoad.Preserve || description.DepthStencil.StencilStore != AttachmentStore.Preserve)))
                 throw new ArgumentException("Window attachment intentions require a published aspect.");
             revision = target.AttachmentRevision;
-            Borrow(target);
+            if (retain) Borrow(target);
             return;
         }
         foreach (var color in description.Colors)
@@ -47,7 +49,7 @@ internal sealed class RenderPassTargets : IDisposable
         {
             var image = pair.Value;
             if (pair.Key >= FramebufferAttachment.ColorAttachment0 && pair.Key <= FramebufferAttachment.ColorAttachment15
-                && !TargetFormatPolicy.IsColor(image.InternalFormat))
+                && !TargetFormatPolicy.IsColor(image.Format))
                 throw new InvalidOperationException("Strict pass metadata requires a supported sized color format.");
             if (count++ == 0) { width = image.Width; height = image.Height; samples = Math.Max(1, image.Samples); }
             if (image.Width != width || image.Height != height || Math.Max(1, image.Samples) != samples)
@@ -63,8 +65,8 @@ internal sealed class RenderPassTargets : IDisposable
             if (color.Attachment < 0) { colors.Add(new(null, color.DiscardOutput)); continue; }
             var image = target.GetAttachment(FramebufferAttachment.ColorAttachment0 + color.Attachment)
                 ?? throw new InvalidOperationException("A routed color attachment is missing.");
-            colors.Add(new(image.InternalFormat));
-            color.Clear?.Validate(image.InternalFormat);
+            colors.Add(new(image.Format));
+            color.Clear?.Validate(image.Format);
         }
         var depth = target.GetAttachment(FramebufferAttachment.DepthAttachment);
         var stencil = target.GetAttachment(FramebufferAttachment.StencilAttachment);
@@ -72,7 +74,7 @@ internal sealed class RenderPassTargets : IDisposable
             || depth.TextureId != stencil.TextureId || depth.MipLevel != stencil.MipLevel
             || depth.Layer != stencil.Layer || depth.CubeFace != stencil.CubeFace))
             throw new NotSupportedException("Separate depth and stencil storage requires a separate target signature policy.");
-        Signature = new(colors, depth?.InternalFormat ?? stencil?.InternalFormat, samples, depth is not null, stencil is not null);
+        Signature = new(colors, (depth ?? stencil) is { } depthStencil ? depthStencil.Format : null, samples, depth is not null, stencil is not null);
         var intentions = description.DepthStencil;
         if ((depth is null && (intentions.DepthLoad != AttachmentLoad.Preserve || intentions.DepthStore != AttachmentStore.Preserve))
             || (stencil is null && (intentions.StencilLoad != AttachmentLoad.Preserve || intentions.StencilStore != AttachmentStore.Preserve)))
@@ -82,6 +84,7 @@ internal sealed class RenderPassTargets : IDisposable
             || (long)Area.X + Area.Width > width || (long)Area.Y + Area.Height > height)
             throw new ArgumentOutOfRangeException(nameof(description), "Render area exceeds the current target dimensions.");
         revision = target.AttachmentRevision;
+        if (!retain) return;
         try
         {
             Borrow(target);

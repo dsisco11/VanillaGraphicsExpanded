@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Spirv;
@@ -27,7 +28,7 @@ internal static class TestShaderInterfaces
     /// <summary>Links binary fixtures and creates the same interface snapshot as production.</summary>
     public static void LinkProgram(int program)
     {
-        StateCache.Current.LinkProgram(program);
+        OpenGLProgramCalls.ExecuteCoreLinkProgram(program);
         GL.GetProgram(program, GetProgramParameterName.LinkStatus, out int linked);
         if (linked == 0) return;
         GL.GetProgram(program, GetProgramParameterName.AttachedShaders, out int count);
@@ -39,10 +40,10 @@ internal static class TestShaderInterfaces
     {
         Shaders.Remove(shader);
         if (shaderReleases?.Remove(shader, out var released) == true) released();
-        StateCache.Current.DeleteShader(shader);
+        VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.OpenGL.DeleteShader(shader);
     }
     /// <summary>Deletes a fixture program and forgets its metadata.</summary>
-    public static void DeleteProgram(int program) { ForgetProgram(program); StateCache.Current.DeleteProgram(program); }
+    public static void DeleteProgram(int program) { ForgetProgram(program); VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.OpenGL.DeleteProgram(program); }
     /// <summary>Forgets a production-owned fixture before its pipeline disposes.</summary>
     public static void ForgetProgram(int program)
     {

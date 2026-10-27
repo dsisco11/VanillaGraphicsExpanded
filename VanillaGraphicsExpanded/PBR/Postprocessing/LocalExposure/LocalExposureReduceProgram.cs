@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.ShaderCompilation;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Contracts;
 using VanillaGraphicsExpanded.PBR.CameraExposure;
@@ -10,7 +11,7 @@ internal sealed partial class LocalExposureReduceProgram : GpuComputeProgram,ILo
     private GpuShaderStorageBuffer? lighting;
     #region Public API
     /// <summary>Adopts the existing typed compute pipeline.</summary>
-    public LocalExposureReduceProgram(GpuComputePipeline pipeline) : base(pipeline) { }
+    public LocalExposureReduceProgram(ComputeShaderAsset pipeline) : base(pipeline) { }
     /// <summary>Supplies an explicit frozen storage publication for alternate-view fixtures.</summary>
     internal GpuShaderStorageBuffer? FrameLightingInputs { set { RequireInputMutation(); lighting=value; } }
     /// <summary>Uses the current frozen scale unless the submitting view supplies its own.</summary>

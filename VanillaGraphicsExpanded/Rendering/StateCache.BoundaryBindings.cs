@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System;
 using System.Collections.Generic;
@@ -57,31 +58,32 @@ internal sealed partial class StateCache
     {
         ValidateBoundaryResourceLimits(footprint);
         var bindings = new BoundaryBindingRestoration(this);
-        activeTextureUnit ??= QueryBoundary(() => GL.GetInteger(GetPName.ActiveTexture) - (int)TextureUnit.Texture0);
-        int active = activeTextureUnit.Value;
+        bool textureSelection = footprint.Textures.Count != 0;
+        int active = 0;
+        if (textureSelection)
+        {
+            activeTextureUnit ??= QueryBoundary(() => GL.GetInteger(GetPName.ActiveTexture) - (int)TextureUnit.Texture0);
+            active = activeTextureUnit.Value;
+        }
+        if (footprint.ProgramSelection)
+        {
+            currentProgram ??= QueryBoundary(() => GL.GetInteger(GetPName.CurrentProgram));
+            int program = currentProgram.Value;
+            bindings.Add(() =>
+            {
+                RequireBoundaryResource(EPipelineState.Program, program);
+                OpenGLProgramSelection.Select(this, program);
+            }, () => { currentProgram = null; currentProgramStagesKnown = false; },
+                () => !currentProgramStagesKnown || currentProgram != program
+                    || boundaryRetiredResources.Contains((EPipelineState.Program, program)));
+        }
+        if (footprint.Geometry)
+        {
         currentVao ??= QueryBoundary(() => GL.GetInteger(GetPName.VertexArrayBinding));
         int vao = currentVao.Value;
-        int arrayBuffer = ResolveBoundaryBuffer(BufferTarget.ArrayBuffer);
-        if (!elementArrayBufferByVao.TryGetValue(vao, out int elementBuffer))
-        {
-            elementBuffer = QueryBoundary(() => GL.GetInteger(GetPName.ElementArrayBufferBinding));
-            elementArrayBufferByVao[vao] = elementBuffer;
-        }
-        // The owned engine mesh can already be selected at entry. Its helper clears that VAO's EBO.
-        bindings.Add(() => { RequireBoundaryResource(EPipelineState.VertexArray, vao); if (currentVao != vao) BindVertexArray(vao); }, () => currentVao = null,
+        bindings.Add(() => { RequireBoundaryResource(EPipelineState.VertexArray, vao); if (currentVao != vao) OpenGLVertexSelection.Bind(this,vao); }, () => currentVao = null,
             () => currentVao != vao || boundaryRetiredResources.Contains((EPipelineState.VertexArray, vao)));
-        bindings.Add(() =>
-        {
-            RequireBoundaryResource(EPipelineState.VertexArray, vao);
-            RequireBoundaryResource(EPipelineState.BufferBindings, elementBuffer);
-            BindVertexArray(vao);
-            OpenGLBufferBindings.BindBuffer(this, BufferTarget.ElementArrayBuffer, elementBuffer);
-        }, () => elementArrayBufferByVao.Remove(vao),
-            () => !elementArrayBufferByVao.TryGetValue(vao, out int current) || current != elementBuffer
-                || boundaryRetiredResources.Contains((EPipelineState.BufferBindings, elementBuffer)));
-        bindings.Add(() => { RequireBoundaryResource(EPipelineState.BufferBindings, arrayBuffer); if (bufferBindingByTarget.GetValueOrDefault(BufferTarget.ArrayBuffer) != arrayBuffer) OpenGLBufferBindings.BindBuffer(this, BufferTarget.ArrayBuffer, arrayBuffer); },
-            () => bufferBindingByTarget.Remove(BufferTarget.ArrayBuffer),
-            () => bufferBindingByTarget.GetValueOrDefault(BufferTarget.ArrayBuffer) != arrayBuffer || boundaryRetiredResources.Contains((EPipelineState.BufferBindings, arrayBuffer)));
+        }
         try
         {
             foreach (var slot in footprint.Textures) CaptureBoundaryTexture(slot.Unit, slot.Target, bindings);
@@ -89,7 +91,7 @@ internal sealed partial class StateCache
         finally
         {
             // Texture queries select a unit temporarily. Failed entry must restore that selector too.
-            try { if (activeTextureUnit != active) { OpenGLImageBindings.ActiveTexture(this, active); CheckBoundaryNativeError(); } }
+            try { if (textureSelection && activeTextureUnit != active) { OpenGLImageBindings.ActiveTexture(this, active); CheckBoundaryNativeError(); } }
             catch (Exception error)
             {
                 activeTextureUnit = null;
@@ -109,9 +111,11 @@ internal sealed partial class StateCache
             bindings.Add(() => { RequireBoundaryResource(EPipelineState.BufferBindings, value.Value); if (bufferBindingByTarget.GetValueOrDefault(value.Key) != value.Value) OpenGLBufferBindings.BindBuffer(this, value.Key, value.Value); },
                 () => bufferBindingByTarget.Remove(value.Key),
                 () => bufferBindingByTarget.GetValueOrDefault(value.Key) != value.Value || boundaryRetiredResources.Contains((EPipelineState.BufferBindings, value.Value)));
-        bindings.Add(() => { if (activeTextureUnit != active) OpenGLImageBindings.ActiveTexture(this, active); }, () => activeTextureUnit = null, () => activeTextureUnit != active);
+        if (textureSelection) bindings.Add(() => { if (activeTextureUnit != active) OpenGLImageBindings.ActiveTexture(this, active); }, () => activeTextureUnit = null, () => activeTextureUnit != active);
         scope.AddCleanup(EngineBoundaryCleanup.Bindings, bindings);
 
+        if (footprint.Framebuffers)
+        {
         currentReadFramebuffer ??= QueryBoundary(() => GL.GetInteger(GetPName.ReadFramebufferBinding));
         currentDrawFramebuffer ??= QueryBoundary(() => GL.GetInteger(GetPName.DrawFramebufferBinding));
         int read = currentReadFramebuffer.Value, draw = currentDrawFramebuffer.Value;
@@ -125,6 +129,7 @@ internal sealed partial class StateCache
             () => { currentDrawFramebuffer = null; currentFramebuffer = null; },
             () => currentDrawFramebuffer != draw || boundaryRetiredResources.Contains((EPipelineState.FramebufferBindings, draw)));
         scope.AddCleanup(EngineBoundaryCleanup.Framebuffers, framebuffers);
+        }
     }
 
     /// <summary>Captures a texture target and sampler through strict queries while keeping their authoritative cache entries.</summary>
@@ -168,7 +173,7 @@ internal sealed partial class StateCache
             imageBindings[unit] = saved;
         }
         restore.Add(() => { RequireBoundaryResource(EPipelineState.TextureBindings, saved.Texture);
-            BindImageTexture(unit, saved.Texture, saved.Level, saved.Layered, saved.Layer, saved.Access, saved.Format); },
+            OpenGLImageSlotBindings.BindImageTexture(this, unit, saved.Texture, saved.Level, saved.Layered, saved.Layer, saved.Access, saved.Format); },
             () => imageBindings.Remove(unit),
             () => !imageBindings.TryGetValue(unit, out var current) || current != saved || boundaryRetiredResources.Contains((EPipelineState.TextureBindings, saved.Texture)));
     }

@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Contracts;
 
@@ -29,13 +30,13 @@ internal interface ILumonSceneSurfaceLightingShaderBindings : ISurfaceLightingIn
     GpuTextureRef Surfaces { set; }
     /// <summary>Declares the indirectIrradiance Image slot.</summary>
     [ShaderBinding("indirectIrradiance", ShaderBindingKind.Image, 0, ShaderStageKind.Compute)]
-    GpuTextureBinding IndirectIrradiance { set; }
+    RHIImageBinding IndirectIrradiance { set; }
     /// <summary>Declares the directIrradiance Image slot.</summary>
     [ShaderBinding("directIrradiance", ShaderBindingKind.Image, 1, ShaderStageKind.Compute)]
-    GpuTextureBinding DirectIrradiance { set; }
+    RHIImageBinding DirectIrradiance { set; }
     /// <summary>Declares the nextOutgoing Image slot.</summary>
     [ShaderBinding("nextOutgoing", ShaderBindingKind.Image, 2, ShaderStageKind.Compute)]
-    GpuTextureBinding NextOutgoing { set; }
+    RHIImageBinding NextOutgoing { set; }
     /// <summary>Declares the SurfaceWork StorageBlock slot.</summary>
     [ShaderBinding("SurfaceWork", ShaderBindingKind.StorageBlock, 0, ShaderStageKind.Compute)]
     GpuShaderStorageBuffer? SurfaceWork { set; }

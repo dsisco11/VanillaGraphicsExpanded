@@ -1,3 +1,5 @@
+using VanillaGraphicsExpanded.Rendering.ShaderCompilation;
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -13,32 +15,33 @@ namespace VanillaGraphicsExpanded.LumOn;
 /// <summary>Submits gather graphics passes independently of the interleaved compute and explicit resource operations.</summary>
 public partial class LumOnRenderer
 {
-    private readonly GraphicsPipelineLifetime graphicsLifetime = new();
-    private readonly Dictionary<string, GraphicsPipeline> graphicsPipelines = new();
+    private readonly Dictionary<string, GraphicsPipelineAsset> graphicsPipelines = new();
 
     #region Private
     /// <summary>Prepares one retained executable realization and restores the incoming engine state around its draw.</summary>
-    private bool SubmitFullscreen(GpuProgram shader, GpuFramebuffer target, bool clear)
+    private bool SubmitFullscreen(GpuProgram shader, RHIRenderPassDescription target, bool clear)
     {
         var description = bufferManager.GetPass(target, clear);
-        using var metadata = new RenderPassTargets(description);
+        var signature=RHICommandContext.Current.DescribeRenderTargets(description);
         graphicsPipelines.TryGetValue(shader.PassName, out var pipeline);
-        if (pipeline is null || !ReferenceEquals(pipeline.Shader, shader)
-            || pipeline.ExecutableRevision != shader.ExecutableRevision || pipeline.Description.Targets != metadata.Signature)
+        if (pipeline is null || pipeline.Description.Shader != shader.Shader || pipeline.Description.Targets != signature)
         {
-            var replacement = new GraphicsPipeline(graphicsLifetime,
-                new(shader.GraphicsIdentity!, EngineFullscreenGeometry.Layout, metadata.Signature, DynamicPipelineState.Viewport), shader);
+            var replacement = new GraphicsPipelineAsset(shader,new(shader.Shader, EngineFullscreenGeometry.Layout, signature, DynamicPipelineState.Viewport));
             pipeline?.Dispose();
             graphicsPipelines[shader.PassName] = pipeline = replacement;
         }
-        return GraphicsCommandContext.TryRun("LumOn." + shader.PassName, [pipeline], true, commands =>
+        var commands=RHICommandContext.Current;
+        if(!commands.TryEnterBoundary(new("LumOn."+shader.PassName,true,graphics:[pipeline.Pipeline],operations:BoundaryOperations.RenderPasses),out var boundary)) return false;
+        using(boundary) boundary!.Run(()=>
         {
-            commands.BeginPass(description);
-            commands.SetPipeline(pipeline);
+            commands.BeginRenderPass(description);
+            commands.SetPipeline(pipeline.Pipeline);
             commands.SetDynamicState(new() { Viewport = commands.PassViewport });
-            commands.Draw(geometry!, new(0, 6));
-            commands.EndPass();
+            commands.BindResources(shader.CaptureBindings());
+            commands.DrawIndexed(geometry!.Inputs,new(0,6));
+            commands.EndRenderPass();
         });
+        return true;
     }
 
     /// <summary>Releases retained realizations without changing shader or attachment ownership.</summary>
@@ -46,7 +49,6 @@ public partial class LumOnRenderer
     {
         foreach (var pipeline in graphicsPipelines.Values) pipeline.Dispose();
         graphicsPipelines.Clear();
-        graphicsLifetime.Dispose();
     }
     #endregion
 }

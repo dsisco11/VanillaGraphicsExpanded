@@ -240,7 +240,7 @@ internal sealed class CloudNativeRuntime : IDisposable
     private bool WithdrawForReload()
     {
         // Withdraw every dependent publication even if one resource cleanup fails.
-        RenderingCleanup.Run(() => map?.InvalidateShader(), () => simple?.Reset(), () => volume?.Reset());
+        RenderingCleanup.Run(() => map?.InvalidateShader(), () => simple?.WithdrawForReload(), () => volume?.WithdrawForReload());
         return true;
     }
     #endregion

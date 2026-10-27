@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.ShaderCompilation;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Contracts;
 
@@ -11,5 +12,5 @@ namespace VanillaGraphicsExpanded.LumOn.WorldProbes.Gpu;
 internal sealed partial class WorldProbeHistoryClearShader : GpuComputeProgram, IWorldProbeHistoryClearShaderBindings
 {
     /// <summary>Adopts the executable and its retained resource contract.</summary>
-    public WorldProbeHistoryClearShader(GpuComputePipeline pipeline) : base(pipeline) { }
+    public WorldProbeHistoryClearShader(ComputeShaderAsset pipeline) : base(pipeline) { }
 }

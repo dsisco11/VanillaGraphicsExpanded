@@ -21,7 +21,7 @@ public sealed class FramebufferRoutingDsaTests(HeadlessGLFixture fixture,ITestOu
     {
         EnsureContextValid();Assert.True(GpuSupport.Graphics.SupportsArbDirectStateAccess);
         // Clear-only passes declare no executable; preserve any program left by another shared-fixture test.
-        using var program = StateCache.Current.UseProgramScope(0);
+        OpenGLProgramSelection.Select(StateCache.Current, 0);
         using var scene=new RoutingScene();scene.Initialize();List<string> fallback;
         using(var capability=new DirectStateAccessCapabilityScope(false))
         using(var capture=new GraphicsTransitionCapture()){scene.Render(standalone);fallback=[..capture.Calls];}
@@ -43,34 +43,37 @@ public sealed class FramebufferRoutingDsaTests(HeadlessGLFixture fixture,ITestOu
     {
         EnsureContextValid();Assert.True(GpuSupport.Graphics.SupportsArbDirectStateAccess);
         // Clear-only passes declare no executable; preserve any program left by another shared-fixture test.
-        using var program = StateCache.Current.UseProgramScope(0);
+        OpenGLProgramSelection.Select(StateCache.Current,0);
         using var capability=new DirectStateAccessCapabilityScope(directStateAccess);
         using var originalBindings=StateCache.Current.BindFramebufferScope();
         using var window=DynamicGpuFramebuffer.Wrap(0,width:1,height:1);window.PublishSurfaceMetadata(1,1);
         var metadata=window.Surface!;
         DrawBufferMode grouped=metadata.Buffer==DrawBuffersEnum.BackLeft?DrawBufferMode.Back:DrawBufferMode.Front;
-        StateCache.Current.BindFramebuffer(FramebufferTarget.DrawFramebuffer,0);int previous=GL.GetInteger(GetPName.DrawBuffer0);GL.DrawBuffer(grouped); StateCache.Current.Invalidate(EPipelineState.FramebufferRouting);
-        StateCache.Current.BindFramebuffer(FramebufferTarget.ReadFramebuffer,0);int previousRead=GL.GetInteger(GetPName.ReadBuffer);
+        OpenGLFramebufferSelection.Bind(StateCache.Current, FramebufferTarget.DrawFramebuffer,0);int previous=GL.GetInteger(GetPName.DrawBuffer0);GL.DrawBuffer(grouped); StateCache.Current.Invalidate(EPipelineState.FramebufferRouting);
+        OpenGLFramebufferSelection.Bind(StateCache.Current, FramebufferTarget.ReadFramebuffer,0);int previousRead=GL.GetInteger(GetPName.ReadBuffer);
         using var incoming=CreateRenderTarget(1,1,PixelInternalFormat.Rgba32f);incoming.Bind();
         try
         {
             using(var capture=new GraphicsTransitionCapture())
             {
-                Assert.True(GraphicsCommandContext.TryRun("Tests.Dsa.Window",[],true,commands=>
                 {
-                    commands.BeginPass(new(window,[new(-1,AttachmentLoad.Clear,Clear:ColorClearValue.Float(.25f,.5f,.75f,1),SurfaceBuffer:metadata.Buffer)]));commands.EndPass();
-                }));
+    var commands=RHICommandContext.Current;
+    using var scope44=commands.EnterBoundary(new("Tests.Dsa.Window",true,graphics:System.Linq.Enumerable.Select<RHIGraphicsPipeline,RHIGraphicsPipelineRef>([],value=>value),operations:BoundaryOperations.RenderPasses));
+    scope44.Run(()=>{
+                    commands.BeginRenderPass(FramebufferTestSetup.DescribeAttachments(window, [new(Load:AttachmentLoad.Clear,Clear:ColorClearValue.Float(.25f,.5f,.75f,1),WindowBuffer:metadata.Buffer==DrawBuffersEnum.BackLeft?SurfaceColorBuffer.BackLeft:SurfaceColorBuffer.FrontLeft)]));commands.EndRenderPass();
+                });
+}
                 Assert.Contains(capture.Calls,call=>call==$"RoutingWindow:0:{grouped}");
                 Assert.DoesNotContain(capture.Calls,call=>call.StartsWith("RoutingNamed:"));
                 output.WriteLine("WINDOW_ROUTING_DSA="+System.Text.Json.JsonSerializer.Serialize(new{directStateAccess,grouped=grouped.ToString(),calls=capture.Calls}));
             }
             Assert.Equal(incoming.FboId,GL.GetInteger(GetPName.DrawFramebufferBinding));
-            StateCache.Current.BindFramebuffer(FramebufferTarget.DrawFramebuffer,0);Assert.Equal((int)grouped,GL.GetInteger(GetPName.DrawBuffer0));
-            StateCache.Current.BindFramebuffer(FramebufferTarget.ReadFramebuffer,0);GL.ReadBuffer((ReadBufferMode)metadata.Buffer);
+            OpenGLFramebufferSelection.Bind(StateCache.Current, FramebufferTarget.DrawFramebuffer,0);Assert.Equal((int)grouped,GL.GetInteger(GetPName.DrawBuffer0));
+            OpenGLFramebufferSelection.Bind(StateCache.Current, FramebufferTarget.ReadFramebuffer,0);GL.ReadBuffer((ReadBufferMode)metadata.Buffer);
             using var pack=OpenGLPixelLayouts.PackScope(StateCache.Current, new(1));byte[] pixel=new byte[4];GL.ReadPixels(0,0,1,1,PixelFormat.Rgba,PixelType.UnsignedByte,pixel);
             Assert.InRange(pixel[0],(byte)63,(byte)65);
         }
-        finally{StateCache.Current.BindFramebuffer(FramebufferTarget.DrawFramebuffer,0);GL.DrawBuffer((DrawBufferMode)previous); StateCache.Current.Invalidate(EPipelineState.FramebufferRouting);StateCache.Current.BindFramebuffer(FramebufferTarget.ReadFramebuffer,0);GL.ReadBuffer((ReadBufferMode)previousRead);StateCache.Current.InvalidateAll();}
+        finally{OpenGLFramebufferSelection.Bind(StateCache.Current, FramebufferTarget.DrawFramebuffer,0);GL.DrawBuffer((DrawBufferMode)previous); StateCache.Current.Invalidate(EPipelineState.FramebufferRouting);OpenGLFramebufferSelection.Bind(StateCache.Current, FramebufferTarget.ReadFramebuffer,0);GL.ReadBuffer((ReadBufferMode)previousRead);StateCache.Current.InvalidateAll();}
         Assert.Equal(ErrorCode.NoError,GL.GetError());
     }
     #endregion
@@ -81,7 +84,7 @@ public sealed class FramebufferRoutingDsaTests(HeadlessGLFixture fixture,ITestOu
     {
         EnsureContextValid();Assert.True(GpuSupport.Graphics.SupportsArbDirectStateAccess);
         // Clear-only passes declare no executable; preserve any program left by another shared-fixture test.
-        using var program = StateCache.Current.UseProgramScope(0);
+        OpenGLProgramSelection.Select(StateCache.Current,0);
         using var scene=new RoutingScene();scene.Initialize();
 
         using(var capture=new GraphicsTransitionCapture()){capture.FailNamedFramebuffer=scene.FirstFramebuffer;var failure=Assert.ThrowsAny<Exception>(()=>scene.Render(false));Assert.Contains("Injected named restoration failure",failure.ToString());}
@@ -115,22 +118,28 @@ public sealed class FramebufferRoutingDsaTests(HeadlessGLFixture fixture,ITestOu
         {
             foreach(var image in images)image.UploadDataImmediate(new float[16]);
             for(int index=0;index<targets.Length;index++){targets[index].Bind();GL.DrawBuffers(Original[index].Length,Original[index]); StateCache.Current.Invalidate(EPipelineState.FramebufferRouting);}
-            StateCache.Current.BindFramebuffer(FramebufferTarget.DrawFramebuffer,incoming.FboId);StateCache.Current.BindFramebuffer(FramebufferTarget.ReadFramebuffer,read.FboId);
+            OpenGLFramebufferSelection.Bind(StateCache.Current, FramebufferTarget.DrawFramebuffer,incoming.FboId);OpenGLFramebufferSelection.Bind(StateCache.Current, FramebufferTarget.ReadFramebuffer,read.FboId);
         }
         /// <summary>Runs two equivalent clears using either independent passes or one deferred-restoration sequence.</summary>
         internal void Render(bool standalone)
         {
             if(standalone)
             {
-                Assert.True(CompleteGraphicsBoundary.TryRun("Tests.Dsa.Standalone",[],[],true,boundary=>
+                var commands=RHICommandContext.Current;
+                for(int index=0;index<2;index++)
                 {
-                    for(int index=0;index<2;index++){using var pass=RenderPass.Begin(Description(index),boundary);}
-                }));
+                    using var boundary=commands.EnterBoundary(new("Tests.Dsa.Standalone",true,operations:BoundaryOperations.RenderPasses));
+                    int selection=index;
+                    boundary.Run(()=>{commands.BeginRenderPass(Description(selection));commands.EndRenderPass();});
+                }
             }
-            else Assert.True(GraphicsCommandContext.TryRun("Tests.Dsa.Sequence",[],true,commands=>
-            {
-                for(int index=0;index<2;index++){commands.BeginPass(Description(index));commands.EndPass();}
-            }));
+            else {
+    var commands=RHICommandContext.Current;
+    using var scope45=commands.EnterBoundary(new("Tests.Dsa.Sequence",true,graphics:System.Linq.Enumerable.Select<RHIGraphicsPipeline,RHIGraphicsPipelineRef>([],value=>value),operations:BoundaryOperations.RenderPasses));
+    scope45.Run(()=>{
+                for(int index=0;index<2;index++){commands.BeginRenderPass(Description(index));commands.EndRenderPass();}
+            });
+}
         }
         #endregion
         #region Inspection and disposal
@@ -140,10 +149,10 @@ public sealed class FramebufferRoutingDsaTests(HeadlessGLFixture fixture,ITestOu
             Assert.Equal(incoming.FboId,GL.GetInteger(GetPName.DrawFramebufferBinding));Assert.Equal(read.FboId,GL.GetInteger(GetPName.ReadFramebufferBinding));
             for(int index=includeFirst?0:1;index<2;index++)
             {
-                StateCache.Current.BindFramebuffer(FramebufferTarget.DrawFramebuffer,targets[index].FboId);
+                OpenGLFramebufferSelection.Bind(StateCache.Current, FramebufferTarget.DrawFramebuffer,targets[index].FboId);
                 for(int slot=0;slot<Original[index].Length;slot++)Assert.Equal((int)Original[index][slot],GL.GetInteger(GetPName.DrawBuffer0+slot));
             }
-            StateCache.Current.BindFramebuffer(FramebufferTarget.DrawFramebuffer,incoming.FboId);
+            OpenGLFramebufferSelection.Bind(StateCache.Current, FramebufferTarget.DrawFramebuffer,incoming.FboId);
         }
         /// <summary>Reads physical outputs after capture without changing the compared operation count.</summary>
         internal float[][] ReadOutput()=>images.Select(image=>image.ReadPixels()).ToArray();
@@ -155,7 +164,7 @@ public sealed class FramebufferRoutingDsaTests(HeadlessGLFixture fixture,ITestOu
         #endregion
         #region Private
         /// <summary>Authors a different output route and clear value for each target.</summary>
-        private RenderPassDesc Description(int index)=>new(targets[index],[new(index,AttachmentLoad.Clear,Clear:ColorClearValue.Float(.25f*(index+1),.5f,.75f,1))]);
+        private RHIRenderPassDescription Description(int index)=>FramebufferTestSetup.DescribeAttachments(targets[index],[new(AttachmentIndex: index, Load: AttachmentLoad.Clear,Clear:ColorClearValue.Float(.25f*(index+1),.5f,.75f,1))]);
         /// <summary>Creates a separate incoming native framebuffer image.</summary>
         private GpuFramebuffer CreateTarget(){var image=Own(RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba32f, Width = System.Math.Max(1, 2), Height = System.Math.Max(1, 2), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource());return Own(DynamicGpuFramebuffer.CreateSingle(image)!);}
         /// <summary>Retains fixture allocation ownership in dependency order.</summary>

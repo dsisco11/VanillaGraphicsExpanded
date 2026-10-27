@@ -116,10 +116,10 @@ public sealed class LumonScenePipelineSmokeTests : RenderTestBase
 
         // Pass A: mark pages.
         markShader.BindDebugCounters(markCounters.Buffer);
-        markShader.BindPatchIdGBuffer(patchIdGBuffer.TextureId);
-        markShader.BindChunkSlotGenerationTex(genTex.TextureId);
+        markShader.PatchIdG = patchIdGBuffer;
+        markShader.ChunkSlotGenerationTex = genTex;
         markShader.FrameStamp = 1u;
-        markShader.BindPageUsageStampImage(usageStamp, access: TextureAccess.ReadWrite);
+        markShader.BindPageUsageStampImage(usageStamp, access: ImageAccess.ReadWrite);
         markShader.Dispatch((gW + 7) / 8, (gH + 7) / 8, 1);
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);
 
@@ -128,8 +128,8 @@ public sealed class LumonScenePipelineSmokeTests : RenderTestBase
         // Pass B: compact stamps -> bounded request list.
         compactShader.BindRequestCounter(pageRequestCounter.Buffer);
         compactShader.BindRequestsSsbo(pageRequests.Buffer);
-        compactShader.BindPageUsageStamp(usageStamp.TextureId);
-        compactShader.BindPageTableMip0(pageTableMip0.TextureId);
+        compactShader.PageUsageStamp = usageStamp;
+        compactShader.PageTableMip0 = pageTableMip0;
         compactShader.MaxRequests = (uint)desiredPages;
         compactShader.FrameStamp = 1u;
         compactShader.ScanOffset = 0u;
@@ -249,14 +249,14 @@ public sealed class LumonScenePipelineSmokeTests : RenderTestBase
             relightComputeProgram.BindPatchMetaSsbo(patchMetaSsbo);
             relightComputeProgram.BindDebugCounters(relightDebugCounter.Buffer);
 
-        relightComputeProgram.BindDepthAtlas(depthAtlas.TextureId);
-        relightComputeProgram.BindMaterialAtlas(materialAtlas.TextureId);
+        relightComputeProgram.DepthAtlas = depthAtlas;
+        relightComputeProgram.MaterialAtlas = materialAtlas;
 
-        relightComputeProgram.BindLightColorLut(lightColorLut.TextureId);
-        relightComputeProgram.BindBlockLevelScalarLut(blockScalar.TextureId);
-        relightComputeProgram.BindSunLevelScalarLut(sunScalar.TextureId);
+        relightComputeProgram.LightColorLut = lightColorLut;
+        relightComputeProgram.BlockLevelScalarLut = blockScalar;
+        relightComputeProgram.SunLevelScalarLut = sunScalar;
 
-        relightComputeProgram.BindSurfaceLut(surfaceLut.TextureId);
+        relightComputeProgram.SurfaceLut = surfaceLut;
         relightComputeProgram.BindIrradianceAtlasImage(irradianceAtlas);
 
             relightComputeProgram.SetAtlasLayout((uint)(uint)tileSize, (uint)(uint)tilesPerAxis, (uint)(uint)tilesPerAtlas, (uint)0u);

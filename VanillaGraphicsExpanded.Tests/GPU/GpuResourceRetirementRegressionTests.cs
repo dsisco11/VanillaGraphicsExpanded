@@ -92,7 +92,7 @@ public sealed class GpuResourceRetirementRegressionTests(HeadlessGLFixture fixtu
             original = new GpuShaderModule(shader, ShaderType.VertexShader);
             var manager = GpuResourceManagerSystem.CurrentManager!;
             var retired = manager.GetResourceRegistration(original)!;
-            StateCache.Current.DeleteShader(shader);
+            VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.OpenGL.DeleteShader(shader);
             Assert.Equal(GpuResourceRegistrationState.Deleted, retired.State);
             Assert.True(GL.IsShader(shader));
             GL.GetShader(shader, ShaderParameter.DeleteStatus, out int pending);
@@ -108,8 +108,8 @@ public sealed class GpuResourceRetirementRegressionTests(HeadlessGLFixture fixtu
         {
             original?.Dispose();
             if (attached && GL.IsProgram(program) && GL.IsShader(shader)) GL.DetachShader(program, shader);
-            if (GL.IsProgram(program)) StateCache.Current.DeleteProgram(program);
-            if (GL.IsShader(shader)) StateCache.Current.DeleteShader(shader);
+            if (GL.IsProgram(program)) VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.OpenGL.DeleteProgram(program);
+            if (GL.IsShader(shader)) VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.OpenGL.DeleteShader(shader);
             fixture.CleanupGpuResources();
             StateCache.Current.InvalidateAll();
         }
@@ -136,7 +136,7 @@ public sealed class GpuResourceRetirementRegressionTests(HeadlessGLFixture fixtu
             StateCache.Current.InvalidateAll();
             var manager = GpuResourceManagerSystem.CurrentManager!;
             var retired = manager.GetResourceRegistration(original)!;
-            StateCache.Current.DeleteProgram(program);
+            VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.OpenGL.DeleteProgram(program);
             Assert.True(GL.IsProgram(program));
             GL.GetProgram(program, GetProgramParameterName.DeleteStatus, out int pending);
             Assert.Equal(1, pending);
@@ -154,8 +154,8 @@ public sealed class GpuResourceRetirementRegressionTests(HeadlessGLFixture fixtu
         {
             GL.UseProgram(0);
             original?.Dispose();
-            if (GL.IsProgram(program)) StateCache.Current.DeleteProgram(program);
-            if (GL.IsShader(shader)) StateCache.Current.DeleteShader(shader);
+            if (GL.IsProgram(program)) VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.OpenGL.DeleteProgram(program);
+            if (GL.IsShader(shader)) VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.OpenGL.DeleteShader(shader);
             fixture.CleanupGpuResources();
             StateCache.Current.InvalidateAll();
         }
@@ -206,7 +206,7 @@ public sealed class GpuResourceRetirementRegressionTests(HeadlessGLFixture fixtu
         }
         finally
         {
-            StateCache.Current.DeleteFramebuffer(framebuffer);
+            VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.OpenGL.DeleteFramebuffer(framebuffer);
             if (renderbuffer && GL.IsRenderbuffer(backing)) RHICommandContext.Current.OpenGL.DeleteRenderbuffer(backing);
             if (!renderbuffer && GL.IsTexture(backing)) RHICommandContext.Current.OpenGL.DeleteTexture(backing);
             fixture.CleanupGpuResources();

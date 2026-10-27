@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.ShaderCompilation;
 using System;
 using System.Numerics;
 using VanillaGraphicsExpanded.Rendering;
@@ -17,7 +18,7 @@ internal sealed partial class CloudVolumeProbeProgram : GpuComputeProgram, IClou
     internal static CloudVolumeProbeProgram Create(ICoreAPI api)
     {
         var layout = new GpuProgramLayout(); layout.RegisterContract(Contract.Stages[0].Bindings);
-        if (!GpuComputePipeline.TryCreateFromAssets(api, new ShaderSettings(Contract), out var pipeline,
+        if (!ComputeShaderAsset.TryCreateFromAssets(api, new ShaderSettings(Contract), out var pipeline,
             out string log, "Cloud.Volume.Probe", layout: layout)) throw new InvalidOperationException(log);
         return new(pipeline!);
     }
@@ -33,7 +34,7 @@ internal sealed partial class CloudVolumeProbeProgram : GpuComputeProgram, IClou
     #endregion
     #region Private
     /// <summary>Adopts the executable and the diagnostic query record.</summary>
-    private CloudVolumeProbeProgram(GpuComputePipeline pipeline) : base(pipeline) => OwnUniformBuffer(inputs);
+    private CloudVolumeProbeProgram(ComputeShaderAsset pipeline) : base(pipeline) => OwnUniformBuffer(inputs);
     /// <summary>Publishes the staged diagnostic record.</summary>
     CpuUniformBuffer ICloudVolumeProbeBindings.Inputs => inputs;
     #endregion

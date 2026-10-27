@@ -76,27 +76,30 @@ public sealed class AmbientOcclusionCompositeTests(HeadlessGLFixture fixture) : 
         using var target = TestFramework.CreateTestGBuffer(1,1,PixelInternalFormat.Rgba32f,3);
         using var positions = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = null }).RequireResource(); positions.UploadData(new float[] {-1,-1,0, 3,-1,0, -1,3,0});
         using var uv = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = null }).RequireResource(); uv.UploadData(new float[] {0,0, 2,0, 0,2});
-        using var geometry = new ArrayGraphicsGeometry(EngineFullscreenGeometry.Layout, PrimitiveType.Triangles,
+        using var geometry = new ArrayGraphicsGeometry(EngineFullscreenGeometry.Layout, PrimitiveTopology.Triangles,
             new Dictionary<int,GpuVbo> { [0]=positions, [1]=uv });
-        using var lifetime = new GraphicsPipelineLifetime();
-        var passDescription = new RenderPassDesc(target,[new(0),new(1),new(2)]);
-        using var pass = new RenderPassTargets(passDescription);
-        shader.DirectLighting=lighting;shader.IndirectDiffuse=indirect;shader.GBufferAlbedo=albedo.TextureId;
-        shader.GBufferSurface=surface;shader.GBufferPosition=position.TextureId;shader.PrimaryDepth=depth.TextureId;
+        var passDescription = FramebufferTestSetup.DescribeAttachments(target, [new(AttachmentIndex:0),new(AttachmentIndex:1),new(AttachmentIndex:2)]);
+        var pass = RHICommandContext.Current.DescribeRenderTargets(passDescription);
+        shader.DirectLighting=lighting;shader.IndirectDiffuse=indirect;shader.GBufferAlbedo=albedo;
+        shader.GBufferSurface=surface;shader.GBufferPosition=position;shader.PrimaryDepth=depth;
         using var frameCamera = TestFrameCamera.Create([1,0,0,0,0,1,0,0,0,0,-4,0,receiverX,0,0,1],
             [1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1]);
         shader.FrameInputs = frameCamera;
 
         shader.IndirectTint=new(1,1,1);shader.IndirectIntensity=1;shader.DiffuseAOStrength=diffuseStrength;shader.SpecularAOStrength=specularStrength;
         shader.SetAtmosphere(null);shader.SetWaterVolume(null);shader.SetUnderwater(false);
-        using var pipeline = new GraphicsPipeline(lifetime,new(shader.GraphicsIdentity!,EngineFullscreenGeometry.Layout,pass.Signature,DynamicPipelineState.Viewport),shader);
+        using var pipeline = RHICommandContext.Current.CreateGraphicsPipeline(new(shader.Shader,EngineFullscreenGeometry.Layout,pass,DynamicPipelineState.Viewport)).RequireResource();
         /// <summary>Publishes prepared inputs and reads only after the graphics boundary restores state.</summary>
         float[] Render()
         {
-            Assert.True(GraphicsCommandContext.TryRun("Tests.AmbientComposition",[pipeline],true,commands=> {
-                commands.BeginPass(passDescription);commands.SetPipeline(pipeline);
-                commands.SetDynamicState(new(){Viewport=commands.PassViewport});commands.Draw(geometry,new(0,3));commands.EndPass();
-            }));
+            {
+    var commands=RHICommandContext.Current;
+    using var scope0=commands.EnterBoundary(new("Tests.AmbientComposition",true,graphics:System.Linq.Enumerable.Select<RHIGraphicsPipeline,RHIGraphicsPipelineRef>([pipeline],value=>value),operations:BoundaryOperations.RenderPasses));
+    scope0.Run(()=>{
+                commands.BeginRenderPass(passDescription);commands.SetPipeline(pipeline);
+                commands.SetDynamicState(new(){Viewport=commands.PassViewport});commands.Draw(geometry.Inputs,new(0,3));commands.EndRenderPass();
+            });
+}
             return target[0].ReadPixels();
         }
         shader.SetAmbientOcclusion(null);float[] baseline=Render();

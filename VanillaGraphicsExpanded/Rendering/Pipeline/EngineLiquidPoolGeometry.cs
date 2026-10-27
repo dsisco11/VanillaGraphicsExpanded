@@ -1,3 +1,5 @@
+using VanillaGraphicsExpanded.Rendering.Integration.OpenGL;
+using VanillaGraphicsExpanded.Rendering.RHI;
 using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System;
 using System.Collections.Generic;
@@ -17,16 +19,18 @@ internal sealed class EngineLiquidPoolGeometry : GraphicsGeometry
     private static readonly AccessTools.FieldRef<MeshDataPool, List<ModelDataPoolLocation>> ReadLocations =
         AccessTools.FieldRefAccess<MeshDataPool, List<ModelDataPoolLocation>>("poolLocations");
     // AllocateEmptyMesh/AddCustoms expose packed flags and custom integers as unsigned integer attributes.
-    internal static readonly VertexLayoutDesc Layout = new([
-        new(0, 3, VertexAttribPointerType.Float, VertexInterpretation.Floating, 0, 0, 12),
-        new(1, 2, VertexAttribPointerType.Float, VertexInterpretation.Floating, 1, 0, 8),
-        new(2, 4, VertexAttribPointerType.UnsignedByte, VertexInterpretation.Normalized, 2, 0, 4),
-        new(3, 1, VertexAttribPointerType.UnsignedInt, VertexInterpretation.Integer, 3, 0, 4),
-        new(4, 2, VertexAttribPointerType.Float, VertexInterpretation.Floating, 4, 0, 8),
-        new(5, 1, VertexAttribPointerType.UnsignedInt, VertexInterpretation.Integer, 5, 0, 8),
-        new(6, 1, VertexAttribPointerType.UnsignedInt, VertexInterpretation.Integer, 5, 4, 8)]);
+    internal static readonly RHIVertexLayout Layout = new([
+        new(0, 3, VertexComponentFormat.Float, VertexInterpretation.Floating, 0, 0, 12),
+        new(1, 2, VertexComponentFormat.Float, VertexInterpretation.Floating, 1, 0, 8),
+        new(2, 4, VertexComponentFormat.UnsignedByte, VertexInterpretation.Normalized, 2, 0, 4),
+        new(3, 1, VertexComponentFormat.UnsignedInt, VertexInterpretation.Integer, 3, 0, 4),
+        new(4, 2, VertexComponentFormat.Float, VertexInterpretation.Floating, 4, 0, 8),
+        new(5, 1, VertexComponentFormat.UnsignedInt, VertexInterpretation.Integer, 5, 0, 8),
+        new(6, 1, VertexComponentFormat.UnsignedInt, VertexInterpretation.Integer, 5, 4, 8)]);
     private readonly MeshDataPool pool;
     private readonly VAO mesh;
+    private readonly EngineGeometryInputs inputs;
+    private RHIDrawIndexed[] draws = [];
     private readonly int vao, elements, vertices, indices;
     private readonly int[] streams;
     private bool disposed;
@@ -43,33 +47,37 @@ internal sealed class EngineLiquidPoolGeometry : GraphicsGeometry
         streams = [mesh.xyzVboId, mesh.uvVboId, mesh.rgbaVboId, mesh.flagsVboId, mesh.customDataFloatVboId, mesh.customDataIntVboId];
         if (vao == 0 || elements == 0 || vertices <= 0 || indices <= 0 || streams.Any(id => id == 0))
             throw new InvalidOperationException("Liquid pool has incomplete ordinary vertex storage.");
-        using var vertexScope = StateCache.Current.BindVertexArrayScope(vao);
-        using var arrayScope = StateCache.Current.BindBufferScope(BufferTarget.ArrayBuffer, 0);
-        using var errors = new GlDebug.ErrorScope("Liquid pool geometry publication");
-        foreach (var attribute in Layout.Attributes) ValidateAttribute(attribute);
-        foreach (var attribute in Layout.Attributes.GroupBy(a => a.Binding).Select(g => g.First()))
-            ValidateBuffer(streams[attribute.Binding], checked(vertices * attribute.Stride));
-        using var elementScope = StateCache.Current.BindBufferScope(BufferTarget.ElementArrayBuffer, elements);
-        ValidateBuffer(elements, checked(indices * sizeof(uint)));
+        inputs = new(mesh, Layout, new Dictionary<int, int>
+            { [0] = streams[0], [1] = streams[1], [2] = streams[2], [3] = streams[3], [4] = streams[4], [5] = streams[5] }, vertices, indices);
     }
 
     /// <summary>Detects engine retirement and replacement without querying GPU state.</summary>
     internal bool IsCurrent => !disposed && ReferenceEquals(ReadMesh(pool), mesh) && !mesh.Disposed && mesh.Initialized
         && mesh.VaoId == vao && mesh.vboIdIndex == elements && pool.VerticesPoolSize == vertices && pool.IndicesPoolSize == indices
         && mesh.xyzVboId == streams[0] && mesh.uvVboId == streams[1] && mesh.rgbaVboId == streams[2]
-        && mesh.flagsVboId == streams[3] && mesh.customDataFloatVboId == streams[4] && mesh.customDataIntVboId == streams[5];
+        && mesh.flagsVboId == streams[3] && mesh.customDataFloatVboId == streams[4] && mesh.customDataIntVboId == streams[5]
+        && inputs.Inputs.ImportedArray!.IsCurrent(RHICommandContext.Current.OpenGL.NativeOrigin, StateCache.Current.VertexConfigurationEpoch)
+        && inputs.Inputs.Streams.All(stream => stream.Range.Buffer.TryGetMetadata(out var data) && data.Capacity >= stream.Range.Offset + stream.Range.Length);
 
-    /// <inheritdoc />
-    internal override void Validate(GraphicsPipelineDesc pipeline, GraphicsDraw draw)
+    /// <summary>Lends original engine storage without a native draw executor.</summary>
+    internal override RHIGeometryInputs Inputs
+    {
+        get
+        {
+            if (!IsCurrent) throw new InvalidOperationException("Liquid pool storage changed after preparation.");
+            return inputs.Inputs;
+        }
+    }
+
+    /// <summary>Validates producer-owned culling allocations and freezes the current noninstanced indexed intervals.</summary>
+    internal ReadOnlySpan<RHIDrawIndexed> CaptureDraws()
     {
         if (!IsCurrent) throw new InvalidOperationException("Liquid pool storage changed after preparation.");
-        if (pipeline.VertexLayout != Layout || pipeline.Assembly.Topology != PrimitiveType.Triangles
-            || mesh.drawMode != PrimitiveType.Triangles || pipeline.Assembly.Restart || pipeline.Assembly.FixedIndexRestart)
-            throw new InvalidOperationException("Liquid pools require the ordinary indexed triangle layout.");
         int count = pool.indicesGroupsCount;
-        if (IntPtr.Size != 8 || draw != new GraphicsDraw(0, count) || count <= 0
+        if (IntPtr.Size != 8 || count <= 0
             || count > pool.indicesSizes.Length || count > pool.indicesStartsByte.Length / 2)
-            throw new ArgumentOutOfRangeException(nameof(draw));
+            throw new InvalidOperationException("Liquid pool has no complete culled index intervals.");
+        if (draws.Length < count) Array.Resize(ref draws, count);
         var locations = ReadLocations(pool);
         // Pool insertion offsets indices into each admitted vertex allocation. Culling may select only
         // complete admitted allocations; it cannot invent a range or use the SSBO shared index stream.
@@ -88,50 +96,18 @@ internal sealed class EngineLiquidPoolGeometry : GraphicsGeometry
             if (location.IndicesEnd - location.IndicesStart != size || location.VerticesStart < 0
                 || location.VerticesEnd <= location.VerticesStart || location.VerticesEnd > vertices)
                 throw new InvalidOperationException("Culled liquid group exceeds its admitted vertex allocation.");
+            draws[group] = new(offset / sizeof(uint), size);
         }
-    }
-
-    /// <inheritdoc />
-    internal override void Submit(GraphicsDraw draw)
-    {
-        using var vertexScope = StateCache.Current.BindVertexArrayScope(vao);
-        using var elementScope = StateCache.Current.BindBufferScope(BufferTarget.ElementArrayBuffer, elements);
-        GL.MultiDrawElements(PrimitiveType.Triangles, pool.indicesSizes, DrawElementsType.UnsignedInt,
-            pool.indicesStartsByte, pool.indicesGroupsCount);
-#if DEBUG
-        StateCache.Current.RecordDrawSubmission();
-#endif
+        return draws.AsSpan(0, count);
     }
 
     /// <summary>Retires this adapter without deleting engine-owned meshes or buffers.</summary>
-    public override void Dispose() => disposed = true;
-    #endregion
-
-    #region Private
-    /// <summary>Checks the installed engine attribute interpretation rather than guessing from the shader inputs.</summary>
-    private void ValidateAttribute(VertexAttributeDesc attribute)
+    public override void Dispose()
     {
-        /// <summary>Reads one property of the currently inspected native attribute.</summary>
-        int Read(VertexAttribParameter parameter) { GL.GetVertexAttrib(attribute.Location, parameter, out int value); return value; }
-        int stride = Read(VertexAttribParameter.ArrayStride);
-        if (stride == 0) stride = attribute.Components * (attribute.Storage == VertexAttribPointerType.UnsignedByte ? 1 : 4);
-        IntPtr offset = IntPtr.Zero;
-        GL.GetVertexAttribPointer(attribute.Location, VertexAttribPointerParameter.ArrayPointer, ref offset);
-        if (Read(VertexAttribParameter.ArrayEnabled) != 1 || Read(VertexAttribParameter.ArraySize) != attribute.Components
-            || Read(VertexAttribParameter.ArrayType) != (int)attribute.Storage || stride != attribute.Stride
-            || Read(VertexAttribParameter.ArrayNormalized) != (attribute.Interpretation == VertexInterpretation.Normalized ? 1 : 0)
-            || Read(VertexAttribParameter.VertexAttribArrayInteger) != (attribute.Interpretation == VertexInterpretation.Integer ? 1 : 0)
-            || Read(VertexAttribParameter.VertexAttribArrayDivisor) != 0
-            || Read((VertexAttribParameter)All.VertexAttribArrayBufferBinding) != streams[attribute.Binding]
-            || offset != (IntPtr)attribute.Offset)
-            throw new InvalidOperationException("Unsupported liquid pool attribute representation.");
-    }
-
-    /// <summary>Checks capacity at publication while keeping ordinary draws query-free.</summary>
-    private static void ValidateBuffer(int id, int required)
-    {
-        nint size = GpuResourceManager.AcquireBufferMetadata(id).Capacity;
-        if (size < required) throw new InvalidOperationException("Liquid pool buffer is smaller than its declared capacity.");
+        if (disposed) return;
+        disposed = true;
+        inputs.Dispose();
     }
     #endregion
+
 }

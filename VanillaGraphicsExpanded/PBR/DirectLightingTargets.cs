@@ -16,12 +16,10 @@ internal sealed class DirectLightingTargets : IDisposable
     public const int DiffuseLayer = 0, SpecularLayer = 1, EmissiveLayer = 2;
     /// <summary>Supplies all three lighting contributions through one sampler.</summary>
     public Texture3D Radiance { get; }
-    /// <summary>Routes independent fragment outputs to their corresponding array layers.</summary>
-    public GpuFramebuffer Framebuffer { get; }
     /// <summary>Retains the zero-cleared lighting pass independently of executable reloads.</summary>
-    internal RenderPassDesc Pass { get; }
-    /// <summary>Reports whether the allocation and its framebuffer remain live.</summary>
-    public bool IsValid => Framebuffer.IsValid && Radiance.IsValid;
+    internal RHIRenderPassDescription Pass { get; }
+    /// <summary>Reports whether the owned radiance allocation remains live.</summary>
+    public bool IsValid => Radiance.IsValid;
 
     /// <summary>Allocates the shared storage before borrowing each layer for MRT rendering.</summary>
     public DirectLightingTargets(int width, int height)
@@ -29,15 +27,11 @@ internal sealed class DirectLightingTargets : IDisposable
         try
         {
             Radiance = resources.Own(RHICommandContext.Current.CreateTexture3D(new RHITextureDescription { Dimension = TextureDimension.TwoArray, Format = TextureFormat.Rgba16f, Width = System.Math.Max(1, width), Height = System.Math.Max(1, height), Depth = System.Math.Max(1, 3), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Linear, BaseLevel = 0, MaxLevel = (1) - 1, Label = "DirectLighting.Radiance" }).RequireResource());
-            var layers = new GpuFramebufferAttachment[3];
-            for (int layer = 0; layer < layers.Length; layer++)
-                layers[layer] = resources.Own(GpuFramebufferAttachment.FromTexture(Radiance, layer: layer));
-            Framebuffer = resources.Own(StaticGpuFramebuffer.Create(layers, debugName: "DirectLightingFBO"));
-            Pass = new(Framebuffer, [
-                new(0, AttachmentLoad.Clear, Clear: ColorClearValue.Float(0, 0, 0, 0)),
-                new(1, AttachmentLoad.Clear, Clear: ColorClearValue.Float(0, 0, 0, 0)),
-                new(2, AttachmentLoad.Clear, Clear: ColorClearValue.Float(0, 0, 0, 0))]);
-            if (!Framebuffer.CheckStatus(out string? error)) throw new InvalidOperationException(error);
+            var outputs = new RHIColorAttachment[3];
+            for (int layer = 0; layer < outputs.Length; layer++)
+                outputs[layer] = new(Image: RHIAttachment.FromTexture(Radiance, new(Layer: layer)),
+                    Load: AttachmentLoad.Clear, Clear: ColorClearValue.Float(0, 0, 0, 0));
+            Pass = new(outputs, label: "DirectLighting");
         }
         catch { resources.Dispose(); throw; }
     }

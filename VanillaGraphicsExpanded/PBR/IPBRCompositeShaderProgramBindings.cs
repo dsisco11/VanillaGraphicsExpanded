@@ -41,16 +41,16 @@ internal interface IPBRCompositeShaderProgramBindings : VanillaGraphicsExpanded.
     GpuTextureRef IndirectDiffuse { set; }
     /// <summary>Declares the gBufferAlbedo Sampler slot.</summary>
     [ShaderBinding("gBufferAlbedo", ShaderBindingKind.Sampler, 5, ShaderStageKind.Vertex, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.Texture2D, Sampler = ShaderSamplerPolicy.NearestClamp)]
-    int GBufferAlbedo { set; }
+    GpuTextureRef GBufferAlbedo { set; }
     /// <summary>Declares the normal, material and environment surface array sampler.</summary>
     [ShaderBinding("gBufferSurface", ShaderBindingKind.Sampler, 6, ShaderStageKind.Vertex, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.Texture2DArray, Sampler = ShaderSamplerPolicy.NearestClamp)]
     GpuTextureRef GBufferSurface { set; }
     /// <summary>Declares the primaryDepth Sampler slot.</summary>
     [ShaderBinding("primaryDepth", ShaderBindingKind.Sampler, 7, ShaderStageKind.Vertex, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.Texture2D, Sampler = ShaderSamplerPolicy.NearestClamp)]
-    int PrimaryDepth { set; }
+    GpuTextureRef PrimaryDepth { set; }
     /// <summary>Declares the gBufferPosition Sampler slot.</summary>
     [ShaderBinding("gBufferPosition", ShaderBindingKind.Sampler, 8, ShaderStageKind.Vertex, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.Texture2D, Sampler = ShaderSamplerPolicy.NearestClamp)]
-    int GBufferPosition { set; }
+    GpuTextureRef GBufferPosition { set; }
     /// <summary>Declares signed optical-depth and length accumulation for opaque receivers.</summary>
     [ShaderBinding("vge_waterTransport", ShaderBindingKind.Sampler, 9, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.Texture2DArray, Sampler = ShaderSamplerPolicy.NearestClamp, Required = false)]
     GpuTextureRef WaterTransport { set; }

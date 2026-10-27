@@ -45,7 +45,7 @@ internal static class DeclarationEmitter
                 text.Append("}\n");
             }
         text.Append(owner.BindingSource);
-        if (!offline) text.Append(RuntimeSubmissionEmitter.Emit(owner.Symbol));
+        if (!offline) text.Append(RuntimeBindingCaptureEmitter.Emit(owner.Symbol));
         text.Append("#endregion\n}\n");
         return text.ToString();
     }

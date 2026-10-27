@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using OpenTK.Graphics.OpenGL;
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 
 namespace VanillaGraphicsExpanded.Rendering.Pipeline.Passes;
 
@@ -8,62 +9,54 @@ namespace VanillaGraphicsExpanded.Rendering.Pipeline.Passes;
 internal sealed class RenderPassSequence : IDisposable
 {
     private readonly EngineBoundaryScope boundary;
-    private readonly Dictionary<int, Routing> targets = new();
-    private readonly HashSet<StaticGpuFramebuffer> immutableTargets = new();
+    private readonly OpenGLBackend backend;
+    private readonly Dictionary<int, Routing> external = new();
     private bool disposed;
 
     #region Public API
-    /// <summary>Retains immutable target lifetime without creating a routing snapshot or comparing its declared mapping.</summary>
-    internal void BindStatic(StaticGpuFramebuffer target)
+    /// <summary>Restores independent external routes once, before the boundary restores its original framebuffer selectors.</summary>
+    public void Dispose()
     {
-        ObjectDisposedException.ThrowIf(disposed, this);
-        StateCache.Current.RequireEngineBoundary(boundary);
-        if (immutableTargets.Add(target))
+        if(disposed)return;
+        disposed=true;
+        var failures=new List<Exception>();
+        foreach(var route in external.Values)
         {
-            try { target.RetainLifetimeReference(); }
-            catch { immutableTargets.Remove(target); throw; }
+            try { route.Restore(); }
+            catch(Exception error){failures.Add(error);}
+            finally {route.Release();}
         }
-        target.Bind(FramebufferTarget.DrawFramebuffer);
+        external.Clear();
+        if(failures.Count!=0)throw new EngineBoundaryRestoreException("Pass routing restoration failed.",new AggregateException(failures));
     }
-    /// <summary>Registers routing restoration before individual passes so active passes release first during cleanup.</summary>
-    internal RenderPassSequence(EngineBoundaryScope boundary)
-    {
-        this.boundary = boundary;
-        boundary.AddCleanup(EngineBoundaryCleanup.Framebuffers, this, Abandon);
-    }
+    #endregion
 
-    /// <summary>Binds only the draw target and publishes a route without restoring an intermediate engine binding.</summary>
-    internal void Bind(DynamicGpuFramebuffer target, DrawBuffersEnum[] routing)
+    #region Internal API
+    /// <summary>Registers specialized restoration before individual passes so their attachment guards release first.</summary>
+    internal RenderPassSequence(EngineBoundaryScope boundary,OpenGLBackend backend)
+    {
+        this.boundary=boundary;this.backend=backend;
+        boundary.AddCleanup(EngineBoundaryCleanup.Framebuffers,this,Abandon);
+    }
+    /// <summary>Selects a realized immutable target or captures external routing before its first admitted mutation.</summary>
+    internal void Bind(GpuFramebuffer target,DrawBuffersEnum[] outputs)
     {
         ObjectDisposedException.ThrowIf(disposed,this);
         StateCache.Current.RequireEngineBoundary(boundary);
-        target.Bind(FramebufferTarget.DrawFramebuffer);
-        if (!targets.TryGetValue(target.FboId, out var state))
+        if(target is OpenGLPassTarget realized)
         {
-            // Routing belongs to the framebuffer, not to a pass. Capture it once even if a target is revisited.
-            state = new Routing(target);
-            targets.Add(target.FboId, state);
+            if(!realized.IsReusable)throw new InvalidOperationException("The pass target realization is obsolete.");
+            realized.ValidateDeclaredRouting(outputs);
+            backend.SelectPassTarget(realized);
+            return;
         }
-        state.Apply(routing);
-    }
-
-    /// <summary>Restores every touched target's original routing while the outer boundary still owns framebuffer bindings.</summary>
-    public void Dispose()
-    {
-        if (disposed) return;
-        disposed = true;
-        var failures = new List<Exception>();
-        foreach (var state in targets.Values)
+        if(target.OwnsNativeFramebuffer)throw new InvalidOperationException("Portable passes cannot borrow renderer-owned framebuffer execution.");
+        backend.SelectPassTarget(target);
+        if(!external.TryGetValue(target.FboId,out var routing))
         {
-            try { state.Restore(); }
-            catch (Exception failure) { failures.Add(failure); }
-            finally { state.Release(); }
+            routing=new(target,backend);external.Add(target.FboId,routing);
         }
-        targets.Clear();
-        foreach (var target in immutableTargets) target.ReleaseLifetimeReference();
-        immutableTargets.Clear();
-        if (failures.Count != 0)
-            throw new EngineBoundaryRestoreException("Graphics sequence routing restoration failed.", new AggregateException(failures));
+        routing.Apply(outputs);
     }
     #endregion
 
@@ -71,52 +64,45 @@ internal sealed class RenderPassSequence : IDisposable
     /// <summary>Releases CPU lifetime guards on irreversible context loss without issuing restoration commands.</summary>
     private void Abandon()
     {
-        if (disposed) return;
-        disposed = true;
-        foreach (var state in targets.Values) state.Release();
-        targets.Clear();
-        foreach (var target in immutableTargets) target.ReleaseLifetimeReference();
-        immutableTargets.Clear();
+        if(disposed)return;disposed=true;
+        foreach(var route in external.Values)route.Release();
+        external.Clear();
     }
 
     /// <summary>Retains one original external allocation and its pre-mutation route, rather than an asset owner or a reusable native-name lookup.</summary>
     private sealed class Routing
     {
-        private readonly DynamicGpuFramebuffer target;
+        private readonly GpuFramebuffer target;
+        private readonly OpenGLBackend backend;
         private readonly DrawBuffersEnum[] original;
         private bool applied;
 
-        #region Public API
-        /// <summary>Captures the bound draw framebuffer before its first routing mutation.</summary>
-        internal Routing(DynamicGpuFramebuffer target)
+        #region Internal API
+        /// <summary>Captures routing only after the already guarded original target has been selected.</summary>
+        internal Routing(GpuFramebuffer target,OpenGLBackend backend)
         {
-            this.target = target;
+            this.target=target;this.backend=backend;
             target.RetainLifetimeReference();
-            try
-            {
-                original = StateCache.Current.CaptureFramebufferDrawRouting(target.FboId);
-            }
-            catch { target.ReleaseLifetimeReference(); throw; }
+            try {original=OpenGLFramebufferRouting.Capture(StateCache.Current,target.FboId);}
+            catch {target.ReleaseLifetimeReference();throw;}
         }
-
-        /// <summary>Publishes each pass's complete route, including disabled trailing slots.</summary>
-        internal void Apply(DrawBuffersEnum[] routing)
+        /// <summary>Remembers attempted mutation so failed native publication still participates in restoration.</summary>
+        internal void Apply(DrawBuffersEnum[] outputs)
         {
-            // Remember the attempted mutation first so exceptional setup still restores the original route.
-            applied = true;
-            StateCache.Current.SetDrawBuffers(routing.Length, routing);
+            applied=true;backend.RequireContext();
+            OpenGLFramebufferRouting.SetDrawBuffers(StateCache.Current,outputs.Length,outputs);
         }
         /// <summary>Restores through named commands; only the default window requires selecting its draw alias.</summary>
         internal void Restore()
         {
-            if (!applied) return;
-            using var errors = new GlDebug.ErrorScope("Graphics sequence routing restoration");
-            target.RestoreDrawRouting(original);
+            if(!applied)return;
+            backend.RequireContext();
+            if(target.FboId==0)backend.SelectPassTarget(target);
+            OpenGLFramebufferRouting.Restore(StateCache.Current,target.FboId,original);
         }
         /// <summary>Releases the original allocation's lifetime guard after restoration or abandonment.</summary>
         internal void Release()=>target.ReleaseLifetimeReference();
         #endregion
-
     }
     #endregion
 }

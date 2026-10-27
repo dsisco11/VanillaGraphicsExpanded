@@ -1,3 +1,5 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
+using VanillaGraphicsExpanded.Tests.GPU.Helpers;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Contracts;
@@ -15,12 +17,12 @@ public sealed partial class GpuProgramMetadataInterceptionTests
         fixture.EnsureContextValid(); fixture.InitializeResourceDisposal();
         try
         {
-            using var program=CreateProgram(out int shader,true); StateCache.Current.DeleteShader(shader);
+            using var program=CreateProgram(out int shader,true); VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.OpenGL.DeleteShader(shader);
             int location=GL.GetUniformLocation(program.ProgramId,"inputs[0]");
-            StateCache.Current.SetProgramUniformUnit(program.ProgramId,location,5);
+            OpenGLProgramAssignments.SetUnit(program.ProgramId,location,5);
             Assert.Equal(5,program.BindingCache.SamplerBindings["inputs"]);
             int index=GL.GetUniformBlockIndex(program.ProgramId,"Parameters");
-            StateCache.Current.UniformBlockBinding(program.ProgramId,index,4);
+            OpenGLProgramAssignments.UniformBlockBinding(program.ProgramId,index,4);
             Assert.True(program.BindingCache.TryGetUniformBlockBinding("Parameters",out int binding)); Assert.Equal(4,binding);
             Assert.Equal(ErrorCode.NoError,GL.GetError());
         }
@@ -33,7 +35,7 @@ public sealed partial class GpuProgramMetadataInterceptionTests
         fixture.EnsureContextValid(); fixture.InitializeResourceDisposal();
         try
         {
-            using var program=CreateProgram(out int shader,true); StateCache.Current.DeleteShader(shader);
+            using var program=CreateProgram(out int shader,true); VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.OpenGL.DeleteShader(shader);
             var layout=PrepareArrayLayout(program); var before=layout.BinaryInterface!.PreparedBindings;
             int location=GL.GetUniformLocation(program.ProgramId,"inputs[0]");
             using var acquisition = new Fixtures.ProgramAcquisitionCapture();
@@ -55,11 +57,11 @@ Assert.Equal(0,acquisition.Acquisitions);
         fixture.EnsureContextValid(); fixture.InitializeResourceDisposal();
         try
         {
-            using var program=CreateProgram(out int shader,true); StateCache.Current.DeleteShader(shader);
+            using var program=CreateProgram(out int shader,true); VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.OpenGL.DeleteShader(shader);
             var layout=PrepareArrayLayout(program);
             using var alias=new ProgramAlias(program.ProgramId); GpuResourceManager.AcquireWrapperMetadata(alias,GpuProgramMetadataReader.Instance);
             int location=GL.GetUniformLocation(program.ProgramId,"inputs[0]");
-            Assert.ThrowsAny<Exception>(()=>StateCache.Current.SetProgramUniformUnit(program.ProgramId,location,5));
+            Assert.ThrowsAny<Exception>(()=>OpenGLProgramAssignments.SetUnit(program.ProgramId,location,5));
             Assert.True(program.NeedsNativePreparation); Assert.Throws<InvalidOperationException>(()=>layout.BinaryInterface);
             Assert.Contains(alias.Snapshot.TextureUnits,item=>item.Location==location && item.Unit==5);
             Assert.Equal(ErrorCode.NoError,GL.GetError());
@@ -77,14 +79,14 @@ Assert.Equal(0,acquisition.Acquisitions);
             try
             {
                 var layout=PrepareArrayLayout(program);
-                StateCache.Current.LinkProgram(program.ProgramId);
+                OpenGLProgramCalls.ExecuteCoreLinkProgram(program.ProgramId);
                 Assert.True(program.NeedsNativePreparation); Assert.Throws<InvalidOperationException>(()=>layout.BinaryInterface);
                 int location=GL.GetUniformLocation(program.ProgramId,"inputs[0]");
-                StateCache.Current.SetProgramUniformUnit(program.ProgramId,location,0);
+                OpenGLProgramAssignments.SetUnit(program.ProgramId,location,0);
                 Assert.True(program.NeedsNativePreparation); Assert.Throws<InvalidOperationException>(()=>layout.BinaryInterface);
                 Assert.Equal(ErrorCode.NoError,GL.GetError());
             }
-            finally { StateCache.Current.DeleteShader(shader); }
+            finally { VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.OpenGL.DeleteShader(shader); }
         }
         finally { fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
     }
@@ -101,13 +103,13 @@ Assert.Equal(0,acquisition.Acquisitions);
                 var layout=PrepareArrayLayout(program); var manager=GpuResourceManagerSystem.CurrentManager!;
                 var entry=(GpuResourceMetadataEntry<GpuProgramMetadata>)manager.GetResourceRegistration(program)!;
                 var reader=entry.Reader; entry.Reader=new UnavailableProgramReader();
-                Assert.Throws<InvalidOperationException>(()=>StateCache.Current.LinkProgram(program.ProgramId));
+                Assert.Throws<InvalidOperationException>(()=>OpenGLProgramCalls.ExecuteCoreLinkProgram(program.ProgramId));
                 Assert.Throws<InvalidOperationException>(()=>layout.BinaryInterface);
                 entry.Reader=reader; Assert.True(manager.RefreshMetadata(entry,GpuMetadataChange.None));
                 Assert.True(program.NeedsNativePreparation); Assert.Throws<InvalidOperationException>(()=>layout.BinaryInterface);
                 Assert.Equal(ErrorCode.NoError,GL.GetError());
             }
-            finally { StateCache.Current.DeleteShader(shader); }
+            finally { VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.OpenGL.DeleteShader(shader); }
         }
         finally { fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
     }
@@ -133,7 +135,7 @@ Assert.Equal(0,acquisition.Acquisitions);
 Assert.Equal(0,acquisition.Acquisitions);
             Assert.True(layout.BinaryInterface.PreparedBindings.Resolve(GpuBindingEntry.Identity(ShaderBindingKind.Image,"images")).Active); Assert.Equal(ErrorCode.NoError,GL.GetError());
         }
-        finally { StateCache.Current.DeleteShader(shader); if(native!=0) StateCache.Current.DeleteProgram(native); fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.OpenGL.DeleteShader(shader); if(native!=0) VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.OpenGL.DeleteProgram(native); fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
     }
     /// <summary>Typed links maintain context-local snapshots and recover from failure without a global manager.</summary>
     [Fact]
@@ -143,12 +145,12 @@ Assert.Equal(0,acquisition.Acquisitions);
         try
         {
             using var program=CreateProgram(out shader,true);
-            Assert.True(program.TryLink(out _)); Assert.True(program.BindingCache.TryGetSamplerUnit("inputs",out _));
-            GL.ShaderSource(shader,"invalid shader"); GL.CompileShader(shader); Assert.False(program.TryLink(out _)); Assert.True(program.NeedsNativePreparation);
+            Assert.True(NativeProgramFixture.Link(program, out _)); Assert.True(program.BindingCache.TryGetSamplerUnit("inputs",out _));
+            GL.ShaderSource(shader,"invalid shader"); GL.CompileShader(shader); Assert.False(NativeProgramFixture.Link(program, out _)); Assert.True(program.NeedsNativePreparation);
             GL.ShaderSource(shader,Source.Replace("uniform int numericValue;","").Replace("+vec4(numericValue)","")); GL.CompileShader(shader);
-            Assert.True(program.TryLink(out _)); Assert.False(program.NeedsNativePreparation); Assert.True(program.BindingCache.TryGetSamplerUnit("inputs",out _)); Assert.Equal(ErrorCode.NoError,GL.GetError());
+            Assert.True(NativeProgramFixture.Link(program, out _)); Assert.False(program.NeedsNativePreparation); Assert.True(program.BindingCache.TryGetSamplerUnit("inputs",out _)); Assert.Equal(ErrorCode.NoError,GL.GetError());
         }
-        finally { if(shader!=0) StateCache.Current.DeleteShader(shader); StateCache.Current.InvalidateAll(); }
+        finally { if(shader!=0) VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.OpenGL.DeleteShader(shader); StateCache.Current.InvalidateAll(); }
     }
     #endregion
     #region Private

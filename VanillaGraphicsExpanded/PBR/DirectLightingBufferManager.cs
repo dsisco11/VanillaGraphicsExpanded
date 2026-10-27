@@ -48,13 +48,8 @@ public sealed class DirectLightingBufferManager : IDisposable
     /// <summary>Supplies diffuse, specular and emissive layers in one owned radiance array.</summary>
     public Texture3D? Radiance => targets?.Radiance;
 
-    /// <summary>
-    /// Framebuffer for direct lighting MRT output.
-    /// Attachment0 = DirectDiffuse, Attachment1 = DirectSpecular, Attachment2 = Emissive.
-    /// </summary>
-    public GpuFramebuffer? DirectLightingFbo => targets?.Framebuffer;
     /// <summary>Supplies the allocation's retained clear-load declaration for ordinary lighting.</summary>
-    internal Rendering.Pipeline.Passes.RenderPassDesc? LightingPass => targets?.Pass;
+    internal Rendering.RHI.RHIRenderPassDescription? LightingPass => targets?.Pass;
 
     #endregion
 
@@ -96,7 +91,6 @@ public sealed class DirectLightingBufferManager : IDisposable
         // These attachments remain exclusively VGE-owned across engine rebuilds; their owner
         // tracks lifetime without querying the driver for every texture on every frame.
         bool resourcesValid = isInitialized
-            && targets?.Framebuffer is { IsValid: true }
             && targets?.Radiance is { IsValid: true };
 
         if (!resourcesValid)
@@ -112,33 +106,9 @@ public sealed class DirectLightingBufferManager : IDisposable
             lastScreenHeight = screenHeight;
         }
 
-        return isInitialized && targets?.Framebuffer is { IsValid: true };
+        return isInitialized && targets?.IsValid == true;
     }
 
-    /// <summary>
-    /// Unbinds the direct lighting FBO.
-    /// </summary>
-    public void Unbind()
-    {
-        GpuFramebuffer.Unbind();
-    }
-
-    /// <summary>
-    /// Clears all direct lighting buffers to black.
-    /// </summary>
-    public void ClearBuffers()
-    {
-        if (targets?.Framebuffer is not { IsValid: true } framebuffer)
-            return;
-
-        using var bindings = StateCache.Current.BindFramebufferScope();
-        framebuffer.Bind();
-        framebuffer.Clear(0, 0, 0, 0);
-    }
-
-    #endregion
-
-    #region Private Methods
 
     /// <summary>Replaces the owned allocation while preserving engine framebuffer state.</summary>
     private void CreateBuffers(int width, int height)

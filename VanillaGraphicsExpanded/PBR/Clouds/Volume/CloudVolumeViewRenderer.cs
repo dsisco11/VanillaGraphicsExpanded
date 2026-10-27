@@ -1,3 +1,5 @@
+using System.Linq;
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using System.Collections.Generic;
 using System.Numerics;
@@ -14,11 +16,10 @@ namespace VanillaGraphicsExpanded.PBR.Clouds.Volume;
 /// <summary>Draws stored fields at the configured scale, reconstructing compact reduced views when needed.</summary>
 internal sealed class CloudVolumeViewRenderer(CloudVolumeViewProgram program,CloudVolumeReconstructProgram reconstruct,CloudVolumeTemporalProgram temporal):IDisposable
 {
-    internal static readonly VertexLayoutDesc Layout=new([]);
-    private readonly GraphicsPipelineLifetime lifetime=new();
+    internal static readonly RHIVertexLayout Layout=new([]);
     private CloudVolumeViewPass? integration,composition;
-    private GraphicsPipeline[] active=[];
-    private Action<GraphicsCommandContext>? submitPasses;
+    private RHIGraphicsPipeline[] active=[];
+    private Action<RHICommandContext>? submitPasses;
     private CloudVolumeViewTargets? targets;
     private CloudVolumeViewTargets? currentTrace;
     private readonly CloudReprojectionHistory history=new();
@@ -50,8 +51,10 @@ internal sealed class CloudVolumeViewRenderer(CloudVolumeViewProgram program,Clo
     internal CloudVolumeViewTargets? CompletedHistory=>histories[1-cursor];
     /// <summary>Borrows optional per-pass timer queries for opt-in attribution, never read on the render path.</summary>
     internal GpuTimerQuery[]? PassTimers {get;set;}
+#if DEBUG
     /// <summary>Reports expensive pass preparations so stable draws can be distinguished from lifecycle refreshes.</summary>
     internal int PassPreparations=>(integration?.Preparations??0)+(composition?.Preparations??0)+(temporalPasses[0]?.Preparations??0)+(temporalPasses[1]?.Preparations??0);
+#endif
     #region Public API
     /// <summary>Admits compiled view paths and procedural full-view geometry.</summary>
     internal bool Prepare(CloudVolumeViewSettings selection)
@@ -68,7 +71,7 @@ internal sealed class CloudVolumeViewRenderer(CloudVolumeViewProgram program,Clo
             if(caps.MaxDrawBuffers<6||GpuSupport.MaxColorAttachments<6||caps.MaxFragmentShaderStorageBlocks<3||caps.MaxTextureImageUnits<11||caps.MaxCombinedTextureImageUnits<11||
                 caps.MaxUniformBufferBindings<=GpuBindingRegistry.Ubo.Frame||caps.MaxUniformBlockSize<240)
                 throw new NotSupportedException("Stored cloud view exceeds rendering capabilities.");
-            geometry??=new(Layout,PrimitiveType.Triangles,new Dictionary<int,GpuVbo>(),proceduralVertices:3);
+            geometry??=new(Layout,PrimitiveTopology.Triangles,new Dictionary<int,GpuVbo>(),proceduralVertices:3);
             if(prepared&&settings.TraceDivisor!=selection.TraceDivisor)ReleaseTargets();
             settings=selection;revision=program.ExecutableRevision;
             temporalRevision=selection.TraceDivisor==1?0:temporal.ExecutableRevision;
@@ -101,18 +104,18 @@ internal sealed class CloudVolumeViewRenderer(CloudVolumeViewProgram program,Clo
             program.Density=fields.Density;program.Direct=fields.Direct;program.DiffuseField=fields.Diffuse;
             program.MaterialDepth=scene.MaterialDepth;program.VisibilityDepth=scene.VisibilityDepth;program.LiquidDepth=scene.LiquidDepth;
             program.Aerial=scene.Aerial;program.Attenuation=scene.Attenuation;program.Shafts=scene.Shafts;
-            integration??=new(program,lifetime);
+            integration??=new(program);
             if(settings.TraceDivisor==1)
             {
                 history.Invalidate();
-                integration.Prepare(target,LiquidPipelineStates.SurfaceOutputs,true);
+                integration.Prepare(new(target.SurfaceReference,LiquidPipelineStates.SurfaceOutputs),true);
             }
             else
             {
                 int divisor=settings.TraceDivisor;
-                if(targets is not null&&(targets.Target.Width!=(target.Width+divisor*2-1)/(divisor*2)||
-                    targets.Target.Height!=(target.Height+divisor*2-1)/(divisor*2)||
-                    histories[0]!.Target.Width!=(target.Width+divisor-1)/divisor||histories[0]!.Target.Height!=(target.Height+divisor-1)/divisor))ReleaseTargets();
+                if(targets is not null&&(targets.Width!=(target.Width+divisor*2-1)/(divisor*2)||
+                    targets.Height!=(target.Height+divisor*2-1)/(divisor*2)||
+                    histories[0]!.Width!=(target.Width+divisor-1)/divisor||histories[0]!.Height!=(target.Height+divisor-1)/divisor))ReleaseTargets();
                 targets??=new CloudVolumeViewTargets(target.Width,target.Height,divisor*2);
                 histories[0]??=new CloudVolumeViewTargets(target.Width,target.Height,divisor,true);
                 histories[1]??=new CloudVolumeViewTargets(target.Width,target.Height,divisor,true);
@@ -122,7 +125,7 @@ internal sealed class CloudVolumeViewRenderer(CloudVolumeViewProgram program,Clo
                 bool compatible=ReferenceEquals(historyDensity,fields.Density)&&ReferenceEquals(historyMaterial,fields.MaterialIdentity)&&historyDomain is {} oldDomain
                     &&oldDomain.Width==fields.Domain.Width&&oldDomain.Bottom==fields.Domain.Bottom&&oldDomain.Band==fields.Domain.Band
                     &&(historySettings with{LightingRaysPerUpdate=settings.LightingRaysPerUpdate})==settings&&historyUnderwater==(scene.Underwater>.7f)&&historyDebug==(debugMode>=5?0:debugMode);
-                int historyWidth=histories[0]!.Target.Width,historyHeight=histories[0]!.Target.Height;
+                int historyWidth=histories[0]!.Width,historyHeight=histories[0]!.Height;
                 HistoryCompatible=history.Capture(input,scene.Camera,historyWidth,historyHeight,program.Temporal,compatible,divisor);
                 history.Capture(input,scene.Camera,historyWidth,historyHeight,temporal.Temporal,compatible,divisor,debugMode);
                 if(!HistoryCompatible)cursor=0;
@@ -140,11 +143,11 @@ internal sealed class CloudVolumeViewRenderer(CloudVolumeViewProgram program,Clo
                 reconstruct.Cloud=next.Images[0];reconstruct.Bins=next.Images[1];
                 reconstruct.Metadata=next.Images[2];reconstruct.MaterialDepth=scene.MaterialDepth;
                 reconstruct.VisibilityDepth=scene.VisibilityDepth;reconstruct.LiquidDepth=scene.LiquidDepth;
-                integration.Prepare(currentTrace.Target,CloudVolumeViewTargets.Outputs,false);
-                temporalPasses[cursor]??=new(temporal,lifetime);
-                temporalPasses[cursor]!.Prepare(next.Target,next.FilterOutputs,false);
-                composition??=new(reconstruct,lifetime);
-                composition.Prepare(target,LiquidPipelineStates.SurfaceOutputs,true);
+                integration.Prepare(currentTrace.TracePass,false);
+                temporalPasses[cursor]??=new(temporal);
+                temporalPasses[cursor]!.Prepare(next.FilterPass,false);
+                composition??=new(reconstruct);
+                composition.Prepare(new(target.SurfaceReference,LiquidPipelineStates.SurfaceOutputs),true);
             }
             Check(current);
             if(settings.TraceDivisor==1)
@@ -154,8 +157,9 @@ internal sealed class CloudVolumeViewRenderer(CloudVolumeViewProgram program,Clo
             else if(active.Length!=3||!ReferenceEquals(active[0],integration.Pipeline)||!ReferenceEquals(active[1],temporalPasses[cursor]!.Pipeline)||!ReferenceEquals(active[2],composition!.Pipeline))
                 active=[integration.Pipeline!,temporalPasses[cursor]!.Pipeline!,composition!.Pipeline!];
             submitPasses??=SubmitPasses;
-            if(!GraphicsCommandContext.TryRun("Cloud.Volume.View",active,true,submitPasses))
-                throw new InvalidOperationException("Stored cloud view boundary rejected.");
+            var commands=RHICommandContext.Current;
+            using var boundary=commands.EnterBoundary(new("Cloud.Volume.View",true,graphics:active.Select(value=>(RHIGraphicsPipelineRef)value),operations:BoundaryOperations.RenderPasses));
+            boundary.Run(()=>submitPasses(commands));
             Check(current);
             if(settings.TraceDivisor!=1)
             {
@@ -168,11 +172,19 @@ internal sealed class CloudVolumeViewRenderer(CloudVolumeViewProgram program,Clo
         {history.Invalidate();failed=true;Failure=error.Message;return false;}
         finally{ReleaseBorrows();}
     }
+    /// <summary>Revokes temporal admission without disposing installed pipeline contracts or exposing old content as current.</summary>
+    internal void WithdrawForReload()
+    {
+        prepared=failed=false;Failure=null;active=[];
+        history.Invalidate();HistoryCompatible=false;historyDensity=null;historyMaterial=null;historyDomain=null;
+        ReleaseBorrows();
+    }
+
     /// <summary>Releases owned pipelines and geometry while retaining external shader-library ownership.</summary>
     public void Dispose()
     {
         if(disposed)return;disposed=true;prepared=false;
-        RenderingCleanup.Run(()=>{geometry?.Dispose();geometry=null;},ReleaseBorrows,ReleaseTargets,lifetime.Dispose);
+        RenderingCleanup.Run(()=>{geometry?.Dispose();geometry=null;},ReleaseBorrows,ReleaseTargets);
     }
     /// <summary>Retires screen-sized attachments on resize without clearing retained cloud-space fields.</summary>
     internal void ReleaseTargets()
@@ -199,14 +211,14 @@ internal sealed class CloudVolumeViewRenderer(CloudVolumeViewProgram program,Clo
     }
 
     /// <summary>Draws the selected immediate passes without allocating a new boundary callback each frame.</summary>
-    private void SubmitPasses(GraphicsCommandContext commands)
+    private void SubmitPasses(RHICommandContext commands)
     {
-        using(PassTimers?[0].BeginScope())integration!.Draw(commands,geometry!);
+        using(PassTimers?[0].BeginScope())integration!.Draw(commands,geometry!.Inputs);
         // Framebuffer-to-sampler ordering across ordinary draws requires no compute/image barrier.
         if(settings.TraceDivisor!=1)
         {
-            using(PassTimers?[1].BeginScope())temporalPasses[cursor]!.Draw(commands,geometry!);
-            using(PassTimers?[2].BeginScope())composition!.Draw(commands,geometry!);
+            using(PassTimers?[1].BeginScope())temporalPasses[cursor]!.Draw(commands,geometry!.Inputs);
+            using(PassTimers?[2].BeginScope())composition!.Draw(commands,geometry!.Inputs);
         }
     }
     /// <summary>Reports preflight failure without changing native or stored resource ownership.</summary>

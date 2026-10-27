@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering;
 using System;
 using System.Collections.Concurrent;
 using System.Threading;
@@ -68,7 +69,7 @@ internal sealed class MaterialAtlasArtifactRenderQueue
 
         MaterialAtlasNormalDepthGpuBuilder.ClearAtlasPage(
             capi,
-            destNormalDepthTexId: pageTextures.NormalDepthTexture.TextureId,
+            destNormalDepthTexId: pageTextures.NormalDepthTexture,
             atlasWidth: atlasWidth,
             atlasHeight: atlasHeight);
     }
@@ -120,10 +121,12 @@ internal sealed class MaterialAtlasArtifactRenderQueue
             return null;
         }
 
+        using var atlasInput=new BorrowedTexture(atlasTextureId);
+
         _ = MaterialAtlasNormalDepthGpuBuilder.BakePerRect(
             capi,
-            baseAlbedoAtlasPageTexId: atlasTextureId,
-            destNormalDepthTexId: pageTextures.NormalDepthTexture.TextureId,
+            baseAlbedoAtlasPageTexId: atlasInput,
+            destNormalDepthTexId: pageTextures.NormalDepthTexture,
             atlasWidth: atlasWidth,
             atlasHeight: atlasHeight,
             rectX: rect.X,
@@ -203,7 +206,7 @@ internal sealed class MaterialAtlasArtifactRenderQueue
 
             MaterialAtlasNormalDepthGpuBuilder.ClearAtlasPage(
                 capi,
-                destNormalDepthTexId: pageTextures.NormalDepthTexture.TextureId,
+                destNormalDepthTexId: pageTextures.NormalDepthTexture,
                 atlasWidth: atlasWidth,
                 atlasHeight: atlasHeight);
 
@@ -259,10 +262,12 @@ internal sealed class MaterialAtlasArtifactRenderQueue
                 return;
             }
 
+            using var atlasInput=new BorrowedTexture(atlasTextureId);
+
             _ = MaterialAtlasNormalDepthGpuBuilder.BakePerRect(
                 capi,
-                baseAlbedoAtlasPageTexId: atlasTextureId,
-                destNormalDepthTexId: pageTextures.NormalDepthTexture.TextureId,
+                baseAlbedoAtlasPageTexId: atlasInput,
+                destNormalDepthTexId: pageTextures.NormalDepthTexture,
                 atlasWidth: atlasWidth,
                 atlasHeight: atlasHeight,
                 rectX: rect.X,

@@ -143,9 +143,9 @@ public static partial class VgeBuiltInDebugViews
 
         private ArrayGraphicsGeometry? geometry;
         private readonly DebugGraphicsSubmission submission;
-        private static readonly VertexLayoutDesc LineLayout = new([
-            new(0, 3, VertexAttribPointerType.Float, VertexInterpretation.Floating, 0, 0, 28),
-            new(1, 4, VertexAttribPointerType.Float, VertexInterpretation.Floating, 0, 12, 28)]);
+        private static readonly RHIVertexLayout LineLayout = new([
+            new(0, 3, VertexComponentFormat.Float, VertexInterpretation.Floating, 0, 0, 28),
+            new(1, 4, VertexComponentFormat.Float, VertexInterpretation.Floating, 0, 12, 28)]);
         private GpuVbo? vbo;
 
         private readonly LineVertex[] vertices = new LineVertex[MaxLineVertices];
@@ -261,7 +261,7 @@ public static partial class VgeBuiltInDebugViews
             int stride = Marshal.SizeOf<LineVertex>();
             using (var binding = vbo!.BindScope()) vbo.UploadData(vertices, written * stride);
             submission.Draw(WorldCellBoundsViewState.DepthTest ? "WorldCells.Depth" : "WorldCells.Overlay",
-                shader, geometry!, LineLayout, new(0, written), PrimitiveType.Lines,
+                shader, geometry!.Inputs, new(0, written), PrimitiveTopology.Lines,
                 depthTest: WorldCellBoundsViewState.DepthTest, lineWidth: 2);
         }
 
@@ -276,7 +276,7 @@ public static partial class VgeBuiltInDebugViews
             try
             {
                 vbo = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StreamDraw, Label = "VGE_WorldCellBoundsLines_VBO" }).RequireResource();
-                geometry = new(LineLayout, PrimitiveType.Lines, new Dictionary<int, GpuVbo> { [0] = vbo });
+                geometry = new(LineLayout, PrimitiveTopology.Lines, new Dictionary<int, GpuVbo> { [0] = vbo });
             }
             catch
             {

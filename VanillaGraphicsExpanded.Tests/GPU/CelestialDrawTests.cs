@@ -33,11 +33,22 @@ public sealed class CelestialDrawTests(HeadlessGLFixture fixture) : LumOnShaderF
         var source=CelestialSource.Create(new(0,32,1024,4));
         using var stars=new CelestialStarGeometry(source);
         Assert.Equal(1024,stars.Count);
-        var description=new GraphicsPipelineDesc(Programs.Create<CelestialStarProgram>().GraphicsIdentity!,CelestialStarGeometry.Layout,
-            new([new(PixelInternalFormat.Rgba32f),new(PixelInternalFormat.Rgba32f)]),DynamicPipelineState.Viewport);
-        stars.Geometry.Validate(description,new(0,6,InstanceCount:stars.Count));
-        Assert.Throws<ArgumentOutOfRangeException>(()=>stars.Geometry.Validate(description,new(0,6,InstanceCount:stars.Count+1)));
-        stars.Dispose();Assert.Throws<ObjectDisposedException>(()=>stars.Geometry.Validate(description,new(0,6,InstanceCount:stars.Count)));
+        using var shaders=new GraphicsStateShaders();
+        var shader=shaders.Get();
+        using var target=CreateMRTRenderTarget(1,1,PixelInternalFormat.Rgba32f,PixelInternalFormat.Rgba32f);
+        var context=RHICommandContext.Current;
+        using var pipeline=context.CreateGraphicsPipeline(new(shader,CelestialStarGeometry.Layout,
+            context.DescribeRenderTargets(FramebufferTestSetup.DescribeAttachments(target,[new(AttachmentIndex:0),new(AttachmentIndex:1)])),DynamicPipelineState.Viewport)).RequireResource();
+        using(var boundary=context.EnterBoundary(new("Tests.StarInstanceBounds",true,graphics:[pipeline],operations:BoundaryOperations.RenderPasses)))
+            boundary.Run(()=>
+            {
+                context.BeginRenderPass(FramebufferTestSetup.DescribeAttachments(target,[new(AttachmentIndex:0),new(AttachmentIndex:1)]));
+                context.SetPipeline(pipeline);context.SetDynamicState(new(){Viewport=context.PassViewport});context.BindResources(new(shader));
+                context.Draw(stars.Geometry.Inputs,new(0,6,InstanceCount:stars.Count));
+                Assert.Throws<ArgumentOutOfRangeException>(()=>context.Draw(stars.Geometry.Inputs,new(0,6,InstanceCount:stars.Count+1)));
+                context.EndRenderPass();
+            });
+        stars.Dispose();Assert.Throws<ObjectDisposedException>(()=>{_=stars.Geometry.Inputs;});
     }
     /// <summary>Actual star sampling agrees with admitted atmospheric transport at off-row elevations in clear and cloudy air.</summary>
     [Theory]
@@ -186,7 +197,7 @@ public sealed class CelestialDrawTests(HeadlessGLFixture fixture) : LumOnShaderF
         }
         using var transmission=RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Width = 2, Height = 1, Format = TextureFormat.Rgba32f, MipLevels = 1, Storage = ResourceStorageMode.Mutable, BaseLevel = 0, MaxLevel = 0, Filter = TextureFilterMode.Nearest, Label = null }, [new RHITextureInitialData(new(new(), 0, 0, 0, 2, 1), VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLPixelValues.Encoding(TextureFormatHelper.GetPixelFormat(PixelInternalFormat.Rgba32f), OpenTK.Graphics.OpenGL.PixelType.Float), System.Runtime.InteropServices.MemoryMarshal.AsBytes((new float[] { .5f,.25f,.75f,1,.5f,.25f,.75f,1 }).AsSpan()).ToArray())]).RequireResource();
         shader.GalaxyMap=cube;shader.ExternalTransmission=transmission;
-        using var geometry=new ArrayGraphicsGeometry(CelestialDrawPass.FullscreenLayout,PrimitiveType.Triangles,new Dictionary<int,GpuVbo>(),3);
+        using var geometry=new ArrayGraphicsGeometry(CelestialDrawPass.FullscreenLayout,PrimitiveTopology.Triangles,new Dictionary<int,GpuVbo>(),3);
         float[] actual=Draw(shader,geometry,CelestialDrawPass.FullscreenLayout,32,1);
         float red=(rotated?1f:6f)*.125f*.5f;
         for(int i=0;i<actual.Length;i+=4)
@@ -217,7 +228,7 @@ public sealed class CelestialDrawTests(HeadlessGLFixture fixture) : LumOnShaderF
         Vector3 direction=Vector3.Normalize(new((centre.X/size*2-1)/projection.M11,(centre.Y/size*2-1)/projection.M22,behind?1:-1));
         using var buffer=RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = null }).RequireResource();
         buffer.UploadData(Enumerable.Range(0,count).SelectMany(_=>new[]{new Vector4(direction,.001f),new Vector4(1,.5f,.25f,0)}).ToArray());
-        using var geometry=new ArrayGraphicsGeometry(CelestialStarGeometry.Layout,PrimitiveType.Triangles,new Dictionary<int,GpuVbo>{[0]=buffer});
+        using var geometry=new ArrayGraphicsGeometry(CelestialStarGeometry.Layout,PrimitiveTopology.Triangles,new Dictionary<int,GpuVbo>{[0]=buffer});
         float[] data=Draw(shader,geometry,CelestialStarGeometry.Layout,size,count);
         double[] integrated=new double[3];
         for(int y=0;y<size;y++)for(int x=0;x<size;x++)
@@ -232,24 +243,27 @@ public sealed class CelestialDrawTests(HeadlessGLFixture fixture) : LumOnShaderF
     /// <summary>Integrates a rectangular perspective pixel analytically in double precision.</summary>
     private static double CornerArea(double x,double y)=>Math.Atan2(x*y,Math.Sqrt(1+x*x+y*y));
     /// <summary>Submits actual prepared graphics pipelines and verifies glow output remains empty.</summary>
-    private float[] Draw(GpuProgram shader,ArrayGraphicsGeometry geometry,VertexLayoutDesc layout,int size,int count)
+    private float[] Draw(GpuProgram shader,ArrayGraphicsGeometry geometry,RHIVertexLayout layout,int size,int count)
     {
         using var color=RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba32f, Width = System.Math.Max(1, size), Height = System.Math.Max(1, size), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         using var glow=RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba32f, Width = System.Math.Max(1, size), Height = System.Math.Max(1, size), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         using var target=DynamicGpuFramebuffer.CreateMRT([color,glow])!;
-        using var lifetime=new GraphicsPipelineLifetime();
-        var pass=new RenderPassDesc(target,[new(0,AttachmentLoad.Clear,Clear:ColorClearValue.Float(0,0,0,0)),new(1,AttachmentLoad.Clear,Clear:ColorClearValue.Float(0,0,0,0))]);
-        using var metadata=new RenderPassTargets(pass);
-        var blend=new ColorBlendDesc{Enabled=true,SourceRgb=BlendingFactorSrc.One,DestinationRgb=BlendingFactorDest.One};
-        using var pipeline=new GraphicsPipeline(lifetime,new(shader.GraphicsIdentity!,layout,metadata.Signature,DynamicPipelineState.Viewport,blending:[blend,blend]),shader);
+        
+        var pass=FramebufferTestSetup.DescribeAttachments(target, [new(AttachmentIndex:0, Load:AttachmentLoad.Clear,Clear:ColorClearValue.Float(0,0,0,0)),new(AttachmentIndex:1, Load:AttachmentLoad.Clear,Clear:ColorClearValue.Float(0,0,0,0))]);
+        var metadata = RHICommandContext.Current.DescribeRenderTargets(pass);
+        var blend=new ColorBlendDesc{Enabled=true,SourceRgb=BlendFactor.One,DestinationRgb=BlendFactor.One};
+        using var pipeline=RHICommandContext.Current.CreateGraphicsPipeline(new(shader.Shader,layout,metadata,DynamicPipelineState.Viewport,blending:[blend,blend])).RequireResource();
         int priorFramebuffer=GL.GetInteger(GetPName.DrawFramebufferBinding);
         bool priorDepth=GL.IsEnabled(EnableCap.DepthTest),priorBlend=GL.IsEnabled(EnableCap.Blend);
         GL.GetBoolean(GetPName.DepthWritemask,out bool priorWrites);
-        Assert.True(GraphicsCommandContext.TryRun("Tests.CelestialDraw",[pipeline],true,commands=>
         {
-            commands.BeginPass(pass);commands.SetPipeline(pipeline);commands.SetDynamicState(new(){Viewport=commands.PassViewport});
-            commands.Draw(geometry,new(0,layout==CelestialDrawPass.FullscreenLayout?3:6,InstanceCount:count));commands.EndPass();
-        }));
+    var commands=RHICommandContext.Current;
+    using var scope23=commands.EnterBoundary(new("Tests.CelestialDraw",true,graphics:System.Linq.Enumerable.Select<RHIGraphicsPipeline,RHIGraphicsPipelineRef>([pipeline],value=>value),operations:BoundaryOperations.RenderPasses));
+    scope23.Run(()=>{
+            commands.BeginRenderPass(pass);commands.SetPipeline(pipeline);commands.SetDynamicState(new(){Viewport=commands.PassViewport});
+            commands.Draw(geometry.Inputs,new(0,layout==CelestialDrawPass.FullscreenLayout?3:6,InstanceCount:count));commands.EndRenderPass();
+        });
+}
         Assert.Equal(priorFramebuffer,GL.GetInteger(GetPName.DrawFramebufferBinding));
         Assert.Equal(priorDepth,GL.IsEnabled(EnableCap.DepthTest));Assert.Equal(priorBlend,GL.IsEnabled(EnableCap.Blend));
         GL.GetBoolean(GetPName.DepthWritemask,out bool currentWrites);Assert.Equal(priorWrites,currentWrites);

@@ -12,9 +12,11 @@ namespace VanillaGraphicsExpanded.PBR.Clouds.Volume;
 internal sealed class CloudVolumeSubmission
 {
     private HashSet<GpuComputeProgram>? admitted;
+    #if DEBUG
     internal int Boundaries { get; private set; }
     internal int Dispatches { get; private set; }
     internal int Barriers { get; private set; }
+    #endif
 
     #region Public API
     /// <summary>Captures the union before any mutation and restores external state even when a producer fails.</summary>
@@ -22,14 +24,17 @@ internal sealed class CloudVolumeSubmission
     {
         if(admitted is not null)throw new InvalidOperationException("Cloud update batches cannot nest.");
         var selected=programs.ToHashSet();
-        var resources=new EngineBoundaryResources();
-        foreach(var program in selected)resources=resources.Union(Resources(program));
-        if(!EngineBoundaryExecution.TryRun(new EngineBoundaryDeclaration("Cloud.Volume.Update"),resources,_=>
+        var context=RHICommandContext.Current;
+        using var boundary=context.EnterBoundary(new("Cloud.Volume.Update",true,compute:selected.Select(program=>program.Pipeline)));
+        boundary.Run(()=>
         {
-            admitted=selected;Boundaries++;
+            admitted=selected;
+#if DEBUG
+            Boundaries++;
+#endif
             try { Barrier();operation(); }
             finally { admitted=null; }
-        }))throw new InvalidOperationException("Cloud update boundary rejected.");
+        });
     }
 
     /// <summary>Reuses the admitted boundary or provides standalone authority for independently exercised owners.</summary>
@@ -42,30 +47,33 @@ internal sealed class CloudVolumeSubmission
         }
         else
         {
-            if(!EngineBoundaryExecution.TryRun(new EngineBoundaryDeclaration("Cloud.Volume.Update"),Resources(program),_=>
-                {Boundaries++;Barrier();dispatch();Barrier();}))
-                throw new InvalidOperationException("Cloud update boundary rejected.");
+            var context=RHICommandContext.Current;
+            using var boundary=context.EnterBoundary(new("Cloud.Volume.Update",true,compute:[program.Pipeline]));
+            boundary.Run(()=>
+            {
+#if DEBUG
+                Boundaries++;
+#endif
+                Barrier();dispatch();Barrier();
+            });
         }
-        Dispatches++;GlDebug.ThrowIfErrors("Cloud volume update");
+        #if DEBUG
+        Dispatches++;
+        #endif
+        GlDebug.ThrowIfErrors("Cloud volume update");
     }
     #endregion
 
     #region Private
-    /// <summary>Rejects unavailable executables before borrowing their exact prepared binding slots.</summary>
-    private static EngineBoundaryResources Resources(GpuComputeProgram program)
-    {
-        if(!program.IsValid)throw new InvalidOperationException("Cloud update executable unavailable.");
-        return EngineBoundaryResources.From(program.ProgramLayout.BinaryInterface?.PreparedBindings??
-            throw new InvalidOperationException("Cloud update bindings unavailable."));
-    }
-
     /// <summary>Closes each producer once for image, sampler, metadata, upload and indirect-command consumers.</summary>
     private void Barrier()
     {
         RHICommandContext.Current.Barrier(new(ResourceAccess.Image|
             ResourceAccess.TextureFetch|ResourceAccess.ShaderStorage|
             ResourceAccess.BufferUpdate|ResourceAccess.TextureUpdate|ResourceAccess.Indirect));
+        #if DEBUG
         Barriers++;
+        #endif
     }
     #endregion
 }
