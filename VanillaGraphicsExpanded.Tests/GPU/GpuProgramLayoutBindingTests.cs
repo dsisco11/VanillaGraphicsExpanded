@@ -53,8 +53,11 @@ public sealed class GpuProgramLayoutBindingTests : RenderTestBase
         GL.UseProgram(programId);
 
         // Bind using the cached program layout. If the sampler unit is wrong, outImg will stay 0.
-        Assert.True(layout.TryBindSamplerTexture("uOcc", TextureTarget.Texture3D, occ.TextureId));
-        Assert.True(layout.TryBindImageTexture("outImg", outTex, access: TextureAccess.WriteOnly, level: 0, layered: false, layer: 0, formatOverride: SizedInternalFormat.R32ui));
+        Assert.True(layout.TryGetSamplerUnit("uOcc", out int samplerSlot));
+        Assert.True(layout.TryGetImageUnit("outImg", out int imageSlot));
+        RHICommandContext.Current.BindSampledTextures([new(samplerSlot, occ, Dimension: TextureDimension.Three)]);
+        VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageSlotBindings.BindImageTexture(StateCache.Current, imageSlot,
+            new RHIImageBinding(outTex, ImageAccess.WriteOnly, Format: TextureFormat.R32ui));
 
         GL.DispatchCompute(1, 1, 1);
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.TextureFetchBarrierBit);

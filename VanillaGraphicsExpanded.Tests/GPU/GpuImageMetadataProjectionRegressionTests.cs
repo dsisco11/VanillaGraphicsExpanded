@@ -51,12 +51,12 @@ public sealed class GpuImageMetadataProjectionRegressionTests(HeadlessGLFixture 
         {
             using var texture = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba8, Width = System.Math.Max(1, 8), Height = System.Math.Max(1, 4), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
             using var sentinel = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba8, Width = System.Math.Max(1, 2), Height = System.Math.Max(1, 2), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
-            using (texture.BindScope(0))
+            using (StateCache.Current.BindTextureScope(((GpuTextureRef)texture).Target, 0, texture.TextureId))
                 GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.Rgba8, 12, 6, 0, PixelFormat.Rgba, PixelType.UnsignedByte, IntPtr.Zero);
             // This direct external mutation bypasses command publication, so its owner must
             // explicitly withdraw the old covered snapshot before requesting recovery.
             GpuResourceManager.InvalidateWrapperMetadata(texture, GpuMetadataChange.Storage);
-            using var binding = sentinel.BindScope(0);
+            using var binding = StateCache.Current.BindTextureScope(((GpuTextureRef)sentinel).Target, 0, sentinel.TextureId);
             using var image = GpuFramebufferAttachment.FromTextureId(texture.TextureId);
             var manager = GpuResourceManagerSystem.CurrentManager!;
             Assert.Same(manager.GetResourceRegistration(texture), manager.GetResourceRegistration(image));

@@ -214,7 +214,7 @@ public sealed class ConfigurableRasterizerGpuTests(HeadlessGLFixture fixture, IT
             UboPacking.WriteInt32(bytes, 0, lines ? 1 : 0);
             UboPacking.WriteInt32(bytes, 4, zeroToOne ? 1 : 0);
             inputs.SetBytes(bytes);
-            Assert.True(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLRHIContext.BindEngineUniform(GpuBindingRegistry.Ubo.ShaderInputs, inputs.Capture()));
+            Assert.True(VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindUniformSnapshot(GpuBindingRegistry.Ubo.ShaderInputs, inputs.Capture()));
             GL.DrawArrays(lines ? PrimitiveType.Lines : PrimitiveType.Triangles, 0, lines ? 2 : 3);
             byte[] pixels = new byte[32 * 32 * 4]; GL.ReadPixels(0, 0, 32, 32, PixelFormat.Rgba, PixelType.UnsignedByte, pixels);
             LastPixels = pixels;

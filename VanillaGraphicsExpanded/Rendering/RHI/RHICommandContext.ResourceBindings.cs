@@ -44,5 +44,21 @@ public sealed partial class RHICommandContext
             submitting = false;
         }
     }
+    /// <summary>Publishes a captured uniform version without taking executable ownership.</summary>
+    public bool BindUniformSnapshot(int slot, RHIUniformSnapshot snapshot)
+    {
+        backend.RequireContext(); RequireIdleSubmission();
+        submitting = true;
+        try { return backend.BindUniformSnapshot(slot, snapshot); }
+        finally { submitting = false; }
+    }
+    /// <summary>Publishes a complete supplied set of sampled slots without owning the consuming executable.</summary>
+    public void BindSampledTextures(ReadOnlySpan<RHISampledTextureSlot> inputs)
+    {
+        backend.RequireContext(); RequireIdleSubmission();
+        submitting = true;
+        try { backend.BindSampledTextures(inputs); }
+        finally { submitting = false; }
+    }
     #endregion
 }

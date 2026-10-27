@@ -1,4 +1,3 @@
-using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -91,23 +90,23 @@ public abstract partial class GpuFramebuffer : GpuResource<GpuFramebufferMetadat
         if (bindingTarget is not (FramebufferTarget.Framebuffer or FramebufferTarget.DrawFramebuffer))
             throw new ArgumentOutOfRangeException(nameof(bindingTarget));
         ValidateAttachments();
-        OpenGLFramebufferConfiguration.BindFramebufferResource(this, bindingTarget);
+        RHI.RHICommandContext.Current.SelectFramebufferOwner(this, bindingTarget);
         if (attachmentsDirty)
         {
             StateCache.Current.RequireMutableFramebufferConfiguration(fboId);
             // Shared image changes can affect several FBOs; refresh each FBO lazily
             // at its next use while preserving its independently configured routing.
-            OpenGLFramebufferConfiguration.ReattachFramebuffer(this, attachments);
+            RHI.RHICommandContext.Current.RefreshFramebufferAttachments(this, attachments);
             attachmentsDirty = false;
         }
     }
     /// <summary>Binds the default framebuffer.</summary>
-    public static void Unbind() => OpenGLFramebufferSelection.Bind(StateCache.Current, FramebufferTarget.Framebuffer, 0);
+    public static void Unbind() => RHI.RHICommandContext.Current.SelectFramebufferOwner(null, FramebufferTarget.Framebuffer);
     /// <summary>Checks completeness in all builds while preserving separate read and draw bindings.</summary>
     public bool CheckStatus(out string? errorMessage)
     {
         if (IsDisposed) { errorMessage = "Framebuffer has retired."; return false; }
-        try { ValidateAttachments(); OpenGLFramebufferCompleteness.RequireComplete(fboId); errorMessage=null; return true; }
+        try { ValidateAttachments(); RHI.RHICommandContext.Current.RequireFramebufferComplete(this); errorMessage=null; return true; }
         catch (InvalidOperationException error) { errorMessage=error.Message; return false; }
     }
     /// <summary>Sets the debug label on the framebuffer object.</summary>

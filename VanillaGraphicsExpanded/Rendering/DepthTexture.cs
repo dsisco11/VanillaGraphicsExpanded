@@ -14,12 +14,8 @@ public sealed class DepthTexture : DynamicTexture2D
         : base(width, height, ValidateFormat(format), TextureFilterMode.Nearest, debugName) { }
 
 
-
-
-
     /// <inheritdoc />
-    protected override PixelFormat ReadbackFormat => PixelFormat.DepthComponent;
-
+    protected override RHI.RHIPixelEncoding ReadbackEncoding => new(RHI.PixelChannelLayout.Depth, RHI.PixelComponentType.Float);
 
 
     /// <summary>Rejects formats that do not contain depth-only storage.</summary>

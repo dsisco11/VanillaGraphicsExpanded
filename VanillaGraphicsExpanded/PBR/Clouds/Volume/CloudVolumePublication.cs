@@ -64,7 +64,7 @@ internal sealed class CloudVolumePublication(Func<int,PackedUniformBuffer,CloudV
             ResetImages();resources=new();
             try
             {
-                density=Volume(d,PixelInternalFormat.R16f);direct=Volume(d,PixelInternalFormat.Rg16f);diffuse=Volume(d,PixelInternalFormat.Rgba16f);
+                density=Volume(d,TextureFormat.R16f);direct=Volume(d,TextureFormat.Rg16f);diffuse=Volume(d,TextureFormat.Rgba16f);
                 regions=Buffer(d.Blocks*16);occupancy=Buffer(d.Blocks);
             }
             catch{ResetImages();throw;}
@@ -111,9 +111,9 @@ internal sealed class CloudVolumePublication(Func<int,PackedUniformBuffer,CloudV
         ResourceAccess.TextureFetch|ResourceAccess.ShaderStorage|ResourceAccess.BufferUpdate|
         ResourceAccess.TextureUpdate|ResourceAccess.Indirect));
     /// <summary>Allocates hardware-filtered volume storage matching solver addressing.</summary>
-    private DynamicTexture3D Volume(CloudVolumeDomain d,PixelInternalFormat format)
+    private DynamicTexture3D Volume(CloudVolumeDomain d,TextureFormat format)
     {
-        var texture=resources!.Own(RHICommandContext.Current.CreateDynamicTexture3D(new RHITextureDescription { Dimension = TextureDimension.Three, Format = VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Format((OpenTK.Graphics.OpenGL.PixelInternalFormat)(format)), Width = System.Math.Max(1, d.Size), Height = System.Math.Max(1, 66), Depth = System.Math.Max(1, d.Size), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Linear, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource());
+        var texture=resources!.Own(RHICommandContext.Current.CreateDynamicTexture3D(new RHITextureDescription { Dimension = TextureDimension.Three, Format = format, Width = System.Math.Max(1, d.Size), Height = System.Math.Max(1, 66), Depth = System.Math.Max(1, d.Size), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Linear, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource());
         texture.SetTexWrap(SamplerAddressMode.Repeat,SamplerAddressMode.ClampToEdge,SamplerAddressMode.Repeat);return texture;
     }
     /// <summary>Allocates exact metadata through its ordinary GPU owner.</summary>

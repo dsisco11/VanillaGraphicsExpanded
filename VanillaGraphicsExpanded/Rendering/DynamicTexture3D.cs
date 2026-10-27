@@ -52,30 +52,10 @@ public sealed class DynamicTexture3D : GpuTexture
     #region Factory Methods
 
 
-
-
-
     #endregion
 
     #region Public Methods
 
-    /// <summary>
-    /// Binds this texture to the specified texture unit.
-    /// </summary>
-    /// <param name="unit">Texture unit index (0-15 typically).</param>
-    public override void Bind(int unit)
-    {
-        base.Bind(unit);
-    }
-
-    /// <summary>
-    /// Unbinds this texture from the specified texture unit.
-    /// </summary>
-    /// <param name="unit">Texture unit index.</param>
-    public override void Unbind(int unit)
-    {
-        base.Unbind(unit);
-    }
 
     /// <summary>
     /// Resizes the texture if dimensions have changed.
@@ -121,7 +101,7 @@ public sealed class DynamicTexture3D : GpuTexture
         if (r == 0 && g == 0 && b == 0 && a == 0) { ClearToZero(); return; }
         Span<float> values = stackalloc float[4] { r, g, b, a };
         var format = TextureFormatHelper.GetPixelFormat(internalFormat);
-        var encoding = RHI.Backends.OpenGL.OpenGLPixelValues.Encoding(format, PixelType.Float);
+        var encoding = RHICommandContext.Current.GetTextureEncoding(this, PixelComponentType.Float);
         int count = GetChannelCount();
         if (format is PixelFormat.RedInteger or PixelFormat.RgInteger or PixelFormat.RgbInteger or PixelFormat.RgbaInteger)
             throw new InvalidOperationException("Nonzero integer clears require an explicitly encoded integer clear value.");
@@ -151,8 +131,8 @@ public sealed class DynamicTexture3D : GpuTexture
                 $"Region ({x}, {y}, {z}, {regionWidth}, {regionHeight}, {regionDepth}) exceeds bounds ({mipWidth}x{mipHeight}x{mipDepth}) at mip {mipLevel}.");
         }
 
-        PixelFormat pixelFormat = TextureFormatHelper.GetPixelFormat(internalFormat);
-        int bytesPerPixel = TextureStreamingUtils.GetBytesPerPixel(pixelFormat, PixelType.Float);
+        var pixelFormat = RHICommandContext.Current.GetTextureEncoding(this, PixelComponentType.Float).Channels;
+        int bytesPerPixel = TextureStreamingUtils.GetBytesPerPixel(pixelFormat, PixelComponentType.Float);
         if (bytesPerPixel <= 0 || (bytesPerPixel % sizeof(float)) != 0)
         {
             throw new InvalidOperationException($"Unsupported format/type combination for float upload: {pixelFormat}/{PixelType.Float}.");
@@ -169,7 +149,7 @@ public sealed class DynamicTexture3D : GpuTexture
                 nameof(data));
         }
 
-        TextureUploadTarget target = GpuTexture.MapUploadTarget(textureTarget);
+        TextureUploadTarget target = new TextureUploadTarget(RHICommandContext.Current.DescribeTexture(this).Dimension);
         TextureUploadPriority uploadPriority = GpuTexture.MapUploadPriority(priority);
 
         TextureStageResult result = TextureStreamingSystem.StageCopy(
@@ -177,7 +157,7 @@ public sealed class DynamicTexture3D : GpuTexture
             target,
             new TextureUploadRegion(x, y, z, regionWidth, regionHeight, regionDepth, mipLevel),
             pixelFormat,
-            PixelType.Float,
+            PixelComponentType.Float,
             data,
             uploadPriority,
             unpackAlignment: 4, textureOwner: this);

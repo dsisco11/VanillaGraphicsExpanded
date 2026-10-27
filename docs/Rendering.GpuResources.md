@@ -26,6 +26,12 @@ without retrieving the concrete backend or reentering a public factory. A nullab
 identity and a complete initial snapshot are handed to the wrapper only after successful initialization.
 Partial allocation cleanup preserves the original exception and the originating deletion context.
 
+Resource wrappers retain allocation, growth, streaming and disposal policy. Mutation and retirement
+use private owner-bearing RHI execution; wrappers do not select backend implementations or translate
+semantic command descriptions with backend helpers. Buffer role is owner policy, separate from storage
+metadata. Texture/image/sampler slot publication belongs to RHI resource operations, not wrapper bind
+methods. Buffer-texture views use the same retained texture reference as other sampled textures.
+
 ## Command results and queries
 
 The OpenGL RHI backend owns buffer/image, synchronization, query-result, readback, capture and optional
@@ -47,7 +53,9 @@ Buffer readers use core named queries, and are invoked only for explicit unknown
 An operation captures its original identity, withdraws affected availability, constructs a complete result
 and commits once. Participating internal steps receive the operation explicitly. Unrelated same-resource
 reentry is rejected before dispatch. Cleanup does not recover or retry mutations; recovery is explicit.
-Deferred program linking retains its separate submission/completion boundary. Snapshot assignment precedes
+Deferred program linking retains its separate submission/completion boundary. Pending link records
+are held by the backend against the original program wrapper, association and metadata revision;
+submission supersedes only that wrapper's previous request, and completion consumes it once. Snapshot assignment precedes
 availability and dependent notification. Selected framebuffer images project backing metadata without
 another canonical entry or reader when facts are available.
 
@@ -74,6 +82,20 @@ Graphics relevance and restoration coverage live in opaque backend-owned realiza
 pipeline objects retain immutable descriptions, fixed shader references and independent lifetime state.
 OpenGL composition and restricted engine shader integration live in `OpenGLRHIContext`; no semantic
 context property exposes the concrete backend.
+
+Engine-owned executables consume captured logical uniforms through
+`RHICommandContext.BindUniformSnapshot`. Sampled engine inputs use one complete
+`BindSampledTextures` packet of retained texture/sampler references and semantic dimensions. The
+backend validates every supplied slot and backing dependency before binding effects, retains original
+resources during execution, and uses the same cache suppression and multi-bind publication as owned
+shader tables. Empty inputs clear only their declared texture target and supplied sampler. Program
+membership, sampler assignment and engine generation policy remain with their explicit integration.
+
+Pass completeness and its attachment/routing revision reuse belong to backend target realization.
+Framebuffer owners retain image composition and notifications; private RHI operations execute their
+native configuration and status checks. Window-surface discovery occurs only at explicit publication.
+Optional bindless owners likewise route handle issuance/residency through private RHI execution and
+never issue cleanup against a replacement context.
 
 Compute dispatch guards both its selected realization and native executable against retirement and
 rejects recursive submission or pipeline-selection changes. Managed retirement unbinds a selected owned

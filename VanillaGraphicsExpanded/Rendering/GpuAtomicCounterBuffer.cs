@@ -1,4 +1,3 @@
-using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Diagnostics;
@@ -16,11 +15,10 @@ internal sealed class GpuAtomicCounterBuffer : GpuBufferObject
     /// <summary>Declares buffer policy before manager-owned native creation.</summary>
     internal GpuAtomicCounterBuffer(BufferUsage usage, string? debugName)
     {
-        target = BufferTarget.AtomicCounterBuffer;
+        Role = BufferRole.AtomicCounter;
         allocationUsage = usage;
         this.debugName = debugName;
     }
-
 
 
     /// <summary>

@@ -48,6 +48,7 @@ internal sealed class RenderPassSequence : IDisposable
             if(!realized.IsReusable)throw new InvalidOperationException("The pass target realization is obsolete.");
             realized.ValidateDeclaredRouting(outputs);
             backend.SelectPassTarget(realized);
+            backend.RequirePassCompleteness(target, outputs);
             return;
         }
         if(target.OwnsNativeFramebuffer)throw new InvalidOperationException("Portable passes cannot borrow renderer-owned framebuffer execution.");
@@ -57,6 +58,7 @@ internal sealed class RenderPassSequence : IDisposable
             routing=new(target,backend);external.Add(target.FboId,routing);
         }
         routing.Apply(outputs);
+        backend.RequirePassCompleteness(target, outputs);
     }
     #endregion
 

@@ -22,6 +22,13 @@ internal sealed partial class OpenGLBackend
         RequireContext();
         operation.Commit(result);
     }
+    /// <inheritdoc />
+    public void ResizeRenderbuffer(GpuRenderbuffer owner, int width, int height)
+    {
+        RequireContext();
+        var data = owner.MetadataSnapshot;
+        AllocateRenderbufferStorage(owner, new() { Format = OpenGLImageValues.Format(data.Format), Width = width, Height = height, Samples = data.Samples });
+    }
     #endregion
 
     #region Internal API

@@ -33,7 +33,7 @@ public sealed class DynamicTextureCubeTests(HeadlessGLFixture fixture) : RenderT
             OpenGLFramebufferSelection.Bind(StateCache.Current, FramebufferTarget.DrawFramebuffer, target.FboId);
             GL.ClearBuffer(ClearBuffer.Color, 0, new[] { (face + 1) / 8f, .5f, .25f, 1f });
         }
-        using var textureBinding = cube.BindScope(0);
+        using var textureBinding = StateCache.Current.BindTextureScope(((GpuTextureRef)cube).Target, 0, cube.TextureId);
         GL.GetTexParameter(TextureTarget.TextureCubeMap, GetTextureParameter.TextureMinFilter, out int minimum);
         Assert.Equal((int)TextureMinFilter.LinearMipmapLinear, minimum);
         for (int mip = 0; mip < cube.MipLevels; mip++) for (int face = 0; face < 6; face++)
@@ -56,7 +56,7 @@ public sealed class DynamicTextureCubeTests(HeadlessGLFixture fixture) : RenderT
         using var binding = StateCache.Current.BindFramebufferScope();
         OpenGLFramebufferSelection.Bind(StateCache.Current, FramebufferTarget.DrawFramebuffer, target.FboId);
         GL.ClearBuffer(ClearBuffer.Color, 0, new uint[] { 7, 0, 0, 0 });
-        using var textureBinding = cube.BindScope(0);
+        using var textureBinding = StateCache.Current.BindTextureScope(((GpuTextureRef)cube).Target, 0, cube.TextureId);
         uint[] data = new uint[4];
         GL.GetTexImage(TextureTarget.TextureCubeMapPositiveX, 0, PixelFormat.RedInteger, PixelType.UnsignedInt, data);
         Assert.All(data, value => Assert.Equal(7u, value));
@@ -100,7 +100,7 @@ public sealed class DynamicTextureCubeTests(HeadlessGLFixture fixture) : RenderT
         using var bindings = StateCache.Current.BindFramebufferScope();
         target.Bind();
         GL.ClearBuffer(ClearBuffer.Color, 0, new[] { .25f, .5f, .75f, 1f });
-        using var textureBinding = cube.BindScope(0);
+        using var textureBinding = StateCache.Current.BindTextureScope(((GpuTextureRef)cube).Target, 0, cube.TextureId);
         float[] data = new float[4 * 4 * 4];
         GL.GetTexImage(TextureTarget.TextureCubeMapNegativeZ, 1, PixelFormat.Rgba, PixelType.Float, data);
         for (int pixel = 0; pixel < 16; pixel++) Assert.Equal(.25f, data[pixel * 4]);

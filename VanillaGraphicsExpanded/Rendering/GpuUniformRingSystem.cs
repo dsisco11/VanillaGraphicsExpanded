@@ -38,33 +38,5 @@ internal static class GpuUniformRingSystem
     #endregion
 
     #region Uniform binding
-    /// <summary>Writes uniform bytes into the active ring and binds the resulting range to the program.</summary>
-    public static bool TryBind(
-        IShaderSubmissionTarget program,
-        string blockName,
-        ReadOnlySpan<byte> std140Bytes,
-        string debugName,
-        bool clearDirty)
-    {
-        ArgumentNullException.ThrowIfNull(program);
-        ArgumentException.ThrowIfNullOrWhiteSpace(blockName);
-        ArgumentException.ThrowIfNullOrWhiteSpace(debugName);
-
-        if (!TryGetCurrent(out var ring))
-        {
-            return false;
-        }
-
-        _ = clearDirty;
-
-        var alloc = ring.AllocateAndWrite(std140Bytes);
-        return program.ProgramLayout.TryBindUniformBlockRange(
-            program.ProgramId,
-            blockName,
-            alloc.Buffer,
-            alloc.OffsetBytes,
-            alloc.SizeBytes,
-            warn: null);
-    }
     #endregion
 }

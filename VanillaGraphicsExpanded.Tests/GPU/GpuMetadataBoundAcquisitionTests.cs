@@ -30,8 +30,8 @@ public sealed class GpuMetadataBoundAcquisitionTests(HeadlessGLFixture fixture)
             using var image = GpuFramebufferAttachment.FromTexture(texture);
             using var framebuffer = DynamicGpuFramebuffer.Create([image])!;
             using var sentinelFramebuffer = DynamicGpuFramebuffer.CreateEmpty();
-            using var bufferBinding = sentinelBuffer.BindScope();
-            using var textureBinding = sentinelTexture.BindScope(0);
+            using var bufferBinding = StateCache.Current.BindBufferScope(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBufferValues.Target(sentinelBuffer.Role), sentinelBuffer.BufferId);
+            using var textureBinding = StateCache.Current.BindTextureScope(((GpuTextureRef)sentinelTexture).Target, 0, sentinelTexture.TextureId);
             using var framebufferBinding = StateCache.Current.BindFramebufferScope(FramebufferTarget.Framebuffer, sentinelFramebuffer.FboId);
             Assert.True(new GpuBufferMetadataReader().TryRead(buffer.BufferId, out var bufferMetadata));
             Assert.Equal((nint)96, bufferMetadata.Capacity);

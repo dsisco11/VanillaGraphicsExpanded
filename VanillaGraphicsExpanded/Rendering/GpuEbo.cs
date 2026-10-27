@@ -20,11 +20,10 @@ internal sealed class GpuEbo : GpuBufferObject
     /// <summary>Declares index-buffer policy without native allocation or publication.</summary>
     internal GpuEbo(BufferUsage usage, string? debugName)
     {
-        target = BufferTarget.ElementArrayBuffer;
+        Role = BufferRole.Index;
         allocationUsage = usage;
         this.debugName = debugName;
     }
-
 
 
     public void UploadIndices(uint[] indices)
@@ -160,59 +159,6 @@ internal sealed class GpuEbo : GpuBufferObject
         indexCount = indices.Length;
         indexType = DrawElementsType.UnsignedByte;
         return true;
-    }
-
-    public void DrawElements(PrimitiveType primitiveType, int indexCount = 0, int offsetBytes = 0)
-    {
-        if (!IsValid)
-        {
-            return;
-        }
-
-        if (offsetBytes < 0)
-        {
-            throw new ArgumentOutOfRangeException(nameof(offsetBytes), offsetBytes, "Offset must be >= 0.");
-        }
-
-        int count = indexCount > 0 ? indexCount : this.indexCount;
-        if (count <= 0)
-        {
-            return;
-        }
-
-        GL.DrawElements(primitiveType, count, indexType, (IntPtr)offsetBytes);
-#if DEBUG
-        StateCache.Current.RecordDrawSubmission();
-#endif
-    }
-
-    public void DrawElementsInstanced(PrimitiveType primitiveType, int instanceCount, int indexCount = 0, int offsetBytes = 0)
-    {
-        if (!IsValid)
-        {
-            return;
-        }
-
-        if (instanceCount <= 0)
-        {
-            return;
-        }
-
-        if (offsetBytes < 0)
-        {
-            throw new ArgumentOutOfRangeException(nameof(offsetBytes), offsetBytes, "Offset must be >= 0.");
-        }
-
-        int count = indexCount > 0 ? indexCount : this.indexCount;
-        if (count <= 0)
-        {
-            return;
-        }
-
-        GL.DrawElementsInstanced(primitiveType, count, indexType, (IntPtr)offsetBytes, instanceCount);
-#if DEBUG
-        StateCache.Current.RecordDrawSubmission();
-#endif
     }
 
     protected override void OnDetached(nint id)

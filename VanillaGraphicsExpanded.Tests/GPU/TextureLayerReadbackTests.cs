@@ -31,7 +31,7 @@ public sealed class TextureLayerReadbackTests(HeadlessGLFixture fixture) : Rende
         using var drawScope=StateCache.Current.BindFramebufferScope(FramebufferTarget.DrawFramebuffer,draw.FboId);
         using var readScope=StateCache.Current.BindFramebufferScope(FramebufferTarget.ReadFramebuffer,read.FboId);
         using var pack=RHICommandContext.Current.CreatePixelPackBuffer(new RHIBufferDescription { Role = BufferRole.PixelPack, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StreamRead, Label = "Tests.Readback.ExistingPack" }).RequireResource();
-        using var packScope=pack.BindScope();
+        using var packScope=StateCache.Current.BindBufferScope(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBufferValues.Target(pack.Role), pack.BufferId);
         var packing=new[]{PixelStoreParameter.PackAlignment,PixelStoreParameter.PackRowLength,
             PixelStoreParameter.PackSkipRows,PixelStoreParameter.PackSkipPixels,PixelStoreParameter.PackSwapBytes};
         var previous=packing.Select(value=>GL.GetInteger((GetPName)value)).ToArray();

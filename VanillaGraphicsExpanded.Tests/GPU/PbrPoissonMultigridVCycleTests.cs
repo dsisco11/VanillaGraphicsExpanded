@@ -48,8 +48,8 @@ public sealed class PbrPoissonMultigridVCycleTests : RenderTestBase
 
         RenderTo(rTex, progResidual, () =>
         {
-            hTex.Bind(0);
-            bTex.Bind(1);
+            VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, hTex, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)hTex).Target))]);
+            VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(1, bTex, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)bTex).Target))]);
             PbrHeightBakeParamsUbo.BindSize(paramsUbo, w, h);
         });
 
@@ -90,7 +90,7 @@ public sealed class PbrPoissonMultigridVCycleTests : RenderTestBase
 
         RenderTo(coarseTex, progRestrict, () =>
         {
-            fineTex.Bind(0);
+            VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, fineTex, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)fineTex).Target))]);
             PbrHeightBakeParamsUbo.BindSizes(paramsUbo, fineW: fineW, fineH: fineH, coarseW: coarseW, coarseH: coarseH, sizeW: 0, sizeH: 0);
         });
 
@@ -133,8 +133,8 @@ public sealed class PbrPoissonMultigridVCycleTests : RenderTestBase
 
         RenderTo(outTex, progProlongate, () =>
         {
-            fineTex.Bind(0);
-            coarseTex.Bind(1);
+            VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, fineTex, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)fineTex).Target))]);
+            VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(1, coarseTex, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)coarseTex).Target))]);
             PbrHeightBakeParamsUbo.BindSizes(paramsUbo, fineW: fineW, fineH: fineH, coarseW: coarseW, coarseH: coarseH, sizeW: 0, sizeH: 0);
         });
 
@@ -212,7 +212,7 @@ public sealed class PbrPoissonMultigridVCycleTests : RenderTestBase
         // Restrict residual to coarse rhs.
         RenderTo(bCoarse, progRestrict, () =>
         {
-            resFine.Bind(0);
+            VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, resFine, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)resFine).Target))]);
             PbrHeightBakeParamsUbo.BindSizes(paramsUbo, fineW: w, fineH: h, coarseW: cw, coarseH: ch, sizeW: 0, sizeH: 0);
         });
 
@@ -224,8 +224,8 @@ public sealed class PbrPoissonMultigridVCycleTests : RenderTestBase
         DynamicTexture2D hCorrected = ReferenceEquals(hFine, h0) ? h1 : h0;
         RenderTo(hCorrected, progProlongate, () =>
         {
-            hFine.Bind(0);
-            eCoarse.Bind(1);
+            VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, hFine, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)hFine).Target))]);
+            VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(1, eCoarse, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)eCoarse).Target))]);
             PbrHeightBakeParamsUbo.BindSizes(paramsUbo, fineW: w, fineH: h, coarseW: cw, coarseH: ch, sizeW: 0, sizeH: 0);
         });
 
@@ -325,7 +325,7 @@ public sealed class PbrPoissonMultigridVCycleTests : RenderTestBase
             // Restrict fine residual -> coarse rhs.
             RenderTo(bCoarse2, progRestrict, () =>
             {
-                resFine.Bind(0);
+                VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, resFine, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)resFine).Target))]);
                 PbrHeightBakeParamsUbo.BindSizes(paramsUbo, fineW: w, fineH: h, coarseW: mw, coarseH: mh, sizeW: 0, sizeH: 0);
             });
 
@@ -336,8 +336,8 @@ public sealed class PbrPoissonMultigridVCycleTests : RenderTestBase
             DynamicTexture2D hFineCorrected2 = ReferenceEquals(hFine, h0) ? h1 : h0;
             RenderTo(hFineCorrected2, progProlongate, () =>
             {
-                hFine.Bind(0);
-                eCoarse2.Bind(1);
+                VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, hFine, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)hFine).Target))]);
+                VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(1, eCoarse2, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)eCoarse2).Target))]);
                 PbrHeightBakeParamsUbo.BindSizes(paramsUbo, fineW: w, fineH: h, coarseW: mw, coarseH: mh, sizeW: 0, sizeH: 0);
             });
 
@@ -358,7 +358,7 @@ public sealed class PbrPoissonMultigridVCycleTests : RenderTestBase
         // Restrict residual -> mid rhs.
         RenderTo(bMid, progRestrict, () =>
         {
-            resFine.Bind(0);
+            VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, resFine, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)resFine).Target))]);
             PbrHeightBakeParamsUbo.BindSizes(paramsUbo, fineW: w, fineH: h, coarseW: mw, coarseH: mh, sizeW: 0, sizeH: 0);
         });
 
@@ -372,7 +372,7 @@ public sealed class PbrPoissonMultigridVCycleTests : RenderTestBase
         // Restrict residual -> coarse rhs.
         RenderTo(bCoarse, progRestrict, () =>
         {
-            resMid.Bind(0);
+            VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, resMid, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)resMid).Target))]);
             PbrHeightBakeParamsUbo.BindSizes(paramsUbo, fineW: mw, fineH: mh, coarseW: cw, coarseH: ch, sizeW: 0, sizeH: 0);
         });
 
@@ -383,8 +383,8 @@ public sealed class PbrPoissonMultigridVCycleTests : RenderTestBase
         DynamicTexture2D eMidCorrected = ReferenceEquals(eMid, eMid0) ? eMid1 : eMid0;
         RenderTo(eMidCorrected, progProlongate, () =>
         {
-            eMid.Bind(0);
-            eCoarse.Bind(1);
+            VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, eMid, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)eMid).Target))]);
+            VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(1, eCoarse, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)eCoarse).Target))]);
             PbrHeightBakeParamsUbo.BindSizes(paramsUbo, fineW: mw, fineH: mh, coarseW: cw, coarseH: ch, sizeW: 0, sizeH: 0);
         });
 
@@ -401,8 +401,8 @@ public sealed class PbrPoissonMultigridVCycleTests : RenderTestBase
         DynamicTexture2D hFineCorrected = ReferenceEquals(hFine, h0) ? h1 : h0;
         RenderTo(hFineCorrected, progProlongate, () =>
         {
-            hFine.Bind(0);
-            eMidPost.Bind(1);
+            VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, hFine, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)hFine).Target))]);
+            VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(1, eMidPost, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)eMidPost).Target))]);
             PbrHeightBakeParamsUbo.BindSizes(paramsUbo, fineW: w, fineH: h, coarseW: mw, coarseH: mh, sizeW: 0, sizeH: 0);
         });
 
@@ -500,8 +500,8 @@ public sealed class PbrPoissonMultigridVCycleTests : RenderTestBase
         {
             RenderTo(dst, progJacobi, () =>
             {
-                src.Bind(0);
-                b.Bind(1);
+                VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, src, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)src).Target))]);
+                VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(1, b, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)b).Target))]);
                 PbrHeightBakeParamsUbo.BindSize(paramsUbo, dst.Width, dst.Height);
             });
 
@@ -515,8 +515,8 @@ public sealed class PbrPoissonMultigridVCycleTests : RenderTestBase
     {
         RenderTo(outResidual, progResidual, () =>
         {
-            h.Bind(0);
-            b.Bind(1);
+            VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, h, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)h).Target))]);
+            VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(1, b, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)b).Target))]);
             PbrHeightBakeParamsUbo.BindSize(paramsUbo, outResidual.Width, outResidual.Height);
         });
     }

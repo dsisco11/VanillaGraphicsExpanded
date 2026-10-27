@@ -5,9 +5,9 @@ namespace VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 /// <summary>Publishes injected uniform blocks for engine executables through the same logical version executor as owned shaders.</summary>
 internal sealed partial class OpenGLBackend
 {
-    #region Internal API
+    #region Public API
     /// <summary>Binds an integration-validated slot without synthesizing an owned shader or reserving storage during capture.</summary>
-    internal bool BindEngineUniform(int slot, RHIUniformSnapshot snapshot)
+    public bool BindUniformSnapshot(int slot, RHIUniformSnapshot snapshot)
     {
         RequireContext();
         ArgumentNullException.ThrowIfNull(snapshot);

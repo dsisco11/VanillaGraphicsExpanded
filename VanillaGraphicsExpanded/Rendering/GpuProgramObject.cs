@@ -48,8 +48,6 @@ internal sealed class GpuProgramObject : GpuResource<GpuProgramMetadata>
     #region Internal API
     /// <summary>Gets the last manager-published executable facts without querying the driver.</summary>
     internal GpuProgramMetadata MetadataSnapshot => metadata;
-    /// <summary>Retains the submitted link's original identity until explicit completion.</summary>
-    internal RHI.Backends.OpenGL.OpenGLBackend.PendingProgramLink? PendingLink { get; set; }
     /// <summary>Reports stale derived preparation independently of native allocation validity.</summary>
     internal bool NeedsNativePreparation => bindingCache.NeedsNativePreparation;
     /// <summary>Shares installed preparation without adding another native metadata association.</summary>

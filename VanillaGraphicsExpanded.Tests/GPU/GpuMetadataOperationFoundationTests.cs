@@ -298,7 +298,7 @@ public sealed class GpuMetadataOperationFoundationTests(HeadlessGLFixture fixtur
             ulong revision = entry.MetadataRevision;
             using (var operation = new OpenGLFramebufferConfiguration.FramebufferOperation(framebuffer))
             {
-                Assert.Throws<ArgumentException>(() => image.AttachTo(framebuffer, FramebufferAttachment.DepthAttachment, operation));
+                Assert.Throws<ArgumentException>(() => VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLFramebufferConfiguration.FramebufferTexture(framebuffer, FramebufferAttachment.DepthAttachment, image, operation));
                 Assert.Throws<InvalidOperationException>(() => operation.Commit());
             }
             Assert.False(entry.MetadataAvailable);
@@ -341,7 +341,7 @@ public sealed class GpuMetadataOperationFoundationTests(HeadlessGLFixture fixtur
     /// <summary>Changes actual storage for tests whose later publication candidate is already established.</summary>
     private static void ResizeNative(GpuVbo resource, int capacity)
     {
-        using var binding = resource.BindScope();
+        using var binding = StateCache.Current.BindBufferScope(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBufferValues.Target(resource.Role), resource.BufferId);
         GL.BufferData(BufferTarget.ArrayBuffer, capacity, IntPtr.Zero, BufferUsageHint.StaticDraw);
     }
 

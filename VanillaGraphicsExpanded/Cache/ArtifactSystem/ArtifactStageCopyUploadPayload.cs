@@ -1,4 +1,4 @@
-using OpenTK.Graphics.OpenGL;
+using VanillaGraphicsExpanded.Rendering.RHI;
 
 using VanillaGraphicsExpanded.Rendering;
 
@@ -8,8 +8,8 @@ internal readonly record struct ArtifactStageCopyUploadPayload(
     int TextureId,
     TextureUploadTarget Target,
     TextureUploadRegion Region,
-    PixelFormat PixelFormat,
-    PixelType PixelType,
+    PixelChannelLayout PixelFormat,
+    PixelComponentType PixelType,
     TextureUploadData Data,
     TextureUploadPriority Priority = TextureUploadPriority.Normal,
     int UnpackAlignment = 1,

@@ -58,6 +58,8 @@ public sealed class RHICapabilities
     public bool SparseBuffers => source.SupportsSparseBuffer;
     /// <summary>Reports optional sparse-image residency support.</summary>
     public bool SparseTextures => source.SupportsSparseTexture;
+    /// <summary>Reports cached optional bindless texture support.</summary>
+    public bool BindlessTextures => source.SupportsArbBindlessTexture;
     /// <summary>Gets the cached sparse-buffer commitment page size.</summary>
     public int SparseBufferPageSize => source.SparseBufferPageSize;
     /// <summary>Reports support for optional shader SPIR-V ingestion.</summary>

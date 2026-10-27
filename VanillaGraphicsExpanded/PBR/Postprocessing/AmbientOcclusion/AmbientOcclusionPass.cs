@@ -30,9 +30,9 @@ internal sealed class AmbientOcclusionPass : IDisposable
             Dispose();
             try {
                 int rw=Math.Max(1,(width+quality.Divisor-1)/quality.Divisor),rh=Math.Max(1,(height+quality.Divisor-1)/quality.Divisor);
-                rawTarget=Create(rw,rh,PixelInternalFormat.Rgba16f,"Raw",out raw);
-                filteredTarget=Create(rw,rh,PixelInternalFormat.Rgba16f,"Filtered",out filtered);
-                outputTarget=Create(width,height,PixelInternalFormat.Rgba16f,"Visibility",out output);
+                rawTarget=Create(rw,rh,TextureFormat.Rgba16f,"Raw",out raw);
+                filteredTarget=Create(rw,rh,TextureFormat.Rgba16f,"Filtered",out filtered);
+                outputTarget=Create(width,height,TextureFormat.Rgba16f,"Visibility",out output);
             } catch { Dispose();throw; }
         }
         this.horizon=horizon;this.filter=filter;
@@ -72,8 +72,8 @@ internal sealed class AmbientOcclusionPass : IDisposable
     #endregion
     #region Private
     /// <summary>Owns sized storage and registers framebuffer borrowers in the same retirement collection.</summary>
-    private RHIRenderPassDescription Create(int width,int height,PixelInternalFormat format,string name,out DynamicTexture2D texture) {
-        texture=resources.Own(RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Format((OpenTK.Graphics.OpenGL.PixelInternalFormat)(format)), Width = System.Math.Max(1, width), Height = System.Math.Max(1, height), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = $"AmbientOcclusion.{name}" }).RequireResource());
+    private RHIRenderPassDescription Create(int width,int height,TextureFormat format,string name,out DynamicTexture2D texture) {
+        texture=resources.Own(RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = format, Width = System.Math.Max(1, width), Height = System.Math.Max(1, height), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = $"AmbientOcclusion.{name}" }).RequireResource());
         targetStorageBytes+=(long)width*height*8;
         return new([new(Image:RHIAttachment.FromTexture(texture))],label:$"AmbientOcclusion.{name}");
     }

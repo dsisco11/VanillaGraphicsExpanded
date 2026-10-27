@@ -198,6 +198,7 @@ internal static class OpenGLImageValues
     /// <summary>Maps the image dimension to its native allocation target.</summary>
     internal static TextureTarget Target(TextureDimension dimension) => dimension switch
     {
+        TextureDimension.Buffer => TextureTarget.TextureBuffer,
         TextureDimension.One => TextureTarget.Texture1D,
         TextureDimension.Two => TextureTarget.Texture2D,
         TextureDimension.Three => TextureTarget.Texture3D,
@@ -213,7 +214,7 @@ internal static class OpenGLImageValues
     /// <summary>Translates established native image shape into semantic allocation policy.</summary>
     internal static TextureDimension Dimension(TextureTarget target) => target switch
     {
-        TextureTarget.Texture1D => TextureDimension.One, TextureTarget.Texture2D => TextureDimension.Two,
+        TextureTarget.TextureBuffer => TextureDimension.Buffer, TextureTarget.Texture1D => TextureDimension.One, TextureTarget.Texture2D => TextureDimension.Two,
         TextureTarget.Texture3D => TextureDimension.Three, TextureTarget.Texture1DArray => TextureDimension.OneArray,
         TextureTarget.Texture2DArray => TextureDimension.TwoArray, TextureTarget.TextureCubeMap => TextureDimension.Cube,
         TextureTarget.TextureCubeMapArray => TextureDimension.CubeArray, TextureTarget.TextureRectangle => TextureDimension.Rectangle,

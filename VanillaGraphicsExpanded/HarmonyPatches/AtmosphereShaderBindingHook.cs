@@ -1,4 +1,5 @@
-using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
+using VanillaGraphicsExpanded.Rendering.RHI;
+using System.Runtime.CompilerServices;
 using HarmonyLib;
 using VanillaGraphicsExpanded.ModSystems;
 using VanillaGraphicsExpanded.PBR.Atmosphere;
@@ -10,6 +11,9 @@ namespace VanillaGraphicsExpanded.HarmonyPatches;
 [HarmonyPatch(typeof(ShaderProgramBase), nameof(ShaderProgramBase.Use))]
 internal static class AtmosphereShaderBindingHook
 {
+    /// <summary>Provides allocation-free local storage for the complete atmosphere texture set.</summary>
+    [InlineArray(3)] private struct TextureSlots { private RHISampledTextureSlot first; }
+
     private const int AerialRadianceTextureUnit = AtmosphereProgramBindings.AerialRadianceTextureUnit;
     private const int AerialAttenuationTextureUnit = AtmosphereProgramBindings.AerialAttenuationTextureUnit;
 
@@ -38,30 +42,28 @@ internal static class AtmosphereShaderBindingHook
                     AtmosphereSolarDiskStorage.MaximumScale(disk, glare.Bloom, glare.Shafts));
             }
         }
+        TextureSlots slots = default;
+        int count = 0;
         if ((bindings & AtmosphereBindings.AerialRadiance) != 0)
         {
             // Standard also draws before world initialization. Assign distinct 3D
             // sampler units even then, so they cannot alias engine 2D samplers at unit zero.
             __instance.Uniform("vge_atmosphereAerialRadiance", AerialRadianceTextureUnit);
-            var cache = Rendering.StateCache.Current;
-            OpenGLImageBindings.BindTexture(cache, OpenTK.Graphics.OpenGL.TextureTarget.Texture3D, AerialRadianceTextureUnit, AtmosphereModSystem.AerialRadianceTextureId);
-            OpenGLImageBindings.UnbindSampler(cache, AerialRadianceTextureUnit);
+            slots[count++] = new(AerialRadianceTextureUnit, AtmosphereModSystem.AerialRadianceTexture, Dimension: TextureDimension.Three);
         }
         if ((bindings & AtmosphereBindings.AerialAttenuation) != 0)
         {
             __instance.Uniform("vge_atmosphereAerialAttenuation", AerialAttenuationTextureUnit);
-            var cache = Rendering.StateCache.Current;
-            OpenGLImageBindings.BindTexture(cache, OpenTK.Graphics.OpenGL.TextureTarget.Texture3D, AerialAttenuationTextureUnit, AtmosphereModSystem.AerialAttenuationTextureId);
-            OpenGLImageBindings.UnbindSampler(cache, AerialAttenuationTextureUnit);
+            slots[count++] = new(AerialAttenuationTextureUnit, AtmosphereModSystem.AerialAttenuationTexture, Dimension: TextureDimension.Three);
         }
         if ((bindings & AtmosphereBindings.LightShaftOcclusion) != 0)
         {
             const int unit=AtmosphereProgramBindings.LightShaftOcclusionTextureUnit;
             __instance.Uniform("vge_lightShaftOcclusion",unit);
             var texture=PBR.Postprocessing.LightShaftOcclusionRenderer.Texture;
-            OpenGLImageBindings.BindTexture(Rendering.StateCache.Current, OpenTK.Graphics.OpenGL.TextureTarget.Texture2D,unit,texture?.TextureId??0);
-            OpenGLImageBindings.UnbindSampler(Rendering.StateCache.Current, unit);
+            slots[count++] = new(unit, texture);
         }
+        RHICommandContext.Current.BindSampledTextures(((System.ReadOnlySpan<RHISampledTextureSlot>)slots)[..count]);
         // Resource initialization is owned by the Before renderer.
         if (lighting is null) return;
         if ((bindings & AtmosphereBindings.Environment) != 0)

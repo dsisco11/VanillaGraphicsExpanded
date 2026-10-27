@@ -29,7 +29,7 @@ internal static class OpenGLFramebufferConfiguration
     internal static void ReattachFramebuffer(GpuFramebuffer resource, IEnumerable<KeyValuePair<FramebufferAttachment, GpuFramebufferAttachment>> attachments)
     {
         using var operation = new FramebufferOperation(resource);
-        foreach (var pair in attachments) pair.Value.AttachTo(resource, pair.Key, operation);
+        foreach (var pair in attachments) FramebufferTexture(resource, pair.Key, pair.Value, operation);
         operation.Commit();
     }
 
@@ -43,6 +43,11 @@ internal static class OpenGLFramebufferConfiguration
         try
         {
             active.RequireParticipation(resource);
+            image?.ValidateSlot(slot);
+            if (image is { ImageTarget: TextureTarget.Texture2DArray, AttachmentMode: GpuFramebufferAttachmentMode.Unknown }
+                && GpuSupport.Graphics.SupportsOvrMultiview)
+                throw new NotSupportedException("Unknown native multiview attachment replay semantics.");
+
             DispatchFramebufferAttachment(resource.FboId, slot, image);
             active.SetAttachment(slot, image);
             if (owned is not null) owned.Commit();

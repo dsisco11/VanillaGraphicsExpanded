@@ -45,10 +45,14 @@ public sealed partial class RHICommandContext
     #endregion
 
     #region Internal API
+    /// <summary>Clears an allocated image mip to zero without exposing native encoding policy.</summary>
+    internal void ClearTextureMip(GpuTextureRef texture, int mipLevel) => backend.ClearTextureMip(texture, mipLevel);
     /// <summary>Executes owner-authorized storage policy without exposing it on consumer references.</summary>
     internal void AllocateTextureStorage(GpuTexture owner, in RHITextureDescription description) => backend.AllocateTextureStorage(owner, description);
     /// <summary>Executes the renderbuffer owner's explicit storage request.</summary>
     internal void AllocateRenderbufferStorage(GpuRenderbuffer owner, in RHIRenderbufferDescription description) => backend.AllocateRenderbufferStorage(owner, description);
+    /// <summary>Changes renderbuffer extent using its original published format and samples.</summary>
+    internal void ResizeRenderbuffer(GpuRenderbuffer owner, int width, int height) => backend.ResizeRenderbuffer(owner, width, height);
     /// <summary>Applies the texture owner's sampling policy through the semantic execution boundary.</summary>
     internal void ConfigureTexture(GpuTexture owner, in RHISamplerDescription description) => backend.ConfigureTexture(owner, description);
     /// <summary>Applies assigned sampler fields under the existing owner's authority.</summary>

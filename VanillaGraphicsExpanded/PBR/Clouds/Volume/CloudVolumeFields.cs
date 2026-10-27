@@ -38,8 +38,8 @@ internal sealed class CloudVolumeFields : IDisposable
         Domain = domain; Encoding = encoding; DiffuseSpareScale = encoding.Scale;
         try
         {
-            Density = Volume(PixelInternalFormat.R16f); Direct = Volume(PixelInternalFormat.Rg16f);
-            Diffuse = Volume(PixelInternalFormat.Rgba16f); DiffuseSpare = Volume(PixelInternalFormat.Rgba16f);
+            Density = Volume(TextureFormat.R16f); Direct = Volume(TextureFormat.Rg16f);
+            Diffuse = Volume(TextureFormat.Rgba16f); DiffuseSpare = Volume(TextureFormat.Rgba16f);
             Descriptors = resources.Own(RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba32f, Width = System.Math.Max(1, domain.Width), Height = System.Math.Max(1, domain.Width), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource());
             Descriptors.UploadDataImmediate(new float[4 * domain.Width * domain.Width]);
             Regions = Buffer(domain.Blocks * 16); Occupancy = Buffer(domain.Blocks);
@@ -64,9 +64,9 @@ internal sealed class CloudVolumeFields : IDisposable
     #endregion
     #region Private
     /// <summary>Creates 3D fields with circular horizontal and finite vertical addressing; transport fetches exact cells.</summary>
-    private DynamicTexture3D Volume(PixelInternalFormat format)
+    private DynamicTexture3D Volume(TextureFormat format)
     {
-        var texture = resources.Own(RHICommandContext.Current.CreateDynamicTexture3D(new RHITextureDescription { Dimension = TextureDimension.Three, Format = VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Format((OpenTK.Graphics.OpenGL.PixelInternalFormat)(format)), Width = System.Math.Max(1, Domain.Size), Height = System.Math.Max(1, CloudVolumeDomain.Height), Depth = System.Math.Max(1, Domain.Size), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Linear, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource());
+        var texture = resources.Own(RHICommandContext.Current.CreateDynamicTexture3D(new RHITextureDescription { Dimension = TextureDimension.Three, Format = format, Width = System.Math.Max(1, Domain.Size), Height = System.Math.Max(1, CloudVolumeDomain.Height), Depth = System.Math.Max(1, Domain.Size), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Linear, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource());
         texture.SetTexWrap(SamplerAddressMode.Repeat, SamplerAddressMode.ClampToEdge, SamplerAddressMode.Repeat);
         return texture;
     }

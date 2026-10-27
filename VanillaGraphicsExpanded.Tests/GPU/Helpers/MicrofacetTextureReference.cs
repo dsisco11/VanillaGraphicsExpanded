@@ -12,8 +12,7 @@ internal static class MicrofacetTextureReference
     internal static void Bind()
     {
         int unit=GpuBindingRegistry.Sampler.MicrofacetEnergy;
-        MicrofacetEnergyLookup.Prepare().Bind(unit);
-        GpuSamplers.LinearClamp.Bind(unit);
+        VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(unit, MicrofacetEnergyLookup.Prepare(), GpuSamplers.LinearClamp)]);
     }
 
     /// <summary>Returns the software-filtered quantized lookup and a local fractional-filter precision envelope.</summary>

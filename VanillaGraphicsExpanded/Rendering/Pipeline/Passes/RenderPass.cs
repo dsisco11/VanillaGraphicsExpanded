@@ -83,7 +83,6 @@ internal sealed partial class RenderPass : IDisposable
         {
             using var errors = new GlDebug.ErrorScope("Render pass setup");
             sequence.Bind(description.Target,description.Routing.ToArray());
-            description.Target.RequirePassCompleteness(description.Routing);
             StateCache.Current.ApplyDynamic(new DynamicDrawState { X = Area.X, Y = Area.Y, Width = Area.Width, Height = Area.Height });
             OpenGLRenderPassOperations.Load(description, Area);
             active = this;

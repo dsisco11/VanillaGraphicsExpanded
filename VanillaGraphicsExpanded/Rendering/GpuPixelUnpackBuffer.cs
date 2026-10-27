@@ -14,11 +14,10 @@ internal sealed class GpuPixelUnpackBuffer : GpuBufferObject
     /// <summary>Declares buffer policy before manager-owned native creation.</summary>
     internal GpuPixelUnpackBuffer(BufferUsage usage, string? debugName)
     {
-        target = BufferTarget.PixelUnpackBuffer;
+        Role = BufferRole.PixelUnpack;
         allocationUsage = usage;
         this.debugName = debugName;
     }
-
 
 
     /// <summary>
@@ -145,7 +144,6 @@ internal sealed class GpuPixelUnpackBuffer : GpuBufferObject
         {
             throw new ArgumentOutOfRangeException(nameof(byteCount), byteCount, "Byte count must be >= 0.");
         }
-
 
 
         StorageAccess storageFlags = StorageAccess.Write | StorageAccess.Persistent | extraStorageFlags;

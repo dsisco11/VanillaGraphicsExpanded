@@ -55,7 +55,7 @@ At a high level, uploads are split into **producer enqueue** and **render-thread
 1. Producer creates a `TextureUploadRequest`:
    - Identifies a target texture ID + target type (2D/3D/cube face/array/etc)
    - Describes the sub-region (x/y/z, w/h/d, mip)
-   - Provides a managed array containing pixel bytes (byte/ushort/Half/float) plus `PixelFormat`/`PixelType`
+   - Provides a managed array containing pixel bytes (byte/ushort/Half/float) plus `PixelChannelLayout`/`PixelComponentType`
 2. Producer calls `TextureStreamingSystem.Manager.Enqueue(request)` (thread-safe).
 3. Every render frame, `TextureStreamingManagerRenderer` calls `TextureStreamingSystem.TickOnRenderThread()`.
 4. The manager pulls requests from a priority FIFO, validates them, and attempts to stage:
@@ -120,13 +120,9 @@ Note: `DynamicTexture.CreateWithData(...)` currently calls `UploadData(...)` (di
 
 ### 6.1 Texture targets
 
-`TextureUploadTarget` is a pair:
-- `BindTarget`: what gets bound in `GL.BindTexture(...)`
-- `UploadTarget`: what is passed to `GL.TexSubImage*`
-
-This matters for cube maps:
-- Bind: `TextureTarget.TextureCubeMap`
-- Upload: `TextureTarget.TextureCubeMapPositiveX` (or other face target)
+`TextureUploadTarget` supplies a project-owned `TextureDimension` and a cube-face index.
+The queue describes the destination subresource; the OpenGL backend translates it to native addressing.
+Neither ordinary producers nor the streaming manager choose binding targets or OpenTK overloads.
 
 Helpers exist for:
 - 1D: `TextureUploadTarget.For1D()`
@@ -143,16 +139,15 @@ Helpers exist for:
 - `Width`, `Height`, `Depth`
 - `MipLevel`
 
-The manager issues `glTexSubImage1D/2D/3D` based on the *upload* target:
-- 1D targets → `TexSubImage1D`
-- 3D targets and array targets (`Texture3D`, `Texture2DArray`, `TextureCubeMapArray`) → `TexSubImage3D`
-- Everything else (including cube faces) → `TexSubImage2D`
+The manager submits the selected region through `RHICommandContext`: pinned client payloads use
+`UploadTexturePointer`, and staged PBO payloads use `TransferBufferToTexture`. Backend execution
+validates the original destination and owns native addressing, pixel-unpack state and restoration.
 
 ### 6.3 Pixel formats and data kinds
 
 Requests include:
-- `PixelFormat` (e.g., `Rgb`, `Rgba`, `Rg`, `DepthStencil`, …)
-- `PixelType` (e.g., `Float`, `HalfFloat`, `UnsignedShort`, `UnsignedByte`, packed types, …)
+- `Channels` (`PixelChannelLayout`, e.g., `Rgb`, `Rgba`, `Rg`, `DepthStencil`, …)
+- `ComponentType` (`PixelComponentType`, e.g., `Float`, `HalfFloat`, `UnsignedShort`, `UnsignedByte`, packed types, …)
 - `TextureUploadData` (managed array + `ByteLength`)
 
 `TextureUploadData` currently supports these managed array kinds:
@@ -170,10 +165,9 @@ Requests can provide unpack parameters:
 - `UnpackRowLength` (pixels; 0 means “use region width”)
 - `UnpackImageHeight` (pixels; 0 means “use region height”)
 
-During upload the manager:
-- Sets `GL_UNPACK_ALIGNMENT`
-- Sets `GL_UNPACK_ROW_LENGTH` and `GL_UNPACK_IMAGE_HEIGHT` only when needed
-- Resets them after the upload call
+The manager converts these layout inputs to explicit row/slice pitches, including row alignment.
+The backend owns unpack selectors and buffer binding, restores their prior values on return, and
+retains staging allocations until their completion fence permits reuse.
 
 This supports uploading a sub-rect from a larger/padded image buffer.
 

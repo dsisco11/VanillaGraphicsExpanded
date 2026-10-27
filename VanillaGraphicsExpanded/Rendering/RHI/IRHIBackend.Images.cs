@@ -40,5 +40,9 @@ internal partial interface IRHIBackend
     void ConfigureSampler(GpuSampler owner, in RHISamplerDescription description);
     /// <summary>Changes the owning texture's represented sampling range.</summary>
     void SetMipRange(GpuTexture owner, int baseLevel, int maxLevel);
+    /// <summary>Clears a complete allocated mip to zero using its published representation.</summary>
+    void ClearTextureMip(GpuTextureRef texture, int mipLevel);
+    /// <summary>Changes extent while retaining the original renderbuffer format and sample policy.</summary>
+    void ResizeRenderbuffer(GpuRenderbuffer owner, int width, int height);
     #endregion
 }

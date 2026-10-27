@@ -39,7 +39,7 @@ internal sealed class UniformStoragePage : IDisposable
                 mapped = RHICommandContext.Current.MapBuffer(Buffer, 0, capacity, access);
                 if (mapped == IntPtr.Zero) throw new InvalidOperationException("Persistent uniform mapping failed.");
             }
-            if (GL.GetError() != ErrorCode.NoError) throw new InvalidOperationException("Uniform storage allocation failed.");
+
         }
         catch { Buffer.Dispose(); throw; }
     }
@@ -59,7 +59,7 @@ internal sealed class UniformStoragePage : IDisposable
                 RHICommandContext.Current.FlushMappedBuffer(Buffer, offset, data.Length);
             }
         }
-        if (GL.GetError() != ErrorCode.NoError) throw new InvalidOperationException("Uniform storage upload failed.");
+
     }
 
     /// <summary>Retires native storage through its established resource owner.</summary>

@@ -222,7 +222,6 @@ public partial class LumOnRenderer : IRenderer, IDisposable
     /// <summary>Runs the lighting frame with restored target bindings and invalidates history after a failed submission.</summary>
     public void OnRenderFrame(float deltaTime, EnumRenderStage stage)
     {
-        using var framebuffer = StateCache.Current.BindFramebufferScope();
         primaryBuffers.WorldProbeSuppressedLighting = null;
         primaryBuffers.HasPublishedIndirect = false;
         if (!config.LumOn.Enabled) return;

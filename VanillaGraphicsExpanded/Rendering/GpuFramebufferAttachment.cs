@@ -1,4 +1,3 @@
-using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using System.Collections.Generic;
@@ -122,7 +121,7 @@ public sealed class GpuFramebufferAttachment : GpuResource<GpuImageMetadata>
     /// <summary>Gets the image format used to validate attachment aspects.</summary>
     public PixelInternalFormat InternalFormat => metadata.Format;
     /// <summary>Projects the published image format for semantic pipeline inputs without native discovery.</summary>
-    public TextureFormat Format => RHI.Backends.OpenGL.OpenGLImageValues.Format(metadata.Format);
+    public TextureFormat Format => RHICommandContext.Current.DescribeAttachment(this);
     /// <summary>Gets the live texture name, or zero for renderbuffer images and retired attachments.</summary>
     public int TextureId => renderbuffer ? 0 : (int)ResourceId;
     /// <summary>Gets the live renderbuffer name, or zero for texture images and retired attachments.</summary>
@@ -216,20 +215,11 @@ public sealed class GpuFramebufferAttachment : GpuResource<GpuImageMetadata>
         framebuffers.Add(new(framebuffer));
     }
 
-    /// <summary>Selects the native attachment command for this image while StateCache validates and publishes its result.</summary>
-    internal void AttachTo(GpuFramebuffer framebuffer, FramebufferAttachment slot,
-        OpenGLFramebufferConfiguration.FramebufferOperation? operation = null)
+    /// <summary>Submits this selected image through the framebuffer owner's execution contract.</summary>
+    internal void AttachTo(GpuFramebuffer framebuffer, FramebufferAttachment slot)
     {
-        try
-        {
-            ValidateSlot(slot);
-            var cache = StateCache.Current;
-            if (target == TextureTarget.Texture2DArray && attachmentMode == GpuFramebufferAttachmentMode.Unknown
-                && GpuSupport.Graphics.SupportsOvrMultiview)
-                throw new NotSupportedException("Native attachment queries do not establish ordinary versus multiview replay semantics.");
-            OpenGLFramebufferConfiguration.FramebufferTexture(framebuffer, slot, this, operation);
-        }
-        catch { operation?.Interrupt(); throw; }
+        ValidateSlot(slot);
+        RHICommandContext.Current.ConfigureFramebufferAttachment(framebuffer, slot, this);
     }
 
     /// <summary>Rejects retired storage and incompatible color, depth, or stencil attachment points.</summary>
@@ -298,7 +288,15 @@ public sealed class GpuFramebufferAttachment : GpuResource<GpuImageMetadata>
     {
         if (GpuResourceManagerSystem.CaptureDisposalQueue().IsClosed)
             throw new InvalidOperationException("Initialize the GPU resource manager before creating new owned attachments after shutdown.");
-        return RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Format((OpenTK.Graphics.OpenGL.PixelInternalFormat)(format)), Width = System.Math.Max(1, width), Height = System.Math.Max(1, height), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = filter, BaseLevel = 0, MaxLevel = (1) - 1, Label = debugName }).RequireResource();
+        var owner = new DynamicTexture2D();
+        try
+        {
+            RHICommandContext.Current.AllocateTextureOwner(owner, new GpuTextureInitialization { Target = TextureTarget.Texture2D,
+                InternalFormat = format, Width = Math.Max(1, width), Height = Math.Max(1, height), Depth = 1,
+                Levels = 1, BaseLevel = 0, MaxLevel = 0, AllocationMode = GpuTextureAllocationMode.Mutable }, filter, debugName);
+            return owner;
+        }
+        catch { try { owner.Dispose(); } catch { } throw; }
     }
 
     /// <summary>Allocates owned renderbuffer storage only while deferred cleanup remains available.</summary>
@@ -307,7 +305,14 @@ public sealed class GpuFramebufferAttachment : GpuResource<GpuImageMetadata>
     {
         if (GpuResourceManagerSystem.CaptureDisposalQueue().IsClosed)
             throw new InvalidOperationException("Initialize the GPU resource manager before creating new owned attachments after shutdown.");
-        return RHICommandContext.Current.CreateRenderbuffer(new RHIRenderbufferDescription { Format = VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Format((OpenTK.Graphics.OpenGL.PixelInternalFormat)(storage)), Width = width, Height = height, Samples = samples, Label = debugName }).RequireResource();
+        var owner = new GpuRenderbuffer(0, true, debugName);
+        try
+        {
+            if (!GpuResourceManager.CreateRenderbuffer(new() { Format = storage, Width = width, Height = height, Samples = samples }, owner, out _).HasValue)
+                throw new InvalidOperationException("Renderbuffer initialization failed.");
+            return owner;
+        }
+        catch { try { owner.Dispose(); } catch { } throw; }
     }
 
     /// <summary>Includes packed formats as well as stencil-only storage in stencil aspect validation.</summary>

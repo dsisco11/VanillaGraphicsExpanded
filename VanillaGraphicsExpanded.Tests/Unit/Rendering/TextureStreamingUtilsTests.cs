@@ -1,4 +1,4 @@
-using OpenTK.Graphics.OpenGL;
+using VanillaGraphicsExpanded.Rendering.RHI;
 
 using VanillaGraphicsExpanded.Rendering;
 
@@ -24,31 +24,20 @@ public sealed class TextureStreamingUtilsTests
     [Fact]
     public void GetBytesPerPixel_ComputesExpectedSizes()
     {
-        Assert.Equal(12, TextureStreamingUtils.GetBytesPerPixel(PixelFormat.Rgb, PixelType.Float));
-        Assert.Equal(8, TextureStreamingUtils.GetBytesPerPixel(PixelFormat.Rgba, PixelType.HalfFloat));
-        Assert.Equal(4, TextureStreamingUtils.GetBytesPerPixel(PixelFormat.Rg, PixelType.UnsignedShort));
-        Assert.Equal(1, TextureStreamingUtils.GetBytesPerPixel(PixelFormat.Red, PixelType.UnsignedByte));
+        Assert.Equal(12, TextureStreamingUtils.GetBytesPerPixel(PixelChannelLayout.Rgb, PixelComponentType.Float));
+        Assert.Equal(8, TextureStreamingUtils.GetBytesPerPixel(PixelChannelLayout.Rgba, PixelComponentType.Half));
+        Assert.Equal(4, TextureStreamingUtils.GetBytesPerPixel(PixelChannelLayout.Rg, PixelComponentType.UnsignedShort));
+        Assert.Equal(1, TextureStreamingUtils.GetBytesPerPixel(PixelChannelLayout.Red, PixelComponentType.UnsignedByte));
     }
 
     [Fact]
     public void GetUploadDimension_ClassifiesTargets()
     {
-        Assert.Equal(UploadDimension.Tex1D, TextureStreamingUtils.GetUploadDimension(TextureTarget.Texture1D));
-        Assert.Equal(UploadDimension.Tex2D, TextureStreamingUtils.GetUploadDimension(TextureTarget.Texture2D));
-        Assert.Equal(UploadDimension.Tex2D, TextureStreamingUtils.GetUploadDimension(TextureTarget.Texture1DArray));
-        Assert.Equal(UploadDimension.Tex3D, TextureStreamingUtils.GetUploadDimension(TextureTarget.Texture2DArray));
-        Assert.Equal(UploadDimension.Tex3D, TextureStreamingUtils.GetUploadDimension(TextureTarget.Texture3D));
-    }
-
-    [Fact]
-    public void GetCubeFaceTarget_MatchesCubeTargets()
-    {
-        Assert.Equal(TextureTarget.TextureCubeMapPositiveX, TextureStreamingUtils.GetCubeFaceTarget(TextureCubeFace.PositiveX));
-        Assert.Equal(TextureTarget.TextureCubeMapNegativeX, TextureStreamingUtils.GetCubeFaceTarget(TextureCubeFace.NegativeX));
-        Assert.Equal(TextureTarget.TextureCubeMapPositiveY, TextureStreamingUtils.GetCubeFaceTarget(TextureCubeFace.PositiveY));
-        Assert.Equal(TextureTarget.TextureCubeMapNegativeY, TextureStreamingUtils.GetCubeFaceTarget(TextureCubeFace.NegativeY));
-        Assert.Equal(TextureTarget.TextureCubeMapPositiveZ, TextureStreamingUtils.GetCubeFaceTarget(TextureCubeFace.PositiveZ));
-        Assert.Equal(TextureTarget.TextureCubeMapNegativeZ, TextureStreamingUtils.GetCubeFaceTarget(TextureCubeFace.NegativeZ));
+        Assert.Equal(UploadDimension.Tex1D, TextureStreamingUtils.GetUploadDimension(TextureDimension.One));
+        Assert.Equal(UploadDimension.Tex2D, TextureStreamingUtils.GetUploadDimension(TextureDimension.Two));
+        Assert.Equal(UploadDimension.Tex2D, TextureStreamingUtils.GetUploadDimension(TextureDimension.OneArray));
+        Assert.Equal(UploadDimension.Tex3D, TextureStreamingUtils.GetUploadDimension(TextureDimension.TwoArray));
+        Assert.Equal(UploadDimension.Tex3D, TextureStreamingUtils.GetUploadDimension(TextureDimension.Three));
     }
 
     [Fact]

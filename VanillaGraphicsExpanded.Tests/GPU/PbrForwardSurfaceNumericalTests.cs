@@ -99,7 +99,7 @@ public sealed class PbrForwardSurfaceNumericalTests : RenderTestBase
             Assert.True(linked != 0, GL.GetProgramInfoLog(program));
             Helpers.MicrofacetTextureReference.Bind();
             using var frame = new VgeFrameUniformBuffer();
-            Assert.True(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLRHIContext.BindEngineUniform(GpuBindingRegistry.Ubo.Frame, frame.Capture()));
+            Assert.True(VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindUniformSnapshot(GpuBindingRegistry.Ubo.Frame, frame.Capture()));
             using var inputs = new FixtureUniformInputs(program, 64);
             GL.UseProgram(program);
             GL.Uniform1(GL.GetUniformLocation(program, "vge_pbrRoute"), 2);
@@ -110,7 +110,7 @@ public sealed class PbrForwardSurfaceNumericalTests : RenderTestBase
             lights.Capture(scenario is 2 or 3 or 8 or 14 ? 1 : 0, [0, 0, 0], [4, 4, 4]);
             if (scenario >= 16) lights.CaptureAuthored([new(new(0, 0, scenario == 17 ? 0 : -1), Vector3.One,
                 scenario == 18 ? 2000 : 1000, 100)]);
-            Assert.True(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLRHIContext.BindEngineUniform(GpuBindingRegistry.Ubo.Lights, lights.Capture()));
+            Assert.True(VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindUniformSnapshot(GpuBindingRegistry.Ubo.Lights, lights.Capture()));
             GL.Uniform1(GL.GetUniformLocation(program, "shadowMapFar"), 0);
             using var atmosphereOwner = new AtmosphereModSystem();
             float[] scatter = scenario is 12 or 13 ? [.04f,.09f,.16f,1f] : [0f,0f,0f,1f];
@@ -125,8 +125,8 @@ public sealed class PbrForwardSurfaceNumericalTests : RenderTestBase
             // The generic float uploader assumes color channels; explicitly initialize the depth comparison input.
             GL.ClearTexImage(depth.TextureId, 0, PixelFormat.DepthComponent, PixelType.Float, new[] { scenario is 4 or 5 or 10 ? 1f : 0f });
             using var output = framework.CreateTestGBuffer(1, 1, PixelInternalFormat.Rgba32f);
-            depth.Bind(0);
-            GpuSamplers.ShadowCompareLinearClamp.Bind(0);
+            VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, depth, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)depth).Target))]);
+            VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageBindings.BindSampler(StateCache.Current, 0, GpuSamplers.ShadowCompareLinearClamp.SamplerId);
             framework.RenderQuadTo(program, output);
             float[] actual = output[0].ReadPixels();
             float factor = scenario is 1 or 9 or 15 ? 64f : scenario is 2 or 3 or 8 or 14 ? LightingCalibration.EnginePointCandelaPerUnit : 0f;

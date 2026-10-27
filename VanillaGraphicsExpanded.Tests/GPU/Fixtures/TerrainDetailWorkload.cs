@@ -105,7 +105,7 @@ internal sealed class TerrainDetailWorkload : IDisposable
         var neutral=framework.CreateTexture(64,64,PixelInternalFormat.Rgba32f,Enumerable.Range(0,4096).SelectMany(_=>new[]{.5f,.5f,1f,.5f}).ToArray());resources.Add(neutral);
         var missing=framework.CreateTexture(64,64,PixelInternalFormat.R32f,new float[4096]);resources.Add(missing);
         var zeroAmplitude=framework.CreateTexture(2,1,PixelInternalFormat.Rgba32f,[0,0,1,1,0,0,0,0]);resources.Add(zeroAmplitude);
-        bindHeight=mode=>{if(mode=="adaptiveMissing")missing.Bind(0);else indices.Bind(0);if(mode=="adaptiveZeroAmplitude")zeroAmplitude.Bind(2);else records.Bind(2);if(mode=="adaptiveNeutral")neutral.Bind(1);else raised.Bind(1);};
+        bindHeight=mode=>{if(mode=="adaptiveMissing")VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, missing, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)missing).Target))]);else VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, indices, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)indices).Target))]);if(mode=="adaptiveZeroAmplitude")VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(2, zeroAmplitude, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)zeroAmplitude).Target))]);else VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(2, records, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)records).Target))]);if(mode=="adaptiveNeutral")VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(1, neutral, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)neutral).Target))]);else VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(1, raised, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)raised).Target))]);};
         var target=framework.CreateTestGBuffer(256,256,PixelInternalFormat.Rgba32f);resources.Add(target);bindTarget=()=>FramebufferTestSetup.BindForEngineRendering(target);readTarget=()=>target[0].ReadPixels();
     }
 
@@ -117,7 +117,7 @@ internal sealed class TerrainDetailWorkload : IDisposable
         OpenGLProgramSelection.Select(StateCache.Current, id);OpenGLVertexSelection.Bind(StateCache.Current, vao.VertexArrayId);StateCache.Current.SetPatchVertices(3);
         bindTarget();bindHeight(mode);
         // Publish this fixture's actual view instead of inheriting a prior test's camera range.
-        Assert.True(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLRHIContext.BindEngineUniform(GpuBindingRegistry.Ubo.Frame, camera.Capture()));
+        Assert.True(VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindUniformSnapshot(GpuBindingRegistry.Ubo.Frame, camera.Capture()));
         GL.Disable(EnableCap.DepthTest);GL.Disable(EnableCap.CullFace);GL.Disable(EnableCap.Blend);
         var layout=GpuProgramLayout.TryBuild(id);
         ShaderTestFramework.SetUniform(layout.GetUniformLocation(id,"vge_displacementTex"),0);

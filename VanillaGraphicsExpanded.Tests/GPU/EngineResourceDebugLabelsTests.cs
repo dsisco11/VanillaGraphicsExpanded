@@ -113,7 +113,7 @@ public sealed class EngineResourceDebugLabelsTests(HeadlessGLFixture fixture) : 
         flags.UploadData(new int[] { 0 });
         indices.UploadIndices(new uint[] { 0 });
         using var vaoBinding = StateCache.Current.BindVertexArrayScope(vao.VertexArrayId);
-        using var bufferBinding = vertices.BindScope();
+        using var bufferBinding = StateCache.Current.BindBufferScope(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBufferValues.Target(vertices.Role), vertices.BufferId);
         var mesh = new VAO { VaoId = vao.VertexArrayId, xyzVboId = vertices.BufferId, flagsVboId = flags.BufferId, vboIdIndex = indices.BufferId };
         // This shell borrows GPU handles; its engine finalizer must not run ownership diagnostics.
         GC.SuppressFinalize(mesh);

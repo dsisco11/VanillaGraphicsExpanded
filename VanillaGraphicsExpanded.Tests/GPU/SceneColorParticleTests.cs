@@ -278,7 +278,7 @@ public sealed class SceneColorParticleTests(HeadlessGLFixture fixture) : LumOnSh
         UboPacking.WriteVec4(bytes, 0, red, green, 0f, alpha);
         UboPacking.WriteFloat(bytes, 16, depth);
         inputs.SetBytes(bytes);
-        Assert.True(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLRHIContext.BindEngineUniform(GpuBindingRegistry.Ubo.ShaderInputs, inputs.Capture()));
+        Assert.True(VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindUniformSnapshot(GpuBindingRegistry.Ubo.ShaderInputs, inputs.Capture()));
         GL.DrawArrays(PrimitiveType.Triangles, 0, 3);
     }
 

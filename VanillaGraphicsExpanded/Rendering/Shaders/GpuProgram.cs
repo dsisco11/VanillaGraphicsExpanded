@@ -42,7 +42,6 @@ public abstract partial class GpuProgram : IDisposable, IGpuProgram
     private ShaderCompilation.ShaderAssetSource? assetSource;
 
 
-
     #endregion
 
     #region Layout
@@ -94,17 +93,6 @@ public abstract partial class GpuProgram : IDisposable, IGpuProgram
     #endregion
 
     #region Uniform Block Binding (UBO)
-
-    /// <summary>
-    /// Binds a UBO to the named uniform block for this program.
-    /// </summary>
-    internal bool TryBindUniformBlock(string blockName, GpuUniformBuffer buffer)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(blockName);
-        ArgumentNullException.ThrowIfNull(buffer);
-
-        return ProgramLayout.TryBindUniformBlock(ProgramId, blockName, buffer, assetSource?.Warning);
-    }
 
 
     #endregion

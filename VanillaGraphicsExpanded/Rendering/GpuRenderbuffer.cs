@@ -1,4 +1,3 @@
-using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Diagnostics;
@@ -102,51 +101,6 @@ public sealed class GpuRenderbuffer : GpuResource<GpuRenderbufferMetadata>, IDis
 #endif
     }
 
-    /// <summary>
-    /// Binds this renderbuffer to <see cref="RenderbufferTarget.Renderbuffer"/>.
-    /// </summary>
-    public void Bind()
-    {
-        if (!IsValid)
-        {
-            Debug.WriteLine("[GpuRenderbuffer] Attempted to bind disposed or invalid renderbuffer");
-            return;
-        }
-
-        OpenGLImageBindings.BindRenderbuffer(StateCache.Current, renderbufferId);
-    }
-
-    /// <summary>
-    /// Attempts to bind this renderbuffer. Returns <c>false</c> if invalid.
-    /// </summary>
-    public bool TryBind()
-    {
-        if (!IsValid)
-        {
-            return false;
-        }
-
-        OpenGLImageBindings.BindRenderbuffer(StateCache.Current, renderbufferId);
-        return true;
-    }
-
-    /// <summary>
-    /// Unbinds any renderbuffer from <see cref="RenderbufferTarget.Renderbuffer"/>.
-    /// </summary>
-    public void Unbind()
-    {
-        OpenGLImageBindings.BindRenderbuffer(StateCache.Current, 0);
-    }
-
-    /// <summary>
-    /// Binds this renderbuffer and returns a scope that restores the previous binding when disposed.
-    /// </summary>
-    public BindingScope BindScope()
-    {
-        ObjectDisposedException.ThrowIf(!IsValid, this);
-        var scope = StateCache.Current.BindRenderbufferScope(renderbufferId);
-        return new BindingScope(scope);
-    }
 
     /// <summary>
     /// Allocates or reallocates renderbuffer storage.
@@ -187,42 +141,9 @@ public sealed class GpuRenderbuffer : GpuResource<GpuRenderbufferMetadata>, IDis
     public bool Resize(int width, int height)
     {
         if (!IsValid || (this.width == width && this.height == height)) return false;
-        AllocateStorage(OpenGLImageValues.Format((PixelInternalFormat)storage), width, height, samples);
+        RHICommandContext.Current.ResizeRenderbuffer(this, width, height);
         return true;
     }
 
-    /// <summary>
-    /// Scope that restores the renderbuffer binding when disposed.
-    /// </summary>
-    public readonly struct BindingScope : IDisposable
-    {
-        private readonly StateCache.RenderbufferScope scope;
-        private readonly int previous;
-        private readonly bool useCacheScope;
 
-        internal BindingScope(StateCache.RenderbufferScope scope)
-        {
-            this.scope = scope;
-            previous = 0;
-            useCacheScope = true;
-        }
-
-        public BindingScope(int previous)
-        {
-            scope = default;
-            this.previous = previous;
-            useCacheScope = false;
-        }
-
-        public void Dispose()
-        {
-            if (useCacheScope)
-            {
-                scope.Dispose();
-                return;
-            }
-
-            OpenGLImageBindings.BindRenderbuffer(StateCache.Current, previous);
-        }
-    }
 }

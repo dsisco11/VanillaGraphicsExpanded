@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.PBR.Materials;
@@ -53,11 +54,12 @@ public sealed class TerrainReliefBindingsTests : RenderTestBase
         int vs=shaders.Compile(ShaderType.VertexShader,"#version 430\nvoid main(){gl_Position=vec4(0);}");
         int fs=shaders.Compile(ShaderType.FragmentShader,"#version 430\nuniform sampler2D vge_displacementTex;uniform sampler2D vge_displacementRecords;uniform sampler2D vge_normalDepthTex;out vec4 result;void main(){result=texture(vge_displacementTex,vec2(.5))+texture(vge_displacementRecords,vec2(.5))+texture(vge_normalDepthTex,vec2(.5));}");
         using var program=GpuProgramObject.Adopt(TerrainShaderTestFixture.Link(vs,fs));
+        using var platform = new EngineShaderPlatformScope();
         using var store=new MaterialAtlasTextureStore();
         var owner=new LinkedProgram { ProgramId=program.ProgramId,PassName=pass,AssetDomain="game" };
         owner.Populate();
         var cache=StateCache.Current;
-        OpenGLProgramSelection.Select(cache, program.ProgramId);
+        owner.Use();
         try
         {
             TerrainReliefBindings.Register(owner);
@@ -68,12 +70,12 @@ public sealed class TerrainReliefBindingsTests : RenderTestBase
                 store.SyncToAtlasPages([(7,4,4)],true);
                 store.UpdateDisplacement(new AtlasBuildPlan(new AtlasSnapshot([],[],0,0),[new(7,4,4)],[tile],[],[],[],default));
                 Assert.True(store.TryGetDisplacementTextures(7,out var page));
-                TerrainReliefBindings.Bind(owner,7,store);
+                BindPrepared(owner,7,store);
                 GL.ActiveTexture(TextureUnit.Texture0+TerrainReliefBindings.IndexUnit);
                 Assert.Equal(page!.Indices.TextureId,GL.GetInteger(GetPName.TextureBinding2D));
                 GL.ActiveTexture(TextureUnit.Texture0+TerrainReliefBindings.RecordUnit);
                 Assert.Equal(page.Records.TextureId,GL.GetInteger(GetPName.TextureBinding2D));
-                TerrainReliefBindings.Bind(owner,77,store);
+                BindPrepared(owner,77,store);
                 GL.ActiveTexture(TextureUnit.Texture0+TerrainReliefBindings.RecordUnit);
                 int neutral=GL.GetInteger(GetPName.TextureBinding2D);
                 Assert.NotEqual(page.Records.TextureId,neutral);
@@ -86,21 +88,29 @@ public sealed class TerrainReliefBindingsTests : RenderTestBase
                 GL.GetTexImage(TextureTarget.Texture2D,0,PixelFormat.Rgba,PixelType.Float,neutralPixel);
                 Assert.Equal(new float[]{.5f,.5f,1f,.5f},neutralPixel);
                 owner.ProgramId=0;
-                TerrainReliefBindings.Bind(owner,7,store);
+                BindPrepared(owner,7,store);
                 Assert.Equal(neutralHeight,GL.GetInteger(GetPName.TextureBinding2D));
                 owner.ProgramId=program.ProgramId;
                 cache.InvalidateAll();
             }
-            TerrainReliefBindings.Bind(owner,77,store);
+            BindPrepared(owner,77,store);
             foreach(string name in new[]{"vge_displacementTex","vge_displacementRecords","vge_normalDepthTex"})
             {
                 GL.GetUniform(program.ProgramId,GL.GetUniformLocation(program.ProgramId,name),out int unit);
                 Assert.Equal(expected ? name=="vge_displacementTex"?TerrainReliefBindings.IndexUnit:name=="vge_displacementRecords"?TerrainReliefBindings.RecordUnit:TerrainReliefBindings.HeightUnit : 0,unit);
             }
         }
-        finally { OpenGLProgramSelection.Select(cache, 0);TerrainReliefBindings.Reset();cache.InvalidateAll(); }
+        finally { owner.Stop();TerrainReliefBindings.Reset();cache.InvalidateAll(); }
     }
     #endregion
+
+    /// <summary>Submits the entire prepared native terrain fixture resource set once.</summary>
+    private static void BindPrepared(ShaderProgramBase owner, int atlas, MaterialAtlasTextureStore store)
+    {
+        RHISampledTextureSlot[] slots = new RHISampledTextureSlot[3];
+        int count = TerrainReliefBindings.Prepare(owner, atlas, store, slots);
+        RHICommandContext.Current.BindSampledTextures(slots.AsSpan(0, count));
+    }
 
     #region Engine fixture
     /// <summary>Populates the engine's linked uniform table using the actual executable.</summary>

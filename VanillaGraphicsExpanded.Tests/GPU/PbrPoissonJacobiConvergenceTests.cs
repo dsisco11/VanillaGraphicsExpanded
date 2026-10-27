@@ -86,8 +86,8 @@ public sealed class PbrPoissonJacobiConvergenceTests : RenderTestBase
 
             PbrHeightBakeParamsUbo.BindSize(paramsUbo, input.Width, input.Height);
 
-            hTex.Bind(0);
-            bTex.Bind(1);
+            VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, hTex, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)hTex).Target))]);
+            VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(1, bTex, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)bTex).Target))]);
 
             GL.DrawArrays(PrimitiveType.Triangles, 0, 3);
 
@@ -172,8 +172,8 @@ public sealed class PbrPoissonJacobiConvergenceTests : RenderTestBase
 
             GL.UseProgram(programId);
 
-            src.Bind(0);
-            bTex.Bind(1);
+            VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, src, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)src).Target))]);
+            VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(1, bTex, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)bTex).Target))]);
 
             GL.DrawArrays(PrimitiveType.Triangles, 0, 3);
 

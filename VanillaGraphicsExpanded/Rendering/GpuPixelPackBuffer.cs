@@ -1,4 +1,3 @@
-using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System;
 using VanillaGraphicsExpanded.Rendering.RHI;
 
@@ -15,11 +14,10 @@ internal sealed class GpuPixelPackBuffer : GpuBufferObject
     /// <summary>Declares buffer policy before manager-owned native creation.</summary>
     internal GpuPixelPackBuffer(BufferUsage usage, string? debugName)
     {
-        target = BufferTarget.PixelPackBuffer;
+        Role = BufferRole.PixelPack;
         allocationUsage = usage;
         this.debugName = debugName;
     }
-
 
 
     /// <summary>
@@ -147,7 +145,6 @@ internal sealed class GpuPixelPackBuffer : GpuBufferObject
         {
             throw new ArgumentOutOfRangeException(nameof(byteCount), byteCount, "Byte count must be >= 0.");
         }
-
 
 
         StorageAccess storageFlags = StorageAccess.Read | StorageAccess.Persistent | extraStorageFlags;

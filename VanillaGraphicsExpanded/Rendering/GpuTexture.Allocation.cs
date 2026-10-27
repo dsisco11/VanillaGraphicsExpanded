@@ -22,14 +22,10 @@ public abstract partial class GpuTexture
     /// <summary>Resolves wrapper sampling policy and delegates the complete allocation operation.</summary>
     private void Allocate2DStorage(TextureTarget target, PixelInternalFormat format, int width, int height, int mipLevels)
     {
-        var request = new RHI.RHITextureDescription
-        {
-            Dimension = RHI.Backends.OpenGL.OpenGLImageValues.Dimension(target), Format = RHI.Backends.OpenGL.OpenGLImageValues.Format(format),
-            Width = width, Height = height, MipLevels = Math.Max(1, mipLevels), Storage = RHI.ResourceStorageMode.Mutable,
-            Filter = filterMode, BaseLevel = 0, MaxLevel = Math.Max(1, mipLevels) - 1, Label = debugName
-        };
-        if (textureId == 0) RHI.RHICommandContext.Current.InitializeTextureOwner(this, request);
-        else RHI.RHICommandContext.Current.AllocateTextureStorage(this, request);
+        var request = new GpuTextureInitialization { Target = target, InternalFormat = format,
+            Width = width, Height = height, Depth = 1, Levels = Math.Max(1, mipLevels),
+            AllocationMode = GpuTextureAllocationMode.Mutable, BaseLevel = 0, MaxLevel = Math.Max(1, mipLevels) - 1 };
+        RHI.RHICommandContext.Current.AllocateTextureOwner(this, request, filterMode, debugName);
     }
     #endregion
 }

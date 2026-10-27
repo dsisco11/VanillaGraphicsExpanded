@@ -2077,8 +2077,8 @@ between vertex and fragment stages: transmission 0, two-sided 4, smooth-normal 8
 zero defaults and use one fixture-owned single-frame publication with per-case writes.
 The original transformed-engine-main assertion remains runtime GLSL.
 
-Range publication continues to validate size and slot through `GpuUniformBuffer.BindPublicationRange`
-and `GpuSupport`, using the existing ring alignment. Native shader compilation/linking checks
+Range publication validates size and slot through `RHICommandContext.BindUniformSnapshot` and
+backend uniform publication, using cached capabilities and the existing ring alignment. Native shader compilation/linking checks
 per-stage and combined active block limits for the actual compiled variants. No secondary limits
 cache or allocation system is introduced.
 

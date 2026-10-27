@@ -99,7 +99,7 @@ internal sealed partial class OpenGLBackend
     /// <summary>Builds an exact unpack layout and rejects bytes insufficient for its last accessed texel.</summary>
     private static StateCache.PixelUnpackState ValidatePixelLayout(in RHITextureRegion region, RHIPixelEncoding encoding, nint byteCount, int rowPitch, int slicePitch)
     {
-        int pixelBytes = OpenGLPixelValues.PixelBytes(encoding);
+        int pixelBytes = encoding.BytesPerPixel;
         int tightRow = checked(region.Width * pixelBytes);
         int row = rowPitch == 0 ? tightRow : rowPitch;
         int slice = slicePitch == 0 ? checked(row * region.Height) : slicePitch;

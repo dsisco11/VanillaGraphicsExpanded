@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using OpenTK.Graphics.OpenGL;
 
@@ -49,7 +50,7 @@ internal sealed class MaterialAtlasPageTextures : IDisposable
             {
                 var result = TextureStreamingSystem.StageCopy(textureId, TextureUploadTarget.For2D(),
                     TextureUploadRegion.For2D(rect.X, rect.Y, rect.Width, rect.Height),
-                    PixelFormat.Rgba, PixelType.Float, rgba, TextureUploadPriority.Normal,
+                    PixelChannelLayout.Rgba, PixelComponentType.Float, rgba, TextureUploadPriority.Normal,
                     unpackAlignment: 4, textureOwner: MaterialParamsTexture);
                 if (result.Outcome == TextureStageOutcome.Rejected)
                     throw new InvalidOperationException($"Material upload was rejected: {result.RejectReason}.");

@@ -1,4 +1,6 @@
 using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
+using VanillaGraphicsExpanded.Rendering.RHI;
+using System.Runtime.CompilerServices;
 using VanillaGraphicsExpanded.Rendering;
 using OpenTK.Graphics.OpenGL;
 
@@ -28,9 +30,9 @@ internal static class TerrainMaterialParamsTextureBindingHook
     /// </summary>
     private const string NormalDepthSamplerUniform = "vge_normalDepthTex";
 
-    /// <summary>
-    /// Cached uniform location per shader program id (-1 means "not present" or not queried yet).
-    /// </summary>
+    /// <summary>Provides local complete-set storage without per-use heap allocation.</summary>
+    [InlineArray(4)] private struct TextureSlots { private RHISampledTextureSlot first; }
+
     private static readonly Dictionary<int, int> uniformLocationCache = new();
 
     /// <summary>
@@ -53,37 +55,21 @@ internal static class TerrainMaterialParamsTextureBindingHook
     /// <summary>Binds material and relief resources for the atlas selected by an engine terrain draw.</summary>
     internal static void BindAtlas(ShaderProgramBase __instance, int value)
     {
-        // Relief has an explicit linked-program allowlist and must reset missing pages too.
-        TerrainReliefBindings.Bind(__instance, value, MaterialAtlasSystem.Instance.TextureStore);
-        // Early-out if atlas texture id is invalid.
-        if (value == 0)
-        {
-            return;
-        }
-
-        // Early-out if shader program is not yet compiled or is being disposed.
-        int programId = __instance.ProgramId;
-        if (programId == 0)
-        {
-            return;
-        }
-
-        if (!MaterialAtlasSystem.Instance.IsInitialized)
-        {
-            return;
-        }
-
-        MaterialAtlasTextureStore store = MaterialAtlasSystem.Instance.TextureStore;
-        bool hasMaterialParams = store.TryGetMaterialParamsTextureId(value, out int materialTexId);
-        bool hasNormalDepth = store.TryGetNormalDepthTextureId(value, out int normalDepthTexId);
-
-        if (!hasMaterialParams && !hasNormalDepth)
-        {
-            return;
-        }
-
+        TextureSlots slots = default;
+        int slotCount = TerrainReliefBindings.Prepare(__instance, value, MaterialAtlasSystem.Instance.TextureStore, slots);
         try
         {
+            // Native program assignments are separate from the single validated resource publication.
+            int programId = __instance.ProgramId;
+            var system = MaterialAtlasSystem.Instance;
+            if (value == 0 || programId == 0 || !system.IsInitialized
+                || !system.TextureStore.TryGetPageTextures(value, out var selectedPage))
+            {
+                RHICommandContext.Current.BindSampledTextures(((ReadOnlySpan<RHISampledTextureSlot>)slots)[..slotCount]);
+                return;
+            }
+            bool hasMaterialParams = selectedPage.MaterialParamsTexture.IsValid;
+            bool hasNormalDepth = selectedPage.NormalDepthTexture?.IsValid == true;
             if (hasMaterialParams)
             {
                 if (!uniformLocationCache.TryGetValue(programId, out int materialUniformLoc))
@@ -94,8 +80,7 @@ internal static class TerrainMaterialParamsTextureBindingHook
 
                 if (materialUniformLoc >= 0)
                 {
-                    OpenGLImageBindings.ActiveTexture(StateCache.Current, MaterialTextureUnit);
-                    OpenGLImageBindings.BindTextureOnActiveUnit(StateCache.Current, TextureTarget.Texture2D, materialTexId);
+                    slots[slotCount++] = new(MaterialTextureUnit, selectedPage.MaterialParamsTexture);
                     OpenGLProgramAssignments.SetUnit(programId, materialUniformLoc, MaterialTextureUnit);
                 }
             }
@@ -103,7 +88,6 @@ internal static class TerrainMaterialParamsTextureBindingHook
             if (hasNormalDepth)
             {
                 // Capture for debug overlays (e.g., showing the currently active atlas page).
-                store.TryGetPageTextures(value, out var selectedPage);
                 lastBoundNormalDepth = selectedPage.NormalDepthTexture;
                 lastBoundAtlasTexId = value;
 
@@ -115,11 +99,14 @@ internal static class TerrainMaterialParamsTextureBindingHook
 
                 if (normalDepthUniformLoc >= 0)
                 {
-                    OpenGLImageBindings.ActiveTexture(StateCache.Current, NormalDepthTextureUnit);
-                    OpenGLImageBindings.BindTextureOnActiveUnit(StateCache.Current, TextureTarget.Texture2D, normalDepthTexId);
+                    // Relief and the atlas share this slot; retain its explicit nearest sampler.
+                    if (slotCount >= 3 && slots[2].Slot == NormalDepthTextureUnit)
+                        slots[2] = slots[2] with { Texture = selectedPage.NormalDepthTexture };
+                    else slots[slotCount++] = new(NormalDepthTextureUnit, selectedPage.NormalDepthTexture);
                     OpenGLProgramAssignments.SetUnit(programId, normalDepthUniformLoc, NormalDepthTextureUnit);
                 }
             }
+            RHICommandContext.Current.BindSampledTextures(((ReadOnlySpan<RHISampledTextureSlot>)slots)[..slotCount]);
         }
         catch
         {

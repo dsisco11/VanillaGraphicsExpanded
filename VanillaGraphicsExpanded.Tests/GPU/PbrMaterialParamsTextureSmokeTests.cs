@@ -73,7 +73,7 @@ public sealed class PbrMaterialParamsTextureSmokeTests
         Assert.Equal(0.75f, uploaded[2], 2);
 
         // Bind input texture (and clear any prior GL error state)
-        materialTex.Bind(0);
+        VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, materialTex, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)materialTex).Target))]);
         _ = GL.GetError();
 
         using var output = framework.CreateTestGBuffer(1, 1, PixelInternalFormat.Rgba16f, 1);

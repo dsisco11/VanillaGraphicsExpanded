@@ -936,7 +936,7 @@ internal sealed partial class LumonSceneFeedbackUpdateRenderer : IRenderer, IDis
         }
 
         RebuildSlotAssignmentsAndRecycleReassignedSlots(forceRecycleAll: true);
-        LumonSceneChunkSlotUniformState.Update(slotOriginMinChunk, slotDims, slotRing, slotGenerationTex.TextureId);
+        LumonSceneChunkSlotUniformState.Update(slotOriginMinChunk, slotDims, slotRing, slotGenerationTex);
     }
 
     private bool TryGetAnchorChunkCoord(out VectorInt3 chunkCoord)
@@ -1021,7 +1021,7 @@ internal sealed partial class LumonSceneFeedbackUpdateRenderer : IRenderer, IDis
         lastAnchorChunk = anchorChunk;
 
         RebuildSlotAssignmentsAndRecycleReassignedSlots(forceRecycleAll: false);
-        LumonSceneChunkSlotUniformState.Update(slotOriginMinChunk, slotDims, slotRing, slotGenerationTex.TextureId);
+        LumonSceneChunkSlotUniformState.Update(slotOriginMinChunk, slotDims, slotRing, slotGenerationTex);
     }
 
     /// <summary>Retires GPU page mappings only after the coordinator relinquishes this logical owner.</summary>
@@ -1986,7 +1986,6 @@ internal sealed partial class LumonSceneFeedbackUpdateRenderer : IRenderer, IDis
                 tilesPerAxis: (uint)tilesPerAxis,
                 tilesPerAtlas: (uint)tilesPerAtlas,
                 borderTexels: 0u);
-
 
 
             int gx = (tileSize + 7) / 8;

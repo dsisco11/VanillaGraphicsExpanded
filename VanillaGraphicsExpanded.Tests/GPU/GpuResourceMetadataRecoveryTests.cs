@@ -31,7 +31,7 @@ public sealed class GpuResourceMetadataRecoveryTests(HeadlessGLFixture fixture)
                 entry.Reader = reader;
                 buffer.Allocate(128);
                 Assert.Equal(0, reader.Reads);
-                using var binding = buffer.BindScope();
+                using var binding = StateCache.Current.BindBufferScope(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBufferValues.Target(buffer.Role), buffer.BufferId);
                 GL.GetBufferParameter(BufferTarget.ArrayBuffer, BufferParameterName.BufferSize, out int actualCapacity);
                 Assert.Equal(128, actualCapacity);
                 Assert.Equal(128, buffer.SizeBytes);
@@ -167,7 +167,7 @@ public sealed class GpuResourceMetadataRecoveryTests(HeadlessGLFixture fixture)
             var manager = GpuResourceManagerSystem.CurrentManager!;
             var entry = Assert.IsType<GpuResourceMetadataEntry<GpuTextureMetadata>>(manager.GetResourceRegistration(texture));
             ulong previousStorageRevision = entry.StorageRevision;
-            using (texture.BindScope(0))
+            using (StateCache.Current.BindTextureScope(((GpuTextureRef)texture).Target, 0, texture.TextureId))
             using (var operation = new GpuResourceManager.MetadataOperation<GpuTextureMetadata>(texture, GpuMetadataChange.Storage))
             {
                 new VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBackend(StateCache.Current).DefineTextureImages(texture.TextureId, new GpuTextureInitialization { Target = TextureTarget.Texture2D, AllocationMode = GpuTextureAllocationMode.Mutable, InternalFormat = PixelInternalFormat.Rgba8, Width = 12, Height = 6, Levels = 1 }.Resolve(), operation);

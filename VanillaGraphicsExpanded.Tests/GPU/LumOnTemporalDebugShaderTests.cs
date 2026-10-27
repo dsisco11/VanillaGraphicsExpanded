@@ -37,7 +37,7 @@ public sealed class LumOnTemporalDebugShaderTests : RenderTestBase
             inputs.Capture(identity, identity, identity, identity, history.PreviousViewProjection, identity,
                 new System.Numerics.Vector2(1, 1), 0, 1, System.Numerics.Vector3.Zero,
                 System.Numerics.Vector3.Zero, 0);
-            Assert.True(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLRHIContext.BindEngineUniform(GpuBindingRegistry.Ubo.Frame, inputs.Capture()));
+            Assert.True(VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindUniformSnapshot(GpuBindingRegistry.Ubo.Frame, inputs.Capture()));
             GL.BindBuffer(BufferTarget.ShaderStorageBuffer, output);
             GL.BufferData(BufferTarget.ShaderStorageBuffer, 8, IntPtr.Zero, BufferUsageHint.DynamicRead);
             GL.BindBufferBase(BufferRangeTarget.ShaderStorageBuffer, 0, output);

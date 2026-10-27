@@ -105,7 +105,8 @@ public sealed class TerrainChunkSlotBindingTests : RenderTestBase
         world.SetupGet(value => value.ElapsedMilliseconds).Returns(0L);
         float[] identity = LumOnTestInputFactory.CreateIdentityMatrix();
         var render = RuntimeEngineServices.Render(1, [], () => identity, () => identity, () => { });
-        var api = RuntimeEngineServices.Client(assets.Api, events.Api, world.Object, render, assets.Api.Shader);
+        var cameraWorld = new RuntimeCameraWorld(RuntimeEngineServices.CameraPlayer(() => camera));
+        var api = RuntimeEngineServices.Client(assets.Api, events.Api, cameraWorld.World, render, assets.Api.Shader);
         using var publisher = new VgeFrameRenderer(api);
         var hook = new Harmony("tests.terrain-frame." + Guid.NewGuid());
         FrameShaderBindingHook.ApplyPatches(hook, _ => { });
@@ -120,8 +121,8 @@ public sealed class TerrainChunkSlotBindingTests : RenderTestBase
             using var inputs = new FixtureUniformInputs(program, 32);
             Assert.True(linked != 0, GL.GetProgramInfoLog(program));
             generations.UploadDataImmediate(Enumerable.Range(0, 289).Select(i => (uint)(1000 + i)).ToArray());
-            LumonSceneChunkSlotUniformState.Update(new(15992, 0, 15991), new(17, 1, 17), new(3, 0, 5), generations.TextureId);
-            if (face >= 0) LumonSceneChunkSlotUniformState.Update(new(-2, -2, -2), new(5, 5, 5), new(1, 2, 3), generations.TextureId);
+            LumonSceneChunkSlotUniformState.Update(new(15992, 0, 15991), new(17, 1, 17), new(3, 0, 5), generations);
+            if (face >= 0) LumonSceneChunkSlotUniformState.Update(new(-2, -2, -2), new(5, 5, 5), new(1, 2, 3), generations);
             GL.BindBuffer(BufferTarget.ShaderStorageBuffer, output);
             GL.BufferData(BufferTarget.ShaderStorageBuffer, 32, IntPtr.Zero, BufferUsageHint.DynamicRead);
             GL.BindBufferBase(BufferRangeTarget.ShaderStorageBuffer, 0, output);
@@ -133,6 +134,7 @@ public sealed class TerrainChunkSlotBindingTests : RenderTestBase
             {
                 if (movingPlayer) camera = camera with { PositionX = surfaceX + displacement, PositionZ = surfaceZ - displacement,
                     CameraX = surfaceX + displacement + .1, CameraY = surfaceY + 1.6 + displacement * .01, CameraZ = surfaceZ - displacement - .2 };
+                cameraWorld.RefreshCamera();
                 events.Render(EnumRenderStage.Before);
                 events.Render(EnumRenderStage.Opaque);
                 // A zeroed foreign object block reproduces the missing window binding deterministically.

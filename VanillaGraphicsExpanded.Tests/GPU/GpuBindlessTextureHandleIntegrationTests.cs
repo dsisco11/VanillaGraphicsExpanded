@@ -36,8 +36,10 @@ public class GpuBindlessTextureHandleIntegrationTests
         Assert.True(handle.IsResident);
         Assert.True(GL.Arb.IsTextureHandleResident(handle.Handle));
 
+        ulong issued = handle.Handle;
         handle.Dispose();
 
-        Assert.False(GL.Arb.IsTextureHandleResident(handle.Handle));
+        Assert.False(GL.Arb.IsTextureHandleResident(issued));
+        Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
 }

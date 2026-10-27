@@ -189,15 +189,15 @@ public sealed class PreparedSubmissionTests(HeadlessGLFixture fixture) : RenderT
         Assert.True(cache.TryGetCachedIndexedBuffer(BufferRangeTarget.ShaderStorageBuffer, 0, out int cleared, out _, out _));
         Assert.Equal(0, cleared);
         using var image = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba32f, Width = System.Math.Max(1, 1), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
-        image.BindImageUnit(7, TextureAccess.WriteOnly);
+        VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageSlotBindings.BindImageTexture(StateCache.Current, 7, image.TextureId, 0, false, 0, TextureAccess.WriteOnly, (SizedInternalFormat)((GpuTextureRef)image).RequireImage(0).Format);
 #if DEBUG
         count = cache.ResourceSlotBindCount;
 #endif
-        image.BindImageUnit(7, TextureAccess.WriteOnly);
+        VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageSlotBindings.BindImageTexture(StateCache.Current, 7, image.TextureId, 0, false, 0, TextureAccess.WriteOnly, (SizedInternalFormat)((GpuTextureRef)image).RequireImage(0).Format);
 #if DEBUG
         Assert.Equal(count, cache.ResourceSlotBindCount);
 #endif
-        image.BindImageUnit(7, TextureAccess.ReadOnly);
+        VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageSlotBindings.BindImageTexture(StateCache.Current, 7, image.TextureId, 0, false, 0, TextureAccess.ReadOnly, (SizedInternalFormat)((GpuTextureRef)image).RequireImage(0).Format);
 #if DEBUG
         Assert.Equal(count + 1, cache.ResourceSlotBindCount);
 #endif

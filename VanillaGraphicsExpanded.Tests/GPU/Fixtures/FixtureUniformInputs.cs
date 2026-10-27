@@ -34,7 +34,7 @@ internal sealed class FixtureUniformInputs : CpuUniformBuffer
     /// <summary>Establishes the immutable block range through the current test frame's allocator.</summary>
     internal void Publish()
     {
-        if (!VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLRHIContext.BindEngineUniform(GpuBindingRegistry.Ubo.ShaderInputs, Capture()))
+        if (!VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindUniformSnapshot(GpuBindingRegistry.Ubo.ShaderInputs, Capture()))
             throw new InvalidOperationException("Fixture inputs require an open uniform publication frame.");
     }
     #endregion

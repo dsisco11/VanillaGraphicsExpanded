@@ -1,4 +1,3 @@
-using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Diagnostics;
@@ -17,11 +16,10 @@ internal sealed class GpuIndirectBuffer : GpuBufferObject
     /// <summary>Declares buffer policy before manager-owned native creation.</summary>
     internal GpuIndirectBuffer(BufferUsage usage, string? debugName, BufferRole role = BufferRole.IndirectDraw)
     {
-        target = OpenGLBufferValues.Target(role);
+        Role = role;
         allocationUsage = usage;
         this.debugName = debugName;
     }
-
 
 
     /// <summary>

@@ -30,7 +30,7 @@ public sealed class TerrainDisplacementNumericalTests : RenderTestBase
         using var inputs = new PackedUniformBuffer(176);
         byte[] inputBytes = new byte[176];
         using var camera = TestFrameCamera.CreateIdentity(128,128);
-        Assert.True(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLRHIContext.BindEngineUniform(GpuBindingRegistry.Ubo.Frame, camera.Capture()));
+        Assert.True(VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindUniformSnapshot(GpuBindingRegistry.Ubo.Frame, camera.Capture()));
         using var shaders=new TerrainShaderTestFixture();
         int vertex=shaders.Load(ShaderType.VertexShader,"tests/complete-state.vsh");
         int fragment=shaders.Load(ShaderType.FragmentShader,"tests/displacement-metric.fsh");
@@ -45,7 +45,7 @@ public sealed class TerrainDisplacementNumericalTests : RenderTestBase
         UboPacking.WriteVec2(inputBytes, 144,8f,24f);
         GL.Disable(EnableCap.DepthTest);GL.Disable(EnableCap.Blend);GL.Disable(EnableCap.CullFace);
         inputs.SetBytes(inputBytes);
-        Assert.True(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLRHIContext.BindEngineUniform(GpuBindingRegistry.Ubo.ShaderInputs, inputs.Capture()));
+        Assert.True(VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindUniformSnapshot(GpuBindingRegistry.Ubo.ShaderInputs, inputs.Capture()));
         GL.DrawArrays(PrimitiveType.Triangles,0,3);float[] result=target[0].ReadPixels();
         float radial=MathF.Sqrt(distance*distance+.25f),t=Math.Clamp((radial-8f)/16f,0f,1f);
         float expected=1f+(Math.Clamp(128f/Math.Max(.05f,radial),1f,7f)-1f)*(1f-t*t*(3f-2f*t));
@@ -81,7 +81,7 @@ public sealed class TerrainDisplacementNumericalTests : RenderTestBase
         UboPacking.WriteVec2(bytes,136,8f,8f);
         UboPacking.WriteVec2(bytes,144,8f,24f);
         inputs.SetBytes(bytes);
-        Assert.True(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLRHIContext.BindEngineUniform(GpuBindingRegistry.Ubo.ShaderInputs, inputs.Capture()));
+        Assert.True(VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindUniformSnapshot(GpuBindingRegistry.Ubo.ShaderInputs, inputs.Capture()));
         // A shadow pass precedes world publication and must not activate the shared camera block.
         OpenGLBufferBindings.BindBufferBase(StateCache.Current, BufferRangeTarget.UniformBuffer,GpuBindingRegistry.Ubo.Frame,0);
         Assert.Equal(-1,GL.GetUniformBlockIndex(program.ProgramId,"VgeFrameUBO"));
@@ -112,7 +112,7 @@ public sealed class TerrainDisplacementNumericalTests : RenderTestBase
         using var inputs = new PackedUniformBuffer(176);
         byte[] inputBytes = new byte[176];
         using var camera = TestFrameCamera.CreateIdentity(128,128);
-        Assert.True(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLRHIContext.BindEngineUniform(GpuBindingRegistry.Ubo.Frame, camera.Capture()));
+        Assert.True(VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindUniformSnapshot(GpuBindingRegistry.Ubo.Frame, camera.Capture()));
         using var shaders = new TerrainShaderTestFixture();
         int vertex=shaders.Load(ShaderType.VertexShader,"tests/complete-state.vsh");
         int fragment=shaders.Load(ShaderType.FragmentShader,"tests/displacement-height.fsh");
@@ -128,7 +128,7 @@ public sealed class TerrainDisplacementNumericalTests : RenderTestBase
             using var target=framework.CreateTestGBuffer(1,1,PixelInternalFormat.Rgba32f);
             var layout = BuiltShaderFixture.Layout(program,"tests/displacement-height.fsh");
             FramebufferTestSetup.BindForEngineRendering(target); OpenGLProgramSelection.Select(StateCache.Current, program); OpenGLVertexSelection.Bind(StateCache.Current, vao);
-            atlas.Bind(0); ShaderTestFramework.SetUniform(layout.GetUniformLocation(program,"vge_normalDepthTex"),0);
+            VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, atlas, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)atlas).Target))]); ShaderTestFramework.SetUniform(layout.GetUniformLocation(program,"vge_normalDepthTex"),0);
             UboPacking.WriteVec3(inputBytes, 160,u,v,amplitude);
             UboPacking.WriteVec2(inputBytes, 144,10f,20f);
             UboPacking.WriteVec2(inputBytes, 136,16f,8f);
@@ -136,7 +136,7 @@ public sealed class TerrainDisplacementNumericalTests : RenderTestBase
             System.Runtime.InteropServices.MemoryMarshal.AsBytes(identity.AsSpan()).CopyTo(inputBytes.AsSpan(64));
             GL.Disable(EnableCap.DepthTest); GL.Disable(EnableCap.Blend); GL.Disable(EnableCap.CullFace);
             inputs.SetBytes(inputBytes);
-            Assert.True(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLRHIContext.BindEngineUniform(GpuBindingRegistry.Ubo.ShaderInputs, inputs.Capture()));
+            Assert.True(VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindUniformSnapshot(GpuBindingRegistry.Ubo.ShaderInputs, inputs.Capture()));
             GL.DrawArrays(PrimitiveType.Triangles,0,3);
             var actual=target[0].ReadPixels();
             Assert.InRange(actual[0],expected-.00001f,expected+.00001f);

@@ -12,9 +12,9 @@ internal sealed class GpuVbo : GpuBufferObject
 {
     #region Internal API
     /// <summary>Declares vertex-buffer policy without realizing a native resource.</summary>
-    internal GpuVbo(BufferTarget target, BufferUsage usage, string? debugName)
+    internal GpuVbo(BufferRole role, BufferUsage usage, string? debugName)
     {
-        this.target = target;
+        Role = role;
         allocationUsage = usage;
         this.debugName = debugName;
     }

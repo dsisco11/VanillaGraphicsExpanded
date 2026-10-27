@@ -43,32 +43,6 @@ internal static class OpenGLPixelValues
         PixelComponentType.UnsignedInt5999 => Native.PixelType.UnsignedInt5999Rev,
         _ => throw new ArgumentOutOfRangeException(nameof(value))
     };
-    /// <summary>Computes bytes per pixel while rejecting mismatched packed encodings.</summary>
-    internal static int PixelBytes(RHIPixelEncoding encoding)
-    {
-        _ = Channels(encoding.Channels);
-        _ = Type(encoding.Type);
-        int components = encoding.Channels switch
-        {
-            PixelChannelLayout.Red or PixelChannelLayout.RedInteger or PixelChannelLayout.Depth or PixelChannelLayout.Stencil => 1,
-            PixelChannelLayout.Rg or PixelChannelLayout.RgInteger => 2,
-            PixelChannelLayout.Rgb or PixelChannelLayout.RgbInteger or PixelChannelLayout.Bgr => 3,
-            PixelChannelLayout.Rgba or PixelChannelLayout.RgbaInteger or PixelChannelLayout.Bgra => 4,
-            _ => 0
-        };
-        if (encoding.Type is PixelComponentType.UnsignedInt248 or PixelComponentType.Float32UnsignedInt248)
-        {
-            if (encoding.Channels != PixelChannelLayout.DepthStencil) throw new ArgumentException("Packed depth/stencil requires both components.");
-            return encoding.Type == PixelComponentType.Float32UnsignedInt248 ? 8 : 4;
-        }
-        if (components == 0) throw new ArgumentException("Depth/stencil requires a packed representation.");
-        if (encoding.Type is PixelComponentType.UnsignedInt2101010 or PixelComponentType.UnsignedInt10F11F11F or PixelComponentType.UnsignedInt5999)
-        {
-            if (components != (encoding.Type == PixelComponentType.UnsignedInt2101010 ? 4 : 3)) throw new ArgumentException("Packed pixel component count is incompatible.");
-            return 4;
-        }
-        return components * (encoding.Type switch { PixelComponentType.Byte or PixelComponentType.UnsignedByte => 1, PixelComponentType.Short or PixelComponentType.UnsignedShort or PixelComponentType.Half => 2, _ => 4 });
-    }
     /// <summary>Translates existing wrapper pixel policy into semantic client encoding.</summary>
     internal static RHIPixelEncoding Encoding(OpenTK.Graphics.OpenGL.PixelFormat channels, OpenTK.Graphics.OpenGL.PixelType type) => new(
         channels switch

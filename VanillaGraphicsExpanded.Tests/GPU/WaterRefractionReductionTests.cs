@@ -83,7 +83,7 @@ public sealed class WaterRefractionReductionTests(HeadlessGLFixture fixture, ITe
             using var indices=RHICommandContext.Current.CreateIndexBuffer(new RHIBufferDescription { Role = BufferRole.Index, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = "Test.WaterReduction.Indices" }).RequireResource();
             using var geometry=StateCache.Current.BindVertexArrayScope(vao.VertexArrayId);
             indices.UploadIndices(new uint[] {0,1,2});
-            using(vertices.BindScope())
+            using(StateCache.Current.BindBufferScope(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBufferValues.Target(vertices.Role), vertices.BufferId))
             {
                 vertices.UploadData(new float[] {-1,-1,0,3,-1,0,-1,3,0});
                 using (StateCache.Current.BindVertexArrayScope(vao.VertexArrayId)) OpenGLVertexCalls.ExecuteCoreVertexAttribPointer(0,3,VertexAttribPointerType.Float,false,12,0);

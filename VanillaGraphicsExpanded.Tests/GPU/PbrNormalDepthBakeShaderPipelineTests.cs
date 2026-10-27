@@ -73,13 +73,13 @@ public sealed class PbrNormalDepthBakeShaderPipelineTests : RenderTestBase
 
         GL.UseProgram(programId);
 
-        heightTex.Bind(0);
+        VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, heightTex, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)heightTex).Target))]);
 
         using var objectParamsUbo = new ObjectParamsUbo($"Tests.Pbr.NormalDepthBake.PackParams.{programId}");
 
         // Ensure the pack shader does not take the alpha-cutoff early-out path.
         using var albedoAtlas = CreateSolidAlbedoAtlas(w, h, alpha: 1f);
-        albedoAtlas.Bind(1);
+        VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(1, albedoAtlas, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)albedoAtlas).Target))]);
 
         int locHeight = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "u_height");
         int locAlbedoAtlas = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "u_albedoAtlas");
@@ -247,11 +247,11 @@ public sealed class PbrNormalDepthBakeShaderPipelineTests : RenderTestBase
         GL.Clear(ClearBufferMask.ColorBufferBit);
 
         GL.UseProgram(programId);
-        heightTex.Bind(0);
+        VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, heightTex, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)heightTex).Target))]);
 
         using var objectParamsUbo = new ObjectParamsUbo($"Tests.Pbr.NormalDepthBake.PackParams.{programId}");
         using var albedoAtlas = CreateSolidAlbedoAtlas(w, h, alpha: 1f);
-        albedoAtlas.Bind(1);
+        VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(1, albedoAtlas, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)albedoAtlas).Target))]);
 
         int locHeight = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "u_height");
         int locAlbedoAtlas = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "u_albedoAtlas");
@@ -303,11 +303,11 @@ public sealed class PbrNormalDepthBakeShaderPipelineTests : RenderTestBase
         GL.Clear(ClearBufferMask.ColorBufferBit);
 
         GL.UseProgram(programId);
-        heightTex.Bind(0);
+        VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, heightTex, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)heightTex).Target))]);
 
         using var objectParamsUbo = new ObjectParamsUbo($"Tests.Pbr.NormalDepthBake.PackParams.{programId}");
         using var albedoAtlas = CreateSolidAlbedoAtlas(w, h, alpha: 1f);
-        albedoAtlas.Bind(1);
+        VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(1, albedoAtlas, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)albedoAtlas).Target))]);
 
         int locHeight = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "u_height");
         int locAlbedoAtlas = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "u_albedoAtlas");
@@ -386,7 +386,7 @@ public sealed class PbrNormalDepthBakeShaderPipelineTests : RenderTestBase
         GL.Clear(ClearBufferMask.ColorBufferBit);
 
         GL.UseProgram(normalizeProgram.ProgramId);
-        hTex.Bind(0);
+        VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, hTex, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)hTex).Target))]);
 
         using var normalizeParamsUbo = new ObjectParamsUbo($"Tests.Pbr.NormalDepthBake.NormalizeParams.{normalizeProgram.ProgramId}");
 
@@ -417,10 +417,10 @@ public sealed class PbrNormalDepthBakeShaderPipelineTests : RenderTestBase
 
         using var packParamsUbo = new ObjectParamsUbo($"Tests.Pbr.NormalDepthBake.PackParams.{packProgram.ProgramId}");
 
-        hnTex.Bind(0);
+        VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, hnTex, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)hnTex).Target))]);
 
         using var albedoAtlas2 = CreateSolidAlbedoAtlas(w, h, alpha: 1f);
-        albedoAtlas2.Bind(1);
+        VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(1, albedoAtlas2, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)albedoAtlas2).Target))]);
 
         int locHeight = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(packProgram.ProgramId, "u_height");
         int locAlbedoAtlas2Loc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(packProgram.ProgramId, "u_albedoAtlas");
@@ -517,11 +517,11 @@ public sealed class PbrNormalDepthBakeShaderPipelineTests : RenderTestBase
 
         GL.UseProgram(programId);
 
-        heightTex.Bind(0);
+        VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, heightTex, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)heightTex).Target))]);
 
         using var objectParamsUbo = new ObjectParamsUbo($"Tests.Pbr.NormalDepthBake.PackParams.{programId}");
         using var albedoAtlas = CreateSolidAlbedoAtlas(w, h, alpha: 1f);
-        albedoAtlas.Bind(1);
+        VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(1, albedoAtlas, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)albedoAtlas).Target))]);
 
         int locHeight = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "u_height");
         int locAlbedoAtlasLoc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "u_albedoAtlas");

@@ -25,9 +25,6 @@ internal static partial class MaterialAtlasNormalDepthGpuBuilder
     /// <summary>Reads the solved field and measures its distribution for height normalization.</summary>
     private static (float mean, float center, float min, float max) ComputeStatsR32f(DynamicTexture2D tex)
     {
-        using var framebuffer = StateCache.Current.BindFramebufferScope();
-        using var pack = OpenGLPixelLayouts.PackScope(StateCache.Current, new(1));
-        using var transfer = StateCache.Current.BindBufferScope(BufferTarget.PixelPackBuffer, 0);
         float[] data = tex.ReadPixels();
         if (data.Length == 0) return (0f, 0f, 0f, 0f);
 

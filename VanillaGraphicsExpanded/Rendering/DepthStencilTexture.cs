@@ -15,7 +15,6 @@ public sealed class DepthStencilTexture : DynamicTexture2D
         : base(width, height, ValidateFormat(format), TextureFilterMode.Nearest, debugName) { }
 
 
-
     /// <summary>Reads the stencil aspect as unsigned bytes.</summary>
     public byte[] ReadStencilPixels()
     {
@@ -29,10 +28,8 @@ public sealed class DepthStencilTexture : DynamicTexture2D
     }
 
 
-
     /// <inheritdoc />
-    protected override PixelFormat ReadbackFormat => PixelFormat.DepthComponent;
-
+    protected override RHI.RHIPixelEncoding ReadbackEncoding => new(RHI.PixelChannelLayout.Depth, RHI.PixelComponentType.Float);
 
 
     /// <summary>Rejects formats without packed depth-stencil storage.</summary>

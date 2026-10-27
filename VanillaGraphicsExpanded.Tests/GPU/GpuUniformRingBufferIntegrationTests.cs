@@ -80,7 +80,7 @@ public sealed class GpuUniformRingBufferIntegrationTests : RenderTestBase
     }
 
     [Fact]
-    public void UniformRingBuffer_TryBindUniformBlockRange_MissingBlock_IsNoOp()
+    public void UnusedUniformAllocationDoesNotBindInactiveBlock()
     {
         EnsureContextValid();
 
@@ -114,8 +114,7 @@ public sealed class GpuUniformRingBufferIntegrationTests : RenderTestBase
         var alloc = ring.AllocateAndWrite(uboData);
         Assert.True(alloc.IsValid);
 
-        bool bound = layout.TryBindUniformBlockRange(programId, "TestParams", alloc.Buffer, alloc.OffsetBytes, alloc.SizeBytes);
-        Assert.False(bound);
+        Assert.False(layout.ResolveUniformBlockActive(programId, "TestParams").IsActive);
 
         GL.UseProgram(programId);
         GL.DispatchCompute(1, 1, 1);

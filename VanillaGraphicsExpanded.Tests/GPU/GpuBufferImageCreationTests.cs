@@ -57,7 +57,7 @@ public sealed class GpuBufferImageCreationTests(HeadlessGLFixture fixture)
             Assert.Equal(8, renderbuffer.Width);
             Assert.Equal(4, renderbuffer.Height);
             Assert.Equal(RenderbufferStorage.Rgba8, renderbuffer.Storage);
-            using var binding = renderbuffer.BindScope();
+            using var binding = StateCache.Current.BindRenderbufferScope(renderbuffer.RenderbufferId);
             GL.GetRenderbufferParameter(RenderbufferTarget.Renderbuffer, RenderbufferParameterName.RenderbufferSamples, out int samples);
             Assert.True(samples >= 3);
             Assert.Equal(samples, renderbuffer.Samples);

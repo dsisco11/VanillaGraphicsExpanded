@@ -33,7 +33,7 @@ public sealed class SurfaceCacheDebugBindingTests : LumOnShaderFunctionalTestBas
         using var surfaceInput1 = LayeredTestTexture.Create(sentinel, null, null);
         program.GBufferSurface = surfaceInput1;
         UpdateAndBindLumOnFrameUbo(program);
-        sentinel.Bind(unit);
+        VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(unit, sentinel, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)sentinel).Target))]);
         Set(texture);
         using var active = ShaderBindingTestPipeline.Create(program);
         RHICommandContext.Current.SetPipeline(active);

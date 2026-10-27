@@ -104,7 +104,6 @@ public sealed partial class PBRCompositeRenderer : IRenderer, IDisposable
 
         // Preparation may allocate and bind FBOs, but never publishes color or changes
         // the frame convention. The frame owner must also prepare the other producers.
-        using var bindings = StateCache.Current.BindFramebufferScope();
         if (!PrepareTargets(primary)) return false;
         var display = GpuShaderProgramLibraries.Get<PBRDisplayResolveShaderProgram>(capi, "pbr_display_resolve");
         // The pre-overlay world capture uses the environment fallback even when

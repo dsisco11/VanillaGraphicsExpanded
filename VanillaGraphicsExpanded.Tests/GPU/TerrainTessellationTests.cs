@@ -298,7 +298,7 @@ public sealed class TerrainTessellationTests : RenderTestBase
             using var framework = new ShaderTestFramework();
             using var target = framework.CreateTestGBuffer(16, 16, PixelInternalFormat.Rgba32f, 2);
             using var camera = TestFrameCamera.CreateIdentity(16,16);
-            Assert.True(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLRHIContext.BindEngineUniform(GpuBindingRegistry.Ubo.Frame, camera.Capture()));
+            Assert.True(VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindUniformSnapshot(GpuBindingRegistry.Ubo.Frame, camera.Capture()));
             FramebufferTestSetup.BindForEngineRendering(target);
             GL.Disable(EnableCap.DepthTest); GL.Disable(EnableCap.Blend); GL.Disable(EnableCap.CullFace);
             OpenGLVertexSelection.Bind(StateCache.Current, vao);

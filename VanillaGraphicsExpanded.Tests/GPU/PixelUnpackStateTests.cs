@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
@@ -91,7 +92,7 @@ public sealed class PixelUnpackStateTests(HeadlessGLFixture fixture) : RenderTes
             byte[] second = [44, 55, 66, 255];
             first.CopyTo(source, 0); second.CopyTo(source, 16);
             manager.Enqueue(new(texture, TextureUploadTarget.For2DArray(), TextureUploadRegion.For2DArray(0, 0, 0, 1, 1, 2),
-                PixelFormat.Rgba, PixelType.UnsignedByte, TextureUploadData.From(source), UnpackRowLength: 2, UnpackImageHeight: 2));
+                PixelChannelLayout.Rgba, PixelComponentType.UnsignedByte, TextureUploadData.From(source), UnpackRowLength: 2, UnpackImageHeight: 2));
             manager.TickOnRenderThread();
 #if DEBUG
             Assert.Equal(1, manager.GetDiagnosticsSnapshot().Uploaded);

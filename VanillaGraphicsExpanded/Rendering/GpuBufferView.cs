@@ -1,4 +1,3 @@
-using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System;
 using System.Diagnostics;
 
@@ -82,44 +81,5 @@ public class GpuBufferView : GpuResource<GpuTextureMetadata>, IDisposable
 #endif
     }
 
-
-
-
-
-    /// <summary>
-    /// Binds this view to a texture unit for sampling.
-    /// </summary>
-    public void Bind(int unit)
-    {
-        if (!IsValid)
-        {
-            Debug.WriteLine("[GpuBufferView] Attempted to bind disposed or invalid view");
-            return;
-        }
-
-        OpenGLImageBindings.BindTexture(StateCache.Current, TextureTarget.TextureBuffer, unit, textureId);
-    }
-
-    /// <summary>
-    /// Binds this buffer texture to an image unit via <c>glBindImageTexture</c>.
-    /// </summary>
-    /// <remarks>
-    /// Buffer textures always bind with <c>level=0</c>, <c>layered=false</c>, <c>layer=0</c>.
-    /// </remarks>
-    public void BindImageUnit(int unit, TextureAccess access = TextureAccess.ReadOnly)
-    {
-        if (!IsValid)
-        {
-            Debug.WriteLine("[GpuBufferView] Attempted to bind disposed or invalid view as image");
-            return;
-        }
-
-        if (unit < 0)
-        {
-            throw new ArgumentOutOfRangeException(nameof(unit), unit, "Image unit must be >= 0.");
-        }
-
-        OpenGLImageSlotBindings.BindImageTexture(StateCache.Current, unit, textureId, level: 0, layered: false, layer: 0, access: access, format: format);
-    }
 
 }

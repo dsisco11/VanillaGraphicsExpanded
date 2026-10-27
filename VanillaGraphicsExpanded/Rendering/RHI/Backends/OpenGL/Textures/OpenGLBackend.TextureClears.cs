@@ -15,7 +15,7 @@ internal sealed partial class OpenGLBackend
         var owner = destination.Resource!;
         owner.RequireOriginalContext();
         ValidateTextureRegion(metadata, region);
-        if (value.Length != OpenGLPixelValues.PixelBytes(encoding)) throw new ArgumentException("Clear requires one encoded pixel value.");
+        if (value.Length != encoding.BytesPerPixel) throw new ArgumentException("Clear requires one encoded pixel value.");
         cache.RequireResourceOperationAvailable(GpuResourceKind.Texture, owner.ResourceId);
         bool array = metadata.Target == OpenTK.Graphics.OpenGL.TextureTarget.Texture1DArray;
         fixed (byte* bytes = value)

@@ -43,7 +43,12 @@ internal static class OpenGLImageBindings
     internal static void BindTexture(StateCache cache, TextureTarget target, int unit, int texture, GpuSampler? sampler)
     {
         BindTexture(cache, target, unit, texture);
-        if (texture != 0 && sampler is not null && sampler.TryBind(unit)) return;
+        if (texture != 0 && sampler is not null)
+        {
+            _ = GpuResourceManager.RequireSamplerReferenceMetadata(sampler);
+            BindSampler(cache, unit, sampler.SamplerId);
+            return;
+        }
         BindSampler(cache, unit, 0);
     }
     /// <summary>Clears only the selected target and its sampler policy.</summary>

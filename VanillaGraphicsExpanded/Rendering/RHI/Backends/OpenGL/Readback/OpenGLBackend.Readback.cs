@@ -16,7 +16,7 @@ internal sealed partial class OpenGLBackend
         {
             var metadata = request.Texture.RequireMetadata();
             ValidateTextureRegion(metadata, request.Region);
-            int pixelBytes = OpenGLPixelValues.PixelBytes(request.Encoding);
+            int pixelBytes = request.Encoding.BytesPerPixel;
             int row = request.RowPitch == 0 ? checked(request.Region.Width * pixelBytes) : request.RowPitch;
             int slice = request.SlicePitch == 0 ? checked(row * request.Region.Height) : request.SlicePitch;
             bytes = checked((request.Region.Depth - 1) * slice + (request.Region.Height - 1) * row + request.Region.Width * pixelBytes);

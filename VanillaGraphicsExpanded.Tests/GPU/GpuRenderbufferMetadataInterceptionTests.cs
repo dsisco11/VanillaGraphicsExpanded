@@ -33,7 +33,7 @@ public sealed class GpuRenderbufferMetadataInterceptionTests(HeadlessGLFixture f
             int firstChanges = 0, secondChanges = 0;
             firstFramebuffer.AttachmentsChanged += () => firstChanges++;
             secondFramebuffer.AttachmentsChanged += () => secondChanges++;
-            using (texture.BindScope(0))
+            using (StateCache.Current.BindTextureScope(((GpuTextureRef)texture).Target, 0, texture.TextureId))
             using (var operation = new GpuResourceManager.MetadataOperation<GpuTextureMetadata>(texture, GpuMetadataChange.Storage))
                 new VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBackend(StateCache.Current).DefineTextureImages(texture.TextureId, new GpuTextureInitialization { Target = TextureTarget.Texture2D, AllocationMode = GpuTextureAllocationMode.Mutable, InternalFormat = PixelInternalFormat.Rgba8, Width = 8, Height = 4, Levels = 1 }.Resolve(), operation);
             var manager = GpuResourceManagerSystem.CurrentManager!;

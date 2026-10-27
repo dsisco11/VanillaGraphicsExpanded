@@ -170,7 +170,7 @@ public sealed class RenderPassLifetimeTests(HeadlessGLFixture fixture) : RenderT
         using var image = commands.CreateRenderbuffer(new() { Format = TextureFormat.Rgba8, Width = 4, Height = 4, Samples = requested }).RequireResource();
         var pass = new RHIRenderPassDescription([new(Image: RHIAttachment.FromRenderbuffer(image))]);
         int actual;
-        using (image.BindScope()) GL.GetRenderbufferParameter(RenderbufferTarget.Renderbuffer, RenderbufferParameterName.RenderbufferSamples, out actual);
+        using (StateCache.Current.BindRenderbufferScope(image.RenderbufferId)) GL.GetRenderbufferParameter(RenderbufferTarget.Renderbuffer, RenderbufferParameterName.RenderbufferSamples, out actual);
         Assert.Equal(Math.Max(1, actual), commands.DescribeRenderTargets(pass).Samples);
     }
     #endregion

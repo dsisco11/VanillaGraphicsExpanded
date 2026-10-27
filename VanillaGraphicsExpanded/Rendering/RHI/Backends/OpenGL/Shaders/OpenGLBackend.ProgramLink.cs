@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Runtime.CompilerServices;
 using OpenTK.Graphics.OpenGL4;
 using VanillaGraphicsExpanded.Rendering.Integration;
 
@@ -8,6 +9,8 @@ namespace VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 /// <summary>Owns deferred program linking without looking up completion by a reusable numeric name.</summary>
 internal sealed partial class OpenGLBackend
 {
+    private readonly ConditionalWeakTable<GpuProgramObject, PendingProgramLink> pendingProgramLinks = new();
+
     #region Internal API
     /// <summary>Submits a link and explicitly supersedes any earlier pending completion.</summary>
     internal unsafe void SubmitProgramExecutable(GpuProgramObject program, RHIShaderBinary? binary = null)
@@ -20,7 +23,8 @@ internal sealed partial class OpenGLBackend
             && (entry.OperationInProgress || entry.CompletionInProgress))
             throw new InvalidOperationException("A program operation is already in progress.");
         var pending = new PendingProgramLink(program);
-        program.PendingLink = pending;
+        pendingProgramLinks.Remove(program);
+        pendingProgramLinks.Add(program, pending);
         var guard = cache.EnterResourceOperation(new(GpuResourceKind.Program, program.ProgramId));
         var tracked = pending.Entry as GpuResourceMetadataEntry<GpuProgramMetadata>;
         if (tracked is not null) tracked.OperationInProgress = true;
@@ -40,7 +44,7 @@ internal sealed partial class OpenGLBackend
             }
             RequireContext();
         }
-        catch { if (ReferenceEquals(program.PendingLink, pending)) program.PendingLink = null; throw; }
+        catch { if (pendingProgramLinks.TryGetValue(program, out var current) && ReferenceEquals(current, pending)) pendingProgramLinks.Remove(program); throw; }
         finally
         {
             if (tracked is not null) tracked.OperationInProgress = false;
@@ -52,9 +56,9 @@ internal sealed partial class OpenGLBackend
     internal bool CompleteProgramLink(GpuProgramObject program, out string infoLog, IReadOnlyList<ShaderStage>? stages = null)
     {
         RequireContext();
-        var pending = program.PendingLink;
+        pendingProgramLinks.TryGetValue(program, out var pending);
         infoLog = string.Empty;
-        if (pending is null || pending.Consumed || !pending.IsCurrent(program))
+        if (pending is null || pending.Consumed || !IsPendingProgramCurrent(program, pending))
         {
             infoLog = "The pending program allocation or originating context is no longer current.";
             return false;
@@ -72,13 +76,19 @@ internal sealed partial class OpenGLBackend
             if (candidate.ExecutableAvailable && stages is not null)
                 candidate = ReadExecutableStageMetadata(program, candidate, stages);
             if (!candidate.ExecutableAvailable) infoLog = GL.GetProgramInfoLog(program.ProgramId) ?? string.Empty;
-            if (!pending.IsCurrent(program)) return false;
+            if (!IsPendingProgramCurrent(program, pending)) return false;
             operation.Commit(candidate);
             if (pending.Entry is null) program.OnNativeProgramMetadataChanged(change, true);
             return candidate.ExecutableAvailable;
         }
-        finally { if (ReferenceEquals(program.PendingLink, pending)) program.PendingLink = null; }
+        finally { if (pendingProgramLinks.TryGetValue(program, out var current) && ReferenceEquals(current, pending)) pendingProgramLinks.Remove(program); }
     }
+    #endregion
+
+    #region Private
+    /// <summary>Rejects a superseded completion even when the native program association did not change.</summary>
+    private bool IsPendingProgramCurrent(GpuProgramObject program, PendingProgramLink pending) =>
+        pendingProgramLinks.TryGetValue(program, out var current) && ReferenceEquals(current, pending) && pending.IsCurrent(program);
     #endregion
 
     /// <summary>Captures one deferred link's identity and context without owning another resource registration.</summary>
@@ -100,8 +110,7 @@ internal sealed partial class OpenGLBackend
             revision = Entry?.MetadataRevision ?? 0;
         }
         /// <summary>Rejects retired names, context changes and substituted registrations.</summary>
-        internal bool IsCurrent(GpuProgramObject program) => ReferenceEquals(program.PendingLink, this)
-            && program.IsValid && program.ProgramId == id
+        internal bool IsCurrent(GpuProgramObject program) => program.IsValid && program.ProgramId == id
             && context == RenderContextRegistry.Current()
             && (context == default || RenderContextRegistry.IsAlive(context))
             && (Entry is null ? program.ResourceManager?.GetResourceRegistration(program) is null

@@ -259,7 +259,7 @@ public static partial class VgeBuiltInDebugViews
 
             shader.WorldOffset = new Vec3f(0, 0, 0);
             int stride = Marshal.SizeOf<LineVertex>();
-            using (var binding = vbo!.BindScope()) vbo.UploadData(vertices, written * stride);
+            vbo!.UploadData(vertices, written * stride);
             submission.Draw(WorldCellBoundsViewState.DepthTest ? "WorldCells.Depth" : "WorldCells.Overlay",
                 shader, geometry!.Inputs, new(0, written), PrimitiveTopology.Lines,
                 depthTest: WorldCellBoundsViewState.DepthTest, lineWidth: 2);

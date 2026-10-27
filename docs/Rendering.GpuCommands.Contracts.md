@@ -39,7 +39,11 @@ existing manager services commit snapshots and notifications exactly once.
 The context routes private resource work through the internal `IRHIResourceExecution` contract inherited
 by `IRHIBackend`. Its creation, acquisition/observation and retirement partials are not public consumer
 operations. Initialization records, nullable metadata and native identities remain inside this handoff.
-The manager receives the admitted context explicitly for initialization; it never retrieves or stores
+Existing owner allocation/configuration records also cross this private handoff; their native values
+remain inside the existing owner/metadata domain rather than entering public RHI descriptions.
+Query-free image description/encoding projections translate published canonical facts only; they never
+acquire or recover metadata. Native window discovery and optional bindless handle issuance/residency
+are private owner services. The manager receives the admitted context explicitly for initialization; it never retrieves or stores
 an OpenGL backend. Typed context methods invoke the contract; no service-locator property or second
 dispatch registry is exposed. Public factories are not called again from private initialization.
 
@@ -209,6 +213,7 @@ factories cover the resource table above; no public `Destroy(ref)` operation exi
 | `EnterBoundary` / scope disposal | `RHIBoundaryDescription` → admitted scope; restoration on exit/unwind | I; lists provide declaration at Submit |
 | `BeginRenderPass`, `EndRenderPass` | attachment/surface pass description → complete pass scope | B; no split passes |
 | `SetPipeline` | graphics or compute pipeline ref → selected immutable realization | B |
+| `BindUniformSnapshot`, `BindSampledTextures` | captured logical uniform version at a slot, or complete retained sampled texture/sampler slot set with semantic dimensions → validated publication without owning an engine executable | B |
 | `SetDynamicState`, `BindResources` | declared dynamic values, complete interface-qualified binding set → validated publication | B |
 | `Draw`, `DrawIndexed`, `DrawIndexedBatch`, `DrawIndirect`, `DrawIndexedIndirect` | geometry inputs + explicit draw/argument description → ordered native dispatch; noninstanced indexed batches consume a stable supplied span immediately and recording copies it | B |
 | `Dispatch`, `DispatchIndirect` | group counts or argument range → ordered compute dispatch | B |

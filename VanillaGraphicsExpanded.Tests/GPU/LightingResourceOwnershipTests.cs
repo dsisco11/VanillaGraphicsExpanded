@@ -21,7 +21,7 @@ public sealed class LightingResourceOwnershipTests : RenderTestBase
     {
         EnsureContextValid();
         var previous = GpuSamplers.NearestClamp;
-        previous.Bind(0);
+        VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageBindings.BindSampler(StateCache.Current, 0, previous.SamplerId);
         int handle = previous.SamplerId;
         Assert.True(GL.IsSampler(handle));
         GpuSamplers.Dispose();
@@ -29,7 +29,7 @@ public sealed class LightingResourceOwnershipTests : RenderTestBase
         Assert.False(GL.IsSampler(handle));
         var replacement = GpuSamplers.NearestClamp;
         Assert.NotSame(previous,replacement);
-        replacement.Bind(0);
+        VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageBindings.BindSampler(StateCache.Current, 0, replacement.SamplerId);
         Assert.True(GL.IsSampler(replacement.SamplerId));
         Assert.Equal(ErrorCode.NoError,GL.GetError());
     }

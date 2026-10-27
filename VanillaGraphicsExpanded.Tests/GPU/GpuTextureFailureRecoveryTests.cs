@@ -55,11 +55,13 @@ public sealed class GpuTextureFailureRecoveryTests(HeadlessGLFixture fixture)
         Assert.Equal((nint)0, faults.LastReadId);
         Assert.Equal(4, texture.Width);
         Assert.Equal(4, texture.Height);
-        Assert.True(texture.TryBind(0));
+        Assert.True(((GpuTextureRef)texture).IsValid);
+        RHICommandContext.Current.BindSampledTextures([new(0, texture)]);
         faults.Enabled = false;
         texture.SetMipRange(0, 0);
         Assert.Equal(4, texture.Width);
-        Assert.True(texture.TryBind(0));
+        Assert.True(((GpuTextureRef)texture).IsValid);
+        RHICommandContext.Current.BindSampledTextures([new(0, texture)]);
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
 
@@ -72,10 +74,12 @@ public sealed class GpuTextureFailureRecoveryTests(HeadlessGLFixture fixture)
         using var texture = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba8, Width = System.Math.Max(1, 4), Height = System.Math.Max(1, 4), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         using (new GpuResourceManager.MetadataOperation<GpuTextureMetadata>(texture, GpuMetadataChange.Metadata)) { }
         Assert.Equal(0, texture.Width);
-        Assert.False(texture.TryBind(0));
+        Assert.False(((GpuTextureRef)texture).IsValid);
+        Assert.ThrowsAny<InvalidOperationException>(() => RHICommandContext.Current.BindSampledTextures([new(0, texture)]));
         texture.SetMipRange(0, 0);
         Assert.Equal(4, texture.Width);
-        Assert.True(texture.TryBind(0));
+        Assert.True(((GpuTextureRef)texture).IsValid);
+        RHICommandContext.Current.BindSampledTextures([new(0, texture)]);
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
 
@@ -112,7 +116,7 @@ public sealed class GpuTextureFailureRecoveryTests(HeadlessGLFixture fixture)
         using var texture = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba8, Width = System.Math.Max(1, 4), Height = System.Math.Max(1, 4), MipLevels = 2, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (2) - 1, Label = null }).RequireResource();
         using var image = GpuFramebufferAttachment.FromTexture(texture, mipLevel: 1);
         using var framebuffer = DynamicGpuFramebuffer.CreateEmpty();
-        using var binding = texture.BindScope(0);
+        using var binding = StateCache.Current.BindTextureScope(((GpuTextureRef)texture).Target, 0, texture.TextureId);
         // Simulate an external owner withdrawing and later restoring the selected image.
         GL.TexImage2D(TextureTarget.Texture2D, 1, PixelInternalFormat.Rgba8, 0, 0, 0, PixelFormat.Rgba, PixelType.UnsignedByte, IntPtr.Zero);
         GpuResourceManager.RecoverWrapperMetadata(texture, GpuTextureMetadataReader.Instance);

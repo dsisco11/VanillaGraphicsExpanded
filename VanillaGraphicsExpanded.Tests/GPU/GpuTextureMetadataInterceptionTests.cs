@@ -30,7 +30,7 @@ public sealed class GpuTextureMetadataInterceptionTests(HeadlessGLFixture fixtur
             using var image = GpuFramebufferAttachment.FromTexture(source);
             using var framebuffer = DynamicGpuFramebuffer.Create([image])!;
             framebuffer.Bind();
-            using var binding = texture.BindScope(0);
+            using var binding = StateCache.Current.BindTextureScope(((GpuTextureRef)texture).Target, 0, texture.TextureId);
             var entry = GpuResourceManagerSystem.CurrentManager!.GetResourceRegistration(texture)!;
             ulong revision = entry.MetadataRevision;
             DefineCopiedOrCompressed(compressed);
@@ -56,7 +56,7 @@ public sealed class GpuTextureMetadataInterceptionTests(HeadlessGLFixture fixtur
             GL.TextureStorage2D(raw, 4, SizedInternalFormat.Rgba8, 8, 8);
             using var texture = new BorrowedTexture(raw);
             using var view = RHICommandContext.Current.CreateTextureView(new RHITextureViewDescription { Source = texture, Dimension = TextureDimension.Two, Format = TextureFormat.Rgba8, BaseMip = 0, MipCount = 4, BaseLayer = 0, LayerCount = 1, Label = null }).RequireResource();
-            using var binding = texture.BindScope(0);
+            using var binding = StateCache.Current.BindTextureScope(((GpuTextureRef)texture).Target, 0, texture.TextureId);
             var entry = GpuResourceManagerSystem.CurrentManager!.GetResourceRegistration(texture)!;
             ulong storage = entry.StorageRevision;
             GenerateLevels();
@@ -116,7 +116,7 @@ public sealed class GpuTextureMetadataInterceptionTests(HeadlessGLFixture fixtur
         try
         {
             using var texture = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba8, Width = System.Math.Max(1, 4), Height = System.Math.Max(1, 4), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
-            using var binding = texture.BindScope(0);
+            using var binding = StateCache.Current.BindTextureScope(((GpuTextureRef)texture).Target, 0, texture.TextureId);
             var entry = GpuResourceManagerSystem.CurrentManager!.GetResourceRegistration(texture)!;
             ulong revision = entry.MetadataRevision;
             DefineSpecial(0);
@@ -141,7 +141,7 @@ public sealed class GpuTextureMetadataInterceptionTests(HeadlessGLFixture fixtur
         try
         {
             using var texture = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba8, Width = System.Math.Max(1, 8), Height = System.Math.Max(1, 8), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
-            using var binding = texture.BindScope(0);
+            using var binding = StateCache.Current.BindTextureScope(((GpuTextureRef)texture).Target, 0, texture.TextureId);
             VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLTexturesCalls.ExecuteCoreTexImage2D(TextureTarget.Texture2D, 1, PixelInternalFormat.Rgba8, 4, 4, 0, PixelFormat.Rgba, PixelType.UnsignedByte, IntPtr.Zero);
             texture.SetMipRange(1, 3);
             var entry = Assert.IsType<GpuResourceMetadataEntry<GpuTextureMetadata>>(GpuResourceManagerSystem.CurrentManager!.GetResourceRegistration(texture));
@@ -179,7 +179,7 @@ public sealed class GpuTextureMetadataInterceptionTests(HeadlessGLFixture fixtur
             using var framebuffer = DynamicGpuFramebuffer.Create([image])!;
             int changed = 0;
             framebuffer.AttachmentsChanged += () => changed++;
-            using var binding = texture.BindScope(0);
+            using var binding = StateCache.Current.BindTextureScope(((GpuTextureRef)texture).Target, 0, texture.TextureId);
             DefineCubeFace();
             Assert.Equal(8, image.Width);
             Assert.Equal(1, changed);

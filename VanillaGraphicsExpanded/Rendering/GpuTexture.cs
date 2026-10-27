@@ -75,61 +75,6 @@ public abstract partial class GpuTexture : GpuResource<GpuTextureMetadata>, IDis
 #endif
     }
 
-    /// <summary>
-    /// Binds this texture to an image unit via <c>glBindImageTexture</c>.
-    /// </summary>
-    /// <remarks>
-    /// The <paramref name="format"/> must be a sized internal format compatible with the texture storage.
-    /// If not specified, this uses <see cref="InternalFormat"/> cast to <see cref="SizedInternalFormat"/>.
-    /// </remarks>
-    public void BindImageUnit(
-        int unit,
-        TextureAccess access = TextureAccess.ReadOnly,
-        int level = 0,
-        bool layered = false,
-        int layer = 0,
-        SizedInternalFormat? format = null)
-    {
-        if (!base.IsValid || metadata.Levels.IsDefaultOrEmpty)
-        {
-            Debug.WriteLine("[GpuTexture] Attempted to bind disposed or invalid texture as image");
-            return;
-        }
-
-        if (unit < 0)
-        {
-            throw new ArgumentOutOfRangeException(nameof(unit), unit, "Image unit must be >= 0.");
-        }
-
-        if (level < 0)
-        {
-            throw new ArgumentOutOfRangeException(nameof(level), level, "Level must be >= 0.");
-        }
-
-        if (layer < 0)
-        {
-            throw new ArgumentOutOfRangeException(nameof(layer), layer, "Layer must be >= 0.");
-        }
-
-        var sizedFormat = format ?? (SizedInternalFormat)internalFormat;
-        OpenGLImageSlotBindings.BindImageTexture(StateCache.Current, unit, textureId, level, layered, layer, access, sizedFormat);
-    }
-
-    /// <summary>Binds this live allocation and restores the previous binding when the scope ends.</summary>
-    public BindingScope BindScope(int unit)
-    {
-        ObjectDisposedException.ThrowIf(!base.IsValid, this);
-        if (metadata.Levels.IsDefaultOrEmpty)
-            throw new InvalidOperationException("Texture image metadata is unavailable; refresh before binding.");
-        var gl = StateCache.Current;
-
-        // Ensure sampler-object state doesn't override texture-object parameters.
-        // Use GlStateCache scopes so binding restore is PSO-owned and cache-consistent.
-        var textureScope = gl.BindTextureScope(textureTarget, unit, textureId);
-        var samplerScope = gl.BindSamplerScope(unit, samplerId: 0);
-
-        return new BindingScope(textureScope, samplerScope);
-    }
 
     #region Allocation Helpers
     /// <summary>Replaces owned two-dimensional storage using creation arguments rather than editing a snapshot.</summary>
@@ -167,13 +112,10 @@ public abstract partial class GpuTexture : GpuResource<GpuTextureMetadata>, IDis
         if (target is not (TextureTarget.Texture3D or TextureTarget.Texture2DArray))
             throw new InvalidOperationException($"Layered allocation is not supported for {target}.");
         DeleteTextureIfAllocated();
-        var request = new RHITextureDescription
-        {
-            Dimension = RHI.Backends.OpenGL.OpenGLImageValues.Dimension(target), Format = RHI.Backends.OpenGL.OpenGLImageValues.Format(format),
-            Width = width, Height = height, Depth = depth, MipLevels = 1, Storage = immutableStorage ? ResourceStorageMode.Immutable : ResourceStorageMode.Mutable,
-            Filter = filterMode, BaseLevel = 0, MaxLevel = 0, Label = debugName
-        };
-        try { RHICommandContext.Current.InitializeTextureOwner(this, request); }
+        var request = new GpuTextureInitialization { Target = target, InternalFormat = format,
+            Width = width, Height = height, Depth = depth, Levels = 1, BaseLevel = 0, MaxLevel = 0,
+            AllocationMode = immutableStorage ? GpuTextureAllocationMode.Immutable : GpuTextureAllocationMode.Mutable };
+        try { RHICommandContext.Current.AllocateTextureOwner(this, request, filterMode, debugName); }
         catch
         {
             try { DeleteTextureIfAllocated(); } catch { }
@@ -193,37 +135,6 @@ public abstract partial class GpuTexture : GpuResource<GpuTextureMetadata>, IDis
     }
     #endregion
 
-    public virtual void Bind(int unit)
-    {
-        if (!base.IsValid || metadata.Levels.IsDefaultOrEmpty)
-        {
-            Debug.WriteLine("[GpuTexture] Attempted to bind disposed or invalid texture");
-            return;
-        }
-
-        OpenGLImageBindings.BindTexture(StateCache.Current, textureTarget, unit, textureId);
-        // Ensure sampler-object state doesn't override texture-object parameters.
-        OpenGLImageBindings.UnbindSampler(StateCache.Current, unit);
-    }
-
-    public bool TryBind(int unit)
-    {
-        if (!base.IsValid || metadata.Levels.IsDefaultOrEmpty)
-        {
-            return false;
-        }
-
-        OpenGLImageBindings.BindTexture(StateCache.Current, textureTarget, unit, textureId);
-        // Ensure sampler-object state doesn't override texture-object parameters.
-        OpenGLImageBindings.UnbindSampler(StateCache.Current, unit);
-        return true;
-    }
-
-    public virtual void Unbind(int unit)
-    {
-        OpenGLImageBindings.BindTexture(StateCache.Current, textureTarget, unit, 0);
-        OpenGLImageBindings.UnbindSampler(StateCache.Current, unit);
-    }
 
     #region Texture-Object State Helpers (TexParameter)
 
@@ -312,10 +223,10 @@ public abstract partial class GpuTexture : GpuResource<GpuTextureMetadata>, IDis
 
         TextureStageResult result = TextureStreamingSystem.StageCopy(
             textureId,
-            MapUploadTarget(textureTarget),
+            new TextureUploadTarget(RHICommandContext.Current.DescribeTexture(this).Dimension),
             TextureUploadRegion.For2D(0, 0, width, height, mipLevel: mipLevel),
-            TextureFormatHelper.GetPixelFormat(internalFormat),
-            PixelType.Float,
+            RHICommandContext.Current.GetTextureEncoding(this, PixelComponentType.Float).Channels,
+            PixelComponentType.Float,
             data,
             MapUploadPriority(priority),
             unpackAlignment: 4, textureOwner: this);
@@ -360,10 +271,10 @@ public abstract partial class GpuTexture : GpuResource<GpuTextureMetadata>, IDis
 
         TextureStageResult result = TextureStreamingSystem.StageCopy(
             textureId,
-            MapUploadTarget(textureTarget),
+            new TextureUploadTarget(RHICommandContext.Current.DescribeTexture(this).Dimension),
             TextureUploadRegion.For2D(x, y, regionWidth, regionHeight, mipLevel: mipLevel),
-            TextureFormatHelper.GetPixelFormat(internalFormat),
-            PixelType.Float,
+            RHICommandContext.Current.GetTextureEncoding(this, PixelComponentType.Float).Channels,
+            PixelComponentType.Float,
             data,
             MapUploadPriority(priority),
             unpackAlignment: 4, textureOwner: this);
@@ -405,10 +316,10 @@ public abstract partial class GpuTexture : GpuResource<GpuTextureMetadata>, IDis
 
         TextureStageResult result = TextureStreamingSystem.StageCopy(
             textureId,
-            MapUploadTarget(textureTarget),
+            new TextureUploadTarget(RHICommandContext.Current.DescribeTexture(this).Dimension),
             TextureUploadRegion.For2D(0, 0, width, height, mipLevel: mipLevel),
-            TextureFormatHelper.GetPixelFormat(internalFormat),
-            pixelType,
+            RHICommandContext.Current.GetTextureEncoding(this, PixelComponentType.Float).Channels,
+            PixelComponentType.UnsignedShort,
             data,
             MapUploadPriority(priority),
             unpackAlignment: 1, textureOwner: this);
@@ -451,10 +362,10 @@ public abstract partial class GpuTexture : GpuResource<GpuTextureMetadata>, IDis
 
         TextureStageResult result = TextureStreamingSystem.StageCopy(
             textureId,
-            MapUploadTarget(textureTarget),
+            new TextureUploadTarget(RHICommandContext.Current.DescribeTexture(this).Dimension),
             new TextureUploadRegion(x, y, z, regionWidth, regionHeight, regionDepth, mipLevel),
-            TextureFormatHelper.GetPixelFormat(internalFormat),
-            PixelType.Float,
+            RHICommandContext.Current.GetTextureEncoding(this, PixelComponentType.Float).Channels,
+            PixelComponentType.Float,
             data,
             MapUploadPriority(priority),
             unpackAlignment: 4, textureOwner: this);
@@ -487,7 +398,7 @@ public abstract partial class GpuTexture : GpuResource<GpuTextureMetadata>, IDis
                 $"Data array size {data.Length} doesn't match expected size {expected} ({regionWidth}×{regionHeight}×{regionDepth}×{channels} channels)",
                 nameof(data));
         }
-        RHICommandContext.Current.UploadTexture(this, new RHITextureRegion(new(mipLevel), x, y, z, regionWidth, regionHeight, regionDepth), VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLPixelValues.Encoding(TextureFormatHelper.GetPixelFormat(internalFormat), PixelType.Float), System.Runtime.InteropServices.MemoryMarshal.AsBytes((data).AsSpan()));
+        RHICommandContext.Current.UploadTexture(this, new RHITextureRegion(new(mipLevel), x, y, z, regionWidth, regionHeight, regionDepth), RHICommandContext.Current.GetTextureEncoding(this, PixelComponentType.Float), System.Runtime.InteropServices.MemoryMarshal.AsBytes((data).AsSpan()));
     }
 
     /// <summary>Uploads tightly packed byte data to a 3D region, preserving the caller's unpack alignment.</summary>
@@ -506,9 +417,9 @@ public abstract partial class GpuTexture : GpuResource<GpuTextureMetadata>, IDis
         if (data.Length != expected)
             throw new ArgumentException($"Expected {expected} tightly packed bytes, got {data.Length}.", nameof(data));
         // Single-channel regions need not have four-byte-wide rows.
-        
-            RHICommandContext.Current.UploadTexture(this, new RHITextureRegion(new(mipLevel), x, y, z, regionWidth, regionHeight, regionDepth), VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLPixelValues.Encoding(TextureFormatHelper.GetPixelFormat(internalFormat), PixelType.UnsignedByte), System.Runtime.InteropServices.MemoryMarshal.AsBytes((data).AsSpan()));
-        
+
+            RHICommandContext.Current.UploadTexture(this, new RHITextureRegion(new(mipLevel), x, y, z, regionWidth, regionHeight, regionDepth), RHICommandContext.Current.GetTextureEncoding(this, PixelComponentType.UnsignedByte), System.Runtime.InteropServices.MemoryMarshal.AsBytes((data).AsSpan()));
+
     }
 
     /// <summary>Uploads tightly packed UNORM16 or unsigned integer nodes to a layered region without float conversion.</summary>
@@ -521,9 +432,9 @@ public abstract partial class GpuTexture : GpuResource<GpuTextureMetadata>, IDis
             throw new InvalidOperationException($"Unsigned-short upload requires a matching texture format, got {internalFormat}.");
         if(data.Length!=checked(regionWidth*regionHeight*regionDepth*GetChannelCount()))
             throw new ArgumentException("Unsigned-short data does not match the texture region.",nameof(data));
-        
-            RHICommandContext.Current.UploadTexture(this, new RHITextureRegion(new(mipLevel), x, y, z, regionWidth, regionHeight, regionDepth), VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLPixelValues.Encoding(TextureFormatHelper.GetPixelFormat(internalFormat), PixelType.UnsignedShort), System.Runtime.InteropServices.MemoryMarshal.AsBytes((data).AsSpan()));
-        
+
+            RHICommandContext.Current.UploadTexture(this, new RHITextureRegion(new(mipLevel), x, y, z, regionWidth, regionHeight, regionDepth), RHICommandContext.Current.GetTextureEncoding(this, PixelComponentType.UnsignedShort), System.Runtime.InteropServices.MemoryMarshal.AsBytes((data).AsSpan()));
+
     }
 
     public virtual void UploadDataImmediate(uint[] data, int x, int y, int z, int regionWidth, int regionHeight, int regionDepth, int mipLevel = 0)
@@ -552,7 +463,7 @@ public abstract partial class GpuTexture : GpuResource<GpuTextureMetadata>, IDis
                 $"Data array size {data.Length} is smaller than expected size {expected} ({regionWidth}×{regionHeight}×{regionDepth}×{channels} channels)",
                 nameof(data));
         }
-        RHICommandContext.Current.UploadTexture(this, new RHITextureRegion(new(mipLevel), x, y, z, regionWidth, regionHeight, regionDepth), VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLPixelValues.Encoding(TextureFormatHelper.GetPixelFormat(internalFormat), pixelType), System.Runtime.InteropServices.MemoryMarshal.AsBytes((data).AsSpan()));
+        RHICommandContext.Current.UploadTexture(this, new RHITextureRegion(new(mipLevel), x, y, z, regionWidth, regionHeight, regionDepth), RHICommandContext.Current.GetTextureEncoding(this, PixelComponentType.UnsignedInt), System.Runtime.InteropServices.MemoryMarshal.AsBytes((data).AsSpan()));
     }
 
     /// <summary>Uploads native normalized or integer bytes to a complete 2D texture without float staging.</summary>
@@ -570,7 +481,7 @@ public abstract partial class GpuTexture : GpuResource<GpuTextureMetadata>, IDis
         if (x < 0 || y < 0 || regionWidth <= 0 || regionHeight <= 0 || x + regionWidth > width || y + regionHeight > height)
             throw new ArgumentOutOfRangeException(nameof(regionWidth));
         if (data.Length != checked(regionWidth * regionHeight * GetChannelCount())) throw new ArgumentException("Incorrect byte payload size.", nameof(data));
-         RHICommandContext.Current.UploadTexture(this, new RHITextureRegion(new(0), x, y, 0, regionWidth, regionHeight, 1), VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLPixelValues.Encoding(TextureFormatHelper.GetPixelFormat(internalFormat), PixelType.UnsignedByte), System.Runtime.InteropServices.MemoryMarshal.AsBytes((data).AsSpan())); 
+         RHICommandContext.Current.UploadTexture(this, new RHITextureRegion(new(0), x, y, 0, regionWidth, regionHeight, 1), RHICommandContext.Current.GetTextureEncoding(this, PixelComponentType.UnsignedByte), System.Runtime.InteropServices.MemoryMarshal.AsBytes((data).AsSpan()));
     }
 
     /// <summary>Uploads a full texture immediately from floating-point input.</summary>
@@ -594,7 +505,7 @@ public abstract partial class GpuTexture : GpuResource<GpuTextureMetadata>, IDis
         }
 
         Ensure2DLike();
-        RHICommandContext.Current.UploadTexture(this, new RHITextureRegion(new(0), 0, 0, 0, width, height, 1), VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLPixelValues.Encoding(TextureFormatHelper.GetPixelFormat(internalFormat), PixelType.Float), System.Runtime.InteropServices.MemoryMarshal.AsBytes((data).AsSpan()));
+        RHICommandContext.Current.UploadTexture(this, new RHITextureRegion(new(0), 0, 0, 0, width, height, 1), RHICommandContext.Current.GetTextureEncoding(this, PixelComponentType.Float), System.Runtime.InteropServices.MemoryMarshal.AsBytes((data).AsSpan()));
     }
 
     public virtual void UploadDataImmediate(uint[] data)
@@ -623,7 +534,7 @@ public abstract partial class GpuTexture : GpuResource<GpuTextureMetadata>, IDis
                 $"Data array size {data.Length} is smaller than expected size {expected} ({width}×{height}×{channels} channels)",
                 nameof(data));
         }
-        RHICommandContext.Current.UploadTexture(this, new RHITextureRegion(new(0), 0, 0, 0, width, height, 1), VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLPixelValues.Encoding(TextureFormatHelper.GetPixelFormat(internalFormat), pixelType), System.Runtime.InteropServices.MemoryMarshal.AsBytes((data).AsSpan()));
+        RHICommandContext.Current.UploadTexture(this, new RHITextureRegion(new(0), 0, 0, 0, width, height, 1), RHICommandContext.Current.GetTextureEncoding(this, PixelComponentType.UnsignedInt), System.Runtime.InteropServices.MemoryMarshal.AsBytes((data).AsSpan()));
     }
 
     public virtual void UploadDataImmediate(float[] data, int x, int y, int regionWidth, int regionHeight)
@@ -652,7 +563,7 @@ public abstract partial class GpuTexture : GpuResource<GpuTextureMetadata>, IDis
                 $"Data array size {data.Length} doesn't match expected size {expected} ({regionWidth}×{regionHeight}×{channels} channels)",
                 nameof(data));
         }
-        RHICommandContext.Current.UploadTexture(this, new RHITextureRegion(new(0), x, y, 0, regionWidth, regionHeight, 1), VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLPixelValues.Encoding(TextureFormatHelper.GetPixelFormat(internalFormat), PixelType.Float), System.Runtime.InteropServices.MemoryMarshal.AsBytes((data).AsSpan()));
+        RHICommandContext.Current.UploadTexture(this, new RHITextureRegion(new(0), x, y, 0, regionWidth, regionHeight, 1), RHICommandContext.Current.GetTextureEncoding(this, PixelComponentType.Float), System.Runtime.InteropServices.MemoryMarshal.AsBytes((data).AsSpan()));
     }
 
     public virtual void UploadDataImmediate(uint[] data, int x, int y, int regionWidth, int regionHeight)
@@ -687,7 +598,7 @@ public abstract partial class GpuTexture : GpuResource<GpuTextureMetadata>, IDis
                 $"Data array size {data.Length} is smaller than expected size {expected} ({regionWidth}×{regionHeight}×{channels} channels)",
                 nameof(data));
         }
-        RHICommandContext.Current.UploadTexture(this, new RHITextureRegion(new(0), x, y, 0, regionWidth, regionHeight, 1), VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLPixelValues.Encoding(TextureFormatHelper.GetPixelFormat(internalFormat), pixelType), System.Runtime.InteropServices.MemoryMarshal.AsBytes((data).AsSpan()));
+        RHICommandContext.Current.UploadTexture(this, new RHITextureRegion(new(0), x, y, 0, regionWidth, regionHeight, 1), RHICommandContext.Current.GetTextureEncoding(this, PixelComponentType.UnsignedInt), System.Runtime.InteropServices.MemoryMarshal.AsBytes((data).AsSpan()));
     }
 
     public virtual void UploadDataImmediate(ushort[] data)
@@ -716,7 +627,7 @@ public abstract partial class GpuTexture : GpuResource<GpuTextureMetadata>, IDis
                 $"Data array size {data.Length} doesn't match expected size {expected} ({width}×{height}×{channels} channels)",
                 nameof(data));
         }
-        RHICommandContext.Current.UploadTexture(this, new RHITextureRegion(new(0), 0, 0, 0, width, height, 1), VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLPixelValues.Encoding(TextureFormatHelper.GetPixelFormat(internalFormat), pixelType), System.Runtime.InteropServices.MemoryMarshal.AsBytes((data).AsSpan()));
+        RHICommandContext.Current.UploadTexture(this, new RHITextureRegion(new(0), 0, 0, 0, width, height, 1), RHICommandContext.Current.GetTextureEncoding(this, PixelComponentType.UnsignedShort), System.Runtime.InteropServices.MemoryMarshal.AsBytes((data).AsSpan()));
     }
 
     #region Readback
@@ -730,7 +641,7 @@ public abstract partial class GpuTexture : GpuResource<GpuTextureMetadata>, IDis
         if (!((GpuResource)this).IsValid) return [];
         // The request owns staging independently; only completed bytes are exposed to CPU readers.
         using var request = RHICommandContext.Current.EnqueueReadback(new RHIReadbackDescription(this,
-            new(new(0), 0, 0, 0, width, height, 1), OpenGLPixelValues.Encoding(TextureFormatHelper.GetPixelFormat(internalFormat), PixelType.Float)));
+            new(new(0), 0, 0, 0, width, height, 1), RHICommandContext.Current.GetTextureEncoding(this, PixelComponentType.Float)));
         if (request.Wait() != CompletionStatus.Ready)
             throw new InvalidOperationException("Texture readback did not complete.", request.Error);
         using var mapping = request.MapReadyReadback();
@@ -746,7 +657,7 @@ public abstract partial class GpuTexture : GpuResource<GpuTextureMetadata>, IDis
         if (!((GpuResource)this).IsValid) return [];
         // The request owns staging independently; only completed bytes are exposed to CPU readers.
         using var request = RHICommandContext.Current.EnqueueReadback(new RHIReadbackDescription(this,
-            new(new(0), x, y, 0, regionWidth, regionHeight, 1), OpenGLPixelValues.Encoding(TextureFormatHelper.GetPixelFormat(internalFormat), PixelType.Float)));
+            new(new(0), x, y, 0, regionWidth, regionHeight, 1), RHICommandContext.Current.GetTextureEncoding(this, PixelComponentType.Float)));
         if (request.Wait() != CompletionStatus.Ready)
             throw new InvalidOperationException("Texture readback did not complete.", request.Error);
         using var mapping = request.MapReadyReadback();
@@ -762,7 +673,7 @@ public abstract partial class GpuTexture : GpuResource<GpuTextureMetadata>, IDis
         if (mipLevel < 0) throw new ArgumentOutOfRangeException(nameof(mipLevel));
         // The request owns staging independently; only completed bytes are exposed to CPU readers.
         using var request = RHICommandContext.Current.EnqueueReadback(new RHIReadbackDescription(this,
-            new(new(mipLevel), 0, 0, 0, Math.Max(1, width >> mipLevel), Math.Max(1, height >> mipLevel), 1), OpenGLPixelValues.Encoding(TextureFormatHelper.GetPixelFormat(internalFormat), PixelType.Float)));
+            new(new(mipLevel), 0, 0, 0, Math.Max(1, width >> mipLevel), Math.Max(1, height >> mipLevel), 1), RHICommandContext.Current.GetTextureEncoding(this, PixelComponentType.Float)));
         if (request.Wait() != CompletionStatus.Ready)
             throw new InvalidOperationException("Texture readback did not complete.", request.Error);
         using var mapping = request.MapReadyReadback();
@@ -779,14 +690,7 @@ public abstract partial class GpuTexture : GpuResource<GpuTextureMetadata>, IDis
     /// <summary>Clears an allocated mip directly, without a capability fallback or full-image CPU allocation.</summary>
     public void ClearToZero(int mipLevel = 0)
     {
-        GpuTextureRef reference = this;
-        var image = reference.RequireImage(mipLevel);
-        var encoding = RHI.Backends.OpenGL.OpenGLPixelValues.Encoding(TextureFormatHelper.GetPixelFormat(image.Format), TextureFormatHelper.GetPixelType(image.Format));
-        Span<byte> zero = stackalloc byte[RHI.Backends.OpenGL.OpenGLPixelValues.PixelBytes(encoding)];
-        zero.Clear();
-        int height = textureTarget == TextureTarget.Texture1DArray ? 1 : image.Height;
-        int depth = textureTarget == TextureTarget.TextureCubeMap ? 6 : textureTarget == TextureTarget.Texture1DArray ? image.Height : image.Depth;
-        RHICommandContext.Current.ClearTexture(this, new(new(mipLevel), 0, 0, 0, image.Width, height, depth), encoding, zero);
+        RHICommandContext.Current.ClearTextureMip(this, mipLevel);
     }
 
     protected override void OnDetached(nint id)
@@ -807,20 +711,6 @@ public abstract partial class GpuTexture : GpuResource<GpuTextureMetadata>, IDis
         };
     }
 
-    internal static TextureUploadTarget MapUploadTarget(TextureTarget textureTarget)
-    {
-        return textureTarget switch
-        {
-            TextureTarget.Texture1D => TextureUploadTarget.For1D(),
-            TextureTarget.Texture1DArray => TextureUploadTarget.For1DArray(),
-            TextureTarget.Texture2D => TextureUploadTarget.For2D(),
-            TextureTarget.Texture2DArray => TextureUploadTarget.For2DArray(),
-            TextureTarget.Texture3D => TextureUploadTarget.For3D(),
-            TextureTarget.TextureRectangle => TextureUploadTarget.ForRectangle(),
-            TextureTarget.TextureCubeMapArray => TextureUploadTarget.ForCubeArray(),
-            _ => new TextureUploadTarget(textureTarget, textureTarget)
-        };
-    }
 
     /// <summary>Returns the number of upload components required by the texture's pixel format.</summary>
     protected int GetChannelCount()
@@ -864,115 +754,5 @@ public abstract partial class GpuTexture : GpuResource<GpuTextureMetadata>, IDis
         }
     }
 
-    private static bool TryGetBindingQuery(TextureTarget target, out GetPName pname)
-    {
-        pname = target switch
-        {
-            TextureTarget.Texture1D => GetPName.TextureBinding1D,
-            TextureTarget.Texture1DArray => GetPName.TextureBinding1DArray,
-            TextureTarget.Texture2D => GetPName.TextureBinding2D,
-            TextureTarget.Texture2DArray => GetPName.TextureBinding2DArray,
-            TextureTarget.Texture3D => GetPName.TextureBinding3D,
-            TextureTarget.TextureRectangle => GetPName.TextureBindingRectangle,
-            TextureTarget.TextureCubeMap => GetPName.TextureBindingCubeMap,
-            _ => default
-        };
 
-        return pname != default;
-    }
-
-    public readonly struct BindingScope : IDisposable
-    {
-        private readonly StateCache.TextureScope textureScope;
-        private readonly StateCache.SamplerScope samplerScope;
-
-        private readonly TextureTarget target;
-        private readonly int unit;
-        private readonly int previousBinding;
-        private readonly int previousSampler;
-        private readonly int previousActiveUnit;
-        private readonly bool restoreActive;
-
-        private readonly bool useCacheScopes;
-
-        internal BindingScope(StateCache.TextureScope textureScope, StateCache.SamplerScope samplerScope)
-        {
-            this.textureScope = textureScope;
-            this.samplerScope = samplerScope;
-
-            target = default;
-            unit = 0;
-            previousBinding = 0;
-            previousSampler = 0;
-            previousActiveUnit = 0;
-            restoreActive = false;
-            useCacheScopes = true;
-        }
-
-        public BindingScope(
-            TextureTarget target,
-            int unit,
-            int previousBinding,
-            int previousSampler,
-            int previousActiveUnit,
-            bool restoreActive)
-        {
-            textureScope = default;
-            samplerScope = default;
-            this.target = target;
-            this.unit = unit;
-            this.previousBinding = previousBinding;
-            this.previousSampler = previousSampler;
-            this.previousActiveUnit = previousActiveUnit;
-            this.restoreActive = restoreActive;
-            useCacheScopes = false;
-        }
-
-        public void Dispose()
-        {
-            if (useCacheScopes)
-            {
-                samplerScope.Dispose();
-                textureScope.Dispose();
-                return;
-            }
-
-            OpenGLImageBindings.BindTexture(StateCache.Current, target, unit, previousBinding);
-            OpenGLImageBindings.BindSampler(StateCache.Current, unit, previousSampler);
-
-            if (restoreActive)
-            {
-                OpenGLImageBindings.ActiveTexture(StateCache.Current, previousActiveUnit);
-            }
-        }
-    }
-
-    private static int GetClearComponentCount(PixelFormat format)
-    {
-        return format switch
-        {
-            PixelFormat.Red or PixelFormat.RedInteger => 1,
-            PixelFormat.Rg or PixelFormat.RgInteger => 2,
-            PixelFormat.Rgb => 3,
-            PixelFormat.Rgba or PixelFormat.RgbaInteger => 4,
-            PixelFormat.DepthComponent => 1,
-
-            // Packed depth-stencil types (UnsignedInt248/Float32UnsignedInt248Rev) are provided as a single value.
-            PixelFormat.DepthStencil => 1,
-
-            _ => 4
-        };
-    }
-
-    private static int GetPixelTypeSizeBytes(PixelType type)
-    {
-        return type switch
-        {
-            PixelType.UnsignedByte or PixelType.Byte => 1,
-            PixelType.UnsignedShort or PixelType.Short or PixelType.HalfFloat => 2,
-            PixelType.UnsignedInt or PixelType.Int or PixelType.Float or PixelType.UnsignedInt248 => 4,
-            PixelType.Float32UnsignedInt248Rev => 8,
-            _ => 4
-        };
-    }
 }

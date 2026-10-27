@@ -1,4 +1,3 @@
-using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Buffers;
@@ -21,7 +20,6 @@ public abstract class GpuBufferObject : GpuResource<GpuBufferMetadata>, IDisposa
     protected int bufferId;
     /// <summary>Reads the canonical native capacity through the typed snapshot.</summary>
     protected int sizeBytes => checked((int)metadata.Capacity);
-    protected BufferTarget target;
     /// <summary>Reads the canonical storage usage through the typed snapshot.</summary>
     protected BufferUsageHint usage => metadata.Usage;
     /// <summary>Contains the requested hint for the next allocation, independently of observed storage.</summary>
@@ -34,10 +32,9 @@ public abstract class GpuBufferObject : GpuResource<GpuBufferMetadata>, IDisposa
     /// <summary>Supplies a non-owning consumer value without acquisition or native work.</summary>
     public static implicit operator GpuBufferRef(GpuBufferObject? buffer) => new(buffer);
     /// <summary>Gets the intended semantic role retained by this owning abstraction.</summary>
-    public BufferRole Role => RHI.Backends.OpenGL.OpenGLBufferValues.Role(target);
+    public BufferRole Role { get; protected set; }
     public int BufferId => bufferId;
     public int SizeBytes => sizeBytes;
-    public BufferTarget Target => target;
     public BufferUsageHint Usage => usage;
     public string? DebugName => debugName;
 
@@ -64,12 +61,7 @@ public abstract class GpuBufferObject : GpuResource<GpuBufferMetadata>, IDisposa
     }
 
     /// <summary>Binds this live allocation and restores the previous binding when the scope ends.</summary>
-    public BindingScope BindScope()
-    {
-        ObjectDisposedException.ThrowIf(!IsValid, this);
-        GpuResourceManager.RequireBufferReferenceMetadata(this);
-        return new BindingScope(StateCache.Current.BindBufferScope(target, bufferId));
-    }
+
 
     public void Bind()
     {
@@ -842,9 +834,8 @@ public abstract class GpuBufferObject : GpuResource<GpuBufferMetadata>, IDisposa
 
     public override string ToString()
     {
-        return $"{GetType().Name}(id={bufferId}, target={target}, sizeBytes={sizeBytes}, usage={usage}, name={debugName}, disposed={IsDisposed})";
+        return $"{GetType().Name}(id={bufferId}, role={Role}, sizeBytes={sizeBytes}, usage={usage}, name={debugName}, disposed={IsDisposed})";
     }
-
 
 
     private static bool TryGetBlittableArrayPointer<T>(T[] data, out GCHandle handle, out IntPtr ptr) where T : struct
@@ -1116,18 +1107,4 @@ public abstract class GpuBufferObject : GpuResource<GpuBufferMetadata>, IDisposa
         #endregion
     }
 
-    /// <summary>Preserves the public buffer scope API while delegating restoration to the state cache.</summary>
-    public readonly struct BindingScope : IDisposable
-    {
-        private readonly StateCache.BufferScope scope;
-
-        /// <summary>Retains the state cache's original selector and VAO association.</summary>
-        internal BindingScope(StateCache.BufferScope scope)
-        {
-            this.scope = scope;
-        }
-
-        /// <summary>Restores the captured buffer association through the shared cache contract.</summary>
-        public void Dispose() => scope.Dispose();
-    }
 }

@@ -17,11 +17,10 @@ public sealed class GpuUniformBuffer : GpuBufferObject
     /// <summary>Declares buffer policy before manager-owned native creation.</summary>
     internal GpuUniformBuffer(BufferUsage usage, string? debugName)
     {
-        target = BufferTarget.UniformBuffer;
+        Role = BufferRole.Uniform;
         allocationUsage = usage;
         this.debugName = debugName;
     }
-
 
 
     /// <summary>
@@ -67,22 +66,6 @@ public sealed class GpuUniformBuffer : GpuBufferObject
         RHICommandContext.Current.BindBufferRange(BufferRole.Uniform, bindingIndex, this, offsetBytes, sizeBytes);
     }
 
-    /// <summary>Publishes a logical version with capability validation and truthful failure bookkeeping.</summary>
-    internal void BindPublicationRange(int bindingIndex, int offsetBytes, int sizeBytes)
-    {
-        GpuSupport.EnsureCurrentContext();
-        if (!IsValid) throw new ObjectDisposedException(nameof(GpuUniformBuffer));
-        if (bindingIndex < 0 || bindingIndex >= GpuSupport.MaxUniformBufferBindings)
-            throw new ArgumentOutOfRangeException(nameof(bindingIndex));
-        if (sizeBytes <= 0 || sizeBytes > GpuSupport.MaxUniformBlockSize)
-            throw new ArgumentOutOfRangeException(nameof(sizeBytes));
-        BindRange(bindingIndex, offsetBytes, sizeBytes);
-        if (GL.GetError() != ErrorCode.NoError)
-        {
-            StateCache.Current.InvalidateUniformRange(bindingIndex);
-            throw new InvalidOperationException("Uniform range publication failed.");
-        }
-    }
 
     /// <summary>
     /// Unbinds any UBO from a binding point.

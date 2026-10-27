@@ -40,7 +40,7 @@ public class GpuEboIntegrationTests : IDisposable
         // Assert
         Assert.True(ebo.IsValid);
         Assert.True(ebo.BufferId > 0);
-        Assert.Equal(BufferTarget.ElementArrayBuffer, ebo.Target);
+        Assert.Equal(BufferTarget.ElementArrayBuffer, VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBufferValues.Target(ebo.Role));
         Assert.Equal(BufferUsageHint.StaticDraw, ebo.Usage);
         Assert.Equal(0, ebo.SizeBytes);
         Assert.Equal(0, ebo.IndexCount);
@@ -63,7 +63,7 @@ public class GpuEboIntegrationTests : IDisposable
         AssertNativeUsage(ebo);
         ebo.Allocate(0);
         Assert.Equal(BufferUsageHint.DynamicDraw, ebo.Usage);
-        Assert.Equal(BufferTarget.ElementArrayBuffer, ebo.Target);
+        Assert.Equal(BufferTarget.ElementArrayBuffer, VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBufferValues.Target(ebo.Role));
     }
 
     [Fact]

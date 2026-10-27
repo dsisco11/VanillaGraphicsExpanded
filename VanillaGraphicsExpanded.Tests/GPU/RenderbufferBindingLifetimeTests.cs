@@ -23,13 +23,13 @@ public sealed class RenderbufferBindingLifetimeTests(HeadlessGLFixture fixture) 
         GL.BindRenderbuffer(RenderbufferTarget.Renderbuffer, (int)first.ResourceId);
         var cache = StateCache.Current; cache.Invalidate(EPipelineState.RenderbufferBinding);
         Assert.Equal((int)first.ResourceId, cache.GetCurrentRenderbuffer());
-        using (second.BindScope())
+        using (StateCache.Current.BindRenderbufferScope(second.RenderbufferId))
         {
             Assert.Equal((int)second.ResourceId, cache.GetCurrentRenderbuffer());
             var failure = new InvalidOperationException("nested scope");
             Assert.Same(failure, Assert.Throws<InvalidOperationException>((Action)(() =>
             {
-                using var nested = third.BindScope();
+                using var nested = StateCache.Current.BindRenderbufferScope(third.RenderbufferId);
                 Assert.Equal((int)third.ResourceId, GL.GetInteger(GetPName.RenderbufferBinding));
                 throw failure;
             })));

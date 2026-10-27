@@ -12,7 +12,7 @@ namespace VanillaGraphicsExpanded.Rendering;
 /// Intended usage:
 /// - Call <see cref="BeginFrame"/> once per frame.
 /// - For each new snapshot, call <see cref="AllocateAndWrite"/> and bind the returned range via
-///   <see cref="GpuUniformBuffer.BindRange"/> (or <see cref="GpuProgramLayout.TryBindUniformBlockRange"/>).
+///   <see cref="GpuUniformBuffer.BindRange"/>.
 /// - Unchanged CPU blocks may rebind a range while <see cref="CanReuse"/> confirms its epoch.
 ///
 /// Preferred path uses persistent mapped storage (GL_ARB_buffer_storage).
@@ -269,7 +269,7 @@ internal sealed class GpuUniformRingBuffer : IDisposable
         }
 
         // Failed native copies never become publications or successful-copy counter entries.
-        if (GL.GetError() != ErrorCode.NoError) throw new InvalidOperationException("Transient uniform upload failed.");
+
         writeOffsetBytes = endExclusive;
 #if DEBUG
         AllocationsWritten++;

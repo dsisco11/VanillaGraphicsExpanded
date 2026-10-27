@@ -60,7 +60,7 @@ public sealed class FramebufferAttachmentNotificationTests(HeadlessGLFixture fix
         using var depth = RHICommandContext.Current.CreateRenderbuffer(new RHIRenderbufferDescription { Format = TextureFormat.DepthComponent24, Width = 2, Height = 2, Samples = 4, Label = null }).RequireResource();
         Assert.True(depth.Resize(4, 3));
         Assert.False(depth.Resize(4, 3));
-        using var binding = depth.BindScope();
+        using var binding = StateCache.Current.BindRenderbufferScope(depth.RenderbufferId);
         GL.GetRenderbufferParameter(RenderbufferTarget.Renderbuffer, RenderbufferParameterName.RenderbufferWidth, out int width);
         GL.GetRenderbufferParameter(RenderbufferTarget.Renderbuffer, RenderbufferParameterName.RenderbufferHeight, out int height);
         GL.GetRenderbufferParameter(RenderbufferTarget.Renderbuffer, RenderbufferParameterName.RenderbufferSamples, out int samples);

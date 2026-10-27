@@ -62,7 +62,7 @@ public sealed class GpuResourceOperationContextTests(HeadlessGLFixture fixture)
             }
             Assert.True(bufferEntry.MetadataAvailable); Assert.True(textureEntry.MetadataAvailable);
             Assert.Equal(bufferRevision, bufferEntry.MetadataRevision); Assert.Equal(textureRevision, textureEntry.MetadataRevision);
-            Assert.True(programEntry.MetadataAvailable); Assert.Equal(programRevision, programEntry.MetadataRevision); Assert.Null(program.PendingLink);
+            Assert.True(programEntry.MetadataAvailable); Assert.Equal(programRevision, programEntry.MetadataRevision);
             Assert.True(vaoEntry.MetadataAvailable); Assert.Equal(vaoRevision, vaoEntry.MetadataRevision);
             GL.GetNamedBufferParameter(buffer.BufferId, BufferParameterName.BufferSize, out int size);
             Assert.Equal(16, size);

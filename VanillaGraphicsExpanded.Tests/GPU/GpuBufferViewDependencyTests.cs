@@ -74,14 +74,14 @@ public sealed class GpuBufferViewDependencyTests(HeadlessGLFixture fixture)
             using var sentinelBuffer = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = null }).RequireResource();
             sentinelBuffer.Allocate(64);
             using var sentinel = CreateView(sentinelBuffer, false);
-            sentinel.BindImageUnit(0);
+            VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageSlotBindings.BindImageTexture(StateCache.Current, 0, sentinel.TextureId, 0, false, 0, TextureAccess.ReadOnly, (SizedInternalFormat)((GpuTextureRef)sentinel).RequireMetadata().Buffer!.Value.Format);
             var original = entry.Reader ?? new GpuBufferMetadataReader();
             entry.Reader = new UnavailableReader();
             Assert.Throws<InvalidOperationException>(() => Resize(buffer, 128, true));
             Assert.False(manager.IsResourceMetadataAvailable(view));
             Assert.False(view.IsValid);
             Assert.False(manager.IsResourceMetadataAvailable(alias));
-            view.BindImageUnit(0);
+            Assert.Throws<InvalidOperationException>(() => RHICommandContext.Current.BindSampledTextures([new(0, view, Dimension: TextureDimension.Buffer)]));
             GL.GetInteger((GetIndexedPName)All.ImageBindingName, 0, out int image);
             Assert.Equal(sentinel.TextureId, image);
             entry.Reader = original;
@@ -89,7 +89,7 @@ public sealed class GpuBufferViewDependencyTests(HeadlessGLFixture fixture)
             Assert.True(manager.IsResourceMetadataAvailable(alias));
             Assert.True(manager.IsResourceMetadataAvailable(view));
             Assert.Equal(ranged ? 64 : 0, view.SizeBytes);
-            view.BindImageUnit(0);
+            VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageSlotBindings.BindImageTexture(StateCache.Current, 0, view.TextureId, 0, false, 0, TextureAccess.ReadOnly, (SizedInternalFormat)((GpuTextureRef)view).RequireMetadata().Buffer!.Value.Format);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
         finally { harmony.UnpatchAll(harmony.Id); fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
@@ -110,16 +110,17 @@ public sealed class GpuBufferViewDependencyTests(HeadlessGLFixture fixture)
             buffer.Allocate(64);
             using var view = CreateView(buffer, false);
             using var sentinel = CreateView(buffer, false);
-            sentinel.Bind(0);
-            sentinel.BindImageUnit(0);
+            VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, sentinel, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)sentinel).Target))]);
+            VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageSlotBindings.BindImageTexture(StateCache.Current, 0, sentinel.TextureId, 0, false, 0, TextureAccess.ReadOnly, (SizedInternalFormat)((GpuTextureRef)sentinel).RequireMetadata().Buffer!.Value.Format);
             GpuResourceManager.InvalidateWrapperMetadata(view);
             buffer.Allocate(128);
             Assert.False(view.IsValid);
+            Assert.Throws<InvalidOperationException>(() =>
             {
-                if (consumer == 0) view.Bind(0);
-                else if (consumer == 1) view.BindImageUnit(0);
-                else { using var binding = GpuImageUnitBinding.Bind(0, view); }
-            }
+                if (consumer == 0) VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, view, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)view).Target))]);
+                else if (consumer == 1) VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageSlotBindings.BindImageTexture(StateCache.Current, 0, view.TextureId, 0, false, 0, TextureAccess.ReadOnly, (SizedInternalFormat)((GpuTextureRef)view).RequireMetadata().Buffer!.Value.Format);
+                else { using var binding = new VanillaGraphicsExpanded.Tests.GPU.Fixtures.NativeImageSelection(0, view); }
+            });
             OpenGLImageBindings.ActiveTexture(StateCache.Current, 0);
             Assert.Equal(sentinel.TextureId, GL.GetInteger(GetPName.TextureBindingBuffer));
             GL.GetInteger((GetIndexedPName)All.ImageBindingName, 0, out int image);
@@ -192,8 +193,8 @@ public sealed class GpuBufferViewDependencyTests(HeadlessGLFixture fixture)
             ulong revision = viewEntry.StorageRevision;
             var reader = new CountingReader(backing.Reader!);
             backing.Reader = reader;
-            view.Bind(0);
-            view.BindImageUnit(0);
+            VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, view, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)view).Target))]);
+            VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageSlotBindings.BindImageTexture(StateCache.Current, 0, view.TextureId, 0, false, 0, TextureAccess.ReadOnly, (SizedInternalFormat)((GpuTextureRef)view).RequireMetadata().Buffer!.Value.Format);
             Assert.Equal(0, reader.Reads);
             AllocateNative(buffer, 128);
             Assert.Equal(0, reader.Reads);

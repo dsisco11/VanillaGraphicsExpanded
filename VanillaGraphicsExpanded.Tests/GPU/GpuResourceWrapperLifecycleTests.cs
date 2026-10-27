@@ -306,15 +306,15 @@ public sealed class GpuResourceWrapperLifecycleTests(HeadlessGLFixture fixture)
         var replacementFramebuffer = manager.RegisterCreatedResource<GpuFramebufferMetadata>(GpuResourceKind.Framebuffer, framebuffer.FboId);
         try
         {
-            textureSentinel.Bind(2);
+            VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(2, textureSentinel, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)textureSentinel).Target))]);
             bufferSentinel.Bind();
-            Assert.Throws<ObjectDisposedException>(() => texture.BindScope(2));
+            Assert.Throws<ObjectDisposedException>(() => StateCache.Current.BindTextureScope(((GpuTextureRef)texture).Target, 2, texture.TextureId));
             Assert.Throws<ObjectDisposedException>(() => texture.Resize(16, 8));
-            Assert.Throws<ObjectDisposedException>(() => buffer.BindScope());
+            Assert.Throws<ObjectDisposedException>(() => StateCache.Current.BindBufferScope(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBufferValues.Target(buffer.Role), buffer.BufferId));
             buffer.Allocate(64);
             Assert.Throws<ObjectDisposedException>(() => framebuffer.Bind());
             Assert.Throws<ObjectDisposedException>(() => framebuffer.Resize(16, 8));
-            texture.Bind(2);
+            VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(2, texture, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)texture).Target))]);
             buffer.Bind();
             Assert.Equal(textureSentinel.TextureId, StateCache.Current.GetBoundTexture(TextureTarget.Texture2D, 2));
             Assert.Equal(bufferSentinel.BufferId, GL.GetInteger(GetPName.ShaderStorageBufferBinding));

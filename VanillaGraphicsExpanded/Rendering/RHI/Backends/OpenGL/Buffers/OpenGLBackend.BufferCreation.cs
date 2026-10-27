@@ -30,7 +30,7 @@ internal sealed partial class OpenGLBackend
             BufferRole.IndirectDraw or BufferRole.IndirectDispatch => new GpuIndirectBuffer(usage, request.Label, request.Role),
             BufferRole.PixelPack => new GpuPixelPackBuffer(usage, request.Label),
             BufferRole.PixelUnpack => new GpuPixelUnpackBuffer(usage, request.Label),
-            _ => new GpuVbo(OpenGLBufferValues.Target(request.Role), usage, request.Label)
+            _ => new GpuVbo(request.Role, usage, request.Label)
         };
         try
         {

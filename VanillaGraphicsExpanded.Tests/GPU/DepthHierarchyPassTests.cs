@@ -78,7 +78,7 @@ public sealed class DepthHierarchyPassTests(HeadlessGLFixture fixture) : LumOnSh
             Enumerable.Repeat(.5f,257*131).ToArray());
         using var external=RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = "Tests.Hzb.ExternalStorage" }).RequireResource();
         external.UploadData(new uint[] { 123 }); external.BindBase(0);
-        using var image=GpuImageUnitBinding.Bind(6,source,TextureAccess.ReadOnly);
+        using var image=new VanillaGraphicsExpanded.Tests.GPU.Fixtures.NativeImageSelection(6,source,TextureAccess.ReadOnly);
         StateCache.Current.InvalidateAll();
         try {
             owner.Prepare(257,131,compute); owner.Render(source);

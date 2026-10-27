@@ -25,15 +25,15 @@ internal sealed class GBufferTextures : IDisposable
         try
         {
             Surface = resources.Own(RHICommandContext.Current.CreateTexture3D(new RHITextureDescription { Dimension = TextureDimension.TwoArray, Format = TextureFormat.Rgba16f, Width = System.Math.Max(1, width), Height = System.Math.Max(1, height), Depth = System.Math.Max(1, 3), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "GBuffer.Surface" }).RequireResource());
-            PatchId = Create(width, height, PixelInternalFormat.Rgba32ui, "gPatchId");
+            PatchId = Create(width, height, TextureFormat.Rgba32ui, "gPatchId");
         }
         catch { Dispose(); throw; }
     }
 
     /// <summary>Configures non-mipmapped attachments so raw-ID readers and sampler-based readers agree.</summary>
-    private DynamicTexture2D Create(int width, int height, PixelInternalFormat format, string name)
+    private DynamicTexture2D Create(int width, int height, TextureFormat format, string name)
     {
-        var texture = resources.Own(RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Format((OpenTK.Graphics.OpenGL.PixelInternalFormat)(format)), Width = System.Math.Max(1, width), Height = System.Math.Max(1, height), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = name }).RequireResource());
+        var texture = resources.Own(RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = format, Width = System.Math.Max(1, width), Height = System.Math.Max(1, height), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = name }).RequireResource());
         texture.DisableMipmaps();
         texture.SetTexFilter(SamplerFilter.Nearest, SamplerFilter.Nearest);
         texture.SetTexWrap(SamplerAddressMode.ClampToEdge, SamplerAddressMode.ClampToEdge);

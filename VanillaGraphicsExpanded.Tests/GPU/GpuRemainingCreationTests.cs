@@ -27,7 +27,7 @@ public sealed class GpuRemainingCreationTests(HeadlessGLFixture fixture, Xunit.I
             using var previousVao = GpuVao.Create();
             using var previousPipeline = GpuProgramPipeline.Create();
             using var previousSampler = RHICommandContext.Current.CreateSampler(new RHISamplerDescription {  }).RequireResource();
-            previousSampler.Bind(0);
+            VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageBindings.BindSampler(StateCache.Current, 0, previousSampler.SamplerId);
             using var vaoScope = StateCache.Current.BindVertexArrayScope(previousVao.VertexArrayId);
             using var pipelineScope = StateCache.Current.BindProgramPipelineScope(previousPipeline.PipelineId);
             using var observation = new CreationQueryObservation();

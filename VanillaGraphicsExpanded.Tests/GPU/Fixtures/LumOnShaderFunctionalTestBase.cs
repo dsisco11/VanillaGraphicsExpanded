@@ -191,7 +191,7 @@ public abstract class LumOnShaderFunctionalTestBase : RenderTestBase, IDisposabl
         {
             // The retired comparison executable has no typed owner, but consumes these exact shared blocks.
             LumOnUbos.FrameUbo.BindBase(LumOnUniformBuffers.FrameBinding);
-            Assert.True(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLRHIContext.BindEngineUniform(GpuBindingRegistry.Ubo.Frame, camera.Capture()));
+            Assert.True(VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindUniformSnapshot(GpuBindingRegistry.Ubo.Frame, camera.Capture()));
         }
     }
 

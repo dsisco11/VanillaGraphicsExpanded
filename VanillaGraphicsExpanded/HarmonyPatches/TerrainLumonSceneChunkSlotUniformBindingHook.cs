@@ -85,7 +85,7 @@ internal static class TerrainLumonSceneChunkSlotUniformBindingHook
                     OpenGLProgramAssignments.UniformBlockBinding(programId, slotBlockIndex, LumonSceneChunkSlotUniformState.Binding);
 
                 // The sampler uniform value (texture unit) is per-program; update it when state changes.
-                if (genLoc >= 0 && LumonSceneChunkSlotUniformState.GenerationTextureId != 0)
+                if (genLoc >= 0 && !LumonSceneChunkSlotUniformState.GenerationTexture.IsEmpty)
                 {
                     OpenGLProgramAssignments.SetUnit(programId, genLoc, LumonSceneChunkSlotUniformState.GenerationTextureUnit);
                 }
@@ -96,14 +96,10 @@ internal static class TerrainLumonSceneChunkSlotUniformBindingHook
             // Re-bind them whenever this program is used (not just when state changes), otherwise the chunk shaders
             // can read stale/garbage mapping state and we can end up with "no PatchId feedback / no pages allocated".
 
-            int texId = LumonSceneChunkSlotUniformState.GenerationTextureId;
-            if (genLoc >= 0 && texId != 0)
+            var texture = LumonSceneChunkSlotUniformState.GenerationTexture;
+            if (genLoc >= 0 && !texture.IsEmpty)
             {
-                OpenGLImageBindings.ActiveTexture(StateCache.Current, LumonSceneChunkSlotUniformState.GenerationTextureUnit);
-                OpenGLImageBindings.BindTextureOnActiveUnit(StateCache.Current, TextureTarget.Texture2D, texId);
-
-                // Restore to unit 0 (engine code generally assumes this).
-                OpenGLImageBindings.ActiveTexture(StateCache.Current, 0);
+                VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(LumonSceneChunkSlotUniformState.GenerationTextureUnit, texture)]);
             }
 
             // Compute passes reuse the Object binding; a version check alone cannot restore it.

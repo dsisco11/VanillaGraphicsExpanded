@@ -49,15 +49,15 @@ public sealed class TerrainReliefNumericalTests : RenderTestBase
         byte[] inputBytes = new byte[16];
         var layout=BuiltShaderFixture.Layout(id,fragmentPath);
         OpenGLProgramSelection.Select(StateCache.Current, id); OpenGLVertexSelection.Bind(StateCache.Current, vao.VertexArrayId);
-        heights.Bind(0); indices.Bind(1); records.Bind(2);
+        VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, heights, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)heights).Target))]); VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(1, indices, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)indices).Target))]); VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(2, records, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)records).Target))]);
         ShaderTestFramework.SetUniform(layout.GetUniformLocation(id,"vge_normalDepthTex"),0);
         ShaderTestFramework.SetUniform(layout.GetUniformLocation(id,"vge_displacementTex"),1);
         ShaderTestFramework.SetUniform(layout.GetUniformLocation(id,"vge_displacementRecords"),2);
         UboPacking.WriteVec2(inputBytes, 8, scale, distance);
         using var frameCamera = TestFrameCamera.CreateIdentity(32, 32);
-        Assert.True(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLRHIContext.BindEngineUniform(GpuBindingRegistry.Ubo.Frame, frameCamera.Capture()));
+        Assert.True(VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindUniformSnapshot(GpuBindingRegistry.Ubo.Frame, frameCamera.Capture()));
         inputs.SetBytes(inputBytes);
-        Assert.True(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLRHIContext.BindEngineUniform(GpuBindingRegistry.Ubo.ShaderInputs, inputs.Capture()));
+        Assert.True(VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindUniformSnapshot(GpuBindingRegistry.Ubo.ShaderInputs, inputs.Capture()));
         FramebufferTestSetup.BindForEngineRendering(target); GL.Disable(EnableCap.DepthTest);GL.Disable(EnableCap.Blend);GL.Disable(EnableCap.CullFace);
         GL.DrawArrays(PrimitiveType.Triangles,0,3);
         float[] pixels=target[0].ReadPixels(); int center=(16*32+16)*4;

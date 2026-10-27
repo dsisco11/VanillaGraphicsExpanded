@@ -741,3 +741,76 @@ linked ownership, publication, reference and submission contracts. No required 5
 The remaining native descriptor translation in streaming and other wrapper/consumer bypasses remain
 with 5d; combined migration and fixture qualification remain with 5e. Phase 5 and command recording
 remain open. No staging, commit, deployment, package publication or game launch was performed.
+
+## Wrapper and consumer execution correction (Phase 5d)
+
+| Previous route | Final responsibility |
+| --- | --- |
+| Texture/view/sampler slot bind methods and layout immediate executors | Captured RHI resource tables, or complete typed sampled-slot packets for engine programs. Superseded methods and their unused scope types are removed with callers. |
+| Frame/light hook through native uniform integration entry | RHICommandContext.BindUniformSnapshot and the existing backend logical publication service; no second allocator, provisional range, or forwarding integration method. |
+| Atmosphere and terrain raw texture IDs/native selector writes | Retained references and semantic dimensions. Terrain relief prepares its three slots; the atlas hook submits the combined set once, retaining nearest sampling on their shared normal/depth slot. Engine membership and sampler assignment remain native integration policy. |
+| Wrapper native descriptor conversion and streaming native targets/pixel types | Private owner initialization records, project-owned formats/encoding/dimensions, and query-free published image-fact projection. Queued CPU/PBO payload ownership, destination storage certificates and completion remain unchanged. |
+| Program wrapper owns concrete pending-link state | Backend weak-key pending records against the same existing wrapper/association/revision, with supersession, one-time completion and candidate-only cleanup. |
+| Framebuffer wrapper downcasts backend target to check completeness | Backend realization/completeness service, keyed by attachment revision and routing. Framebuffer owners dispatch native configuration through private RHI contracts. |
+| Uniform page/ring post-upload GetError | No ambient error consumption. Actual exceptions still abort new publication, retain dirty work and preserve the last completed range. |
+| Remaining direct wrapper native draw/residency/surface execution | Unused EBO draw helpers removed. Optional bindless owner and explicit window-surface discovery use private RHI services. Existing resource identities and manager authority remain unchanged. |
+
+Task-to-document traceability:
+
+- Wrapper ownership, legal inputs, replacement, cleanup and consumption refs -> proposal Public operations
+  and resource inputs / Resource creation and adoption; contracts Resource references and factories /
+  Internal resource execution; Rendering.GpuResources.md; pinned creation/publication
+  3f307365:docs/Rendering.CommandPublication.Proposal.md and unchanged texture reference
+  b9fca04c:docs/Rendering.GpuTextureRef.Proposal.md -> existing owner/manager handoff, private native
+  lowering, exact original-context cleanup and affected owner/borrow/view regressions.
+- Engine hook/resource publication, layout API removal and selective scopes -> proposal Engine integration
+  and migration boundaries; contracts Operation signatures and dispositions / Submission and failure
+  rules; Rendering.ShaderBindingState.md Prepared resource submission -> complete supplied-set validation,
+  retained backing guards, shared suppression/publication and target-specific empty binding tests.
+- Streaming translation and native pixel helpers -> the same public-input/owner contracts and
+  TextureStreaming.Architecture.md Upload Request Model -> semantic CPU/PBO request paths and existing
+  padded row/readiness/certificate tests. The backend owns selectors and restoration.
+- Pending link and pass completeness -> proposal Shader and pipeline objects / Attachment-based pass
+  targets, plus the selected phase's owner/public-operation authority -> backend bookkeeping on existing
+  identities, coherent metadata completion and revision-keyed target validation.
+- Uniform result handling -> contracts Submission and failure rules and pinned command-publication
+  operation policy -> actual interrupted upload preserves dirty work/old range; unrelated native errors
+  remain available to their original caller, for mapped and unmapped publication lifetimes.
+
+The outer MaterialAtlasNormalDepthGpuBuilder, PBRCompositeRenderer and LumOnRenderer restoration scopes
+around migrated operations are removed. SceneColorParticleDrawScope remains a genuine raw engine
+particle callback/blend restoration boundary, not a redundant DSA fallback. Its wider engine integration
+classification is retained for 5e. Native GBuffer/cloud acquisition and error-policy reconciliation,
+RenderPass helper placement, combined graph qualification and the explicitly listed inherited 5e fixture
+failures remain open; this receipt does not qualify them.
+
+Validation used HEAD c7d055c69e031c40ead5655bb6da82a7339e89e3 plus this working candidate. The
+3411-file source/shader/tool-input fingerprint is
+0e84d3fdd52a87eaf7c8874e379285f848cbd6dd00407603c7418e466a60f040
+(path, NUL, bytes, NUL in sorted repository-path order; docs excluded).
+The machine-readable receipt is artifacts/rhi-phase5d/source-candidate.json.
+
+| Receipt under artifacts/rhi-phase5d/candidate | Result |
+| --- | --- |
+| qualified-debug-build.log | Canonical Debug test-project build: 0 errors, 333 warnings. |
+| qualified-release-build.log | Canonical Release production build: 0 errors, 334 warnings. |
+| qualified-focused-tests.log, qualified-focused.trx, qualified-focused-filter.txt | 227 passed, no failures/skips. Covers engine hook/terrain/relief integration, sampled-slot failure, owner/reference/view lifetimes, uniform interruption/reuse, pending programs, framebuffer operations and CPU/PBO transfers. |
+| qualified-binding-cache.log, qualified-binding-cache.trx | 8 generated-resource and vertex/multi-binding cache checks passed, no failures/skips. |
+| final-dependencies.log, final-dependencies.trx | 53 registry, disposal, association, initialization-intent, format and capability checks passed, no failures/skips. |
+| final-generator.log, final-generator.trx | Full generator suite: 157 passed, no failures/skips. |
+
+Builds used the canonical default shader producers with no shader suppression, alternate package path
+or instrumented Release configuration. The inherited frame-hook boundary fixture now clears before
+activating engine shader handoff. Native relief fixtures activate their actual engine owner, moving
+world fixtures refresh their native player before callbacks, and bindless residency checks retain the
+issued handle instead of querying zero after disposal. Uniform failure tests interrupt the actual upload
+boundary; they no longer misattribute ambient GL errors. The framebuffer composition catch covers
+validation failures, preventing a caught failure from committing an otherwise partial transaction.
+
+Second source review and the independent audit-stage-completion workflow reconciled every 5d item
+with the linked public-input, ownership, initialization, publication and migration contracts. Source
+inspection confirms no remaining ordinary wrapper/helper execution bypass within this unit, no obsolete
+slot-binding facade, no parallel resource registry or dispatcher, and no native error drain introduced
+as command success detection. Source fingerprint recheck found no drift after qualification.
+All required 5d findings are resolved. Phase 5 and 5e remain open. These headless checks do not claim
+installed-game startup, visual acceptance or measured performance. No staging or commit was performed.

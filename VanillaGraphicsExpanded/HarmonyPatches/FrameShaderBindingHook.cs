@@ -68,14 +68,14 @@ internal static class FrameShaderBindingHook
                 buffers.Count > (int)Vintagestory.API.Client.EnumFrameBuffer.Transparent ? buffers[(int)Vintagestory.API.Client.EnumFrameBuffer.Transparent] : null);
             if (route == 0) return;
         }
-        if (membership.Frame && !VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLRHIContext.BindEngineUniform(GpuBindingRegistry.Ubo.Frame, VgeFrameRenderer.Current.Capture()))
+        if (membership.Frame && !RHICommandContext.Current.BindUniformSnapshot(GpuBindingRegistry.Ubo.Frame, VgeFrameRenderer.Current.Capture()))
             throw new InvalidOperationException("The engine camera consumer could not bind its shared frame snapshot.");
-        if (membership.Lights && !VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLRHIContext.BindEngineUniform(GpuBindingRegistry.Ubo.Lights, VgeLightsRenderer.Current.Capture()))
+        if (membership.Lights && !RHICommandContext.Current.BindUniformSnapshot(GpuBindingRegistry.Ubo.Lights, VgeLightsRenderer.Current.Capture()))
             throw new InvalidOperationException("The engine light consumer could not bind its shared light snapshot.");
         if (membership.Energy)
         {
-            PBR.Materials.Energy.MicrofacetEnergyLookup.Prepare().Bind(GpuBindingRegistry.Sampler.MicrofacetEnergy);
-            GpuSamplers.LinearClamp.Bind(GpuBindingRegistry.Sampler.MicrofacetEnergy);
+            RHICommandContext.Current.BindSampledTextures([new(GpuBindingRegistry.Sampler.MicrofacetEnergy,
+                PBR.Materials.Energy.MicrofacetEnergyLookup.Prepare(), GpuSamplers.LinearClamp)]);
         }
     }
     #endregion

@@ -1,4 +1,3 @@
-using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using System.Diagnostics;
@@ -15,7 +14,6 @@ namespace VanillaGraphicsExpanded.Rendering;
 public sealed class Texture3D : GpuTexture
 {
     internal Texture3D() { }
-
 
 
     #region Readback
@@ -38,7 +36,7 @@ public sealed class Texture3D : GpuTexture
         try
         {
             using var request = RHICommandContext.Current.EnqueueReadback(new RHIReadbackDescription(this,
-                new(new(0, layer), x, y, 0, regionWidth, regionHeight, 1), OpenGLPixelValues.Encoding(format, PixelType.Float)));
+                new(new(0, layer), x, y, 0, regionWidth, regionHeight, 1), RHICommandContext.Current.GetTextureEncoding(this, PixelComponentType.Float)));
             if (request.Wait() != CompletionStatus.Ready)
                 throw new InvalidOperationException("Layered texture readback failed.", request.Error);
             using var mapped = request.MapReadyReadback();

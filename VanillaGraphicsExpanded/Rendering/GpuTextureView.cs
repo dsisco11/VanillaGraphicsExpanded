@@ -50,7 +50,6 @@ public sealed class GpuTextureView : GpuResource<GpuTextureMetadata>, IDisposabl
     }
 
 
-
     /// <summary>
     /// Gets the underlying OpenGL texture id for this view.
     /// </summary>
@@ -111,24 +110,6 @@ public sealed class GpuTextureView : GpuResource<GpuTextureMetadata>, IDisposabl
     }
 
 
-
-
-
-
-
-    /// <summary>
-    /// Binds this view to a texture unit.
-    /// </summary>
-    public void Bind(int unit)
-    {
-        if (!IsValid)
-        {
-            Debug.WriteLine("[GpuTextureView] Attempted to bind disposed or invalid view");
-            return;
-        }
-
-        OpenGLImageBindings.BindTexture(StateCache.Current, target, unit, textureId);
-    }
     #endregion
 
     #region Protected API

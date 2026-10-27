@@ -95,10 +95,10 @@ public sealed class TerrainDisplacementRasterTests : RenderTestBase
             using var atlas=framework.CreateTexture(16,16,PixelInternalFormat.Rgba32f,pixels);
             using var target=framework.CreateTestGBuffer(16,16,PixelInternalFormat.Rgba32f);
             using var camera = TestFrameCamera.CreateIdentity(128,128);
-            Assert.True(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLRHIContext.BindEngineUniform(GpuBindingRegistry.Ubo.Frame, camera.Capture()));
+            Assert.True(VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindUniformSnapshot(GpuBindingRegistry.Ubo.Frame, camera.Capture()));
             var layout = GpuProgramLayout.TryBuild(program);
             FramebufferTestSetup.BindForEngineRendering(target); OpenGLProgramSelection.Select(StateCache.Current, program); OpenGLVertexSelection.Bind(StateCache.Current, vao);
-            amplitude.Bind(0); atlas.Bind(1); records.Bind(2);
+            VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, amplitude, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)amplitude).Target))]); VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(1, atlas, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)atlas).Target))]); VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(2, records, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)records).Target))]);
             ShaderTestFramework.SetUniform(layout.GetUniformLocation(program,"vge_displacementTex"),0);
             ShaderTestFramework.SetUniform(layout.GetUniformLocation(program,"vge_normalDepthTex"),1);
             ShaderTestFramework.SetUniform(layout.GetUniformLocation(program,"vge_tessellationDistance"),10f,20f);

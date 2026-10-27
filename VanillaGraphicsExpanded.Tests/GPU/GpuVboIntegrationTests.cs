@@ -34,7 +34,7 @@ public class GpuVboIntegrationTests
         // Assert
         Assert.True(vbo.IsValid);
         Assert.True(vbo.BufferId > 0);
-        Assert.Equal(BufferTarget.ArrayBuffer, vbo.Target);
+        Assert.Equal(BufferTarget.ArrayBuffer, VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBufferValues.Target(vbo.Role));
         Assert.Equal(BufferUsageHint.StaticDraw, vbo.Usage);
         Assert.Equal(0, vbo.SizeBytes);
         Assert.Null(vbo.DebugName);
@@ -52,7 +52,7 @@ public class GpuVboIntegrationTests
 
         // Assert
         Assert.True(vbo.IsValid);
-        Assert.Equal(BufferTarget.ElementArrayBuffer, vbo.Target);
+        Assert.Equal(BufferTarget.ElementArrayBuffer, VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBufferValues.Target(vbo.Role));
         Assert.Equal(BufferUsageHint.StaticDraw, vbo.Usage);
     }
 
@@ -67,7 +67,7 @@ public class GpuVboIntegrationTests
 
         // Assert
         Assert.True(vbo.IsValid);
-        Assert.Equal(BufferTarget.ArrayBuffer, vbo.Target);
+        Assert.Equal(BufferTarget.ArrayBuffer, VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBufferValues.Target(vbo.Role));
         AssertNativeUsage(vbo);
         vbo.Allocate(0);
         Assert.Equal(BufferUsageHint.DynamicDraw, vbo.Usage);
@@ -102,7 +102,7 @@ public class GpuVboIntegrationTests
 
         // Assert
         Assert.True(vbo.IsValid);
-        Assert.Equal(target, vbo.Target);
+        Assert.Equal(target, VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBufferValues.Target(vbo.Role));
         AssertNativeUsage(vbo);
         vbo.Allocate(0);
         Assert.Equal(usage, vbo.Usage);
@@ -190,7 +190,7 @@ public class GpuVboIntegrationTests
         Assert.Equal(vbo1.BufferId, initialBinding);
 
         // Act - Use binding scope with second VBO
-        using (var scope = vbo2.BindScope())
+        using (var scope = StateCache.Current.BindBufferScope(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBufferValues.Target(vbo2.Role), vbo2.BufferId))
         {
             GL.GetInteger(GetPName.ArrayBufferBinding, out int scopedBinding);
             Assert.Equal(vbo2.BufferId, scopedBinding);
@@ -278,8 +278,8 @@ public class GpuVboIntegrationTests
         Assert.True(arrayVbo.IsValid);
         Assert.True(elementVbo.IsValid);
         Assert.NotEqual(arrayVbo.BufferId, elementVbo.BufferId);
-        Assert.Equal(BufferTarget.ArrayBuffer, arrayVbo.Target);
-        Assert.Equal(BufferTarget.ElementArrayBuffer, elementVbo.Target);
+        Assert.Equal(BufferTarget.ArrayBuffer, VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBufferValues.Target(arrayVbo.Role));
+        Assert.Equal(BufferTarget.ElementArrayBuffer, VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBufferValues.Target(elementVbo.Role));
         Assert.Equal("ArrayVBO", arrayVbo.DebugName);
         Assert.Equal("ElementVBO", elementVbo.DebugName);
     }
@@ -318,7 +318,7 @@ public class GpuVboIntegrationTests
 
         // Assert
         Assert.True(vbo.IsValid);
-        Assert.Equal(target, vbo.Target);
+        Assert.Equal(target, VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBufferValues.Target(vbo.Role));
         Assert.True(vbo.BufferId > 0);
     }
 

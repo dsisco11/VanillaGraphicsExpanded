@@ -52,7 +52,7 @@ public sealed class TerrainTessellationEngineDrawTests : RenderTestBase
             using var framework = new ShaderTestFramework();
             using var target = framework.CreateTestGBuffer(8, 8, PixelInternalFormat.Rgba32f);
             using var camera = TestFrameCamera.CreateIdentity(8,8);
-            Assert.True(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLRHIContext.BindEngineUniform(GpuBindingRegistry.Ubo.Frame, camera.Capture()));
+            Assert.True(VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindUniformSnapshot(GpuBindingRegistry.Ubo.Frame, camera.Capture()));
             FramebufferTestSetup.BindForEngineRendering(target); GL.Disable(EnableCap.DepthTest); GL.Disable(EnableCap.Blend); GL.Disable(EnableCap.CullFace);
             OpenGLProgramSelection.Select(StateCache.Current, owner.ProgramId);
             GL.DrawElements(PrimitiveType.Triangles, 3, DrawElementsType.UnsignedInt, 3 * sizeof(uint));

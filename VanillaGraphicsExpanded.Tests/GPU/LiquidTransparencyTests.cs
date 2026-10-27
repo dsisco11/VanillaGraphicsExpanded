@@ -89,7 +89,7 @@ public sealed class LiquidTransparencyTests(HeadlessGLFixture fixture) : RenderT
         using var indices = RHICommandContext.Current.CreateIndexBuffer(new RHIBufferDescription { Role = BufferRole.Index, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = "Test.LiquidBuckets.Indices" }).RequireResource();
         using var vertexBinding = StateCache.Current.BindVertexArrayScope(vao.VertexArrayId);
         // Supply every input through vertex buffers instead of mutable global constant attributes.
-        using (vertices.BindScope())
+        using (StateCache.Current.BindBufferScope(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBufferValues.Target(vertices.Role), vertices.BufferId))
         {
             vertices.UploadData(new float[] {
                 -10,-1,-1, .5f,.5f, 0,0,0,1, 0,0,
@@ -101,7 +101,7 @@ public sealed class LiquidTransparencyTests(HeadlessGLFixture fixture) : RenderT
             using (StateCache.Current.BindVertexArrayScope(vao.VertexArrayId)) OpenGLVertexCalls.ExecuteCoreVertexAttribPointer(2, 4, VertexAttribPointerType.Float, false, 44, 20);
             using (StateCache.Current.BindVertexArrayScope(vao.VertexArrayId)) OpenGLVertexCalls.ExecuteCoreVertexAttribPointer(4, 2, VertexAttribPointerType.Float, false, 44, 36);
         }
-        using (flags.BindScope())
+        using (StateCache.Current.BindBufferScope(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBufferValues.Target(flags.Role), flags.BufferId))
         {
             flags.UploadData(new int[12]);
             using (StateCache.Current.BindVertexArrayScope(vao.VertexArrayId)) OpenGLVertexCalls.ExecuteCoreVertexAttribIPointer(3, 1, VertexAttribIntegerType.Int, 12, 0);

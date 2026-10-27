@@ -1,5 +1,6 @@
 using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
+using HarmonyLib;
 using VanillaGraphicsExpanded.LumOn;
 using VanillaGraphicsExpanded.LumOn.Shaders;
 using VanillaGraphicsExpanded.Rendering;
@@ -28,10 +29,10 @@ public sealed class UniformLifetimeSharingTests(HeadlessGLFixture fixture) : Ren
         try
         {
             block.Write(3f);
-            Assert.True(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLRHIContext.BindEngineUniform(13, block.Capture()));
+            Assert.True(VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindUniformSnapshot(13, block.Capture()));
             block.Write(7f);
             Assert.True(block.IsDirty);
-            Assert.True(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLRHIContext.BindEngineUniform(14, block.Capture()));
+            Assert.True(VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindUniformSnapshot(14, block.Capture()));
             Assert.Equal(3f, ReadSlot(13));
             Assert.Equal(7f, ReadSlot(14));
             Assert.False(block.IsDirty);
@@ -57,9 +58,9 @@ public sealed class UniformLifetimeSharingTests(HeadlessGLFixture fixture) : Ren
         try
         {
             block.Write(3f);
-            Assert.True(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLRHIContext.BindEngineUniform(13, block.Capture()));
+            Assert.True(VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindUniformSnapshot(13, block.Capture()));
             block.Write(7f);
-            Assert.Throws<InvalidOperationException>(() => VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLRHIContext.BindEngineUniform(13, block.Capture()));
+            Assert.Throws<InvalidOperationException>(() => VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindUniformSnapshot(13, block.Capture()));
             Assert.True(block.IsDirty);
             Assert.Equal(3f, ReadSlot(13));
 #if DEBUG
@@ -67,7 +68,7 @@ public sealed class UniformLifetimeSharingTests(HeadlessGLFixture fixture) : Ren
 #endif
             ring.EndFrame();
             ring.BeginFrame(1);
-            Assert.True(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLRHIContext.BindEngineUniform(13, block.Capture()));
+            Assert.True(VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindUniformSnapshot(13, block.Capture()));
             Assert.Equal(7f, ReadSlot(13));
             Assert.False(block.IsDirty);
             ring.EndFrame();
@@ -92,11 +93,11 @@ public sealed class UniformLifetimeSharingTests(HeadlessGLFixture fixture) : Ren
         {
             var outerSnapshot = ResolveSnapshot(outer);
             var innerSnapshot = ResolveSnapshot(inner);
-            Assert.True(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLRHIContext.BindEngineUniform(GpuBindingRegistry.Ubo.Object, outerSnapshot));
+            Assert.True(VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindUniformSnapshot(GpuBindingRegistry.Ubo.Object, outerSnapshot));
             Assert.Equal(64f, ReadSlot(GpuBindingRegistry.Ubo.Object));
-            Assert.True(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLRHIContext.BindEngineUniform(GpuBindingRegistry.Ubo.Object, innerSnapshot));
+            Assert.True(VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindUniformSnapshot(GpuBindingRegistry.Ubo.Object, innerSnapshot));
             Assert.Equal(128f, ReadSlot(GpuBindingRegistry.Ubo.Object));
-            Assert.True(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLRHIContext.BindEngineUniform(GpuBindingRegistry.Ubo.Object, outerSnapshot));
+            Assert.True(VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindUniformSnapshot(GpuBindingRegistry.Ubo.Object, outerSnapshot));
             Assert.Equal(64f, ReadSlot(GpuBindingRegistry.Ubo.Object));
 #if DEBUG
             Assert.Equal(2, ring.PersistentStorage.AllocationsWritten);
@@ -120,13 +121,13 @@ public sealed class UniformLifetimeSharingTests(HeadlessGLFixture fixture) : Ren
         try
         {
             shader.AtlasSize = new(64, 32);
-            Assert.True(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLRHIContext.BindEngineUniform(GpuBindingRegistry.Ubo.Object, ResolveSnapshot(shader)));
+            Assert.True(VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindUniformSnapshot(GpuBindingRegistry.Ubo.Object, ResolveSnapshot(shader)));
 #if DEBUG
             Assert.Equal(1, ring.PersistentStorage.AllocationsWritten);
 #endif
             shader.InvalidateAssets();
             shader.EnsureReady();
-            Assert.True(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLRHIContext.BindEngineUniform(GpuBindingRegistry.Ubo.Object, ResolveSnapshot(shader)));
+            Assert.True(VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindUniformSnapshot(GpuBindingRegistry.Ubo.Object, ResolveSnapshot(shader)));
 #if DEBUG
             Assert.Equal(1, ring.PersistentStorage.AllocationsWritten);
 #endif
@@ -142,13 +143,13 @@ public sealed class UniformLifetimeSharingTests(HeadlessGLFixture fixture) : Ren
         finally { GpuUniformRingSystem.ClearCurrent(); }
     }
 
-    /// <summary>A native upload error leaves dirty work pending and the previous complete range unchanged.</summary>
+    /// <summary>An interrupted upload leaves dirty work pending and the previous complete range unchanged.</summary>
     [Theory]
     [InlineData(false, UniformBufferUsage.MultiFrame)]
     [InlineData(true, UniformBufferUsage.MultiFrame)]
     [InlineData(false, UniformBufferUsage.SingleFrame)]
     [InlineData(true, UniformBufferUsage.SingleFrame)]
-    public void NativeUploadFailurePreservesDirtyWorkAndRetries(bool mapped, UniformBufferUsage usage)
+    public void UploadInterruptionPreservesDirtyWorkAndRetries(bool mapped, UniformBufferUsage usage)
     {
         EnsureContextValid();
         using var ring = new GpuUniformRingBuffer(65536, 3, mapped);
@@ -160,18 +161,26 @@ public sealed class UniformLifetimeSharingTests(HeadlessGLFixture fixture) : Ren
             byte[] bytes = new byte[16];
             BitConverter.TryWriteBytes(bytes, 1f);
             block.SetBytes(bytes);
-            Assert.True(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLRHIContext.BindEngineUniform(13, block.Capture()));
+            Assert.True(VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindUniformSnapshot(13, block.Capture()));
             BitConverter.TryWriteBytes(bytes, 2f);
             block.SetBytes(bytes);
-            // Inject a driver error before the next native upload's success check.
-            GL.Enable((EnableCap)(-1));
-            Assert.Throws<InvalidOperationException>(() => VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLRHIContext.BindEngineUniform(13, block.Capture()));
+            // Interrupt the upload itself; unrelated ambient GL errors are not command results.
+            var fault = new Harmony("tests.uniform-upload-interruption." + Guid.NewGuid());
+            var upload = usage == UniformBufferUsage.MultiFrame
+                ? AccessTools.Method(typeof(UniformStoragePage), "Write")
+                : AccessTools.Method(typeof(GpuUniformRingBuffer), nameof(GpuUniformRingBuffer.AllocateAndWrite));
+            try
+            {
+                fault.Patch(upload, prefix: new HarmonyMethod(typeof(UniformLifetimeSharingTests), nameof(InterruptUpload)));
+                Assert.Throws<InvalidOperationException>(() => RHICommandContext.Current.BindUniformSnapshot(13, block.Capture()));
+            }
+            finally { fault.UnpatchAll(fault.Id); }
             Assert.True(block.IsDirty);
             Assert.Equal(1f, ReadSlot(13));
 #if DEBUG
             Assert.Equal(1, usage == UniformBufferUsage.MultiFrame ? ring.PersistentStorage.AllocationsWritten : ring.AllocationsWritten);
 #endif
-            Assert.True(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLRHIContext.BindEngineUniform(13, block.Capture()));
+            Assert.True(VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindUniformSnapshot(13, block.Capture()));
             Assert.False(block.IsDirty);
             Assert.Equal(2f, ReadSlot(13));
 #if DEBUG
@@ -201,17 +210,17 @@ public sealed class UniformLifetimeSharingTests(HeadlessGLFixture fixture) : Ren
         GpuUniformRingSystem.SetCurrent(ring);
         try
         {
-            Assert.True(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLRHIContext.BindEngineUniform(GpuBindingRegistry.Ubo.Object, block.Capture()));
-            Assert.True(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLRHIContext.BindEngineUniform(GpuBindingRegistry.Ubo.Object, block.Capture()));
+            Assert.True(VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindUniformSnapshot(GpuBindingRegistry.Ubo.Object, block.Capture()));
+            Assert.True(VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindUniformSnapshot(GpuBindingRegistry.Ubo.Object, block.Capture()));
             Assert.Equal(0.25f, ReadSlot(14));
             ring.EndFrame();
             ring.BeginFrame(1);
             first.InvalidateAssets();
             first.EnsureReady();
-            Assert.True(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLRHIContext.BindEngineUniform(GpuBindingRegistry.Ubo.Object, block.Capture()));
+            Assert.True(VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindUniformSnapshot(GpuBindingRegistry.Ubo.Object, block.Capture()));
             first.Dispose();
-            Assert.True(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLRHIContext.BindEngineUniform(GpuBindingRegistry.Ubo.Object, block.Capture()));
-            Assert.True(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLRHIContext.BindEngineUniform(13, block.Capture()));
+            Assert.True(VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindUniformSnapshot(GpuBindingRegistry.Ubo.Object, block.Capture()));
+            Assert.True(VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindUniformSnapshot(13, block.Capture()));
             Assert.Equal(0.25f, ReadSlot(13));
 #if DEBUG
             Assert.Equal(1, ring.PersistentStorage.AllocationsWritten);
@@ -223,7 +232,7 @@ public sealed class UniformLifetimeSharingTests(HeadlessGLFixture fixture) : Ren
 #endif
             // CPU packing disposal deliberately resets publication; unlike logical disposal it remains publishable.
             block.Dispose();
-            Assert.True(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLRHIContext.BindEngineUniform(14, block.Capture()));
+            Assert.True(VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindUniformSnapshot(14, block.Capture()));
             Assert.Equal(0.25f, ReadSlot(14));
 #if DEBUG
             Assert.Equal(2, ring.PersistentStorage.AllocationsWritten);
@@ -235,6 +244,9 @@ public sealed class UniformLifetimeSharingTests(HeadlessGLFixture fixture) : Ren
     #endregion
 
     #region Private
+    /// <summary>Reports an interrupted upload before publication can commit the new CPU revision.</summary>
+    private static void InterruptUpload() => throw new InvalidOperationException("Fixture upload interruption.");
+
     /// <summary>Extracts the generated resolve block snapshot for an explicitly qualified engine integration slot.</summary>
     private static RHIUniformSnapshot ResolveSnapshot(LumOnWorldProbeClipmapResolveShaderProgram shader)
         => shader.CaptureBindings().Uniforms.Single(value => value.Identity == VanillaGraphicsExpanded.Rendering.Contracts.GpuBindingEntry.Identity(

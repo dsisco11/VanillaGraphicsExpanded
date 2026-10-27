@@ -77,7 +77,7 @@ public sealed class LiquidSpecularTriangulationTests(HeadlessGLFixture fixture) 
         using var flags = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = "Test.LiquidTriangulation.Flags" }).RequireResource();
         using var indices = RHICommandContext.Current.CreateIndexBuffer(new RHIBufferDescription { Role = BufferRole.Index, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = "Test.LiquidTriangulation.Indices" }).RequireResource();
         using var vertexBinding = StateCache.Current.BindVertexArrayScope(vao.VertexArrayId);
-        using (vertices.BindScope())
+        using (StateCache.Current.BindBufferScope(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBufferValues.Target(vertices.Role), vertices.BufferId))
         {
             vertices.UploadData(new float[] {
                 -2,-1,-4, .5f,.5f, 0,0,0,1, 0,0,
@@ -89,7 +89,7 @@ public sealed class LiquidSpecularTriangulationTests(HeadlessGLFixture fixture) 
             using (StateCache.Current.BindVertexArrayScope(vao.VertexArrayId)) OpenGLVertexCalls.ExecuteCoreVertexAttribPointer(2, 4, VertexAttribPointerType.Float, false, 44, 20);
             using (StateCache.Current.BindVertexArrayScope(vao.VertexArrayId)) OpenGLVertexCalls.ExecuteCoreVertexAttribPointer(4, 2, VertexAttribPointerType.Float, false, 44, 36);
         }
-        using (flags.BindScope())
+        using (StateCache.Current.BindBufferScope(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBufferValues.Target(flags.Role), flags.BufferId))
         {
             // Identical packed +Y normals and animated-water flags isolate the fold in the mesh.
             const int up = 7 << 18;

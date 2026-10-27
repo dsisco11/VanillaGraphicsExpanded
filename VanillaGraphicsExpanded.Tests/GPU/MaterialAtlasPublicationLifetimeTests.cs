@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Reflection;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.PBR.Materials;
@@ -26,7 +27,7 @@ public sealed class MaterialAtlasPublicationLifetimeTests(HeadlessGLFixture fixt
             Assert.True(store.TryGetPageTextures(8, out var destination));
             float[] before = destination.MaterialParamsTexture.ReadPixels();
             var stage = TextureStreamingSystem.StageCopy(destination.MaterialParamsTexture.TextureId,
-                TextureUploadTarget.For2D(), TextureUploadRegion.For2D(0, 0, 1, 1), PixelFormat.Rgba, PixelType.Float,
+                TextureUploadTarget.For2D(), TextureUploadRegion.For2D(0, 0, 1, 1), PixelChannelLayout.Rgba, PixelComponentType.Float,
                 new float[] { .5f, .25f, 8, 0 }, textureOwner: owner.MaterialParamsTexture);
             Assert.NotEqual(TextureStageOutcome.Rejected, stage.Outcome);
             DrainUploads();

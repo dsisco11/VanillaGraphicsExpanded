@@ -73,14 +73,16 @@ public sealed class FrameShaderBindingHookTests(HeadlessGLFixture fixture) : Ren
             Assert.Equal(0,absentLights);
             using var framework = new ShaderTestFramework();
             using var target = framework.CreateTestGBuffer(2,2,PixelInternalFormat.Rgba32f);
+            engine.Stop();
             framework.RenderQuadTo(program.ProgramId,target);
+            engine.Use();
             Assert.Equal(ErrorCode.NoError,GL.GetError());
             Assert.All(target[0].ReadPixels(),value => Assert.Equal(1f,value));
             Assert.Equal(0,Binding().Buffer);
             Assert.Throws<InvalidOperationException>(() => VgeFrameRenderer.Current);
             using var foreign = new PackedUniformBuffer(VgeFrameUniformBuffer.PackedSize);
             foreign.SetBytes(new byte[VgeFrameUniformBuffer.PackedSize]);
-            Assert.True(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLRHIContext.BindEngineUniform(GpuBindingRegistry.Ubo.Frame, foreign.Capture()));
+            Assert.True(VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindUniformSnapshot(GpuBindingRegistry.Ubo.Frame, foreign.Capture()));
             var unrelated = Binding();
             Assert.Throws<InvalidOperationException>(() => VgeFrameRenderer.Current);
             engine.Use();
@@ -88,7 +90,7 @@ public sealed class FrameShaderBindingHookTests(HeadlessGLFixture fixture) : Ren
             events.Render(EnumRenderStage.Before);
             events.Render(EnumRenderStage.Opaque);
             byte[] expected = VgeFrameRenderer.Current.Bytes.ToArray();
-            Assert.True(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLRHIContext.BindEngineUniform(GpuBindingRegistry.Ubo.Frame, foreign.Capture()));
+            Assert.True(VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindUniformSnapshot(GpuBindingRegistry.Ubo.Frame, foreign.Capture()));
             AtmosphereSunDrawHook.Prefix(out bool outer);
             try
             {

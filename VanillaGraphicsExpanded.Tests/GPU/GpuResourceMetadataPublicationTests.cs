@@ -28,8 +28,8 @@ public sealed class GpuResourceMetadataPublicationTests(HeadlessGLFixture fixtur
         Assert.Equal((nint)owner.SizeBytes, alias.Capacity);
         Assert.Equal(entry.Metadata.Capacity, alias.Capacity);
         Assert.Equal(BufferUsageHint.DynamicDraw, alias.Usage);
-        using var binding = owner.BindScope();
-        GL.GetBufferParameter(owner.Target, BufferParameterName.BufferSize, out int actualCapacity);
+        using var binding = StateCache.Current.BindBufferScope(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBufferValues.Target(owner.Role), owner.BufferId);
+        GL.GetBufferParameter(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBufferValues.Target(owner.Role), BufferParameterName.BufferSize, out int actualCapacity);
         Assert.Equal(actualCapacity, owner.SizeBytes);
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
@@ -47,9 +47,9 @@ public sealed class GpuResourceMetadataPublicationTests(HeadlessGLFixture fixtur
         Assert.Equal(metadataRevision, entry.MetadataRevision);
         Assert.Equal(storageRevision, entry.StorageRevision);
         Assert.Equal(64, owner.SizeBytes);
-        using var binding = owner.BindScope();
+        using var binding = StateCache.Current.BindBufferScope(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBufferValues.Target(owner.Role), owner.BufferId);
         byte[] actual = new byte[4];
-        GL.GetBufferSubData(owner.Target, (IntPtr)8, (IntPtr)4, actual);
+        GL.GetBufferSubData(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBufferValues.Target(owner.Role), (IntPtr)8, (IntPtr)4, actual);
         Assert.Equal(new byte[] { 1, 2, 3, 4 }, actual);
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
@@ -68,7 +68,7 @@ public sealed class GpuResourceMetadataPublicationTests(HeadlessGLFixture fixtur
         try
         {
             // Bypass the owning API to verify the StateCache command boundary also validates storage inputs.
-            using var binding = owner.BindScope();
+            using var binding = StateCache.Current.BindBufferScope(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBufferValues.Target(owner.Role), owner.BufferId);
             Assert.Throws<ArgumentOutOfRangeException>(() => GpuBufferUploader.Allocate(owner, -1, IntPtr.Zero, BufferUsage.StaticDraw));
             Assert.Equal(64, owner.SizeBytes);
             Assert.Equal((nint)64, alias.Capacity);
@@ -94,7 +94,7 @@ public sealed class GpuResourceMetadataPublicationTests(HeadlessGLFixture fixtur
         using var alias = new BufferAlias(owner.BufferId);
         manager.AssociateResource(entry, alias);
         ulong metadataRevision = entry.MetadataRevision, storageRevision = entry.StorageRevision;
-        using var sentinelBinding = sentinel.BindScope();
+        using var sentinelBinding = StateCache.Current.BindBufferScope(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBufferValues.Target(sentinel.Role), sentinel.BufferId);
         byte[] expected = [9, 8, 7, 6];
         GpuBufferUploader.Allocate(owner, byteCount, expected, BufferUsage.StreamDraw);
         Assert.Equal(sentinel.BufferId, GL.GetInteger(GetPName.ArrayBufferBinding));
@@ -103,11 +103,11 @@ public sealed class GpuResourceMetadataPublicationTests(HeadlessGLFixture fixtur
         Assert.Equal(BufferUsageHint.StreamDraw, alias.Usage);
         Assert.Equal(metadataRevision + 1, entry.MetadataRevision);
         Assert.Equal(storageRevision + 1, entry.StorageRevision);
-        using var binding = owner.BindScope();
+        using var binding = StateCache.Current.BindBufferScope(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBufferValues.Target(owner.Role), owner.BufferId);
         if (byteCount != 0)
         {
             byte[] actual = new byte[byteCount];
-            GL.GetBufferSubData(owner.Target, IntPtr.Zero, (IntPtr)actual.Length, actual);
+            GL.GetBufferSubData(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBufferValues.Target(owner.Role), IntPtr.Zero, (IntPtr)actual.Length, actual);
             Assert.Equal(expected, actual);
         }
         Assert.Equal(ErrorCode.NoError, GL.GetError());
@@ -126,7 +126,7 @@ public sealed class GpuResourceMetadataPublicationTests(HeadlessGLFixture fixtur
         var entry = Assert.IsType<GpuResourceMetadataEntry<GpuBufferMetadata>>(manager.GetResourceRegistration(owner));
         using var alias = new BufferAlias(owner.BufferId);
         manager.AssociateResource(entry, alias);
-        using var sentinelBinding = sentinel.BindScope();
+        using var sentinelBinding = StateCache.Current.BindBufferScope(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBufferValues.Target(sentinel.Role), sentinel.BufferId);
         try
         {
             Assert.Throws<ArgumentOutOfRangeException>(() => GpuBufferUploader.Allocate(owner, -1, new byte[4], BufferUsage.StreamDraw));
@@ -151,9 +151,9 @@ public sealed class GpuResourceMetadataPublicationTests(HeadlessGLFixture fixtur
         // generated-name path has no metadata to expose until its first storage command.
         if (GL.IsBuffer(owner.BufferId))
         {
-            using var binding = owner.BindScope();
-            GL.GetBufferParameter(owner.Target, BufferParameterName.BufferUsage, out int actualUsage);
-            GL.GetBufferParameter(owner.Target, BufferParameterName.BufferSize, out int actualCapacity);
+            using var binding = StateCache.Current.BindBufferScope(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBufferValues.Target(owner.Role), owner.BufferId);
+            GL.GetBufferParameter(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBufferValues.Target(owner.Role), BufferParameterName.BufferUsage, out int actualUsage);
+            GL.GetBufferParameter(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBufferValues.Target(owner.Role), BufferParameterName.BufferSize, out int actualCapacity);
             Assert.Equal((BufferUsageHint)actualUsage, owner.Usage);
             Assert.Equal(actualCapacity, owner.SizeBytes);
         }
@@ -265,11 +265,11 @@ public sealed class GpuResourceMetadataPublicationTests(HeadlessGLFixture fixtur
         {
             using (var operation = new OpenGLFramebufferConfiguration.FramebufferOperation(framebuffer))
             {
-                replacement.AttachTo(framebuffer, FramebufferAttachment.ColorAttachment0, operation);
+                VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLFramebufferConfiguration.FramebufferTexture(framebuffer, FramebufferAttachment.ColorAttachment0, replacement, operation);
                 Assert.False(entry.MetadataAvailable);
                 Assert.Equal(revision, entry.MetadataRevision);
                 var invalid = FramebufferAttachment.DepthAttachment;
-                Assert.Throws<ArgumentException>(() => replacement.AttachTo(framebuffer, invalid, operation));
+                Assert.Throws<ArgumentException>(() => VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLFramebufferConfiguration.FramebufferTexture(framebuffer, invalid, replacement, operation));
             }
             Assert.False(entry.MetadataAvailable);
             Assert.Equal(revision, entry.MetadataRevision);
@@ -368,7 +368,6 @@ public sealed class GpuResourceMetadataPublicationTests(HeadlessGLFixture fixtur
         /// <inheritdoc />
         public override void SetDebugName(string? debugName) { }
     }
-
 
 
     /// <summary>Receives texture metadata through the manager without acquiring native ownership.</summary>

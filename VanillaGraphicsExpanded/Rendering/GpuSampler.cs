@@ -42,7 +42,6 @@ public sealed class GpuSampler : GpuResource<GpuSamplerMetadata>, IDisposable
     internal GpuSampler() { }
 
 
-
     /// <summary>
     /// Sets the debug label for this sampler (debug builds only).
     /// </summary>
@@ -56,51 +55,6 @@ public sealed class GpuSampler : GpuResource<GpuSamplerMetadata>, IDisposable
 #endif
     }
 
-    /// <summary>
-    /// Binds this sampler to a texture unit via <c>glBindSampler</c>.
-    /// </summary>
-    public void Bind(int unit)
-    {
-        if (!IsValid)
-        {
-            Debug.WriteLine("[GpuSampler] Attempted to bind disposed or invalid sampler");
-            return;
-        }
-
-        OpenGLImageBindings.BindSampler(StateCache.Current, unit, samplerId);
-    }
-
-    /// <summary>
-    /// Attempts to bind this sampler to a texture unit. Returns <c>false</c> if invalid.
-    /// </summary>
-    public bool TryBind(int unit)
-    {
-        if (!IsValid)
-        {
-            return false;
-        }
-
-        OpenGLImageBindings.BindSampler(StateCache.Current, unit, samplerId);
-        return true;
-    }
-
-    /// <summary>
-    /// Unbinds any sampler from the given texture unit (binds sampler 0).
-    /// </summary>
-    public static void Unbind(int unit)
-    {
-        OpenGLImageBindings.UnbindSampler(StateCache.Current, unit);
-    }
-
-    /// <summary>
-    /// Binds this sampler and returns a scope that restores the previous sampler binding for the unit when disposed.
-    /// </summary>
-    public BindingScope BindScope(int unit)
-    {
-        ObjectDisposedException.ThrowIf(!IsValid, this);
-        var scope = StateCache.Current.BindSamplerScope(unit, samplerId);
-        return new BindingScope(scope);
-    }
 
     /// <summary>Applies owner-selected minification and magnification through the semantic backend.</summary>
     public void SetFilter(SamplerFilter minFilter, SamplerFilter magFilter)
@@ -125,21 +79,5 @@ public sealed class GpuSampler : GpuResource<GpuSamplerMetadata>, IDisposable
         RHICommandContext.Current.ConfigureSampler(this, new RHISamplerDescription { Compare = enabled, Comparison = comparison });
     }
 
-    /// <summary>
-    /// Scope that restores the previous sampler binding for a unit when disposed.
-    /// </summary>
-    public readonly struct BindingScope : IDisposable
-    {
-        private readonly StateCache.SamplerScope scope;
 
-        internal BindingScope(StateCache.SamplerScope scope)
-        {
-            this.scope = scope;
-        }
-
-        public void Dispose()
-        {
-            scope.Dispose();
-        }
-    }
 }

@@ -1,4 +1,3 @@
-using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using System.Diagnostics;
@@ -49,32 +48,10 @@ public class DynamicTexture2D : GpuTexture
     #region Factory Methods
 
 
-
-
-
-
-
     #endregion
 
     #region Public Methods
 
-    /// <summary>
-    /// Binds this texture to the specified texture unit.
-    /// </summary>
-    /// <param name="unit">Texture unit (0-31 typically).</param>
-    public override void Bind(int unit)
-    {
-        base.Bind(unit);
-    }
-
-    /// <summary>
-    /// Unbinds any texture from the specified texture unit.
-    /// </summary>
-    /// <param name="unit">Texture unit to unbind.</param>
-    public static new void Unbind(int unit)
-    {
-        OpenGLImageBindings.UnbindTexture(StateCache.Current, TextureTarget.Texture2D, unit);
-    }
 
     /// <summary>
     /// Resizes the texture, reallocating GPU memory.
@@ -113,7 +90,6 @@ public class DynamicTexture2D : GpuTexture
     }
 
 
-
     /// <summary>
     /// Uploads pixel data to the texture, replacing existing contents.
     /// Data array must match texture dimensions and format.
@@ -145,7 +121,7 @@ public class DynamicTexture2D : GpuTexture
                 $"({width}×{height}×{GetChannelCount()} channels)",
                 nameof(data));
         }
-        RHICommandContext.Current.UploadTexture(this, new RHITextureRegion(new(0), 0, 0, 0, width, height, 1), VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLPixelValues.Encoding(TextureFormatHelper.GetPixelFormat(internalFormat), PixelType.Float), System.Runtime.InteropServices.MemoryMarshal.AsBytes((data).AsSpan()));
+        RHICommandContext.Current.UploadTexture(this, new RHITextureRegion(new(0), 0, 0, 0, width, height, 1), RHICommandContext.Current.GetTextureEncoding(this, PixelComponentType.Float), System.Runtime.InteropServices.MemoryMarshal.AsBytes((data).AsSpan()));
     }
 
     /// <summary>
@@ -187,7 +163,7 @@ public class DynamicTexture2D : GpuTexture
                 $"({width}×{height}×{GetChannelCount()} channels)",
                 nameof(data));
         }
-        RHICommandContext.Current.UploadTexture(this, new RHITextureRegion(new(0), 0, 0, 0, width, height, 1), VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLPixelValues.Encoding(TextureFormatHelper.GetPixelFormat(internalFormat), pixelType), System.Runtime.InteropServices.MemoryMarshal.AsBytes((data).AsSpan()));
+        RHICommandContext.Current.UploadTexture(this, new RHITextureRegion(new(0), 0, 0, 0, width, height, 1), RHICommandContext.Current.GetTextureEncoding(this, PixelComponentType.UnsignedShort), System.Runtime.InteropServices.MemoryMarshal.AsBytes((data).AsSpan()));
     }
 
     /// <summary>
@@ -231,7 +207,7 @@ public class DynamicTexture2D : GpuTexture
                 $"({regionWidth}×{regionHeight}×{GetChannelCount()} channels)",
                 nameof(data));
         }
-        RHICommandContext.Current.UploadTexture(this, new RHITextureRegion(new(0), x, y, 0, regionWidth, regionHeight, 1), VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLPixelValues.Encoding(TextureFormatHelper.GetPixelFormat(internalFormat), PixelType.Float), System.Runtime.InteropServices.MemoryMarshal.AsBytes((data).AsSpan()));
+        RHICommandContext.Current.UploadTexture(this, new RHITextureRegion(new(0), x, y, 0, regionWidth, regionHeight, 1), RHICommandContext.Current.GetTextureEncoding(this, PixelComponentType.Float), System.Runtime.InteropServices.MemoryMarshal.AsBytes((data).AsSpan()));
     }
 
     internal void EnqueueUploadData(float[] data, int priority = 0, int mipLevel = 0)
@@ -271,8 +247,8 @@ public class DynamicTexture2D : GpuTexture
             textureId,
             TextureUploadTarget.For2D(),
             new TextureUploadRegion(x, y, 0, regionWidth, regionHeight, Depth: 1, MipLevel: mipLevel),
-            TextureFormatHelper.GetPixelFormat(internalFormat),
-            PixelType.Float,
+            RHICommandContext.Current.GetTextureEncoding(this, PixelComponentType.Float).Channels,
+            PixelComponentType.Float,
             data,
             uploadPriority,
             unpackAlignment: 4, textureOwner: this);
@@ -326,8 +302,8 @@ public class DynamicTexture2D : GpuTexture
             textureId,
             TextureUploadTarget.For2D(),
             new TextureUploadRegion(x, y, 0, regionWidth, regionHeight, Depth: 1, MipLevel: mipLevel),
-            TextureFormatHelper.GetPixelFormat(internalFormat),
-            pixelType,
+            RHICommandContext.Current.GetTextureEncoding(this, PixelComponentType.Float).Channels,
+            PixelComponentType.UnsignedShort,
             data,
             uploadPriority,
             unpackAlignment: 2, textureOwner: this);
@@ -347,7 +323,7 @@ public class DynamicTexture2D : GpuTexture
         if (!((GpuResource)this).IsValid) return [];
         // The request owns staging independently; only completed bytes are exposed to CPU readers.
         using var request = RHICommandContext.Current.EnqueueReadback(new RHIReadbackDescription(this,
-            new(new(0), 0, 0, 0, width, height, 1), OpenGLPixelValues.Encoding(ReadbackFormat, PixelType.Float)));
+            new(new(0), 0, 0, 0, width, height, 1), ReadbackEncoding));
         if (request.Wait() != CompletionStatus.Ready)
             throw new InvalidOperationException("Texture readback did not complete.", request.Error);
         using var mapping = request.MapReadyReadback();
@@ -363,7 +339,7 @@ public class DynamicTexture2D : GpuTexture
         if (!((GpuResource)this).IsValid) return [];
         // The request owns staging independently; only completed bytes are exposed to CPU readers.
         using var request = RHICommandContext.Current.EnqueueReadback(new RHIReadbackDescription(this,
-            new(new(0), x, y, 0, regionWidth, regionHeight, 1), OpenGLPixelValues.Encoding(ReadbackFormat, PixelType.Float)));
+            new(new(0), x, y, 0, regionWidth, regionHeight, 1), ReadbackEncoding));
         if (request.Wait() != CompletionStatus.Ready)
             throw new InvalidOperationException("Texture readback did not complete.", request.Error);
         using var mapping = request.MapReadyReadback();
@@ -379,7 +355,7 @@ public class DynamicTexture2D : GpuTexture
         mipLevel = Math.Clamp(mipLevel, 0, Math.Max(0, StorageMipLevels - 1));
         // The request owns staging independently; only completed bytes are exposed to CPU readers.
         using var request = RHICommandContext.Current.EnqueueReadback(new RHIReadbackDescription(this,
-            new(new(mipLevel), 0, 0, 0, Math.Max(1, width >> mipLevel), Math.Max(1, height >> mipLevel), 1), OpenGLPixelValues.Encoding(ReadbackFormat, PixelType.Float)));
+            new(new(mipLevel), 0, 0, 0, Math.Max(1, width >> mipLevel), Math.Max(1, height >> mipLevel), 1), ReadbackEncoding));
         if (request.Wait() != CompletionStatus.Ready)
             throw new InvalidOperationException("Texture readback did not complete.", request.Error);
         using var mapping = request.MapReadyReadback();
@@ -391,7 +367,7 @@ public class DynamicTexture2D : GpuTexture
     #region Protected API
 
 /// <summary>Gets the pixel format used for floating-point readback.</summary>
-    protected virtual PixelFormat ReadbackFormat => TextureFormatHelper.GetPixelFormat(internalFormat);
+    protected virtual RHIPixelEncoding ReadbackEncoding => RHICommandContext.Current.GetTextureEncoding(this, PixelComponentType.Float);
 
     /// <summary>Gets the pixel type used for floating-point readback.</summary>
     protected virtual PixelType ReadbackType => PixelType.Float;

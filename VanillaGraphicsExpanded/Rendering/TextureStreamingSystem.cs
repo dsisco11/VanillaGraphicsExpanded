@@ -1,6 +1,6 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 
-using OpenTK.Graphics.OpenGL;
 
 namespace VanillaGraphicsExpanded.Rendering;
 
@@ -38,8 +38,8 @@ internal static class TextureStreamingSystem
         int textureId,
         TextureUploadTarget target,
         TextureUploadRegion region,
-        PixelFormat pixelFormat,
-        PixelType pixelType,
+        PixelChannelLayout pixelFormat,
+        PixelComponentType pixelType,
         ReadOnlySpan<byte> data,
         TextureUploadPriority priority = TextureUploadPriority.Normal,
         int unpackAlignment = 1,
@@ -64,8 +64,8 @@ internal static class TextureStreamingSystem
         int textureId,
         TextureUploadTarget target,
         TextureUploadRegion region,
-        PixelFormat pixelFormat,
-        PixelType pixelType,
+        PixelChannelLayout pixelFormat,
+        PixelComponentType pixelType,
         ReadOnlySpan<ushort> data,
         TextureUploadPriority priority = TextureUploadPriority.Normal,
         int unpackAlignment = 1,
@@ -90,8 +90,8 @@ internal static class TextureStreamingSystem
         int textureId,
         TextureUploadTarget target,
         TextureUploadRegion region,
-        PixelFormat pixelFormat,
-        PixelType pixelType,
+        PixelChannelLayout pixelFormat,
+        PixelComponentType pixelType,
         ReadOnlySpan<Half> data,
         TextureUploadPriority priority = TextureUploadPriority.Normal,
         int unpackAlignment = 1,
@@ -117,8 +117,8 @@ internal static class TextureStreamingSystem
         int textureId,
         TextureUploadTarget target,
         TextureUploadRegion region,
-        PixelFormat pixelFormat,
-        PixelType pixelType,
+        PixelChannelLayout pixelFormat,
+        PixelComponentType pixelType,
         ReadOnlySpan<float> data,
         TextureUploadPriority priority = TextureUploadPriority.Normal,
         int unpackAlignment = 1,

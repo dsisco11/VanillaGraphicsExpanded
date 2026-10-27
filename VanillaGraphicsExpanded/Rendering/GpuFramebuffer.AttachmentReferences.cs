@@ -17,7 +17,6 @@ public abstract partial class GpuFramebuffer
         // remain representable until a consumer requires usable attachment images.
         attachmentsDirty = false;
         reconciledAttachmentDescriptors = null;
-        checkedPassRevision = null;
         PublishAttachmentsChanged();
     }
     /// <summary>Resolves a requested external image from one reusable canonical framebuffer discovery.</summary>

@@ -1,4 +1,3 @@
-using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -25,11 +24,11 @@ public abstract partial class GpuFramebuffer
                 .Select(i => i < firstColorAttachment ? DrawBuffersEnum.None : DrawBuffersEnum.ColorAttachment0 + i).ToArray();
         if (route.Length == 0)
         {
-            OpenGLFramebufferConfiguration.ConfigureRouting(this, route, ReadBufferMode.None);
+            RHI.RHICommandContext.Current.ConfigureFramebufferRouting(this, route, ReadBufferMode.None);
         }
         else
         {
-            OpenGLFramebufferConfiguration.ConfigureRouting(this, route, ReadBufferMode.ColorAttachment0 + firstColorAttachment);
+            RHI.RHICommandContext.Current.ConfigureFramebufferRouting(this, route, ReadBufferMode.ColorAttachment0 + firstColorAttachment);
         }
         if (!CheckStatus(out var error)) throw new InvalidOperationException(error);
         return route;
@@ -71,7 +70,7 @@ public abstract partial class GpuFramebuffer
         using var bindings = StateCache.Current.BindFramebufferScope(FramebufferTarget.Framebuffer, fboId);
         // Detachment must remain possible when the outgoing image is unavailable. Keep any
         // other pending replacements dirty so their native attachments refresh at rendering use.
-        OpenGLFramebufferConfiguration.FramebufferTexture(this, slot, null);
+        RHI.RHICommandContext.Current.ConfigureFramebufferAttachment(this, slot, null);
         if (slot == FramebufferAttachment.DepthStencilAttachment)
         {
             attachments.Remove(FramebufferAttachment.DepthAttachment);

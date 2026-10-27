@@ -17,11 +17,10 @@ public sealed class GpuShaderStorageBuffer : GpuBufferObject
     /// <summary>Declares buffer policy before manager-owned native creation.</summary>
     internal GpuShaderStorageBuffer(BufferUsage usage, string? debugName)
     {
-        target = BufferTarget.ShaderStorageBuffer;
+        Role = BufferRole.ShaderStorage;
         allocationUsage = usage;
         this.debugName = debugName;
     }
-
 
 
     /// <summary>

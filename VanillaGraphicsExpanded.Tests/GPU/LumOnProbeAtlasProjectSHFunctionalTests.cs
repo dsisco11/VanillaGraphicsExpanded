@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.LumOn;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
@@ -254,12 +255,12 @@ public class LumOnProbeAtlasProjectSHFunctionalTests : LumOnShaderFunctionalTest
         int shGatherId = CompileShGatherShader();
         SetupShGatherUniforms(shGatherId, identity, identity);
 
-        outSh[0].Bind(0);
-        outSh[1].Bind(1);
-        anchorPosTex.Bind(2);
-        anchorNormTex.Bind(3);
-        depthTex.Bind(4);
-        gbufNormTex.Bind(5);
+        VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, outSh[0], Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)outSh[0]).Target))]);
+        VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(1, outSh[1], Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)outSh[1]).Target))]);
+        VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(2, anchorPosTex, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)anchorPosTex).Target))]);
+        VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(3, anchorNormTex, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)anchorNormTex).Target))]);
+        VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(4, depthTex, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)depthTex).Target))]);
+        VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(5, gbufNormTex, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)gbufNormTex).Target))]);
 
         TestFramework.RenderQuadTo(shGatherId, outIndirectSh);
         var shOut = outIndirectSh[0].ReadPixels();

@@ -12,8 +12,6 @@ public abstract partial class GpuFramebuffer
     private bool passMetadataPublished;
     internal bool HasRenderPassMetadata => ownsFramebuffer || passMetadataPublished;
     internal IEnumerable<KeyValuePair<FramebufferAttachment, GpuFramebufferAttachment>> AttachmentImages => attachments;
-    private ulong? checkedPassRevision;
-    private DrawBuffersEnum[]? checkedPassRouting;
 
     #region Public API
     /// <summary>Captures all external attachment metadata after framebuffer publication or refresh.</summary>
@@ -43,28 +41,6 @@ public abstract partial class GpuFramebuffer
         passMetadataPublished = true;
         PublishAttachmentsChanged();
 
-    }
-    #endregion
-
-    #region Internal API
-    /// <summary>Checks the already-selected draw target after image or routing changes without disturbing the read binding.</summary>
-    internal void RequirePassCompleteness(IReadOnlyList<DrawBuffersEnum> routing)
-    {
-        if(this is RHI.Backends.OpenGL.OpenGLPassTarget realized)
-        {
-            if(!realized.IsReusable)throw new InvalidOperationException("The backend target realization is obsolete.");
-            return;
-        }
-        if(fboId==0 && Surface is not null)return;
-        if (StateCache.Current.GetCurrentFramebuffer(FramebufferTarget.DrawFramebuffer) != fboId)
-            throw new InvalidOperationException("Pass completeness requires this framebuffer's draw binding.");
-        if (checkedPassRevision == AttachmentRevision && checkedPassRouting is not null
-            && checkedPassRouting.SequenceEqual(routing)) return;
-        // Pass setup already refreshed and bound the images. A general-purpose CheckStatus scope
-        // would needlessly select the read alias and restore it before every changed output route.
-        RHI.Backends.OpenGL.OpenGLFramebufferCompleteness.RequireComplete(fboId);
-        checkedPassRevision = AttachmentRevision;
-        checkedPassRouting = routing.ToArray();
     }
     #endregion
 

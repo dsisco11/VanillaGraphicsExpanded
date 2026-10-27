@@ -34,7 +34,7 @@ public class GpuTextureSamplerIntegrationTests
         Assert.True(tex.IsValid);
 
         const int unit = 3;
-        tex.Bind(unit);
+        VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(unit, tex, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)tex).Target))]);
 
         Assert.Equal(0, StateCache.Current.GetBoundSampler(unit));
 
@@ -51,7 +51,7 @@ public class GpuTextureSamplerIntegrationTests
             Assert.Equal((int)TextureWrapMode.ClampToEdge, wrapT);
         }
 
-        tex.Unbind(unit);
+        VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(unit, default, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)tex).Target))]);
         Assert.Equal(0, StateCache.Current.GetBoundSampler(unit));
     }
 
@@ -75,7 +75,8 @@ public class GpuTextureSamplerIntegrationTests
         Assert.Equal(t1.TextureId, prevTexId);
         Assert.Equal(s1.SamplerId, prevSamplerId);
 
-        using (t2.BindScope(unit))
+        using (StateCache.Current.BindSamplerScope(unit, 0))
+        using (StateCache.Current.BindTextureScope(((GpuTextureRef)t2).Target, unit, t2.TextureId))
         {
             Assert.Equal(t2.TextureId, StateCache.Current.GetBoundTexture(t2.TextureTarget, unit));
             Assert.Equal(0, StateCache.Current.GetBoundSampler(unit));

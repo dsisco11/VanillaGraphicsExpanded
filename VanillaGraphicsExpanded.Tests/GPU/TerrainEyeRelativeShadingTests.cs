@@ -43,11 +43,11 @@ public sealed class TerrainEyeRelativeShadingTests : RenderTestBase
             Assert.True(linked != 0, GL.GetProgramInfoLog(program));
             var layout = BuiltShaderFixture.Layout(program, "tests/eye-relative.vsh", "tests/eye-relative.fsh");
             OpenGLProgramSelection.Select(StateCache.Current, program); OpenGLVertexSelection.Bind(StateCache.Current, vao);
-            texture.Bind(0);
+            VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, texture, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)texture).Target))]);
             // This fixture owns non-mipmapped atlas sampling, independent of earlier render passes.
-            GpuSampler.Unbind(0); GpuSampler.Unbind(1); GpuSampler.Unbind(2);
+            VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageBindings.BindSampler(StateCache.Current, 0, 0); VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageBindings.BindSampler(StateCache.Current, 1, 0); VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageBindings.BindSampler(StateCache.Current, 2, 0);
             GL.Uniform1(layout.GetUniformLocation(program,"vge_normalDepthTex"),0);
-            indices.Bind(1); records.Bind(2);
+            VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(1, indices, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)indices).Target))]); VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(2, records, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)records).Target))]);
             GL.Uniform1(layout.GetUniformLocation(program,"vge_displacementTex"),1);
             GL.Uniform1(layout.GetUniformLocation(program,"vge_displacementRecords"),2);
             StateCache.Current.SetCapability(EnableCap.DepthTest,false); StateCache.Current.SetCapability(EnableCap.Blend,false); StateCache.Current.SetCapability(EnableCap.CullFace,false);
@@ -75,11 +75,11 @@ public sealed class TerrainEyeRelativeShadingTests : RenderTestBase
                 float c=MathF.Cos(radians),s=MathF.Sin(radians);
                 float[] view=[c,s,0,0,-s,c,0,0,0,0,1,0,-c*eye.X+s*eye.Y,-s*eye.X-c*eye.Y,-eye.Z,1];
                 using var frameCamera = TestFrameCamera.Create(Vintagestory.API.MathTools.Mat4f.Create(), view, 2, 2);
-                Assert.True(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLRHIContext.BindEngineUniform(GpuBindingRegistry.Ubo.Frame, frameCamera.Capture()));
+                Assert.True(VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindUniformSnapshot(GpuBindingRegistry.Ubo.Frame, frameCamera.Capture()));
                 UboPacking.WriteVec3(inputBytes, 0, position.X, position.Y, position.Z);
                 UboPacking.WriteInt32(inputBytes, 12, mode);
                 inputs.SetBytes(inputBytes);
-                Assert.True(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLRHIContext.BindEngineUniform(GpuBindingRegistry.Ubo.ShaderInputs, inputs.Capture()));
+                Assert.True(VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindUniformSnapshot(GpuBindingRegistry.Ubo.ShaderInputs, inputs.Capture()));
                 FramebufferTestSetup.BindForEngineRendering(target); GL.DrawArrays(PrimitiveType.Triangles,0,3);
                 float[] pixel=new float[4]; GL.ReadPixels(0,0,1,1,PixelFormat.Rgba,PixelType.Float,pixel);
                 return pixel;

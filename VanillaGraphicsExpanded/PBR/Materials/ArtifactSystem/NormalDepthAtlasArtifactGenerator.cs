@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using System.Threading;
 using System.Threading.Tasks;
@@ -399,8 +400,8 @@ internal sealed class NormalDepthAtlasArtifactGenerator
                     textureId: context.Output.NormalDepthTextureId,
                     target: TextureUploadTarget.For2D(),
                     region: TextureUploadRegion.For2D(context.Output.Rect.X, context.Output.Rect.Y, context.Output.Rect.Width, context.Output.Rect.Height),
-                    pixelFormat: PixelFormat.Rgba,
-                    pixelType: PixelType.Float,
+                    pixelFormat: PixelChannelLayout.Rgba,
+                    pixelType: PixelComponentType.Float,
                     data: rgba,
                     priority: TextureUploadPriority.Normal,
                     unpackAlignment: 4);

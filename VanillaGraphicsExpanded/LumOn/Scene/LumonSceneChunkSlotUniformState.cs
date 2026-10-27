@@ -27,7 +27,7 @@ internal static class LumonSceneChunkSlotUniformState
     public static VectorInt3 Dims { get; private set; }
     public static VectorInt3 Ring { get; private set; }
 
-    public static int GenerationTextureId { get; private set; }
+    public static GpuTextureRef GenerationTexture { get; private set; }
 
     #region Mapping lifecycle
     /// <summary>Clears the mapping and releases its render-thread GPU storage.</summary>
@@ -40,18 +40,18 @@ internal static class LumonSceneChunkSlotUniformState
         OriginMinChunk = default;
         Dims = default;
         Ring = default;
-        GenerationTextureId = 0;
+        GenerationTexture = default;
         Interlocked.Increment(ref version);
     }
 
     /// <summary>Publishes CPU mapping state; GPU upload is deferred until a terrain program uses it.</summary>
-    public static void Update(VectorInt3 originMinChunk, VectorInt3 dims, VectorInt3 ring, int generationTextureId)
+    public static void Update(VectorInt3 originMinChunk, VectorInt3 dims, VectorInt3 ring, GpuTextureRef generationTexture)
     {
         OriginMinChunk = originMinChunk;
         Dims = dims;
         Ring = ring;
-        GenerationTextureId = generationTextureId;
-        Enabled = generationTextureId != 0 && dims.X > 0 && dims.Y > 0 && dims.Z > 0;
+        GenerationTexture = generationTexture;
+        Enabled = !generationTexture.IsEmpty && dims.X > 0 && dims.Y > 0 && dims.Z > 0;
         Interlocked.Increment(ref version);
     }
     #endregion

@@ -1,4 +1,3 @@
-using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using System.Buffers;
@@ -8,7 +7,6 @@ using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Threading;
 
-using OpenTK.Graphics.OpenGL;
 
 namespace VanillaGraphicsExpanded.Rendering;
 
@@ -139,8 +137,8 @@ internal sealed class TextureStreamingManager : IDisposable
         int textureId,
         TextureUploadTarget target,
         TextureUploadRegion region,
-        PixelFormat pixelFormat,
-        PixelType pixelType,
+        PixelChannelLayout pixelFormat,
+        PixelComponentType pixelType,
         ReadOnlySpan<byte> data,
         TextureUploadPriority priority = TextureUploadPriority.Normal,
         int unpackAlignment = 1,
@@ -158,7 +156,7 @@ internal sealed class TextureStreamingManager : IDisposable
             return TextureStageResult.Rejected(TextureStageRejectReason.InvalidArguments);
         }
 
-        if (!TryComputeUploadByteCount(target.UploadTarget, region, pixelFormat, pixelType, unpackRowLength, unpackImageHeight, unpackAlignment, out int requiredBytes))
+        if (!TryComputeUploadByteCount(target.Dimension, region, pixelFormat, pixelType, unpackRowLength, unpackImageHeight, unpackAlignment, out int requiredBytes))
         {
             return TextureStageResult.Rejected(TextureStageRejectReason.InvalidArguments);
         }
@@ -191,8 +189,8 @@ internal sealed class TextureStreamingManager : IDisposable
             TextureId: textureId,
             Target: target,
             Region: region,
-            PixelFormat: pixelFormat,
-            PixelType: pixelType,
+            Channels: pixelFormat,
+            ComponentType: pixelType,
             Data: default,
             Priority: (int)priority,
             UnpackAlignment: unpackAlignment,
@@ -296,8 +294,8 @@ internal sealed class TextureStreamingManager : IDisposable
         int textureId,
         TextureUploadTarget target,
         TextureUploadRegion region,
-        PixelFormat pixelFormat,
-        PixelType pixelType,
+        PixelChannelLayout pixelFormat,
+        PixelComponentType pixelType,
         ReadOnlySpan<ushort> data,
         TextureUploadPriority priority = TextureUploadPriority.Normal,
         int unpackAlignment = 1,
@@ -305,12 +303,12 @@ internal sealed class TextureStreamingManager : IDisposable
         int unpackImageHeight = 0,
         GpuTexture? textureOwner = null)
     {
-        if (pixelType != PixelType.UnsignedShort && pixelType != PixelType.Short)
+        if (pixelType != PixelComponentType.UnsignedShort && pixelType != PixelComponentType.Short)
         {
             return TextureStageResult.Rejected(TextureStageRejectReason.DataTypeMismatch);
         }
 
-        if (!TryComputeUploadByteCount(target.UploadTarget, region, pixelFormat, pixelType, unpackRowLength, unpackImageHeight, unpackAlignment, out int requiredBytes))
+        if (!TryComputeUploadByteCount(target.Dimension, region, pixelFormat, pixelType, unpackRowLength, unpackImageHeight, unpackAlignment, out int requiredBytes))
         {
             return TextureStageResult.Rejected(TextureStageRejectReason.InvalidArguments);
         }
@@ -350,8 +348,8 @@ internal sealed class TextureStreamingManager : IDisposable
             TextureId: textureId,
             Target: target,
             Region: region,
-            PixelFormat: pixelFormat,
-            PixelType: pixelType,
+            Channels: pixelFormat,
+            ComponentType: pixelType,
             Data: default,
             Priority: (int)priority,
             UnpackAlignment: unpackAlignment,
@@ -451,8 +449,8 @@ internal sealed class TextureStreamingManager : IDisposable
         int textureId,
         TextureUploadTarget target,
         TextureUploadRegion region,
-        PixelFormat pixelFormat,
-        PixelType pixelType,
+        PixelChannelLayout pixelFormat,
+        PixelComponentType pixelType,
         ReadOnlySpan<Half> data,
         TextureUploadPriority priority = TextureUploadPriority.Normal,
         int unpackAlignment = 1,
@@ -460,12 +458,12 @@ internal sealed class TextureStreamingManager : IDisposable
         int unpackImageHeight = 0,
         GpuTexture? textureOwner = null)
     {
-        if (pixelType != PixelType.HalfFloat)
+        if (pixelType != PixelComponentType.Half)
         {
             return TextureStageResult.Rejected(TextureStageRejectReason.DataTypeMismatch);
         }
 
-        if (!TryComputeUploadByteCount(target.UploadTarget, region, pixelFormat, pixelType, unpackRowLength, unpackImageHeight, unpackAlignment, out int requiredBytes))
+        if (!TryComputeUploadByteCount(target.Dimension, region, pixelFormat, pixelType, unpackRowLength, unpackImageHeight, unpackAlignment, out int requiredBytes))
         {
             return TextureStageResult.Rejected(TextureStageRejectReason.InvalidArguments);
         }
@@ -505,8 +503,8 @@ internal sealed class TextureStreamingManager : IDisposable
             TextureId: textureId,
             Target: target,
             Region: region,
-            PixelFormat: pixelFormat,
-            PixelType: pixelType,
+            Channels: pixelFormat,
+            ComponentType: pixelType,
             Data: default,
             Priority: (int)priority,
             UnpackAlignment: unpackAlignment,
@@ -607,8 +605,8 @@ internal sealed class TextureStreamingManager : IDisposable
         int textureId,
         TextureUploadTarget target,
         TextureUploadRegion region,
-        PixelFormat pixelFormat,
-        PixelType pixelType,
+        PixelChannelLayout pixelFormat,
+        PixelComponentType pixelType,
         ReadOnlySpan<float> data,
         TextureUploadPriority priority = TextureUploadPriority.Normal,
         int unpackAlignment = 1,
@@ -616,12 +614,12 @@ internal sealed class TextureStreamingManager : IDisposable
         int unpackImageHeight = 0,
         GpuTexture? textureOwner = null)
     {
-        if (pixelType != PixelType.Float)
+        if (pixelType != PixelComponentType.Float)
         {
             return TextureStageResult.Rejected(TextureStageRejectReason.DataTypeMismatch);
         }
 
-        if (!TryComputeUploadByteCount(target.UploadTarget, region, pixelFormat, pixelType, unpackRowLength, unpackImageHeight, unpackAlignment, out int requiredBytes))
+        if (!TryComputeUploadByteCount(target.Dimension, region, pixelFormat, pixelType, unpackRowLength, unpackImageHeight, unpackAlignment, out int requiredBytes))
         {
             return TextureStageResult.Rejected(TextureStageRejectReason.InvalidArguments);
         }
@@ -662,8 +660,8 @@ internal sealed class TextureStreamingManager : IDisposable
             TextureId: textureId,
             Target: target,
             Region: region,
-            PixelFormat: pixelFormat,
-            PixelType: pixelType,
+            Channels: pixelFormat,
+            ComponentType: pixelType,
             Data: default,
             Priority: (int)priority,
             UnpackAlignment: unpackAlignment,
@@ -1202,13 +1200,13 @@ internal sealed class TextureStreamingManager : IDisposable
             return TextureStageResult.Rejected(TextureStageRejectReason.InvalidArguments);
         }
 
-        int bytesPerPixel = TextureStreamingUtils.GetBytesPerPixel(request.PixelFormat, request.PixelType);
+        int bytesPerPixel = TextureStreamingUtils.GetBytesPerPixel(request.Channels, request.ComponentType);
         if (bytesPerPixel <= 0)
         {
             return TextureStageResult.Rejected(TextureStageRejectReason.InvalidArguments);
         }
 
-        UploadDimension dim = TextureStreamingUtils.GetUploadDimension(request.Target.UploadTarget);
+        UploadDimension dim = TextureStreamingUtils.GetUploadDimension(request.Target.Dimension);
 
         TextureUploadRegion region = request.Region;
         int regionDepth = dim == UploadDimension.Tex3D ? region.Depth : 1;
@@ -1221,8 +1219,8 @@ internal sealed class TextureStreamingManager : IDisposable
                 request.TextureId,
                 request.Target,
                 request.Region,
-                request.PixelFormat,
-                request.PixelType,
+                request.Channels,
+                request.ComponentType,
                 bytes.Slice(0, byteCount),
                 byteCount,
                 (int)priority,
@@ -1242,8 +1240,8 @@ internal sealed class TextureStreamingManager : IDisposable
                 request.TextureId,
                 request.Target,
                 request.Region,
-                request.PixelFormat,
-                request.PixelType,
+                request.Channels,
+                request.ComponentType,
                 bytes.Slice(0, byteCount),
                 byteCount,
                 (int)priority,
@@ -1321,8 +1319,8 @@ internal sealed class TextureStreamingManager : IDisposable
                 request.TextureId,
                 request.Target,
                 request.Region,
-                request.PixelFormat,
-                request.PixelType,
+                request.Channels,
+                request.ComponentType,
                 bytes.Slice(0, byteCount),
                 byteCount,
                 (int)priority,
@@ -1504,8 +1502,8 @@ internal sealed class TextureStreamingManager : IDisposable
         int textureId,
         TextureUploadTarget target,
         TextureUploadRegion region,
-        PixelFormat pixelFormat,
-        PixelType pixelType,
+        PixelChannelLayout pixelFormat,
+        PixelComponentType pixelType,
         ReadOnlySpan<byte> bytes,
         int byteCount,
         int priority,
@@ -1521,8 +1519,8 @@ internal sealed class TextureStreamingManager : IDisposable
             TextureId: textureId,
             Target: target,
             Region: region,
-            PixelFormat: pixelFormat,
-            PixelType: pixelType,
+            Channels: pixelFormat,
+            ComponentType: pixelType,
             Data: default,
             Priority: priority,
             UnpackAlignment: unpackAlignment,
@@ -1830,10 +1828,10 @@ internal sealed class TextureStreamingManager : IDisposable
     }
 
     private static bool TryComputeUploadByteCount(
-        TextureTarget uploadTarget,
+        TextureDimension uploadTarget,
         in TextureUploadRegion region,
-        PixelFormat pixelFormat,
-        PixelType pixelType,
+        PixelChannelLayout pixelFormat,
+        PixelComponentType pixelType,
         int unpackRowLength,
         int unpackImageHeight,
         int unpackAlignment,
@@ -1915,7 +1913,7 @@ internal sealed class TextureStreamingManager : IDisposable
             return false;
         }
 
-        UploadDimension dim = TextureStreamingUtils.GetUploadDimension(request.Target.UploadTarget);
+        UploadDimension dim = TextureStreamingUtils.GetUploadDimension(request.Target.Dimension);
         if (dim == UploadDimension.Tex1D)
         {
             if (region.Height != 1 || region.Depth != 1)
@@ -1944,13 +1942,13 @@ internal sealed class TextureStreamingManager : IDisposable
             return false;
         }
 
-        int bytesPerPixel = TextureStreamingUtils.GetBytesPerPixel(request.PixelFormat, request.PixelType);
+        int bytesPerPixel = TextureStreamingUtils.GetBytesPerPixel(request.Channels, request.ComponentType);
         if (bytesPerPixel <= 0)
         {
             return false;
         }
 
-        if (!TryComputeUploadByteCount(request.Target.UploadTarget, region, request.PixelFormat, request.PixelType,
+        if (!TryComputeUploadByteCount(request.Target.Dimension, region, request.Channels, request.ComponentType,
             request.UnpackRowLength, request.UnpackImageHeight, request.UnpackAlignment, out int byteCount)) return false;
         if (request.Data.ByteLength < byteCount)
         {
@@ -2000,14 +1998,14 @@ internal sealed class TextureStreamingManager : IDisposable
         using var borrowed = owner is null ? new BorrowedTexture(request.TextureId) : null;
         GpuTextureRef destination = owner ?? borrowed!;
         var input = request.Region;
-        var target = request.Target.UploadTarget;
-        bool face = target is >= TextureTarget.TextureCubeMapPositiveX and <= TextureTarget.TextureCubeMapNegativeZ;
-        bool oneArray = target == TextureTarget.Texture1DArray;
-        var region = new RHITextureRegion(new(input.MipLevel, face ? target - TextureTarget.TextureCubeMapPositiveX : 0),
+        var target = request.Target.Dimension;
+        bool face = target == TextureDimension.Cube;
+        bool oneArray = target == TextureDimension.OneArray;
+        var region = new RHITextureRegion(new(input.MipLevel, face ? request.Target.Face : 0),
             input.X, oneArray ? 0 : input.Y, oneArray ? input.Y : input.Z,
             input.Width, oneArray ? 1 : input.Height, oneArray ? input.Height : input.Depth);
-        var encoding = RHI.Backends.OpenGL.OpenGLPixelValues.Encoding(request.PixelFormat, request.PixelType);
-        int pixelBytes = RHI.Backends.OpenGL.OpenGLPixelValues.PixelBytes(encoding);
+        var encoding = new RHIPixelEncoding(request.Channels, request.ComponentType);
+        int pixelBytes = encoding.BytesPerPixel;
         int alignment = request.UnpackAlignment > 0 ? request.UnpackAlignment : 4;
         int rowPitch = TextureStreamingUtils.AlignUp(checked(prepared.RowLength * pixelBytes), alignment);
         int slicePitch = oneArray ? rowPitch : checked(rowPitch * prepared.ImageHeight);
@@ -2326,7 +2324,6 @@ internal sealed class TextureStreamingManager : IDisposable
                 return false;
             }
 
-            using var scope = buffer.BindScope();
             buffer.AllocateOrphan(bufferSizeBytes);
 
             IntPtr ptr = buffer.MapRange(
@@ -2376,7 +2373,6 @@ internal sealed class TextureStreamingManager : IDisposable
                 return false;
             }
 
-            using var scope = buffer.BindScope();
             buffer.AllocateOrphan(bufferSizeBytes);
 
             IntPtr ptr = buffer.MapRange(
@@ -2555,17 +2551,25 @@ internal readonly record struct TextureStreamingDiagnostics(
     TextureStreamingFallbackDiagnostics Fallback);
 #endif
 
-internal readonly record struct TextureUploadTarget(TextureTarget BindTarget, TextureTarget UploadTarget)
+/// <summary>Freezes semantic image shape and optional cube face for deferred upload.</summary>
+internal readonly record struct TextureUploadTarget(TextureDimension Dimension, int Face = 0)
 {
-    public static TextureUploadTarget For1D() => new(TextureTarget.Texture1D, TextureTarget.Texture1D);
-    public static TextureUploadTarget For1DArray() => new(TextureTarget.Texture1DArray, TextureTarget.Texture1DArray);
-    public static TextureUploadTarget For2D() => new(TextureTarget.Texture2D, TextureTarget.Texture2D);
-    public static TextureUploadTarget For2DArray() => new(TextureTarget.Texture2DArray, TextureTarget.Texture2DArray);
-    public static TextureUploadTarget For3D() => new(TextureTarget.Texture3D, TextureTarget.Texture3D);
-    public static TextureUploadTarget ForRectangle() => new(TextureTarget.TextureRectangle, TextureTarget.TextureRectangle);
-    public static TextureUploadTarget ForCubeFace(TextureCubeFace face)
-        => new(TextureTarget.TextureCubeMap, TextureStreamingUtils.GetCubeFaceTarget(face));
-    public static TextureUploadTarget ForCubeArray() => new(TextureTarget.TextureCubeMapArray, TextureTarget.TextureCubeMapArray);
+    /// <summary>Selects a one-dimensional destination.</summary>
+    public static TextureUploadTarget For1D() => new(TextureDimension.One);
+    /// <summary>Selects a one-dimensional layered destination.</summary>
+    public static TextureUploadTarget For1DArray() => new(TextureDimension.OneArray);
+    /// <summary>Selects a two-dimensional destination.</summary>
+    public static TextureUploadTarget For2D() => new(TextureDimension.Two);
+    /// <summary>Selects a two-dimensional layered destination.</summary>
+    public static TextureUploadTarget For2DArray() => new(TextureDimension.TwoArray);
+    /// <summary>Selects a volume destination.</summary>
+    public static TextureUploadTarget For3D() => new(TextureDimension.Three);
+    /// <summary>Selects an unnormalized-coordinate destination.</summary>
+    public static TextureUploadTarget ForRectangle() => new(TextureDimension.Rectangle);
+    /// <summary>Selects one explicitly numbered cube face.</summary>
+    public static TextureUploadTarget ForCubeFace(TextureCubeFace face) => new(TextureDimension.Cube, (int)face);
+    /// <summary>Selects a cube-array destination.</summary>
+    public static TextureUploadTarget ForCubeArray() => new(TextureDimension.CubeArray);
 }
 
 internal enum TextureCubeFace
@@ -2610,8 +2614,8 @@ internal readonly record struct TextureUploadRequest(
     int TextureId,
     TextureUploadTarget Target,
     TextureUploadRegion Region,
-    PixelFormat PixelFormat,
-    PixelType PixelType,
+    PixelChannelLayout Channels,
+    PixelComponentType ComponentType,
     TextureUploadData Data,
     int Priority = 0,
     int UnpackAlignment = 1,
@@ -2701,9 +2705,9 @@ internal static class TextureStreamingUtils
 {
 
 
-    public static UploadDimension GetUploadDimension(TextureTarget target)
+    public static UploadDimension GetUploadDimension(TextureDimension target)
     {
-        if (target == TextureTarget.Texture1D)
+        if (target == TextureDimension.One)
         {
             return UploadDimension.Tex1D;
         }
@@ -2716,15 +2720,13 @@ internal static class TextureStreamingUtils
         return UploadDimension.Tex2D;
     }
 
-    public static bool Is3DTarget(TextureTarget target)
+    public static bool Is3DTarget(TextureDimension target)
     {
-        return target == TextureTarget.Texture3D
-            || target == TextureTarget.Texture2DArray
-            || target == TextureTarget.TextureCubeMapArray;
+        return target == TextureDimension.Three
+            || target == TextureDimension.TwoArray
+            || target == TextureDimension.CubeArray;
     }
 
-    public static TextureTarget GetCubeFaceTarget(TextureCubeFace face)
-        => (TextureTarget)((int)TextureTarget.TextureCubeMapPositiveX + (int)face);
 
     public static int GetCubeArraySlice(int cubeIndex, TextureCubeFace face)
         => checked(cubeIndex * 6 + (int)face);
@@ -2738,41 +2740,6 @@ internal static class TextureStreamingUtils
         return ((value + alignment - 1) / alignment) * alignment;
     }
 
-    public static int GetBytesPerPixel(PixelFormat format, PixelType type)
-    {
-        int channels = format switch
-        {
-            PixelFormat.Red => 1,
-            PixelFormat.Rg => 2,
-            PixelFormat.Rgb => 3,
-            PixelFormat.Bgr => 3,
-            PixelFormat.Rgba => 4,
-            PixelFormat.Bgra => 4,
-            PixelFormat.DepthComponent => 1,
-            PixelFormat.DepthStencil => 1,
-            _ => 4
-        };
-
-        int bytesPerChannel = type switch
-        {
-            PixelType.Byte => 1,
-            PixelType.UnsignedByte => 1,
-            PixelType.Short => 2,
-            PixelType.UnsignedShort => 2,
-            PixelType.HalfFloat => 2,
-            PixelType.Int => 4,
-            PixelType.UnsignedInt => 4,
-            PixelType.Float => 4,
-            PixelType.UnsignedInt248 => 4,
-            PixelType.Float32UnsignedInt248Rev => 8,
-            _ => 0
-        };
-
-        if (format == PixelFormat.DepthStencil)
-        {
-            return bytesPerChannel;
-        }
-
-        return channels * bytesPerChannel;
-    }
+    /// <summary>Computes semantic payload size without native enum translation.</summary>
+    public static int GetBytesPerPixel(PixelChannelLayout format, PixelComponentType type) => new RHIPixelEncoding(format, type).BytesPerPixel;
 }

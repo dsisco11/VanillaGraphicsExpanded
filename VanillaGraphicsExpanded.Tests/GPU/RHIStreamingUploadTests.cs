@@ -42,8 +42,8 @@ public sealed class RHIStreamingUploadTests(HeadlessGLFixture fixture)
             GL.PixelStore(PixelStoreParameter.UnpackRowLength, 7);
             cache.Invalidate(EPipelineState.PixelUnpack | EPipelineState.BufferBindings);
             byte[] bytes = rgb ? [11, 12, 13, 0, 21, 22, 23, 0] : [11, 12, 0, 0, 21, 22, 0, 0];
-            streaming.Enqueue(new(image.TextureId, new(TextureTarget.Texture2D, TextureTarget.Texture2D),
-                new(0, 0, 0, width, 2, 1, 0), rgb ? PixelFormat.Rgb : PixelFormat.Red, PixelType.UnsignedByte,
+            streaming.Enqueue(new(image.TextureId, TextureUploadTarget.For2D(),
+                new(0, 0, 0, width, 2, 1, 0), rgb ? PixelChannelLayout.Rgb : PixelChannelLayout.Red, PixelComponentType.UnsignedByte,
                 TextureUploadData.From(bytes), UnpackAlignment: rgb ? 4 : 1, UnpackRowLength: rgb ? 1 : 4, TextureOwner: image));
             streaming.TickOnRenderThread();
             Assert.Equal(0, streaming.PendingCount);
