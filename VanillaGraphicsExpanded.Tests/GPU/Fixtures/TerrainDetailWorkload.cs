@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
@@ -41,7 +42,7 @@ internal sealed class TerrainDetailWorkload : IDisposable
     private readonly TerrainShaderTestFixture shaders=new();
     private readonly ShaderTestFramework framework=new();
     private readonly Dictionary<string,GpuProgramObject> programs=new();
-    private readonly GpuVao vao=GpuVao.Create();
+    private readonly GpuVao vao=NativeResourceSetup.CreateVertexArray();
     private readonly VgeFrameUniformBuffer camera;
     private readonly Action bindTarget;
     private readonly Func<float[]> readTarget;

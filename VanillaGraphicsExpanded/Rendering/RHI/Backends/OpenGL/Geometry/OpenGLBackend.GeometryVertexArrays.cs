@@ -40,7 +40,7 @@ internal sealed partial class OpenGLBackend
             geometryVertexArrays.Remove(geometry);
             current.Retire();
         }
-        var array = GpuVao.Create("RHI.Geometry");
+        var array = CreateGeometryVertexArray();
         try
         {
             var observation = OpenGlStateCache.BeginNativeVertexMetadata(array.VertexArrayId, named: true, elementBinding: true);

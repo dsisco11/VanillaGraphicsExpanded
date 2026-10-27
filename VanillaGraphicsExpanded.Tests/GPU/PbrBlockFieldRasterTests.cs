@@ -25,7 +25,7 @@ public sealed class PbrBlockFieldRasterTests(HeadlessGLFixture fixture) : Render
         int vertex = shaders.Compile(ShaderType.VertexShader, PbrSurfaceInstalledShaderTests.Build(family + ".vsh", 0, 0, 0, 0, 0));
         int fragment = shaders.Compile(ShaderType.FragmentShader, PbrSurfaceInstalledShaderTests.Build(family + ".fsh", 0, 0, 0, 0, 0));
         using var program = GpuProgramObject.Adopt(TerrainShaderTestFixture.Link(vertex, fragment));
-        using var vao = GpuVao.Create();
+        using var vao = NativeResourceSetup.CreateVertexArray();
         using var framework = new ShaderTestFramework();
         using var target = framework.CreateTestGBuffer(8, 8, PixelInternalFormat.Rgba32f, PixelInternalFormat.Rgba32f,
             PixelInternalFormat.Rgba32f, PixelInternalFormat.Rgba32f, PixelInternalFormat.Rgba32f,

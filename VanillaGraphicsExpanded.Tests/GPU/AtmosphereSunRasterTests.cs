@@ -23,7 +23,7 @@ public sealed class AtmosphereSunRasterTests(HeadlessGLFixture fixture) : Render
         int vertex = shaders.Load(ShaderType.VertexShader, "tests/complete-state.vsh");
         int fragment = shaders.Load(ShaderType.FragmentShader, "tests/sun-segment.fsh");
         using var program = GpuProgramObject.Adopt(TerrainShaderTestFixture.Link(vertex, fragment));
-        using var vao = GpuVao.Create();
+        using var vao = NativeResourceSetup.CreateVertexArray();
         using var framework = new ShaderTestFramework();
         using var target = framework.CreateTestGBuffer(1, 1, PixelInternalFormat.Rgba32f);
         var layout = BuiltShaderFixture.Layout(program.ProgramId, "tests/sun-segment.fsh");
@@ -64,7 +64,7 @@ public sealed class AtmosphereSunRasterTests(HeadlessGLFixture fixture) : Render
         string fragmentPath = displayTransfer ? "tests/sun-raster-display.fsh" : "tests/sun-raster-linear.fsh";
         int fragment = shaders.Load(ShaderType.FragmentShader, fragmentPath);
         using var program = GpuProgramObject.Adopt(TerrainShaderTestFixture.Link(vertex, fragment));
-        using var vao = GpuVao.Create();
+        using var vao = NativeResourceSetup.CreateVertexArray();
         using var color = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba32f, Width = System.Math.Max(1, 64), Height = System.Math.Max(1, 64), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         using var depth = new DepthTexture(64, 64, PixelInternalFormat.DepthComponent32f);
         using var glow = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba32f, Width = System.Math.Max(1, 64), Height = System.Math.Max(1, 64), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();

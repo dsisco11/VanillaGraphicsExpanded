@@ -26,6 +26,14 @@ without retrieving the concrete backend or reentering a public factory. A nullab
 identity and a complete initial snapshot are handed to the wrapper only after successful initialization.
 Partial allocation cleanup preserves the original exception and the originating deletion context.
 
+Owned framebuffer declarations and attachment-owned renderbuffers request allocation through private
+owner-bearing RHI operations. Their backend implementations invoke the existing manager handoff;
+constructors do not coordinate native allocation or publication directly. Geometry arrays and unlinked
+program recipients are declared and completed inside backend realization. Native program-pipeline
+initialization remains private machinery for explicit native integration, with no general wrapper factory.
+Framebuffer construction failures retire only the new framebuffer, preserving borrowed images. Failed
+attachment construction returns newly owned storage to its captured disposal queue.
+
 Resource wrappers retain allocation, growth, streaming and disposal policy. Mutation and retirement
 use private owner-bearing RHI execution; wrappers do not select backend implementations or translate
 semantic command descriptions with backend helpers. Buffer role is owner policy, separate from storage

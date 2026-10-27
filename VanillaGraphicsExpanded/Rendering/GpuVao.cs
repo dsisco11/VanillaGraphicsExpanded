@@ -16,18 +16,6 @@ internal sealed class GpuVao : GpuResource<GpuVertexArrayMetadata>
     public string? DebugName=>debugName;
     /// <inheritdoc />
     public override nint ResourceId { get=>vertexArrayId;protected set=>vertexArrayId=(int)value; }
-    /// <summary>Creates an empty realized array through the existing private manager handoff.</summary>
-    public static GpuVao Create(string? debugName=null)
-    {
-        var owner=new GpuVao();
-        try
-        {
-            if(!GpuResourceManager.CreateVertexArray(new(),owner,out _).HasValue)
-                throw new InvalidOperationException("Vertex-array creation failed.");
-            owner.SetDebugName(debugName);return owner;
-        }
-        catch { owner.Dispose();throw; }
-    }
     /// <summary>Stores the label and applies native diagnostics only in debug builds.</summary>
     public override void SetDebugName(string? name)
     {
@@ -43,8 +31,8 @@ internal sealed class GpuVao : GpuResource<GpuVertexArrayMetadata>
     protected override GpuResourceKind ResourceKind=>GpuResourceKind.VertexArray;
     #endregion
 
-    #region Private
-    /// <summary>Declares an unpublished recipient without creating another native object.</summary>
-    private GpuVao() { }
+    #region Internal API
+    /// <summary>Declares an unpublished backend recipient without allocating native storage.</summary>
+    internal GpuVao() { }
     #endregion
 }

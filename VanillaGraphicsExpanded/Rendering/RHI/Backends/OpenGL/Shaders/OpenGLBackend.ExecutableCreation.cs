@@ -26,4 +26,21 @@ internal sealed partial class OpenGLBackend
             ImmutableArray<GpuProgramResourceMetadata>.Empty, ImmutableArray<GpuProgramTextureUnitMetadata>.Empty);
     }
     #endregion
+
+    #region Private
+    /// <summary>Completes an unpublished program allocation for shader realization or explicit engine integration.</summary>
+    private GpuProgramObject CreateProgramOwner(string? label)
+    {
+        RequireContext();
+        var owner = new GpuProgramObject();
+        try
+        {
+            if (!GpuResourceManager.CreateProgram(new(), owner, out _).HasValue)
+                throw new System.InvalidOperationException("Program allocation failed.");
+            owner.SetDebugName(label);
+            return owner;
+        }
+        catch { try { owner.Dispose(); } catch { } throw; }
+    }
+    #endregion
 }

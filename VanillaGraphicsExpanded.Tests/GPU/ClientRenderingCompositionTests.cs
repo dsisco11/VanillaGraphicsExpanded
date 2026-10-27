@@ -85,7 +85,7 @@ public sealed class ClientRenderingCompositionTests(HeadlessGLFixture fixture) :
                 if (ReferenceEquals(owner, manager)) { Assert.True(registry.IsClosed); Assert.True(((IGpuProgram)compute).Lifetime.IsRetired); order.Add("manager"); }
             });
         lifetime.Attach(() => Invoke(root, "DisposeRendering"));
-        var queued = GpuProgramObject.Create(); int queuedId = queued.ProgramId;
+        var queued = NativeResourceSetup.CreateProgram(); int queuedId = queued.ProgramId;
         var thread = new Thread(queued.Dispose); thread.Start(); thread.Join();
         try
         {

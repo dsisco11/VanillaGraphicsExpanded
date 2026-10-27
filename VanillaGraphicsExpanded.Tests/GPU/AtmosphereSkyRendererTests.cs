@@ -18,7 +18,7 @@ public sealed class AtmosphereSkyRendererTests(HeadlessGLFixture fixture) : Rend
     public void ProceduralSkyGeometryPreservesIncomingBindings()
     {
         EnsureContextValid();
-        using var priorVao = GpuVao.Create();
+        using var priorVao = NativeResourceSetup.CreateVertexArray();
         using var priorArray = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = null }).RequireResource();
         using var priorElements = RHICommandContext.Current.CreateIndexBuffer(new RHIBufferDescription { Role = BufferRole.Index, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = null }).RequireResource();
         OpenGLVertexSelection.Bind(OpenGlStateCache.Current, priorVao.VertexArrayId);

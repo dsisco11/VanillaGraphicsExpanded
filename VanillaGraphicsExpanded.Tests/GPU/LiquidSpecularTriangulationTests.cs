@@ -72,7 +72,7 @@ public sealed class LiquidSpecularTriangulationTests(HeadlessGLFixture fixture) 
         var state = OpenGlStateCache.Current;
         using var fixedFunction = LegacyFixedFunctionReference.Capture(state);
         using var framebufferBinding = state.BindFramebufferScope(FramebufferTarget.Framebuffer, target.FboId);
-        using var vao = GpuVao.Create("Test.LiquidTriangulation.Vao");
+        using var vao = NativeResourceSetup.CreateVertexArray("Test.LiquidTriangulation.Vao");
         using var vertices = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = "Test.LiquidTriangulation.Vertices" }).RequireResource();
         using var flags = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = "Test.LiquidTriangulation.Flags" }).RequireResource();
         using var indices = RHICommandContext.Current.CreateIndexBuffer(new RHIBufferDescription { Role = BufferRole.Index, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = "Test.LiquidTriangulation.Indices" }).RequireResource();

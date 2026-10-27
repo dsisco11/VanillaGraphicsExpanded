@@ -49,7 +49,7 @@ public sealed class PbrInstalledCoverageTests(HeadlessGLFixture fixture) : Rende
         int fragment = shaders.Compile(ShaderType.FragmentShader,
             PbrSurfaceInstalledShaderTests.Build(family + ".fsh", 0, oit, 0, 0, 0));
         using var program = GpuProgramObject.Adopt(TerrainShaderTestFixture.Link(vertex, fragment));
-        using var vao = GpuVao.Create();
+        using var vao = NativeResourceSetup.CreateVertexArray();
         using var framework = new ShaderTestFramework();
         using var target = framework.CreateTestGBuffer(1, 1, PixelInternalFormat.Rgba32f, oit > 0 ? 6 : 2);
         using var texture = framework.CreateTexture(1, 1, PixelInternalFormat.Rgba32f, new[] { .2f, .4f, .6f, alpha });

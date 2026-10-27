@@ -29,7 +29,7 @@ public sealed class CommandBindingKnowledgeTests(HeadlessGLFixture fixture)
             transpiler: new HarmonyMethod(typeof(EngineStateSwitchingHook), nameof(EngineStateSwitchingHook.Transpiler)));
         try
         {
-            using var before = GpuVao.Create(); using var after = GpuVao.Create();
+            using var before = NativeResourceSetup.CreateVertexArray(); using var after = NativeResourceSetup.CreateVertexArray();
             OpenGLVertexSelection.Bind(OpenGlStateCache.Current, before.VertexArrayId);
             harmony.Patch(((Action<int>)GL.BindVertexArray).Method,
                 prefix: new HarmonyMethod(typeof(CommandBindingKnowledgeTests), nameof(ReadIntermediateVao)));
@@ -53,8 +53,8 @@ public sealed class CommandBindingKnowledgeTests(HeadlessGLFixture fixture)
             transpiler: new HarmonyMethod(typeof(EngineStateSwitchingHook), nameof(EngineStateSwitchingHook.Transpiler)));
         try
         {
-            using var vao = GpuVao.Create();
-            using var pipeline = GpuProgramPipeline.Create();
+            using var vao = NativeResourceSetup.CreateVertexArray();
+            using var pipeline = NativeResourceSetup.CreateProgramPipeline();
             using var framebuffer = DynamicGpuFramebuffer.CreateEmpty("ExternalSelector");
             var cache = OpenGlStateCache.Current;
             OpenGLVertexSelection.Bind(cache, vao.VertexArrayId); OpenGLProgramPipelineSelection.Bind(cache, pipeline.PipelineId);
@@ -88,8 +88,8 @@ public sealed class CommandBindingKnowledgeTests(HeadlessGLFixture fixture)
         fixture.EnsureContextValid(); fixture.InitializeResourceDisposal();
         try
         {
-            using var vao = GpuVao.Create();
-            using var pipeline = GpuProgramPipeline.Create();
+            using var vao = NativeResourceSetup.CreateVertexArray();
+            using var pipeline = NativeResourceSetup.CreateProgramPipeline();
             int module = BuiltShaderFixture.LoadFixture("tests/prepared_binding.csh", ShaderType.ComputeShader);
             int executable = GL.CreateProgram();
             GL.AttachShader(executable, module); GL.LinkProgram(executable);
@@ -179,7 +179,7 @@ public sealed class CommandBindingKnowledgeTests(HeadlessGLFixture fixture)
         fixture.EnsureContextValid(); fixture.InitializeResourceDisposal();
         try
         {
-            using var original = GpuVao.Create(); using var later = GpuVao.Create();
+            using var original = NativeResourceSetup.CreateVertexArray(); using var later = NativeResourceSetup.CreateVertexArray();
             using var first = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = null }).RequireResource(); first.Allocate(128);
             using var temporary = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = null }).RequireResource(); temporary.Allocate(128);
             using var second = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = null }).RequireResource(); second.Allocate(128);
@@ -208,7 +208,7 @@ public sealed class CommandBindingKnowledgeTests(HeadlessGLFixture fixture)
         fixture.EnsureContextValid(); fixture.InitializeResourceDisposal();
         try
         {
-            using var vao = GpuVao.Create();
+            using var vao = NativeResourceSetup.CreateVertexArray();
             using var buffer = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = null }).RequireResource(); buffer.Allocate(128);
             OpenGLVertexSelection.Bind(OpenGlStateCache.Current, vao.VertexArrayId);
             var cache = OpenGlStateCache.Current;
@@ -238,7 +238,7 @@ public sealed class CommandBindingKnowledgeTests(HeadlessGLFixture fixture)
         try
         {
             using var capability = new DirectStateAccessCapabilityScope(true);
-            using var vao = GpuVao.Create();
+            using var vao = NativeResourceSetup.CreateVertexArray();
             using var buffer = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = null }).RequireResource(); buffer.Allocate(256);
             using var capture = new BindingCallCapture();
             var before = OpenGlStateCache.Current.GetVertexConfigurationRevision(vao.VertexArrayId);

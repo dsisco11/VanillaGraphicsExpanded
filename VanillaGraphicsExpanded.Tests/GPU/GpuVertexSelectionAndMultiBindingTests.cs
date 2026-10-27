@@ -26,7 +26,7 @@ public sealed class GpuVertexSelectionAndMultiBindingTests(HeadlessGLFixture fix
         harmony.Patch(AccessTools.Method(typeof(GpuVertexSelectionAndMultiBindingTests),nameof(Select)),transpiler:new HarmonyMethod(typeof(EngineStateSwitchingHook),nameof(EngineStateSwitchingHook.Transpiler)));
         try
         {
-            using var first=GpuVao.Create(); using var second=GpuVao.Create(); OpenGLVertexSelection.Bind(OpenGlStateCache.Current, first.VertexArrayId);
+            using var first=NativeResourceSetup.CreateVertexArray(); using var second=NativeResourceSetup.CreateVertexArray(); OpenGLVertexSelection.Bind(OpenGlStateCache.Current, first.VertexArrayId);
             var manager=GpuResourceManagerSystem.CurrentManager!;
             var a=manager.GetResourceRegistration(first)!; var b=manager.GetResourceRegistration(second)!;
             ulong ar=a.MetadataRevision,br=b.MetadataRevision;
@@ -56,7 +56,7 @@ public sealed class GpuVertexSelectionAndMultiBindingTests(HeadlessGLFixture fix
         harmony.Patch(AccessTools.Method(typeof(GpuVertexSelectionAndMultiBindingTests),nameof(MultiBind)),transpiler:new HarmonyMethod(typeof(EngineStateSwitchingHook),nameof(EngineStateSwitchingHook.Transpiler)));
         try
         {
-            using var vao=GpuVao.Create(); using var sentinel=GpuVao.Create();
+            using var vao=NativeResourceSetup.CreateVertexArray(); using var sentinel=NativeResourceSetup.CreateVertexArray();
             using var old=RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = null }).RequireResource(); old.Allocate(128);
             using var next=RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = null }).RequireResource(); next.Allocate(128);
             OpenGLVertexCalls.ExecuteCoreVertexArrayVertexBuffer(vao.VertexArrayId,0,old.BufferId,0,16);
@@ -83,7 +83,7 @@ public sealed class GpuVertexSelectionAndMultiBindingTests(HeadlessGLFixture fix
         try
         {
             using var capabilities=new DirectStateAccessCapabilityScope(direct);
-            using var vao=GpuVao.Create(); using var sentinel=GpuVao.Create(); OpenGLVertexSelection.Bind(OpenGlStateCache.Current, sentinel.VertexArrayId);
+            using var vao=NativeResourceSetup.CreateVertexArray(); using var sentinel=NativeResourceSetup.CreateVertexArray(); OpenGLVertexSelection.Bind(OpenGlStateCache.Current, sentinel.VertexArrayId);
             using var buffer=RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = null }).RequireResource(); buffer.Allocate(256);
             OpenGLVertexCalls.ExecuteCoreVertexArrayVertexBuffer(vao.VertexArrayId, 2, buffer.BufferId, (IntPtr)16, 32);
             OpenGLVertexCalls.ExecuteCoreVertexArrayBindingDivisor(vao.VertexArrayId, 2, 3);

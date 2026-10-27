@@ -78,7 +78,7 @@ public sealed class WaterRefractionReductionTests(HeadlessGLFixture fixture, ITe
             using var measuredTarget=CreateMRTRenderTarget(size/2,size/2,PixelInternalFormat.Rgba16f,PixelInternalFormat.Rgba32f);
             measuredColor.UploadDataImmediate(Enumerable.Range(0,size*size).SelectMany(_=>new[] {8f,2f,1f,1f}).ToArray());
             program.SourceColor=measuredColor; program.SourceDepth=measuredDepth;
-            using var vao=GpuVao.Create("Test.WaterReduction.Measurement");
+            using var vao=NativeResourceSetup.CreateVertexArray("Test.WaterReduction.Measurement");
             using var vertices=RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = "Test.WaterReduction.Vertices" }).RequireResource();
             using var indices=RHICommandContext.Current.CreateIndexBuffer(new RHIBufferDescription { Role = BufferRole.Index, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = "Test.WaterReduction.Indices" }).RequireResource();
             using var geometry=OpenGlStateCache.Current.BindVertexArrayScope(vao.VertexArrayId);

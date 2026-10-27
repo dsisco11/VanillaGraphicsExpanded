@@ -34,7 +34,7 @@ internal sealed partial class OpenGLBackend
                     return new(null, stageDiagnostics);
                 }
             }
-            candidate = GpuProgramObject.Create(label);
+            candidate = CreateProgramOwner(label);
             foreach (int stage in new[] { vertex, control.ShaderId, evaluation.ShaderId, fragment })
             {
                 GL.AttachShader(candidate.ProgramId, stage);

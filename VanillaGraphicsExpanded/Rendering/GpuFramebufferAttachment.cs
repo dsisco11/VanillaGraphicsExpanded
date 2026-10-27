@@ -308,8 +308,8 @@ public sealed class GpuFramebufferAttachment : GpuResource<GpuImageMetadata>
         var owner = new GpuRenderbuffer(0, true, debugName);
         try
         {
-            if (!GpuResourceManager.CreateRenderbuffer(new() { Format = storage, Width = width, Height = height, Samples = samples }, owner, out _).HasValue)
-                throw new InvalidOperationException("Renderbuffer initialization failed.");
+            RHICommandContext.Current.AllocateRenderbufferOwner(owner,
+                new() { Format = storage, Width = width, Height = height, Samples = samples });
             return owner;
         }
         catch { try { owner.Dispose(); } catch { } throw; }
@@ -333,10 +333,21 @@ public sealed class GpuFramebufferAttachment : GpuResource<GpuImageMetadata>
         renderbuffer = resource is GpuResource<GpuRenderbufferMetadata>;
         target = cubeFace ?? (resource is GpuResource<GpuTextureMetadata> texture
             ? GpuResourceManager.RequireTextureReferenceMetadata(texture).Target : 0);
-        ValidateSelection();
-        GpuResourceManager.AcquireImageMetadata(this);
-        GpuFramebufferAttachmentObservers.Register(resource, this);
-        if (!ownsStorage) GC.SuppressFinalize(this);
+        try
+        {
+            ValidateSelection();
+            GpuResourceManager.AcquireImageMetadata(this);
+            GpuFramebufferAttachmentObservers.Register(resource, this);
+            if (!ownsStorage) GC.SuppressFinalize(this);
+        }
+        catch
+        {
+            // Construction has not transferred the storage to a usable attachment.
+            // Return only owned candidates to their captured cleanup lifetime.
+            ReleaseStorage();
+            GC.SuppressFinalize(this);
+            throw;
+        }
     }
 
     /// <summary>Retains an imported image selection while the manager acquires its native snapshot.</summary>

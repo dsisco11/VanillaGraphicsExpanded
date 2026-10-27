@@ -31,7 +31,7 @@ public class GpuVaoIntegrationTests
         _fixture.EnsureContextValid();
 
         // Act
-        using var vao = GpuVao.Create();
+        using var vao = NativeResourceSetup.CreateVertexArray();
 
         // Assert
         Assert.True(vao.IsValid);
@@ -48,7 +48,7 @@ public class GpuVaoIntegrationTests
         const string debugName = "TestVAO";
 
         // Act
-        using var vao = GpuVao.Create(debugName);
+        using var vao = NativeResourceSetup.CreateVertexArray(debugName);
 
         // Assert
         Assert.True(vao.IsValid);
@@ -63,8 +63,8 @@ public class GpuVaoIntegrationTests
         _fixture.EnsureContextValid();
 
         // Act
-        using var vao1 = GpuVao.Create();
-        using var vao2 = GpuVao.Create();
+        using var vao1 = NativeResourceSetup.CreateVertexArray();
+        using var vao2 = NativeResourceSetup.CreateVertexArray();
 
         // Assert
         Assert.NotEqual(vao1.VertexArrayId, vao2.VertexArrayId);
@@ -79,7 +79,7 @@ public class GpuVaoIntegrationTests
         _fixture.EnsureContextValid();
 
         // Act
-        using var vao = GpuVao.Create("");
+        using var vao = NativeResourceSetup.CreateVertexArray("");
 
         // Assert
         Assert.Equal("", vao.DebugName);
@@ -95,7 +95,7 @@ public class GpuVaoIntegrationTests
     {
         // Arrange
         _fixture.EnsureContextValid();
-        var vao = GpuVao.Create();
+        var vao = NativeResourceSetup.CreateVertexArray();
         int originalId = vao.VertexArrayId;
 
         // Act
@@ -118,8 +118,8 @@ public class GpuVaoIntegrationTests
     {
         // Arrange
         _fixture.EnsureContextValid();
-        var vao1 = GpuVao.Create();
-        var vao2 = GpuVao.Create();
+        var vao1 = NativeResourceSetup.CreateVertexArray();
+        var vao2 = NativeResourceSetup.CreateVertexArray();
         int id1 = vao1.VertexArrayId;
         int id2 = vao2.VertexArrayId;
 
@@ -146,7 +146,7 @@ public class GpuVaoIntegrationTests
     {
         // Arrange
         _fixture.EnsureContextValid();
-        var vao = GpuVao.Create();
+        var vao = NativeResourceSetup.CreateVertexArray();
         vao.Dispose();
 
         // Act
@@ -161,7 +161,7 @@ public class GpuVaoIntegrationTests
     {
         // Arrange
         _fixture.EnsureContextValid();
-        using var vao = GpuVao.Create();
+        using var vao = NativeResourceSetup.CreateVertexArray();
         const string newDebugName = "UpdatedVAO";
 
         // Act
@@ -176,7 +176,7 @@ public class GpuVaoIntegrationTests
     {
         // Arrange
         _fixture.EnsureContextValid();
-        using var vao = GpuVao.Create("Initial");
+        using var vao = NativeResourceSetup.CreateVertexArray("Initial");
 
         // Act
         vao.SetDebugName(null);
@@ -190,7 +190,7 @@ public class GpuVaoIntegrationTests
     {
         // Arrange
         _fixture.EnsureContextValid();
-        var vao = GpuVao.Create();
+        var vao = NativeResourceSetup.CreateVertexArray();
 
         // Act
         vao.Dispose();
@@ -206,7 +206,7 @@ public class GpuVaoIntegrationTests
     {
         // Arrange
         _fixture.EnsureContextValid();
-        var vao = GpuVao.Create();
+        var vao = NativeResourceSetup.CreateVertexArray();
 
         // Act & Assert - Multiple dispose calls should be safe
         vao.Dispose();
@@ -224,39 +224,6 @@ public class GpuVaoIntegrationTests
     #region Edge Cases and Error Handling Tests
 
     [Fact]
-    public void ToString_ValidVao_ReturnsFormattedString()
-    {
-        // Arrange
-        _fixture.EnsureContextValid();
-        using var vao = GpuVao.Create("TestVAO");
-
-        // Act
-        string result = vao.ToString();
-
-        // Assert
-        Assert.Contains("GpuVao", result);
-        Assert.Contains($"id={vao.VertexArrayId}", result);
-        Assert.Contains("name=TestVAO", result);
-        Assert.Contains("disposed=False", result);
-    }
-
-    [Fact]
-    public void ToString_DisposedVao_ShowsDisposedState()
-    {
-        // Arrange
-        _fixture.EnsureContextValid();
-        var vao = GpuVao.Create("TestVAO");
-        vao.Dispose();
-
-        // Act
-        string result = vao.ToString();
-
-        // Assert
-        Assert.Contains("disposed=True", result);
-        Assert.Contains("id=0", result);
-    }
-
-    [Fact]
     public void Create_LongDebugName_AcceptsLongNames()
     {
         // Arrange
@@ -264,7 +231,7 @@ public class GpuVaoIntegrationTests
         string longName = new string('A', 1000);
 
         // Act
-        using var vao = GpuVao.Create(longName);
+        using var vao = NativeResourceSetup.CreateVertexArray(longName);
 
         // Assert
         Assert.Equal(longName, vao.DebugName);

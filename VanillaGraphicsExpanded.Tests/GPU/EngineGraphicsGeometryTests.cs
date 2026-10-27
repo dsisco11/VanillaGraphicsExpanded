@@ -28,7 +28,7 @@ public sealed class EngineGraphicsGeometryTests(HeadlessGLFixture fixture) : Ren
         fixture.InitializeResourceDisposal();
         try
         {
-            using var array = GpuVao.Create();
+            using var array = NativeResourceSetup.CreateVertexArray();
             using var elements = RHICommandContext.Current.CreateIndexBuffer(new RHIBufferDescription
                 { Role = BufferRole.Index, Mode = ResourceStorageMode.Mutable, Capacity = 4, Usage = BufferUsage.StaticDraw }).RequireResource();
             // This is externally configured fixture state; only the manager may acquire and certify it.
@@ -37,7 +37,7 @@ public sealed class EngineGraphicsGeometryTests(HeadlessGLFixture fixture) : Ren
             var indices = new RHIIndexStream(new(elements, 0, 4));
             var receipt = GpuResourceManager.AcquireEngineGeometryConfiguration(array, layout, [], indices);
             Assert.True(GpuResourceManager.IsEngineGeometryConfigurationCurrent(receipt));
-            using (var unrelated = GpuVao.Create())
+            using (var unrelated = NativeResourceSetup.CreateVertexArray())
             {
                 var mutation = OpenGlStateCache.BeginNativeVertexMetadata(unrelated.VertexArrayId, named: true, elementBinding: false);
                 mutation.Complete(true);
@@ -94,7 +94,7 @@ public sealed class EngineGraphicsGeometryTests(HeadlessGLFixture fixture) : Ren
         Assert.True(GpuResourceManager.IsEngineGeometryConfigurationCurrent(certification));
         using var source = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Width = 2, Height = 2, Format = TextureFormat.R32f, MipLevels = 1, Storage = ResourceStorageMode.Mutable, BaseLevel = 0, MaxLevel = 0, Filter = TextureFilterMode.Nearest, Label = null }, [new RHITextureInitialData(new(new(), 0, 0, 0, 2, 2), VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLPixelValues.Encoding(TextureFormatHelper.GetPixelFormat(PixelInternalFormat.R32f), OpenTK.Graphics.OpenGL.PixelType.Float), System.Runtime.InteropServices.MemoryMarshal.AsBytes((new float[] { .2f, .4f, .6f, .8f }).AsSpan()).ToArray())]).RequireResource();
         using var target = CreateRenderTarget(1, 1, PixelInternalFormat.R32f);
-        using var incomingVao = GpuVao.Create(); using var incomingIndices = RHICommandContext.Current.CreateIndexBuffer(new RHIBufferDescription { Role = BufferRole.Index, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = null }).RequireResource();
+        using var incomingVao = NativeResourceSetup.CreateVertexArray(); using var incomingIndices = RHICommandContext.Current.CreateIndexBuffer(new RHIBufferDescription { Role = BufferRole.Index, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = null }).RequireResource();
         OpenGLVertexSelection.Bind(OpenGlStateCache.Current, incomingVao.VertexArrayId); incomingIndices.UploadIndices(new uint[] { 0, 1, 2 }); OpenTK.Graphics.OpenGL4.GL.VertexArrayElementBuffer(incomingVao.VertexArrayId, incomingIndices.BufferId);
         int priorVao = incomingSameMesh ? native.Mesh.VaoId : incomingVao.VertexArrayId;
         int priorElements = incomingSameMesh ? native.Mesh.vboIdIndex : incomingIndices.BufferId;
@@ -220,7 +220,7 @@ public sealed class EngineGraphicsGeometryTests(HeadlessGLFixture fixture) : Ren
     public void FailedUploadRestoresCallerBindings()
     {
         EnsureContextValid();
-        using var native = new NativeMesh(); using var previous = GpuVao.Create(); using var buffer = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = null }).RequireResource();
+        using var native = new NativeMesh(); using var previous = NativeResourceSetup.CreateVertexArray(); using var buffer = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = null }).RequireResource();
         OpenGLVertexSelection.Bind(OpenGlStateCache.Current, previous.VertexArrayId); OpenGLBufferBindings.BindBuffer(OpenGlStateCache.Current, BufferTarget.ArrayBuffer, buffer.BufferId);
         native.Render.Setup(render => render.UploadMesh(It.IsAny<MeshData>())).Returns(() =>
         {
@@ -254,7 +254,7 @@ public sealed class EngineGraphicsGeometryTests(HeadlessGLFixture fixture) : Ren
         internal int Draws, Deletes;
         internal bool FailDraw;
         internal Action? DuringDraw;
-        private readonly GpuVao vao = GpuVao.Create();
+        private readonly GpuVao vao = NativeResourceSetup.CreateVertexArray();
         private readonly GpuVbo positions = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = null }).RequireResource(), uv = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = null }).RequireResource();
         private readonly GpuEbo indices = RHICommandContext.Current.CreateIndexBuffer(new RHIBufferDescription { Role = BufferRole.Index, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = null }).RequireResource();
 

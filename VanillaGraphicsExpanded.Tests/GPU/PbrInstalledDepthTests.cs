@@ -28,7 +28,7 @@ public sealed class PbrInstalledDepthTests(HeadlessGLFixture fixture) : RenderTe
         int vertex = shaders.Compile(ShaderType.VertexShader, PbrSurfaceInstalledShaderTests.Build("standard.vsh", 0, oit, ssao, 0, offsetVariant));
         int fragment = shaders.Compile(ShaderType.FragmentShader, PbrSurfaceInstalledShaderTests.Build("standard.fsh", 0, oit, ssao, 0, offsetVariant));
         using var program = GpuProgramObject.Adopt(TerrainShaderTestFixture.Link(vertex, fragment));
-        using var vao = GpuVao.Create();
+        using var vao = NativeResourceSetup.CreateVertexArray();
         using var vertices = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = null }).RequireResource();
         using var framework = new ShaderTestFramework();
         using var texture = framework.CreateTexture(1, 1, PixelInternalFormat.Rgba32f, [1f, .25f, .1f, 1f]);

@@ -23,7 +23,7 @@ public sealed class GpuVertexMetadataInterceptionTests(HeadlessGLFixture fixture
         fixture.EnsureContextValid(); fixture.InitializeResourceDisposal(); var harmony=Patch();
         try
         {
-            using var owner=GpuVao.Create(); using var sentinel=GpuVao.Create();
+            using var owner=NativeResourceSetup.CreateVertexArray(); using var sentinel=NativeResourceSetup.CreateVertexArray();
             using var buffer=RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = null }).RequireResource(); buffer.Allocate(64);
             using var previous=RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = null }).RequireResource(); previous.Allocate(64);
             var cache=OpenGlStateCache.Current;
@@ -74,7 +74,7 @@ public sealed class GpuVertexMetadataInterceptionTests(HeadlessGLFixture fixture
         fixture.EnsureContextValid(); fixture.InitializeResourceDisposal(); var harmony=Patch();
         try
         {
-            using var vao=GpuVao.Create(); OpenGLVertexSelection.Bind(OpenGlStateCache.Current, vao.VertexArrayId);
+            using var vao=NativeResourceSetup.CreateVertexArray(); OpenGLVertexSelection.Bind(OpenGlStateCache.Current, vao.VertexArrayId);
             var entry=GpuResourceManagerSystem.CurrentManager!.GetResourceRegistration(vao)!;
             ulong revision=entry.MetadataRevision;
             Mutate(12,vao.VertexArrayId,0);
@@ -91,12 +91,18 @@ public sealed class GpuVertexMetadataInterceptionTests(HeadlessGLFixture fixture
     [Fact]
     public void NativeDispatchFailureWithdrawsMetadata()
     {
-        fixture.EnsureContextValid(); fixture.InitializeResourceDisposal(); var harmony=Patch();
+        fixture.EnsureContextValid(); fixture.InitializeResourceDisposal();
+        var harmony = new Harmony("Tests.VertexDispatchFailure." + Guid.NewGuid());
         try
         {
-            using var vao=GpuVao.Create(); OpenGLVertexSelection.Bind(OpenGlStateCache.Current, vao.VertexArrayId);
-            harmony.Patch(AccessTools.Method(typeof(GL),nameof(GL.EnableVertexArrayAttrib),[typeof(int),typeof(int)]),prefix:new HarmonyMethod(typeof(GpuVertexMetadataInterceptionTests),nameof(ThrowDispatch)));
-            Assert.Throws<ApplicationException>(() => Mutate(7,vao.VertexArrayId,0));
+            using var vao=NativeResourceSetup.CreateVertexArray(); OpenGLVertexSelection.Bind(OpenGlStateCache.Current, vao.VertexArrayId);
+            var operation = AccessTools.Method(typeof(OpenGLVertexCalls), nameof(OpenGLVertexCalls.ExecuteCoreEnableVertexArrayAttrib), [typeof(int), typeof(int)]);
+            harmony.Patch(operation,
+                transpiler: new HarmonyMethod(typeof(GpuVertexMetadataInterceptionTests), nameof(InjectDispatchFailure)));
+            // Reflection enters the patched body even when an earlier Release caller inlined the original.
+            // The other cases exercise call-site interception; this case verifies operation failure cleanup.
+            var error = Assert.Throws<System.Reflection.TargetInvocationException>(() => operation.Invoke(null, [vao.VertexArrayId, 0]));
+            Assert.IsType<ApplicationException>(error.InnerException);
             Assert.False(GpuResourceManagerSystem.CurrentManager!.IsResourceMetadataAvailable(vao));
             Assert.Equal(ErrorCode.NoError,GL.GetError());
         }
@@ -147,8 +153,26 @@ public sealed class GpuVertexMetadataInterceptionTests(HeadlessGLFixture fixture
             case 13: GL.VertexAttrib1(0,0.5f); break;
         }
     }
+    /// <summary>Replaces precisely the native dispatch, retaining the production operation's admission and failure cleanup.</summary>
+    private static System.Collections.Generic.IEnumerable<CodeInstruction> InjectDispatchFailure(System.Collections.Generic.IEnumerable<CodeInstruction> instructions)
+    {
+        var native = SymbolExtensions.GetMethodInfo(() => GL.EnableVertexArrayAttrib(0, 0));
+        var injected = SymbolExtensions.GetMethodInfo(() => ThrowDispatch(0, 0));
+        int replacements = 0;
+        // Recompile the containing operation so an already-inlined OpenTK leaf cannot bypass the fault.
+        foreach (var instruction in instructions)
+        {
+            if (instruction.Calls(native))
+            {
+                instruction.operand = injected;
+                replacements++;
+            }
+            yield return instruction;
+        }
+        if (replacements != 1) throw new InvalidOperationException("Expected exactly one native vertex dispatch site.");
+    }
     /// <summary>Models native dispatch failure before configuration reaches the driver.</summary>
-    private static void ThrowDispatch() => throw new ApplicationException("native vertex dispatch failure");
+    private static void ThrowDispatch(int array, int index) => throw new ApplicationException("native vertex dispatch failure");
     /// <summary>Receives configuration publication without owning the VAO.</summary>
     private sealed class VertexAlias(int id) : GpuResource<GpuVertexArrayMetadata>
     {

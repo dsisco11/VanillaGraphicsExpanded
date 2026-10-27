@@ -142,7 +142,7 @@ public sealed class TerrainTessellationTests : RenderTestBase
             TerrainTessellationPatches.EnabledDefine, out int tessellated, out string error), error);
         using var program = GpuProgramObject.Adopt(tessellated);
         using var ordinary = GpuProgramObject.Adopt(TerrainShaderTestFixture.Link(vertex, fragment));
-        using var vao = GpuVao.Create();
+        using var vao = NativeResourceSetup.CreateVertexArray();
         using var framework = new ShaderTestFramework();
         using var target = framework.CreateTestGBuffer(4, 4, PixelInternalFormat.Rgba32f);
         FramebufferTestSetup.BindForEngineRendering(target);
@@ -288,7 +288,7 @@ public sealed class TerrainTessellationTests : RenderTestBase
             layout(location=1) out vec4 coordinates;
             void main() { color = vec4(rgba.rgb, float(renderFlags)); coordinates = vec4(uv, gl_FragCoord.z, 1); }
             """);
-        using var vertexArray = GpuVao.Create();
+        using var vertexArray = NativeResourceSetup.CreateVertexArray();
         int ordinary = 0, tessellated = 0, vao = vertexArray.VertexArrayId;
         int previousPatchVertices = OpenGlStateCache.Current.PatchVertices;
         try

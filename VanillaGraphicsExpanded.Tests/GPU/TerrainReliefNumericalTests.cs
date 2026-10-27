@@ -38,7 +38,7 @@ public sealed class TerrainReliefNumericalTests : RenderTestBase
         int vertex=shaders.Load(ShaderType.VertexShader,"tests/complete-state.vsh");
         int fs=shaders.Load(ShaderType.FragmentShader,fragmentPath);
         using var program=GpuProgramObject.Adopt(TerrainShaderTestFixture.Link(vertex,fs));
-        using var vao=GpuVao.Create();
+        using var vao=NativeResourceSetup.CreateVertexArray();
         using var draw=new ShaderTestFramework();
         using var heights=draw.CreateTexture(64,64,PixelInternalFormat.Rgba32f,Enumerable.Range(0,4096).SelectMany(_=>new[]{.5f,.5f,1f,height}).ToArray());
         using var indices=draw.CreateTexture(1,1,PixelInternalFormat.R32f,[index]);

@@ -168,7 +168,7 @@ public sealed class GpuResourceRetirementRegressionTests(HeadlessGLFixture fixtu
             Assert.Null(manager.FindResource(GpuResourceKind.Program, program));
             GL.UseProgram(0);
             Assert.False(GL.IsProgram(program));
-            using var fresh = GpuProgramObject.Create();
+            using var fresh = NativeResourceSetup.CreateProgram();
             Assert.True(fresh.IsValid);
             Assert.NotSame(retired, manager.GetResourceRegistration(fresh));
             Assert.Equal(ErrorCode.NoError, GL.GetError());

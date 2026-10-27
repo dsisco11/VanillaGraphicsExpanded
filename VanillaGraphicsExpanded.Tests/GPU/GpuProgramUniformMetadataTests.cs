@@ -25,7 +25,7 @@ public sealed class GpuProgramUniformMetadataTests(HeadlessGLFixture fixture)
         {
             using var program = CreateProgram();
             using var sentinel = CreateProgram();
-            using var pipeline = GpuProgramPipeline.Create();
+            using var pipeline = NativeResourceSetup.CreateProgramPipeline();
             using var capability = new SeparateShaderObjectsCapabilityScope(direct);
             OpenGLProgramPipelineSelection.Bind(OpenGlStateCache.Current, pipeline.PipelineId);
             OpenGLProgramSelection.Select(OpenGlStateCache.Current, sentinel.ProgramId);
@@ -85,8 +85,8 @@ public sealed class GpuProgramUniformMetadataTests(HeadlessGLFixture fixture)
         fixture.EnsureContextValid(); fixture.InitializeResourceDisposal(); var harmony=new Harmony("VGE.Tests.PipelineExplicit");
         try
         {
-            using var program=CreateProgram(); using var sentinel=GpuProgramPipeline.Create(); OpenGLProgramPipelineSelection.Bind(OpenGlStateCache.Current, sentinel.PipelineId); OpenGLProgramSelection.Select(OpenGlStateCache.Current, program.ProgramId);
-            using var capabilities=new DirectStateAccessCapabilityScope(direct); using var target=GpuProgramPipeline.Create();
+            using var program=CreateProgram(); using var sentinel=NativeResourceSetup.CreateProgramPipeline(); OpenGLProgramPipelineSelection.Bind(OpenGlStateCache.Current, sentinel.PipelineId); OpenGLProgramSelection.Select(OpenGlStateCache.Current, program.ProgramId);
+            using var capabilities=new DirectStateAccessCapabilityScope(direct); using var target=NativeResourceSetup.CreateProgramPipeline();
             var manager=GpuResourceManagerSystem.CurrentManager!; var entry=manager.GetResourceRegistration(target); Assert.NotNull(entry); Assert.True(GL.IsProgramPipeline(target.PipelineId));
             Assert.Equal(sentinel.PipelineId,GL.GetInteger(GetPName.ProgramPipelineBinding)); Assert.Equal(program.ProgramId,GL.GetInteger(GetPName.CurrentProgram));
             harmony.Patch(AccessTools.Method(typeof(GL),nameof(GL.BindProgramPipeline),[typeof(int)]),prefix:new HarmonyMethod(typeof(GpuProgramUniformMetadataTests),nameof(CountNative))); nativeCalls=0;

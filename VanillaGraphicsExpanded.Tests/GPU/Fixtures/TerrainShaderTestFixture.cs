@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 using VanillaGraphicsExpanded.Tests.GPU.Helpers;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
@@ -52,7 +53,7 @@ internal sealed class TerrainShaderTestFixture : IDisposable
     /// <summary>Links a baseline executable and transfers its ownership to the caller or engine owner.</summary>
     internal static int Link(int vertex, int fragment)
     {
-        using var program = GpuProgramObject.Create();
+        using var program = NativeResourceSetup.CreateProgram();
         GL.AttachShader(program.ProgramId, vertex);
         GL.AttachShader(program.ProgramId, fragment);
         Assert.True(NativeProgramFixture.Link(program, out string error), error);

@@ -237,7 +237,7 @@ public sealed class CloudSimpleDrawTests(HeadlessGLFixture fixture) : LumOnShade
     private sealed class NativeCloud : IDisposable
     {
         internal readonly VAO Mesh;
-        private readonly GpuVao vao=GpuVao.Create();
+        private readonly GpuVao vao=NativeResourceSetup.CreateVertexArray();
         private readonly GpuEbo indices=RHICommandContext.Current.CreateIndexBuffer(new RHIBufferDescription { Role = BufferRole.Index, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = null }).RequireResource();
         private readonly GpuVbo[] streams=Enumerable.Range(0,4).Select(_=>RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = null }).RequireResource()).ToArray();
         #region Public API

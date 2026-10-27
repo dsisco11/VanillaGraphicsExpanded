@@ -40,7 +40,7 @@ public sealed class TerrainTessellationEngineDrawTests : RenderTestBase
         int vertex = shaders.Compile(ShaderType.VertexShader, VertexSource);
         int fragment = shaders.Compile(ShaderType.FragmentShader, FragmentSource);
         var owner = CreateOwner(shaders, vertex, fragment);
-        using var vertexArray = GpuVao.Create();
+        using var vertexArray = NativeResourceSetup.CreateVertexArray();
         int vao = vertexArray.VertexArrayId, indices = GL.GenBuffer();
         var harmony = new Harmony("VGE.Tests.TerrainGroupedDraw");
         var previous = ShaderProgramBase.CurrentShaderProgram;

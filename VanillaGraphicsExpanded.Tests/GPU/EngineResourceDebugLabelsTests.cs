@@ -105,7 +105,7 @@ public sealed class EngineResourceDebugLabelsTests(HeadlessGLFixture fixture) : 
     public void MeshObjectsReceiveRoleNamesWithoutChangingBindings()
     {
         EnsureContextValid();
-        using var vao = GpuVao.Create();
+        using var vao = NativeResourceSetup.CreateVertexArray();
         using var vertices = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = null }).RequireResource();
         using var flags = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = null }).RequireResource();
         using var indices = RHICommandContext.Current.CreateIndexBuffer(new RHIBufferDescription { Role = BufferRole.Index, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = null }).RequireResource();
@@ -149,8 +149,8 @@ public sealed class EngineResourceDebugLabelsTests(HeadlessGLFixture fixture) : 
     public void PoolGrowthReceivesSemanticLabelsOnlyForNewAllocations()
     {
         EnsureContextValid();
-        using var vao = GpuVao.Create();
-        using var vao2 = GpuVao.Create();
+        using var vao = NativeResourceSetup.CreateVertexArray();
+        using var vao2 = NativeResourceSetup.CreateVertexArray();
         // A generated VAO name becomes an object only after its first bind, as in engine allocation.
         using (OpenGlStateCache.Current.BindVertexArrayScope(vao.VertexArrayId)) { }
         using (OpenGlStateCache.Current.BindVertexArrayScope(vao2.VertexArrayId)) { }

@@ -26,15 +26,6 @@ internal sealed class GpuProgramObject : GpuResource<GpuProgramMetadata>
     public string? DebugName => debugName;
     /// <summary>Reports native allocation usability independently of executable readiness.</summary>
     public new bool IsValid => base.IsValid;
-    /// <summary>Creates an unpublished recipient and returns it only after manager-owned native creation succeeds.</summary>
-    public static GpuProgramObject Create(string? debugName = null)
-    {
-        var recipient = new GpuProgramObject(0, debugName);
-        if (!GpuResourceManager.CreateProgram(new GpuProgramInitialization(), recipient, out _).HasValue)
-            throw new InvalidOperationException("glCreateProgram returned 0.");
-        recipient.SetDebugName(debugName);
-        return recipient;
-    }
     /// <summary>Stores the diagnostic label and applies it to the native allocation in debug builds.</summary>
     public override void SetDebugName(string? debugName)
     {
@@ -46,6 +37,8 @@ internal sealed class GpuProgramObject : GpuResource<GpuProgramMetadata>
     #endregion
 
     #region Internal API
+    /// <summary>Declares an unpublished backend recipient without acquiring external metadata.</summary>
+    internal GpuProgramObject() : this(0, null) { }
     /// <summary>Gets the last manager-published executable facts without querying the driver.</summary>
     internal GpuProgramMetadata MetadataSnapshot => metadata;
     /// <summary>Reports stale derived preparation independently of native allocation validity.</summary>

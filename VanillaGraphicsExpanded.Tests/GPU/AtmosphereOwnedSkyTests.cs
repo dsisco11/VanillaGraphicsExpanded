@@ -411,7 +411,7 @@ public sealed class AtmosphereOwnedSkyTests(HeadlessGLFixture fixture) : LumOnSh
         private readonly AtmosphereModSystem atmosphere = new();
         private readonly FixtureUniformInputs inputs = new(112);
         private readonly VgeFrameUniformBuffer cameraInputs = new();
-        private readonly GpuVao vao = GpuVao.Create();
+        private readonly GpuVao vao = NativeResourceSetup.CreateVertexArray();
 
         private readonly DynamicTexture2D depth;
         private readonly int width, height;

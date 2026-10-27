@@ -100,7 +100,7 @@ public sealed class GpuProgramNarrowPublicationTests(HeadlessGLFixture fixture)
         var executionBackend = new VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBackend(OpenGlStateCache.Current);
         try
         {
-            using var owner = GpuProgramObject.Create();
+            using var owner = NativeResourceSetup.CreateProgram();
             var entry = Assert.IsType<GpuResourceMetadataEntry<GpuProgramMetadata>>(
                 GpuResourceManagerSystem.CurrentManager!.GetResourceRegistration(owner));
             executionBackend.SubmitProgramExecutable(owner);
@@ -125,7 +125,7 @@ public sealed class GpuProgramNarrowPublicationTests(HeadlessGLFixture fixture)
         var harmony = new Harmony("Tests.ProgramSubmissionReentry." + Guid.NewGuid());
         try
         {
-            using var owner = GpuProgramObject.Create();
+            using var owner = NativeResourceSetup.CreateProgram();
             var manager = GpuResourceManagerSystem.CurrentManager!;
             var entry = Assert.IsType<GpuResourceMetadataEntry<GpuProgramMetadata>>(manager.GetResourceRegistration(owner));
             var reader = new RejectReader();
@@ -196,7 +196,7 @@ public sealed class GpuProgramNarrowPublicationTests(HeadlessGLFixture fixture)
         {
             GL.ShaderSource(shader, "#version 430\nlayout(local_size_x=1) in; void main(){}");
             GL.CompileShader(shader);
-            using var owner = GpuProgramObject.Create();
+            using var owner = NativeResourceSetup.CreateProgram();
             GL.AttachShader(owner.ProgramId, shader);
             executionBackend.SubmitProgramExecutable(owner);
             executionBackend.SubmitProgramExecutable(owner);
@@ -318,7 +318,7 @@ public sealed class GpuProgramNarrowPublicationTests(HeadlessGLFixture fixture)
     private static GpuProgramObject CreateProgram()
     {
         int shader = GL.CreateShader(ShaderType.ComputeShader);
-        var candidate = GpuProgramObject.Create();
+        var candidate = NativeResourceSetup.CreateProgram();
         try
         {
             GL.ShaderSource(shader, "#version 430\nlayout(local_size_x=1) in; uniform sampler2D inputs[2]; layout(std140,binding=0) uniform Parameters { vec4 parameter; }; layout(std430,binding=0) buffer Output { vec4 result; }; void main(){ result=texelFetch(inputs[0],ivec2(0),0)+texelFetch(inputs[1],ivec2(0),0)+parameter; }");
@@ -378,7 +378,7 @@ public sealed class GpuProgramDeferredContextTests(HeadlessGLFixture fixture)
         int native = 0;
         try
         {
-            using var owner = GpuProgramObject.Create();
+            using var owner = NativeResourceSetup.CreateProgram();
             native = owner.ProgramId;
             executionBackend.SubmitProgramExecutable(owner);
             var entry = GpuResourceManagerSystem.CurrentManager!.GetResourceRegistration(owner)!;

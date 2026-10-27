@@ -24,15 +24,15 @@ public sealed class GpuRemainingCreationTests(HeadlessGLFixture fixture, Xunit.I
         if (registered) fixture.InitializeResourceDisposal();
         try
         {
-            using var previousVao = GpuVao.Create();
-            using var previousPipeline = GpuProgramPipeline.Create();
+            using var previousVao = NativeResourceSetup.CreateVertexArray();
+            using var previousPipeline = NativeResourceSetup.CreateProgramPipeline();
             using var previousSampler = RHICommandContext.Current.CreateSampler(new RHISamplerDescription {  }).RequireResource();
             VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageBindings.BindSampler(OpenGlStateCache.Current, 0, previousSampler.SamplerId);
             using var vaoScope = OpenGlStateCache.Current.BindVertexArrayScope(previousVao.VertexArrayId);
             using var pipelineScope = OpenGlStateCache.Current.BindProgramPipelineScope(previousPipeline.PipelineId);
             using var observation = new CreationQueryObservation();
-            using var vao = GpuVao.Create();
-            using var pipeline = GpuProgramPipeline.Create();
+            using var vao = NativeResourceSetup.CreateVertexArray();
+            using var pipeline = NativeResourceSetup.CreateProgramPipeline();
             using var sampler = RHICommandContext.Current.CreateSampler(new RHISamplerDescription {  }).RequireResource();
             using var query = RHICommandContext.Current.CreateQuery(new(QueryKind.TimeElapsed)).RequireResource();
             using var feedback = RHICommandContext.Current.CreateTransformFeedback(new()).RequireResource();

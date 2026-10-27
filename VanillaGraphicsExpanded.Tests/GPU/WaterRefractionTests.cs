@@ -311,7 +311,7 @@ public sealed class WaterRefractionTests(HeadlessGLFixture fixture, ITestOutputH
         state.Apply(new GlPipelineDesc(defaultMask: GlPipelineStateMask.From(GlPipelineStateId.DepthTestEnable)
             .With(GlPipelineStateId.CullFaceEnable).With(GlPipelineStateId.ScissorTestEnable).With(GlPipelineStateId.ColorMask)
             .With(GlPipelineStateId.BlendEnable), nonDefaultMask: default));
-        using var vao = GpuVao.Create("Test.WaterCapture");
+        using var vao = NativeResourceSetup.CreateVertexArray("Test.WaterCapture");
         using var vertices = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = "Test.WaterCapture.Vertices" }).RequireResource();
         using var flags = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = "Test.WaterCapture.Flags" }).RequireResource();
         using var binding = OpenGlStateCache.Current.BindVertexArrayScope(vao.VertexArrayId);

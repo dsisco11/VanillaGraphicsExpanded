@@ -3,6 +3,8 @@ namespace VanillaGraphicsExpanded.Rendering.RHI;
 internal partial interface IRHIResourceExecution
 {
     #region Framebuffer ownership
+    /// <summary>Allocates an unpublished framebuffer declaration through the private manager handoff.</summary>
+    void AllocateFramebufferOwner(GpuFramebuffer owner, in GpuFramebufferInitialization request);
     /// <summary>Rejects immutable aliases before owner policy mutates shared attachments.</summary>
     void RequireMutableFramebufferOwner(GpuFramebuffer owner);
     /// <summary>Registers a completed immutable declaration with cleanup independent of the current context/thread.</summary>

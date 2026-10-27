@@ -144,7 +144,7 @@ internal sealed class LiquidPoolStorage : IDisposable
     internal readonly MeshDataPool Pool;
     internal readonly VAO Mesh;
     internal readonly ModelDataPoolLocation Location = new() { VerticesStart = 0, VerticesEnd = 3, IndicesStart = 0, IndicesEnd = 3 };
-    private readonly GpuVao vao = GpuVao.Create();
+    private readonly GpuVao vao = NativeResourceSetup.CreateVertexArray();
     private readonly GpuEbo indices = RHICommandContext.Current.CreateIndexBuffer(new RHIBufferDescription { Role = BufferRole.Index, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = null }).RequireResource();
     private readonly GpuVbo[] streams = Enumerable.Range(0, 6).Select(_ => RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = null }).RequireResource()).ToArray();
 

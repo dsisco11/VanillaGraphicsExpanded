@@ -194,8 +194,7 @@ public abstract partial class GpuFramebuffer : GpuResource<GpuFramebufferMetadat
         wrappedWidth = width; wrappedHeight = height;
         if (ownsFramebuffer)
         {
-            if (!GpuResourceManager.CreateFramebuffer(initialization, this, out _).HasValue)
-                throw new InvalidOperationException("Framebuffer allocation failed.");
+            RHI.RHICommandContext.Current.AllocateFramebufferOwner(this, initialization);
             foreach (var pair in initialization.Attachments)
             {
                 if (pair.Key == FramebufferAttachment.DepthStencilAttachment)

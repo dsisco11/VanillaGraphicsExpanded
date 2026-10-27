@@ -3,6 +3,8 @@ namespace VanillaGraphicsExpanded.Rendering.RHI;
 public sealed partial class RHICommandContext
 {
     #region Internal API
+    /// <summary>Admits allocation for an unpublished framebuffer declaration without reentering its constructor.</summary>
+    internal void AllocateFramebufferOwner(GpuFramebuffer owner, in GpuFramebufferInitialization request) => backend.AllocateFramebufferOwner(owner, request);
     /// <summary>Admits owner configuration before allocation policy can change shared attachment storage.</summary>
     internal void RequireMutableFramebufferOwner(GpuFramebuffer owner) => backend.RequireMutableFramebufferOwner(owner);
     /// <summary>Seals a completed configuration and returns native-free cleanup for its original context lifetime.</summary>

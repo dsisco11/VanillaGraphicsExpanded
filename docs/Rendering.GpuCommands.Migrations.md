@@ -1129,3 +1129,64 @@ Package identity, live rendering acceptance and integrated lighting remain later
 Complete interception, startup purge/API removal and handler-level direct state propagation remain 8g
 requirements; passing these tests does not claim those requirements are implemented. Nothing was staged
 or committed.
+
+## Owner creation boundary qualification (Phase 8b)
+
+Controlling sources: the implementation plan's 8b tasks and mandatory migration contract; proposal
+“Resource creation and adoption” and “Engine integration and migration boundaries”; contracts
+“Internal resource execution” and “Resource references and factories”; retained resource/metadata
+ownership in Rendering.GpuResources.md and Rendering.GpuResourceHandles.Inventory.md. The archived
+creation/publication proposal at `3f307365:docs/Rendering.CommandPublication.Proposal.md` controls
+private recipient handoff, failure cleanup and query policy. The texture-reference and prepared-binding
+contracts remain unchanged; acquisition/recovery and diagnostics retain their explicitly open units.
+
+| Required correction | Final route and evidence |
+| --- | --- |
+| Framebuffer owner and attachment renderbuffer creation | `GpuFramebuffer` constructor → `RHICommandContext.AllocateFramebufferOwner` → private execution contract → backend → existing `GpuResourceManager.CreateFramebuffer`. `CreateRenderbufferStorage` uses the equivalent `AllocateRenderbufferOwner` route. No public recipient-bearing factory or constructor recursion is introduced. Dynamic/static factories retain image composition and borrowing policy. |
+| Backend geometry and program recipients | Remove `GpuVao.Create` and `GpuProgramObject.Create`. Geometry realization calls private `CreateGeometryVertexArray`; shader realization and engine tessellation call private `CreateProgramOwner`. Those backend methods complete the existing manager handoff and clean failed candidates; the internal wrapper constructors declare only unpublished recipients. |
+| Unused pipeline factory | Remove `GpuProgramPipeline.Create` without adding a replacement production factory. Existing private native initialization remains available to explicit integration machinery. Native interception/lifecycle fixtures initialize unpublished recipients in test-only `NativeResourceSetup`; no production operation exists solely to preserve test setup. All old factory callers were updated directly. |
+| Failure and ownership | `OwnerCreationBoundaryTests` injects failure after native allocation for dynamic/static framebuffers and renderbuffer attachments, after framebuffer attachment configuration, and during owned-image projection. Cleanup retires only the candidate and preserves borrowed images. Failed attachment construction queues only owned backing storage in its captured disposal lifetime. Manager creation/publication, original association and context cleanup remain singular. |
+
+Source review covers production callers, all mechanically updated native fixture callers, private
+initialization dispatch and unchanged manager transaction cleanup. Remaining wrapper acquisition,
+capability, label, retention and interception work is assigned to 8c–8h, not claimed by this unit.
+
+Second source review and the independent audit-stage-completion workflow reconstructed the four tasks
+and their linked authority, then checked private recipient construction, caller closure, single manager
+publication, candidate cleanup and documentation against the final evidence. No required 8b gap remains.
+
+Delegated canonical shader-enabled builds passed in Debug and ordinary optimized Release. The final
+focused matrix passed 235/235 in each configuration, with zero failures/skips, including all six new owner
+creation failure cases. No JIT overrides or instrumented Release configuration were used. Final source
+last changed at `2026-10-27T20:45:16.6283117Z`; canonical Release compilation began at
+`2026-10-27T20:45:31.2049289Z` and Debug at `2026-10-27T20:45:50.3247432Z`. Subsequent edits only
+recorded documentation/checklist evidence.
+
+Initial qualification exposed two obsolete VAO formatted-ToString tests: the pre-change owner already
+had no such implementation. Those assertions were removed; identity, disposal and diagnostic-name tests
+remain. An inherited native-dispatch fault fixture also depended on patching an OpenTK leaf that could
+already be inlined in Release. It now replaces the exact compiler-checked dispatch inside the real operation
+and invokes that operation through reflection, preserving its actual admission/finally cleanup while avoiding
+inlined callers. The other cases still exercise call-site interception. No production behavior or JIT policy
+was changed for fixture observation.
+
+Final logs are `artifacts/phase8b-accepted-debug.log`, `phase8b-accepted-release.log` and corresponding
+`-build.log` files. Matching TRX files are in `artifacts/TestResults/`. Canonical build/test commands use
+`dotnet test VanillaGraphicsExpanded.Tests/VanillaGraphicsExpanded.Tests.csproj -c <Debug|Release>
+--no-restore --tl:off -v:minimal --filter <selection> --logger 'trx;LogFileName=<receipt>.trx'
+--results-directory artifacts/TestResults`; the full final matrix reuses those built binaries with
+`--no-build --no-restore`. The existing pinned shader compiler is discovered using
+`NUGET_PACKAGES=C:\Users\Sisco\.nuget\packages`; shader generation remains enabled.
+
+The selection OR-joins `FullyQualifiedName~` for OwnerCreationBoundaryTests,
+GpuFramebufferExecutableCreationTests, StaticGpuFramebufferTests, GpuFramebufferAttachmentTests,
+FramebufferOwnerKnowledgeTests, GpuManagerCreationFoundationTests, GpuRemainingCreationTests,
+GpuVaoIntegrationTests, GpuResourceKindLifecycleTests, GpuResourceOperationContextTests,
+GpuResourceManagerDeletionQueueIntegrationTests, GpuResourceRetirementRegressionTests,
+RHIShaderCreationTests, EngineGraphicsGeometryTests, TerrainTessellationEngineDrawTests,
+GpuProgramMetadataInterceptionTests, GpuProgramNarrowPublicationTests, GpuProgramUniformMetadataTests,
+GpuVertexMetadataInterceptionTests, GpuVertexWrapperMetadataTests, CommandBindingKnowledgeTests,
+ClientRenderingCompositionTests and CompleteGraphicsDrawTests.
+
+Package identity, integrated lighting and user-run live acceptance remain later qualification work.
+The agent did not stage or commit changes; existing user staging was left untouched.

@@ -82,7 +82,7 @@ public sealed class TerrainDisplacementRasterTests : RenderTestBase
         if(mode==13) fragmentSource=fragmentSource.Replace("in vec4 worldPos;", "in vec3 vge_surfaceBasePosition;in vec3 vge_surfaceBaseNormal;in vec4 worldPos;")
             .Replace("vec4(worldPos.z,normal)","vec4(worldPos.z,vge_surfaceBasePosition.z,vge_surfaceBaseNormal.z,normal.z)");
         int fragment=shaders.Compile(ShaderType.FragmentShader,fragmentSource);
-        using var vertexArray = GpuVao.Create();
+        using var vertexArray = NativeResourceSetup.CreateVertexArray();
         int vao = vertexArray.VertexArrayId, program = 0;
         int oldPatch=OpenGlStateCache.Current.PatchVertices;
         try

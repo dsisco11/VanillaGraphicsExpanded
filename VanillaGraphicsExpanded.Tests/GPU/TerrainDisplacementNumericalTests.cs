@@ -35,7 +35,7 @@ public sealed class TerrainDisplacementNumericalTests : RenderTestBase
         int vertex=shaders.Load(ShaderType.VertexShader,"tests/complete-state.vsh");
         int fragment=shaders.Load(ShaderType.FragmentShader,"tests/displacement-metric.fsh");
         using var program=GpuProgramObject.Adopt(TerrainShaderTestFixture.Link(vertex,fragment));
-        using var vao=GpuVao.Create();using var framework=new ShaderTestFramework();
+        using var vao=NativeResourceSetup.CreateVertexArray();using var framework=new ShaderTestFramework();
         using var target=framework.CreateTestGBuffer(1,1,PixelInternalFormat.Rgba32f);
         int id=program.ProgramId;var layout=BuiltShaderFixture.Layout(id,"tests/displacement-metric.fsh");
         FramebufferTestSetup.BindForEngineRendering(target);OpenGLProgramSelection.Select(OpenGlStateCache.Current, id);OpenGLVertexSelection.Bind(OpenGlStateCache.Current, vao.VertexArrayId);
@@ -117,7 +117,7 @@ public sealed class TerrainDisplacementNumericalTests : RenderTestBase
         int vertex=shaders.Load(ShaderType.VertexShader,"tests/complete-state.vsh");
         int fragment=shaders.Load(ShaderType.FragmentShader,"tests/displacement-height.fsh");
         int program=TerrainShaderTestFixture.Link(vertex,fragment);
-        using var vertexArray = GpuVao.Create();
+        using var vertexArray = NativeResourceSetup.CreateVertexArray();
         int vao = vertexArray.VertexArrayId;
         try
         {

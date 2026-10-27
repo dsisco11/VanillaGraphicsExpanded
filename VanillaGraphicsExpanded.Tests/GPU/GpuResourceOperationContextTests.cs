@@ -27,8 +27,8 @@ public sealed class GpuResourceOperationContextTests(HeadlessGLFixture fixture)
         {
             using var buffer = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = null }).RequireResource(); buffer.Allocate(16);
             using var texture = RHICommandContext.Current.CreateDynamicTexture3D(new RHITextureDescription { Dimension = TextureDimension.TwoArray, Format = TextureFormat.Rgba8, Width = System.Math.Max(1, 4), Height = System.Math.Max(1, 4), Depth = System.Math.Max(1, 2), MipLevels = 1, Storage = (true ? ResourceStorageMode.Immutable : ResourceStorageMode.Mutable), Filter = TextureFilterMode.Linear, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
-            using var program = GpuProgramObject.Create();
-            using var vao = GpuVao.Create();
+            using var program = NativeResourceSetup.CreateProgram();
+            using var vao = NativeResourceSetup.CreateVertexArray();
             var bufferEntry = manager.GetResourceRegistration(buffer)!;
             var textureEntry = manager.GetResourceRegistration(texture)!;
             var programEntry = manager.GetResourceRegistration(program)!;

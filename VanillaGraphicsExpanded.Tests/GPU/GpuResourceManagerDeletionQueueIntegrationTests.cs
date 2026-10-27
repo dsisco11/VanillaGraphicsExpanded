@@ -96,7 +96,7 @@ public sealed class GpuResourceManagerDeletionQueueIntegrationTests
         try
         {
             manager.OnRenderFrame(0, GpuResourceManager.Stage);
-            var program = GpuProgramObject.Create(); id = program.ProgramId;
+            var program = NativeResourceSetup.CreateProgram(); id = program.ProgramId;
             if (queued)
             {
                 Exception? failure = null;
@@ -177,7 +177,7 @@ public sealed class GpuResourceManagerDeletionQueueIntegrationTests
         try
         {
             if (ticked) manager.OnRenderFrame(0, GpuResourceManager.Stage);
-            var program = GpuProgramObject.Create(); int id = program.ProgramId;
+            var program = NativeResourceSetup.CreateProgram(); int id = program.ProgramId;
             var thread = new Thread(program.Dispose); thread.Start(); thread.Join();
             Assert.True(GL.IsProgram(id));
             if (ticked) manager.OnRenderFrame(0, GpuResourceManager.Stage);

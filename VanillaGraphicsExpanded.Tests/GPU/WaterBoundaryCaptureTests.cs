@@ -108,7 +108,7 @@ public sealed class WaterBoundaryCaptureTests(HeadlessGLFixture fixture, ITestOu
             nonDefaultMask: GlPipelineStateMask.From(GlPipelineStateId.BlendEnable).With(GlPipelineStateId.BlendFunc),
             blendFunc: new(BlendingFactorSrc.One, BlendingFactorDest.One, BlendingFactorSrc.One, BlendingFactorDest.One)));
         FramebufferTestSetup.ClearAttachments(target, 0, 0, 0, 0);
-        using var vao = GpuVao.Create("Test.WaterCapture");
+        using var vao = NativeResourceSetup.CreateVertexArray("Test.WaterCapture");
         using var vertices = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = "Test.WaterCapture.Vertices" }).RequireResource();
         using var flags = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = "Test.WaterCapture.Flags" }).RequireResource();
         using var binding = OpenGlStateCache.Current.BindVertexArrayScope(vao.VertexArrayId);

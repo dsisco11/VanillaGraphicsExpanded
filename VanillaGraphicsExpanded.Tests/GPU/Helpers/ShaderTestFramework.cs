@@ -277,7 +277,7 @@ public sealed class ShaderTestFramework : IDisposable
     private void EnsureQuadInitialized()
     {
         if(_quadInitialized)return;
-        _quadVao=GpuVao.Create("Tests.FullscreenTriangle");
+        _quadVao=NativeResourceSetup.CreateVertexArray("Tests.FullscreenTriangle");
         _quadVbo=RHICommandContext.Current.CreateVertexBuffer(new(){Role=BufferRole.Vertex,Mode=ResourceStorageMode.Mutable,Capacity=60,Usage=BufferUsage.StaticDraw}).RequireResource();
         _quadEbo=RHICommandContext.Current.CreateIndexBuffer(new(){Role=BufferRole.Index,Mode=ResourceStorageMode.Mutable,Capacity=12,Usage=BufferUsage.StaticDraw}).RequireResource();
         _quadVbo.UploadData(new float[]{-1,-1,0,0,0,3,-1,0,2,0,-1,3,0,0,2});

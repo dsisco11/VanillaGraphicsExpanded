@@ -33,27 +33,6 @@ internal sealed class GpuProgramPipeline : GpuResource<GpuProgramPipelineMetadat
     public new bool IsValid => base.IsValid;
 
     /// <summary>
-    /// Creates a new program pipeline object.
-    /// </summary>
-    public static GpuProgramPipeline Create(string? debugName = null)
-    {
-        var value = new GpuProgramPipeline();
-        try
-        {
-            if (!GpuResourceManager.CreateProgramPipeline(new GpuProgramPipelineInitialization(), value, out _).HasValue)
-                throw new InvalidOperationException("ProgramPipeline creation failed.");
-            value.SetDebugName(debugName);
-            return value;
-        }
-        catch
-        {
-            // The manager retires provisional allocation; dispose a completed handoff too.
-            value.Dispose();
-            throw;
-        }
-    }
-
-    /// <summary>
     /// Sets the debug label for this pipeline (debug builds only).
     /// </summary>
     public override void SetDebugName(string? debugName)
@@ -74,8 +53,8 @@ internal sealed class GpuProgramPipeline : GpuResource<GpuProgramPipelineMetadat
     protected override GpuResourceKind ResourceKind => GpuResourceKind.ProgramPipeline;
     #endregion
 
-    #region Private
-    /// <summary>Declares an unpublished wrapper for manager-owned creation.</summary>
-    private GpuProgramPipeline() { }
+    #region Internal API
+    /// <summary>Declares a native-free recipient for explicit integration initialization.</summary>
+    internal GpuProgramPipeline() { }
     #endregion
 }

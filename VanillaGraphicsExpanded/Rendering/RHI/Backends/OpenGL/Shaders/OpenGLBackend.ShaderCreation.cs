@@ -110,7 +110,7 @@ internal sealed partial class OpenGLBackend
         var request = new OpenGLPendingShaderCreation(this, description) { Transition = true };
         try
         {
-            request.Program = GpuProgramObject.Create(description.Label);
+            request.Program = CreateProgramOwner(description.Label);
             if (description.RetrievableBinary)
             {
                 GL.ProgramParameter(request.Program.ProgramId, ProgramParameterName.ProgramBinaryRetrievableHint, 1);

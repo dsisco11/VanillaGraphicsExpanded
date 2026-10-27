@@ -17,4 +17,21 @@ internal sealed partial class OpenGLBackend
         return name == 0 ? null : new GpuVertexArrayMetadata();
     }
     #endregion
+
+    #region Private
+    /// <summary>Completes a private geometry recipient before any configuration or cache membership can expose it.</summary>
+    private GpuVao CreateGeometryVertexArray()
+    {
+        RequireContext();
+        var owner = new GpuVao();
+        try
+        {
+            if (!GpuResourceManager.CreateVertexArray(new(), owner, out _).HasValue)
+                throw new InvalidOperationException("Vertex-array creation failed.");
+            owner.SetDebugName("RHI.Geometry");
+            return owner;
+        }
+        catch { try { owner.Dispose(); } catch { } throw; }
+    }
+    #endregion
 }

@@ -73,7 +73,7 @@ public sealed class GpuProgramSamplerRetirementTests(HeadlessGLFixture fixture) 
         int vertex = shaders.Load(ShaderType.VertexShader, "tests/complete-state.vsh");
         int fragment = shaders.Load(ShaderType.FragmentShader, "tests/sampler-handoff.fsh");
         using var program = GpuProgramObject.Adopt(TerrainShaderTestFixture.Link(vertex, fragment));
-        using var vao = GpuVao.Create();
+        using var vao = NativeResourceSetup.CreateVertexArray();
         using var framework = new ShaderTestFramework();
         using var texture = framework.CreateTexture(1, 1, PixelInternalFormat.Rgba32f, [.2f, .4f, .6f, 1f]);
         using var target = framework.CreateTestGBuffer(1, 1, PixelInternalFormat.Rgba32f);
