@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System.Diagnostics;
 using System.Numerics;
 using OpenTK.Graphics.OpenGL;
@@ -202,7 +203,7 @@ public sealed class CelestialGalaxyGenerationTests(HeadlessGLFixture fixture, IT
     private static float[] Read(DynamicTextureCube cube, int face, int mip)
     {
         int size = Math.Max(1, cube.Width >> mip); float[] data = new float[size * size * 3];
-        using var binding = StateCache.Current.BindTextureScope(TextureTarget.TextureCubeMap, 0, cube.TextureId);
+        using var binding = OpenGlStateCache.Current.BindTextureScope(TextureTarget.TextureCubeMap, 0, cube.TextureId);
         GL.GetTexImage(TextureTarget.TextureCubeMapPositiveX + face, mip, PixelFormat.Rgb, PixelType.Float, data);
         return data;
     }

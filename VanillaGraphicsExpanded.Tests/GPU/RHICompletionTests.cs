@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System;
 using System.Linq;
 using OpenTK.Graphics.OpenGL4;
@@ -85,7 +86,7 @@ public sealed class RHICompletionTests(HeadlessGLFixture fixture)
             try
             {
                 GL.PixelStore(PixelStoreParameter.PackAlignment, 8);
-                StateCache.Current.InvalidateAll();
+                OpenGlStateCache.Current.InvalidateAll();
                 using var request = context.EnqueueReadback(new RHIReadbackDescription(texture, region, encoding, 12));
                 Assert.Equal(8, GL.GetInteger(GetPName.PackAlignment));
                 Assert.Equal(CompletionStatus.Ready, request.Wait(TimeSpan.FromSeconds(5)));
@@ -94,7 +95,7 @@ public sealed class RHICompletionTests(HeadlessGLFixture fixture)
                 Assert.Equal(pixels.AsSpan(0, 8).ToArray(), mapped.Bytes[..8].ToArray());
                 Assert.Equal(pixels.AsSpan(8, 8).ToArray(), mapped.Bytes.Slice(12, 8).ToArray());
             }
-            finally { GL.PixelStore(PixelStoreParameter.PackAlignment, prior); StateCache.Current.InvalidateAll(); }
+            finally { GL.PixelStore(PixelStoreParameter.PackAlignment, prior); OpenGlStateCache.Current.InvalidateAll(); }
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
         finally { Finish(); }
@@ -139,7 +140,7 @@ public sealed class RHICompletionTests(HeadlessGLFixture fixture)
             using var selected = Buffer(context, new byte[32]);
             using var query = context.CreateQuery(new(QueryKind.Timestamp)).RequireResource();
             GL.BindBuffer(BufferTarget.QueryBuffer, (int)selected.ResourceId);
-            StateCache.Current.InvalidateAll();
+            OpenGlStateCache.Current.InvalidateAll();
             context.WriteTimestamp(query);
             var result = context.RequestQueryResult(query);
             _ = result.Poll();
@@ -225,7 +226,7 @@ public sealed class RHICompletionTests(HeadlessGLFixture fixture)
         {
             RenderContextRegistry.Retire(owner);
             RenderContextRegistry.RegisterCurrent(fixture, static _ => true);
-            StateCache.Current.InvalidateAll();
+            OpenGlStateCache.Current.InvalidateAll();
         }
     }
     /// <summary>Foreign-thread observation and mapping reject without consuming the original request or its completion.</summary>
@@ -281,9 +282,9 @@ public sealed class RHICompletionTests(HeadlessGLFixture fixture)
     {
         fixture.EnsureContextValid();
         if (registered) fixture.InitializeResourceDisposal();
-        StateCache.Current.InvalidateAll();
+        OpenGlStateCache.Current.InvalidateAll();
     }
     /// <summary>Drains owned candidates and withdraws selector knowledge after each test.</summary>
-    private void Finish() { fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+    private void Finish() { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     #endregion
 }

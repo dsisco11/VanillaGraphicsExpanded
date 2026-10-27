@@ -27,8 +27,8 @@ public sealed class GpuProgramUniformMetadataTests(HeadlessGLFixture fixture)
             using var sentinel = CreateProgram();
             using var pipeline = GpuProgramPipeline.Create();
             using var capability = new SeparateShaderObjectsCapabilityScope(direct);
-            OpenGLProgramPipelineSelection.Bind(StateCache.Current, pipeline.PipelineId);
-            OpenGLProgramSelection.Select(StateCache.Current, sentinel.ProgramId);
+            OpenGLProgramPipelineSelection.Bind(OpenGlStateCache.Current, pipeline.PipelineId);
+            OpenGLProgramSelection.Select(OpenGlStateCache.Current, sentinel.ProgramId);
             var entry = Assert.IsType<GpuResourceMetadataEntry<GpuProgramMetadata>>(
                 GpuResourceManagerSystem.CurrentManager!.GetResourceRegistration(program));
             int sampler = GL.GetUniformLocation(program.ProgramId, "inputTexture");
@@ -49,10 +49,10 @@ public sealed class GpuProgramUniformMetadataTests(HeadlessGLFixture fixture)
             Assert.Equal(sentinel.ProgramId, GL.GetInteger(GetPName.CurrentProgram));
             Assert.Equal(pipeline.PipelineId, GL.GetInteger(GetPName.ProgramPipelineBinding));
             Assert.Equal(ErrorCode.NoError, GL.GetError());
-            OpenGLProgramSelection.Select(StateCache.Current, 0);
-            OpenGLProgramPipelineSelection.Bind(StateCache.Current, 0);
+            OpenGLProgramSelection.Select(OpenGlStateCache.Current, 0);
+            OpenGLProgramPipelineSelection.Bind(OpenGlStateCache.Current, 0);
         }
-        finally { fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
     /// <summary>Available canonical sampler units suppress stable authored assignments while numeric content and recovery still dispatch.</summary>
     [Theory]
@@ -75,7 +75,7 @@ public sealed class GpuProgramUniformMetadataTests(HeadlessGLFixture fixture)
             entry.BeginRefresh(GpuMetadataChange.Metadata); OpenGLProgramAssignments.SetUnit(program.ProgramId,sampler,3);
             Assert.Equal(2,nativeCalls); Assert.Equal(1,reader.Reads); Assert.True(entry.IsUsable); Assert.True(entry.MetadataRevision>revision); Assert.Equal(ErrorCode.NoError,GL.GetError());
         }
-        finally { harmony.UnpatchAll(harmony.Id); OpenGLProgramSelection.Select(StateCache.Current, 0); fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { harmony.UnpatchAll(harmony.Id); OpenGLProgramSelection.Select(OpenGlStateCache.Current, 0); fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
     /// <summary>Pipeline creation restores selectors and explicit configuration never binds the target pipeline.</summary>
     [Theory]
@@ -85,7 +85,7 @@ public sealed class GpuProgramUniformMetadataTests(HeadlessGLFixture fixture)
         fixture.EnsureContextValid(); fixture.InitializeResourceDisposal(); var harmony=new Harmony("VGE.Tests.PipelineExplicit");
         try
         {
-            using var program=CreateProgram(); using var sentinel=GpuProgramPipeline.Create(); OpenGLProgramPipelineSelection.Bind(StateCache.Current, sentinel.PipelineId); OpenGLProgramSelection.Select(StateCache.Current, program.ProgramId);
+            using var program=CreateProgram(); using var sentinel=GpuProgramPipeline.Create(); OpenGLProgramPipelineSelection.Bind(OpenGlStateCache.Current, sentinel.PipelineId); OpenGLProgramSelection.Select(OpenGlStateCache.Current, program.ProgramId);
             using var capabilities=new DirectStateAccessCapabilityScope(direct); using var target=GpuProgramPipeline.Create();
             var manager=GpuResourceManagerSystem.CurrentManager!; var entry=manager.GetResourceRegistration(target); Assert.NotNull(entry); Assert.True(GL.IsProgramPipeline(target.PipelineId));
             Assert.Equal(sentinel.PipelineId,GL.GetInteger(GetPName.ProgramPipelineBinding)); Assert.Equal(program.ProgramId,GL.GetInteger(GetPName.CurrentProgram));
@@ -95,7 +95,7 @@ public sealed class GpuProgramUniformMetadataTests(HeadlessGLFixture fixture)
             GL.GetProgramPipeline(target.PipelineId,ProgramPipelineParameter.ComputeShader,out int stage); GL.GetProgramPipeline(target.PipelineId,ProgramPipelineParameter.ActiveProgram,out int active); Assert.Equal(program.ProgramId,stage); Assert.Equal(program.ProgramId,active);
             int id=target.PipelineId; VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.ProgramPipeline, id)); Assert.False(target.IsValid); Assert.False(GL.IsProgramPipeline(id)); Assert.Equal(ErrorCode.NoError,GL.GetError());
         }
-        finally { harmony.UnpatchAll(harmony.Id); OpenGLProgramSelection.Select(StateCache.Current, 0); OpenGLProgramPipelineSelection.Bind(StateCache.Current, 0); fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { harmony.UnpatchAll(harmony.Id); OpenGLProgramSelection.Select(OpenGlStateCache.Current, 0); OpenGLProgramPipelineSelection.Bind(OpenGlStateCache.Current, 0); fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
     #endregion
 

@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System;
 
 namespace VanillaGraphicsExpanded.Rendering;
@@ -11,7 +12,7 @@ internal sealed partial class GpuResourceManager
     {
         ObjectDisposedException.ThrowIf(!source.IsValid, source);
         RequireWrapperMetadataAccess(source);
-        StateCache.Current.RequireResourceOperationAvailable(GpuResourceKind.Program, source.ProgramId);
+        OpenGlStateCache.Current.RequireResourceOperationAvailable(GpuResourceKind.Program, source.ProgramId);
         if (source.ResourceManager?.GetResourceRegistration(source) is { } entry
             && !entry.Manager.IsResourceMetadataAvailable(source))
             throw new InvalidOperationException("The original program metadata is unavailable.");

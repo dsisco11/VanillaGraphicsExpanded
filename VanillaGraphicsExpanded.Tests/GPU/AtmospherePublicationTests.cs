@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System;
 using System.Numerics;
 using System.Collections.Immutable;
@@ -148,13 +149,13 @@ public sealed class AtmospherePublicationTests(HeadlessGLFixture fixture) : Rend
         textures.Upload(snapshot);
         Assert.Equal(LightingStorage.PersistentScale, textures.StorageScale);
         Assert.Equal(7u, textures.CalibrationGeneration);
-        using (var scope = StateCache.Current.BindTextureScope(TextureTarget.Texture2D, 0, textures.Sky.TextureId))
+        using (var scope = OpenGlStateCache.Current.BindTextureScope(TextureTarget.Texture2D, 0, textures.Sky.TextureId))
         {
             float[] pixels = new float[8];
             GL.GetTexImage(TextureTarget.Texture2D, 0, PixelFormat.Rgba, PixelType.Float, pixels);
             Assert.Equal(new float[] { 2, 4, 8, 1, 0, 0, 0, 1 }, pixels);
         }
-        using (var scope = StateCache.Current.BindTextureScope(TextureTarget.Texture3D, 0, textures.Attenuation.TextureId))
+        using (var scope = OpenGlStateCache.Current.BindTextureScope(TextureTarget.Texture3D, 0, textures.Attenuation.TextureId))
         {
             float[] pixels = new float[4];
             GL.GetTexImage(TextureTarget.Texture3D, 0, PixelFormat.Rgba, PixelType.Float, pixels);
@@ -176,7 +177,7 @@ public sealed class AtmospherePublicationTests(HeadlessGLFixture fixture) : Rend
         Assert.Equal(LightingStorage.PersistentScale, snapshot.LookupStorageScale);
         Assert.Equal(1u, snapshot.CalibrationGeneration);
         Assert.True(float.IsFinite(snapshot.ReconstructionMaximumNits));
-        using var binding = StateCache.Current.BindTextureScope(TextureTarget.Texture2D, 0, AtmosphereModSystem.SkyTextureId);
+        using var binding = OpenGlStateCache.Current.BindTextureScope(TextureTarget.Texture2D, 0, AtmosphereModSystem.SkyTextureId);
         GL.GetTexLevelParameter(TextureTarget.Texture2D, 0, GetTextureParameter.TextureWidth, out int width);
         GL.GetTexLevelParameter(TextureTarget.Texture2D, 0, GetTextureParameter.TextureHeight, out int height);
         Assert.Equal(snapshot.Width, width);
@@ -201,7 +202,7 @@ public sealed class AtmospherePublicationTests(HeadlessGLFixture fixture) : Rend
     /// <summary>Verifies both cumulative transport volumes were fully uploaded with the published angular extent.</summary>
     private static void AssertVolume(int id, ImmutableArray<float> expected, AtmosphereLighting snapshot, bool packedRadiance = false)
     {
-        using var binding = StateCache.Current.BindTextureScope(TextureTarget.Texture3D, 0, id);
+        using var binding = OpenGlStateCache.Current.BindTextureScope(TextureTarget.Texture3D, 0, id);
         GL.GetTexLevelParameter(TextureTarget.Texture3D, 0, GetTextureParameter.TextureWidth, out int width);
         GL.GetTexLevelParameter(TextureTarget.Texture3D, 0, GetTextureParameter.TextureHeight, out int height);
         GL.GetTexLevelParameter(TextureTarget.Texture3D, 0, GetTextureParameter.TextureDepth, out int depth);

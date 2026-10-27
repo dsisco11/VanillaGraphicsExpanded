@@ -9,8 +9,8 @@ internal sealed partial class OpenGLBackend
     public GpuFramebuffer.SurfaceMetadata ReadWindowSurface()
     {
         RequireContext();
-        using var binding = StateCache.Current.BindFramebufferScope(FramebufferTarget.Framebuffer, 0);
-        StateCache.Current.InvalidateFramebufferDrawRouting(0);
+        using var binding = OpenGlStateCache.Current.BindFramebufferScope(FramebufferTarget.Framebuffer, 0);
+        OpenGlStateCache.Current.InvalidateFramebufferDrawRouting(0);
         bool buffered = GL.GetInteger(GetPName.Doublebuffer) != 0;
         var attachment = buffered ? FramebufferAttachment.BackLeft : FramebufferAttachment.FrontLeft;
         /// <summary>Reads one property of the selected native window color image.</summary>

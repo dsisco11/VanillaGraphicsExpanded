@@ -5,7 +5,7 @@ using VanillaGraphicsExpanded.Rendering;
 
 namespace VanillaGraphicsExpanded.HarmonyPatches.NativeAdapters.FramebufferRouting;
 
-/// <summary>Forwards GL.Arb.DrawBuffers overloads through their existing StateCache observation contract.</summary>
+/// <summary>Forwards GL.Arb.DrawBuffers overloads through their existing OpenGlStateCache observation contract.</summary>
 internal static unsafe partial class Arb
 {
     #region Internal API

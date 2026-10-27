@@ -7,7 +7,7 @@ internal static class OpenGLProgramSelection
 {
     #region Internal API
     /// <summary>Changes only unknown/different selection and publishes cache knowledge after native return.</summary>
-    internal static void Select(StateCache cache, int program)
+    internal static void Select(OpenGlStateCache cache, int program)
     {
         if (!cache.PrepareProgramSelection(program)) return;
         var origin=GpuResource.CaptureCreationContext(GpuResourceKind.Program);

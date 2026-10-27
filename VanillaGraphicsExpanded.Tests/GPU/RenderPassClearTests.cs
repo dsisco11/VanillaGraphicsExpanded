@@ -35,7 +35,7 @@ public sealed class RenderPassClearTests(HeadlessGLFixture fixture) : RenderTest
         target.SetAttachment(FramebufferAttachment.ColorAttachment2, signed);
         target.SetAttachment(FramebufferAttachment.ColorAttachment4, unsigned);
         GL.ColorMask(false, false, false, false); GL.Enable(EnableCap.ScissorTest); GL.Scissor(0, 0, 0, 0);
-        StateCache.Current.InvalidateAll();
+        OpenGlStateCache.Current.InvalidateAll();
         try
         {
             RenderPassTestBoundary.Run(boundary =>
@@ -46,9 +46,9 @@ public sealed class RenderPassClearTests(HeadlessGLFixture fixture) : RenderTest
                      new(AttachmentIndex:0, Load:AttachmentLoad.Clear, Clear: ColorClearValue.Float(.25f, .5f, .75f, 1)),
                      new(AttachmentIndex:4, Load:AttachmentLoad.Clear, Clear: ColorClearValue.UInt(3, 7, 4294967294, 19))]));
                 Assert.True(boundary.HasRenderPass);
-                using var reads = StateCache.Current.BindFramebufferScope();
-                OpenGLFramebufferSelection.Bind(StateCache.Current, FramebufferTarget.ReadFramebuffer, target.FboId);
-                using var pack = OpenGLPixelLayouts.PackScope(StateCache.Current, new(1));
+                using var reads = OpenGlStateCache.Current.BindFramebufferScope();
+                OpenGLFramebufferSelection.Bind(OpenGlStateCache.Current, FramebufferTarget.ReadFramebuffer, target.FboId);
+                using var pack = OpenGLPixelLayouts.PackScope(OpenGlStateCache.Current, new(1));
                 GL.ReadBuffer(ReadBufferMode.ColorAttachment2);
                 int[] signedPixels = new int[64]; GL.ReadPixels(0, 0, 4, 4, PixelFormat.RgbaInteger, PixelType.Int, signedPixels);
                 GL.ReadBuffer(ReadBufferMode.ColorAttachment4);
@@ -66,7 +66,7 @@ public sealed class RenderPassClearTests(HeadlessGLFixture fixture) : RenderTest
             bool[] mask = new bool[4]; GL.GetBoolean(GetPName.ColorWritemask, mask); Assert.All(mask, Assert.False);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { GL.ColorMask(true, true, true, true); GL.Disable(EnableCap.ScissorTest); StateCache.Current.InvalidateAll(); }
+        finally { GL.ColorMask(true, true, true, true); GL.Disable(EnableCap.ScissorTest); OpenGlStateCache.Current.InvalidateAll(); }
     }
 
     /// <summary>A depth or stencil load changes only its requested packed aspect despite disabled write masks.</summary>
@@ -78,10 +78,10 @@ public sealed class RenderPassClearTests(HeadlessGLFixture fixture) : RenderTest
         EnsureContextValid();
         using var texture = new DepthStencilTexture(4, 4);
         using var target = DynamicGpuFramebuffer.CreateDepthOnly(texture)!;
-        using var bindings = StateCache.Current.BindFramebufferScope();
+        using var bindings = OpenGlStateCache.Current.BindFramebufferScope();
         target.Bind(); GL.Disable(EnableCap.ScissorTest); GL.DepthMask(true); GL.StencilMask(0xff);
         GL.ClearDepth(.25); GL.ClearStencil(0x36); GL.Clear(ClearBufferMask.DepthBufferBit | ClearBufferMask.StencilBufferBit);
-        GL.DepthMask(false); GL.StencilMask(0); StateCache.Current.InvalidateAll();
+        GL.DepthMask(false); GL.StencilMask(0); OpenGlStateCache.Current.InvalidateAll();
         try
         {
             RenderPassTestBoundary.Run(boundary =>
@@ -96,7 +96,7 @@ public sealed class RenderPassClearTests(HeadlessGLFixture fixture) : RenderTest
             Assert.Equal(0, GL.GetInteger(GetPName.StencilWritemask));
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { GL.DepthMask(true); GL.StencilMask(0xff); StateCache.Current.InvalidateAll(); }
+        finally { GL.DepthMask(true); GL.StencilMask(0xff); OpenGlStateCache.Current.InvalidateAll(); }
     }
 
     /// <summary>Clears are restricted to the declared area; preserve and discard leave other attachments intact.</summary>
@@ -137,10 +137,10 @@ public sealed class RenderPassClearTests(HeadlessGLFixture fixture) : RenderTest
         EnsureContextValid();
         using var texture = new DepthStencilTexture(4, 4);
         using var target = DynamicGpuFramebuffer.CreateDepthOnly(texture)!;
-        using var bindings = StateCache.Current.BindFramebufferScope();
+        using var bindings = OpenGlStateCache.Current.BindFramebufferScope();
         target.Bind(); GL.Disable(EnableCap.ScissorTest); GL.DepthMask(true); GL.StencilMask(0xff);
         GL.ClearDepth(.625); GL.ClearStencil(0x47); GL.Clear(ClearBufferMask.DepthBufferBit | ClearBufferMask.StencilBufferBit);
-        StateCache.Current.InvalidateAll();
+        OpenGlStateCache.Current.InvalidateAll();
         RenderPassTestBoundary.Run(boundary =>
         {
             boundary.BeginRenderPass(FramebufferTestSetup.DescribeAttachments(target, [], new(

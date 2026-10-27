@@ -162,8 +162,8 @@ public sealed class AoMinimumChildProductionTests(HeadlessGLFixture fixture, ITe
             int cw=Math.Max(1,width>>(level-1)),ch=Math.Max(1,height>>(level-1));
             float[] parent=hierarchy.ReadPixels(level),children=hierarchy.ReadPixels(level-1);
             ushort[] bits=new ushort[w*h];
-            using(StateCache.Current.BindTextureScope(TextureTarget.Texture2D,0,masks.TextureId))
-            using(OpenGLPixelLayouts.PackScope(StateCache.Current, new StateCache.PixelPackState(1)))
+            using(OpenGlStateCache.Current.BindTextureScope(TextureTarget.Texture2D,0,masks.TextureId))
+            using(OpenGLPixelLayouts.PackScope(OpenGlStateCache.Current, new OpenGlStateCache.PixelPackState(1)))
             {
                 GL.GetTexLevelParameter(TextureTarget.Texture2D,level-1,GetTextureParameter.TextureWidth,out int allocatedWidth);
                 GL.GetTexLevelParameter(TextureTarget.Texture2D,level-1,GetTextureParameter.TextureHeight,out int allocatedHeight);

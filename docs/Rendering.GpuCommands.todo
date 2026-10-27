@@ -3,7 +3,7 @@ RHI commands and command lists — implementation plan
 
 Source proposal: [Rendering.GpuCommands.Proposal.md](Rendering.GpuCommands.Proposal.md).
 Parent design task: Rendering.GpuResourceHandles.todo, Phase 8.
-Status: Phases 1–6, including dependency-boundary redesign and single-use recording, have recorded qualification receipts. Cache naming/layout reconciliation and final integrated qualification remain outstanding.
+Status: Phases 1–7 have recorded qualification receipts, including single-use recording and final backend cache closure. Phase 8 integrated/package/user qualification remains open, including the explicitly recorded full-lighting numerical mismatch.
 
 Goal
   Implement the approved semantic RHI boundary, immediate execution and optional single-use recorded
@@ -611,19 +611,27 @@ Phase 7: Finish the cache split and reconcile architecture documentation
   Depends on Phase 6; prior family cleanup is a prerequisite, not work deferred into this phase.
   Outcome: final naming/layout matches the approved ownership boundaries throughout the repository.
 
-  ☐ Audit every Phase 1 family against its receipts and all remaining native dispatch sites. A surviving
+  ☑ Audit every Phase 1 family against its receipts and all remaining native dispatch sites. A surviving
     old executor/shim reopens its owning unit; do not relabel it an allowed integration path.
-  ☐ Rename the remaining StateCache to OpenGlStateCache with all callers updated in the same change.
+  ☑ Rename the remaining StateCache to OpenGlStateCache with all callers updated in the same change.
     Leave no old-name forwarding type/alias. Confirm it owns knowledge/suppression/restoration facts and
     effect forwarding, not a public native executor. Manager reads/creation invoke backend services without
     recursive creation; native query services remain manager-owned.
-  ☐ Confirm exact engine adapters are the permanent compiler-checked boundary, only allowed namespaces
+  ☑ Confirm exact engine adapters are the permanent compiler-checked boundary, only allowed namespaces
     are covered, original overload/error semantics survive, and native backend calls cannot recurse.
-  ☐ Reconcile Rendering.GpuResources.md, Rendering.ShaderBindingState.md and affected architecture/API
+  ☑ Reconcile Rendering.GpuResources.md, Rendering.ShaderBindingState.md and affected architecture/API
     documents with implemented state. Update active inventory/coverage and parent plan cross-references;
     do not turn permanent documentation into migration history or add external-engine comparisons.
-  ☐ Completion: final source audit finds no internal execution bypass, duplicate authority, temporary shim,
+  ☑ Completion: final source audit finds no internal execution bypass, duplicate authority, temporary shim,
     obsolete capability path or old context/cache alias. Documentation describes implemented contracts.
+
+  Qualification: source closure, documentation reconciliation, second review and independent completion
+    audit passed. Debug and same-binary JIT-controlled Release pass all 424 cases outside the broader
+    full-lighting numerical case. Broad suites remain Debug 424/425 and ordinary Release 416/425;
+    eight observer/fault-injection failures resolve with process-only JIT controls. The lighting oracle
+    and tolerance remain unchanged; its mismatch is explicitly assigned to integrated qualification below.
+    [Exact receipts and traceability](Rendering.GpuCommands.Migrations.md#backend-cache-closure-phase-7).
+    Nothing staged or committed; Phase 8 and final acceptance remain open.
 
 Phase 8: Qualify integrated behavior and release artifacts
   Depends on Phase 7.
@@ -632,6 +640,9 @@ Phase 8: Qualify integrated behavior and release artifacts
   ☐ Run delegated focused and integrated regressions on an immutable candidate, covering all family receipts,
     original-context retirement, aliases/views, local tools, context loss, rejected commands, exactly-once
     external calls and immediate/recorded equivalence. Keep hardware coverage gaps explicit.
+    Investigate PbrLumOnFullPipelineIntegrationTests' direct-only composite numerical mismatch after
+    correcting its depth-comparison inputs and complete MRT declaration. Preserve the independent oracle
+    and existing tolerance; do not treat source-boundary qualification as integrated lighting acceptance.
   ☐ Run canonical Debug/Release build and package tooling through subagents; verify installed/package
     identity where the repository workflow requires it. Confirm diagnostic counters remain DEBUG-only.
     Do not create an instrumented Release product.

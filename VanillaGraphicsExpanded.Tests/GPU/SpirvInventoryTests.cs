@@ -86,8 +86,8 @@ public sealed class SpirvInventoryTests : IDisposable
                 using (current) {
                     Assert.NotNull(current); previous?.Dispose(); Assert.True(GL.IsProgram(current.ProgramId));
                     current.Pipeline.RequirePipeline().RequireShader();
-                    // The next activation uses StateCache; release through that same owner.
-                    OpenGLProgramSelection.Select(StateCache.Current, 0);
+                    // The next activation uses OpenGlStateCache; release through that same owner.
+                    OpenGLProgramSelection.Select(OpenGlStateCache.Current, 0);
                     int id = current.ProgramId; current.Dispose(); Assert.False(GL.IsProgram(id));
                     Assert.Equal(ErrorCode.NoError, GL.GetError()); previous = current;
                 }

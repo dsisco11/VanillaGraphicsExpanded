@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System.Reflection;
 using System.Reflection.Emit;
 using System.Runtime.CompilerServices;
@@ -114,7 +115,7 @@ public sealed class EngineOitAccumulationFormatTests(HeadlessGLFixture fixture) 
             targetFbo = GL.GenFramebuffer();
             GL.BindFramebuffer(FramebufferTarget.Framebuffer, targetFbo);
             GL.FramebufferTexture2D(FramebufferTarget.Framebuffer, FramebufferAttachment.ColorAttachment0, TextureTarget.Texture2D, targetTexture, 0);
-            GL.DrawBuffer(DrawBufferMode.ColorAttachment0); StateCache.Current.Invalidate(EPipelineState.FramebufferRouting);
+            GL.DrawBuffer(DrawBufferMode.ColorAttachment0); OpenGlStateCache.Current.Invalidate(EPipelineState.FramebufferRouting);
             GL.Disable(EnableCap.Blend);
             GL.UseProgram(sample);
             GL.Viewport(0, 0, 1, 1);
@@ -152,7 +153,7 @@ public sealed class EngineOitAccumulationFormatTests(HeadlessGLFixture fixture) 
             if (targetFbo != 0) GL.DeleteFramebuffer(targetFbo);
             GL.DeleteVertexArray(vao);
             GL.DeleteFramebuffer(frames[1].FboId);
-            StateCache.Current.InvalidateAll();
+            OpenGlStateCache.Current.InvalidateAll();
         }
     }
     #endregion
@@ -175,7 +176,7 @@ public sealed class EngineOitAccumulationFormatTests(HeadlessGLFixture fixture) 
     private static void ClearLayers(int framebuffer)
     {
         GL.BindFramebuffer(FramebufferTarget.Framebuffer, framebuffer);
-        GL.DrawBuffers(6, new[] { DrawBuffersEnum.None, DrawBuffersEnum.None, DrawBuffersEnum.None, DrawBuffersEnum.ColorAttachment3, DrawBuffersEnum.ColorAttachment4, DrawBuffersEnum.ColorAttachment5 }); StateCache.Current.Invalidate(EPipelineState.FramebufferRouting);
+        GL.DrawBuffers(6, new[] { DrawBuffersEnum.None, DrawBuffersEnum.None, DrawBuffersEnum.None, DrawBuffersEnum.ColorAttachment3, DrawBuffersEnum.ColorAttachment4, DrawBuffersEnum.ColorAttachment5 }); OpenGlStateCache.Current.Invalidate(EPipelineState.FramebufferRouting);
         for (int index = 3; index <= 5; index++) GL.ClearBuffer(ClearBuffer.Color, index, new float[4]);
         Assert.Equal(FramebufferErrorCode.FramebufferComplete, GL.CheckFramebufferStatus(FramebufferTarget.Framebuffer));
     }

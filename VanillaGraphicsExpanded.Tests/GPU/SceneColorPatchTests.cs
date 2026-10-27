@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using OpenTK.Graphics.OpenGL;
 using TinyTokenizer.Ast;
 using VanillaGraphicsExpanded.PBR;
@@ -128,8 +129,8 @@ public sealed class SceneColorPatchTests(HeadlessGLFixture fixture) : RenderTest
         GL.ProgramUniform1(program.ProgramId, GL.GetUniformLocation(program.ProgramId, "vge_sceneLinear"), linearScene);
         GL.ProgramUniform1(program.ProgramId, GL.GetUniformLocation(program.ProgramId, "cloudMap"), 0);
         GL.ProgramUniform1(program.ProgramId, GL.GetUniformLocation(program.ProgramId, "cloudCol"), 1);
-        using var bindMap = StateCache.Current.BindTextureScope(TextureTarget.Texture2D, 0, map.TextureId);
-        using var bindColor = StateCache.Current.BindTextureScope(TextureTarget.Texture2D, 1, color.TextureId);
+        using var bindMap = OpenGlStateCache.Current.BindTextureScope(TextureTarget.Texture2D, 0, map.TextureId);
+        using var bindColor = OpenGlStateCache.Current.BindTextureScope(TextureTarget.Texture2D, 1, color.TextureId);
         framework.RenderQuadTo(program.ProgramId, target);
         float[] actual = target[3].ReadPixels();
         float coverage = 1 - MathF.Exp(-.25f);

@@ -85,6 +85,7 @@ public sealed class HeadlessGLFixture : IAsyncLifetime
         if (threadId != _bindingsLoadedThreadId)
         {
             GL.LoadBindings(new GLFWBindingsContext());
+            OpenTK.Graphics.OpenGL4.GL.LoadBindings(new GLFWBindingsContext());
             _bindingsLoadedThreadId = threadId;
 
             // Some loader/driver combinations can leave a benign error queued during setup.
@@ -169,6 +170,7 @@ public sealed class HeadlessGLFixture : IAsyncLifetime
             // Make context current and load OpenGL bindings
             GLFW.MakeContextCurrent(windowHandle);
             GL.LoadBindings(new GLFWBindingsContext());
+            OpenTK.Graphics.OpenGL4.GL.LoadBindings(new GLFWBindingsContext());
             
             // Store window handle for cleanup
             _glfwWindow = windowHandle;
@@ -214,6 +216,7 @@ public sealed class HeadlessGLFixture : IAsyncLifetime
             // buffer names and persistent mapping before another context can reuse them.
             GLFW.MakeContextCurrent(_glfwWindow);
             GL.LoadBindings(new GLFWBindingsContext());
+            OpenTK.Graphics.OpenGL4.GL.LoadBindings(new GLFWBindingsContext());
             TestUniformRing.Dispose();
             VanillaGraphicsExpanded.PBR.Materials.Energy.MicrofacetEnergyLookup.Retire();
             VanillaGraphicsExpanded.Rendering.GpuSamplers.Dispose();

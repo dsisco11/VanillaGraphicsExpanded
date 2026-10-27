@@ -31,7 +31,7 @@ public sealed class ConfigurableRasterizerGpuTests(HeadlessGLFixture fixture, IT
         fixture.MakeCurrent();
         Assert.Equal(GL.GetInteger(GetPName.MaxClipDistances), GpuSupport.Graphics.MaxClipDistances);
         output.WriteLine($"Raster core: {GL.GetString(StringName.Version)}; {GL.GetString(StringName.Renderer)}; ClipControl={GpuSupport.Graphics.ClipControl}");
-        var cache = StateCache.Current; cache.InvalidateAll();
+        var cache = OpenGlStateCache.Current; cache.InvalidateAll();
         var first = Pipeline(new() { LineSmooth = true, PolygonSmooth = true,
             PointSpriteOrigin = PointSpriteOrigin.LowerLeft });
         var second = Pipeline(new());
@@ -102,7 +102,7 @@ public sealed class ConfigurableRasterizerGpuTests(HeadlessGLFixture fixture, IT
     public void TextureUploadPreservesUnpackKnowledge()
     {
         using var context = new CompatibilityContext(fixture, output);
-        var cache = StateCache.Current;
+        var cache = OpenGlStateCache.Current;
         cache.InvalidateAll();
         using var texture = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.R16, Width = System.Math.Max(1, 1), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         OpenGLPixelLayouts.SetUnpack(cache, new(8));
@@ -118,7 +118,7 @@ public sealed class ConfigurableRasterizerGpuTests(HeadlessGLFixture fixture, IT
     {
         using var context = new CompatibilityContext(fixture, output);
         using var draw = new RasterDraw();
-        var cache = StateCache.Current;
+        var cache = OpenGlStateCache.Current;
         cache.InvalidateAll();
         Assert.Equal(1024, draw.Count(Pipeline(new())));
         Assert.True(draw.Count(Pipeline(new()), lines: true) > 0);
@@ -163,7 +163,7 @@ public sealed class ConfigurableRasterizerGpuTests(HeadlessGLFixture fixture, IT
             Assert.SkipWhen(window == null, "Compatibility GL 4.3 context unavailable.");
             GLFW.MakeContextCurrent(window); GL.LoadBindings(new GLFWBindingsContext());
             RenderContextRegistry.RegisterCurrent(this, owner => ((CompatibilityContext)owner).window != null);
-            GpuSupport.EnsureCurrentContext(); StateCache.Current.InvalidateAll();
+            GpuSupport.EnsureCurrentContext(); OpenGlStateCache.Current.InvalidateAll();
             Assert.False(GpuSupport.Graphics.CoreProfile);
             output.WriteLine($"Raster compatibility: {GL.GetString(StringName.Version)}; {GL.GetString(StringName.Renderer)}; ClipControl={GpuSupport.Graphics.ClipControl}");
         }
@@ -171,7 +171,7 @@ public sealed class ConfigurableRasterizerGpuTests(HeadlessGLFixture fixture, IT
         public void Dispose()
         {
             RenderContextRegistry.Retire(this); GLFW.DestroyWindow(window); window = null;
-            fixture.MakeCurrent(); GpuSupport.EnsureCurrentContext(); StateCache.Current.InvalidateAll();
+            fixture.MakeCurrent(); GpuSupport.EnsureCurrentContext(); OpenGlStateCache.Current.InvalidateAll();
         }
     }
 
@@ -206,7 +206,7 @@ public sealed class ConfigurableRasterizerGpuTests(HeadlessGLFixture fixture, IT
         /// <summary>Applies production raster policy, draws and counts nonzero red pixels.</summary>
         public int Count(RHIGraphicsPipelineDescription pipeline, bool lines = false, bool zeroToOne = false)
         {
-            StateCache.Current.ApplyConfigurableRaster(pipeline);
+            OpenGlStateCache.Current.ApplyConfigurableRaster(pipeline);
             GL.ClearColor(0, 0, 0, 0); GL.Clear(ClearBufferMask.ColorBufferBit);
             GL.UseProgram(program); GL.BindVertexArray(vao);
             Span<byte> bytes = stackalloc byte[16];

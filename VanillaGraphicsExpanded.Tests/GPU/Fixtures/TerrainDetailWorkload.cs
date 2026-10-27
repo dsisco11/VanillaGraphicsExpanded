@@ -48,7 +48,7 @@ internal sealed class TerrainDetailWorkload : IDisposable
     private readonly List<IDisposable> resources=new();
     private readonly Action<string> bindHeight;
     private PrimitiveType topology;
-    private readonly int oldPatch=StateCache.Current.PatchVertices;
+    private readonly int oldPatch=OpenGlStateCache.Current.PatchVertices;
 
     #region Resource ownership and draws
     /// <summary>Creates static stage variants and identical render inputs before warmup begins.</summary>
@@ -114,7 +114,7 @@ internal sealed class TerrainDetailWorkload : IDisposable
     {
         int id=programs[mode.StartsWith("adaptive",StringComparison.Ordinal)?"adaptive":mode].ProgramId;
         topology=mode is "triangles" or "relief" or "reliefOff" ? PrimitiveType.Triangles : PrimitiveType.Patches;
-        OpenGLProgramSelection.Select(StateCache.Current, id);OpenGLVertexSelection.Bind(StateCache.Current, vao.VertexArrayId);StateCache.Current.SetPatchVertices(3);
+        OpenGLProgramSelection.Select(OpenGlStateCache.Current, id);OpenGLVertexSelection.Bind(OpenGlStateCache.Current, vao.VertexArrayId);OpenGlStateCache.Current.SetPatchVertices(3);
         bindTarget();bindHeight(mode);
         // Publish this fixture's actual view instead of inheriting a prior test's camera range.
         Assert.True(VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindUniformSnapshot(GpuBindingRegistry.Ubo.Frame, camera.Capture()));
@@ -141,7 +141,7 @@ internal sealed class TerrainDetailWorkload : IDisposable
     /// <summary>Restores topology state and releases all owned rendering resources.</summary>
     public void Dispose()
     {
-        OpenGLProgramSelection.Select(StateCache.Current, 0);OpenGLVertexSelection.Bind(StateCache.Current, 0);StateCache.Current.SetPatchVertices(oldPatch);
+        OpenGLProgramSelection.Select(OpenGlStateCache.Current, 0);OpenGLVertexSelection.Bind(OpenGlStateCache.Current, 0);OpenGlStateCache.Current.SetPatchVertices(oldPatch);
         foreach(var resource in resources)resource.Dispose();foreach(var program in programs.Values)program.Dispose();vao.Dispose();shaders.Dispose();framework.Dispose();
     }
     #endregion

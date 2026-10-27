@@ -22,10 +22,10 @@ public sealed class GpuVertexWrapperMetadataTests(HeadlessGLFixture fixture)
         fixture.EnsureContextValid(); fixture.InitializeResourceDisposal();
         try
         {
-            using var sentinel=GpuVao.Create(); OpenGLVertexSelection.Bind(StateCache.Current, sentinel.VertexArrayId);
+            using var sentinel=GpuVao.Create(); OpenGLVertexSelection.Bind(OpenGlStateCache.Current, sentinel.VertexArrayId);
             using var arraySentinel=RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = null }).RequireResource(); arraySentinel.Allocate(64);
             using var buffer=RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = null }).RequireResource(); buffer.Allocate(128);
-            OpenGLBufferBindings.BindBuffer(StateCache.Current, BufferTarget.ArrayBuffer,arraySentinel.BufferId);
+            OpenGLBufferBindings.BindBuffer(OpenGlStateCache.Current, BufferTarget.ArrayBuffer,arraySentinel.BufferId);
             using var capabilities=new DirectStateAccessCapabilityScope(direct);
             using var vao=GpuVao.Create();
             Assert.True(GL.IsVertexArray(vao.VertexArrayId));
@@ -44,15 +44,15 @@ public sealed class GpuVertexWrapperMetadataTests(HeadlessGLFixture fixture)
                 Assert.Equal(sentinel.VertexArrayId,GL.GetInteger(GetPName.VertexArrayBinding));
                 Assert.Equal(arraySentinel.BufferId,GL.GetInteger(GetPName.ArrayBufferBinding));
             }
-            OpenGLVertexSelection.Bind(StateCache.Current, vao.VertexArrayId);
+            OpenGLVertexSelection.Bind(OpenGlStateCache.Current, vao.VertexArrayId);
             GL.GetVertexAttrib(0,(VertexAttribParameter)All.VertexAttribArrayBufferBinding,out int actualBuffer);
             GL.GetVertexAttrib(0,VertexAttribParameter.ArraySize,out int size);
             GL.GetVertexAttrib(0,VertexAttribParameter.VertexAttribArrayDivisor,out int divisor);
             Assert.Equal(buffer.BufferId,actualBuffer); Assert.Equal(2,size); Assert.Equal(3,divisor);
-            Assert.Equal(buffer.BufferId,StateCache.Current.GetBoundBuffer(BufferTarget.ElementArrayBuffer));
+            Assert.Equal(buffer.BufferId,OpenGlStateCache.Current.GetBoundBuffer(BufferTarget.ElementArrayBuffer));
             Assert.Equal(ErrorCode.NoError,GL.GetError());
         }
-        finally { fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
     /// <summary>Element-buffer observation publishes executed changes and lazily resolves rejected commands without guessing bindings.</summary>
     [Fact]
@@ -64,9 +64,9 @@ public sealed class GpuVertexWrapperMetadataTests(HeadlessGLFixture fixture)
             transpiler: new HarmonyMethod(typeof(EngineStateSwitchingHook), nameof(EngineStateSwitchingHook.Transpiler)));
         try
         {
-            using var vao=GpuVao.Create(); OpenGLVertexSelection.Bind(StateCache.Current, vao.VertexArrayId);
+            using var vao=GpuVao.Create(); OpenGLVertexSelection.Bind(OpenGlStateCache.Current, vao.VertexArrayId);
             using var buffer=RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = null }).RequireResource(); buffer.Allocate(64);
-            var cache=StateCache.Current;
+            var cache=OpenGlStateCache.Current;
             var entry=GpuResourceManagerSystem.CurrentManager!.GetResourceRegistration(vao)!;
             ulong before=entry.MetadataRevision;
             OpenGLBufferBindings.BindBuffer(cache, BufferTarget.ElementArrayBuffer,buffer.BufferId);
@@ -87,7 +87,7 @@ public sealed class GpuVertexWrapperMetadataTests(HeadlessGLFixture fixture)
             Assert.Equal(ErrorCode.InvalidEnum,GL.GetError());
             Assert.Equal(ErrorCode.NoError,GL.GetError());
         }
-        finally { harmony.UnpatchAll(harmony.Id); fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { harmony.UnpatchAll(harmony.Id); fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
     #endregion
 

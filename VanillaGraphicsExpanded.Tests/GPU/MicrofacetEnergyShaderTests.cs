@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System.Numerics;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.PBR.Materials.Energy;
@@ -155,7 +156,7 @@ public sealed class MicrofacetEnergyShaderTests(HeadlessGLFixture fixture) : Ren
             var texture=MicrofacetEnergyLookup.Prepare();
             Assert.Equal(size,texture.Width); Assert.Equal(size,texture.Height);
             Assert.Same(texture,MicrofacetEnergyLookup.Prepare());
-            using(var binding=StateCache.Current.BindTextureScope(TextureTarget.Texture2D,0,texture.TextureId))
+            using(var binding=OpenGlStateCache.Current.BindTextureScope(TextureTarget.Texture2D,0,texture.TextureId))
             {
                 GL.GetTexLevelParameter(TextureTarget.Texture2D,0,GetTextureParameter.TextureInternalFormat,out int format);
                 Assert.Equal((int)PixelInternalFormat.Rg16f,format);
@@ -260,7 +261,7 @@ public sealed class MicrofacetEnergyShaderTests(HeadlessGLFixture fixture) : Ren
             RenderFullscreenQuad(program);
             return ReadPixelsFloat(target);
         }
-        finally { GL.DeleteProgram(program); StateCache.Current.InvalidateAll(); }
+        finally { GL.DeleteProgram(program); OpenGlStateCache.Current.InvalidateAll(); }
     }
     #endregion
 }

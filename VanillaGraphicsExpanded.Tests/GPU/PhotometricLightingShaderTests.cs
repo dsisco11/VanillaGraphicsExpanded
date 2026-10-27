@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Text.RegularExpressions;
 using OpenTK.Graphics.OpenGL;
@@ -453,7 +454,7 @@ public sealed class PhotometricLightingShaderTests(HeadlessGLFixture fixture) : 
             GL.BindBufferBase(BufferRangeTarget.UniformBuffer, 12, previous);
             GL.BindBufferBase(BufferRangeTarget.ShaderStorageBuffer, GpuBindingRegistry.Ssbo.FrameLighting, previousStorage);
             GL.DeleteBuffer(storageBuffer); GL.DeleteBuffer(buffer); GL.DeleteProgram(program); GL.DeleteShader(vertex); GL.DeleteShader(pixel);
-            StateCache.Current.InvalidateAll();
+            OpenGlStateCache.Current.InvalidateAll();
         }
     }
 

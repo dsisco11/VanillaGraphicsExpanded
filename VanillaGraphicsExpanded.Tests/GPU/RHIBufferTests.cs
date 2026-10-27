@@ -57,7 +57,7 @@ public sealed class RHIBufferTests(HeadlessGLFixture fixture)
             Assert.Equal(sentinel.BufferId, GL.GetInteger(GetPName.ArrayBufferBinding));
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
 
     /// <summary>Omission is rejected, explicit zero is accepted, and references grant no ownership.</summary>
@@ -81,7 +81,7 @@ public sealed class RHIBufferTests(HeadlessGLFixture fixture)
             Assert.ThrowsAny<InvalidOperationException>(() => context.ClearBuffer(reference, 0, 0));
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
 
     /// <summary>A failed native allocation returns diagnostics without exposing an owning declaration.</summary>
@@ -103,7 +103,7 @@ public sealed class RHIBufferTests(HeadlessGLFixture fixture)
             Assert.Throws<InvalidOperationException>(() => result.RequireResource());
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { harmony.UnpatchAll(harmony.Id); fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { harmony.UnpatchAll(harmony.Id); fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
 
     #endregion
@@ -125,7 +125,7 @@ public sealed class RHIBufferTests(HeadlessGLFixture fixture)
             Assert.Equal(1234, read.Span[0]);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
 
     /// <summary>Rejected native mapping dispatch propagates once and cannot select another execution path.</summary>
@@ -142,7 +142,7 @@ public sealed class RHIBufferTests(HeadlessGLFixture fixture)
             Assert.Throws<InvalidOperationException>(() => buffer.MapRange<int>(0, 4, BufferMapAccess.Read));
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { harmony.UnpatchAll(harmony.Id); fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { harmony.UnpatchAll(harmony.Id); fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
 
     #endregion
@@ -166,7 +166,7 @@ public sealed class RHIBufferTests(HeadlessGLFixture fixture)
             context.ClearBuffer(buffer, 0, 16);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
 
     /// <summary>Local tools retain physical identity without borrowing another context's selector knowledge or disposal authority.</summary>
@@ -188,10 +188,10 @@ public sealed class RHIBufferTests(HeadlessGLFixture fixture)
             var localContext = RHICommandContext.Current;
             owner = localContext.CreateBuffer(Description(16)).RequireResource();
             localContext.BindBuffer(BufferRole.Vertex, owner);
-            Assert.True(StateCache.Current.TryGetCachedBoundBuffer(BufferTarget.ArrayBuffer, out _));
+            Assert.True(OpenGlStateCache.Current.TryGetCachedBoundBuffer(BufferTarget.ArrayBuffer, out _));
             GLFW.MakeContextCurrent(original);
             originalContext.RequireContext();
-            Assert.False(StateCache.Current.TryGetCachedBoundBuffer(BufferTarget.ArrayBuffer, out _));
+            Assert.False(OpenGlStateCache.Current.TryGetCachedBoundBuffer(BufferTarget.ArrayBuffer, out _));
             Assert.Throws<InvalidOperationException>(() => originalContext.ClearBuffer(owner, 0, 16));
             Assert.Throws<InvalidOperationException>(() => owner.Dispose());
             Assert.False(owner.IsDisposed);
@@ -207,7 +207,7 @@ public sealed class RHIBufferTests(HeadlessGLFixture fixture)
             GLFW.DestroyWindow(local);
             GLFW.MakeContextCurrent(original);
             GpuSupport.Initialize();
-            StateCache.Current.InvalidateAll();
+            OpenGlStateCache.Current.InvalidateAll();
         }
     }
 
@@ -238,7 +238,7 @@ public sealed class RHIBufferTests(HeadlessGLFixture fixture)
             Assert.Equal(4, capture.Calls(nameof(GL.BindBufferBase)));
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
 
     /// <summary>Native callbacks cannot change already frozen initialization intent or provoke another dispatch.</summary>
@@ -264,7 +264,7 @@ public sealed class RHIBufferTests(HeadlessGLFixture fixture)
             Assert.Equal(64, capacity);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { beforeAllocation = null; harmony.UnpatchAll(harmony.Id); fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { beforeAllocation = null; harmony.UnpatchAll(harmony.Id); fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
 
     /// <summary>Retirement during allocation stops partial initial-content dispatch and never targets zero or a replacement name.</summary>
@@ -284,7 +284,7 @@ public sealed class RHIBufferTests(HeadlessGLFixture fixture)
             Assert.True(buffer.IsDisposed);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { afterAllocation = null; harmony.UnpatchAll(harmony.Id); fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { afterAllocation = null; harmony.UnpatchAll(harmony.Id); fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
     #endregion
     #endregion

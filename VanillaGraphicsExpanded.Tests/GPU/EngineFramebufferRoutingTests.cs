@@ -23,7 +23,7 @@ public sealed class EngineFramebufferRoutingTests(HeadlessGLFixture fixture) : R
         EnsureContextValid();
         using var target = CreateMRTRenderTarget(2, 2, PixelInternalFormat.Rgba32f, PixelInternalFormat.Rgba32f);
         target.Bind();
-        var cache = StateCache.Current;
+        var cache = OpenGlStateCache.Current;
         OpenGLFramebufferRouting.SetDrawBuffer(cache, DrawBufferMode.ColorAttachment0);
         var harmony = new Harmony("Tests.EngineFramebufferRouting");
         try

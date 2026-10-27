@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System;
 using System.Collections.Generic;
 using VanillaGraphicsExpanded.Rendering.Pipeline;
@@ -14,7 +15,7 @@ internal static class ReferenceFullscreenBoundary
     internal static bool TryRun(string name, IEnumerable<GlPipelineDesc> pipelines,
         IEnumerable<GpuProgram> programs, Action<EngineBoundaryScope> operation)
     {
-        StateCache.Current.RequireOutsideEngineBoundary();
+        OpenGlStateCache.Current.RequireOutsideEngineBoundary();
         var coverage = new PipelineStateCoverage(dynamic: DynamicDrawStateKnowledge.Viewport, clearColor: true);
         foreach (var pipeline in pipelines) coverage = coverage.Union(PipelineStateCoverage.From(pipeline));
         // Texture allocation helpers temporarily use unit zero even when a sampler is optimized out.
@@ -27,7 +28,7 @@ internal static class ReferenceFullscreenBoundary
             if (prepared is null) return false;
             resources = resources.Union(EngineBoundaryResources.From(prepared));
         }
-        if (!StateCache.Current.TryBeginEngineBoundary(new EngineBoundaryDeclaration(name, coverage), out var boundary, resources)) return false;
+        if (!OpenGlStateCache.Current.TryBeginEngineBoundary(new EngineBoundaryDeclaration(name, coverage), out var boundary, resources)) return false;
         using (boundary) { operation(boundary!); }
         return true;
     }

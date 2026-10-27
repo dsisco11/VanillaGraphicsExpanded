@@ -10,7 +10,7 @@ internal static unsafe partial class OpenGLProgramCalls
     /// <summary>Executes the exact external overload once and completes its selector or routing bookkeeping.</summary>
     internal static void ExecuteExtActiveProgram(int @program)
     {
-        var observation = StateCache.BeginNativeProgramSelection(false);
+        var observation = OpenGlStateCache.BeginNativeProgramSelection(false);
         bool returned = false;
         try
         {
@@ -27,7 +27,7 @@ internal static unsafe partial class OpenGLProgramCalls
     /// <summary>Executes the exact external overload once and completes its selector or routing bookkeeping.</summary>
     internal static void ExecuteExtActiveProgram(uint @program)
     {
-        var observation = StateCache.BeginNativeProgramSelection(false);
+        var observation = OpenGlStateCache.BeginNativeProgramSelection(false);
         bool returned = false;
         try
         {

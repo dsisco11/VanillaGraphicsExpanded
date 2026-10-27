@@ -65,7 +65,7 @@ public sealed class GpuProgramNarrowPublicationTests(HeadlessGLFixture fixture)
             Assert.True(entry.MetadataAvailable);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { harmony.UnpatchAll(harmony.Id); fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { harmony.UnpatchAll(harmony.Id); fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
 
     /// <summary>Context-local shader and PSO owners reuse their canonical interface without another native resource transfer.</summary>
@@ -97,7 +97,7 @@ public sealed class GpuProgramNarrowPublicationTests(HeadlessGLFixture fixture)
     public void FailedDeferredLinkPublishesUnavailableExecutable()
     {
         fixture.EnsureContextValid(); fixture.InitializeResourceDisposal();
-        var executionBackend = new VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBackend(StateCache.Current);
+        var executionBackend = new VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBackend(OpenGlStateCache.Current);
         try
         {
             using var owner = GpuProgramObject.Create();
@@ -113,7 +113,7 @@ public sealed class GpuProgramNarrowPublicationTests(HeadlessGLFixture fixture)
             Assert.True(owner.IsValid);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
 
     /// <summary>Native link dispatch cannot reenter metadata acquisition before its deferred completion boundary.</summary>
@@ -121,7 +121,7 @@ public sealed class GpuProgramNarrowPublicationTests(HeadlessGLFixture fixture)
     public void SubmissionRejectsReentrantAcquisition()
     {
         fixture.EnsureContextValid(); fixture.InitializeResourceDisposal();
-        var executionBackend = new VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBackend(StateCache.Current);
+        var executionBackend = new VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBackend(OpenGlStateCache.Current);
         var harmony = new Harmony("Tests.ProgramSubmissionReentry." + Guid.NewGuid());
         try
         {
@@ -147,7 +147,7 @@ public sealed class GpuProgramNarrowPublicationTests(HeadlessGLFixture fixture)
         finally
         {
             duringLink = null; harmony.UnpatchAll(harmony.Id);
-            fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll();
+            fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll();
         }
     }
 
@@ -178,7 +178,7 @@ public sealed class GpuProgramNarrowPublicationTests(HeadlessGLFixture fixture)
             Assert.Contains(entry.Metadata.TextureUnits, item => item.Location == location && item.Unit == 4);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { harmony.UnpatchAll(harmony.Id); fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { harmony.UnpatchAll(harmony.Id); fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
 
     /// <summary>Deferred completion consumes the latest submission once and performs no status queries on repeated completion.</summary>
@@ -188,7 +188,7 @@ public sealed class GpuProgramNarrowPublicationTests(HeadlessGLFixture fixture)
     public void DeferredCompletionConsumesLatestSubmissionOnce(bool registered)
     {
         fixture.EnsureContextValid();
-        var executionBackend = new VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBackend(StateCache.Current);
+        var executionBackend = new VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBackend(OpenGlStateCache.Current);
         if (registered) fixture.InitializeResourceDisposal();
         var harmony = new Harmony("Tests.DeferredProgramOnce." + Guid.NewGuid());
         int shader = GL.CreateShader(ShaderType.ComputeShader);
@@ -211,7 +211,7 @@ public sealed class GpuProgramNarrowPublicationTests(HeadlessGLFixture fixture)
         finally
         {
             harmony.UnpatchAll(harmony.Id); VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Shader, shader));
-            fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll();
+            fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll();
         }
     }
 
@@ -228,7 +228,7 @@ public sealed class GpuProgramNarrowPublicationTests(HeadlessGLFixture fixture)
             using var owner = CreateProgram();
             using var sentinel = CreateProgram();
             using var capability = new SeparateShaderObjectsCapabilityScope(direct);
-            OpenGLProgramSelection.Select(StateCache.Current, sentinel.ProgramId);
+            OpenGLProgramSelection.Select(OpenGlStateCache.Current, sentinel.ProgramId);
             var entry = Assert.IsType<GpuResourceMetadataEntry<GpuProgramMetadata>>(
                 GpuResourceManagerSystem.CurrentManager!.GetResourceRegistration(owner));
             var before = entry.Metadata;
@@ -261,8 +261,8 @@ public sealed class GpuProgramNarrowPublicationTests(HeadlessGLFixture fixture)
         }
         finally
         {
-            harmony.UnpatchAll(harmony.Id); OpenGLProgramSelection.Select(StateCache.Current, 0);
-            fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll();
+            harmony.UnpatchAll(harmony.Id); OpenGLProgramSelection.Select(OpenGlStateCache.Current, 0);
+            fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll();
         }
     }
 
@@ -299,7 +299,7 @@ public sealed class GpuProgramNarrowPublicationTests(HeadlessGLFixture fixture)
                 item => Assert.Contains(item, entry.Metadata.Resources));
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { harmony.UnpatchAll(harmony.Id); fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { harmony.UnpatchAll(harmony.Id); fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
     #endregion
 
@@ -373,7 +373,7 @@ public sealed class GpuProgramDeferredContextTests(HeadlessGLFixture fixture)
     public void RetiredContextRejectsDeferredCompletionBeforeQueries()
     {
         fixture.EnsureContextValid(); fixture.InitializeResourceDisposal();
-        var executionBackend = new VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBackend(StateCache.Current);
+        var executionBackend = new VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBackend(OpenGlStateCache.Current);
         var harmony = new Harmony("Tests.DeferredProgramContext." + Guid.NewGuid());
         int native = 0;
         try
@@ -397,7 +397,7 @@ public sealed class GpuProgramDeferredContextTests(HeadlessGLFixture fixture)
             harmony.UnpatchAll(harmony.Id);
             RenderContextRegistry.RegisterCurrent(fixture, static _ => true);
             if (native != 0 && GL.IsProgram(native)) VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Program, native));
-            fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll();
+            fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll();
         }
     }
     #endregion

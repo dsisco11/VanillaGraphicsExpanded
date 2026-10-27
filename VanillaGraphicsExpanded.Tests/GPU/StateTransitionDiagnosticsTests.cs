@@ -18,7 +18,7 @@ public sealed class StateTransitionDiagnosticsTests(HeadlessGLFixture fixture)
     public void OrdinaryRasterChangesDoNotPollErrors()
     {
         fixture.MakeCurrent();
-        var cache = StateCache.Current;
+        var cache = OpenGlStateCache.Current;
         cache.InvalidateAll();
         bool diagnostics = GlDebug.CheckStateTransitions;
         GlDebug.CheckStateTransitions = false;
@@ -51,7 +51,7 @@ public sealed class StateTransitionDiagnosticsTests(HeadlessGLFixture fixture)
     public void IdenticalPixelLayoutsDoNotConsumeErrors()
     {
         fixture.MakeCurrent();
-        var cache = StateCache.Current;
+        var cache = OpenGlStateCache.Current;
         using var pack = OpenGLPixelLayouts.PackScope(cache, new(1));
         using var unpack = OpenGLPixelLayouts.UnpackScope(cache, new(1));
 #if DEBUG
@@ -74,7 +74,7 @@ public sealed class StateTransitionDiagnosticsTests(HeadlessGLFixture fixture)
     public void PixelLayoutChangesUseOptionalDiagnostics(bool enabled)
     {
         fixture.MakeCurrent();
-        var cache = StateCache.Current;
+        var cache = OpenGlStateCache.Current;
         var pack = OpenGLPixelLayouts.GetPack(cache);
         var unpack = OpenGLPixelLayouts.GetUnpack(cache);
         bool diagnostics = GlDebug.CheckStateTransitions;
@@ -109,7 +109,7 @@ public sealed class StateTransitionDiagnosticsTests(HeadlessGLFixture fixture)
     public void DiagnosticsRejectErrorAndRetryUnknownField()
     {
         fixture.MakeCurrent();
-        var cache = StateCache.Current;
+        var cache = OpenGlStateCache.Current;
         bool diagnostics = GlDebug.CheckStateTransitions;
         GlDebug.CheckStateTransitions = true;
         try
@@ -139,7 +139,7 @@ public sealed class StateTransitionDiagnosticsTests(HeadlessGLFixture fixture)
     public void RestorationSuppressesNestedDiagnostics()
     {
         fixture.MakeCurrent();
-        var cache = StateCache.Current;
+        var cache = OpenGlStateCache.Current;
         bool diagnostics = GlDebug.CheckStateTransitions;
         GlDebug.CheckStateTransitions = true;
         try

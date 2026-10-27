@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
@@ -211,7 +212,7 @@ public sealed class UniformLifetimeTests(HeadlessGLFixture fixture) : RenderTest
         finally
         {
             GL.UseProgram(0);
-            StateCache.Current.Invalidate(EPipelineState.Program);
+            OpenGlStateCache.Current.Invalidate(EPipelineState.Program);
             TestShaderInterfaces.DeleteProgram(program);
             TestShaderInterfaces.DeleteShader(shader);
         }

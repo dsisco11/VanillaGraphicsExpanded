@@ -10,7 +10,7 @@ internal static unsafe partial class OpenGLTexturesCalls
     /// <summary>Executes the exact external overload and completes its affected metadata publication.</summary>
     internal static void ExecuteCoreTexParameter(TextureTarget @target, TextureParameterName @pname, int @param)
     {
-        var observation = StateCache.BeginNativeTextureMetadata(0, unchecked((int)@target), -1, false, false, StateCache.TextureMetadataEffect.Parameter, unchecked((int)@pname));
+        var observation = OpenGlStateCache.BeginNativeTextureMetadata(0, unchecked((int)@target), -1, false, false, OpenGlStateCache.TextureMetadataEffect.Parameter, unchecked((int)@pname));
         bool returned = false;
         try
         {
@@ -27,7 +27,7 @@ internal static unsafe partial class OpenGLTexturesCalls
     /// <summary>Executes the exact external overload and completes its affected metadata publication.</summary>
     internal static void ExecuteCoreTexParameter(TextureTarget @target, TextureParameterName @pname, int[] @params)
     {
-        var observation = StateCache.BeginNativeTextureMetadata(0, unchecked((int)@target), -1, false, false, StateCache.TextureMetadataEffect.Parameter, unchecked((int)@pname));
+        var observation = OpenGlStateCache.BeginNativeTextureMetadata(0, unchecked((int)@target), -1, false, false, OpenGlStateCache.TextureMetadataEffect.Parameter, unchecked((int)@pname));
         bool returned = false;
         try
         {
@@ -44,7 +44,7 @@ internal static unsafe partial class OpenGLTexturesCalls
     /// <summary>Executes the exact external overload and completes its affected metadata publication.</summary>
     internal static void ExecuteCoreTexParameter(TextureTarget @target, TextureParameterName @pname, int* @params)
     {
-        var observation = StateCache.BeginNativeTextureMetadata(0, unchecked((int)@target), -1, false, false, StateCache.TextureMetadataEffect.Parameter, unchecked((int)@pname));
+        var observation = OpenGlStateCache.BeginNativeTextureMetadata(0, unchecked((int)@target), -1, false, false, OpenGlStateCache.TextureMetadataEffect.Parameter, unchecked((int)@pname));
         bool returned = false;
         try
         {
@@ -61,7 +61,7 @@ internal static unsafe partial class OpenGLTexturesCalls
     /// <summary>Executes the exact external overload and completes its affected metadata publication.</summary>
     internal static void ExecuteCoreTexParameter(TextureTarget @target, TextureParameterName @pname, float @param)
     {
-        var observation = StateCache.BeginNativeTextureMetadata(0, unchecked((int)@target), -1, false, false, StateCache.TextureMetadataEffect.Parameter, unchecked((int)@pname));
+        var observation = OpenGlStateCache.BeginNativeTextureMetadata(0, unchecked((int)@target), -1, false, false, OpenGlStateCache.TextureMetadataEffect.Parameter, unchecked((int)@pname));
         bool returned = false;
         try
         {
@@ -78,7 +78,7 @@ internal static unsafe partial class OpenGLTexturesCalls
     /// <summary>Executes the exact external overload and completes its affected metadata publication.</summary>
     internal static void ExecuteCoreTexParameter(TextureTarget @target, TextureParameterName @pname, float[] @params)
     {
-        var observation = StateCache.BeginNativeTextureMetadata(0, unchecked((int)@target), -1, false, false, StateCache.TextureMetadataEffect.Parameter, unchecked((int)@pname));
+        var observation = OpenGlStateCache.BeginNativeTextureMetadata(0, unchecked((int)@target), -1, false, false, OpenGlStateCache.TextureMetadataEffect.Parameter, unchecked((int)@pname));
         bool returned = false;
         try
         {
@@ -95,7 +95,7 @@ internal static unsafe partial class OpenGLTexturesCalls
     /// <summary>Executes the exact external overload and completes its affected metadata publication.</summary>
     internal static void ExecuteCoreTexParameter(TextureTarget @target, TextureParameterName @pname, float* @params)
     {
-        var observation = StateCache.BeginNativeTextureMetadata(0, unchecked((int)@target), -1, false, false, StateCache.TextureMetadataEffect.Parameter, unchecked((int)@pname));
+        var observation = OpenGlStateCache.BeginNativeTextureMetadata(0, unchecked((int)@target), -1, false, false, OpenGlStateCache.TextureMetadataEffect.Parameter, unchecked((int)@pname));
         bool returned = false;
         try
         {

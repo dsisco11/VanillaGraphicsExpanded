@@ -26,25 +26,25 @@ public sealed class GpuVertexSelectionAndMultiBindingTests(HeadlessGLFixture fix
         harmony.Patch(AccessTools.Method(typeof(GpuVertexSelectionAndMultiBindingTests),nameof(Select)),transpiler:new HarmonyMethod(typeof(EngineStateSwitchingHook),nameof(EngineStateSwitchingHook.Transpiler)));
         try
         {
-            using var first=GpuVao.Create(); using var second=GpuVao.Create(); OpenGLVertexSelection.Bind(StateCache.Current, first.VertexArrayId);
+            using var first=GpuVao.Create(); using var second=GpuVao.Create(); OpenGLVertexSelection.Bind(OpenGlStateCache.Current, first.VertexArrayId);
             var manager=GpuResourceManagerSystem.CurrentManager!;
             var a=manager.GetResourceRegistration(first)!; var b=manager.GetResourceRegistration(second)!;
             ulong ar=a.MetadataRevision,br=b.MetadataRevision;
             Select(second.VertexArrayId,unsigned);
-            Assert.Equal(second.VertexArrayId,StateCache.Current.GetCurrentVao());
+            Assert.Equal(second.VertexArrayId,OpenGlStateCache.Current.GetCurrentVao());
             Assert.Equal(ar,a.MetadataRevision); Assert.Equal(br,b.MetadataRevision);
             Select(int.MaxValue,unsigned);
             Assert.Equal(ErrorCode.InvalidOperation,GL.GetError());
             OpenGLVertexCalls.ExecuteCoreEnableVertexAttribArray(0);
-            Assert.Equal(second.VertexArrayId,StateCache.Current.GetCurrentVao());
+            Assert.Equal(second.VertexArrayId,OpenGlStateCache.Current.GetCurrentVao());
             Assert.Equal(ar,a.MetadataRevision); Assert.Equal(br+1,b.MetadataRevision);
             GL.GetVertexAttrib(0,VertexAttribParameter.ArrayEnabled,out int enabled); Assert.Equal(1,enabled);
             GL.Enable((EnableCap)int.MaxValue); Select(first.VertexArrayId,unsigned);
             Assert.Equal(ErrorCode.InvalidEnum,GL.GetError());
-            Assert.Equal(first.VertexArrayId,StateCache.Current.GetCurrentVao());
+            Assert.Equal(first.VertexArrayId,OpenGlStateCache.Current.GetCurrentVao());
             Assert.Equal(ErrorCode.NoError,GL.GetError());
         }
-        finally { harmony.UnpatchAll(harmony.Id); fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { harmony.UnpatchAll(harmony.Id); fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
     /// <summary>A rejected multi-bind element does not hide the successful neighboring update or affect another VAO.</summary>
     [Theory]
@@ -61,7 +61,7 @@ public sealed class GpuVertexSelectionAndMultiBindingTests(HeadlessGLFixture fix
             using var next=RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = null }).RequireResource(); next.Allocate(128);
             OpenGLVertexCalls.ExecuteCoreVertexArrayVertexBuffer(vao.VertexArrayId,0,old.BufferId,0,16);
             OpenGLVertexCalls.ExecuteCoreVertexArrayVertexBuffer(vao.VertexArrayId,1,old.BufferId,0,16);
-            OpenGLVertexSelection.Bind(StateCache.Current,(named?sentinel:vao).VertexArrayId);
+            OpenGLVertexSelection.Bind(OpenGlStateCache.Current,(named?sentinel:vao).VertexArrayId);
             var manager=GpuResourceManagerSystem.CurrentManager!; var entry=manager.GetResourceRegistration(vao)!; var other=manager.GetResourceRegistration(sentinel)!;
             ulong revision=entry.MetadataRevision,storage=entry.StorageRevision,otherRevision=other.MetadataRevision;
             MultiBind(named,vao.VertexArrayId,new[]{next.BufferId,int.MaxValue});
@@ -72,7 +72,7 @@ public sealed class GpuVertexSelectionAndMultiBindingTests(HeadlessGLFixture fix
             Assert.Equal(revision+1,entry.MetadataRevision); Assert.Equal(storage,entry.StorageRevision); Assert.Equal(otherRevision,other.MetadataRevision);
             Assert.Equal((named?sentinel:vao).VertexArrayId,GL.GetInteger(GetPName.VertexArrayBinding)); Assert.Equal(ErrorCode.NoError,GL.GetError());
         }
-        finally { harmony.UnpatchAll(harmony.Id); fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { harmony.UnpatchAll(harmony.Id); fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
     /// <summary>Double attributes retain offset and divisor semantics through direct and legacy helper execution.</summary>
     [Theory]
@@ -83,7 +83,7 @@ public sealed class GpuVertexSelectionAndMultiBindingTests(HeadlessGLFixture fix
         try
         {
             using var capabilities=new DirectStateAccessCapabilityScope(direct);
-            using var vao=GpuVao.Create(); using var sentinel=GpuVao.Create(); OpenGLVertexSelection.Bind(StateCache.Current, sentinel.VertexArrayId);
+            using var vao=GpuVao.Create(); using var sentinel=GpuVao.Create(); OpenGLVertexSelection.Bind(OpenGlStateCache.Current, sentinel.VertexArrayId);
             using var buffer=RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = null }).RequireResource(); buffer.Allocate(256);
             OpenGLVertexCalls.ExecuteCoreVertexArrayVertexBuffer(vao.VertexArrayId, 2, buffer.BufferId, (IntPtr)16, 32);
             OpenGLVertexCalls.ExecuteCoreVertexArrayBindingDivisor(vao.VertexArrayId, 2, 3);
@@ -94,12 +94,12 @@ public sealed class GpuVertexSelectionAndMultiBindingTests(HeadlessGLFixture fix
                 OpenGLVertexCalls.ExecuteCoreEnableVertexArrayAttrib(vao.VertexArrayId, attribute);
             }
             if(direct) Assert.Equal(sentinel.VertexArrayId,GL.GetInteger(GetPName.VertexArrayBinding));
-            OpenGLVertexSelection.Bind(StateCache.Current, vao.VertexArrayId);
+            OpenGLVertexSelection.Bind(OpenGlStateCache.Current, vao.VertexArrayId);
             GL.GetVertexAttrib(1,(VertexAttribParameter)All.VertexAttribArrayLong,out int isLong);
             GL.GetVertexAttrib(1,VertexAttribParameter.VertexAttribArrayDivisor,out int divisor);
             Assert.Equal(1,isLong); Assert.Equal(3,divisor); Assert.Equal(ErrorCode.NoError,GL.GetError());
         }
-        finally { fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
     /// <summary>Geometry construction keeps a single mutable helper current while configuring multiple legacy attributes.</summary>
     [Fact]
@@ -113,7 +113,7 @@ public sealed class GpuVertexSelectionAndMultiBindingTests(HeadlessGLFixture fix
             using var geometry=ManagedGraphicsGeometry.Create(layout,PrimitiveTopology.Triangles,new[]{new GraphicsVertexData(0,new byte[96])},new uint[]{0,1,2});
             Assert.Equal(ErrorCode.NoError,GL.GetError());
         }
-        finally { fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
     #endregion
     #region Private

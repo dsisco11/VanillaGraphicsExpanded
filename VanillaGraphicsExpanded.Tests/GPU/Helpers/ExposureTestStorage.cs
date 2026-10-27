@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
@@ -18,7 +19,7 @@ internal static class ExposureTestStorage
     {
         GL.MemoryBarrier(MemoryBarrierFlags.BufferUpdateBarrierBit);
         var values = new T[buffer.SizeBytes / System.Runtime.InteropServices.Marshal.SizeOf<T>()];
-        using (StateCache.Current.BindBufferScope(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBufferValues.Target(buffer.Role), buffer.BufferId)) GL.GetBufferSubData(BufferTarget.ShaderStorageBuffer, IntPtr.Zero, buffer.SizeBytes, values);
+        using (OpenGlStateCache.Current.BindBufferScope(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBufferValues.Target(buffer.Role), buffer.BufferId)) GL.GetBufferSubData(BufferTarget.ShaderStorageBuffer, IntPtr.Zero, buffer.SizeBytes, values);
         return values;
     }
     #endregion

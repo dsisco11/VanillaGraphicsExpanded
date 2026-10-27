@@ -10,7 +10,7 @@ internal static unsafe partial class OpenGLBufferStorageCalls
     /// <summary>Executes the exact external overload and completes its affected metadata publication.</summary>
     internal static void ExecuteCoreBufferStorage(BufferTarget @target, int @size, IntPtr @data, BufferStorageFlags @flags)
     {
-        var observation = StateCache.InvalidateNativeBufferStorage(unchecked((int)@target), false);
+        var observation = OpenGlStateCache.InvalidateNativeBufferStorage(unchecked((int)@target), false);
         try { GL.BufferStorage(@target, @size, @data, @flags); }
         finally { observation.Complete(); }
     }
@@ -18,7 +18,7 @@ internal static unsafe partial class OpenGLBufferStorageCalls
     /// <summary>Executes the exact external overload and completes its affected metadata publication.</summary>
     internal static void ExecuteCoreBufferStorage(BufferTarget @target, IntPtr @size, IntPtr @data, BufferStorageFlags @flags)
     {
-        var observation = StateCache.InvalidateNativeBufferStorage(unchecked((int)@target), false);
+        var observation = OpenGlStateCache.InvalidateNativeBufferStorage(unchecked((int)@target), false);
         try { GL.BufferStorage(@target, @size, @data, @flags); }
         finally { observation.Complete(); }
     }
@@ -27,7 +27,7 @@ internal static unsafe partial class OpenGLBufferStorageCalls
     internal static void ExecuteCoreBufferStorage<T2>(BufferTarget @target, int @size, ref T2 @data, BufferStorageFlags @flags)
         where T2 : struct
     {
-        var observation = StateCache.InvalidateNativeBufferStorage(unchecked((int)@target), false);
+        var observation = OpenGlStateCache.InvalidateNativeBufferStorage(unchecked((int)@target), false);
         try { GL.BufferStorage<T2>(@target, @size, ref @data, @flags); }
         finally { observation.Complete(); }
     }
@@ -36,7 +36,7 @@ internal static unsafe partial class OpenGLBufferStorageCalls
     internal static void ExecuteCoreBufferStorage<T2>(BufferTarget @target, int @size, T2[,,] @data, BufferStorageFlags @flags)
         where T2 : struct
     {
-        var observation = StateCache.InvalidateNativeBufferStorage(unchecked((int)@target), false);
+        var observation = OpenGlStateCache.InvalidateNativeBufferStorage(unchecked((int)@target), false);
         try { GL.BufferStorage<T2>(@target, @size, @data, @flags); }
         finally { observation.Complete(); }
     }
@@ -45,7 +45,7 @@ internal static unsafe partial class OpenGLBufferStorageCalls
     internal static void ExecuteCoreBufferStorage<T2>(BufferTarget @target, int @size, T2[,] @data, BufferStorageFlags @flags)
         where T2 : struct
     {
-        var observation = StateCache.InvalidateNativeBufferStorage(unchecked((int)@target), false);
+        var observation = OpenGlStateCache.InvalidateNativeBufferStorage(unchecked((int)@target), false);
         try { GL.BufferStorage<T2>(@target, @size, @data, @flags); }
         finally { observation.Complete(); }
     }
@@ -54,7 +54,7 @@ internal static unsafe partial class OpenGLBufferStorageCalls
     internal static void ExecuteCoreBufferStorage<T2>(BufferTarget @target, int @size, T2[] @data, BufferStorageFlags @flags)
         where T2 : struct
     {
-        var observation = StateCache.InvalidateNativeBufferStorage(unchecked((int)@target), false);
+        var observation = OpenGlStateCache.InvalidateNativeBufferStorage(unchecked((int)@target), false);
         try { GL.BufferStorage<T2>(@target, @size, @data, @flags); }
         finally { observation.Complete(); }
     }
@@ -63,7 +63,7 @@ internal static unsafe partial class OpenGLBufferStorageCalls
     internal static void ExecuteCoreBufferStorage<T2>(BufferTarget @target, IntPtr @size, ref T2 @data, BufferStorageFlags @flags)
         where T2 : struct
     {
-        var observation = StateCache.InvalidateNativeBufferStorage(unchecked((int)@target), false);
+        var observation = OpenGlStateCache.InvalidateNativeBufferStorage(unchecked((int)@target), false);
         try { GL.BufferStorage<T2>(@target, @size, ref @data, @flags); }
         finally { observation.Complete(); }
     }
@@ -72,7 +72,7 @@ internal static unsafe partial class OpenGLBufferStorageCalls
     internal static void ExecuteCoreBufferStorage<T2>(BufferTarget @target, IntPtr @size, T2[,,] @data, BufferStorageFlags @flags)
         where T2 : struct
     {
-        var observation = StateCache.InvalidateNativeBufferStorage(unchecked((int)@target), false);
+        var observation = OpenGlStateCache.InvalidateNativeBufferStorage(unchecked((int)@target), false);
         try { GL.BufferStorage<T2>(@target, @size, @data, @flags); }
         finally { observation.Complete(); }
     }
@@ -81,7 +81,7 @@ internal static unsafe partial class OpenGLBufferStorageCalls
     internal static void ExecuteCoreBufferStorage<T2>(BufferTarget @target, IntPtr @size, T2[,] @data, BufferStorageFlags @flags)
         where T2 : struct
     {
-        var observation = StateCache.InvalidateNativeBufferStorage(unchecked((int)@target), false);
+        var observation = OpenGlStateCache.InvalidateNativeBufferStorage(unchecked((int)@target), false);
         try { GL.BufferStorage<T2>(@target, @size, @data, @flags); }
         finally { observation.Complete(); }
     }
@@ -90,7 +90,7 @@ internal static unsafe partial class OpenGLBufferStorageCalls
     internal static void ExecuteCoreBufferStorage<T2>(BufferTarget @target, IntPtr @size, T2[] @data, BufferStorageFlags @flags)
         where T2 : struct
     {
-        var observation = StateCache.InvalidateNativeBufferStorage(unchecked((int)@target), false);
+        var observation = OpenGlStateCache.InvalidateNativeBufferStorage(unchecked((int)@target), false);
         try { GL.BufferStorage<T2>(@target, @size, @data, @flags); }
         finally { observation.Complete(); }
     }

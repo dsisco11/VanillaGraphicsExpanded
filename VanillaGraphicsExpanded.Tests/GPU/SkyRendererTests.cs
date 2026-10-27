@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using Moq;
 using VanillaGraphicsExpanded.PBR.Atmosphere;
 using VanillaGraphicsExpanded.PBR.Atmosphere.Celestial;
@@ -36,18 +37,18 @@ public sealed class SkyRendererTests(HeadlessGLFixture fixture) : RenderTestBase
             foreach (var pass in new[] { typeof(CelestialDrawPass), typeof(MoonDrawPass), typeof(SunDrawPass), typeof(AtmosphereSkyPass) })
                 Assert.False(typeof(IRenderer).IsAssignableFrom(pass));
 #if DEBUG
-            long before = StateCache.Current.DrawSubmissions;
+            long before = OpenGlStateCache.Current.DrawSubmissions;
 #endif
             renderer.OnRenderFrame(0, EnumRenderStage.Opaque);
             renderer.OnRenderFrame(0, EnumRenderStage.OIT);
 #if DEBUG
-            Assert.Equal(before, StateCache.Current.DrawSubmissions);
+            Assert.Equal(before, OpenGlStateCache.Current.DrawSubmissions);
 #endif
             renderer.Dispose();
             renderer.OnRenderFrame(0, EnumRenderStage.Before);
             renderer.OnRenderFrame(0, EnumRenderStage.Opaque);
 #if DEBUG
-            Assert.Equal(before, StateCache.Current.DrawSubmissions);
+            Assert.Equal(before, OpenGlStateCache.Current.DrawSubmissions);
 #endif
             Assert.False(renderer.PrepareFrame());
         }

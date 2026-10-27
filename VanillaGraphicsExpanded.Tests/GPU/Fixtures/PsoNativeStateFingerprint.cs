@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Text.Json;
 using OpenTK.Graphics.OpenGL;
@@ -81,7 +82,7 @@ internal static class PsoNativeStateFingerprint
             GL.BlendEquationSeparate(slot, BlendEquationMode.FuncReverseSubtract, BlendEquationMode.Max);
             GL.Enable(IndexedEnableCap.Blend, slot);
         }
-        StateCache.Current.InvalidateAll();
+        OpenGlStateCache.Current.InvalidateAll();
     }
     #endregion
 

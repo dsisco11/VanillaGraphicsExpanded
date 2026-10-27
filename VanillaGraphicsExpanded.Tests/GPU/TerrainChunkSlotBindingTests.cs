@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using HarmonyLib;
 using Moq;
@@ -173,7 +174,7 @@ public sealed class TerrainChunkSlotBindingTests : RenderTestBase
             ShaderProgramBase.CurrentShaderProgram = null;
             GL.UseProgram(0); GL.DeleteProgram(program); GL.DeleteShader(shader);
             GL.DeleteBuffer(output); GL.DeleteBuffer(unrelated);
-            StateCache.Current.InvalidateAll();
+            OpenGlStateCache.Current.InvalidateAll();
         }
     }
     #endregion

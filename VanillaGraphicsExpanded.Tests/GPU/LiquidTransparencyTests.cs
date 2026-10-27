@@ -80,33 +80,33 @@ public sealed class LiquidTransparencyTests(HeadlessGLFixture fixture) : RenderT
         using var sharedLights = new VgeLightsUniformBuffer();
         program.LightsInputs = sharedLights;
         program.FrameInputs = frameCamera;
-        var state = StateCache.Current;
+        var state = OpenGlStateCache.Current;
         using var fixedFunction = LegacyFixedFunctionReference.Capture(state);
         using var framebufferBinding = state.BindFramebufferScope(FramebufferTarget.Framebuffer, target.FboId);
         using var vao = GpuVao.Create("Test.LiquidBuckets.Vao");
         using var vertices = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = "Test.LiquidBuckets.Vertices" }).RequireResource();
         using var flags = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = "Test.LiquidBuckets.Flags" }).RequireResource();
         using var indices = RHICommandContext.Current.CreateIndexBuffer(new RHIBufferDescription { Role = BufferRole.Index, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = "Test.LiquidBuckets.Indices" }).RequireResource();
-        using var vertexBinding = StateCache.Current.BindVertexArrayScope(vao.VertexArrayId);
+        using var vertexBinding = OpenGlStateCache.Current.BindVertexArrayScope(vao.VertexArrayId);
         // Supply every input through vertex buffers instead of mutable global constant attributes.
-        using (StateCache.Current.BindBufferScope(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBufferValues.Target(vertices.Role), vertices.BufferId))
+        using (OpenGlStateCache.Current.BindBufferScope(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBufferValues.Target(vertices.Role), vertices.BufferId))
         {
             vertices.UploadData(new float[] {
                 -10,-1,-1, .5f,.5f, 0,0,0,1, 0,0,
                  10,-1,-1, .5f,.5f, 0,0,0,1, 0,0,
                  10,-1,-20,.5f,.5f, 0,0,0,1, 0,0,
                 -10,-1,-20,.5f,.5f, 0,0,0,1, 0,0 });
-            using (StateCache.Current.BindVertexArrayScope(vao.VertexArrayId)) OpenGLVertexCalls.ExecuteCoreVertexAttribPointer(0, 3, VertexAttribPointerType.Float, false, 44, 0);
-            using (StateCache.Current.BindVertexArrayScope(vao.VertexArrayId)) OpenGLVertexCalls.ExecuteCoreVertexAttribPointer(1, 2, VertexAttribPointerType.Float, false, 44, 12);
-            using (StateCache.Current.BindVertexArrayScope(vao.VertexArrayId)) OpenGLVertexCalls.ExecuteCoreVertexAttribPointer(2, 4, VertexAttribPointerType.Float, false, 44, 20);
-            using (StateCache.Current.BindVertexArrayScope(vao.VertexArrayId)) OpenGLVertexCalls.ExecuteCoreVertexAttribPointer(4, 2, VertexAttribPointerType.Float, false, 44, 36);
+            using (OpenGlStateCache.Current.BindVertexArrayScope(vao.VertexArrayId)) OpenGLVertexCalls.ExecuteCoreVertexAttribPointer(0, 3, VertexAttribPointerType.Float, false, 44, 0);
+            using (OpenGlStateCache.Current.BindVertexArrayScope(vao.VertexArrayId)) OpenGLVertexCalls.ExecuteCoreVertexAttribPointer(1, 2, VertexAttribPointerType.Float, false, 44, 12);
+            using (OpenGlStateCache.Current.BindVertexArrayScope(vao.VertexArrayId)) OpenGLVertexCalls.ExecuteCoreVertexAttribPointer(2, 4, VertexAttribPointerType.Float, false, 44, 20);
+            using (OpenGlStateCache.Current.BindVertexArrayScope(vao.VertexArrayId)) OpenGLVertexCalls.ExecuteCoreVertexAttribPointer(4, 2, VertexAttribPointerType.Float, false, 44, 36);
         }
-        using (StateCache.Current.BindBufferScope(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBufferValues.Target(flags.Role), flags.BufferId))
+        using (OpenGlStateCache.Current.BindBufferScope(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBufferValues.Target(flags.Role), flags.BufferId))
         {
             flags.UploadData(new int[12]);
-            using (StateCache.Current.BindVertexArrayScope(vao.VertexArrayId)) OpenGLVertexCalls.ExecuteCoreVertexAttribIPointer(3, 1, VertexAttribIntegerType.Int, 12, 0);
-            using (StateCache.Current.BindVertexArrayScope(vao.VertexArrayId)) OpenGLVertexCalls.ExecuteCoreVertexAttribIPointer(5, 1, VertexAttribIntegerType.Int, 12, 4);
-            using (StateCache.Current.BindVertexArrayScope(vao.VertexArrayId)) OpenGLVertexCalls.ExecuteCoreVertexAttribIPointer(6, 1, VertexAttribIntegerType.Int, 12, 8);
+            using (OpenGlStateCache.Current.BindVertexArrayScope(vao.VertexArrayId)) OpenGLVertexCalls.ExecuteCoreVertexAttribIPointer(3, 1, VertexAttribIntegerType.Int, 12, 0);
+            using (OpenGlStateCache.Current.BindVertexArrayScope(vao.VertexArrayId)) OpenGLVertexCalls.ExecuteCoreVertexAttribIPointer(5, 1, VertexAttribIntegerType.Int, 12, 4);
+            using (OpenGlStateCache.Current.BindVertexArrayScope(vao.VertexArrayId)) OpenGLVertexCalls.ExecuteCoreVertexAttribIPointer(6, 1, VertexAttribIntegerType.Int, 12, 8);
         }
         indices.UploadIndices(new uint[] { 0, 1, 2, 0, 2, 3 });
         state.Apply(new GlPipelineDesc(

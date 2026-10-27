@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System;
 using OpenTK.Graphics.OpenGL;
 
@@ -10,7 +11,7 @@ internal sealed partial class GpuResourceManager
     /// <summary>Uses available covered texture facts unless the external owner explicitly requests recovery.</summary>
     internal static GpuTextureMetadata AcquireFramebufferTexture(int id, TextureTarget target, bool recover)
     {
-        StateCache.Current.RequireResourceOperationAvailable(GpuResourceKind.Texture, id);
+        OpenGlStateCache.Current.RequireResourceOperationAvailable(GpuResourceKind.Texture, id);
         var manager = GpuResourceManagerSystem.CurrentManager;
         if (manager?.CanObserveNativeMetadata == true)
         {
@@ -27,7 +28,7 @@ internal sealed partial class GpuResourceManager
     /// <summary>Uses one renderbuffer snapshot for every image selection in a framebuffer discovery.</summary>
     internal static GpuRenderbufferMetadata AcquireFramebufferRenderbuffer(int id, bool recover)
     {
-        StateCache.Current.RequireResourceOperationAvailable(GpuResourceKind.Renderbuffer, id);
+        OpenGlStateCache.Current.RequireResourceOperationAvailable(GpuResourceKind.Renderbuffer, id);
         var manager = GpuResourceManagerSystem.CurrentManager;
         if (manager?.CanObserveNativeMetadata == true)
         {

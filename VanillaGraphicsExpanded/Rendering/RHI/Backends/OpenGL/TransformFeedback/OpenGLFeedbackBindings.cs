@@ -7,7 +7,7 @@ internal static class OpenGLFeedbackBindings
 {
     #region Internal API
     /// <summary>Recovers unknown selection once without inventing a second cache.</summary>
-    internal static int Get(StateCache cache)
+    internal static int Get(OpenGlStateCache cache)
     {
         var backend = RHICommandContext.Current;
         backend.RequireContext();
@@ -18,7 +18,7 @@ internal static class OpenGLFeedbackBindings
         return selected;
     }
     /// <summary>Changes selection only when the known executed selection differs.</summary>
-    internal static void Bind(StateCache cache, int name)
+    internal static void Bind(OpenGlStateCache cache, int name)
     {
         var backend = RHICommandContext.Current;
         backend.RequireContext();

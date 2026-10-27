@@ -96,8 +96,8 @@ internal sealed class SkyDrawScene : IDisposable
         Contexts.Clear();
         foreach (var image in outputs) image.UploadDataImmediate(new float[4 * 3 * 4]);
         target.Bind();
-        OpenGLFramebufferRouting.SetDrawBuffers(StateCache.Current, NativeRouting.Length, NativeRouting);
-        OpenGLProgramSelection.Select(StateCache.Current, native.ProgramId);
+        OpenGLFramebufferRouting.SetDrawBuffers(OpenGlStateCache.Current, NativeRouting.Length, NativeRouting);
+        OpenGLProgramSelection.Select(OpenGlStateCache.Current, native.ProgramId);
         GL.BindFramebuffer(FramebufferTarget.DrawFramebuffer, incoming.FboId);
         GL.BindFramebuffer(FramebufferTarget.ReadFramebuffer, read.FboId);
         GL.ActiveTexture(TextureUnit.Texture0);
@@ -112,8 +112,8 @@ internal sealed class SkyDrawScene : IDisposable
         GL.Enable(EnableCap.Blend);
         GL.BlendFunc(BlendingFactor.Zero, BlendingFactor.One);
         GL.Viewport(1, 1, 2, 1);
-        StateCache.Current.InvalidateAll();
-        StateCache.Current.NotifyProgramBound(native.ProgramId);
+        OpenGlStateCache.Current.InvalidateAll();
+        OpenGlStateCache.Current.NotifyProgramBound(native.ProgramId);
     }
     #endregion
 
@@ -151,7 +151,7 @@ internal sealed class SkyDrawScene : IDisposable
         Assert.Equal(incoming.FboId, GL.GetInteger(GetPName.DrawFramebufferBinding));
         Assert.Equal(read.FboId, GL.GetInteger(GetPName.ReadFramebufferBinding));
         Assert.Equal(native.ProgramId, GL.GetInteger(GetPName.CurrentProgram));
-        Assert.True(StateCache.Current.TryGetCachedCurrentProgram(out int restoredProgram));
+        Assert.True(OpenGlStateCache.Current.TryGetCachedCurrentProgram(out int restoredProgram));
         Assert.Equal(native.ProgramId, restoredProgram);
         Assert.Equal((int)TextureUnit.Texture5, GL.GetInteger(GetPName.ActiveTexture));
         GL.ActiveTexture(TextureUnit.Texture0);
@@ -172,7 +172,7 @@ internal sealed class SkyDrawScene : IDisposable
         for (int slot = 0; slot < NativeRouting.Length; slot++)
             Assert.Equal((int)NativeRouting[slot], GL.GetInteger(GetPName.DrawBuffer0 + slot));
         GL.BindFramebuffer(FramebufferTarget.DrawFramebuffer, incoming.FboId);
-        StateCache.Current.Invalidate(EPipelineState.FramebufferBindings);
+        OpenGlStateCache.Current.Invalidate(EPipelineState.FramebufferBindings);
     }
 
     /// <summary>Reads both independently routed output images only after handoff/capture checks.</summary>
@@ -187,7 +187,7 @@ internal sealed class SkyDrawScene : IDisposable
     /// <summary>Releases resources after coordinator/engine state has returned to the fixture's native program.</summary>
     public void Dispose()
     {
-        OpenGLProgramSelection.Select(StateCache.Current, 0);
+        OpenGLProgramSelection.Select(OpenGlStateCache.Current, 0);
         for (int index = owned.Count - 1; index >= 0; index--) owned[index].Dispose();
     }
     #endregion

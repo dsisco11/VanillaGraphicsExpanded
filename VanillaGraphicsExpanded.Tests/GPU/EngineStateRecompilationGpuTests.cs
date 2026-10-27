@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System.Runtime.CompilerServices;
 using HarmonyLib;
 using OpenTK.Graphics.OpenGL;
@@ -84,7 +85,7 @@ public sealed class EngineStateRecompilationGpuTests(HeadlessGLFixture fixture) 
     public void RebuiltCullCallersTrackBothTransitionsWithoutInvalidation()
     {
         EnsureContextValid();
-        var cache = StateCache.Current;
+        var cache = OpenGlStateCache.Current;
         bool previous = GL.IsEnabled(EnableCap.CullFace);
         var harmony = new Harmony($"vge.tests.cull.recompile.{Guid.NewGuid():N}");
         var transpiler = new HarmonyMethod(typeof(EngineStateSwitchingHook), nameof(EngineStateSwitchingHook.Transpiler));
@@ -101,9 +102,8 @@ public sealed class EngineStateRecompilationGpuTests(HeadlessGLFixture fixture) 
             EnableCaller();
             Assert.True(GL.IsEnabled(EnableCap.CullFace));
             DisableCaller();
-            // This is the captured failure: native enabled, cache still disabled;
-            // the correctly routed disable is therefore suppressed.
-            Assert.True(GL.IsEnabled(EnableCap.CullFace));
+            // Exact engine calls cannot be suppressed by stale knowledge from an inlined caller.
+            Assert.False(GL.IsEnabled(EnableCap.CullFace));
 
             harmony.Patch(AccessTools.Method(typeof(EngineStateRecompilationGpuTests), nameof(EnableCaller)), transpiler: transpiler);
             // Reestablish the same seed once. No invalidation occurs between the

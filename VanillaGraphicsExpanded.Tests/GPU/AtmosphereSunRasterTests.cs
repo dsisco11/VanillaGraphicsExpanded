@@ -27,8 +27,8 @@ public sealed class AtmosphereSunRasterTests(HeadlessGLFixture fixture) : Render
         using var framework = new ShaderTestFramework();
         using var target = framework.CreateTestGBuffer(1, 1, PixelInternalFormat.Rgba32f);
         var layout = BuiltShaderFixture.Layout(program.ProgramId, "tests/sun-segment.fsh");
-        OpenGLProgramSelection.Select(StateCache.Current, program.ProgramId);
-        OpenGLVertexSelection.Bind(StateCache.Current, vao.VertexArrayId);
+        OpenGLProgramSelection.Select(OpenGlStateCache.Current, program.ProgramId);
+        OpenGLVertexSelection.Bind(OpenGlStateCache.Current, vao.VertexArrayId);
         GL.Disable(EnableCap.DepthTest); GL.Disable(EnableCap.Blend); GL.Disable(EnableCap.CullFace);
         using var inputs = new PackedUniformBuffer(16);
         byte[] inputBytes = new byte[16];
@@ -70,8 +70,8 @@ public sealed class AtmosphereSunRasterTests(HeadlessGLFixture fixture) : Render
         using var glow = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba32f, Width = System.Math.Max(1, 64), Height = System.Math.Max(1, 64), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         using var target = DynamicGpuFramebuffer.CreateMRT([color, glow], depth)!;
         var layout = BuiltShaderFixture.Layout(program.ProgramId, "tests/sun-raster.vsh", fragmentPath);
-        OpenGLProgramSelection.Select(StateCache.Current, program.ProgramId);
-        OpenGLVertexSelection.Bind(StateCache.Current, vao.VertexArrayId);
+        OpenGLProgramSelection.Select(OpenGlStateCache.Current, program.ProgramId);
+        OpenGLVertexSelection.Bind(OpenGlStateCache.Current, vao.VertexArrayId);
         GL.Enable(EnableCap.DepthTest); GL.DepthFunc(DepthFunction.Less); GL.DepthMask(true);
         GL.Disable(EnableCap.Blend); GL.Disable(EnableCap.CullFace);
         using var inputs = new PackedUniformBuffer(64);

@@ -24,7 +24,7 @@ public sealed class EngineBoundaryContextTests(HeadlessGLFixture fixture) : Rend
         EnsureContextValid();
         using var programs = new ComponentShaderPrograms();
         var sentinel = programs.Create<RasterDepthCopyShaderProgram>();
-        var cache = StateCache.Current;
+        var cache = OpenGlStateCache.Current;
         cache.SetCapability(EnableCap.DepthTest, true);
         Assert.True(cache.TryBeginEngineBoundary(new EngineBoundaryDeclaration("ContextBoundary",
             new PipelineStateCoverage(depth: DepthStateKnowledge.TestEnabled)), out var boundary));
@@ -76,7 +76,7 @@ public sealed class EngineBoundaryContextTests(HeadlessGLFixture fixture) : Rend
             lock (registrations) registrations[original.Handle] = registration;
             boundary.Dispose();
             Assert.True(GL.IsEnabled(EnableCap.DepthTest), $"Restoration depth={boundary.Snapshot.Depth.TestEnabled}; observer={observer.Calls}; original={original}; current={RenderContextRegistry.Current()}");
-            OpenGLProgramSelection.Select(StateCache.Current, 0);
+            OpenGLProgramSelection.Select(OpenGlStateCache.Current, 0);
             cache.SetCapability(EnableCap.DepthTest, false);
         }
         Assert.Equal(1, observer.Calls);

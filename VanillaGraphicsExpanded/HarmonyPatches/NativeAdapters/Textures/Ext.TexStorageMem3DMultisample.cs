@@ -5,7 +5,7 @@ using VanillaGraphicsExpanded.Rendering;
 
 namespace VanillaGraphicsExpanded.HarmonyPatches.NativeAdapters.Textures;
 
-/// <summary>Forwards GL.Ext.TexStorageMem3DMultisample overloads through their existing StateCache observation contract.</summary>
+/// <summary>Forwards GL.Ext.TexStorageMem3DMultisample overloads through their existing OpenGlStateCache observation contract.</summary>
 internal static unsafe partial class Ext
 {
     #region Internal API

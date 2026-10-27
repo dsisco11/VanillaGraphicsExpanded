@@ -130,8 +130,8 @@ internal sealed class CapturedAmbientOcclusionFixture : IDisposable
                 Assert.Equal(width, subresource.GetProperty("width").GetInt32());
                 Assert.Equal(height, subresource.GetProperty("height").GetInt32());
                 float[] pixels = DecodeFloat(ReadPayload(subresource, checked(width * height * 4)));
-                using (StateCache.Current.BindTextureScope(TextureTarget.Texture2D, 0, texture.TextureId))
-                using (OpenGLPixelLayouts.UnpackScope(StateCache.Current, new StateCache.PixelUnpackState(4)))
+                using (OpenGlStateCache.Current.BindTextureScope(TextureTarget.Texture2D, 0, texture.TextureId))
+                using (OpenGLPixelLayouts.UnpackScope(OpenGlStateCache.Current, new OpenGlStateCache.PixelUnpackState(4)))
                     GL.TexSubImage2D(TextureTarget.Texture2D, mip, 0, 0, width, height, PixelFormat.Red, PixelType.Float, pixels);
                 Assert.Equal(pixels, texture.ReadPixels(mip));
             }

@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Diagnostics;
 using System.Collections.Immutable;
@@ -112,7 +113,7 @@ public sealed class ShaderLinkProductionTests(HeadlessGLFixture fixture, ITestOu
         double elapsed = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
         Assert.InRange(pixels[0], .499f, .501f);
         GL.UseProgram(0);
-        StateCache.Current.InvalidateAll();
+        OpenGlStateCache.Current.InvalidateAll();
         return elapsed;
     }
     #endregion

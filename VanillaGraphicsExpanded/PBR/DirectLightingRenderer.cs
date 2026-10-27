@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.ShaderCompilation;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
@@ -79,7 +80,7 @@ public sealed partial class DirectLightingRenderer : IRenderer, IDisposable
     /// <summary>Evaluates normal or isolated lighting targets under complete engine-state restoration.</summary>
     internal bool RenderLighting(DirectLightingTargets? isolated = null)
     {
-        StateCache.Current.RequireOutsideEngineBoundary();
+        OpenGlStateCache.Current.RequireOutsideEngineBoundary();
         if (geometry is null || capi.Render.FrameWidth <= 0 || capi.Render.FrameHeight <= 0) return false;
         var pipeline = PrepareBoundaryPipeline();
         if (pipeline is null) return false;
@@ -94,7 +95,7 @@ public sealed partial class DirectLightingRenderer : IRenderer, IDisposable
     /// <summary>Refreshes the borrowed realization only after a successful executable publication.</summary>
     internal RHIGraphicsPipeline? PrepareBoundaryPipeline()
     {
-        StateCache.Current.RequireOutsideEngineBoundary();
+        OpenGlStateCache.Current.RequireOutsideEngineBoundary();
         if (geometry is null) return null;
         var shader = GpuShaderProgramLibraries.Get<PBRDirectLightingShaderProgram>(capi, "pbr_direct_lighting");
         if (shader?.EnsureReady() != true) return null;

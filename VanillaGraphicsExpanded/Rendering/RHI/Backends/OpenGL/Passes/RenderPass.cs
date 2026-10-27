@@ -26,7 +26,7 @@ internal sealed partial class RenderPass : IDisposable
     internal static RenderPass Begin(RenderPassDesc description, EngineBoundaryScope boundary, RenderPassSequence sequence)
     {
         ArgumentNullException.ThrowIfNull(description);
-        var cache = StateCache.Current;
+        var cache = OpenGlStateCache.Current;
         cache.RequireEngineBoundary(boundary);
         var required = OpenGLRenderPassOperations.ClearCoverage.Union(new(dynamic: DynamicDrawStateKnowledge.Viewport));
         if (!boundary.Snapshot.Coverage.Contains(required, GpuSupport.Graphics.MaxDrawBuffers))
@@ -51,7 +51,7 @@ internal sealed partial class RenderPass : IDisposable
     {
         ObjectDisposedException.ThrowIf(disposed, this);
         if (!ReferenceEquals(active, this)) throw new InvalidOperationException("Render pass is not active.");
-        StateCache.Current.RequireEngineBoundary(boundary);
+        OpenGlStateCache.Current.RequireEngineBoundary(boundary);
         targets.Validate();
     }
 
@@ -83,7 +83,7 @@ internal sealed partial class RenderPass : IDisposable
         {
             using var errors = new GlDebug.ErrorScope("Render pass setup");
             sequence.Bind(description.Target,description.Routing.ToArray());
-            StateCache.Current.ApplyDynamic(new DynamicDrawState { X = Area.X, Y = Area.Y, Width = Area.Width, Height = Area.Height });
+            OpenGlStateCache.Current.ApplyDynamic(new DynamicDrawState { X = Area.X, Y = Area.Y, Width = Area.Width, Height = Area.Height });
             OpenGLRenderPassOperations.Load(description, Area);
             active = this;
         }

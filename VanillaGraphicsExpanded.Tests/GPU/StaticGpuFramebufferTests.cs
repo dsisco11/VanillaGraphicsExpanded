@@ -44,7 +44,7 @@ public sealed class StaticGpuFramebufferTests(HeadlessGLFixture fixture, ITestOu
         Assert.Throws<InvalidOperationException>(() => alias.Resize(3, 3));
         Assert.Throws<InvalidOperationException>(() => VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Framebuffer, target.FboId)));
         target.Bind();
-        Assert.Throws<InvalidOperationException>(() => OpenGLFramebufferRouting.SetDrawBuffer(StateCache.Current, DrawBufferMode.None));
+        Assert.Throws<InvalidOperationException>(() => OpenGLFramebufferRouting.SetDrawBuffer(OpenGlStateCache.Current, DrawBufferMode.None));
         texture.UploadDataImmediate(Enumerable.Repeat(.375f, 16).ToArray());
         Assert.All(texture.ReadPixels(), value => Assert.Equal(.375f, value));
         target.Dispose();
@@ -112,7 +112,7 @@ public sealed class StaticGpuFramebufferTests(HeadlessGLFixture fixture, ITestOu
             worker.Start();
             worker.Join();
             Assert.Null(failure);
-            StateCache.Current.RequireMutableFramebufferConfiguration(id);
+            OpenGlStateCache.Current.RequireMutableFramebufferConfiguration(id);
             Assert.True(texture.Resize(3, 3));
             manager.OnRenderFrame(0, GpuResourceManager.Stage);
             Assert.False(GL.IsFramebuffer(id));
@@ -140,7 +140,7 @@ public sealed class StaticGpuFramebufferTests(HeadlessGLFixture fixture, ITestOu
             // Keep the actual GL namespace alive while changing its managed generation.
             VanillaGraphicsExpanded.Rendering.Integration.RenderContextRegistry.Retire(fixture);
             VanillaGraphicsExpanded.Rendering.Integration.RenderContextRegistry.RegisterCurrent(replacement, static _ => true);
-            StateCache.Current.RequireMutableFramebufferConfiguration(id);
+            OpenGlStateCache.Current.RequireMutableFramebufferConfiguration(id);
             target.Dispose();
             Assert.True(GL.IsFramebuffer(id));
             VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Framebuffer, id));
@@ -170,7 +170,7 @@ public sealed class StaticGpuFramebufferTests(HeadlessGLFixture fixture, ITestOu
         var pass = FramebufferTestSetup.DescribeAttachments(target, [new(AttachmentIndex:0, Load:AttachmentLoad.Clear, Clear: ColorClearValue.Float(.25f, .5f, .75f, 1))]);
         Assert.Throws<InvalidOperationException>(() => FramebufferTestSetup.DescribeAttachments(target, [new(AttachmentIndex: -1)]));
         RenderPassTestBoundary.Run(commands => { commands.BeginRenderPass(pass); commands.EndRenderPass(); });
-        StateCache.Current.Invalidate(EPipelineState.FramebufferRouting);
+        OpenGlStateCache.Current.Invalidate(EPipelineState.FramebufferRouting);
         using (var work = new FramebufferRoutingWorkCapture()) using (var calls = new GraphicsTransitionCapture())
         {
             if (standalone)

@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System;
 using VanillaGraphicsExpanded.Rendering.Integration;
 
@@ -12,8 +13,8 @@ internal sealed partial class GpuResourceManager
         private readonly GpuResource<T> resource;
         private readonly GpuResourceMetadataEntry<T>? entry;
         private readonly (nint Handle, long Generation) context;
-        private readonly StateCache cache;
-        private readonly StateCache.ResourceOperationGuard guard;
+        private readonly OpenGlStateCache cache;
+        private readonly OpenGlStateCache.ResourceOperationGuard guard;
         private GpuMetadataChange effects;
         private bool completed, disposed, completionAttempted;
 
@@ -25,7 +26,7 @@ internal sealed partial class GpuResourceManager
             this.resource = resource;
             this.effects = effects;
             context = RenderContextRegistry.Current();
-            cache = StateCache.Current;
+            cache = OpenGlStateCache.Current;
             var manager = resource.ResourceManager;
             if (manager is not null && manager.CanAcquireWrapperMetadata(resource))
             {

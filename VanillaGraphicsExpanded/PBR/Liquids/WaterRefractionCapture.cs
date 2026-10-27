@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using System.Linq;
@@ -86,7 +87,7 @@ internal sealed class WaterRefractionCapture : IRenderer
     /// <summary>Evaluates the existing PBR passes into owned storage, restoring the caller's draw state even on failure.</summary>
     private void Capture()
     {
-        StateCache.Current.RequireOutsideEngineBoundary();
+        OpenGlStateCache.Current.RequireOutsideEngineBoundary();
         attempted = true;
         scene.Invalidate();
         // Unknown resources retain capture. Only current, entirely empty liquid

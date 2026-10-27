@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using HarmonyLib;
 using OpenTK.Graphics.OpenGL;
@@ -36,7 +37,7 @@ public sealed class GpuTextureMetadataPublicationTests(HeadlessGLFixture fixture
             Assert.False(view.IsValid);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
 
     /// <summary>View creation publishes the selected target and layer range.</summary>
@@ -101,7 +102,7 @@ public sealed class GpuTextureMetadataPublicationTests(HeadlessGLFixture fixture
             Assert.True(source.IsValid);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
 
     /// <summary>Named acquisition preserves sentinel selectors and pending native errors.</summary>
@@ -113,7 +114,7 @@ public sealed class GpuTextureMetadataPublicationTests(HeadlessGLFixture fixture
         fixture.EnsureContextValid();
         using var texture = RHICommandContext.Current.CreateDynamicTexture3D(new RHITextureDescription { Dimension = TextureDimension.TwoArray, Format = TextureFormat.Rgba32f, Width = 4, Height = 4, Depth = 4, MipLevels = 1, Storage = immutable ? ResourceStorageMode.Immutable : ResourceStorageMode.Mutable }).RequireResource();
         using var sentinel = RHICommandContext.Current.CreateDynamicTexture3D(new RHITextureDescription { Dimension = TextureDimension.TwoArray, Format = TextureFormat.Rgba32f, Width = 2, Height = 2, Depth = 2, MipLevels = 1, Storage = ResourceStorageMode.Mutable }).RequireResource();
-        using var binding = StateCache.Current.BindTextureScope(((GpuTextureRef)sentinel).Target, 0, sentinel.TextureId);
+        using var binding = OpenGlStateCache.Current.BindTextureScope(((GpuTextureRef)sentinel).Target, 0, sentinel.TextureId);
         GL.Enable((EnableCap)(-1));
         Assert.True(new GpuTextureMetadataReader(TextureTarget.Texture2DArray).TryRead(texture.TextureId, out var data));
         Assert.Equal(4, data.Levels[0].Width);

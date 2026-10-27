@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using OpenTK.Graphics.OpenGL;
@@ -26,7 +27,7 @@ internal sealed class EngineShaderPlatformScope : IDisposable
         // Engine compilation restores the currently bound program through the state cache.
         // A preceding fixture may have retired its raw engine program without a cache hook.
         GL.UseProgram(0);
-        StateCache.Current.NotifyProgramBound(0);
+        OpenGlStateCache.Current.NotifyProgramBound(0);
     }
 
     /// <summary>Restores both engine and GL program ownership even if a production upload throws.</summary>
@@ -35,7 +36,7 @@ internal sealed class EngineShaderPlatformScope : IDisposable
         ShaderProgramBase.CurrentShaderProgram=previousShader;
         ScreenManager.Platform=previous;
         GL.UseProgram(previousShader?.ProgramId??0);
-        StateCache.Current.NotifyProgramBound(previousShader?.ProgramId??0);
+        OpenGlStateCache.Current.NotifyProgramBound(previousShader?.ProgramId??0);
     }
     #endregion
 }

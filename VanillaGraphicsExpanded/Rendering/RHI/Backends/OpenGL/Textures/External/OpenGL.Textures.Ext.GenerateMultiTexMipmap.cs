@@ -10,7 +10,7 @@ internal static unsafe partial class OpenGLTexturesCalls
     /// <summary>Executes the exact external overload and completes its affected metadata publication.</summary>
     internal static void ExecuteExtGenerateMultiTexMipmap(TextureUnit @texunit, TextureTarget @target)
     {
-        var observation = StateCache.BeginNativeTextureMetadata(0, unchecked((int)@target), unchecked((int)@texunit), false, true, StateCache.TextureMetadataEffect.MipGeneration, 0);
+        var observation = OpenGlStateCache.BeginNativeTextureMetadata(0, unchecked((int)@target), unchecked((int)@texunit), false, true, OpenGlStateCache.TextureMetadataEffect.MipGeneration, 0);
         bool returned = false;
         try
         {

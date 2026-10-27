@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Runtime.InteropServices;
 using Moq;
@@ -49,7 +50,7 @@ public sealed class SurfaceCacheWorldOriginTests(HeadlessGLFixture fixture) : Re
             GL.GetInteger(GetIndexedPName.UniformBufferBinding, GpuBindingRegistry.Ubo.Frame, out int buffer);
             GL.GetInteger(GetIndexedPName.UniformBufferStart, GpuBindingRegistry.Ubo.Frame, out int offset);
             byte[] published = new byte[VgeFrameUniformBuffer.PackedSize];
-            using var binding = StateCache.Current.BindBufferScope(BufferTarget.UniformBuffer, buffer);
+            using var binding = OpenGlStateCache.Current.BindBufferScope(BufferTarget.UniformBuffer, buffer);
             GL.GetBufferSubData(BufferTarget.UniformBuffer, (IntPtr)offset, published.Length, published);
             Assert.Equal(VgeFrameRenderer.Current.Bytes.ToArray(), published);
         }

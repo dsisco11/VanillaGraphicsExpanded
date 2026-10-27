@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -93,7 +94,7 @@ public abstract partial class GpuFramebuffer : GpuResource<GpuFramebufferMetadat
         RHI.RHICommandContext.Current.SelectFramebufferOwner(this, bindingTarget);
         if (attachmentsDirty)
         {
-            StateCache.Current.RequireMutableFramebufferConfiguration(fboId);
+            OpenGlStateCache.Current.RequireMutableFramebufferConfiguration(fboId);
             // Shared image changes can affect several FBOs; refresh each FBO lazily
             // at its next use while preserving its independently configured routing.
             RHI.RHICommandContext.Current.RefreshFramebufferAttachments(this, attachments);
@@ -158,7 +159,7 @@ public abstract partial class GpuFramebuffer : GpuResource<GpuFramebufferMetadat
     /// <summary>Withdraws routing knowledge when an owned native identity is logically retired.</summary>
     protected override void OnBeforeDelete(nint id)
     {
-        if (ownsFramebuffer) StateCache.Current.InvalidateFramebufferDrawRouting((int)id);
+        if (ownsFramebuffer) OpenGlStateCache.Current.InvalidateFramebufferDrawRouting((int)id);
     }
     /// <summary>Releases attachment references without disposing any attachment.</summary>
     protected override void OnAfterDelete()
@@ -171,7 +172,7 @@ public abstract partial class GpuFramebuffer : GpuResource<GpuFramebufferMetadat
     /// <summary>Withdraws image references when ownership of the framebuffer name is transferred.</summary>
     protected override void OnDetached(nint id)
     {
-        StateCache.Current.InvalidateFramebufferDrawRouting((int)id);
+        OpenGlStateCache.Current.InvalidateFramebufferDrawRouting((int)id);
         Surface = null;
         attachments.Clear();
         PublishAttachmentsChanged();

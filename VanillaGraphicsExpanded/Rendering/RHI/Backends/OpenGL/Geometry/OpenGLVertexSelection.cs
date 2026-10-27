@@ -8,7 +8,7 @@ internal static class OpenGLVertexSelection
 {
     #region Internal API
     /// <summary>Preserves known-equal suppression and EBO association knowledge while committing only original-context native return.</summary>
-    internal static void Bind(StateCache cache,int vertexArray)
+    internal static void Bind(OpenGlStateCache cache,int vertexArray)
     {
         if(cache.VertexArrayKnowledge==vertexArray)return;
         var origin=GpuResource.CaptureCreationContext(GpuResourceKind.VertexArray);

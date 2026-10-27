@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Collections.Immutable;
 using System.Numerics;
@@ -116,8 +117,8 @@ public sealed class PbrForwardSurfaceNumericalTests : RenderTestBase
             float[] scatter = scenario is 12 or 13 ? [.04f,.09f,.16f,1f] : [0f,0f,0f,1f];
             atmosphereOwner.Publish(new(Vector3.UnitY, Vector3.Zero, Vector3.Zero, Vector3.Zero, Vector3.Zero, ImmutableArray.Create(0f,0f,0f,1f))
                 { Width=1, Height=1, AerialRadiance=ImmutableArray.CreateRange(Enumerable.Range(0,24).SelectMany(_=>scatter)), AerialAttenuation=ImmutableArray.CreateRange(Enumerable.Range(0,24).SelectMany(_=>new[]{0f,0f,0f,1f})) });
-            using var radianceBinding = StateCache.Current.BindTextureScope(TextureTarget.Texture3D, 11, AtmosphereModSystem.AerialRadianceTextureId);
-            using var attenuationBinding = StateCache.Current.BindTextureScope(TextureTarget.Texture3D, 12, AtmosphereModSystem.AerialAttenuationTextureId);
+            using var radianceBinding = OpenGlStateCache.Current.BindTextureScope(TextureTarget.Texture3D, 11, AtmosphereModSystem.AerialRadianceTextureId);
+            using var attenuationBinding = OpenGlStateCache.Current.BindTextureScope(TextureTarget.Texture3D, 12, AtmosphereModSystem.AerialAttenuationTextureId);
             GL.Uniform1(GL.GetUniformLocation(program, "vge_atmosphereAerialRadiance"),11);
             GL.Uniform1(GL.GetUniformLocation(program, "vge_atmosphereAerialAttenuation"),12);
             using var framework = new ShaderTestFramework();
@@ -126,7 +127,7 @@ public sealed class PbrForwardSurfaceNumericalTests : RenderTestBase
             GL.ClearTexImage(depth.TextureId, 0, PixelFormat.DepthComponent, PixelType.Float, new[] { scenario is 4 or 5 or 10 ? 1f : 0f });
             using var output = framework.CreateTestGBuffer(1, 1, PixelInternalFormat.Rgba32f);
             VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, depth, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)depth).Target))]);
-            VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageBindings.BindSampler(StateCache.Current, 0, GpuSamplers.ShadowCompareLinearClamp.SamplerId);
+            VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageBindings.BindSampler(OpenGlStateCache.Current, 0, GpuSamplers.ShadowCompareLinearClamp.SamplerId);
             framework.RenderQuadTo(program, output);
             float[] actual = output[0].ReadPixels();
             float factor = scenario is 1 or 9 or 15 ? 64f : scenario is 2 or 3 or 8 or 14 ? LightingCalibration.EnginePointCandelaPerUnit : 0f;

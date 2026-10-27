@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.LumOn;
@@ -95,8 +96,8 @@ public sealed class PbrModeLifecycleTests : RenderTestBase
         float[] primaryBefore = terrain.Color.ReadPixels();
         using (var otherColor = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba16f, Width = System.Math.Max(1, 1), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource())
         using (var other = DynamicGpuFramebuffer.CreateSingle(otherColor)!)
-        using (StateCache.Current.BindFramebufferScope(FramebufferTarget.ReadFramebuffer, terrain.Output.FboId))
-        using (StateCache.Current.BindFramebufferScope(FramebufferTarget.DrawFramebuffer, other.FboId))
+        using (OpenGlStateCache.Current.BindFramebufferScope(FramebufferTarget.ReadFramebuffer, terrain.Output.FboId))
+        using (OpenGlStateCache.Current.BindFramebufferScope(FramebufferTarget.DrawFramebuffer, other.FboId))
         {
             foreach (bool enabled in new[] { false, true, false })
             {
@@ -105,8 +106,8 @@ public sealed class PbrModeLifecycleTests : RenderTestBase
                 var prepared = VanillaGraphicsExpanded.Rendering.Shaders.GpuShaderProgramLibraries.Get<PBRCompositeShaderProgram>(api, "pbr_composite")!;
                 Assert.Equal(enabled ? "1" : "0", prepared.InstalledSettings!.Values["VGE_LUMON_ENABLED"].Canonical);
             }
-            Assert.Equal(terrain.Output.FboId, StateCache.Current.GetCurrentFramebuffer(FramebufferTarget.ReadFramebuffer));
-            Assert.Equal(other.FboId, StateCache.Current.GetCurrentFramebuffer(FramebufferTarget.DrawFramebuffer));
+            Assert.Equal(terrain.Output.FboId, OpenGlStateCache.Current.GetCurrentFramebuffer(FramebufferTarget.ReadFramebuffer));
+            Assert.Equal(other.FboId, OpenGlStateCache.Current.GetCurrentFramebuffer(FramebufferTarget.DrawFramebuffer));
             Assert.Equal(0, drawCalls);
             Assert.False(composite.RefractionScene.Published);
             Assert.Equal(primaryBefore, terrain.Color.ReadPixels());

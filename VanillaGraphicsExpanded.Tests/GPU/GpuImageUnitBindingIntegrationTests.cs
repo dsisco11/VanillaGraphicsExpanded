@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 
@@ -29,7 +30,7 @@ public sealed class GpuImageUnitBindingIntegrationTests
 
         // 2D image binding
         using var texture = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba8, Width = System.Math.Max(1, 4), Height = System.Math.Max(1, 4), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "TestImage2D" }).RequireResource();
-        VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageSlotBindings.BindImageTexture(StateCache.Current, 0, texture.TextureId, 0, false, 0, TextureAccess.ReadWrite, SizedInternalFormat.Rgba8);
+        VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageSlotBindings.BindImageTexture(OpenGlStateCache.Current, 0, texture.TextureId, 0, false, 0, TextureAccess.ReadWrite, SizedInternalFormat.Rgba8);
 
         GL.GetInteger((GetIndexedPName)All.ImageBindingName, 0, out int boundName0);
         GL.GetInteger((GetIndexedPName)All.ImageBindingAccess, 0, out int boundAccess0);
@@ -48,7 +49,7 @@ public sealed class GpuImageUnitBindingIntegrationTests
             GL.BindBuffer(BufferTarget.TextureBuffer, 0);
 
             using var bufferTexture = VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLTextureIntegration.CreateBufferView(bufferId, SizedInternalFormat.R32f, true, 0, 0, "TestBufferTexture").RequireResource();
-            VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageSlotBindings.BindImageTexture(StateCache.Current, 1, bufferTexture.TextureId, 0, false, 0, TextureAccess.ReadOnly, (SizedInternalFormat)((GpuTextureRef)bufferTexture).RequireMetadata().Buffer!.Value.Format);
+            VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageSlotBindings.BindImageTexture(OpenGlStateCache.Current, 1, bufferTexture.TextureId, 0, false, 0, TextureAccess.ReadOnly, (SizedInternalFormat)((GpuTextureRef)bufferTexture).RequireMetadata().Buffer!.Value.Format);
 
             GL.GetInteger((GetIndexedPName)All.ImageBindingName, 1, out int boundName1);
             GL.GetInteger((GetIndexedPName)All.ImageBindingAccess, 1, out int boundAccess1);
@@ -74,7 +75,7 @@ public sealed class GpuImageUnitBindingIntegrationTests
         using var texB = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba8, Width = System.Math.Max(1, 4), Height = System.Math.Max(1, 4), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "ScopeTexB" }).RequireResource();
 
         // Establish a known previous binding for unit 2.
-        VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageSlotBindings.BindImageTexture(StateCache.Current, 2, texA.TextureId, 0, false, 0, TextureAccess.ReadOnly, SizedInternalFormat.Rgba8);
+        VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageSlotBindings.BindImageTexture(OpenGlStateCache.Current, 2, texA.TextureId, 0, false, 0, TextureAccess.ReadOnly, SizedInternalFormat.Rgba8);
 
         GL.GetInteger((GetIndexedPName)All.ImageBindingName, 2, out int prevName);
         GL.GetInteger((GetIndexedPName)All.ImageBindingAccess, 2, out int prevAccess);

@@ -50,7 +50,7 @@ internal sealed partial class OpenGLBackend
     private void ExecuteIndirectSelectors(RHIGraphicsPipeline pipeline, RHIGeometryInputs geometry,
         in RHIIndirectDraw draw, RHIResourceBindings? resources, bool indexed)
     {
-        StateCache.BufferScope? arguments = null, count = null;
+        OpenGlStateCache.BufferScope? arguments = null, count = null;
         Exception? operationFailure = null;
         try
         {
@@ -103,7 +103,7 @@ internal sealed partial class OpenGLBackend
     }
 
     /// <summary>Attempts each independent restoration without losing a prior operation or cleanup failure.</summary>
-    private static void RestoreIndirectSelector(StateCache.BufferScope? scope, ref List<Exception>? failures)
+    private static void RestoreIndirectSelector(OpenGlStateCache.BufferScope? scope, ref List<Exception>? failures)
     {
         try { scope?.Dispose(); }
         catch (Exception failure) { (failures ??= new()).Add(failure); }

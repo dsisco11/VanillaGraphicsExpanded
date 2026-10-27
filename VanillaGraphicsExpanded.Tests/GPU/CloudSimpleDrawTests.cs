@@ -138,11 +138,11 @@ public sealed class CloudSimpleDrawTests(HeadlessGLFixture fixture) : LumOnShade
         Assert.Throws<ArgumentOutOfRangeException>(()=>new CloudSimpleGeometry(native.Mesh,2));
         // A new managed identity has no previous receipt, so a malformed divisor is checked at acquisition.
         using var malformed=new NativeCloud(5,.1f,0,short.MaxValue,.1f,0,0);
-        OpenGLVertexSelection.Bind(StateCache.Current, malformed.Mesh.VaoId); GL.VertexAttribDivisor(4,0);
+        OpenGLVertexSelection.Bind(OpenGlStateCache.Current, malformed.Mesh.VaoId); GL.VertexAttribDivisor(4,0);
         Assert.Throws<InvalidOperationException>(()=>new CloudSimpleGeometry(malformed.Mesh,1));
         using var packed=new NativeCloud(5,.1f,0,short.MaxValue,.1f,0,0);
-        OpenGLVertexSelection.Bind(StateCache.Current, packed.Mesh.VaoId);
-        OpenGLBufferBindings.BindBuffer(StateCache.Current, BufferTarget.ArrayBuffer,packed.Mesh.customDataShortVboId);
+        OpenGLVertexSelection.Bind(OpenGlStateCache.Current, packed.Mesh.VaoId);
+        OpenGLBufferBindings.BindBuffer(OpenGlStateCache.Current, BufferTarget.ArrayBuffer,packed.Mesh.customDataShortVboId);
         GL.VertexAttribPointer(3,2,VertexAttribPointerType.Short,true,0,IntPtr.Zero);
         Assert.Throws<InvalidOperationException>(()=>new CloudSimpleGeometry(packed.Mesh,1));
         Assert.False(native.Mesh.Disposed); Assert.True(GL.IsBuffer(native.Mesh.customDataShortVboId));
@@ -244,7 +244,7 @@ public sealed class CloudSimpleDrawTests(HeadlessGLFixture fixture) : LumOnShade
         /// <summary>Authors the native representation independently of the production adapter's layout descriptor.</summary>
         internal NativeCloud(int face,float neighbor,short tileX,short brightness,float thickness,float thin,float undulation)
         {
-            OpenGLVertexSelection.Bind(StateCache.Current, vao.VertexArrayId);
+            OpenGLVertexSelection.Bind(OpenGlStateCache.Current, vao.VertexArrayId);
             float[] positions=new float[72]; new float[]{-4,-4,-10,4,-4,-10,4,4,-10,-4,4,-10}.CopyTo(positions,0);
             streams[0].UploadData(positions); streams[1].UploadData(Enumerable.Repeat((byte)255,96).ToArray());
             streams[2].UploadData(Enumerable.Repeat((uint)face,24).ToArray());
@@ -255,7 +255,7 @@ public sealed class CloudSimpleDrawTests(HeadlessGLFixture fixture) : LumOnShade
             int[] components=[3,4,1,2,4,1,1,1,1,1]; int[] offsets=[0,0,0,0,4,12,14,16,18,20];
             for(int i=0;i<10;i++)
             {
-                int binding=i<3?i:3; OpenGLBufferBindings.BindBuffer(StateCache.Current, BufferTarget.ArrayBuffer,streams[binding].BufferId);
+                int binding=i<3?i:3; OpenGLBufferBindings.BindBuffer(OpenGlStateCache.Current, BufferTarget.ArrayBuffer,streams[binding].BufferId);
                 if(i==2) GL.VertexAttribIPointer(i,1,VertexAttribIntegerType.UnsignedInt,4,IntPtr.Zero);
                 else GL.VertexAttribPointer(i,components[i],i==0?VertexAttribPointerType.Float:i==1?VertexAttribPointerType.UnsignedByte:VertexAttribPointerType.Short,
                     i!=0,i==0?12:i==1?4:24,(IntPtr)offsets[i]);

@@ -10,7 +10,7 @@ internal static unsafe partial class OpenGLTexturesCalls
     /// <summary>Executes the exact external overload and completes its affected metadata publication.</summary>
     internal static void ExecuteCoreCompressedTexImage1D(TextureTarget @target, int @level, InternalFormat @internalformat, int @width, int @border, int @imageSize, IntPtr @data)
     {
-        var observation = StateCache.BeginNativeTextureMetadata(0, unchecked((int)@target), -1, false, false, StateCache.TextureMetadataEffect.Storage, 0, unchecked((int)@level));
+        var observation = OpenGlStateCache.BeginNativeTextureMetadata(0, unchecked((int)@target), -1, false, false, OpenGlStateCache.TextureMetadataEffect.Storage, 0, unchecked((int)@level));
         bool returned = false;
         try
         {
@@ -28,7 +28,7 @@ internal static unsafe partial class OpenGLTexturesCalls
     internal static void ExecuteCoreCompressedTexImage1D<T6>(TextureTarget @target, int @level, InternalFormat @internalformat, int @width, int @border, int @imageSize, ref T6 @data)
         where T6 : struct
     {
-        var observation = StateCache.BeginNativeTextureMetadata(0, unchecked((int)@target), -1, false, false, StateCache.TextureMetadataEffect.Storage, 0, unchecked((int)@level));
+        var observation = OpenGlStateCache.BeginNativeTextureMetadata(0, unchecked((int)@target), -1, false, false, OpenGlStateCache.TextureMetadataEffect.Storage, 0, unchecked((int)@level));
         bool returned = false;
         try
         {
@@ -46,7 +46,7 @@ internal static unsafe partial class OpenGLTexturesCalls
     internal static void ExecuteCoreCompressedTexImage1D<T6>(TextureTarget @target, int @level, InternalFormat @internalformat, int @width, int @border, int @imageSize, T6[,,] @data)
         where T6 : struct
     {
-        var observation = StateCache.BeginNativeTextureMetadata(0, unchecked((int)@target), -1, false, false, StateCache.TextureMetadataEffect.Storage, 0, unchecked((int)@level));
+        var observation = OpenGlStateCache.BeginNativeTextureMetadata(0, unchecked((int)@target), -1, false, false, OpenGlStateCache.TextureMetadataEffect.Storage, 0, unchecked((int)@level));
         bool returned = false;
         try
         {
@@ -64,7 +64,7 @@ internal static unsafe partial class OpenGLTexturesCalls
     internal static void ExecuteCoreCompressedTexImage1D<T6>(TextureTarget @target, int @level, InternalFormat @internalformat, int @width, int @border, int @imageSize, T6[,] @data)
         where T6 : struct
     {
-        var observation = StateCache.BeginNativeTextureMetadata(0, unchecked((int)@target), -1, false, false, StateCache.TextureMetadataEffect.Storage, 0, unchecked((int)@level));
+        var observation = OpenGlStateCache.BeginNativeTextureMetadata(0, unchecked((int)@target), -1, false, false, OpenGlStateCache.TextureMetadataEffect.Storage, 0, unchecked((int)@level));
         bool returned = false;
         try
         {
@@ -82,7 +82,7 @@ internal static unsafe partial class OpenGLTexturesCalls
     internal static void ExecuteCoreCompressedTexImage1D<T6>(TextureTarget @target, int @level, InternalFormat @internalformat, int @width, int @border, int @imageSize, T6[] @data)
         where T6 : struct
     {
-        var observation = StateCache.BeginNativeTextureMetadata(0, unchecked((int)@target), -1, false, false, StateCache.TextureMetadataEffect.Storage, 0, unchecked((int)@level));
+        var observation = OpenGlStateCache.BeginNativeTextureMetadata(0, unchecked((int)@target), -1, false, false, OpenGlStateCache.TextureMetadataEffect.Storage, 0, unchecked((int)@level));
         bool returned = false;
         try
         {

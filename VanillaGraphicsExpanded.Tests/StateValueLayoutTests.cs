@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System.Runtime.CompilerServices;
 using VanillaGraphicsExpanded.LumOn;
 using VanillaGraphicsExpanded.Rendering;
@@ -26,8 +27,8 @@ public sealed class StateValueLayoutTests
         Report<SamplingState>();
         Report<StencilState>();
         Report<OutputState>();
-        Report<StateCache.PixelPackState>();
-        Report<StateCache.PixelUnpackState>();
+        Report<OpenGlStateCache.PixelPackState>();
+        Report<OpenGlStateCache.PixelUnpackState>();
         Report<LumOnCameraState>();
         Report<GlColorMask>();
         Report<DepthStateKnowledge>();

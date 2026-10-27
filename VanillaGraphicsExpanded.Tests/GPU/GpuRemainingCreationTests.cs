@@ -27,9 +27,9 @@ public sealed class GpuRemainingCreationTests(HeadlessGLFixture fixture, Xunit.I
             using var previousVao = GpuVao.Create();
             using var previousPipeline = GpuProgramPipeline.Create();
             using var previousSampler = RHICommandContext.Current.CreateSampler(new RHISamplerDescription {  }).RequireResource();
-            VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageBindings.BindSampler(StateCache.Current, 0, previousSampler.SamplerId);
-            using var vaoScope = StateCache.Current.BindVertexArrayScope(previousVao.VertexArrayId);
-            using var pipelineScope = StateCache.Current.BindProgramPipelineScope(previousPipeline.PipelineId);
+            VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageBindings.BindSampler(OpenGlStateCache.Current, 0, previousSampler.SamplerId);
+            using var vaoScope = OpenGlStateCache.Current.BindVertexArrayScope(previousVao.VertexArrayId);
+            using var pipelineScope = OpenGlStateCache.Current.BindProgramPipelineScope(previousPipeline.PipelineId);
             using var observation = new CreationQueryObservation();
             using var vao = GpuVao.Create();
             using var pipeline = GpuProgramPipeline.Create();
@@ -79,7 +79,7 @@ public sealed class GpuRemainingCreationTests(HeadlessGLFixture fixture, Xunit.I
             Assert.Equal((int)TextureMinFilter.Nearest, filter);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
 
     /// <summary>Unsupported extension requests reject before allocating or publishing an identity.</summary>
@@ -94,7 +94,7 @@ public sealed class GpuRemainingCreationTests(HeadlessGLFixture fixture, Xunit.I
         {
             AccessTools.Field(typeof(GpuSupport), "graphics").SetValue(null,
                 original with { SupportsExtSemaphore = false, SupportsExtMemoryObject = false });
-            var unsupported = new RHICommandContext(new VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBackend(StateCache.Current));
+            var unsupported = new RHICommandContext(new VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBackend(OpenGlStateCache.Current));
             Assert.Throws<NotSupportedException>(() => unsupported.CreateSemaphore(new()).RequireResource());
             Assert.Throws<NotSupportedException>(() => unsupported.CreateMemoryObject(new()).RequireResource());
             Assert.Equal(ErrorCode.NoError, GL.GetError());
@@ -102,7 +102,7 @@ public sealed class GpuRemainingCreationTests(HeadlessGLFixture fixture, Xunit.I
         finally
         {
             AccessTools.Field(typeof(GpuSupport), "graphics").SetValue(null, original);
-            fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll();
+            fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll();
         }
     }
     /// <summary>Rejecting identity delivery retires every supported family through the common cleanup path.</summary>
@@ -221,7 +221,7 @@ public sealed class GpuRemainingCreationTests(HeadlessGLFixture fixture, Xunit.I
             GpuResourceManagerSystem.CurrentManager?.OnRenderFrame(0, GpuResourceManager.Stage);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
     #endregion
 

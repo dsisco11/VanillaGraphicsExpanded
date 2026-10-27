@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
@@ -16,8 +17,8 @@ public sealed class FramebufferAttachmentNotificationTests(HeadlessGLFixture fix
     public void DepthRenderbufferResizePublishesOnlyStorageChanges()
     {
         EnsureContextValid();
-        using var bindings = StateCache.Current.BindFramebufferScope();
-        using var fixedState = LegacyFixedFunctionReference.Capture(StateCache.Current);
+        using var bindings = OpenGlStateCache.Current.BindFramebufferScope();
+        using var fixedState = LegacyFixedFunctionReference.Capture(OpenGlStateCache.Current);
         using var depth = RHICommandContext.Current.CreateRenderbuffer(new RHIRenderbufferDescription { Format = TextureFormat.DepthComponent24, Width = 2, Height = 2, Samples = 0, Label = null }).RequireResource();
         using var framebuffer = DynamicGpuFramebuffer.CreateDepthOnly(depth)!;
         framebuffer.Bind();
@@ -60,7 +61,7 @@ public sealed class FramebufferAttachmentNotificationTests(HeadlessGLFixture fix
         using var depth = RHICommandContext.Current.CreateRenderbuffer(new RHIRenderbufferDescription { Format = TextureFormat.DepthComponent24, Width = 2, Height = 2, Samples = 4, Label = null }).RequireResource();
         Assert.True(depth.Resize(4, 3));
         Assert.False(depth.Resize(4, 3));
-        using var binding = StateCache.Current.BindRenderbufferScope(depth.RenderbufferId);
+        using var binding = OpenGlStateCache.Current.BindRenderbufferScope(depth.RenderbufferId);
         GL.GetRenderbufferParameter(RenderbufferTarget.Renderbuffer, RenderbufferParameterName.RenderbufferWidth, out int width);
         GL.GetRenderbufferParameter(RenderbufferTarget.Renderbuffer, RenderbufferParameterName.RenderbufferHeight, out int height);
         GL.GetRenderbufferParameter(RenderbufferTarget.Renderbuffer, RenderbufferParameterName.RenderbufferSamples, out int samples);
@@ -77,7 +78,7 @@ public sealed class FramebufferAttachmentNotificationTests(HeadlessGLFixture fix
     public void WrappedRefreshReconfiguresOnlyAfterNotification()
     {
         EnsureContextValid();
-        using var scope = StateCache.Current.BindFramebufferScope();
+        using var scope = OpenGlStateCache.Current.BindFramebufferScope();
         using var first = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba32f, Width = System.Math.Max(1, 2), Height = System.Math.Max(1, 2), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         using var replacement = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba32f, Width = System.Math.Max(1, 2), Height = System.Math.Max(1, 2), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         using var source = DynamicGpuFramebuffer.CreateSingle(first)!;
@@ -112,7 +113,7 @@ public sealed class FramebufferAttachmentNotificationTests(HeadlessGLFixture fix
     public void ResizePublishesCompletedAttachmentsAndUpdatesCopyDimensions()
     {
         EnsureContextValid();
-        using var scope = StateCache.Current.BindFramebufferScope();
+        using var scope = OpenGlStateCache.Current.BindFramebufferScope();
         using var source = CreateMRTRenderTarget(2, 2, PixelInternalFormat.Rgba32f, PixelInternalFormat.Rgba32f);
         using var destination = CreateRenderTarget(2, 2, PixelInternalFormat.Rgba32f);
         var copy = FramebufferTestSetup.DescribeCopy(source, destination);
@@ -141,7 +142,7 @@ public sealed class FramebufferAttachmentNotificationTests(HeadlessGLFixture fix
     public void ImageCopyRetainsStorageIndependentlyOfFramebufferLifetime()
     {
         EnsureContextValid();
-        using var scope = StateCache.Current.BindFramebufferScope();
+        using var scope = OpenGlStateCache.Current.BindFramebufferScope();
         using var source = CreateRenderTarget(2, 2, PixelInternalFormat.Rgba32f);
         using var destination = CreateRenderTarget(2, 2, PixelInternalFormat.Rgba32f);
         var copy = FramebufferTestSetup.DescribeCopy(source, destination);
@@ -164,7 +165,7 @@ public sealed class FramebufferAttachmentNotificationTests(HeadlessGLFixture fix
     public void ReleasedTransferIntentIsNotRetainedByLiveTargets()
     {
         EnsureContextValid();
-        using var scope = StateCache.Current.BindFramebufferScope();
+        using var scope = OpenGlStateCache.Current.BindFramebufferScope();
         using var source = CreateRenderTarget(2, 2, PixelInternalFormat.Rgba32f);
         using var destination = CreateRenderTarget(2, 2, PixelInternalFormat.Rgba32f);
         var retired = CreateReleasedTransferIntent(source, destination);

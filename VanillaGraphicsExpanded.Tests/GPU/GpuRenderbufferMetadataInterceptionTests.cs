@@ -33,9 +33,9 @@ public sealed class GpuRenderbufferMetadataInterceptionTests(HeadlessGLFixture f
             int firstChanges = 0, secondChanges = 0;
             firstFramebuffer.AttachmentsChanged += () => firstChanges++;
             secondFramebuffer.AttachmentsChanged += () => secondChanges++;
-            using (StateCache.Current.BindTextureScope(((GpuTextureRef)texture).Target, 0, texture.TextureId))
+            using (OpenGlStateCache.Current.BindTextureScope(((GpuTextureRef)texture).Target, 0, texture.TextureId))
             using (var operation = new GpuResourceManager.MetadataOperation<GpuTextureMetadata>(texture, GpuMetadataChange.Storage))
-                new VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBackend(StateCache.Current).DefineTextureImages(texture.TextureId, new GpuTextureInitialization { Target = TextureTarget.Texture2D, AllocationMode = GpuTextureAllocationMode.Mutable, InternalFormat = PixelInternalFormat.Rgba8, Width = 8, Height = 4, Levels = 1 }.Resolve(), operation);
+                new VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBackend(OpenGlStateCache.Current).DefineTextureImages(texture.TextureId, new GpuTextureInitialization { Target = TextureTarget.Texture2D, AllocationMode = GpuTextureAllocationMode.Mutable, InternalFormat = PixelInternalFormat.Rgba8, Width = 8, Height = 4, Levels = 1 }.Resolve(), operation);
             var manager = GpuResourceManagerSystem.CurrentManager!;
             Assert.False(manager.IsResourceMetadataAvailable(first));
             Assert.False(manager.IsResourceMetadataAvailable(second));
@@ -53,7 +53,7 @@ public sealed class GpuRenderbufferMetadataInterceptionTests(HeadlessGLFixture f
             secondFramebuffer.Bind();
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
 
     /// <summary>Creation, storage and metadata queries preserve sentinel selection; direct operations issue no bind calls.</summary>
@@ -65,7 +65,7 @@ public sealed class GpuRenderbufferMetadataInterceptionTests(HeadlessGLFixture f
         var harmony = new Harmony("VGE.Tests.RenderbufferMetadata.Addressing");
         int sentinel = GL.GenRenderbuffer();
         GL.BindRenderbuffer(RenderbufferTarget.Renderbuffer, sentinel);
-        StateCache.Current.InvalidateAll();
+        OpenGlStateCache.Current.InvalidateAll();
         try
         {
             harmony.Patch(AccessTools.Method(typeof(GL), nameof(GL.BindRenderbuffer), [typeof(RenderbufferTarget), typeof(int)]),
@@ -87,7 +87,7 @@ public sealed class GpuRenderbufferMetadataInterceptionTests(HeadlessGLFixture f
             harmony.UnpatchAll(harmony.Id);
             RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Renderbuffer, sentinel));
             fixture.CleanupGpuResources();
-            StateCache.Current.InvalidateAll();
+            OpenGlStateCache.Current.InvalidateAll();
         }
     }
 
@@ -117,7 +117,7 @@ public sealed class GpuRenderbufferMetadataInterceptionTests(HeadlessGLFixture f
             Assert.Equal(previous + 1, entry.MetadataRevision);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { harmony.UnpatchAll(harmony.Id); capturedAdvancedArguments = null; fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { harmony.UnpatchAll(harmony.Id); capturedAdvancedArguments = null; fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
 
     /// <summary>Bound and explicit core/EXT mutations publish aliases and selected images before notifying consumers once.</summary>
@@ -146,7 +146,7 @@ public sealed class GpuRenderbufferMetadataInterceptionTests(HeadlessGLFixture f
             var entry = GpuResourceManagerSystem.CurrentManager!.GetResourceRegistration(owner)!;
             ulong revision = entry.MetadataRevision;
             GL.BindRenderbuffer(RenderbufferTarget.Renderbuffer, owner.RenderbufferId);
-            StateCache.Current.InvalidateAll();
+            OpenGlStateCache.Current.InvalidateAll();
             if (variant == 0) GL.Enable((EnableCap)(-1));
             Allocate(variant, owner.RenderbufferId, 8);
             Assert.Equal(8, owner.Width);
@@ -160,7 +160,7 @@ public sealed class GpuRenderbufferMetadataInterceptionTests(HeadlessGLFixture f
             Assert.Equal(FramebufferErrorCode.FramebufferComplete, GL.CheckFramebufferStatus(FramebufferTarget.Framebuffer));
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { harmony.UnpatchAll(harmony.Id); fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { harmony.UnpatchAll(harmony.Id); fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
 
     /// <summary>Rejected dimensions retain real storage facts and leave the native error for its existing consumer.</summary>
@@ -174,13 +174,13 @@ public sealed class GpuRenderbufferMetadataInterceptionTests(HeadlessGLFixture f
         {
             using var owner = RHICommandContext.Current.CreateRenderbuffer(new RHIRenderbufferDescription { Format = TextureFormat.Rgba8, Width = 4, Height = 4, Samples = 0, Label = null }).RequireResource();
             using var image = GpuFramebufferAttachment.FromRenderbuffer(owner);
-            OpenGLImageBindings.BindRenderbuffer(StateCache.Current, owner.RenderbufferId);
+            OpenGLImageBindings.BindRenderbuffer(OpenGlStateCache.Current, owner.RenderbufferId);
             Allocate(0, owner.RenderbufferId, -1);
             Assert.Equal(4, owner.Width);
             Assert.Equal(4, image.Width);
             Assert.Equal(ErrorCode.InvalidValue, GL.GetError());
         }
-        finally { harmony.UnpatchAll(harmony.Id); fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { harmony.UnpatchAll(harmony.Id); fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
 
     /// <summary>Reader failure invalidates every image consumer and recovery republishes actual native dimensions.</summary>
@@ -223,7 +223,7 @@ public sealed class GpuRenderbufferMetadataInterceptionTests(HeadlessGLFixture f
             secondFramebuffer.Bind();
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { harmony.UnpatchAll(harmony.Id); fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { harmony.UnpatchAll(harmony.Id); fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
 
     /// <summary>Owner resize publishes image changes once, including texture replacement that must move associations.</summary>
@@ -254,7 +254,7 @@ public sealed class GpuRenderbufferMetadataInterceptionTests(HeadlessGLFixture f
             Assert.Equal(FramebufferErrorCode.FramebufferComplete, GL.CheckFramebufferStatus(FramebufferTarget.Framebuffer));
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
     #endregion
 

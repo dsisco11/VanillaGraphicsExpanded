@@ -39,7 +39,7 @@ internal sealed partial class OpenGLBackend
     {
         private readonly OpenGLBackend backend;
         private readonly GlPipelineDesc boundary;
-        private readonly StateCache.FramebufferScope selectors;
+        private readonly OpenGlStateCache.FramebufferScope selectors;
         private bool disposed;
         #region Internal API
         /// <summary>Captures selectors before applying the known engine contract and redirecting output.</summary>

@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using HarmonyLib;
 using OpenTK.Graphics.OpenGL;
@@ -45,7 +46,7 @@ public sealed class GpuTextureDependencyRecoveryTests(HeadlessGLFixture fixture)
             Assert.True(second.CheckStatus(out _));
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
 
     /// <summary>Controlled mip selection preserves an existing view without requiring descriptor acquisition.</summary>
@@ -75,7 +76,7 @@ public sealed class GpuTextureDependencyRecoveryTests(HeadlessGLFixture fixture)
             Assert.True(GL.IsTexture(viewId));
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
 
     /// <summary>Only an interrupted storage operation retires views; interrupted parameter publication can recover.</summary>
@@ -99,7 +100,7 @@ public sealed class GpuTextureDependencyRecoveryTests(HeadlessGLFixture fixture)
             Assert.Equal(!storage, view.IsValid);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
 
     /// <summary>Equal image dimensions do not allow an old view certificate to survive a storage publication.</summary>

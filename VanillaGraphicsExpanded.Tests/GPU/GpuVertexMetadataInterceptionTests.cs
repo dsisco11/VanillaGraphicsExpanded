@@ -26,7 +26,7 @@ public sealed class GpuVertexMetadataInterceptionTests(HeadlessGLFixture fixture
             using var owner=GpuVao.Create(); using var sentinel=GpuVao.Create();
             using var buffer=RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = null }).RequireResource(); buffer.Allocate(64);
             using var previous=RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = null }).RequireResource(); previous.Allocate(64);
-            var cache=StateCache.Current;
+            var cache=OpenGlStateCache.Current;
             OpenGLVertexSelection.Bind(cache, owner.VertexArrayId); OpenGLBufferBindings.BindBuffer(cache, BufferTarget.ElementArrayBuffer,previous.BufferId);
             OpenGLVertexSelection.Bind(cache, sentinel.VertexArrayId); OpenGLBufferBindings.BindBuffer(cache, BufferTarget.ElementArrayBuffer,previous.BufferId);
             OpenGLBufferBindings.BindBuffer(cache, BufferTarget.ArrayBuffer,previous.BufferId);
@@ -65,7 +65,7 @@ public sealed class GpuVertexMetadataInterceptionTests(HeadlessGLFixture fixture
             else Assert.Equal(buffer.BufferId,cache.GetBoundBuffer(BufferTarget.ElementArrayBuffer));
             Assert.Equal(ErrorCode.NoError,GL.GetError());
         }
-        finally { harmony.UnpatchAll(harmony.Id); fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { harmony.UnpatchAll(harmony.Id); fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
     /// <summary>A rejected command conservatively advances configuration revision while numeric attribute contents do not.</summary>
     [Fact]
@@ -74,7 +74,7 @@ public sealed class GpuVertexMetadataInterceptionTests(HeadlessGLFixture fixture
         fixture.EnsureContextValid(); fixture.InitializeResourceDisposal(); var harmony=Patch();
         try
         {
-            using var vao=GpuVao.Create(); OpenGLVertexSelection.Bind(StateCache.Current, vao.VertexArrayId);
+            using var vao=GpuVao.Create(); OpenGLVertexSelection.Bind(OpenGlStateCache.Current, vao.VertexArrayId);
             var entry=GpuResourceManagerSystem.CurrentManager!.GetResourceRegistration(vao)!;
             ulong revision=entry.MetadataRevision;
             Mutate(12,vao.VertexArrayId,0);
@@ -85,7 +85,7 @@ public sealed class GpuVertexMetadataInterceptionTests(HeadlessGLFixture fixture
             float[] value=new float[4]; GL.GetVertexAttrib(0,VertexAttribParameter.CurrentVertexAttrib,value);
             Assert.Equal(0.5f,value[0]); Assert.Equal(ErrorCode.NoError,GL.GetError());
         }
-        finally { harmony.UnpatchAll(harmony.Id); fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { harmony.UnpatchAll(harmony.Id); fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
     /// <summary>Dispatch failure cannot publish success or make old configuration facts usable.</summary>
     [Fact]
@@ -94,13 +94,13 @@ public sealed class GpuVertexMetadataInterceptionTests(HeadlessGLFixture fixture
         fixture.EnsureContextValid(); fixture.InitializeResourceDisposal(); var harmony=Patch();
         try
         {
-            using var vao=GpuVao.Create(); OpenGLVertexSelection.Bind(StateCache.Current, vao.VertexArrayId);
+            using var vao=GpuVao.Create(); OpenGLVertexSelection.Bind(OpenGlStateCache.Current, vao.VertexArrayId);
             harmony.Patch(AccessTools.Method(typeof(GL),nameof(GL.EnableVertexArrayAttrib),[typeof(int),typeof(int)]),prefix:new HarmonyMethod(typeof(GpuVertexMetadataInterceptionTests),nameof(ThrowDispatch)));
             Assert.Throws<ApplicationException>(() => Mutate(7,vao.VertexArrayId,0));
             Assert.False(GpuResourceManagerSystem.CurrentManager!.IsResourceMetadataAvailable(vao));
             Assert.Equal(ErrorCode.NoError,GL.GetError());
         }
-        finally { harmony.UnpatchAll(harmony.Id); fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { harmony.UnpatchAll(harmony.Id); fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
     /// <summary>Untracked native VAOs receive actual configuration without speculative registration.</summary>
     [Fact]
@@ -114,7 +114,7 @@ public sealed class GpuVertexMetadataInterceptionTests(HeadlessGLFixture fixture
             GL.GetVertexArrayIndexed(vao,0,VertexArrayIndexedParameter.VertexAttribArrayEnabled,out int enabled); Assert.Equal(1,enabled);
             Assert.Equal(ErrorCode.NoError,GL.GetError());
         }
-        finally { harmony.UnpatchAll(harmony.Id); VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.VertexArray, vao)); fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { harmony.UnpatchAll(harmony.Id); VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.VertexArray, vao)); fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
     #endregion
     #region Private

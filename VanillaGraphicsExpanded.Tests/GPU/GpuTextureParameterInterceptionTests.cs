@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Runtime.CompilerServices;
 using HarmonyLib;
@@ -50,7 +51,7 @@ public sealed class GpuTextureParameterInterceptionTests(HeadlessGLFixture fixtu
             GL.ActiveTexture(TextureUnit.Texture3);
             GL.BindTexture(TextureTarget.Texture2D, texture.TextureId);
             if (variant == 8) GL.ActiveTexture(TextureUnit.Texture5);
-            StateCache.Current.InvalidateAll();
+            OpenGlStateCache.Current.InvalidateAll();
             SetRange(variant, texture.TextureId);
             Assert.Equal(1, entry.Metadata.BaseLevel);
             Assert.Equal(revision + 1, entry.MetadataRevision);
@@ -59,7 +60,7 @@ public sealed class GpuTextureParameterInterceptionTests(HeadlessGLFixture fixtu
             Assert.Equal((int)(variant == 8 ? TextureUnit.Texture5 : TextureUnit.Texture3), GL.GetInteger(GetPName.ActiveTexture));
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { harmony.UnpatchAll(harmony.Id); fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { harmony.UnpatchAll(harmony.Id); fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
 
     /// <summary>Core content and sampler policy perform neither object-selector recovery nor metadata readback.</summary>
@@ -74,7 +75,7 @@ public sealed class GpuTextureParameterInterceptionTests(HeadlessGLFixture fixtu
             using var texture = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba8, Width = System.Math.Max(1, 4), Height = System.Math.Max(1, 4), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
             GL.ActiveTexture(TextureUnit.Texture0);
             GL.BindTexture(TextureTarget.Texture2D, texture.TextureId);
-            StateCache.Current.InvalidateAll();
+            OpenGlStateCache.Current.InvalidateAll();
             var entry = Assert.IsType<GpuResourceMetadataEntry<GpuTextureMetadata>>(GpuResourceManagerSystem.CurrentManager!.GetResourceRegistration(texture));
             ulong revision = entry.MetadataRevision;
             var counter = new HarmonyMethod(typeof(GpuTextureParameterInterceptionTests), nameof(CountObservation));
@@ -87,7 +88,7 @@ public sealed class GpuTextureParameterInterceptionTests(HeadlessGLFixture fixtu
             Assert.Equal(revision, entry.MetadataRevision);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { harmony.UnpatchAll(harmony.Id); fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { harmony.UnpatchAll(harmony.Id); fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
 
     #endregion

@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Reflection;
 using OpenTK.Graphics.OpenGL;
@@ -17,7 +18,7 @@ public sealed class CategorizedStateCacheTests(HeadlessGLFixture fixture)
     public void GlobalIndexedAliasesAndIndependentCopies()
     {
         fixture.MakeCurrent();
-        var cache = StateCache.Current;
+        var cache = OpenGlStateCache.Current;
         cache.InvalidateAll();
         int last = cache.MaxDrawBuffers - 1;
         var alpha = new GlBlendFunc(BlendingFactorSrc.SrcAlpha, BlendingFactorDest.OneMinusSrcAlpha,
@@ -77,7 +78,7 @@ public sealed class CategorizedStateCacheTests(HeadlessGLFixture fixture)
     public void ScalarFamiliesMatchNativeAndSuppressRepeats()
     {
         fixture.MakeCurrent();
-        var cache = StateCache.Current;
+        var cache = OpenGlStateCache.Current;
         cache.InvalidateAll();
         Action establish = () =>
         {
@@ -145,7 +146,7 @@ public sealed class CategorizedStateCacheTests(HeadlessGLFixture fixture)
     public void ViewportClearColorAndSelectiveKnowledge()
     {
         fixture.MakeCurrent();
-        var cache = StateCache.Current;
+        var cache = OpenGlStateCache.Current;
         cache.InvalidateAll();
         EngineStateCalls.Viewport(3, 5, 17, 19);
         EngineStateCalls.ClearColor(.2f, .3f, .4f, .5f);
@@ -154,6 +155,11 @@ public sealed class CategorizedStateCacheTests(HeadlessGLFixture fixture)
         var clear = new float[4];
         GL.GetFloat(GetPName.ColorClearValue, clear);
         Assert.Equal(new[] { .2f, .3f, .4f, .5f }, clear);
+        // Exact external effects withdraw their fields; managed setters reestablish supplied facts.
+        Assert.Equal(DepthStateKnowledge.None, Read<DepthStateKnowledge>(cache, "depthKnown"));
+        cache.SetDepthFunc(DepthFunction.Greater);
+        cache.ApplyDynamic(new DynamicDrawState { X = 3, Y = 5, Width = 17, Height = 19 });
+        cache.SetClearColor(.2f, .3f, .4f, .5f);
         var knowledge = Read<DepthStateKnowledge>(cache, "depthKnown");
         Assert.True(knowledge.HasFlag(DepthStateKnowledge.Comparison));
         Assert.False(knowledge.HasFlag(DepthStateKnowledge.TestEnabled));
@@ -161,8 +167,8 @@ public sealed class CategorizedStateCacheTests(HeadlessGLFixture fixture)
 #if DEBUG
         long calls = cache.FixedFunctionCalls;
 #endif
-        EngineStateCalls.Viewport(3, 5, 17, 19);
-        EngineStateCalls.ClearColor(.2f, .3f, .4f, .5f);
+        cache.ApplyDynamic(new DynamicDrawState { X = 3, Y = 5, Width = 17, Height = 19 });
+        cache.SetClearColor(.2f, .3f, .4f, .5f);
 #if DEBUG
         Assert.Equal(calls, cache.FixedFunctionCalls);
 #endif
@@ -170,7 +176,7 @@ public sealed class CategorizedStateCacheTests(HeadlessGLFixture fixture)
         Assert.True(Read<DynamicDrawStateKnowledge>(cache, "dynamicKnown").HasFlag(DynamicDrawStateKnowledge.Viewport));
         cache.Invalidate(EPipelineState.Viewport);
         Assert.True(Read<bool>(cache, "clearColorKnown"));
-        EngineStateCalls.Viewport(3, 5, 17, 19);
+        cache.ApplyDynamic(new DynamicDrawState { X = 3, Y = 5, Width = 17, Height = 19 });
 #if DEBUG
         Assert.Equal(calls + 1, cache.FixedFunctionCalls);
 #endif
@@ -185,7 +191,7 @@ public sealed class CategorizedStateCacheTests(HeadlessGLFixture fixture)
     public void ClampedViewportAndOutOfRangeClearMatchNative()
     {
         fixture.MakeCurrent();
-        var cache = StateCache.Current;
+        var cache = OpenGlStateCache.Current;
         cache.InvalidateAll();
         int[] limit = new int[2];
         GL.GetInteger(GetPName.MaxViewportDims, limit);
@@ -224,14 +230,14 @@ public sealed class CategorizedStateCacheTests(HeadlessGLFixture fixture)
     public void ExplicitInvalidationResolvesKnowledgeAgain()
     {
         fixture.MakeCurrent();
-        var cache = StateCache.Current;
+        var cache = OpenGlStateCache.Current;
         cache.InvalidateAll();
         cache.SetDepthFunc(DepthFunction.Greater);
 #if DEBUG
         long calls = cache.FixedFunctionCalls;
 #endif
-        Assert.Same(cache, StateCache.Current);
-        StateCache.Current.SetDepthFunc(DepthFunction.Greater);
+        Assert.Same(cache, OpenGlStateCache.Current);
+        OpenGlStateCache.Current.SetDepthFunc(DepthFunction.Greater);
 #if DEBUG
         Assert.Equal(calls, cache.FixedFunctionCalls);
 #endif
@@ -272,7 +278,7 @@ public sealed class CategorizedStateCacheTests(HeadlessGLFixture fixture)
         GL.GetInteger(GetPName.Viewport, values); return values;
     }
     /// <summary>Inspects validity without causing a query to resolve unknown fields.</summary>
-    private static T Read<T>(StateCache cache, string name) =>
-        (T)typeof(StateCache).GetField(name, BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(cache)!;
+    private static T Read<T>(OpenGlStateCache cache, string name) =>
+        (T)typeof(OpenGlStateCache).GetField(name, BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(cache)!;
     #endregion
 }

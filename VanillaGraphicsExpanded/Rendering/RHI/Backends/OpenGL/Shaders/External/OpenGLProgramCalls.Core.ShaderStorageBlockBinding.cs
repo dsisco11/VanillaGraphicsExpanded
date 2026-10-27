@@ -10,7 +10,7 @@ internal static unsafe partial class OpenGLProgramCalls
     /// <summary>Executes the exact external overload and completes affected metadata publication.</summary>
     internal static void ExecuteCoreShaderStorageBlockBinding(int @program, int @storageBlockIndex, int @storageBlockBinding)
     {
-        var observation = StateCache.BeginNativeProgramMetadata(unchecked((int)@program), true, false, -1, 1, false, false, ProgramInterface.ShaderStorageBlock, unchecked((int)@storageBlockIndex));
+        var observation = OpenGlStateCache.BeginNativeProgramMetadata(unchecked((int)@program), true, false, -1, 1, false, false, ProgramInterface.ShaderStorageBlock, unchecked((int)@storageBlockIndex));
         bool returned = false;
         try
         {
@@ -27,7 +27,7 @@ internal static unsafe partial class OpenGLProgramCalls
     /// <summary>Executes the exact external overload and completes affected metadata publication.</summary>
     internal static void ExecuteCoreShaderStorageBlockBinding(uint @program, uint @storageBlockIndex, uint @storageBlockBinding)
     {
-        var observation = StateCache.BeginNativeProgramMetadata(unchecked((int)@program), true, false, -1, 1, false, false, ProgramInterface.ShaderStorageBlock, unchecked((int)@storageBlockIndex));
+        var observation = OpenGlStateCache.BeginNativeProgramMetadata(unchecked((int)@program), true, false, -1, 1, false, false, ProgramInterface.ShaderStorageBlock, unchecked((int)@storageBlockIndex));
         bool returned = false;
         try
         {

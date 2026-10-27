@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
@@ -21,7 +22,7 @@ public sealed class RHIStreamingUploadTests(HeadlessGLFixture fixture)
     public void StreamingPreservesPaddedRowsAndUnpackState(bool staged, bool rgb)
     {
         fixture.EnsureContextValid(); fixture.InitializeResourceDisposal();
-        var cache = StateCache.Current;
+        var cache = OpenGlStateCache.Current;
         int priorAlignment = GL.GetInteger(GetPName.UnpackAlignment);
         int priorRowLength = GL.GetInteger(GetPName.UnpackRowLength);
         int priorBuffer = GL.GetInteger(GetPName.PixelUnpackBufferBinding);

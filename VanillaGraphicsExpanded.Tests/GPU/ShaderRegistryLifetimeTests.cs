@@ -180,7 +180,7 @@ public sealed class ShaderRegistryLifetimeTests(HeadlessGLFixture fixture) : Ren
             Assert.Throws<ObjectDisposedException>(registry.BeginReload);
             Assert.Equal(closedEpoch, registry.Epoch);
             Assert.False(registry.IsReloading);
-            var state = StateCache.Current;
+            var state = OpenGlStateCache.Current;
             state.Invalidate(EPipelineState.Program);
             Assert.False(state.TryGetCachedCurrentProgram(out _));
             Assert.Throws<InvalidOperationException>(() => owner.CaptureBindings());
@@ -306,7 +306,7 @@ public sealed class ShaderRegistryLifetimeTests(HeadlessGLFixture fixture) : Ren
         {
             RenderContextRegistry.Retire(contextOwner);
             RenderContextRegistry.RegisterCurrent(fixture, static _ => true);
-            OpenGLProgramSelection.Select(StateCache.Current, 0);
+            OpenGLProgramSelection.Select(OpenGlStateCache.Current, 0);
             if (id != 0 && GL.IsProgram(id)) GL.DeleteProgram(id);
             lifetime.Shutdown();
         }
@@ -322,7 +322,7 @@ public sealed class ShaderRegistryLifetimeTests(HeadlessGLFixture fixture) : Ren
         using var texture = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba8, Width = System.Math.Max(1, 4), Height = System.Math.Max(1, 4), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         using var target = DynamicGpuFramebuffer.CreateSingle(texture)!;
         lifetime.Attach(() => { target.Dispose(); texture.Dispose(); });
-        var cache = StateCache.Current;
+        var cache = OpenGlStateCache.Current;
         var coverage = PipelineStateCoverage.FullGraphics.Union(new(clearColor: true));
         var commands=RHICommandContext.Current;
         var boundary=commands.EnterBoundary(new("RetirementPass",true,operations:BoundaryOperations.RenderPasses));
@@ -356,7 +356,7 @@ public sealed class ShaderRegistryLifetimeTests(HeadlessGLFixture fixture) : Ren
         long epoch = lifetime.Epoch;
         try
         {
-            Assert.True(StateCache.Current.TryBeginEngineBoundary(new EngineBoundaryDeclaration("EmptyReloadBoundary",
+            Assert.True(OpenGlStateCache.Current.TryBeginEngineBoundary(new EngineBoundaryDeclaration("EmptyReloadBoundary",
                 new PipelineStateCoverage(depth: DepthStateKnowledge.TestEnabled)), out var boundary));
             using (boundary!)
             {
@@ -380,7 +380,7 @@ public sealed class ShaderRegistryLifetimeTests(HeadlessGLFixture fixture) : Ren
         Assert.True(compute.EnsureReady());
         lifetime.Attach(() =>
         {
-            var cache = StateCache.Current; cache.Invalidate(EPipelineState.Program);
+            var cache = OpenGlStateCache.Current; cache.Invalidate(EPipelineState.Program);
             Assert.False(compute.EnsureReady());
             Assert.Throws<InvalidOperationException>(() => compute.CaptureBindings());
             Assert.False(cache.TryGetCachedCurrentProgram(out _));

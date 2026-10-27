@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.PBR.SceneColor;
@@ -45,7 +46,7 @@ internal sealed class ParticleSsaoCaptureFixture : IDisposable
     /// <summary>Captures exact before/after depth around uploaded partial-alpha, zero-alpha and untouched samples.</summary>
     internal void CaptureUploadedSamples()
     {
-        StateCache.Current.Apply(CaptureSetup);
+        OpenGlStateCache.Current.Apply(CaptureSetup);
         Targets.BeginCapture();
         // These are submission results, including premultiplied radiance and a zero-alpha
         // sample that still writes depth. The fourth pixel receives no particle sample.

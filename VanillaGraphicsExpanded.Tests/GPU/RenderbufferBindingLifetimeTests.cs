@@ -21,15 +21,15 @@ public sealed class RenderbufferBindingLifetimeTests(HeadlessGLFixture fixture) 
         using var second = RHICommandContext.Current.CreateRenderbuffer(new RHIRenderbufferDescription { Format = TextureFormat.Rgba8, Width = 2, Height = 2, Samples = 0, Label = null }).RequireResource();
         using var third = RHICommandContext.Current.CreateRenderbuffer(new RHIRenderbufferDescription { Format = TextureFormat.Rgba8, Width = 2, Height = 2, Samples = 0, Label = null }).RequireResource();
         GL.BindRenderbuffer(RenderbufferTarget.Renderbuffer, (int)first.ResourceId);
-        var cache = StateCache.Current; cache.Invalidate(EPipelineState.RenderbufferBinding);
+        var cache = OpenGlStateCache.Current; cache.Invalidate(EPipelineState.RenderbufferBinding);
         Assert.Equal((int)first.ResourceId, cache.GetCurrentRenderbuffer());
-        using (StateCache.Current.BindRenderbufferScope(second.RenderbufferId))
+        using (OpenGlStateCache.Current.BindRenderbufferScope(second.RenderbufferId))
         {
             Assert.Equal((int)second.ResourceId, cache.GetCurrentRenderbuffer());
             var failure = new InvalidOperationException("nested scope");
             Assert.Same(failure, Assert.Throws<InvalidOperationException>((Action)(() =>
             {
-                using var nested = StateCache.Current.BindRenderbufferScope(third.RenderbufferId);
+                using var nested = OpenGlStateCache.Current.BindRenderbufferScope(third.RenderbufferId);
                 Assert.Equal((int)third.ResourceId, GL.GetInteger(GetPName.RenderbufferBinding));
                 throw failure;
             })));
@@ -47,7 +47,7 @@ public sealed class RenderbufferBindingLifetimeTests(HeadlessGLFixture fixture) 
         EnsureContextValid();
         using var retired = RHICommandContext.Current.CreateRenderbuffer(new RHIRenderbufferDescription { Format = TextureFormat.Rgba8, Width = 2, Height = 2, Samples = 0, Label = null }).RequireResource();
         using var live = RHICommandContext.Current.CreateRenderbuffer(new RHIRenderbufferDescription { Format = TextureFormat.Rgba8, Width = 2, Height = 2, Samples = 0, Label = null }).RequireResource();
-        var cache = StateCache.Current;
+        var cache = OpenGlStateCache.Current;
         OpenGLImageBindings.BindRenderbuffer(cache, (int)retired.ResourceId);
         retired.Dispose();
         Assert.Equal(0, cache.GetCurrentRenderbuffer());
@@ -63,7 +63,7 @@ public sealed class RenderbufferBindingLifetimeTests(HeadlessGLFixture fixture) 
     {
         EnsureContextValid();
         using var bound = RHICommandContext.Current.CreateRenderbuffer(new RHIRenderbufferDescription { Format = TextureFormat.Rgba8, Width = 2, Height = 2, Samples = 0, Label = null }).RequireResource();
-        var cache = StateCache.Current;
+        var cache = OpenGlStateCache.Current;
         GL.BindRenderbuffer(RenderbufferTarget.Renderbuffer, (int)bound.ResourceId);
         cache.Invalidate(EPipelineState.RenderbufferBinding);
         GL.LineWidth(-1); // Preserve this unrelated error while querying the actual renderbuffer selection.

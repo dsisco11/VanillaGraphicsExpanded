@@ -10,7 +10,7 @@ internal static unsafe partial class OpenGLRenderbuffersCalls
     /// <summary>Executes the exact external overload and completes its affected metadata publication.</summary>
     internal static void ExecuteExtNamedRenderbufferStorageMultisample(int @renderbuffer, int @samples, ExtDirectStateAccess @internalformat, int @width, int @height)
     {
-        var observation = StateCache.BeginNativeRenderbufferStorage(unchecked((int)@renderbuffer), true);
+        var observation = OpenGlStateCache.BeginNativeRenderbufferStorage(unchecked((int)@renderbuffer), true);
         bool returned = false;
         try
         {
@@ -27,7 +27,7 @@ internal static unsafe partial class OpenGLRenderbuffersCalls
     /// <summary>Executes the exact external overload and completes its affected metadata publication.</summary>
     internal static void ExecuteExtNamedRenderbufferStorageMultisample(int @renderbuffer, int @samples, PixelInternalFormat @internalformat, int @width, int @height)
     {
-        var observation = StateCache.BeginNativeRenderbufferStorage(unchecked((int)@renderbuffer), true);
+        var observation = OpenGlStateCache.BeginNativeRenderbufferStorage(unchecked((int)@renderbuffer), true);
         bool returned = false;
         try
         {
@@ -44,7 +44,7 @@ internal static unsafe partial class OpenGLRenderbuffersCalls
     /// <summary>Executes the exact external overload and completes its affected metadata publication.</summary>
     internal static void ExecuteExtNamedRenderbufferStorageMultisample(int @renderbuffer, int @samples, RenderbufferStorage @internalformat, int @width, int @height)
     {
-        var observation = StateCache.BeginNativeRenderbufferStorage(unchecked((int)@renderbuffer), true);
+        var observation = OpenGlStateCache.BeginNativeRenderbufferStorage(unchecked((int)@renderbuffer), true);
         bool returned = false;
         try
         {
@@ -61,7 +61,7 @@ internal static unsafe partial class OpenGLRenderbuffersCalls
     /// <summary>Executes the exact external overload and completes its affected metadata publication.</summary>
     internal static void ExecuteExtNamedRenderbufferStorageMultisample(uint @renderbuffer, int @samples, ExtDirectStateAccess @internalformat, int @width, int @height)
     {
-        var observation = StateCache.BeginNativeRenderbufferStorage(unchecked((int)@renderbuffer), true);
+        var observation = OpenGlStateCache.BeginNativeRenderbufferStorage(unchecked((int)@renderbuffer), true);
         bool returned = false;
         try
         {
@@ -78,7 +78,7 @@ internal static unsafe partial class OpenGLRenderbuffersCalls
     /// <summary>Executes the exact external overload and completes its affected metadata publication.</summary>
     internal static void ExecuteExtNamedRenderbufferStorageMultisample(uint @renderbuffer, int @samples, PixelInternalFormat @internalformat, int @width, int @height)
     {
-        var observation = StateCache.BeginNativeRenderbufferStorage(unchecked((int)@renderbuffer), true);
+        var observation = OpenGlStateCache.BeginNativeRenderbufferStorage(unchecked((int)@renderbuffer), true);
         bool returned = false;
         try
         {
@@ -95,7 +95,7 @@ internal static unsafe partial class OpenGLRenderbuffersCalls
     /// <summary>Executes the exact external overload and completes its affected metadata publication.</summary>
     internal static void ExecuteExtNamedRenderbufferStorageMultisample(uint @renderbuffer, int @samples, RenderbufferStorage @internalformat, int @width, int @height)
     {
-        var observation = StateCache.BeginNativeRenderbufferStorage(unchecked((int)@renderbuffer), true);
+        var observation = OpenGlStateCache.BeginNativeRenderbufferStorage(unchecked((int)@renderbuffer), true);
         bool returned = false;
         try
         {

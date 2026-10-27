@@ -10,7 +10,7 @@ internal static unsafe partial class OpenGLVertexCalls
     /// <summary>Executes the exact overload and completes its vertex metadata operation.</summary>
     internal static void ExecuteExtVertexArrayBindVertexBuffer(int @vaobj, int @bindingindex, int @buffer, IntPtr @offset, int @stride)
     {
-        var observation = StateCache.BeginNativeVertexMetadata(unchecked((int)@vaobj), true, false);
+        var observation = OpenGlStateCache.BeginNativeVertexMetadata(unchecked((int)@vaobj), true, false);
         bool returned = false;
         try
         {
@@ -27,7 +27,7 @@ internal static unsafe partial class OpenGLVertexCalls
     /// <summary>Executes the exact overload and completes its vertex metadata operation.</summary>
     internal static void ExecuteExtVertexArrayBindVertexBuffer(uint @vaobj, uint @bindingindex, uint @buffer, IntPtr @offset, int @stride)
     {
-        var observation = StateCache.BeginNativeVertexMetadata(unchecked((int)@vaobj), true, false);
+        var observation = OpenGlStateCache.BeginNativeVertexMetadata(unchecked((int)@vaobj), true, false);
         bool returned = false;
         try
         {

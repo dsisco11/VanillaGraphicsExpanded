@@ -28,7 +28,7 @@ public sealed class CompleteGraphicsDrawTests(HeadlessGLFixture fixture) : IDisp
     public void FrontFacingIsObservableWithCullingDisabled(bool clockwise)
     {
         fixture.MakeCurrent(); using var draw = new FullscreenDraw(facing: true);
-        var cache = StateCache.Current; OpenGLProgramSelection.Select(cache, 0);
+        var cache = OpenGlStateCache.Current; OpenGLProgramSelection.Select(cache, 0);
         var baseline = Description();
         var description = new RHIGraphicsPipelineDescription(baseline.Shader, baseline.VertexLayout, baseline.Targets, baseline.Dynamics,
             rasterizer: new() { Cull = false, FrontFace = clockwise ? FrontFaceWinding.Clockwise : FrontFaceWinding.CounterClockwise });
@@ -41,7 +41,7 @@ public sealed class CompleteGraphicsDrawTests(HeadlessGLFixture fixture) : IDisp
                 var coverage = PipelineStateCoverage.Empty;
                 foreach (RHIGraphicsPipelineDescription declaration in new RHIGraphicsPipelineDescription[] {description})
                     coverage = coverage.Union(PipelineStateCoverage.From(VanillaGraphicsExpanded.Rendering.Pipeline.GraphicsStateRelevance.Derive(declaration, GpuSupport.Graphics)));
-                if (!StateCache.Current.TryBeginEngineBoundary(new EngineBoundaryDeclaration("FacingWithoutCull", coverage), out var restored,
+                if (!OpenGlStateCache.Current.TryBeginEngineBoundary(new EngineBoundaryDeclaration("FacingWithoutCull", coverage), out var restored,
                     new EngineBoundaryResources(geometry: true, programSelection: true))) return false;
                 using (restored) {
                     Action<EngineBoundaryScope> operation = _ =>
@@ -64,7 +64,7 @@ public sealed class CompleteGraphicsDrawTests(HeadlessGLFixture fixture) : IDisp
     public void FullscreenDrawIsIndependentAndBoundaryRestores(bool fail)
     {
         fixture.MakeCurrent(); using var draw = new FullscreenDraw();
-        var cache = StateCache.Current;
+        var cache = OpenGlStateCache.Current;
         GL.UseProgram(0); GL.Disable(EnableCap.StencilTest); GL.Enable(EnableCap.RasterizerDiscard);
         GL.Enable(EnableCap.ScissorTest); GL.Scissor(0, 0, 0, 0); GL.ColorMask(false, false, false, false);
         GL.Enable(EnableCap.SampleMask); GL.SampleMask(0, 0); GL.BlendEquation(BlendEquationMode.Max);
@@ -80,7 +80,7 @@ public sealed class CompleteGraphicsDrawTests(HeadlessGLFixture fixture) : IDisp
                 var coverage = PipelineStateCoverage.Empty;
                 foreach (RHIGraphicsPipelineDescription declaration in new RHIGraphicsPipelineDescription[] {description})
                     coverage = coverage.Union(PipelineStateCoverage.From(VanillaGraphicsExpanded.Rendering.Pipeline.GraphicsStateRelevance.Derive(declaration, GpuSupport.Graphics)));
-                if (!StateCache.Current.TryBeginEngineBoundary(new EngineBoundaryDeclaration("FullscreenFixture", coverage), out var restored,
+                if (!OpenGlStateCache.Current.TryBeginEngineBoundary(new EngineBoundaryDeclaration("FullscreenFixture", coverage), out var restored,
                     new EngineBoundaryResources(geometry: true, programSelection: true))) return false;
                 using (restored) {
                     Action<EngineBoundaryScope> operation = _ =>
@@ -110,7 +110,7 @@ public sealed class CompleteGraphicsDrawTests(HeadlessGLFixture fixture) : IDisp
                 var coverage = PipelineStateCoverage.Empty;
                 foreach (RHIGraphicsPipelineDescription declaration in new RHIGraphicsPipelineDescription[] {description})
                     coverage = coverage.Union(PipelineStateCoverage.From(VanillaGraphicsExpanded.Rendering.Pipeline.GraphicsStateRelevance.Derive(declaration, GpuSupport.Graphics)));
-                if (!StateCache.Current.TryBeginEngineBoundary(new EngineBoundaryDeclaration("ExcludedConditional", coverage), out var restored,
+                if (!OpenGlStateCache.Current.TryBeginEngineBoundary(new EngineBoundaryDeclaration("ExcludedConditional", coverage), out var restored,
                     new EngineBoundaryResources(geometry: true, programSelection: true))) return false;
                 using (restored) {
                     Action<EngineBoundaryScope> operation = _ => called = true;
@@ -131,7 +131,7 @@ public sealed class CompleteGraphicsDrawTests(HeadlessGLFixture fixture) : IDisp
         using var draw = new FullscreenDraw();
         var original = GpuSupport.Graphics;
         var capabilityField = HarmonyLib.AccessTools.Field(typeof(GpuSupport), "graphics");
-        var cache = StateCache.Current;
+        var cache = OpenGlStateCache.Current;
         try
         {
             // The real context supports global blending; only the optional independent path is disabled.
@@ -150,7 +150,7 @@ public sealed class CompleteGraphicsDrawTests(HeadlessGLFixture fixture) : IDisp
                 var coverage = PipelineStateCoverage.Empty;
                 foreach (RHIGraphicsPipelineDescription declaration in new RHIGraphicsPipelineDescription[] {description})
                     coverage = coverage.Union(PipelineStateCoverage.From(VanillaGraphicsExpanded.Rendering.Pipeline.GraphicsStateRelevance.Derive(declaration, GpuSupport.Graphics)));
-                if (!StateCache.Current.TryBeginEngineBoundary(new EngineBoundaryDeclaration("GlobalBlendFallback", coverage), out var restored,
+                if (!OpenGlStateCache.Current.TryBeginEngineBoundary(new EngineBoundaryDeclaration("GlobalBlendFallback", coverage), out var restored,
                     new EngineBoundaryResources(geometry: true, programSelection: true))) return false;
                 using (restored) {
                     Action<EngineBoundaryScope> operation = _ =>
@@ -214,7 +214,7 @@ public sealed class CompleteGraphicsDrawTests(HeadlessGLFixture fixture) : IDisp
             program = GL.CreateProgram(); GL.AttachShader(program, vs); GL.AttachShader(program, fs); GL.LinkProgram(program);
             GL.GetProgram(program, GetProgramParameterName.LinkStatus, out int linked); Assert.True(linked != 0, GL.GetProgramInfoLog(program));
             GL.DeleteShader(vs); GL.DeleteShader(fs);
-            vao = GpuVao.Create(); OpenGLVertexSelection.Bind(StateCache.Current, vao.VertexArrayId); indices = RHICommandContext.Current.CreateIndexBuffer(new RHIBufferDescription { Role = BufferRole.Index, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = null }).RequireResource(); indices.UploadIndices(new uint[] { 0, 1, 2 });
+            vao = GpuVao.Create(); OpenGLVertexSelection.Bind(OpenGlStateCache.Current, vao.VertexArrayId); indices = RHICommandContext.Current.CreateIndexBuffer(new RHIBufferDescription { Role = BufferRole.Index, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = null }).RequireResource(); indices.UploadIndices(new uint[] { 0, 1, 2 });
             framebuffer = GL.GenFramebuffer(); GL.BindFramebuffer(FramebufferTarget.Framebuffer, framebuffer);
             for (int i = 0; i < colors.Length; i++)
             {
@@ -222,28 +222,28 @@ public sealed class CompleteGraphicsDrawTests(HeadlessGLFixture fixture) : IDisp
                 GL.RenderbufferStorage(RenderbufferTarget.Renderbuffer, RenderbufferStorage.Rgba8, 8, 8);
                 GL.FramebufferRenderbuffer(FramebufferTarget.Framebuffer, FramebufferAttachment.ColorAttachment0 + i, RenderbufferTarget.Renderbuffer, colors[i]);
             }
-            GL.DrawBuffers(3, [DrawBuffersEnum.ColorAttachment0, DrawBuffersEnum.ColorAttachment1, DrawBuffersEnum.ColorAttachment2]); StateCache.Current.Invalidate(EPipelineState.FramebufferRouting);
+            GL.DrawBuffers(3, [DrawBuffersEnum.ColorAttachment0, DrawBuffersEnum.ColorAttachment1, DrawBuffersEnum.ColorAttachment2]); OpenGlStateCache.Current.Invalidate(EPipelineState.FramebufferRouting);
             Assert.Equal(FramebufferErrorCode.FramebufferComplete, GL.CheckFramebufferStatus(FramebufferTarget.Framebuffer));
-            StateCache.Current.InvalidateAll();
+            OpenGlStateCache.Current.InvalidateAll();
         }
         /// <summary>Issues one native indexed draw after the caller establishes complete state.</summary>
         public void Render()
         {
             int previous = GL.GetInteger(GetPName.CurrentProgram);
-            using var selection = StateCache.Current.BindVertexArrayScope(vao.VertexArrayId);
+            using var selection = OpenGlStateCache.Current.BindVertexArrayScope(vao.VertexArrayId);
             try
             {
-                OpenGLProgramSelection.Select(StateCache.Current, program);
+                OpenGLProgramSelection.Select(OpenGlStateCache.Current, program);
                 OpenTK.Graphics.OpenGL4.GL.VertexArrayElementBuffer(vao.VertexArrayId, indices.BufferId);
                 GL.DrawElements(PrimitiveType.Triangles, 3, DrawElementsType.UnsignedInt, IntPtr.Zero);
                 Submissions++;
             }
-            finally { OpenGLProgramSelection.Select(StateCache.Current, previous); }
+            finally { OpenGLProgramSelection.Select(OpenGlStateCache.Current, previous); }
         }
         /// <summary>Checks all pixels of all outputs, independent of GL state metadata.</summary>
         public void AssertPixels()
         {
-            using var pack = OpenGLPixelLayouts.PackScope(StateCache.Current, new(1));
+            using var pack = OpenGLPixelLayouts.PackScope(OpenGlStateCache.Current, new(1));
             for (int target = 0; target < 3; target++)
             {
                 GL.ReadBuffer(ReadBufferMode.ColorAttachment0 + target); byte[] pixels = new byte[8 * 8 * 4];
@@ -254,7 +254,7 @@ public sealed class CompleteGraphicsDrawTests(HeadlessGLFixture fixture) : IDisp
         /// <summary>Checks shader-observed facing for every covered pixel independently of native winding metadata.</summary>
         public void AssertFacingPixels(bool front)
         {
-            using var pack = OpenGLPixelLayouts.PackScope(StateCache.Current, new(1));
+            using var pack = OpenGLPixelLayouts.PackScope(OpenGlStateCache.Current, new(1));
             GL.ReadBuffer(ReadBufferMode.ColorAttachment0); byte[] pixels = new byte[8 * 8 * 4];
             GL.ReadPixels(0, 0, 8, 8, PixelFormat.Rgba, PixelType.UnsignedByte, pixels);
             for (int pixel = 0; pixel < 64; pixel++)
@@ -263,9 +263,9 @@ public sealed class CompleteGraphicsDrawTests(HeadlessGLFixture fixture) : IDisp
         /// <summary>Releases fixture resources while the collection context remains active.</summary>
         public void Dispose()
         {
-            OpenGLProgramSelection.Select(StateCache.Current, 0); indices.Dispose(); vao.Dispose(); GL.DeleteProgram(program);
+            OpenGLProgramSelection.Select(OpenGlStateCache.Current, 0); indices.Dispose(); vao.Dispose(); GL.DeleteProgram(program);
             GL.BindFramebuffer(FramebufferTarget.Framebuffer, 0); GL.DeleteFramebuffer(framebuffer);
-            foreach (int color in colors) GL.DeleteRenderbuffer(color); StateCache.Current.InvalidateAll();
+            foreach (int color in colors) GL.DeleteRenderbuffer(color); OpenGlStateCache.Current.InvalidateAll();
         }
         #endregion
     }

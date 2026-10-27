@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using VanillaGraphicsExpanded.Tests.GPU.Helpers;
 using OpenTK.Graphics.OpenGL;
@@ -52,7 +53,7 @@ public sealed class LumOnTemporalDebugShaderTests : RenderTestBase
         finally
         {
             GL.UseProgram(0); GL.DeleteBuffer(output); GL.DeleteProgram(program); GL.DeleteShader(shader);
-            StateCache.Current.InvalidateAll();
+            OpenGlStateCache.Current.InvalidateAll();
         }
     }
     #endregion

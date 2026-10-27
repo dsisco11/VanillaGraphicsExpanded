@@ -124,7 +124,7 @@ public sealed class PreparedSubmissionTests(HeadlessGLFixture fixture) : RenderT
         RHICommandContext.Current.Dispatch(new(1));
         RHICommandContext.Current.Barrier(new(ResourceAccess.Image | ResourceAccess.Framebuffer));
         Assert.Equal(new float[] { 11, 22, 33, 44 }, output.ReadPixels());
-        Assert.True(StateCache.Current.TryGetCachedBoundTexture(TextureTarget.Texture2D, 7, out int restored));
+        Assert.True(OpenGlStateCache.Current.TryGetCachedBoundTexture(TextureTarget.Texture2D, 7, out int restored));
         Assert.Equal(first.TextureId, restored);
     }
 
@@ -143,10 +143,10 @@ public sealed class PreparedSubmissionTests(HeadlessGLFixture fixture) : RenderT
         RHICommandContext.Current.SetPipeline(pipeline.Pipeline);
         RHICommandContext.Current.BindResources(Capture(pipeline, texture, texture, new(output, ImageAccess.WriteOnly)));
         Assert.Throws<InvalidOperationException>(() => ShaderPreparedSubmission.ValidateSamplerArray(inputs, [texture]));
-        Assert.True(StateCache.Current.TryGetCachedImageTexture(7, out int retained));
+        Assert.True(OpenGlStateCache.Current.TryGetCachedImageTexture(7, out int retained));
         Assert.Equal(output.TextureId, retained);
         ShaderPreparedSubmission.ValidateSampler(inactive, (GpuTexture?)null);
-        Assert.False(StateCache.Current.TryGetCachedBoundTexture(TextureTarget.Texture2D, 10, out _));
+        Assert.False(OpenGlStateCache.Current.TryGetCachedBoundTexture(TextureTarget.Texture2D, 10, out _));
 
         // The same disposed wrapper is now invalid even though its desired reference did not change.
         texture.Dispose();
@@ -155,7 +155,7 @@ public sealed class PreparedSubmissionTests(HeadlessGLFixture fixture) : RenderT
         ShaderPreparedSubmission.ValidateSamplerArray(optional, [texture, texture]);
         // Optional metadata validation does not mutate native slots. Publication policy belongs to the fixed shader contract.
         output.Dispose();
-        Assert.False(StateCache.Current.TryGetCachedImageTexture(7, out _));
+        Assert.False(OpenGlStateCache.Current.TryGetCachedImageTexture(7, out _));
     }
 
     /// <summary>Context-wide range and view keys suppress repeated binds and invalidate retired allocations.</summary>
@@ -163,7 +163,7 @@ public sealed class PreparedSubmissionTests(HeadlessGLFixture fixture) : RenderT
     public void IndexedBuffersAndImagesRestoreAndInvalidateCompleteAssignments()
     {
         EnsureContextValid();
-        var cache = StateCache.Current;
+        var cache = OpenGlStateCache.Current;
         cache.InvalidateAll();
         using var first = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = null }).RequireResource();
         using var second = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = null }).RequireResource();
@@ -189,15 +189,15 @@ public sealed class PreparedSubmissionTests(HeadlessGLFixture fixture) : RenderT
         Assert.True(cache.TryGetCachedIndexedBuffer(BufferRangeTarget.ShaderStorageBuffer, 0, out int cleared, out _, out _));
         Assert.Equal(0, cleared);
         using var image = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba32f, Width = System.Math.Max(1, 1), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
-        VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageSlotBindings.BindImageTexture(StateCache.Current, 7, image.TextureId, 0, false, 0, TextureAccess.WriteOnly, (SizedInternalFormat)((GpuTextureRef)image).RequireImage(0).Format);
+        VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageSlotBindings.BindImageTexture(OpenGlStateCache.Current, 7, image.TextureId, 0, false, 0, TextureAccess.WriteOnly, (SizedInternalFormat)((GpuTextureRef)image).RequireImage(0).Format);
 #if DEBUG
         count = cache.ResourceSlotBindCount;
 #endif
-        VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageSlotBindings.BindImageTexture(StateCache.Current, 7, image.TextureId, 0, false, 0, TextureAccess.WriteOnly, (SizedInternalFormat)((GpuTextureRef)image).RequireImage(0).Format);
+        VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageSlotBindings.BindImageTexture(OpenGlStateCache.Current, 7, image.TextureId, 0, false, 0, TextureAccess.WriteOnly, (SizedInternalFormat)((GpuTextureRef)image).RequireImage(0).Format);
 #if DEBUG
         Assert.Equal(count, cache.ResourceSlotBindCount);
 #endif
-        VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageSlotBindings.BindImageTexture(StateCache.Current, 7, image.TextureId, 0, false, 0, TextureAccess.ReadOnly, (SizedInternalFormat)((GpuTextureRef)image).RequireImage(0).Format);
+        VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageSlotBindings.BindImageTexture(OpenGlStateCache.Current, 7, image.TextureId, 0, false, 0, TextureAccess.ReadOnly, (SizedInternalFormat)((GpuTextureRef)image).RequireImage(0).Format);
 #if DEBUG
         Assert.Equal(count + 1, cache.ResourceSlotBindCount);
 #endif

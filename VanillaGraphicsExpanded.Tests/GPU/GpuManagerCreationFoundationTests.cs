@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Collections.Immutable;
 using OpenTK.Graphics.OpenGL;
@@ -44,12 +45,12 @@ public sealed class GpuManagerCreationFoundationTests(HeadlessGLFixture fixture)
                 Assert.Equal((ulong)1, entry.MetadataRevision);
                 Assert.Equal(1, entry.AssociationCount);
             }
-            using var binding = StateCache.Current.BindBufferScope(BufferTarget.ArrayBuffer, state.Id);
+            using var binding = OpenGlStateCache.Current.BindBufferScope(BufferTarget.ArrayBuffer, state.Id);
             GL.GetBufferParameter(BufferTarget.ArrayBuffer, BufferParameterName.BufferSize, out int actual);
             Assert.Equal(32, actual);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
 
     /// <summary>Nullable failure, initialization exceptions and handoff exceptions retire only the new allocation and clear output.</summary>
@@ -95,7 +96,7 @@ public sealed class GpuManagerCreationFoundationTests(HeadlessGLFixture fixture)
             Assert.True(GL.IsBuffer(dependency.BufferId));
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
 
     /// <summary>Invalid requests and already published recipients fail before another native allocation.</summary>
@@ -118,7 +119,7 @@ public sealed class GpuManagerCreationFoundationTests(HeadlessGLFixture fixture)
             Assert.Equal(1, state.Initializations);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
 
     /// <summary>An empty initialization record can successfully publish an empty executable without being mistaken for failure.</summary>
@@ -140,7 +141,7 @@ public sealed class GpuManagerCreationFoundationTests(HeadlessGLFixture fixture)
             Assert.True(GL.IsProgram(checked((int)handle.Id)));
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
 
     /// <summary>A metadata schema with no fields still produces a non-null successful creation result.</summary>
@@ -159,7 +160,7 @@ public sealed class GpuManagerCreationFoundationTests(HeadlessGLFixture fixture)
             Assert.True(GpuResourceManagerSystem.CurrentManager!.IsResourceMetadataAvailable(recipient));
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
 
     /// <summary>Retirement during initialization cannot expose a handle or retire its native name in a replacement context.</summary>
@@ -186,7 +187,7 @@ public sealed class GpuManagerCreationFoundationTests(HeadlessGLFixture fixture)
         {
             RenderContextRegistry.RegisterCurrent(fixture, static _ => true);
             if (GL.IsBuffer(state.Id)) RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Buffer, state.Id));
-            fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll();
+            fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll();
         }
     }
 
@@ -205,12 +206,12 @@ public sealed class GpuManagerCreationFoundationTests(HeadlessGLFixture fixture)
             Assert.Equal((nint)64, request.Capacity);
             Assert.Equal((nint)32, result!.Value.Capacity);
             Assert.Equal((nint)32, recipient.Snapshot.Capacity);
-            using var binding = StateCache.Current.BindBufferScope(BufferTarget.ArrayBuffer, state.Id);
+            using var binding = OpenGlStateCache.Current.BindBufferScope(BufferTarget.ArrayBuffer, state.Id);
             GL.GetBufferParameter(BufferTarget.ArrayBuffer, BufferParameterName.BufferSize, out int capacity);
             Assert.Equal(32, capacity);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
 
     /// <summary>The returned result is the reconciled canonical snapshot delivered to the wrapper, including established attachment modes.</summary>
@@ -234,7 +235,7 @@ public sealed class GpuManagerCreationFoundationTests(HeadlessGLFixture fixture)
             Assert.True(GL.IsRenderbuffer(backing.RenderbufferId));
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
 
     /// <summary>A backend collision cannot transfer or delete an existing owner's registered native object.</summary>
@@ -268,7 +269,7 @@ public sealed class GpuManagerCreationFoundationTests(HeadlessGLFixture fixture)
             Assert.Equal(16, owner.SizeBytes);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
 
     /// <summary>Handoff losing the current context retains queued cleanup identity until the live originating context drains it.</summary>
@@ -304,7 +305,7 @@ public sealed class GpuManagerCreationFoundationTests(HeadlessGLFixture fixture)
         {
             fixture.MakeCurrent();
             if (state.Id != 0 && GL.IsBuffer(state.Id)) RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Buffer, state.Id));
-            fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll();
+            fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll();
         }
     }
     #endregion
@@ -341,7 +342,7 @@ public sealed class GpuManagerCreationFoundationTests(HeadlessGLFixture fixture)
             state.Initializations++;
             if (state.CollisionId != 0)
                 return state.Failure == 0 ? null : new(initialization.Capacity, initialization.Usage);
-            using var binding = StateCache.Current.BindBufferScope(BufferTarget.ArrayBuffer, state.Id);
+            using var binding = OpenGlStateCache.Current.BindBufferScope(BufferTarget.ArrayBuffer, state.Id);
             GL.BufferData(BufferTarget.ArrayBuffer, initialization.Capacity, IntPtr.Zero, initialization.Usage);
             state.AfterInitialize?.Invoke();
             if (state.Failure == 1) throw state.Exception;
@@ -393,7 +394,7 @@ public sealed class GpuManagerCreationFoundationTests(HeadlessGLFixture fixture)
         public GpuFramebufferMetadata? Initialize(VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext execution, in EmptyRequest initialization, out nint id)
         {
             id = GL.GenFramebuffer();
-            using var binding = StateCache.Current.BindFramebufferScope(FramebufferTarget.Framebuffer, checked((int)id));
+            using var binding = OpenGlStateCache.Current.BindFramebufferScope(FramebufferTarget.Framebuffer, checked((int)id));
             GL.FramebufferRenderbuffer(FramebufferTarget.Framebuffer, FramebufferAttachment.ColorAttachment0, RenderbufferTarget.Renderbuffer, renderbuffer);
             var images = ImmutableDictionary<FramebufferAttachment, GpuFramebufferImageMetadata>.Empty.Add(
                 FramebufferAttachment.ColorAttachment0, new(GpuResourceKind.Renderbuffer, renderbuffer, 0, 0, 0, false));

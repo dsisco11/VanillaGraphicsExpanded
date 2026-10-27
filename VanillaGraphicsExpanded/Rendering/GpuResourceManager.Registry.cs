@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System;
 using System.Collections.Concurrent;
 using System.Threading;
@@ -156,7 +157,7 @@ internal sealed partial class GpuResourceManager
     internal void ObserveDeletion(GpuResourceKind kind, nint id)
     {
         if (id == 0 || context != currentMetadataContext()) return;
-        StateCache.Current.CancelResourceOperation(kind, id);
+        OpenGlStateCache.Current.CancelResourceOperation(kind, id);
         if (metadataRegistry.TryRemove(new(kind, id), out var entry))
         {
             entry.Invalidate(GpuResourceRegistrationState.Deleted);

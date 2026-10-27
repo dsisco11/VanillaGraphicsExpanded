@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.Pipeline;
 using System.Runtime.InteropServices;
 using VanillaGraphicsExpanded.Rendering.Shaders;
@@ -151,7 +152,7 @@ public sealed class RHICommandListTests(HeadlessGLFixture fixture) : RenderTestB
             Assert.Equal(CommandListState.Cancelled, context.Submit(list).State);
             Assert.Equal(CompletionStatus.Cancelled, marker.Poll());
         }
-        finally { RenderContextRegistry.RegisterCurrent(fixture, static _ => true); StateCache.Current.InvalidateAll(); }
+        finally { RenderContextRegistry.RegisterCurrent(fixture, static _ => true); OpenGlStateCache.Current.InvalidateAll(); }
     }
     /// <summary>Uniform bytes execute in the current epoch and an older captured version cannot clear newer dirty data.</summary>
     [Fact]
@@ -311,7 +312,7 @@ public sealed class RHICommandListTests(HeadlessGLFixture fixture) : RenderTestB
             Assert.Equal(CompletionStatus.Cancelled, result.Poll()); Assert.Equal(CommandListState.Cancelled, list.State);
             Assert.Equal(0, list.Count);
         }
-        finally { RenderContextRegistry.RegisterCurrent(fixture, static _ => true); StateCache.Current.InvalidateAll(); }
+        finally { RenderContextRegistry.RegisterCurrent(fixture, static _ => true); OpenGlStateCache.Current.InvalidateAll(); }
     }
     /// <summary>Copied helper slots use the declared native target and restore the original sampled object.</summary>
     [Fact]

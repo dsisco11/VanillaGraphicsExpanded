@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
@@ -22,9 +23,9 @@ public sealed class ScissorStateScopeTests(HeadlessGLFixture fixture) : RenderTe
         {
             Assert.Throws<InvalidOperationException>((Action)(() =>
             {
-                using var outer = StateCache.Current.PreserveScissorState();
+                using var outer = OpenGlStateCache.Current.PreserveScissorState();
                 SetScissor(!initial);
-                using (StateCache.Current.PreserveScissorState())
+                using (OpenGlStateCache.Current.PreserveScissorState())
                 {
                     SetScissor(initial);
                     Assert.Equal(initial, GL.IsEnabled(EnableCap.ScissorTest));
@@ -34,7 +35,7 @@ public sealed class ScissorStateScopeTests(HeadlessGLFixture fixture) : RenderTe
             }));
             Assert.Equal(initial, GL.IsEnabled(EnableCap.ScissorTest));
             // Re-entering also proves restoration updated the authoritative cached value.
-            using (StateCache.Current.PreserveScissorState()) SetScissor(!initial);
+            using (OpenGlStateCache.Current.PreserveScissorState()) SetScissor(!initial);
             Assert.Equal(initial, GL.IsEnabled(EnableCap.ScissorTest));
         }
         finally { SetScissor(false); }
@@ -48,13 +49,13 @@ public sealed class ScissorStateScopeTests(HeadlessGLFixture fixture) : RenderTe
     {
         EnsureContextValid();
         if (driverEnabled) GL.Enable(EnableCap.ScissorTest); else GL.Disable(EnableCap.ScissorTest);
-        StateCache.Current.InvalidateAll();
+        OpenGlStateCache.Current.InvalidateAll();
         try
         {
-            Assert.Throws<InvalidOperationException>(() => StateCache.Current.PreserveScissorState());
+            Assert.Throws<InvalidOperationException>(() => OpenGlStateCache.Current.PreserveScissorState());
             Assert.Equal(driverEnabled, GL.IsEnabled(EnableCap.ScissorTest));
             // A rejected scope must not silently learn the driver value for the next attempt.
-            Assert.Throws<InvalidOperationException>(() => StateCache.Current.PreserveScissorState());
+            Assert.Throws<InvalidOperationException>(() => OpenGlStateCache.Current.PreserveScissorState());
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
         finally { SetScissor(false); }
@@ -66,7 +67,7 @@ public sealed class ScissorStateScopeTests(HeadlessGLFixture fixture) : RenderTe
     private static void SetScissor(bool enabled)
     {
         var mask = GlPipelineStateMask.From(GlPipelineStateId.ScissorTestEnable);
-        StateCache.Current.Apply(new GlPipelineDesc(enabled ? default : mask, enabled ? mask : default));
+        OpenGlStateCache.Current.Apply(new GlPipelineDesc(enabled ? default : mask, enabled ? mask : default));
     }
     #endregion
 }

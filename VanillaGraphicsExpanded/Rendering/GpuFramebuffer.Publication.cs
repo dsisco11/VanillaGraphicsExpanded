@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System;
 
 namespace VanillaGraphicsExpanded.Rendering;
@@ -27,8 +28,8 @@ public abstract partial class GpuFramebuffer
         // A retained wrapper must keep the original association until its borrow releases.
         // Refreshing facts for the same live identity does not transfer that borrow.
         if (replacesIdentity) RequireRetirement();
-        StateCache.Current.InvalidateFramebufferDrawRouting(fboId);
-        StateCache.Current.InvalidateFramebufferDrawRouting(existingFboId);
+        OpenGlStateCache.Current.InvalidateFramebufferDrawRouting(fboId);
+        OpenGlStateCache.Current.InvalidateFramebufferDrawRouting(existingFboId);
         Surface = null;
         attachments.Clear();
         attachmentsDirty = false;

@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System.Numerics;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.LumOn.Scene.Geometry;
@@ -116,7 +117,7 @@ public sealed class LumOnNearFieldMaterialReadinessTests : NearFieldShaderTestBa
     {
         var readiness = new byte[scene.RegionResolution * scene.RegionResolution * scene.RegionResolution];
         GL.GetInteger(GetPName.PackAlignment, out int previous);
-        using var binding = StateCache.Current.BindTextureScope(TextureTarget.Texture3D, 0, scene.Regions.TextureId);
+        using var binding = OpenGlStateCache.Current.BindTextureScope(TextureTarget.Texture3D, 0, scene.Regions.TextureId);
         try
         {
             GL.PixelStore(PixelStoreParameter.PackAlignment, 1);

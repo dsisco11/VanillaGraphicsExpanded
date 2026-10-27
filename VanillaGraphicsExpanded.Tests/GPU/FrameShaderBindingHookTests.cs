@@ -64,8 +64,8 @@ public sealed class FrameShaderBindingHookTests(HeadlessGLFixture fixture) : Ren
         try
         {
             // Native GUI/offscreen routes must draw before world publication with no camera range inherited.
-            OpenGLBufferBindings.BindBufferBase(StateCache.Current, BufferRangeTarget.UniformBuffer,GpuBindingRegistry.Ubo.Frame,0);
-            OpenGLBufferBindings.BindBufferBase(StateCache.Current, BufferRangeTarget.UniformBuffer,GpuBindingRegistry.Ubo.Lights,0);
+            OpenGLBufferBindings.BindBufferBase(OpenGlStateCache.Current, BufferRangeTarget.UniformBuffer,GpuBindingRegistry.Ubo.Frame,0);
+            OpenGLBufferBindings.BindBufferBase(OpenGlStateCache.Current, BufferRangeTarget.UniformBuffer,GpuBindingRegistry.Ubo.Lights,0);
             Assert.Throws<InvalidOperationException>(() => VgeFrameRenderer.Current);
             engine.Use();
             Assert.Equal(0,Binding().Buffer);
@@ -148,7 +148,7 @@ public sealed class FrameShaderBindingHookTests(HeadlessGLFixture fixture) : Ren
         {
             harmony.UnpatchAll(harmony.Id);FrameShaderBindingHook.ClearUniformCache();
             ShaderProgramBase.CurrentShaderProgram=previous;
-            OpenGLProgramSelection.Select(StateCache.Current, 0);
+            OpenGLProgramSelection.Select(OpenGlStateCache.Current, 0);
         }
     }
 
@@ -186,8 +186,8 @@ public sealed class FrameShaderBindingHookTests(HeadlessGLFixture fixture) : Ren
             {
                 ConfigModSystem.Config.ShadingQuality=quality;
                 int unit=GpuBindingRegistry.Sampler.MicrofacetEnergy;
-                OpenGLImageBindings.BindTexture(StateCache.Current, TextureTarget.Texture2D,unit,0);
-                OpenGLImageBindings.BindSampler(StateCache.Current, unit,0);
+                OpenGLImageBindings.BindTexture(OpenGlStateCache.Current, TextureTarget.Texture2D,unit,0);
+                OpenGLImageBindings.BindSampler(OpenGlStateCache.Current, unit,0);
                 engine.Use();
                 var selected=MicrofacetEnergyLookup.Prepare();
                 GL.GetInteger(GetPName.ActiveTexture,out int priorActive);
@@ -214,7 +214,7 @@ public sealed class FrameShaderBindingHookTests(HeadlessGLFixture fixture) : Ren
             ConfigModSystem.Config.ShadingQuality=previousQuality;
             MicrofacetEnergyLookup.Prepare();
             harmony.UnpatchAll(harmony.Id);FrameShaderBindingHook.ClearUniformCache();
-            ShaderProgramBase.CurrentShaderProgram=previousProgram;OpenGLProgramSelection.Select(StateCache.Current, 0);
+            ShaderProgramBase.CurrentShaderProgram=previousProgram;OpenGLProgramSelection.Select(OpenGlStateCache.Current, 0);
         }
     }
     #endregion
@@ -230,7 +230,7 @@ public sealed class FrameShaderBindingHookTests(HeadlessGLFixture fixture) : Ren
     /// <summary>Inspects a retained GPU snapshot without changing its owning publication or camera state.</summary>
     private static byte[] ReadSnapshot((int Buffer,int Offset,int Size) selected)
     {
-        using var scope = StateCache.Current.BindBufferScope(BufferTarget.UniformBuffer,selected.Buffer);
+        using var scope = OpenGlStateCache.Current.BindBufferScope(BufferTarget.UniformBuffer,selected.Buffer);
         byte[] bytes = new byte[selected.Size];
         GL.GetBufferSubData(BufferTarget.UniformBuffer,(IntPtr)selected.Offset,bytes.Length,bytes);
         return bytes;

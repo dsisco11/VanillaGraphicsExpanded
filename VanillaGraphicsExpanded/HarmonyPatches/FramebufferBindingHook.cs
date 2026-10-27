@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System.Collections.Generic;
 using System.Reflection;
 using HarmonyLib;
@@ -27,7 +28,7 @@ internal static class FramebufferBindingHook
     {
         // OIT and primary framebuffer attachments have different blend policies. Tracking
         // this boundary prevents primary-only repair from changing OIT accumulation.
-        StateCache.Current.SetFramebufferCache(FramebufferTarget.Framebuffer, __0?.FboId ?? 0);
+        OpenGlStateCache.Current.SetFramebufferCache(FramebufferTarget.Framebuffer, __0?.FboId ?? 0);
     }
 
     #endregion

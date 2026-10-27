@@ -10,7 +10,7 @@ internal static unsafe partial class OpenGLRenderbuffersCalls
     /// <summary>Executes the exact external overload and completes its affected metadata publication.</summary>
     internal static void ExecuteCoreNamedRenderbufferStorage(int @renderbuffer, RenderbufferStorage @internalformat, int @width, int @height)
     {
-        var observation = StateCache.BeginNativeRenderbufferStorage(unchecked((int)@renderbuffer), true);
+        var observation = OpenGlStateCache.BeginNativeRenderbufferStorage(unchecked((int)@renderbuffer), true);
         bool returned = false;
         try
         {
@@ -27,7 +27,7 @@ internal static unsafe partial class OpenGLRenderbuffersCalls
     /// <summary>Executes the exact external overload and completes its affected metadata publication.</summary>
     internal static void ExecuteCoreNamedRenderbufferStorage(uint @renderbuffer, RenderbufferStorage @internalformat, int @width, int @height)
     {
-        var observation = StateCache.BeginNativeRenderbufferStorage(unchecked((int)@renderbuffer), true);
+        var observation = OpenGlStateCache.BeginNativeRenderbufferStorage(unchecked((int)@renderbuffer), true);
         bool returned = false;
         try
         {

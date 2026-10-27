@@ -100,7 +100,7 @@ public sealed class ComputeInputSubmissionTests(HeadlessGLFixture fixture) : Ren
         var graphics = programs.Create<RasterDepthCopyShaderProgram>();
         graphics.PrimaryDepth = graphicsDepth;
         var commands=RHICommandContext.Current;
-        OpenGLProgramSelection.Select(StateCache.Current,graphics.ProgramId);
+        OpenGLProgramSelection.Select(OpenGlStateCache.Current,graphics.ProgramId);
         using(var boundary=commands.EnterBoundary(new("Tests.ComputeSwitch",true,compute:[first.Pipeline,second.Pipeline])))
         boundary.Run(()=>
         {
@@ -112,7 +112,7 @@ public sealed class ComputeInputSubmissionTests(HeadlessGLFixture fixture) : Ren
             AssertBound(first.ProgramId,firstTexture.TextureId,firstCounters.Buffer.BufferId);
         });
         Assert.Equal(graphics.ProgramId,GL.GetInteger(GetPName.CurrentProgram));
-        OpenGLProgramSelection.Select(StateCache.Current,0);
+        OpenGLProgramSelection.Select(OpenGlStateCache.Current,0);
         Assert.Equal(17u, firstCounters.Read());
         Assert.Equal(29u, secondCounters.Read());
         Assert.Equal(0, GL.GetInteger(GetPName.CurrentProgram));

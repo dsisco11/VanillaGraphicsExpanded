@@ -8,7 +8,7 @@ namespace VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 /// <summary>Owns native execution for one admitted context and its existing state cache.</summary>
 internal sealed partial class OpenGLBackend : IRHIBackend
 {
-    private readonly StateCache cache;
+    private readonly OpenGlStateCache cache;
     private readonly nint nativeContext;
     private readonly (nint Handle, long Generation) origin;
     private readonly int thread = Environment.CurrentManagedThreadId;
@@ -40,7 +40,7 @@ internal sealed partial class OpenGLBackend : IRHIBackend
         && origin == RenderContextRegistry.Current() && (origin == default || RenderContextRegistry.IsAlive(origin));
 
     /// <summary>Loads core bindings and admits the required baseline once, before any managed execution.</summary>
-    internal unsafe OpenGLBackend(StateCache cache)
+    internal unsafe OpenGLBackend(OpenGlStateCache cache)
     {
         nativeContext = (nint)GLFW.GetCurrentContext();
         if (nativeContext == 0) throw new InvalidOperationException("A current native context is required for RHI admission.");
@@ -59,7 +59,7 @@ internal sealed partial class OpenGLBackend : IRHIBackend
         if (origin != default) RenderContextRegistry.Retiring += RetireContextRealizations;
     }
     /// <summary>Reports whether an executed cache notification belongs to this originating backend.</summary>
-    internal bool OwnsCache(StateCache candidate) => ReferenceEquals(cache, candidate) && IsCurrentContext;
+    internal bool OwnsCache(OpenGlStateCache candidate) => ReferenceEquals(cache, candidate) && IsCurrentContext;
     #endregion
 
     #region Private

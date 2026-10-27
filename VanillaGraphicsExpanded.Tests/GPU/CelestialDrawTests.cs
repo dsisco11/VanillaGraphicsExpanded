@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Numerics;
@@ -192,7 +193,7 @@ public sealed class CelestialDrawTests(HeadlessGLFixture fixture) : LumOnShaderF
         for(int face=0;face<6;face++)
         {
             float[] values = Enumerable.Range(0,4).SelectMany(_=>new[]{(float)(face+1),2f,4f,1f}).ToArray();
-            using var binding=StateCache.Current.BindTextureScope(TextureTarget.TextureCubeMap,0,cube.TextureId);
+            using var binding=OpenGlStateCache.Current.BindTextureScope(TextureTarget.TextureCubeMap,0,cube.TextureId);
             GL.TexSubImage2D(TextureTarget.TextureCubeMapPositiveX+face,0,0,0,2,2,PixelFormat.Rgba,PixelType.Float,values);
         }
         using var transmission=RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Width = 2, Height = 1, Format = TextureFormat.Rgba32f, MipLevels = 1, Storage = ResourceStorageMode.Mutable, BaseLevel = 0, MaxLevel = 0, Filter = TextureFilterMode.Nearest, Label = null }, [new RHITextureInitialData(new(new(), 0, 0, 0, 2, 1), VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLPixelValues.Encoding(TextureFormatHelper.GetPixelFormat(PixelInternalFormat.Rgba32f), OpenTK.Graphics.OpenGL.PixelType.Float), System.Runtime.InteropServices.MemoryMarshal.AsBytes((new float[] { .5f,.25f,.75f,1,.5f,.25f,.75f,1 }).AsSpan()).ToArray())]).RequireResource();

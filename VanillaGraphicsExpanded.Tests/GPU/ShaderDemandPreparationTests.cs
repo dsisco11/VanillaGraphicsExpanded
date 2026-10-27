@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.ShaderCompilation;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Collections.Immutable;
@@ -169,7 +170,7 @@ public sealed class ShaderDemandPreparationTests(HeadlessGLFixture fixture) : Re
         Assert.Equal(123u, actual[0]);
         GL.BindTexture(TextureTarget.Texture3D, 0);
         GL.BindImageTexture(0, 0, 0, false, 0, TextureAccess.WriteOnly, SizedInternalFormat.Rgba32ui);
-        StateCache.Current.InvalidateAll();
+        OpenGlStateCache.Current.InvalidateAll();
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
 

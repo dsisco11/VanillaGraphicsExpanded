@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.PBR.Liquids;
@@ -17,7 +18,7 @@ public sealed class WaterRefractionLifecycleTests(HeadlessGLFixture fixture) : R
     public void CaptureTargetOwnsOnlyReceiverAttachments()
     {
         EnsureContextValid();
-        using var bindings = StateCache.Current.BindFramebufferScope();
+        using var bindings = OpenGlStateCache.Current.BindFramebufferScope();
         using var source = new WaterRefractionScene();
         var target = source.BeginCapture(2, 2)!;
         Assert.IsType<RHIRenderPassDescription>(target);

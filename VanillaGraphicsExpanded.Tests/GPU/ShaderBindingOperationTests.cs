@@ -30,7 +30,7 @@ public sealed class ShaderBindingOperationTests(HeadlessGLFixture fixture, ITest
         shader.Output = new(result, ImageAccess.WriteOnly);
         shader.Dispatch(1);
         RHICommandContext.Current.Barrier(new(ResourceAccess.Image));
-        var cache = StateCache.Current;
+        var cache = OpenGlStateCache.Current;
         var prepared = pipeline.ProgramLayout.BinaryInterface!.PreparedBindings;
 #if DEBUG
         using var acquisition = new ProgramAcquisitionCapture();
@@ -158,20 +158,20 @@ public sealed class ShaderBindingOperationTests(HeadlessGLFixture fixture, ITest
                 images: [new(GpuBindingEntry.Identity(ShaderBindingKind.Image, "outputImage"), new RHIImageBinding(result, ImageAccess.WriteOnly))]);
             context.SetPipeline(arrays.Pipeline); context.BindResources(bindings);
 #if DEBUG
-            long binds = StateCache.Current.TextureBindCount;
+            long binds = OpenGlStateCache.Current.TextureBindCount;
 #endif
             for (int use = 0; use < 3; use++) context.BindResources(bindings);
 #if DEBUG
-            Assert.Equal(binds, StateCache.Current.TextureBindCount);
+            Assert.Equal(binds, OpenGlStateCache.Current.TextureBindCount);
 #endif
             source.Dispose();
             Assert.False(borrowed.IsValid);
             Assert.Throws<InvalidOperationException>(() => context.BindResources(bindings));
 #if DEBUG
-            Assert.Equal(binds, StateCache.Current.TextureBindCount);
+            Assert.Equal(binds, OpenGlStateCache.Current.TextureBindCount);
 #endif
         }
-        finally { fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
     #endregion
 

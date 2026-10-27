@@ -14,6 +14,47 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 public sealed class EngineStateSwitchingGpuTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
     #region Public API
+    /// <summary>Exact engine state calls execute even when the managed cache already knows the same value.</summary>
+    [Fact]
+    public void RepeatedEngineDepthMasksAreNeverSuppressed()
+    {
+        EnsureContextValid();
+        var cache = OpenGlStateCache.Current;
+        cache.SetDepthWriteMask(true);
+        using var calls = new BindingCallCapture();
+        // Managed equality cannot suppress an intercepted call or alter its observable native effects.
+        EngineStateCalls.DepthMask(true);
+        EngineStateCalls.DepthMask(true);
+        Assert.Equal(2, calls.Calls(nameof(GL.DepthMask)));
+        Assert.True(GL.GetBoolean(GetPName.DepthWritemask));
+        Assert.Equal(ErrorCode.NoError, GL.GetError());
+    }
+
+    /// <summary>Invalid native arguments preserve native rejection rather than becoming a managed validation error.</summary>
+    [Fact]
+    public void EngineViewportPreservesNativeErrorsAndArguments()
+    {
+        EnsureContextValid();
+        var cache = OpenGlStateCache.Current;
+        cache.ApplyDynamic(new VanillaGraphicsExpanded.Rendering.Pipeline.State.DynamicDrawState
+            { X = 0, Y = 0, Width = 16, Height = 16 });
+        try
+        {
+            // Negative width is rejected by GL and must never be clamped or rejected by the adapter itself.
+            EngineStateCalls.Viewport(0, 0, -1, 16);
+            Assert.Equal(ErrorCode.InvalidValue, GL.GetError());
+            var viewport = new int[4];
+            GL.GetInteger(GetPName.Viewport, viewport);
+            Assert.Equal(new[] { 0, 0, 16, 16 }, viewport);
+            cache.ApplyDynamic(new VanillaGraphicsExpanded.Rendering.Pipeline.State.DynamicDrawState
+                { X = 0, Y = 0, Width = 8, Height = 8 });
+            GL.GetInteger(GetPName.Viewport, viewport);
+            Assert.Equal(new[] { 0, 0, 8, 8 }, viewport);
+            Assert.Equal(ErrorCode.NoError, GL.GetError());
+        }
+        finally { cache.Invalidate(EPipelineState.Viewport); }
+    }
+
     /// <summary>Binding a previously unknown VAO queries its existing element-buffer association.</summary>
     [Fact]
     public void UnknownVertexArrayPreservesExistingElementBuffer()
@@ -21,7 +62,7 @@ public sealed class EngineStateSwitchingGpuTests(HeadlessGLFixture fixture) : Re
         EnsureContextValid();
         int array = GL.GenVertexArray();
         int buffer = GL.GenBuffer();
-        var cache = StateCache.Current;
+        var cache = OpenGlStateCache.Current;
         try
         {
             // Populate native VAO state before the cache observes this object.
@@ -42,7 +83,7 @@ public sealed class EngineStateSwitchingGpuTests(HeadlessGLFixture fixture) : Re
     public void RetiredBindingsResolveToNativeZero()
     {
         EnsureContextValid();
-        var cache = StateCache.Current;
+        var cache = OpenGlStateCache.Current;
         int texture = GL.GenTexture();
         int sampler = GL.GenSampler();
         int buffer = GL.GenBuffer();
@@ -95,7 +136,7 @@ public sealed class EngineStateSwitchingGpuTests(HeadlessGLFixture fixture) : Re
     public void PatchedDepthCallRestoresPreviouslyCachedValue()
     {
         EnsureContextValid();
-        var cache = StateCache.Current;
+        var cache = OpenGlStateCache.Current;
         var harmony = Patch(nameof(ChangeDepth));
         try
         {
@@ -114,7 +155,7 @@ public sealed class EngineStateSwitchingGpuTests(HeadlessGLFixture fixture) : Re
     public void IndexedBlendChangesCannotSuppressGlobalRestore()
     {
         EnsureContextValid();
-        var cache = StateCache.Current;
+        var cache = OpenGlStateCache.Current;
         var harmony = Patch(nameof(ChangeIndexedBlend));
         try
         {
@@ -136,7 +177,7 @@ public sealed class EngineStateSwitchingGpuTests(HeadlessGLFixture fixture) : Re
     public void PatchedTextureBindingPreservesSamplerAndTracksActiveUnit()
     {
         EnsureContextValid();
-        var cache = StateCache.Current;
+        var cache = OpenGlStateCache.Current;
         int texture = GL.GenTexture();
         int sampler = GL.GenSampler();
         var harmony = Patch(nameof(ChangeTexture));
@@ -173,7 +214,7 @@ public sealed class EngineStateSwitchingGpuTests(HeadlessGLFixture fixture) : Re
     public void UnknownActiveTextureUnitBindsWithoutQueryAndInvalidatesOnlyAffectedTarget()
     {
         EnsureContextValid();
-        var cache = StateCache.Current;
+        var cache = OpenGlStateCache.Current;
         int previousTexture = GL.GenTexture();
         int nextTexture = GL.GenTexture();
         int cubeTexture = GL.GenTexture();
@@ -238,7 +279,7 @@ public sealed class EngineStateSwitchingGpuTests(HeadlessGLFixture fixture) : Re
         {
             harmony.UnpatchAll(harmony.Id);
             if (previous) GL.Enable(EnableCap.Dither); else GL.Disable(EnableCap.Dither);
-            StateCache.Current.InvalidateAll();
+            OpenGlStateCache.Current.InvalidateAll();
         }
     }
     #endregion

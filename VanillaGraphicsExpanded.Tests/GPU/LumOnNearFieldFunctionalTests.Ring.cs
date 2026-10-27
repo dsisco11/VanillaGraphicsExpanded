@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.LumOn.Scene;
 using VanillaGraphicsExpanded.LumOn.Scene.Geometry;
@@ -108,7 +109,7 @@ public sealed partial class LumOnNearFieldFunctionalTests
     private static byte[] ReadReadiness(ControlledTraceGpuScene scene)
     {
         var data = new byte[scene.RegionResolution * scene.RegionResolution * scene.RegionResolution];
-        using var binding = StateCache.Current.BindTextureScope(TextureTarget.Texture3D, 0, scene.Regions.TextureId);
+        using var binding = OpenGlStateCache.Current.BindTextureScope(TextureTarget.Texture3D, 0, scene.Regions.TextureId);
         GL.GetInteger(GetPName.PackAlignment, out int previousAlignment);
         GL.PixelStore(PixelStoreParameter.PackAlignment, 1);
         try { GL.GetTexImage(TextureTarget.Texture3D, 0, PixelFormat.RedInteger, PixelType.UnsignedByte, data); }

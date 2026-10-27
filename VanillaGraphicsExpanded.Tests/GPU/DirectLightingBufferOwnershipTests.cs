@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using HarmonyLib;
 using OpenTK.Graphics.OpenGL;
@@ -73,7 +74,7 @@ public sealed class DirectLightingBufferOwnershipTests(HeadlessGLFixture fixture
             Assert.True(partialTexture.IsDisposed);
             Assert.False(GL.IsTexture(partialTextureId));
             Assert.Equal(incoming.FboId, GL.GetInteger(GetPName.FramebufferBinding));
-            Assert.Equal(incoming.FboId, StateCache.Current.GetCurrentFramebuffer(FramebufferTarget.Framebuffer));
+            Assert.Equal(incoming.FboId, OpenGlStateCache.Current.GetCurrentFramebuffer(FramebufferTarget.Framebuffer));
         }
         finally
         {

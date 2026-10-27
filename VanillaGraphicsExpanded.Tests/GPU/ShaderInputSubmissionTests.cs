@@ -149,13 +149,13 @@ public sealed class ShaderInputSubmissionTests : RenderTestBase
             shader.SrcMip = 1;
             var parameters = (CpuUniformBuffer)typeof(RasterDepthReductionShaderProgram)
                 .GetField("paramsUbo", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(shader)!;
-            OpenGLImageBindings.BindTexture(StateCache.Current, TextureTarget.Texture2D, 0, previous.TextureId);
+            OpenGLImageBindings.BindTexture(OpenGlStateCache.Current, TextureTarget.Texture2D, 0, previous.TextureId);
             Assert.Throws<InvalidOperationException>(() => RHICommandContext.Current.BindResources(shader.CaptureBindings()));
             Assert.True(parameters.IsDirty);
 #if DEBUG
             Assert.Equal(0, ring.AllocationsWritten);
 #endif
-            Assert.True(StateCache.Current.TryGetCachedBoundTexture(TextureTarget.Texture2D, 0, out int retained));
+            Assert.True(OpenGlStateCache.Current.TryGetCachedBoundTexture(TextureTarget.Texture2D, 0, out int retained));
             Assert.Equal(previous.TextureId, retained);
             shader.HzbDepth = desired;
             { RHICommandContext.Current.BindResources(shader.CaptureBindings()); }
@@ -165,7 +165,7 @@ public sealed class ShaderInputSubmissionTests : RenderTestBase
 #if DEBUG
                 Assert.Equal(1, ring.AllocationsWritten);
 #endif
-                Assert.True(StateCache.Current.TryGetCachedBoundTexture(TextureTarget.Texture2D, 0, out int published));
+                Assert.True(OpenGlStateCache.Current.TryGetCachedBoundTexture(TextureTarget.Texture2D, 0, out int published));
                 Assert.Equal(desired.TextureId, published);
             }
             RHICommandContext.Current.BindResources(shader.CaptureBindings());

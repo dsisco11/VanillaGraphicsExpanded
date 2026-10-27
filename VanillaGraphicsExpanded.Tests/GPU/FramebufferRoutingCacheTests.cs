@@ -22,7 +22,7 @@ public sealed class FramebufferRoutingCacheTests(HeadlessGLFixture fixture, ITes
         EnsureContextValid();
         using var first = Target();
         using var second = Target();
-        var cache = StateCache.Current;
+        var cache = OpenGlStateCache.Current;
         DrawBuffersEnum[] authored = [DrawBuffersEnum.None, DrawBuffersEnum.ColorAttachment2];
         using (var capture = new GraphicsTransitionCapture())
         {
@@ -50,7 +50,7 @@ public sealed class FramebufferRoutingCacheTests(HeadlessGLFixture fixture, ITes
         EnsureContextValid();
         using var target = Target();
         target.Bind();
-        var cache = StateCache.Current;
+        var cache = OpenGlStateCache.Current;
         using var capture = new GraphicsTransitionCapture();
         OpenGLFramebufferRouting.SetDrawBuffer(cache, DrawBufferMode.ColorAttachment1);
         OpenGLFramebufferRouting.SetDrawBuffers(cache, 1, [DrawBuffersEnum.ColorAttachment1, DrawBuffersEnum.ColorAttachment2]);
@@ -70,7 +70,7 @@ public sealed class FramebufferRoutingCacheTests(HeadlessGLFixture fixture, ITes
         using var capability = new DirectStateAccessCapabilityScope(directStateAccess);
         using var first = Target();
         using var second = Target();
-        var cache = StateCache.Current;
+        var cache = OpenGlStateCache.Current;
         first.Bind();
         OpenGLFramebufferRouting.SetDrawBuffer(cache, DrawBufferMode.ColorAttachment1);
         second.Bind();
@@ -92,7 +92,7 @@ public sealed class FramebufferRoutingCacheTests(HeadlessGLFixture fixture, ITes
         EnsureContextValid();
         using var target = Target();
         target.Bind();
-        var cache = StateCache.Current;
+        var cache = OpenGlStateCache.Current;
         OpenGLFramebufferRouting.SetDrawBuffer(cache, DrawBufferMode.ColorAttachment1);
         GL.DrawBuffer(DrawBufferMode.ColorAttachment0);
         cache.Invalidate(invalidation);
@@ -109,7 +109,7 @@ public sealed class FramebufferRoutingCacheTests(HeadlessGLFixture fixture, ITes
         EnsureContextValid();
         using var first = Target();
         using var second = Target();
-        var cache = StateCache.Current;
+        var cache = OpenGlStateCache.Current;
         second.Bind();
         OpenGLFramebufferRouting.SetDrawBuffer(cache, DrawBufferMode.ColorAttachment1);
         first.Bind();
@@ -130,7 +130,7 @@ public sealed class FramebufferRoutingCacheTests(HeadlessGLFixture fixture, ITes
         EnsureContextValid();
         using var target = Target();
         target.Bind();
-        var cache = StateCache.Current;
+        var cache = OpenGlStateCache.Current;
         OpenGLFramebufferRouting.SetDrawBuffer(cache, DrawBufferMode.ColorAttachment1);
         int id = (int)target.Detach();
         try
@@ -157,9 +157,9 @@ public sealed class FramebufferRoutingCacheTests(HeadlessGLFixture fixture, ITes
     {
         EnsureContextValid();
         // Clear-only passes declare no executable and restore the incoming shared-fixture program.
-        OpenGLProgramSelection.Select(StateCache.Current, 0);
+        OpenGLProgramSelection.Select(OpenGlStateCache.Current, 0);
         using var target = Target();
-        var cache = StateCache.Current;
+        var cache = OpenGlStateCache.Current;
         // Reset image contents and the incoming mapping identically for each comparison.
         void Initialize()
         {

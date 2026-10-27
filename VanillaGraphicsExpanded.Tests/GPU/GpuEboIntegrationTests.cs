@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using HarmonyLib;
@@ -736,7 +737,7 @@ public class GpuEboIntegrationTests : IDisposable
     private static void AssertNativeUsage(GpuBufferObject buffer)
     {
         // Array-buffer binding can query any buffer without altering a VAO's element binding.
-        using var binding = StateCache.Current.BindBufferScope(BufferTarget.ArrayBuffer, buffer.BufferId);
+        using var binding = OpenGlStateCache.Current.BindBufferScope(BufferTarget.ArrayBuffer, buffer.BufferId);
         GL.GetBufferParameter(BufferTarget.ArrayBuffer, BufferParameterName.BufferUsage, out int actualUsage);
         Assert.Equal((BufferUsageHint)actualUsage, buffer.Usage);
     }

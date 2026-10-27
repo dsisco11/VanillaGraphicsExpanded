@@ -8,7 +8,7 @@ internal static class OpenGLProgramPipelineSelection
 {
     #region Internal API
     /// <summary>Publishes only a completed originating-context selection, leaving arbitrary external calls on their exact observation path.</summary>
-    internal static void Bind(StateCache cache,int pipeline)
+    internal static void Bind(OpenGlStateCache cache,int pipeline)
     {
         if(cache.ProgramPipelineSelectionKnowledge==pipeline)return;
         var origin=GpuResource.CaptureCreationContext(GpuResourceKind.ProgramPipeline);

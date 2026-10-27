@@ -1,0 +1,27 @@
+using System;
+using OpenTK.Graphics.OpenGL;
+
+namespace VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
+
+/// <summary>Owns cached depth range transitions.</summary>
+internal sealed partial class OpenGlStateCache
+{
+    #region Internal API
+    /// <summary>Establishes DepthRange while suppressing a known identical native transition.</summary>
+    internal void SetDepthRange(double near, double far)
+    {
+        if (!double.IsFinite(near) || !double.IsFinite(far) || near < 0 || near > 1 || far < 0 || far > 1) throw new ArgumentOutOfRangeException(nameof(near));
+        ValidateBoundaryMutation(depth: DepthStateKnowledge.DepthRange, completeGraphics: true);
+        if (depthKnown.HasFlag(DepthStateKnowledge.DepthRange) && depth.DepthRange == (near, far)) return;
+        depthKnown &= ~DepthStateKnowledge.DepthRange;
+        if (GlDebug.CheckStateTransitions && !restoringBoundary) CheckBoundaryNativeError();
+        OpenGLStateEffects.DepthRange(near, far);
+#if DEBUG
+        FixedFunctionCalls++;
+#endif
+        if (GlDebug.CheckStateTransitions && !restoringBoundary) CheckBoundaryNativeError();
+        depth.DepthRange = (near, far);
+        depthKnown |= DepthStateKnowledge.DepthRange;
+    }
+    #endregion
+}

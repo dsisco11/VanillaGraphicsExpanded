@@ -9,7 +9,7 @@ namespace VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 /// <summary>Owns a completed private framebuffer realization without freezing or owning its attachment storage.</summary>
 internal sealed class OpenGLPassTarget : GpuFramebuffer
 {
-    private readonly StateCache configurationOwner = StateCache.Current;
+    private readonly OpenGlStateCache configurationOwner = OpenGlStateCache.Current;
     private readonly DrawBuffersEnum[] route;
     private readonly GpuResourceRegistration? registration;
     private readonly ulong metadataRevision, attachmentRevision;

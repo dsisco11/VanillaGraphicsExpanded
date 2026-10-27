@@ -104,7 +104,7 @@ internal sealed partial class OpenGLBackend
     }
 
     /// <summary>Stops compound setters after original identity or context changes.</summary>
-    private void CheckTextureOwner(GpuTexture owner, int id, StateCache.ResourceOperationGuard guard)
+    private void CheckTextureOwner(GpuTexture owner, int id, OpenGlStateCache.ResourceOperationGuard guard)
     {
         RequireContext();
         if (guard.Cancelled || !owner.IsValid || owner.TextureId != id) throw new InvalidOperationException("The original texture owner has retired or changed identity.");

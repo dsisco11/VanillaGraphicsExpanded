@@ -43,7 +43,7 @@ public sealed class PbrLumOnPipelineTargetsLifetimeTests : IDisposable
                 textures.Add(attachment.TextureId);
             }
         }
-        Assert.Equal(15, textures.Count);
+        Assert.Equal(17, textures.Count);
 
         targets.Dispose();
         Assert.All(textures, id => Assert.True(GL.IsTexture(id)));

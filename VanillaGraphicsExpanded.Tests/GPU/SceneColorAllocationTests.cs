@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System.Reflection;
 using System.Reflection.Emit;
 using HarmonyLib;
@@ -87,7 +88,7 @@ public sealed class SceneColorAllocationTests(HeadlessGLFixture fixture) : Rende
             Assert.Equal(new[] { 8f, 4f, 2f, 1f }, result);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { GL.BindTexture(TextureTarget.Texture2D, 0); GL.DeleteTexture(texture); StateCache.Current.InvalidateAll(); }
+        finally { GL.BindTexture(TextureTarget.Texture2D, 0); GL.DeleteTexture(texture); OpenGlStateCache.Current.InvalidateAll(); }
         foreach (var kind in Enum.GetValues<EnumFrameBuffer>())
         {
             allocation.Begin(kind);

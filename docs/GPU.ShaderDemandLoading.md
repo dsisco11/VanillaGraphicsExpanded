@@ -1,8 +1,7 @@
 # Shader declaration and preparation
 
-Fullscreen debug programs are now independently compiled per view; see
-[Per-view debug shaders](GPU.DebugViewShaders.md). Earlier debug-category and legacy-fallback
-validation below records the preceding implementation.
+Fullscreen debug programs are independently compiled per view; see
+[Per-view debug shaders](GPU.DebugViewShaders.md).
 
 All production graphics registration now declares owners without loading shader binaries or linking
 executables. `GpuShaderPrograms` owns declarations independently of the engine's registry. Consumers
@@ -11,8 +10,8 @@ look up declarations there, so a missing shader never triggers the engine's GLSL
 ## Graphics ownership
 
 `GpuProgram.EnsureReady` prepares the current immutable settings through the existing SPIR-V loader
-and driver executable cache. `TryUse`, `UseScope`, direct `Use`, and internal `IGpuProgram` workflows establish
-readiness before activation. Failed preparation retains a previous executable but does not activate
+and driver executable cache. Internal `IGpuProgram` preparation completes readiness before a renderer constructs its RHI pipeline
+and captures bindings. Pipeline selection and execution belong to `RHICommandContext`. Failed preparation retains a previous executable but does not activate
 it with incompatible inputs. Repeated attempts with the same failed inputs do not reread binaries;
 changed effective settings or asset invalidation permit another attempt.
 
@@ -51,48 +50,19 @@ individual driver links faster or establish a new startup performance result.
 
 ## Compute ownership
 
-`GpuComputePipeline.DeclareFromAssets` captures immutable inputs without loading assets or issuing GL
-commands. `EnsureReady`, ordinary activation and dispatch prepare the executable and transfer its
-interface and handle together. Failed attempts remain suppressed until an explicit retry; disposed
-pipelines cannot revive. `DispatchBound` still requires an already-prepared, bound pipeline.
-
-`TryCreateFromAssets`, `TryLoadFromSpirv`, and low-level `TryCreate` remain explicit eager preparation
-APIs for feature owners and fixtures that require a completed pipeline immediately. Existing compute
-systems already invoke these at their feature-use boundaries rather than through global startup
-registration. The world-probe trace owner now declares its three required programs and explicitly
-preloads them through its existing linking batch.
+`ComputeShaderAsset` retains immutable asset/rebuild inputs and composes a ready RHI shader and compute
+pipeline. Declaration does not load assets or execute GL. `EnsureReady` prepares the selected executable
+and interface before input capture; explicit eager factories remain available to feature owners and
+fixtures. Disposed owners cannot revive, and failed requests retry only on changed inputs or explicit
+retry. Renderers select the resulting pipeline, bind the captured table and dispatch through RHI.
+Work uploads, clears, barriers and readbacks remain explicit ordered operations.
 
 ## Retained compute reload
 
 The `GpuComputeProgram` wrapper retains desired inputs and CPU blocks. Asset-backed eager and
 deferred creation paths retain an immutable rebuild factory/source. On reload a validated candidate
-`GpuComputePipeline`, interface and revision install together, then the old native owner retires.
+`ComputeShaderAsset`, interface and revision install together, then the old native owner retires.
 Failed candidates retain the previous allocation but cannot dispatch it for the new asset epoch.
 Raw pipelines without a rebuild description are explicitly caller-lifetime objects. Compute owners
 remain feature-owned and do not require graphics registry membership. Shared default workflows and
 concrete facade dispatch are documented in [GpuProgram](GpuProgram.md#shared-workflows-and-compatibility).
-
-## Historical demand-loading validation
-
-The following receipts predate independent shader ownership and describe that earlier implementation.
-Current migration qualification is recorded in [the ownership checklist](Rendering.ShaderOwnership.todo).
-
-Final Release validation passed **53/53** focused tests in 35 seconds, including declaration-only
-registration, selective activation and preload, graphics interface activation/disposal, terminal
-retirement, engine reload, failed retries, compute first dispatch, executable caching, batching,
-debug fallback and seven actual PBR/lighting runtime cases. Evidence:
-`artifacts/ShaderDemand/demand-all-release.trx` and `artifacts-demand-all-release.log`.
-
-An earlier Debug integration run passed 15/15 shared-preparation and runtime cases:
-`artifacts/ShaderDemand/demand-all-runtime-debug.trx`. The final retirement changes are covered by
-the final Release run. The 249-variant reload inventory theory was not rerun; focused graphics
-lifecycle cases were included. No new performance profile or in-game visual check was performed.
-
-Independent review passed after correcting terminal disposal versus engine reload, excluding retired
-owners before batch submission, replacing retired family declarations, and preparing PBR composition
-before framebuffer mutation. No game process was launched or stopped.
-
-Historical
-19-program eager registration and cold/warm selection measurements remain in
-[GPU.ParallelShaderCompilation.md](GPU.ParallelShaderCompilation.md); they predate this generalized
-registration policy and must not be presented as current startup measurements.

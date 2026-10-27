@@ -31,7 +31,7 @@ internal static class RuntimeEngineServices
         var meshes = new Dictionary<MeshRef, RuntimeNativeMesh>();
         render.Setup(api => api.UploadMesh(It.IsAny<MeshData>())).Returns((MeshData data) => { var native = new RuntimeNativeMesh(data); meshes.Add(native.Mesh, native); return native.Mesh; });
         render.Setup(api => api.DeleteMesh(It.IsAny<MeshRef>())).Callback((MeshRef mesh) => { if (meshes.Remove(mesh, out var native)) native.Dispose(); });
-        render.Setup(api => api.RenderMesh(It.IsAny<MeshRef>())).Callback((MeshRef mesh) => { draw(); if (nativeDraw) meshes[mesh].Draw(); VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLVertexSelection.Bind(StateCache.Current, 0); });
+        render.Setup(api => api.RenderMesh(It.IsAny<MeshRef>())).Callback((MeshRef mesh) => { draw(); if (nativeDraw) meshes[mesh].Draw(); VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLVertexSelection.Bind(OpenGlStateCache.Current, 0); });
         render.Setup(api => api.GlToggleBlend(It.IsAny<bool>(), It.IsAny<EnumBlendMode>()))
             .Callback((bool enabled, EnumBlendMode _) => ToggleBlend(enabled));
         return render.Object;

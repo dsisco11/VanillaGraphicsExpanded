@@ -84,7 +84,7 @@ public sealed class RHIAuxiliaryTests(HeadlessGLFixture fixture, Xunit.ITestOutp
             GL.TextureStorage2D(name, 1, SizedInternalFormat.Rgba8, width, height);
             using var borrowed = new BorrowedTexture(name);
             int previous = GL.GetInteger(GetPName.TextureBinding2D);
-            StateCache.Current.InvalidateAll();
+            OpenGlStateCache.Current.InvalidateAll();
             var region = new RHITextureRegion(new(0), 0, 0, 0, width, height, 1);
             context.CommitTexturePages(borrowed, region, true);
             Assert.Equal(previous, GL.GetInteger(GetPName.TextureBinding2D));
@@ -300,9 +300,9 @@ public sealed class RHIAuxiliaryTests(HeadlessGLFixture fixture, Xunit.ITestOutp
         #endregion
     }
     /// <summary>Starts the native execution and resource-retirement interval.</summary>
-    private void Start() { fixture.EnsureContextValid(); fixture.InitializeResourceDisposal(); StateCache.Current.InvalidateAll(); }
+    private void Start() { fixture.EnsureContextValid(); fixture.InitializeResourceDisposal(); OpenGlStateCache.Current.InvalidateAll(); }
     /// <summary>Drains test-owned resources and clears external selector changes.</summary>
-    private void Finish() { fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+    private void Finish() { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     /// <summary>Substitutes only native wait outcomes to prove deterministic pending/failure transitions.</summary>
     private sealed class WaitObservation : IDisposable
     {

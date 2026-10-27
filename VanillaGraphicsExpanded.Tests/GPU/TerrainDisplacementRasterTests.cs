@@ -84,7 +84,7 @@ public sealed class TerrainDisplacementRasterTests : RenderTestBase
         int fragment=shaders.Compile(ShaderType.FragmentShader,fragmentSource);
         using var vertexArray = GpuVao.Create();
         int vao = vertexArray.VertexArrayId, program = 0;
-        int oldPatch=StateCache.Current.PatchVertices;
+        int oldPatch=OpenGlStateCache.Current.PatchVertices;
         try
         {
             Assert.True(TerrainShaderTestFixture.LinkTessellation(vertex,fragment,TerrainTessellationTestAssets.Generate(source,depthBias:mode==12),TerrainTessellationPatches.EnabledDefine, out program,out string error),error);
@@ -97,7 +97,7 @@ public sealed class TerrainDisplacementRasterTests : RenderTestBase
             using var camera = TestFrameCamera.CreateIdentity(128,128);
             Assert.True(VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindUniformSnapshot(GpuBindingRegistry.Ubo.Frame, camera.Capture()));
             var layout = GpuProgramLayout.TryBuild(program);
-            FramebufferTestSetup.BindForEngineRendering(target); OpenGLProgramSelection.Select(StateCache.Current, program); OpenGLVertexSelection.Bind(StateCache.Current, vao);
+            FramebufferTestSetup.BindForEngineRendering(target); OpenGLProgramSelection.Select(OpenGlStateCache.Current, program); OpenGLVertexSelection.Bind(OpenGlStateCache.Current, vao);
             VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, amplitude, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)amplitude).Target))]); VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(1, atlas, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)atlas).Target))]); VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(2, records, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)records).Target))]);
             ShaderTestFramework.SetUniform(layout.GetUniformLocation(program,"vge_displacementTex"),0);
             ShaderTestFramework.SetUniform(layout.GetUniformLocation(program,"vge_normalDepthTex"),1);
@@ -117,7 +117,7 @@ public sealed class TerrainDisplacementRasterTests : RenderTestBase
                 ShaderTestFramework.SetUniform(layout.GetUniformLocation(program,"shadowRangeFar"),100f);
             }
             GL.Disable(EnableCap.DepthTest); GL.Disable(EnableCap.Blend); GL.Disable(EnableCap.CullFace);
-            StateCache.Current.SetPatchVertices(3);
+            OpenGlStateCache.Current.SetPatchVertices(3);
             if(mode==11) {
                 // Separate submissions represent a pool/chunk boundary sharing the same eye-relative edge.
                 GL.DrawArrays(PrimitiveType.Patches,0,6);
@@ -154,7 +154,7 @@ public sealed class TerrainDisplacementRasterTests : RenderTestBase
             }
             if(mode<10) Assert.InRange(actual[center+3],.999f,1.001f);
         }
-        finally { OpenGLProgramSelection.Select(StateCache.Current, 0); OpenGLVertexSelection.Bind(StateCache.Current, 0); StateCache.Current.SetPatchVertices(oldPatch);  if(program!=0)GpuProgramObject.Adopt(program).Dispose();   }
+        finally { OpenGLProgramSelection.Select(OpenGlStateCache.Current, 0); OpenGLVertexSelection.Bind(OpenGlStateCache.Current, 0); OpenGlStateCache.Current.SetPatchVertices(oldPatch);  if(program!=0)GpuProgramObject.Adopt(program).Dispose();   }
     }
     #endregion
 }

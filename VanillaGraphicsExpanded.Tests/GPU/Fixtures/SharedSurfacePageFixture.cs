@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.ShaderCompilation;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Runtime.InteropServices;
@@ -121,7 +122,7 @@ internal sealed class SharedSurfacePageFixture : IDisposable
     {
         var data = new float[Size * Size * 4];
         Assert.Equal(ErrorCode.NoError, GL.GetError());
-        using var binding = StateCache.Current.BindTextureScope(TextureTarget.Texture2DArray, 0, irradiance.TextureId);
+        using var binding = OpenGlStateCache.Current.BindTextureScope(TextureTarget.Texture2DArray, 0, irradiance.TextureId);
         Assert.Equal(ErrorCode.NoError, GL.GetError());
         GL.GetTexImage(TextureTarget.Texture2DArray, 0, PixelFormat.Rgba, PixelType.Float, data);
         Assert.Equal(ErrorCode.NoError, GL.GetError());
@@ -132,7 +133,7 @@ internal sealed class SharedSurfacePageFixture : IDisposable
     public byte[] ReadMaterial()
     {
         var data = new byte[Size * Size * 4];
-        using var binding = StateCache.Current.BindTextureScope(TextureTarget.Texture2DArray, 0, material.TextureId);
+        using var binding = OpenGlStateCache.Current.BindTextureScope(TextureTarget.Texture2DArray, 0, material.TextureId);
         GL.GetTexImage(TextureTarget.Texture2DArray, 0, PixelFormat.Rgba, PixelType.UnsignedByte, data);
         return data;
     }

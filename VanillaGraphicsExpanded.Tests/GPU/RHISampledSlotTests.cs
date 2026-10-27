@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System;
 using OpenTK.Graphics.OpenGL4;
 using VanillaGraphicsExpanded.Rendering;
@@ -24,7 +25,7 @@ public sealed class RHISampledSlotTests(HeadlessGLFixture fixture)
             var retired = context.CreateTexture2D(Description()).RequireResource();
             context.BindSampledTextures([new(0, original)]);
             GL.ActiveTexture(TextureUnit.Texture5);
-            StateCache.Current.Invalidate(EPipelineState.TextureBindings);
+            OpenGlStateCache.Current.Invalidate(EPipelineState.TextureBindings);
             retired.Dispose();
             Assert.ThrowsAny<InvalidOperationException>(() => context.BindSampledTextures([new(0, candidate), new(1, retired)]));
             Assert.Equal((int)TextureUnit.Texture5, GL.GetInteger(GetPName.ActiveTexture));
@@ -32,7 +33,7 @@ public sealed class RHISampledSlotTests(HeadlessGLFixture fixture)
             Assert.Equal(original.TextureId, GL.GetInteger(GetPName.TextureBinding2D));
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { StateCache.Current.InvalidateAll(); fixture.CleanupGpuResources(); }
+        finally { OpenGlStateCache.Current.InvalidateAll(); fixture.CleanupGpuResources(); }
     }
     /// <summary>Empty inputs clear only their declared target, retain unrelated targets and clear the supplied sampler.</summary>
     [Fact]
@@ -56,7 +57,7 @@ public sealed class RHISampledSlotTests(HeadlessGLFixture fixture)
             Assert.Equal(0, absent); Assert.Equal(three.TextureId, retained); Assert.Equal(0, absentSampler);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { StateCache.Current.InvalidateAll(); fixture.CleanupGpuResources(); }
+        finally { OpenGlStateCache.Current.InvalidateAll(); fixture.CleanupGpuResources(); }
     }
     /// <summary>An unrelated native error is not consumed or attributed to a successful logical uniform upload.</summary>
     [Fact]
@@ -74,7 +75,7 @@ public sealed class RHISampledSlotTests(HeadlessGLFixture fixture)
             ring.EndFrame();
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { StateCache.Current.InvalidateAll(); fixture.CleanupGpuResources(); }
+        finally { OpenGlStateCache.Current.InvalidateAll(); fixture.CleanupGpuResources(); }
     }
     #endregion
     #region Private

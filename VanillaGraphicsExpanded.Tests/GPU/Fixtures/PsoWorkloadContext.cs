@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using OpenTK.Graphics.OpenGL;
 using OpenTK.Windowing.Desktop;
 using OpenTK.Windowing.GraphicsLibraryFramework;
@@ -26,7 +27,7 @@ internal sealed unsafe class PsoWorkloadContext : IDisposable
         Assert.True(window != null);
         GLFW.MakeContextCurrent(window); GL.LoadBindings(new GLFWBindingsContext());
         RenderContextRegistry.RegisterCurrent(this, owner => ((PsoWorkloadContext)owner).window != null);
-        GpuSupport.EnsureCurrentContext(); StateCache.Current.InvalidateAll();
+        GpuSupport.EnsureCurrentContext(); OpenGlStateCache.Current.InvalidateAll();
         TestUniformRing.BeginFrame();
     }
 
@@ -35,7 +36,7 @@ internal sealed unsafe class PsoWorkloadContext : IDisposable
     {
         TestUniformRing.Dispose(); GpuSamplers.Dispose();
         RenderContextRegistry.Retire(this); GLFW.DestroyWindow(window); window = null;
-        fixture.MakeCurrent(); GpuSupport.EnsureCurrentContext(); StateCache.Current.InvalidateAll();
+        fixture.MakeCurrent(); GpuSupport.EnsureCurrentContext(); OpenGlStateCache.Current.InvalidateAll();
     }
     #endregion
 }

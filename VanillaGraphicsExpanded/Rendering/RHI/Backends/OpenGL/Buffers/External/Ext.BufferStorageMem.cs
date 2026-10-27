@@ -10,7 +10,7 @@ internal static unsafe partial class OpenGLBufferStorageCalls
     /// <summary>Executes the exact external overload and completes its affected metadata publication.</summary>
     internal static void ExecuteExtBufferStorageMem(BufferTargetArb @target, int @size, int @memory, long @offset)
     {
-        var observation = StateCache.InvalidateNativeBufferStorage(unchecked((int)@target), false);
+        var observation = OpenGlStateCache.InvalidateNativeBufferStorage(unchecked((int)@target), false);
         try { GL.Ext.BufferStorageMem(@target, @size, @memory, @offset); }
         finally { observation.Complete(); }
     }
@@ -18,7 +18,7 @@ internal static unsafe partial class OpenGLBufferStorageCalls
     /// <summary>Executes the exact external overload and completes its affected metadata publication.</summary>
     internal static void ExecuteExtBufferStorageMem(BufferTargetArb @target, int @size, uint @memory, ulong @offset)
     {
-        var observation = StateCache.InvalidateNativeBufferStorage(unchecked((int)@target), false);
+        var observation = OpenGlStateCache.InvalidateNativeBufferStorage(unchecked((int)@target), false);
         try { GL.Ext.BufferStorageMem(@target, @size, @memory, @offset); }
         finally { observation.Complete(); }
     }
@@ -26,7 +26,7 @@ internal static unsafe partial class OpenGLBufferStorageCalls
     /// <summary>Executes the exact external overload and completes its affected metadata publication.</summary>
     internal static void ExecuteExtBufferStorageMem(BufferTargetArb @target, IntPtr @size, int @memory, long @offset)
     {
-        var observation = StateCache.InvalidateNativeBufferStorage(unchecked((int)@target), false);
+        var observation = OpenGlStateCache.InvalidateNativeBufferStorage(unchecked((int)@target), false);
         try { GL.Ext.BufferStorageMem(@target, @size, @memory, @offset); }
         finally { observation.Complete(); }
     }
@@ -34,7 +34,7 @@ internal static unsafe partial class OpenGLBufferStorageCalls
     /// <summary>Executes the exact external overload and completes its affected metadata publication.</summary>
     internal static void ExecuteExtBufferStorageMem(BufferTargetArb @target, IntPtr @size, uint @memory, ulong @offset)
     {
-        var observation = StateCache.InvalidateNativeBufferStorage(unchecked((int)@target), false);
+        var observation = OpenGlStateCache.InvalidateNativeBufferStorage(unchecked((int)@target), false);
         try { GL.Ext.BufferStorageMem(@target, @size, @memory, @offset); }
         finally { observation.Complete(); }
     }

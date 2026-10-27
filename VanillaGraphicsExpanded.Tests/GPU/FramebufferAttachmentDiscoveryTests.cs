@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
@@ -40,7 +41,7 @@ public sealed class FramebufferAttachmentDiscoveryTests(HeadlessGLFixture fixtur
         fixture.InitializeResourceDisposal();
         try
         {
-            using var scope = StateCache.Current.BindFramebufferScope();
+            using var scope = OpenGlStateCache.Current.BindFramebufferScope();
             using var texture = RHICommandContext.Current.CreateDynamicTexture3D(new RHITextureDescription { Dimension = TextureDimension.TwoArray, Format = TextureFormat.Rgba32f, Width = System.Math.Max(1, 2), Height = System.Math.Max(1, 2), Depth = System.Math.Max(1, 2), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Linear, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
             using var image = GpuFramebufferAttachment.FromTexture(texture, layer: layer);
             using var source = DynamicGpuFramebuffer.Create([image])!;
@@ -58,7 +59,7 @@ public sealed class FramebufferAttachmentDiscoveryTests(HeadlessGLFixture fixtur
             Assert.Equal(new[] { 0.25f, 0.5f, 0.75f, 1f }, destination[0].ReadPixels()[..4]);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
 
     /// <summary>A context-local raw alias cannot invent ordinary replay provenance from ambiguous array attachment queries.</summary>
@@ -86,12 +87,12 @@ public sealed class FramebufferAttachmentDiscoveryTests(HeadlessGLFixture fixtur
     public void ExternalCubeFaceCopiesSelectedImage()
     {
         EnsureContextValid();
-        using var scope = StateCache.Current.BindFramebufferScope();
+        using var scope = OpenGlStateCache.Current.BindFramebufferScope();
         int texture = GL.GenTexture();
         try
         {
             // No cube-map allocation wrapper exists; allocate every face to provide complete cube storage.
-            using (StateCache.Current.BindTextureScope(TextureTarget.TextureCubeMap, 0, texture))
+            using (OpenGlStateCache.Current.BindTextureScope(TextureTarget.TextureCubeMap, 0, texture))
             {
                 for (int face = 0; face < 6; face++)
                     GL.TexImage2D(TextureTarget.TextureCubeMapPositiveX + face, 0, PixelInternalFormat.Rgba32f,
@@ -101,7 +102,7 @@ public sealed class FramebufferAttachmentDiscoveryTests(HeadlessGLFixture fixtur
             source.Bind();
             GL.FramebufferTexture2D(FramebufferTarget.Framebuffer, FramebufferAttachment.ColorAttachment0,
                 TextureTarget.TextureCubeMapNegativeZ, texture, 0);
-            GL.DrawBuffer(DrawBufferMode.ColorAttachment0); StateCache.Current.Invalidate(EPipelineState.FramebufferRouting);
+            GL.DrawBuffer(DrawBufferMode.ColorAttachment0); OpenGlStateCache.Current.Invalidate(EPipelineState.FramebufferRouting);
             GL.ClearBuffer(ClearBuffer.Color, 0, new[] { 0.125f, 0.25f, 0.5f, 1f });
             using var external = DynamicGpuFramebuffer.Wrap(source.FboId, width: 2, height: 2);
             using var destination = CreateRenderTarget(2, 2, PixelInternalFormat.Rgba32f);

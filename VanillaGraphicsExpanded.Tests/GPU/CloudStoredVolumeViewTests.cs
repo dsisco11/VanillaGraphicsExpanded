@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System.Numerics;
 using VanillaGraphicsExpanded.PBR.Clouds.Volume;
 using VanillaGraphicsExpanded.Rendering;
@@ -20,7 +21,7 @@ public sealed class CloudStoredVolumeViewTests(HeadlessGLFixture fixture,Xunit.I
         using var ownedScene=new CloudStoredVolumeViewScene(Programs,18,14);
         var expected=ownedScene.Draw(settings);
         using var borrowedScene=new CloudStoredVolumeViewScene(Programs,18,14);
-        StateCache.Current.InvalidateAll();
+        OpenGlStateCache.Current.InvalidateAll();
         var actual=borrowedScene.DrawBorrowedInputs(settings);
         for(int image=0;image<expected.Length;image++)Assert.Equal(expected[image],actual[image]);
         Assert.Equal(OpenTK.Graphics.OpenGL.ErrorCode.NoError,OpenTK.Graphics.OpenGL.GL.GetError());

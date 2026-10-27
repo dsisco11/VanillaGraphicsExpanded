@@ -15,7 +15,7 @@ internal static class OpenGLTextureImageQueries
     {
         image = default;
         bool bound = face != 0;
-        using var binding = bound ? StateCache.Current.BindTextureScope(target, 0, texture) : (StateCache.TextureScope?)null;
+        using var binding = bound ? OpenGlStateCache.Current.BindTextureScope(target, 0, texture) : (OpenGlStateCache.TextureScope?)null;
         var queryTarget = face != 0 ? face : target;
         int width = Read(texture, queryTarget, level, GetTextureParameter.TextureWidth, backend);
         if (width < 0) return false;

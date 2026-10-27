@@ -7,7 +7,7 @@ internal static partial class OpenGLPixelLayouts
 {
     #region Private
     /// <summary>Reads one unknown selector without accepting a replacement context.</summary>
-    private static int ReadLayoutValue(StateCache cache, RHICommandContext backend, GetPName parameter)
+    private static int ReadLayoutValue(OpenGlStateCache cache, RHICommandContext backend, GetPName parameter)
     {
         backend.RequireContext();
         int result = cache.QueryBoundary(() => GL.GetInteger(parameter));

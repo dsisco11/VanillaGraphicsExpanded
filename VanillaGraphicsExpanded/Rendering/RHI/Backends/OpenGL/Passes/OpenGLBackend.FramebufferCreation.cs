@@ -33,7 +33,7 @@ internal sealed partial class OpenGLBackend
         {
             AttachFramebufferImage(name, (FramebufferAttachment)pair.Key, pair.Value);
             RequireContext();
-            candidate = StateCache.WithFramebufferAttachment(candidate, pair.Key, pair.Value);
+            candidate = OpenGlStateCache.WithFramebufferAttachment(candidate, pair.Key, pair.Value);
         }
         return candidate;
     }

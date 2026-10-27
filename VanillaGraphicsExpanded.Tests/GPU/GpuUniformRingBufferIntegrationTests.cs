@@ -74,7 +74,7 @@ public sealed class GpuUniformRingBufferIntegrationTests : RenderTestBase
         ring.EndFrame();
 
         // Retire the fixture owner before deletion so later program scopes cannot restore a deferred-deleted name.
-        OpenGLProgramSelection.Select(StateCache.Current, 0);
+        OpenGLProgramSelection.Select(OpenGlStateCache.Current, 0);
         global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
         global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteShader(shaderId);
     }
@@ -128,7 +128,7 @@ public sealed class GpuUniformRingBufferIntegrationTests : RenderTestBase
         ring.EndFrame();
 
         // Retire the fixture owner before deletion so later program scopes cannot restore a deferred-deleted name.
-        OpenGLProgramSelection.Select(StateCache.Current, 0);
+        OpenGLProgramSelection.Select(OpenGlStateCache.Current, 0);
         global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(programId);
         global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteShader(shaderId);
     }

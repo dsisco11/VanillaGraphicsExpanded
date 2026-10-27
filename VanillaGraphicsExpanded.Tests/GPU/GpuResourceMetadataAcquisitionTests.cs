@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Integration;
@@ -49,7 +50,7 @@ public sealed class GpuResourceMetadataAcquisitionTests
         {
             GL.BindBuffer(BufferTarget.ArrayBuffer, previous);
             GL.DeleteBuffer(buffer); GL.DeleteBuffer(sentinel);
-            StateCache.Current.InvalidateAll();
+            OpenGlStateCache.Current.InvalidateAll();
         }
     }
 

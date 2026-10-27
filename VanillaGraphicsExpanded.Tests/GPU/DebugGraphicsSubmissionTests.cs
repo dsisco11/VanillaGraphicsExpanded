@@ -117,7 +117,7 @@ public sealed class DebugGraphicsSubmissionTests(HeadlessGLFixture fixture) : Re
         shader.Scene = source;
         foreach (int id in new[] { target.FboId, 0 })
         {
-            OpenGLFramebufferSelection.Bind(StateCache.Current, FramebufferTarget.Framebuffer, id);
+            OpenGLFramebufferSelection.Bind(OpenGlStateCache.Current, FramebufferTarget.Framebuffer, id);
             using var hostile = new HostileFullscreenState();
             Assert.True(submission.Draw("texture", shader, geometry.Inputs, new(0, 3), PrimitiveTopology.Triangles));
             hostile.AssertRestored(); Assert.Equal(id, GL.GetInteger(GetPName.DrawFramebufferBinding));
@@ -125,7 +125,7 @@ public sealed class DebugGraphicsSubmissionTests(HeadlessGLFixture fixture) : Re
             else
             {
                 GL.ReadBuffer(GL.GetInteger(GetPName.Doublebuffer) != 0 ? ReadBufferMode.Back : ReadBufferMode.Front);
-                using var pack = OpenGLPixelLayouts.PackScope(StateCache.Current, new(1));
+                using var pack = OpenGLPixelLayouts.PackScope(OpenGlStateCache.Current, new(1));
                 byte[] pixel = new byte[4]; GL.ReadPixels(0, 0, 1, 1, PixelFormat.Rgba, PixelType.UnsignedByte, pixel);
                 Assert.InRange(pixel[0], (byte)63, (byte)65);
             }
@@ -166,7 +166,7 @@ public sealed class DebugGraphicsSubmissionTests(HeadlessGLFixture fixture) : Re
         for (int i = 0; i < 6; i++)
             target[i].UploadDataImmediate(Enumerable.Repeat(i < 2 ? 1f : 0f, 64 * (i == 0 ? 3 : i == 1 ? 1 : 4)).ToArray());
         target.Bind(); GL.Disable(EnableCap.ScissorTest); GL.DepthMask(true); GL.ClearDepth(1); GL.Clear(ClearBufferMask.DepthBufferBit);
-        StateCache.Current.InvalidateAll();
+        OpenGlStateCache.Current.InvalidateAll();
         var blending = (ColorBlendDesc[])typeof(LumOnDebugRenderer).GetField("OrbBlending", System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic)!.GetValue(null)!;
         using var submission = new DebugGraphicsSubmission(Api(assets));
         using (var hostile = new HostileFullscreenState())

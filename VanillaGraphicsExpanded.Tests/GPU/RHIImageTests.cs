@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System;
 using System.Linq;
 using OpenTK.Graphics.OpenGL4;
@@ -91,11 +92,11 @@ public sealed class RHIImageTests(HeadlessGLFixture fixture)
             using var destination = context.CreatePixelPackBuffer(Buffer(256, BufferRole.PixelPack)).RequireResource();
             byte[] data = Enumerable.Range(0, 256).Select(value => (byte)value).ToArray();
             GL.NamedBufferSubData(source.BufferId, 0, data.Length, data);
-            using var packBinding = StateCache.Current.BindBufferScope(OpenTK.Graphics.OpenGL.BufferTarget.PixelPackBuffer, source.BufferId);
-            using var unpackBinding = StateCache.Current.BindBufferScope(OpenTK.Graphics.OpenGL.BufferTarget.PixelUnpackBuffer, destination.BufferId);
-            using var packLayout = VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLPixelLayouts.PackScope(StateCache.Current, new(8));
-            using var unpackLayout = VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLPixelLayouts.UnpackScope(StateCache.Current, new(8));
-            StateCache.Current.InvalidateAll();
+            using var packBinding = OpenGlStateCache.Current.BindBufferScope(OpenTK.Graphics.OpenGL.BufferTarget.PixelPackBuffer, source.BufferId);
+            using var unpackBinding = OpenGlStateCache.Current.BindBufferScope(OpenTK.Graphics.OpenGL.BufferTarget.PixelUnpackBuffer, destination.BufferId);
+            using var packLayout = VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLPixelLayouts.PackScope(OpenGlStateCache.Current, new(8));
+            using var unpackLayout = VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLPixelLayouts.UnpackScope(OpenGlStateCache.Current, new(8));
+            OpenGlStateCache.Current.InvalidateAll();
             var region = new RHITextureRegion(new(), 1, 0, 0, 2, dimension == TextureDimension.OneArray ? 1 : 2,
                 dimension == TextureDimension.Two ? 1 : 2);
             var encoding = new RHIPixelEncoding(PixelChannelLayout.Rgba, PixelComponentType.UnsignedByte);
@@ -297,6 +298,6 @@ public sealed class RHIImageTests(HeadlessGLFixture fixture)
     /// <summary>Begins the original managed resource lifetime on the fixture context.</summary>
     private void Start() { fixture.EnsureContextValid(); fixture.InitializeResourceDisposal(); }
     /// <summary>Drains original retirements and discards test-owned selector knowledge.</summary>
-    private void Finish() { fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+    private void Finish() { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     #endregion
 }

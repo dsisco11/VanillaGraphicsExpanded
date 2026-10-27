@@ -41,11 +41,11 @@ public sealed class EngineLiquidPoolGeometryTests(HeadlessGLFixture fixture) : R
             commands.BeginRenderPass(FramebufferTestSetup.DescribeAttachments(target, [new(AttachmentIndex:0)])); commands.SetPipeline(pipeline);
             commands.SetDynamicState(new() { Viewport = commands.PassViewport }); commands.BindResources(shader.CaptureBindings()); commands.DrawIndexedBatch(geometry.Inputs, geometry.CaptureDraws());
 #if DEBUG
-            long draws = StateCache.Current.DrawSubmissions, queries = StateCache.Current.BoundaryQueries;
+            long draws = OpenGlStateCache.Current.DrawSubmissions, queries = OpenGlStateCache.Current.BoundaryQueries;
 #endif
             commands.DrawIndexedBatch(geometry.Inputs, geometry.CaptureDraws());
 #if DEBUG
-            Assert.Equal(queries, StateCache.Current.BoundaryQueries);
+            Assert.Equal(queries, OpenGlStateCache.Current.BoundaryQueries);
 #endif
             storage.Pool.indicesStartsByte[1] = 1;
             Assert.ThrowsAny<Exception>(() => commands.DrawIndexedBatch(geometry.Inputs, geometry.CaptureDraws()));
@@ -55,7 +55,7 @@ public sealed class EngineLiquidPoolGeometryTests(HeadlessGLFixture fixture) : R
             Assert.ThrowsAny<Exception>(() => commands.DrawIndexedBatch(geometry.Inputs, geometry.CaptureDraws()));
             storage.Location.VerticesEnd = 3;
 #if DEBUG
-            Assert.Equal(draws + 1, StateCache.Current.DrawSubmissions);
+            Assert.Equal(draws + 1, OpenGlStateCache.Current.DrawSubmissions);
 #endif
         });
 }
@@ -84,8 +84,8 @@ public sealed class EngineLiquidPoolGeometryTests(HeadlessGLFixture fixture) : R
             // Allocate through the real pooled path; UploadMesh has a different signed integer contract.
             mesh = (VAO)platform.AllocateEmptyMesh(36, 0, 24, 12, 12, 12, floats, null, null, integers, EnumDrawMode.Triangles, true);
             GC.SuppressFinalize(mesh);
-            StateCache.Current.InvalidateAll();
-            using (StateCache.Current.BindVertexArrayScope(mesh.VaoId))
+            OpenGlStateCache.Current.InvalidateAll();
+            using (OpenGlStateCache.Current.BindVertexArrayScope(mesh.VaoId))
                 foreach (int location in new[] { 3, 5, 6 })
                 {
                     GL.GetVertexAttrib(location, VertexAttribParameter.ArrayType, out int storage);
@@ -107,7 +107,7 @@ public sealed class EngineLiquidPoolGeometryTests(HeadlessGLFixture fixture) : R
                 foreach (int buffer in new[] { mesh.xyzVboId, mesh.uvVboId, mesh.rgbaVboId, mesh.flagsVboId,
                     mesh.customDataFloatVboId, mesh.customDataIntVboId, mesh.vboIdIndex }) GL.DeleteBuffer(buffer);
             }
-            StateCache.Current.InvalidateAll();
+            OpenGlStateCache.Current.InvalidateAll();
         }
     }
 
@@ -119,8 +119,8 @@ public sealed class EngineLiquidPoolGeometryTests(HeadlessGLFixture fixture) : R
     public void SignedIntegerAttributeRejectsPublication(int location)
     {
         EnsureContextValid(); using var storage = new LiquidPoolStorage();
-        OpenGLVertexSelection.Bind(StateCache.Current, storage.Mesh.VaoId);
-        OpenGLBufferBindings.BindBuffer(StateCache.Current, BufferTarget.ArrayBuffer, location == 3 ? storage.Mesh.flagsVboId : storage.Mesh.customDataIntVboId);
+        OpenGLVertexSelection.Bind(OpenGlStateCache.Current, storage.Mesh.VaoId);
+        OpenGLBufferBindings.BindBuffer(OpenGlStateCache.Current, BufferTarget.ArrayBuffer, location == 3 ? storage.Mesh.flagsVboId : storage.Mesh.customDataIntVboId);
         GL.VertexAttribIPointer(location, 1, VertexAttribIntegerType.Int, location == 3 ? 4 : 8, (IntPtr)(location == 6 ? 4 : 0));
         Assert.Throws<InvalidOperationException>(() => new EngineLiquidPoolGeometry(storage.Pool));
     }
@@ -130,8 +130,8 @@ public sealed class EngineLiquidPoolGeometryTests(HeadlessGLFixture fixture) : R
     public void InvalidCustomIntegerStrideRejectsPublication()
     {
         EnsureContextValid(); using var storage = new LiquidPoolStorage();
-        OpenGLVertexSelection.Bind(StateCache.Current, storage.Mesh.VaoId);
-        OpenGLBufferBindings.BindBuffer(StateCache.Current, BufferTarget.ArrayBuffer, storage.Mesh.customDataIntVboId);
+        OpenGLVertexSelection.Bind(OpenGlStateCache.Current, storage.Mesh.VaoId);
+        OpenGLBufferBindings.BindBuffer(OpenGlStateCache.Current, BufferTarget.ArrayBuffer, storage.Mesh.customDataIntVboId);
         GL.VertexAttribIPointer(5, 1, VertexAttribIntegerType.UnsignedInt, 0, IntPtr.Zero);
         Assert.Throws<InvalidOperationException>(() => new EngineLiquidPoolGeometry(storage.Pool));
     }
@@ -152,7 +152,7 @@ internal sealed class LiquidPoolStorage : IDisposable
     /// <summary>Configures separate engine streams and the shared interleaved pair of integer attributes.</summary>
     internal LiquidPoolStorage(bool detachedIndices = false)
     {
-        OpenGLVertexSelection.Bind(StateCache.Current, vao.VertexArrayId); indices.UploadIndices(new uint[] { 0, 1, 2 }); OpenTK.Graphics.OpenGL4.GL.VertexArrayElementBuffer(vao.VertexArrayId, indices.BufferId);
+        OpenGLVertexSelection.Bind(OpenGlStateCache.Current, vao.VertexArrayId); indices.UploadIndices(new uint[] { 0, 1, 2 }); OpenTK.Graphics.OpenGL4.GL.VertexArrayElementBuffer(vao.VertexArrayId, indices.BufferId);
         streams[0].UploadData(new float[] { -1, -1, 0, 3, -1, 0, -1, 3, 0 });
         streams[1].UploadData(new float[6]); streams[2].UploadData(Enumerable.Repeat((byte)255, 12).ToArray());
         streams[3].UploadData(new int[3]); streams[4].UploadData(new float[6]); streams[5].UploadData(new int[6]);
@@ -167,7 +167,7 @@ internal sealed class LiquidPoolStorage : IDisposable
             new(6, 1, VertexComponentFormat.UnsignedInt, VertexInterpretation.Integer, 5, 4, 8)];
         foreach (var attribute in nativeAttributes)
         {
-            OpenGLBufferBindings.BindBuffer(StateCache.Current, BufferTarget.ArrayBuffer, streams[attribute.Binding].BufferId);
+            OpenGLBufferBindings.BindBuffer(OpenGlStateCache.Current, BufferTarget.ArrayBuffer, streams[attribute.Binding].BufferId);
             if (attribute.Interpretation == VertexInterpretation.Integer)
                 GL.VertexAttribIPointer(attribute.Location, attribute.Components, VertexAttribIntegerType.UnsignedInt, attribute.Stride, (IntPtr)attribute.Offset);
             else GL.VertexAttribPointer(attribute.Location, attribute.Components, OpenGLVertexValues.FloatingStorage(attribute.Storage),
@@ -179,7 +179,7 @@ internal sealed class LiquidPoolStorage : IDisposable
         Mesh.xyzVboId = streams[0].BufferId; Mesh.uvVboId = streams[1].BufferId; Mesh.rgbaVboId = streams[2].BufferId;
         Mesh.flagsVboId = streams[3].BufferId; Mesh.customDataFloatVboId = streams[4].BufferId; Mesh.customDataIntVboId = streams[5].BufferId;
         if (detachedIndices) OpenTK.Graphics.OpenGL4.GL.VertexArrayElementBuffer(vao.VertexArrayId, 0);
-        StateCache.Current.ForgetEngineMeshUpload(vao.VertexArrayId);
+        OpenGlStateCache.Current.ForgetEngineMeshUpload(vao.VertexArrayId);
         Pool = (MeshDataPool)RuntimeHelpers.GetUninitializedObject(typeof(MeshDataPool));
         Pool.VerticesPoolSize = 3; Pool.IndicesPoolSize = 3; Pool.indicesGroupsCount = 1;
         Pool.indicesStartsByte = [0, 0]; Pool.indicesSizes = [3];

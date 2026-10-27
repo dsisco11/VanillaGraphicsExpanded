@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.PBR.SceneColor;
@@ -35,7 +36,7 @@ public sealed class SceneColorParticleTests(HeadlessGLFixture fixture) : LumOnSh
         GL.ClearBuffer(ClearBuffer.Color, 0, new[] { .125f, .25f, .5f, 1f });
         GL.ClearBuffer(ClearBuffer.Color, 1, new[] { .1f, .2f, .3f, .4f });
         GL.ClearBuffer(ClearBuffer.Depth, 0, new[] { .75f });
-        StateCache.Current.InvalidateAll();
+        OpenGlStateCache.Current.InvalidateAll();
         EstablishScissor(false);
         using var capture = new SceneColorParticleTargets(primary);
         Assert.IsType<DynamicGpuFramebuffer>(capture.DrawTarget);
@@ -56,7 +57,7 @@ public sealed class SceneColorParticleTests(HeadlessGLFixture fixture) : LumOnSh
         GL.DepthMask(true);
         GL.Disable(EnableCap.CullFace);
         GL.Disable(EnableCap.Blend);
-        StateCache.Current.Apply(SceneColorParticleDrawScope.CapturePipeline);
+        OpenGlStateCache.Current.Apply(SceneColorParticleDrawScope.CapturePipeline);
         GL.UseProgram(draw.ProgramId);
         GL.BindVertexArray(vao.VertexArrayId);
         if (scenario != 3)
@@ -64,7 +65,7 @@ public sealed class SceneColorParticleTests(HeadlessGLFixture fixture) : LumOnSh
             DrawParticle(inputs, 8, 0, scenario == 2 ? 0 : .5f, .625f);
             DrawParticle(inputs, 0, 4, scenario == 2 ? 0 : .5f, .5f);
         }
-        StateCache.Current.InvalidateAll();
+        OpenGlStateCache.Current.InvalidateAll();
         EstablishScissor(false);
         capture.EndCapture();
         Assert.True(capture.Captured);
@@ -85,7 +86,7 @@ public sealed class SceneColorParticleTests(HeadlessGLFixture fixture) : LumOnSh
             primary.Bind();
             GL.DepthMask(true);
             GL.ClearBuffer(ClearBuffer.Depth, 0, new[] { .25f });
-            StateCache.Current.InvalidateAll();
+            OpenGlStateCache.Current.InvalidateAll();
             EstablishScissor(false);
         }
         var resolve = Programs.Create<SceneColorParticleShaderProgram>();
@@ -210,7 +211,7 @@ public sealed class SceneColorParticleTests(HeadlessGLFixture fixture) : LumOnSh
             GL.Disable(IndexedEnableCap.Blend, 1);
             GL.BlendFuncSeparate(0, BlendingFactorSrc.One, BlendingFactorDest.One,
                 BlendingFactorSrc.Zero, BlendingFactorDest.OneMinusSrcAlpha);
-            StateCache.Current.InvalidateAll();
+            OpenGlStateCache.Current.InvalidateAll();
             EstablishScissor(true);
             foreach (Action operation in new Action[] { capture.BeginCapture, capture.EndCapture })
             {
@@ -240,7 +241,7 @@ public sealed class SceneColorParticleTests(HeadlessGLFixture fixture) : LumOnSh
             GL.ColorMask(true, true, true, true);
             GL.DepthMask(true);
             GL.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
-            StateCache.Current.InvalidateAll();
+            OpenGlStateCache.Current.InvalidateAll();
             EstablishScissor(false);
         }
     }
@@ -268,7 +269,7 @@ public sealed class SceneColorParticleTests(HeadlessGLFixture fixture) : LumOnSh
     private static void EstablishScissor(bool enabled)
     {
         var mask = GlPipelineStateMask.From(GlPipelineStateId.ScissorTestEnable);
-        StateCache.Current.Apply(new GlPipelineDesc(enabled ? default : mask, enabled ? mask : default));
+        OpenGlStateCache.Current.Apply(new GlPipelineDesc(enabled ? default : mask, enabled ? mask : default));
     }
     /// <summary>Issues one ordered source-alpha particle draw with an independently chosen visibility depth.</summary>
     private static void DrawParticle(PackedUniformBuffer inputs, float red, float green, float alpha, float depth)
@@ -285,7 +286,7 @@ public sealed class SceneColorParticleTests(HeadlessGLFixture fixture) : LumOnSh
     /// <summary>Reads the actual depth texture representation without tolerance or reconstruction.</summary>
     private static float ReadDepth(int texture)
     {
-        using var binding = StateCache.Current.BindTextureScope(TextureTarget.Texture2D, 0, texture);
+        using var binding = OpenGlStateCache.Current.BindTextureScope(TextureTarget.Texture2D, 0, texture);
         float[] data = new float[4];
         GL.GetTexImage(TextureTarget.Texture2D, 0, PixelFormat.DepthComponent, PixelType.Float, data);
         Assert.All(data, value => Assert.Equal(data[0], value));

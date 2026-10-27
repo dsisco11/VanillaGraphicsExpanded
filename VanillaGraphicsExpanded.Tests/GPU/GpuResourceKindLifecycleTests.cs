@@ -12,7 +12,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 public sealed class GpuResourceKindLifecycleTests(HeadlessGLFixture fixture, ITestOutputHelper output)
 {
     #region Public API
-    /// <summary>Runs actual owning wrappers through their common StateCache deletion and manager retirement flow.</summary>
+    /// <summary>Runs actual owning wrappers through their common OpenGlStateCache deletion and manager retirement flow.</summary>
     [Theory]
     [InlineData(GpuResourceKind.Buffer)]
     [InlineData(GpuResourceKind.VertexArray)]
@@ -32,7 +32,7 @@ public sealed class GpuResourceKindLifecycleTests(HeadlessGLFixture fixture, ITe
     {
         fixture.EnsureContextValid();
         fixture.CleanupGpuResources();
-        StateCache.Current.InvalidateAll();
+        OpenGlStateCache.Current.InvalidateAll();
         using var manager = new GpuResourceManager();
         GpuResourceManagerSystem.Initialize(manager);
         try
@@ -77,7 +77,7 @@ public sealed class GpuResourceKindLifecycleTests(HeadlessGLFixture fixture, ITe
         {
             manager.Dispose();
             GpuResourceManagerSystem.Shutdown();
-            StateCache.Current.InvalidateAll();
+            OpenGlStateCache.Current.InvalidateAll();
         }
     }
     #endregion
@@ -112,11 +112,11 @@ public sealed class GpuResourceKindLifecycleTests(HeadlessGLFixture fixture, ITe
         switch (resource)
         {
             case GpuVbo buffer: buffer.Allocate(16); break;
-            case GpuVao array: OpenGLVertexSelection.Bind(StateCache.Current, array.VertexArrayId); break;
+            case GpuVao array: OpenGLVertexSelection.Bind(OpenGlStateCache.Current, array.VertexArrayId); break;
             case GpuFramebuffer framebuffer: framebuffer.Bind(); break;
             case GpuQuery: break;
             case GpuTransformFeedback: break;
-            case GpuProgramPipeline pipeline: OpenGLProgramPipelineSelection.Bind(StateCache.Current, pipeline.PipelineId); break;
+            case GpuProgramPipeline pipeline: OpenGLProgramPipelineSelection.Bind(OpenGlStateCache.Current, pipeline.PipelineId); break;
         }
     }
 

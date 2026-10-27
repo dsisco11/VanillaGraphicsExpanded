@@ -137,7 +137,7 @@ public sealed class SceneColorParticlePublicationTests(HeadlessGLFixture fixture
                     GL.ClearBuffer(ClearBuffer.Color, 3, new[] { 1f, 2f, 3f, 4f });
                 }
                 ShaderProgramBase.CurrentShaderProgram = cube;
-                OpenGLProgramSelection.Select(StateCache.Current, cube.ProgramId);
+                OpenGLProgramSelection.Select(OpenGlStateCache.Current, cube.ProgramId);
                 ShaderProgramBase.CurrentShaderProgram = null;
                 Assert.Null(SceneColorParticleCapture.BeginDraw(1));
                 ShaderProgramBase.CurrentShaderProgram = cube;
@@ -170,7 +170,7 @@ public sealed class SceneColorParticlePublicationTests(HeadlessGLFixture fixture
                     hostile.AssertRestored();
                     // The installed particle renderer stops its shader before later opaque callbacks.
                     // Model its observed program-zero handoff rather than inventing a foreign resource footprint.
-                    cube.Stop(); StateCache.Current.NotifyProgramBound(0);
+                    cube.Stop(); OpenGlStateCache.Current.NotifyProgramBound(0);
                     capture.OnRenderFrame(.016f, EnumRenderStage.Opaque);
                     hostile.AssertRestored();
                 }
@@ -201,11 +201,11 @@ public sealed class SceneColorParticlePublicationTests(HeadlessGLFixture fixture
                     // The real independent compositor owns SSAO restoration and receiver
                     // reduction in one boundary, including first-use target preparation.
                     ShaderProgramBase.CurrentShaderProgram = null;
-                    OpenGLProgramSelection.Select(StateCache.Current, 0);
-                    StateCache.Current.Invalidate(EPipelineState.Depth | EPipelineState.Blend | EPipelineState.Viewport);
-                    OpenGLFramebufferSelection.Bind(StateCache.Current, FramebufferTarget.DrawFramebuffer, engine.FboId);
-                    OpenGLFramebufferSelection.Bind(StateCache.Current, FramebufferTarget.ReadFramebuffer, separateRead.FboId);
-                    StateCache.Current.ApplyDynamic(new VanillaGraphicsExpanded.Rendering.Pipeline.State.DynamicDrawState { X = 1, Y = 1, Width = 1, Height = 1 });
+                    OpenGLProgramSelection.Select(OpenGlStateCache.Current, 0);
+                    OpenGlStateCache.Current.Invalidate(EPipelineState.Depth | EPipelineState.Blend | EPipelineState.Viewport);
+                    OpenGLFramebufferSelection.Bind(OpenGlStateCache.Current, FramebufferTarget.DrawFramebuffer, engine.FboId);
+                    OpenGLFramebufferSelection.Bind(OpenGlStateCache.Current, FramebufferTarget.ReadFramebuffer, separateRead.FboId);
+                    OpenGlStateCache.Current.ApplyDynamic(new VanillaGraphicsExpanded.Rendering.Pipeline.State.DynamicDrawState { X = 1, Y = 1, Width = 1, Height = 1 });
                     direct.OnRenderFrame(.016f, EnumRenderStage.Opaque);
                     using (var hostile = new HostileFullscreenState())
                     {
@@ -243,7 +243,7 @@ public sealed class SceneColorParticlePublicationTests(HeadlessGLFixture fixture
             ShaderProgramBase.CurrentShaderProgram = null;
             ShaderCapabilities.Forget(cube);
             ShaderPrograms.Particlescube = previousCube;
-            OpenGLProgramSelection.Select(StateCache.Current, 0);
+            OpenGLProgramSelection.Select(OpenGlStateCache.Current, 0);
         }
         capture.Dispose();
         capture.Dispose();

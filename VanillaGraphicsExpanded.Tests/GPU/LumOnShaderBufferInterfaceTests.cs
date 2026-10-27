@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.LumOn;
@@ -226,7 +227,7 @@ public sealed class LumOnShaderBufferInterfaceTests : RenderTestBase
         Assert.NotEqual(0, buffer);
         GL.GetInteger(GetIndexedPName.UniformBufferStart, LumOnNearFieldParamsUbo.Binding, out int offset);
         var bytes = new byte[128];
-        using var binding = StateCache.Current.BindBufferScope(BufferTarget.UniformBuffer, buffer);
+        using var binding = OpenGlStateCache.Current.BindBufferScope(BufferTarget.UniformBuffer, buffer);
         GL.GetBufferSubData(BufferTarget.UniformBuffer, (IntPtr)offset, bytes.Length, bytes);
         return bytes;
     }

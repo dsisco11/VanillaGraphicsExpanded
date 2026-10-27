@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
@@ -24,7 +25,7 @@ public sealed class CompleteGraphicsStateTests(HeadlessGLFixture fixture) : IDis
     [Fact]
     public void HostileStateAndAlternatingDescriptionsConverge()
     {
-        fixture.MakeCurrent(); var cache = StateCache.Current;
+        fixture.MakeCurrent(); var cache = OpenGlStateCache.Current;
         var a = Pipeline(true); var b = Pipeline(false); var dynamics = Dynamics();
         GL.Enable(EnableCap.RasterizerDiscard); GL.DepthRange(.3, .7); GL.ColorMask(false, false, false, false);
         GL.BlendEquation(BlendEquationMode.Max); GL.StencilMask(0); GL.SampleCoverage(.9f, true);
@@ -55,7 +56,7 @@ public sealed class CompleteGraphicsStateTests(HeadlessGLFixture fixture) : IDis
     [InlineData(false)] [InlineData(true)]
     public void CompleteBoundaryRestoresEveryCategory(bool fail)
     {
-        fixture.MakeCurrent(); var cache = StateCache.Current; cache.InvalidateAll();
+        fixture.MakeCurrent(); var cache = OpenGlStateCache.Current; cache.InvalidateAll();
         var a = Pipeline(true); var b = Pipeline(false); var dynamics = Dynamics();
         cache.ApplyGraphicsState(a, dynamics);
         try
@@ -69,11 +70,11 @@ public sealed class CompleteGraphicsStateTests(HeadlessGLFixture fixture) : IDis
         }
         finally { cache.ApplyGraphicsState(b, dynamics); }
     }
-    /// <summary>Observed global commands update indexed aliases and repeated observed calls are suppressed.</summary>
+    /// <summary>Exact global and indexed commands preserve native output effects while withdrawing equation knowledge.</summary>
     [Fact]
     public void EngineGlobalAndIndexedEquationsShareKnowledge()
     {
-        fixture.MakeCurrent(); var cache = StateCache.Current; cache.InvalidateAll();
+        fixture.MakeCurrent(); var cache = OpenGlStateCache.Current; cache.InvalidateAll();
         EngineStateCalls.BlendEquation(BlendEquationMode.Max);
         EngineStateCalls.BlendEquationSeparate(1, BlendEquationMode.FuncSubtract, BlendEquationMode.Min);
 #if DEBUG
@@ -85,7 +86,7 @@ public sealed class CompleteGraphicsStateTests(HeadlessGLFixture fixture) : IDis
 #endif
         EngineStateCalls.BlendEquation(BlendEquationMode.Max);
 #if DEBUG
-        Assert.Equal(calls + 1, cache.FixedFunctionCalls);
+        Assert.Equal(calls, cache.FixedFunctionCalls);
 #endif
         for (int i = 0; i < cache.MaxDrawBuffers; i++)
         {
@@ -104,7 +105,7 @@ public sealed class CompleteGraphicsStateTests(HeadlessGLFixture fixture) : IDis
     [Fact]
     public void MissingDynamicsRejectBeforeMutation()
     {
-        fixture.MakeCurrent(); var cache = StateCache.Current; cache.InvalidateAll();
+        fixture.MakeCurrent(); var cache = OpenGlStateCache.Current; cache.InvalidateAll();
         cache.ApplyGraphicsState(Pipeline(false), Dynamics());
 #if DEBUG
         long calls = cache.FixedFunctionCalls;
@@ -121,7 +122,7 @@ public sealed class CompleteGraphicsStateTests(HeadlessGLFixture fixture) : IDis
     public void DormantDynamicSlotsRetainRequirementsAndConcreteDefaults()
     {
         fixture.MakeCurrent();
-        var cache = StateCache.Current;
+        var cache = OpenGlStateCache.Current;
         var baseline = Pipeline(false);
         var dormant = new RHIGraphicsPipelineDescription(baseline.Shader, baseline.VertexLayout, baseline.Targets,
             DynamicPipelineState.All, depthStencil: baseline.DepthStencil, rasterizer: baseline.Rasterizer,
@@ -199,13 +200,13 @@ public sealed class CompleteGraphicsStateTests(HeadlessGLFixture fixture) : IDis
                 }
             }
         }
-        finally { GL.BindFramebuffer(FramebufferTarget.Framebuffer, 0); GL.DeleteFramebuffer(fbo); GL.DeleteRenderbuffer(renderbuffer); GL.StencilFunc(StencilFunction.Always, 0, uint.MaxValue); StateCache.Current.InvalidateAll(); }
+        finally { GL.BindFramebuffer(FramebufferTarget.Framebuffer, 0); GL.DeleteFramebuffer(fbo); GL.DeleteRenderbuffer(renderbuffer); GL.StencilFunc(StencilFunction.Always, 0, uint.MaxValue); OpenGlStateCache.Current.InvalidateAll(); }
     }
     /// <summary>Partial equation boundaries preserve mixed indexed state through global mutations.</summary>
     [Fact]
     public void PartialBlendEquationBoundaryRestoresMixedOutputs()
     {
-        fixture.MakeCurrent(); var cache = StateCache.Current; cache.InvalidateAll();
+        fixture.MakeCurrent(); var cache = OpenGlStateCache.Current; cache.InvalidateAll();
         EngineStateCalls.BlendEquation(BlendEquationMode.Max);
         EngineStateCalls.BlendEquationSeparate(1, BlendEquationMode.FuncSubtract, BlendEquationMode.Min);
         Assert.True(cache.TryBeginEngineBoundary(new EngineBoundaryDeclaration("EquationsOnly", new PipelineStateCoverage(globalBlend: BlendStateKnowledge.Equations)), out var scope));
@@ -219,7 +220,7 @@ public sealed class CompleteGraphicsStateTests(HeadlessGLFixture fixture) : IDis
     [Fact]
     public void SamplingInvalidationPreservesOtherCategories()
     {
-        fixture.MakeCurrent(); var cache = StateCache.Current; cache.InvalidateAll();
+        fixture.MakeCurrent(); var cache = OpenGlStateCache.Current; cache.InvalidateAll();
         var description = Pipeline(false);
         cache.ApplyGraphicsState(description, Dynamics());
 #if DEBUG
@@ -245,7 +246,7 @@ public sealed class CompleteGraphicsStateTests(HeadlessGLFixture fixture) : IDis
     [Fact]
     public void IncompleteBoundaryCoverageRejectsBeforeMutation()
     {
-        fixture.MakeCurrent(); var cache = StateCache.Current; cache.InvalidateAll();
+        fixture.MakeCurrent(); var cache = OpenGlStateCache.Current; cache.InvalidateAll();
         var pipeline = Pipeline(false);
         Assert.True(cache.TryBeginEngineBoundary(new EngineBoundaryDeclaration("Insufficient", new PipelineStateCoverage(completeGraphics: true)), out var scope));
 #if DEBUG
@@ -260,7 +261,7 @@ public sealed class CompleteGraphicsStateTests(HeadlessGLFixture fixture) : IDis
     [Fact]
     public void CheckedTransitionFailureDoesNotPublishKnowledge()
     {
-        fixture.MakeCurrent(); var cache = StateCache.Current; cache.InvalidateAll();
+        fixture.MakeCurrent(); var cache = OpenGlStateCache.Current; cache.InvalidateAll();
         cache.SetSampleCoverage(1, false);
         try
         {
@@ -282,7 +283,7 @@ public sealed class CompleteGraphicsStateTests(HeadlessGLFixture fixture) : IDis
     [InlineData(false)] [InlineData(true)]
     public void CategorizedSnapshotRemainsDetached(bool cold)
     {
-        fixture.MakeCurrent(); var cache = StateCache.Current; cache.InvalidateAll();
+        fixture.MakeCurrent(); var cache = OpenGlStateCache.Current; cache.InvalidateAll();
         cache.ApplyGraphicsState(Pipeline(true), Dynamics());
         if (cold) cache.InvalidateAll();
         try
@@ -316,7 +317,7 @@ public sealed class CompleteGraphicsStateTests(HeadlessGLFixture fixture) : IDis
     public void UnifiedDynamicKnowledgePreservesUnrelatedFields()
     {
         fixture.MakeCurrent();
-        var cache = StateCache.Current;
+        var cache = OpenGlStateCache.Current;
         cache.InvalidateAll();
         cache.ApplyGraphicsState(Pipeline(false), Dynamics());
         try

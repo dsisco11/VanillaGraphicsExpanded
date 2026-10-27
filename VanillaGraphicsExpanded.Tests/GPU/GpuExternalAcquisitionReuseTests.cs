@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
 using HarmonyLib;
@@ -35,10 +36,10 @@ public sealed class GpuExternalAcquisitionReuseTests(HeadlessGLFixture fixture)
                 observed++;
                 Assert.Null(manager.AcquireResource(GpuResourceKind.Texture, view.TextureId, GpuTextureMetadataReader.Instance));
                 Assert.False(manager.IsResourceMetadataAvailable(view));
-                Assert.Throws<InvalidOperationException>(() => StateCache.BeginNativeBufferTexture(view.TextureId,
+                Assert.Throws<InvalidOperationException>(() => OpenGlStateCache.BeginNativeBufferTexture(view.TextureId,
                     (int)TextureTarget.TextureBuffer, 0, true, false, buffer.BufferId, (int)SizedInternalFormat.R32f, 0, 0, true));
             };
-            var operation = StateCache.BeginNativeBufferTexture(view.TextureId, (int)TextureTarget.TextureBuffer, 0,
+            var operation = OpenGlStateCache.BeginNativeBufferTexture(view.TextureId, (int)TextureTarget.TextureBuffer, 0,
                 true, false, buffer.BufferId, (int)SizedInternalFormat.R32f, 0, 0, true);
             // The unchanged valid association is enough to test certification without altering
             // content or introducing a second intercepted mutation into the measured interval.
@@ -49,7 +50,7 @@ public sealed class GpuExternalAcquisitionReuseTests(HeadlessGLFixture fixture)
             Assert.Equal(buffer.BufferId, view.BufferId);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { associationRead = null; harmony.UnpatchAll(harmony.Id); fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { associationRead = null; harmony.UnpatchAll(harmony.Id); fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
 
     /// <summary>Local view and renderbuffer owners supply image projections that reject withdrawn metadata.</summary>
@@ -82,7 +83,7 @@ public sealed class GpuExternalAcquisitionReuseTests(HeadlessGLFixture fixture)
             Assert.Equal(0, selectedRenderbuffer.Width);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
 
     /// <summary>Native execution rejects partial acquisition and unrelated reentry until its guard is released.</summary>
@@ -99,46 +100,46 @@ public sealed class GpuExternalAcquisitionReuseTests(HeadlessGLFixture fixture)
             buffer.Allocate(64);
             using var view = RHICommandContext.Current.CreateBufferTexture(new RHIBufferTextureDescription { Buffer = buffer, Format = TextureFormat.R32f, WholeBuffer = true, Label = null }).RequireResource();
             var manager = GpuResourceManagerSystem.CurrentManager!;
-            var textureOperation = StateCache.BeginNativeTextureMetadata(texture.TextureId, (int)TextureTarget.Texture2D, 0,
-                true, false, StateCache.TextureMetadataEffect.Storage, 0);
+            var textureOperation = OpenGlStateCache.BeginNativeTextureMetadata(texture.TextureId, (int)TextureTarget.Texture2D, 0,
+                true, false, OpenGlStateCache.TextureMetadataEffect.Storage, 0);
             try
             {
                 Assert.Null(manager.AcquireResource(GpuResourceKind.Texture, texture.TextureId, GpuTextureMetadataReader.Instance));
-                Assert.Throws<InvalidOperationException>(() => StateCache.BeginNativeTextureMetadata(texture.TextureId,
-                    (int)TextureTarget.Texture2D, 0, true, false, StateCache.TextureMetadataEffect.Storage, 0));
+                Assert.Throws<InvalidOperationException>(() => OpenGlStateCache.BeginNativeTextureMetadata(texture.TextureId,
+                    (int)TextureTarget.Texture2D, 0, true, false, OpenGlStateCache.TextureMetadataEffect.Storage, 0));
             }
             finally { textureOperation.Complete(false); }
             Assert.False(Assert.IsType<GpuResourceMetadataEntry<GpuTextureMetadata>>(manager.GetResourceRegistration(texture)).OperationInProgress);
             Assert.False(manager.IsResourceMetadataAvailable(texture));
-            var renderbufferOperation = StateCache.BeginNativeRenderbufferStorage(renderbuffer.RenderbufferId, true);
+            var renderbufferOperation = OpenGlStateCache.BeginNativeRenderbufferStorage(renderbuffer.RenderbufferId, true);
             try
             {
                 Assert.Null(manager.AcquireResource(GpuResourceKind.Renderbuffer, renderbuffer.RenderbufferId, GpuRenderbufferMetadataReader.Instance));
-                Assert.Throws<InvalidOperationException>(() => StateCache.BeginNativeRenderbufferStorage(renderbuffer.RenderbufferId, true));
+                Assert.Throws<InvalidOperationException>(() => OpenGlStateCache.BeginNativeRenderbufferStorage(renderbuffer.RenderbufferId, true));
             }
             finally { renderbufferOperation.Complete(false); }
             Assert.False(Assert.IsType<GpuResourceMetadataEntry<GpuRenderbufferMetadata>>(manager.GetResourceRegistration(renderbuffer)).OperationInProgress);
-            var vertexOperation = StateCache.BeginNativeVertexMetadata(vao.VertexArrayId, true, false);
+            var vertexOperation = OpenGlStateCache.BeginNativeVertexMetadata(vao.VertexArrayId, true, false);
             try
             {
-                Assert.Throws<InvalidOperationException>(() => StateCache.BeginNativeVertexMetadata(vao.VertexArrayId, true, false));
+                Assert.Throws<InvalidOperationException>(() => OpenGlStateCache.BeginNativeVertexMetadata(vao.VertexArrayId, true, false));
                 Assert.False(manager.IsResourceMetadataAvailable(vao));
             }
             finally { vertexOperation.Complete(false); }
             Assert.False(Assert.IsType<GpuResourceMetadataEntry<GpuVertexArrayMetadata>>(manager.GetResourceRegistration(vao)).OperationInProgress);
-            var viewOperation = StateCache.BeginNativeBufferTexture(view.TextureId, (int)TextureTarget.TextureBuffer, 0,
+            var viewOperation = OpenGlStateCache.BeginNativeBufferTexture(view.TextureId, (int)TextureTarget.TextureBuffer, 0,
                 true, false, buffer.BufferId, (int)SizedInternalFormat.R32f, 0, 0, true);
             try
             {
                 Assert.Null(manager.AcquireResource(GpuResourceKind.Texture, view.TextureId, GpuTextureMetadataReader.Instance));
-                Assert.Throws<InvalidOperationException>(() => StateCache.BeginNativeBufferTexture(view.TextureId,
+                Assert.Throws<InvalidOperationException>(() => OpenGlStateCache.BeginNativeBufferTexture(view.TextureId,
                     (int)TextureTarget.TextureBuffer, 0, true, false, buffer.BufferId, (int)SizedInternalFormat.R32f, 0, 0, true));
             }
             finally { viewOperation.Complete(false); }
             Assert.False(Assert.IsType<GpuResourceMetadataEntry<GpuTextureMetadata>>(manager.GetResourceRegistration(view)).OperationInProgress);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
 
     /// <summary>Raw image and texture borrowers share available canonical facts and original registration.</summary>
@@ -162,7 +163,7 @@ public sealed class GpuExternalAcquisitionReuseTests(HeadlessGLFixture fixture)
             Assert.Same(manager.GetResourceRegistration(texture), manager.GetResourceRegistration(image));
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
 
     /// <summary>Unknown and withdrawn native storage recovers coherent facts across image aliases.</summary>
@@ -173,7 +174,7 @@ public sealed class GpuExternalAcquisitionReuseTests(HeadlessGLFixture fixture)
         int native = GL.GenTexture();
         try
         {
-            using (StateCache.Current.BindTextureScope(TextureTarget.Texture2D, 0, native))
+            using (OpenGlStateCache.Current.BindTextureScope(TextureTarget.Texture2D, 0, native))
                 GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.Rgba8, 8, 4, 0, PixelFormat.Rgba, PixelType.UnsignedByte, IntPtr.Zero);
             using var first = GpuFramebufferAttachment.FromTextureId(native);
             using var second = GpuFramebufferAttachment.FromTextureId(native);
@@ -181,7 +182,7 @@ public sealed class GpuExternalAcquisitionReuseTests(HeadlessGLFixture fixture)
             Assert.Same(GpuResourceManagerSystem.CurrentManager!.GetResourceRegistration(first),
                 GpuResourceManagerSystem.CurrentManager.GetResourceRegistration(second));
             using var borrowed = new BorrowedTexture(native);
-            using (StateCache.Current.BindTextureScope(TextureTarget.Texture2D, 0, native))
+            using (OpenGlStateCache.Current.BindTextureScope(TextureTarget.Texture2D, 0, native))
                 GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.Rgba8, 12, 6, 0, PixelFormat.Rgba, PixelType.UnsignedByte, IntPtr.Zero);
             GpuResourceManager.InvalidateWrapperMetadata(borrowed, GpuMetadataChange.Storage);
             using var recovered = GpuFramebufferAttachment.FromTextureId(native);
@@ -192,7 +193,7 @@ public sealed class GpuExternalAcquisitionReuseTests(HeadlessGLFixture fixture)
             Assert.Equal(recovered.Height, stable.Height);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Texture, native)); fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Texture, native)); fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
 
     /// <summary>Local image validation uses the owner's latest facts and clears failed projections.</summary>
@@ -220,7 +221,7 @@ public sealed class GpuExternalAcquisitionReuseTests(HeadlessGLFixture fixture)
             Assert.Equal(8, image.Width);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
     #endregion
 

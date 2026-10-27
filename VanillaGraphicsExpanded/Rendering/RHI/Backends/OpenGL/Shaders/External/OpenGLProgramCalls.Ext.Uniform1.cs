@@ -10,7 +10,7 @@ internal static unsafe partial class OpenGLProgramCalls
     /// <summary>Executes the exact external overload and completes affected metadata publication.</summary>
     internal static void ExecuteExtUniform1(int @location, int @count, ref int @value)
     {
-        var observation = StateCache.BeginNativeProgramMetadata(0, false, true, unchecked((int)@location), unchecked((int)@count), false, false);
+        var observation = OpenGlStateCache.BeginNativeProgramMetadata(0, false, true, unchecked((int)@location), unchecked((int)@count), false, false);
         bool returned = false;
         try
         {
@@ -27,7 +27,7 @@ internal static unsafe partial class OpenGLProgramCalls
     /// <summary>Executes the exact external overload and completes affected metadata publication.</summary>
     internal static void ExecuteExtUniform1(int @location, int @count, int[] @value)
     {
-        var observation = StateCache.BeginNativeProgramMetadata(0, false, true, unchecked((int)@location), unchecked((int)@count), false, false);
+        var observation = OpenGlStateCache.BeginNativeProgramMetadata(0, false, true, unchecked((int)@location), unchecked((int)@count), false, false);
         bool returned = false;
         try
         {
@@ -44,7 +44,7 @@ internal static unsafe partial class OpenGLProgramCalls
     /// <summary>Executes the exact external overload and completes affected metadata publication.</summary>
     internal static void ExecuteExtUniform1(int @location, int @count, int* @value)
     {
-        var observation = StateCache.BeginNativeProgramMetadata(0, false, true, unchecked((int)@location), unchecked((int)@count), false, false);
+        var observation = OpenGlStateCache.BeginNativeProgramMetadata(0, false, true, unchecked((int)@location), unchecked((int)@count), false, false);
         bool returned = false;
         try
         {
@@ -61,7 +61,7 @@ internal static unsafe partial class OpenGLProgramCalls
     /// <summary>Executes the exact external overload and completes affected metadata publication.</summary>
     internal static void ExecuteExtUniform1(int @location, int @v0)
     {
-        var observation = StateCache.BeginNativeProgramMetadata(0, false, true, unchecked((int)@location), 1, false, false);
+        var observation = OpenGlStateCache.BeginNativeProgramMetadata(0, false, true, unchecked((int)@location), 1, false, false);
         bool returned = false;
         try
         {

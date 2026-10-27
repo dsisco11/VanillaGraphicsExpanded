@@ -42,7 +42,7 @@ internal sealed class RenderPassSequence : IDisposable
     internal void Bind(GpuFramebuffer target,DrawBuffersEnum[] outputs)
     {
         ObjectDisposedException.ThrowIf(disposed,this);
-        StateCache.Current.RequireEngineBoundary(boundary);
+        OpenGlStateCache.Current.RequireEngineBoundary(boundary);
         if(target is OpenGLPassTarget realized)
         {
             if(!realized.IsReusable)throw new InvalidOperationException("The pass target realization is obsolete.");
@@ -85,14 +85,14 @@ internal sealed class RenderPassSequence : IDisposable
         {
             this.target=target;this.backend=backend;
             target.RetainLifetimeReference();
-            try {original=OpenGLFramebufferRouting.Capture(StateCache.Current,target.FboId);}
+            try {original=OpenGLFramebufferRouting.Capture(OpenGlStateCache.Current,target.FboId);}
             catch {target.ReleaseLifetimeReference();throw;}
         }
         /// <summary>Remembers attempted mutation so failed native publication still participates in restoration.</summary>
         internal void Apply(DrawBuffersEnum[] outputs)
         {
             applied=true;backend.RequireContext();
-            OpenGLFramebufferRouting.SetDrawBuffers(StateCache.Current,outputs.Length,outputs);
+            OpenGLFramebufferRouting.SetDrawBuffers(OpenGlStateCache.Current,outputs.Length,outputs);
         }
         /// <summary>Restores through named commands; only the default window requires selecting its draw alias.</summary>
         internal void Restore()
@@ -100,7 +100,7 @@ internal sealed class RenderPassSequence : IDisposable
             if(!applied)return;
             backend.RequireContext();
             if(target.FboId==0)backend.SelectPassTarget(target);
-            OpenGLFramebufferRouting.Restore(StateCache.Current,target.FboId,original);
+            OpenGLFramebufferRouting.Restore(OpenGlStateCache.Current,target.FboId,original);
         }
         /// <summary>Releases the original allocation's lifetime guard after restoration or abandonment.</summary>
         internal void Release()=>target.ReleaseLifetimeReference();

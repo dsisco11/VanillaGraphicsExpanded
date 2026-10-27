@@ -36,10 +36,10 @@ public sealed class GpuBufferTextureInterceptionTests(HeadlessGLFixture fixture)
             var entry = (GpuResourceMetadataEntry<GpuTextureMetadata>)manager.GetResourceRegistration(view)!;
             using var alias = new TextureAlias(view.TextureId); manager.AssociateResource(entry, alias);
             // Invalidate cached selection while retaining actual native binding to exercise resolution.
-            OpenGLImageBindings.BindTexture(StateCache.Current, TextureTarget.TextureBuffer, 0, sentinel.TextureId);
-            OpenGLImageBindings.BindTexture(StateCache.Current, TextureTarget.TextureBuffer, 3, view.TextureId);
-            OpenGLImageBindings.ActiveTexture(StateCache.Current, variant == 6 ? 5 : 3);
-            StateCache.Current.InvalidateAll();
+            OpenGLImageBindings.BindTexture(OpenGlStateCache.Current, TextureTarget.TextureBuffer, 0, sentinel.TextureId);
+            OpenGLImageBindings.BindTexture(OpenGlStateCache.Current, TextureTarget.TextureBuffer, 3, view.TextureId);
+            OpenGLImageBindings.ActiveTexture(OpenGlStateCache.Current, variant == 6 ? 5 : 3);
+            OpenGlStateCache.Current.InvalidateAll();
 
             Associate(variant, view.TextureId, second.BufferId, SizedInternalFormat.R32ui, 0, 128);
             bool ranged = variant is 7 or 8 or 9 or 10;
@@ -50,14 +50,14 @@ public sealed class GpuBufferTextureInterceptionTests(HeadlessGLFixture fixture)
             Assert.Equal(view.BufferId, alias.Snapshot.Buffer.Value.BufferId);
             Assert.True(view.IsValid);
             Assert.Equal((int)(variant == 6 ? TextureUnit.Texture5 : TextureUnit.Texture3), GL.GetInteger(GetPName.ActiveTexture));
-            OpenGLImageBindings.ActiveTexture(StateCache.Current, 0);
+            OpenGLImageBindings.ActiveTexture(OpenGlStateCache.Current, 0);
             Assert.Equal(sentinel.TextureId, GL.GetInteger(GetPName.TextureBindingBuffer));
             second.Allocate(256);
             Assert.Equal(ranged ? 128 : 0, view.SizeBytes);
             Assert.True(view.IsValid);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { harmony.UnpatchAll(harmony.Id); fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { harmony.UnpatchAll(harmony.Id); fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
 
     /// <summary>Rejected commands preserve certified descriptors and native errors; a valid detach removes the backing.</summary>
@@ -89,7 +89,7 @@ public sealed class GpuBufferTextureInterceptionTests(HeadlessGLFixture fixture)
             Assert.False(view.IsValid);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { harmony.UnpatchAll(harmony.Id); fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { harmony.UnpatchAll(harmony.Id); fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
 
     /// <summary>Whole and explicit equal-capacity association modes remain distinct through resizing and reassociation.</summary>
@@ -112,7 +112,7 @@ public sealed class GpuBufferTextureInterceptionTests(HeadlessGLFixture fixture)
             Assert.Equal(0, view.SizeBytes);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { harmony.UnpatchAll(harmony.Id); fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { harmony.UnpatchAll(harmony.Id); fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
 
     /// <summary>Untracked commands forward wide ranges unchanged without metadata queries or speculative registration.</summary>
@@ -141,7 +141,7 @@ public sealed class GpuBufferTextureInterceptionTests(HeadlessGLFixture fixture)
             Assert.Null(GpuResourceManagerSystem.CurrentManager!.FindResource(GpuResourceKind.Texture, texture));
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { harmony.UnpatchAll(harmony.Id); RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Texture, texture)); fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { harmony.UnpatchAll(harmony.Id); RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Texture, texture)); fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
     /// <summary>A native dispatch exception preserves the original failure and withdraws the unchanged association snapshot.</summary>
     [Fact]
@@ -161,7 +161,7 @@ public sealed class GpuBufferTextureInterceptionTests(HeadlessGLFixture fixture)
             Assert.False(view.IsValid);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { harmony.UnpatchAll(harmony.Id); fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { harmony.UnpatchAll(harmony.Id); fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
     #endregion
 

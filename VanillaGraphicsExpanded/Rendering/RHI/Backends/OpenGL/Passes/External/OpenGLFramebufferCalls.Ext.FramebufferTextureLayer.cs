@@ -10,7 +10,7 @@ internal static unsafe partial class OpenGLFramebufferCalls
     /// <summary>Executes the exact external overload and completes affected metadata publication.</summary>
     internal static void ExecuteExtFramebufferTextureLayer(FramebufferTarget @target, FramebufferAttachment @attachment, int @texture, int @level, int @layer)
     {
-        var observation = StateCache.BeginNativeFramebufferAttachment(unchecked((int)@target), false, unchecked((int)@attachment), unchecked((int)@texture), unchecked((int)@level), unchecked((int)@layer), 1);
+        var observation = OpenGlStateCache.BeginNativeFramebufferAttachment(unchecked((int)@target), false, unchecked((int)@attachment), unchecked((int)@texture), unchecked((int)@level), unchecked((int)@layer), 1);
         bool returned = false;
         try
         {
@@ -27,7 +27,7 @@ internal static unsafe partial class OpenGLFramebufferCalls
     /// <summary>Executes the exact external overload and completes affected metadata publication.</summary>
     internal static void ExecuteExtFramebufferTextureLayer(FramebufferTarget @target, FramebufferAttachment @attachment, uint @texture, int @level, int @layer)
     {
-        var observation = StateCache.BeginNativeFramebufferAttachment(unchecked((int)@target), false, unchecked((int)@attachment), unchecked((int)@texture), unchecked((int)@level), unchecked((int)@layer), 1);
+        var observation = OpenGlStateCache.BeginNativeFramebufferAttachment(unchecked((int)@target), false, unchecked((int)@attachment), unchecked((int)@texture), unchecked((int)@level), unchecked((int)@layer), 1);
         bool returned = false;
         try
         {

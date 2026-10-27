@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Reflection;
 using OpenTK.Graphics.OpenGL;
@@ -122,15 +123,13 @@ public sealed class EngineBoundaryRestorationTests(HeadlessGLFixture fixture)
 #endif
     }
 
-    /// <summary>Unknown external mutations require ending managed authority and invalidate only declared categories.</summary>
+    /// <summary>Exact external state changes withdraw affected knowledge and cannot interrupt managed boundary authority.</summary>
     [Fact]
     public void ExternalOperationsWithdrawTargetedKnowledgeEvenOnFailure()
     {
         var cache = Prepare();
         cache.SetDepthFunc(DepthFunction.Greater); cache.SetPointSize(2);
-        var failure = new InvalidOperationException("external");
-        Assert.Same(failure, Assert.Throws<InvalidOperationException>(() => cache.ExecuteExternal(EPipelineState.Depth, () =>
-        { GL.DepthFunc(DepthFunction.Less); throw failure; })));
+        EngineStateCalls.DepthFunc(DepthFunction.Less);
 #if DEBUG
         long calls = cache.FixedFunctionCalls;
 #endif
@@ -143,7 +142,7 @@ public sealed class EngineBoundaryRestorationTests(HeadlessGLFixture fixture)
         Assert.Equal(calls + 1, cache.FixedFunctionCalls);
 #endif
         Assert.True(cache.TryBeginEngineBoundary(new EngineBoundaryDeclaration("Empty"), out var scope));
-        try { Assert.Throws<InvalidOperationException>(() => cache.ExecuteExternal(EPipelineState.Depth, () => GL.DepthMask(false))); }
+        try { Assert.Throws<InvalidOperationException>(() => EngineStateCalls.DepthMask(false)); }
         finally { scope!.Dispose(); }
     }
     #endregion
@@ -206,7 +205,7 @@ public sealed class EngineBoundaryRestorationTests(HeadlessGLFixture fixture)
         cache.SetDepthWriteMask(false);
         GL.Enable((EnableCap)(-1));
         Assert.Throws<EngineBoundaryRestoreException>(() => scope!.Dispose());
-        var known = (DepthStateKnowledge)typeof(StateCache).GetField("depthKnown", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(cache)!;
+        var known = (DepthStateKnowledge)typeof(OpenGlStateCache).GetField("depthKnown", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(cache)!;
         Assert.False(known.HasFlag(DepthStateKnowledge.WriteEnabled));
 #if DEBUG
         long calls = cache.FixedFunctionCalls;
@@ -234,7 +233,7 @@ public sealed class EngineBoundaryRestorationTests(HeadlessGLFixture fixture)
         int cleaned = 0;
         scope!.AddCleanup(EngineBoundaryCleanup.Shader, new Cleanup(() => cleaned++));
         cache.InvalidateAll();
-        Assert.Same(cache, StateCache.Current);
+        Assert.Same(cache, OpenGlStateCache.Current);
         scope.Dispose();
         Assert.Equal(1, cleaned);
         scope.Dispose();
@@ -247,9 +246,9 @@ public sealed class EngineBoundaryRestorationTests(HeadlessGLFixture fixture)
 
     #region Private
     /// <summary>Establishes a registered native context without stale mutable knowledge.</summary>
-    private StateCache Prepare()
+    private OpenGlStateCache Prepare()
     {
-        fixture.MakeCurrent(); var cache = StateCache.Current; cache.InvalidateAll(); _ = cache.MaxDrawBuffers;
+        fixture.MakeCurrent(); var cache = OpenGlStateCache.Current; cache.InvalidateAll(); _ = cache.MaxDrawBuffers;
         Assert.Equal(ErrorCode.NoError, GL.GetError()); return cache;
     }
     #endregion

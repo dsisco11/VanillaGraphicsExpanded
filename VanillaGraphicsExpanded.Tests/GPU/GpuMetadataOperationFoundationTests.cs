@@ -46,10 +46,10 @@ public sealed class GpuMetadataOperationFoundationTests(HeadlessGLFixture fixtur
                 Assert.Equal(revision + 1, entry.MetadataRevision);
                 Assert.Equal(storage + 1, entry.StorageRevision);
             }
-            StateCache.Current.RequireResourceOperationAvailable(GpuResourceKind.Buffer, owner.BufferId);
+            OpenGlStateCache.Current.RequireResourceOperationAvailable(GpuResourceKind.Buffer, owner.BufferId);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
 
     /// <summary>Disposal never invokes a reader; recovery is a later explicit owner decision.</summary>
@@ -90,7 +90,7 @@ public sealed class GpuMetadataOperationFoundationTests(HeadlessGLFixture fixtur
             if (entry is not null) Assert.Equal(storage + 1, entry.StorageRevision);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
 
     /// <summary>A rejected alias operation cannot dispatch or join; an independent resource remains usable.</summary>
@@ -119,7 +119,7 @@ public sealed class GpuMetadataOperationFoundationTests(HeadlessGLFixture fixtur
             Assert.Equal(16, owner.SizeBytes);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
 
     /// <summary>A successful explicit reader runs once; disposal performs no additional recovery.</summary>
@@ -141,7 +141,7 @@ public sealed class GpuMetadataOperationFoundationTests(HeadlessGLFixture fixtur
             Assert.Equal(64, owner.SizeBytes);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
 
     /// <summary>Deletion cancels original completion for registered and local resources.</summary>
@@ -164,7 +164,7 @@ public sealed class GpuMetadataOperationFoundationTests(HeadlessGLFixture fixtur
             Assert.False(GL.IsBuffer(id));
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
 
     /// <summary>A newly registered same-name resource cannot receive the old operation's candidate.</summary>
@@ -192,7 +192,7 @@ public sealed class GpuMetadataOperationFoundationTests(HeadlessGLFixture fixtur
         finally
         {
             if (id != 0 && GL.IsBuffer(id)) RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Buffer, id));
-            fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll();
+            fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll();
         }
     }
 
@@ -231,7 +231,7 @@ public sealed class GpuMetadataOperationFoundationTests(HeadlessGLFixture fixtur
             entry.Reader = original;
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
 
     /// <summary>A failed explicitly participating local storage operation invalidates existing view certificates.</summary>
@@ -256,7 +256,7 @@ public sealed class GpuMetadataOperationFoundationTests(HeadlessGLFixture fixtur
             Assert.True(GL.IsTexture(source.TextureId));
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
 
     /// <summary>Local selected-image recovery cannot read partial operation storage or retain its previous snapshot.</summary>
@@ -279,7 +279,7 @@ public sealed class GpuMetadataOperationFoundationTests(HeadlessGLFixture fixtur
             Assert.Equal(4, image.Width);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
 
     /// <summary>A caught attachment validation failure still interrupts the explicitly supplied framebuffer operation.</summary>
@@ -305,7 +305,7 @@ public sealed class GpuMetadataOperationFoundationTests(HeadlessGLFixture fixtur
             Assert.Equal(revision, entry.MetadataRevision);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
 
     /// <summary>A caught recursive storage publication preserves its effects for the next successful explicit recovery.</summary>
@@ -332,7 +332,7 @@ public sealed class GpuMetadataOperationFoundationTests(HeadlessGLFixture fixtur
             Assert.Equal(64, owner.SizeBytes);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
 
     #endregion
@@ -341,7 +341,7 @@ public sealed class GpuMetadataOperationFoundationTests(HeadlessGLFixture fixtur
     /// <summary>Changes actual storage for tests whose later publication candidate is already established.</summary>
     private static void ResizeNative(GpuVbo resource, int capacity)
     {
-        using var binding = StateCache.Current.BindBufferScope(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBufferValues.Target(resource.Role), resource.BufferId);
+        using var binding = OpenGlStateCache.Current.BindBufferScope(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBufferValues.Target(resource.Role), resource.BufferId);
         GL.BufferData(BufferTarget.ArrayBuffer, capacity, IntPtr.Zero, BufferUsageHint.StaticDraw);
     }
 

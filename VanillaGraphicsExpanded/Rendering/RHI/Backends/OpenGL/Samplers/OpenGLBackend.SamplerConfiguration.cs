@@ -60,7 +60,7 @@ internal sealed partial class OpenGLBackend
 
     #region Private
     /// <summary>Stops a setter sequence after original identity retirement or a context change.</summary>
-    private void CheckSamplerStep(GpuSampler owner, int id, StateCache.ResourceOperationGuard guard)
+    private void CheckSamplerStep(GpuSampler owner, int id, OpenGlStateCache.ResourceOperationGuard guard)
     {
         RequireContext();
         if (guard.Cancelled || !owner.IsValid || owner.SamplerId != id)

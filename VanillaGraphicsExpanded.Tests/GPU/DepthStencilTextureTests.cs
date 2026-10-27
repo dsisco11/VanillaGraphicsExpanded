@@ -44,7 +44,7 @@ public sealed class DepthStencilTextureTests : RenderTestBase
         using var texture = new StencilTexture(3, 5);
         using var framebuffer = DynamicGpuFramebuffer.CreateEmpty("StencilReadbackTest");
         framebuffer.Attach(texture);
-        GL.DrawBuffer(DrawBufferMode.None); StateCache.Current.Invalidate(EPipelineState.FramebufferRouting);
+        GL.DrawBuffer(DrawBufferMode.None); OpenGlStateCache.Current.Invalidate(EPipelineState.FramebufferRouting);
         GL.ReadBuffer(ReadBufferMode.None);
         Assert.True(framebuffer.CheckStatus(out string? error), error);
 
@@ -83,8 +83,8 @@ public sealed class DepthStencilTextureTests : RenderTestBase
     /// <summary>Verifies tightly packed stencil pixels and restoration of all cached and native pack fields.</summary>
     private static void AssertStencilReadbackPreservesPackLayout(Func<byte[]> readback, int count, byte expected)
     {
-        var cache = StateCache.Current;
-        var hostile = new StateCache.PixelPackState(8, 17, 2, 3, true, true);
+        var cache = OpenGlStateCache.Current;
+        var hostile = new OpenGlStateCache.PixelPackState(8, 17, 2, 3, true, true);
         // The outer scope preserves the fixture's layout; readback must restore this hostile inner owner.
         using var restore = OpenGLPixelLayouts.PackScope(cache, hostile);
         byte[] pixels = readback();

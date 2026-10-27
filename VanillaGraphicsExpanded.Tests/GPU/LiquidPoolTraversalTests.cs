@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Runtime.CompilerServices;
 using HarmonyLib;
@@ -191,7 +192,7 @@ public sealed class LiquidPoolTraversalTests(HeadlessGLFixture fixture) : Render
         GL.GetInteger(GetIndexedPName.UniformBufferBinding, GpuBindingRegistry.Ubo.Object, out int buffer);
         GL.GetInteger(GetIndexedPName.UniformBufferStart, GpuBindingRegistry.Ubo.Object, out int offset);
         Assert.NotEqual(0, buffer); float[] bytes = new float[20];
-        using var binding = StateCache.Current.BindBufferScope(BufferTarget.UniformBuffer, buffer);
+        using var binding = OpenGlStateCache.Current.BindBufferScope(BufferTarget.UniformBuffer, buffer);
         GL.GetBufferSubData(BufferTarget.UniformBuffer, (nint)offset, 80, bytes); return bytes;
     }
     /// <summary>Identifies the actual GPU range selected for the shared camera.</summary>
@@ -207,7 +208,7 @@ public sealed class LiquidPoolTraversalTests(HeadlessGLFixture fixture) : Render
         var selected = FrameBinding();
         Assert.NotEqual(0, selected.Buffer);
         float[] bytes = new float[32];
-        using var binding = StateCache.Current.BindBufferScope(BufferTarget.UniformBuffer, selected.Buffer);
+        using var binding = OpenGlStateCache.Current.BindBufferScope(BufferTarget.UniformBuffer, selected.Buffer);
         GL.GetBufferSubData(BufferTarget.UniformBuffer, (nint)selected.Offset, 128, bytes);
         return bytes;
     }

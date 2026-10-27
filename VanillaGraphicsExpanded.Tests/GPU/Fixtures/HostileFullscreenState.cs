@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
 
@@ -16,12 +17,12 @@ internal sealed class HostileFullscreenState : IDisposable
     /// <summary>Captures the external baseline, then blocks drawing through independent native categories.</summary>
     internal HostileFullscreenState()
     {
-        StateCache.Current.RequireOutsideEngineBoundary();
+        OpenGlStateCache.Current.RequireOutsideEngineBoundary();
         GL.GetInteger(GetPName.ScissorBox, scissor);
         GL.GetBoolean(GetIndexedPName.ColorWritemask, 0, color);
         foreach (var cap in Caps) GL.Enable(cap);
         GL.Scissor(0, 0, 0, 0); GL.ColorMask(0, false, false, false, false);
-        StateCache.Current.InvalidateAll();
+        OpenGlStateCache.Current.InvalidateAll();
     }
 
     /// <summary>Checks the consumer restored the native state rather than just cached knowledge.</summary>
@@ -41,7 +42,7 @@ internal sealed class HostileFullscreenState : IDisposable
             if (enabled[index]) GL.Enable(Caps[index]); else GL.Disable(Caps[index]);
         GL.Scissor(scissor[0], scissor[1], scissor[2], scissor[3]);
         GL.ColorMask(0, color[0], color[1], color[2], color[3]);
-        StateCache.Current.InvalidateAll();
+        OpenGlStateCache.Current.InvalidateAll();
     }
     #endregion
 }

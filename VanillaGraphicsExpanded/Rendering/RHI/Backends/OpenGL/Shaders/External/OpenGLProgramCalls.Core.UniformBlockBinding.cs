@@ -10,7 +10,7 @@ internal static unsafe partial class OpenGLProgramCalls
     /// <summary>Executes the exact external overload and completes affected metadata publication.</summary>
     internal static void ExecuteCoreUniformBlockBinding(int @program, int @uniformBlockIndex, int @uniformBlockBinding)
     {
-        var observation = StateCache.BeginNativeProgramMetadata(unchecked((int)@program), true, false, -1, 1, false, false, ProgramInterface.UniformBlock, unchecked((int)@uniformBlockIndex));
+        var observation = OpenGlStateCache.BeginNativeProgramMetadata(unchecked((int)@program), true, false, -1, 1, false, false, ProgramInterface.UniformBlock, unchecked((int)@uniformBlockIndex));
         bool returned = false;
         try
         {
@@ -27,7 +27,7 @@ internal static unsafe partial class OpenGLProgramCalls
     /// <summary>Executes the exact external overload and completes affected metadata publication.</summary>
     internal static void ExecuteCoreUniformBlockBinding(uint @program, uint @uniformBlockIndex, uint @uniformBlockBinding)
     {
-        var observation = StateCache.BeginNativeProgramMetadata(unchecked((int)@program), true, false, -1, 1, false, false, ProgramInterface.UniformBlock, unchecked((int)@uniformBlockIndex));
+        var observation = OpenGlStateCache.BeginNativeProgramMetadata(unchecked((int)@program), true, false, -1, 1, false, false, ProgramInterface.UniformBlock, unchecked((int)@uniformBlockIndex));
         bool returned = false;
         try
         {

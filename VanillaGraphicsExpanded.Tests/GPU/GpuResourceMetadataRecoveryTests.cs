@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
@@ -31,7 +32,7 @@ public sealed class GpuResourceMetadataRecoveryTests(HeadlessGLFixture fixture)
                 entry.Reader = reader;
                 buffer.Allocate(128);
                 Assert.Equal(0, reader.Reads);
-                using var binding = StateCache.Current.BindBufferScope(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBufferValues.Target(buffer.Role), buffer.BufferId);
+                using var binding = OpenGlStateCache.Current.BindBufferScope(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBufferValues.Target(buffer.Role), buffer.BufferId);
                 GL.GetBufferParameter(BufferTarget.ArrayBuffer, BufferParameterName.BufferSize, out int actualCapacity);
                 Assert.Equal(128, actualCapacity);
                 Assert.Equal(128, buffer.SizeBytes);
@@ -42,7 +43,7 @@ public sealed class GpuResourceMetadataRecoveryTests(HeadlessGLFixture fixture)
             }
             finally { entry.Reader = originalReader; }
         }
-        finally { fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
 
     /// <summary>Retired original associations cannot transfer stale native names through either public API.</summary>
@@ -65,7 +66,7 @@ public sealed class GpuResourceMetadataRecoveryTests(HeadlessGLFixture fixture)
             Assert.Throws<InvalidOperationException>(() => { if (releaseHandle) buffer.ReleaseHandle(); else buffer.Detach(); });
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
 
     /// <summary>Pending retirement, context retirement, and replacement entries cannot make an old owner transferable.</summary>
@@ -112,7 +113,7 @@ public sealed class GpuResourceMetadataRecoveryTests(HeadlessGLFixture fixture)
             if (contextRetired) RenderContextRegistry.RegisterCurrent(fixture, static _ => true);
             if (native != 0 && GL.IsBuffer(native)) RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Buffer, native));
             fixture.CleanupGpuResources();
-            StateCache.Current.InvalidateAll();
+            OpenGlStateCache.Current.InvalidateAll();
         }
     }
 
@@ -151,7 +152,7 @@ public sealed class GpuResourceMetadataRecoveryTests(HeadlessGLFixture fixture)
         {
             if (native != 0 && GL.IsTexture(native)) RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Texture, native));
             fixture.CleanupGpuResources();
-            StateCache.Current.InvalidateAll();
+            OpenGlStateCache.Current.InvalidateAll();
         }
     }
 
@@ -167,10 +168,10 @@ public sealed class GpuResourceMetadataRecoveryTests(HeadlessGLFixture fixture)
             var manager = GpuResourceManagerSystem.CurrentManager!;
             var entry = Assert.IsType<GpuResourceMetadataEntry<GpuTextureMetadata>>(manager.GetResourceRegistration(texture));
             ulong previousStorageRevision = entry.StorageRevision;
-            using (StateCache.Current.BindTextureScope(((GpuTextureRef)texture).Target, 0, texture.TextureId))
+            using (OpenGlStateCache.Current.BindTextureScope(((GpuTextureRef)texture).Target, 0, texture.TextureId))
             using (var operation = new GpuResourceManager.MetadataOperation<GpuTextureMetadata>(texture, GpuMetadataChange.Storage))
             {
-                new VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBackend(StateCache.Current).DefineTextureImages(texture.TextureId, new GpuTextureInitialization { Target = TextureTarget.Texture2D, AllocationMode = GpuTextureAllocationMode.Mutable, InternalFormat = PixelInternalFormat.Rgba8, Width = 12, Height = 6, Levels = 1 }.Resolve(), operation);
+                new VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBackend(OpenGlStateCache.Current).DefineTextureImages(texture.TextureId, new GpuTextureInitialization { Target = TextureTarget.Texture2D, AllocationMode = GpuTextureAllocationMode.Mutable, InternalFormat = PixelInternalFormat.Rgba8, Width = 12, Height = 6, Levels = 1 }.Resolve(), operation);
                 // Abandon the operation after a real accepted image replacement.
             }
             Assert.False(entry.MetadataAvailable);
@@ -182,7 +183,7 @@ public sealed class GpuResourceMetadataRecoveryTests(HeadlessGLFixture fixture)
             Assert.True(entry.StorageRevision > previousStorageRevision);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
     /// <summary>Construction failure preserves its original exception and retires the unreturned native allocation.</summary>
     [Fact]
@@ -193,7 +194,7 @@ public sealed class GpuResourceMetadataRecoveryTests(HeadlessGLFixture fixture)
         int buffer = GL.GenBuffer();
         try
         {
-            using (StateCache.Current.BindBufferScope(BufferTarget.ArrayBuffer, buffer))
+            using (OpenGlStateCache.Current.BindBufferScope(BufferTarget.ArrayBuffer, buffer))
                 GL.BufferData(BufferTarget.ArrayBuffer, 32, IntPtr.Zero, BufferUsageHint.StaticDraw);
             var manager = GpuResourceManagerSystem.CurrentManager!;
             var entry = manager.AcquireResource(GpuResourceKind.Buffer, buffer, new GpuBufferMetadataReader())!;
@@ -215,7 +216,7 @@ public sealed class GpuResourceMetadataRecoveryTests(HeadlessGLFixture fixture)
         {
             if (GL.IsBuffer(buffer)) RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Buffer, buffer));
             fixture.CleanupGpuResources();
-            StateCache.Current.InvalidateAll();
+            OpenGlStateCache.Current.InvalidateAll();
         }
     }
     #endregion

@@ -32,7 +32,7 @@ public sealed partial class GpuProgramMetadataInterceptionTests
             var manager = GpuResourceManagerSystem.CurrentManager!;
             var entryA = manager.GetResourceRegistration(a)!;
             var entryB = manager.GetResourceRegistration(b)!;
-            OpenGLProgramSelection.Select(StateCache.Current, a.ProgramId);
+            OpenGLProgramSelection.Select(OpenGlStateCache.Current, a.ProgramId);
             ulong revisionA = entryA.MetadataRevision;
             ulong revisionB = entryB.MetadataRevision;
 
@@ -49,11 +49,11 @@ public sealed partial class GpuProgramMetadataInterceptionTests
             harmony.Patch(AccessTools.Method(typeof(OpenTK.Graphics.OpenGL4.GL), nameof(GL.UseProgram), [typeof(int)]),
                 prefix: new HarmonyMethod(typeof(GpuProgramMetadataInterceptionTests), nameof(CountFullProgramRestore)));
             restoredProgramCalls = 0;
-            Assert.Equal(b.ProgramId, StateCache.Current.GetCurrentProgram());
-            OpenGLProgramSelection.Select(StateCache.Current, b.ProgramId);
+            Assert.Equal(b.ProgramId, OpenGlStateCache.Current.GetCurrentProgram());
+            OpenGLProgramSelection.Select(OpenGlStateCache.Current, b.ProgramId);
             Assert.Equal(1, restoredProgramCalls);
 
-            OpenGLProgramSelection.Select(StateCache.Current, a.ProgramId);
+            OpenGLProgramSelection.Select(OpenGlStateCache.Current, a.ProgramId);
             int unlinked = GL.CreateProgram();
             try
             {
@@ -68,9 +68,9 @@ public sealed partial class GpuProgramMetadataInterceptionTests
         {
             harmony.UnpatchAll(harmony.Id);
             units.UnpatchAll(units.Id);
-            OpenGLProgramSelection.Select(StateCache.Current, 0);
+            OpenGLProgramSelection.Select(OpenGlStateCache.Current, 0);
             fixture.CleanupGpuResources();
-            StateCache.Current.InvalidateAll();
+            OpenGlStateCache.Current.InvalidateAll();
         }
     }
 
@@ -89,27 +89,27 @@ public sealed partial class GpuProgramMetadataInterceptionTests
         {
             using var program = CreateProgram(out int shader);
             VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Shader, shader));
-            OpenGLProgramSelection.Select(StateCache.Current, program.ProgramId);
+            OpenGLProgramSelection.Select(OpenGlStateCache.Current, program.ProgramId);
             DesktopSelect(unsigned, true, native);
             Assert.Equal(program.ProgramId, GL.GetInteger(GetPName.CurrentProgram));
-            Assert.Equal(program.ProgramId, StateCache.Current.GetCurrentProgram());
+            Assert.Equal(program.ProgramId, OpenGlStateCache.Current.GetCurrentProgram());
 
             harmony.Patch(AccessTools.Method(typeof(OpenTK.Graphics.OpenGL4.GL), nameof(GL.UseProgram), [typeof(int)]),
                 prefix: new HarmonyMethod(typeof(GpuProgramMetadataInterceptionTests), nameof(CountFullProgramRestore)));
             restoredProgramCalls = 0;
-            OpenGLProgramSelection.Select(StateCache.Current, program.ProgramId);
+            OpenGLProgramSelection.Select(OpenGlStateCache.Current, program.ProgramId);
             Assert.Equal(1, restoredProgramCalls);
-            OpenGLProgramSelection.Select(StateCache.Current, program.ProgramId);
+            OpenGLProgramSelection.Select(OpenGlStateCache.Current, program.ProgramId);
             Assert.Equal(1, restoredProgramCalls);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
         finally
         {
             harmony.UnpatchAll(harmony.Id);
-            OpenGLProgramSelection.Select(StateCache.Current, 0);
+            OpenGLProgramSelection.Select(OpenGlStateCache.Current, 0);
             VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Program, native));
             fixture.CleanupGpuResources();
-            StateCache.Current.InvalidateAll();
+            OpenGlStateCache.Current.InvalidateAll();
         }
     }
     #endregion

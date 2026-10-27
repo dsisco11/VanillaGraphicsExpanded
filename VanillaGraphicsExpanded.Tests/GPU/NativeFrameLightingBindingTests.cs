@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Runtime.InteropServices;
@@ -67,7 +68,7 @@ public sealed class NativeFrameLightingBindingTests(HeadlessGLFixture fixture) :
         {
             GL.BindBufferBase(BufferRangeTarget.ShaderStorageBuffer, 3, priorFace);
             GL.BindBufferBase(BufferRangeTarget.ShaderStorageBuffer, GpuBindingRegistry.Ssbo.FrameLighting, priorFrame);
-            StateCache.Current.InvalidateAll();
+            OpenGlStateCache.Current.InvalidateAll();
         }
     }
     #endregion

@@ -10,7 +10,7 @@ internal static unsafe partial class OpenGLVertexCalls
     /// <summary>Executes the exact overload and completes its vertex metadata operation.</summary>
     internal static void ExecuteCoreVertexAttribFormat(int @attribindex, int @size, VertexAttribType @type, bool @normalized, int @relativeoffset)
     {
-        var observation = StateCache.BeginNativeVertexMetadata(0, false, false);
+        var observation = OpenGlStateCache.BeginNativeVertexMetadata(0, false, false);
         bool returned = false;
         try
         {
@@ -27,7 +27,7 @@ internal static unsafe partial class OpenGLVertexCalls
     /// <summary>Executes the exact overload and completes its vertex metadata operation.</summary>
     internal static void ExecuteCoreVertexAttribFormat(uint @attribindex, int @size, VertexAttribType @type, bool @normalized, uint @relativeoffset)
     {
-        var observation = StateCache.BeginNativeVertexMetadata(0, false, false);
+        var observation = OpenGlStateCache.BeginNativeVertexMetadata(0, false, false);
         bool returned = false;
         try
         {

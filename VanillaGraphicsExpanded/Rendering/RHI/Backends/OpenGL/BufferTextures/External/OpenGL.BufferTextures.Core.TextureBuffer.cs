@@ -10,7 +10,7 @@ internal static unsafe partial class OpenGLBufferTexturesCalls
     /// <summary>Executes the exact external overload and completes its affected metadata publication.</summary>
     internal static void ExecuteCoreTextureBuffer(int @texture, InternalFormat @internalformat, int @buffer)
     {
-        var observation = StateCache.BeginNativeBufferTexture(unchecked((int)@texture), (int)TextureTarget.TextureBuffer, 0, true, false, unchecked((int)@buffer), unchecked((int)@internalformat), 0, 0, true);
+        var observation = OpenGlStateCache.BeginNativeBufferTexture(unchecked((int)@texture), (int)TextureTarget.TextureBuffer, 0, true, false, unchecked((int)@buffer), unchecked((int)@internalformat), 0, 0, true);
         bool returned = false;
         try
         {
@@ -27,7 +27,7 @@ internal static unsafe partial class OpenGLBufferTexturesCalls
     /// <summary>Executes the exact external overload and completes its affected metadata publication.</summary>
     internal static void ExecuteCoreTextureBuffer(int @texture, SizedInternalFormat @internalformat, int @buffer)
     {
-        var observation = StateCache.BeginNativeBufferTexture(unchecked((int)@texture), (int)TextureTarget.TextureBuffer, 0, true, false, unchecked((int)@buffer), unchecked((int)@internalformat), 0, 0, true);
+        var observation = OpenGlStateCache.BeginNativeBufferTexture(unchecked((int)@texture), (int)TextureTarget.TextureBuffer, 0, true, false, unchecked((int)@buffer), unchecked((int)@internalformat), 0, 0, true);
         bool returned = false;
         try
         {
@@ -44,7 +44,7 @@ internal static unsafe partial class OpenGLBufferTexturesCalls
     /// <summary>Executes the exact external overload and completes its affected metadata publication.</summary>
     internal static void ExecuteCoreTextureBuffer(uint @texture, InternalFormat @internalformat, uint @buffer)
     {
-        var observation = StateCache.BeginNativeBufferTexture(unchecked((int)@texture), (int)TextureTarget.TextureBuffer, 0, true, false, unchecked((int)@buffer), unchecked((int)@internalformat), 0, 0, true);
+        var observation = OpenGlStateCache.BeginNativeBufferTexture(unchecked((int)@texture), (int)TextureTarget.TextureBuffer, 0, true, false, unchecked((int)@buffer), unchecked((int)@internalformat), 0, 0, true);
         bool returned = false;
         try
         {
@@ -61,7 +61,7 @@ internal static unsafe partial class OpenGLBufferTexturesCalls
     /// <summary>Executes the exact external overload and completes its affected metadata publication.</summary>
     internal static void ExecuteCoreTextureBuffer(uint @texture, SizedInternalFormat @internalformat, uint @buffer)
     {
-        var observation = StateCache.BeginNativeBufferTexture(unchecked((int)@texture), (int)TextureTarget.TextureBuffer, 0, true, false, unchecked((int)@buffer), unchecked((int)@internalformat), 0, 0, true);
+        var observation = OpenGlStateCache.BeginNativeBufferTexture(unchecked((int)@texture), (int)TextureTarget.TextureBuffer, 0, true, false, unchecked((int)@buffer), unchecked((int)@internalformat), 0, 0, true);
         bool returned = false;
         try
         {

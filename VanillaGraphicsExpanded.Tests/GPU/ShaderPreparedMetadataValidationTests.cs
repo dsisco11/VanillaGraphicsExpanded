@@ -28,8 +28,8 @@ public sealed class ShaderPreparedMetadataValidationTests(HeadlessGLFixture fixt
             using var sentinel = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba32f, Width = System.Math.Max(1, 4), Height = System.Math.Max(1, 4), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
             var sampler = Entry(ShaderBindingKind.Sampler, ActiveUniformType.Sampler2D, [true, true]);
             var image = Entry(ShaderBindingKind.Image, ActiveUniformType.Image2D, [true]);
-            OpenGLImageBindings.ActiveTexture(StateCache.Current, 0);
-            OpenGLImageBindings.BindTexture(StateCache.Current, TextureTarget.Texture2D, 0, sentinel.TextureId);
+            OpenGLImageBindings.ActiveTexture(OpenGlStateCache.Current, 0);
+            OpenGLImageBindings.BindTexture(OpenGlStateCache.Current, TextureTarget.Texture2D, 0, sentinel.TextureId);
             ShaderPreparedSubmission.ValidateSampler(sampler, (GpuTexture)texture);
             ShaderPreparedSubmission.ValidateSamplerArray(sampler, [texture, sentinel]);
             ShaderPreparedSubmission.ValidateImage(image, texture);
@@ -44,7 +44,7 @@ public sealed class ShaderPreparedMetadataValidationTests(HeadlessGLFixture fixt
             ShaderPreparedSubmission.ValidateImage(image, texture);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
 
     /// <summary>Buffer consumers reject unavailable metadata and ranges exceeding a changed allocation.</summary>
@@ -73,7 +73,7 @@ public sealed class ShaderPreparedMetadataValidationTests(HeadlessGLFixture fixt
             if (ranged) ShaderPreparedSubmission.ValidateStorageBlock(binding, new GpuStorageBufferBinding(storage, 0, 16));
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
     #endregion
 

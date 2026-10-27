@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System.Numerics;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.LumOn.WorldProbes;
@@ -57,16 +58,16 @@ public sealed class WorldProbeCpuSubmissionTests(HeadlessGLFixture fixture) : Re
         using var atlas = new SurfaceLightingWorldProbeFixture(2);
         GL.Enable(EnableCap.ScissorTest); GL.Scissor(0, 0, 0, 0); GL.ColorMask(false, false, false, false);
         GL.Enable(EnableCap.DepthTest); GL.DepthFunc(DepthFunction.Never); GL.Viewport(3, 4, 5, 6);
-        StateCache.Current.InvalidateAll();
+        OpenGlStateCache.Current.InvalidateAll();
         try
         {
             var first = Result(.25f, .5f);
 #if DEBUG
-            long before = StateCache.Current.DrawSubmissions;
+            long before = OpenGlStateCache.Current.DrawSubmissions;
 #endif
             Assert.Equal(1, atlas.TryUpload(first, 1024));
 #if DEBUG
-            Assert.Equal(before + 2, StateCache.Current.DrawSubmissions);
+            Assert.Equal(before + 2, OpenGlStateCache.Current.DrawSubmissions);
 #endif
             Assert.True(GL.IsEnabled(EnableCap.ScissorTest)); Assert.Equal((int)DepthFunction.Never, GL.GetInteger(GetPName.DepthFunc));
             int[] viewport = new int[4]; GL.GetInteger(GetPName.Viewport, viewport); Assert.Equal(new[] { 3, 4, 5, 6 }, viewport);
@@ -84,7 +85,7 @@ public sealed class WorldProbeCpuSubmissionTests(HeadlessGLFixture fixture) : Re
         finally
         {
             GL.Disable(EnableCap.ScissorTest); GL.Disable(EnableCap.DepthTest); GL.ColorMask(true, true, true, true);
-            GL.DepthFunc(DepthFunction.Less); StateCache.Current.InvalidateAll();
+            GL.DepthFunc(DepthFunction.Less); OpenGlStateCache.Current.InvalidateAll();
         }
     }
     #endregion

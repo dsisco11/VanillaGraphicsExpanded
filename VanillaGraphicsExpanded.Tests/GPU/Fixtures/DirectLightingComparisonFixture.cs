@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using HarmonyLib;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using Moq;
@@ -134,7 +135,7 @@ internal sealed class DirectLightingComparisonFixture : IDisposable
         var shader = reference.PrepareBoundaryProgram()!;
         var desc = new RHIGraphicsPipelineDescription(shader.Shader, EngineFullscreenGeometry.Layout,
             new([new(TextureFormat.Rgba16f), new(TextureFormat.Rgba16f), new(TextureFormat.Rgba16f)]), DynamicPipelineState.Viewport);
-        StateCache.Current.ApplyGraphicsState(desc, new() { Viewport = new() { Width = Width, Height = Height } });
+        OpenGlStateCache.Current.ApplyGraphicsState(desc, new() { Viewport = new() { Width = Width, Height = Height } });
     }
 
     #endregion
@@ -177,7 +178,7 @@ internal sealed class DirectLightingComparisonFixture : IDisposable
     /// <summary>Updates production G-buffer storage through the existing unpack and texture-binding scopes.</summary>
     private static void Upload(int texture, float[] data)
     {
-        using var binding = StateCache.Current.BindTextureScope(TextureTarget.Texture2D, 0, texture);
+        using var binding = OpenGlStateCache.Current.BindTextureScope(TextureTarget.Texture2D, 0, texture);
         GL.GetTexLevelParameter(TextureTarget.Texture2D, 0, GetTextureParameter.TextureWidth, out int width);
         GL.GetTexLevelParameter(TextureTarget.Texture2D, 0, GetTextureParameter.TextureHeight, out int height);
         GL.TexSubImage2D(TextureTarget.Texture2D, 0, 0, 0, width, height, PixelFormat.Rgba, PixelType.Float, data);

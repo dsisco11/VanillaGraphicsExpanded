@@ -58,7 +58,7 @@ internal readonly struct OpenGLTextureQueries
         // Cube faces require face-specific bound queries; the scope restores incoming state.
         bool bound = target == TextureTarget.TextureCubeMap;
         using var binding = bound
-            ? StateCache.Current.BindTextureScope(target, 0, texture) : (StateCache.TextureScope?)null;
+            ? OpenGlStateCache.Current.BindTextureScope(target, 0, texture) : (OpenGlStateCache.TextureScope?)null;
         int immutable = ReadParameter(texture, GetTextureParameter.TextureImmutableFormat);
         int immutableLevels = ReadParameter(texture, GetTextureParameter.TextureImmutableLevels);
         if (immutable < 0 || immutableLevels < 0) return false;

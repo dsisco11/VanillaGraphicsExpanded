@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.ShaderCompilation;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
@@ -25,7 +26,7 @@ public sealed partial class PBRCompositeRenderer
     /// <summary>Prepares all possible draw destinations before resolving the boundary's complete resource footprint.</summary>
     internal RHIGraphicsPipeline[]? PrepareBoundaryPipelines(bool capture)
     {
-        StateCache.Current.RequireOutsideEngineBoundary();
+        OpenGlStateCache.Current.RequireOutsideEngineBoundary();
         var shader = PrepareCompositeProgram(!capture && readLightingMode(), capture);
         if (shader is null) return null;
         if (capture) return [PreparePipeline(ref capturePipeline, shader, CaptureTargets)];

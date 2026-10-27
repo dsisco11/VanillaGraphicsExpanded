@@ -53,8 +53,8 @@ public sealed class GBufferExternalFramebufferTests(HeadlessGLFixture fixture) :
             FramebufferTestSetup.BindForEngineRendering(primary);
             // Invoke the installed engine setter: its raw GL bind must be observed by the production hook.
             setter.Invoke(platform, [new FrameBufferRef { FboId = oit.FboId, Width = 1, Height = 1 }]);
-            Assert.Equal(oit.FboId, StateCache.Current.GetCurrentFramebuffer(FramebufferTarget.Framebuffer));
-            Assert.Equal(oit.FboId, StateCache.Current.GetCurrentFramebuffer(FramebufferTarget.ReadFramebuffer));
+            Assert.Equal(oit.FboId, OpenGlStateCache.Current.GetCurrentFramebuffer(FramebufferTarget.Framebuffer));
+            Assert.Equal(oit.FboId, OpenGlStateCache.Current.GetCurrentFramebuffer(FramebufferTarget.ReadFramebuffer));
             Assert.Equal(oit.FboId, GL.GetInteger(GetPName.DrawFramebufferBinding));
             GL.Enable(IndexedEnableCap.Blend, 4); GL.Enable(IndexedEnableCap.Blend, 5);
             GL.BlendFunc(4, BlendingFactorSrc.One, BlendingFactorDest.One);
@@ -72,8 +72,8 @@ public sealed class GBufferExternalFramebufferTests(HeadlessGLFixture fixture) :
             Assert.False(GL.IsEnabled(IndexedEnableCap.Blend, 4));
             Assert.False(GL.IsEnabled(IndexedEnableCap.Blend, 5));
             setter.Invoke(platform, [null]);
-            Assert.Equal(0, StateCache.Current.GetCurrentFramebuffer(FramebufferTarget.Framebuffer));
-            Assert.Equal(0, StateCache.Current.GetCurrentFramebuffer(FramebufferTarget.ReadFramebuffer));
+            Assert.Equal(0, OpenGlStateCache.Current.GetCurrentFramebuffer(FramebufferTarget.Framebuffer));
+            Assert.Equal(0, OpenGlStateCache.Current.GetCurrentFramebuffer(FramebufferTarget.ReadFramebuffer));
             Assert.Equal(0, GL.GetInteger(GetPName.DrawFramebufferBinding));
         }
         finally { harmony.UnpatchAll(harmony.Id); GpuFramebuffer.Unbind(); }
@@ -210,7 +210,7 @@ public sealed class GBufferExternalFramebufferTests(HeadlessGLFixture fixture) :
         using var buffers = new DirectLightingBufferManager(api.Object);
         Assert.True(buffers.EnsureBuffers(2, 2));
         using var stale = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba8, Width = System.Math.Max(1, 1), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
-        OpenGLImageBindings.BindTexture(StateCache.Current, TextureTarget.Texture2D, 0, stale.TextureId);
+        OpenGLImageBindings.BindTexture(OpenGlStateCache.Current, TextureTarget.Texture2D, 0, stale.TextureId);
         GL.DeleteTexture(stale.ReleaseHandle().ToInt32());
         GBufferHooks.RebuildFrameBuffers_Hook();
 

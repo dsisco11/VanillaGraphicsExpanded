@@ -45,7 +45,7 @@ public sealed class GpuBufferMetadataInterceptionTests(HeadlessGLFixture fixture
         {
             harmony.UnpatchAll(harmony.Id);
             OpenGLBufferDeletionCalls.Core.DeleteBuffer(reserved);
-            fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll();
+            fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll();
         }
     }
 
@@ -71,7 +71,7 @@ public sealed class GpuBufferMetadataInterceptionTests(HeadlessGLFixture fixture
             harmony.Patch(AccessTools.Method(typeof(GpuBufferMetadataInterceptionTests), nameof(AllocateStorage)),
                 transpiler: new HarmonyMethod(typeof(EngineStateSwitchingHook), nameof(EngineStateSwitchingHook.Transpiler)));
             using var owner = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = null }).RequireResource();
-            OpenGLBufferBindings.BindBuffer(StateCache.Current, BufferTarget.ArrayBuffer, owner.BufferId);
+            OpenGLBufferBindings.BindBuffer(OpenGlStateCache.Current, BufferTarget.ArrayBuffer, owner.BufferId);
             AllocateStorage(named, owner.BufferId);
             AcquireAfterExternal(owner);
             Assert.Equal(96, owner.SizeBytes);
@@ -84,7 +84,7 @@ public sealed class GpuBufferMetadataInterceptionTests(HeadlessGLFixture fixture
             Assert.True(GpuResourceManagerSystem.CurrentManager.IsResourceMetadataAvailable(owner));
             Assert.Equal(ErrorCode.InvalidOperation, GL.GetError());
         }
-        finally { harmony.UnpatchAll(harmony.Id); fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { harmony.UnpatchAll(harmony.Id); fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
 
     /// <summary>Each rewritten overload publishes actual allocation facts to every alias exactly once.</summary>
@@ -114,7 +114,7 @@ public sealed class GpuBufferMetadataInterceptionTests(HeadlessGLFixture fixture
             manager.AssociateResource(entry, alias);
             // Force target resolution through native unknown-state recovery instead of cached selection.
             GL.BindBuffer(BufferTarget.ArrayBuffer, owner.BufferId);
-            StateCache.Current.InvalidateAll();
+            OpenGlStateCache.Current.InvalidateAll();
             ulong revision = entry.MetadataRevision, storage = entry.StorageRevision;
             Upload(variant, owner.BufferId);
             AcquireAfterExternal(owner);
@@ -126,7 +126,7 @@ public sealed class GpuBufferMetadataInterceptionTests(HeadlessGLFixture fixture
             Assert.Equal(owner.BufferId, GL.GetInteger(GetPName.ArrayBufferBinding));
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { harmony.UnpatchAll(harmony.Id); fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { harmony.UnpatchAll(harmony.Id); fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
 
     /// <summary>Rejected allocation retains proven capacity and its native error, while raw objects remain unregistered.</summary>
@@ -143,13 +143,13 @@ public sealed class GpuBufferMetadataInterceptionTests(HeadlessGLFixture fixture
                 transpiler: new HarmonyMethod(typeof(EngineStateSwitchingHook), nameof(EngineStateSwitchingHook.Transpiler)));
             using var owner = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = null }).RequireResource();
             owner.Allocate(64);
-            OpenGLBufferBindings.BindBuffer(StateCache.Current, BufferTarget.ArrayBuffer, owner.BufferId);
+            OpenGLBufferBindings.BindBuffer(OpenGlStateCache.Current, BufferTarget.ArrayBuffer, owner.BufferId);
             Allocate(-1);
             AcquireAfterExternal(owner);
             Assert.Equal(64, owner.SizeBytes);
             Assert.Equal(ErrorCode.InvalidValue, GL.GetError());
             raw = GL.GenBuffer();
-            OpenGLBufferBindings.BindBuffer(StateCache.Current, BufferTarget.ArrayBuffer, raw);
+            OpenGLBufferBindings.BindBuffer(OpenGlStateCache.Current, BufferTarget.ArrayBuffer, raw);
             Allocate(24);
             Assert.Null(GpuResourceManagerSystem.CurrentManager!.FindResource(GpuResourceKind.Buffer, raw));
             GL.GetBufferParameter(BufferTarget.ArrayBuffer, BufferParameterName.BufferSize, out int size);
@@ -161,7 +161,7 @@ public sealed class GpuBufferMetadataInterceptionTests(HeadlessGLFixture fixture
             harmony.UnpatchAll(harmony.Id);
             if (raw != 0) RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Buffer, raw));
             fixture.CleanupGpuResources();
-            StateCache.Current.InvalidateAll();
+            OpenGlStateCache.Current.InvalidateAll();
         }
     }
     #endregion

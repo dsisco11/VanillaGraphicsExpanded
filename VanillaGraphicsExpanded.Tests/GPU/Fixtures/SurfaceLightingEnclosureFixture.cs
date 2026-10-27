@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Runtime.InteropServices;
 using OpenTK.Graphics.OpenGL;
@@ -248,7 +249,7 @@ internal sealed class SurfaceLightingEnclosureFixture : IDisposable
     {
         Run(2); generation++; GpuTestFence.WaitForGpuOrSkip("Surface outgoing generation");
         var pixels = new float[AtlasEdge * AtlasEdge * 4];
-        using var binding = StateCache.Current.BindTextureScope(TextureTarget.Texture2DArray,0,Snapshot.OutgoingRadiance.TextureId);
+        using var binding = OpenGlStateCache.Current.BindTextureScope(TextureTarget.Texture2DArray,0,Snapshot.OutgoingRadiance.TextureId);
         GL.GetTexImage(TextureTarget.Texture2DArray,0,PixelFormat.Rgba,PixelType.Float,pixels);
         foreach (var item in lightingItems)
         {
@@ -333,7 +334,7 @@ internal sealed class SurfaceLightingEnclosureFixture : IDisposable
     public float[] ReadStored(GpuTexture texture, int page = 0, int linear = 27)
     {
         var pixels=new float[AtlasEdge*AtlasEdge*4];
-        using var binding=StateCache.Current.BindTextureScope(TextureTarget.Texture2DArray,0,texture.TextureId);
+        using var binding=OpenGlStateCache.Current.BindTextureScope(TextureTarget.Texture2DArray,0,texture.TextureId);
         GL.GetTexImage(TextureTarget.Texture2DArray,0,PixelFormat.Rgba,PixelType.Float,pixels);
         int local=(int)lightingItems[page].PhysicalPageId-1;
         int x=((local%TilesPerAxis)<<3)+linear%Edge, y=((local/TilesPerAxis)<<3)+linear/Edge;

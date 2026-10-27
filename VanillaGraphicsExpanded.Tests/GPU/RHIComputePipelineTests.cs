@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.Pipeline.Descriptions;
 using System;
 using HarmonyLib;
@@ -36,7 +37,7 @@ public sealed class RHIComputePipelineTests(HeadlessGLFixture fixture)
             shader.Dispose();
             Assert.Throws<ObjectDisposedException>(() => second.RequireShader());
         }
-        finally { fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
     /// <summary>Equivalent code in independent live executables never collapses their generation identities.</summary>
     [Fact]
@@ -51,7 +52,7 @@ public sealed class RHIComputePipelineTests(HeadlessGLFixture fixture)
             using var second = context.CreateShader(description).RequireResource();
             Assert.NotEqual(new RHIComputePipelineDescription(first), new RHIComputePipelineDescription(second));
         }
-        finally { fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
     /// <summary>Native callbacks cannot retire executing objects, and retired selections reject work before dispatch.</summary>
     [Fact]
@@ -89,7 +90,7 @@ public sealed class RHIComputePipelineTests(HeadlessGLFixture fixture)
         {
             DispatchObservation.Callback = null;
             harmony.UnpatchAll(harmony.Id);
-            fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll();
+            fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll();
         }
     }
     /// <summary>A deleted current executable cannot be captured as a restorable name after another program frees it.</summary>
@@ -113,7 +114,7 @@ public sealed class RHIComputePipelineTests(HeadlessGLFixture fixture)
             boundary.Run(() => { context.SetPipeline(replacementPipeline); context.BindResources(new(replacement)); context.Dispatch(new(0)); });
             Assert.Equal(OpenTK.Graphics.OpenGL.ErrorCode.NoError, OpenTK.Graphics.OpenGL.GL.GetError());
         }
-        finally { fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
     /// <summary>Fixed pipeline admission rejects foreign threads and retired contexts without touching their native resources.</summary>
     [Fact]
@@ -155,7 +156,7 @@ public sealed class RHIComputePipelineTests(HeadlessGLFixture fixture)
         {
             VanillaGraphicsExpanded.Rendering.Integration.RenderContextRegistry.Retire(domain);
             VanillaGraphicsExpanded.Rendering.Integration.RenderContextRegistry.RegisterCurrent(fixture, static _ => true);
-            StateCache.Current.InvalidateAll();
+            OpenGlStateCache.Current.InvalidateAll();
         }
     }
     #endregion

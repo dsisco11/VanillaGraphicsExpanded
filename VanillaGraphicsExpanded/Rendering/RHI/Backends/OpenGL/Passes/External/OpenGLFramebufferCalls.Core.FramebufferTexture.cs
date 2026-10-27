@@ -10,7 +10,7 @@ internal static unsafe partial class OpenGLFramebufferCalls
     /// <summary>Executes the exact external overload and completes affected metadata publication.</summary>
     internal static void ExecuteCoreFramebufferTexture(FramebufferTarget @target, FramebufferAttachment @attachment, int @texture, int @level)
     {
-        var observation = StateCache.BeginNativeFramebufferAttachment(unchecked((int)@target), false, unchecked((int)@attachment), unchecked((int)@texture), unchecked((int)@level), -1, 0);
+        var observation = OpenGlStateCache.BeginNativeFramebufferAttachment(unchecked((int)@target), false, unchecked((int)@attachment), unchecked((int)@texture), unchecked((int)@level), -1, 0);
         bool returned = false;
         try
         {
@@ -27,7 +27,7 @@ internal static unsafe partial class OpenGLFramebufferCalls
     /// <summary>Executes the exact external overload and completes affected metadata publication.</summary>
     internal static void ExecuteCoreFramebufferTexture(FramebufferTarget @target, FramebufferAttachment @attachment, uint @texture, int @level)
     {
-        var observation = StateCache.BeginNativeFramebufferAttachment(unchecked((int)@target), false, unchecked((int)@attachment), unchecked((int)@texture), unchecked((int)@level), -1, 0);
+        var observation = OpenGlStateCache.BeginNativeFramebufferAttachment(unchecked((int)@target), false, unchecked((int)@attachment), unchecked((int)@texture), unchecked((int)@level), -1, 0);
         bool returned = false;
         try
         {

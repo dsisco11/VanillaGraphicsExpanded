@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
 using TinyTokenizer.Ast;
@@ -130,7 +131,7 @@ public sealed class OitStorageArithmeticTests(HeadlessGLFixture fixture) : Rende
         {
             GL.UseProgram(0); GL.Disable(EnableCap.Blend);
             GL.BlendFunc(BlendingFactor.One, BlendingFactor.Zero);
-            GpuFramebuffer.Unbind(); StateCache.Current.InvalidateAll();
+            GpuFramebuffer.Unbind(); OpenGlStateCache.Current.InvalidateAll();
         }
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
@@ -159,9 +160,9 @@ public sealed class OitStorageArithmeticTests(HeadlessGLFixture fixture) : Rende
         float[] reveal = Enumerable.Range(0, width).SelectMany(i => new[] { i == 8 ? -1f : 0f, 1f, 1f, 1f }).ToArray();
         using var transmission = framework.CreateTexture(width, 1, PixelInternalFormat.Rgba32f, reveal);
         using var zero = framework.CreateTexture(width, 1, PixelInternalFormat.Rgba32f, new float[width * 4]);
-        using var bindBins = StateCache.Current.BindTextureScope(TextureTarget.Texture2DArray, 0, bins.TextureId);
-        using var bindReveal = StateCache.Current.BindTextureScope(TextureTarget.Texture2D, 1, transmission.TextureId);
-        using var bindZero = StateCache.Current.BindTextureScope(TextureTarget.Texture2D, 2, zero.TextureId);
+        using var bindBins = OpenGlStateCache.Current.BindTextureScope(TextureTarget.Texture2DArray, 0, bins.TextureId);
+        using var bindReveal = OpenGlStateCache.Current.BindTextureScope(TextureTarget.Texture2D, 1, transmission.TextureId);
+        using var bindZero = OpenGlStateCache.Current.BindTextureScope(TextureTarget.Texture2D, 2, zero.TextureId);
         GL.ProgramUniform1(program.ProgramId, GL.GetUniformLocation(program.ProgramId, "vge_sceneLinear"), 1);
         GL.ProgramUniform1(program.ProgramId, GL.GetUniformLocation(program.ProgramId, "OITaccumulation"), 0);
         GL.ProgramUniform1(program.ProgramId, GL.GetUniformLocation(program.ProgramId, "OITreveal"), 1);

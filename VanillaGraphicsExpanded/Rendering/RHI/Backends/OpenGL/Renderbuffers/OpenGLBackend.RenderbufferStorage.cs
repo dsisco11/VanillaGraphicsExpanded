@@ -67,7 +67,7 @@ internal sealed partial class OpenGLBackend
     /// <summary>Resolves samples from cached format capabilities, never a whole-descriptor query.</summary>
     private GpuRenderbufferMetadata DefineRenderbuffer(int id, in GpuRenderbufferInitialization request,
         GpuResourceManager.MetadataOperation<GpuRenderbufferMetadata>? operation = null,
-        StateCache.ResourceOperationGuard? creationGuard = null)
+        OpenGlStateCache.ResourceOperationGuard? creationGuard = null)
     {
         int samples = request.Samples;
         if (request.HasCoverageSamples)
@@ -97,7 +97,7 @@ internal sealed partial class OpenGLBackend
 
     /// <summary>Stops allocation-result reads after original identity or context retirement.</summary>
     private void CheckRenderbufferStep(GpuResourceManager.MetadataOperation<GpuRenderbufferMetadata>? operation,
-        StateCache.ResourceOperationGuard? creationGuard)
+        OpenGlStateCache.ResourceOperationGuard? creationGuard)
     {
         RequireContext();
         operation?.RequireLive();

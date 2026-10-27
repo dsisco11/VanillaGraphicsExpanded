@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Runtime.CompilerServices;
 using HarmonyLib;
@@ -29,16 +30,16 @@ public sealed class GpuRenderbufferTextureMetadataTests(HeadlessGLFixture fixtur
         {
             GL.BindRenderbuffer(RenderbufferTarget.Renderbuffer,first); GL.RenderbufferStorage(RenderbufferTarget.Renderbuffer,RenderbufferStorage.Rgba8,4,4);
             GL.BindRenderbuffer(RenderbufferTarget.Renderbuffer,second); GL.RenderbufferStorage(RenderbufferTarget.Renderbuffer,RenderbufferStorage.Rgba8,8,8);
-            GL.ActiveTexture(TextureUnit.Texture3); GL.BindTexture(Target,texture); GL.Ext.TextureRenderbuffer(texture,Target,first); Assert.Equal(ErrorCode.NoError,GL.GetError()); StateCache.Current.InvalidateAll();
+            GL.ActiveTexture(TextureUnit.Texture3); GL.BindTexture(Target,texture); GL.Ext.TextureRenderbuffer(texture,Target,first); Assert.Equal(ErrorCode.NoError,GL.GetError()); OpenGlStateCache.Current.InvalidateAll();
             var manager=GpuResourceManagerSystem.CurrentManager!; var reader=new GpuTextureMetadataReader(Target);
             var entry=manager.AcquireResource(GpuResourceKind.Texture,texture,reader)!; Assert.True(entry.IsUsable); Assert.Equal(first,entry.Metadata.Renderbuffer); Assert.Empty(entry.Metadata.Levels);
             Assert.True(manager.FindResource(GpuResourceKind.Renderbuffer,first)!.IsUsable);
             using var alias=new TextureAlias(texture); GpuResourceManager.AcquireWrapperMetadata(alias,reader);
-            GL.ActiveTexture(TextureUnit.Texture5); StateCache.Current.InvalidateAll(); ulong revision=entry.StorageRevision;
+            GL.ActiveTexture(TextureUnit.Texture5); OpenGlStateCache.Current.InvalidateAll(); ulong revision=entry.StorageRevision;
             Associate(multi,texture,second); Assert.Equal(ErrorCode.NoError,GL.GetError());
             Assert.Equal((int)TextureUnit.Texture5,GL.GetInteger(GetPName.ActiveTexture)); Assert.Equal(second,alias.Snapshot.Renderbuffer); Assert.True(entry.StorageRevision>revision); Assert.True(manager.IsResourceMetadataAvailable(alias));
             revision=entry.StorageRevision;
-            var token=StateCache.BeginNativeRenderbufferStorage(second,true);
+            var token=OpenGlStateCache.BeginNativeRenderbufferStorage(second,true);
             GL.NamedRenderbufferStorage(second,RenderbufferStorage.Rgba8,16,16); token.Complete(true);
             Assert.True(entry.StorageRevision>revision);
             Associate(multi,texture,int.MaxValue); Assert.Equal(ErrorCode.InvalidOperation,GL.GetError()); Assert.Equal(second,alias.Snapshot.Renderbuffer);
@@ -53,7 +54,7 @@ public sealed class GpuRenderbufferTextureMetadataTests(HeadlessGLFixture fixtur
             Assert.True(manager.IsResourceMetadataAvailable(alias)); Assert.Equal(first,alias.Snapshot.Renderbuffer);
             Assert.Equal(ErrorCode.NoError,GL.GetError());
         }
-        finally { harmony.UnpatchAll(harmony.Id); RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Texture, texture)); RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Renderbuffer, first)); RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Renderbuffer, second)); fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { harmony.UnpatchAll(harmony.Id); RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Texture, texture)); RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Renderbuffer, first)); RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Renderbuffer, second)); fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
     #endregion
     #region Private

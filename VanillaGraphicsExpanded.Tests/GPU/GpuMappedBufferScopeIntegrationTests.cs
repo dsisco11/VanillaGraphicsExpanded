@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 
@@ -106,7 +107,7 @@ public class GpuMappedBufferScopeIntegrationTests
 
     private static unsafe void ReadBack(GpuVbo vbo, int[] destination)
     {
-        using var bind = StateCache.Current.BindBufferScope(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBufferValues.Target(vbo.Role), vbo.BufferId);
+        using var bind = OpenGlStateCache.Current.BindBufferScope(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBufferValues.Target(vbo.Role), vbo.BufferId);
 
         fixed (int* ptr = destination)
         {
@@ -120,7 +121,7 @@ public class GpuMappedBufferScopeIntegrationTests
 
     private static int GetActualSizeBytes(GpuVbo vbo)
     {
-        using var bind = StateCache.Current.BindBufferScope(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBufferValues.Target(vbo.Role), vbo.BufferId);
+        using var bind = OpenGlStateCache.Current.BindBufferScope(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBufferValues.Target(vbo.Role), vbo.BufferId);
         GL.GetBufferParameter(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBufferValues.Target(vbo.Role), BufferParameterName.BufferSize, out int size);
         return size;
     }

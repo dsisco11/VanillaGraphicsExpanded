@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
 using System.Text.RegularExpressions;
@@ -165,7 +166,7 @@ public sealed class FrameLightingStorageTests(HeadlessGLFixture fixture) : LumOn
                 if(highlight!=0)Assert.Equal(65504,pixels[0]);
             }
         }
-        finally { GL.DeleteProgram(program);StateCache.Current.InvalidateAll(); }
+        finally { GL.DeleteProgram(program);OpenGlStateCache.Current.InvalidateAll(); }
     }
     #endregion
 

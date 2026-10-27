@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using System.Collections.Generic;
@@ -30,7 +31,7 @@ internal sealed class DebugRenderTarget : IDisposable
     /// <summary>Resolves the actual bound draw target, retaining exact published formats across unchanged debug draws.</summary>
     internal RHIRenderPassDescription GetPass(int colorCount = 1)
     {
-        int id = StateCache.Current.GetCurrentFramebuffer(FramebufferTarget.DrawFramebuffer);
+        int id = OpenGlStateCache.Current.GetCurrentFramebuffer(FramebufferTarget.DrawFramebuffer);
         if (dirty || windowWidth != api.Render.FrameWidth || windowHeight != api.Render.FrameHeight)
         {
             // Keep separate publications across OIT and window draws. Alternating stable

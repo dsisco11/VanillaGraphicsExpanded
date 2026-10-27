@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Runtime.CompilerServices;
 using OpenTK.Graphics.OpenGL;
@@ -41,7 +42,7 @@ public sealed class GpuFramebufferAttachmentTests(HeadlessGLFixture fixture) : R
     public void SparseMipAttachmentRetainsExactImageSelection()
     {
         EnsureContextValid();
-        using var scope = StateCache.Current.BindFramebufferScope();
+        using var scope = OpenGlStateCache.Current.BindFramebufferScope();
         using var texture = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba8, Width = System.Math.Max(1, 8), Height = System.Math.Max(1, 4), MipLevels = 3, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (3) - 1, Label = null }).RequireResource();
         using var attachment = GpuFramebufferAttachment.FromTexture(texture, mipLevel: 1);
         using var framebuffer = DynamicGpuFramebuffer.CreateEmpty();
@@ -64,7 +65,7 @@ public sealed class GpuFramebufferAttachmentTests(HeadlessGLFixture fixture) : R
     public void ArrayLayerSelectionMatchesDriverAttachment(int selectedLayer)
     {
         EnsureContextValid();
-        using var scope = StateCache.Current.BindFramebufferScope();
+        using var scope = OpenGlStateCache.Current.BindFramebufferScope();
         using var texture = RHICommandContext.Current.CreateDynamicTexture3D(new RHITextureDescription { Dimension = TextureDimension.TwoArray, Format = TextureFormat.Rgba8, Width = System.Math.Max(1, 4), Height = System.Math.Max(1, 4), Depth = System.Math.Max(1, 2), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Linear, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         using var attachment = GpuFramebufferAttachment.FromTexture(texture, layer: selectedLayer);
         using var framebuffer = DynamicGpuFramebuffer.Create([attachment])!;

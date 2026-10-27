@@ -10,7 +10,7 @@ internal static unsafe partial class OpenGLVertexCalls
     /// <summary>Executes the exact overload and completes its vertex metadata operation.</summary>
     internal static void ExecuteExtVertexArrayVertexAttribIOffset(int @vaobj, int @buffer, int @index, int @size, VertexAttribEnum @type, int @stride, IntPtr @offset)
     {
-        var observation = StateCache.BeginNativeVertexMetadata(unchecked((int)@vaobj), true, false);
+        var observation = OpenGlStateCache.BeginNativeVertexMetadata(unchecked((int)@vaobj), true, false);
         bool returned = false;
         try
         {
@@ -27,7 +27,7 @@ internal static unsafe partial class OpenGLVertexCalls
     /// <summary>Executes the exact overload and completes its vertex metadata operation.</summary>
     internal static void ExecuteExtVertexArrayVertexAttribIOffset(int @vaobj, int @buffer, int @index, int @size, VertexAttribType @type, int @stride, IntPtr @offset)
     {
-        var observation = StateCache.BeginNativeVertexMetadata(unchecked((int)@vaobj), true, false);
+        var observation = OpenGlStateCache.BeginNativeVertexMetadata(unchecked((int)@vaobj), true, false);
         bool returned = false;
         try
         {
@@ -44,7 +44,7 @@ internal static unsafe partial class OpenGLVertexCalls
     /// <summary>Executes the exact overload and completes its vertex metadata operation.</summary>
     internal static void ExecuteExtVertexArrayVertexAttribIOffset(uint @vaobj, uint @buffer, uint @index, int @size, VertexAttribEnum @type, int @stride, IntPtr @offset)
     {
-        var observation = StateCache.BeginNativeVertexMetadata(unchecked((int)@vaobj), true, false);
+        var observation = OpenGlStateCache.BeginNativeVertexMetadata(unchecked((int)@vaobj), true, false);
         bool returned = false;
         try
         {
@@ -61,7 +61,7 @@ internal static unsafe partial class OpenGLVertexCalls
     /// <summary>Executes the exact overload and completes its vertex metadata operation.</summary>
     internal static void ExecuteExtVertexArrayVertexAttribIOffset(uint @vaobj, uint @buffer, uint @index, int @size, VertexAttribType @type, int @stride, IntPtr @offset)
     {
-        var observation = StateCache.BeginNativeVertexMetadata(unchecked((int)@vaobj), true, false);
+        var observation = OpenGlStateCache.BeginNativeVertexMetadata(unchecked((int)@vaobj), true, false);
         bool returned = false;
         try
         {

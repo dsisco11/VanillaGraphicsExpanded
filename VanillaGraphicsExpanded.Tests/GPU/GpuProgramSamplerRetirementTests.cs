@@ -30,7 +30,7 @@ public sealed class GpuProgramSamplerRetirementTests(HeadlessGLFixture fixture) 
         using var depth = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.DepthComponent32f, Width = System.Math.Max(1, 1), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         using var input = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba32f, Width = System.Math.Max(1, 1), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         using var unrelated = RHICommandContext.Current.CreateSampler(new RHISamplerDescription {  }).RequireResource();
-        VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageBindings.BindSampler(StateCache.Current, 9, unrelated.SamplerId);
+        VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageBindings.BindSampler(OpenGlStateCache.Current, 9, unrelated.SamplerId);
         try
         {
             program.PrimaryScene = input;
@@ -60,9 +60,9 @@ public sealed class GpuProgramSamplerRetirementTests(HeadlessGLFixture fixture) 
         }
         finally
         {
-            OpenGLImageBindings.UnbindSampler(StateCache.Current, 4);
-            OpenGLImageBindings.UnbindSampler(StateCache.Current, 5);
-            OpenGLImageBindings.UnbindSampler(StateCache.Current, 9);
+            OpenGLImageBindings.UnbindSampler(OpenGlStateCache.Current, 4);
+            OpenGLImageBindings.UnbindSampler(OpenGlStateCache.Current, 5);
+            OpenGLImageBindings.UnbindSampler(OpenGlStateCache.Current, 9);
         }
     }
 
@@ -77,8 +77,8 @@ public sealed class GpuProgramSamplerRetirementTests(HeadlessGLFixture fixture) 
         using var framework = new ShaderTestFramework();
         using var texture = framework.CreateTexture(1, 1, PixelInternalFormat.Rgba32f, [.2f, .4f, .6f, 1f]);
         using var target = framework.CreateTestGBuffer(1, 1, PixelInternalFormat.Rgba32f);
-        OpenGLProgramSelection.Select(StateCache.Current, program.ProgramId);
-        OpenGLVertexSelection.Bind(StateCache.Current, vao.VertexArrayId);
+        OpenGLProgramSelection.Select(OpenGlStateCache.Current, program.ProgramId);
+        OpenGLVertexSelection.Bind(OpenGlStateCache.Current, vao.VertexArrayId);
         ShaderTestFramework.SetUniform(0, 5);
         // Intentionally bypass VGE texture binding: vanilla does not clear foreign sampler objects.
         GL.ActiveTexture(TextureUnit.Texture5);
@@ -87,7 +87,7 @@ public sealed class GpuProgramSamplerRetirementTests(HeadlessGLFixture fixture) 
         GL.Disable(EnableCap.DepthTest); GL.Disable(EnableCap.Blend); GL.Disable(EnableCap.CullFace);
         GL.DrawArrays(PrimitiveType.Triangles, 0, 3);
         Assert.Equal(new[] { .2f, .4f, .6f, 1f }, target[0].ReadPixels());
-        StateCache.Current.InvalidateAll();
+        OpenGlStateCache.Current.InvalidateAll();
     }
     #endregion
 }

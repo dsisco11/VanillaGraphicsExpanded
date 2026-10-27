@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using System.Collections.Generic;
@@ -63,7 +64,7 @@ public abstract class RenderTestBase : IDisposable
 
         // Context switches and raw test operations can leave stale native bindings in the thread-local cache.
         // Clear them before ring allocation: another context can reuse the same buffer name.
-        StateCache.Current.InvalidateAll();
+        OpenGlStateCache.Current.InvalidateAll();
         while (GL.GetError() != ErrorCode.NoError) { }
 
         // Option B: UBO binding uses the per-thread ring allocator.

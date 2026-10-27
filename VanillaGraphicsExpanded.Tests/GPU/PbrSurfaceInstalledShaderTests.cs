@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using VanillaGraphicsExpanded.Rendering.Shaders;
 using System.Text.RegularExpressions;
@@ -69,7 +70,7 @@ public sealed class PbrSurfaceInstalledShaderTests : RenderTestBase
         {
             GL.Disable(EnableCap.RasterizerDiscard); GL.BindBufferBase(BufferRangeTarget.TransformFeedbackBuffer, 0, 0);
             GL.DeleteBuffer(buffer); GL.DeleteVertexArray(vao); GL.DeleteProgram(program); GL.DeleteShader(vertex);
-            StateCache.Current.InvalidateAll();
+            OpenGlStateCache.Current.InvalidateAll();
         }
     }
 

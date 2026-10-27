@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.Integration.OpenGL;
 using System.Collections.Generic;
 using VanillaGraphicsExpanded.Rendering.RHI;
@@ -41,7 +42,7 @@ internal sealed class CloudSimpleGeometry : GraphicsGeometry
     /// <summary>Verifies a new mesh's native layout once, retaining no borrow after this callback-scoped adapter is disposed.</summary>
     internal CloudSimpleGeometry(MeshRef source, int instances)
     {
-        StateCache.Current.RequireOutsideEngineBoundary();
+        OpenGlStateCache.Current.RequireOutsideEngineBoundary();
         if (instances <= 0) throw new ArgumentOutOfRangeException(nameof(instances));
         mesh = source as VAO ?? throw new NotSupportedException("Simple clouds require the native ordinary VAO layout.");
         if (!receipts.TryGetValue(source, out var cached) || !Matches(mesh, cached) || cached.Capacity < instances)

@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
 using HarmonyLib;
@@ -25,7 +26,7 @@ public sealed class GpuBufferImageCreationTests(HeadlessGLFixture fixture)
             var entry = Assert.IsType<GpuResourceMetadataEntry<GpuBufferMetadata>>(manager.GetResourceRegistration(buffer));
             var reject = new RejectReader<GpuBufferMetadata>();
             entry.Reader = reject;
-            var operation = StateCache.InvalidateNativeBufferStorage(buffer.BufferId, true);
+            var operation = OpenGlStateCache.InvalidateNativeBufferStorage(buffer.BufferId, true);
             try
             {
                 Assert.Null(manager.AcquireResource(GpuResourceKind.Buffer, buffer.BufferId, reject));
@@ -41,7 +42,7 @@ public sealed class GpuBufferImageCreationTests(HeadlessGLFixture fixture)
             Assert.Equal(BufferUsageHint.StreamDraw, buffer.Usage);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
 
     /// <summary>The approved renderbuffer sample fallback publishes the native sample result without changing requested dimensions or format.</summary>
@@ -57,7 +58,7 @@ public sealed class GpuBufferImageCreationTests(HeadlessGLFixture fixture)
             Assert.Equal(8, renderbuffer.Width);
             Assert.Equal(4, renderbuffer.Height);
             Assert.Equal(RenderbufferStorage.Rgba8, renderbuffer.Storage);
-            using var binding = StateCache.Current.BindRenderbufferScope(renderbuffer.RenderbufferId);
+            using var binding = OpenGlStateCache.Current.BindRenderbufferScope(renderbuffer.RenderbufferId);
             GL.GetRenderbufferParameter(RenderbufferTarget.Renderbuffer, RenderbufferParameterName.RenderbufferSamples, out int samples);
             Assert.True(samples >= 3);
             Assert.Equal(samples, renderbuffer.Samples);
@@ -66,7 +67,7 @@ public sealed class GpuBufferImageCreationTests(HeadlessGLFixture fixture)
         finally
         {
             AccessTools.Field(typeof(GpuSupport), "graphics").SetValue(null, original);
-            fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll();
+            fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll();
         }
     }
 
@@ -106,7 +107,7 @@ public sealed class GpuBufferImageCreationTests(HeadlessGLFixture fixture)
             Assert.False(renderbuffer ? GL.IsRenderbuffer(native) : GL.IsBuffer(native));
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
 
     /// <summary>Immutable storage requires explicit flags and retains its native storage behavior through core named dispatch.</summary>
@@ -123,14 +124,14 @@ public sealed class GpuBufferImageCreationTests(HeadlessGLFixture fixture)
             request.StorageFlags = 0;
             var result = GpuResourceManager.CreateBuffer(request, recipient, out var handle);
             Assert.Equal(new GpuBufferMetadata(64, BufferUsageHint.DynamicDraw, true), result);
-            using var binding = StateCache.Current.BindBufferScope(BufferTarget.ArrayBuffer, (int)handle.Id);
+            using var binding = OpenGlStateCache.Current.BindBufferScope(BufferTarget.ArrayBuffer, (int)handle.Id);
             GL.GetBufferParameter(BufferTarget.ArrayBuffer, (BufferParameterName)All.BufferImmutableStorage, out int immutable);
             GL.GetBufferParameter(BufferTarget.ArrayBuffer, BufferParameterName.BufferSize, out int size);
             Assert.Equal(1, immutable);
             Assert.Equal(64, size);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
 
     /// <summary>Creation exposes complete facts in both manager and context-local paths and preserves bindings.</summary>
@@ -144,7 +145,7 @@ public sealed class GpuBufferImageCreationTests(HeadlessGLFixture fixture)
         try
         {
             using var sentinel = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = null }).RequireResource();
-            using var binding = StateCache.Current.BindBufferScope(BufferTarget.CopyWriteBuffer, sentinel.BufferId);
+            using var binding = OpenGlStateCache.Current.BindBufferScope(BufferTarget.CopyWriteBuffer, sentinel.BufferId);
             using var recipient = new Recipient<GpuBufferMetadata>(GpuResourceKind.Buffer);
             var request = new GpuBufferInitialization
                 { Mode = GpuBufferStorageMode.Mutable, Capacity = 48, Usage = BufferUsageHint.StreamDraw };
@@ -160,12 +161,12 @@ public sealed class GpuBufferImageCreationTests(HeadlessGLFixture fixture)
                 Assert.Equal(result.Value, entry.Metadata);
                 Assert.Null(entry.Reader);
             }
-            using var verify = StateCache.Current.BindBufferScope(BufferTarget.ArrayBuffer, checked((int)handle.Id));
+            using var verify = OpenGlStateCache.Current.BindBufferScope(BufferTarget.ArrayBuffer, checked((int)handle.Id));
             GL.GetBufferParameter(BufferTarget.ArrayBuffer, BufferParameterName.BufferSize, out int capacity);
             Assert.Equal(48, capacity);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
 
     /// <summary>Assigned zero capacity is valid mutable storage, whereas an omitted capacity fails before identity installation.</summary>
@@ -185,7 +186,7 @@ public sealed class GpuBufferImageCreationTests(HeadlessGLFixture fixture)
             Assert.True(recipient.IsValid);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
 
     /// <summary>Replacement of equal-sized storage still advances its identity and delivers aliases without invoking a reader.</summary>
@@ -214,7 +215,7 @@ public sealed class GpuBufferImageCreationTests(HeadlessGLFixture fixture)
             Assert.True(manager.IsResourceMetadataAvailable(owner));
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
 
     /// <summary>Renderbuffer creation publishes dimensions and format without native descriptor acquisition.</summary>
@@ -229,7 +230,7 @@ public sealed class GpuBufferImageCreationTests(HeadlessGLFixture fixture)
         {
 
             using var sentinel = RHICommandContext.Current.CreateRenderbuffer(new RHIRenderbufferDescription { Format = TextureFormat.Rgba8, Width = 2, Height = 2, Samples = 0, Label = null }).RequireResource();
-            using var binding = StateCache.Current.BindRenderbufferScope(sentinel.RenderbufferId);
+            using var binding = OpenGlStateCache.Current.BindRenderbufferScope(sentinel.RenderbufferId);
             using var recipient = new Recipient<GpuRenderbufferMetadata>(GpuResourceKind.Renderbuffer);
             var request = new GpuRenderbufferInitialization { Format = RenderbufferStorage.Rgba8, Width = 8, Height = 4 };
             var result = GpuResourceManager.CreateRenderbuffer(request, recipient, out var handle);
@@ -246,7 +247,7 @@ public sealed class GpuBufferImageCreationTests(HeadlessGLFixture fixture)
             }
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
 
     /// <summary>Renderbuffer replacement delivers aliases directly even when the optional native reader cannot recover.</summary>
@@ -270,7 +271,7 @@ public sealed class GpuBufferImageCreationTests(HeadlessGLFixture fixture)
             Assert.Equal(0, reader.Calls);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
     #endregion
 

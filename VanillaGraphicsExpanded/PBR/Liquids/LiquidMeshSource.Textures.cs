@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System;
 using VanillaGraphicsExpanded.Rendering;
 using Vintagestory.API.Client;
@@ -22,7 +23,7 @@ internal sealed partial class LiquidMeshSource
     internal void PrepareTextureInputs(ICoreClientAPI api, int[] atlases)
     {
         ObjectDisposedException.ThrowIf(disposed, this);
-        StateCache.Current.RequireOutsideEngineBoundary();
+        OpenGlStateCache.Current.RequireOutsideEngineBoundary();
         // Atlas names may change independently of pool count. Keep each original association
         // until replacement and let the common manager certify surviving metadata.
         if (atlasInputs.Length != atlases.Length)

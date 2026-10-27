@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.PBR.Materials;
 using VanillaGraphicsExpanded.HarmonyPatches;
 using VanillaGraphicsExpanded.DebugView;
@@ -84,7 +85,7 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem, ILiveConfigura
         capi.ModLoader.GetModSystem<GpuResourceManagerModSystem>()?.AdoptByRenderingRoot();
         renderingLifetime!.Attach(DisposeRendering);
         // Begin renderer ownership with unknown state; later external mutations invalidate their affected categories.
-        StateCache.Current.InvalidateAll();
+        OpenGlStateCache.Current.InvalidateAll();
         // Establish HDR storage before any VGE system borrows the engine framebuffer images.
         PBR.SceneColor.SceneColorPipeline.InitializeStorage(api);
         // Name the current engine table before VGE adds its own attachments.

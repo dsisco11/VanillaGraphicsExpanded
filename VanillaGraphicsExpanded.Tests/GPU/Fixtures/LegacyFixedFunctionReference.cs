@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Pipeline.State;
 using OpenTK.Graphics.OpenGL;
@@ -9,7 +10,7 @@ internal static class LegacyFixedFunctionReference
 {
     #region Public API
     /// <summary>Preserves fixed-function state, optionally including viewport for draws that resize it.</summary>
-    public static LegacyFixedFunctionScope Capture(StateCache cache, bool preserveViewport = false)
+    public static LegacyFixedFunctionScope Capture(OpenGlStateCache cache, bool preserveViewport = false)
     {
         var snapshot = LegacyFixedFunctionSnapshot.CaptureBestEffort();
         return new LegacyFixedFunctionScope(cache, snapshot, preserveViewport);
@@ -18,12 +19,12 @@ internal static class LegacyFixedFunctionReference
     /// <summary>Restores fixed-function state and, when requested by a draw pass, its previous viewport.</summary>
     public readonly struct LegacyFixedFunctionScope : System.IDisposable
     {
-        private readonly StateCache cache;
+        private readonly OpenGlStateCache cache;
         private readonly LegacyFixedFunctionSnapshot snapshot;
         private readonly int[]? viewport;
 
         /// <summary>Captures viewport only for rendering passes which change it.</summary>
-        internal LegacyFixedFunctionScope(StateCache cache, LegacyFixedFunctionSnapshot snapshot, bool preserveViewport)
+        internal LegacyFixedFunctionScope(OpenGlStateCache cache, LegacyFixedFunctionSnapshot snapshot, bool preserveViewport)
         {
             this.cache = cache;
             this.snapshot = snapshot;
@@ -35,7 +36,7 @@ internal static class LegacyFixedFunctionReference
         public void Dispose()
         {
             snapshot.Restore(cache);
-            if (viewport is not null) StateCache.Current.ApplyDynamic(new DynamicDrawState { X = viewport[0], Y = viewport[1], Width = viewport[2], Height = viewport[3] });
+            if (viewport is not null) OpenGlStateCache.Current.ApplyDynamic(new DynamicDrawState { X = viewport[0], Y = viewport[1], Width = viewport[2], Height = viewport[3] });
         }
     }
 
@@ -132,7 +133,7 @@ internal static class LegacyFixedFunctionReference
         }
 
         /// <summary>Replays the original subset, including its global blend restoration defect.</summary>
-        public void Restore(StateCache cache)
+        public void Restore(OpenGlStateCache cache)
         {
             // Preserve the old global restoration exactly so regressions remain reproducible.
             cache.Invalidate(EPipelineState.Depth | EPipelineState.Blend | EPipelineState.CullFace

@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System.Linq;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
@@ -122,7 +123,7 @@ public sealed partial class PBRCompositeRenderer : IRenderer, IDisposable
     internal void RenderComposite(EnumRenderStage stage, Liquids.WaterRefractionScene? capture = null,
         DirectLightingTargets? isolatedLighting = null)
     {
-        StateCache.Current.RequireOutsideEngineBoundary();
+        OpenGlStateCache.Current.RequireOutsideEngineBoundary();
         var publication = capture ?? RefractionScene;
         publication.Invalidate();
         bool disabled = !ConfigModSystem.Config.WaterRefractionEnabled;

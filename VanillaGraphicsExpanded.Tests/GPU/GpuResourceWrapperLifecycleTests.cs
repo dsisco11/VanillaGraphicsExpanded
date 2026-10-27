@@ -25,7 +25,7 @@ public sealed class GpuResourceWrapperLifecycleTests(HeadlessGLFixture fixture)
         using var lifetime = StartManager();
         using var owner = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba8, Width = System.Math.Max(1, 8), Height = System.Math.Max(1, 4), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         using var first = new BorrowedTexture(owner.TextureId);
-        using (StateCache.Current.BindTextureScope(TextureTarget.Texture2D, 0, owner.TextureId))
+        using (OpenGlStateCache.Current.BindTextureScope(TextureTarget.Texture2D, 0, owner.TextureId))
             GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.Rgba16f, 12, 6, 0,
                 PixelFormat.Rgba, PixelType.Float, IntPtr.Zero);
         GpuResourceManager.InvalidateWrapperMetadata(owner, GpuMetadataChange.Storage);
@@ -46,7 +46,7 @@ public sealed class GpuResourceWrapperLifecycleTests(HeadlessGLFixture fixture)
         using var lifetime = StartManager();
         using var owner = RHICommandContext.Current.CreateRenderbuffer(new RHIRenderbufferDescription { Format = TextureFormat.Rgba8, Width = 8, Height = 4, Samples = 0, Label = null }).RequireResource();
         using var first = VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLRenderbufferIntegration.Borrow(owner.RenderbufferId);
-        using (StateCache.Current.BindRenderbufferScope(owner.RenderbufferId))
+        using (OpenGlStateCache.Current.BindRenderbufferScope(owner.RenderbufferId))
             GL.RenderbufferStorage(RenderbufferTarget.Renderbuffer, RenderbufferStorage.Rgba16f, 12, 6);
         GpuResourceManager.InvalidateWrapperMetadata(owner, GpuMetadataChange.Storage);
         using var second = VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLRenderbufferIntegration.Borrow(owner.RenderbufferId);
@@ -108,7 +108,7 @@ public sealed class GpuResourceWrapperLifecycleTests(HeadlessGLFixture fixture)
     {
         using var lifetime = StartManager();
         int original = GL.GenFramebuffer();
-        OpenGLFramebufferSelection.Bind(StateCache.Current, FramebufferTarget.Framebuffer, original);
+        OpenGLFramebufferSelection.Bind(OpenGlStateCache.Current, FramebufferTarget.Framebuffer, original);
         using var external = DynamicGpuFramebuffer.Wrap(original, width: 4, height: 4);
         using var oldAlias = DynamicGpuFramebuffer.Wrap(original, width: 4, height: 4);
         var old = lifetime.Manager.GetResourceRegistration(external)!;
@@ -121,7 +121,7 @@ public sealed class GpuResourceWrapperLifecycleTests(HeadlessGLFixture fixture)
             {
                 VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Framebuffer, original));
                 replacement = GL.GenFramebuffer();
-                OpenGLFramebufferSelection.Bind(StateCache.Current, FramebufferTarget.Framebuffer, replacement);
+                OpenGLFramebufferSelection.Bind(OpenGlStateCache.Current, FramebufferTarget.Framebuffer, replacement);
             }
             external.RefreshWrappedFramebuffer(replacement, 4, 4);
             Assert.True(external.IsValid);
@@ -143,10 +143,10 @@ public sealed class GpuResourceWrapperLifecycleTests(HeadlessGLFixture fixture)
         int framebuffer = GL.GenFramebuffer();
         try
         {
-            OpenGLImageBindings.BindTexture(StateCache.Current, TextureTarget.Texture1DArray, 0, texture);
+            OpenGLImageBindings.BindTexture(OpenGlStateCache.Current, TextureTarget.Texture1DArray, 0, texture);
             GL.TexImage2D(TextureTarget.Texture1DArray, 0, PixelInternalFormat.Rgba8, 8, 3, 0,
                 PixelFormat.Rgba, PixelType.UnsignedByte, IntPtr.Zero);
-            OpenGLFramebufferSelection.Bind(StateCache.Current, FramebufferTarget.Framebuffer, framebuffer);
+            OpenGLFramebufferSelection.Bind(OpenGlStateCache.Current, FramebufferTarget.Framebuffer, framebuffer);
             GL.FramebufferTextureLayer(FramebufferTarget.Framebuffer, FramebufferAttachment.ColorAttachment0, texture, 0, 0);
             using var external = DynamicGpuFramebuffer.Wrap(framebuffer, width: 8, height: 1);
             using var image = GpuFramebufferAttachmentDiscovery.Read(external, FramebufferAttachment.ColorAttachment0, forceNative: true);
@@ -172,7 +172,7 @@ public sealed class GpuResourceWrapperLifecycleTests(HeadlessGLFixture fixture)
         int texture = GL.GenTexture();
         try
         {
-            OpenGLImageBindings.BindTexture(StateCache.Current, TextureTarget.Texture2D, 0, texture);
+            OpenGLImageBindings.BindTexture(OpenGlStateCache.Current, TextureTarget.Texture2D, 0, texture);
             GL.TexImage2D(TextureTarget.Texture2D, 1, PixelInternalFormat.Rgba8, 4, 2, 0,
                 PixelFormat.Rgba, PixelType.UnsignedByte, IntPtr.Zero);
             Assert.Throws<ArgumentException>(() => new BorrowedTexture(texture));
@@ -192,7 +192,7 @@ public sealed class GpuResourceWrapperLifecycleTests(HeadlessGLFixture fixture)
         using var surviving = new BorrowedTexture(owner.TextureId);
         var entry = lifetime.Manager.GetResourceRegistration(owner)!;
         Assert.Same(entry, lifetime.Manager.GetResourceRegistration(borrower));
-        OpenGLImageBindings.BindTexture(StateCache.Current, TextureTarget.Texture2D, 2, owner.TextureId);
+        OpenGLImageBindings.BindTexture(OpenGlStateCache.Current, TextureTarget.Texture2D, 2, owner.TextureId);
         borrower.Dispose();
         borrower.Dispose();
         Assert.True(GL.IsTexture(owner.TextureId));
@@ -200,7 +200,7 @@ public sealed class GpuResourceWrapperLifecycleTests(HeadlessGLFixture fixture)
         Assert.True(surviving.IsValid);
         Assert.False(lifetime.Manager.IsResourceMetadataTracked(borrower));
         Assert.True(lifetime.Manager.IsResourceMetadataAvailable(surviving));
-        Assert.Equal(owner.TextureId, StateCache.Current.GetBoundTexture(TextureTarget.Texture2D, 2));
+        Assert.Equal(owner.TextureId, OpenGlStateCache.Current.GetBoundTexture(TextureTarget.Texture2D, 2));
         GL.ActiveTexture(TextureUnit.Texture2);
         Assert.Equal(owner.TextureId, GL.GetInteger(GetPName.TextureBinding2D));
         Assert.Throws<NotSupportedException>(() => surviving.Detach());
@@ -308,15 +308,15 @@ public sealed class GpuResourceWrapperLifecycleTests(HeadlessGLFixture fixture)
         {
             VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(2, textureSentinel, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)textureSentinel).Target))]);
             bufferSentinel.Bind();
-            Assert.Throws<ObjectDisposedException>(() => StateCache.Current.BindTextureScope(((GpuTextureRef)texture).Target, 2, texture.TextureId));
+            Assert.Throws<ObjectDisposedException>(() => OpenGlStateCache.Current.BindTextureScope(((GpuTextureRef)texture).Target, 2, texture.TextureId));
             Assert.Throws<ObjectDisposedException>(() => texture.Resize(16, 8));
-            Assert.Throws<ObjectDisposedException>(() => StateCache.Current.BindBufferScope(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBufferValues.Target(buffer.Role), buffer.BufferId));
+            Assert.Throws<ObjectDisposedException>(() => OpenGlStateCache.Current.BindBufferScope(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBufferValues.Target(buffer.Role), buffer.BufferId));
             buffer.Allocate(64);
             Assert.Throws<ObjectDisposedException>(() => framebuffer.Bind());
             Assert.Throws<ObjectDisposedException>(() => framebuffer.Resize(16, 8));
             VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(2, texture, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)texture).Target))]);
             buffer.Bind();
-            Assert.Equal(textureSentinel.TextureId, StateCache.Current.GetBoundTexture(TextureTarget.Texture2D, 2));
+            Assert.Equal(textureSentinel.TextureId, OpenGlStateCache.Current.GetBoundTexture(TextureTarget.Texture2D, 2));
             Assert.Equal(bufferSentinel.BufferId, GL.GetInteger(GetPName.ShaderStorageBufferBinding));
             Assert.Equal(framebufferSentinel.FboId, GL.GetInteger(GetPName.DrawFramebufferBinding));
             GL.GetTextureLevelParameter(texture.TextureId, 0, GetTextureParameter.TextureWidth, out int width);
@@ -359,8 +359,8 @@ public sealed class GpuResourceWrapperLifecycleTests(HeadlessGLFixture fixture)
         using var borrower = new BorrowedTexture(owner.TextureId);
         using var sentinel = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba8, Width = System.Math.Max(1, 2), Height = System.Math.Max(1, 2), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         int deleted = owner.TextureId;
-        OpenGLImageBindings.BindTexture(StateCache.Current, TextureTarget.Texture2D, 2, deleted);
-        OpenGLImageBindings.BindTexture(StateCache.Current, TextureTarget.Texture2D, 3, sentinel.TextureId);
+        OpenGLImageBindings.BindTexture(OpenGlStateCache.Current, TextureTarget.Texture2D, 2, deleted);
+        OpenGLImageBindings.BindTexture(OpenGlStateCache.Current, TextureTarget.Texture2D, 3, sentinel.TextureId);
         var harmony = Patch(nameof(DeleteNativeTexture));
         try
         {
@@ -369,8 +369,8 @@ public sealed class GpuResourceWrapperLifecycleTests(HeadlessGLFixture fixture)
             Assert.False(owner.IsValid);
             Assert.False(borrower.IsValid);
             Assert.False(GL.IsTexture(deleted));
-            Assert.Equal(0, StateCache.Current.GetBoundTexture(TextureTarget.Texture2D, 2));
-            Assert.Equal(sentinel.TextureId, StateCache.Current.GetBoundTexture(TextureTarget.Texture2D, 3));
+            Assert.Equal(0, OpenGlStateCache.Current.GetBoundTexture(TextureTarget.Texture2D, 2));
+            Assert.Equal(sentinel.TextureId, OpenGlStateCache.Current.GetBoundTexture(TextureTarget.Texture2D, 3));
             // Deterministic identity reuse isolates stale owner protection from the driver's free-name policy.
             var replacement = lifetime.Manager.RegisterCreatedResource<GpuTextureMetadata>(GpuResourceKind.Texture, deleted);
             owner.Dispose();
@@ -456,7 +456,7 @@ public sealed class GpuResourceWrapperLifecycleTests(HeadlessGLFixture fixture)
             RenderContextRegistry.Retire(replacementContext);
             RenderContextRegistry.RegisterCurrent(fixture, static _ => true);
             GL.DeleteTexture(native);
-            StateCache.Current.InvalidateAll();
+            OpenGlStateCache.Current.InvalidateAll();
         }
     }
 
@@ -478,8 +478,8 @@ public sealed class GpuResourceWrapperLifecycleTests(HeadlessGLFixture fixture)
         using var firstAlias = new BorrowedTexture(first.TextureId);
         using var secondAlias = new BorrowedTexture(second.TextureId);
         using var sentinel = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba8, Width = System.Math.Max(1, 2), Height = System.Math.Max(1, 2), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
-        OpenGLImageBindings.BindTexture(StateCache.Current, TextureTarget.Texture2D, 2, first.TextureId);
-        OpenGLImageBindings.BindTexture(StateCache.Current, TextureTarget.Texture2D, 3, sentinel.TextureId);
+        OpenGLImageBindings.BindTexture(OpenGlStateCache.Current, TextureTarget.Texture2D, 2, first.TextureId);
+        OpenGLImageBindings.BindTexture(OpenGlStateCache.Current, TextureTarget.Texture2D, 3, sentinel.TextureId);
         var harmony = Patch(nameof(DeleteNativeTextureList));
         try
         {
@@ -490,8 +490,8 @@ public sealed class GpuResourceWrapperLifecycleTests(HeadlessGLFixture fixture)
             Assert.False(secondAlias.IsValid);
             Assert.Null(lifetime.Manager.FindResource(GpuResourceKind.Texture, first.TextureId));
             Assert.Null(lifetime.Manager.FindResource(GpuResourceKind.Texture, second.TextureId));
-            Assert.Equal(0, StateCache.Current.GetBoundTexture(TextureTarget.Texture2D, 2));
-            Assert.Equal(sentinel.TextureId, StateCache.Current.GetBoundTexture(TextureTarget.Texture2D, 3));
+            Assert.Equal(0, OpenGlStateCache.Current.GetBoundTexture(TextureTarget.Texture2D, 2));
+            Assert.Equal(sentinel.TextureId, OpenGlStateCache.Current.GetBoundTexture(TextureTarget.Texture2D, 3));
             Assert.True(GL.IsTexture(sentinel.TextureId));
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
@@ -530,7 +530,7 @@ public sealed class GpuResourceWrapperLifecycleTests(HeadlessGLFixture fixture)
         using var alias = new DynamicGpuFramebuffer(false, owner.FboId);
         using var sentinel = new DynamicGpuFramebuffer(true);
         sentinel.Bind();
-        var cache = StateCache.Current;
+        var cache = OpenGlStateCache.Current;
         OpenGLFramebufferSelection.Bind(cache, FramebufferTarget.ReadFramebuffer, owner.FboId);
         var harmony = Patch(nameof(DeleteNativeExtensionFramebuffer));
         try
@@ -556,7 +556,7 @@ public sealed class GpuResourceWrapperLifecycleTests(HeadlessGLFixture fixture)
     {
         fixture.EnsureContextValid();
         fixture.CleanupGpuResources();
-        StateCache.Current.InvalidateAll();
+        OpenGlStateCache.Current.InvalidateAll();
         return new ManagerLifetime();
     }
     #endregion
@@ -631,7 +631,7 @@ public sealed class GpuResourceWrapperLifecycleTests(HeadlessGLFixture fixture)
             Manager.Dispose();
             GpuResourceManagerSystem.Shutdown();
             GL.ActiveTexture(TextureUnit.Texture0);
-            StateCache.Current.InvalidateAll();
+            OpenGlStateCache.Current.InvalidateAll();
         }
     }
     #endregion

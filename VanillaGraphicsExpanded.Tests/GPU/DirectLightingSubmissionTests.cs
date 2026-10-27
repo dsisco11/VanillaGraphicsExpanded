@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using VanillaGraphicsExpanded.PBR;
 using OpenTK.Graphics.OpenGL;
@@ -70,13 +71,13 @@ public sealed class DirectLightingSubmissionTests(HeadlessGLFixture fixture, ITe
 #if DEBUG
         using var reflection = new ProgramAcquisitionCapture();
         int reflectionReads = reflection.Reads;
-        long queries = StateCache.Current.BoundaryQueries, calls = StateCache.Current.FixedFunctionCalls;
+        long queries = OpenGlStateCache.Current.BoundaryQueries, calls = OpenGlStateCache.Current.FixedFunctionCalls;
 #endif
         timer.Restart();
         Assert.True(scene.Candidate.RenderLighting(scene.Actual));
         timer.Stop();
 #if DEBUG
-        output.WriteLine($"Whole repeated submission {timer.Elapsed.TotalMilliseconds:F3} ms; fixed-function calls {StateCache.Current.FixedFunctionCalls - calls}; repeated production draw boundary queries: {StateCache.Current.BoundaryQueries - queries}; graphics reflection queries: {reflection.Reads - reflectionReads}");
+        output.WriteLine($"Whole repeated submission {timer.Elapsed.TotalMilliseconds:F3} ms; fixed-function calls {OpenGlStateCache.Current.FixedFunctionCalls - calls}; repeated production draw boundary queries: {OpenGlStateCache.Current.BoundaryQueries - queries}; graphics reflection queries: {reflection.Reads - reflectionReads}");
 #endif
         Assert.Same(pipeline, scene.Candidate.PrepareBoundaryPipeline());
 #if DEBUG
@@ -141,7 +142,7 @@ public sealed class DirectLightingSubmissionTests(HeadlessGLFixture fixture, ITe
         GL.ColorMask(false, false, false, false); GL.Enable(EnableCap.CullFace);
         GL.Enable(EnableCap.RasterizerDiscard); GL.Enable(EnableCap.ScissorTest); GL.Scissor(0, 0, 0, 0);
         GL.Enable(EnableCap.SampleCoverage); GL.SampleCoverage(0, false);
-        GL.Enable(EnableCap.ClipDistance0); StateCache.Current.InvalidateAll();
+        GL.Enable(EnableCap.ClipDistance0); OpenGlStateCache.Current.InvalidateAll();
     }
     #endregion
 }

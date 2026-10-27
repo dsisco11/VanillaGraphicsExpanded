@@ -25,11 +25,11 @@ public sealed class GpuVertexBufferBindingInterceptionTests(HeadlessGLFixture fi
         harmony.Patch(AccessTools.Method(typeof(GpuVertexBufferBindingInterceptionTests),nameof(BindNative)),transpiler:new HarmonyMethod(typeof(EngineStateSwitchingHook),nameof(EngineStateSwitchingHook.Transpiler)));
         try
         {
-            using var vao=GpuVao.Create(); OpenGLVertexSelection.Bind(StateCache.Current, vao.VertexArrayId);
+            using var vao=GpuVao.Create(); OpenGLVertexSelection.Bind(OpenGlStateCache.Current, vao.VertexArrayId);
             using var first=RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = null }).RequireResource(); first.Allocate(64);
             using var second=RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = null }).RequireResource(); second.Allocate(64);
             var target=element?BufferTarget.ElementArrayBuffer:BufferTarget.ArrayBuffer;
-            var cache=StateCache.Current;
+            var cache=OpenGlStateCache.Current;
             OpenGLBufferBindings.BindBuffer(cache, target,first.BufferId);
             Assert.Equal(first.BufferId,cache.GetBoundBuffer(target));
             var entry=GpuResourceManagerSystem.CurrentManager!.GetResourceRegistration(vao)!;
@@ -45,7 +45,7 @@ public sealed class GpuVertexBufferBindingInterceptionTests(HeadlessGLFixture fi
             Assert.Equal(revision+(element?1UL:0UL),entry.MetadataRevision);
             Assert.Equal(ErrorCode.NoError,GL.GetError());
         }
-        finally { harmony.UnpatchAll(harmony.Id); fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { harmony.UnpatchAll(harmony.Id); fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
     #endregion
     #region Private

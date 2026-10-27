@@ -70,7 +70,7 @@ public sealed class CloudVolumeStorageTests(HeadlessGLFixture fixture) : LumOnSh
 
         var oldDiffuse = fields.Diffuse;
         var grown = new CloudVolumeEncoding(new Vector3(1e8f));
-        var cache=StateCache.Current;
+        var cache=OpenGlStateCache.Current;
         OpenGLImageBindings.BindTexture(cache, TextureTarget.Texture3D,0,fields.Density.TextureId);
         OpenGLImageSlotBindings.BindImageTexture(cache, 0,fields.Density.TextureId,0,true,0,TextureAccess.ReadOnly,SizedInternalFormat.R16f);
         fields.Regions.BindBase(0);

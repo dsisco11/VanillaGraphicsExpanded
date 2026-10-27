@@ -8,12 +8,12 @@ internal static partial class OpenGLPixelLayouts
 {
     #region Internal API
     /// <summary>Gets the cached layout, querying GL only when the state is unknown.</summary>
-    internal static StateCache.PixelPackState GetPack(StateCache cache)
+    internal static OpenGlStateCache.PixelPackState GetPack(OpenGlStateCache cache)
     {
         var backend = RHICommandContext.Current;
         backend.RequireContext();
         // External rendering boundaries must invalidate the cache before borrowing state.
-        return cache.PixelPackKnowledge ??= new StateCache.PixelPackState(
+        return cache.PixelPackKnowledge ??= new OpenGlStateCache.PixelPackState(
             ReadLayoutValue(cache, backend, GetPName.PackAlignment),
             ReadLayoutValue(cache, backend, GetPName.PackRowLength),
             ReadLayoutValue(cache, backend, GetPName.PackSkipRows),
@@ -25,7 +25,7 @@ internal static partial class OpenGLPixelLayouts
     }
 
     /// <summary>Applies a pack layout, omitting driver calls for known unchanged values.</summary>
-    internal static void SetPack(StateCache cache, StateCache.PixelPackState state)
+    internal static void SetPack(OpenGlStateCache cache, OpenGlStateCache.PixelPackState state)
     {
         var backend = RHICommandContext.Current;
         backend.RequireContext();
@@ -52,7 +52,7 @@ internal static partial class OpenGLPixelLayouts
     }
 
     /// <summary>Applies a temporary layout and restores the previous layout on disposal.</summary>
-    internal static PixelPackScope PackScope(StateCache cache, StateCache.PixelPackState state)
+    internal static PixelPackScope PackScope(OpenGlStateCache cache, OpenGlStateCache.PixelPackState state)
     {
         var backend = RHICommandContext.Current;
         backend.RequireContext();
@@ -71,12 +71,12 @@ internal static partial class OpenGLPixelLayouts
     /// <summary>Restores the original context layout without donating state to a replacement context.</summary>
     internal readonly struct PixelPackScope : IDisposable
     {
-        private readonly StateCache cache;
-        private readonly StateCache.PixelPackState previous;
+        private readonly OpenGlStateCache cache;
+        private readonly OpenGlStateCache.PixelPackState previous;
         private readonly RHICommandContext backend;
         #region Internal API
         /// <summary>Captures original context and selector facts after the temporary transition succeeds.</summary>
-        internal PixelPackScope(StateCache cache, StateCache.PixelPackState previous)
+        internal PixelPackScope(OpenGlStateCache cache, OpenGlStateCache.PixelPackState previous)
         {
             this.cache = cache; this.previous = previous; backend = RHICommandContext.Current;
         }

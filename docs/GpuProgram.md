@@ -1,7 +1,7 @@
 # VGE Shader Programs (GpuProgram)
 
 VGE graphics executables belong to the independent `GpuProgram` family. Compute owners use
-`GpuComputeProgram`, which composes a `GpuComputePipeline`. Neither executable family derives
+`GpuComputeProgram`, which composes a `ComputeShaderAsset`. Neither executable family derives
 from an engine shader or implements `IShaderProgram`. The internal `IGpuProgram` interface
 provides shared workflows; there is no common shader base class.
 
@@ -37,44 +37,36 @@ settings, asset generation and successful revision together; failure retains the
 cannot render it for incompatible requests. `PreparationFailure` records the underlying cause.
 A cached executable requires no vertex/fragment stage objects and never enters engine registration.
 
-Prefer `GraphicsCommandContext` and prepared `GraphicsPipeline` draws. Standalone `UseScope`
-restores the enclosing validated owner's inputs. Direct `Use` establishes a tracked lifetime ended
-by `Stop`; `TryUse` reports failure as a Boolean. Raw scopes restore bindings only. StateCache's
-existing program-scope chain retains owner/revision/context borrows; no separate current-owner table
-is used. Every activation publishes retained inputs even when the native program ID is unchanged.
-Within a `GraphicsCommandContext`, shader changes bind the next owner directly. One program scope
-captures the incoming owner for restoration at boundary exit; `EndPass` ends image authority without
-reactivating that owner or releasing samplers between owned passes.
+Use `RHICommandContext` and immutable `RHIGraphicsPipeline` descriptions for execution. Prepare the
+asset with `EnsureReady`, obtain its exact `Shader` reference, capture its complete retained inputs
+with `CaptureBindings`, then select the pipeline and bind that table before drawing. Creation and
+capture do not activate an executable. `RHICommandContext` executes graphics and compute work through
+the same backend; explicit boundaries restore the surrounding engine state.
 See [pipeline boundaries](Rendering.AuthoritativePipelineState.md#shader-ownership-and-boundary-lifetime).
 
-Prepared pipelines retain immutable relevance and native write coverage with their executable revision.
-`GraphicsCommandContext` unions these groups and the clear-helper envelope before entering the boundary.
-Draw application controls every observable effect while leaving dormant native parameters untouched;
-it still validates all authored values and declared dynamics. Reload replaces the prepared metadata
-with the executable realization. See [draw dependencies](Rendering.AuthoritativePipelineState.md#draw-dependencies)
-and [sparse boundary authority](Rendering.AuthoritativePipelineState.md#sparse-boundary-authority-and-clear-helpers).
+Pipeline realization retains immutable relevance and native write coverage for its exact executable
+generation. Boundary admission unions the permitted pipeline coverage and explicit helper slots before
+mutation. Draw application validates all supplied state and required dynamics while preserving dormant
+native parameters. Reload creates replacement objects without retargeting retained old references.
+See [draw dependencies](Rendering.AuthoritativePipelineState.md#draw-dependencies) and
+[clear helpers](Rendering.AuthoritativePipelineState.md#sparse-boundary-authority-and-clear-helpers).
 
 ## Shared workflows and compatibility
 
-`IGpuProgram` default `Prepare`, `Activate`, `BeginUse`, `ReplayInputs` and `Retire` workflows
-operate on one concrete `GpuProgramLifetime`. It owns guards, CPU-block registration and borrow
-accounting, not another native executable or binding cache. Concrete facades call distinct workflow
-slots; generated/authored protected `Submit` overrides are preserved. Default interface methods
-are invoked through the interface and do not become inherited concrete members.
+Internal `IGpuProgram` coordinates `Prepare`, `PrepareExecutable`, `CaptureBindings` and retirement.
+Its existing `GpuProgramLifetime` guards CPU inputs, publication and owned CPU blocks; it is not
+another executable or binding cache. Generated capture freezes inputs and their interface identity,
+without native publication or physical uniform allocation. Execution commits successful history.
 
-The public `GpuProgram`/`VgeShaderProgram` families intentionally lose engine assignability,
-`VertexShader`/`FragmentShader`, `PassId`, inherited `Uniform`/`HasUniform`/texture APIs and
-engine registry membership. Use generated retained properties and CPU UBO inputs for VGE parameters,
-VGE preparation/scopes for execution, and prepared numeric interfaces for internal diagnostics.
-Do not pass a VGE executable to `api.Shader.RegisterMemoryShaderProgram` or assign it to the engine's
-`CurrentShaderProgram`. The library and common lifecycle interface remain internal; this migration
-does not expose a replacement public third-party registration service.
+VGE owners are independent from engine `IShaderProgram` and registry membership. Use generated
+retained properties and CPU UBO inputs; do not install a VGE owner as the engine's CurrentShaderProgram
+or register it as an engine memory shader. Native terrain/material/frame/atmosphere hooks retain their
+real engine interfaces. `LiquidPoolInputAdapter` translates only origin/model-view/transparency into
+the existing visible/depth UBO owners and grants no executable operations.
 
-Engine assets/logging enter through `EngineShaderAssets` and the integration partials; core
-preparation consumes `ShaderAssetSource`. Native terrain, particle, material, frame/light and
-atmosphere hooks still operate on real engine programs. The liquid pool bridge translates only
-origin, model-view and transparency inputs during VGE traversal; its input-only engine adapter owns
-no executable and rejects compile/use/dispose operations.
+Engine assets/logging enter through `EngineShaderAssets` and explicit integration partials. Core
+preparation consumes `ShaderAssetSource`; the backend privately creates, links and prepares an
+`RHIShader`. Compute asset policy uses `ComputeShaderAsset`, with a compatible managed compute PSO.
 
 ## Reload and retirement
 

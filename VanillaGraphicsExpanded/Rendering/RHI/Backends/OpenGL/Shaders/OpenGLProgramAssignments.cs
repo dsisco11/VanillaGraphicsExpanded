@@ -14,7 +14,7 @@ internal static class OpenGLProgramAssignments
         var manager=GpuResourceManagerSystem.CurrentManager;
         manager?.ValidateProgramUnit(program,location,unit);
         if(manager?.IsProgramUnitCurrent(program,location,unit)==true)return;
-        var observation=StateCache.BeginNativeProgramMetadata(program,true,true,location,1,supplied:unit);
+        var observation=OpenGlStateCache.BeginNativeProgramMetadata(program,true,true,location,1,supplied:unit);
         bool returned=false;
         try {GL.ProgramUniform1(program,location,unit);returned=true;}
         finally {observation.Complete(returned);}
@@ -23,7 +23,7 @@ internal static class OpenGLProgramAssignments
     internal static void UniformBlockBinding(int program,int block,int slot)
     {
         if((uint)slot>=(uint)GpuSupport.Graphics.MaxUniformBufferBindings)throw new ArgumentOutOfRangeException(nameof(slot));
-        var observation=StateCache.BeginNativeProgramMetadata(program,true,false,-1,1,block:Legacy.ProgramInterface.UniformBlock,blockIndex:block,supplied:slot);
+        var observation=OpenGlStateCache.BeginNativeProgramMetadata(program,true,false,-1,1,block:Legacy.ProgramInterface.UniformBlock,blockIndex:block,supplied:slot);
         bool returned=false;
         try {GL.UniformBlockBinding(program,block,slot);returned=true;}
         finally {observation.Complete(returned);}
@@ -32,7 +32,7 @@ internal static class OpenGLProgramAssignments
     internal static void ShaderStorageBlockBinding(int program,int block,int slot)
     {
         if((uint)slot>=(uint)GpuSupport.Graphics.MaxShaderStorageBufferBindings)throw new ArgumentOutOfRangeException(nameof(slot));
-        var observation=StateCache.BeginNativeProgramMetadata(program,true,false,-1,1,block:Legacy.ProgramInterface.ShaderStorageBlock,blockIndex:block,supplied:slot);
+        var observation=OpenGlStateCache.BeginNativeProgramMetadata(program,true,false,-1,1,block:Legacy.ProgramInterface.ShaderStorageBlock,blockIndex:block,supplied:slot);
         bool returned=false;
         try {GL.ShaderStorageBlockBinding(program,block,slot);returned=true;}
         finally {observation.Complete(returned);}

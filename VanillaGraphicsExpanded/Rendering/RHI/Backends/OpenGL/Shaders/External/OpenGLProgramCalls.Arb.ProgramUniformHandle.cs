@@ -10,7 +10,7 @@ internal static unsafe partial class OpenGLProgramCalls
     /// <summary>Executes the exact external overload and completes affected metadata publication.</summary>
     internal static void ExecuteArbProgramUniformHandle(int @program, int @location, int @count, ref long @values)
     {
-        var observation = StateCache.BeginNativeProgramMetadata(unchecked((int)@program), true, true, unchecked((int)@location), unchecked((int)@count), false, true);
+        var observation = OpenGlStateCache.BeginNativeProgramMetadata(unchecked((int)@program), true, true, unchecked((int)@location), unchecked((int)@count), false, true);
         bool returned = false;
         try
         {
@@ -27,7 +27,7 @@ internal static unsafe partial class OpenGLProgramCalls
     /// <summary>Executes the exact external overload and completes affected metadata publication.</summary>
     internal static void ExecuteArbProgramUniformHandle(int @program, int @location, int @count, long[] @values)
     {
-        var observation = StateCache.BeginNativeProgramMetadata(unchecked((int)@program), true, true, unchecked((int)@location), unchecked((int)@count), false, true);
+        var observation = OpenGlStateCache.BeginNativeProgramMetadata(unchecked((int)@program), true, true, unchecked((int)@location), unchecked((int)@count), false, true);
         bool returned = false;
         try
         {
@@ -44,7 +44,7 @@ internal static unsafe partial class OpenGLProgramCalls
     /// <summary>Executes the exact external overload and completes affected metadata publication.</summary>
     internal static void ExecuteArbProgramUniformHandle(int @program, int @location, int @count, long* @values)
     {
-        var observation = StateCache.BeginNativeProgramMetadata(unchecked((int)@program), true, true, unchecked((int)@location), unchecked((int)@count), false, true);
+        var observation = OpenGlStateCache.BeginNativeProgramMetadata(unchecked((int)@program), true, true, unchecked((int)@location), unchecked((int)@count), false, true);
         bool returned = false;
         try
         {
@@ -61,7 +61,7 @@ internal static unsafe partial class OpenGLProgramCalls
     /// <summary>Executes the exact external overload and completes affected metadata publication.</summary>
     internal static void ExecuteArbProgramUniformHandle(int @program, int @location, long @value)
     {
-        var observation = StateCache.BeginNativeProgramMetadata(unchecked((int)@program), true, true, unchecked((int)@location), 1, false, true);
+        var observation = OpenGlStateCache.BeginNativeProgramMetadata(unchecked((int)@program), true, true, unchecked((int)@location), 1, false, true);
         bool returned = false;
         try
         {
@@ -78,7 +78,7 @@ internal static unsafe partial class OpenGLProgramCalls
     /// <summary>Executes the exact external overload and completes affected metadata publication.</summary>
     internal static void ExecuteArbProgramUniformHandle(uint @program, int @location, int @count, ref ulong @values)
     {
-        var observation = StateCache.BeginNativeProgramMetadata(unchecked((int)@program), true, true, unchecked((int)@location), unchecked((int)@count), false, true);
+        var observation = OpenGlStateCache.BeginNativeProgramMetadata(unchecked((int)@program), true, true, unchecked((int)@location), unchecked((int)@count), false, true);
         bool returned = false;
         try
         {
@@ -95,7 +95,7 @@ internal static unsafe partial class OpenGLProgramCalls
     /// <summary>Executes the exact external overload and completes affected metadata publication.</summary>
     internal static void ExecuteArbProgramUniformHandle(uint @program, int @location, int @count, ulong[] @values)
     {
-        var observation = StateCache.BeginNativeProgramMetadata(unchecked((int)@program), true, true, unchecked((int)@location), unchecked((int)@count), false, true);
+        var observation = OpenGlStateCache.BeginNativeProgramMetadata(unchecked((int)@program), true, true, unchecked((int)@location), unchecked((int)@count), false, true);
         bool returned = false;
         try
         {
@@ -112,7 +112,7 @@ internal static unsafe partial class OpenGLProgramCalls
     /// <summary>Executes the exact external overload and completes affected metadata publication.</summary>
     internal static void ExecuteArbProgramUniformHandle(uint @program, int @location, int @count, ulong* @values)
     {
-        var observation = StateCache.BeginNativeProgramMetadata(unchecked((int)@program), true, true, unchecked((int)@location), unchecked((int)@count), false, true);
+        var observation = OpenGlStateCache.BeginNativeProgramMetadata(unchecked((int)@program), true, true, unchecked((int)@location), unchecked((int)@count), false, true);
         bool returned = false;
         try
         {
@@ -129,7 +129,7 @@ internal static unsafe partial class OpenGLProgramCalls
     /// <summary>Executes the exact external overload and completes affected metadata publication.</summary>
     internal static void ExecuteArbProgramUniformHandle(uint @program, int @location, ulong @value)
     {
-        var observation = StateCache.BeginNativeProgramMetadata(unchecked((int)@program), true, true, unchecked((int)@location), 1, false, true);
+        var observation = OpenGlStateCache.BeginNativeProgramMetadata(unchecked((int)@program), true, true, unchecked((int)@location), 1, false, true);
         bool returned = false;
         try
         {

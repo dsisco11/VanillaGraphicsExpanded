@@ -10,7 +10,7 @@ internal static unsafe partial class OpenGLTexturesCalls
     /// <summary>Executes the exact external overload and completes its affected metadata publication.</summary>
     internal static void ExecuteExtMultiTexRenderbuffer(TextureUnit @texunit, TextureTarget @target, int @renderbuffer)
     {
-        var observation = StateCache.BeginNativeTextureMetadata(0, unchecked((int)@target), unchecked((int)@texunit), false, true, StateCache.TextureMetadataEffect.RenderbufferAssociation, unchecked((int)@renderbuffer));
+        var observation = OpenGlStateCache.BeginNativeTextureMetadata(0, unchecked((int)@target), unchecked((int)@texunit), false, true, OpenGlStateCache.TextureMetadataEffect.RenderbufferAssociation, unchecked((int)@renderbuffer));
         bool returned = false;
         try
         {
@@ -27,7 +27,7 @@ internal static unsafe partial class OpenGLTexturesCalls
     /// <summary>Executes the exact external overload and completes its affected metadata publication.</summary>
     internal static void ExecuteExtMultiTexRenderbuffer(TextureUnit @texunit, TextureTarget @target, uint @renderbuffer)
     {
-        var observation = StateCache.BeginNativeTextureMetadata(0, unchecked((int)@target), unchecked((int)@texunit), false, true, StateCache.TextureMetadataEffect.RenderbufferAssociation, unchecked((int)@renderbuffer));
+        var observation = OpenGlStateCache.BeginNativeTextureMetadata(0, unchecked((int)@target), unchecked((int)@texunit), false, true, OpenGlStateCache.TextureMetadataEffect.RenderbufferAssociation, unchecked((int)@renderbuffer));
         bool returned = false;
         try
         {

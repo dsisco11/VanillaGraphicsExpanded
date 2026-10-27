@@ -47,7 +47,7 @@ public sealed class EngineEarlyDeletionTests(HeadlessGLFixture fixture)
         {
             harmony.UnpatchAll(harmony.Id);
             if (kind == GpuResourceKind.Query) GL.DeleteQuery(id); else GL.DeleteTransformFeedback(id);
-            StateCache.Current.InvalidateAll();
+            OpenGlStateCache.Current.InvalidateAll();
         }
     }
 
@@ -66,7 +66,7 @@ public sealed class EngineEarlyDeletionTests(HeadlessGLFixture fixture)
             Assert.False(GL.IsSync(id));
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { harmony.UnpatchAll(harmony.Id); StateCache.Current.InvalidateAll(); }
+        finally { harmony.UnpatchAll(harmony.Id); OpenGlStateCache.Current.InvalidateAll(); }
     }
 
     /// <summary>Original-loader outcomes reconcile deletion without consulting unadmitted GL4 entry points.</summary>
@@ -109,7 +109,7 @@ public sealed class EngineEarlyDeletionTests(HeadlessGLFixture fixture)
                 case GpuResourceKind.Sampler: GL.DeleteSampler(id); break;
                 case GpuResourceKind.Buffer: GL.DeleteBuffer(id); break;
             }
-            StateCache.Current.InvalidateAll();
+            OpenGlStateCache.Current.InvalidateAll();
         }
     }
     #endregion

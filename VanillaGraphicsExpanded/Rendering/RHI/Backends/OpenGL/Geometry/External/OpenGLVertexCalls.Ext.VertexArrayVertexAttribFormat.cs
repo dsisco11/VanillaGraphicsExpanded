@@ -10,7 +10,7 @@ internal static unsafe partial class OpenGLVertexCalls
     /// <summary>Executes the exact overload and completes its vertex metadata operation.</summary>
     internal static void ExecuteExtVertexArrayVertexAttribFormat(int @vaobj, int @attribindex, int @size, ExtDirectStateAccess @type, bool @normalized, int @relativeoffset)
     {
-        var observation = StateCache.BeginNativeVertexMetadata(unchecked((int)@vaobj), true, false);
+        var observation = OpenGlStateCache.BeginNativeVertexMetadata(unchecked((int)@vaobj), true, false);
         bool returned = false;
         try
         {
@@ -27,7 +27,7 @@ internal static unsafe partial class OpenGLVertexCalls
     /// <summary>Executes the exact overload and completes its vertex metadata operation.</summary>
     internal static void ExecuteExtVertexArrayVertexAttribFormat(int @vaobj, int @attribindex, int @size, VertexAttribType @type, bool @normalized, int @relativeoffset)
     {
-        var observation = StateCache.BeginNativeVertexMetadata(unchecked((int)@vaobj), true, false);
+        var observation = OpenGlStateCache.BeginNativeVertexMetadata(unchecked((int)@vaobj), true, false);
         bool returned = false;
         try
         {
@@ -44,7 +44,7 @@ internal static unsafe partial class OpenGLVertexCalls
     /// <summary>Executes the exact overload and completes its vertex metadata operation.</summary>
     internal static void ExecuteExtVertexArrayVertexAttribFormat(uint @vaobj, uint @attribindex, int @size, ExtDirectStateAccess @type, bool @normalized, uint @relativeoffset)
     {
-        var observation = StateCache.BeginNativeVertexMetadata(unchecked((int)@vaobj), true, false);
+        var observation = OpenGlStateCache.BeginNativeVertexMetadata(unchecked((int)@vaobj), true, false);
         bool returned = false;
         try
         {
@@ -61,7 +61,7 @@ internal static unsafe partial class OpenGLVertexCalls
     /// <summary>Executes the exact overload and completes its vertex metadata operation.</summary>
     internal static void ExecuteExtVertexArrayVertexAttribFormat(uint @vaobj, uint @attribindex, int @size, VertexAttribType @type, bool @normalized, uint @relativeoffset)
     {
-        var observation = StateCache.BeginNativeVertexMetadata(unchecked((int)@vaobj), true, false);
+        var observation = OpenGlStateCache.BeginNativeVertexMetadata(unchecked((int)@vaobj), true, false);
         bool returned = false;
         try
         {

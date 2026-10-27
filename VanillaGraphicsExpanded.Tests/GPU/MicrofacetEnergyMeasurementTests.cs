@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
@@ -83,7 +84,7 @@ public sealed class MicrofacetEnergyMeasurementTests(HeadlessGLFixture fixture, 
             },new System.Text.Json.JsonSerializerOptions{WriteIndented=true}));
             Assert.Equal(ErrorCode.NoError,GL.GetError());
         }
-        finally { foreach(int program in programs)GL.DeleteProgram(program);StateCache.Current.InvalidateAll(); }
+        finally { foreach(int program in programs)GL.DeleteProgram(program);OpenGlStateCache.Current.InvalidateAll(); }
     }
 
     /// <summary>Qualifies one batched default-quality hardware lookup against retained independently integrated physical references.</summary>
@@ -111,7 +112,7 @@ public sealed class MicrofacetEnergyMeasurementTests(HeadlessGLFixture fixture, 
             var inputs=references.SelectMany(row=>new[]{(float)row[0],(float)row[1]}).ToArray();
             using var coordinates=RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Width = references.Length, Height = 1, Format = TextureFormat.Rg32f, MipLevels = 1, Storage = ResourceStorageMode.Mutable, BaseLevel = 0, MaxLevel = 0, Filter = TextureFilterMode.Nearest, Label = null }, [new RHITextureInitialData(new(new(), 0, 0, 0, references.Length, 1), VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLPixelValues.Encoding(TextureFormatHelper.GetPixelFormat(PixelInternalFormat.Rg32f), OpenTK.Graphics.OpenGL.PixelType.Float), System.Runtime.InteropServices.MemoryMarshal.AsBytes((inputs).AsSpan()).ToArray())]).RequireResource();
             using var target=CreateRenderTarget(references.Length,1,PixelInternalFormat.Rgba32f);
-            VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, coordinates, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)coordinates).Target))]);VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageBindings.BindSampler(StateCache.Current, 0, GpuSamplers.NearestClamp.SamplerId);Helpers.MicrofacetTextureReference.Bind();
+            VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, coordinates, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)coordinates).Target))]);VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageBindings.BindSampler(OpenGlStateCache.Current, 0, GpuSamplers.NearestClamp.SamplerId);Helpers.MicrofacetTextureReference.Bind();
             GL.BindFramebuffer(FramebufferTarget.Framebuffer,target.FboId);GL.Viewport(0,0,references.Length,1);
             GL.Disable(EnableCap.DepthTest);GL.Disable(EnableCap.CullFace);GL.Disable(EnableCap.Blend);
             GL.Disable(EnableCap.ScissorTest);GL.ColorMask(true,true,true,true);
@@ -150,7 +151,7 @@ public sealed class MicrofacetEnergyMeasurementTests(HeadlessGLFixture fixture, 
         finally
         {
             ConfigModSystem.Config.ShadingQuality=oldQuality;MicrofacetEnergyLookup.Prepare();
-            if(program!=0)GL.DeleteProgram(program);StateCache.Current.InvalidateAll();
+            if(program!=0)GL.DeleteProgram(program);OpenGlStateCache.Current.InvalidateAll();
         }
     }
     #endregion

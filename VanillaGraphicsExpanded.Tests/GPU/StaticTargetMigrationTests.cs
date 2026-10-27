@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Reflection;
 using OpenTK.Graphics.OpenGL;
@@ -33,7 +34,7 @@ public sealed class StaticTargetMigrationTests(HeadlessGLFixture fixture, ITestO
         using var declarations = new StaticPassDeclarationCapture();
         GL.Disable(EnableCap.ScissorTest);
         GL.ColorMask(true, true, true, true);
-        StateCache.Current.Invalidate(EPipelineState.ScissorTest | EPipelineState.ColorMask);
+        OpenGlStateCache.Current.Invalidate(EPipelineState.ScissorTest | EPipelineState.ColorMask);
         for (int frame = 0; frame < 3; frame++)
         {
             // New nonzero data makes a missing clear observable independently each frame.
@@ -110,7 +111,7 @@ public sealed class StaticTargetMigrationTests(HeadlessGLFixture fixture, ITestO
         // writes before observing routing so prior hostile-state fixtures cannot clip them.
         GL.Disable(EnableCap.ScissorTest);
         GL.ColorMask(true, true, true, true);
-        StateCache.Current.Invalidate(EPipelineState.ScissorTest | EPipelineState.ColorMask);
+        OpenGlStateCache.Current.Invalidate(EPipelineState.ScissorTest | EPipelineState.ColorMask);
         AssertStaticSubmissionHasNoRoutingWork(framebuffers.Select(target => clear[target]).ToArray());
         foreach (var pass in framebuffers)
             foreach (var output in pass.Colors)

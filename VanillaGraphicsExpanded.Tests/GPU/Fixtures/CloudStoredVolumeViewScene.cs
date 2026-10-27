@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Collections.Immutable;
@@ -278,7 +279,7 @@ internal sealed class CloudStoredVolumeViewScene:IDisposable
         int width=output.Images[0].Width,height=output.Images[0].Height;
         Assert.True(output.Images[0].Resize(width+1,height));
         Assert.True(output.Images[0].Resize(width,height));
-        using var selection=StateCache.Current.BindFramebufferScope();
+        using var selection=OpenGlStateCache.Current.BindFramebufferScope();
         output.Target.Bind();
         engineOutput.RefreshWrappedFramebuffer(output.Target.FboId,width,height,publishPassMetadata:true);
     }

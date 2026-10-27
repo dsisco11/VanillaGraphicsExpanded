@@ -10,7 +10,7 @@ internal static unsafe partial class OpenGLProgramCalls
     /// <summary>Executes the exact external overload once and completes its selector or routing bookkeeping.</summary>
     internal static void ExecuteExtBindProgramPipeline(int @pipeline)
     {
-        var observation = StateCache.BeginNativeProgramSelection(true);
+        var observation = OpenGlStateCache.BeginNativeProgramSelection(true);
         bool returned = false;
         try
         {
@@ -27,7 +27,7 @@ internal static unsafe partial class OpenGLProgramCalls
     /// <summary>Executes the exact external overload once and completes its selector or routing bookkeeping.</summary>
     internal static void ExecuteExtBindProgramPipeline(uint @pipeline)
     {
-        var observation = StateCache.BeginNativeProgramSelection(true);
+        var observation = OpenGlStateCache.BeginNativeProgramSelection(true);
         bool returned = false;
         try
         {

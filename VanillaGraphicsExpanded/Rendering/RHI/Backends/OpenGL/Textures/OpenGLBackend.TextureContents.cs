@@ -31,7 +31,7 @@ internal sealed partial class OpenGLBackend
 
     #region Private
     /// <summary>Maps logical array slices to native rows for the one-dimensional array target.</summary>
-    private static StateCache.PixelUnpackState PixelLayoutForTarget(StateCache.PixelUnpackState layout, TextureTarget target)
+    private static OpenGlStateCache.PixelUnpackState PixelLayoutForTarget(OpenGlStateCache.PixelUnpackState layout, TextureTarget target)
         => target == TextureTarget.Texture1DArray ? layout with { RowLength = checked(layout.RowLength * layout.ImageHeight), ImageHeight = 0 } : layout;
 
     /// <summary>Checks all initial subresources and byte ranges before creating any native allocation.</summary>
@@ -97,7 +97,7 @@ internal sealed partial class OpenGLBackend
     }
 
     /// <summary>Builds an exact unpack layout and rejects bytes insufficient for its last accessed texel.</summary>
-    private static StateCache.PixelUnpackState ValidatePixelLayout(in RHITextureRegion region, RHIPixelEncoding encoding, nint byteCount, int rowPitch, int slicePitch)
+    private static OpenGlStateCache.PixelUnpackState ValidatePixelLayout(in RHITextureRegion region, RHIPixelEncoding encoding, nint byteCount, int rowPitch, int slicePitch)
     {
         int pixelBytes = encoding.BytesPerPixel;
         int tightRow = checked(region.Width * pixelBytes);

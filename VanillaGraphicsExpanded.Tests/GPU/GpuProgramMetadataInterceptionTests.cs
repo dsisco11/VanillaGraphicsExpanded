@@ -24,9 +24,9 @@ public sealed partial class GpuProgramMetadataInterceptionTests(HeadlessGLFixtur
         {
             using var program=CreateProgram(out int shader); VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Shader, shader));
             using var sentinel=CreateProgram(out int sentinelShader); VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Shader, sentinelShader));
-            using var pipeline=GpuProgramPipeline.Create(); OpenGLProgramPipelineSelection.Bind(StateCache.Current, pipeline.PipelineId);
+            using var pipeline=GpuProgramPipeline.Create(); OpenGLProgramPipelineSelection.Bind(OpenGlStateCache.Current, pipeline.PipelineId);
             bool bound=variant<3;
-            OpenGLProgramSelection.Select(StateCache.Current, bound?program.ProgramId:sentinel.ProgramId);
+            OpenGLProgramSelection.Select(OpenGlStateCache.Current, bound?program.ProgramId:sentinel.ProgramId);
             var manager=GpuResourceManagerSystem.CurrentManager!;
             using var alias=new ProgramAlias(program.ProgramId); GpuResourceManager.AcquireWrapperMetadata(alias,GpuProgramMetadataReader.Instance);
             var entry=manager.GetResourceRegistration(program)!; ulong revision=entry.MetadataRevision;
@@ -41,7 +41,7 @@ public sealed partial class GpuProgramMetadataInterceptionTests(HeadlessGLFixtur
             Assert.Equal(bound?program.ProgramId:sentinel.ProgramId,GL.GetInteger(GetPName.CurrentProgram));
             Assert.Equal(pipeline.PipelineId,GL.GetInteger(GetPName.ProgramPipelineBinding)); Assert.Equal(ErrorCode.NoError,GL.GetError());
         }
-        finally { OpenGLProgramSelection.Select(StateCache.Current, 0); OpenGLProgramPipelineSelection.Bind(StateCache.Current, 0); harmony.UnpatchAll(harmony.Id); fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { OpenGLProgramSelection.Select(OpenGlStateCache.Current, 0); OpenGLProgramPipelineSelection.Bind(OpenGlStateCache.Current, 0); harmony.UnpatchAll(harmony.Id); fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
     /// <summary>Bound uniform assignment resolves a pipeline's active program when no monolithic program is selected.</summary>
     [Fact]
@@ -51,13 +51,13 @@ public sealed partial class GpuProgramMetadataInterceptionTests(HeadlessGLFixtur
         try
         {
             using var program=CreateProgram(out int shader); VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Shader, shader));
-            using var pipeline=GpuProgramPipeline.Create(); OpenGLProgramPipelineSelection.Bind(StateCache.Current, pipeline.PipelineId); GL.ActiveShaderProgram(pipeline.PipelineId,program.ProgramId); OpenGLProgramSelection.Select(StateCache.Current, 0);
+            using var pipeline=GpuProgramPipeline.Create(); OpenGLProgramPipelineSelection.Bind(OpenGlStateCache.Current, pipeline.PipelineId); GL.ActiveShaderProgram(pipeline.PipelineId,program.ProgramId); OpenGLProgramSelection.Select(OpenGlStateCache.Current, 0);
             var entry=GpuResourceManagerSystem.CurrentManager!.GetResourceRegistration(program)!; ulong revision=entry.MetadataRevision;
             int location=GL.GetUniformLocation(program.ProgramId,"inputs[0]"); SetUnits(0,program.ProgramId,location,5);
             GL.GetUniform(program.ProgramId,location,out int actual); Assert.Equal(5,actual); Assert.Equal(revision+1,entry.MetadataRevision);
             Assert.Equal(0,GL.GetInteger(GetPName.CurrentProgram)); Assert.Equal(pipeline.PipelineId,GL.GetInteger(GetPName.ProgramPipelineBinding)); Assert.Equal(ErrorCode.NoError,GL.GetError());
         }
-        finally { OpenGLProgramSelection.Select(StateCache.Current, 0); OpenGLProgramPipelineSelection.Bind(StateCache.Current, 0); harmony.UnpatchAll(harmony.Id); fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { OpenGLProgramSelection.Select(OpenGlStateCache.Current, 0); OpenGLProgramPipelineSelection.Bind(OpenGlStateCache.Current, 0); harmony.UnpatchAll(harmony.Id); fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
     /// <summary>Block assignments publish measured bindings and rejected indices retain real values and errors.</summary>
     [Theory]
@@ -77,7 +77,7 @@ public sealed partial class GpuProgramMetadataInterceptionTests(HeadlessGLFixtur
             SetBlock(storage,program.ProgramId,int.MaxValue,7); Assert.Equal(ErrorCode.InvalidValue,GL.GetError());
             Assert.Equal(4,entry.Metadata.Resources.Single(item=>item.Interface==kind && item.Index==index).Properties[ProgramProperty.BufferBinding][0]); Assert.Equal(ErrorCode.NoError,GL.GetError());
         }
-        finally { harmony.UnpatchAll(harmony.Id); fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { harmony.UnpatchAll(harmony.Id); fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
     /// <summary>Failed and recovered links replace canonical executable facts instead of retaining the prior interface.</summary>
     [Fact]
@@ -93,7 +93,7 @@ public sealed partial class GpuProgramMetadataInterceptionTests(HeadlessGLFixtur
             GL.ShaderSource(shader,Source); GL.CompileShader(shader); Link(program.ProgramId);
             Assert.True(alias.Snapshot.ExecutableAvailable); Assert.NotEmpty(alias.Snapshot.TextureUnits); Assert.Equal(ErrorCode.NoError,GL.GetError());
         }
-        finally { if(shader!=0) VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Shader, shader)); harmony.UnpatchAll(harmony.Id); fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { if(shader!=0) VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Shader, shader)); harmony.UnpatchAll(harmony.Id); fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
     /// <summary>Native dispatch exceptions withdraw existing facts until an explicit successful refresh.</summary>
     [Fact]
@@ -114,7 +114,7 @@ public sealed partial class GpuProgramMetadataInterceptionTests(HeadlessGLFixtur
             Assert.True(manager.RefreshMetadata((GpuResourceMetadataEntry<GpuProgramMetadata>)entry,GpuMetadataChange.None)); Assert.True(manager.IsResourceMetadataAvailable(program));
             Assert.Equal(ErrorCode.NoError,GL.GetError());
         }
-        finally { harmony.UnpatchAll(harmony.Id); fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { harmony.UnpatchAll(harmony.Id); fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
     /// <summary>Commands on a native program without a registration never create an implicit manager entry.</summary>
     [Fact]
@@ -127,7 +127,7 @@ public sealed partial class GpuProgramMetadataInterceptionTests(HeadlessGLFixtur
             Assert.Null(GpuResourceManagerSystem.CurrentManager!.FindResource(GpuResourceKind.Program,program));
             Assert.Equal(ErrorCode.NoError,GL.GetError());
         }
-        finally { VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Program, program)); harmony.UnpatchAll(harmony.Id); fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Program, program)); harmony.UnpatchAll(harmony.Id); fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
     /// <summary>A context change between admission and completion prevents publication under a different manager context.</summary>
     [Fact]
@@ -139,12 +139,12 @@ public sealed partial class GpuProgramMetadataInterceptionTests(HeadlessGLFixtur
         {
             using var program=CreateProgram(out int shader); VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Shader, shader));
             var entry=manager.GetResourceRegistration(program)!; ulong revision=entry.MetadataRevision;
-            var token=StateCache.BeginNativeProgramMetadata(program.ProgramId,true,false,-1,1);
+            var token=OpenGlStateCache.BeginNativeProgramMetadata(program.ProgramId,true,false,-1,1);
             current=(origin.Item1,origin.Item2+1); token.Complete(true); current=origin;
             Assert.Equal(revision,entry.MetadataRevision); Assert.False(manager.IsResourceMetadataAvailable(program));
             Assert.True(manager.RefreshMetadata((GpuResourceMetadataEntry<GpuProgramMetadata>)entry,GpuMetadataChange.None)); Assert.Equal(ErrorCode.NoError,GL.GetError());
         }
-        finally { current=origin; manager.Dispose(); GpuResourceManagerSystem.Shutdown(); StateCache.Current.InvalidateAll(); }
+        finally { current=origin; manager.Dispose(); GpuResourceManagerSystem.Shutdown(); OpenGlStateCache.Current.InvalidateAll(); }
     }
     /// <summary>Exact external program selectors leave bound units targeting the actual program after rejected selection.</summary>
     [Theory]
@@ -156,17 +156,17 @@ public sealed partial class GpuProgramMetadataInterceptionTests(HeadlessGLFixtur
         {
             using var first=CreateProgram(out int shader); VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Shader, shader));
             using var second=CreateProgram(out shader); VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Shader, shader));
-            OpenGLProgramSelection.Select(StateCache.Current, first.ProgramId);
+            OpenGLProgramSelection.Select(OpenGlStateCache.Current, first.ProgramId);
             var manager=GpuResourceManagerSystem.CurrentManager!; var a=manager.GetResourceRegistration(first)!; var b=manager.GetResourceRegistration(second)!;
             ulong ar=a.MetadataRevision,br=b.MetadataRevision;
-            SelectProgram(variant,second.ProgramId); Assert.Equal(second.ProgramId,StateCache.Current.GetCurrentProgram());
+            SelectProgram(variant,second.ProgramId); Assert.Equal(second.ProgramId,OpenGlStateCache.Current.GetCurrentProgram());
             SelectProgram(variant,int.MaxValue); Assert.Equal(ErrorCode.InvalidValue,GL.GetError());
             int location=GL.GetUniformLocation(second.ProgramId,"inputs[0]"); SetUnits(0,second.ProgramId,location,6);
             GL.GetUniform(second.ProgramId,location,out int actual); Assert.Equal(6,actual);
             Assert.Equal(ar,a.MetadataRevision); Assert.Equal(br+1,b.MetadataRevision);
-            Assert.Equal(second.ProgramId,StateCache.Current.GetCurrentProgram()); Assert.Equal(ErrorCode.NoError,GL.GetError());
+            Assert.Equal(second.ProgramId,OpenGlStateCache.Current.GetCurrentProgram()); Assert.Equal(ErrorCode.NoError,GL.GetError());
         }
-        finally { OpenGLProgramSelection.Select(StateCache.Current, 0); units.UnpatchAll(units.Id); harmony.UnpatchAll(harmony.Id); fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { OpenGLProgramSelection.Select(OpenGlStateCache.Current, 0); units.UnpatchAll(units.Id); harmony.UnpatchAll(harmony.Id); fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
     /// <summary>Unsigned and EXT pipeline selectors preserve the actual active-program target after rejected rebinding.</summary>
     [Theory]
@@ -177,15 +177,15 @@ public sealed partial class GpuProgramMetadataInterceptionTests(HeadlessGLFixtur
         try
         {
             using var program=CreateProgram(out int shader); VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Shader, shader));
-            using var first=GpuProgramPipeline.Create(); using var second=GpuProgramPipeline.Create(); OpenGLProgramPipelineSelection.Bind(StateCache.Current, first.PipelineId);
-            GL.ActiveShaderProgram(second.PipelineId,program.ProgramId); OpenGLProgramSelection.Select(StateCache.Current, 0);
-            SelectPipeline(extension,second.PipelineId); Assert.Equal(second.PipelineId,StateCache.Current.GetCurrentProgramPipeline());
+            using var first=GpuProgramPipeline.Create(); using var second=GpuProgramPipeline.Create(); OpenGLProgramPipelineSelection.Bind(OpenGlStateCache.Current, first.PipelineId);
+            GL.ActiveShaderProgram(second.PipelineId,program.ProgramId); OpenGLProgramSelection.Select(OpenGlStateCache.Current, 0);
+            SelectPipeline(extension,second.PipelineId); Assert.Equal(second.PipelineId,OpenGlStateCache.Current.GetCurrentProgramPipeline());
             SelectPipeline(extension,int.MaxValue); Assert.Equal(ErrorCode.InvalidOperation,GL.GetError());
             int location=GL.GetUniformLocation(program.ProgramId,"inputs[0]"); SetUnits(0,program.ProgramId,location,5);
             GL.GetUniform(program.ProgramId,location,out int actual); Assert.Equal(5,actual);
-            Assert.Equal(second.PipelineId,StateCache.Current.GetCurrentProgramPipeline()); Assert.Equal(ErrorCode.NoError,GL.GetError());
+            Assert.Equal(second.PipelineId,OpenGlStateCache.Current.GetCurrentProgramPipeline()); Assert.Equal(ErrorCode.NoError,GL.GetError());
         }
-        finally { OpenGLProgramSelection.Select(StateCache.Current, 0); OpenGLProgramPipelineSelection.Bind(StateCache.Current, 0); units.UnpatchAll(units.Id); harmony.UnpatchAll(harmony.Id); fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { OpenGLProgramSelection.Select(OpenGlStateCache.Current, 0); OpenGLProgramPipelineSelection.Bind(OpenGlStateCache.Current, 0); units.UnpatchAll(units.Id); harmony.UnpatchAll(harmony.Id); fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
     /// <summary>A real driver binary reinstalls executable facts; an invalid format preserves native executable state.</summary>
     [Fact]
@@ -206,7 +206,7 @@ public sealed partial class GpuProgramMetadataInterceptionTests(HeadlessGLFixtur
             Assert.Equal(ErrorCode.InvalidEnum,GL.GetError()); GL.GetProgram(destination.ProgramId,GetProgramParameterName.LinkStatus,out int linked);
             Assert.Equal(linked!=0,alias.Snapshot.ExecutableAvailable); Assert.Equal(revision+1,entry.MetadataRevision); Assert.Equal(ErrorCode.NoError,GL.GetError());
         }
-        finally { harmony.UnpatchAll(harmony.Id); fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { harmony.UnpatchAll(harmony.Id); fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
     #endregion
     #region Private

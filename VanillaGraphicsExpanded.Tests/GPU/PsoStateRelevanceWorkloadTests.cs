@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Text.Json;
@@ -120,12 +121,12 @@ public sealed class PsoStateRelevanceWorkloadTests(HeadlessGLFixture fixture, IT
         PsoNativeStateFingerprint.MakeDormantHostile();
         string before = PsoNativeStateFingerprint.Read();
 #if DEBUG
-        long start = StateCache.Current.FixedFunctionCalls;
+        long start = OpenGlStateCache.Current.FixedFunctionCalls;
 #endif
         string[] events;
         using (var capture = new PsoNativeCallCapture()) { draw(); events = capture.Events.ToArray(); }
 #if DEBUG
-        long calls = StateCache.Current.FixedFunctionCalls - start;
+        long calls = OpenGlStateCache.Current.FixedFunctionCalls - start;
 #endif
         string after = PsoNativeStateFingerprint.Read();
         Assert.Equal(before, after);

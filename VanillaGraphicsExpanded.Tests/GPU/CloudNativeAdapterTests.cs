@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Runtime.CompilerServices;
 using FluffyClouds;
@@ -41,7 +42,7 @@ public sealed class CloudNativeAdapterTests(HeadlessGLFixture fixture)
             Assert.Null(field.GetValue(consumer)); Assert.False(borrower.IsValid);
             Assert.True(GL.IsTexture(depth.TextureId));
         }
-        finally { fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
 
     /// <summary>Storage revisions revoke content certificates until a new observed upload qualifies them.</summary>
@@ -60,7 +61,7 @@ public sealed class CloudNativeAdapterTests(HeadlessGLFixture fixture)
             // Restore the same descriptor after replacing storage: dimensions alone cannot certify contents.
             if (external)
             {
-                using var binding = StateCache.Current.BindTextureScope(TextureTarget.Texture2D, 0, native.Raw1.TextureId);
+                using var binding = OpenGlStateCache.Current.BindTextureScope(TextureTarget.Texture2D, 0, native.Raw1.TextureId);
                 VanillaGraphicsExpanded.HarmonyPatches.NativeAdapters.Textures.Core.TexImage2D(
                     TextureTarget.Texture2D, 0, PixelInternalFormat.Rgba16, 20, 20, 0, PixelFormat.Rgba, PixelType.Short, IntPtr.Zero);
             }
@@ -78,7 +79,7 @@ public sealed class CloudNativeAdapterTests(HeadlessGLFixture fixture)
             Assert.True(GL.IsTexture(native.Map.TextureId)); Assert.True(GL.IsTexture(native.Raw1.TextureId));
             Assert.True(GL.IsProgram(native.Program));
         }
-        finally { fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
 
     /// <summary>Observed producer deletion rejects an otherwise current map without another generation callback.</summary>
@@ -96,7 +97,7 @@ public sealed class CloudNativeAdapterTests(HeadlessGLFixture fixture)
             Assert.False(adapter.TryGet(5, 10, out _));
             adapter.Retire();
         }
-        finally { fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
 
     /// <summary>Stable generations preserve publication, restored bindings and external ownership.</summary>
@@ -350,7 +351,7 @@ public sealed class CloudNativeAdapterTests(HeadlessGLFixture fixture)
             }
             finally { adapter.Retire(); }
         }
-        finally { fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
 
     /// <summary>Fails if an available canonical resource is unnecessarily queried again.</summary>
@@ -387,7 +388,7 @@ public sealed class CloudNativeAdapterTests(HeadlessGLFixture fixture)
             GL.BindFramebuffer(FramebufferTarget.Framebuffer, framebuffer);
             GL.FramebufferTexture2D(FramebufferTarget.Framebuffer, FramebufferAttachment.ColorAttachment0, TextureTarget.Texture2D, Map.TextureId, 0);
             GL.FramebufferTexture2D(FramebufferTarget.Framebuffer, FramebufferAttachment.ColorAttachment1, TextureTarget.Texture2D, Color.TextureId, 0);
-            GL.DrawBuffers(2, new[] { DrawBuffersEnum.ColorAttachment0, DrawBuffersEnum.ColorAttachment1 }); StateCache.Current.Invalidate(EPipelineState.FramebufferRouting);
+            GL.DrawBuffers(2, new[] { DrawBuffersEnum.ColorAttachment0, DrawBuffersEnum.ColorAttachment1 }); OpenGlStateCache.Current.Invalidate(EPipelineState.FramebufferRouting);
             GL.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
             int vertex = Compile(ShaderType.VertexShader, "#version 150\nvoid main(){gl_Position=vec4(0,0,0,1);}");
             int fragment = Compile(ShaderType.FragmentShader, "#version 150\nout vec4 color; void main(){color=vec4(1);}");

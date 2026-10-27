@@ -204,25 +204,25 @@ public sealed class ShaderTestFramework : IDisposable
     public void RenderQuad(int programId)
     {
         EnsureQuadInitialized();
-        StateCache.Current.Apply(FullscreenPassPso);
-        OpenGLProgramSelection.Select(StateCache.Current, programId);
+        OpenGlStateCache.Current.Apply(FullscreenPassPso);
+        OpenGLProgramSelection.Select(OpenGlStateCache.Current, programId);
         RenderGeometry();
-        OpenGLProgramSelection.Select(StateCache.Current, 0);
+        OpenGLProgramSelection.Select(OpenGlStateCache.Current, 0);
     }
 
     /// <summary>Issues an explicitly native engine fixture draw while the engine caller owns executable and target state.</summary>
     public void RenderGeometry()
     {
         EnsureQuadInitialized();
-        using var geometry = StateCache.Current.BindVertexArrayScope(_quadVao!.VertexArrayId);
-        OpenGLVertexSelection.Bind(StateCache.Current, _quadVao!.VertexArrayId);
+        using var geometry = OpenGlStateCache.Current.BindVertexArrayScope(_quadVao!.VertexArrayId);
+        OpenGLVertexSelection.Bind(OpenGlStateCache.Current, _quadVao!.VertexArrayId);
         OpenTK.Graphics.OpenGL4.GL.DrawElements(OpenTK.Graphics.OpenGL4.PrimitiveType.Triangles, 3, OpenTK.Graphics.OpenGL4.DrawElementsType.UnsignedInt, 0);
     }
 
     /// <summary>Imports the fixture's currently selected engine target explicitly, then submits production bindings through the RHI.</summary>
     public void RenderQuad(GpuProgram program)
     {
-        int name=StateCache.Current.GetCurrentFramebuffer(FramebufferTarget.DrawFramebuffer);
+        int name=OpenGlStateCache.Current.GetCurrentFramebuffer(FramebufferTarget.DrawFramebuffer);
         int[] viewport=new int[4]; GL.GetInteger(GetPName.Viewport,viewport);
         using var target=DynamicGpuFramebuffer.Wrap(name,"Fixture.EngineDestination",viewport[2],viewport[3]);
         target.PublishRenderPassMetadata();
@@ -252,7 +252,7 @@ public sealed class ShaderTestFramework : IDisposable
         using var pipeline=commands.CreateGraphicsPipeline(new(program.Shader,QuadLayout,commands.DescribeRenderTargets(pass),DynamicPipelineState.Viewport)).RequireResource();
         var geometry=new RHIGeometryInputs(QuadLayout,[new(0,new(_quadVbo!,0,_quadVbo!.SizeBytes),20)],new(new(_quadEbo!,0,_quadEbo!.SizeBytes),IndexFormat.UnsignedInt));
         if (!commands.TryEnterBoundary(new("Fixture.Fullscreen",true,graphics:[pipeline],operations:BoundaryOperations.RenderPasses),out var admitted))
-            throw new InvalidOperationException($"Fixture boundary admission failed: {StateCache.Current.BoundaryEntryFailure}");
+            throw new InvalidOperationException($"Fixture boundary admission failed: {OpenGlStateCache.Current.BoundaryEntryFailure}");
         using var boundary=admitted!;
         boundary.Run(()=>
         {
@@ -269,7 +269,7 @@ public sealed class ShaderTestFramework : IDisposable
     {
         var color=clearColor??(0f,0f,0f,0f);
         FramebufferTestSetup.ClearAttachments(target,color.Item1,color.Item2,color.Item3,color.Item4);
-        using var binding=StateCache.Current.BindFramebufferScope();
+        using var binding=OpenGlStateCache.Current.BindFramebufferScope();
         FramebufferTestSetup.BindForEngineRendering(target);RenderQuad(programId);
     }
 

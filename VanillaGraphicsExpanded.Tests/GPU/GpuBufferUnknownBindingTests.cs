@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using HarmonyLib;
 using OpenTK.Graphics.OpenGL;
@@ -23,8 +24,8 @@ public sealed class GpuBufferUnknownBindingTests(HeadlessGLFixture fixture)
             using var target = RHICommandContext.Current.CreateIndexBuffer(new RHIBufferDescription { Role = BufferRole.Index, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = null }).RequireResource();
             GL.BindVertexArray(vao.VertexArrayId);
             GL.BindBuffer(BufferTarget.ElementArrayBuffer, sentinel.BufferId);
-            StateCache.Current.InvalidateAll();
-            using (StateCache.Current.BindBufferScope(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBufferValues.Target(target.Role), target.BufferId)) Assert.Equal(target.BufferId, GL.GetInteger(GetPName.ElementArrayBufferBinding));
+            OpenGlStateCache.Current.InvalidateAll();
+            using (OpenGlStateCache.Current.BindBufferScope(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBufferValues.Target(target.Role), target.BufferId)) Assert.Equal(target.BufferId, GL.GetInteger(GetPName.ElementArrayBufferBinding));
             Assert.Equal(vao.VertexArrayId, GL.GetInteger(GetPName.VertexArrayBinding));
             Assert.Equal(sentinel.BufferId, GL.GetInteger(GetPName.ElementArrayBufferBinding));
             Assert.Equal(ErrorCode.NoError, GL.GetError());
@@ -32,7 +33,7 @@ public sealed class GpuBufferUnknownBindingTests(HeadlessGLFixture fixture)
         finally
         {
             fixture.CleanupGpuResources();
-            StateCache.Current.InvalidateAll();
+            OpenGlStateCache.Current.InvalidateAll();
         }
     }
     /// <summary>Named mapping, flushing and unmapping each restore unknown native selections and retain written data.</summary>
@@ -54,18 +55,18 @@ public sealed class GpuBufferUnknownBindingTests(HeadlessGLFixture fixture)
             var query = element ? GetPName.ElementArrayBufferBinding : GetPName.ArrayBufferBinding;
             GL.BindVertexArray(vao.VertexArrayId);
             GL.BindBuffer(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBufferValues.Target(target.Role), sentinel.BufferId);
-            StateCache.Current.InvalidateAll();
+            OpenGlStateCache.Current.InvalidateAll();
             using (var mapped = target.MapRange<int>(0, 4, BufferMapAccess.Write | BufferMapAccess.ExplicitFlush))
             {
                 Assert.True(mapped.IsMapped);
                 Assert.Equal(sentinel.BufferId, GL.GetInteger(query));
                 Assert.Equal(copySentinel.BufferId, GL.GetInteger((GetPName)BufferTarget.CopyWriteBuffer));
                 mapped.Span[0] = 12345;
-                StateCache.Current.InvalidateAll();
+                OpenGlStateCache.Current.InvalidateAll();
                 mapped.Flush();
                 Assert.Equal(sentinel.BufferId, GL.GetInteger(query));
                 Assert.Equal(copySentinel.BufferId, GL.GetInteger((GetPName)BufferTarget.CopyWriteBuffer));
-                StateCache.Current.InvalidateAll();
+                OpenGlStateCache.Current.InvalidateAll();
             }
             Assert.Equal(sentinel.BufferId, GL.GetInteger(query));
             Assert.Equal(copySentinel.BufferId, GL.GetInteger((GetPName)BufferTarget.CopyWriteBuffer));
@@ -78,7 +79,7 @@ public sealed class GpuBufferUnknownBindingTests(HeadlessGLFixture fixture)
         finally
         {
             fixture.CleanupGpuResources();
-            StateCache.Current.InvalidateAll();
+            OpenGlStateCache.Current.InvalidateAll();
         }
     }
     /// <summary>Named managed array allocation preserves unknown bindings and publishes its uploaded capacity.</summary>
@@ -96,7 +97,7 @@ public sealed class GpuBufferUnknownBindingTests(HeadlessGLFixture fixture)
             using GpuBufferObject target = element ? RHICommandContext.Current.CreateIndexBuffer(new RHIBufferDescription { Role = BufferRole.Index, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = null }).RequireResource() : RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = null }).RequireResource();
             GL.BindVertexArray(vao.VertexArrayId);
             GL.BindBuffer(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBufferValues.Target(target.Role), sentinel.BufferId);
-            StateCache.Current.InvalidateAll();
+            OpenGlStateCache.Current.InvalidateAll();
             GpuBufferUploader.Allocate(target, 16, new[] { 12, 34, 56, 78 }, BufferUsage.DynamicDraw);
             Assert.Equal(sentinel.BufferId, GL.GetInteger(element ? GetPName.ElementArrayBufferBinding : GetPName.ArrayBufferBinding));
             Assert.Equal(vao.VertexArrayId, GL.GetInteger(GetPName.VertexArrayBinding));
@@ -108,7 +109,7 @@ public sealed class GpuBufferUnknownBindingTests(HeadlessGLFixture fixture)
         finally
         {
             fixture.CleanupGpuResources();
-            StateCache.Current.InvalidateAll();
+            OpenGlStateCache.Current.InvalidateAll();
         }
     }
     /// <summary>A native named mapping exception still restores the unknown copy-write selection.</summary>
@@ -124,7 +125,7 @@ public sealed class GpuBufferUnknownBindingTests(HeadlessGLFixture fixture)
             using var target = RHICommandContext.Current.CreateIndexBuffer(new RHIBufferDescription { Role = BufferRole.Index, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = null }).RequireResource();
             target.Allocate(16);
             GL.BindBuffer(BufferTarget.CopyWriteBuffer, sentinel.BufferId);
-            StateCache.Current.InvalidateAll();
+            OpenGlStateCache.Current.InvalidateAll();
             harmony.Patch(((Func<int, IntPtr, IntPtr, OpenTK.Graphics.OpenGL4.BufferAccessMask, IntPtr>)OpenTK.Graphics.OpenGL4.GL.MapNamedBufferRange).Method,
                 prefix: new HarmonyMethod(typeof(GpuBufferUnknownBindingTests), nameof(RejectMapping)));
             Assert.Throws<InvalidOperationException>(() => target.MapRange<int>(0, 4, BufferMapAccess.Read));
@@ -135,7 +136,7 @@ public sealed class GpuBufferUnknownBindingTests(HeadlessGLFixture fixture)
         {
             harmony.UnpatchAll(harmony.Id);
             fixture.CleanupGpuResources();
-            StateCache.Current.InvalidateAll();
+            OpenGlStateCache.Current.InvalidateAll();
         }
     }
     #endregion

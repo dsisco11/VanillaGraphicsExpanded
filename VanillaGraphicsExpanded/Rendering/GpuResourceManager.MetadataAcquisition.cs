@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System;
 
 namespace VanillaGraphicsExpanded.Rendering;
@@ -37,7 +38,7 @@ internal sealed partial class GpuResourceManager
             if (!entry.ContainsRecipient(resource)) manager.AssociateResource(entry, resource);
             return;
         }
-        StateCache.Current.RequireResourceOperationAvailable(resource.Kind, resource.ResourceId);
+        OpenGlStateCache.Current.RequireResourceOperationAvailable(resource.Kind, resource.ResourceId);
         // Tools without an installed render service still receive facts from the same reader;
         // this creates no parallel registry or persistent tracking claim.
         T data;

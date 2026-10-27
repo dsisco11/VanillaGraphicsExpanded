@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
@@ -49,7 +50,7 @@ public sealed class GpuResourceDeferredLifetimeTests(HeadlessGLFixture fixture)
         Assert.True(second.IsDisposed);
         Assert.Equal(ErrorCode.NoError, GL.GetError());
         fixture.CleanupGpuResources();
-        StateCache.Current.InvalidateAll();
+        OpenGlStateCache.Current.InvalidateAll();
     }
 
     /// <summary>A queued owner survives both alias guard kinds and retires when the borrow releases.</summary>
@@ -91,7 +92,7 @@ public sealed class GpuResourceDeferredLifetimeTests(HeadlessGLFixture fixture)
             attachment.Dispose();
             owner.Dispose();
             fixture.CleanupGpuResources();
-            StateCache.Current.InvalidateAll();
+            OpenGlStateCache.Current.InvalidateAll();
         }
     }
     #endregion

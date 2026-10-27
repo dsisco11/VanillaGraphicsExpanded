@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System.Reflection;
 using System.Reflection.Emit;
 using HarmonyLib;

@@ -1002,3 +1002,73 @@ Cancellation/reference release, caller-owned scope protection, missing uniform e
 result ownership and helper-slot restoration were rechecked after corrections. No required implementation
 or documentation gap remains. Cache naming and final integrated/package qualification remain later work.
 No game launch, live appearance, frame-time measurement or external producer-import qualification is claimed.
+
+## Backend cache closure (Phase 7)
+
+### Authority and source traceability
+
+The selected checklist inherits the approved RHI proposal's backend publication, exact integration,
+no-shim replacement and source-layout requirements. Contracts' ownership table and internal resource
+execution sections control the manager handoff. Current resource, prepared-binding, metadata inventory
+and API coverage contracts retain their original associations, query policy and owner exclusions.
+Archived creation/publication and texture-reference contracts remain normative for private initialization
+and consumer references; they do not restore older-context execution alternatives.
+
+| Task / controlling source | Implemented closure and evidence |
+| --- | --- |
+| Audit A–F / migration family receipts; proposal engine integration | Reinspected buffers, image/backing/samplers, auxiliary/results, shaders/PSOs, geometry/passes/bindings and recorded commands. Their focused backend modules remain sole execution owners. No internal native draw/upload/create/delete path reappears outside the backend. |
+| Cache split / proposal responsibilities; Contracts source ownership | The one thread-local type is `OpenGlStateCache` under backend `State`, with Bindings, FixedFunction, Observation and Boundaries modules. All compiled callers and source links change together; no old class/file alias remains. Stateless typed `OpenGLStateEffects` modules own core fixed-state native effects; cache methods retain field knowledge, admission and suppression. Native selector/restoration observation remains with that same backend knowledge owner. |
+| Remove residual executors / mandatory migration contract | Deleted cache FramebufferTexture2D/Layer commands; direct test consumers use the existing exact backend attachment methods. Removed the unused production arbitrary-callback ExecuteExternal surface, indexed raw-capability helper and face-selector polygon forwarding helper. Managed capability setters accept represented fields only; exact adapters retain raw enum behavior. No replacement forwarding facade was added. |
+| Exact adapters / API owner boundary; archived publication contract | EngineStateCalls lives in backend State/External. Fixed-state overloads execute their original legacy binding call once, without managed clamping/validation/suppression, and withdraw affected knowledge. Existing field admission protects declared restoration without rejecting covered calls. Stencil faces and indexed blend slots retain independent coverage. Signature catalog/IL replacement still covers only GL/Core, Ext and Arb; backend calls are outside the built-in rewritten assemblies. |
+| Baseline / proposal OpenGL 4.5 and fixed implementation | Removed old cache alternatives for independent blending, clip control, sample shading, fixed-index restart, tessellation and separate shader objects. Actual cached limits/profile differences and optional beyond-baseline operations remain. Manager creation/acquisition/retirement still invokes private RHI contracts, never retrieves the backend, and retains sole metadata authority. Its existing cache references are guard/knowledge collaboration, not native execution. |
+| Current documentation / checklist reconciliation | Resource, shader binding, pipeline authority, engine integration, authoring and shader asset/cache documents describe final APIs and ownership. Active inventory/coverage and parent references follow the implemented routes. Historical implementation receipts stay here; core architecture documents no longer describe removed contexts, activation APIs or older-context fallbacks as current behavior. |
+
+Static source review includes qualified/native aliases, exact adapter registrations, manager/readers,
+owner wrappers, context composition, all cache modules and recorded interpretation. Remaining native
+dependencies outside backend execution are existing capability/admission discovery, DEBUG diagnostics,
+and explicit engine executable membership/location preparation. These do not create internal execution
+escape hatches. No parallel cache, registry, metadata history, dispatcher authority, retry route or new
+resource hierarchy is introduced. Local links in the updated live contract documents resolve.
+
+### Validation and review
+
+Fresh canonical Debug baseline passed 159/159 focused tests with zero skips
+(`artifacts/rhi-phase7/baseline`). Consolidated candidate receipts remain under `artifacts/rhi-phase7`.
+Final consistent-source receipts are under `artifacts/rhi-phase7/final5`:
+
+- Canonical production/test builds passed with zero errors: Debug 533 warnings, Release 540 warnings.
+- The broad 425-case selection passed **424/425** in Debug and **416/425** in ordinary optimized Release,
+  with zero skips. The complete failed runs remain recorded, not represented as green suites.
+- The same Release runtime/test binaries passed **424/425** with process-only
+  `COMPlus_JitNoInline=1`, `COMPlus_TieredCompilation=0`, `COMPlus_ReadyToRun=0`.
+  All eight ordinary observer/fault-injection failures resolve under those controls. No instrumented
+  Release product, production no-inline attribute or alternate runtime path was introduced.
+- All **424** cases other than the full-lighting numerical case pass in Debug and controlled Release.
+  These include exact signatures/generic rewriting, native fixed-state arguments/errors, duplicate
+  execution, categorized suppression, partial boundaries/restoration, metadata interception and RHI
+  resource/shader/pipeline/recording contracts. Generator suites passed **157/157** in both configurations
+  (`artifacts/rhi-phase7/final/Generator-Debug.trx`, `Generator-Release.trx`); later edits do not touch
+  the generator or its contract inputs.
+
+The full-lighting fixture had stale R32F color storage for comparison samplers and omitted two composite
+fragment outputs. Its declarations now use depth storage and all three MRT outputs; ownership coverage
+checks all 17 actual images. The now-reachable direct-only numerical oracle still fails at pixel zero,
+green: expected `9.213684`, actual `9.2109375`, delta `0.002746582`, tolerance `0.002`.
+A tentative half-precision oracle projection did not explain every pixel and was reverted. The original
+independent sum and tolerance remain unchanged. Production shaders/numerical algorithms were not altered.
+This is an explicit unresolved integrated-lighting qualification item in Phase 8, not a cache/source
+boundary completion claim or a waived numerical failure. No integrated all-green result is claimed.
+
+`identity.json` records 3,185 frozen source/project files and zero drift. Runtime SHA256 values are
+`5BAA75C5B9B0032679CBD3F26C2C97B3355F2DB7F1F9C1DF8EA751F06B841EE7` (Debug) and
+`72BA3D92BE6104296A164F9B2BB70BA053904A6EA8E86AACF3EF0FBF13AF06DA` (Release).
+The identity file also names both test assembly hashes; `invocations.txt`, `filter.txt`, build logs and
+TRXs retain the exact candidate and execution conditions. HEAD remained
+`0dbbc637d77916bf8a2c100f7a5b32d6d1062f75`; no changes were staged or committed.
+
+Second source review and independent stage-completion audit directly reconciled the selected checklist
+with the linked proposal/contracts, current resource/binding documents and retained family receipts.
+The obsolete raw-cache helper removal and exact field admission were rechecked after correction.
+No required Phase 7 implementation or documentation gap remains. The broader numerical mismatch,
+canonical package identity, installed-client behavior and user-run visual acceptance remain Phase 8
+qualification work. No game launch, performance measurement or package/live acceptance is claimed here.

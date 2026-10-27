@@ -40,7 +40,7 @@ public sealed class GpuResourceOperationContextTests(HeadlessGLFixture fixture)
             {
                 Assert.Throws<InvalidOperationException>(() => { using var operation = new GpuResourceManager.MetadataOperation<GpuBufferMetadata>(buffer, GpuMetadataChange.Storage); });
                 Assert.Throws<InvalidOperationException>(() => GpuResourceManager.AcquireTextureCommandInput(texture));
-                Assert.Throws<InvalidOperationException>(() => new VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBackend(StateCache.Current).SubmitProgramExecutable(program));
+                Assert.Throws<InvalidOperationException>(() => new VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBackend(OpenGlStateCache.Current).SubmitProgramExecutable(program));
                 if (worker) Assert.Throws<InvalidOperationException>(() => OpenGLProgramCalls.ExecuteCoreLinkProgram(program.ProgramId));
                 Assert.Throws<InvalidOperationException>(() => GpuResourceManager.RequireProgramSnapshot(program));
                 Assert.Throws<InvalidOperationException>(() => GpuResourceManager.AcquireEngineGeometryConfiguration(vao, new([]), [], default));
@@ -71,7 +71,7 @@ public sealed class GpuResourceOperationContextTests(HeadlessGLFixture fixture)
             Assert.Equal(4, texture.Width);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { current = origin; GpuResourceManagerSystem.Shutdown(); StateCache.Current.InvalidateAll(); }
+        finally { current = origin; GpuResourceManagerSystem.Shutdown(); OpenGlStateCache.Current.InvalidateAll(); }
     }
     #endregion
 }

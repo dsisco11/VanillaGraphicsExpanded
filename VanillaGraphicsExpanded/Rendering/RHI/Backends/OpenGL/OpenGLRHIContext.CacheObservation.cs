@@ -5,7 +5,7 @@ internal static partial class OpenGLRHIContext
 {
     #region Internal API
     /// <summary>Forwards deletion effects only to an already admitted matching cache.</summary>
-    internal static void NotifyResourceDeleted(StateCache cache, GpuResourceKind kind, int id)
+    internal static void NotifyResourceDeleted(OpenGlStateCache cache, GpuResourceKind kind, int id)
     {
         if (backend is null || !backend.OwnsCache(cache)) return;
         backend.InvalidateGeometryRealizations(kind, id);

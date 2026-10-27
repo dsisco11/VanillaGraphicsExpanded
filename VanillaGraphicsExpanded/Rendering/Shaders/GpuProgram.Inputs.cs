@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System;
 using VanillaGraphicsExpanded.Rendering.RHI;
 
@@ -22,7 +23,7 @@ public abstract partial class GpuProgram
     internal void RequireOutsideSubmission()
     {
         lifetime.RequireOutsidePublication();
-        StateCache.Current.RequireOutsideEngineBoundary();
+        OpenGlStateCache.Current.RequireOutsideEngineBoundary();
     }
     #endregion
     #region Protected API

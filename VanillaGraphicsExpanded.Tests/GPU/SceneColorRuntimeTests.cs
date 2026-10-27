@@ -343,8 +343,8 @@ public sealed class SceneColorRuntimeTests(HeadlessGLFixture fixture, ITestOutpu
             var displayParameters = new FinalDisplayParameters(new(1,1,1,0),Vector4.Zero,Vector4.Zero);
             FramebufferTestSetup.BindForEngineRendering(engine);
             GL.GetInteger(GetPName.DrawBuffer0, out int beforeDrawRoute);
-            using (var textureScope = StateCache.Current.BindTextureScope(TextureTarget.Texture2D, 15, postStorage.TextureId))
-            using (var samplerScope = StateCache.Current.BindSamplerScope(15, GpuSamplers.LinearClamp.SamplerId))
+            using (var textureScope = OpenGlStateCache.Current.BindTextureScope(TextureTarget.Texture2D, 15, postStorage.TextureId))
+            using (var samplerScope = OpenGlStateCache.Current.BindSamplerScope(15, GpuSamplers.LinearClamp.SamplerId))
             {
                 post.RenderFinal(displayParameters);
                 GL.ActiveTexture(TextureUnit.Texture15);
@@ -352,7 +352,7 @@ public sealed class SceneColorRuntimeTests(HeadlessGLFixture fixture, ITestOutpu
                 GL.GetInteger(GetPName.SamplerBinding, out int restoredSampler);
                 Assert.Equal(postStorage.TextureId, restoredTexture);
                 Assert.Equal(GpuSamplers.LinearClamp.SamplerId, restoredSampler);
-                StateCache.Current.InvalidateAll();
+                OpenGlStateCache.Current.InvalidateAll();
             }
             GL.GetInteger(GetPName.DrawFramebufferBinding, out int restoredFramebuffer);
             GL.GetInteger(GetPName.DrawBuffer0, out int restoredDrawRoute);
@@ -477,7 +477,7 @@ public sealed class SceneColorRuntimeTests(HeadlessGLFixture fixture, ITestOutpu
             ShaderPrograms.Final = previousFinal;
             registry.SetValue(null, previousPrograms);
             ShaderProgramBase.CurrentShaderProgram = null;
-            OpenGLProgramSelection.Select(StateCache.Current, 0);
+            OpenGLProgramSelection.Select(OpenGlStateCache.Current, 0);
         }
     }
     #endregion
@@ -540,7 +540,7 @@ public sealed class SceneColorRuntimeTests(HeadlessGLFixture fixture, ITestOutpu
     /// <summary>Observes the fixture's complete depth initialization without disturbing its draw framebuffer.</summary>
     private static float[] ReadPrimaryDepth(int framebuffer)
     {
-        using var read = StateCache.Current.BindFramebufferScope(FramebufferTarget.ReadFramebuffer, framebuffer);
+        using var read = OpenGlStateCache.Current.BindFramebufferScope(FramebufferTarget.ReadFramebuffer, framebuffer);
         float[] pixels = new float[4];
         GL.ReadPixels(0, 0, 2, 2, PixelFormat.DepthComponent, PixelType.Float, pixels);
         return pixels;

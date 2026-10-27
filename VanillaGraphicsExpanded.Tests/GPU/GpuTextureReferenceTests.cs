@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
@@ -39,7 +40,7 @@ public sealed class GpuTextureReferenceTests(HeadlessGLFixture fixture)
         {
             if (detached != 0) RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Texture, detached));
             fixture.CleanupGpuResources();
-            StateCache.Current.InvalidateAll();
+            OpenGlStateCache.Current.InvalidateAll();
         }
     }
 
@@ -70,7 +71,7 @@ public sealed class GpuTextureReferenceTests(HeadlessGLFixture fixture)
             Assert.Throws<InvalidOperationException>(() => viewReference.TextureId);
             Assert.False(GpuResourceManager.ValidateTextureReferenceInput(viewReference.Resource));
         }
-        finally { fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
 
     /// <summary>Null conversions preserve empty semantics without accessing native state.</summary>
@@ -127,7 +128,7 @@ public sealed class GpuTextureReferenceTests(HeadlessGLFixture fixture)
             Assert.True(owner.IsValid);
             Assert.True(GL.IsTexture(owner.TextureId));
         }
-        finally { fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
     #endregion
 }

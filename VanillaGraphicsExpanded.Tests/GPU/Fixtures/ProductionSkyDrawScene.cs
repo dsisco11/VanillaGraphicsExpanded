@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Collections.Immutable;
@@ -67,7 +68,7 @@ internal sealed class ProductionSkyDrawScene : IDisposable
             var cube = Own(RHICommandContext.Current.CreateTextureCube(new RHITextureDescription { Dimension = TextureDimension.Cube, Format = TextureFormat.Rgba32f, Width = 1, Height = 1, MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource());
             for (int face = 0; face < 6; face++)
             {
-                using var binding = StateCache.Current.BindTextureScope(((GpuTextureRef)cube).Target, 0, cube.TextureId);
+                using var binding = OpenGlStateCache.Current.BindTextureScope(((GpuTextureRef)cube).Target, 0, cube.TextureId);
                 GL.TexSubImage2D(TextureTarget.TextureCubeMapPositiveX + face, 0, 0, 0, 1, 1,
                     PixelFormat.Rgba, PixelType.Float, new float[] { .02f, .01f, .005f, 1 });
             }
@@ -170,7 +171,7 @@ internal sealed class ProductionSkyDrawScene : IDisposable
         return outputs.Select(image =>
         {
             float[] pixels = new float[Size * Size * 4];
-            using var binding = StateCache.Current.BindTextureScope(((GpuTextureRef)image).Target, 0, image.TextureId);
+            using var binding = OpenGlStateCache.Current.BindTextureScope(((GpuTextureRef)image).Target, 0, image.TextureId);
             GL.GetTexImage(TextureTarget.Texture2D, 0, PixelFormat.Rgba, PixelType.Float, pixels);
             return pixels;
         }).ToArray();

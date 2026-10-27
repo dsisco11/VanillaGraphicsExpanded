@@ -10,7 +10,7 @@ internal static unsafe partial class OpenGLFramebufferCalls
     /// <summary>Executes the exact external overload and completes affected metadata publication.</summary>
     internal static void ExecuteCoreNamedFramebufferParameter(int @framebuffer, FramebufferDefaultParameter @pname, int @param)
     {
-        var observation = StateCache.BeginNativeFramebufferParameter(unchecked((int)@framebuffer), true, unchecked((int)@pname));
+        var observation = OpenGlStateCache.BeginNativeFramebufferParameter(unchecked((int)@framebuffer), true, unchecked((int)@pname));
         bool returned = false;
         try
         {
@@ -27,7 +27,7 @@ internal static unsafe partial class OpenGLFramebufferCalls
     /// <summary>Executes the exact external overload and completes affected metadata publication.</summary>
     internal static void ExecuteCoreNamedFramebufferParameter(uint @framebuffer, FramebufferDefaultParameter @pname, int @param)
     {
-        var observation = StateCache.BeginNativeFramebufferParameter(unchecked((int)@framebuffer), true, unchecked((int)@pname));
+        var observation = OpenGlStateCache.BeginNativeFramebufferParameter(unchecked((int)@framebuffer), true, unchecked((int)@pname));
         bool returned = false;
         try
         {

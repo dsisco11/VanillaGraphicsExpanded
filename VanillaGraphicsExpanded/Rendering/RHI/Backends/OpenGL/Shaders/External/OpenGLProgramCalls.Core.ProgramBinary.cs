@@ -10,7 +10,7 @@ internal static unsafe partial class OpenGLProgramCalls
     /// <summary>Executes the exact external overload and completes affected metadata publication.</summary>
     internal static void ExecuteCoreProgramBinary(int @program, BinaryFormat @binaryFormat, IntPtr @binary, int @length)
     {
-        var observation = StateCache.BeginNativeProgramMetadata(unchecked((int)@program), true, false, -1, 1, true, false);
+        var observation = OpenGlStateCache.BeginNativeProgramMetadata(unchecked((int)@program), true, false, -1, 1, true, false);
         bool returned = false;
         try
         {
@@ -27,7 +27,7 @@ internal static unsafe partial class OpenGLProgramCalls
     /// <summary>Executes the exact external overload and completes affected metadata publication.</summary>
     internal static void ExecuteCoreProgramBinary(uint @program, BinaryFormat @binaryFormat, IntPtr @binary, int @length)
     {
-        var observation = StateCache.BeginNativeProgramMetadata(unchecked((int)@program), true, false, -1, 1, true, false);
+        var observation = OpenGlStateCache.BeginNativeProgramMetadata(unchecked((int)@program), true, false, -1, 1, true, false);
         bool returned = false;
         try
         {
@@ -45,7 +45,7 @@ internal static unsafe partial class OpenGLProgramCalls
     internal static void ExecuteCoreProgramBinary<T2>(int @program, BinaryFormat @binaryFormat, ref T2 @binary, int @length)
         where T2 : struct
     {
-        var observation = StateCache.BeginNativeProgramMetadata(unchecked((int)@program), true, false, -1, 1, true, false);
+        var observation = OpenGlStateCache.BeginNativeProgramMetadata(unchecked((int)@program), true, false, -1, 1, true, false);
         bool returned = false;
         try
         {
@@ -63,7 +63,7 @@ internal static unsafe partial class OpenGLProgramCalls
     internal static void ExecuteCoreProgramBinary<T2>(int @program, BinaryFormat @binaryFormat, T2[,,] @binary, int @length)
         where T2 : struct
     {
-        var observation = StateCache.BeginNativeProgramMetadata(unchecked((int)@program), true, false, -1, 1, true, false);
+        var observation = OpenGlStateCache.BeginNativeProgramMetadata(unchecked((int)@program), true, false, -1, 1, true, false);
         bool returned = false;
         try
         {
@@ -81,7 +81,7 @@ internal static unsafe partial class OpenGLProgramCalls
     internal static void ExecuteCoreProgramBinary<T2>(int @program, BinaryFormat @binaryFormat, T2[,] @binary, int @length)
         where T2 : struct
     {
-        var observation = StateCache.BeginNativeProgramMetadata(unchecked((int)@program), true, false, -1, 1, true, false);
+        var observation = OpenGlStateCache.BeginNativeProgramMetadata(unchecked((int)@program), true, false, -1, 1, true, false);
         bool returned = false;
         try
         {
@@ -99,7 +99,7 @@ internal static unsafe partial class OpenGLProgramCalls
     internal static void ExecuteCoreProgramBinary<T2>(int @program, BinaryFormat @binaryFormat, T2[] @binary, int @length)
         where T2 : struct
     {
-        var observation = StateCache.BeginNativeProgramMetadata(unchecked((int)@program), true, false, -1, 1, true, false);
+        var observation = OpenGlStateCache.BeginNativeProgramMetadata(unchecked((int)@program), true, false, -1, 1, true, false);
         bool returned = false;
         try
         {
@@ -117,7 +117,7 @@ internal static unsafe partial class OpenGLProgramCalls
     internal static void ExecuteCoreProgramBinary<T2>(uint @program, BinaryFormat @binaryFormat, ref T2 @binary, int @length)
         where T2 : struct
     {
-        var observation = StateCache.BeginNativeProgramMetadata(unchecked((int)@program), true, false, -1, 1, true, false);
+        var observation = OpenGlStateCache.BeginNativeProgramMetadata(unchecked((int)@program), true, false, -1, 1, true, false);
         bool returned = false;
         try
         {
@@ -135,7 +135,7 @@ internal static unsafe partial class OpenGLProgramCalls
     internal static void ExecuteCoreProgramBinary<T2>(uint @program, BinaryFormat @binaryFormat, T2[,,] @binary, int @length)
         where T2 : struct
     {
-        var observation = StateCache.BeginNativeProgramMetadata(unchecked((int)@program), true, false, -1, 1, true, false);
+        var observation = OpenGlStateCache.BeginNativeProgramMetadata(unchecked((int)@program), true, false, -1, 1, true, false);
         bool returned = false;
         try
         {
@@ -153,7 +153,7 @@ internal static unsafe partial class OpenGLProgramCalls
     internal static void ExecuteCoreProgramBinary<T2>(uint @program, BinaryFormat @binaryFormat, T2[,] @binary, int @length)
         where T2 : struct
     {
-        var observation = StateCache.BeginNativeProgramMetadata(unchecked((int)@program), true, false, -1, 1, true, false);
+        var observation = OpenGlStateCache.BeginNativeProgramMetadata(unchecked((int)@program), true, false, -1, 1, true, false);
         bool returned = false;
         try
         {
@@ -171,7 +171,7 @@ internal static unsafe partial class OpenGLProgramCalls
     internal static void ExecuteCoreProgramBinary<T2>(uint @program, BinaryFormat @binaryFormat, T2[] @binary, int @length)
         where T2 : struct
     {
-        var observation = StateCache.BeginNativeProgramMetadata(unchecked((int)@program), true, false, -1, 1, true, false);
+        var observation = OpenGlStateCache.BeginNativeProgramMetadata(unchecked((int)@program), true, false, -1, 1, true, false);
         bool returned = false;
         try
         {

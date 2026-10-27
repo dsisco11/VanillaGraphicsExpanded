@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System.Reflection;
 using OpenTK.Graphics.OpenGL;
 using OpenTK.Mathematics;
@@ -148,7 +149,7 @@ public sealed class EngineBoundaryEntryTests(HeadlessGLFixture fixture)
             Assert.Equal(1, cache.BoundaryQueries - queries);
 #endif
             Assert.Equal(DepthStateKnowledge.WriteEnabled, scope!.Snapshot.Coverage.Depth);
-            var known = (DepthStateKnowledge)typeof(StateCache).GetField("depthKnown", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(cache)!;
+            var known = (DepthStateKnowledge)typeof(OpenGlStateCache).GetField("depthKnown", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(cache)!;
             Assert.Equal(DepthStateKnowledge.WriteEnabled, known);
             cache.SetDepthWriteMask(!scope.Snapshot.Depth.WriteEnabled);
             Assert.Throws<InvalidOperationException>(() => cache.SetDepthFunc(DepthFunction.Less));
@@ -266,7 +267,7 @@ public sealed class EngineBoundaryEntryTests(HeadlessGLFixture fixture)
         Assert.Equal(calls, cache.FixedFunctionCalls);
 #endif
         Assert.False(GL.GetBoolean(GetPName.DepthWritemask));
-        var known = (DepthStateKnowledge)typeof(StateCache).GetField("depthKnown", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(cache)!;
+        var known = (DepthStateKnowledge)typeof(OpenGlStateCache).GetField("depthKnown", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(cache)!;
         Assert.Equal(DepthStateKnowledge.None, known);
         Assert.True(cache.TryBeginEngineBoundary(declaration, out var valid));
         Assert.False(valid!.Snapshot.Depth.WriteEnabled); cache.ReleaseEngineBoundary(valid);
@@ -278,7 +279,7 @@ public sealed class EngineBoundaryEntryTests(HeadlessGLFixture fixture)
     {
         var cache = Prepare();
         // Exercise the post-read error path with a real failing GL query, without a production test hook.
-        var query = typeof(StateCache).GetMethod("QueryBoundary", BindingFlags.NonPublic | BindingFlags.Instance)!
+        var query = typeof(OpenGlStateCache).GetMethod("QueryBoundary", BindingFlags.NonPublic | BindingFlags.Instance)!
             .MakeGenericMethod(typeof(int));
 #if DEBUG
         long calls = cache.FixedFunctionCalls;
@@ -365,10 +366,10 @@ public sealed class EngineBoundaryEntryTests(HeadlessGLFixture fixture)
 
     #region Private
     /// <summary>Establishes a live fixture with unknown mutable state and an already cached output capability.</summary>
-    private StateCache Prepare()
+    private OpenGlStateCache Prepare()
     {
         fixture.MakeCurrent();
-        var cache = StateCache.Current;
+        var cache = OpenGlStateCache.Current;
         cache.InvalidateAll();
         _ = cache.MaxDrawBuffers;
         Assert.Equal(ErrorCode.NoError, GL.GetError());

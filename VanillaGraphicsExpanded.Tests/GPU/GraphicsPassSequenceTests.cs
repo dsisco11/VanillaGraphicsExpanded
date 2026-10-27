@@ -96,7 +96,7 @@ public sealed class GraphicsPassSequenceTests(HeadlessGLFixture fixture,ITestOut
         });
 }
         Assert.True(target[0].Resize(3,3));target.Dispose();
-        incoming.Bind();StateCache.Current.InvalidateAll();Assert.Equal(ErrorCode.NoError,GL.GetError());
+        incoming.Bind();OpenGlStateCache.Current.InvalidateAll();Assert.Equal(ErrorCode.NoError,GL.GetError());
     }
     #endregion
     #region Standalone and failed setup
@@ -117,7 +117,7 @@ public sealed class GraphicsPassSequenceTests(HeadlessGLFixture fixture,ITestOut
         using var broken=DynamicGpuFramebuffer.CreateEmpty();broken.SetAttachment(FramebufferAttachment.ColorAttachment0,layeredImage);
         broken.SetAttachment(FramebufferAttachment.ColorAttachment1,flatImage);
         using var valid=CreateRenderTarget(2,2,PixelInternalFormat.Rgba32f);using var incoming=CreateRenderTarget(1,1,PixelInternalFormat.Rgba32f);
-        broken.Bind();GL.DrawBuffers(2,[DrawBuffersEnum.ColorAttachment1,DrawBuffersEnum.ColorAttachment0]); StateCache.Current.Invalidate(EPipelineState.FramebufferRouting);incoming.Bind();
+        broken.Bind();GL.DrawBuffers(2,[DrawBuffersEnum.ColorAttachment1,DrawBuffersEnum.ColorAttachment0]); OpenGlStateCache.Current.Invalidate(EPipelineState.FramebufferRouting);incoming.Bind();
         {
     var commands=RHICommandContext.Current;
     using var scope56=commands.EnterBoundary(new("Tests.PassSequence.FailedBegin",true,graphics:System.Linq.Enumerable.Select<RHIGraphicsPipeline,RHIGraphicsPipelineRef>([],value=>value),operations:BoundaryOperations.RenderPasses));
@@ -174,10 +174,10 @@ public sealed class GraphicsPassSequenceTests(HeadlessGLFixture fixture,ITestOut
         internal void Initialize()
         {
             foreach(var image in outputs)image.UploadDataImmediate(new float[16]);
-            a.Bind();GL.DrawBuffers(OriginalA.Length,OriginalA); StateCache.Current.Invalidate(EPipelineState.FramebufferRouting);b.Bind();GL.DrawBuffers(OriginalB.Length,OriginalB); StateCache.Current.Invalidate(EPipelineState.FramebufferRouting);
+            a.Bind();GL.DrawBuffers(OriginalA.Length,OriginalA); OpenGlStateCache.Current.Invalidate(EPipelineState.FramebufferRouting);b.Bind();GL.DrawBuffers(OriginalB.Length,OriginalB); OpenGlStateCache.Current.Invalidate(EPipelineState.FramebufferRouting);
             GL.BindFramebuffer(FramebufferTarget.DrawFramebuffer,incoming.FboId);GL.BindFramebuffer(FramebufferTarget.ReadFramebuffer,read.FboId);
-            OpenGLProgramSelection.Select(StateCache.Current,native.ProgramId);GL.ActiveTexture(TextureUnit.Texture0);GL.BindTexture(TextureTarget.Texture2D,sentinel.TextureId);GL.BindSampler(0,nativeSampler.SamplerId);
-            GL.ActiveTexture(TextureUnit.Texture5);StateCache.Current.InvalidateAll();
+            OpenGLProgramSelection.Select(OpenGlStateCache.Current,native.ProgramId);GL.ActiveTexture(TextureUnit.Texture0);GL.BindTexture(TextureTarget.Texture2D,sentinel.TextureId);GL.BindSampler(0,nativeSampler.SamplerId);
+            GL.ActiveTexture(TextureUnit.Texture5);OpenGlStateCache.Current.InvalidateAll();
         }
         #endregion
         #region Submission
@@ -192,7 +192,7 @@ public sealed class GraphicsPassSequenceTests(HeadlessGLFixture fixture,ITestOut
                 for(int index=0;index<3;index++)
                 {
                     var pass=Description(index);commands.BeginRenderPass(pass);commands.SetPipeline(selections[index]);commands.SetDynamicState(new(){Viewport=commands.PassViewport});commands.BindResources((different&&index==1?second:first).CaptureBindings());commands.Draw(geometry.Inputs,new(0,3));commands.EndRenderPass();
-                    Assert.True(StateCache.Current.TryGetCachedCurrentFramebuffer(FramebufferTarget.DrawFramebuffer, out int realized));
+                    Assert.True(OpenGlStateCache.Current.TryGetCachedCurrentFramebuffer(FramebufferTarget.DrawFramebuffer, out int realized));
                     Assert.Equal(realized,GL.GetInteger(GetPName.DrawFramebufferBinding));
                     Assert.Equal(read.FboId,GL.GetInteger(GetPName.ReadFramebufferBinding));Assert.Equal(selections[index].RequireShader().Program.ProgramId,GL.GetInteger(GetPName.CurrentProgram));
                 }
@@ -271,7 +271,7 @@ public sealed class GraphicsPassSequenceTests(HeadlessGLFixture fixture,ITestOut
         {
             int previous=GL.GetInteger(GetPName.DrawFramebufferBinding);GL.BindFramebuffer(FramebufferTarget.DrawFramebuffer,target.FboId);
             try{for(int index=0;index<expected.Length;index++)Assert.Equal((int)expected[index],GL.GetInteger(GetPName.DrawBuffer0+index));}
-            finally{GL.BindFramebuffer(FramebufferTarget.DrawFramebuffer,previous);StateCache.Current.InvalidateAll();}
+            finally{GL.BindFramebuffer(FramebufferTarget.DrawFramebuffer,previous);OpenGlStateCache.Current.InvalidateAll();}
         }
         #endregion
     }

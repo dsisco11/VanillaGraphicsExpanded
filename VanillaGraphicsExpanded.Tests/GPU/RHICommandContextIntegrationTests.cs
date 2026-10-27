@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Runtime.InteropServices;
@@ -40,7 +41,7 @@ public sealed class RHICommandContextIntegrationTests(HeadlessGLFixture fixture)
         shader.HzbDepth = source; shader.SrcMip = 0;
         GL.Disable(EnableCap.DepthTest); GL.Disable(EnableCap.StencilTest);
         GL.DepthMask(false); GL.StencilMaskSeparate(StencilFace.Front, 0x35); GL.StencilMaskSeparate(StencilFace.Back, 0x53);
-        StateCache.Current.InvalidateAll();
+        OpenGlStateCache.Current.InvalidateAll();
         {
     var commands=RHICommandContext.Current;
     using var scope47=commands.EnterBoundary(new("PackedClearAndDraw",true,graphics:System.Linq.Enumerable.Select<RHIGraphicsPipeline,RHIGraphicsPipelineRef>([pipeline],value=>value),operations:BoundaryOperations.RenderPasses));
@@ -76,17 +77,17 @@ public sealed class RHICommandContextIntegrationTests(HeadlessGLFixture fixture)
         using var target = CreateRenderTarget(4, 4, PixelInternalFormat.R32f);
         shader.HzbDepth = source; shader.SrcMip = 0;
         GL.Disable(EnableCap.ScissorTest); GL.Scissor(2, 1, 1, 2); GL.DepthMask(false);
-        StateCache.Current.InvalidateAll();
+        OpenGlStateCache.Current.InvalidateAll();
         {
     var commands=RHICommandContext.Current;
     using var scope48=commands.EnterBoundary(new("RegionClearAndDraw",true,graphics:System.Linq.Enumerable.Select<RHIGraphicsPipeline,RHIGraphicsPipelineRef>([pipeline],value=>value),operations:BoundaryOperations.RenderPasses));
     scope48.Run(()=>{
 #if DEBUG
-            long before = StateCache.Current.FixedFunctionCalls;
+            long before = OpenGlStateCache.Current.FixedFunctionCalls;
 #endif
-            Assert.Throws<InvalidOperationException>(() => StateCache.Current.SetLineWidth(1));
+            Assert.Throws<InvalidOperationException>(() => OpenGlStateCache.Current.SetLineWidth(1));
 #if DEBUG
-            Assert.Equal(before, StateCache.Current.FixedFunctionCalls);
+            Assert.Equal(before, OpenGlStateCache.Current.FixedFunctionCalls);
 #endif
             commands.BeginRenderPass(FramebufferTestSetup.DescribeAttachments(target, [new(AttachmentIndex:0, Load:AttachmentLoad.Clear, Clear: ColorClearValue.Float(.9f, 0, 0, 1))], area: new(1, 1, 2, 2)));
             commands.EndRenderPass();
@@ -159,11 +160,11 @@ public sealed class RHICommandContextIntegrationTests(HeadlessGLFixture fixture)
             commands.SetDynamicState(new(){Viewport=commands.PassViewport});commands.BindResources(shader.CaptureBindings());
             commands.DrawIndexed(geometry.Inputs,new(0,3));
 #if DEBUG
-            long calls=StateCache.Current.FixedFunctionCalls,queries=StateCache.Current.BoundaryQueries;
+            long calls=OpenGlStateCache.Current.FixedFunctionCalls,queries=OpenGlStateCache.Current.BoundaryQueries;
 #endif
             commands.DrawIndexed(geometry.Inputs,new(0,3,InstanceCount:2));
 #if DEBUG
-            Assert.Equal(calls,StateCache.Current.FixedFunctionCalls);Assert.Equal(queries,StateCache.Current.BoundaryQueries);
+            Assert.Equal(calls,OpenGlStateCache.Current.FixedFunctionCalls);Assert.Equal(queries,OpenGlStateCache.Current.BoundaryQueries);
 #endif
             shader.HzbDepth=second;commands.BindResources(shader.CaptureBindings());commands.DrawIndexed(geometry.Inputs,new(0,3));
             commands.EndRenderPass();
@@ -192,7 +193,7 @@ public sealed class RHICommandContextIntegrationTests(HeadlessGLFixture fixture)
         if (failure != "resources") shader.HzbDepth = source;
         shader.SrcMip = 0;
 #if DEBUG
-        long before = StateCache.Current.DrawSubmissions;
+        long before = OpenGlStateCache.Current.DrawSubmissions;
 #endif
         {
     var commands=RHICommandContext.Current;
@@ -204,12 +205,12 @@ public sealed class RHICommandContextIntegrationTests(HeadlessGLFixture fixture)
             if (failure == "retired") geometry.Dispose();
             Assert.ThrowsAny<Exception>(() => commands.DrawIndexed(geometry.Inputs, new(failure == "negative-first" ? -1 : 0, failure == "range" ? 4 : 3)));
 #if DEBUG
-            Assert.Equal(before, StateCache.Current.DrawSubmissions);
+            Assert.Equal(before, OpenGlStateCache.Current.DrawSubmissions);
 #endif
         });
 }
 #if DEBUG
-        Assert.Equal(before, StateCache.Current.DrawSubmissions);
+        Assert.Equal(before, OpenGlStateCache.Current.DrawSubmissions);
 #endif
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
@@ -228,7 +229,7 @@ public sealed class RHICommandContextIntegrationTests(HeadlessGLFixture fixture)
         shader.HzbDepth = source; shader.SrcMip = 0;
         var previous = programs.Create<RasterDepthReductionShaderProgram>();
         previous.HzbDepth = source; previous.SrcMip = 0;
-        VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLProgramSelection.Select(StateCache.Current, previous.ProgramId);
+        VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLProgramSelection.Select(OpenGlStateCache.Current, previous.ProgramId);
         int owner = previous.ProgramId;
         int framebuffer = GL.GetInteger(GetPName.DrawFramebufferBinding);
         int[] viewport = new int[4]; GL.GetInteger(GetPName.Viewport, viewport);

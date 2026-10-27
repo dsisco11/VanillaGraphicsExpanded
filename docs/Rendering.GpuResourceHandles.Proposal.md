@@ -12,7 +12,7 @@ post-command verification or duplicate requested/actual metadata cache is requir
 ## Intent
 
 Give owning and non-owning GPU wrappers canonical native metadata and a common notification mechanism.
-`GpuResourceManager` owns the registry. StateCache observes native operations and forwards metadata
+`GpuResourceManager` owns the registry. OpenGlStateCache observes backend operations and forwards metadata
 changes to the manager, which updates its canonical struct and publishes typed snapshots to wrappers.
 Borrowed resources participate in this same mechanism, preserving normal binding caching.
 
@@ -24,7 +24,7 @@ ownership, usage guards, context capture and deletion scheduling. Resource wrapp
 [GpuResourceManager](../VanillaGraphicsExpanded/Rendering/GpuResourceManager.cs) owns canonical entries,
 weak wrapper associations, shared guards and queued retirement. [BorrowedTexture](../VanillaGraphicsExpanded/Rendering/BorrowedTexture.cs)
 acquires initial metadata through that common registry without acquiring ownership.
-[StateCache](../VanillaGraphicsExpanded/Rendering/StateCache.ResourceDeletion.Publication.cs) observes
+[OpenGlStateCache](../VanillaGraphicsExpanded/Rendering/RHI/Backends/OpenGL/State/Observation/OpenGlStateCache.ResourceDeletion.Publication.cs) observes
 supported native deletion commands and preserves their binding/restoration effects.
 [EngineStateCallMap](../VanillaGraphicsExpanded/HarmonyPatches/EngineStateCallMap.cs) redirects exact
 supported GL signatures within the owner boundary below. Cloud and depth consumers retain non-owning
@@ -39,7 +39,7 @@ qualification and its evidence limits are recorded in the implementation checkli
 | GpuResource | Native identity, wrapper-local ownership/disposal and existing deletion scheduling contract. No metadata members or notification contract. |
 | GpuResource<TMetadata> | Private snapshot, protected read-only access and public HandleMetadataChanged(TMetadata data) that assigns the snapshot. No registration, availability, revision or subscription state. |
 | Typed resource wrappers | Resource-specific operations and metadata accessors; authored policy remains local. |
-| StateCache | Executes/observes native operations and forwards changes to the manager; retains binding/restoration knowledge. |
+| OpenGlStateCache | Observes established backend effects and forwards changes to the manager; retains binding/restoration knowledge. Native execution belongs to the RHI backend. |
 | Rendering integrations | Resource selection, producer content readiness and frame qualification. |
 
 The readonly value `GpuResourceHandle` contains resource kind and native-width ID as a registry key.
@@ -65,7 +65,7 @@ to derived wrappers as `protected ref readonly TMetadata metadata`. Its public n
 Existing resource abstractions inherit this base directly or through their existing typed superclass.
 Native metadata properties are getter-only accessors. Derived wrappers cannot edit the snapshot.
 Requested dimensions, formats and allocation hints remain command arguments or separate declaration policy.
-StateCache executes metadata-changing commands and forwards their native results to the manager; wrappers
+The RHI backend executes metadata-changing commands and forwards established results through OpenGlStateCache to the manager; wrappers
 do not capture, construct or publish replacement metadata. Initial acquisition is manager-owned, including
 context-local tools without an installed registry. The generic base handles snapshot assignment;
 the non-generic base has no metadata responsibilities. The manager owns registration validity,
@@ -73,9 +73,9 @@ availability, revisions and subscription membership. Metadata-dependent validati
 about the wrapper's original association; neither base stores that association or runs a tracking state machine.
 Ownership, disposal, authored policy and selected subresources remain local.
 Sampling, growth, streaming and attachment selection remain wrapper/helper policy. Manager creation
-orchestrates initialization records and complete allocation operations through explicit StateCache commands; existing
-upload helpers and capability-appropriate DSA/fallback paths remain in use.
-StateCache operations explicitly compose their internal steps and supply a complete result for manager
+orchestrates initialization records and complete allocation operations through private RHI execution; existing
+upload helpers retain policy while the admitted OpenGL 4.5 backend owns core native execution.
+Backend operations explicitly compose their internal steps and supply a complete result for manager
 publication. Interruption leaves affected metadata unavailable. The command-publication proposal defines
 the operation-owned commit boundary and rejection of unrelated same-resource reentry.
 
@@ -119,7 +119,7 @@ contract separately requires rejecting unrelated reentry while an explicit opera
 
 ## Metadata publication and validation
 
-StateCache forwards metadata-changing commands to the manager. Controlled commands build a complete
+OpenGlStateCache forwards established backend metadata effects to the manager. Controlled commands build a complete
 candidate from inputs/defaults/derived facts; readers acquire external unknown state and justified outputs.
 The manager commits that candidate and assigns snapshots to all associated wrappers.
 Wrappers do not independently query native metadata. Generic notification is only assignment; manager

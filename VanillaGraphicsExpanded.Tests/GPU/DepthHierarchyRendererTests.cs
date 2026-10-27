@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.Integration;
 using HarmonyLib;
 using VanillaGraphicsExpanded.PBR.SceneColor;
@@ -48,7 +49,7 @@ public sealed class DepthHierarchyRendererTests(HeadlessGLFixture fixture) : Lum
         try {
             Assert.True(VgeShaderPrograms.RegisterAll(api.Object));Assert.Equal(8.7,owner.RenderOrder);
             events.Render(EnumRenderStage.Before);Assert.Null(DepthHierarchyRenderer.Texture);
-            StateCache.Current.InvalidateAll();
+            OpenGlStateCache.Current.InvalidateAll();
             events.Render(EnumRenderStage.Opaque);var first=DepthHierarchyRenderer.Texture!;Assert.NotNull(first);
             Assert.Same(VgeFrameRenderer.Current,DepthHierarchyRenderer.View);
             Assert.Equal(UboPacking.ReadUInt32(VgeFrameRenderer.Current.Bytes,396),DepthHierarchyRenderer.FrameIndex);

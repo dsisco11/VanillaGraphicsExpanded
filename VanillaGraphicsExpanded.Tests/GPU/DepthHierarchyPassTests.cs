@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
@@ -79,7 +80,7 @@ public sealed class DepthHierarchyPassTests(HeadlessGLFixture fixture) : LumOnSh
         using var external=RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = "Tests.Hzb.ExternalStorage" }).RequireResource();
         external.UploadData(new uint[] { 123 }); external.BindBase(0);
         using var image=new VanillaGraphicsExpanded.Tests.GPU.Fixtures.NativeImageSelection(6,source,TextureAccess.ReadOnly);
-        StateCache.Current.InvalidateAll();
+        OpenGlStateCache.Current.InvalidateAll();
         try {
             owner.Prepare(257,131,compute); owner.Render(source);
             GL.GetInteger((GetIndexedPName)All.ShaderStorageBufferBinding,0,out int storage);

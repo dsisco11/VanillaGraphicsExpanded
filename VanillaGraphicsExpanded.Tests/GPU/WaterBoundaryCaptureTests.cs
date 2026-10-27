@@ -98,7 +98,7 @@ public sealed class WaterBoundaryCaptureTests(HeadlessGLFixture fixture, ITestOu
         using var frameCamera = TestFrameCamera.CreateFromProjection(Flatten(projection), 1, 1, near, far);
         program.FrameInputs = frameCamera;
         program.ModelViewMatrix = Flatten(Matrix4x4.Identity);
-        var state = StateCache.Current;
+        var state = OpenGlStateCache.Current;
         using var fixedFunction = LegacyFixedFunctionReference.Capture(state);
         using var framebuffer = state.BindFramebufferScope(FramebufferTarget.Framebuffer, target.FboId);
         FramebufferTestSetup.BindForEngineRendering(target);
@@ -111,23 +111,23 @@ public sealed class WaterBoundaryCaptureTests(HeadlessGLFixture fixture, ITestOu
         using var vao = GpuVao.Create("Test.WaterCapture");
         using var vertices = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = "Test.WaterCapture.Vertices" }).RequireResource();
         using var flags = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = "Test.WaterCapture.Flags" }).RequireResource();
-        using var binding = StateCache.Current.BindVertexArrayScope(vao.VertexArrayId);
+        using var binding = OpenGlStateCache.Current.BindVertexArrayScope(vao.VertexArrayId);
         using var indices = RHICommandContext.Current.CreateIndexBuffer(new RHIBufferDescription { Role = BufferRole.Index, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = "Test.WaterCapture.Indices" }).RequireResource();
         indices.UploadIndices(new uint[] { 0, 1, 2, 3, 4, 5 });
-        using (StateCache.Current.BindBufferScope(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBufferValues.Target(vertices.Role), vertices.BufferId))
+        using (OpenGlStateCache.Current.BindBufferScope(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBufferValues.Target(vertices.Role), vertices.BufferId))
         {
             vertices.UploadData(new float[6 * 11]);
-            using (StateCache.Current.BindVertexArrayScope(vao.VertexArrayId)) OpenGLVertexCalls.ExecuteCoreVertexAttribPointer(0, 3, VertexAttribPointerType.Float, false, 44, 0);
-            using (StateCache.Current.BindVertexArrayScope(vao.VertexArrayId)) OpenGLVertexCalls.ExecuteCoreVertexAttribPointer(1, 2, VertexAttribPointerType.Float, false, 44, 12);
-            using (StateCache.Current.BindVertexArrayScope(vao.VertexArrayId)) OpenGLVertexCalls.ExecuteCoreVertexAttribPointer(2, 4, VertexAttribPointerType.Float, false, 44, 20);
-            using (StateCache.Current.BindVertexArrayScope(vao.VertexArrayId)) OpenGLVertexCalls.ExecuteCoreVertexAttribPointer(4, 2, VertexAttribPointerType.Float, false, 44, 36);
+            using (OpenGlStateCache.Current.BindVertexArrayScope(vao.VertexArrayId)) OpenGLVertexCalls.ExecuteCoreVertexAttribPointer(0, 3, VertexAttribPointerType.Float, false, 44, 0);
+            using (OpenGlStateCache.Current.BindVertexArrayScope(vao.VertexArrayId)) OpenGLVertexCalls.ExecuteCoreVertexAttribPointer(1, 2, VertexAttribPointerType.Float, false, 44, 12);
+            using (OpenGlStateCache.Current.BindVertexArrayScope(vao.VertexArrayId)) OpenGLVertexCalls.ExecuteCoreVertexAttribPointer(2, 4, VertexAttribPointerType.Float, false, 44, 20);
+            using (OpenGlStateCache.Current.BindVertexArrayScope(vao.VertexArrayId)) OpenGLVertexCalls.ExecuteCoreVertexAttribPointer(4, 2, VertexAttribPointerType.Float, false, 44, 36);
         }
-        using (StateCache.Current.BindBufferScope(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBufferValues.Target(flags.Role), flags.BufferId))
+        using (OpenGlStateCache.Current.BindBufferScope(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBufferValues.Target(flags.Role), flags.BufferId))
         {
             flags.UploadData(new int[18]);
-            using (StateCache.Current.BindVertexArrayScope(vao.VertexArrayId)) OpenGLVertexCalls.ExecuteCoreVertexAttribIPointer(3, 1, VertexAttribIntegerType.Int, 12, 0);
-            using (StateCache.Current.BindVertexArrayScope(vao.VertexArrayId)) OpenGLVertexCalls.ExecuteCoreVertexAttribIPointer(5, 1, VertexAttribIntegerType.Int, 12, 4);
-            using (StateCache.Current.BindVertexArrayScope(vao.VertexArrayId)) OpenGLVertexCalls.ExecuteCoreVertexAttribIPointer(6, 1, VertexAttribIntegerType.Int, 12, 8);
+            using (OpenGlStateCache.Current.BindVertexArrayScope(vao.VertexArrayId)) OpenGLVertexCalls.ExecuteCoreVertexAttribIPointer(3, 1, VertexAttribIntegerType.Int, 12, 0);
+            using (OpenGlStateCache.Current.BindVertexArrayScope(vao.VertexArrayId)) OpenGLVertexCalls.ExecuteCoreVertexAttribIPointer(5, 1, VertexAttribIntegerType.Int, 12, 4);
+            using (OpenGlStateCache.Current.BindVertexArrayScope(vao.VertexArrayId)) OpenGLVertexCalls.ExecuteCoreVertexAttribIPointer(6, 1, VertexAttribIntegerType.Int, 12, 8);
         }
         bool measuring = false;
         if (scenario is not (4 or 5)) DrawBoundary(2, true);
@@ -256,8 +256,8 @@ public sealed class WaterBoundaryCaptureTests(HeadlessGLFixture fixture, ITestOu
                 data[offset + 8] = 1;
                 packed[vertex * 3] = (7 << 22) | (entry ? 0 : 1 << 21);
             }
-            using (StateCache.Current.BindBufferScope(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBufferValues.Target(vertices.Role), vertices.BufferId)) vertices.UploadData(data);
-            using (StateCache.Current.BindBufferScope(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBufferValues.Target(flags.Role), flags.BufferId)) flags.UploadData(packed);
+            using (OpenGlStateCache.Current.BindBufferScope(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBufferValues.Target(vertices.Role), vertices.BufferId)) vertices.UploadData(data);
+            using (OpenGlStateCache.Current.BindBufferScope(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBufferValues.Target(flags.Role), flags.BufferId)) flags.UploadData(packed);
             using var shader = ShaderBindingTestPipeline.Create(program);
         RHICommandContext.Current.SetPipeline(shader);
         RHICommandContext.Current.BindResources(program.CaptureBindings());

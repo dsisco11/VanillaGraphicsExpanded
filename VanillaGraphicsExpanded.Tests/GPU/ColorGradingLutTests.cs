@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Diagnostics;
@@ -191,7 +192,7 @@ public sealed class ColorGradingLutTests(HeadlessGLFixture fixture, ITestOutputH
         for (int face = 0; face < 6; face++)
         {
             float[] pixels = new float[64 * 64 * 3];
-            using var binding = StateCache.Current.BindTextureScope(TextureTarget.TextureCubeMap, 0, resources!.Galaxy.TextureId);
+            using var binding = OpenGlStateCache.Current.BindTextureScope(TextureTarget.TextureCubeMap, 0, resources!.Galaxy.TextureId);
             GL.GetTexImage(TextureTarget.TextureCubeMapPositiveX + face, 0, PixelFormat.Rgb, PixelType.Float, pixels);
             for (int pixel = 0; pixel < pixels.Length; pixel += 3)
             {
@@ -287,7 +288,7 @@ public sealed class ColorGradingLutTests(HeadlessGLFixture fixture, ITestOutputH
     private static float[] Read(DynamicTexture3D texture)
     {
         float[] result = new float[texture.Width * texture.Height * texture.Depth * 4];
-        using var binding = StateCache.Current.BindTextureScope(TextureTarget.Texture3D, 0, texture.TextureId);
+        using var binding = OpenGlStateCache.Current.BindTextureScope(TextureTarget.Texture3D, 0, texture.TextureId);
         GL.GetTexImage(TextureTarget.Texture3D, 0, PixelFormat.Rgba, PixelType.Float, result);
         return result;
     }

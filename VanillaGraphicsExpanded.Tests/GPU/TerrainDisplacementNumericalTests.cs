@@ -38,7 +38,7 @@ public sealed class TerrainDisplacementNumericalTests : RenderTestBase
         using var vao=GpuVao.Create();using var framework=new ShaderTestFramework();
         using var target=framework.CreateTestGBuffer(1,1,PixelInternalFormat.Rgba32f);
         int id=program.ProgramId;var layout=BuiltShaderFixture.Layout(id,"tests/displacement-metric.fsh");
-        FramebufferTestSetup.BindForEngineRendering(target);OpenGLProgramSelection.Select(StateCache.Current, id);OpenGLVertexSelection.Bind(StateCache.Current, vao.VertexArrayId);
+        FramebufferTestSetup.BindForEngineRendering(target);OpenGLProgramSelection.Select(OpenGlStateCache.Current, id);OpenGLVertexSelection.Bind(OpenGlStateCache.Current, vao.VertexArrayId);
         UboPacking.WriteFloat(inputBytes, 172,distance);
         UboPacking.WriteFloat(inputBytes, 128,1024f);
         UboPacking.WriteVec2(inputBytes, 136,8f,8f);
@@ -51,7 +51,7 @@ public sealed class TerrainDisplacementNumericalTests : RenderTestBase
         float expected=1f+(Math.Clamp(128f/Math.Max(.05f,radial),1f,7f)-1f)*(1f-t*t*(3f-2f*t));
         Assert.InRange(result[0],expected-.00001f,expected+.00001f);
         Assert.Equal(result[0],result[1]);Assert.Equal(1f,result[2]);Assert.InRange(result[0],1f,7f);
-        OpenGLProgramSelection.Select(StateCache.Current, 0);OpenGLVertexSelection.Bind(StateCache.Current, 0);
+        OpenGLProgramSelection.Select(OpenGlStateCache.Current, 0);OpenGLVertexSelection.Bind(OpenGlStateCache.Current, 0);
     }
 
     /// <summary>Shadow subdivision stays bounded without a world camera when its frozen angular metric is unavailable.</summary>
@@ -83,7 +83,7 @@ public sealed class TerrainDisplacementNumericalTests : RenderTestBase
         inputs.SetBytes(bytes);
         Assert.True(VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindUniformSnapshot(GpuBindingRegistry.Ubo.ShaderInputs, inputs.Capture()));
         // A shadow pass precedes world publication and must not activate the shared camera block.
-        OpenGLBufferBindings.BindBufferBase(StateCache.Current, BufferRangeTarget.UniformBuffer,GpuBindingRegistry.Ubo.Frame,0);
+        OpenGLBufferBindings.BindBufferBase(OpenGlStateCache.Current, BufferRangeTarget.UniformBuffer,GpuBindingRegistry.Ubo.Frame,0);
         Assert.Equal(-1,GL.GetUniformBlockIndex(program.ProgramId,"VgeFrameUBO"));
         using var framework = new ShaderTestFramework();
         using var target = framework.CreateTestGBuffer(1,1,PixelInternalFormat.Rgba32f);
@@ -127,7 +127,7 @@ public sealed class TerrainDisplacementNumericalTests : RenderTestBase
             using var atlas=framework.CreateTexture(16,16,PixelInternalFormat.Rgba32f,data);
             using var target=framework.CreateTestGBuffer(1,1,PixelInternalFormat.Rgba32f);
             var layout = BuiltShaderFixture.Layout(program,"tests/displacement-height.fsh");
-            FramebufferTestSetup.BindForEngineRendering(target); OpenGLProgramSelection.Select(StateCache.Current, program); OpenGLVertexSelection.Bind(StateCache.Current, vao);
+            FramebufferTestSetup.BindForEngineRendering(target); OpenGLProgramSelection.Select(OpenGlStateCache.Current, program); OpenGLVertexSelection.Bind(OpenGlStateCache.Current, vao);
             VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, atlas, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)atlas).Target))]); ShaderTestFramework.SetUniform(layout.GetUniformLocation(program,"vge_normalDepthTex"),0);
             UboPacking.WriteVec3(inputBytes, 160,u,v,amplitude);
             UboPacking.WriteVec2(inputBytes, 144,10f,20f);
@@ -142,7 +142,7 @@ public sealed class TerrainDisplacementNumericalTests : RenderTestBase
             Assert.InRange(actual[0],expected-.00001f,expected+.00001f);
             Assert.Equal(4f,actual[1]); Assert.Equal(actual[1],actual[2]); Assert.Equal(1f,actual[3]);
         }
-        finally { OpenGLProgramSelection.Select(StateCache.Current, 0); OpenGLVertexSelection.Bind(StateCache.Current, 0);  GpuProgramObject.Adopt(program).Dispose();   }
+        finally { OpenGLProgramSelection.Select(OpenGlStateCache.Current, 0); OpenGLVertexSelection.Bind(OpenGlStateCache.Current, 0);  GpuProgramObject.Adopt(program).Dispose();   }
     }
     #endregion
 }

@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using HarmonyLib;
 using VanillaGraphicsExpanded.Rendering;
@@ -51,7 +52,7 @@ internal sealed class StaticPassDeclarationCapture : IDisposable
         if(active is not {} capture || !description.Surface.IsEmpty)return;
         string target=string.Join("|",description.Colors.Select(color=>DescribeImage(color.Image)))+";"+DescribeImage(description.DepthStencil);
         string contract=string.Join("|",description.Colors.Select(DescribeColor))+";"+description.Actions+";"+description.Area;
-        Assert.True(StateCache.Current.TryGetCachedCurrentFramebuffer(OpenTK.Graphics.OpenGL.FramebufferTarget.DrawFramebuffer,out int realized));
+        Assert.True(OpenGlStateCache.Current.TryGetCachedCurrentFramebuffer(OpenTK.Graphics.OpenGL.FramebufferTarget.DrawFramebuffer,out int realized));
         var key=(target,contract);
         if(!capture.declarations.TryAdd(key,realized))
         {

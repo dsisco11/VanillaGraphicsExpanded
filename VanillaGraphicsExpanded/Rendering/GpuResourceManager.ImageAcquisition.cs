@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System;
 using OpenTK.Graphics.OpenGL;
 
@@ -11,7 +12,7 @@ internal sealed partial class GpuResourceManager
     internal static GpuTextureMetadata AcquireExternalImageTexture(int id)
     {
         if (id <= 0) throw new ArgumentOutOfRangeException(nameof(id));
-        StateCache.Current.RequireResourceOperationAvailable(GpuResourceKind.Texture, id);
+        OpenGlStateCache.Current.RequireResourceOperationAvailable(GpuResourceKind.Texture, id);
         var manager = GpuResourceManagerSystem.CurrentManager;
         if (manager is not null && !manager.IsMetadataRegistryRetired)
         {
@@ -57,7 +58,7 @@ internal sealed partial class GpuResourceManager
         // and snapshot assignment, so wrappers never synthesize dimensions or sample counts.
         // Withdraw the old projection before any read that can fail or reject this selection.
         DiscardUntrackedMetadata(image);
-        StateCache.Current.RequireResourceOperationAvailable(image.Kind, image.ResourceId);
+        OpenGlStateCache.Current.RequireResourceOperationAvailable(image.Kind, image.ResourceId);
         // Typed local owners already hold command-established facts. Raw local IDs have no
         // such owner or registry guarantee and retain explicit native discovery.
         if (image.Resource is { } owner)

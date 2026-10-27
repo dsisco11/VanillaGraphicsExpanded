@@ -21,7 +21,7 @@ one direction while refreshing the other cannot combine different raw observer g
 inside a shared cache bucket.
 
 Three asset-backed compute programs are compiled by the normal SPIR-V build and use declared shader
-contracts, `GpuComputePipeline`, `GpuShaderStorageBuffer`, `GpuFence`, and `GpuQueue<Vector4>`:
+contracts, `ComputeShaderAsset`, `GpuShaderStorageBuffer`, `GpuFence`, and `GpuQueue<Vector4>`:
 
 - `atmosphere_scattering.csh`: one 64-lane workgroup per source-table cell; lanes integrate angular
   rays and reduce source and isotropic feedback before computing S/(1-F). Each render update submits

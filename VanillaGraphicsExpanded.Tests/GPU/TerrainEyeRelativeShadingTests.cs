@@ -42,15 +42,15 @@ public sealed class TerrainEyeRelativeShadingTests : RenderTestBase
             GL.GetProgram(program, GetProgramParameterName.LinkStatus, out int linked);
             Assert.True(linked != 0, GL.GetProgramInfoLog(program));
             var layout = BuiltShaderFixture.Layout(program, "tests/eye-relative.vsh", "tests/eye-relative.fsh");
-            OpenGLProgramSelection.Select(StateCache.Current, program); OpenGLVertexSelection.Bind(StateCache.Current, vao);
+            OpenGLProgramSelection.Select(OpenGlStateCache.Current, program); OpenGLVertexSelection.Bind(OpenGlStateCache.Current, vao);
             VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, texture, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)texture).Target))]);
             // This fixture owns non-mipmapped atlas sampling, independent of earlier render passes.
-            VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageBindings.BindSampler(StateCache.Current, 0, 0); VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageBindings.BindSampler(StateCache.Current, 1, 0); VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageBindings.BindSampler(StateCache.Current, 2, 0);
+            VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageBindings.BindSampler(OpenGlStateCache.Current, 0, 0); VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageBindings.BindSampler(OpenGlStateCache.Current, 1, 0); VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageBindings.BindSampler(OpenGlStateCache.Current, 2, 0);
             GL.Uniform1(layout.GetUniformLocation(program,"vge_normalDepthTex"),0);
             VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(1, indices, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)indices).Target))]); VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(2, records, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)records).Target))]);
             GL.Uniform1(layout.GetUniformLocation(program,"vge_displacementTex"),1);
             GL.Uniform1(layout.GetUniformLocation(program,"vge_displacementRecords"),2);
-            StateCache.Current.SetCapability(EnableCap.DepthTest,false); StateCache.Current.SetCapability(EnableCap.Blend,false); StateCache.Current.SetCapability(EnableCap.CullFace,false);
+            OpenGlStateCache.Current.SetCapability(EnableCap.DepthTest,false); OpenGlStateCache.Current.SetCapability(EnableCap.Blend,false); OpenGlStateCache.Current.SetCapability(EnableCap.CullFace,false);
             foreach(float distance in new[] {10f,16f})
             {
                 Vector3 point = new(2,1,-distance);
@@ -87,8 +87,8 @@ public sealed class TerrainEyeRelativeShadingTests : RenderTestBase
         }
         finally
         {
-            OpenGLProgramSelection.Select(StateCache.Current, 0); GL.DeleteVertexArray(vao); GL.DeleteProgram(program); GL.DeleteShader(vs); GL.DeleteShader(fs);
-            StateCache.Current.InvalidateAll();
+            OpenGLProgramSelection.Select(OpenGlStateCache.Current, 0); GL.DeleteVertexArray(vao); GL.DeleteProgram(program); GL.DeleteShader(vs); GL.DeleteShader(fs);
+            OpenGlStateCache.Current.InvalidateAll();
         }
     }
     #endregion

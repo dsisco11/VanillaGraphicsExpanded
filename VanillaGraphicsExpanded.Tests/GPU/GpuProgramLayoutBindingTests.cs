@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 
@@ -56,7 +57,7 @@ public sealed class GpuProgramLayoutBindingTests : RenderTestBase
         Assert.True(layout.TryGetSamplerUnit("uOcc", out int samplerSlot));
         Assert.True(layout.TryGetImageUnit("outImg", out int imageSlot));
         RHICommandContext.Current.BindSampledTextures([new(samplerSlot, occ, Dimension: TextureDimension.Three)]);
-        VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageSlotBindings.BindImageTexture(StateCache.Current, imageSlot,
+        VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageSlotBindings.BindImageTexture(OpenGlStateCache.Current, imageSlot,
             new RHIImageBinding(outTex, ImageAccess.WriteOnly, Format: TextureFormat.R32ui));
 
         GL.DispatchCompute(1, 1, 1);

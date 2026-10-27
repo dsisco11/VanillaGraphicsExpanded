@@ -269,10 +269,10 @@ public sealed class LocalExposurePrototypeTests(HeadlessGLFixture fixture, ITest
             GL.AttachShader(program, vertex); GL.AttachShader(program, shader); GL.LinkProgram(program);
             GL.GetProgram(program, GetProgramParameterName.LinkStatus, out int linked);
             Assert.True(linked != 0, GL.GetProgramInfoLog(program));
-            using var sourceScope = StateCache.Current.BindTextureScope(TextureTarget.Texture2D, 0, input.TextureId);
-            using var baseScope = StateCache.Current.BindTextureScope(TextureTarget.Texture2D, 1, baseImage?.TextureId ?? input.TextureId);
-            using var gradeScope = StateCache.Current.BindTextureScope(TextureTarget.Texture3D, 2, grading?.TextureId ?? 0);
-            OpenGLProgramSelection.Select(StateCache.Current, program);
+            using var sourceScope = OpenGlStateCache.Current.BindTextureScope(TextureTarget.Texture2D, 0, input.TextureId);
+            using var baseScope = OpenGlStateCache.Current.BindTextureScope(TextureTarget.Texture2D, 1, baseImage?.TextureId ?? input.TextureId);
+            using var gradeScope = OpenGlStateCache.Current.BindTextureScope(TextureTarget.Texture3D, 2, grading?.TextureId ?? 0);
+            OpenGLProgramSelection.Select(OpenGlStateCache.Current, program);
             GL.Uniform1(GL.GetUniformLocation(program, "sourceImage"), 0); GL.Uniform1(GL.GetUniformLocation(program, "baseImage"), 1);
             GL.Uniform1(GL.GetUniformLocation(program, "gradingLookup"), 2);
             GL.Uniform1(GL.GetUniformLocation(program, "storage"), storage);
@@ -284,7 +284,7 @@ public sealed class LocalExposurePrototypeTests(HeadlessGLFixture fixture, ITest
             Assert.Equal(ErrorCode.NoError, GL.GetError());
             return target[0].ReadPixels();
         }
-        finally { OpenGLProgramSelection.Select(StateCache.Current, 0); GL.DeleteProgram(program); GL.DeleteShader(vertex); GL.DeleteShader(shader); }
+        finally { OpenGLProgramSelection.Select(OpenGlStateCache.Current, 0); GL.DeleteProgram(program); GL.DeleteShader(vertex); GL.DeleteShader(shader); }
     }
 
     #endregion

@@ -39,11 +39,11 @@ public sealed class MaterialAtlasBakeSubmissionTests(HeadlessGLFixture fixture) 
         using var read = CreateRenderTarget(2, 3, PixelInternalFormat.Rgba16f);
         using var transfer = RHICommandContext.Current.CreatePixelPackBuffer(new RHIBufferDescription { Role = BufferRole.PixelPack, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StreamRead, Label = null }).RequireResource();
         transfer.AllocateOrphan(128 * 128 * 16);
-        using var hostilePack = OpenGLPixelLayouts.PackScope(StateCache.Current, new(8, RowLength: 73, SkipRows: 2, SkipPixels: 3));
-        using var hostileTransfer = StateCache.Current.BindBufferScope(BufferTarget.PixelPackBuffer, transfer.BufferId);
-        OpenGLFramebufferSelection.Bind(StateCache.Current, FramebufferTarget.DrawFramebuffer, caller.FboId);
-        OpenGLFramebufferSelection.Bind(StateCache.Current, FramebufferTarget.ReadFramebuffer, read.FboId);
-        StateCache.Current.ApplyDynamic(new() { X = 1, Y = 0, Width = 2, Height = 2 });
+        using var hostilePack = OpenGLPixelLayouts.PackScope(OpenGlStateCache.Current, new(8, RowLength: 73, SkipRows: 2, SkipPixels: 3));
+        using var hostileTransfer = OpenGlStateCache.Current.BindBufferScope(BufferTarget.PixelPackBuffer, transfer.BufferId);
+        OpenGLFramebufferSelection.Bind(OpenGlStateCache.Current, FramebufferTarget.DrawFramebuffer, caller.FboId);
+        OpenGLFramebufferSelection.Bind(OpenGlStateCache.Current, FramebufferTarget.ReadFramebuffer, read.FboId);
+        OpenGlStateCache.Current.ApplyDynamic(new() { X = 1, Y = 0, Width = 2, Height = 2 });
         try
         {
             using (var hostile = new HostileFullscreenState())
@@ -51,7 +51,7 @@ public sealed class MaterialAtlasBakeSubmissionTests(HeadlessGLFixture fixture) 
                 MaterialAtlasNormalDepthGpuBuilder.ClearAtlasPage(assets.Api, destination, edge, edge);
                 hostile.AssertRestored(); AssertBindings();
             }
-            Assert.True(ReadDestination()[0] == .5f, $"Clear failed: {StateCache.Current.BoundaryEntryFailure}; {string.Join(Environment.NewLine, assets.Logs)}");
+            Assert.True(ReadDestination()[0] == .5f, $"Clear failed: {OpenGlStateCache.Current.BoundaryEntryFailure}; {string.Join(Environment.NewLine, assets.Logs)}");
             AssertPixels(ReadDestination(), (_, _) => [.5f, .5f, 1f, .5f]);
             float[] sentinel = [.125f, .25f, .75f, .125f];
             destination.UploadDataImmediate(Enumerable.Range(0, edge * edge).SelectMany(_ => sentinel).ToArray());
@@ -126,14 +126,14 @@ public sealed class MaterialAtlasBakeSubmissionTests(HeadlessGLFixture fixture) 
                 ? rectangle[((y * edge + x) * 4)..((y * edge + x) * 4 + 4)] : [.5f, .5f, 1f, .5f]);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { StateCache.Current.InvalidateAll(); }
+        finally { OpenGlStateCache.Current.InvalidateAll(); }
 
         /// <summary>Preserves both caller framebuffer bindings around the texture readback helper.</summary>
         float[] ReadDestination()
         {
-            using var bindings = StateCache.Current.BindFramebufferScope();
-            using var pack = OpenGLPixelLayouts.PackScope(StateCache.Current, new(1));
-            using var transferScope = StateCache.Current.BindBufferScope(BufferTarget.PixelPackBuffer, 0);
+            using var bindings = OpenGlStateCache.Current.BindFramebufferScope();
+            using var pack = OpenGLPixelLayouts.PackScope(OpenGlStateCache.Current, new(1));
+            using var transferScope = OpenGlStateCache.Current.BindBufferScope(BufferTarget.PixelPackBuffer, 0);
             return destination.ReadPixels();
         }
         /// <summary>Identifies the requested central atlas rectangle.</summary>

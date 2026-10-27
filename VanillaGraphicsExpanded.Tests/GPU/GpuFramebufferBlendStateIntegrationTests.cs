@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
@@ -57,7 +58,7 @@ public sealed class GpuFramebufferBlendStateIntegrationTests(HeadlessGLFixture f
             new([new(TextureFormat.Rgba8), new(TextureFormat.Rgba8)]), DynamicPipelineState.Viewport,
             blending: [first, new()])).RequireResource();
         using var geometry = new ArrayGraphicsGeometry(new([]), PrimitiveTopology.Triangles, new Dictionary<int, GpuVbo>(), 3);
-        var cache = StateCache.Current;
+        var cache = OpenGlStateCache.Current;
         cache.SetBlendEnabled(incomingBlend);
         try
         {

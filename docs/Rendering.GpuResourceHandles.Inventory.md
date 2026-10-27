@@ -8,7 +8,7 @@ requested texture-reference, RHI-design and multi-bind work. Qualification limit
 Legacy fixed-function/compatibility facilities are excluded from API coverage, including matrix stacks,
 display lists, server/client attribute stacks, client default resets, legacy client arrays, alpha testing,
 point smoothing, separate polygon face modes, line/polygon stipple and automatic mip generation. Modern retained operations remain required regardless of introduction date. The separate
-GpuCommandList RHI design is unaffected.
+RHI command contract retains the same exclusion boundary.
 
 ## Publication mechanics authority
 
@@ -60,7 +60,7 @@ sampling policy and configuration remain separate wrapper operations.
 
 | Kind | Existing wrappers / acquisition | Metadata and disposition |
 | --- | --- | --- |
-| Texture | `GpuTexture`: `Texture2D`, `Texture3D`, `DynamicTexture2D` (including `DepthTexture`, `StencilTexture`, `DepthStencilTexture`), `DynamicTexture3D`, `DynamicTextureCube`, `PmjJitterTexture`, `PBR/Clouds/CloudBlueNoiseTexture` | Allocation helpers generate/bind/allocate. Target, dimensions, internal format, allocated mips, immutable-layered flag and storage generation participate in validation/dependencies. Replacement registers the new object; in-place mutation updates canonical metadata and entry revision. Filter mode is an owner policy, not a complete snapshot of arbitrary GL sampler parameters. |
+| Texture | `GpuTexture`: `Texture2D`, `Texture3D`, `DynamicTexture2D` (including `DepthTexture`, `StencilTexture`, `DepthStencilTexture`), `DynamicTexture3D`, `DynamicTextureCube`, `PmjJitterTexture`, `PBR/Clouds/CloudBlueNoiseTexture` | Private RHI creation allocates through the backend and publishes established facts. Target, dimensions, internal format, allocated mips, immutable-layered flag and storage generation participate in validation/dependencies. Replacement registers the new object; in-place mutation updates canonical metadata and entry revision. Filter mode is an owner policy, not a complete snapshot of arbitrary GL sampler parameters. |
 | Texture | `BorrowedTexture(int)` | Reuses available covered canonical facts; unknown or unavailable objects use native target/image discovery. Non-owning; transfer rejected; dispose is local only. Same live native object must share the owner's canonical entry. |
 | Texture | `GpuBufferView`, derived `GpuBufferTexture` | Own the texture name, not the buffer. Buffer ID, format, offset and size describe the view; track texture association changes. Whole-buffer views currently use size zero as a sentinel, not a cached capacity; preserve that convention. |
 | Texture | `GpuTextureView` | Owns a distinct texture object sharing immutable storage, with source reference/ID/generation, target, format, base/count levels and layers. It gets its own canonical texture entry, distinct from its source. Preserve current source-generation validation. |
@@ -73,7 +73,7 @@ sampling policy and configuration remain separate wrapper operations.
 | Shader | `GpuShaderModule` | Adopt/compile/load shader, fixed shader type and authored binding contract. Shader compilation data is not a mutable storage descriptor; program link preparation remains responsible for reflected interfaces. Fixed shader type becomes canonical metadata; no mutable storage refresh. |
 | Query | `GpuQuery` | Core named target-specific creation; results are queried on demand. No retained mutable resource metadata. |
 | Sync | `GpuFence` | FenceSync creates pointer-shaped native identity; signal/wait result is queried, not cached storage metadata. |
-| TransformFeedback | `GpuTransformFeedback` | Core named object; no retained binding/configuration snapshot in wrapper. StateCache binding state remains separate. |
+| TransformFeedback | `GpuTransformFeedback` | Core named object; no retained binding/configuration snapshot in wrapper. OpenGlStateCache binding state remains separate. |
 | Sampler | `GpuSampler` | Generated name; setters do not retain a complete parameter snapshot. No mutable wrapper metadata to refresh. |
 | ProgramPipeline | `GpuProgramPipeline` | Generated name; stage/program calls and validation query native state, no retained stage mirror. |
 | Semaphore / MemoryObject | `GpuSemaphore`, `GpuMemoryObject` | EXT creation/import, capability gated. No represented mutable metadata; importing handles does not change ownership semantics. |
@@ -153,7 +153,7 @@ native-width representation; narrower existing accessors must reject values they
 | Texture / `GpuTextureMetadata` | Target; per-level/per-face dimensions, format, samples and allocated state; immutable storage/level count; base/max levels. Optional buffer association (ID/format/offset/range/whole-buffer mode), texture-view range (base/count levels/layers) and renderbuffer association. `GpuTexture` and all subclasses, `GpuBufferView`/`GpuBufferTexture` and `GpuTextureView` use this struct; their native descriptor fields become accessors. | FilterMode, labels, streaming and uploads remain local. The managed view source/reference/ID certificate and captured source storage revision remain dependency state: arbitrary external views do not expose a queryable source name. `StorageGeneration` reads the manager-owned storage revision; source validation asks the manager to check its original source registration dependency. | T1–T4, I1, L1 |
 | Buffer / `GpuBufferMetadata` | Byte capacity, usage, immutable-storage status and storage-access flags; `sizeBytes/usage` are accessors in `GpuBufferObject`, inherited by VBO/EBO/UBO/SSBO/atomic/indirect/pixel pack/unpack wrappers. | Intended semantic buffer role, requested allocation usage, EBO index type/count, queued uploads, mapping scopes, growth policy and labels remain local. No content or mapping-ownership mirror. | B1, I1, L1 |
 | Renderbuffer / `GpuRenderbufferMetadata` | Width/height/format and actual samples; `storage/width/height/samples` become accessors. | Ownership and labels remain local. | R1, L1 |
-| Framebuffer / `GpuFramebufferMetadata` | Immutable attachment descriptors keyed by slot: kind/ID, mip, layer/face, layered state, multiview base/count and proven ordinary/multiview mode (unknown when native queries cannot establish it); attachmentless default dimensions/layers/samples where applicable. Image facts resolve through backing entries. | Retained image wrappers/ownership, frozen locks, dirty/publication state, viewport fallback extent and surface metadata stay local. The wrapper dictionary reconciles from descriptors rather than independently defining native facts. Selected range/replay policy remains on the image relationship. Pass extent/format are derived; routing stays in existing StateCache routing cache. | F1, backing T/R changes, L1 |
+| Framebuffer / `GpuFramebufferMetadata` | Immutable attachment descriptors keyed by slot: kind/ID, mip, layer/face, layered state, multiview base/count and proven ordinary/multiview mode (unknown when native queries cannot establish it); attachmentless default dimensions/layers/samples where applicable. Image facts resolve through backing entries. | Retained image wrappers/ownership, frozen locks, dirty/publication state, viewport fallback extent and surface metadata stay local. The wrapper dictionary reconciles from descriptors rather than independently defining native facts. Selected range/replay policy remains on the image relationship. Pass extent/format are derived; routing stays in existing OpenGlStateCache routing cache. | F1, backing T/R changes, L1 |
 | VertexArray / `GpuVertexArrayMetadata` | Empty struct: `GpuVao` has no retained native layout fields. Entry revision invalidates represented helper assumptions; no full attribute mirror. | `GpuVertexAttribBinding` is an authored value helper, not a resource. Capture owning-wrapper identity and manager-owned revision for its facts; after mutation, resolve the selected current buffer/offset/stride/divisor before fallback reuse or reject unavailable facts. Vertex contents stay external. | V1, L1 |
 | Program / `GpuProgramMetadata` | Native executable/interface availability and immutable native interface facts used by existing preparation, including queried resource names/properties, vertex inputs and fragment outputs, block stage flags, atomic-counter buffer descriptors and sampler/image unit assignments. Known managed geometry/tessellation stage execution primitives are published with the same completed snapshot; unknown external stage facts remain absent. `GpuProgramObject` carries this type; RHI shaders and shader asset policies compose that native owner. Reflected facts no longer have independent authoritative mutable copies in `bindingCache/programLayout`. | Existing `GpuProgramLayout` remains a derived prepared interface combining native facts with authored contract/policy, stamped with entry revision. Authored names are separate from native names. Settings, callbacks and context stay local. Owner installation revision remains local across replacement objects; native relink revision is entry-owned. | P1, L1 |
 | Shader / `GpuShaderMetadata` | Fixed shader type; `shaderType` becomes an accessor. | Selected stage code and authored contracts belong to frozen RHI descriptions and asset policy; native stage wrappers retain identity/lifetime and fixed-stage metadata. | acquisition, L1 |
@@ -211,7 +211,7 @@ The common `CreateResource` boundary freezes the initialization value, validates
 value backend, and keeps the newly owned ID private until canonical commit and typed handoff finish.
 Failed handoff removes wrapper membership and identity. When native cleanup must wait for its original
 context, only the existing unavailable retiring entry remains until the deletion queue drains.
-Explicit backend operations own buffer/image allocation and mip-range changes; StateCache owns attachment replay.
+Explicit backend operations own buffer/image allocation and mip-range changes; OpenGlStateCache owns attachment replay.
 Internal steps receive their operation state explicitly. The manager commits a supplied complete result
 once; publication never silently stages, and disposal never performs recovery. A temporary execution
 guard rejects unrelated same-resource reentry before dispatch, while deletion cancels original completion.
@@ -230,7 +230,7 @@ revision copies or lifecycle notification handlers. `GpuResourceManager.WrapperA
 association identity and exposes manager-side tracking, availability and retirement checks.
 Revisions stay on canonical entries. Metadata-dependent consumers validate through the manager;
 no registration or recipient back-reference is stored in a wrapper.
-The owning backend or remaining StateCache operation owns native mutation execution and sends observed results to manager publication. Wrappers
+The owning backend or remaining OpenGlStateCache operation owns native mutation execution and sends observed results to manager publication. Wrappers
 never construct metadata candidates or call mutation refresh/publication themselves. Initial native
 acquisition and selected-image projection also belong to the manager, including tools without a registry.
 Requested buffer usage is separate allocation policy; requested texture dimensions/format/mips are
@@ -250,12 +250,12 @@ Known unit/block changes preserve unrelated interface facts: managed assignments
 while exact external commands read only affected values. Unsupported bindless assignments remain withdrawn.
 
 Program installation transfers the candidate association and executable snapshot without repeating interface
-reflection. Driver-binary cache loading retains the candidate wrapper through managed StateCache execution,
+reflection. Driver-binary cache loading retains the candidate wrapper through managed RHI execution,
 so both registered and context-local candidates receive the linked snapshot before preparation or transfer.
 Binary installation acquires the executable result once; cache acceptance reuses its link outcome.
 Context-local legacy authored assignments recover only their affected mutable fields before
 transfer; compiled preparation consumes the supplied snapshot directly. Unregistered
-or offline paths remain conservative until a live manager exists; a thread-local StateCache does not
+or offline paths remain conservative until a live manager exists; a thread-local OpenGlStateCache does not
 confer persistent tracking. A fresh registered context lifetime requires a fresh manager/registry;
 never retarget an existing manager. Preserve existing RenderContextRegistry checks at the manager
 boundary, not in resource keys. Subscribe once per manager to context retirement, unsubscribe on shutdown.
@@ -378,15 +378,15 @@ generic upload definitions. `MetadataAdapterCatalog` declares each OpenTK owner/
 registration validates exact names, managed types and generic constraints. `EngineMetadataCallAdapters`
 closes compiled definitions over arbitrary legal caller types without emitting IL or interpreting
 command/parameter names. Payload forwarding neither boxes nor copies upload arguments; core, ARB and
-EXT overloads share StateCache's captured-entry observation.
+EXT overloads share OpenGlStateCache's captured-entry observation.
 Renderbuffer storage uses the same exact-signature dispatch, including EXT coverage-sample storage.
 Texture image definitions and mip generation resolve bound targets, explicit names and EXT texture
-units through StateCache. Cube faces resolve their cube object; proxy targets never select an object.
+units through OpenGlStateCache. Cube faces resolve their cube object; proxy targets never select an object.
 External texture-view creation observes the destination's registered identity and reads its native level/layer
 selection; it does not publish a storage mutation to the source texture's registration.
 Image acquisition limits view-relative mip queries to that exposed level count, independently of the
 source allocation's immutable level count.
-Exact buffer/image adapters forward to StateCache command methods under `Rendering/Commands`.
+Exact buffer/image adapters forward to focused OpenGL backend external command modules.
 Texture parameter overloads acquire only the changed represented base/max field when the remaining
 snapshot is known. Single-image definitions acquire only the selected level/face; complete storage
 definitions and unknown external objects retain descriptor acquisition. Subimage, copy-subimage and
@@ -431,7 +431,7 @@ acquisition retains an unknown mode and rejects replay that cannot preserve its 
 matrix records supported families and native execution limits independently of installed engine callers.
 Third-party mods and dynamically emitted callers are outside the assembly interception boundary.
 External calls through excluded auxiliary owners likewise have no continuing observation.
-Direct VGE multiview commands remain explicit StateCache operations with publication; their shared
+Direct VGE multiview commands use explicit optional backend operations with publication; their shared
 metadata, capabilities and replay helpers are retained independently of engine interception.
 Persistent consumers must establish that subsequent mutations/deletions stay inside covered routes.
 
@@ -458,7 +458,7 @@ selections and shares the owned material-depth texture directly. `DepthHierarchy
 primary-depth borrower and replaces it when selection or original allocation validity changes.
 `ScreenResourceManager` invalidates state and invokes ordered consumers after framebuffer rebuild;
 consumer teardown releases managed recipients without deleting native storage. Allocation hooks retain
-content-certificate responsibility; common StateCache deletion owns native lifetime observation.
+content-certificate responsibility; common OpenGlStateCache deletion owns native lifetime observation.
 Available registered snapshots require no repeated descriptor acquisition. Context-local tools without
 a manager retain conservative acquisition, and unobserved third-party mutations still require explicit
 invalidation/recovery rather than relying on the integer name.
@@ -485,31 +485,27 @@ signatures in the matrix, and `BufferStorage(BufferTarget,int,IntPtr,BufferStora
 Controlled program, VAO and pipeline selections retain submitted identities after dispatch and suppress
 known-equal calls. Exact external selectors execute each original overload and leave affected selections
 unknown for lazy recovery; querying CURRENT_PROGRAM does not certify full-program stage installation.
-Selector and routing execution resides in `Rendering/Commands`, behind compiler-checked native adapters.
+Selector and routing execution resides in focused OpenGL backend modules, behind compiler-checked native adapters.
 Framebuffer scopes capture only their affected read/draw directions through cached getters. Element-buffer
 scopes retain the original VAO association when another VAO becomes selected before restoration.
 Per-VAO element-buffer knowledge is independent of canonical VAO configuration revisions.
-Buffer-wrapper scopes use the same unknown-state recovery and original-VAO restoration. Fallback
-element-buffer mapping, flushing and unmapping use the neutral copy-write selector, preserving both
-that selector and every VAO element association. Other mapped targets and managed-array upload fallback
-also use restoring StateCache scopes, including exceptional exits.
-Vertex-binding helper values retain established fields and acquire only requested unknown fields after
-an observed revision change. Context-local helpers use one conservative cache epoch instead of a second
-registry; observed vertex changes or buffer/VAO deletion expire those local facts. Non-DSA authored
-descriptions reject stale reuse. The resource wrappers and canonical empty VAO schema remain unchanged.
+Managed buffer allocation, mapping, flushing, unmapping and uploads use core named operations without
+selector emulation. Required external bound operations restore only their affected selectors. Vertex
+helpers retain authored fields and acquire requested unknown facts through manager query services.
+Freshness is selected-array configuration/revision, not a context-wide duplicate registry or full layout
+mirror. Resource wrappers and the canonical empty VAO schema remain unchanged.
 
 `ShaderPreparedSubmission` checks lifetime each use; `ShaderInputValidation` keys contain wrapper,
 numeric ID, target/format/dimensions/mips or view/range/capacity and manager-owned metadata/storage
-revisions. Availability is checked before validation reuse. Raw sampler submission checks `IsTexture` and invalidates its unit before
-binding. Typed publication can suppress known-equal binds. Preserve both paths until coverage permits migration.
+revisions. Availability is checked before validation reuse. Typed sampled-slot publication uses manager-certified resources and may suppress known-equal binds.
+Explicit engine membership/assignment remains a separate integration boundary.
 
-`StateCache.TextureLifetime` records boundary retirement, invalidates image slots and resets matching
-texture bindings after deletion. `StateCache.ResourceSlots` keys all image view parameters and indexed
-buffer ranges. `StateCache.BoundaryBindings` captures/reconciles incoming state and refuses restoration
+The backend deletion route forwards observed retirement to `OpenGlStateCache.ResourceDeletion`, invalidating image slots and resetting matching
+texture bindings after deletion. `OpenGlStateCache.ResourceSlots` keys all image view parameters and indexed
+buffer ranges. `OpenGlStateCache.BoundaryBindings` captures/reconciles incoming state and refuses restoration
 of retired names. Context retirement and unknown-state recovery remain independent of resource validity;
-a live registration is never evidence that an object is bound. Review source as authoritative over the
-historical findings in `Rendering.ShaderBindingState.md`; its Prepared resource submission section
-describes the current validation path.
+a live registration is never evidence that an object is bound. The Prepared resource submission section of `Rendering.ShaderBindingState.md` describes the current
+validation path; historical receipts remain in planning/evidence records.
 
 
 ## Reproducible baseline

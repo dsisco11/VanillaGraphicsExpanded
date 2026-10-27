@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
@@ -28,10 +29,10 @@ public sealed class TextureLayerReadbackTests(HeadlessGLFixture fixture) : Rende
         texture.UploadDataImmediate(data,0,0,0,5,4,3);
         using var draw=DynamicGpuFramebuffer.CreateEmpty("Tests.Readback.Draw");
         using var read=DynamicGpuFramebuffer.CreateEmpty("Tests.Readback.Read");
-        using var drawScope=StateCache.Current.BindFramebufferScope(FramebufferTarget.DrawFramebuffer,draw.FboId);
-        using var readScope=StateCache.Current.BindFramebufferScope(FramebufferTarget.ReadFramebuffer,read.FboId);
+        using var drawScope=OpenGlStateCache.Current.BindFramebufferScope(FramebufferTarget.DrawFramebuffer,draw.FboId);
+        using var readScope=OpenGlStateCache.Current.BindFramebufferScope(FramebufferTarget.ReadFramebuffer,read.FboId);
         using var pack=RHICommandContext.Current.CreatePixelPackBuffer(new RHIBufferDescription { Role = BufferRole.PixelPack, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StreamRead, Label = "Tests.Readback.ExistingPack" }).RequireResource();
-        using var packScope=StateCache.Current.BindBufferScope(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBufferValues.Target(pack.Role), pack.BufferId);
+        using var packScope=OpenGlStateCache.Current.BindBufferScope(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBufferValues.Target(pack.Role), pack.BufferId);
         var packing=new[]{PixelStoreParameter.PackAlignment,PixelStoreParameter.PackRowLength,
             PixelStoreParameter.PackSkipRows,PixelStoreParameter.PackSkipPixels,PixelStoreParameter.PackSwapBytes};
         var previous=packing.Select(value=>GL.GetInteger((GetPName)value)).ToArray();
@@ -40,7 +41,7 @@ public sealed class TextureLayerReadbackTests(HeadlessGLFixture fixture) : Rende
         try
         {
             for(int i=0;i<packing.Length;i++) GL.PixelStore(packing[i],hostile[i]);
-            StateCache.Current.DirtyPixelPackState();
+            OpenGlStateCache.Current.DirtyPixelPackState();
             using var result=texture.ReadPixelsRegion(2,1,2,2,2);
             Assert.True(result.Span.SequenceEqual(new float[]{2,1,2,312,3,1,2,313,2,2,2,322,3,2,2,323}));
             for(int i=0;i<packing.Length;i++) Assert.Equal(hostile[i],GL.GetInteger((GetPName)packing[i]));
@@ -49,7 +50,7 @@ public sealed class TextureLayerReadbackTests(HeadlessGLFixture fixture) : Rende
         finally
         {
             for(int i=0;i<packing.Length;i++) GL.PixelStore(packing[i],previous[i]);
-            StateCache.Current.DirtyPixelPackState();
+            OpenGlStateCache.Current.DirtyPixelPackState();
         }
 
         Assert.Equal(draw.FboId,GL.GetInteger(GetPName.DrawFramebufferBinding));

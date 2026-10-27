@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
@@ -35,7 +36,7 @@ public sealed class ShaderInputMetadataRevisionTests(HeadlessGLFixture fixture)
             Assert.False(validation.Matches(default, current));
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
 
     /// <summary>Buffer metadata revisions invalidate history even when the initialized binding range is unchanged.</summary>
@@ -61,7 +62,7 @@ public sealed class ShaderInputMetadataRevisionTests(HeadlessGLFixture fixture)
             Assert.False(validation.Matches(default, current));
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
 
     /// <summary>Unavailable snapshots cannot consult prior compatibility, and native reacquisition restores usable keys.</summary>
@@ -91,7 +92,7 @@ public sealed class ShaderInputMetadataRevisionTests(HeadlessGLFixture fixture)
             Assert.Equal(current, textureInput ? ShaderInputValidation.TextureKey(texture) : ShaderInputValidation.StorageKey(range));
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
     #endregion
 }

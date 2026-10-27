@@ -22,14 +22,14 @@ public sealed class SurfaceRenderPassTests(HeadlessGLFixture fixture) : RenderTe
     public void PublishedSurfaceClearsAndRefreshesWithoutFakeAttachments()
     {
         EnsureContextValid();
-        using var bindings = StateCache.Current.BindFramebufferScope();
+        using var bindings = OpenGlStateCache.Current.BindFramebufferScope();
         using var surface = DynamicGpuFramebuffer.Wrap(0, width: 4, height: 4);
         Assert.Throws<NotSupportedException>(() => RHICommandContext.Current.DescribeRenderTargets(FramebufferTestSetup.DescribeAttachments(surface, [new(WindowBuffer: SurfaceColorBuffer.BackLeft)])));
         surface.PublishSurfaceMetadata(4, 4);
         var metadata = surface.Surface!;
         Assert.Equal(0, surface.ColorAttachmentCount);
         Assert.Empty(surface.AttachmentImages);
-        OpenGLFramebufferSelection.Bind(StateCache.Current, FramebufferTarget.Framebuffer, 0);
+        OpenGLFramebufferSelection.Bind(OpenGlStateCache.Current, FramebufferTarget.Framebuffer, 0);
         Assert.Equal(GL.GetInteger(GetPName.Doublebuffer) != 0 ? DrawBuffersEnum.BackLeft : DrawBuffersEnum.FrontLeft, metadata.Buffer);
         Assert.Equal(Math.Max(1, GL.GetInteger(GetPName.Samples)), metadata.Samples);
         var attachment = metadata.Buffer == DrawBuffersEnum.BackLeft ? FramebufferAttachment.BackLeft : FramebufferAttachment.FrontLeft;
@@ -57,7 +57,7 @@ public sealed class SurfaceRenderPassTests(HeadlessGLFixture fixture) : RenderTe
 }
             hostile.AssertRestored();
             GL.ReadBuffer((ReadBufferMode)metadata.Buffer);
-            using var pack = OpenGLPixelLayouts.PackScope(StateCache.Current, new(1));
+            using var pack = OpenGLPixelLayouts.PackScope(OpenGlStateCache.Current, new(1));
             // The fixture's native window is one pixel; larger published extents below exercise metadata refresh only.
             byte[] pixels = new byte[4]; GL.ReadPixels(0, 0, 1, 1, PixelFormat.Rgba, PixelType.UnsignedByte, pixels);
             Assert.Equal(255, pixels[0]); Assert.Equal(0, pixels[1]); Assert.Equal(0, pixels[2]);
@@ -82,7 +82,7 @@ public sealed class SurfaceRenderPassTests(HeadlessGLFixture fixture) : RenderTe
     public void PreparedPipelineDrawsToPublishedSurface()
     {
         EnsureContextValid();
-        using var bindings = StateCache.Current.BindFramebufferScope();
+        using var bindings = OpenGlStateCache.Current.BindFramebufferScope();
         using var surface = DynamicGpuFramebuffer.Wrap(0, width: 1, height: 1);
         surface.PublishSurfaceMetadata(1, 1);
         var metadata = surface.Surface!;
@@ -107,8 +107,8 @@ public sealed class SurfaceRenderPassTests(HeadlessGLFixture fixture) : RenderTe
         });
 }
         hostile.AssertRestored();
-        OpenGLFramebufferSelection.Bind(StateCache.Current, FramebufferTarget.ReadFramebuffer, 0); GL.ReadBuffer((ReadBufferMode)metadata.Buffer);
-        using var pack = OpenGLPixelLayouts.PackScope(StateCache.Current, new(1));
+        OpenGLFramebufferSelection.Bind(OpenGlStateCache.Current, FramebufferTarget.ReadFramebuffer, 0); GL.ReadBuffer((ReadBufferMode)metadata.Buffer);
+        using var pack = OpenGLPixelLayouts.PackScope(OpenGlStateCache.Current, new(1));
         byte[] pixels = new byte[4]; GL.ReadPixels(0, 0, 1, 1, PixelFormat.Rgba, PixelType.UnsignedByte, pixels);
         Assert.InRange(pixels[0], (byte)63, (byte)65);
         Assert.Equal(ErrorCode.NoError, GL.GetError());

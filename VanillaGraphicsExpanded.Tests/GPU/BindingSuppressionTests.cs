@@ -16,7 +16,7 @@ public sealed class BindingSuppressionTests(HeadlessGLFixture fixture)
     public void TextureAndSamplerRepeatsPreserveUnitSelectionAndInvalidation()
     {
         fixture.MakeCurrent();
-        var cache = StateCache.Current;
+        var cache = OpenGlStateCache.Current;
         cache.InvalidateAll();
         int texture = GL.GenTexture();
         int sampler = GL.GenSampler();
@@ -79,7 +79,7 @@ public sealed class BindingSuppressionTests(HeadlessGLFixture fixture)
     public void CombinedFramebufferBindingRepairsDistinctReadTarget()
     {
         fixture.MakeCurrent();
-        var cache = StateCache.Current;
+        var cache = OpenGlStateCache.Current;
         cache.InvalidateAll();
         int read = GL.GenFramebuffer(), draw = GL.GenFramebuffer();
         try
@@ -107,7 +107,7 @@ public sealed class BindingSuppressionTests(HeadlessGLFixture fixture)
     public void BorrowedVaoElementBindingIsNotAssumedToBeZero()
     {
         fixture.MakeCurrent();
-        var cache = StateCache.Current;
+        var cache = OpenGlStateCache.Current;
         int vao = GL.GenVertexArray(), buffer = GL.GenBuffer();
         try
         {
@@ -137,7 +137,7 @@ public sealed class BindingSuppressionTests(HeadlessGLFixture fixture)
     public void IndexedBindingPreservesGenericBindingSideEffect(bool range)
     {
         fixture.MakeCurrent();
-        var cache = StateCache.Current;
+        var cache = OpenGlStateCache.Current;
         int first = GL.GenBuffer(), second = GL.GenBuffer();
         try
         {

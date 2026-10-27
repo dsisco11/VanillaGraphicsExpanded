@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Collections.Immutable;
 using OpenTK.Graphics.OpenGL;
@@ -27,14 +28,14 @@ public sealed class GpuInitialTextureDependencyTests(HeadlessGLFixture fixture)
             Assert.True(entry.IsUsable); Assert.True(manager.FindResource(GpuResourceKind.Buffer,buffer)!.IsUsable);
             using var alias=new Alias(texture); GpuResourceManager.AcquireWrapperMetadata(alias,reader); Assert.True(manager.IsResourceMetadataAvailable(alias));
             ulong revision=entry.StorageRevision;
-            var operation=StateCache.InvalidateNativeBufferStorage(buffer,true);
+            var operation=OpenGlStateCache.InvalidateNativeBufferStorage(buffer,true);
             try { GL.NamedBufferData(buffer,128,IntPtr.Zero,BufferUsageHint.DynamicDraw); }
             finally { operation.Complete(); }
             Assert.False(manager.IsResourceMetadataAvailable(alias));
             Assert.NotNull(manager.AcquireResource(GpuResourceKind.Buffer,buffer,new GpuBufferMetadataReader()));
             Assert.True(entry.StorageRevision>revision); Assert.True(manager.IsResourceMetadataAvailable(alias)); Assert.Equal(ErrorCode.NoError,GL.GetError());
         }
-        finally { RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Texture, texture)); RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Buffer, buffer)); fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Texture, texture)); RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Buffer, buffer)); fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
     /// <summary>A failed association acquisition cannot publish a texture whose reported backing is nonexistent.</summary>
     [Fact]
@@ -51,7 +52,7 @@ public sealed class GpuInitialTextureDependencyTests(HeadlessGLFixture fixture)
             // Invalid-object admission is rejected before any descriptor query.
             Assert.Equal(ErrorCode.NoError,GL.GetError());
         }
-        finally { RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Texture, texture)); fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Texture, texture)); fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
     #endregion
     #region Private

@@ -58,7 +58,7 @@ public sealed class TerrainReliefBindingsTests : RenderTestBase
         using var store=new MaterialAtlasTextureStore();
         var owner=new LinkedProgram { ProgramId=program.ProgramId,PassName=pass,AssetDomain="game" };
         owner.Populate();
-        var cache=StateCache.Current;
+        var cache=OpenGlStateCache.Current;
         owner.Use();
         try
         {

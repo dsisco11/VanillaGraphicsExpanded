@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System.Globalization;
 using System.Numerics;
 using System.Text.RegularExpressions;
@@ -208,7 +209,7 @@ public sealed class PbrSolarBrdfTests(HeadlessGLFixture fixture) : RenderTestBas
             GL.DeleteProgram(program);
             GL.DeleteShader(vertex);
             GL.DeleteShader(pixel);
-            StateCache.Current.InvalidateAll();
+            OpenGlStateCache.Current.InvalidateAll();
         }
     }
 

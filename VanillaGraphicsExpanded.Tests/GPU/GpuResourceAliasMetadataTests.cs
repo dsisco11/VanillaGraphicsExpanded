@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
@@ -49,7 +50,7 @@ public sealed class GpuResourceAliasMetadataTests(HeadlessGLFixture fixture)
         {
             while (GL.GetError() != ErrorCode.NoError) { }
             fixture.CleanupGpuResources();
-            StateCache.Current.InvalidateAll();
+            OpenGlStateCache.Current.InvalidateAll();
         }
     }
 
@@ -83,7 +84,7 @@ public sealed class GpuResourceAliasMetadataTests(HeadlessGLFixture fixture)
             }
             finally { retained.ReleaseLifetimeReference(); }
         }
-        finally { fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
     #endregion
 }

@@ -21,11 +21,11 @@ public sealed class AtmosphereSkyRendererTests(HeadlessGLFixture fixture) : Rend
         using var priorVao = GpuVao.Create();
         using var priorArray = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = null }).RequireResource();
         using var priorElements = RHICommandContext.Current.CreateIndexBuffer(new RHIBufferDescription { Role = BufferRole.Index, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = null }).RequireResource();
-        OpenGLVertexSelection.Bind(StateCache.Current, priorVao.VertexArrayId);
+        OpenGLVertexSelection.Bind(OpenGlStateCache.Current, priorVao.VertexArrayId);
         priorArray.UploadData(new float[] { 0, 0, 0 });
         priorElements.UploadIndices(new uint[] { 0 });
         OpenTK.Graphics.OpenGL4.GL.VertexArrayElementBuffer(priorVao.VertexArrayId, priorElements.BufferId);
-        OpenGLBufferBindings.BindBuffer(StateCache.Current, BufferTarget.ArrayBuffer, priorArray.BufferId);
+        OpenGLBufferBindings.BindBuffer(OpenGlStateCache.Current, BufferTarget.ArrayBuffer, priorArray.BufferId);
         using var geometry = new ArrayGraphicsGeometry(new([]), PrimitiveTopology.Triangles, new Dictionary<int, GpuVbo>(), 3);
         Assert.Equal(priorVao.VertexArrayId, GL.GetInteger(GetPName.VertexArrayBinding));
         Assert.Equal(priorArray.BufferId, GL.GetInteger(GetPName.ArrayBufferBinding));

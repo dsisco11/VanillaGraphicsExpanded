@@ -40,7 +40,7 @@ publication. The excluded vertex families include color/normal/texcoord/index/fo
 pointers and their EXT, IBM, INTEL and SUN aliases, ARB matrix-index/weight arrays, ATI array/element/variant
 objects, EXT variants and fixed-function VertexArray*Offset/EnableVertexArray aliases. Generic shader
 VertexAttrib* operations on GL/ARB/EXT retain their supported routes; ATI generic attributes are excluded.
-AlphaFunc and line/polygon stipple have no StateCache mappings or PSO fields. Enable/Disable still
+AlphaFunc and line/polygon stipple have no OpenGlStateCache mappings or PSO fields. Enable/Disable still
 forward unsupported capability values unchanged without caching them. Line/polygon smoothing,
 programmable point origin/size, clip control, depth and blend state remain supported.
 Subimage/copy-subimage/compressed-subimage commands are content-only and have no metadata adapters.
@@ -66,7 +66,7 @@ The family rules are authoritative over the explicit adapter inventory. Review s
 indirect effects; a missing spelling must be added, never inferred to be out of scope. Future registry
 additions require the same classification. The command list below records the current expansion.
 
-Implementation means a StateCache route that executes the native command, identifies affected object
+Implementation means an exact OpenGL backend route that executes the native command, identifies affected object
 registrations, and forwards the actual effect to GpuResourceManager to update or invalidate canonical metadata. Bound operations
 resolve selectors; DSA uses explicit names; multi-texture operations use explicit units; multi-bind and
 multi-resource operations process all affected objects. Proxy texture targets alter proxy state, not a texture
@@ -78,12 +78,11 @@ double notification. Extend exact adapter mapping and MethodSpecification discov
 no fixed set of observed element types is the coverage boundary. Missing binding entry points need a
 capability-gated native delegate with the specification's ABI. Capability absence blocks native execution,
 not adapter implementation. Existing assembly interception boundaries remain explicit; arbitrary native
-code bypassing the StateCache is not silently tracked.
+code bypassing the OpenGlStateCache is not silently tracked.
 
 Metadata adapters are ordinary C# methods under `HarmonyPatches/NativeAdapters`, grouped by command
-family and native owner. Adapters forward the exact signature to explicit StateCache
-execution methods in their owning modules; buffers, images and auxiliary deletion use
-`Rendering/RHI/Backends/OpenGL` external modules, while remaining metadata families use `Rendering/Commands`.
+family and native owner. Adapters forward the exact signature to focused external execution modules
+under `Rendering/RHI/Backends/OpenGL`; `OpenGlStateCache` supplies shared observation and reconciliation.
 Those methods own native dispatch and completion together.
 Observation tokens remain internal to those execution paths, including vertex revision publication. `MetadataAdapterCatalog` declares owner pairs; initialization matches exact method
 names, return/parameter types and generic constraints. Closed generic calls instantiate those compiled
@@ -96,19 +95,19 @@ and call-operand replacement remain the interception boundary.
 The [canonical schema mapping](Rendering.GpuResourceHandles.Inventory.md#canonical-metadata-schemas-and-field-migration)
 is the field-level destination for this matrix. T1–T4 target GpuTextureMetadata (including buffer/view
 associations); B1 targets GpuBufferMetadata; R1 targets GpuRenderbufferMetadata; F1 targets framebuffer
-attachment/default metadata while routing remains in StateCache. V1 invalidates VAO entry revision and
+attachment/default metadata while routing remains in OpenGlStateCache. V1 invalidates VAO entry revision and
 helper assumptions; it does not introduce a full layout mirror. P1 refreshes native program facts and
 invalidates derived preparation. L1 retires entries/aliases and reconciles affected dependencies. I1
 applies those same destinations only where their execution has a represented metadata effect.
 
 Buffer, texture, buffer-texture, renderbuffer, sampler and auxiliary-resource dispatch live under the focused
-`Rendering/RHI/Backends/OpenGL` modules; StateCache retains selector knowledge and operation reconciliation.
-Shader, framebuffer and vertex families still dispatch through StateCache.
+`Rendering/RHI/Backends/OpenGL` modules; OpenGlStateCache retains selector knowledge and operation reconciliation.
+Shader, framebuffer and vertex families execute in their focused OpenGL backend modules as well.
 Every route is native command -> existing observation/publication services -> context's GpuResourceManager -> canonical
 struct update -> typed wrapper snapshots -> existing dependent validation/publication. Read canonical
 facts once per change, not once per wrapper. Texture and renderbuffer changes also project selected
 GpuImageMetadata to associated framebuffer images. Each kind has one canonical struct even when several
-wrapper classes expose different aspects. No borrowed registry, StateCache metadata registry, abstract
+wrapper classes expose different aspects. No borrowed registry, OpenGlStateCache metadata registry, abstract
 per-wrapper query handler or generation-based resource key is introduced.
 
 All enumerated API families/variants within the explicit exclusions remain in scope. Moving fields to canonical structs
@@ -133,7 +132,7 @@ The metadata revision used to invalidate stale assumptions is registration bookk
 | I1 | External storage association and sparse residency operations | Storage attachment/replacement receives corresponding T/B metadata refresh. Residency-only commitment, access flags and performance hints have no represented-size/format change; explicitly preserve that distinction. Interop registration/mapping that defines texture storage must refresh it. | Extension-capability tests for association changes; commitment without dimension changes; unavailable imports cannot publish valid metadata. |
 
 For every row, verify notification of all aliases, failure isolation, context/name reuse and dependent
-validation revisions. Exercise native adapters through actual redirection as well as direct StateCache
+validation revisions. Exercise native adapters through actual redirection as well as direct backend
 calls. Native integration tests require supporting hardware; use deterministic adapter/dispatch tests
 for absent capabilities and retain the unexecuted native cases as explicit qualification gaps. Do not
 claim full native qualification merely because this machine lacks a capability.
@@ -181,10 +180,10 @@ storage; observation must not consume the pending GL error or publish the reques
 
 ### F1 framebuffer attachments
 
-Attachment/default adapters execute through StateCache and recover the affected slot/default after
+Attachment/default adapters execute through focused backend modules and recover the affected slot/default after
 exact native dispatch, preserving known unaffected descriptors. Initial unknown FBOs retain full discovery.
 Managed attachment operations publish command-established selections without descriptor queries. Named attachment
-queries preserve DSA binding behavior; fallback queries preserve separate read/draw bindings.
+queries use core named addressing; required bound queries preserve separate read/draw bindings.
 [ARB_framebuffer_no_attachments](https://registry.khronos.org/OpenGL/extensions/ARB/ARB_framebuffer_no_attachments.txt)
 controls default-parameter query availability, and
 [OVR_multiview](https://registry.khronos.org/OpenGL/extensions/OVR/OVR_multiview.txt)
@@ -208,7 +207,7 @@ Read routing has no cached mirror. Read/draw routes cannot be queried through na
 parameter queries ([ARB_direct_state_access, issue 41](https://registry.khronos.org/OpenGL/extensions/ARB/ARB_direct_state_access.txt));
 lazy capture avoids adding binds to named routing commands. Native range/replay and regression receipts
 are retained in `artifacts/gpu-resource-phase4/multiview-mode-repair-focused.trx` and
-`multiview-mode-repair-combined.trx`; these exercise named and binding-preserving fallback paths.
+`multiview-mode-repair-combined.trx`; these are historical native-range receipts; current managed operations use the core backend.
 
 `glFramebufferDrawBufferEXT`, `glFramebufferDrawBuffersEXT`, `glFramebufferParameteri`, `glFramebufferReadBufferEXT`, `glFramebufferRenderbuffer`, `glFramebufferRenderbufferEXT`, `glFramebufferTexture`, `glFramebufferTexture1D`, `glFramebufferTexture1DEXT`, `glFramebufferTexture2D`, `glFramebufferTexture2DEXT`, `glFramebufferTexture3D`, `glFramebufferTexture3DEXT`, `glFramebufferTextureARB`, `glFramebufferTextureEXT`, `glFramebufferTextureFaceARB`, `glFramebufferTextureFaceEXT`, `glFramebufferTextureLayer`, `glFramebufferTextureLayerARB`, `glFramebufferTextureLayerEXT`, `glNamedFramebufferDrawBuffer`, `glNamedFramebufferDrawBuffers`, `glNamedFramebufferParameteri`, `glNamedFramebufferParameteriEXT`, `glNamedFramebufferReadBuffer`, `glNamedFramebufferRenderbuffer`, `glNamedFramebufferRenderbufferEXT`, `glNamedFramebufferTexture`, `glNamedFramebufferTexture1DEXT`, `glNamedFramebufferTexture2DEXT`, `glNamedFramebufferTexture3DEXT`, `glNamedFramebufferTextureEXT`, `glNamedFramebufferTextureFaceEXT`, `glNamedFramebufferTextureLayer`, `glNamedFramebufferTextureLayerEXT`.
 
@@ -223,7 +222,7 @@ are retained in `artifacts/gpu-resource-phase4/multiview-mode-repair-focused.trx
 ### P1 executable interface
 
 Exact OpenTK link, program-binary, interface-block and signed integer unit setters use common
-StateCache execution. Available unit/block snapshots update only affected values; managed assignments
+OpenGlStateCache execution. Available unit/block snapshots update only affected values; managed assignments
 publish supplied values and external assignments use narrow getters. Link/binary results retain executable
 reflection at completion. Unit setters classify represented sampler/image locations before reading
 metadata; ordinary numeric uniforms do not refresh it. Bound setters resolve the active program,
@@ -250,12 +249,11 @@ link attempts on that same allocation do not clear this conservative withdrawal.
 sampler and image handle assignments are covered by the retained native tests; these assign/read handles
 without claiming resident-handle sampling or rendering qualification.
 
-VGE's terrain sampler/block hooks use the same StateCache route. Authored unit-setting helpers can skip
+VGE's terrain sampler/block hooks use the same backend observation/publication route. Authored unit-setting helpers can skip
 a stable assignment certified by available canonical unit facts, without a duplicate uniform cache.
-Exact external adapters still forward each native call unchanged. ProgramUniform is selected on
-core/ARB separate-shader-object support independently of DSA. Numeric scalar/vector/matrix data use
+Exact external adapters still forward each native call unchanged. Managed ProgramUniform uses core named operations on the admitted 4.5 context. Numeric scalar/vector/matrix data use
 the existing packed-uniform storage model and do not introduce texture-unit metadata work. Program
-pipeline creation selects named creation or restoring fallback realization; explicit-ID stage/active-program
+pipeline creation uses core named creation; explicit-ID stage/active-program
 configuration does not bind the target pipeline unnecessarily.
 
 Desktop EXT separate-shader-object selectors also invalidate current-program knowledge. ActiveProgramEXT
@@ -359,9 +357,9 @@ Unrepresented parameters and invalid multisample mip parameters have no metadata
 Exact OpenTK vertex-configuration adapters advance the existing VAO metadata revision without
 introducing a layout mirror. `BindBuffer` has a conditional effect: element-array targets revise the
 current VAO; other targets only invalidate affected binding knowledge. Wrapper configuration uses
-the same StateCache observation path, with capability-selected named calls and bound fallbacks.
+the same backend observation path, using core named configuration on the admitted 4.5 context.
 `GpuVertexAttribBinding` retains its owning wrapper and checks the manager-owned revision. Named
-binding queries recover selected facts after changes; fallback authored binding descriptions reject
+binding queries recover selected facts after changes; retained authored binding descriptions reject
 stale reuse. Helper commands update that helper value's revision, while independently retained copies
 remain subject to revalidation. Native selector, partial multi-bind and helper revalidation receipts are
 retained in `artifacts/gpu-resource-phase4/vertex-selection-focused.trx`,

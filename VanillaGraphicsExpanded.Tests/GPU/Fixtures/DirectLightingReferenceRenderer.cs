@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using SceneColor = VanillaGraphicsExpanded.PBR.SceneColor;
@@ -81,7 +82,7 @@ internal sealed class DirectLightingReferenceRenderer : IRenderer, IDisposable
     /// <summary>Evaluates the same lighting contract into an isolated target for a pre-overlay world capture.</summary>
     internal bool RenderLighting(DirectLightingTargets? isolated = null)
     {
-        StateCache.Current.RequireOutsideEngineBoundary();
+        OpenGlStateCache.Current.RequireOutsideEngineBoundary();
         if (quadMeshRef is null || capi.Render.FrameWidth <= 0 || capi.Render.FrameHeight <= 0) return false;
         var shader = PrepareBoundaryProgram();
         if (shader is null) return false;
@@ -102,7 +103,7 @@ internal sealed class DirectLightingReferenceRenderer : IRenderer, IDisposable
     /// <summary>Draws shared lighting work without nesting an engine restoration boundary.</summary>
     internal bool RenderLightingWithinBoundary(EngineBoundaryScope scope, DirectLightingTargets? isolated = null)
     {
-        StateCache.Current.RequireEngineBoundary(scope);
+        OpenGlStateCache.Current.RequireEngineBoundary(scope);
         if (quadMeshRef is null)
         {
             return false;
@@ -140,7 +141,7 @@ internal sealed class DirectLightingReferenceRenderer : IRenderer, IDisposable
         }
 
         // Bind output MRT FBO
-        StateCache.Current.Apply(LightingPipeline);
+        OpenGlStateCache.Current.Apply(LightingPipeline);
         var radiance = isolated?.Radiance ?? bufferManager.Radiance!;
         using var diffuse = GpuFramebufferAttachment.FromTexture(radiance, layer: 0);
         using var specular = GpuFramebufferAttachment.FromTexture(radiance, layer: 1);

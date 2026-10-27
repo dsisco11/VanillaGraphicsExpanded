@@ -80,7 +80,7 @@ public sealed class EngineResourceDebugLabelsTests(HeadlessGLFixture fixture) : 
         using var buckets = RHICommandContext.Current.CreateTexture3D(new RHITextureDescription { Dimension = TextureDimension.TwoArray, Format = TextureFormat.Rgba16f, Width = System.Math.Max(1, 2), Height = System.Math.Max(1, 2), Depth = System.Math.Max(1, 3), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Linear, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         using var replacement = RHICommandContext.Current.CreateTexture3D(new RHITextureDescription { Dimension = TextureDimension.TwoArray, Format = TextureFormat.Rgba16f, Width = System.Math.Max(1, 2), Height = System.Math.Max(1, 2), Depth = System.Math.Max(1, 3), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Linear, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         var frame = Borrow(target);
-        using var binding = StateCache.Current.BindFramebufferScope(FramebufferTarget.Framebuffer, target.FboId);
+        using var binding = OpenGlStateCache.Current.BindFramebufferScope(FramebufferTarget.Framebuffer, target.FboId);
         int activeTexture = GL.GetInteger(GetPName.ActiveTexture);
         EngineFramebufferDebugLabels.ApplyOit(frame, reveal.TextureId, buckets.TextureId);
 #if DEBUG
@@ -112,8 +112,8 @@ public sealed class EngineResourceDebugLabelsTests(HeadlessGLFixture fixture) : 
         vertices.UploadData(new float[] { 0, 0, 0 });
         flags.UploadData(new int[] { 0 });
         indices.UploadIndices(new uint[] { 0 });
-        using var vaoBinding = StateCache.Current.BindVertexArrayScope(vao.VertexArrayId);
-        using var bufferBinding = StateCache.Current.BindBufferScope(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBufferValues.Target(vertices.Role), vertices.BufferId);
+        using var vaoBinding = OpenGlStateCache.Current.BindVertexArrayScope(vao.VertexArrayId);
+        using var bufferBinding = OpenGlStateCache.Current.BindBufferScope(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBufferValues.Target(vertices.Role), vertices.BufferId);
         var mesh = new VAO { VaoId = vao.VertexArrayId, xyzVboId = vertices.BufferId, flagsVboId = flags.BufferId, vboIdIndex = indices.BufferId };
         // This shell borrows GPU handles; its engine finalizer must not run ownership diagnostics.
         GC.SuppressFinalize(mesh);
@@ -152,8 +152,8 @@ public sealed class EngineResourceDebugLabelsTests(HeadlessGLFixture fixture) : 
         using var vao = GpuVao.Create();
         using var vao2 = GpuVao.Create();
         // A generated VAO name becomes an object only after its first bind, as in engine allocation.
-        using (StateCache.Current.BindVertexArrayScope(vao.VertexArrayId)) { }
-        using (StateCache.Current.BindVertexArrayScope(vao2.VertexArrayId)) { }
+        using (OpenGlStateCache.Current.BindVertexArrayScope(vao.VertexArrayId)) { }
+        using (OpenGlStateCache.Current.BindVertexArrayScope(vao2.VertexArrayId)) { }
         var first = new VAO { VaoId = vao.VertexArrayId };
         var second = new VAO { VaoId = vao2.VertexArrayId };
         GC.SuppressFinalize(first);

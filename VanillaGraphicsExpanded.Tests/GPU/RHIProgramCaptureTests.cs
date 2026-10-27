@@ -18,7 +18,7 @@ public sealed class RHIProgramCaptureTests(HeadlessGLFixture fixture)
     public void CaptureIsPureAndGuardsAuthoredCallbacks()
     {
         fixture.MakeCurrent();using var programs=new ComponentShaderPrograms();var shader=programs.Create<GuardedShader>();
-        OpenGLProgramSelection.Select(StateCache.Current,0);int before=GL.GetInteger(GetPName.CurrentProgram);
+        OpenGLProgramSelection.Select(OpenGlStateCache.Current,0);int before=GL.GetInteger(GetPName.CurrentProgram);
         shader.Value=7;var table=shader.CaptureBindings();Assert.Equal(shader.Shader,table.Shader);
         Assert.Equal(7,shader.Value);Assert.Equal(before,GL.GetInteger(GetPName.CurrentProgram));
         shader.Value=9;Assert.Equal(9,shader.Value);Assert.Equal(ErrorCode.NoError,GL.GetError());

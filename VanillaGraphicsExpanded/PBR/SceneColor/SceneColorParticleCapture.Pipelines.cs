@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.ShaderCompilation;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
@@ -18,7 +19,7 @@ internal sealed partial class SceneColorParticleCapture
     /// <summary>Validates borrowed target metadata and atomically replaces an obsolete executable realization.</summary>
     private RHIGraphicsPipeline PreparePipeline(ref GraphicsPipelineAsset? slot, GpuProgram shader, RHIRenderPassDescription pass)
     {
-        StateCache.Current.RequireOutsideEngineBoundary();
+        OpenGlStateCache.Current.RequireOutsideEngineBoundary();
         var signature=RHICommandContext.Current.DescribeRenderTargets(pass);
         if (slot is not null && slot.Description.Shader == shader.Shader && slot.Description.Targets == signature) return slot.Pipeline;
         var replacement = new GraphicsPipelineAsset(shader,new(shader.Shader, EngineFullscreenGeometry.Layout, signature, DynamicPipelineState.Viewport));

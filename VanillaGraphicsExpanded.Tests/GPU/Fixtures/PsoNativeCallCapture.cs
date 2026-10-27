@@ -28,6 +28,7 @@ internal sealed class PsoNativeCallCapture : IDisposable
             "PolygonMode", "PolygonOffset", "CullFace", "FrontFace", "Viewport", "SampleCoverage", "SampleMask", "MinSampleShading",
             "PrimitiveRestartIndex", "PatchParameter", "PointParameter", "ProvokingVertex", "DepthRange"];
         foreach (var method in typeof(GL).GetMethods(BindingFlags.Public | BindingFlags.Static)
+            .Concat(typeof(OpenTK.Graphics.OpenGL4.GL).GetMethods(BindingFlags.Public | BindingFlags.Static))
             .Where(method => names.Contains(method.Name) && !method.IsGenericMethod && method.GetParameters().All(p =>
                 !p.ParameterType.IsPointer && !p.ParameterType.IsByRef && !p.ParameterType.IsArray && p.ParameterType != typeof(uint))))
             harmony.Patch(method, prefix: new HarmonyMethod(AccessTools.Method(typeof(PsoNativeCallCapture), nameof(Observe))));
@@ -35,7 +36,7 @@ internal sealed class PsoNativeCallCapture : IDisposable
         var apply = AccessTools.Method(typeof(OpenGLBackend), "Draw");
         harmony.Patch(apply, prefix: new HarmonyMethod(AccessTools.Method(typeof(PsoNativeCallCapture), nameof(Application))),
             postfix: new HarmonyMethod(AccessTools.Method(typeof(PsoNativeCallCapture), nameof(DrawCompleted))));
-        harmony.Patch(AccessTools.Method(typeof(StateCache), "RestoreBoundaryState"),
+        harmony.Patch(AccessTools.Method(typeof(OpenGlStateCache), "RestoreBoundaryState"),
             prefix: new HarmonyMethod(AccessTools.Method(typeof(PsoNativeCallCapture), nameof(Restoration))),
             postfix: new HarmonyMethod(AccessTools.Method(typeof(PsoNativeCallCapture), nameof(Setup))));
     }

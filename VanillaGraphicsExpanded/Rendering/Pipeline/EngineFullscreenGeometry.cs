@@ -36,7 +36,7 @@ internal sealed class EngineFullscreenGeometry : GraphicsGeometry
             || data.Uv.Length < data.VerticesCount * 2L || data.Indices.Length < data.IndicesCount
             || data.Indices.Take(data.IndicesCount).Any(i => i < 0 || i >= data.VerticesCount))
             throw new ArgumentException("Expected indexed position/UV geometry without a color stream.", nameof(data));
-        StateCache.Current.RequireOutsideEngineBoundary();
+        OpenGlStateCache.Current.RequireOutsideEngineBoundary();
         var execution = RHICommandContext.Current;
         var context = GpuResource.CaptureCreationContext(GpuResourceKind.VertexArray);
         var deletionManager = GpuResourceManagerSystem.CurrentManager;
@@ -61,7 +61,7 @@ internal sealed class EngineFullscreenGeometry : GraphicsGeometry
         {
             // Successful acquisition already established the uploaded array's selector facts. Preserve them;
             // forgetting those facts here would make a known-equal bind invalidate its own certificate.
-            if (!certified) StateCache.Current.ForgetEngineMeshUpload((uploaded as VAO)?.VaoId);
+            if (!certified) OpenGlStateCache.Current.ForgetEngineMeshUpload((uploaded as VAO)?.VaoId);
         }
     }
 
@@ -101,7 +101,7 @@ internal sealed class EngineFullscreenGeometry : GraphicsGeometry
         if (vao == 0 || positions == 0 || uv == 0 || elements == 0 || mesh.IndicesCount != count
             || mesh.drawMode != PrimitiveType.Triangles || !HasOnlyPositionUvStreams(mesh))
             throw new InvalidOperationException("Unsupported uploaded engine geometry.");
-        StateCache.Current.ForgetEngineMeshUpload(vao);
+        OpenGlStateCache.Current.ForgetEngineMeshUpload(vao);
         inputs = new(mesh, Layout, new Dictionary<int, int> { [0] = positions, [1] = uv }, vertices, count);
     }
 

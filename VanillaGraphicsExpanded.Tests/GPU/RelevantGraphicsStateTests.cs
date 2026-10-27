@@ -30,7 +30,7 @@ public sealed class RelevantGraphicsStateTests(HeadlessGLFixture fixture) : IDis
     public void PolygonModesActivateOffsetAndLinePayloads()
     {
         using var context = new WideLineContext(fixture);
-        var cache = StateCache.Current; OpenGLProgramSelection.Select(cache, 0);
+        var cache = OpenGlStateCache.Current; OpenGLProgramSelection.Select(cache, 0);
         var fill = Description(raster: new() { LineWidth = 2,
             OffsetLine = true, DepthBiasFactor = 2, DepthBiasUnits = 3 });
         var wire = Description(raster: fill.Rasterizer with { PolygonMode = RasterizerFillMode.Line });
@@ -44,7 +44,7 @@ public sealed class RelevantGraphicsStateTests(HeadlessGLFixture fixture) : IDis
                 var coverage = PipelineStateCoverage.Empty;
                 foreach (RHIGraphicsPipelineDescription declaration in new RHIGraphicsPipelineDescription[] {fill, wire, point})
                     coverage = coverage.Union(PipelineStateCoverage.From(VanillaGraphicsExpanded.Rendering.Pipeline.GraphicsStateRelevance.Derive(declaration, GpuSupport.Graphics)));
-                if (!StateCache.Current.TryBeginEngineBoundary(new EngineBoundaryDeclaration("PrimitiveMatrix", coverage), out var restored,
+                if (!OpenGlStateCache.Current.TryBeginEngineBoundary(new EngineBoundaryDeclaration("PrimitiveMatrix", coverage), out var restored,
                     new EngineBoundaryResources(geometry: true, programSelection: true))) return false;
                 using (restored) {
                     Action<EngineBoundaryScope> operation = _ =>
@@ -77,7 +77,7 @@ public sealed class RelevantGraphicsStateTests(HeadlessGLFixture fixture) : IDis
     public void UnknownOutputPrimitiveAppliesConservativeNativeGroups(bool tessellation)
     {
         using var context = new WideLineContext(fixture);
-        var cache = StateCache.Current; OpenGLProgramSelection.Select(cache, 0);
+        var cache = OpenGlStateCache.Current; OpenGLProgramSelection.Select(cache, 0);
         var stages = new List<ShaderStageContract> { new("unknown.vsh", "unknown.vsh", ShaderStageKind.Vertex, new()),
             new("unknown.fsh", "unknown.fsh", ShaderStageKind.Fragment, new()) };
         if (tessellation)
@@ -97,7 +97,7 @@ public sealed class RelevantGraphicsStateTests(HeadlessGLFixture fixture) : IDis
                 var coverage = PipelineStateCoverage.Empty;
                 foreach (RHIGraphicsPipelineDescription declaration in new RHIGraphicsPipelineDescription[] {description})
                     coverage = coverage.Union(PipelineStateCoverage.From(VanillaGraphicsExpanded.Rendering.Pipeline.GraphicsStateRelevance.Derive(declaration, GpuSupport.Graphics)));
-                if (!StateCache.Current.TryBeginEngineBoundary(new EngineBoundaryDeclaration("UnknownOutputMatrix", coverage), out var restored,
+                if (!OpenGlStateCache.Current.TryBeginEngineBoundary(new EngineBoundaryDeclaration("UnknownOutputMatrix", coverage), out var restored,
                     new EngineBoundaryResources(geometry: true, programSelection: true))) return false;
                 using (restored) {
                     Action<EngineBoundaryScope> operation = _ =>
@@ -120,7 +120,7 @@ public sealed class RelevantGraphicsStateTests(HeadlessGLFixture fixture) : IDis
     public void TriangleLineTriangleRestoresOriginalWidth(bool fail)
     {
         using var context = new WideLineContext(fixture);
-        var cache = StateCache.Current;
+        var cache = OpenGlStateCache.Current;
         OpenGLProgramSelection.Select(cache, 0);
         var triangle = Description(raster: new() { LineWidth = 2 });
         var line = Description(raster: new() { LineWidth = 2 }, topology: PrimitiveTopology.Lines);
@@ -133,7 +133,7 @@ public sealed class RelevantGraphicsStateTests(HeadlessGLFixture fixture) : IDis
                 var coverage = PipelineStateCoverage.Empty;
                 foreach (RHIGraphicsPipelineDescription declaration in new RHIGraphicsPipelineDescription[] {triangle, line})
                     coverage = coverage.Union(PipelineStateCoverage.From(VanillaGraphicsExpanded.Rendering.Pipeline.GraphicsStateRelevance.Derive(declaration, GpuSupport.Graphics)));
-                if (!StateCache.Current.TryBeginEngineBoundary(new EngineBoundaryDeclaration("RelevantWidth", coverage), out var restored,
+                if (!OpenGlStateCache.Current.TryBeginEngineBoundary(new EngineBoundaryDeclaration("RelevantWidth", coverage), out var restored,
                     new EngineBoundaryResources(geometry: true, programSelection: true))) return false;
                 using (restored) {
                     Action<EngineBoundaryScope> operation = _ =>
@@ -169,7 +169,7 @@ public sealed class RelevantGraphicsStateTests(HeadlessGLFixture fixture) : IDis
     [Fact]
     public void ScissorAndPointPayloadsBecomeRelevantWithoutInheritingIntent()
     {
-        fixture.MakeCurrent(); var cache = StateCache.Current; OpenGLProgramSelection.Select(cache, 0);
+        fixture.MakeCurrent(); var cache = OpenGlStateCache.Current; OpenGLProgramSelection.Select(cache, 0);
         var triangle = Description(raster: new() { PointSize = 2 });
         var clipped = Description(raster: new() { Scissor = true });
         var shaderPoints = Description(raster: new() { ProgramPointSize = true, PointSize = 2 }, topology: PrimitiveTopology.Points);
@@ -183,7 +183,7 @@ public sealed class RelevantGraphicsStateTests(HeadlessGLFixture fixture) : IDis
                 var coverage = PipelineStateCoverage.Empty;
                 foreach (RHIGraphicsPipelineDescription declaration in new RHIGraphicsPipelineDescription[] {triangle, clipped, shaderPoints, fixedPoints})
                     coverage = coverage.Union(PipelineStateCoverage.From(VanillaGraphicsExpanded.Rendering.Pipeline.GraphicsStateRelevance.Derive(declaration, GpuSupport.Graphics)));
-                if (!StateCache.Current.TryBeginEngineBoundary(new EngineBoundaryDeclaration("RelevantPayload", coverage), out var restored,
+                if (!OpenGlStateCache.Current.TryBeginEngineBoundary(new EngineBoundaryDeclaration("RelevantPayload", coverage), out var restored,
                     new EngineBoundaryResources(geometry: true, programSelection: true))) return false;
                 using (restored) {
                     Action<EngineBoundaryScope> operation = _ =>
@@ -216,7 +216,7 @@ public sealed class RelevantGraphicsStateTests(HeadlessGLFixture fixture) : IDis
     public void SparseOutputActivationPreservesAndRestoresGroupedBlendOperands()
     {
         fixture.MakeCurrent();
-        var cache = StateCache.Current;
+        var cache = OpenGlStateCache.Current;
         OpenGLProgramSelection.Select(cache, 0);
         var sparse = Description(targets: new([new(TextureFormat.Rgba8), new(null, true), new(TextureFormat.Rgba8)]));
         var active = Description(targets: sparse.Targets,
@@ -240,7 +240,7 @@ public sealed class RelevantGraphicsStateTests(HeadlessGLFixture fixture) : IDis
                 var coverage = PipelineStateCoverage.Empty;
                 foreach (RHIGraphicsPipelineDescription declaration in new RHIGraphicsPipelineDescription[] {sparse, active, routed})
                     coverage = coverage.Union(PipelineStateCoverage.From(VanillaGraphicsExpanded.Rendering.Pipeline.GraphicsStateRelevance.Derive(declaration, GpuSupport.Graphics)));
-                if (!StateCache.Current.TryBeginEngineBoundary(new EngineBoundaryDeclaration("RelevantSparseBlend", coverage), out var restored,
+                if (!OpenGlStateCache.Current.TryBeginEngineBoundary(new EngineBoundaryDeclaration("RelevantSparseBlend", coverage), out var restored,
                     new EngineBoundaryResources(geometry: true, programSelection: true))) return false;
                 using (restored) {
                     Action<EngineBoundaryScope> operation = _ =>
@@ -338,14 +338,14 @@ public sealed class RelevantGraphicsStateTests(HeadlessGLFixture fixture) : IDis
             Assert.True(window != null, "The required compatibility raster context could not be created.");
             GLFW.MakeContextCurrent(window); GL.LoadBindings(new GLFWBindingsContext());
             RenderContextRegistry.RegisterCurrent(this, owner => ((WideLineContext)owner).window != null);
-            GpuSupport.EnsureCurrentContext(); StateCache.Current.InvalidateAll();
+            GpuSupport.EnsureCurrentContext(); OpenGlStateCache.Current.InvalidateAll();
         }
 
         /// <summary>Retires this context before restoring the shared fixture and its state owner.</summary>
         public void Dispose()
         {
             RenderContextRegistry.Retire(this); GLFW.DestroyWindow(window); window = null;
-            fixture.MakeCurrent(); GpuSupport.EnsureCurrentContext(); StateCache.Current.InvalidateAll();
+            fixture.MakeCurrent(); GpuSupport.EnsureCurrentContext(); OpenGlStateCache.Current.InvalidateAll();
         }
         #endregion
     }

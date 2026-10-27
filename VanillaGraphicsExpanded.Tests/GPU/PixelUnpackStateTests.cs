@@ -3,7 +3,7 @@ using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
-using UnpackState = VanillaGraphicsExpanded.Rendering.StateCache.PixelUnpackState;
+using UnpackState = VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGlStateCache.PixelUnpackState;
 
 namespace VanillaGraphicsExpanded.Tests.GPU;
 
@@ -18,7 +18,7 @@ public sealed class PixelUnpackStateTests(HeadlessGLFixture fixture) : RenderTes
     public void NestedScopesRestoreAllFields()
     {
         EnsureContextValid();
-        var cache = StateCache.Current;
+        var cache = OpenGlStateCache.Current;
         var incoming = new UnpackState(8, 19, 3, 7, true, true, 23, 2);
         using var restore = OpenGLPixelLayouts.UnpackScope(cache, incoming);
         using (OpenGLPixelLayouts.UnpackScope(cache, new(1)))
@@ -42,7 +42,7 @@ public sealed class PixelUnpackStateTests(HeadlessGLFixture fixture) : RenderTes
     public void ImageStrideWritesInvalidateLayout(bool floatingPoint)
     {
         EnsureContextValid();
-        var cache = StateCache.Current;
+        var cache = OpenGlStateCache.Current;
         using var restore = OpenGLPixelLayouts.UnpackScope(cache, new(1));
         if (floatingPoint)
         {
@@ -64,8 +64,8 @@ public sealed class PixelUnpackStateTests(HeadlessGLFixture fixture) : RenderTes
     public void NegativeImageLayoutIsRejected(int imageHeight, int skipImages)
     {
         EnsureContextValid();
-        using var restore = OpenGLPixelLayouts.UnpackScope(StateCache.Current, new(8, ImageHeight: 13, SkipImages: 2));
-        Assert.Throws<ArgumentOutOfRangeException>(() => OpenGLPixelLayouts.SetUnpack(StateCache.Current, new(1, ImageHeight: imageHeight, SkipImages: skipImages)));
+        using var restore = OpenGLPixelLayouts.UnpackScope(OpenGlStateCache.Current, new(8, ImageHeight: 13, SkipImages: 2));
+        Assert.Throws<ArgumentOutOfRangeException>(() => OpenGLPixelLayouts.SetUnpack(OpenGlStateCache.Current, new(1, ImageHeight: imageHeight, SkipImages: skipImages)));
         AssertState(new(8, ImageHeight: 13, SkipImages: 2));
     }
 
@@ -76,7 +76,7 @@ public sealed class PixelUnpackStateTests(HeadlessGLFixture fixture) : RenderTes
     public void StreamingArrayUploadPreservesIncomingLayout(bool pbo)
     {
         EnsureContextValid();
-        var cache = StateCache.Current;
+        var cache = OpenGlStateCache.Current;
         int texture = GL.GenTexture();
         OpenGLImageBindings.BindTexture(cache, TextureTarget.Texture2DArray, 0, texture);
         GL.TexImage3D(TextureTarget.Texture2DArray, 0, PixelInternalFormat.Rgba8, 1, 1, 2, 0, PixelFormat.Rgba, PixelType.UnsignedByte, IntPtr.Zero);
@@ -117,7 +117,7 @@ public sealed class PixelUnpackStateTests(HeadlessGLFixture fixture) : RenderTes
     /// <summary>Compares the cached layout with independently queried driver values.</summary>
     private static void AssertState(UnpackState expected)
     {
-        Assert.Equal(expected, OpenGLPixelLayouts.GetUnpack(StateCache.Current));
+        Assert.Equal(expected, OpenGLPixelLayouts.GetUnpack(OpenGlStateCache.Current));
         Assert.Equal(expected.Alignment, GL.GetInteger(GetPName.UnpackAlignment));
         Assert.Equal(expected.RowLength, GL.GetInteger(GetPName.UnpackRowLength));
         Assert.Equal(expected.SkipRows, GL.GetInteger(GetPName.UnpackSkipRows));

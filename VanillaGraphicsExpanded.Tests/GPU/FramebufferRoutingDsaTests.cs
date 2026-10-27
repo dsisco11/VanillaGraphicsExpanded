@@ -21,7 +21,7 @@ public sealed class FramebufferRoutingDsaTests(HeadlessGLFixture fixture,ITestOu
     {
         EnsureContextValid();Assert.True(GpuSupport.Graphics.SupportsArbDirectStateAccess);
         // Clear-only passes declare no executable; preserve any program left by another shared-fixture test.
-        OpenGLProgramSelection.Select(StateCache.Current, 0);
+        OpenGLProgramSelection.Select(OpenGlStateCache.Current, 0);
         using var scene=new RoutingScene();scene.Initialize();List<string> fallback;
         using(var capture=new GraphicsTransitionCapture()){scene.Render(standalone);fallback=[..capture.Calls];}
         scene.AssertRestored();var expected=scene.ReadOutput();scene.Initialize();List<string> named;
@@ -42,14 +42,14 @@ public sealed class FramebufferRoutingDsaTests(HeadlessGLFixture fixture,ITestOu
     {
         EnsureContextValid();Assert.True(GpuSupport.Graphics.SupportsArbDirectStateAccess);
         // Clear-only passes declare no executable; preserve any program left by another shared-fixture test.
-        OpenGLProgramSelection.Select(StateCache.Current,0);
+        OpenGLProgramSelection.Select(OpenGlStateCache.Current,0);
         using var capability=new DirectStateAccessCapabilityScope(directStateAccess);
-        using var originalBindings=StateCache.Current.BindFramebufferScope();
+        using var originalBindings=OpenGlStateCache.Current.BindFramebufferScope();
         using var window=DynamicGpuFramebuffer.Wrap(0,width:1,height:1);window.PublishSurfaceMetadata(1,1);
         var metadata=window.Surface!;
         DrawBufferMode grouped=metadata.Buffer==DrawBuffersEnum.BackLeft?DrawBufferMode.Back:DrawBufferMode.Front;
-        OpenGLFramebufferSelection.Bind(StateCache.Current, FramebufferTarget.DrawFramebuffer,0);int previous=GL.GetInteger(GetPName.DrawBuffer0);GL.DrawBuffer(grouped); StateCache.Current.Invalidate(EPipelineState.FramebufferRouting);
-        OpenGLFramebufferSelection.Bind(StateCache.Current, FramebufferTarget.ReadFramebuffer,0);int previousRead=GL.GetInteger(GetPName.ReadBuffer);
+        OpenGLFramebufferSelection.Bind(OpenGlStateCache.Current, FramebufferTarget.DrawFramebuffer,0);int previous=GL.GetInteger(GetPName.DrawBuffer0);GL.DrawBuffer(grouped); OpenGlStateCache.Current.Invalidate(EPipelineState.FramebufferRouting);
+        OpenGLFramebufferSelection.Bind(OpenGlStateCache.Current, FramebufferTarget.ReadFramebuffer,0);int previousRead=GL.GetInteger(GetPName.ReadBuffer);
         using var incoming=CreateRenderTarget(1,1,PixelInternalFormat.Rgba32f);incoming.Bind();
         try
         {
@@ -67,12 +67,12 @@ public sealed class FramebufferRoutingDsaTests(HeadlessGLFixture fixture,ITestOu
                 output.WriteLine("WINDOW_ROUTING_DSA="+System.Text.Json.JsonSerializer.Serialize(new{directStateAccess,grouped=grouped.ToString(),calls=capture.Calls}));
             }
             Assert.Equal(incoming.FboId,GL.GetInteger(GetPName.DrawFramebufferBinding));
-            OpenGLFramebufferSelection.Bind(StateCache.Current, FramebufferTarget.DrawFramebuffer,0);Assert.Equal((int)grouped,GL.GetInteger(GetPName.DrawBuffer0));
-            OpenGLFramebufferSelection.Bind(StateCache.Current, FramebufferTarget.ReadFramebuffer,0);GL.ReadBuffer((ReadBufferMode)metadata.Buffer);
-            using var pack=OpenGLPixelLayouts.PackScope(StateCache.Current, new(1));byte[] pixel=new byte[4];GL.ReadPixels(0,0,1,1,PixelFormat.Rgba,PixelType.UnsignedByte,pixel);
+            OpenGLFramebufferSelection.Bind(OpenGlStateCache.Current, FramebufferTarget.DrawFramebuffer,0);Assert.Equal((int)grouped,GL.GetInteger(GetPName.DrawBuffer0));
+            OpenGLFramebufferSelection.Bind(OpenGlStateCache.Current, FramebufferTarget.ReadFramebuffer,0);GL.ReadBuffer((ReadBufferMode)metadata.Buffer);
+            using var pack=OpenGLPixelLayouts.PackScope(OpenGlStateCache.Current, new(1));byte[] pixel=new byte[4];GL.ReadPixels(0,0,1,1,PixelFormat.Rgba,PixelType.UnsignedByte,pixel);
             Assert.InRange(pixel[0],(byte)63,(byte)65);
         }
-        finally{OpenGLFramebufferSelection.Bind(StateCache.Current, FramebufferTarget.DrawFramebuffer,0);GL.DrawBuffer((DrawBufferMode)previous); StateCache.Current.Invalidate(EPipelineState.FramebufferRouting);OpenGLFramebufferSelection.Bind(StateCache.Current, FramebufferTarget.ReadFramebuffer,0);GL.ReadBuffer((ReadBufferMode)previousRead);StateCache.Current.InvalidateAll();}
+        finally{OpenGLFramebufferSelection.Bind(OpenGlStateCache.Current, FramebufferTarget.DrawFramebuffer,0);GL.DrawBuffer((DrawBufferMode)previous); OpenGlStateCache.Current.Invalidate(EPipelineState.FramebufferRouting);OpenGLFramebufferSelection.Bind(OpenGlStateCache.Current, FramebufferTarget.ReadFramebuffer,0);GL.ReadBuffer((ReadBufferMode)previousRead);OpenGlStateCache.Current.InvalidateAll();}
         Assert.Equal(ErrorCode.NoError,GL.GetError());
     }
     #endregion
@@ -83,7 +83,7 @@ public sealed class FramebufferRoutingDsaTests(HeadlessGLFixture fixture,ITestOu
     {
         EnsureContextValid();Assert.True(GpuSupport.Graphics.SupportsArbDirectStateAccess);
         // Clear-only passes declare no executable; preserve any program left by another shared-fixture test.
-        OpenGLProgramSelection.Select(StateCache.Current,0);
+        OpenGLProgramSelection.Select(OpenGlStateCache.Current,0);
         using var scene=new RoutingScene();scene.Initialize();
 
         using(var capture=new GraphicsTransitionCapture()){capture.FailNamedFramebuffer=scene.FirstFramebuffer;var failure=Assert.ThrowsAny<Exception>(()=>scene.Render(false));Assert.Contains("Injected named restoration failure",failure.ToString());}
@@ -124,8 +124,8 @@ public sealed class FramebufferRoutingDsaTests(HeadlessGLFixture fixture,ITestOu
         internal void Initialize()
         {
             foreach(var image in images)image.UploadDataImmediate(new float[16]);
-            for(int index=0;index<targets.Length;index++){targets[index].Bind();GL.DrawBuffers(Original[index].Length,Original[index]); StateCache.Current.Invalidate(EPipelineState.FramebufferRouting);}
-            OpenGLFramebufferSelection.Bind(StateCache.Current, FramebufferTarget.DrawFramebuffer,incoming.FboId);OpenGLFramebufferSelection.Bind(StateCache.Current, FramebufferTarget.ReadFramebuffer,read.FboId);
+            for(int index=0;index<targets.Length;index++){targets[index].Bind();GL.DrawBuffers(Original[index].Length,Original[index]); OpenGlStateCache.Current.Invalidate(EPipelineState.FramebufferRouting);}
+            OpenGLFramebufferSelection.Bind(OpenGlStateCache.Current, FramebufferTarget.DrawFramebuffer,incoming.FboId);OpenGLFramebufferSelection.Bind(OpenGlStateCache.Current, FramebufferTarget.ReadFramebuffer,read.FboId);
         }
         /// <summary>Runs two equivalent clears using either independent passes or one deferred-restoration sequence.</summary>
         internal void Render(bool standalone)
@@ -156,10 +156,10 @@ public sealed class FramebufferRoutingDsaTests(HeadlessGLFixture fixture,ITestOu
             Assert.Equal(incoming.FboId,GL.GetInteger(GetPName.DrawFramebufferBinding));Assert.Equal(read.FboId,GL.GetInteger(GetPName.ReadFramebufferBinding));
             for(int index=includeFirst?0:1;index<2;index++)
             {
-                OpenGLFramebufferSelection.Bind(StateCache.Current, FramebufferTarget.DrawFramebuffer,targets[index].FboId);
+                OpenGLFramebufferSelection.Bind(OpenGlStateCache.Current, FramebufferTarget.DrawFramebuffer,targets[index].FboId);
                 for(int slot=0;slot<Original[index].Length;slot++)Assert.Equal((int)Original[index][slot],GL.GetInteger(GetPName.DrawBuffer0+slot));
             }
-            OpenGLFramebufferSelection.Bind(StateCache.Current, FramebufferTarget.DrawFramebuffer,incoming.FboId);
+            OpenGLFramebufferSelection.Bind(OpenGlStateCache.Current, FramebufferTarget.DrawFramebuffer,incoming.FboId);
         }
         /// <summary>Reads physical outputs after capture without changing the compared operation count.</summary>
         internal float[][] ReadOutput()=>images.Select(image=>image.ReadPixels()).ToArray();

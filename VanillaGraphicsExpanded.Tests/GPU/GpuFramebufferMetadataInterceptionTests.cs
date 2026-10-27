@@ -35,9 +35,9 @@ public sealed class GpuFramebufferMetadataInterceptionTests(HeadlessGLFixture fi
             var entry = (GpuResourceMetadataEntry<GpuFramebufferMetadata>)manager.GetResourceRegistration(framebuffer)!;
             using var alias = new FramebufferAlias(framebuffer.FboId); manager.AssociateResource(entry, alias);
             ulong revision = framebuffer.AttachmentRevision;
-            OpenGLFramebufferSelection.Bind(StateCache.Current, FramebufferTarget.DrawFramebuffer, framebuffer.FboId);
-            OpenGLFramebufferSelection.Bind(StateCache.Current, FramebufferTarget.ReadFramebuffer, readSentinel);
-            StateCache.Current.InvalidateAll();
+            OpenGLFramebufferSelection.Bind(OpenGlStateCache.Current, FramebufferTarget.DrawFramebuffer, framebuffer.FboId);
+            OpenGLFramebufferSelection.Bind(OpenGlStateCache.Current, FramebufferTarget.ReadFramebuffer, readSentinel);
+            OpenGlStateCache.Current.InvalidateAll();
             using var capabilities = new DirectStateAccessCapabilityScope(variant != 9);
             int resource = variant is 4 or 5 ? renderbuffer.RenderbufferId : variant is 6 or 7 or 11 ? volume.TextureId : second.TextureId;
             Attach(variant, framebuffer.FboId, resource);
@@ -64,7 +64,7 @@ public sealed class GpuFramebufferMetadataInterceptionTests(HeadlessGLFixture fi
             Assert.Equal((int)All.None, type);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { harmony.UnpatchAll(harmony.Id); VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Framebuffer, readSentinel)); fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { harmony.UnpatchAll(harmony.Id); VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Framebuffer, readSentinel)); fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
 
     /// <summary>Attachmentless defaults and rejected requests remain representable with split binding preservation.</summary>
@@ -79,9 +79,9 @@ public sealed class GpuFramebufferMetadataInterceptionTests(HeadlessGLFixture fi
             var manager = GpuResourceManagerSystem.CurrentManager!;
             var entry = manager.AcquireResource(GpuResourceKind.Framebuffer, target, GpuFramebufferMetadataReader.Instance)!;
             using var alias = new FramebufferAlias(target); manager.AssociateResource(entry, alias);
-            OpenGLFramebufferSelection.Bind(StateCache.Current, FramebufferTarget.DrawFramebuffer, target);
-            OpenGLFramebufferSelection.Bind(StateCache.Current, FramebufferTarget.ReadFramebuffer, sentinel);
-            StateCache.Current.InvalidateAll();
+            OpenGLFramebufferSelection.Bind(OpenGlStateCache.Current, FramebufferTarget.DrawFramebuffer, target);
+            OpenGLFramebufferSelection.Bind(OpenGlStateCache.Current, FramebufferTarget.ReadFramebuffer, sentinel);
+            OpenGlStateCache.Current.InvalidateAll();
             using var capabilities = new DirectStateAccessCapabilityScope(variant != 3);
             SetDefault(variant, target, FramebufferDefaultParameter.FramebufferDefaultWidth, 17);
             SetDefault(variant, target, FramebufferDefaultParameter.FramebufferDefaultHeight, 9);
@@ -95,7 +95,7 @@ public sealed class GpuFramebufferMetadataInterceptionTests(HeadlessGLFixture fi
             Assert.Equal(sentinel, GL.GetInteger(GetPName.ReadFramebufferBinding));
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { harmony.UnpatchAll(harmony.Id); VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Framebuffer, target)); VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Framebuffer, sentinel)); fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { harmony.UnpatchAll(harmony.Id); VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Framebuffer, target)); VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Framebuffer, sentinel)); fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
     /// <summary>Unknown binding recovery preserves a pending error, and rejected image selection retains the real attachment.</summary>
     [Theory]
@@ -110,8 +110,8 @@ public sealed class GpuFramebufferMetadataInterceptionTests(HeadlessGLFixture fi
             using var image = GpuFramebufferAttachment.FromTexture(texture);
             using var framebuffer = DynamicGpuFramebuffer.Create([image])!;
             var entry = (GpuResourceMetadataEntry<GpuFramebufferMetadata>)GpuResourceManagerSystem.CurrentManager!.GetResourceRegistration(framebuffer)!;
-            OpenGLFramebufferSelection.Bind(StateCache.Current, FramebufferTarget.DrawFramebuffer, framebuffer.FboId);
-            StateCache.Current.InvalidateAll();
+            OpenGLFramebufferSelection.Bind(OpenGlStateCache.Current, FramebufferTarget.DrawFramebuffer, framebuffer.FboId);
+            OpenGlStateCache.Current.InvalidateAll();
             using var capabilities = new DirectStateAccessCapabilityScope(direct);
             GL.Enable((EnableCap)(-1));
             Attach(0, framebuffer.FboId, texture.TextureId);
@@ -125,7 +125,7 @@ public sealed class GpuFramebufferMetadataInterceptionTests(HeadlessGLFixture fi
             Assert.Equal(texture.TextureId, framebuffer.GetColorTextureId(0));
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { harmony.UnpatchAll(harmony.Id); fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { harmony.UnpatchAll(harmony.Id); fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
     /// <summary>Packed depth and stencil native selections reconcile to one shared helper image.</summary>
     [Fact]
@@ -148,7 +148,7 @@ public sealed class GpuFramebufferMetadataInterceptionTests(HeadlessGLFixture fi
             Assert.Equal(packed.RenderbufferId,depth.RenderbufferId);
             Assert.Equal(ErrorCode.NoError,GL.GetError());
         }
-        finally { harmony.UnpatchAll(harmony.Id); fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { harmony.UnpatchAll(harmony.Id); fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
     /// <summary>An unrepresented parameter produces its native error without refreshing canonical framebuffer descriptors.</summary>
     [Fact]
@@ -166,7 +166,7 @@ public sealed class GpuFramebufferMetadataInterceptionTests(HeadlessGLFixture fi
             Assert.True(entry.IsUsable);
             Assert.Equal(ErrorCode.NoError,GL.GetError());
         }
-        finally { harmony.UnpatchAll(harmony.Id); VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Framebuffer, framebuffer)); fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { harmony.UnpatchAll(harmony.Id); VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Framebuffer, framebuffer)); fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
     /// <summary>A changed originating context prevents observation and helper callbacks while leaving facts withdrawn.</summary>
     [Fact]
@@ -186,7 +186,7 @@ public sealed class GpuFramebufferMetadataInterceptionTests(HeadlessGLFixture fi
             var reader=new CountingFramebufferReader(entry.Reader!); entry.Reader=reader;
             int callbacks=0; framebuffer.AttachmentsChanged+=() => callbacks++;
             ulong revision=entry.MetadataRevision;
-            var observation=StateCache.BeginNativeFramebufferMetadata(framebuffer.FboId,true);
+            var observation=OpenGlStateCache.BeginNativeFramebufferMetadata(framebuffer.FboId,true);
             try
             {
                 current=(origin.Item1,origin.Item2+1);
@@ -197,7 +197,7 @@ public sealed class GpuFramebufferMetadataInterceptionTests(HeadlessGLFixture fi
             finally { current=origin; }
             Assert.Equal(ErrorCode.NoError,GL.GetError());
         }
-        finally { manager.Dispose(); GpuResourceManagerSystem.Shutdown(); StateCache.Current.InvalidateAll(); }
+        finally { manager.Dispose(); GpuResourceManagerSystem.Shutdown(); OpenGlStateCache.Current.InvalidateAll(); }
     }
     #endregion
     #region Private
@@ -226,8 +226,8 @@ public sealed class GpuFramebufferMetadataInterceptionTests(HeadlessGLFixture fi
             case 7: GL.FramebufferTextureLayer(FramebufferTarget.DrawFramebuffer, FramebufferAttachment.ColorAttachment0, resource, 0, 1); break;
             case 8: GL.NamedFramebufferTexture((uint)framebuffer, FramebufferAttachment.ColorAttachment0, (uint)resource, 0); break;
             case 9: GL.FramebufferTexture(FramebufferTarget.DrawFramebuffer, FramebufferAttachment.ColorAttachment0, resource, 0); break;
-            case 10: StateCache.Current.FramebufferTexture2D(FramebufferTarget.DrawFramebuffer, FramebufferAttachment.ColorAttachment0, TextureTarget.Texture2D, resource, 0); break;
-            case 11: StateCache.Current.FramebufferTextureLayer(FramebufferTarget.DrawFramebuffer, FramebufferAttachment.ColorAttachment0, resource, 0, 1); break;
+            case 10: OpenGLFramebufferCalls.ExecuteCoreFramebufferTexture2D(FramebufferTarget.DrawFramebuffer, FramebufferAttachment.ColorAttachment0, TextureTarget.Texture2D, resource, 0); break;
+            case 11: OpenGLFramebufferCalls.ExecuteCoreFramebufferTextureLayer(FramebufferTarget.DrawFramebuffer, FramebufferAttachment.ColorAttachment0, resource, 0, 1); break;
         }
     }
     /// <summary>Attaches one native packed image to both depth and stencil slots.</summary>

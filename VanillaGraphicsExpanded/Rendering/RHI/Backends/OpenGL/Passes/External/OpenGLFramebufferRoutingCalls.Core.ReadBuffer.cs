@@ -10,7 +10,7 @@ internal static unsafe partial class OpenGLFramebufferRoutingCalls
     /// <summary>Executes the exact external overload once and completes its selector or routing bookkeeping.</summary>
     internal static void ExecuteCoreReadBuffer(ReadBufferMode @src)
     {
-        var observation = StateCache.BeginNativeFramebufferRouting(0, false, true);
+        var observation = OpenGlStateCache.BeginNativeFramebufferRouting(0, false, true);
         bool returned = false;
         try
         {

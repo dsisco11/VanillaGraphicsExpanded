@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.ShaderCompilation;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
@@ -20,7 +21,7 @@ internal static partial class MaterialAtlasNormalDepthGpuBuilder
     /// <summary>Prepares the finite solver interfaces before entering the shared allocation, readback and draw boundary.</summary>
     private static bool RunBake(GpuTextureRef destination, Action<BakeDrawContext> operation)
     {
-        StateCache.Current.RequireOutsideEngineBoundary();
+        OpenGlStateCache.Current.RequireOutsideEngineBoundary();
         var imageFormat=RHICommandContext.Current.DescribeRenderTargets(new([new(Image:RHIAttachment.FromTexture(destination))])).Colors[0].Format!.Value;
         PbrHeightBakeShaderProgram[] programs = [progLuminance!, progGauss1D!, progSub!, progCombine!,
             progGradient!, progDivergence!, progJacobi!, progResidual!, progRestrict!, progProlongateAdd!,

@@ -10,7 +10,7 @@ internal static unsafe partial class OpenGLBufferStorageCalls
     /// <summary>Executes the exact external overload and completes its affected metadata publication.</summary>
     internal static void ExecuteExtNamedBufferStorageExternal(int @buffer, IntPtr @offset, int @size, IntPtr @clientBuffer, BufferStorageMask @flags)
     {
-        var observation = StateCache.InvalidateNativeBufferStorage(unchecked((int)@buffer), true);
+        var observation = OpenGlStateCache.InvalidateNativeBufferStorage(unchecked((int)@buffer), true);
         try { GL.Ext.NamedBufferStorageExternal(@buffer, @offset, @size, @clientBuffer, @flags); }
         finally { observation.Complete(); }
     }
@@ -18,7 +18,7 @@ internal static unsafe partial class OpenGLBufferStorageCalls
     /// <summary>Executes the exact external overload and completes its affected metadata publication.</summary>
     internal static void ExecuteExtNamedBufferStorageExternal(int @buffer, IntPtr @offset, int @size, IntPtr @clientBuffer, MapBufferUsageMask @flags)
     {
-        var observation = StateCache.InvalidateNativeBufferStorage(unchecked((int)@buffer), true);
+        var observation = OpenGlStateCache.InvalidateNativeBufferStorage(unchecked((int)@buffer), true);
         try { GL.Ext.NamedBufferStorageExternal(@buffer, @offset, @size, @clientBuffer, @flags); }
         finally { observation.Complete(); }
     }
@@ -26,7 +26,7 @@ internal static unsafe partial class OpenGLBufferStorageCalls
     /// <summary>Executes the exact external overload and completes its affected metadata publication.</summary>
     internal static void ExecuteExtNamedBufferStorageExternal(int @buffer, IntPtr @offset, IntPtr @size, IntPtr @clientBuffer, BufferStorageMask @flags)
     {
-        var observation = StateCache.InvalidateNativeBufferStorage(unchecked((int)@buffer), true);
+        var observation = OpenGlStateCache.InvalidateNativeBufferStorage(unchecked((int)@buffer), true);
         try { GL.Ext.NamedBufferStorageExternal(@buffer, @offset, @size, @clientBuffer, @flags); }
         finally { observation.Complete(); }
     }
@@ -34,7 +34,7 @@ internal static unsafe partial class OpenGLBufferStorageCalls
     /// <summary>Executes the exact external overload and completes its affected metadata publication.</summary>
     internal static void ExecuteExtNamedBufferStorageExternal(int @buffer, IntPtr @offset, IntPtr @size, IntPtr @clientBuffer, MapBufferUsageMask @flags)
     {
-        var observation = StateCache.InvalidateNativeBufferStorage(unchecked((int)@buffer), true);
+        var observation = OpenGlStateCache.InvalidateNativeBufferStorage(unchecked((int)@buffer), true);
         try { GL.Ext.NamedBufferStorageExternal(@buffer, @offset, @size, @clientBuffer, @flags); }
         finally { observation.Complete(); }
     }
@@ -42,7 +42,7 @@ internal static unsafe partial class OpenGLBufferStorageCalls
     /// <summary>Executes the exact external overload and completes its affected metadata publication.</summary>
     internal static void ExecuteExtNamedBufferStorageExternal(uint @buffer, IntPtr @offset, int @size, IntPtr @clientBuffer, BufferStorageMask @flags)
     {
-        var observation = StateCache.InvalidateNativeBufferStorage(unchecked((int)@buffer), true);
+        var observation = OpenGlStateCache.InvalidateNativeBufferStorage(unchecked((int)@buffer), true);
         try { GL.Ext.NamedBufferStorageExternal(@buffer, @offset, @size, @clientBuffer, @flags); }
         finally { observation.Complete(); }
     }
@@ -50,7 +50,7 @@ internal static unsafe partial class OpenGLBufferStorageCalls
     /// <summary>Executes the exact external overload and completes its affected metadata publication.</summary>
     internal static void ExecuteExtNamedBufferStorageExternal(uint @buffer, IntPtr @offset, int @size, IntPtr @clientBuffer, MapBufferUsageMask @flags)
     {
-        var observation = StateCache.InvalidateNativeBufferStorage(unchecked((int)@buffer), true);
+        var observation = OpenGlStateCache.InvalidateNativeBufferStorage(unchecked((int)@buffer), true);
         try { GL.Ext.NamedBufferStorageExternal(@buffer, @offset, @size, @clientBuffer, @flags); }
         finally { observation.Complete(); }
     }
@@ -58,7 +58,7 @@ internal static unsafe partial class OpenGLBufferStorageCalls
     /// <summary>Executes the exact external overload and completes its affected metadata publication.</summary>
     internal static void ExecuteExtNamedBufferStorageExternal(uint @buffer, IntPtr @offset, IntPtr @size, IntPtr @clientBuffer, BufferStorageMask @flags)
     {
-        var observation = StateCache.InvalidateNativeBufferStorage(unchecked((int)@buffer), true);
+        var observation = OpenGlStateCache.InvalidateNativeBufferStorage(unchecked((int)@buffer), true);
         try { GL.Ext.NamedBufferStorageExternal(@buffer, @offset, @size, @clientBuffer, @flags); }
         finally { observation.Complete(); }
     }
@@ -66,7 +66,7 @@ internal static unsafe partial class OpenGLBufferStorageCalls
     /// <summary>Executes the exact external overload and completes its affected metadata publication.</summary>
     internal static void ExecuteExtNamedBufferStorageExternal(uint @buffer, IntPtr @offset, IntPtr @size, IntPtr @clientBuffer, MapBufferUsageMask @flags)
     {
-        var observation = StateCache.InvalidateNativeBufferStorage(unchecked((int)@buffer), true);
+        var observation = OpenGlStateCache.InvalidateNativeBufferStorage(unchecked((int)@buffer), true);
         try { GL.Ext.NamedBufferStorageExternal(@buffer, @offset, @size, @clientBuffer, @flags); }
         finally { observation.Complete(); }
     }

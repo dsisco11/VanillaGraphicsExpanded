@@ -237,9 +237,9 @@ public sealed class SparseStateCoverageTests(HeadlessGLFixture fixture) : Render
 
     #region Private
     /// <summary>Starts each test with unknown drawing knowledge on the registered hidden native context.</summary>
-    private StateCache Prepare()
+    private OpenGlStateCache Prepare()
     {
-        EnsureContextValid(); var cache = StateCache.Current; cache.InvalidateAll(); _ = cache.MaxDrawBuffers;
+        EnsureContextValid(); var cache = OpenGlStateCache.Current; cache.InvalidateAll(); _ = cache.MaxDrawBuffers;
         Assert.Equal(ErrorCode.NoError, GL.GetError()); return cache;
     }
     #endregion

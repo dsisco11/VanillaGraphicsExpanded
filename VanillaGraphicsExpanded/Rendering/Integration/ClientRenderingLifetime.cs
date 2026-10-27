@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
@@ -72,7 +73,7 @@ internal sealed class ClientRenderingLifetime
     {
         var owner = active;
         if (owner is null || owner.closed) return;
-        StateCache.Current.RequireOutsideEngineBoundary();
+        OpenGlStateCache.Current.RequireOutsideEngineBoundary();
         if (owner.context != default && owner.context != RenderContextRegistry.Current())
             throw new InvalidOperationException("Native shader reload requires the client rendering context.");
         foreach (var participant in owner.compute) participant.Validate();
@@ -107,7 +108,7 @@ internal sealed class ClientRenderingLifetime
     internal void Shutdown()
     {
         if (closed) return;
-        StateCache.Current.RequireOutsideEngineBoundary();
+        OpenGlStateCache.Current.RequireOutsideEngineBoundary();
         registry.RequireRetirementBoundary();
         foreach (var participant in compute) participant.Validate();
         closed = true;
@@ -134,7 +135,7 @@ internal sealed class ClientRenderingLifetime
     private void OnContextRetiring((nint Handle, long Generation) retiring)
     {
         if (retiring != context || closed) return;
-        StateCache.Current.AbandonEngineBoundary(context);
+        OpenGlStateCache.Current.AbandonEngineBoundary(context);
         Shutdown();
     }
     /// <summary>Releases a feature registration exactly once.</summary>

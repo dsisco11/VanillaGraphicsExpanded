@@ -14,7 +14,7 @@ internal static partial class OpenGLRHIContext
         {
             if (backend is null || !backend.IsCurrentContext)
             {
-                backend = new OpenGLBackend(StateCache.Current);
+                backend = new OpenGLBackend(OpenGlStateCache.Current);
                 context = new(backend);
             }
             backend.RequireContext();

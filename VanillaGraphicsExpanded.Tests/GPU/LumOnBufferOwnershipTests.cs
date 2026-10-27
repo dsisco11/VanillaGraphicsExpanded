@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Reflection;
 using OpenTK.Graphics.OpenGL;
@@ -20,7 +21,7 @@ public sealed class LumOnBufferOwnershipTests(HeadlessGLFixture fixture) : Rende
     public void SurfaceAlbedoCaptureSurvivesRecreationAndDisposal()
     {
         EnsureContextValid();
-        using var scope = StateCache.Current.BindFramebufferScope();
+        using var scope = OpenGlStateCache.Current.BindFramebufferScope();
         using var assets = new BinaryShaderApiFixture();
         using var terrain = new EngineTerrainBuffers(8, 8);
         var source = terrain.Output;

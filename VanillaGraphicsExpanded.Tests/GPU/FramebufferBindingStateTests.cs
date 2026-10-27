@@ -20,7 +20,7 @@ public sealed class FramebufferBindingStateTests(HeadlessGLFixture fixture) : Re
         EnsureContextValid();
         using var draw = DynamicGpuFramebuffer.CreateEmpty("Tests.DrawAlias");
         using var read = DynamicGpuFramebuffer.CreateEmpty("Tests.ReadAlias");
-        var cache = StateCache.Current;
+        var cache = OpenGlStateCache.Current;
         try
         {
             OpenGLFramebufferSelection.Bind(cache, FramebufferTarget.Framebuffer, 0);
@@ -51,7 +51,7 @@ public sealed class FramebufferBindingStateTests(HeadlessGLFixture fixture) : Re
         using var targetTexture = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba16f, Width = System.Math.Max(1, 2), Height = System.Math.Max(1, 2), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         using var source = DynamicGpuFramebuffer.CreateSingle(sourceTexture)!;
         using var target = DynamicGpuFramebuffer.CreateSingle(targetTexture)!;
-        var cache = StateCache.Current;
+        var cache = OpenGlStateCache.Current;
         try
         {
             FramebufferTestSetup.ClearAttachments(source, 1, 0, 0, 1);

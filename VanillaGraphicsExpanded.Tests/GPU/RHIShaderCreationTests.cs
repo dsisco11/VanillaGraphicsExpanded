@@ -89,8 +89,8 @@ public sealed class RHIShaderCreationTests(HeadlessGLFixture fixture)
 
     #region Private
     /// <summary>Starts an isolated native/manager interval for candidate ownership checks.</summary>
-    private void Start() { fixture.EnsureContextValid(); fixture.InitializeResourceDisposal(); StateCache.Current.InvalidateAll(); }
+    private void Start() { fixture.EnsureContextValid(); fixture.InitializeResourceDisposal(); OpenGlStateCache.Current.InvalidateAll(); }
     /// <summary>Drains original-context ownership and clears fixture-external selector knowledge.</summary>
-    private void Finish() { fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+    private void Finish() { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     #endregion
 }

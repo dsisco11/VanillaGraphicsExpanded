@@ -51,8 +51,8 @@ public sealed class PbrInstalledDepthTests(HeadlessGLFixture fixture) : RenderTe
         var depthAttachment = attachments.Own(GpuFramebufferAttachment.FromTexture(depth));
         using var target = DynamicGpuFramebuffer.Create(colors, depthAttachment);
         var layout = GpuProgramLayout.TryBuild(program.ProgramId);
-        OpenGLProgramSelection.Select(StateCache.Current, program.ProgramId);
-        OpenGLVertexSelection.Bind(StateCache.Current, vao.VertexArrayId);
+        OpenGLProgramSelection.Select(OpenGlStateCache.Current, program.ProgramId);
+        OpenGLVertexSelection.Bind(OpenGlStateCache.Current, vao.VertexArrayId);
         vertices.UploadData<float>([-1, -1, -.5f, 3, -1, -.5f, -1, 3, -.5f]);
         vertices.Bind();
         GL.EnableVertexAttribArray(0);

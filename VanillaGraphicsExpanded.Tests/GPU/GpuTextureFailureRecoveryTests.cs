@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using HarmonyLib;
 using OpenTK.Graphics.OpenGL;
@@ -38,7 +39,7 @@ public sealed class GpuTextureFailureRecoveryTests(HeadlessGLFixture fixture)
             Assert.True(GL.IsTexture(texture.TextureId));
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
 
     /// <summary>Controlled local mip selection keeps dimensions and availability without reading the descriptor.</summary>
@@ -116,7 +117,7 @@ public sealed class GpuTextureFailureRecoveryTests(HeadlessGLFixture fixture)
         using var texture = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba8, Width = System.Math.Max(1, 4), Height = System.Math.Max(1, 4), MipLevels = 2, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (2) - 1, Label = null }).RequireResource();
         using var image = GpuFramebufferAttachment.FromTexture(texture, mipLevel: 1);
         using var framebuffer = DynamicGpuFramebuffer.CreateEmpty();
-        using var binding = StateCache.Current.BindTextureScope(((GpuTextureRef)texture).Target, 0, texture.TextureId);
+        using var binding = OpenGlStateCache.Current.BindTextureScope(((GpuTextureRef)texture).Target, 0, texture.TextureId);
         // Simulate an external owner withdrawing and later restoring the selected image.
         GL.TexImage2D(TextureTarget.Texture2D, 1, PixelInternalFormat.Rgba8, 0, 0, 0, PixelFormat.Rgba, PixelType.UnsignedByte, IntPtr.Zero);
         GpuResourceManager.RecoverWrapperMetadata(texture, GpuTextureMetadataReader.Instance);

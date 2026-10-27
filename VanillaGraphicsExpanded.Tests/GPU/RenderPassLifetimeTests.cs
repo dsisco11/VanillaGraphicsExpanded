@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System;
 using System.Linq;
 using OpenTK.Graphics.OpenGL;
@@ -117,7 +118,7 @@ public sealed class RenderPassLifetimeTests(HeadlessGLFixture fixture) : RenderT
         using var incoming = CreateRenderTarget(2, 2, PixelInternalFormat.Rgba8);
         target.Bind();
         GL.DrawBuffers(3, [DrawBuffersEnum.None, DrawBuffersEnum.ColorAttachment1, DrawBuffersEnum.ColorAttachment0]);
-        StateCache.Current.Invalidate(EPipelineState.FramebufferRouting);
+        OpenGlStateCache.Current.Invalidate(EPipelineState.FramebufferRouting);
         incoming.Bind();
         using var surface = DynamicGpuFramebuffer.Wrap(target.FboId, width: 4, height: 4);
         var pass = new RHIRenderPassDescription(surface.SurfaceReference, [new(AttachmentIndex: 0), new(AttachmentIndex: 1)]);
@@ -170,7 +171,7 @@ public sealed class RenderPassLifetimeTests(HeadlessGLFixture fixture) : RenderT
         using var image = commands.CreateRenderbuffer(new() { Format = TextureFormat.Rgba8, Width = 4, Height = 4, Samples = requested }).RequireResource();
         var pass = new RHIRenderPassDescription([new(Image: RHIAttachment.FromRenderbuffer(image))]);
         int actual;
-        using (StateCache.Current.BindRenderbufferScope(image.RenderbufferId)) GL.GetRenderbufferParameter(RenderbufferTarget.Renderbuffer, RenderbufferParameterName.RenderbufferSamples, out actual);
+        using (OpenGlStateCache.Current.BindRenderbufferScope(image.RenderbufferId)) GL.GetRenderbufferParameter(RenderbufferTarget.Renderbuffer, RenderbufferParameterName.RenderbufferSamples, out actual);
         Assert.Equal(Math.Max(1, actual), commands.DescribeRenderTargets(pass).Samples);
     }
     #endregion

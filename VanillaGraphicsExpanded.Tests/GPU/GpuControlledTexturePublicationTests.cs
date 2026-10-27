@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
 using HarmonyLib;
@@ -38,7 +39,7 @@ public sealed class GpuControlledTexturePublicationTests(HeadlessGLFixture fixtu
         finally
         {
             AccessTools.Field(typeof(GpuSupport), "graphics").SetValue(null, original);
-            fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll();
+            fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll();
         }
     }
 
@@ -50,14 +51,14 @@ public sealed class GpuControlledTexturePublicationTests(HeadlessGLFixture fixtu
         try
         {
             using var texture = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba8, Width = System.Math.Max(1, 8), Height = System.Math.Max(1, 8), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
-            using var binding = StateCache.Current.BindTextureScope(((GpuTextureRef)texture).Target, 0, texture.TextureId);
+            using var binding = OpenGlStateCache.Current.BindTextureScope(((GpuTextureRef)texture).Target, 0, texture.TextureId);
             VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLTexturesCalls.ExecuteCoreTexImage2D(TextureTarget.Texture2D, int.MaxValue, PixelInternalFormat.Rgba8,
                 1, 1, 0, PixelFormat.Rgba, PixelType.UnsignedByte, IntPtr.Zero);
             Assert.Equal(8, texture.Width);
             Assert.Equal(ErrorCode.InvalidValue, GL.GetError());
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
 
     /// <summary>A later mip allocation exception retires the private native name without handing out partial metadata.</summary>
@@ -87,7 +88,7 @@ public sealed class GpuControlledTexturePublicationTests(HeadlessGLFixture fixtu
             Assert.False(GL.IsTexture(fault.Texture));
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
 
     /// <summary>Independent narrow recovery cannot publish while an explicit operation owns the texture.</summary>
@@ -115,7 +116,7 @@ public sealed class GpuControlledTexturePublicationTests(HeadlessGLFixture fixtu
             Assert.False(entry.MetadataAvailable);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
 
     /// <summary>External parameter and single-image changes retain unrelated images and storage revisions.</summary>
@@ -127,7 +128,7 @@ public sealed class GpuControlledTexturePublicationTests(HeadlessGLFixture fixtu
         {
             using var texture = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba8, Width = System.Math.Max(1, 16), Height = System.Math.Max(1, 8), MipLevels = 4, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (4) - 1, Label = null }).RequireResource();
 
-            using var binding = StateCache.Current.BindTextureScope(TextureTarget.Texture2D, 0, texture.TextureId);
+            using var binding = OpenGlStateCache.Current.BindTextureScope(TextureTarget.Texture2D, 0, texture.TextureId);
             var entry = Assert.IsType<GpuResourceMetadataEntry<GpuTextureMetadata>>(
                 GpuResourceManagerSystem.CurrentManager!.GetResourceRegistration(texture));
             var original = entry.Metadata.Levels;
@@ -147,7 +148,7 @@ public sealed class GpuControlledTexturePublicationTests(HeadlessGLFixture fixtu
             Assert.Equal((int)PixelInternalFormat.Rgba16f, format);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
 
     /// <summary>Immutable generation is content-only; mutable generation advances storage only when images change.</summary>
@@ -168,7 +169,7 @@ public sealed class GpuControlledTexturePublicationTests(HeadlessGLFixture fixtu
             Assert.NotNull(GpuResourceManager.CreateTexture(request, recipient, out var handle));
             var entry = Assert.IsType<GpuResourceMetadataEntry<GpuTextureMetadata>>(
                 GpuResourceManagerSystem.CurrentManager!.GetResourceRegistration(recipient));
-            using var binding = StateCache.Current.BindTextureScope(TextureTarget.Texture2D, 0, (int)handle.Id);
+            using var binding = OpenGlStateCache.Current.BindTextureScope(TextureTarget.Texture2D, 0, (int)handle.Id);
             ulong storage = entry.StorageRevision;
             VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLTexturesCalls.ExecuteCoreGenerateMipmap(GenerateMipmapTarget.Texture2D);
             Assert.Equal(4, entry.Metadata.Levels.Length);
@@ -180,7 +181,7 @@ public sealed class GpuControlledTexturePublicationTests(HeadlessGLFixture fixtu
             Assert.Equal(1, lastWidth);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
 
     /// <summary>Multisample requests require explicit sample-location intent and publish a capability-resolved sample count.</summary>
@@ -214,7 +215,7 @@ public sealed class GpuControlledTexturePublicationTests(HeadlessGLFixture fixtu
             Assert.True(samples >= 1);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
 
     /// <summary>Sized texture creation and mip selection preserve complete image metadata.</summary>
@@ -245,7 +246,7 @@ public sealed class GpuControlledTexturePublicationTests(HeadlessGLFixture fixtu
             Assert.Equal(2, last);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
 
     /// <summary>A view publishes dimensions and selected layer range matching its native storage.</summary>
@@ -272,7 +273,7 @@ public sealed class GpuControlledTexturePublicationTests(HeadlessGLFixture fixtu
             Assert.True(view.IsValid);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
     #endregion
 

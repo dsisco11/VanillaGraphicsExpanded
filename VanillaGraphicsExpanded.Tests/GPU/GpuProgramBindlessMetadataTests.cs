@@ -25,7 +25,7 @@ public sealed partial class GpuProgramMetadataInterceptionTests
             output.WriteLine("Native GL_ARB_bindless_texture="+supported+"; this case uses a controlled native boundary, not native handle residency.");
             PatchOpaqueBoundary(harmony,variant);
             using var program=CreateProgram(out int shader,true); VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Shader, shader));
-            var layout=PrepareArrayLayout(program); OpenGLProgramSelection.Select(StateCache.Current, program.ProgramId);
+            var layout=PrepareArrayLayout(program); OpenGLProgramSelection.Select(OpenGlStateCache.Current, program.ProgramId);
             using var alias=new ProgramAlias(program.ProgramId); GpuResourceManager.AcquireWrapperMetadata(alias,GpuProgramMetadataReader.Instance);
             var manager=GpuResourceManagerSystem.CurrentManager!; var entry=(GpuResourceMetadataEntry<GpuProgramMetadata>)manager.GetResourceRegistration(program)!;
             var snapshot=entry.Metadata; int location=GL.GetUniformLocation(program.ProgramId,"inputs[0]");
@@ -39,7 +39,7 @@ public sealed partial class GpuProgramMetadataInterceptionTests
             Assert.True(manager.IsResourceMetadataAvailable(replacement)); Assert.NotSame(entry,manager.GetResourceRegistration(replacement));
             Assert.Equal(ErrorCode.NoError,GL.GetError());
         }
-        finally { OpenGLProgramSelection.Select(StateCache.Current, 0); harmony.UnpatchAll(harmony.Id); fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { OpenGLProgramSelection.Select(OpenGlStateCache.Current, 0); harmony.UnpatchAll(harmony.Id); fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
     /// <summary>Ignored locations, empty vectors and ordinary numeric destinations do not withdraw unit metadata.</summary>
     [Theory]
@@ -49,13 +49,13 @@ public sealed partial class GpuProgramMetadataInterceptionTests
         fixture.EnsureContextValid(); fixture.InitializeResourceDisposal(); var harmony=Patch(nameof(SetOpaqueHandle));
         try
         {
-            PatchOpaqueBoundary(harmony,2); using var program=CreateProgram(out int shader); VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Shader, shader)); OpenGLProgramSelection.Select(StateCache.Current, program.ProgramId);
+            PatchOpaqueBoundary(harmony,2); using var program=CreateProgram(out int shader); VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Shader, shader)); OpenGLProgramSelection.Select(OpenGlStateCache.Current, program.ProgramId);
             var manager=GpuResourceManagerSystem.CurrentManager!; var entry=manager.GetResourceRegistration(program)!; ulong revision=entry.MetadataRevision;
             int location=mode==0?-1:GL.GetUniformLocation(program.ProgramId,mode==1?"numericValue":"inputs[0]");
             SetOpaqueHandle(2,program.ProgramId,location,mode==2?0:1,ulong.MaxValue);
             Assert.True(manager.IsResourceMetadataAvailable(program)); Assert.Equal(revision,entry.MetadataRevision); Assert.Equal(ErrorCode.NoError,GL.GetError());
         }
-        finally { OpenGLProgramSelection.Select(StateCache.Current, 0); harmony.UnpatchAll(harmony.Id); fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { OpenGLProgramSelection.Select(OpenGlStateCache.Current, 0); harmony.UnpatchAll(harmony.Id); fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
     /// <summary>Real opaque sampler and image handles pass through native setters while withdrawing unit-based preparation.</summary>
     [Theory]
@@ -92,14 +92,14 @@ public sealed partial class GpuProgramMetadataInterceptionTests
                 ulong handle=unchecked((ulong)(image?GL.Arb.GetImageHandle((uint)texture.TextureId,0,false,0,(PixelFormat)SizedInternalFormat.Rgba32f):GL.Arb.GetTextureHandle((uint)texture.TextureId)));
                 Assert.NotEqual(0UL,handle); Assert.Equal(ErrorCode.NoError,GL.GetError());
                 output.WriteLine($"Native {(image?"image":"sampler")} handle=0x{handle:X16}; no residency needed for assignment/readback (no shader execution).");
-                OpenGLProgramSelection.Select(StateCache.Current, program.ProgramId); int location=GL.GetUniformLocation(program.ProgramId,image?"images[0]":"inputs[0]");
+                OpenGLProgramSelection.Select(OpenGlStateCache.Current, program.ProgramId); int location=GL.GetUniformLocation(program.ProgramId,image?"images[0]":"inputs[0]");
                 SetOpaqueHandle(variant,program.ProgramId,location,1,handle); Assert.Equal(ErrorCode.NoError,GL.GetError());
                 GL.Arb.GetUniform((uint)program.ProgramId,location,out ulong actual); Assert.Equal(handle,actual); Assert.Equal(ErrorCode.NoError,GL.GetError());
                 Assert.False(manager.IsResourceMetadataAvailable(program)); Assert.False(manager.IsResourceMetadataAvailable(alias)); Assert.Throws<InvalidOperationException>(()=>layout.BinaryInterface);
                 using var replacement=CreateProgram(out int replacementShader,true); VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Shader, replacementShader)); Assert.True(manager.IsResourceMetadataAvailable(replacement));
             }
         }
-        finally { OpenGLProgramSelection.Select(StateCache.Current, 0); if(shader!=0) VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Shader, shader)); if(native!=0) VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Program, native)); harmony.UnpatchAll(harmony.Id); fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { OpenGLProgramSelection.Select(OpenGlStateCache.Current, 0); if(shader!=0) VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Shader, shader)); if(native!=0) VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Program, native)); harmony.UnpatchAll(harmony.Id); fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
     #endregion
     #region Private

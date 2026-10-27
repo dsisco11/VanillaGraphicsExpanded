@@ -15,9 +15,9 @@ internal static class FramebufferTestSetup
     /// <summary>Selects an engine fixture destination and viewport without changing production rendering APIs.</summary>
     internal static void BindForEngineRendering(GpuFramebuffer target)
     {
-        OpenGLFramebufferSelection.Bind(StateCache.Current, FramebufferTarget.Framebuffer, target.FboId);
+        OpenGLFramebufferSelection.Bind(OpenGlStateCache.Current, FramebufferTarget.Framebuffer, target.FboId);
         GL.Viewport(0, 0, target.Width, target.Height);
-        StateCache.Current.Invalidate(EPipelineState.Viewport);
+        OpenGlStateCache.Current.Invalidate(EPipelineState.Viewport);
     }
     /// <summary>Declares known attachment selections; external targets retain their original surface identity.</summary>
     internal static RHIRenderPassDescription DescribeAttachments(GpuFramebuffer target,

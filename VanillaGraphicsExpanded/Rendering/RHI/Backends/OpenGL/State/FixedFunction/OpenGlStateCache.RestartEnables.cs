@@ -1,0 +1,45 @@
+using System;
+using OpenTK.Graphics.OpenGL;
+
+namespace VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
+
+/// <summary>Owns cached assembly enable transitions.</summary>
+internal sealed partial class OpenGlStateCache
+{
+    #region Internal API
+    /// <summary>Establishes PrimitiveRestart, preserving independent category knowledge and optional diagnostics.</summary>
+    internal void SetPrimitiveRestartEnabled(bool enabled)
+    {
+        ValidateBoundaryMutation(assembly: PrimitiveAssemblyStateKnowledge.PrimitiveRestart, completeGraphics: true);
+        if (assemblyKnown.HasFlag(PrimitiveAssemblyStateKnowledge.PrimitiveRestart) && assembly.PrimitiveRestart == enabled) return;
+        // Withhold knowledge until the native operation and any enabled diagnostics succeed.
+        assemblyKnown &= ~PrimitiveAssemblyStateKnowledge.PrimitiveRestart;
+        if (GlDebug.CheckStateTransitions && !restoringBoundary) CheckBoundaryNativeError();
+        if (enabled) OpenGLStateEffects.Enable(EnableCap.PrimitiveRestart); else OpenGLStateEffects.Disable(EnableCap.PrimitiveRestart);
+#if DEBUG
+        FixedFunctionCalls++;
+#endif
+        if (GlDebug.CheckStateTransitions && !restoringBoundary) CheckBoundaryNativeError();
+        assembly.PrimitiveRestart = enabled;
+        assemblyKnown |= PrimitiveAssemblyStateKnowledge.PrimitiveRestart;
+    }
+
+    /// <summary>Establishes PrimitiveRestartFixedIndex, preserving independent category knowledge and optional diagnostics.</summary>
+    internal void SetPrimitiveRestartFixedIndexEnabled(bool enabled)
+    {
+        ValidateBoundaryMutation(assembly: PrimitiveAssemblyStateKnowledge.PrimitiveRestartFixedIndex, completeGraphics: true);
+
+        if (assemblyKnown.HasFlag(PrimitiveAssemblyStateKnowledge.PrimitiveRestartFixedIndex) && assembly.PrimitiveRestartFixedIndex == enabled) return;
+        // Withhold knowledge until the native operation and any enabled diagnostics succeed.
+        assemblyKnown &= ~PrimitiveAssemblyStateKnowledge.PrimitiveRestartFixedIndex;
+        if (GlDebug.CheckStateTransitions && !restoringBoundary) CheckBoundaryNativeError();
+        if (enabled) OpenGLStateEffects.Enable(EnableCap.PrimitiveRestartFixedIndex); else OpenGLStateEffects.Disable(EnableCap.PrimitiveRestartFixedIndex);
+#if DEBUG
+        FixedFunctionCalls++;
+#endif
+        if (GlDebug.CheckStateTransitions && !restoringBoundary) CheckBoundaryNativeError();
+        assembly.PrimitiveRestartFixedIndex = enabled;
+        assemblyKnown |= PrimitiveAssemblyStateKnowledge.PrimitiveRestartFixedIndex;
+    }
+    #endregion
+}

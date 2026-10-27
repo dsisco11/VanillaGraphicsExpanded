@@ -35,7 +35,7 @@ public sealed class TerrainTessellationEngineDrawTests : RenderTestBase
         GL.Disable(EnableCap.CullFace); GL.Disable(EnableCap.SampleCoverage); GL.Disable(EnableCap.SampleMask);
         for(int index=0;index<GpuSupport.Graphics.MaxClipDistances;index++)GL.Disable(EnableCap.ClipDistance0+index);
         GL.ColorMask(true,true,true,true); GL.PolygonMode(TriangleFace.FrontAndBack,PolygonMode.Fill);
-        StateCache.Current.InvalidateAll();
+        OpenGlStateCache.Current.InvalidateAll();
         using var shaders = new TerrainShaderTestFixture();
         int vertex = shaders.Compile(ShaderType.VertexShader, VertexSource);
         int fragment = shaders.Compile(ShaderType.FragmentShader, FragmentSource);
@@ -46,17 +46,17 @@ public sealed class TerrainTessellationEngineDrawTests : RenderTestBase
         var previous = ShaderProgramBase.CurrentShaderProgram;
         var previousMode = ConfigModSystem.Config.MaterialAtlas.TerrainSurfaceDetailMode;
         bool previousHook = TerrainTessellationPrograms.DrawHookAvailable; bool previousMeshHook = TerrainTessellationPrograms.MeshDrawHookAvailable;
-        int previousPatch = StateCache.Current.PatchVertices;
-        var previousProvoking = StateCache.Current.ProvokingVertex;
+        int previousPatch = OpenGlStateCache.Current.PatchVertices;
+        var previousProvoking = OpenGlStateCache.Current.ProvokingVertex;
         var previousLog = TerrainTessellationPrograms.Log;
         string diagnostic = string.Empty;
         try
         {
-            StateCache.Current.SetProvokingVertex(ProvokingVertexMode.LastVertexConvention);
+            OpenGlStateCache.Current.SetProvokingVertex(ProvokingVertexMode.LastVertexConvention);
             TerrainTessellationPrograms.Log = message => diagnostic += message;
             harmony.CreateClassProcessor(typeof(TerrainTessellationDrawHook)).Patch();
             Assert.True(TerrainTessellationPrograms.DrawHookAvailable);
-            OpenGLVertexSelection.Bind(StateCache.Current, vao); GL.BindBuffer(BufferTarget.ElementArrayBuffer, indices);
+            OpenGLVertexSelection.Bind(OpenGlStateCache.Current, vao); GL.BindBuffer(BufferTarget.ElementArrayBuffer, indices);
             // Grouped draws skip sentinel indices; ordinary draws use the first triangle directly.
             GL.BufferData(BufferTarget.ElementArrayBuffer, 6 * sizeof(uint),
                 ordinaryDraw ? new uint[] { 0, 1, 2, 0, 1, 2 } : new uint[] { 2, 2, 2, 0, 1, 2 }, BufferUsageHint.StaticDraw);
@@ -65,7 +65,7 @@ public sealed class TerrainTessellationEngineDrawTests : RenderTestBase
             using var camera = TestFrameCamera.CreateIdentity(8,8);
             Assert.True(VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindUniformSnapshot(GpuBindingRegistry.Ubo.Frame, camera.Capture()));
             FramebufferTestSetup.BindForEngineRendering(target); GL.Disable(EnableCap.DepthTest); GL.Disable(EnableCap.Blend); GL.Disable(EnableCap.CullFace);
-            OpenGLProgramSelection.Select(StateCache.Current, owner.ProgramId);
+            OpenGLProgramSelection.Select(OpenGlStateCache.Current, owner.ProgramId);
             GL.DrawElements(PrimitiveType.Triangles, 3, DrawElementsType.UnsignedInt, 3 * sizeof(uint));
             float[] expected = target[0].ReadPixels();
             ConfigModSystem.Config.MaterialAtlas.TerrainSurfaceDetailMode = 2;
@@ -75,12 +75,12 @@ public sealed class TerrainTessellationEngineDrawTests : RenderTestBase
             owner.PopulateDisplacementUniforms();
             ShaderProgramBase.CurrentShaderProgram = owner;
             Assert.True(TerrainTessellationPrograms.Active, diagnostic);
-            OpenGLProgramSelection.Select(StateCache.Current, owner.ProgramId);
+            OpenGLProgramSelection.Select(OpenGlStateCache.Current, owner.ProgramId);
             owner.Uniform("vge_displacementTex", 13);
             owner.Uniform("vge_displacementRecords", 14);
             owner.Uniform("vge_normalDepthTex", 15);
             GL.ClearColor(0, 0, 0, 0); GL.Clear(ClearBufferMask.ColorBufferBit);
-            StateCache.Current.SetPatchVertices(5);
+            OpenGlStateCache.Current.SetPatchVertices(5);
             // Installed IL uses no instance fields: this avoids creating windows, audio or a game.
             var platform = (ClientPlatformWindows)RuntimeHelpers.GetUninitializedObject(typeof(ClientPlatformWindows));
             // Uninitialized engine owners must not finalize absent game state; this test releases GL resources explicitly.
@@ -110,10 +110,10 @@ public sealed class TerrainTessellationEngineDrawTests : RenderTestBase
             TerrainTessellationPrograms.Forget(owner); ShaderProgramBase.CurrentShaderProgram = previous;
             ConfigModSystem.Config.MaterialAtlas.TerrainSurfaceDetailMode = previousMode;
             TerrainTessellationPrograms.DrawHookAvailable = previousHook; TerrainTessellationPrograms.MeshDrawHookAvailable = previousMeshHook;
-            StateCache.Current.SetPatchVertices(previousPatch);
-            StateCache.Current.SetProvokingVertex(previousProvoking);
+            OpenGlStateCache.Current.SetPatchVertices(previousPatch);
+            OpenGlStateCache.Current.SetProvokingVertex(previousProvoking);
             TerrainTessellationPrograms.Log = previousLog;
-            OpenGLProgramSelection.Select(StateCache.Current, 0); OpenGLVertexSelection.Bind(StateCache.Current, 0); GL.DeleteBuffer(indices);
+            OpenGLProgramSelection.Select(OpenGlStateCache.Current, 0); OpenGLVertexSelection.Bind(OpenGlStateCache.Current, 0); GL.DeleteBuffer(indices);
             GpuProgramObject.Adopt(owner.ProgramId).Dispose();
         }
     }

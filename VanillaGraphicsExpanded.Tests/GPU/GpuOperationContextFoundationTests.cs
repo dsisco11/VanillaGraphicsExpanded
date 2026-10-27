@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
@@ -21,10 +22,10 @@ public sealed class GpuOperationContextFoundationTests(HeadlessGLFixture fixture
     public void GuardAdmissionAndDeletionAreContextScoped()
     {
         fixture.EnsureContextValid();
-        var cache = StateCache.Current;
+        var cache = OpenGlStateCache.Current;
         var origin = cache.EnterResourceOperation(new(GpuResourceKind.Buffer, 123));
         var temporaryOwner = new object();
-        StateCache.ResourceOperationGuard? next = null;
+        OpenGlStateCache.ResourceOperationGuard? next = null;
         try
         {
             // Re-register the same native fixture with a new lifetime; this checks guard identity, not a second native context.
@@ -42,7 +43,7 @@ public sealed class GpuOperationContextFoundationTests(HeadlessGLFixture fixture
             cache.ExitResourceOperation(origin);
             RenderContextRegistry.Retire(temporaryOwner);
             RenderContextRegistry.RegisterCurrent(fixture, static _ => true);
-            StateCache.Current.InvalidateAll();
+            OpenGlStateCache.Current.InvalidateAll();
         }
     }
 
@@ -70,7 +71,7 @@ public sealed class GpuOperationContextFoundationTests(HeadlessGLFixture fixture
         {
             RenderContextRegistry.RegisterCurrent(fixture, static _ => true);
             if (id != 0 && GL.IsBuffer(id)) RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Buffer, id));
-            fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll();
+            fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll();
         }
     }
 

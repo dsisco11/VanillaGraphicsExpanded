@@ -35,8 +35,8 @@ methods. Buffer-texture views use the same retained texture reference as other s
 ## Command results and queries
 
 The OpenGL RHI backend owns buffer/image, synchronization, query-result, readback, capture and optional
-external-object, framebuffer, vertex-array and executable native dispatch; StateCache retains selector
-knowledge and operation guards. Manager-owned readers request native discovery through the context's
+external-object, framebuffer, vertex-array, executable and fixed-function native dispatch.
+`OpenGlStateCache` retains selector knowledge, eligible transition suppression and operation guards. Manager-owned readers request native discovery through the context's
 internal execution contract. Controlled operations publish inputs,
 guaranteed defaults and derived facts. Existing failure handling remains authoritative: reported failure
 does not publish success, and interruption withdraws affected knowledge. No universal post-command query,
@@ -294,10 +294,10 @@ unavailable facts reject active submission. Shader compatibility history examine
 metadata revisions even when the reference value compares equal. Texture-reference retention does not
 acquire a pass guard or prevent explicit owner disposal.
 
-Resource validity and metadata availability do not prove that an object is bound. StateCache separately
+Resource validity and metadata availability do not prove that an object is bound. OpenGlStateCache separately
 tracks selectors, image parameters, buffer ranges and framebuffer routing. Controlled known-equal bindings
 can be suppressed. Arbitrary external selectors preserve exact execution and withdraw uncertain knowledge
-for lazy recovery. Fallback scopes preserve separate read/draw framebuffer selections and original VAO
+for lazy recovery. Required selector-restoration scopes preserve separate read/draw framebuffer selections and original VAO
 element-buffer associations. Vertex helpers retain authored fields and resolve only required unknown
 facts through the manager; the canonical VAO schema contains no full layout mirror.
 
@@ -312,7 +312,7 @@ run in its originating context. Weak recipients are pruned during acquisition, p
 ## External coverage and consumers
 
 Compiler-checked adapters redirect supported calls discovered in the built-in engine assemblies through
-backend resource modules or the remaining StateCache operation families. Allowed OpenTK owners are GL (also named Core by adapters), GL.Ext and GL.Arb. Other auxiliary
+the focused OpenGL backend execution modules. Allowed OpenTK owners are GL (also named Core by adapters), GL.Ext and GL.Arb. Other auxiliary
 owners and legacy fixed-function facilities are outside interception. Generic discovery handles concrete
 value-type instantiations from built-in assembly references; arbitrary mods and dynamic callers are outside
 that boundary. A registry entry does not extend interception to unsupported callers.
@@ -322,3 +322,24 @@ depth directly. Their content readiness, upload/generation certificates, frame q
 selection remain separate from resource metadata. Unsupported raw sampler IDs retain conservative validation
 and slot invalidation. See [shader bindings](Rendering.ShaderBindingState.md#prepared-resource-submission)
 and [cloud ownership](PBR.Clouds.md#borrowed-map-contract) for consumer contracts.
+
+## Backend state ownership
+
+`OpenGlStateCache` is internal to `Rendering/RHI/Backends/OpenGL/State`. It owns the existing thread-local
+executed knowledge, independent known-field masks, original-context selection, binding/routing keys,
+operation guards and selective restoration. Its Bindings, FixedFunction, Observation and Boundaries
+modules separate those responsibilities. It has no resource registry, native allocation API or arbitrary
+callback execution API. Manager operation services consult guards without issuing native work.
+
+Admitted managed fixed-state transitions use the stateless `OpenGLStateEffects` modules to issue core
+4.5 native effects. These modules hold no knowledge, suppression, metadata or alternative dispatch path.
+The cache withholds the affected known bit before dispatch and commits it only after the effect succeeds.
+Unknown incoming selectors and selective restoration facts are queried by the cache's native observation
+services. Baseline independent blending, clip control, sample shading and fixed-index restart have no
+older-context fallback. Existing limits and profile distinctions remain authoritative.
+
+Exact engine fixed-state calls live in backend `State/External/EngineStateCalls` modules. They preserve
+the original overload, arguments and native error behavior, issue one native call without suppression or
+normalization, and withdraw only affected state fields. Invalid native arguments never become a
+managed setter exception. Metadata/resource adapters use their corresponding focused backend modules.
+Native calls in these modules are outside rewritten engine call sites, so forwarding cannot recurse.

@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System;
 using System.Text.Json;
 using System.Runtime.InteropServices;
@@ -62,7 +63,7 @@ public sealed class ProductionSkyDrawTests(HeadlessGLFixture fixture, ITestOutpu
         scene.ReadPrefixes = false;
         scene.Initialize();
 #if DEBUG
-        long start = StateCache.Current.FixedFunctionCalls;
+        long start = OpenGlStateCache.Current.FixedFunctionCalls;
 #endif
         List<string> standalone;
         using (var capture = new GraphicsTransitionCapture())
@@ -71,14 +72,14 @@ public sealed class ProductionSkyDrawTests(HeadlessGLFixture fixture, ITestOutpu
             standalone = [.. capture.Calls];
         }
 #if DEBUG
-        long standaloneFixed = StateCache.Current.FixedFunctionCalls - start;
+        long standaloneFixed = OpenGlStateCache.Current.FixedFunctionCalls - start;
 #endif
         Assert.Equal(4, scene.Contexts.Count);
         scene.AssertRestored();
         float[][] expected = scene.Read();
         scene.Initialize();
 #if DEBUG
-        start = StateCache.Current.FixedFunctionCalls;
+        start = OpenGlStateCache.Current.FixedFunctionCalls;
 #endif
         List<string> shared;
         using (var capture = new GraphicsTransitionCapture())
@@ -87,7 +88,7 @@ public sealed class ProductionSkyDrawTests(HeadlessGLFixture fixture, ITestOutpu
             shared = [.. capture.Calls];
         }
 #if DEBUG
-        long sharedFixed = StateCache.Current.FixedFunctionCalls - start;
+        long sharedFixed = OpenGlStateCache.Current.FixedFunctionCalls - start;
 #endif
         Assert.Single(scene.Contexts);
         scene.AssertRestored();

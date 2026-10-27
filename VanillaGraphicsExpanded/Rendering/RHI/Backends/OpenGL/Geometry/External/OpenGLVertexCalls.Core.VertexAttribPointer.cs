@@ -10,7 +10,7 @@ internal static unsafe partial class OpenGLVertexCalls
     /// <summary>Executes the exact overload and completes its vertex metadata operation.</summary>
     internal static void ExecuteCoreVertexAttribPointer(int @index, int @size, VertexAttribPointerType @type, bool @normalized, int @stride, int @offset)
     {
-        var observation = StateCache.BeginNativeVertexMetadata(0, false, false);
+        var observation = OpenGlStateCache.BeginNativeVertexMetadata(0, false, false);
         bool returned = false;
         try
         {
@@ -27,7 +27,7 @@ internal static unsafe partial class OpenGLVertexCalls
     /// <summary>Executes the exact overload and completes its vertex metadata operation.</summary>
     internal static void ExecuteCoreVertexAttribPointer(int @index, int @size, VertexAttribPointerType @type, bool @normalized, int @stride, IntPtr @pointer)
     {
-        var observation = StateCache.BeginNativeVertexMetadata(0, false, false);
+        var observation = OpenGlStateCache.BeginNativeVertexMetadata(0, false, false);
         bool returned = false;
         try
         {
@@ -44,7 +44,7 @@ internal static unsafe partial class OpenGLVertexCalls
     /// <summary>Executes the exact overload and completes its vertex metadata operation.</summary>
     internal static void ExecuteCoreVertexAttribPointer(uint @index, int @size, VertexAttribPointerType @type, bool @normalized, int @stride, IntPtr @pointer)
     {
-        var observation = StateCache.BeginNativeVertexMetadata(0, false, false);
+        var observation = OpenGlStateCache.BeginNativeVertexMetadata(0, false, false);
         bool returned = false;
         try
         {
@@ -62,7 +62,7 @@ internal static unsafe partial class OpenGLVertexCalls
     internal static void ExecuteCoreVertexAttribPointer<T5>(int @index, int @size, VertexAttribPointerType @type, bool @normalized, int @stride, ref T5 @pointer)
         where T5 : struct
     {
-        var observation = StateCache.BeginNativeVertexMetadata(0, false, false);
+        var observation = OpenGlStateCache.BeginNativeVertexMetadata(0, false, false);
         bool returned = false;
         try
         {
@@ -80,7 +80,7 @@ internal static unsafe partial class OpenGLVertexCalls
     internal static void ExecuteCoreVertexAttribPointer<T5>(int @index, int @size, VertexAttribPointerType @type, bool @normalized, int @stride, T5[,,] @pointer)
         where T5 : struct
     {
-        var observation = StateCache.BeginNativeVertexMetadata(0, false, false);
+        var observation = OpenGlStateCache.BeginNativeVertexMetadata(0, false, false);
         bool returned = false;
         try
         {
@@ -98,7 +98,7 @@ internal static unsafe partial class OpenGLVertexCalls
     internal static void ExecuteCoreVertexAttribPointer<T5>(int @index, int @size, VertexAttribPointerType @type, bool @normalized, int @stride, T5[,] @pointer)
         where T5 : struct
     {
-        var observation = StateCache.BeginNativeVertexMetadata(0, false, false);
+        var observation = OpenGlStateCache.BeginNativeVertexMetadata(0, false, false);
         bool returned = false;
         try
         {
@@ -116,7 +116,7 @@ internal static unsafe partial class OpenGLVertexCalls
     internal static void ExecuteCoreVertexAttribPointer<T5>(int @index, int @size, VertexAttribPointerType @type, bool @normalized, int @stride, T5[] @pointer)
         where T5 : struct
     {
-        var observation = StateCache.BeginNativeVertexMetadata(0, false, false);
+        var observation = OpenGlStateCache.BeginNativeVertexMetadata(0, false, false);
         bool returned = false;
         try
         {
@@ -134,7 +134,7 @@ internal static unsafe partial class OpenGLVertexCalls
     internal static void ExecuteCoreVertexAttribPointer<T5>(uint @index, int @size, VertexAttribPointerType @type, bool @normalized, int @stride, ref T5 @pointer)
         where T5 : struct
     {
-        var observation = StateCache.BeginNativeVertexMetadata(0, false, false);
+        var observation = OpenGlStateCache.BeginNativeVertexMetadata(0, false, false);
         bool returned = false;
         try
         {
@@ -152,7 +152,7 @@ internal static unsafe partial class OpenGLVertexCalls
     internal static void ExecuteCoreVertexAttribPointer<T5>(uint @index, int @size, VertexAttribPointerType @type, bool @normalized, int @stride, T5[,,] @pointer)
         where T5 : struct
     {
-        var observation = StateCache.BeginNativeVertexMetadata(0, false, false);
+        var observation = OpenGlStateCache.BeginNativeVertexMetadata(0, false, false);
         bool returned = false;
         try
         {
@@ -170,7 +170,7 @@ internal static unsafe partial class OpenGLVertexCalls
     internal static void ExecuteCoreVertexAttribPointer<T5>(uint @index, int @size, VertexAttribPointerType @type, bool @normalized, int @stride, T5[,] @pointer)
         where T5 : struct
     {
-        var observation = StateCache.BeginNativeVertexMetadata(0, false, false);
+        var observation = OpenGlStateCache.BeginNativeVertexMetadata(0, false, false);
         bool returned = false;
         try
         {
@@ -188,7 +188,7 @@ internal static unsafe partial class OpenGLVertexCalls
     internal static void ExecuteCoreVertexAttribPointer<T5>(uint @index, int @size, VertexAttribPointerType @type, bool @normalized, int @stride, T5[] @pointer)
         where T5 : struct
     {
-        var observation = StateCache.BeginNativeVertexMetadata(0, false, false);
+        var observation = OpenGlStateCache.BeginNativeVertexMetadata(0, false, false);
         bool returned = false;
         try
         {

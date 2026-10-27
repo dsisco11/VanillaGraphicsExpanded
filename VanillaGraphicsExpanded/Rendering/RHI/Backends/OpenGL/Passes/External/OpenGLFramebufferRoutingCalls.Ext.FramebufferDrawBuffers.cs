@@ -10,7 +10,7 @@ internal static unsafe partial class OpenGLFramebufferRoutingCalls
     /// <summary>Executes the exact external overload once and completes its selector or routing bookkeeping.</summary>
     internal static void ExecuteExtFramebufferDrawBuffers(int @framebuffer, int @n, ref DrawBufferMode @bufs)
     {
-        var observation = StateCache.BeginNativeFramebufferRouting(unchecked((int)@framebuffer), true, false);
+        var observation = OpenGlStateCache.BeginNativeFramebufferRouting(unchecked((int)@framebuffer), true, false);
         bool returned = false;
         try
         {
@@ -27,7 +27,7 @@ internal static unsafe partial class OpenGLFramebufferRoutingCalls
     /// <summary>Executes the exact external overload once and completes its selector or routing bookkeeping.</summary>
     internal static void ExecuteExtFramebufferDrawBuffers(int @framebuffer, int @n, DrawBufferMode[] @bufs)
     {
-        var observation = StateCache.BeginNativeFramebufferRouting(unchecked((int)@framebuffer), true, false);
+        var observation = OpenGlStateCache.BeginNativeFramebufferRouting(unchecked((int)@framebuffer), true, false);
         bool returned = false;
         try
         {
@@ -44,7 +44,7 @@ internal static unsafe partial class OpenGLFramebufferRoutingCalls
     /// <summary>Executes the exact external overload once and completes its selector or routing bookkeeping.</summary>
     internal static void ExecuteExtFramebufferDrawBuffers(int @framebuffer, int @n, DrawBufferMode* @bufs)
     {
-        var observation = StateCache.BeginNativeFramebufferRouting(unchecked((int)@framebuffer), true, false);
+        var observation = OpenGlStateCache.BeginNativeFramebufferRouting(unchecked((int)@framebuffer), true, false);
         bool returned = false;
         try
         {
@@ -61,7 +61,7 @@ internal static unsafe partial class OpenGLFramebufferRoutingCalls
     /// <summary>Executes the exact external overload once and completes its selector or routing bookkeeping.</summary>
     internal static void ExecuteExtFramebufferDrawBuffers(uint @framebuffer, int @n, ref DrawBufferMode @bufs)
     {
-        var observation = StateCache.BeginNativeFramebufferRouting(unchecked((int)@framebuffer), true, false);
+        var observation = OpenGlStateCache.BeginNativeFramebufferRouting(unchecked((int)@framebuffer), true, false);
         bool returned = false;
         try
         {
@@ -78,7 +78,7 @@ internal static unsafe partial class OpenGLFramebufferRoutingCalls
     /// <summary>Executes the exact external overload once and completes its selector or routing bookkeeping.</summary>
     internal static void ExecuteExtFramebufferDrawBuffers(uint @framebuffer, int @n, DrawBufferMode[] @bufs)
     {
-        var observation = StateCache.BeginNativeFramebufferRouting(unchecked((int)@framebuffer), true, false);
+        var observation = OpenGlStateCache.BeginNativeFramebufferRouting(unchecked((int)@framebuffer), true, false);
         bool returned = false;
         try
         {
@@ -95,7 +95,7 @@ internal static unsafe partial class OpenGLFramebufferRoutingCalls
     /// <summary>Executes the exact external overload once and completes its selector or routing bookkeeping.</summary>
     internal static void ExecuteExtFramebufferDrawBuffers(uint @framebuffer, int @n, DrawBufferMode* @bufs)
     {
-        var observation = StateCache.BeginNativeFramebufferRouting(unchecked((int)@framebuffer), true, false);
+        var observation = OpenGlStateCache.BeginNativeFramebufferRouting(unchecked((int)@framebuffer), true, false);
         bool returned = false;
         try
         {

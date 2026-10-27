@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.ShaderCompilation;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Diagnostics;
@@ -175,7 +176,7 @@ public sealed class DriverProgramCacheTests(HeadlessGLFixture fixture, ITestOutp
         }
         finally
         {
-            StateCache.Current.InvalidateAll();
+            OpenGlStateCache.Current.InvalidateAll();
             if (Directory.Exists(directory)) Directory.Delete(directory, true);
         }
     }

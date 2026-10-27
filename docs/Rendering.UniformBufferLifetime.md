@@ -19,7 +19,7 @@ budget per allocator. Exhaustion fails publication; it never overwrites a live r
 resident for reuse until owner teardown. These choices cover the inventoried typed blocks
 without a native object per activation and remain internal policy, not shader layout contracts.
 
-Every successful logical bind records latest use, even when StateCache suppresses the native bind.
+Every successful logical bind records latest use, even when OpenGlStateCache suppresses the native bind.
 Scope restoration republishes through the same owner. Frame fences group those uses; released
 versions become free only after their latest serial completes. A signaled fence never releases a
 still-owned current version. Conventional persistent pages are never orphaned; mapped storage uses
@@ -40,7 +40,7 @@ releases registered blocks, while engine executable reload and borrowing shader 
 
 Uniform allocators belong to one renderer/context lifetime. Dispose them while that context is
 current, before its teardown. Automatic context replacement is outside this work; existing
-StateCache context policy is unchanged.
+OpenGlStateCache context policy is unchanged.
 
 One unsafe historical compatibility behavior is intentionally tightened: publication after EndFrame
 fails until BeginFrame. Otherwise GPU use could escape the fence protecting its storage. Repeated
@@ -76,7 +76,7 @@ atlas dimensions. Other candidates remain optional measured consumer tuning, not
 | Transient storage | GpuUniformRingBuffer epochs/fences; repeated index, closed frame, overflow and actual GPU immutable ranges. |
 | Persistent storage, latest use and OpenGL | PersistentUniformStorage, UniformStoragePage/Version; conventional/coherent/explicit-flush tests, last-use retirement and generation reuse. |
 | Sharing, reload and disposal | Explicit shader ownership, common publication, prepared interface extents; borrowed slots/owners, reload and terminal versus reset behavior. |
-| Integration and source layout | Existing frame controller, GpuUniformBuffer and StateCache; renderer-owned teardown, native failure and targeted invalidation checks. |
+| Integration and source layout | Existing frame controller, GpuUniformBuffer and OpenGlStateCache; renderer-owned teardown, native failure and targeted invalidation checks. |
 | Consumer migration, verification, measurements and completion | Consumer table above and mixed liquid/resolve workload; allocation/copy/bind/resident/pending/wait counters. |
 
 Allocation, copied-byte, binding and fence-poll/wait diagnostics are compiled only in DEBUG.
@@ -139,7 +139,7 @@ and retry, shader reload/disposal. Context-replacement coverage was removed with
   this does not prove semantic compatibility between equal-sized layouts. No replacement reflection
   parser or source-text test was introduced.
 - [Pipeline ownership](Rendering.AuthoritativePipelineState.Proposal.md#architectural-responsibilities):
-  resource binding stays in GpuUniformBuffer/StateCache; the frame controller only coordinates lifetime.
+  resource binding stays in GpuUniformBuffer/OpenGlStateCache; the frame controller only coordinates lifetime.
   UniformStoragePage, UniformStorageVersion, PersistentUniformStorage and UniformPublication separate
   storage, range identity, allocation/retirement and logical publication. The user's explicit removal
   of context-replacement support governs this work; future pipeline/context changes remain separate.

@@ -30,17 +30,17 @@ public sealed class CommandBindingKnowledgeTests(HeadlessGLFixture fixture)
         try
         {
             using var before = GpuVao.Create(); using var after = GpuVao.Create();
-            OpenGLVertexSelection.Bind(StateCache.Current, before.VertexArrayId);
+            OpenGLVertexSelection.Bind(OpenGlStateCache.Current, before.VertexArrayId);
             harmony.Patch(((Action<int>)GL.BindVertexArray).Method,
                 prefix: new HarmonyMethod(typeof(CommandBindingKnowledgeTests), nameof(ReadIntermediateVao)));
             intermediateVao = null;
             SelectExternal(after.VertexArrayId, 0, 0);
             Assert.Equal(before.VertexArrayId, intermediateVao);
-            Assert.False(StateCache.Current.TryGetCachedCurrentVao(out _));
-            Assert.Equal(after.VertexArrayId, StateCache.Current.GetCurrentVao());
+            Assert.False(OpenGlStateCache.Current.TryGetCachedCurrentVao(out _));
+            Assert.Equal(after.VertexArrayId, OpenGlStateCache.Current.GetCurrentVao());
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { harmony.UnpatchAll(harmony.Id); intermediateVao = null; fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { harmony.UnpatchAll(harmony.Id); intermediateVao = null; fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
 
     /// <summary>Mapped signed selectors dispatch every external request and recover actual selection after rejection.</summary>
@@ -56,7 +56,7 @@ public sealed class CommandBindingKnowledgeTests(HeadlessGLFixture fixture)
             using var vao = GpuVao.Create();
             using var pipeline = GpuProgramPipeline.Create();
             using var framebuffer = DynamicGpuFramebuffer.CreateEmpty("ExternalSelector");
-            var cache = StateCache.Current;
+            var cache = OpenGlStateCache.Current;
             OpenGLVertexSelection.Bind(cache, vao.VertexArrayId); OpenGLProgramPipelineSelection.Bind(cache, pipeline.PipelineId);
             OpenGLFramebufferSelection.Bind(cache, FramebufferTarget.ReadFramebuffer, framebuffer.FboId); OpenGLProgramSelection.Select(cache, 0);
             using var capture = new BindingCallCapture();
@@ -78,7 +78,7 @@ public sealed class CommandBindingKnowledgeTests(HeadlessGLFixture fixture)
             Assert.Equal(0, cache.GetCurrentProgram());
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { harmony.UnpatchAll(harmony.Id); fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { harmony.UnpatchAll(harmony.Id); fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
 
     /// <summary>Managed selector changes retain their submitted identities and equal requests issue no calls.</summary>
@@ -97,7 +97,7 @@ public sealed class CommandBindingKnowledgeTests(HeadlessGLFixture fixture)
             Assert.Equal(1, linked);
             GL.DetachShader(executable, module); GL.DeleteShader(module);
             using var program = GpuProgramObject.Adopt(executable);
-            var cache = StateCache.Current;
+            var cache = OpenGlStateCache.Current;
             OpenGLVertexSelection.Bind(cache, 0); OpenGLProgramPipelineSelection.Bind(cache, 0); OpenGLProgramSelection.Select(cache, 0);
             using var capture = new BindingCallCapture();
             // Calibrate the observed query overload before accepting zero-query evidence.
@@ -119,7 +119,7 @@ public sealed class CommandBindingKnowledgeTests(HeadlessGLFixture fixture)
             Assert.Equal(program.ProgramId, cache.GetCurrentProgram());
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
 
     #endregion
@@ -134,7 +134,7 @@ public sealed class CommandBindingKnowledgeTests(HeadlessGLFixture fixture)
             using var read = DynamicGpuFramebuffer.CreateEmpty("Read");
             using var draw = DynamicGpuFramebuffer.CreateEmpty("Draw");
             using var temporary = DynamicGpuFramebuffer.CreateEmpty("Temporary");
-            var cache = StateCache.Current;
+            var cache = OpenGlStateCache.Current;
             OpenGLFramebufferSelection.Bind(cache, FramebufferTarget.ReadFramebuffer, read.FboId);
             OpenGLFramebufferSelection.Bind(cache, FramebufferTarget.DrawFramebuffer, draw.FboId);
             using var capture = new BindingCallCapture();
@@ -145,7 +145,7 @@ public sealed class CommandBindingKnowledgeTests(HeadlessGLFixture fixture)
             Assert.Equal(draw.FboId, GL.GetInteger(GetPName.DrawFramebufferBinding));
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
 
     /// <summary>A cold read-only scope queries its one selector and leaves unrelated draw knowledge untouched.</summary>
@@ -159,7 +159,7 @@ public sealed class CommandBindingKnowledgeTests(HeadlessGLFixture fixture)
             using var draw = DynamicGpuFramebuffer.CreateEmpty("DrawCold");
             GL.BindFramebuffer(FramebufferTarget.ReadFramebuffer, read.FboId);
             GL.BindFramebuffer(FramebufferTarget.DrawFramebuffer, draw.FboId);
-            var cache = StateCache.Current;
+            var cache = OpenGlStateCache.Current;
             cache.Invalidate(EPipelineState.Bindings);
             using var capture = new BindingCallCapture();
             using (cache.BindFramebufferScope(FramebufferTarget.ReadFramebuffer, 0)) { }
@@ -169,7 +169,7 @@ public sealed class CommandBindingKnowledgeTests(HeadlessGLFixture fixture)
             Assert.Equal(draw.FboId, GL.GetInteger(GetPName.DrawFramebufferBinding));
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
 
     /// <summary>An EBO scope restores its captured VAO without overwriting a subsequent VAO's element selection.</summary>
@@ -183,20 +183,20 @@ public sealed class CommandBindingKnowledgeTests(HeadlessGLFixture fixture)
             using var first = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = null }).RequireResource(); first.Allocate(128);
             using var temporary = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = null }).RequireResource(); temporary.Allocate(128);
             using var second = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = null }).RequireResource(); second.Allocate(128);
-            var cache = StateCache.Current;
-            OpenGLVertexSelection.Bind(StateCache.Current, later.VertexArrayId); OpenGLBufferBindings.BindBuffer(cache, BufferTarget.ElementArrayBuffer, second.BufferId);
-            OpenGLVertexSelection.Bind(StateCache.Current, original.VertexArrayId); OpenGLBufferBindings.BindBuffer(cache, BufferTarget.ElementArrayBuffer, first.BufferId);
+            var cache = OpenGlStateCache.Current;
+            OpenGLVertexSelection.Bind(OpenGlStateCache.Current, later.VertexArrayId); OpenGLBufferBindings.BindBuffer(cache, BufferTarget.ElementArrayBuffer, second.BufferId);
+            OpenGLVertexSelection.Bind(OpenGlStateCache.Current, original.VertexArrayId); OpenGLBufferBindings.BindBuffer(cache, BufferTarget.ElementArrayBuffer, first.BufferId);
             using var capture = new BindingCallCapture();
-            using (cache.BindBufferScope(BufferTarget.ElementArrayBuffer, temporary.BufferId)) OpenGLVertexSelection.Bind(StateCache.Current, later.VertexArrayId);
+            using (cache.BindBufferScope(BufferTarget.ElementArrayBuffer, temporary.BufferId)) OpenGLVertexSelection.Bind(OpenGlStateCache.Current, later.VertexArrayId);
             Assert.Equal(0, capture.Calls(nameof(GL.GetInteger)));
             Assert.Equal(later.VertexArrayId, cache.GetCurrentVao());
             Assert.Equal(second.BufferId, cache.GetBoundBuffer(BufferTarget.ElementArrayBuffer));
-            OpenGLVertexSelection.Bind(StateCache.Current, original.VertexArrayId);
+            OpenGLVertexSelection.Bind(OpenGlStateCache.Current, original.VertexArrayId);
             Assert.Equal(first.BufferId, cache.GetBoundBuffer(BufferTarget.ElementArrayBuffer));
             Assert.Equal(first.BufferId, GL.GetInteger(GetPName.ElementArrayBufferBinding));
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
 
     #endregion
@@ -210,8 +210,8 @@ public sealed class CommandBindingKnowledgeTests(HeadlessGLFixture fixture)
         {
             using var vao = GpuVao.Create();
             using var buffer = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = null }).RequireResource(); buffer.Allocate(128);
-            OpenGLVertexSelection.Bind(StateCache.Current, vao.VertexArrayId);
-            var cache = StateCache.Current;
+            OpenGLVertexSelection.Bind(OpenGlStateCache.Current, vao.VertexArrayId);
+            var cache = OpenGlStateCache.Current;
             OpenGLBufferBindings.BindBuffer(cache, BufferTarget.ElementArrayBuffer, buffer.BufferId);
             var entry = GpuResourceManagerSystem.CurrentManager!.GetResourceRegistration(vao)!;
             ulong revision = entry.MetadataRevision;
@@ -224,7 +224,7 @@ public sealed class CommandBindingKnowledgeTests(HeadlessGLFixture fixture)
             Assert.Equal(buffer.BufferId, cache.GetBoundBuffer(BufferTarget.ElementArrayBuffer));
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
 
     /// <summary>Authored DSA changes retain supplied fields; an independently mutated copy recovers native facts once.</summary>
@@ -241,10 +241,10 @@ public sealed class CommandBindingKnowledgeTests(HeadlessGLFixture fixture)
             using var vao = GpuVao.Create();
             using var buffer = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = null }).RequireResource(); buffer.Allocate(256);
             using var capture = new BindingCallCapture();
-            var before = StateCache.Current.GetVertexConfigurationRevision(vao.VertexArrayId);
+            var before = OpenGlStateCache.Current.GetVertexConfigurationRevision(vao.VertexArrayId);
             OpenGLVertexCalls.ExecuteCoreVertexArrayVertexBuffer(vao.VertexArrayId, 2, buffer.BufferId, (IntPtr)32, 24);
             OpenGLVertexCalls.ExecuteCoreVertexArrayBindingDivisor(vao.VertexArrayId, 2, 3);
-            Assert.NotEqual(before, StateCache.Current.GetVertexConfigurationRevision(vao.VertexArrayId));
+            Assert.NotEqual(before, OpenGlStateCache.Current.GetVertexConfigurationRevision(vao.VertexArrayId));
             Assert.Equal(0, capture.Calls(nameof(GL.GetVertexArrayIndexed)));
             Assert.Equal(0, capture.Calls(nameof(GL.GetVertexArrayIndexed64)));
             GL.GetVertexArrayIndexed(vao.VertexArrayId, 2, (VertexArrayIndexedParameter)All.VertexBindingBuffer, out int selected);
@@ -253,7 +253,7 @@ public sealed class CommandBindingKnowledgeTests(HeadlessGLFixture fixture)
             Assert.Equal(buffer.BufferId, selected); Assert.Equal(24, stride); Assert.Equal(3, divisor);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
 
     /// <summary>Recovery of an unknown atomic generic selector reads its binding rather than an indexed range start.</summary>
@@ -265,18 +265,18 @@ public sealed class CommandBindingKnowledgeTests(HeadlessGLFixture fixture)
         {
             using var buffer = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = null }).RequireResource(); buffer.Allocate(128);
             GL.BindBuffer(BufferTarget.AtomicCounterBuffer, buffer.BufferId);
-            StateCache.Current.Invalidate(EPipelineState.Bindings);
-            Assert.Equal(buffer.BufferId, StateCache.Current.GetBoundBuffer(BufferTarget.AtomicCounterBuffer));
+            OpenGlStateCache.Current.Invalidate(EPipelineState.Bindings);
+            Assert.Equal(buffer.BufferId, OpenGlStateCache.Current.GetBoundBuffer(BufferTarget.AtomicCounterBuffer));
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
     #endregion
     #endregion
 
     #region Private
     /// <summary>Models a reentrant consumer querying selection immediately before the original native operation.</summary>
-    private static void ReadIntermediateVao() => intermediateVao = StateCache.Current.GetCurrentVao();
+    private static void ReadIntermediateVao() => intermediateVao = OpenGlStateCache.Current.GetCurrentVao();
 
     /// <summary>Keeps concrete signed native selector overloads visible to the production call-site transpiler.</summary>
     [MethodImpl(MethodImplOptions.NoInlining)]

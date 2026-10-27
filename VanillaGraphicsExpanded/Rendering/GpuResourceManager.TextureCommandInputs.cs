@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System;
 
 namespace VanillaGraphicsExpanded.Rendering;
@@ -9,7 +10,7 @@ internal sealed partial class GpuResourceManager
     /// <summary>Uses published storage when available and explicitly recovers only missing input facts.</summary>
     internal static GpuTextureMetadata AcquireTextureCommandInput(GpuTexture texture)
     {
-        StateCache.Current.RequireResourceOperationAvailable(texture.Kind, texture.ResourceId);
+        OpenGlStateCache.Current.RequireResourceOperationAvailable(texture.Kind, texture.ResourceId);
         if (texture.ResourceManager is { } manager && manager.CanAcquireWrapperMetadata(texture))
         {
             manager.RequireOriginalWrapper(texture);

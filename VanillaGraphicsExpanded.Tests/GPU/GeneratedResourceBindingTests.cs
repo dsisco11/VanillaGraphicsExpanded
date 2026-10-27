@@ -62,9 +62,9 @@ public sealed class GeneratedResourceBindingTests : RenderTestBase
             Assert.Equal(0, imageLevel);
             Assert.Equal(1, imageLayered);
             Assert.Equal(0, imageLayer);
-            OpenGLImageBindings.ActiveTexture(StateCache.Current, 7);
-            OpenGLImageBindings.BindTexture(StateCache.Current, TextureTarget.Texture3D, StateCache.Current.GetActiveTextureUnit(), 0);
-            OpenGLImageBindings.ActiveTexture(StateCache.Current, 3);
+            OpenGLImageBindings.ActiveTexture(OpenGlStateCache.Current, 7);
+            OpenGLImageBindings.BindTexture(OpenGlStateCache.Current, TextureTarget.Texture3D, OpenGlStateCache.Current.GetActiveTextureUnit(), 0);
+            OpenGLImageBindings.ActiveTexture(OpenGlStateCache.Current, 3);
             GL.GetInteger(GetPName.TextureBinding3D, out int priorInput);
             shader.Input = input;
             shader.Output = new(output, Access: ImageAccess.WriteOnly, Layered: true, Format: TextureFormat.R32ui);
@@ -73,7 +73,7 @@ public sealed class GeneratedResourceBindingTests : RenderTestBase
             Assert.Equal(priorInput, stagedInput);
             context.SetPipeline(shader.Pipeline);
             context.BindResources(shader.CaptureBindings());
-            OpenGLImageBindings.ActiveTexture(StateCache.Current, 7);
+            OpenGLImageBindings.ActiveTexture(OpenGlStateCache.Current, 7);
             GL.GetInteger(GetPName.TextureBinding3D, out int unusedBinding);
             Assert.Equal(0, unusedBinding);
             context.Dispatch(new(1));
@@ -81,19 +81,19 @@ public sealed class GeneratedResourceBindingTests : RenderTestBase
             GpuTestFence.WaitForGpuOrSkip("Generated resource binding dispatch");
             uint[] result = new uint[1];
             GL.PixelStore(PixelStoreParameter.PackAlignment, 1);
-            OpenGLImageBindings.BindTexture(StateCache.Current, TextureTarget.Texture3D, StateCache.Current.GetActiveTextureUnit(), output.TextureId);
+            OpenGLImageBindings.BindTexture(OpenGlStateCache.Current, TextureTarget.Texture3D, OpenGlStateCache.Current.GetActiveTextureUnit(), output.TextureId);
             GL.GetTexImage(TextureTarget.Texture3D, 0, PixelFormat.RedInteger, PixelType.UnsignedInt, result);
             Assert.Equal(123u, result[0]);
             // The fixed contract cannot be weakened by changing a copied prepared entry.
             Assert.Throws<InvalidOperationException>(() => context.BindResources(new(shader.Shader, images:shader.CaptureBindings().Images)));
-            OpenGLImageBindings.ActiveTexture(StateCache.Current,3);
+            OpenGLImageBindings.ActiveTexture(OpenGlStateCache.Current,3);
             GL.GetInteger(GetPName.TextureBinding3D,out int retainedInput);
             Assert.Equal(input.TextureId,retainedInput);
         }
         finally
         {
             GL.UseProgram(0);
-            OpenGLImageBindings.BindTexture(StateCache.Current, TextureTarget.Texture3D, StateCache.Current.GetActiveTextureUnit(), 0);
+            OpenGLImageBindings.BindTexture(OpenGlStateCache.Current, TextureTarget.Texture3D, OpenGlStateCache.Current.GetActiveTextureUnit(), 0);
         }
     }
     #endregion

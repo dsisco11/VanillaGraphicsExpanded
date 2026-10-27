@@ -43,7 +43,7 @@ internal sealed partial class OpenGLBackend
         var array = GpuVao.Create("RHI.Geometry");
         try
         {
-            var observation = StateCache.BeginNativeVertexMetadata(array.VertexArrayId, named: true, elementBinding: true);
+            var observation = OpenGlStateCache.BeginNativeVertexMetadata(array.VertexArrayId, named: true, elementBinding: true);
             bool returned = false;
             int elementBuffer = geometry.Indices is { } indices
                 ? checked((int)indices.Range.Buffer.RequireResource().ResourceId) : 0;
@@ -117,7 +117,7 @@ internal sealed partial class OpenGLBackend
         /// <summary>Gets the solely backend-owned native array.</summary>
         internal GpuVao Array { get; }
         /// <summary>Captures completed configuration identity without native validation queries.</summary>
-        internal GeometryVertexArray(GpuVao array, RHIGeometryInputs geometry, StateCache cache)
+        internal GeometryVertexArray(GpuVao array, RHIGeometryInputs geometry, OpenGlStateCache cache)
         {
             Array = array;
             registration = array.ResourceManager?.GetResourceRegistration(array);
@@ -130,7 +130,7 @@ internal sealed partial class OpenGLBackend
                 ? checked((int)indices.Range.Buffer.RequireResource().ResourceId) : 0;
         }
         /// <summary>Checks original array identity and observed configuration changes without inspecting driver state.</summary>
-        internal bool Matches(RHIGeometryInputs geometry, StateCache cache)
+        internal bool Matches(RHIGeometryInputs geometry, OpenGlStateCache cache)
         {
             if (retired || !Array.IsValid || !ReferenceEquals(registration, Array.ResourceManager?.GetResourceRegistration(Array))) return false;
             if (registration is not null && Array.ResourceManager?.IsResourceMetadataAvailable(Array) != true) return false;

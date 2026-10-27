@@ -10,7 +10,7 @@ internal static class OpenGLBufferBindings
 {
     #region Internal API
     /// <summary>Preserves generic and VAO-owned element binding semantics without a second cache.</summary>
-    internal static void BindBuffer(StateCache cache, Legacy.BufferTarget target, int buffer)
+    internal static void BindBuffer(OpenGlStateCache cache, Legacy.BufferTarget target, int buffer)
     {
         var context = RHICommandContext.Current;
         context.RequireContext();
@@ -18,7 +18,7 @@ internal static class OpenGLBufferBindings
         var native = Target(target);
         if (target == Legacy.BufferTarget.ElementArrayBuffer)
         {
-            var observation = StateCache.BeginNativeVertexMetadata(0, named: false, elementBinding: true);
+            var observation = OpenGlStateCache.BeginNativeVertexMetadata(0, named: false, elementBinding: true);
             bool returned = false;
             try { GL.BindBuffer(native, buffer); context.RequireContext(); returned = true; }
             finally { observation.Complete(returned); }
@@ -32,7 +32,7 @@ internal static class OpenGLBufferBindings
     }
 
     /// <summary>Uses a full indexed key and establishes the generic binding side effect.</summary>
-    internal static void BindBufferBase(StateCache cache, Legacy.BufferRangeTarget target, int slot, int buffer)
+    internal static void BindBufferBase(OpenGlStateCache cache, Legacy.BufferRangeTarget target, int slot, int buffer)
     {
         var context = RHICommandContext.Current;
         context.RequireContext();
@@ -45,7 +45,7 @@ internal static class OpenGLBufferBindings
     }
 
     /// <summary>Preserves native-width ranges and updates knowledge only after dispatch.</summary>
-    internal static void BindBufferRange(StateCache cache, Legacy.BufferRangeTarget target, int slot, int buffer, nint offset, nint size)
+    internal static void BindBufferRange(OpenGlStateCache cache, Legacy.BufferRangeTarget target, int slot, int buffer, nint offset, nint size)
     {
         var context = RHICommandContext.Current;
         context.RequireContext();

@@ -1,10 +1,11 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System;
 using OpenTK.Graphics.OpenGL;
 
 namespace VanillaGraphicsExpanded.Rendering;
 
 /// <summary>Exposes an externally owned texture through the typed texture contract without acquiring its storage.</summary>
-/// <remarks>Unobserved external storage mutations require explicit refresh; deletion observed by StateCache retires the common registration.</remarks>
+/// <remarks>Unobserved external storage mutations require explicit refresh; deletion observed by OpenGlStateCache retires the common registration.</remarks>
 internal sealed class BorrowedTexture : GpuTexture
 {
     #region Public API

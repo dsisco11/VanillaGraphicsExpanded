@@ -8,12 +8,12 @@ internal static partial class OpenGLPixelLayouts
 {
     #region Internal API
     /// <summary>Gets the cached layout, querying GL only when the state is unknown.</summary>
-    internal static StateCache.PixelUnpackState GetUnpack(StateCache cache)
+    internal static OpenGlStateCache.PixelUnpackState GetUnpack(OpenGlStateCache cache)
     {
         var backend = RHICommandContext.Current;
         backend.RequireContext();
         // External rendering boundaries must invalidate the cache before borrowing state.
-        return cache.PixelUnpackKnowledge ??= new StateCache.PixelUnpackState(
+        return cache.PixelUnpackKnowledge ??= new OpenGlStateCache.PixelUnpackState(
             ReadLayoutValue(cache, backend, GetPName.UnpackAlignment),
             ReadLayoutValue(cache, backend, GetPName.UnpackRowLength),
             ReadLayoutValue(cache, backend, GetPName.UnpackSkipRows),
@@ -25,7 +25,7 @@ internal static partial class OpenGLPixelLayouts
     }
 
     /// <summary>Applies an unpack layout, omitting driver calls for known unchanged values.</summary>
-    internal static void SetUnpack(StateCache cache, StateCache.PixelUnpackState state)
+    internal static void SetUnpack(OpenGlStateCache cache, OpenGlStateCache.PixelUnpackState state)
     {
         var backend = RHICommandContext.Current;
         backend.RequireContext();
@@ -52,7 +52,7 @@ internal static partial class OpenGLPixelLayouts
     }
 
     /// <summary>Applies a temporary layout and restores the previous layout on disposal.</summary>
-    internal static PixelUnpackScope UnpackScope(StateCache cache, StateCache.PixelUnpackState state)
+    internal static PixelUnpackScope UnpackScope(OpenGlStateCache cache, OpenGlStateCache.PixelUnpackState state)
     {
         var backend = RHICommandContext.Current;
         backend.RequireContext();
@@ -71,12 +71,12 @@ internal static partial class OpenGLPixelLayouts
     /// <summary>Restores the original context layout without donating state to a replacement context.</summary>
     internal readonly struct PixelUnpackScope : IDisposable
     {
-        private readonly StateCache cache;
-        private readonly StateCache.PixelUnpackState previous;
+        private readonly OpenGlStateCache cache;
+        private readonly OpenGlStateCache.PixelUnpackState previous;
         private readonly RHICommandContext backend;
         #region Internal API
         /// <summary>Captures original context and selector facts after the temporary transition succeeds.</summary>
-        internal PixelUnpackScope(StateCache cache, StateCache.PixelUnpackState previous)
+        internal PixelUnpackScope(OpenGlStateCache cache, OpenGlStateCache.PixelUnpackState previous)
         {
             this.cache = cache; this.previous = previous; backend = RHICommandContext.Current;
         }

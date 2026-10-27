@@ -96,11 +96,11 @@ public sealed class AtmosphereSkyIntegrationTests(HeadlessGLFixture fixture) : R
         try
         {
 #if DEBUG
-            long startup = StateCache.Current.DrawSubmissions;
+            long startup = OpenGlStateCache.Current.DrawSubmissions;
 #endif
             sky.OnRenderFrame(0, EnumRenderStage.Opaque);
 #if DEBUG
-            Assert.Equal(startup, StateCache.Current.DrawSubmissions);
+            Assert.Equal(startup, OpenGlStateCache.Current.DrawSubmissions);
 #endif
             Assert.False(AtmosphereSkyDrawHook.Prefix());
         atmosphere.Publish(new(Vector3.UnitY, Vector3.One, Vector3.One, Vector3.Zero, Vector3.Zero,
@@ -120,7 +120,7 @@ public sealed class AtmosphereSkyIntegrationTests(HeadlessGLFixture fixture) : R
                 // Seed every attached metadata buffer so omitted writes cannot pass as coincidental zeros.
                 DrawBuffersEnum[] routing = Enumerable.Range(0, 8)
                     .Select(i => i == 2 && !ssao ? DrawBuffersEnum.None : DrawBuffersEnum.ColorAttachment0 + i).ToArray();
-                GL.DrawBuffers(8, routing); StateCache.Current.Invalidate(EPipelineState.FramebufferRouting);
+                GL.DrawBuffers(8, routing); OpenGlStateCache.Current.Invalidate(EPipelineState.FramebufferRouting);
                 for (int attachment = 2; attachment < 8; attachment++)
                 {
                     if (attachment == 2 && !ssao) continue;
@@ -128,10 +128,10 @@ public sealed class AtmosphereSkyIntegrationTests(HeadlessGLFixture fixture) : R
                     else GL.ClearBuffer(ClearBuffer.Color, attachment, Enumerable.Repeat((float)attachment, 4).ToArray());
                 }
                 ShaderProgramBase.CurrentShaderProgram = null;
-                OpenGLProgramSelection.Select(StateCache.Current, 0);
-                OpenGLImageBindings.BindTexture(StateCache.Current, TextureTarget.Texture2D, 0, liquidDepth.TextureId);
+                OpenGLProgramSelection.Select(OpenGlStateCache.Current, 0);
+                OpenGLImageBindings.BindTexture(OpenGlStateCache.Current, TextureTarget.Texture2D, 0, liquidDepth.TextureId);
 #if DEBUG
-                long before = StateCache.Current.DrawSubmissions;
+                long before = OpenGlStateCache.Current.DrawSubmissions;
 #endif
                 using (var hostile = new HostileFullscreenState())
                 {
@@ -139,14 +139,14 @@ public sealed class AtmosphereSkyIntegrationTests(HeadlessGLFixture fixture) : R
                     hostile.AssertRestored();
                 }
 #if DEBUG
-                Assert.True(before + 1 == StateCache.Current.DrawSubmissions, string.Join(Environment.NewLine, assets.Logs));
+                Assert.True(before + 1 == OpenGlStateCache.Current.DrawSubmissions, string.Join(Environment.NewLine, assets.Logs));
 #endif
                 Assert.Null(ShaderProgramBase.CurrentShaderProgram);
                 Assert.Equal(0, GL.GetInteger(GetPName.CurrentProgram));
-                int activeUnit = StateCache.Current.GetActiveTextureUnit();
-                OpenGLImageBindings.ActiveTexture(StateCache.Current, 0);
+                int activeUnit = OpenGlStateCache.Current.GetActiveTextureUnit();
+                OpenGLImageBindings.ActiveTexture(OpenGlStateCache.Current, 0);
                 Assert.Equal(liquidDepth.TextureId, GL.GetInteger(GetPName.TextureBinding2D));
-                OpenGLImageBindings.ActiveTexture(StateCache.Current, activeUnit);
+                OpenGLImageBindings.ActiveTexture(OpenGlStateCache.Current, activeUnit);
                 Assert.Equal(engine.FboId, GL.GetInteger(GetPName.DrawFramebufferBinding));
                 for (int attachment = 0; attachment < 8; attachment++)
                     Assert.Equal((int)routing[attachment], GL.GetInteger(GetPName.DrawBuffer0 + attachment));
@@ -156,7 +156,7 @@ public sealed class AtmosphereSkyIntegrationTests(HeadlessGLFixture fixture) : R
                 {
                     if (attachment == 2 && !ssao) continue;
                     // Metadata layers share one array allocation; read their framebuffer attachment instead of a 2D alias.
-                    using var read = StateCache.Current.BindFramebufferScope(FramebufferTarget.ReadFramebuffer, engine.FboId);
+                    using var read = OpenGlStateCache.Current.BindFramebufferScope(FramebufferTarget.ReadFramebuffer, engine.FboId);
                     int priorReadBuffer = GL.GetInteger(GetPName.ReadBuffer);
                     try
                     {
@@ -181,11 +181,11 @@ public sealed class AtmosphereSkyIntegrationTests(HeadlessGLFixture fixture) : R
             Mock.Get(render).Verify(value => value.UploadMesh(It.IsAny<MeshData>()), Times.Never);
             frames[(int)EnumFrameBuffer.LiquidDepth] = null!;
 #if DEBUG
-            long missing = StateCache.Current.DrawSubmissions;
+            long missing = OpenGlStateCache.Current.DrawSubmissions;
 #endif
             sky.OnRenderFrame(0, EnumRenderStage.Opaque);
 #if DEBUG
-            Assert.Equal(missing, StateCache.Current.DrawSubmissions);
+            Assert.Equal(missing, OpenGlStateCache.Current.DrawSubmissions);
 #endif
             Assert.False(AtmosphereSkyDrawHook.Prefix());
             // A resource exception latches owned drawing until reload without reviving vanilla.
@@ -195,14 +195,14 @@ public sealed class AtmosphereSkyIntegrationTests(HeadlessGLFixture fixture) : R
             Mock.Get(render).SetupGet(value => value.ShaderUniforms).Throws(new InvalidOperationException("Fixture sky capture failure."));
             sky.OnRenderFrame(0, EnumRenderStage.Opaque);
 #if DEBUG
-            Assert.Equal(missing, StateCache.Current.DrawSubmissions);
+            Assert.Equal(missing, OpenGlStateCache.Current.DrawSubmissions);
 #endif
             Assert.False(AtmosphereSkyDrawHook.Prefix());
             Mock.Get(render).SetupGet(value => value.ShaderUniforms).Returns(uniforms);
             Reload();
             sky.OnRenderFrame(0, EnumRenderStage.Opaque);
 #if DEBUG
-            Assert.True(missing + 1 == StateCache.Current.DrawSubmissions, string.Join(Environment.NewLine, assets.Logs));
+            Assert.True(missing + 1 == OpenGlStateCache.Current.DrawSubmissions, string.Join(Environment.NewLine, assets.Logs));
 #endif
             Assert.False(AtmosphereSkyDrawHook.Prefix());
             sky.Dispose();
@@ -216,7 +216,7 @@ public sealed class AtmosphereSkyIntegrationTests(HeadlessGLFixture fixture) : R
         {
             lifetime.Shutdown();
             ShaderProgramBase.CurrentShaderProgram = null;
-            OpenGLProgramSelection.Select(StateCache.Current, 0);
+            OpenGLProgramSelection.Select(OpenGlStateCache.Current, 0);
         }
     }
     #endregion

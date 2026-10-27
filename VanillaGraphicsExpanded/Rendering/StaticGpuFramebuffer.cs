@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -11,7 +12,7 @@ public sealed class StaticGpuFramebuffer : GpuFramebuffer
 {
     private readonly DrawBuffersEnum[] routing;
     private readonly List<GpuResource> frozen = new();
-    private readonly StateCache configurationOwner = StateCache.Current;
+    private readonly OpenGlStateCache configurationOwner = OpenGlStateCache.Current;
     private readonly (nint Handle, long Generation) configurationContext = Integration.RenderContextRegistry.Current();
 
     #region Public API

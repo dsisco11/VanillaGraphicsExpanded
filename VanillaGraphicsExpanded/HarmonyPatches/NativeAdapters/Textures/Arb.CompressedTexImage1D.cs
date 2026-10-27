@@ -5,7 +5,7 @@ using VanillaGraphicsExpanded.Rendering;
 
 namespace VanillaGraphicsExpanded.HarmonyPatches.NativeAdapters.Textures;
 
-/// <summary>Forwards GL.Arb.CompressedTexImage1D overloads through their existing StateCache observation contract.</summary>
+/// <summary>Forwards GL.Arb.CompressedTexImage1D overloads through their existing OpenGlStateCache observation contract.</summary>
 internal static unsafe partial class Arb
 {
     #region Internal API

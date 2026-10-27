@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
@@ -86,7 +87,7 @@ public sealed class GpuSupportLimitsTests(HeadlessGLFixture fixture)
 #if DEBUG
         long captures = GpuSupport.CaptureCount;
 #endif
-        StateCache.Current.InvalidateAll();
+        OpenGlStateCache.Current.InvalidateAll();
         GL.GetInteger((GetPName)(-1));
         GpuSupport.EnsureCurrentContext();
 #if DEBUG

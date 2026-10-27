@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
@@ -98,7 +99,7 @@ public sealed class SceneColorParticleLightingTests(HeadlessGLFixture fixture) :
             GL.BindBufferBase(BufferRangeTarget.TransformFeedbackBuffer, 0, 0);
             GL.BindVertexArray(0); GL.UseProgram(0);
             GL.DeleteBuffer(buffer); GL.DeleteVertexArray(vao); GL.DeleteProgram(program);
-            StateCache.Current.InvalidateAll();
+            OpenGlStateCache.Current.InvalidateAll();
         }
     }
     #endregion

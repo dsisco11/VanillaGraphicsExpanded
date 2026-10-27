@@ -69,27 +69,27 @@ public sealed class LiquidSpecularTriangulationTests(HeadlessGLFixture fixture) 
         program.ModelViewMatrix = Flatten(view);
 
 
-        var state = StateCache.Current;
+        var state = OpenGlStateCache.Current;
         using var fixedFunction = LegacyFixedFunctionReference.Capture(state);
         using var framebufferBinding = state.BindFramebufferScope(FramebufferTarget.Framebuffer, target.FboId);
         using var vao = GpuVao.Create("Test.LiquidTriangulation.Vao");
         using var vertices = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = "Test.LiquidTriangulation.Vertices" }).RequireResource();
         using var flags = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = "Test.LiquidTriangulation.Flags" }).RequireResource();
         using var indices = RHICommandContext.Current.CreateIndexBuffer(new RHIBufferDescription { Role = BufferRole.Index, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = "Test.LiquidTriangulation.Indices" }).RequireResource();
-        using var vertexBinding = StateCache.Current.BindVertexArrayScope(vao.VertexArrayId);
-        using (StateCache.Current.BindBufferScope(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBufferValues.Target(vertices.Role), vertices.BufferId))
+        using var vertexBinding = OpenGlStateCache.Current.BindVertexArrayScope(vao.VertexArrayId);
+        using (OpenGlStateCache.Current.BindBufferScope(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBufferValues.Target(vertices.Role), vertices.BufferId))
         {
             vertices.UploadData(new float[] {
                 -2,-1,-4, .5f,.5f, 0,0,0,1, 0,0,
                  2,-1,-4, .5f,.5f, 0,0,0,1, 0,0,
                  2,-1,-8, .5f,.5f, 0,0,0,1, 0,0,
                 -2,-.45f,-8, .5f,.5f, 0,0,0,1, 0,0 });
-            using (StateCache.Current.BindVertexArrayScope(vao.VertexArrayId)) OpenGLVertexCalls.ExecuteCoreVertexAttribPointer(0, 3, VertexAttribPointerType.Float, false, 44, 0);
-            using (StateCache.Current.BindVertexArrayScope(vao.VertexArrayId)) OpenGLVertexCalls.ExecuteCoreVertexAttribPointer(1, 2, VertexAttribPointerType.Float, false, 44, 12);
-            using (StateCache.Current.BindVertexArrayScope(vao.VertexArrayId)) OpenGLVertexCalls.ExecuteCoreVertexAttribPointer(2, 4, VertexAttribPointerType.Float, false, 44, 20);
-            using (StateCache.Current.BindVertexArrayScope(vao.VertexArrayId)) OpenGLVertexCalls.ExecuteCoreVertexAttribPointer(4, 2, VertexAttribPointerType.Float, false, 44, 36);
+            using (OpenGlStateCache.Current.BindVertexArrayScope(vao.VertexArrayId)) OpenGLVertexCalls.ExecuteCoreVertexAttribPointer(0, 3, VertexAttribPointerType.Float, false, 44, 0);
+            using (OpenGlStateCache.Current.BindVertexArrayScope(vao.VertexArrayId)) OpenGLVertexCalls.ExecuteCoreVertexAttribPointer(1, 2, VertexAttribPointerType.Float, false, 44, 12);
+            using (OpenGlStateCache.Current.BindVertexArrayScope(vao.VertexArrayId)) OpenGLVertexCalls.ExecuteCoreVertexAttribPointer(2, 4, VertexAttribPointerType.Float, false, 44, 20);
+            using (OpenGlStateCache.Current.BindVertexArrayScope(vao.VertexArrayId)) OpenGLVertexCalls.ExecuteCoreVertexAttribPointer(4, 2, VertexAttribPointerType.Float, false, 44, 36);
         }
-        using (StateCache.Current.BindBufferScope(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBufferValues.Target(flags.Role), flags.BufferId))
+        using (OpenGlStateCache.Current.BindBufferScope(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBufferValues.Target(flags.Role), flags.BufferId))
         {
             // Identical packed +Y normals and animated-water flags isolate the fold in the mesh.
             const int up = 7 << 18;
@@ -99,9 +99,9 @@ public sealed class LiquidSpecularTriangulationTests(HeadlessGLFixture fixture) 
                 up,0,1 | (255 << 2),
                 up,0,1 | (255 << 2)
             });
-            using (StateCache.Current.BindVertexArrayScope(vao.VertexArrayId)) OpenGLVertexCalls.ExecuteCoreVertexAttribIPointer(3, 1, VertexAttribIntegerType.Int, 12, 0);
-            using (StateCache.Current.BindVertexArrayScope(vao.VertexArrayId)) OpenGLVertexCalls.ExecuteCoreVertexAttribIPointer(5, 1, VertexAttribIntegerType.Int, 12, 4);
-            using (StateCache.Current.BindVertexArrayScope(vao.VertexArrayId)) OpenGLVertexCalls.ExecuteCoreVertexAttribIPointer(6, 1, VertexAttribIntegerType.Int, 12, 8);
+            using (OpenGlStateCache.Current.BindVertexArrayScope(vao.VertexArrayId)) OpenGLVertexCalls.ExecuteCoreVertexAttribIPointer(3, 1, VertexAttribIntegerType.Int, 12, 0);
+            using (OpenGlStateCache.Current.BindVertexArrayScope(vao.VertexArrayId)) OpenGLVertexCalls.ExecuteCoreVertexAttribIPointer(5, 1, VertexAttribIntegerType.Int, 12, 4);
+            using (OpenGlStateCache.Current.BindVertexArrayScope(vao.VertexArrayId)) OpenGLVertexCalls.ExecuteCoreVertexAttribIPointer(6, 1, VertexAttribIntegerType.Int, 12, 8);
         }
         var liquidPipeline = new GlPipelineDesc(
             defaultMask: GlPipelineStateMask.From(GlPipelineStateId.DepthTestEnable)

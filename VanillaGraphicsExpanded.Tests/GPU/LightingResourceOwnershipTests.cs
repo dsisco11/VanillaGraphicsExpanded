@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.LumOn;
 using VanillaGraphicsExpanded.LumOn.Scene;
@@ -21,7 +22,7 @@ public sealed class LightingResourceOwnershipTests : RenderTestBase
     {
         EnsureContextValid();
         var previous = GpuSamplers.NearestClamp;
-        VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageBindings.BindSampler(StateCache.Current, 0, previous.SamplerId);
+        VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageBindings.BindSampler(OpenGlStateCache.Current, 0, previous.SamplerId);
         int handle = previous.SamplerId;
         Assert.True(GL.IsSampler(handle));
         GpuSamplers.Dispose();
@@ -29,7 +30,7 @@ public sealed class LightingResourceOwnershipTests : RenderTestBase
         Assert.False(GL.IsSampler(handle));
         var replacement = GpuSamplers.NearestClamp;
         Assert.NotSame(previous,replacement);
-        VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageBindings.BindSampler(StateCache.Current, 0, replacement.SamplerId);
+        VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageBindings.BindSampler(OpenGlStateCache.Current, 0, replacement.SamplerId);
         Assert.True(GL.IsSampler(replacement.SamplerId));
         Assert.Equal(ErrorCode.NoError,GL.GetError());
     }
@@ -106,7 +107,7 @@ public sealed class LightingResourceOwnershipTests : RenderTestBase
     /// <summary>Reads driver storage rather than only trusting the allocation object's metadata.</summary>
     private static void AssertStorage(GpuTexture texture, TextureTarget target, PixelInternalFormat expected)
     {
-        using var binding = StateCache.Current.BindTextureScope(target,0,texture.TextureId);
+        using var binding = OpenGlStateCache.Current.BindTextureScope(target,0,texture.TextureId);
         GL.GetTexLevelParameter(target,0,GetTextureParameter.TextureInternalFormat,out int actual);
         Assert.Equal((int)expected,actual);
     }

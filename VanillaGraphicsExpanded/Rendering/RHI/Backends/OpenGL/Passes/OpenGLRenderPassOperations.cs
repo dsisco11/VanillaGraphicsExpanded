@@ -19,7 +19,7 @@ internal static class OpenGLRenderPassOperations
     /// <summary>Establishes clear-only state independently of preceding draw write masks and scissor.</summary>
     internal static void Load(RenderPassDesc description, RenderArea area)
     {
-        var cache = StateCache.Current;
+        var cache = OpenGlStateCache.Current;
         bool clears = description.DepthStencil.DepthLoad == AttachmentLoad.Clear
             || description.DepthStencil.StencilLoad == AttachmentLoad.Clear;
         foreach (var color in description.Colors) clears |= color.Load == AttachmentLoad.Clear;

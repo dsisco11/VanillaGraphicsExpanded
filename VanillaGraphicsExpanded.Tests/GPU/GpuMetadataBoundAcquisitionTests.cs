@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
@@ -30,9 +31,9 @@ public sealed class GpuMetadataBoundAcquisitionTests(HeadlessGLFixture fixture)
             using var image = GpuFramebufferAttachment.FromTexture(texture);
             using var framebuffer = DynamicGpuFramebuffer.Create([image])!;
             using var sentinelFramebuffer = DynamicGpuFramebuffer.CreateEmpty();
-            using var bufferBinding = StateCache.Current.BindBufferScope(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBufferValues.Target(sentinelBuffer.Role), sentinelBuffer.BufferId);
-            using var textureBinding = StateCache.Current.BindTextureScope(((GpuTextureRef)sentinelTexture).Target, 0, sentinelTexture.TextureId);
-            using var framebufferBinding = StateCache.Current.BindFramebufferScope(FramebufferTarget.Framebuffer, sentinelFramebuffer.FboId);
+            using var bufferBinding = OpenGlStateCache.Current.BindBufferScope(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBufferValues.Target(sentinelBuffer.Role), sentinelBuffer.BufferId);
+            using var textureBinding = OpenGlStateCache.Current.BindTextureScope(((GpuTextureRef)sentinelTexture).Target, 0, sentinelTexture.TextureId);
+            using var framebufferBinding = OpenGlStateCache.Current.BindFramebufferScope(FramebufferTarget.Framebuffer, sentinelFramebuffer.FboId);
             Assert.True(new GpuBufferMetadataReader().TryRead(buffer.BufferId, out var bufferMetadata));
             Assert.Equal((nint)96, bufferMetadata.Capacity);
             Assert.True(new GpuTextureMetadataReader(TextureTarget.Texture2D).TryRead(texture.TextureId, out var textureMetadata));
@@ -45,7 +46,7 @@ public sealed class GpuMetadataBoundAcquisitionTests(HeadlessGLFixture fixture)
             Assert.Equal(sentinelFramebuffer.FboId, GL.GetInteger(GetPName.DrawFramebufferBinding));
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
 
     /// <summary>Both public buffer-texture factories preserve whole/range descriptors through named and bound setup.</summary>
@@ -69,7 +70,7 @@ public sealed class GpuMetadataBoundAcquisitionTests(HeadlessGLFixture fixture)
             int offset = Math.Max(1, GpuSupport.Graphics.TextureBufferOffsetAlignment);
             buffer.Allocate(offset + 512);
             using var sentinel = RHICommandContext.Current.CreateBufferTexture(new RHIBufferTextureDescription { Buffer = buffer, Format = TextureFormat.R32f, WholeBuffer = true, Label = null }).RequireResource();
-            using var sentinelBinding = StateCache.Current.BindTextureScope(TextureTarget.TextureBuffer, 0, sentinel.TextureId);
+            using var sentinelBinding = OpenGlStateCache.Current.BindTextureScope(TextureTarget.TextureBuffer, 0, sentinel.TextureId);
             using GpuBufferView view = preferredType
                 ? ranged ? RHICommandContext.Current.CreateBufferTexture(new RHIBufferTextureDescription { Buffer = buffer, Format = TextureFormat.R32f, WholeBuffer = false, Offset = offset, Length = 256, Label = null }).RequireResource()
                     : RHICommandContext.Current.CreateBufferTexture(new RHIBufferTextureDescription { Buffer = buffer, Format = TextureFormat.R32f, WholeBuffer = true, Label = null }).RequireResource()
@@ -85,7 +86,7 @@ public sealed class GpuMetadataBoundAcquisitionTests(HeadlessGLFixture fixture)
             Assert.Equal((ulong)1, entry.MetadataRevision);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
     #endregion
 }

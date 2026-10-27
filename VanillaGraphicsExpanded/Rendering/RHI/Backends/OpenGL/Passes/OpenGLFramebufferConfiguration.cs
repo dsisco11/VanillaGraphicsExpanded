@@ -12,7 +12,7 @@ internal static class OpenGLFramebufferConfiguration
     internal static void ConfigureRouting(GpuFramebuffer resource, DrawBuffersEnum[] route, ReadBufferMode read)
     {
         resource.RequireOriginalContext();
-        OpenGLFramebufferRouting.Restore(StateCache.Current, resource.FboId, route);
+        OpenGLFramebufferRouting.Restore(OpenGlStateCache.Current, resource.FboId, route);
         OpenTK.Graphics.OpenGL4.GL.NamedFramebufferReadBuffer(resource.FboId, (OpenTK.Graphics.OpenGL4.ReadBufferMode)read);
         resource.RequireOriginalContext();
     }
@@ -20,7 +20,7 @@ internal static class OpenGLFramebufferConfiguration
     /// <summary>Binds a realized framebuffer, acquiring only unknown external descriptors.</summary>
     internal static void BindFramebufferResource(GpuFramebuffer resource, FramebufferTarget target)
     {
-        OpenGLFramebufferSelection.Bind(StateCache.Current, target, resource.FboId);
+        OpenGLFramebufferSelection.Bind(OpenGlStateCache.Current, target, resource.FboId);
         if (resource.FboId != 0 && !resource.HasNativeMetadata)
             GpuResourceManager.AcquireWrapperMetadata(resource, GpuFramebufferMetadataReader.Instance);
     }
@@ -37,7 +37,7 @@ internal static class OpenGLFramebufferConfiguration
     internal static void FramebufferTexture(GpuFramebuffer resource, FramebufferAttachment slot, GpuFramebufferAttachment? image,
         FramebufferOperation? operation = null)
     {
-        StateCache.Current.RequireMutableFramebufferConfiguration(resource.FboId);
+        OpenGlStateCache.Current.RequireMutableFramebufferConfiguration(resource.FboId);
         using var owned = operation is null ? new FramebufferOperation(resource) : null;
         var active = operation ?? owned!;
         try
@@ -100,7 +100,7 @@ internal static class OpenGLFramebufferConfiguration
         internal void Interrupt() => operation.Interrupt();
         /// <summary>Updates only the slots affected by the completed command.</summary>
         internal void SetAttachment(FramebufferAttachment slot, GpuFramebufferAttachment? image)
-            => candidate = StateCache.WithFramebufferAttachment(candidate, slot, image);
+            => candidate = OpenGlStateCache.WithFramebufferAttachment(candidate, slot, image);
         /// <summary>Commits the complete candidate without native rediscovery.</summary>
         internal void Commit() => operation.Commit(candidate);
         #endregion

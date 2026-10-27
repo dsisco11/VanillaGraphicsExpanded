@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using System.Buffers.Binary;
@@ -99,7 +100,7 @@ public sealed class TestUniformRingRetirementTests(HeadlessGLFixture fixture) : 
             foreach (var output in outputs) output?.Dispose();
             if (program != 0) TestShaderInterfaces.DeleteProgram(program);
             TestShaderInterfaces.DeleteShader(shader);
-            StateCache.Current.InvalidateAll();
+            OpenGlStateCache.Current.InvalidateAll();
         }
     }
     #endregion

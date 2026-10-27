@@ -10,7 +10,7 @@ internal static unsafe partial class OpenGLFramebufferRoutingCalls
     /// <summary>Executes the exact external overload once and completes its selector or routing bookkeeping.</summary>
     internal static void ExecuteArbDrawBuffers(int @n, ref ArbDrawBuffers @bufs)
     {
-        var observation = StateCache.BeginNativeFramebufferRouting(0, false, false);
+        var observation = OpenGlStateCache.BeginNativeFramebufferRouting(0, false, false);
         bool returned = false;
         try
         {
@@ -27,7 +27,7 @@ internal static unsafe partial class OpenGLFramebufferRoutingCalls
     /// <summary>Executes the exact external overload once and completes its selector or routing bookkeeping.</summary>
     internal static void ExecuteArbDrawBuffers(int @n, ArbDrawBuffers[] @bufs)
     {
-        var observation = StateCache.BeginNativeFramebufferRouting(0, false, false);
+        var observation = OpenGlStateCache.BeginNativeFramebufferRouting(0, false, false);
         bool returned = false;
         try
         {
@@ -44,7 +44,7 @@ internal static unsafe partial class OpenGLFramebufferRoutingCalls
     /// <summary>Executes the exact external overload once and completes its selector or routing bookkeeping.</summary>
     internal static void ExecuteArbDrawBuffers(int @n, ArbDrawBuffers* @bufs)
     {
-        var observation = StateCache.BeginNativeFramebufferRouting(0, false, false);
+        var observation = OpenGlStateCache.BeginNativeFramebufferRouting(0, false, false);
         bool returned = false;
         try
         {
@@ -61,7 +61,7 @@ internal static unsafe partial class OpenGLFramebufferRoutingCalls
     /// <summary>Executes the exact external overload once and completes its selector or routing bookkeeping.</summary>
     internal static void ExecuteArbDrawBuffers(int @n, ref DrawBufferMode @bufs)
     {
-        var observation = StateCache.BeginNativeFramebufferRouting(0, false, false);
+        var observation = OpenGlStateCache.BeginNativeFramebufferRouting(0, false, false);
         bool returned = false;
         try
         {
@@ -78,7 +78,7 @@ internal static unsafe partial class OpenGLFramebufferRoutingCalls
     /// <summary>Executes the exact external overload once and completes its selector or routing bookkeeping.</summary>
     internal static void ExecuteArbDrawBuffers(int @n, DrawBufferMode[] @bufs)
     {
-        var observation = StateCache.BeginNativeFramebufferRouting(0, false, false);
+        var observation = OpenGlStateCache.BeginNativeFramebufferRouting(0, false, false);
         bool returned = false;
         try
         {
@@ -95,7 +95,7 @@ internal static unsafe partial class OpenGLFramebufferRoutingCalls
     /// <summary>Executes the exact external overload once and completes its selector or routing bookkeeping.</summary>
     internal static void ExecuteArbDrawBuffers(int @n, DrawBufferMode* @bufs)
     {
-        var observation = StateCache.BeginNativeFramebufferRouting(0, false, false);
+        var observation = OpenGlStateCache.BeginNativeFramebufferRouting(0, false, false);
         bool returned = false;
         try
         {

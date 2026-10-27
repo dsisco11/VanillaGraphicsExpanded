@@ -98,7 +98,7 @@ public sealed class AtmosphereOwnedSkyTests(HeadlessGLFixture fixture) : LumOnSh
         // Compare draw composition to the actual binary16 upload rather than treating
         // its subnormal quantization as a shader subtraction error.
         float[] stored = new float[4*2*4*2];
-        using (StateCache.Current.BindTextureScope(TextureTarget.Texture2D,0,AtmosphereModSystem.SkyTextureId))
+        using (OpenGlStateCache.Current.BindTextureScope(TextureTarget.Texture2D,0,AtmosphereModSystem.SkyTextureId))
             GL.GetTexImage(TextureTarget.Texture2D,0,PixelFormat.Rgba,PixelType.Float,stored);
         float decoded = stored[0]/AtmosphereModSystem.Lighting.LookupStorageScale;
         Assert.InRange(MathF.Abs(decoded-total),0,MathF.Pow(2,-24)/AtmosphereModSystem.Lighting.LookupStorageScale);
@@ -166,7 +166,7 @@ public sealed class AtmosphereOwnedSkyTests(HeadlessGLFixture fixture) : LumOnSh
         Assert.Equal(new float[] { 0, 0, 0, 1 }, sky.Target[1].ReadPixels());
         foreach (int attachment in new[] { 2, 3, 4, 5, 7 })
             Assert.All(sky.Target[attachment].ReadPixels(), value => Assert.Equal((float)attachment, value));
-        using (StateCache.Current.BindTextureScope(TextureTarget.Texture2D, 0, sky.Target[6].TextureId))
+        using (OpenGlStateCache.Current.BindTextureScope(TextureTarget.Texture2D, 0, sky.Target[6].TextureId))
         {
             uint[] patch = new uint[4];
             GL.GetTexImage(TextureTarget.Texture2D, 0, PixelFormat.RgbaInteger, PixelType.UnsignedInt, patch);
@@ -491,16 +491,16 @@ public sealed class AtmosphereOwnedSkyTests(HeadlessGLFixture fixture) : LumOnSh
             program.LiquidDepth = depth;
             FramebufferTestSetup.BindForEngineRendering(Target);
             // Metadata belongs to other passes; preserve recognizable contents while drawing the sky.
-            GL.DrawBuffers(8, Enumerable.Range(0, 8).Select(i => DrawBuffersEnum.ColorAttachment0 + i).ToArray()); StateCache.Current.Invalidate(EPipelineState.FramebufferRouting);
+            GL.DrawBuffers(8, Enumerable.Range(0, 8).Select(i => DrawBuffersEnum.ColorAttachment0 + i).ToArray()); OpenGlStateCache.Current.Invalidate(EPipelineState.FramebufferRouting);
             for (int attachment = 2; attachment < 8; attachment++)
             {
                 if (attachment == 6) GL.ClearBuffer(ClearBuffer.Color, attachment, new uint[] { 6, 6, 6, 6 });
                 else GL.ClearBuffer(ClearBuffer.Color, attachment, Enumerable.Repeat((float)attachment, 4).ToArray());
             }
-            GL.DrawBuffers(2, new[] { DrawBuffersEnum.ColorAttachment0, DrawBuffersEnum.ColorAttachment1 }); StateCache.Current.Invalidate(EPipelineState.FramebufferRouting);
-            StateCache.Current.Apply(new GlPipelineDesc(defaultMask: GlPipelineStateMask.From(GlPipelineStateId.DepthTestEnable).With(GlPipelineStateId.BlendEnable).With(GlPipelineStateId.CullFaceEnable).With(GlPipelineStateId.ScissorTestEnable).With(GlPipelineStateId.ColorMask), nonDefaultMask: GlPipelineStateMask.From(GlPipelineStateId.DepthWriteMask), depthWriteMask: false));
+            GL.DrawBuffers(2, new[] { DrawBuffersEnum.ColorAttachment0, DrawBuffersEnum.ColorAttachment1 }); OpenGlStateCache.Current.Invalidate(EPipelineState.FramebufferRouting);
+            OpenGlStateCache.Current.Apply(new GlPipelineDesc(defaultMask: GlPipelineStateMask.From(GlPipelineStateId.DepthTestEnable).With(GlPipelineStateId.BlendEnable).With(GlPipelineStateId.CullFaceEnable).With(GlPipelineStateId.ScissorTestEnable).With(GlPipelineStateId.ColorMask), nonDefaultMask: GlPipelineStateMask.From(GlPipelineStateId.DepthWriteMask), depthWriteMask: false));
             using (var bindingPipeline = ShaderBindingTestPipeline.Create(program))
-            using (StateCache.Current.BindVertexArrayScope(vao.VertexArrayId))
+            using (OpenGlStateCache.Current.BindVertexArrayScope(vao.VertexArrayId))
             {
                 RHICommandContext.Current.SetPipeline(bindingPipeline);
                 RHICommandContext.Current.BindResources(program.CaptureBindings());

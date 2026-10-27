@@ -1180,7 +1180,9 @@ Phase 8: Design the RHICommand and RHICommandList render hardware interface
   Proposal: [Rendering.GpuCommands.Proposal.md](Rendering.GpuCommands.Proposal.md).
   Status: proposal reviewed and approved, including naming, migration, recording and OpenGL 4.5.
   Implementation is tracked separately in Rendering.GpuCommands.todo; its first phase defines final
-  contracts and complete replacement units before runtime migration.
+  contracts and complete replacement units before runtime migration. Runtime Phases 1–7 now have
+  qualification receipts there, including the implemented OpenGlStateCache split; final integrated/package
+  and user-run qualification remains in that plan's Phase 8.
   Design authority is the current resource/binding contracts, inventory/API coverage and archived
   proposals at 3f307365 (command publication) and b9fca04c (texture reference).
   This design task makes no runtime implementation claim; execution and cache renaming belong to that plan.

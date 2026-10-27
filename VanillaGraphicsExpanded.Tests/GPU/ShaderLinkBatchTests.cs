@@ -112,7 +112,7 @@ public sealed class ShaderLinkBatchTests(HeadlessGLFixture fixture, ITestOutputH
         using var sentinel = new FixtureProgram();
         sentinel.Initialize(assets.Api);
         Assert.True(sentinel.CompileAndLink());
-        OpenGLProgramSelection.Select(StateCache.Current, sentinel.ProgramId);
+        OpenGLProgramSelection.Select(OpenGlStateCache.Current, sentinel.ProgramId);
         var original = VanillaGraphicsExpanded.Rendering.Integration.RenderContextRegistry.Current();
         var registrations = (System.Collections.IDictionary)typeof(VanillaGraphicsExpanded.Rendering.Integration.RenderContextRegistry)
             .GetField("registrations", System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic)!.GetValue(null)!;
@@ -142,7 +142,7 @@ public sealed class ShaderLinkBatchTests(HeadlessGLFixture fixture, ITestOutputH
         finally
         {
             lock (registrations) registrations[original.Handle] = registration;
-            OpenGLProgramSelection.Select(StateCache.Current, 0);
+            OpenGLProgramSelection.Select(OpenGlStateCache.Current, 0);
         }
     }
 
@@ -171,7 +171,7 @@ public sealed class ShaderLinkBatchTests(HeadlessGLFixture fixture, ITestOutputH
             var registrations = (System.Collections.IDictionary)typeof(VanillaGraphicsExpanded.Rendering.Integration.RenderContextRegistry)
                 .GetField("registrations", System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic)!.GetValue(null)!;
             object registration = registrations[original.Handle]!;
-            OpenGLProgramSelection.Select(StateCache.Current, sentinel.ProgramId);
+            OpenGLProgramSelection.Select(OpenGlStateCache.Current, sentinel.ProgramId);
             var replacement = new object();
             try
             {
@@ -195,7 +195,7 @@ public sealed class ShaderLinkBatchTests(HeadlessGLFixture fixture, ITestOutputH
                 // Reuse the original live registration receipt to retry cleanup; destroyed-context abandonment is separate.
                 lock (registrations) registrations[original.Handle] = registration;
                 batch.Dispose();
-                OpenGLProgramSelection.Select(StateCache.Current, 0);
+                OpenGLProgramSelection.Select(OpenGlStateCache.Current, 0);
             }
             Assert.Equal(0, batch.Outstanding);
             batch.Dispose();

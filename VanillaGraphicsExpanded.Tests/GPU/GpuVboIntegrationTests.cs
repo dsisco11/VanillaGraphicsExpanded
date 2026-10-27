@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using OpenTK.Graphics.OpenGL;
@@ -190,7 +191,7 @@ public class GpuVboIntegrationTests
         Assert.Equal(vbo1.BufferId, initialBinding);
 
         // Act - Use binding scope with second VBO
-        using (var scope = StateCache.Current.BindBufferScope(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBufferValues.Target(vbo2.Role), vbo2.BufferId))
+        using (var scope = OpenGlStateCache.Current.BindBufferScope(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBufferValues.Target(vbo2.Role), vbo2.BufferId))
         {
             GL.GetInteger(GetPName.ArrayBufferBinding, out int scopedBinding);
             Assert.Equal(vbo2.BufferId, scopedBinding);
@@ -480,7 +481,7 @@ public class GpuVboIntegrationTests
     private static void AssertNativeUsage(GpuBufferObject buffer)
     {
         // Array-buffer binding can query any buffer without altering a VAO's element binding.
-        using var binding = StateCache.Current.BindBufferScope(BufferTarget.ArrayBuffer, buffer.BufferId);
+        using var binding = OpenGlStateCache.Current.BindBufferScope(BufferTarget.ArrayBuffer, buffer.BufferId);
         GL.GetBufferParameter(BufferTarget.ArrayBuffer, BufferParameterName.BufferUsage, out int actualUsage);
         Assert.Equal((BufferUsageHint)actualUsage, buffer.Usage);
     }

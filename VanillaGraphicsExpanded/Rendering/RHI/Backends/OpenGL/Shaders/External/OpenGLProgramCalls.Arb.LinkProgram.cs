@@ -10,7 +10,7 @@ internal static unsafe partial class OpenGLProgramCalls
     /// <summary>Executes the exact external overload and completes affected metadata publication.</summary>
     internal static void ExecuteArbLinkProgram(int @programObj)
     {
-        var observation = StateCache.BeginNativeProgramMetadata(unchecked((int)@programObj), true, false, -1, 1, true, false);
+        var observation = OpenGlStateCache.BeginNativeProgramMetadata(unchecked((int)@programObj), true, false, -1, 1, true, false);
         bool returned = false;
         try
         {
@@ -27,7 +27,7 @@ internal static unsafe partial class OpenGLProgramCalls
     /// <summary>Executes the exact external overload and completes affected metadata publication.</summary>
     internal static void ExecuteArbLinkProgram(uint @programObj)
     {
-        var observation = StateCache.BeginNativeProgramMetadata(unchecked((int)@programObj), true, false, -1, 1, true, false);
+        var observation = OpenGlStateCache.BeginNativeProgramMetadata(unchecked((int)@programObj), true, false, -1, 1, true, false);
         bool returned = false;
         try
         {

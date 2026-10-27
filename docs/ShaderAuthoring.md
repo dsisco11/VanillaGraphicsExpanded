@@ -209,11 +209,22 @@ The bent-normal spelling remains an alias of short-range AO. Passing conflicting
 
 ## Retained runtime inputs
 
-Assign shader inputs before Use, UseScope or Dispatch. Unchanged and unassigned values retain their previous value or default. Use invokes contract-generated Submit, which validates all active inputs before publishing any of them. Each active CPU block binds a complete snapshot: changed bytes or an expired allocation require a fresh version, while unchanged contents reuse storage permitted by their declared lifetime. There is no Prepare callback or CPU batch scope.
+Assign desired inputs before `CaptureBindings`. Prepare the executable, create/select its exact RHI
+pipeline, bind the captured table and draw or dispatch through `RHICommandContext`. Generated capture
+samples each source once and freezes mutable values; execution validates the complete active input set
+before publication. Unchanged desired inputs retain their value, but equality never bypasses current
+resource usability or executable-interface validation.
 
-Declare borrowed resources through ShaderBinding interfaces. Generated setters retain references; authored getters may expose existing CPU blocks or shared buffers and must perform no GPU work. Attach the owner's mutation guard to owned CPU blocks. Raw texture IDs require ShaderTextureTarget and an explicit sampler policy when the default is unsuitable. Optional non-2D managed samplers also need the declared target so an unassigned value clears the correct texture binding. CPU block publication follows its instance lifetime policy; retained GPU references do not transfer resource ownership. Every sampler and image also needs a UniformLocation declaration in its stage contract: a binding slot alone cannot identify an active uniform in name-free SPIR-V.
+Declare sampled resources as `GpuTextureRef` through ShaderBinding interfaces. Use explicit dimensions
+and sampler policy, including optional non-2D inputs. Images use `GpuTextureBinding` for mip/layer/access/
+format and storage buffers use `GpuStorageBufferBinding` for ranges. Sampler/image contracts describe
+fixed units and activity, not authored opaque UniformLocation values. Ordinary numeric uniforms retain
+their real upload-location contracts. Retained references transfer no ownership or borrow lifetime.
 
-Compute owners derive from GpuComputeProgram and adopt the existing GpuComputePipeline. Use GpuStorageBufferBinding for exact SSBO ranges and GpuTextureBinding for image levels, layers, access and format. Dispatch owns activation and submission; keep work uploads, clears, barriers and readbacks explicit around it. Liquid engine pool callbacks are the specific exception to application-controlled draw ordering: they stage inputs, and LiquidPoolSubmissionHook establishes the pre-draw publication boundary.
+Compute owners use `GpuComputeProgram` and `ComputeShaderAsset` asset policy. Uploads, clears, access
+barriers and readbacks remain explicit around dispatch. Generated resource tables carry the exact
+prepared interface, while logical CPU uniform snapshots allocate physical storage only at execution.
+See [binding contracts](Rendering.ShaderBindingState.md#prepared-resource-submission).
 
 ### CPU uniform upload lifetime
 
@@ -263,6 +274,8 @@ copies independently of binding; alignment padding is excluded from bytes. CPU t
 between runs, so this establishes copy/allocation savings, not a CPU or GPU speedup. Receipts
 are retained in `artifacts/WaterLagAnalysis/uniform-reuse-*`.
 
-Mark a resource optional only when the shader has a valid path without it. For example, PBR composition permits an unavailable GI texture because the renderer also sets indirect intensity to zero. Optional absence clears the binding; it never borrows the previous shader's resource. Required active resources must be valid at use. Do not draw after a failed TryUse or a thrown Use/Dispatch.
-
-UseScope restores the enclosing owner's current retained inputs, including changes made while nested. It retains the owner's identity, not the lifetime of borrowed GPU resources. Disposing the enclosing owner or a required resource can make restoration throw; failed restoration leaves no executable bound. Dispatch already activates and submits, so callers normally stage inputs and call it directly without an extra Use.
+Mark a resource optional only when the shader has a valid path without it. Optional absence clears
+its declared slot; required active resources must be usable at execution. Pipeline or binding failure
+prevents drawing. Explicit RHI boundaries restore engine state without extending borrowed-resource
+lifetime. Recorded lists retain fixed executable/table identities and logical inputs; they do not
+allocate uniforms or commit successful-upload history until execution.

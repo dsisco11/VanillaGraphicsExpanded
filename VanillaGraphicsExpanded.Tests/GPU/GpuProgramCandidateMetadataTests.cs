@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System;
 using System.Linq;
 using System.Threading;
@@ -124,9 +125,9 @@ public sealed class GpuProgramCandidateMetadataTests(HeadlessGLFixture fixture)
         Assert.Equal(CompletionStatus.Ready, request.Status);
     }
     /// <summary>Starts a clean manager interval for candidate ownership assertions.</summary>
-    private void Start() { fixture.EnsureContextValid(); fixture.InitializeResourceDisposal(); StateCache.Current.InvalidateAll(); }
+    private void Start() { fixture.EnsureContextValid(); fixture.InitializeResourceDisposal(); OpenGlStateCache.Current.InvalidateAll(); }
     /// <summary>Retires all original fixture resources and clears selector knowledge.</summary>
-    private void Finish() { fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+    private void Finish() { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     /// <summary>Counts exact native program status reads.</summary>
     private static void CountStatus() => statusQueries++;
     /// <summary>Counts exact native validity checks.</summary>

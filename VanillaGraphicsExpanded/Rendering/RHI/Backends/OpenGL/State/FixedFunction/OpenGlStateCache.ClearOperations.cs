@@ -1,0 +1,25 @@
+using OpenTK.Graphics.OpenGL;
+using OpenTK.Mathematics;
+namespace VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
+/// <summary>Owns resource clear-operation values outside graphics pipeline identity.</summary>
+internal sealed partial class OpenGlStateCache
+{
+    private Vector4 clearColor;
+    private bool clearColorKnown;
+    #region Internal API
+    /// <summary>Establishes clear color, retaining the native floating-point value without clamping.</summary>
+    internal void SetClearColor(float red, float green, float blue, float alpha)
+    {
+        ValidateBoundaryMutation(clearColor: true);
+        var value = new Vector4(red, green, blue, alpha);
+        if (clearColorKnown && clearColor == value) return;
+        clearColorKnown = false;
+        OpenGLStateEffects.ClearColor(red, green, blue, alpha);
+#if DEBUG
+        FixedFunctionCalls++;
+#endif
+        clearColor = value;
+        clearColorKnown = true;
+    }
+    #endregion
+}

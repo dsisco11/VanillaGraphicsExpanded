@@ -164,7 +164,7 @@ public sealed class AtmosphereCelestialPublicationTests(HeadlessGLFixture fixtur
         textures.Upload(snapshot);
         Assert.Equal(height * 3, textures.Sky.Height);
         Assert.Equal(height * 3, textures.Radiance.Height);
-        using var binding = StateCache.Current.BindTextureScope(TextureTarget.Texture2D, 0, textures.Sky.TextureId);
+        using var binding = OpenGlStateCache.Current.BindTextureScope(TextureTarget.Texture2D, 0, textures.Sky.TextureId);
         float[] actual = new float[total.Length * 3];
         GL.GetTexImage(TextureTarget.Texture2D, 0, PixelFormat.Rgba, PixelType.Float, actual);
         for (int y = 0; y < height; y++)
@@ -200,11 +200,11 @@ public sealed class AtmosphereCelestialPublicationTests(HeadlessGLFixture fixtur
             GL.AttachShader(program, vertex); GL.AttachShader(program, fragment); GL.LinkProgram(program);
             GL.GetProgram(program, GetProgramParameterName.LinkStatus, out int linked);
             Assert.True(linked != 0, GL.GetProgramInfoLog(program));
-            using var radiance = StateCache.Current.BindTextureScope(TextureTarget.Texture3D, 11, textures.Radiance.TextureId);
-            using var attenuation = StateCache.Current.BindTextureScope(TextureTarget.Texture3D, 12, textures.Attenuation.TextureId);
+            using var radiance = OpenGlStateCache.Current.BindTextureScope(TextureTarget.Texture3D, 11, textures.Radiance.TextureId);
+            using var attenuation = OpenGlStateCache.Current.BindTextureScope(TextureTarget.Texture3D, 12, textures.Attenuation.TextureId);
             using var framework = new ShaderTestFramework();
             using var shaft = framework.CreateTexture(1, 1, PixelInternalFormat.R32f, new[] { 0f });
-            using var shaftBinding = StateCache.Current.BindTextureScope(TextureTarget.Texture2D, 13, shaft.TextureId);
+            using var shaftBinding = OpenGlStateCache.Current.BindTextureScope(TextureTarget.Texture2D, 13, shaft.TextureId);
             using var output = framework.CreateTestGBuffer(1, 1, PixelInternalFormat.Rgba32f);
             GL.UseProgram(program);
             GL.Uniform1(GL.GetUniformLocation(program, "vge_atmosphereAerialRadiance"), 11);
@@ -215,7 +215,7 @@ public sealed class AtmosphereCelestialPublicationTests(HeadlessGLFixture fixtur
             foreach (Vector3 direction in new[] { Vector3.UnitX, Vector3.UnitY, Vector3.UnitZ })
             {
                 // The framework unbinds the program after each submission.
-                OpenGLProgramSelection.Select(StateCache.Current, program);
+                OpenGLProgramSelection.Select(OpenGlStateCache.Current, program);
                 GL.Uniform3(GL.GetUniformLocation(program, "ray"), direction.X, direction.Y, direction.Z);
                 framework.RenderQuadTo(program, output);
                 float expected = smooth + solar * AtmosphereMieTransport.Factor(direction.X) + lunar * AtmosphereMieTransport.Factor(direction.Y);

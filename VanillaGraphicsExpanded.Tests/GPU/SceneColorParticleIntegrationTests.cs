@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Reflection;
 using HarmonyLib;
@@ -76,7 +77,7 @@ public sealed class SceneColorParticleIntegrationTests(HeadlessGLFixture fixture
         GL.Enable(IndexedEnableCap.Blend, 1);
         GL.BlendFuncSeparate(1, BlendingFactorSrc.Zero, BlendingFactorDest.One, BlendingFactorSrc.Zero, BlendingFactorDest.One);
         GL.ColorMask(2, false, true, false, true);
-        StateCache.Current.InvalidateAll();
+        OpenGlStateCache.Current.InvalidateAll();
         using var shaders = new TerrainShaderTestFixture();
         int vertex = shaders.Load(ShaderType.VertexShader, "tests/complete-state.vsh");
         int fragment = shaders.Load(ShaderType.FragmentShader, "tests/particle-integration.fsh");
@@ -118,7 +119,7 @@ public sealed class SceneColorParticleIntegrationTests(HeadlessGLFixture fixture
             GL.ColorMask(true, true, true, true);
             GL.UseProgram(0);
             GL.BindVertexArray(0);
-            StateCache.Current.InvalidateAll();
+            OpenGlStateCache.Current.InvalidateAll();
         }
     }
     #endregion

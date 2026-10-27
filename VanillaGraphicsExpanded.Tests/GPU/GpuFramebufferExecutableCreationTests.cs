@@ -32,7 +32,7 @@ public sealed class GpuFramebufferExecutableCreationTests(HeadlessGLFixture fixt
             using var framebuffer = DynamicGpuFramebuffer.CreateSingle(texture)!;
             var before = GpuFramebufferAttachmentDiscovery.Read(framebuffer, FramebufferAttachment.ColorAttachment0);
             Assert.Equal(4, before.Width);
-            using (StateCache.Current.BindTextureScope(TextureTarget.Texture2D, 0, texture.TextureId))
+            using (OpenGlStateCache.Current.BindTextureScope(TextureTarget.Texture2D, 0, texture.TextureId))
                 GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.Rgba8, 8, 6, 0, PixelFormat.Rgba, PixelType.UnsignedByte, IntPtr.Zero);
             var recovered = GpuFramebufferAttachmentDiscovery.Read(framebuffer, FramebufferAttachment.ColorAttachment0, forceNative: true);
             Assert.Equal(texture.TextureId, recovered.TextureId);
@@ -40,7 +40,7 @@ public sealed class GpuFramebufferExecutableCreationTests(HeadlessGLFixture fixt
             Assert.Equal(6, recovered.Height);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
 
     /// <summary>Local backing discovery cannot publish a partial texture or renderbuffer while its explicit mutation is unfinished.</summary>
@@ -67,7 +67,7 @@ public sealed class GpuFramebufferExecutableCreationTests(HeadlessGLFixture fixt
             }
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { StateCache.Current.InvalidateAll(); }
+        finally { OpenGlStateCache.Current.InvalidateAll(); }
     }
 
     /// <summary>External narrow edits query only the selected slot or default and retain every unrelated descriptor.</summary>
@@ -103,7 +103,7 @@ public sealed class GpuFramebufferExecutableCreationTests(HeadlessGLFixture fixt
             }
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { harmony.UnpatchAll(harmony.Id); fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { harmony.UnpatchAll(harmony.Id); fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
 
     /// <summary>Initial selections and later controlled replacement publish complete slots without scanning unrelated attachments.</summary>
@@ -144,7 +144,7 @@ public sealed class GpuFramebufferExecutableCreationTests(HeadlessGLFixture fixt
             Assert.Equal(second.TextureId, entry.Metadata.Attachments[FramebufferAttachment.ColorAttachment1].Id);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { harmony.UnpatchAll(harmony.Id); fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { harmony.UnpatchAll(harmony.Id); fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
 
     /// <summary>Fresh empty descriptors and fixed shader stages reach registered and local recipients without queries.</summary>
@@ -162,7 +162,7 @@ public sealed class GpuFramebufferExecutableCreationTests(HeadlessGLFixture fixt
         {
             using var capabilities = new DirectStateAccessCapabilityScope(direct);
             using var sentinel = DynamicGpuFramebuffer.CreateEmpty();
-            using var scope = StateCache.Current.BindFramebufferScope(FramebufferTarget.Framebuffer, sentinel.FboId);
+            using var scope = OpenGlStateCache.Current.BindFramebufferScope(FramebufferTarget.Framebuffer, sentinel.FboId);
             PatchQueries(harmony);
             queries = 0;
             using var framebuffer = new Recipient<GpuFramebufferMetadata>(GpuResourceKind.Framebuffer);
@@ -196,7 +196,7 @@ public sealed class GpuFramebufferExecutableCreationTests(HeadlessGLFixture fixt
             Assert.Equal((int)ShaderType.VertexShader, nativeStage);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { harmony.UnpatchAll(harmony.Id); fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { harmony.UnpatchAll(harmony.Id); fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
 
     /// <summary>Omitted stage fails before allocation and explicit zero/false defaults remain distinct from omission.</summary>
@@ -229,7 +229,7 @@ public sealed class GpuFramebufferExecutableCreationTests(HeadlessGLFixture fixt
         }
         finally
         {
-            fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll();
+            fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll();
         }
     }
 
@@ -272,7 +272,7 @@ public sealed class GpuFramebufferExecutableCreationTests(HeadlessGLFixture fixt
             Assert.False(family switch { 0 => GL.IsFramebuffer(id), 1 => GL.IsShader(id), _ => GL.IsProgram(id) });
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
     #endregion
 

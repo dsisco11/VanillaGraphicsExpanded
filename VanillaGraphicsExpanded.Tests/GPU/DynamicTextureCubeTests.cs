@@ -29,11 +29,11 @@ public sealed class DynamicTextureCubeTests(HeadlessGLFixture fixture) : RenderT
         {
             using var image = GpuFramebufferAttachment.FromTexture(cube, mip, cubeFace: TextureTarget.TextureCubeMapPositiveX + face);
             using var target = DynamicGpuFramebuffer.Create([image]);
-            using var binding = StateCache.Current.BindFramebufferScope();
-            OpenGLFramebufferSelection.Bind(StateCache.Current, FramebufferTarget.DrawFramebuffer, target.FboId);
+            using var binding = OpenGlStateCache.Current.BindFramebufferScope();
+            OpenGLFramebufferSelection.Bind(OpenGlStateCache.Current, FramebufferTarget.DrawFramebuffer, target.FboId);
             GL.ClearBuffer(ClearBuffer.Color, 0, new[] { (face + 1) / 8f, .5f, .25f, 1f });
         }
-        using var textureBinding = StateCache.Current.BindTextureScope(((GpuTextureRef)cube).Target, 0, cube.TextureId);
+        using var textureBinding = OpenGlStateCache.Current.BindTextureScope(((GpuTextureRef)cube).Target, 0, cube.TextureId);
         GL.GetTexParameter(TextureTarget.TextureCubeMap, GetTextureParameter.TextureMinFilter, out int minimum);
         Assert.Equal((int)TextureMinFilter.LinearMipmapLinear, minimum);
         for (int mip = 0; mip < cube.MipLevels; mip++) for (int face = 0; face < 6; face++)
@@ -53,10 +53,10 @@ public sealed class DynamicTextureCubeTests(HeadlessGLFixture fixture) : RenderT
         using var cube = RHICommandContext.Current.CreateTextureCube(new RHITextureDescription { Dimension = TextureDimension.Cube, Format = TextureFormat.R32ui, Width = 2, Height = 2, MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         using var image = GpuFramebufferAttachment.FromTexture(cube, cubeFace: TextureTarget.TextureCubeMapPositiveX);
         using var target = DynamicGpuFramebuffer.Create([image]);
-        using var binding = StateCache.Current.BindFramebufferScope();
-        OpenGLFramebufferSelection.Bind(StateCache.Current, FramebufferTarget.DrawFramebuffer, target.FboId);
+        using var binding = OpenGlStateCache.Current.BindFramebufferScope();
+        OpenGLFramebufferSelection.Bind(OpenGlStateCache.Current, FramebufferTarget.DrawFramebuffer, target.FboId);
         GL.ClearBuffer(ClearBuffer.Color, 0, new uint[] { 7, 0, 0, 0 });
-        using var textureBinding = StateCache.Current.BindTextureScope(((GpuTextureRef)cube).Target, 0, cube.TextureId);
+        using var textureBinding = OpenGlStateCache.Current.BindTextureScope(((GpuTextureRef)cube).Target, 0, cube.TextureId);
         uint[] data = new uint[4];
         GL.GetTexImage(TextureTarget.TextureCubeMapPositiveX, 0, PixelFormat.RedInteger, PixelType.UnsignedInt, data);
         Assert.All(data, value => Assert.Equal(7u, value));
@@ -97,10 +97,10 @@ public sealed class DynamicTextureCubeTests(HeadlessGLFixture fixture) : RenderT
         // A replacement may immediately reuse a deleted GL name; successful writes below
         // prove the framebuffer now references the new storage even in that case.
         if (inPlace) Assert.Equal(original, cube.TextureId);
-        using var bindings = StateCache.Current.BindFramebufferScope();
+        using var bindings = OpenGlStateCache.Current.BindFramebufferScope();
         target.Bind();
         GL.ClearBuffer(ClearBuffer.Color, 0, new[] { .25f, .5f, .75f, 1f });
-        using var textureBinding = StateCache.Current.BindTextureScope(((GpuTextureRef)cube).Target, 0, cube.TextureId);
+        using var textureBinding = OpenGlStateCache.Current.BindTextureScope(((GpuTextureRef)cube).Target, 0, cube.TextureId);
         float[] data = new float[4 * 4 * 4];
         GL.GetTexImage(TextureTarget.TextureCubeMapNegativeZ, 1, PixelFormat.Rgba, PixelType.Float, data);
         for (int pixel = 0; pixel < 16; pixel++) Assert.Equal(.25f, data[pixel * 4]);

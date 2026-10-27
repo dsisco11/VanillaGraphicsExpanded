@@ -157,7 +157,7 @@ PostprocessPipeline coordinates separate algorithm owners:
    warm tint, vignettes and one final dither.
 
 All scene postprocess draws use typed VGE programs, GLSL 330 (with the required SSBO extension for exposure consumers), PSOs, render passes and one
-restoring GraphicsCommandContext boundary. Camera metering and final composition each have
+restoring RHICommandContext boundary. Camera metering and final composition each have
 their own restoring boundary before and after the effects. Camera metering uses two GLSL 430 compute dispatches and buffer-backed EV history; ShaderStorageBarrierBit publishes histogram and exposure writes. See PBR.CameraExposure.md for numeric encoding, overflow bounds, runtime admission and ownership. No original engine findbright, blur, light-shaft, SSAO, bilateral or luma
 shader is invoked by the replaced HDR pass. The copied SSAO implementation and its kernel
 adapter have been removed. The owned horizon integration and joint spatial filter described below
@@ -1009,7 +1009,7 @@ across light-shafts.trx, light-shafts-corrected.trx and light-shafts-abstraction
 under artifacts/SceneHdrRuntime. The final abstraction-cleanup run passed 20/20 checks, including
 all six lifecycle cases, with no failures or skips. Its build completed with zero errors and
 102 existing warnings (light-shafts-abstractions-build.log). Aerial tests use typed shader inputs;
-aerial, shaft and bloom submissions use PostprocessDraw and GraphicsCommandContext, without raw
+aerial, shaft and bloom submissions use PostprocessDraw and RHICommandContext, without raw
 uniform writes, raster mutation, draw calls or blanket cache invalidation.
 
 The final PSO-path synthetic measurement for four late shaft passes at 320x180 and 16 radial taps,

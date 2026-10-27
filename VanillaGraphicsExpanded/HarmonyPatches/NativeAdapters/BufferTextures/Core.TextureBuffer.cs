@@ -5,7 +5,7 @@ using VanillaGraphicsExpanded.Rendering;
 
 namespace VanillaGraphicsExpanded.HarmonyPatches.NativeAdapters.BufferTextures;
 
-/// <summary>Forwards GL.TextureBuffer overloads through their existing StateCache observation contract.</summary>
+/// <summary>Forwards GL.TextureBuffer overloads through their existing OpenGlStateCache observation contract.</summary>
 internal static unsafe partial class Core
 {
     #region Internal API

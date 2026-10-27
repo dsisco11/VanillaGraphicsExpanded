@@ -1,150 +1,83 @@
-# Engine state switching through the cache
+# Engine state integration
 
-The engine's supported native state calls are replaced at their managed call sites with compiler-checked C# adapters into `StateCache`.
+Supported engine OpenTK calls are replaced at managed call sites with compiler-checked adapters into
+the OpenGL RHI backend. `OpenGlStateCache` owns executed knowledge; `GpuResourceManager` owns canonical
+resource facts and lifetime. Neither is a second public rendering command context.
 
 ## Patch boundary
 
-[EngineStateSwitchingHook](../VanillaGraphicsExpanded/HarmonyPatches/EngineStateSwitchingHook.cs) participates in the existing client mod's `Harmony.PatchAll()` startup. It discovers concrete methods and constructors in the loaded `VintagestoryLib`, `VSEssentials`, `VSSurvivalMod`, and `VSCreativeMod` assemblies whose original IL contains a mapped static OpenGL call. OpenTK itself, VGE, and third-party mods are not patched. Cache operations therefore still reach the original native functions without recursion.
+[EngineStateSwitchingHook](../VanillaGraphicsExpanded/HarmonyPatches/EngineStateSwitchingHook.cs)
+discovers concrete methods and constructors in loaded built-in `VintagestoryLib`, `VSEssentials`,
+`VSSurvivalMod` and `VSCreativeMod` assemblies. It replaces only exact static call operands, preserving
+evaluated arguments, branch labels and exception blocks. OpenTK, VGE and third-party assemblies are not
+rewritten. Native calls inside backend forwarding therefore cannot recurse into interception.
 
-[EngineStateTargets](../VanillaGraphicsExpanded/HarmonyPatches/EngineStateTargets.cs) scans metadata and walks IL instruction boundaries before resolving candidate callers. This avoids loading unrelated optional dependencies or resolving unrelated method references during discovery. Built-in assemblies must already be loaded when the mod's startup patches run; late-loaded assemblies are not automatically patched.
+`EngineStateTargets` walks original IL and resolves only candidate native references. Built-in assemblies
+must already be loaded; there is no per-frame discovery or automatic third-party interception.
+`EngineGenericStateTargets` discovers concrete value-type method specifications, including calls through
+virtual base declarations. Harmony receives closed concrete methods only. Open definitions, unresolved
+forwarding and shared reference-type instantiations reject explicitly; reflection-created instantiations
+remain outside this static discovery boundary.
 
-[EngineGenericStateTargets](../VanillaGraphicsExpanded/HarmonyPatches/EngineGenericStateTargets.cs) collects concrete value-type instantiations from those assemblies' method specifications. References through virtual base declarations resolve to the native-calling implementation, including `UBORef.Update<T>` calls implemented by `UBO`. Each concrete method receives the ordinary transpiler; Harmony never receives an open definition. Unreferenced templates have no concrete targets. Unresolved generic forwarding, open declaring types and shared reference-type instantiations are rejected explicitly. Reflection-created instances and arbitrary-mod callers are outside this static discovery boundary. Content-only methods remain unpatched when they contain no mapped operation; their independently intercepted binding helpers still maintain cache coherence.
-
-[EngineStateCallMap](../VanillaGraphicsExpanded/HarmonyPatches/EngineStateCallMap.cs) resolves adapters by exact method name, parameter types, and return type. An adapter without a matching native signature fails map initialization. The transpiler replaces the call operand only, preserving evaluated arguments, instruction count, branch labels and exception blocks. Unsupported methods are left unchanged. Another transpiler's replacement is not forcibly overwritten.
-
-Metadata forwarding methods live under [NativeAdapters](../VanillaGraphicsExpanded/HarmonyPatches/NativeAdapters/),
-with a command's overloads grouped by resource family and native OpenTK owner. Each ordinary C# adapter
-forwards to a StateCache operation that owns native execution and completion.
-StateCache and GpuResourceManager retain metadata policy and publication ownership.
-[MetadataAdapterCatalog](../VanillaGraphicsExpanded/HarmonyPatches/NativeAdapters/MetadataAdapterCatalog.cs)
-declares the native-owner pairs. Exact signature validation includes generic parameter constraints;
-closed generic uploads resolve to the compiled adapter definition using the caller's own type arguments.
-There is no runtime adapter-body generation or command-name/parameter-name semantic inference.
-Existing fixed state/deletion mappings retain precedence when a signature also has a metadata adapter.
-
-## Previously compiled render API callers
-
-Immediately after `Harmony.PatchAll()` installs the native-call replacements, [EngineRenderApiStatePatches](../VanillaGraphicsExpanded/HarmonyPatches/EngineRenderApiStatePatches.cs) rebuilds declared managed methods and instance constructors in the existing engine `IRenderAPI` hierarchy and the explicitly identified caller classes: `GuiElementClip`, `GuiComposer`, `GuiScreenConnectingToServer`, `ScreenManager`, `GuiCompositeMainMenuLeft`, `ParticleRenderer2D`, `TextureAtlasManager`, and `BlendedTextureManager`.
-
-The menu can compile these callers before mod startup and retain inlined platform operations. The existing Harmony transpiler and patch processor regenerate their bodies after native routing. Repeated application rebuilds existing patches without duplicating the owner's transpiler, and both passes use the existing owner-scoped unpatch lifecycle. No call graph is constructed and no per-frame discovery occurs.
-
-Selection uses exact engine/API types, including internal types resolved by full name. Third-party implementations, abstract bodies, open generic bodies and static initializers are excluded. Higher callers outside these selected classes are not automatically rebuilt.
+`EngineStateCallMap` and `NativeAdapters/MetadataAdapterCatalog` match full managed return/parameter types,
+method names and generic constraints against ordinary compiled C# adapters. Closed generic adapters use
+the caller's type arguments. There is no generated adapter IL or command-name pattern dispatcher.
+Unsupported calls remain unchanged, including calls replaced by another transpiler.
 
 ## Supported operations
 
-Only native methods declared on GL, GL.Ext and GL.Arb participate in replacement. Core adapters
-target GL in the pinned OpenTK binding. Every other auxiliary owner is outside interception;
-capability detection and direct VGE resource operations remain independent of this boundary.
+Only GL (named Core in adapter files), GL.Ext and GL.Arb owners participate. Other auxiliary owners,
+matrix stacks, display lists, attribute stacks, client defaults/legacy arrays, alpha testing, point
+smoothing, separate polygon face modes, stipple and automatic mip generation are excluded. Generic
+Enable/Disable preserves unsupported capability values unchanged without inventing cached metadata.
+See the [API coverage](Rendering.GpuResourceHandles.ApiCoverage.md) for the complete retained families,
+overloads and exclusions. Current engine call frequency does not narrow that support obligation.
 
-Matrix stacks, display lists, server/client attribute stacks, client defaults,
-fixed-function arrays, alpha testing, point smoothing, separate polygon face modes, stipple and automatic mip generation are outside
-the interception contract. Excluded native calls remain unchanged. Generic Enable/Disable forwards
-unsupported capability values without caching them. Ordinary texture content uploads require no
-metadata observation; image definitions and explicit mip generation retain their metadata routes.
+## Execution and reconciliation
 
+Exact overloads execute once in focused `Rendering/RHI/Backends/OpenGL` external modules. They preserve
+original arguments, side effects and native error behavior. They do not enter command lists, suppress
+known-equal calls, clamp values or substitute managed validation for native rejection.
+Fixed-function adapters live in `State/External/EngineStateCalls`; resource/storage/executable/vertex
+and routing adapters live with their owning backend family. Managed operations use core OpenGL4 4.5
+implementations separately, sharing observation, metadata and knowledge services rather than an executor.
 
-[EngineStateCalls](../VanillaGraphicsExpanded/Rendering/EngineStateCalls.cs) supplies signature-compatible adapters for:
+Fixed-state calls admit their precise field footprint and withdraw affected knowledge before native dispatch. Resource operations retain
+original associations and use existing observation/publication once, including interruption. Content
+updates never become storage metadata. Reserved generated names, proxy targets, exact unsigned/ref/
+pointer/generic overloads and per-object deletion outcomes retain their native semantics.
 
-- Enable/disable of depth testing, culling, scissor testing and global/indexed blending. Other capability values pass through to OpenGL.
-- Depth comparison/write mask, global/indexed blend factors including separate RGB/alpha factors, global color mask, line width and point size.
-- Executable, program-pipeline, VAO, framebuffer, renderbuffer and transform-feedback binding.
-- DrawBuffer(DrawBufferMode) and DrawBuffers(int, DrawBuffersEnum[]) changes. Routing is cached per
-  framebuffer with disabled trailing outputs included; builtin writes and VGE passes share one
-  owner. Unknown third-party routing changes require FramebufferRouting, FramebufferBindings or
-  All invalidation. Native framebuffer deletion withdraws routing before name reuse.
-- Active texture unit, texture and sampler binding. Native texture-unit enums become zero-based cache units. Engine texture binding issues only the native bind, without querying or reselecting the active unit, and does not alter sampler ownership. When the unit is known, its cached target binding is updated; otherwise that target's snapshots are invalidated across units and the active unit remains unknown.
-- Generic buffer, indexed buffer base/range, and image-view binding.
-- Pixel-store changes, patch vertex count and the cached provoking-vertex convention.
-- Engine texture/buffer retirement and deletion invalidation for framebuffer, sampler, VAO and program bindings, including the engine's by-reference bulk buffer deletion overload.
+Bindings distinguish active texture selection, per-target texture slots, samplers, images and indexed
+buffer ranges. A native texture bind never queries or reselects the active unit. Unknown effects remain
+unknown for explicit/lazy recovery; registry membership does not extend interception coverage.
 
-Only exact mapped overloads are substituted. The installed-engine coverage test exercises discovered targets; adapters for currently unused operations provide coverage when those exact calls appear in the engine. This is not a claim that every OpenTK overload is supported.
+Deletion reconciles only affected associations and selectors. Program deletion preserves native deferred
+destruction of a selected executable; managed retirement retains its distinct unbinding contract. Queued
+retirement uses captured context and registration, never a reused numeric name. See [resource ownership](Rendering.GpuResources.md).
 
-The complete graphics-state adapters also route viewport, scissor rectangles, blend equations, stencil configuration and depth range through their cache owners. Exact mapped signatures remain the boundary; unsupported operations and capability values retain native behavior. See [authoritative pipeline state](Rendering.AuthoritativePipelineState.md) for the complete ownership contract.
+## Selective invalidation and restoration
 
-## Cache consistency fixes
+`OpenGlStateCache.Invalidate(EPipelineState)` changes knowledge only. Categories remain independent,
+with explicit dependencies for indexed blend values, VAO element bindings, feedback outputs and
+framebuffer routing. `None` is a no-op; undefined mask bits reject. Warm managed transitions can suppress
+known-equal effects, while exact engine calls always execute.
 
-An indexed blend mutation invalidates the cached global blend value. Otherwise a later global restore to the previous value could be skipped even though one output differs. Tests exercise global-to-indexed-to-global transitions against actual driver state.
+An RHI boundary declares all permitted pipelines and helper-state coverage before mutation. Existing
+selective capture/restoration preserves known native engine state, rejects undeclared changes and
+invalidates failed restoration fields. No arbitrary callback execution API belongs to the cache.
+See [boundary lifetime](Rendering.AuthoritativePipelineState.md#shader-ownership-and-boundary-lifetime).
 
-Binding a previously unobserved VAO no longer invents a zero element-buffer association. The engine may have populated that VAO before cache observation; its EBO remains unknown until queried or bound through the cache.
+## Previously compiled render API callers
 
-Line width and point size use exact equality rather than approximate equality, so forwarding engine calls does not suppress distinct requested values.
+`EngineRenderApiStatePatches` rebuilds declared methods/instance constructors in the engine IRenderAPI
+hierarchy and explicit existing menu/render caller types after native call replacements. This addresses
+platform operations inlined before mod startup. Reapplication rebuilds existing patches without
+duplicating the owner transpiler. Third-party implementations, abstract/open bodies, static initializers
+and unlisted higher callers remain excluded. No runtime call graph or per-frame scan is introduced.
 
-Deletion adapters update only entries referencing the retired resource. Matching sampler slots and framebuffer read/draw bindings become zero; deleting a VAO removes only its element-buffer association and resets the selected VAO only if it was current. Single and bulk buffer deletion share targeted cleanup of matching generic, indexed and element-buffer snapshots. Zero names leave cache knowledge unchanged. Unrelated entries in the same category remain known, as does the active texture unit.
+## Verification boundary
 
-Program deletion leaves binding knowledge intact: a current executable remains in use until a subsequent program switch. See [Khronos program deletion semantics](https://wikis.khronos.org/opengl/GLAPI/glDeleteProgram). Matching buffer associations in other VAOs become unknown rather than being asserted zero: unbound containers can retain references to deleted storage. See [OpenGL object deletion semantics](https://registry.khronos.org/OpenGL/specs/gl/glspec44.core.pdf), section 5.1.2. Resource-specific cleanup is owned by `StateCache.ResourceDeletion.cs`; category invalidation is reserved for boundaries where the exact changed resource is not known.
-
-Targeted-deletion validation passed 38 distinct tests, including six new GPU cases for surviving sampler/framebuffer/VAO bindings, bulk buffer deletion, retained storage in an unbound VAO, and current-program deletion. After strengthening exception-path test cleanup, the final normal build passed with zero errors and 101 warnings and all six new tests passed again without skips. Receipts: `artifacts/targeted-deletion-build.log`, `artifacts/targeted-deletion-tests.log`, `artifacts/targeted-deletion-unbind-tests.log`, and `artifacts/targeted-deletion-final-tests.log`. No game was launched.
-
-Single-field pixel-store adapters preserve native overload behavior and invalidate the aggregate pack snapshot instead of querying and replaying unrelated fields.
-
-## Selective invalidation
-
-`GlStateCache.Invalidate(EPipelineState)` forgets selected cached knowledge without issuing GL commands or queries. Flags can be combined, for example `Invalidate(EPipelineState.Program | EPipelineState.FramebufferBindings)`. `None` is a no-op; unknown bits are rejected before modifying the cache.
-
-The enum covers depth, blending, culling, scissor enable, color mask, line width, point size, patch count, provoking convention, program/pipeline, VAO, framebuffer, renderbuffer, transform feedback, active texture selection, textures, samplers, buffers, images and pixel-pack layout. `FixedFunction`, `Bindings`, and `All` provide composite masks. These flags are independent of the existing pipeline descriptor bit layout.
-
-Active texture selection, per-unit texture bindings and sampler bindings are separate categories. Invalidating one preserves the other two. Dependencies are explicit: blending invalidates global and indexed snapshots together; VAO invalidation also clears element-buffer associations; buffer invalidation clears generic, indexed and element-buffer snapshots while preserving the selected VAO; transform-feedback invalidation also removes that object's indexed feedback-buffer snapshots. Framebuffer invalidation clears both read/draw snapshots and their combined alias.
-
-`InvalidateAll()` remains a compatibility entry point for `All`. `PurgeCache()` and `BeginFrame()` retain their existing broad binding/pixel-pack boundary semantics. Unknown external mutation boundaries still require broad invalidation; this change narrows resource deletion paths where affected state is known. DEBUG-only diagnostic counters and immutable capability limits are preserved by invalidation. Release retains functional binding, revision and lifetime bookkeeping.
-
-Selective-invalidation validation: the normal build passed with zero errors and 106 warnings; all 41 focused invalidation, engine-switching, unbind, pixel-pack and shader-binding tests passed with zero skips. Tests cover independent categories, combined and invalid masks, dependent VAO/buffer and transform-feedback snapshots, full-invalidation compatibility, and preservation of active-unit knowledge through resource deletion. Logs: `artifacts/selective-invalidation-build.log` and `artifacts/selective-invalidation-tests.log`.
-
-## Shader ownership and native handoff
-
-Exact-signature program adapters observe native bindings; they do not register VGE executables or
-publish VGE owners into `CurrentShaderProgram`. Independent graphics/compute families share internal
-`IGpuProgram` workflows and the existing StateCache program scopes, retaining owner/revision/context
-borrows. GraphicsCommandContext owns managed activation; immediate standalone scopes replay retained
-inputs, while complete boundaries restore their declared binding snapshots and draw state.
-
-Engine-boundary admission retains unsupported native/raw/compute-footprint rejection. Native terrain,
-material, atmosphere, particle and frame/light hooks remain engine-owned. Liquid pool getter interception
-returns an input-only adapter only during a VGE liquid submission; native pools still see their engine
-shader. There is no global current-shader getter replacement or engine program proxy.
-
-VGE native resources and deferred deletion carry their originating RenderContextRegistry registration.
-Delete on that live context, defer while it is noncurrent, or abandon after destruction. Engine deletion
-adapters retain ordinary native deletion plus targeted cache retirement; there is no global deletion
-suppression switch. Root-owned shutdown releases borrowers and programs before draining the GPU manager.
-This context validation applies to resource/program/boundary lifetime, not a new broad cache authority.
-See [pipeline lifetime](Rendering.AuthoritativePipelineState.md#shader-ownership-and-boundary-lifetime)
-and [shader lifecycle](GpuProgram.md#reload-and-retirement). Earlier dated switching receipts below
-remain scoped historical evidence. Live native rendering/reload acceptance remains user-run.
-
-## Limits
-
-This work routes state through the existing cache. Binding operations that currently always issue native calls retain that behavior; this is not a new blanket binding-deduplication policy or a measured performance improvement.
-
-Existing shader ownership, framebuffer observation, invalidation and restoration scopes remain in place. Tracking engine mutations does not itself restore state required after a VGE pass. Raw calls from other mods and unobserved external operations still require the established boundary handling. Shader ownership now validates originating context lifetime as described above; native routing
-continues to use targeted cache updates.
-
-The first validation build also exposed an existing `GpuQuery.ResourceId` setter assigning `nint` to its `int` field. The setter now explicitly converts to `int`, matching its stored GL object name and allowing the build to proceed.
-
-## Verification
-
-Verification uses exact-signature/IL tests, installation against discovered engine methods without executing the game, and headless GL tests that execute transpiled representative call sites. No game process was launched; live rendering acceptance remains user-run.
-
-On 2026-10-03 the installed binaries contained 216 mapped call sites across 78 methods: 196 calls in 72 `VintagestoryLib` methods and 20 calls in six `VSEssentials` cloud-rendering methods. Every discovered body was checked for complete mapped-call replacement, and the real Harmony transpiler installed successfully on all 78 targets before test cleanup removed it.
-
-The builtin metadata inventory found only unsupported `DrawBuffers` use in `VSSurvivalMod`; `VSCreativeMod` and the API assembly do not reference OpenTK.Graphics. The core's only alternate OpenTK graphics declaring type was `GL.Ext.CheckFramebufferStatus`, which is a query and remains unchanged.
-
-The delegated Debug build completed with zero errors and 101 warnings. All 45 selected tests passed, with zero failures or skips:
-
-```powershell
-$env:NUGET_PACKAGES='C:\Users\Sisco\.nuget\packages'
-dotnet test VanillaGraphicsExpanded.Tests/VanillaGraphicsExpanded.Tests.csproj --no-restore --filter 'FullyQualifiedName~EngineStateSwitching|FullyQualifiedName~EngineStateInventoryTests|FullyQualifiedName~GlStateCache|FullyQualifiedName~ShaderBindingOperationTests|FullyQualifiedName~GpuFramebufferBlendStateIntegrationTests|FullyQualifiedName~GpuTextureLifetimeTests|FullyQualifiedName~PixelPackStateTests|FullyQualifiedName~GlPipeline' -v normal
-```
-
-Receipts: `artifacts/engine-state-tests.log`, `artifacts/engine-state-patched-methods.txt`, and `artifacts/engine-gl-inventory.txt`. Tests installing global patches are serialized with the GPU collection and remove their patches in `finally` blocks.
-
-The source review checked the exact-signature boundary, builtin assembly selection, IL operand walking, shader ownership preservation, texture/sampler independence, native deletion semantics, and interaction between indexed and global blend caches. These checks do not claim live engine rendering or a measured speedup.
-
-### Active-unit texture binding follow-up
-
-The engine adapter now uses `BindTextureOnActiveUnit` rather than querying the active unit and calling the explicit-unit binding API. Focused regression coverage verifies no active-unit query or reselection in that path, one native texture bind, known-unit bookkeeping, unknown-unit selective target invalidation, and sampler preservation. All 19 selected engine-switching, inventory, shader-binding and texture-lifetime tests passed with zero skips.
-
-The full build encountered a shader-cache atomic file-move access error; the serialized shader retry was stopped after it stalled. Validation compiled the production C# project with `EnableSpirv=false`, then compiled tests with `BuildProjectReferences=false`, reusing existing shader artifacts. Both C# builds passed. This fix changes no shaders; it does not establish that a fresh shader rebuild succeeds. Receipts: `artifacts/active-texture-fix-production-build.log`, `artifacts/active-texture-fix-build.log`, and `artifacts/active-texture-fix-tests.log`.
-
-### Render API caller verification boundary
-
-The test suite does not inventory or execute installed client rendering classes: CI can obtain only the server distribution. The local client-only render API coverage and warmed GUI scissor tests were removed. Their earlier results were local diagnostic evidence, not CI coverage. Loading-screen behavior and post-routing rebuilding of these client classes require user-run client verification.
+Exact-signature/IL and concrete-generic tests check rewriting. Headless tests execute representative
+adapters and verify native effects, errors, exactly-once dispatch, selector restoration and cache agreement.
+Global patch fixtures serialize and remove observers during cleanup. Installed-client rendering and
+warmed menu behavior require user-run evidence; server-only CI cannot qualify those client classes.

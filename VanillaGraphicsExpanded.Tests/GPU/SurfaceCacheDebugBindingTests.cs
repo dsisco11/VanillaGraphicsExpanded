@@ -39,13 +39,13 @@ public sealed class SurfaceCacheDebugBindingTests : LumOnShaderFunctionalTestBas
         RHICommandContext.Current.SetPipeline(active);
         RHICommandContext.Current.BindResources(program.CaptureBindings());
         Assert.Equal(ErrorCode.NoError, GL.GetError());
-        OpenGLImageBindings.ActiveTexture(StateCache.Current, unit);
+        OpenGLImageBindings.ActiveTexture(OpenGlStateCache.Current, unit);
         Assert.Equal(texture.TextureId, GL.GetInteger(GetPName.TextureBinding2DArray));
         Assert.Equal(sentinel.TextureId, GL.GetInteger(GetPName.TextureBinding2D));
         Set(null);
         RHICommandContext.Current.BindResources(program.CaptureBindings());
         Assert.Equal(ErrorCode.NoError, GL.GetError());
-        OpenGLImageBindings.ActiveTexture(StateCache.Current, unit);
+        OpenGLImageBindings.ActiveTexture(OpenGlStateCache.Current, unit);
         Assert.Equal(0, GL.GetInteger(GetPName.TextureBinding2DArray));
 
         /// <summary>Calls the production property used by the debug renderer for each cache resource.</summary>

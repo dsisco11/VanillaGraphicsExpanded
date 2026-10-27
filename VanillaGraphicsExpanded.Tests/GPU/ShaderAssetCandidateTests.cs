@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System;
 using System.IO;
 using OpenTK.Graphics.OpenGL4;
@@ -49,7 +50,7 @@ public sealed class ShaderAssetCandidateTests(HeadlessGLFixture fixture)
         }
         finally
         {
-            fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll();
+            fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll();
             if (Directory.Exists(directory)) Directory.Delete(directory, true);
         }
     }
@@ -72,7 +73,7 @@ public sealed class ShaderAssetCandidateTests(HeadlessGLFixture fixture)
             Assert.Throws<ObjectDisposedException>(() => candidate.TakeShader());
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
     #endregion
 

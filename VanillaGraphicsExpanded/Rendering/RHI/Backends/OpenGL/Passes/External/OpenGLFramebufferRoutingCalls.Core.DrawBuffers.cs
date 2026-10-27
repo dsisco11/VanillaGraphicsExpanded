@@ -10,7 +10,7 @@ internal static unsafe partial class OpenGLFramebufferRoutingCalls
     /// <summary>Executes the exact external overload once and completes its selector or routing bookkeeping.</summary>
     internal static void ExecuteCoreDrawBuffers(int @n, ref DrawBuffersEnum @bufs)
     {
-        var observation = StateCache.BeginNativeFramebufferRouting(0, false, false);
+        var observation = OpenGlStateCache.BeginNativeFramebufferRouting(0, false, false);
         bool returned = false;
         try
         {
@@ -27,7 +27,7 @@ internal static unsafe partial class OpenGLFramebufferRoutingCalls
     /// <summary>Executes the exact external overload once and completes its selector or routing bookkeeping.</summary>
     internal static void ExecuteCoreDrawBuffers(int @n, DrawBuffersEnum[] @bufs)
     {
-        var observation = StateCache.BeginNativeFramebufferRouting(0, false, false);
+        var observation = OpenGlStateCache.BeginNativeFramebufferRouting(0, false, false);
         bool returned = false;
         try
         {
@@ -44,7 +44,7 @@ internal static unsafe partial class OpenGLFramebufferRoutingCalls
     /// <summary>Executes the exact external overload once and completes its selector or routing bookkeeping.</summary>
     internal static void ExecuteCoreDrawBuffers(int @n, DrawBuffersEnum* @bufs)
     {
-        var observation = StateCache.BeginNativeFramebufferRouting(0, false, false);
+        var observation = OpenGlStateCache.BeginNativeFramebufferRouting(0, false, false);
         bool returned = false;
         try
         {

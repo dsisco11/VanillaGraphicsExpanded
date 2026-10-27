@@ -26,7 +26,7 @@ public sealed partial class GpuProgramMetadataInterceptionTests
             Assert.True(program.BindingCache.TryGetUniformBlockBinding("Parameters",out int binding)); Assert.Equal(4,binding);
             Assert.Equal(ErrorCode.NoError,GL.GetError());
         }
-        finally { fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
     /// <summary>Valid canonical refresh replaces prepared table identity without performing independent reflection.</summary>
     [Fact]
@@ -48,7 +48,7 @@ Assert.Equal(0,acquisition.Acquisitions);
             var binding=after.Resolve(GpuBindingEntry.Identity(ShaderBindingKind.Sampler,"inputs")); Assert.True(binding.Active); Assert.Equal(2,binding.Contract.Binding.ArrayLength);
             Assert.Equal(ErrorCode.NoError,GL.GetError());
         }
-        finally { fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
     /// <summary>A contract-breaking native assignment withdraws prepared access while all aliases receive actual facts.</summary>
     [Fact]
@@ -66,7 +66,7 @@ Assert.Equal(0,acquisition.Acquisitions);
             Assert.Contains(alias.Snapshot.TextureUnits,item=>item.Location==location && item.Unit==5);
             Assert.Equal(ErrorCode.NoError,GL.GetError());
         }
-        finally { fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
     /// <summary>Relinking requires owner preparation even when later unit updates have a valid resource contract.</summary>
     [Fact]
@@ -88,7 +88,7 @@ Assert.Equal(0,acquisition.Acquisitions);
             }
             finally { VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Shader, shader)); }
         }
-        finally { fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
     /// <summary>Failed executable metadata acquisition retains the requirement to reprepare after recovery.</summary>
     [Fact]
@@ -111,7 +111,7 @@ Assert.Equal(0,acquisition.Acquisitions);
             }
             finally { VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Shader, shader)); }
         }
-        finally { fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
     /// <summary>Image arrays rebuild from canonical unit assignments without additional native reflection.</summary>
     [Fact]
@@ -135,7 +135,7 @@ Assert.Equal(0,acquisition.Acquisitions);
 Assert.Equal(0,acquisition.Acquisitions);
             Assert.True(layout.BinaryInterface.PreparedBindings.Resolve(GpuBindingEntry.Identity(ShaderBindingKind.Image,"images")).Active); Assert.Equal(ErrorCode.NoError,GL.GetError());
         }
-        finally { VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Shader, shader)); if(native!=0) VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Program, native)); fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Shader, shader)); if(native!=0) VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Program, native)); fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
     /// <summary>Typed links maintain context-local snapshots and recover from failure without a global manager.</summary>
     [Fact]
@@ -150,7 +150,7 @@ Assert.Equal(0,acquisition.Acquisitions);
             GL.ShaderSource(shader,Source.Replace("uniform int numericValue;","").Replace("+vec4(numericValue)","")); GL.CompileShader(shader);
             Assert.True(NativeProgramFixture.Link(program, out _)); Assert.False(program.NeedsNativePreparation); Assert.True(program.BindingCache.TryGetSamplerUnit("inputs",out _)); Assert.Equal(ErrorCode.NoError,GL.GetError());
         }
-        finally { if(shader!=0) VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Shader, shader)); StateCache.Current.InvalidateAll(); }
+        finally { if(shader!=0) VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Shader, shader)); OpenGlStateCache.Current.InvalidateAll(); }
     }
     #endregion
     #region Private

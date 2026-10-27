@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System;
 using System.Collections.Generic;
 using System.Runtime.ExceptionServices;
@@ -6,7 +7,7 @@ namespace VanillaGraphicsExpanded.Rendering;
 /// <summary>Owns exactly-once, ordered cleanup followed by cache-backed drawing-state restoration.</summary>
 internal sealed class EngineBoundaryScope : IDisposable
 {
-    private readonly StateCache cache;
+    private readonly OpenGlStateCache cache;
     private readonly (nint Handle, long Generation) context;
     private readonly List<(EngineBoundaryCleanup Order, IDisposable Owner, Action? Abandon)> cleanup = new();
     private bool consumed;
@@ -17,7 +18,7 @@ internal sealed class EngineBoundaryScope : IDisposable
 
     #region Public API
     /// <summary>Retains an independently owned snapshot after complete entry resolution.</summary>
-    internal EngineBoundaryScope(StateCache cache, PipelineStateSnapshot snapshot)
+    internal EngineBoundaryScope(OpenGlStateCache cache, PipelineStateSnapshot snapshot)
     { this.cache = cache; Snapshot = snapshot; context = Integration.RenderContextRegistry.Current(); }
 
     /// <summary>Registers an existing scope for ordered cleanup without transferring resource ownership.</summary>

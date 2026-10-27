@@ -10,7 +10,7 @@ internal static unsafe partial class OpenGLVertexCalls
     /// <summary>Executes the exact overload and completes its vertex metadata operation.</summary>
     internal static void ExecuteCoreBindVertexBuffers(int @first, int @count, ref int @buffers, ref IntPtr @offsets, ref int @strides)
     {
-        var observation = StateCache.BeginNativeVertexMetadata(0, false, false);
+        var observation = OpenGlStateCache.BeginNativeVertexMetadata(0, false, false);
         bool returned = false;
         try
         {
@@ -27,7 +27,7 @@ internal static unsafe partial class OpenGLVertexCalls
     /// <summary>Executes the exact overload and completes its vertex metadata operation.</summary>
     internal static void ExecuteCoreBindVertexBuffers(int @first, int @count, int[] @buffers, IntPtr[] @offsets, int[] @strides)
     {
-        var observation = StateCache.BeginNativeVertexMetadata(0, false, false);
+        var observation = OpenGlStateCache.BeginNativeVertexMetadata(0, false, false);
         bool returned = false;
         try
         {
@@ -44,7 +44,7 @@ internal static unsafe partial class OpenGLVertexCalls
     /// <summary>Executes the exact overload and completes its vertex metadata operation.</summary>
     internal static void ExecuteCoreBindVertexBuffers(int @first, int @count, int* @buffers, IntPtr* @offsets, int* @strides)
     {
-        var observation = StateCache.BeginNativeVertexMetadata(0, false, false);
+        var observation = OpenGlStateCache.BeginNativeVertexMetadata(0, false, false);
         bool returned = false;
         try
         {
@@ -61,7 +61,7 @@ internal static unsafe partial class OpenGLVertexCalls
     /// <summary>Executes the exact overload and completes its vertex metadata operation.</summary>
     internal static void ExecuteCoreBindVertexBuffers(uint @first, int @count, ref uint @buffers, ref IntPtr @offsets, ref int @strides)
     {
-        var observation = StateCache.BeginNativeVertexMetadata(0, false, false);
+        var observation = OpenGlStateCache.BeginNativeVertexMetadata(0, false, false);
         bool returned = false;
         try
         {
@@ -78,7 +78,7 @@ internal static unsafe partial class OpenGLVertexCalls
     /// <summary>Executes the exact overload and completes its vertex metadata operation.</summary>
     internal static void ExecuteCoreBindVertexBuffers(uint @first, int @count, uint[] @buffers, IntPtr[] @offsets, int[] @strides)
     {
-        var observation = StateCache.BeginNativeVertexMetadata(0, false, false);
+        var observation = OpenGlStateCache.BeginNativeVertexMetadata(0, false, false);
         bool returned = false;
         try
         {
@@ -95,7 +95,7 @@ internal static unsafe partial class OpenGLVertexCalls
     /// <summary>Executes the exact overload and completes its vertex metadata operation.</summary>
     internal static void ExecuteCoreBindVertexBuffers(uint @first, int @count, uint* @buffers, IntPtr* @offsets, int* @strides)
     {
-        var observation = StateCache.BeginNativeVertexMetadata(0, false, false);
+        var observation = OpenGlStateCache.BeginNativeVertexMetadata(0, false, false);
         bool returned = false;
         try
         {

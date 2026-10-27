@@ -48,7 +48,7 @@ public sealed class TerrainReliefNumericalTests : RenderTestBase
         using var inputs = new PackedUniformBuffer(16);
         byte[] inputBytes = new byte[16];
         var layout=BuiltShaderFixture.Layout(id,fragmentPath);
-        OpenGLProgramSelection.Select(StateCache.Current, id); OpenGLVertexSelection.Bind(StateCache.Current, vao.VertexArrayId);
+        OpenGLProgramSelection.Select(OpenGlStateCache.Current, id); OpenGLVertexSelection.Bind(OpenGlStateCache.Current, vao.VertexArrayId);
         VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, heights, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)heights).Target))]); VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(1, indices, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)indices).Target))]); VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(2, records, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)records).Target))]);
         ShaderTestFramework.SetUniform(layout.GetUniformLocation(id,"vge_normalDepthTex"),0);
         ShaderTestFramework.SetUniform(layout.GetUniformLocation(id,"vge_displacementTex"),1);
@@ -68,7 +68,7 @@ public sealed class TerrainReliefNumericalTests : RenderTestBase
             Assert.InRange(pixels[center]*direction,expected*.92f,expected*1.02f);
         }
         for(int i=0;i<pixels.Length;i+=4) { Assert.True(float.IsFinite(pixels[i]));Assert.InRange(Math.Abs(pixels[i]),0,.031251f);Assert.InRange(pixels[i+2],0,1); }
-        OpenGLProgramSelection.Select(StateCache.Current, 0);OpenGLVertexSelection.Bind(StateCache.Current, 0);
+        OpenGLProgramSelection.Select(OpenGlStateCache.Current, 0);OpenGLVertexSelection.Bind(OpenGlStateCache.Current, 0);
     }
     #endregion
 }

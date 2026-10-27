@@ -20,7 +20,7 @@ public sealed class EngineBoundaryBindingTests(HeadlessGLFixture fixture)
     [InlineData(true)]
     public void BorrowedResourceFootprintRestoresNativeState(bool invalidate)
     {
-        Start(); var cache = StateCache.Current;
+        Start(); var cache = OpenGlStateCache.Current;
         int texture = GL.GenTexture(), sampler = GL.GenSampler(), buffer = GL.GenBuffer(), array = GL.GenVertexArray();
         int read = GL.GenFramebuffer(), draw = GL.GenFramebuffer();
         try
@@ -101,7 +101,7 @@ public sealed class EngineBoundaryBindingTests(HeadlessGLFixture fixture)
     [Fact]
     public void RetiredBorrowedTextureIsNotRebound()
     {
-        Start(); var cache = StateCache.Current;
+        Start(); var cache = OpenGlStateCache.Current;
         int texture = GL.GenTexture();
         GL.ActiveTexture(TextureUnit.Texture0); GL.BindTexture(TextureTarget.Texture2D, texture); cache.InvalidateAll();
         Assert.True(cache.TryBeginEngineBoundary(new EngineBoundaryDeclaration("Retirement"), out var scope,
@@ -118,7 +118,7 @@ public sealed class EngineBoundaryBindingTests(HeadlessGLFixture fixture)
     public void InvalidFootprintDoesNotBeginOptionalWork()
     {
         Start();
-        var cache = StateCache.Current;
+        var cache = OpenGlStateCache.Current;
         OpenGLImageBindings.ActiveTexture(cache, 3);
         Assert.False(cache.TryBeginEngineBoundary(new EngineBoundaryDeclaration("Invalid"), out var scope,
             new EngineBoundaryResources([(int.MaxValue, TextureTarget.Texture2D)])));
@@ -144,7 +144,7 @@ public sealed class EngineBoundaryBindingTests(HeadlessGLFixture fixture)
         inner.PrimaryDepth=source;
         using var pipeline=commands.CreateGraphicsPipeline(new(inner.Shader,new([]),new([new(TextureFormat.R32f)]),
             VanillaGraphicsExpanded.Rendering.Pipeline.Descriptions.DynamicPipelineState.Viewport)).RequireResource();
-        OpenGLProgramSelection.Select(StateCache.Current,previous.ProgramId);
+        OpenGLProgramSelection.Select(OpenGlStateCache.Current,previous.ProgramId);
         var expected=new ArithmeticException("fixture operation");
         void Execute()
         {
@@ -160,9 +160,9 @@ public sealed class EngineBoundaryBindingTests(HeadlessGLFixture fixture)
         {
             if(fail)Assert.Same(expected,Assert.Throws<ArithmeticException>(Execute));else Execute();
             Assert.Equal(previous.ProgramId,GL.GetInteger(GetPName.CurrentProgram));
-            Assert.True(StateCache.Current.TryGetCachedCurrentProgram(out int cached));Assert.Equal(previous.ProgramId,cached);
+            Assert.True(OpenGlStateCache.Current.TryGetCachedCurrentProgram(out int cached));Assert.Equal(previous.ProgramId,cached);
         }
-        finally{OpenGLProgramSelection.Select(StateCache.Current,0);}
+        finally{OpenGLProgramSelection.Select(OpenGlStateCache.Current,0);}
     }
 
     /// <summary>Pipeline selection cannot widen an already admitted execution footprint.</summary>

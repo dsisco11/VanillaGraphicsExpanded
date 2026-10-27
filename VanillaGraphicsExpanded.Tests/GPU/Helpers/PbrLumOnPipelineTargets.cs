@@ -116,6 +116,8 @@ internal sealed class PbrLumOnPipelineTargets : IDisposable
                 new[]
                 {
                     _resources.Own(new GpuFramebufferAttachment(screenW, screenH, PixelInternalFormat.Rgba16f, debugName: "Test.Composite")),
+                    _resources.Own(new GpuFramebufferAttachment(screenW, screenH, PixelInternalFormat.Rgba16f, debugName: "Test.CompositeRefraction")),
+                    _resources.Own(new GpuFramebufferAttachment(screenW, screenH, PixelInternalFormat.R32f, debugName: "Test.CompositeRefractionDepth")),
                 },
                 depth: null,
                 debugName: "Test.CompositeFbo"));

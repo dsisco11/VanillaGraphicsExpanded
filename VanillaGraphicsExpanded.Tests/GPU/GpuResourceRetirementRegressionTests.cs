@@ -22,7 +22,7 @@ public sealed class GpuResourceRetirementRegressionTests(HeadlessGLFixture fixtu
             using var image = new GpuFramebufferAttachment(2,2,PixelInternalFormat.Rgba8);
             using var target = StaticGpuFramebuffer.Create([image]);
             int id = target.FboId;
-            var cache = StateCache.Current;
+            var cache = OpenGlStateCache.Current;
             Assert.Throws<InvalidOperationException>(() => cache.RequireMutableFramebufferConfiguration(id));
             // Model confirmed external deletion arriving at the registry before deferred wrapper disposal.
             GL.DeleteFramebuffer(id);
@@ -31,7 +31,7 @@ public sealed class GpuResourceRetirementRegressionTests(HeadlessGLFixture fixtu
             cache.RequireMutableFramebufferConfiguration(id);
             Assert.False(cache.ValidateImmutableFramebufferRouting(id,[DrawBuffersEnum.ColorAttachment0]));
         }
-        finally { fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
 
     /// <summary>Non-owning renderbuffer and framebuffer wrappers cannot transfer an external owner's identity.</summary>
@@ -60,7 +60,7 @@ public sealed class GpuResourceRetirementRegressionTests(HeadlessGLFixture fixtu
             Assert.False(borrower.IsDisposed);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
 
     /// <summary>Backing-name deletion invalidates dependent metadata with or without a backing registration.</summary>
@@ -74,7 +74,7 @@ public sealed class GpuResourceRetirementRegressionTests(HeadlessGLFixture fixtu
         int buffer = GL.GenBuffer();
         try
         {
-            using (StateCache.Current.BindBufferScope(BufferTarget.ArrayBuffer, buffer))
+            using (OpenGlStateCache.Current.BindBufferScope(BufferTarget.ArrayBuffer, buffer))
                 GL.BufferData(BufferTarget.ArrayBuffer, 1024, IntPtr.Zero, BufferUsageHint.StaticDraw);
             var manager = GpuResourceManagerSystem.CurrentManager!;
             if (registerBacking) Assert.NotNull(manager.AcquireResource(GpuResourceKind.Buffer, buffer, new GpuBufferMetadataReader()));
@@ -94,7 +94,7 @@ public sealed class GpuResourceRetirementRegressionTests(HeadlessGLFixture fixtu
         {
             if (GL.IsBuffer(buffer)) RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Buffer, buffer));
             fixture.CleanupGpuResources();
-            StateCache.Current.InvalidateAll();
+            OpenGlStateCache.Current.InvalidateAll();
         }
     }
 
@@ -134,7 +134,7 @@ public sealed class GpuResourceRetirementRegressionTests(HeadlessGLFixture fixtu
             if (GL.IsProgram(program)) VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Program, program));
             if (GL.IsShader(shader)) VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Shader, shader));
             fixture.CleanupGpuResources();
-            StateCache.Current.InvalidateAll();
+            OpenGlStateCache.Current.InvalidateAll();
         }
     }
     /// <summary>A current program marked for deletion cannot be adopted again while its native destruction is deferred.</summary>
@@ -156,7 +156,7 @@ public sealed class GpuResourceRetirementRegressionTests(HeadlessGLFixture fixtu
             Assert.Equal(1, linked);
             original = GpuProgramObject.Adopt(program);
             GL.UseProgram(program);
-            StateCache.Current.InvalidateAll();
+            OpenGlStateCache.Current.InvalidateAll();
             var manager = GpuResourceManagerSystem.CurrentManager!;
             var retired = manager.GetResourceRegistration(original)!;
             OpenGLRenderingDeletionCalls.Core.DeleteProgram(program);
@@ -180,7 +180,7 @@ public sealed class GpuResourceRetirementRegressionTests(HeadlessGLFixture fixtu
             if (GL.IsProgram(program)) VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Program, program));
             if (GL.IsShader(shader)) VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Shader, shader));
             fixture.CleanupGpuResources();
-            StateCache.Current.InvalidateAll();
+            OpenGlStateCache.Current.InvalidateAll();
         }
     }
 
@@ -212,7 +212,7 @@ public sealed class GpuResourceRetirementRegressionTests(HeadlessGLFixture fixtu
             GL.BindFramebuffer(FramebufferTarget.Framebuffer, framebuffer);
             if (renderbuffer) GL.FramebufferRenderbuffer(FramebufferTarget.Framebuffer, FramebufferAttachment.ColorAttachment0, RenderbufferTarget.Renderbuffer, backing);
             else GL.FramebufferTexture2D(FramebufferTarget.Framebuffer, FramebufferAttachment.ColorAttachment0, TextureTarget.Texture2D, backing, 0);
-            StateCache.Current.InvalidateAll();
+            OpenGlStateCache.Current.InvalidateAll();
             var manager = GpuResourceManagerSystem.CurrentManager!;
             if (registered)
             {
@@ -233,7 +233,7 @@ public sealed class GpuResourceRetirementRegressionTests(HeadlessGLFixture fixtu
             if (renderbuffer && GL.IsRenderbuffer(backing)) RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Renderbuffer, backing));
             if (!renderbuffer && GL.IsTexture(backing)) RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Texture, backing));
             fixture.CleanupGpuResources();
-            StateCache.Current.InvalidateAll();
+            OpenGlStateCache.Current.InvalidateAll();
         }
     }
     #endregion

@@ -28,7 +28,7 @@ public sealed class GpuResourceMetadataPublicationTests(HeadlessGLFixture fixtur
         Assert.Equal((nint)owner.SizeBytes, alias.Capacity);
         Assert.Equal(entry.Metadata.Capacity, alias.Capacity);
         Assert.Equal(BufferUsageHint.DynamicDraw, alias.Usage);
-        using var binding = StateCache.Current.BindBufferScope(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBufferValues.Target(owner.Role), owner.BufferId);
+        using var binding = OpenGlStateCache.Current.BindBufferScope(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBufferValues.Target(owner.Role), owner.BufferId);
         GL.GetBufferParameter(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBufferValues.Target(owner.Role), BufferParameterName.BufferSize, out int actualCapacity);
         Assert.Equal(actualCapacity, owner.SizeBytes);
         Assert.Equal(ErrorCode.NoError, GL.GetError());
@@ -47,7 +47,7 @@ public sealed class GpuResourceMetadataPublicationTests(HeadlessGLFixture fixtur
         Assert.Equal(metadataRevision, entry.MetadataRevision);
         Assert.Equal(storageRevision, entry.StorageRevision);
         Assert.Equal(64, owner.SizeBytes);
-        using var binding = StateCache.Current.BindBufferScope(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBufferValues.Target(owner.Role), owner.BufferId);
+        using var binding = OpenGlStateCache.Current.BindBufferScope(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBufferValues.Target(owner.Role), owner.BufferId);
         byte[] actual = new byte[4];
         GL.GetBufferSubData(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBufferValues.Target(owner.Role), (IntPtr)8, (IntPtr)4, actual);
         Assert.Equal(new byte[] { 1, 2, 3, 4 }, actual);
@@ -67,8 +67,8 @@ public sealed class GpuResourceMetadataPublicationTests(HeadlessGLFixture fixtur
         manager.AssociateResource(entry, alias);
         try
         {
-            // Bypass the owning API to verify the StateCache command boundary also validates storage inputs.
-            using var binding = StateCache.Current.BindBufferScope(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBufferValues.Target(owner.Role), owner.BufferId);
+            // Bypass the owning API to verify the OpenGlStateCache command boundary also validates storage inputs.
+            using var binding = OpenGlStateCache.Current.BindBufferScope(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBufferValues.Target(owner.Role), owner.BufferId);
             Assert.Throws<ArgumentOutOfRangeException>(() => GpuBufferUploader.Allocate(owner, -1, IntPtr.Zero, BufferUsage.StaticDraw));
             Assert.Equal(64, owner.SizeBytes);
             Assert.Equal((nint)64, alias.Capacity);
@@ -94,7 +94,7 @@ public sealed class GpuResourceMetadataPublicationTests(HeadlessGLFixture fixtur
         using var alias = new BufferAlias(owner.BufferId);
         manager.AssociateResource(entry, alias);
         ulong metadataRevision = entry.MetadataRevision, storageRevision = entry.StorageRevision;
-        using var sentinelBinding = StateCache.Current.BindBufferScope(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBufferValues.Target(sentinel.Role), sentinel.BufferId);
+        using var sentinelBinding = OpenGlStateCache.Current.BindBufferScope(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBufferValues.Target(sentinel.Role), sentinel.BufferId);
         byte[] expected = [9, 8, 7, 6];
         GpuBufferUploader.Allocate(owner, byteCount, expected, BufferUsage.StreamDraw);
         Assert.Equal(sentinel.BufferId, GL.GetInteger(GetPName.ArrayBufferBinding));
@@ -103,7 +103,7 @@ public sealed class GpuResourceMetadataPublicationTests(HeadlessGLFixture fixtur
         Assert.Equal(BufferUsageHint.StreamDraw, alias.Usage);
         Assert.Equal(metadataRevision + 1, entry.MetadataRevision);
         Assert.Equal(storageRevision + 1, entry.StorageRevision);
-        using var binding = StateCache.Current.BindBufferScope(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBufferValues.Target(owner.Role), owner.BufferId);
+        using var binding = OpenGlStateCache.Current.BindBufferScope(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBufferValues.Target(owner.Role), owner.BufferId);
         if (byteCount != 0)
         {
             byte[] actual = new byte[byteCount];
@@ -126,7 +126,7 @@ public sealed class GpuResourceMetadataPublicationTests(HeadlessGLFixture fixtur
         var entry = Assert.IsType<GpuResourceMetadataEntry<GpuBufferMetadata>>(manager.GetResourceRegistration(owner));
         using var alias = new BufferAlias(owner.BufferId);
         manager.AssociateResource(entry, alias);
-        using var sentinelBinding = StateCache.Current.BindBufferScope(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBufferValues.Target(sentinel.Role), sentinel.BufferId);
+        using var sentinelBinding = OpenGlStateCache.Current.BindBufferScope(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBufferValues.Target(sentinel.Role), sentinel.BufferId);
         try
         {
             Assert.Throws<ArgumentOutOfRangeException>(() => GpuBufferUploader.Allocate(owner, -1, new byte[4], BufferUsage.StreamDraw));
@@ -151,7 +151,7 @@ public sealed class GpuResourceMetadataPublicationTests(HeadlessGLFixture fixtur
         // generated-name path has no metadata to expose until its first storage command.
         if (GL.IsBuffer(owner.BufferId))
         {
-            using var binding = StateCache.Current.BindBufferScope(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBufferValues.Target(owner.Role), owner.BufferId);
+            using var binding = OpenGlStateCache.Current.BindBufferScope(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBufferValues.Target(owner.Role), owner.BufferId);
             GL.GetBufferParameter(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBufferValues.Target(owner.Role), BufferParameterName.BufferUsage, out int actualUsage);
             GL.GetBufferParameter(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBufferValues.Target(owner.Role), BufferParameterName.BufferSize, out int actualCapacity);
             Assert.Equal((BufferUsageHint)actualUsage, owner.Usage);
@@ -197,7 +197,7 @@ public sealed class GpuResourceMetadataPublicationTests(HeadlessGLFixture fixtur
         Assert.Equal(owner.Width, image.Width);
         Assert.Equal(owner.Height, image.Height);
         Assert.Equal(PixelInternalFormat.Rgba8, image.InternalFormat);
-        using var binding = StateCache.Current.BindRenderbufferScope(owner.RenderbufferId);
+        using var binding = OpenGlStateCache.Current.BindRenderbufferScope(owner.RenderbufferId);
         GL.GetRenderbufferParameter(RenderbufferTarget.Renderbuffer, RenderbufferParameterName.RenderbufferWidth, out int actualWidth);
         Assert.Equal(actualWidth, owner.Width);
         Assert.Equal(ErrorCode.NoError, GL.GetError());
@@ -254,7 +254,7 @@ public sealed class GpuResourceMetadataPublicationTests(HeadlessGLFixture fixtur
         using var original = GpuFramebufferAttachment.FromTexture(originalTexture);
         using var replacement = GpuFramebufferAttachment.FromTexture(replacementTexture);
         using var framebuffer = DynamicGpuFramebuffer.Create([original])!;
-        var cache = StateCache.Current;
+        var cache = OpenGlStateCache.Current;
         var manager = GpuResourceManagerSystem.CurrentManager!;
         var entry = Assert.IsType<GpuResourceMetadataEntry<GpuFramebufferMetadata>>(manager.GetResourceRegistration(framebuffer));
         ulong revision = entry.MetadataRevision;
@@ -293,7 +293,7 @@ public sealed class GpuResourceMetadataPublicationTests(HeadlessGLFixture fixtur
         using var buffer = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = null }).RequireResource();
         buffer.Allocate(checked(offset * 2 + size));
         using var sentinel = RHICommandContext.Current.CreateBufferTexture(new RHIBufferTextureDescription { Buffer = buffer, Format = TextureFormat.R32f, WholeBuffer = true, Label = null }).RequireResource();
-        var cache = StateCache.Current;
+        var cache = OpenGlStateCache.Current;
         OpenGLImageBindings.BindTexture(cache, TextureTarget.TextureBuffer, 0, sentinel.TextureId);
         OpenGLImageBindings.BindTexture(cache, TextureTarget.TextureBuffer, 3, sentinel.TextureId);
         GL.ActiveTexture(TextureUnit.Texture3);
@@ -402,7 +402,7 @@ public sealed class GpuResourceMetadataPublicationTests(HeadlessGLFixture fixtur
         {
             manager?.Dispose();
             if (manager is not null) GpuResourceManagerSystem.Shutdown();
-            StateCache.Current.InvalidateAll();
+            OpenGlStateCache.Current.InvalidateAll();
         }
     }
     #endregion

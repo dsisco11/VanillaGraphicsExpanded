@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Reflection;
 using System.Runtime.CompilerServices;
@@ -113,7 +114,7 @@ public sealed class SceneColorFrameTargetsTests(HeadlessGLFixture fixture) : Ren
             GL.BindTexture(TextureTarget.Texture2D, 0);
             GL.DeleteFramebuffer(low.FboId);
             GL.DeleteTexture(low.ColorTextureIds[0]);
-            StateCache.Current.InvalidateAll();
+            OpenGlStateCache.Current.InvalidateAll();
         }
     }
 

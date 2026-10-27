@@ -36,8 +36,8 @@ public sealed class GpuTextureAttachmentRepairTests(HeadlessGLFixture fixture)
             if (managed) Assert.True(source.Resize(8, 4, 1));
             else Assert.Throws<AggregateException>(() => source.Resize(8, 4, 1));
             Assert.Throws<InvalidOperationException>(() => framebuffer.Bind());
-            OpenGLFramebufferSelection.Bind(StateCache.Current, FramebufferTarget.ReadFramebuffer, read.FboId);
-            OpenGLFramebufferSelection.Bind(StateCache.Current, FramebufferTarget.DrawFramebuffer, draw.FboId);
+            OpenGLFramebufferSelection.Bind(OpenGlStateCache.Current, FramebufferTarget.ReadFramebuffer, read.FboId);
+            OpenGLFramebufferSelection.Bind(OpenGlStateCache.Current, FramebufferTarget.DrawFramebuffer, draw.FboId);
             // Each repair must operate independently of the still-invalid neighboring slot.
             if (replace) framebuffer.SetAttachment(FramebufferAttachment.ColorAttachment0, valid);
             else Assert.True(framebuffer.RemoveAttachment(FramebufferAttachment.ColorAttachment0));
@@ -55,7 +55,7 @@ public sealed class GpuTextureAttachmentRepairTests(HeadlessGLFixture fixture)
             Assert.Equal(replace ? source.TextureId : 0, repaired);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
 
     /// <summary>Unavailable managed descriptors prevent binding; recovery preserves only unchanged source storage.</summary>
@@ -74,7 +74,7 @@ public sealed class GpuTextureAttachmentRepairTests(HeadlessGLFixture fixture)
             if (own) GpuResourceManager.InvalidateWrapperMetadata(view);
             else using (new GpuResourceManager.MetadataOperation<GpuTextureMetadata>(source, storage ? GpuMetadataChange.Storage : GpuMetadataChange.Metadata)) { }
             Assert.False(view.IsValid);
-            OpenGLImageBindings.BindTexture(StateCache.Current, TextureTarget.Texture2DArray, 0, 0);
+            OpenGLImageBindings.BindTexture(OpenGlStateCache.Current, TextureTarget.Texture2DArray, 0, 0);
             VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, view, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)view).Target))]);
             Assert.Equal(0, GL.GetInteger(GetPName.TextureBinding2DArray));
             // Reacquiring view facts leaves its allocation intact; source storage publication retires dependencies.
@@ -85,7 +85,7 @@ public sealed class GpuTextureAttachmentRepairTests(HeadlessGLFixture fixture)
             Assert.Equal(storage ? 0 : view.TextureId, GL.GetInteger(GetPName.TextureBinding2DArray));
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
     #endregion
 }

@@ -88,8 +88,11 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
         using var gBufferNormal = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, gBufferNormalData);
         using var gBufferMaterial = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, gBufferMaterialData);
 
-        using var shadowNear = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, shadowNearData);
-        using var shadowFar = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, shadowFarData);
+        // Comparison samplers require depth storage, independently of the numerical fixture values.
+        using var shadowNear = new DepthTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.DepthComponent32f);
+        shadowNear.UploadDataImmediate(shadowNearData);
+        using var shadowFar = new DepthTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.DepthComponent32f);
+        shadowFar.UploadDataImmediate(shadowFarData);
 
         using var historyRadiance = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, historyRadianceData);
         using var historyMeta = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rg32f, historyMetaData);
@@ -98,8 +101,11 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
         using var injectedIndirectFull = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, injectedIndirectFullData);
 
         using var targets = new PbrLumOnPipelineTargets();
-        using var baselineComposite = TestFramework.CreateTestGBuffer(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f);
-        using var injectedComposite = TestFramework.CreateTestGBuffer(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f);
+        // The composite executable exports color and both refraction outputs, even when only color is inspected.
+        using var baselineComposite = TestFramework.CreateTestGBuffer(ScreenWidth, ScreenHeight,
+            PixelInternalFormat.Rgba16f, PixelInternalFormat.Rgba16f, PixelInternalFormat.R32f);
+        using var injectedComposite = TestFramework.CreateTestGBuffer(ScreenWidth, ScreenHeight,
+            PixelInternalFormat.Rgba16f, PixelInternalFormat.Rgba16f, PixelInternalFormat.R32f);
 
         {
             var pbrDirectProg = Programs.Create<PBRDirectLightingShaderProgram>();
@@ -628,6 +634,7 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
         return (min, max);
     }
 
+    /// <summary>Checks direct-only composition against the independent sum without relaxing arithmetic tolerance.</summary>
     private static void AssertCompositeMatchesDirectOnly(
         float[] compositeRgba,
         float[] directDiffuseRgba,

@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using OpenTK.Graphics.OpenGL;
@@ -40,7 +41,7 @@ public sealed class EngineStartupContextTests(HeadlessGLFixture fixture)
             ScreenManager.Platform = platform;
             Assert.Equal(0, RenderContextRegistry.Current().Generation);
             // The former adapter path reproduces the reported failure without changing production code.
-            Assert.Throws<InvalidOperationException>(() => StateCache.Current.ApplyDynamic(new DynamicDrawState { Width = 1, Height = 1 }));
+            Assert.Throws<InvalidOperationException>(() => OpenGlStateCache.Current.ApplyDynamic(new DynamicDrawState { Width = 1, Height = 1 }));
 
             EngineStateCalls.Viewport(2, 3, 37, 41);
             long generation = RenderContextRegistry.Current().Generation;
@@ -79,7 +80,7 @@ public sealed class EngineStartupContextTests(HeadlessGLFixture fixture)
             SetWindowField(owner, "<Exists>k__BackingField", false);
             RenderContextRegistry.RegisterCurrent(fixture, static target => ((HeadlessGLFixture)target).IsContextValid);
             GL.Viewport(previousViewport[0], previousViewport[1], previousViewport[2], previousViewport[3]);
-            StateCache.Current.InvalidateAll();
+            OpenGlStateCache.Current.InvalidateAll();
         }
         Assert.Equal(OpenTK.Graphics.OpenGL.ErrorCode.NoError, GL.GetError());
     }
@@ -102,11 +103,11 @@ public sealed class EngineStartupContextTests(HeadlessGLFixture fixture)
 #endif
             EngineStateCalls.Viewport(0, 0, 1, 1);
 #if DEBUG
-            long calls = StateCache.Current.FixedFunctionCalls;
+            long calls = OpenGlStateCache.Current.FixedFunctionCalls;
 #endif
             EngineStateCalls.Viewport(0, 0, 1, 1);
 #if DEBUG
-            Assert.Equal(calls, StateCache.Current.FixedFunctionCalls);
+            Assert.Equal(calls, OpenGlStateCache.Current.FixedFunctionCalls);
 #endif
             Assert.Equal(generation, RenderContextRegistry.Current().Generation);
 #if DEBUG
@@ -118,7 +119,7 @@ public sealed class EngineStartupContextTests(HeadlessGLFixture fixture)
         {
             ScreenManager.Platform = previousPlatform;
             GL.Viewport(previousViewport[0], previousViewport[1], previousViewport[2], previousViewport[3]);
-            StateCache.Current.InvalidateAll();
+            OpenGlStateCache.Current.InvalidateAll();
         }
     }
     #endregion

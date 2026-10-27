@@ -44,7 +44,7 @@ internal sealed partial class OpenGLBackend
 
     /// <summary>Defines storage while an explicit operation retains the original resource association.</summary>
     internal GpuTextureMetadata DefineTextureImages(int name, in GpuTextureInitialization request,
-        GpuResourceManager.MetadataOperation<GpuTextureMetadata>? operation = null, StateCache.ResourceOperationGuard? creationGuard = null)
+        GpuResourceManager.MetadataOperation<GpuTextureMetadata>? operation = null, OpenGlStateCache.ResourceOperationGuard? creationGuard = null)
     {
         RequireContext();
         bool immutable = request.AllocationMode == GpuTextureAllocationMode.Immutable;
@@ -53,7 +53,7 @@ internal sealed partial class OpenGLBackend
         bool one = request.Target == TextureTarget.Texture1D;
         // Mutable image definition has no core named equivalent. The backend alone owns this
         // temporary selection; immutable allocation never mutates a texture binding.
-        using var binding = !immutable ? cache.BindTextureScope(request.Target, 0, name) : (StateCache.TextureScope?)null;
+        using var binding = !immutable ? cache.BindTextureScope(request.Target, 0, name) : (OpenGlStateCache.TextureScope?)null;
         if (immutable)
         {
             if (multisample)
@@ -72,7 +72,7 @@ internal sealed partial class OpenGLBackend
         int faces = request.Target == TextureTarget.TextureCubeMap ? 6 : 1;
         var images = ImmutableArray.CreateBuilder<GpuTextureLevelMetadata>(request.Levels * faces);
         // Null client data must not become an offset into a caller's pixel-unpack buffer.
-        using var unpack = !immutable ? cache.BindBufferScope(BufferTarget.PixelUnpackBuffer, 0) : (StateCache.BufferScope?)null;
+        using var unpack = !immutable ? cache.BindBufferScope(BufferTarget.PixelUnpackBuffer, 0) : (OpenGlStateCache.BufferScope?)null;
         for (int level = 0; level < request.Levels; level++)
         {
             int width = Math.Max(1, request.Width >> level);
@@ -136,7 +136,7 @@ internal sealed partial class OpenGLBackend
 
     #region Private
     /// <summary>Stops a compound operation if callbacks retired the original allocation or context.</summary>
-    private void CheckTextureStep(GpuResourceManager.MetadataOperation<GpuTextureMetadata>? operation, StateCache.ResourceOperationGuard? creationGuard = null)
+    private void CheckTextureStep(GpuResourceManager.MetadataOperation<GpuTextureMetadata>? operation, OpenGlStateCache.ResourceOperationGuard? creationGuard = null)
     {
         RequireContext();
         operation?.RequireLive();

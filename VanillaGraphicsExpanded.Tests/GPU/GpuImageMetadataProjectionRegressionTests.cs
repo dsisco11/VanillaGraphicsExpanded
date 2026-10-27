@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
@@ -38,7 +39,7 @@ public sealed class GpuImageMetadataProjectionRegressionTests(HeadlessGLFixture 
             }
             finally { entry.Reader = original; }
         }
-        finally { fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
 
     /// <summary>Explicit raw-image acquisition refreshes changed native dimensions through the canonical manager entry.</summary>
@@ -51,12 +52,12 @@ public sealed class GpuImageMetadataProjectionRegressionTests(HeadlessGLFixture 
         {
             using var texture = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba8, Width = System.Math.Max(1, 8), Height = System.Math.Max(1, 4), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
             using var sentinel = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba8, Width = System.Math.Max(1, 2), Height = System.Math.Max(1, 2), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
-            using (StateCache.Current.BindTextureScope(((GpuTextureRef)texture).Target, 0, texture.TextureId))
+            using (OpenGlStateCache.Current.BindTextureScope(((GpuTextureRef)texture).Target, 0, texture.TextureId))
                 GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.Rgba8, 12, 6, 0, PixelFormat.Rgba, PixelType.UnsignedByte, IntPtr.Zero);
             // This direct external mutation bypasses command publication, so its owner must
             // explicitly withdraw the old covered snapshot before requesting recovery.
             GpuResourceManager.InvalidateWrapperMetadata(texture, GpuMetadataChange.Storage);
-            using var binding = StateCache.Current.BindTextureScope(((GpuTextureRef)sentinel).Target, 0, sentinel.TextureId);
+            using var binding = OpenGlStateCache.Current.BindTextureScope(((GpuTextureRef)sentinel).Target, 0, sentinel.TextureId);
             using var image = GpuFramebufferAttachment.FromTextureId(texture.TextureId);
             var manager = GpuResourceManagerSystem.CurrentManager!;
             Assert.Same(manager.GetResourceRegistration(texture), manager.GetResourceRegistration(image));
@@ -67,7 +68,7 @@ public sealed class GpuImageMetadataProjectionRegressionTests(HeadlessGLFixture 
             Assert.Throws<ArgumentOutOfRangeException>(() => GpuFramebufferAttachment.FromTextureId(texture.TextureId, mipLevel: 31));
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
 
     /// <summary>External cube-face selection uses the cube object target while projecting the requested face.</summary>
@@ -91,7 +92,7 @@ public sealed class GpuImageMetadataProjectionRegressionTests(HeadlessGLFixture 
                 GpuResourceManagerSystem.CurrentManager.GetResourceRegistration(image));
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
 
     /// <summary>A raw array attachment retains explicit layer zero when imported and reconciled with canonical storage.</summary>
@@ -103,9 +104,9 @@ public sealed class GpuImageMetadataProjectionRegressionTests(HeadlessGLFixture 
         int texture = GL.GenTexture(), framebuffer = GL.GenFramebuffer();
         try
         {
-            using (StateCache.Current.BindTextureScope(TextureTarget.Texture2DArray, 0, texture))
+            using (OpenGlStateCache.Current.BindTextureScope(TextureTarget.Texture2DArray, 0, texture))
                 GL.TexImage3D(TextureTarget.Texture2DArray, 0, PixelInternalFormat.Rgba8, 8, 4, 3, 0, PixelFormat.Rgba, PixelType.UnsignedByte, IntPtr.Zero);
-            using (StateCache.Current.BindFramebufferScope(FramebufferTarget.Framebuffer, framebuffer))
+            using (OpenGlStateCache.Current.BindFramebufferScope(FramebufferTarget.Framebuffer, framebuffer))
                 GL.FramebufferTextureLayer(FramebufferTarget.Framebuffer, FramebufferAttachment.ColorAttachment0, texture, 0, 0);
             using var wrapped = DynamicGpuFramebuffer.Wrap(framebuffer, width: 8, height: 4);
             wrapped.PublishRenderPassMetadata();
@@ -127,7 +128,7 @@ public sealed class GpuImageMetadataProjectionRegressionTests(HeadlessGLFixture 
             VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Framebuffer, framebuffer));
             RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Texture, texture));
             fixture.CleanupGpuResources();
-            StateCache.Current.InvalidateAll();
+            OpenGlStateCache.Current.InvalidateAll();
         }
     }
     #endregion

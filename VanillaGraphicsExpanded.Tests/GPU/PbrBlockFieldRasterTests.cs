@@ -37,8 +37,8 @@ public sealed class PbrBlockFieldRasterTests(HeadlessGLFixture fixture) : Render
         int buffer = GL.GenBuffer();
         try
         {
-            OpenGLProgramSelection.Select(StateCache.Current, program.ProgramId);
-            OpenGLVertexSelection.Bind(StateCache.Current, vao.VertexArrayId);
+            OpenGLProgramSelection.Select(OpenGlStateCache.Current, program.ProgramId);
+            OpenGLVertexSelection.Bind(OpenGlStateCache.Current, vao.VertexArrayId);
             // The lower edge spans neutral floor to torch. All three clip-space W values are one,
             // so interior samples have a known affine raw field without a hand-authored fragment varying.
             float floor = 10f / 255;
@@ -94,7 +94,7 @@ public sealed class PbrBlockFieldRasterTests(HeadlessGLFixture fixture) : Render
         finally
         {
             GL.BindBuffer(BufferTarget.ArrayBuffer, 0); GL.DeleteBuffer(buffer);
-            StateCache.Current.InvalidateAll();
+            OpenGlStateCache.Current.InvalidateAll();
         }
     }
     #endregion

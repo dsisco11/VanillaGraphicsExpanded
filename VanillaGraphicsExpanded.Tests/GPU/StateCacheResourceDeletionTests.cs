@@ -17,7 +17,7 @@ public sealed class StateCacheResourceDeletionTests(HeadlessGLFixture fixture) :
     public void SamplerDeletionPreservesSurvivingAndUnknownSlots()
     {
         EnsureContextValid();
-        var cache = StateCache.Current;
+        var cache = OpenGlStateCache.Current;
         int retired = GL.GenSampler(), survivor = GL.GenSampler();
         try
         {
@@ -47,7 +47,7 @@ public sealed class StateCacheResourceDeletionTests(HeadlessGLFixture fixture) :
     public void FramebufferDeletionPreservesSurvivingDirection()
     {
         EnsureContextValid();
-        var cache = StateCache.Current;
+        var cache = OpenGlStateCache.Current;
         int retired = GL.GenFramebuffer(), survivor = GL.GenFramebuffer();
         try
         {
@@ -77,7 +77,7 @@ public sealed class StateCacheResourceDeletionTests(HeadlessGLFixture fixture) :
     public void VertexArrayDeletionPreservesSurvivingElementAssociation()
     {
         EnsureContextValid();
-        var cache = StateCache.Current;
+        var cache = OpenGlStateCache.Current;
         int retired = GL.GenVertexArray(), survivor = GL.GenVertexArray(), buffer = GL.GenBuffer();
         try
         {
@@ -106,7 +106,7 @@ public sealed class StateCacheResourceDeletionTests(HeadlessGLFixture fixture) :
     public void BulkBufferDeletionPreservesSurvivor()
     {
         EnsureContextValid();
-        var cache = StateCache.Current;
+        var cache = OpenGlStateCache.Current;
         int[] retired = [GL.GenBuffer(), GL.GenBuffer()];
         int survivor = GL.GenBuffer();
         try
@@ -134,7 +134,7 @@ public sealed class StateCacheResourceDeletionTests(HeadlessGLFixture fixture) :
     public void BufferDeletionRequeriesUnboundVertexArrayStorage()
     {
         EnsureContextValid();
-        var cache = StateCache.Current;
+        var cache = OpenGlStateCache.Current;
         int array = GL.GenVertexArray(), buffer = GL.GenBuffer();
         try
         {
@@ -161,7 +161,7 @@ public sealed class StateCacheResourceDeletionTests(HeadlessGLFixture fixture) :
     public void ProgramDeletionPreservesDeferredCurrentProgram()
     {
         EnsureContextValid();
-        var cache = StateCache.Current;
+        var cache = OpenGlStateCache.Current;
         int program = GL.CreateProgram(), shader = VanillaGraphicsExpanded.Tests.GPU.Helpers.BuiltShaderFixture.LoadFixture("tests/deletion.vsh", ShaderType.VertexShader);
         try
         {

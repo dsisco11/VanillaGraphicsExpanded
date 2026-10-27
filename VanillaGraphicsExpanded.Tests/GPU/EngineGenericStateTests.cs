@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Reflection;
@@ -56,8 +57,8 @@ public sealed class EngineGenericStateTests(HeadlessGLFixture fixture)
             Assert.Same(firstEntry, manager.AcquireResource(GpuResourceKind.Buffer, first.BufferId, new GpuBufferMetadataReader()));
             Assert.Same(secondEntry, manager.AcquireResource(GpuResourceKind.Buffer, second.BufferId, new GpuBufferMetadataReader()));
             var initialOne = new int[1]; var initialTwo = new int[2];
-            using (StateCache.Current.BindBufferScope(BufferTarget.CopyReadBuffer, first.BufferId)) GL.GetBufferSubData(BufferTarget.CopyReadBuffer, IntPtr.Zero, 4, initialOne);
-            using (StateCache.Current.BindBufferScope(BufferTarget.CopyReadBuffer, second.BufferId)) GL.GetBufferSubData(BufferTarget.CopyReadBuffer, IntPtr.Zero, 8, initialTwo);
+            using (OpenGlStateCache.Current.BindBufferScope(BufferTarget.CopyReadBuffer, first.BufferId)) GL.GetBufferSubData(BufferTarget.CopyReadBuffer, IntPtr.Zero, 4, initialOne);
+            using (OpenGlStateCache.Current.BindBufferScope(BufferTarget.CopyReadBuffer, second.BufferId)) GL.GetBufferSubData(BufferTarget.CopyReadBuffer, IntPtr.Zero, 8, initialTwo);
             Assert.Equal(firstPayload, MemoryMarshal.AsBytes(initialOne.AsSpan()).ToArray());
             Assert.Equal(secondPayload, MemoryMarshal.AsBytes(initialTwo.AsSpan()).ToArray());
             Assert.Equal(firstRevision + 1, firstEntry.MetadataRevision);
@@ -68,18 +69,18 @@ public sealed class EngineGenericStateTests(HeadlessGLFixture fixture)
             capturedPayload = null; ReplacePair(b, new Pair { A = 37, B = 41 }); secondPayload = Assert.IsType<byte[]>(capturedPayload);
             Assert.Equal(firstRevision + 1, firstEntry.MetadataRevision);
             Assert.Equal(secondRevision + 1, secondEntry.MetadataRevision);
-            Assert.False(StateCache.Current.TryGetCachedBoundBuffer(BufferTarget.UniformBuffer, out _));
-            Assert.Equal(0, StateCache.Current.GetBoundBuffer(BufferTarget.UniformBuffer));
+            Assert.False(OpenGlStateCache.Current.TryGetCachedBoundBuffer(BufferTarget.UniformBuffer, out _));
+            Assert.Equal(0, OpenGlStateCache.Current.GetBoundBuffer(BufferTarget.UniformBuffer));
             var one = new int[1]; var two = new int[2];
-            using (StateCache.Current.BindBufferScope(BufferTarget.CopyReadBuffer, first.BufferId)) GL.GetBufferSubData(BufferTarget.CopyReadBuffer, IntPtr.Zero, 4, one);
-            using (StateCache.Current.BindBufferScope(BufferTarget.CopyReadBuffer, second.BufferId)) GL.GetBufferSubData(BufferTarget.CopyReadBuffer, IntPtr.Zero, 8, two);
+            using (OpenGlStateCache.Current.BindBufferScope(BufferTarget.CopyReadBuffer, first.BufferId)) GL.GetBufferSubData(BufferTarget.CopyReadBuffer, IntPtr.Zero, 4, one);
+            using (OpenGlStateCache.Current.BindBufferScope(BufferTarget.CopyReadBuffer, second.BufferId)) GL.GetBufferSubData(BufferTarget.CopyReadBuffer, IntPtr.Zero, 8, two);
             Assert.Equal(firstPayload, MemoryMarshal.AsBytes(one.AsSpan()).ToArray());
             Assert.Equal(secondPayload, MemoryMarshal.AsBytes(two.AsSpan()).ToArray());
             Assert.Equal(ErrorCode.NoError, GL.GetError());
             harmony.UnpatchAll(harmony.Id);
             Assert.All(targets, target => Assert.DoesNotContain(Harmony.GetPatchInfo(target)?.Transpilers ?? [], patch => patch.owner == harmony.Id));
         }
-        finally { harmony.UnpatchAll(harmony.Id); fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { harmony.UnpatchAll(harmony.Id); fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
 
     /// <summary>Open generic native operands are recognized before closing their containing caller.</summary>
@@ -108,7 +109,7 @@ public sealed class EngineGenericStateTests(HeadlessGLFixture fixture)
             foreach (var type in new[] { typeof(int), typeof(Pair) })
                 harmony.Patch(definition.MakeGenericMethod(type), transpiler: new HarmonyMethod(typeof(EngineStateSwitchingHook), nameof(EngineStateSwitchingHook.Transpiler)));
             using var buffer = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = null }).RequireResource(); buffer.Allocate(8);
-            using (StateCache.Current.BindBufferScope(BufferTarget.ArrayBuffer, buffer.BufferId))
+            using (OpenGlStateCache.Current.BindBufferScope(BufferTarget.ArrayBuffer, buffer.BufferId))
             {
                 GenericNativeUpload(new[] { 17, 23 });
                 var result = new int[2]; GL.GetBufferSubData(BufferTarget.ArrayBuffer, IntPtr.Zero, 8, result);
@@ -119,7 +120,7 @@ public sealed class EngineGenericStateTests(HeadlessGLFixture fixture)
             }
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { harmony.UnpatchAll(harmony.Id); fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { harmony.UnpatchAll(harmony.Id); fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
 
     /// <summary>Shared reference bodies and unresolved forwarding signatures are rejected before patch installation.</summary>
