@@ -228,11 +228,14 @@ Migrate representative legal consumers only; immediate remains default and engin
 bounded. Test no-current-context recording, mutation after capture, lifecycle misuse, failure indices,
 context retire, cancellation and independent ticket/staging ownership. No old API exists to bridge here.
 
-## G — Final cache split and qualification (Phases 7–8)
+## G — Final cache split, wrapper boundary correction and qualification (Phases 7–9)
 
 Audit A–F removals first. Native execution remaining in a completed family reopens that unit. Then rename
 the residual cache type/files/callers directly to `OpenGlStateCache`; no old alias. Reconcile architecture
-documents to implemented state, not this planning history. Run delegated integrated and canonical package
+documents to implemented state, not this planning history. Complete Phase 8's wrapper/helper corrections
+and combined dependency qualification before Phase 9 acceptance. Review cache policy, creation/acquisition
+orchestration, publication, capabilities and diagnostics as well as native dispatch location; the later
+wrapper audit supersedes earlier blanket source-closure assessments. Run delegated integrated and canonical package
 checks on the candidate, focused allocation/query/suppression checks and separately user-run live acceptance.
 No performance baseline, benchmark, timing threshold or instrumented Release build is required.
 
@@ -1056,7 +1059,7 @@ checks all 17 actual images. The now-reachable direct-only numerical oracle stil
 green: expected `9.213684`, actual `9.2109375`, delta `0.002746582`, tolerance `0.002`.
 A tentative half-precision oracle projection did not explain every pixel and was reverted. The original
 independent sum and tolerance remain unchanged. Production shaders/numerical algorithms were not altered.
-This is an explicit unresolved integrated-lighting qualification item in Phase 8, not a cache/source
+This is an explicit unresolved integrated-lighting qualification item in Phase 9, not a cache/source
 boundary completion claim or a waived numerical failure. No integrated all-green result is claimed.
 
 `identity.json` records 3,185 frozen source/project files and zero drift. Runtime SHA256 values are
@@ -1069,6 +1072,9 @@ TRXs retain the exact candidate and execution conditions. HEAD remained
 Second source review and independent stage-completion audit directly reconciled the selected checklist
 with the linked proposal/contracts, current resource/binding documents and retained family receipts.
 The obsolete raw-cache helper removal and exact field admission were rechecked after correction.
-No required Phase 7 implementation or documentation gap remains. The broader numerical mismatch,
-canonical package identity, installed-client behavior and user-run visual acceptance remain Phase 8
+The review then reported no remaining required Phase 7 gap. A subsequent wrapper-dependency audit found
+remaining cache-policy, creation/acquisition, publication, capability and diagnostic boundary violations;
+the implementation plan's Phase 8 explicitly corrects these and requires fresh combined qualification.
+The earlier receipts do not establish complete architectural closure. The broader numerical mismatch,
+canonical package identity, installed-client behavior and user-run visual acceptance remain Phase 9
 qualification work. No game launch, performance measurement or package/live acceptance is claimed here.

@@ -3,7 +3,7 @@ RHI commands and command lists — implementation plan
 
 Source proposal: [Rendering.GpuCommands.Proposal.md](Rendering.GpuCommands.Proposal.md).
 Parent design task: Rendering.GpuResourceHandles.todo, Phase 8.
-Status: Phases 1–7 have recorded qualification receipts, including single-use recording and final backend cache closure. Phase 8 integrated/package/user qualification remains open, including the explicitly recorded full-lighting numerical mismatch.
+Status: Phases 1–7 have recorded qualification receipts. A subsequent wrapper-dependency audit identified remaining RHI boundary violations; Phase 8 corrects them before Phase 9 integrated/package/user qualification, which retains the explicitly recorded full-lighting numerical mismatch.
 
 Goal
   Implement the approved semantic RHI boundary, immediate execution and optional single-use recorded
@@ -631,10 +631,168 @@ Phase 7: Finish the cache split and reconcile architecture documentation
     eight observer/fault-injection failures resolve with process-only JIT controls. The lighting oracle
     and tolerance remain unchanged; its mismatch is explicitly assigned to integrated qualification below.
     [Exact receipts and traceability](Rendering.GpuCommands.Migrations.md#backend-cache-closure-phase-7).
-    Nothing staged or committed; Phase 8 and final acceptance remain open.
+    Subsequent wrapper-dependency review found that this source-closure assessment was too narrow:
+    cache policy, acquisition orchestration and diagnostic/helper dependencies still cross the RHI boundary.
+    The receipts above remain evidence for their tested candidate, not proof of complete architectural closure.
+    Corrective work is mandatory in Phase 8; Phase 9 and final acceptance also remain open.
 
-Phase 8: Qualify integrated behavior and release artifacts
+Phase 8: Close resource-wrapper and helper RHI boundary violations
   Depends on Phase 7.
+  Authority: the approved proposal, final contracts and the wrapper-dependency audit findings.
+  Outcome: owners retain allocation policy and manager-owned lifetimes, while execution, cache policy,
+    acquisition orchestration and native diagnostics enter through their final RHI boundaries.
+  Subphases 8a–8f are dependency-ordered correction units; 8g qualifies their combined result.
+  Apply the mandatory no-shim contract to every unit, including callers, tests and obsolete API removal.
+  Earlier source-closure receipts do not exempt any of the sites explicitly listed below.
+
+Phase 8a: Route framebuffer cache policy and frame lifecycle through RHI
+  Depends on Phase 7.
+
+  ☐ Remove direct OpenGlStateCache guards from GpuFramebuffer.SetAttachmentCore, RemoveAttachmentCore,
+    ResizeCore and Bind. Enforce mutable/immutable configuration admission at the final RHI operation
+    boundary, preserving rejection before effects and existing restoration/suppression behavior.
+  ☐ Move routing invalidation out of GpuFramebuffer.OnBeforeDelete, OnDetached,
+    PublishRenderPassMetadata and RefreshWrappedFramebuffer. Preserve old/new identity handling and
+    exactly-once publication; wrappers must not compose backend cache effects around an RHI call.
+  ☐ Remove StaticGpuFramebuffer.configurationOwner and direct RegisterImmutableFramebuffer /
+    UnregisterImmutableFramebuffer calls in construction, ReleaseConfiguration and OnContextRetiring.
+    Keep one immutable-configuration authority beneath RHI with original-context retirement, balanced
+    backing guards and correct failure cleanup; retain owner allocation/attachment policy above it.
+  ☐ Replace ScreenResourceManager.HandleScreenResize's direct InvalidateAll and
+    GpuUniformRingBeginRenderer.OnRenderFrame's direct BeginFrame with final semantic lifecycle routes.
+    Preserve callback ordering, uniform epochs and selective knowledge handling without a cache escape hatch.
+  ☐ Route GpuProgram.RequireOutsideSubmission's direct RequireOutsideEngineBoundary guard through RHI.
+    Inspect the analogous EngineGeometryInputs guard against its explicit integration contract; retain
+    backend cache access only beneath the admitted integration/execution boundary, not in an alternate caller.
+  ☐ Verify immutable rejection, resize/replacement, detach/disposal, context retirement, frame epochs and
+    engine-boundary admission. Remove wrapper imports/stored types exposing the concrete cache.
+
+Phase 8b: Close owner creation entry points without disturbing private handoff
+  Depends on 8a.
+
+  ☐ Migrate GpuFramebuffer's owning constructor and GpuFramebufferAttachment.CreateRenderbufferStorage
+    from direct manager creation to the final RHI owner-allocation route. Cover DynamicGpuFramebuffer
+    and StaticGpuFramebuffer factory callers, including partial failure and provisional-owner cleanup.
+  ☐ Reconcile GpuVao.Create and GpuProgramObject.Create with their actual backend callers:
+    OpenGLBackend.GeometryVertexArrays, ShaderCreation and EngineTessellation. Keep necessary unpublished
+    recipients/private manager initialization backend-internal; remove general wrapper creation entry
+    points that expose a competing public route. Do not recurse through public RHI factories from backend creation.
+  ☐ Resolve GpuProgramPipeline.Create, for which the audit found no production caller: remove the unused
+    alternative factory or make any required creation part of its final backend-owned operation family.
+    Do not preserve an unused factory through an alias, forwarding shim or speculative public operation.
+  ☐ Verify all affected factories return only completed owners or truthful failure, publish once and retire
+    only owned candidates. Preserve existing private manager initialization and original-context cleanup.
+
+Phase 8c: Centralize acquisition, recovery and image dependency publication
+  Depends on 8b.
+
+  ☐ Route BorrowedTexture construction/GetOrReplace acquisition through the final external import/refresh
+    boundary. Preserve nonownership, original association and reuse of available canonical facts; no query
+    on reference conversion, ordinary metadata access or known content-only updates.
+  ☐ Move GpuFramebuffer.DiscoverAttachment and ReconcileAttachmentMetadata acquisition/recovery orchestration
+    behind the final RHI resource boundary, including AcquireWrapperMetadata, RecoverWrapperMetadata,
+    AcquireFramebufferTexture and AcquireFramebufferRenderbuffer. Keep attachment selection/ownership
+    policy in its owning domain and preserve exact face/layer/view selection.
+  ☐ Complete PublishRenderPassMetadata and RefreshWrappedFramebuffer migration: one admitted operation
+    owns identity replacement, discovery, availability withdrawal, failure and publication. Remove wrapper
+    sequencing of manager recovery, InvalidateWrapperMetadata and DiscardUntrackedMetadata around cache effects.
+  ☐ Reconcile GpuFramebufferAttachment's AcquireExternalImageTexture and AcquireImageMetadata calls in
+    construction, NotifyChanged and ValidateSlot. Manager-owned acquisition decides unknown facts;
+    validation consumes supplied/published facts, and context-local failures cannot leave stale facts usable.
+  ☐ Route GpuProgramObject/GpuShaderModule adoption and GpuProgramInterface's acquisition fallback through
+    their final shader/import contracts. Remove native reader selection from general wrappers/interface
+    preparation; preserve legitimate backend-internal adoption and manager-owned reader authority.
+  ☐ Consolidate GpuTexture allocation/reallocation and GpuRenderbuffer allocation calls to
+    GpuFramebufferAttachmentObservers.NotifyChanged with manager-owned dependency publication.
+    Reconcile GpuFramebufferAttachment observer registration, NotifyChanged and NotifyDependents and the
+    ConditionalWeakTable helper; remove superseded notification machinery where the manager replaces it.
+    Preserve context-local/no-registration behavior, weak ownership, dependent invalidation on failure
+    and exactly-once notifications without a second registry or publication authority.
+  ☐ Verify known versus unknown external facts, context-local recovery, unavailable snapshots, resize,
+    aliases/views, same-ID reuse, dependent failure and borrowed ownership. Ordinary fact reads remain query-free.
+
+Phase 8d: Remove capability and shader-layout backend dependencies
+  Depends on 8c.
+
+  ☐ Replace GpuFramebufferAttachment.ValidateSlot/ValidateSelection direct GpuSupport accesses with
+    RHICapabilities, including color slots, multiview support, view count and array-layer limits.
+  ☐ Migrate GpuUniformRingBuffer context admission/alignment access, GpuBindingRegistry validation limits
+    and GpuPreparedBindings texture/image-unit limits to admitted RHI capabilities or supplied immutable
+    limits. Keep binding preparation CPU-only and preserve one existing capability discovery authority.
+  ☐ Remove GpuProgramLayout's direct OpenGLProgramQueries/OpenGLProgramAssignments dependencies from
+    GetUniformLocation/GetResourceName, ApplyUniformBlockContract, ApplyShaderStorageBlockContract,
+    ApplyUniformUnitContract, block-index resolution, TryBuildBufferBindingByName and TryBuildTextureUnitBindings.
+    Cover their ApplyContract, ValidateContract, RebuildCache and TryBuild callers, including
+    AtmosphereProgramBindings; owned executable preparation uses supplied snapshots and explicit external
+    recovery/assignments execute beneath final RHI integration services. No ordinary layout read queries GL.
+  ☐ Replace GpuProgramLayout's GpuSupport capability branches and native ErrorScope ownership consistently
+    with the 4.5 baseline and approved diagnostics/error policy. Remove superseded native fallback entry
+    points and avoid universal error drains, requested/actual duplicate caches or a second reflection system.
+  ☐ Inspect GpuTextureInitialization.Resolve's internal-format capability access: retain native resolution
+    only beneath its backend-owned callers, with no new owner-side query path. Do not move valid private
+    backend initialization into a public factory merely to eliminate a helper dependency.
+  ☐ Verify binding preparation, executable reflection/assignment, reload, missing inputs and optional
+    multiview rejection without weakening contract validation or introducing redundant native queries.
+
+Phase 8e: Put resource labels and native diagnostics beneath the backend
+  Depends on 8d.
+
+  ☐ Migrate SetDebugName's GlDebug calls in GpuBufferObject, GpuBufferView, GpuFramebuffer,
+    GpuProgramObject, GpuProgramPipeline, GpuQuery, GpuRenderbuffer, GpuSampler, GpuShaderModule,
+    GpuTexture, GpuTextureView, GpuVao and Shaders/GpuProgram to the final RHI labeling boundary.
+    Keep managed names available where required, borrowed-object ownership unchanged and native labels DEBUG-only.
+  ☐ Reconcile EngineShaderDebugLabels, EngineFramebufferDebugLabels and EngineMeshDebugLabels with the
+    explicit integration boundary. Keep raw native identities private to that boundary; do not expose
+    native object kinds/IDs as portable consumer label arguments.
+  ☐ Move native GlDebug label/probe implementation beneath backend diagnostics. Remove GL.Is* validity
+    probes where owner/manager identity already establishes admission; retain best-effort label failure
+    behavior without inventing a release query path or silently swallowing required operation errors.
+  ☐ Reconcile GpuProgramLayout.ErrorScope and ShaderPatchRecovery's GetErrorsString with backend-owned
+    diagnostics and the approved outcome policy. Do not add unconditional error draining to semantic operations.
+  ☐ Verify Debug label/error behavior and Release exclusion using delegated tools. No instrumented Release
+    configuration, new counters, timing studies or benchmark requirements are introduced.
+
+Phase 8f: Preserve legitimate manager ownership and close affected caller dependencies
+  Depends on 8e.
+
+  ☐ Recheck GpuResource registration, liveness, retention, association replacement, original-context checks,
+    queued deletion and cleanup against their retained manager/owner contracts. Preserve these responsibilities;
+    do not reroute every manager reference or introduce tracking in GpuResource<TMetadata> merely to remove imports.
+  ☐ Preserve published-metadata/availability reads in GpuTextureRef, GpuBufferRef, GpuSamplerRef,
+    GpuRenderbufferRef, auxiliary refs and wrapper validity/revision accessors. Verify they do not acquire,
+    recover, execute native work or grant mutation/lifecycle authority to consumers.
+  ☐ Preserve GpuBufferObject upload queue policy, TextureStreamingManager storage-revision checks,
+    GpuSamplers context retirement and shader reload context-generation checks where they remain owner policy.
+    Any execution/admission work discovered inside those helpers must use the final RHI operation in the same unit.
+  ☐ Inventory the full wrapper hierarchy, partial files, reference values and helper chains for concrete
+    cache/backend types, reader selection, native diagnostics, capability access, fully qualified calls,
+    aliases and indirect execution. Explicitly classify backend-owned OpenGLPassTarget and private geometry
+    recipients by callers and ownership; directory names/internal visibility alone do not justify an exemption.
+  ☐ Update every affected production, generated-binding and test caller directly, and remove superseded
+    APIs and imports in its owning correction unit. No forwarding facade, compatibility alias, duplicate
+    registry, dispatcher, cache or delayed shim-removal task is permitted.
+
+Phase 8g: Qualify corrective closure and reconcile documentation
+  Depends on 8a–8f.
+
+  ☐ Record before/after routes for every named audit finding and any additional helper-chain occurrence.
+    Review actual dependency direction as well as native execution location; demonstrate one admitted
+    RHI entry route and existing manager/cache authority for each affected operation family.
+  ☐ Run delegated Debug/Release builds and focused behavior regressions on the combined candidate for
+    admission, creation failure, acquisition/recovery, dependency publication, labels, suppression,
+    context-local tools, retirement and immediate/recorded equivalence. Keep inherited failures explicit;
+    integrated lighting/package/user acceptance stays in Phase 9, with no repeated benchmark requirement.
+  ☐ Complete second review and independent stage-completion audit against the proposal, contracts,
+    every named correction and mandatory migration receipts. Resolve gaps before claiming closure;
+    reflection inventories or namespace-only searches do not substitute for caller/dependency review.
+  ☐ Reconcile proposal/contracts, migration receipts, inventory/coverage, parent-plan cross-references,
+    Rendering.GpuResources.md and Rendering.ShaderBindingState.md with final ownership and actual routes.
+    Permanent documentation describes implemented behavior; historical receipts retain their limitations.
+  ☐ Completion: all correction units and their caller dependencies satisfy the final RHI boundary with
+    retained manager lifetimes, no alternate owner-side execution/acquisition route and no temporary shim.
+
+Phase 9: Qualify integrated behavior and release artifacts
+  Depends on Phase 8, including subphases 8a–8g.
   Outcome: correctness, package identity and outstanding live evidence are explicit.
 
   ☐ Run delegated focused and integrated regressions on an immutable candidate, covering all family receipts,
@@ -659,7 +817,7 @@ Phase 8: Qualify integrated behavior and release artifacts
     remaining unsupported hardware evidence is disclosed, and no unapproved architecture deviation remains.
 
 Final acceptance
-  ☐ All eight phases and mandatory migration receipts are satisfied; later cleanup never substitutes for
+  ☐ All nine phases, their subphases and mandatory migration receipts are satisfied; later cleanup never substitutes for
     removing superseded APIs within their owning migration unit.
   ☐ Final APIs are backend-neutral, managed OpenGL execution requires 4.5, and every native operation has
     one execution owner with existing manager metadata/lifetime authority and preserved cache behavior.
@@ -670,12 +828,12 @@ Final acceptance
 
 Proposal coverage map
   Boundary, operations, capabilities and resource inputs: Phases 1–5; final cache split in Phase 7.
-  Creation/adoption, initial content, original identity and retirement: Phases 2–5; lifecycle tests in 6/8.
+  Creation/adoption, initial content, original identity and retirement: Phases 2–5; corrections in 8; lifecycle tests in 6/9.
   Shader/PSO creation, generation identity, replacement and ownership: Phase 5; recorded rejection in 6.
   Geometry, attachment targets and immediate submission: Phase 5; recorded consumption in 6.
   Uniform capture, physical publication and history: Phase 5; recording/epoch/cancellation tests in 6.
   Recording, ownership transfer, tickets, failure and CPU/GPU completion: Phases 4/6.
-  Dependency inversion for manager services, wrappers and semantic RHI objects: subphases 5b–5e.
-  Native dispatch, publication, exact integration and no-shim migration: mandatory receipts, Phases 2–7.
-  Representative outcomes, efficient-execution checks, package and user-run qualification: Phase 8, supported
+  Dependency inversion for manager services, wrappers and semantic RHI objects: subphases 5b–5e and 8a–8g.
+  Native dispatch, publication, exact integration and no-shim migration: mandatory receipts, Phases 2–8.
+  Representative outcomes, efficient-execution checks, package and user-run qualification: Phase 9, supported
     by focused verification and current-state documentation in every owning migration unit.
