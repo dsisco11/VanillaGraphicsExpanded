@@ -766,9 +766,31 @@ Phase 8c: Centralize acquisition, recovery and image dependency publication
     Receipts/filter and the combined-process limitation are recorded in the linked migration ledger.
     Subphases 8d–8i and Phase 9 remain open.
 
-Phase 8d: Remove capability and shader-layout backend dependencies
+Phase 8d: Complete semantic resource schemas and remove capability/shader-layout backend dependencies
   Depends on 8c.
 
+  ☐ Replace native BufferUsageHint/BufferStorageFlags in GpuBufferMetadata and GpuBufferInitialization
+    with project-owned usage/storage descriptions. Migrate GpuBufferObject.Usage, GpuBufferRef metadata
+    access, IRHIResourceExecution.InitializeBuffer and all dependent creation, validation and publication
+    callers together. Preserve immutable/sparse/storage-access semantics; encode/decode native flags only
+    beneath backend or explicit native import boundaries, without a parallel metadata representation.
+  ☐ Replace ShaderType in GpuShaderMetadata, GpuShaderInitialization.Stage and GpuShaderModule's stage
+    accessor/adoption constructor with ShaderStage. Migrate InitializeShader, native adoption and all
+    shader creation/publication consumers together; native stage conversion belongs beneath the backend.
+  ☐ Replace GpuProgramResourceMetadata's ProgramInterface/ProgramProperty-keyed reflection bags and raw
+    native type identifiers with typed semantic reflection facts in the canonical GpuProgramMetadata
+    snapshot. Migrate GpuProgramInterface's resource keys/name lookup, GpuProgramLayout and its
+    NativeMetadata partial, GpuResourceManager.ProgramFields/ProgramUnitAvailability and RHIShader's
+    retained reflection consumers together. Preserve publication, field availability, executable generation
+    identity and external acquisition; introduce no second reflection cache or owner-side native decoding.
+  ☐ Remove ActiveUniformType/ActiveAttribType from GpuPreparedBindings.Entry,
+    GraphicsExecutableInterface.Variable, ShaderInterfaceShape and ShaderResourceFormatCompatibility.
+    Update ShaderPreparedSubmission, ShaderInputValidation and all dependent layout/binding consumers to
+    supplied semantic reflection facts. Preparation remains query-free and preserves shape/format validation.
+  ☐ Detach ShaderResourceType's authored contract from OpenGL token identity: remove numeric-equivalence
+    casts/comparisons with native uniform types outside the backend. Update ShaderContractGenerator,
+    shared schemas, executable/cache identities and all consumers/tests in the same migration unit;
+    use explicit backend translation rather than a renamed enum or forwarding compatibility layer.
   ☐ Replace GpuFramebufferAttachment.ValidateSlot/ValidateSelection direct GpuSupport accesses with
     RHICapabilities, including color slots, multiview support, view count and array-layer limits.
   ☐ Migrate GpuUniformRingBuffer context admission/alignment access, GpuBindingRegistry validation limits
@@ -786,8 +808,11 @@ Phase 8d: Remove capability and shader-layout backend dependencies
   ☐ Inspect GpuTextureInitialization.Resolve's internal-format capability access: retain native resolution
     only beneath its backend-owned callers, with no new owner-side query path. Do not move valid private
     backend initialization into a public factory merely to eliminate a helper dependency.
-  ☐ Verify binding preparation, executable reflection/assignment, reload, missing inputs and optional
-    multiview rejection without weakening contract validation or introducing redundant native queries.
+  ☐ Verify buffer usage/storage flags, shader stages, semantic reflected resource shapes/types and authored
+    resource compatibility across creation, adoption and publication. Cover executable reflection/assignment,
+    reload, missing/invalid inputs, binding preparation and optional multiview rejection without weakening
+    validation, duplicating metadata authority or introducing redundant native queries. Add schema/isolation
+    regressions with each migration; combined coverage and dependency review are reconciled in 8h.
 
 Phase 8e: Put resource labels and native diagnostics beneath the backend
   Depends on 8d.
@@ -813,6 +838,23 @@ Phase 8f: Preserve legitimate manager ownership and close affected caller depend
   ☐ Recheck GpuResource registration, liveness, retention, association replacement, original-context checks,
     queued deletion and cleanup against their retained manager/owner contracts. Preserve these responsibilities;
     do not reroute every manager reference or introduce tracking in GpuResource<TMetadata> merely to remove imports.
+  ☐ Remove GpuResourceManager.MetadataOperation's concrete OpenGlStateCache/ResourceOperationGuard
+    dependency and MetadataPublication's native guard parameter through the final internal RHI execution
+    contract. Separate backend reentry/cancellation guards from manager metadata transactions; preserve
+    original identity, interruption, deletion/context retirement and exactly-once publication, without
+    shifting canonical transaction ownership or adding a forwarding facade/second authority.
+  ☐ Complete that guard migration across GpuResourceManager.BufferTextureCreation, FramebufferBackings,
+    MetadataObservation, ImageAcquisition, MetadataAcquisition, NativeObservation, TextureCommandInputs,
+    TextureViewCreation, ProgramSnapshots and Registry.CancelResourceOperation callers. Include context-local
+    tools and failure/recovery paths; remove superseded concrete guard types from manager signatures.
+  ☐ Isolate GpuResource.ContextIdentity's GLFW.GetCurrentContext fallback behind the existing final context
+    identity/admission boundary. Preserve context-local/headless tools, original-context ownership checks
+    and manager lifetimes; do not add a second context registry or remove legitimate owner identity policy.
+  ☐ Verify EngineBoundaryResources' complete construction/consumer closure, including its BufferRangeTarget
+    footprint and OpenGLBackend.BoundaryAdmission/OpenGlStateCache.BoundaryBindings/BoundaryEntry callers.
+    Place this native footprint with its backend implementation and keep it private there; if any managed
+    consumer remains, migrate its input through the final semantic boundary in the same unit. Do not create
+    a new frontend abstraction solely to wrap backend-owned data.
   ☐ Preserve published-metadata/availability reads in GpuTextureRef, GpuBufferRef, GpuSamplerRef,
     GpuRenderbufferRef, auxiliary refs and wrapper validity/revision accessors. Verify they do not acquire,
     recover, execute native work or grant mutation/lifecycle authority to consumers.
@@ -894,6 +936,17 @@ Phase 8h: Qualify corrective closure and reconcile documentation
   ☐ Record before/after routes for every named audit finding and any additional helper-chain occurrence.
     Review actual dependency direction as well as native execution location; demonstrate one admitted
     RHI entry route and existing manager/cache authority for each affected operation family.
+  ☐ Expand RHIContractIsolationTests beyond direct method signatures and the image/framebuffer schema
+    list: inspect reachable project-owned payload fields/properties in RHICommandContext and
+    IRHIResourceExecution contracts, including buffer, shader, program/reflection and initialization
+    schemas. Detect nested OpenTK types, native reflection property bags and native-token interpretation
+    above the backend; cover semantic enum conversion/codec boundaries with focused checks and caller review.
+    Avoid treating a clean signature scan as proof that transitive payloads or consumers are backend-neutral.
+  ☐ Explicitly qualify intentional boundaries: RHICommandContext.Composition selects the concrete backend
+    only at its thin composition root; RHIShaderBinary.NativeFormat remains a private opaque executable-cache
+    payload with cache policy above the backend. Native adoption identities/platform external handles and
+    backend/interception adapters remain confined to their explicit integration contracts. Verify none leaks
+    native selectors/types into portable consumer APIs; add no redundant facade or duplicate owner to hide them.
   ☐ Run delegated Debug/Release builds and focused behavior regressions on the combined candidate for
     admission, creation failure, acquisition/recovery, dependency publication, labels, suppression,
     context-local tools, retirement and immediate/recorded equivalence. Keep inherited failures explicit;
@@ -974,6 +1027,9 @@ Proposal coverage map
   Uniform capture, physical publication and history: Phase 5; recording/epoch/cancellation tests in 6.
   Recording, ownership transfer, tickets, failure and CPU/GPU completion: Phases 4/6.
   Dependency inversion for manager services, wrappers and semantic RHI objects: subphases 5b–5e and 8a–8h.
+  Semantic buffer/shader/reflection schemas and authored resource types: subphase 8d.
+  Manager operation guards, context discovery and backend-only boundary footprints: subphase 8f.
+  Transitive schema isolation and intentional composition/native-payload boundary qualification: subphase 8h.
   Persistent intercepted-state knowledge and removal of obsolete frame/resize/startup purges: subphase 8g.
   RHI management-service naming and complete caller/documentation reconciliation: subphase 8i.
   Native dispatch, publication, exact integration and no-shim migration: mandatory receipts, Phases 2–8.
