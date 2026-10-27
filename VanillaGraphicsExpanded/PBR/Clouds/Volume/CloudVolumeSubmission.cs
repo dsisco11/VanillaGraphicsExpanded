@@ -60,7 +60,7 @@ internal sealed class CloudVolumeSubmission
         #if DEBUG
         Dispatches++;
         #endif
-        GlDebug.ThrowIfErrors("Cloud volume update");
+        RHICommandContext.Current.CheckDiagnosticErrors("Cloud volume update");
     }
     #endregion
 

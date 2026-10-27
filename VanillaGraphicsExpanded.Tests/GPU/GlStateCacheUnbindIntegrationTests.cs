@@ -138,7 +138,7 @@ public class GlStateCacheUnbindIntegrationTests
             }
 
 #if DEBUG
-            GlDebug.TryLabel(ObjectLabelIdentifier.Program, program, debugName);
+            GlDebug.TryLabel(OpenTK.Graphics.OpenGL4.ObjectLabelIdentifier.Program, program, debugName);
 #endif
 
             GL.AttachShader(program, vs);

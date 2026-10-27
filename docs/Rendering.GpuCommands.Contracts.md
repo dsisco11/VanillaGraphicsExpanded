@@ -338,3 +338,13 @@ Pass helpers under the OpenGL backend serve only context pass execution and spec
 
 These contracts are implemented with their complete migration units. An unimplemented signature in this
 planning document is not permission to add a production placeholder, shimming facade or duplicate owner.
+
+## Optional resource diagnostics
+
+Owner label updates enter through the private RHI diagnostics contract using `GpuResource`, never
+native object selectors or IDs. The backend admits the original allocation without `Is*` queries;
+labels neither acquire/publish metadata nor certify command success. Managed names remain available,
+borrowed ownership is unchanged, and native label/notification calls are DEBUG-only and best-effort.
+Native label/error/group implementations and engine label integration live beneath backend diagnostics.
+Explicit diagnostic assertions and groups have semantic RHI entry points; no automatic command-success
+error drain is added. Failed engine shader compilation retains its bounded integration diagnostic report.

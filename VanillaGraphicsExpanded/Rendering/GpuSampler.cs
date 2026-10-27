@@ -2,7 +2,6 @@ using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using System.Diagnostics;
 
-using OpenTK.Graphics.OpenGL;
 
 namespace VanillaGraphicsExpanded.Rendering;
 
@@ -46,12 +45,7 @@ public sealed class GpuSampler : GpuResource<GpuSamplerMetadata>, IDisposable
     /// </summary>
     public override void SetDebugName(string? debugName)
     {
-#if DEBUG
-        if (samplerId != 0)
-        {
-            GlDebug.TryLabel(ObjectLabelIdentifier.Sampler, samplerId, debugName);
-        }
-#endif
+        RHICommandContext.TryLabelResource(this, debugName);
     }
 
 

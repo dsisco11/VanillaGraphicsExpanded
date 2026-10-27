@@ -572,3 +572,10 @@ failures (source removal during enumeration and an ambiguous Buffer type). The f
 no runtime baseline failure was observed in the selected checks, and no failing test was waived. The removed call-site inventory
 fixture's historical output is optional integration context, not required API coverage evidence or a
 fixture to restore in the final replay.
+
+## Optional resource labels
+
+The existing owner supplies optional names through the private RHI diagnostic contract. Native label
+selectors and allocation IDs are interpreted only in backend diagnostics or its explicit engine-label
+integration helpers. Labels preserve ownership, bindings, pending errors and canonical metadata; no
+`GL.Is*` probe is used. Native labels compile out of Release independently of managed naming.

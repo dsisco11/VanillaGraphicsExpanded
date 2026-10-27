@@ -1,9 +1,9 @@
 using System.Collections.Generic;
 using System.Diagnostics;
-using OpenTK.Graphics.OpenGL;
+using OpenTK.Graphics.OpenGL4;
 using Vintagestory.API.Client;
 
-namespace VanillaGraphicsExpanded.Rendering.Diagnostics;
+namespace VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 
 /// <summary>Names borrowed engine framebuffer resources without changing their bindings or ownership.</summary>
 internal static class EngineFramebufferDebugLabels

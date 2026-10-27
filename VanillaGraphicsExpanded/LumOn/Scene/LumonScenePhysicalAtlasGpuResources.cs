@@ -1,7 +1,6 @@
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 
-using OpenTK.Graphics.OpenGL;
 
 using VanillaGraphicsExpanded.Rendering;
 
@@ -76,9 +75,6 @@ internal sealed class LumonScenePhysicalAtlasGpuResources : IDisposable
                 LumonSceneVirtualAtlasConstants.PhysicalAtlasSizeTexels,atlasCount,prefix);
             depthAtlas = textures.Depth; materialAtlas = textures.Material;
             irradianceAtlas = textures.Indirect; directAtlas = textures.Direct; outgoing = textures.Outgoing;
-            Label(depthAtlas);
-            Label(materialAtlas);
-            Label(irradianceAtlas);
         }
         catch
         {
@@ -103,11 +99,5 @@ internal sealed class LumonScenePhysicalAtlasGpuResources : IDisposable
         System.Threading.Interlocked.Add(ref allocatedBytes, -allocationBytes);
     }
 
-    /// <summary>Labels a live GL allocation for diagnostics.</summary>
-    private static void Label(GpuTexture texture)
-    {
-        if (texture.TextureId == 0) return;
-        GlDebug.TryLabel(ObjectLabelIdentifier.Texture, texture.TextureId, texture.DebugName);
-    }
     #endregion
 }

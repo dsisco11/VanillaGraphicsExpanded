@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System.Collections.Generic;
 using HarmonyLib;
 using VanillaGraphicsExpanded.Rendering.Diagnostics;

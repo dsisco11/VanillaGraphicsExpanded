@@ -46,7 +46,7 @@ internal sealed class CloudVolumeFields : IDisposable
             // Maintenance/copy UBOs total 128 bytes outside this buffer.
             // Remaining parameter/list space stays within the fixed 1 MiB allowance.
             Scratch = Buffer((CloudVolumeDomain.ScratchBytes - 4096) / 4);
-            GlDebug.ThrowIfErrors("Cloud volume allocation");
+            RHICommandContext.Current.CheckDiagnosticErrors("Cloud volume allocation");
         }
         catch { resources.Dispose(); throw; }
     }

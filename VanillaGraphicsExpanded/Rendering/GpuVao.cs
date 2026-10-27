@@ -1,5 +1,5 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
-using OpenTK.Graphics.OpenGL;
 
 namespace VanillaGraphicsExpanded.Rendering;
 
@@ -20,9 +20,7 @@ internal sealed class GpuVao : GpuResource<GpuVertexArrayMetadata>
     public override void SetDebugName(string? name)
     {
         debugName=name;
-#if DEBUG
-        if(vertexArrayId!=0)GlDebug.TryLabel(ObjectLabelIdentifier.VertexArray,vertexArrayId,name);
-#endif
+        RHICommandContext.TryLabelResource(this, name);
     }
     #endregion
 

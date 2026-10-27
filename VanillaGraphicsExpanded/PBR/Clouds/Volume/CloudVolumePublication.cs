@@ -90,7 +90,7 @@ internal sealed class CloudVolumePublication(Func<int,PackedUniformBuffer,CloudV
                 else programs[2]!.DispatchIndirect(commands!);
                 Barrier();
             });
-        GlDebug.ThrowIfErrors("Cloud volume publication");
+        RHICommandContext.Current.CheckDiagnosticErrors("Cloud volume publication");
         Published=new(d,fields.Encoding,fields.LightingBounds,checked((Published?.Revision??0)+1),density!,direct!,diffuse!,regions!,occupancy!,fields);
         source=fields;
         FullChannels=full;

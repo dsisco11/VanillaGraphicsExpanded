@@ -7,7 +7,6 @@ using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Threading;
 
-using OpenTK.Graphics.OpenGL;
 
 namespace VanillaGraphicsExpanded.Rendering;
 
@@ -48,16 +47,12 @@ public abstract class GpuBufferObject : GpuResource<GpuBufferMetadata>, IDisposa
     protected override GpuResourceKind ResourceKind => GpuResourceKind.Buffer;
 
 
+    /// <inheritdoc />
     public override void SetDebugName(string? debugName)
     {
         this.debugName = debugName;
 
-#if DEBUG
-        if (bufferId != 0)
-        {
-            GlDebug.TryLabel(ObjectLabelIdentifier.Buffer, bufferId, debugName);
-        }
-#endif
+        RHICommandContext.TryLabelResource(this, debugName);
     }
 
     /// <summary>Binds this live allocation and restores the previous binding when the scope ends.</summary>

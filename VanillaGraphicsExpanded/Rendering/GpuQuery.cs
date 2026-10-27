@@ -1,7 +1,6 @@
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 
-using OpenTK.Graphics.OpenGL;
 
 namespace VanillaGraphicsExpanded.Rendering;
 
@@ -32,14 +31,10 @@ public sealed class GpuQuery : GpuResource<GpuQueryMetadata>, IDisposable
     /// </summary>
     public new bool IsValid => base.IsValid;
 
+    /// <inheritdoc />
     public override void SetDebugName(string? debugName)
     {
-#if DEBUG
-        if (queryId != 0)
-        {
-            GlDebug.TryLabel(ObjectLabelIdentifier.Query, queryId, debugName);
-        }
-#endif
+        RHICommandContext.TryLabelResource(this, debugName);
     }
 
     /// <summary>Declares an unpublished wrapper for manager-owned creation.</summary>

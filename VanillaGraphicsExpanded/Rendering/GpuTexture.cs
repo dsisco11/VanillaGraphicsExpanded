@@ -5,7 +5,6 @@ using System.Linq;
 using System;
 using System.Diagnostics;
 
-using OpenTK.Graphics.OpenGL;
 
 namespace VanillaGraphicsExpanded.Rendering;
 
@@ -63,16 +62,12 @@ public abstract partial class GpuTexture : GpuResource<GpuTextureMetadata>, IDis
 
     protected override GpuResourceKind ResourceKind => GpuResourceKind.Texture;
 
+    /// <inheritdoc />
     public override void SetDebugName(string? debugName)
     {
         this.debugName = debugName;
 
-#if DEBUG
-        if (textureId != 0)
-        {
-            GlDebug.TryLabel(ObjectLabelIdentifier.Texture, textureId, debugName);
-        }
-#endif
+        RHICommandContext.TryLabelResource(this, debugName);
     }
 
 

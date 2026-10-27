@@ -1,6 +1,6 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 
-using OpenTK.Graphics.OpenGL;
 
 namespace VanillaGraphicsExpanded.Rendering;
 
@@ -37,12 +37,7 @@ internal sealed class GpuProgramPipeline : GpuResource<GpuProgramPipelineMetadat
     /// </summary>
     public override void SetDebugName(string? debugName)
     {
-#if DEBUG
-        if (pipelineId != 0)
-        {
-            GlDebug.TryLabel(ObjectLabelIdentifier.ProgramPipeline, pipelineId, debugName);
-        }
-#endif
+        RHICommandContext.TryLabelResource(this, debugName);
     }
 
     #endregion

@@ -2,7 +2,6 @@ using System;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Diagnostics;
 
-using OpenTK.Graphics.OpenGL;
 
 namespace VanillaGraphicsExpanded.Rendering;
 
@@ -93,12 +92,7 @@ public sealed class GpuRenderbuffer : GpuResource<GpuRenderbufferMetadata>, IDis
     {
         this.debugName = debugName;
 
-#if DEBUG
-        if (renderbufferId != 0)
-        {
-            GlDebug.TryLabel(ObjectLabelIdentifier.Renderbuffer, renderbufferId, debugName);
-        }
-#endif
+        RHICommandContext.TryLabelResource(this, debugName);
     }
 
 

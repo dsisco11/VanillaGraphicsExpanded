@@ -3,7 +3,6 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
-using OpenTK.Graphics.OpenGL;
 
 namespace VanillaGraphicsExpanded.Rendering;
 
@@ -113,9 +112,7 @@ public abstract partial class GpuFramebuffer : GpuResource<GpuFramebufferMetadat
     public override void SetDebugName(string? debugName)
     {
         this.debugName = debugName;
-#if DEBUG
-        if (fboId != 0) GlDebug.TryLabelFramebuffer(fboId, debugName);
-#endif
+        RHICommandContext.TryLabelResource(this, debugName);
     }
     /// <summary>Converts a framebuffer wrapper to its current GL name for engine interop.</summary>
     public static implicit operator int(GpuFramebuffer? buffer) => buffer?.fboId ?? 0;

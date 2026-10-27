@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using HarmonyLib;
 using VanillaGraphicsExpanded.Rendering.Shaders;
 using Vintagestory.Client.NoObf;

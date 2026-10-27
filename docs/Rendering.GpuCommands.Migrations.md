@@ -1378,3 +1378,42 @@ The second implementation review and independent audit-stage-completion review f
 8d blocker after correcting the proposal's stale OpenTK-valued texture-reference exception. The audit
 independently reconstructed the eleven task/source mappings and retained the combined-process Release
 limitation above; later 8e–8i work is not represented as completed by this receipt.
+
+## Resource labels and native diagnostics boundary (Phase 8e)
+
+Authority: the five Phase 8e tasks, mandatory migration receipts, proposal outcome/ownership policy,
+contract private resource-execution boundary, GPU resource and binding contracts, canonical resource
+proposal, inventory/API coverage, and the retained creation/publication and texture-reference proposals.
+Optional labels stay outside metadata and do not certify creation success or grant ownership.
+
+| Task | Before and final route | Verification |
+| --- | --- | --- |
+| Wrapper naming | Twelve `SetDebugName` implementations called native `GlDebug` selectors; each now submits its existing owner through `RHICommandContext.TryLabelResource` → `IRHIResourceExecution.LabelResource` → backend diagnostics. `Shaders/GpuProgram` names its installed program owner. Managed name storage is preserved. | Wrapper IL isolation, real buffer label/error/binding checks, owner regressions. |
+| Engine labels | Engine shader/framebuffer/mesh helpers lived in frontend domains with native labels. They now live in backend diagnostics integration; hooks, GBuffer, startup and pool naming call the final helpers directly. No old-name facades remain. | Existing shader/resource label and hook-installation suites. |
+| Label implementation | Native diagnostics moved beneath the backend and split by labels/groups/notifications/errors. `GL.Is*` label probes and redundant LumOn label calls are removed; original owner/context admission remains. Owner label dispatch uses OpenGL4; explicit pre-admission error reporting retains the engine binding already loaded during capability capture. | No-probe IL inspection, injected optional label failure, ordinary Debug/Release exclusion checks. |
+| Native errors | `GpuProgramLayout` remains query-free and contains no `ErrorScope`. Failed engine shader recovery reports bounded errors through `OpenGLRHIContext.ReportFailedEngineCompilation`; its source restoration/retry policy is unchanged. | Source review, error-attribution and shader-recovery tests. |
+| Diagnostic caller closure | Sky groups and existing cloud-volume assertions use semantic RHI diagnostic operations. Backend-specific profiling/discovery and exact engine instrumentation retain explicit backend diagnostics. No automatic error drain is added to resource operations. | Scope/state diagnostics and source dependency review. |
+
+Final delegated validation on the corrected candidate:
+
+- Debug: **182/182 passed**, zero skips; full test-project/production compilation **0 errors**.
+- Ordinary Release: **182/182 passed**, zero skips; full test-project/production compilation **0 errors**.
+- Exact filter: `artifacts/phase8e/final-filter.txt`.
+- Compile logs: `debug-final-error-binding-build.log` and `release-final-error-binding-build.log`.
+- Test logs/TRX: `debug-final-error-binding.log/.trx` and `release-final-error-binding.log/.trx`.
+  All logs above are under `artifacts/phase8e/`; cached shader outputs were reused.
+- All four new owner-label tests ran, including pending-error/binding preservation, optional native
+  failure, no validity probes, wrapper isolation and ordinary Release exclusion. Existing engine
+  labels/scopes, shader recovery, state diagnostics, owner and capability tests passed.
+
+The initial canonical attempt encountered restore/network issues and then stale qualified label-helper
+names, corrected before final compilation. Do not represent that initial attempt as a passing canonical
+receipt. Earlier 176-case runs are superseded by the final 182-case candidate above.
+
+Second review and independent stage audit consulted the linked authority and found no remaining 8e
+blocker. Final source-order review preserved the already-loaded engine error binding for capability
+capture before RHI admission loads OpenGL4; the final runs include that correction. Headless fixtures
+preload both binding tables, so startup-order proof also includes source inspection. Native owner label
+dispatch remains OpenGL4. Explicit error assertions retain their existing release behavior and are not
+an automatic native-success protocol. Subphases 8f–8i and Phase 9 remain open. No JIT overrides,
+instrumented Release, staging, commit, game launch or performance qualification was performed.

@@ -764,7 +764,7 @@ Phase 8c: Centralize acquisition, recovery and image dependency publication
     11 observer/fault-injection/counter failures; it is not a clean-suite receipt. No JIT overrides.
     Source/schema/codec isolation checks and all affected callers compile in both configurations.
     Receipts/filter and the combined-process limitation are recorded in the linked migration ledger.
-    Subphases 8e–8i and Phase 9 remain open.
+    Subphases 8f–8i and Phase 9 remain open.
 
 Phase 8d: Complete semantic resource schemas and remove capability/shader-layout backend dependencies
   Depends on 8c.
@@ -819,26 +819,34 @@ Phase 8d: Complete semantic resource schemas and remove capability/shader-layout
     fault-injection cases passed 2/2 fresh on unchanged optimized binaries. Second review and independent
     stage-completion audit found no remaining 8d blocker. See Rendering.GpuCommands.Migrations.md,
     "Semantic executable and buffer boundary (Phase 8d)" for routes, traceability and receipt limits.
-    Subphases 8e–8i and Phase 9 remain open. Nothing was staged or committed.
+    Subphases 8f–8i and Phase 9 remain open. Nothing was staged or committed.
 
 Phase 8e: Put resource labels and native diagnostics beneath the backend
   Depends on 8d.
 
-  ☐ Migrate SetDebugName's GlDebug calls in GpuBufferObject, GpuBufferView, GpuFramebuffer,
+  ☑ Migrate SetDebugName's GlDebug calls in GpuBufferObject, GpuBufferView, GpuFramebuffer,
     GpuProgramObject, GpuProgramPipeline, GpuQuery, GpuRenderbuffer, GpuSampler, GpuShaderModule,
     GpuTexture, GpuTextureView, GpuVao and Shaders/GpuProgram to the final RHI labeling boundary.
     Keep managed names available where required, borrowed-object ownership unchanged and native labels DEBUG-only.
-  ☐ Reconcile EngineShaderDebugLabels, EngineFramebufferDebugLabels and EngineMeshDebugLabels with the
+  ☑ Reconcile EngineShaderDebugLabels, EngineFramebufferDebugLabels and EngineMeshDebugLabels with the
     explicit integration boundary. Keep raw native identities private to that boundary; do not expose
     native object kinds/IDs as portable consumer label arguments.
-  ☐ Move native GlDebug label/probe implementation beneath backend diagnostics. Remove GL.Is* validity
+  ☑ Move native GlDebug label/probe implementation beneath backend diagnostics. Remove GL.Is* validity
     probes where owner/manager identity already establishes admission; retain best-effort label failure
     behavior without inventing a release query path or silently swallowing required operation errors.
-  ☐ Verify GpuProgramLayout retains no native ErrorScope after 8d, and reconcile ShaderPatchRecovery's
+  ☑ Verify GpuProgramLayout retains no native ErrorScope after 8d, and reconcile ShaderPatchRecovery's
     GetErrorsString with backend-owned diagnostics and the approved outcome policy. Do not add unconditional
     error draining to semantic operations.
-  ☐ Verify Debug label/error behavior and Release exclusion using delegated tools. No instrumented Release
+  ☑ Verify Debug label/error behavior and Release exclusion using delegated tools. No instrumented Release
     configuration, new counters, timing studies or benchmark requirements are introduced.
+
+  Evidence: second review and independent stage audit found no remaining blocker. Final delegated
+    full test-project builds (including production) passed in Debug and ordinary Release; focused
+    regressions passed 182/182 in each configuration, with zero skips. Native label/error behavior,
+    pending-error preservation, injected diagnostic failure, Release exclusion and capability startup
+    ordering are covered. No instrumented Release, JIT override, game launch, staging or commit.
+    [Routes, authority and final receipts](Rendering.GpuCommands.Migrations.md#resource-labels-and-native-diagnostics-boundary-phase-8e).
+    Subphases 8f–8i and Phase 9 remain open.
 
 Phase 8f: Preserve legitimate manager ownership and close affected caller dependencies
   Depends on 8e.

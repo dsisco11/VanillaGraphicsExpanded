@@ -30,7 +30,11 @@ A user-run RenderDoc capture remains the visual confirmation; no game session wa
 
 ## Engine resource labels
 
-Debug builds also label borrowed engine resources through `GlDebug.TryLabel`. Labeling changes object metadata only; it does not bind, resize, dispose, or take ownership of engine resources. Unsupported KHR_debug contexts retain the existing no-op behavior.
+Debug builds label borrowed engine resources through the backend's explicit engine-label integration
+helpers. Their native implementation is `GlDebug.TryLabel` beneath
+`Rendering/RHI/Backends/OpenGL/Diagnostics`; it uses no `GL.Is*` validity probes. Managed resource owners
+instead submit their existing owner through the RHI labeling boundary. Native label calls compile out of
+Release, while managed names remain available. Labeling changes object metadata only; it does not bind, resize, dispose, or take ownership of engine resources. Unsupported KHR_debug contexts retain the existing no-op behavior.
 
 | Resource | Label examples | Allocation boundary |
 | --- | --- | --- |

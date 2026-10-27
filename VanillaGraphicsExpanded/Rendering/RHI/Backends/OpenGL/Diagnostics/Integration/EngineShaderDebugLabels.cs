@@ -1,13 +1,14 @@
-using OpenTK.Graphics.OpenGL;
+using OpenTK.Graphics.OpenGL4;
 using Vintagestory.Client.NoObf;
 
-namespace VanillaGraphicsExpanded.Rendering.Shaders;
+namespace VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 
 /// <summary>Names engine-owned program objects and stages for graphics captures.</summary>
 internal static class EngineShaderDebugLabels
 {
     #region Compilation lifecycle
     /// <summary>Labels the current executable after compilation, including replacement and reload objects.</summary>
+    [System.Diagnostics.Conditional("DEBUG")]
     internal static void Apply(ShaderProgram program)
     {
 #if DEBUG

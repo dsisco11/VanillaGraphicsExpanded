@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using HarmonyLib;
 using VanillaGraphicsExpanded.Rendering.Diagnostics;
 using Vintagestory.API.Client;

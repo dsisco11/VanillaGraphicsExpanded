@@ -146,7 +146,7 @@ public sealed partial class GBufferManager : IDisposable
         }
 
         // Label VS framebuffer and textures for debugging
-        Rendering.Diagnostics.EngineFramebufferDebugLabels.Apply(primaryFb, "VS.Primary");
+        Rendering.RHI.Backends.OpenGL.EngineFramebufferDebugLabels.Apply(primaryFb, "VS.Primary");
 
         // Keep VGE-owned textures out of the engine deletion array. They are attached directly
         // below and remain exclusively owned by this manager across framebuffer rebuilds.

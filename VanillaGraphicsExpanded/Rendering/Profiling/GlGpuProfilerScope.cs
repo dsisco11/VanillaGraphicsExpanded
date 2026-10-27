@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System;
 
 namespace VanillaGraphicsExpanded.Rendering.Profiling;

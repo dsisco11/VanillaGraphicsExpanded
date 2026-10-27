@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System;
 using System.Runtime.CompilerServices;
 using VanillaGraphicsExpanded.PBR.Tessellation;
@@ -37,8 +38,7 @@ internal static class ShaderPatchRecovery
         // The engine may query uniform locations after compilation fails, leaving GL errors
         // behind. Report those at the failed compilation boundary before a successful retry
         // can carry them into an unrelated render-stage error check.
-        string errors = GlDebug.GetErrorsString("OpenGL errors observed after failed patched compilation");
-        if (errors.Length != 0) report(errors);
+        OpenGLRHIContext.ReportFailedEngineCompilation(report);
         ShaderCapabilities.Forget(program);
         TerrainTessellationPrograms.Forget(program);
         if (program.VertexShader is not null) TerrainTessellationPatches.Forget(program.VertexShader);

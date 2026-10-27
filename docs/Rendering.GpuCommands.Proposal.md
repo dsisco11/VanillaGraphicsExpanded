@@ -661,6 +661,15 @@ the recording boundary, not full concurrent execution qualification. Worker reco
 integration remain separate design decisions requiring additional approval and their own race/lifetime
 tests; this implementation does not require a performance study to assess that future work.
 
+## Optional diagnostics
+
+Resource owners keep managed names and submit optional labels through the RHI using the existing
+owner identity. Native object selectors remain private to backend diagnostics and explicit engine
+label integration. Labeling is DEBUG-only and best-effort, never a metadata acquisition, native
+validity probe, ownership change or creation-success check. Explicit diagnostic assertions and groups
+use semantic entry points; ordinary commands do not acquire an automatic error drain. Failed engine
+shader compilation retains its bounded diagnostic report at that explicit integration boundary.
+
 ## Approval and controlling contracts
 
 Recommended decisions: semantic backend operations; immediate default with initially single-threaded,

@@ -398,3 +398,26 @@ the original overload, arguments and native error behavior, issue one native cal
 normalization, and withdraw only affected state fields. Invalid native arguments never become a
 managed setter exception. Metadata/resource adapters use their corresponding focused backend modules.
 Native calls in these modules are outside rewritten engine call sites, so forwarding cannot recurse.
+
+## Resource diagnostics
+
+Resource wrappers retain their managed diagnostic names and submit optional labels through
+`RHICommandContext.TryLabelResource`. The private execution contract receives the existing owner,
+not a native object kind or numeric identity. The backend checks the originating context and live
+manager association before translating the owner identity. Labeling does not acquire metadata,
+change bindings, establish creation success or transfer ownership. It performs no native validity
+probe and does not consume pending errors. Label failure remains best-effort.
+
+Native labels and debug notification control compile out of Release. The OpenGL diagnostic
+implementation lives in `Rendering/RHI/Backends/OpenGL/Diagnostics`, split into labels, groups,
+notification control and explicit error assertions. Pre-admission capability error checks retain the
+engine binding already loaded by the host; admitted owner labels use OpenGL4. Engine shader/framebuffer/mesh label helpers live
+in its integration directory and consume only the engine's current allocation identities. They retain
+borrowed ownership and allocation-time naming policy. Portable renderers do not pass native selectors.
+
+Explicit renderer diagnostic assertions and optional groups enter through the RHI diagnostic methods.
+These assertions preserve the existing requested checks; ordinary resource commands do not invoke an
+automatic error drain. Failed patched engine compilation retains one bounded error report through
+`OpenGLRHIContext.ReportFailedEngineCompilation` before its existing single-program recovery. Pending
+errors are diagnostic information, never a success certificate. Shader-layout lookup uses supplied
+metadata and contains no native error scope.

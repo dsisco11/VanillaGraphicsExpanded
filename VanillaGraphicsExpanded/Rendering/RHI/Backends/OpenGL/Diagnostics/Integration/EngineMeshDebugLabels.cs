@@ -1,9 +1,9 @@
 using System.Diagnostics;
-using OpenTK.Graphics.OpenGL;
+using OpenTK.Graphics.OpenGL4;
 using Vintagestory.API.Client;
 using Vintagestory.Client.NoObf;
 
-namespace VanillaGraphicsExpanded.Rendering.Diagnostics;
+namespace VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 
 /// <summary>Names engine mesh objects at allocation boundaries using their public buffer handles.</summary>
 internal static class EngineMeshDebugLabels

@@ -1,7 +1,6 @@
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 
-using OpenTK.Graphics.OpenGL;
 
 using VanillaGraphicsExpanded.Rendering;
 using Vintagestory.API.Common;
@@ -87,11 +86,6 @@ internal sealed partial class LumOnWorldProbeClipmapGpuResources : IDisposable
             metadataPass=new([new(Image:RHIAttachment.FromTexture(vis0)),new(Image:RHIAttachment.FromTexture(dist0)),
                 new(Image:RHIAttachment.FromTexture(meta0))],label:"WorldProbe.Metadata");
 
-            Label(radianceAtlas);
-            Label(vis0);
-            Label(dist0);
-            Label(meta0);
-            Label(debugState0);
 
             InitializeHistoryInvalidation(api);
             ClearAll();
@@ -122,9 +116,5 @@ internal sealed partial class LumOnWorldProbeClipmapGpuResources : IDisposable
             () => historyClearSlots?.Dispose(), () => historyClear?.Dispose(), owned.Dispose);
     }
 
-    private static void Label(GpuTexture texture)
-    {
-        if (texture.TextureId == 0) return;
-        GlDebug.TryLabel(ObjectLabelIdentifier.Texture, texture.TextureId, texture.DebugName);
-    }
+
 }

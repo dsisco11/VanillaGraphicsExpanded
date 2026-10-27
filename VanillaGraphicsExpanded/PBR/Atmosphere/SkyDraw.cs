@@ -59,7 +59,7 @@ internal sealed class SkyDraw
     /// <summary>Ends a failed pass's image authority before allowing the next sky pass to draw.</summary>
     internal void Execute(RHICommandContext commands)
     {
-        using var group = GlDebug.Group(Name);
+        using var group = commands.BeginDiagnosticGroup(Name);
         try { draw(commands); }
         catch (Exception error) when (!EngineBoundaryRestoreException.IsRestorationFailure(error))
         {

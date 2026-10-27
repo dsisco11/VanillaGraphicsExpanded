@@ -2,7 +2,6 @@ using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using System.Diagnostics;
 
-using OpenTK.Graphics.OpenGL;
 
 namespace VanillaGraphicsExpanded.Rendering;
 
@@ -101,12 +100,7 @@ public sealed class GpuTextureView : GpuResource<GpuTextureMetadata>, IDisposabl
     /// </summary>
     public override void SetDebugName(string? debugName)
     {
-#if DEBUG
-        if (textureId != 0)
-        {
-            GlDebug.TryLabel(ObjectLabelIdentifier.Texture, textureId, debugName);
-        }
-#endif
+        RHICommandContext.TryLabelResource(this, debugName);
     }
 
 

@@ -1,4 +1,3 @@
-using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 
@@ -20,9 +19,7 @@ internal sealed class GpuShaderModule : GpuResource<GpuShaderMetadata>
     /// <inheritdoc />
     public override void SetDebugName(string? debugName)
     {
-#if DEBUG
-        if (shaderId != 0) GlDebug.TryLabel(ObjectLabelIdentifier.Shader, shaderId, debugName);
-#endif
+        RHICommandContext.TryLabelResource(this, debugName);
     }
     #endregion
 

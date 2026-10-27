@@ -12,7 +12,6 @@ using Vintagestory.API.Common;
 using Vintagestory.API.MathTools;
 using Vintagestory.Client.NoObf;
 
-using OpenTK.Graphics.OpenGL;
 
 namespace VanillaGraphicsExpanded.Rendering.Shaders;
 
@@ -148,7 +147,7 @@ public abstract partial class GpuProgram : IDisposable, IGpuProgram
             bool ok = CompileSpirv(plan, assets);
             if (ok)
             {
-                GlDebug.TryLabel(ObjectLabelIdentifier.Program, ProgramId, ShaderName);
+                executable?.Program.SetDebugName(ShaderName);
                 // Owner notifications run after installation and cannot turn a committed link into a failed candidate.
                 try { OnAfterCompile(); }
                 catch (Exception ex) { assetSource?.Error?.Invoke($"[VGE][{ShaderName}] Post-link notification failed: {ex}"); }
