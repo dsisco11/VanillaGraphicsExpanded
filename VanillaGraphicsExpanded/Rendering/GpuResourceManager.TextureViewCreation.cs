@@ -22,10 +22,10 @@ internal sealed partial class GpuResourceManager
         /// <inheritdoc />
         public void Validate(in GpuTextureViewInitialization initialization) => initialization.Validate();
         /// <inheritdoc />
-        public GpuTextureMetadata? Initialize(StateCache cache, in GpuTextureViewInitialization initialization, out nint id)
+        public GpuTextureMetadata? Initialize(RHI.RHICommandContext execution, in GpuTextureViewInitialization initialization, out nint id)
         {
             id = 0;
-            cache.RequireResourceOperationAvailable(GpuResourceKind.Texture, initialization.Source);
+            StateCache.Current.RequireResourceOperationAvailable(GpuResourceKind.Texture, initialization.Source);
             GpuTextureMetadata backing;
             if (source is not null)
             {
@@ -38,7 +38,7 @@ internal sealed partial class GpuResourceManager
                     ?? throw new InvalidOperationException("Texture view source metadata is unavailable.");
             else if (!GpuTextureMetadataReader.Instance.TryRead(initialization.Source, out backing))
                 throw new InvalidOperationException("Texture view source metadata is unavailable.");
-            return RHI.RHICommandContext.Current.OpenGL.InitializeTextureView(initialization, backing, out id);
+            return execution.InitializeTextureView(initialization, backing, out id);
         }
         #endregion
     }

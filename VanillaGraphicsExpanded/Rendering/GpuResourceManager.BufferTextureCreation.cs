@@ -33,19 +33,19 @@ internal sealed partial class GpuResourceManager
         /// <inheritdoc />
         public void Validate(in GpuBufferTextureInitialization initialization) => initialization.Validate();
         /// <inheritdoc />
-        public GpuTextureMetadata? Initialize(StateCache cache, in GpuBufferTextureInitialization initialization, out nint id)
+        public GpuTextureMetadata? Initialize(RHI.RHICommandContext execution, in GpuBufferTextureInitialization initialization, out nint id)
         {
             id = 0;
             var backing = source is not null ? RequireBufferReferenceMetadata(source) : AcquireBufferTextureInput(initialization.Buffer);
             if (source is not null && source.ResourceId != initialization.Buffer) throw new InvalidOperationException("The backing buffer identity changed.");
             if (initialization.Mode == GpuBufferTextureMode.Range)
             {
-                int alignment = RHI.RHICommandContext.Current.OpenGL.NativeCapabilities.TextureBufferOffsetAlignment;
+                int alignment = execution.Capabilities.TextureBufferOffsetAlignment;
                 if (initialization.Offset > backing.Capacity || initialization.Size > backing.Capacity - initialization.Offset
                     || alignment <= 0 || initialization.Offset % alignment != 0)
                     throw new ArgumentException("Buffer texture range exceeds backing capacity or violates alignment.");
             }
-            return RHI.RHICommandContext.Current.OpenGL.InitializeBufferTexture(initialization, out id);
+            return execution.InitializeBufferTexture(initialization, out id);
         }
         #endregion
     }

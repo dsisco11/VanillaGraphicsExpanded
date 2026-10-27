@@ -34,6 +34,26 @@ calls and exact external forwarding have separate OpenGL modules; neither calls 
 The context does not publish metadata itself. The backend consults the cache, executes and reconciles;
 existing manager services commit snapshots and notifications exactly once.
 
+### Internal resource execution
+
+The context routes private resource work through the internal `IRHIResourceExecution` contract inherited
+by `IRHIBackend`. Its creation, acquisition/observation and retirement partials are not public consumer
+operations. Initialization records, nullable metadata and native identities remain inside this handoff.
+The manager receives the admitted context explicitly for initialization; it never retrieves or stores
+an OpenGL backend. Typed context methods invoke the contract; no service-locator property or second
+dispatch registry is exposed. Public factories are not called again from private initialization.
+
+Manager-owned readers decide when unknown facts need acquisition. Backend query implementations execute
+those reads, including narrow executable-field and framebuffer-field recovery. Published snapshot access
+never calls these services. Cached limits come from `RHICapabilities`; there is no separate discovery path.
+Retirement reaches one backend kind dispatcher only after existing owner/queue original-context and
+association admission. Candidate cleanup uses the same route, preserving original errors and identities.
+
+Imported geometry certification acquires configuration through this contract and retains the original
+association/revision. A transient `RHIGeometryContext` supplies originating namespace and cache configuration
+epoch; the manager can check an existing receipt without querying or recertifying the native layout.
+Integration adapters retain engine ownership/layout and borrowing policy, not native execution authority.
+
 ## Resource references and factories
 
 Consumer values retain one existing typed resource, with private construction supplied by its wrapper.

@@ -8,7 +8,7 @@ internal sealed partial class OpenGLBackend
 {
     #region Internal API
     /// <summary>Allocates an empty realized array without changing selectors or reading unrepresented descriptor fields.</summary>
-    internal GpuVertexArrayMetadata? CreateVertexArray(out nint id)
+    public GpuVertexArrayMetadata? CreateVertexArray(out nint id)
     {
         RequireContext();
         GL.CreateVertexArrays(1, out int name);

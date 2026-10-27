@@ -15,7 +15,7 @@ internal sealed partial class GpuResourceManager
         BeginMetadataCompletion(entry, GpuMetadataChange.Metadata);
         try
         {
-            if (!GpuFramebufferMetadataReader.TryReadAffected(entry.Id, entry.Metadata, slot, parameter, out var candidate)) return false;
+            if (!RHI.RHICommandContext.Current.ReadFramebufferField(entry.Id, entry.Metadata, slot, parameter, out var candidate)) return false;
             candidate = ReconcileFramebufferAttachmentModes(entry, candidate);
             RequireMetadataContext();
             RequireLiveEntry(entry);

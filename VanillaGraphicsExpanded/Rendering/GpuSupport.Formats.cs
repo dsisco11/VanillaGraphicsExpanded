@@ -14,13 +14,12 @@ public static partial class GpuSupport
     /// <summary>Returns cached target-specific format support; uses the admitted backend for unknown entries.</summary>
     internal static InternalFormatCapabilities GetInternalFormatCapabilities(ImageTarget target, SizedInternalFormat format)
     {
-        var backend = RHI.RHICommandContext.Current.OpenGL;
-        backend.RequireContext();
+        var execution = RHI.RHICommandContext.Current;
         lock (Sync)
         {
             var key = (target, format);
             if (formatCapabilities.TryGetValue(key, out var cached)) return cached;
-            var result = backend.ReadFormatCapabilities(target, format);
+            var result = execution.ReadFormatCapabilities(target, format);
             formatCapabilities.Add(key, result);
             return result;
         }

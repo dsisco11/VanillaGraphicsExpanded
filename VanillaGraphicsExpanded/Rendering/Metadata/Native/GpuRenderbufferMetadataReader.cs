@@ -6,8 +6,8 @@ internal sealed class GpuRenderbufferMetadataReader : IGpuResourceMetadataReader
     internal static readonly GpuRenderbufferMetadataReader Instance = new();
     #region Public API
     /// <inheritdoc />
-    public bool IsResource(nint id) => RHI.RHICommandContext.Current.OpenGL.IsExternalRenderbuffer(id);
+    public bool IsResource(nint id) => RHI.RHICommandContext.Current.IsExternalRenderbuffer(id);
     /// <inheritdoc />
-    public bool TryRead(nint id, out GpuRenderbufferMetadata metadata) => RHI.RHICommandContext.Current.OpenGL.ReadExternalRenderbuffer(id, out metadata);
+    public bool TryRead(nint id, out GpuRenderbufferMetadata metadata) => RHI.RHICommandContext.Current.ReadExternalRenderbuffer(id, out metadata);
     #endregion
 }

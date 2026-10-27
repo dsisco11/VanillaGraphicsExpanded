@@ -35,9 +35,7 @@ internal struct GpuFramebufferInitialization
     /// <summary>Validates all selections and capability-dependent defaults before allocation.</summary>
     internal readonly void Validate()
     {
-        var caps = GpuSupport.Graphics;
-        if (HasDefaults && !caps.SupportsFramebufferNoAttachments)
-            throw new NotSupportedException("Attachmentless framebuffer defaults are unavailable.");
+        var caps = RHI.RHICommandContext.Current.Capabilities;
         if (width < 0 || height < 0 || layers < 0 || samples < 0
             || width > caps.MaxFramebufferWidth || height > caps.MaxFramebufferHeight
             || layers > caps.MaxFramebufferLayers || samples > caps.MaxFramebufferSamples)
@@ -51,7 +49,7 @@ internal struct GpuFramebufferInitialization
             ArgumentNullException.ThrowIfNull(pair.Value);
             pair.Value.ValidateSlot(pair.Key);
             if (pair.Value.ImageTarget == TextureTarget.Texture2DArray
-                && pair.Value.AttachmentMode == GpuFramebufferAttachmentMode.Unknown && caps.SupportsOvrMultiview)
+                && pair.Value.AttachmentMode == GpuFramebufferAttachmentMode.Unknown && caps.Multiview)
                 throw new NotSupportedException("Native attachment queries do not establish ordinary versus multiview replay semantics.");
         }
     }

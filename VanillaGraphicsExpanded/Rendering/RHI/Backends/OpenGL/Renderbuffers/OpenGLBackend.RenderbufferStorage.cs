@@ -26,7 +26,7 @@ internal sealed partial class OpenGLBackend
 
     #region Internal API
     /// <summary>Creates a realized candidate for private manager publication.</summary>
-    internal GpuRenderbufferMetadata? InitializeRenderbuffer(in GpuRenderbufferInitialization request, out nint id)
+    public GpuRenderbufferMetadata? InitializeRenderbuffer(in GpuRenderbufferInitialization request, out nint id)
     {
         RequireContext();
         int name = 0;

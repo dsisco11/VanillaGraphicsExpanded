@@ -7,7 +7,7 @@ internal sealed partial class OpenGLBackend
 {
     #region Internal API
     /// <summary>Creates an initialized native pipeline name without binding it or querying unrepresented configuration.</summary>
-    internal GpuProgramPipelineMetadata? InitializeProgramPipeline(out nint id)
+    public GpuProgramPipelineMetadata? InitializeProgramPipeline(out nint id)
     {
         RequireContext();
         GL.CreateProgramPipelines(1, out int name);

@@ -10,7 +10,7 @@ internal sealed partial class OpenGLBackend
 {
     #region Internal API
     /// <summary>Checks an unknown external object's existence at the explicit acquisition boundary.</summary>
-    internal bool IsExternalBuffer(nint id)
+    public bool IsExternalBuffer(nint id)
     {
         RequireContext();
         bool live = id != 0 && id >= int.MinValue && id <= uint.MaxValue && GL.IsBuffer(unchecked((int)id));
@@ -19,7 +19,7 @@ internal sealed partial class OpenGLBackend
     }
 
     /// <summary>Acquires storage using named queries, preserving all surrounding selectors and native errors.</summary>
-    internal unsafe bool TryReadBufferMetadata(nint id, out GpuBufferMetadata metadata)
+    public unsafe bool TryReadBufferMetadata(nint id, out GpuBufferMetadata metadata)
     {
         metadata = default;
         if (!IsExternalBuffer(id)) return false;

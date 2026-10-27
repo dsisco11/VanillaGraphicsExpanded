@@ -17,7 +17,7 @@ internal sealed partial class GpuResourceManager
         bool finished = false;
         try
         {
-            int value = RHI.RHICommandContext.Current.OpenGL.ReadExternalTextureParameter((int)entry.Id, (GetTextureParameter)parameter);
+            int value = RHI.RHICommandContext.Current.ReadExternalTextureParameter((int)entry.Id, (GetTextureParameter)parameter);
             if (value < 0) return false;
             RequireMetadataContext();
             RequireLiveEntry(entry);

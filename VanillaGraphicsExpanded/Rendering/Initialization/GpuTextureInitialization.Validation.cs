@@ -43,7 +43,7 @@ internal partial struct GpuTextureInitialization
             || target is TextureTarget.TextureCubeMap or TextureTarget.TextureCubeMapArray && width != height
             || target == TextureTarget.TextureCubeMapArray && depth % 6 != 0)
             throw new ArgumentException("Invalid mip range or cube geometry.");
-        var caps = RHI.RHICommandContext.Current.OpenGL.NativeCapabilities;
+        var caps = RHI.RHICommandContext.Current.Capabilities;
         int spatialExtent = Math.Max(width, target == TextureTarget.Texture1DArray ? 1 : result.Height);
         if (target == TextureTarget.Texture3D) spatialExtent = Math.Max(spatialExtent, depth);
         int maximumLevels = 1;

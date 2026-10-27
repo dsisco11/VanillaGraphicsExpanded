@@ -9,7 +9,7 @@ internal sealed partial class OpenGLBackend
 {
     #region Internal API
     /// <summary>Allocates and configures one candidate without selecting a framebuffer or reading submitted attachment facts.</summary>
-    internal GpuFramebufferMetadata? CreateFramebuffer(in GpuFramebufferInitialization request, out nint id)
+    public GpuFramebufferMetadata? CreateFramebuffer(in GpuFramebufferInitialization request, out nint id)
     {
         RequireContext();
         GL.CreateFramebuffers(1, out int name);

@@ -204,7 +204,6 @@ public sealed class GpuFramebufferExecutableCreationTests(HeadlessGLFixture fixt
     public void InitializationRequiresStageAndTracksExplicitDefaults()
     {
         fixture.EnsureContextValid(); fixture.InitializeResourceDisposal();
-        var original = GpuSupport.Graphics;
         try
         {
             using var shader = new Recipient<GpuShaderMetadata>(GpuResourceKind.Shader);
@@ -214,16 +213,22 @@ public sealed class GpuFramebufferExecutableCreationTests(HeadlessGLFixture fixt
             Assert.False(omitted.HasDefaults);
             var explicitDefaults = new GpuFramebufferInitialization { DefaultSamples = 0, DefaultFixedSampleLocations = false };
             Assert.True(explicitDefaults.HasDefaults);
-            AccessTools.Field(typeof(GpuSupport), "graphics").SetValue(null, original with { SupportsFramebufferNoAttachments = false });
             using var framebuffer = new Recipient<GpuFramebufferMetadata>(GpuResourceKind.Framebuffer);
-            Assert.Throws<NotSupportedException>(() => GpuResourceManager.CreateFramebuffer(explicitDefaults, framebuffer, out _));
+            // Attachmentless defaults are core baseline functionality. Invalid extents still reject before allocation.
+            var invalid = new GpuFramebufferInitialization
+                { DefaultWidth = checked(RHICommandContext.Current.Capabilities.MaxFramebufferWidth + 1) };
+            Assert.Throws<ArgumentOutOfRangeException>(() => GpuResourceManager.CreateFramebuffer(invalid, framebuffer, out _));
             Assert.Equal((nint)0, framebuffer.ResourceId);
-            Assert.NotNull(GpuResourceManager.CreateFramebuffer(omitted, framebuffer, out _));
+            var metadata = GpuResourceManager.CreateFramebuffer(explicitDefaults, framebuffer, out _);
+            Assert.NotNull(metadata);
+            Assert.Equal(0, metadata.Value.DefaultSamples);
+            Assert.False(metadata.Value.DefaultFixedSampleLocations);
+            using var omittedFramebuffer = new Recipient<GpuFramebufferMetadata>(GpuResourceKind.Framebuffer);
+            Assert.NotNull(GpuResourceManager.CreateFramebuffer(omitted, omittedFramebuffer, out _));
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
         finally
         {
-            AccessTools.Field(typeof(GpuSupport), "graphics").SetValue(null, original);
             fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll();
         }
     }

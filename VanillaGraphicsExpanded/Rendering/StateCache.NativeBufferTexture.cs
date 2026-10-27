@@ -132,7 +132,7 @@ internal sealed partial class StateCache
     /// <summary>Reads a single native association fact through DSA or the binding-preserving fallback.</summary>
     private static int ReadBufferTextureParameter(int texture, GetTextureParameter parameter)
     {
-        int value = RHI.RHICommandContext.Current.OpenGL.ReadExternalTextureLevelParameter(texture, 0, parameter);
+        int value = RHI.RHICommandContext.Current.ReadExternalTextureLevelParameter(texture, 0, parameter);
         return value;
     }
     #endregion

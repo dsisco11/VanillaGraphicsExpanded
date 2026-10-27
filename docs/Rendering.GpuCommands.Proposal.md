@@ -46,6 +46,11 @@ leave selectors untouched and need no binding scope or restoration plan. Cache r
 render/engine boundaries and operations whose semantics actually change bindings. Native metadata readers
 remain manager-owned services, using core named queries wherever available through the backend.
 No second binding cache, resource registry or metadata hierarchy is introduced.
+The internal `IRHIResourceExecution` contract covers private initialization, explicit acquisition and
+retirement beneath `RHICommandContext`. The manager uses that context boundary rather than obtaining
+a concrete backend. These internal methods preserve existing initialization records and metadata outputs;
+they are not public native-object operations or a second factory layer. Backend creation invokes manager
+handoff, whose initialization step dispatches allocation directly without reentering the public factory.
 
 ## Public operations and resource inputs
 

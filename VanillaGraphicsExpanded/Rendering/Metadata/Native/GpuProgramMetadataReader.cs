@@ -6,9 +6,9 @@ internal sealed class GpuProgramMetadataReader : IGpuResourceMetadataReader<GpuP
     internal static readonly GpuProgramMetadataReader Instance = new();
     #region Public API
     /// <inheritdoc />
-    public bool IsResource(nint id) => RHI.RHICommandContext.Current.OpenGL.IsProgramResource(id);
+    public bool IsResource(nint id) => RHI.RHICommandContext.Current.IsProgramResource(id);
     /// <inheritdoc />
     public bool TryRead(nint id, out GpuProgramMetadata metadata)
-        => RHI.RHICommandContext.Current.OpenGL.ReadProgramMetadata(id, out metadata);
+        => RHI.RHICommandContext.Current.ReadProgramMetadata(id, out metadata);
     #endregion
 }

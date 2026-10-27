@@ -19,12 +19,11 @@ internal struct GpuShaderInitialization
     internal readonly void Validate()
     {
         if (assigned == 0) throw new ArgumentException("Shader stage is required.");
-        var capabilities = GpuSupport.Graphics;
         bool supported = stage switch
         {
-            ShaderType.VertexShader or ShaderType.FragmentShader or ShaderType.GeometryShader => true,
-            ShaderType.TessControlShader or ShaderType.TessEvaluationShader => capabilities.Tessellation,
-            ShaderType.ComputeShader => capabilities.SupportsArbComputeShader,
+            // All programmable stages are part of the admitted desktop 4.5 baseline.
+            ShaderType.VertexShader or ShaderType.FragmentShader or ShaderType.GeometryShader
+                or ShaderType.TessControlShader or ShaderType.TessEvaluationShader or ShaderType.ComputeShader => true,
             _ => false
         };
         if (!supported) throw new NotSupportedException("The requested shader stage is unavailable.");

@@ -7,7 +7,7 @@ internal sealed partial class OpenGLBackend
 {
     #region Internal API
     /// <summary>Creates the sampler candidate for private manager handoff.</summary>
-    internal GpuSamplerMetadata? InitializeSampler(out nint id)
+    public GpuSamplerMetadata? InitializeSampler(out nint id)
     {
         RequireContext();
         int name = 0;

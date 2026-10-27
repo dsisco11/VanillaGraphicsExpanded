@@ -335,13 +335,13 @@ public sealed class GpuManagerCreationFoundationTests(HeadlessGLFixture fixture)
             initialization.Validate();
         }
         /// <inheritdoc />
-        public GpuBufferMetadata? Initialize(StateCache cache, in GpuBufferInitialization initialization, out nint id)
+        public GpuBufferMetadata? Initialize(VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext execution, in GpuBufferInitialization initialization, out nint id)
         {
             id = state.Id = state.CollisionId != 0 ? state.CollisionId : GL.GenBuffer();
             state.Initializations++;
             if (state.CollisionId != 0)
                 return state.Failure == 0 ? null : new(initialization.Capacity, initialization.Usage);
-            using var binding = cache.BindBufferScope(BufferTarget.ArrayBuffer, state.Id);
+            using var binding = StateCache.Current.BindBufferScope(BufferTarget.ArrayBuffer, state.Id);
             GL.BufferData(BufferTarget.ArrayBuffer, initialization.Capacity, IntPtr.Zero, initialization.Usage);
             state.AfterInitialize?.Invoke();
             if (state.Failure == 1) throw state.Exception;
@@ -357,7 +357,7 @@ public sealed class GpuManagerCreationFoundationTests(HeadlessGLFixture fixture)
         /// <inheritdoc />
         public void Validate(in GpuProgramInitialization initialization) { }
         /// <inheritdoc />
-        public GpuProgramMetadata? Initialize(StateCache cache, in GpuProgramInitialization initialization, out nint id)
+        public GpuProgramMetadata? Initialize(VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext execution, in GpuProgramInitialization initialization, out nint id)
         {
             id = GL.CreateProgram();
             return new(false, ImmutableArray<GpuProgramResourceMetadata>.Empty, ImmutableArray<GpuProgramTextureUnitMetadata>.Empty);
@@ -375,7 +375,7 @@ public sealed class GpuManagerCreationFoundationTests(HeadlessGLFixture fixture)
         /// <inheritdoc />
         public void Validate(in EmptyRequest initialization) { }
         /// <inheritdoc />
-        public GpuSamplerMetadata? Initialize(StateCache cache, in EmptyRequest initialization, out nint id)
+        public GpuSamplerMetadata? Initialize(VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext execution, in EmptyRequest initialization, out nint id)
         {
             id = GL.GenSampler();
             return default(GpuSamplerMetadata);
@@ -390,10 +390,10 @@ public sealed class GpuManagerCreationFoundationTests(HeadlessGLFixture fixture)
         /// <inheritdoc />
         public void Validate(in EmptyRequest initialization) { }
         /// <inheritdoc />
-        public GpuFramebufferMetadata? Initialize(StateCache cache, in EmptyRequest initialization, out nint id)
+        public GpuFramebufferMetadata? Initialize(VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext execution, in EmptyRequest initialization, out nint id)
         {
             id = GL.GenFramebuffer();
-            using var binding = cache.BindFramebufferScope(FramebufferTarget.Framebuffer, checked((int)id));
+            using var binding = StateCache.Current.BindFramebufferScope(FramebufferTarget.Framebuffer, checked((int)id));
             GL.FramebufferRenderbuffer(FramebufferTarget.Framebuffer, FramebufferAttachment.ColorAttachment0, RenderbufferTarget.Renderbuffer, renderbuffer);
             var images = ImmutableDictionary<FramebufferAttachment, GpuFramebufferImageMetadata>.Empty.Add(
                 FramebufferAttachment.ColorAttachment0, new(GpuResourceKind.Renderbuffer, renderbuffer, 0, 0, 0, false));

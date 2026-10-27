@@ -75,7 +75,7 @@ internal sealed partial class OpenGLBackend
 
     #region Internal API
     /// <summary>Creates a pointer-width candidate for the manager's private handoff, without status queries.</summary>
-    internal GpuSyncMetadata? InitializeSync(out nint id)
+    public GpuSyncMetadata? InitializeSync(out nint id)
     {
         RequireContext();
         id = GL.FenceSync(SyncCondition.SyncGpuCommandsComplete, WaitSyncFlags.None);

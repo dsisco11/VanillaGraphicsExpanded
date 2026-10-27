@@ -43,7 +43,7 @@ internal sealed partial class OpenGLBackend
     #endregion
     #region Internal API
     /// <summary>Creates a realized candidate without binding, descriptor scans or status queries.</summary>
-    internal GpuTransformFeedbackMetadata? InitializeTransformFeedback(out nint id)
+    public GpuTransformFeedbackMetadata? InitializeTransformFeedback(out nint id)
     {
         RequireContext();
         int name = 0;

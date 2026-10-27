@@ -1,0 +1,20 @@
+using OpenTK.Graphics.OpenGL;
+
+namespace VanillaGraphicsExpanded.Rendering.RHI;
+
+/// <summary>Defines narrow external observation and geometry certification facts authorized by the manager.</summary>
+internal partial interface IRHIResourceExecution
+{
+    /// <summary>Acquires explicitly requested facts in the original context without publishing metadata.</summary>
+    bool IsFramebufferResource(nint id);
+    /// <summary>Acquires explicitly requested facts in the original context without publishing metadata.</summary>
+    bool ReadFramebufferMetadata(nint id, out GpuFramebufferMetadata metadata);
+    /// <summary>Acquires explicitly requested facts in the original context without publishing metadata.</summary>
+    bool ReadFramebufferField(nint id, GpuFramebufferMetadata previous, FramebufferAttachment? slot, FramebufferDefaultParameter? parameter, out GpuFramebufferMetadata metadata);
+    /// <summary>Acquires explicitly requested facts in the original context without publishing metadata.</summary>
+    int ReadExternalProgramUnit(int program, int location);
+    /// <summary>Acquires explicitly requested facts in the original context without publishing metadata.</summary>
+    bool ReadExternalProgramBlockBinding(int program, ProgramInterface block, int index, out int value);
+    /// <summary>Acquires explicitly requested facts in the original context without publishing metadata.</summary>
+    RHIGeometryContext CaptureGeometryContext();
+}

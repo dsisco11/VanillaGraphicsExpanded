@@ -31,8 +31,8 @@ internal sealed partial class GpuResourceManager
             initialization.Validate();
         }
         /// <inheritdoc />
-        public GpuBufferMetadata? Initialize(StateCache cache, in GpuBufferInitialization initialization, out nint id)
-            => RHI.RHICommandContext.Current.OpenGL.InitializeBuffer(initialization, out id, data, byteCount, offset);
+        public GpuBufferMetadata? Initialize(RHI.RHICommandContext execution, in GpuBufferInitialization initialization, out nint id)
+            => execution.InitializeBuffer(initialization, out id, data, byteCount, offset);
         #endregion
     }
 }

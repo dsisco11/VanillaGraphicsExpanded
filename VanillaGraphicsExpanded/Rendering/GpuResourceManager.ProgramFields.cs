@@ -29,7 +29,7 @@ internal sealed partial class GpuResourceManager
                     if (current.Location < location || (long)current.Location - location >= count) continue;
                     int value;
                     if (supplied.HasValue) value = supplied.Value;
-                    else GL.GetUniform((int)entry.Id, current.Location, out value);
+                    else value = RHI.RHICommandContext.Current.ReadExternalProgramUnit((int)entry.Id, current.Location);
                     units[i] = current with { Unit = value };
                 }
                 candidate = candidate with { TextureUnits = units.ToImmutable() };
@@ -45,10 +45,7 @@ internal sealed partial class GpuResourceManager
                     if (supplied.HasValue) value = supplied.Value;
                     else
                     {
-                        int[] values = [-1];
-                        GL.GetProgramResource((int)entry.Id, block, index, 1, [ProgramProperty.BufferBinding], 1, out int written, values);
-                        if (written != 1 || values[0] < 0) return false;
-                        value = values[0];
+                        if (!RHI.RHICommandContext.Current.ReadExternalProgramBlockBinding((int)entry.Id, block, index, out value)) return false;
                     }
                     resources[i] = resource with { Properties = resource.Properties.SetItem(ProgramProperty.BufferBinding, ImmutableArray.Create(value)) };
                 }

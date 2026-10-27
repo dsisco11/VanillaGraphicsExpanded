@@ -3,7 +3,7 @@ using System;
 namespace VanillaGraphicsExpanded.Rendering.RHI;
 
 /// <summary>Defines semantic buffer execution without native overload or binding-path selectors.</summary>
-internal partial interface IRHIBackend
+internal partial interface IRHIBackend : IRHIResourceExecution
 {
     /// <summary>Gets the existing context capability projection.</summary>
     RHICapabilities Capabilities { get; }

@@ -26,8 +26,8 @@ internal sealed partial class GpuResourceManager
         /// <inheritdoc />
         public void Validate(in GpuTextureInitialization initialization) => _ = initialization.Resolve();
         /// <inheritdoc />
-        public GpuTextureMetadata? Initialize(StateCache cache, in GpuTextureInitialization initialization, out nint id)
-            => RHI.RHICommandContext.Current.OpenGL.InitializeTexture(initialization.Resolve(), out id, initialData);
+        public GpuTextureMetadata? Initialize(RHI.RHICommandContext execution, in GpuTextureInitialization initialization, out nint id)
+            => execution.InitializeTexture(initialization.Resolve(), out id, initialData);
         #endregion
     }
 }

@@ -21,8 +21,8 @@ internal sealed partial class GpuResourceManager
             int count = resource.Properties.TryGetValue(OpenTK.Graphics.OpenGL.ProgramProperty.ArraySize, out var sizes) && !sizes.IsDefaultOrEmpty ? sizes[0] : 1;
             if (locations[0] < 0 || location < locations[0] || (long)location - locations[0] >= count) continue;
             var type = (OpenTK.Graphics.OpenGL.ActiveUniformType)types[0];
-            int limit = GpuProgramLayout.IsImageType(type) ? GpuSupport.Graphics.MaxImageUnits
-                : GpuProgramLayout.IsSamplerType(type) ? GpuSupport.Graphics.MaxCombinedTextureImageUnits : -1;
+            int limit = GpuProgramLayout.IsImageType(type) ? RHI.RHICommandContext.Current.Capabilities.MaxImageUnits
+                : GpuProgramLayout.IsSamplerType(type) ? RHI.RHICommandContext.Current.Capabilities.MaxCombinedTextureImageUnits : -1;
             if (limit >= 0 && (uint)unit >= (uint)limit) throw new System.ArgumentOutOfRangeException(nameof(unit));
             return;
         }

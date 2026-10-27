@@ -7,7 +7,7 @@ internal sealed partial class OpenGLBackend
 {
     #region Internal API
     /// <summary>Discovers only an explicitly unknown external shader name.</summary>
-    internal bool IsShaderResource(nint id)
+    public bool IsShaderResource(nint id)
     {
         RequireContext();
         bool valid = id != 0 && id >= int.MinValue && id <= uint.MaxValue && GL.IsShader(unchecked((int)id));
@@ -15,7 +15,7 @@ internal sealed partial class OpenGLBackend
         return valid;
     }
     /// <summary>Reads fixed stage facts without repeating a validity query on an established native identity.</summary>
-    internal bool ReadShaderMetadata(nint id, out GpuShaderMetadata metadata)
+    public bool ReadShaderMetadata(nint id, out GpuShaderMetadata metadata)
     {
         RequireContext();
         metadata = default;

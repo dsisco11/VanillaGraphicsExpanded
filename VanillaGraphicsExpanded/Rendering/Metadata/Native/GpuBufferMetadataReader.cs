@@ -8,9 +8,9 @@ internal sealed class GpuBufferMetadataReader : IGpuResourceMetadataReader<GpuBu
 {
     #region Public API
     /// <inheritdoc />
-    public bool IsResource(nint id) => RHI.RHICommandContext.Current.OpenGL.IsExternalBuffer(id);
+    public bool IsResource(nint id) => RHI.RHICommandContext.Current.IsExternalBuffer(id);
 
     /// <inheritdoc />
-    public bool TryRead(nint id, out GpuBufferMetadata metadata) => RHI.RHICommandContext.Current.OpenGL.TryReadBufferMetadata(id, out metadata);
+    public bool TryRead(nint id, out GpuBufferMetadata metadata) => RHI.RHICommandContext.Current.TryReadBufferMetadata(id, out metadata);
     #endregion
 }

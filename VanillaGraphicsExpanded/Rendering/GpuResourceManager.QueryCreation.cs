@@ -20,8 +20,8 @@ internal sealed partial class GpuResourceManager
         /// <inheritdoc />
         public void Validate(in GpuQueryInitialization initialization) { }
         /// <inheritdoc />
-        public GpuQueryMetadata? Initialize(StateCache cache, in GpuQueryInitialization initialization, out nint id)
-            => RHI.RHICommandContext.Current.OpenGL.InitializeQuery(initialization.Kind, out id);
+        public GpuQueryMetadata? Initialize(RHI.RHICommandContext execution, in GpuQueryInitialization initialization, out nint id)
+            => execution.InitializeQuery(initialization.Kind, out id);
         #endregion
     }
     #endregion

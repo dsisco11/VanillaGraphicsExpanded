@@ -113,7 +113,7 @@ internal sealed partial class OpenGLBackend
     #endregion
     #region Internal API
     /// <summary>Realizes the target-specific query without a temporary begin/end or readback.</summary>
-    internal GpuQueryMetadata? InitializeQuery(QueryKind kind, out nint id)
+    public GpuQueryMetadata? InitializeQuery(QueryKind kind, out nint id)
     {
         RequireContext();
         RequireQueryKind(kind);

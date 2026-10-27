@@ -83,7 +83,7 @@ internal sealed partial class OpenGLBackend
 
     #region Internal API
     /// <summary>Initializes a private name for the existing manager creation transaction.</summary>
-    internal GpuBufferMetadata? InitializeBuffer(in GpuBufferInitialization initialization, out nint id, nint data = 0, int byteCount = 0, nint offset = 0)
+    public GpuBufferMetadata? InitializeBuffer(in GpuBufferInitialization initialization, out nint id, nint data = 0, int byteCount = 0, nint offset = 0)
     {
         RequireContext();
         initialization.Validate();

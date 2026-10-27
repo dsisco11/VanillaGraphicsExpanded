@@ -7,9 +7,16 @@ namespace VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 /// <summary>Reads externally configured vertex interpretation only at the manager's explicit admission boundary.</summary>
 internal sealed partial class OpenGLBackend
 {
-    #region Internal API
+    #region Public API
+    /// <inheritdoc />
+    public RHIGeometryContext CaptureGeometryContext()
+    {
+        RequireContext();
+        return new(NativeOrigin, cache.VertexConfigurationEpoch);
+    }
+
     /// <summary>Checks named external configuration and published capacities without changing any native selector.</summary>
-    internal void CertifyGeometryConfiguration(int array, RHIVertexLayout layout,
+    public void CertifyGeometryConfiguration(int array, RHIVertexLayout layout,
         IReadOnlyList<RHIVertexStream> streams, RHIIndexStream indices)
     {
         RequireContext();

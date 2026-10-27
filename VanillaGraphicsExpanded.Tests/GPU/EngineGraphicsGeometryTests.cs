@@ -20,6 +20,38 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 public sealed class EngineGraphicsGeometryTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
     #region Public API
+    /// <summary>Manager certification reuses completed facts and rejects changed or retired original registrations.</summary>
+    [Fact]
+    public void ManagerCertificationRejectsChangedAndRetiredArrays()
+    {
+        EnsureContextValid();
+        fixture.InitializeResourceDisposal();
+        try
+        {
+            using var array = GpuVao.Create();
+            using var elements = RHICommandContext.Current.CreateIndexBuffer(new RHIBufferDescription
+                { Role = BufferRole.Index, Mode = ResourceStorageMode.Mutable, Capacity = 4, Usage = BufferUsage.StaticDraw }).RequireResource();
+            // This is externally configured fixture state; only the manager may acquire and certify it.
+            OpenTK.Graphics.OpenGL4.GL.VertexArrayElementBuffer(array.VertexArrayId, elements.BufferId);
+            var layout = new RHIVertexLayout([]);
+            var indices = new RHIIndexStream(new(elements, 0, 4));
+            var receipt = GpuResourceManager.AcquireEngineGeometryConfiguration(array, layout, [], indices);
+            Assert.True(GpuResourceManager.IsEngineGeometryConfigurationCurrent(receipt));
+            Assert.True(GpuResourceManager.IsEngineGeometryConfigurationCurrent(receipt));
+
+            var manager = GpuResourceManagerSystem.CurrentManager!;
+            var entry = Assert.IsType<GpuResourceMetadataEntry<GpuVertexArrayMetadata>>(manager.GetResourceRegistration(array));
+            manager.PublishMetadata(entry, new GpuVertexArrayMetadata(), GpuMetadataChange.Metadata);
+            Assert.False(GpuResourceManager.IsEngineGeometryConfigurationCurrent(receipt));
+            receipt = GpuResourceManager.AcquireEngineGeometryConfiguration(array, layout, [], indices);
+            Assert.True(GpuResourceManager.IsEngineGeometryConfigurationCurrent(receipt));
+            array.Dispose();
+            Assert.False(GpuResourceManager.IsEngineGeometryConfigurationCurrent(receipt));
+            Assert.Equal(ErrorCode.NoError, GL.GetError());
+        }
+        finally { fixture.CleanupGpuResources(); }
+    }
+
     /// <summary>The actual engine helper remains query-free on repeated draws and mutated mesh metadata rejects.</summary>
     [Theory]
     [InlineData(false)]
@@ -33,6 +65,8 @@ public sealed class EngineGraphicsGeometryTests(HeadlessGLFixture fixture) : Ren
         using var pipeline = RHICommandContext.Current.CreateGraphicsPipeline(new(shader.Shader, EngineFullscreenGeometry.Layout,
             new([new(TextureFormat.R32f)]), DynamicPipelineState.Viewport)).RequireResource();
         using var geometry = EngineFullscreenGeometry.Upload(native.Render.Object, native.Data);
+        var certification = Assert.IsType<RHIGeometryImport>(geometry.Inputs.ImportedArray);
+        Assert.True(GpuResourceManager.IsEngineGeometryConfigurationCurrent(certification));
         using var source = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Width = 2, Height = 2, Format = TextureFormat.R32f, MipLevels = 1, Storage = ResourceStorageMode.Mutable, BaseLevel = 0, MaxLevel = 0, Filter = TextureFilterMode.Nearest, Label = null }, [new RHITextureInitialData(new(new(), 0, 0, 0, 2, 2), VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLPixelValues.Encoding(TextureFormatHelper.GetPixelFormat(PixelInternalFormat.R32f), OpenTK.Graphics.OpenGL.PixelType.Float), System.Runtime.InteropServices.MemoryMarshal.AsBytes((new float[] { .2f, .4f, .6f, .8f }).AsSpan()).ToArray())]).RequireResource();
         using var target = CreateRenderTarget(1, 1, PixelInternalFormat.R32f);
         using var incomingVao = GpuVao.Create(); using var incomingIndices = RHICommandContext.Current.CreateIndexBuffer(new RHIBufferDescription { Role = BufferRole.Index, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = null }).RequireResource();
@@ -57,6 +91,7 @@ public sealed class EngineGraphicsGeometryTests(HeadlessGLFixture fixture) : Ren
 #if DEBUG
             long queries = StateCache.Current.BoundaryQueries;
 #endif
+            Assert.True(GpuResourceManager.IsEngineGeometryConfigurationCurrent(certification));
             commands.DrawIndexed(geometry.Inputs, new(0, 3));
 #if DEBUG
             Assert.Equal(queries, StateCache.Current.BoundaryQueries);
@@ -92,6 +127,7 @@ public sealed class EngineGraphicsGeometryTests(HeadlessGLFixture fixture) : Ren
         Assert.Equal(priorVao, GL.GetInteger(GetPName.VertexArrayBinding));
         Assert.Equal(incomingIndices.BufferId, GL.GetInteger(GetPName.ElementArrayBufferBinding));
         geometry.Dispose(); Assert.Equal(1, native.Deletes);
+        Assert.False(GpuResourceManager.IsEngineGeometryConfigurationCurrent(certification));
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
 

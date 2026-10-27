@@ -11,7 +11,7 @@ internal sealed partial class OpenGLBackend
 {
     #region Internal API
     /// <summary>Creates a realized texture and establishes all images before manager identity handoff.</summary>
-    internal GpuTextureMetadata? InitializeTexture(in GpuTextureInitialization request, out nint id, RHITextureInitialData[]? initialData = null)
+    public GpuTextureMetadata? InitializeTexture(in GpuTextureInitialization request, out nint id, RHITextureInitialData[]? initialData = null)
     {
         RequireContext();
         int name = 0;

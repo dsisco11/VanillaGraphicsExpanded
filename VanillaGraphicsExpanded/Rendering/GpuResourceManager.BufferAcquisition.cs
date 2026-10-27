@@ -13,7 +13,7 @@ internal sealed partial class GpuResourceManager
         if (GpuResourceManagerSystem.CurrentManager is { CanObserveNativeMetadata: true } manager)
             return manager.AcquireResource(GpuResourceKind.Buffer, id, new GpuBufferMetadataReader())?.Metadata
                 ?? throw new InvalidOperationException("External buffer storage is unavailable.");
-        if (!RHI.RHICommandContext.Current.OpenGL.TryReadBufferMetadata(id, out var data))
+        if (!RHI.RHICommandContext.Current.TryReadBufferMetadata(id, out var data))
             throw new InvalidOperationException("Context-local external buffer storage is unavailable.");
         return data;
     }

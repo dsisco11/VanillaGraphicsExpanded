@@ -36,7 +36,7 @@ internal sealed partial class GpuResourceManager
         {
             // The backend assigns id immediately upon allocation, so every reported failure
             // follows the same ownership cleanup even before canonical registration exists.
-            var candidate = creation.Initialize(StateCache.Current, request, out id);
+            var candidate = creation.Initialize(RHI.RHICommandContext.Current, request, out id);
             if (!candidate.HasValue || id == 0) return null;
             if (origin != RenderContextRegistry.Current() || !GpuResource.IsCurrentResourceContext(nativeOrigin))
                 throw new InvalidOperationException("The creation context changed before publication.");

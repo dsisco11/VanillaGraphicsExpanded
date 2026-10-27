@@ -7,9 +7,9 @@ namespace VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 /// <summary>Executes demand-driven format discovery for the existing shared capability cache.</summary>
 internal sealed partial class OpenGLBackend
 {
-    #region Internal API
+    #region Public API
     /// <summary>Queries supported representation and sample choices once per cached target/format selection.</summary>
-    internal InternalFormatCapabilities ReadFormatCapabilities(ImageTarget target, SizedInternalFormat format)
+    public InternalFormatCapabilities ReadFormatCapabilities(ImageTarget target, SizedInternalFormat format)
     {
         RequireContext();
         // This is explicit capability discovery, retaining its targeted cold-query error policy.

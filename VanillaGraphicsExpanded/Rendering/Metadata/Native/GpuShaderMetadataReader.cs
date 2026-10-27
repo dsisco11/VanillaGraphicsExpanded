@@ -9,9 +9,9 @@ internal sealed class GpuShaderMetadataReader : IGpuResourceMetadataReader<GpuSh
 
     #region Public API
     /// <inheritdoc />
-    public bool IsResource(nint id) => RHICommandContext.Current.OpenGL.IsShaderResource(id);
+    public bool IsResource(nint id) => RHICommandContext.Current.IsShaderResource(id);
 
     /// <inheritdoc />
-    public bool TryRead(nint id, out GpuShaderMetadata metadata) => RHICommandContext.Current.OpenGL.ReadShaderMetadata(id, out metadata);
+    public bool TryRead(nint id, out GpuShaderMetadata metadata) => RHICommandContext.Current.ReadShaderMetadata(id, out metadata);
     #endregion
 }

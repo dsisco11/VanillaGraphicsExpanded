@@ -20,8 +20,8 @@ internal sealed partial class GpuResourceManager
         /// <inheritdoc />
         public void Validate(in GpuSyncInitialization initialization) { }
         /// <inheritdoc />
-        public GpuSyncMetadata? Initialize(StateCache cache, in GpuSyncInitialization initialization, out nint id)
-            => RHI.RHICommandContext.Current.OpenGL.InitializeSync(out id);
+        public GpuSyncMetadata? Initialize(RHI.RHICommandContext execution, in GpuSyncInitialization initialization, out nint id)
+            => execution.InitializeSync(out id);
         #endregion
     }
     #endregion

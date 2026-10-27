@@ -9,7 +9,7 @@ internal sealed partial class OpenGLBackend
 {
     #region Internal API
     /// <summary>Creates a realized buffer texture without re-executing failed association commands.</summary>
-    internal GpuTextureMetadata? InitializeBufferTexture(in GpuBufferTextureInitialization request, out nint id)
+    public GpuTextureMetadata? InitializeBufferTexture(in GpuBufferTextureInitialization request, out nint id)
     {
         RequireContext();
         int name = 0;
@@ -26,7 +26,7 @@ internal sealed partial class OpenGLBackend
     }
 
     /// <summary>Reserves the untyped destination required by TextureView and derives view-relative facts.</summary>
-    internal GpuTextureMetadata? InitializeTextureView(in GpuTextureViewInitialization request, GpuTextureMetadata source, out nint id)
+    public GpuTextureMetadata? InitializeTextureView(in GpuTextureViewInitialization request, GpuTextureMetadata source, out nint id)
     {
         RequireContext();
         var candidate = TextureViewDescriptor.Create(request, source);

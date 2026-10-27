@@ -187,51 +187,7 @@ internal sealed partial class GpuResourceManager : IRenderer, IDisposable
                 if (command.Registration is { } original &&
                     (!metadataRegistry.TryGetValue(original.Handle, out var current) || !ReferenceEquals(current, original))) continue;
                 if (command.Cleanup is { } cleanup) { cleanup(); continue; }
-                switch (command.Kind)
-                {
-                    case GpuResourceKind.Buffer:
-                        RHICommandContext.Current.OpenGL.DeleteBuffer((int)command.Id);
-                        break;
-                    case GpuResourceKind.VertexArray:
-                        VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.OpenGL.DeleteVertexArray((int)command.Id);
-                        break;
-                    case GpuResourceKind.Texture:
-                        RHICommandContext.Current.OpenGL.DeleteTexture((int)command.Id);
-                        break;
-                    case GpuResourceKind.Framebuffer:
-                        VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.OpenGL.DeleteFramebuffer((int)command.Id);
-                        break;
-                    case GpuResourceKind.Renderbuffer:
-                        RHICommandContext.Current.OpenGL.DeleteRenderbuffer((int)command.Id);
-                        break;
-                    case GpuResourceKind.Query:
-                        RHICommandContext.Current.OpenGL.DeleteQuery((int)command.Id);
-                        break;
-                    case GpuResourceKind.Program:
-                        VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.OpenGL.DeleteProgram((int)command.Id);
-                        break;
-                    case GpuResourceKind.TransformFeedback:
-                        RHICommandContext.Current.OpenGL.DeleteTransformFeedback((int)command.Id);
-                        break;
-                    case GpuResourceKind.Sampler:
-                        RHICommandContext.Current.OpenGL.DeleteSampler((int)command.Id);
-                        break;
-                    case GpuResourceKind.ProgramPipeline:
-                        VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.OpenGL.DeleteProgramPipeline((int)command.Id);
-                        break;
-                    case GpuResourceKind.Shader:
-                        VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.OpenGL.DeleteShader((int)command.Id);
-                        break;
-                    case GpuResourceKind.Sync:
-                        RHICommandContext.Current.OpenGL.DeleteSync((IntPtr)command.Id);
-                        break;
-                    case GpuResourceKind.Semaphore:
-                        RHICommandContext.Current.OpenGL.DeleteSemaphore((int)command.Id);
-                        break;
-                    case GpuResourceKind.MemoryObject:
-                        RHICommandContext.Current.OpenGL.DeleteMemoryObject((int)command.Id);
-                        break;
-                }
+                RHICommandContext.Current.RetireResource(new(command.Kind, command.Id));
             }
             catch
             {

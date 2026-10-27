@@ -12,7 +12,7 @@ internal sealed partial class OpenGLBackend
 
     #region Internal API
     /// <summary>Discovers an explicit unknown external program name in the admitted context.</summary>
-    internal bool IsProgramResource(nint id)
+    public bool IsProgramResource(nint id)
     {
         RequireContext();
         bool valid = id != 0 && id >= int.MinValue && id <= uint.MaxValue && GL.IsProgram(unchecked((int)id));
@@ -21,7 +21,7 @@ internal sealed partial class OpenGLBackend
     }
 
     /// <summary>Reads canonical executable output facts once for manager-owned acquisition or publication.</summary>
-    internal bool ReadProgramMetadata(nint id, out GpuProgramMetadata metadata)
+    public bool ReadProgramMetadata(nint id, out GpuProgramMetadata metadata)
     {
         RequireContext();
         metadata = default;

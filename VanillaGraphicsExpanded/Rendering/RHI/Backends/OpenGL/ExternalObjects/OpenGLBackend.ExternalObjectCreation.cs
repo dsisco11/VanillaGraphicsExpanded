@@ -55,7 +55,7 @@ internal sealed partial class OpenGLBackend
     #endregion
     #region Internal API
     /// <summary>Creates one extension semaphore for private manager handoff.</summary>
-    internal GpuSemaphoreMetadata? InitializeSemaphore(out nint id)
+    public GpuSemaphoreMetadata? InitializeSemaphore(out nint id)
     {
         RequireContext();
         if (!Capabilities.ExternalSemaphores) throw new NotSupportedException("External semaphores are unavailable.");
@@ -64,7 +64,7 @@ internal sealed partial class OpenGLBackend
         return id == 0 ? null : new GpuSemaphoreMetadata();
     }
     /// <summary>Creates one extension memory object for private manager handoff.</summary>
-    internal GpuMemoryObjectMetadata? InitializeMemoryObject(out nint id)
+    public GpuMemoryObjectMetadata? InitializeMemoryObject(out nint id)
     {
         RequireContext();
         if (!Capabilities.ExternalMemory) throw new NotSupportedException("External memory is unavailable.");

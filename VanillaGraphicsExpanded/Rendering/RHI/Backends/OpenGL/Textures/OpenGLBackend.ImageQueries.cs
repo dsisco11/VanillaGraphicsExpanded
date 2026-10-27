@@ -18,7 +18,7 @@ internal sealed partial class OpenGLBackend
     }
 
     /// <summary>Checks realization at the explicit external acquisition boundary.</summary>
-    internal bool IsExternalTexture(nint id)
+    public bool IsExternalTexture(nint id)
     {
         RequireContext();
         bool result = new OpenGLTextureQueries(0, this).IsResource(id);
@@ -26,7 +26,7 @@ internal sealed partial class OpenGLBackend
         return result;
     }
     /// <summary>Reads unknown external image descriptors without changing controlled-allocation policy.</summary>
-    internal bool ReadExternalTexture(nint id, TextureTarget target, out GpuTextureMetadata metadata)
+    public bool ReadExternalTexture(nint id, TextureTarget target, out GpuTextureMetadata metadata)
     {
         RequireContext();
         bool result = new OpenGLTextureQueries(target, this).TryRead(id, out metadata);
@@ -34,7 +34,7 @@ internal sealed partial class OpenGLBackend
         return result;
     }
     /// <summary>Reads one externally changed image while preserving semantically required cube-face selectors.</summary>
-    internal bool ReadExternalTextureImage(int id, TextureTarget target, TextureTarget face, int level, out GpuTextureLevelMetadata image)
+    public bool ReadExternalTextureImage(int id, TextureTarget target, TextureTarget face, int level, out GpuTextureLevelMetadata image)
     {
         RequireContext();
         bool result = OpenGLTextureImageQueries.TryRead(id, target, face, level, this, out image);
@@ -42,7 +42,7 @@ internal sealed partial class OpenGLBackend
         return result;
     }
     /// <summary>Checks renderbuffer realization only during explicit external acquisition.</summary>
-    internal bool IsExternalRenderbuffer(nint id)
+    public bool IsExternalRenderbuffer(nint id)
     {
         RequireContext();
         bool result = new OpenGLRenderbufferQueries(this).IsResource(id);
@@ -50,7 +50,7 @@ internal sealed partial class OpenGLBackend
         return result;
     }
     /// <summary>Reads unknown external renderbuffer storage using core named queries.</summary>
-    internal bool ReadExternalRenderbuffer(nint id, out GpuRenderbufferMetadata metadata)
+    public bool ReadExternalRenderbuffer(nint id, out GpuRenderbufferMetadata metadata)
     {
         RequireContext();
         bool result = new OpenGLRenderbufferQueries(this).TryRead(id, out metadata);
@@ -58,7 +58,7 @@ internal sealed partial class OpenGLBackend
         return result;
     }
     /// <summary>Reads one externally altered object parameter, preserving the native error queue.</summary>
-    internal int ReadExternalTextureParameter(int texture, GetTextureParameter parameter)
+    public int ReadExternalTextureParameter(int texture, GetTextureParameter parameter)
     {
         RequireContext();
         GL.GetTextureParameter(texture, (Native.GetTextureParameter)parameter, out int value);
@@ -66,7 +66,7 @@ internal sealed partial class OpenGLBackend
         return value;
     }
     /// <summary>Reads one external buffer association field without any binding fallback.</summary>
-    internal int ReadExternalTextureLevelParameter(int texture, int level, GetTextureParameter parameter)
+    public int ReadExternalTextureLevelParameter(int texture, int level, GetTextureParameter parameter)
     {
         RequireContext();
         GL.GetTextureLevelParameter(texture, level, (Native.GetTextureParameter)parameter, out int value);
@@ -75,7 +75,7 @@ internal sealed partial class OpenGLBackend
     }
 
     /// <summary>Reads the optional renderbuffer-backed texture association through its required context selector.</summary>
-    internal bool ReadExternalRenderbufferTexture(int texture, out GpuTextureMetadata metadata)
+    public bool ReadExternalRenderbufferTexture(int texture, out GpuTextureMetadata metadata)
     {
         RequireContext();
         metadata = default;

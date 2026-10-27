@@ -313,26 +313,38 @@ Phase 5b: Correct manager-to-execution dependency direction
     Rendering.GpuCommands.Contracts.md, sections Authority and ownership and Resource references and factories.
   Outcome: the manager owns metadata/lifetime transactions without retrieving a concrete OpenGL backend.
 
-  ☐ Design the internal creation, acquisition/query, capability and retirement service contracts and their
+  ☑ Design the internal creation, acquisition/query, capability and retirement service contracts and their
     composition. Explicitly trace public RHI request → backend execution → manager association/publication,
     including the manager's private initialization handoff. Keep native execution behind the backend;
     never route that handoff back through a public factory or recursively construct a resource owner.
-  ☐ Replace GpuResourceManager calls through RHICommandContext.Current.OpenGL for buffer, texture,
+  ☑ Replace GpuResourceManager calls through RHICommandContext.Current.OpenGL for buffer, texture,
     renderbuffer, sampler, view/buffer-texture, shader/program/program-pipeline, VAO, framebuffer, query,
     transform-feedback, synchronization, semaphore and memory-object creation and deletion.
     Supply required services through the agreed internal boundary rather than a backend service locator.
-  ☐ Migrate buffer/texture/geometry and other manager-owned native acquisition/readers and capability
+  ☑ Migrate buffer/texture/geometry and other manager-owned native acquisition/readers and capability
     lookups through the same defined service boundary. Queries remain manager-authorized; ordinary
     published metadata access must not acquire missing facts or introduce redundant native reads.
-  ☐ Define manager-authorized context/configuration certification for imported engine geometry, consumed
+  ☑ Define manager-authorized context/configuration certification for imported engine geometry, consumed
     through the restricted integration contract in 5c. Keep native origin and vertex-configuration epoch
     checks behind that boundary; preserve original associations, borrow expiry and query-free reuse.
-  ☐ Preserve the existing registry, canonical metadata, aliases/dependencies, exactly-once publication,
+  ☑ Preserve the existing registry, canonical metadata, aliases/dependencies, exactly-once publication,
     provisional-identity cleanup and original-context retirement queues. Do not add another manager,
     dispatch registry, public recipient API or metadata authority to resolve the dependency cycle.
-  ☐ Verify creation/failure, external acquisition, replacement and originating-context disposal through
+  ☑ Verify creation/failure, external acquisition, replacement and originating-context disposal through
     final services. Remove superseded concrete-backend access paths and their affected callers together;
     no forwarding shim, temporary service-locator property or duplicate dispatcher is permitted.
+
+  Evidence: second review and independent stage-completion audit confirmed this dependency boundary.
+    Manager initialization, acquisition/capabilities and retirement use the internal RHI execution
+    contract; the registry/publication transaction and original-context queues remain singular.
+    Final delegated Debug compilation: 0 errors/197 warnings; Release production: 0 errors/334 warnings.
+    Focused tests: 364 passed, 15 inherited failures, 0 skipped (379 total); all failing names exactly
+    match an isolated compiled checkpoint baseline. Additional registry/initialization/capability cases:
+    53/53 passed. New manager-certification and corrected 4.5 initialization cases passed.
+    Exact candidate, routes, baseline comparison and limitations are recorded in
+    [Manager execution dependency correction](Rendering.GpuCommands.Migrations.md#manager-execution-dependency-correction-phase-5b).
+    Inherited geometry failures remain assigned to 5c and other inherited failures to 5e. This receipt
+    closes 5b only; Phase 5, 5c–5e and command recording remain open. No commit was created.
 
 Phase 5c: Separate backend-neutral RHI objects from OpenGL realization
   Depends on 5b's execution/ownership contracts.
@@ -359,6 +371,9 @@ Phase 5c: Separate backend-neutral RHI objects from OpenGL realization
     OpenGL.NativeOrigin and StateCache vertex-configuration epoch access. Keep engine layout/ownership
     and callback borrow policy in the adapters; use 5b's integration certification for context and native
     configuration validity. Preserve upload/adoption, replacement and original-context retirement together.
+  ☐ Resolve the inherited EngineGraphicsGeometryTests imported-configuration failures and the
+    EngineLiquidPoolGeometryTests index-association failure while migrating certification consumers.
+    Preserve original-association and configuration checks; do not relax them to make draw fixtures pass.
   ☐ Test unchanged fixed-generation behavior, wrong-context rejection, recursive execution/retirement,
     shader/pipeline replacement failure, result completion/cancellation and context loss without exposing
     concrete backend implementation types to semantic callers.
@@ -435,6 +450,13 @@ Phase 5e: Close the redesigned dependency graph and qualify the combined migrati
   ☐ Reconcile Rendering.GpuCommands.Proposal.md, Rendering.GpuCommands.Contracts.md and
     Rendering.GpuCommands.Migrations.md with the approved boundaries and actual final routes. Preserve
     historical qualification limits in planning receipts; permanent architecture docs describe current code.
+  ☐ Reconcile inherited failures captured by 5b's checkpoint comparison: GpuMetadataOperationFoundationTests
+    fixture mutation through unavailable wrapper metadata; GpuFramebufferExecutableCreationTests affected-field
+    query observation; GpuProgramMetadataInterceptionTests desktop EXT restoration observations;
+    GpuResourceOperationContextTests exact-external versus manager-affinity semantics; and
+    GpuResourceRetirementRegressionTests delete-pending external versus managed program retirement.
+    Correct obsolete fixtures at the actual native boundary and fix any confirmed runtime defect without
+    weakening assertions, guards or error behavior. The baseline comparison does not qualify these cases.
   ☐ Run delegated Debug/Release compilation and relevant behavior regressions on the combined candidate,
     including DEBUG-only diagnostics. Complete second review and independent stage-completion audit
     against every Phase 5 requirement. All redesign and original Phase 5 tasks must pass before completing

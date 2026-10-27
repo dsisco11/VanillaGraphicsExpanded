@@ -41,7 +41,7 @@ internal static class TextureViewDescriptor
                 : request.Target == TextureTarget.Texture1DArray ? request.LayerCount : image.Height;
             int depth = request.Target == TextureTarget.Texture3D ? image.Depth
                 : array && request.Target != TextureTarget.Texture1DArray ? request.LayerCount : 1;
-            var caps = RHI.RHICommandContext.Current.OpenGL.NativeCapabilities;
+            var caps = RHI.RHICommandContext.Current.Capabilities;
             int limit = cube || request.Target == TextureTarget.TextureCubeMapArray ? caps.MaxCubeMapTextureSize
                 : request.Target == TextureTarget.TextureRectangle ? caps.MaxRectangleTextureSize
                 : request.Target == TextureTarget.Texture3D ? caps.Max3DTextureSize : caps.MaxTextureSize;

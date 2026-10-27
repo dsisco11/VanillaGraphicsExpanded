@@ -11,8 +11,8 @@ internal interface IGpuResourceCreation<TInitialization, TMetadata>
     /// <summary>Validates required inputs and conditional defaults before native allocation.</summary>
     void Validate(in TInitialization initialization);
 
-    /// <summary>Dispatches through StateCache and returns established metadata, or a detected failure.</summary>
+    /// <summary>Dispatches through the admitted RHI context and returns established metadata, or a detected failure.</summary>
     /// <remarks>Assign the newly owned ID as soon as it is allocated, including on exceptional exit.
     /// Do not return borrowed dependencies in this output. Null does not detect silent native errors.</remarks>
-    TMetadata? Initialize(StateCache cache, in TInitialization initialization, out nint id);
+    TMetadata? Initialize(RHI.RHICommandContext execution, in TInitialization initialization, out nint id);
 }

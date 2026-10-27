@@ -33,9 +33,9 @@ internal struct GpuRenderbufferInitialization
             throw new ArgumentException("Renderbuffer initialization requires a format, positive extents and nonnegative samples.");
         if (HasCoverageSamples && (samples <= 0 || coverageSamples < samples))
             throw new ArgumentException("Coverage storage requires positive color samples and at least that many coverage samples.");
-        var backend = RHI.RHICommandContext.Current.OpenGL;
-        if (HasCoverageSamples && !backend.Capabilities.CoverageSampling) throw new NotSupportedException("Coverage sampling is unavailable.");
-        int limit = backend.NativeCapabilities.MaxRenderbufferSize;
+        var capabilities = RHI.RHICommandContext.Current.Capabilities;
+        if (HasCoverageSamples && !capabilities.CoverageSampling) throw new NotSupportedException("Coverage sampling is unavailable.");
+        int limit = capabilities.MaxRenderbufferSize;
         if (limit > 0 && (width > limit || height > limit))
             throw new ArgumentOutOfRangeException(nameof(Width), "Renderbuffer extents exceed the cached implementation limit.");
     }

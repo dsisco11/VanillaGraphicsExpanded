@@ -2,24 +2,28 @@ using System.Collections.Immutable;
 using OpenTK.Graphics.OpenGL;
 using Native = OpenTK.Graphics.OpenGL4;
 
-namespace VanillaGraphicsExpanded.Rendering;
+namespace VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 
 /// <summary>Captures actual attachment descriptors and attachmentless defaults without consulting wrapper ownership policy.</summary>
-internal sealed class GpuFramebufferMetadataReader : IGpuResourceMetadataReader<GpuFramebufferMetadata>
+internal readonly struct OpenGLFramebufferQueries(OpenGLBackend backend)
 {
-    internal static readonly GpuFramebufferMetadataReader Instance = new();
-
     #region Public API
-    /// <inheritdoc />
-    public bool IsResource(nint id) => id != 0 && Native.GL.IsFramebuffer(unchecked((int)id));
+    /// <summary>Acquires unknown framebuffer facts without manager publication.</summary>
+    public bool IsResource(nint id)
+    {
+        backend.RequireContext();
+        bool result = id != 0 && Native.GL.IsFramebuffer(unchecked((int)id));
+        backend.RequireContext();
+        return result;
+    }
 
-    /// <inheritdoc />
+    /// <summary>Acquires unknown framebuffer facts without manager publication.</summary>
     public bool TryRead(nint id, out GpuFramebufferMetadata metadata)
     {
         metadata = default;
         if (!IsResource(id)) return false;
         var attachments = ImmutableDictionary.CreateBuilder<FramebufferAttachment, GpuFramebufferImageMetadata>();
-        int limit = GpuSupport.Graphics.MaxColorAttachments;
+        int limit = backend.NativeCapabilities.MaxColorAttachments;
         for (int index = 0; index < limit; index++)
             if (!ReadAttachment(id, FramebufferAttachment.ColorAttachment0 + index, attachments)) return false;
         if (!ReadAttachment(id, FramebufferAttachment.DepthAttachment, attachments)
@@ -37,9 +41,10 @@ internal sealed class GpuFramebufferMetadataReader : IGpuResourceMetadataReader<
 
     #region Internal API
     /// <summary>Recovers only one affected slot or one attachmentless field of an otherwise known descriptor.</summary>
-    internal static bool TryReadAffected(nint id, GpuFramebufferMetadata previous, FramebufferAttachment? slot,
+    internal bool TryReadAffected(nint id, GpuFramebufferMetadata previous, FramebufferAttachment? slot,
         FramebufferDefaultParameter? parameter, out GpuFramebufferMetadata candidate)
     {
+        backend.RequireContext();
         candidate = previous;
         if (slot.HasValue)
         {
@@ -78,7 +83,7 @@ internal sealed class GpuFramebufferMetadataReader : IGpuResourceMetadataReader<
 
     #region Private
     /// <summary>Reads one selected image without resolving a deleted retained name as a new allocation.</summary>
-    private static bool ReadAttachment(nint id, FramebufferAttachment slot,
+    private bool ReadAttachment(nint id, FramebufferAttachment slot,
         ImmutableDictionary<FramebufferAttachment, GpuFramebufferImageMetadata>.Builder attachments)
     {
         int type = Read(id, slot, FramebufferParameterName.FramebufferAttachmentObjectType);
@@ -95,7 +100,7 @@ internal sealed class GpuFramebufferMetadataReader : IGpuResourceMetadataReader<
         int layer = Read(id, slot, FramebufferParameterName.FramebufferAttachmentTextureLayer);
         int face = Read(id, slot, FramebufferParameterName.FramebufferAttachmentTextureCubeMapFace);
         int layered = Read(id, slot, FramebufferParameterName.FramebufferAttachmentLayered);
-        bool multiview = GpuSupport.Graphics.SupportsOvrMultiview;
+        bool multiview = backend.NativeCapabilities.SupportsOvrMultiview;
         int baseView = multiview ? Read(id, slot, (FramebufferParameterName)All.FramebufferAttachmentTextureBaseViewIndexOvr) : 0;
         int views = multiview ? Read(id, slot, (FramebufferParameterName)All.FramebufferAttachmentTextureNumViewsOvr) : 0;
         if (level < 0 || layer < 0 || face < 0 || layered < 0 || baseView < 0 || views < 0) return false;
@@ -104,18 +109,22 @@ internal sealed class GpuFramebufferMetadataReader : IGpuResourceMetadataReader<
     }
 
     /// <summary>Uses an invalid sentinel to detect unavailable attachment facts without consuming errors.</summary>
-    private static int Read(nint id, FramebufferAttachment slot, FramebufferParameterName parameter)
+    private int Read(nint id, FramebufferAttachment slot, FramebufferParameterName parameter)
     {
         int value = -1;
+        backend.RequireContext();
         Native.GL.GetNamedFramebufferAttachmentParameter(unchecked((int)id), (Native.FramebufferAttachment)slot, (Native.FramebufferParameterName)parameter, out value);
+        backend.RequireContext();
         return value;
     }
 
     /// <summary>Reads one attachmentless default using the native object name.</summary>
-    private static int ReadDefault(nint id, FramebufferDefaultParameter parameter)
+    private int ReadDefault(nint id, FramebufferDefaultParameter parameter)
     {
         int value = -1;
+        backend.RequireContext();
         Native.GL.GetNamedFramebufferParameter(unchecked((int)id), (Native.FramebufferDefaultParameter)parameter, out value);
+        backend.RequireContext();
         return value;
     }
     #endregion

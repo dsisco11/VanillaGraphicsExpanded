@@ -6,6 +6,34 @@ public sealed class RHICapabilities
     private readonly GraphicsCapabilities source;
 
     #region Public API
+    /// <summary>Gets the cached MaxRenderbufferSize allocation limit without new discovery.</summary>
+    public int MaxRenderbufferSize => source.MaxRenderbufferSize;
+    /// <summary>Gets the cached MaxFramebufferWidth allocation limit without new discovery.</summary>
+    public int MaxFramebufferWidth => source.MaxFramebufferWidth;
+    /// <summary>Gets the cached MaxFramebufferHeight allocation limit without new discovery.</summary>
+    public int MaxFramebufferHeight => source.MaxFramebufferHeight;
+    /// <summary>Gets the cached MaxFramebufferLayers allocation limit without new discovery.</summary>
+    public int MaxFramebufferLayers => source.MaxFramebufferLayers;
+    /// <summary>Gets the cached MaxFramebufferSamples allocation limit without new discovery.</summary>
+    public int MaxFramebufferSamples => source.MaxFramebufferSamples;
+    /// <summary>Gets the existing cached TextureBufferOffsetAlignment capability without native discovery.</summary>
+    public int TextureBufferOffsetAlignment => source.TextureBufferOffsetAlignment;
+    /// <summary>Gets the existing cached MaxCubeMapTextureSize capability without native discovery.</summary>
+    public int MaxCubeMapTextureSize => source.MaxCubeMapTextureSize;
+    /// <summary>Gets the existing cached MaxRectangleTextureSize capability without native discovery.</summary>
+    public int MaxRectangleTextureSize => source.MaxRectangleTextureSize;
+    /// <summary>Gets the existing cached Max3DTextureSize capability without native discovery.</summary>
+    public int Max3DTextureSize => source.Max3DTextureSize;
+    /// <summary>Gets the existing cached MaxTextureSize capability without native discovery.</summary>
+    public int MaxTextureSize => source.MaxTextureSize;
+    /// <summary>Gets the existing cached MaxArrayTextureLayers capability without native discovery.</summary>
+    public int MaxArrayTextureLayers => source.MaxArrayTextureLayers;
+    /// <summary>Gets the existing cached MaxImageUnits capability without native discovery.</summary>
+    public int MaxImageUnits => source.MaxImageUnits;
+    /// <summary>Gets the existing cached MaxCombinedTextureImageUnits capability without native discovery.</summary>
+    public int MaxCombinedTextureImageUnits => source.MaxCombinedTextureImageUnits;
+    /// <summary>Gets the existing cached SupportsOvrMultiview capability without native discovery.</summary>
+    public bool Multiview => source.SupportsOvrMultiview;
     /// <summary>Gets the number of vertex input locations.</summary>
     public int MaxVertexAttributes => source.MaxVertexAttributes;
     /// <summary>Gets the available draw-output count.</summary>

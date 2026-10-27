@@ -20,8 +20,8 @@ internal sealed partial class GpuResourceManager
         /// <inheritdoc />
         public void Validate(in GpuMemoryObjectInitialization initialization) { }
         /// <inheritdoc />
-        public GpuMemoryObjectMetadata? Initialize(StateCache cache, in GpuMemoryObjectInitialization initialization, out nint id)
-            => RHI.RHICommandContext.Current.OpenGL.InitializeMemoryObject(out id);
+        public GpuMemoryObjectMetadata? Initialize(RHI.RHICommandContext execution, in GpuMemoryObjectInitialization initialization, out nint id)
+            => execution.InitializeMemoryObject(out id);
         #endregion
     }
     #endregion

@@ -20,16 +20,18 @@ subresources remain with their existing wrappers and helpers.
 Resource-specific initialization records expose legal inputs and automatically record assigned fields,
 including explicit zero and false values. Manager creation methods validate those requests and use
 the OpenGL backend through `RHICommandContext` for buffers, images, samplers, queries, fences, transform
-feedback, semaphores and memory objects. Framebuffer, vertex-array and executable allocation still use
-StateCache. A nullable metadata result reports detected failure;
+feedback, semaphores, memory objects, framebuffers, vertex arrays and executable objects. Private
+initialization receives the admitted context explicitly and dispatches through `IRHIResourceExecution`,
+without retrieving the concrete backend or reentering a public factory. A nullable metadata result reports detected failure;
 identity and a complete initial snapshot are handed to the wrapper only after successful initialization.
 Partial allocation cleanup preserves the original exception and the originating deletion context.
 
 ## Command results and queries
 
 The OpenGL RHI backend owns buffer/image, synchronization, query-result, readback, capture and optional
-external-object native dispatch; StateCache retains selector knowledge and operation guards. Framebuffer,
-vertex-array and executable operations retain their existing StateCache execution. Controlled operations publish inputs,
+external-object, framebuffer, vertex-array and executable native dispatch; StateCache retains selector
+knowledge and operation guards. Manager-owned readers request native discovery through the context's
+internal execution contract. Controlled operations publish inputs,
 guaranteed defaults and derived facts. Existing failure handling remains authoritative: reported failure
 does not publish success, and interruption withdraws affected knowledge. No universal post-command query,
 error drain or separate requested/actual metadata cache is used. Available covered aliases reuse canonical
@@ -189,6 +191,14 @@ references expose no disposal, handle-transfer or native execution methods. Exac
 adapters preserve their original loader/signatures and per-name outcomes before shared retirement
 publication. Managed deletion uses the admitted backend after original-context queue admission.
 
+## Imported geometry certification
+
+The manager authorizes cold external vertex-array configuration discovery through the RHI context.
+The backend performs native checks, while the completed receipt retains the original array association
+and metadata revision. Context-local receipts additionally use the existing configuration epoch.
+`IsEngineGeometryConfigurationCurrent` checks the receipt against current context/cache knowledge without
+native configuration reads. Engine adapters retain layout, ownership and borrow-expiry policy.
+
 ## Binding knowledge and retirement
 
 `GpuTextureRef` is a readonly consumer value holding one private `GpuResource<GpuTextureMetadata>`
@@ -213,7 +223,9 @@ facts through the manager; the canonical VAO schema contains no full layout mirr
 
 Deletion removes the original entry and invalidates its recipients. Reusing the numeric ID creates a new
 entry; old wrappers and queued work retain their original association and cannot affect the replacement.
-Owner retirement withdraws usability before deferred deletion. Borrowed disposal only removes its recipient;
+Owner retirement withdraws usability before deferred deletion. Queue admission retains original context
+and registration identity; immediate, local-tool and queued retirement all reach the same internal context
+operation and backend kind dispatcher. Borrowed disposal only removes its recipient;
 it never deletes external storage. Context retirement clears registrations and abandons work that cannot
 run in its originating context. Weak recipients are pruned during acquisition, publication and removal.
 

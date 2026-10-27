@@ -13,8 +13,8 @@ internal sealed class GpuTextureMetadataReader : IGpuResourceMetadataReader<GpuT
     #endregion
     #region Public API
     /// <inheritdoc />
-    public bool IsResource(nint id) => RHI.RHICommandContext.Current.OpenGL.IsExternalTexture(id);
+    public bool IsResource(nint id) => RHI.RHICommandContext.Current.IsExternalTexture(id);
     /// <inheritdoc />
-    public bool TryRead(nint id, out GpuTextureMetadata metadata) => RHI.RHICommandContext.Current.OpenGL.ReadExternalTexture(id, knownTarget, out metadata);
+    public bool TryRead(nint id, out GpuTextureMetadata metadata) => RHI.RHICommandContext.Current.ReadExternalTexture(id, knownTarget, out metadata);
     #endregion
 }

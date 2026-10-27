@@ -598,3 +598,79 @@ production compilation alone does not qualify this integration. The current bulk
 callers directly and adds final geometry-range and framebuffer-feedback regressions. Combined tests,
 second review and independent audit remain outstanding. The preceding 189-case receipt predates this
 candidate and cannot qualify the replacement.
+
+
+## Manager execution dependency correction (Phase 5b)
+
+The manager and manager-owned readers no longer obtain `RHICommandContext.Current.OpenGL`, hold an
+`OpenGLBackend`, or issue native queries directly. Existing native-valued canonical metadata and private
+initialization records remain unchanged; public commands still accept only semantic descriptions.
+
+| Previous route | Final route in this unit |
+| --- | --- |
+| Every manager family initializer → concrete backend lookup | Public context factory → backend owner declaration → existing manager transaction → explicitly supplied context → internal resource execution contract → backend allocation → manager association/snapshot handoff. No recursive public creation. |
+| Manager deletion switch / immediate and local-owner native deletion | Existing original-context/association admission → context retirement operation → one backend kind dispatcher → existing family outcome/publication. Queues and registry remain unchanged. |
+| Buffer/texture/shader/program readers → concrete backend lookup | Manager acquisition policy → typed internal context query → backend query implementation. Available canonical snapshots bypass acquisition as before. |
+| Framebuffer reader owning native calls in the manager namespace | Manager reader in Metadata/Native → context → backend OpenGLFramebufferQueries; narrow affected-field recovery uses the same contract. No extra canonical store. |
+| Program-field completion issuing GL calls | Supplied fields remain query-free; unknown external unit/block fields use narrowly selected backend query services before the existing manager commit. |
+| Manager, private initialization and texture-view descriptor native capability lookup | Existing RHICapabilities projection; target/format cache misses use the internal context query contract. No second cache, discovery authority or variant strategy. Core 4.5 shader stages and attachmentless defaults need no older-feature branch. |
+| Manager geometry acquisition reading backend origin/cache epoch | Context acquisition/certification and transient RHIGeometryContext; manager checks receipt reuse against original association/revision without layout readback. Consumer conversion remains in 5c. |
+
+Traceability: 5b creation/acquisition/retirement tasks map to the proposal's The proposed boundary,
+Resource creation and adoption, and Backend dispatch and publication, plus the contracts' Authority
+and ownership and Resource references and factories. The private handoff retains the pinned
+command-publication initialization contract. Geometry certification and retirement retain the existing
+resource and binding identity, availability and restoration contracts. No new metadata authority,
+service locator, public recipient, compatibility alias or old-executor shim is introduced.
+
+Concrete dependencies still assigned to 5c–5e remain open: semantic objects/context composition,
+ordinary wrapper operations and consumers, restricted engine integration, and combined qualification.
+
+Final source candidate: uncommitted changes on `a8cdacb87e6ad7d7e7670bdd82633ebe668468d4`.
+SHA-256 `2c4be0b477ae045c25751507dd857a0569ad0aa19f9e7d92c330e50d86115d81`
+covers 3,380 existing tracked/unignored source and build-input files: sorted repo-relative paths ending
+in cs, csproj, props, targets, glsl, frag, vert, comp, geom, tesc, tese or ps1. Hash input for each file
+is UTF-8 path, NUL, raw file bytes, NUL; paths are unique and absent/deleted files are omitted.
+Documentation is excluded so receipt/checklist updates do not change the source candidate.
+
+Final delegated evidence under `artifacts/rhi-phase5b/`:
+
+| Receipt | Result |
+| --- | --- |
+| `debug-build-complete.log` | Canonical Debug test-project compilation passed: 0 errors, 197 warnings. |
+| `release-build-closure.log` | Canonical Release production compilation passed: 0 errors, 334 warnings. |
+| `focused-tests-complete.log`, `phase5b-focused-complete.trx`, `focused-filter.txt` | 364 passed, 15 failed, 0 skipped, 379 total. Both manager-certification reuse/revision/retirement and explicit-default/invalid-extent initialization cases passed. |
+| `units-capabilities-closure.log` and its TRX | 53 passed, 0 failed/skipped: registry, disposal, associations, initialization intent, format and capability cases. |
+| `baseline/focused-tests.log`, `baseline/baseline-focused.trx` | Checkpoint baseline: 363 passed, 15 failed, 0 skipped, 378 total. Final candidate adds one certification fact; the exact 15 failing names are unchanged. |
+
+The baseline used a `git archive` export of that checkpoint under the ignored baseline/source directory.
+Its C# was compiled against checkpoint sources. Shader producers alone were disabled for this diagnostic
+comparison, reusing the unchanged shader binaries from the canonical candidate build. This is an
+inherited-failure comparison, not baseline canonical package qualification. Candidate Debug and Release
+builds ran their canonical shader producers. An initial sandbox restore failure was resolved by an
+approved network-capable retry; the failed attempt remains in `debug-build.log`.
+
+The unchanged failing cases are two engine-graphics certification cases, one liquid index-association
+case, five metadata-operation fixture mutation cases, one framebuffer affected-field observation case,
+four desktop EXT program restoration observation cases, one exact-external/context-affinity case and
+one external delete-pending-program case. These are explicitly assigned to 5c/5e. No assertion was
+weakened to turn those failures green, and no broad green-suite claim is made. The obsolete pre-4.5
+attachmentless capability fixture was replaced with cached-limit rejection plus explicit zero/false
+initialization checks, preserving both pre-allocation failure and successful handoff coverage.
+
+Second review and independent stage-completion audit confirmed the 5b boundary and its linked contracts.
+No concrete backend retrieval remains in the manager, its readers, private initialization or the
+format-capability cache. No public recipient API, parallel registry, temporary forwarding facade or
+retry path was added. Combined Phase 5 qualification, live runtime and visual acceptance remain open.
+No staging, commit, deployment, package publication or game launch was performed for this work.
+
+Reproduction commands from the repository root (canonical default shader producers enabled; no
+additional build properties or instrumentation):
+
+```powershell
+dotnet build VanillaGraphicsExpanded.Tests/VanillaGraphicsExpanded.Tests.csproj -c Debug -m:1 -v:minimal
+dotnet build VanillaGraphicsExpanded/VanillaGraphicsExpanded.csproj -c Release -m:1 -v:minimal
+$filter = Get-Content artifacts/rhi-phase5b/focused-filter.txt -Raw
+dotnet test VanillaGraphicsExpanded.Tests/VanillaGraphicsExpanded.Tests.csproj -c Debug --no-build --no-restore --filter $filter.Trim() --logger 'trx;LogFileName=phase5b-focused-complete.trx' --results-directory artifacts/rhi-phase5b
+dotnet test VanillaGraphicsExpanded.Tests/VanillaGraphicsExpanded.Tests.csproj -c Debug --no-build --no-restore --filter 'FullyQualifiedName~GpuResourceMetadataRegistryTests|FullyQualifiedName~GpuResourceDisposalQueueTests|FullyQualifiedName~GpuResourceAssociationStressTests|FullyQualifiedName~GpuInitializationIntentTests|FullyQualifiedName~TextureFormatHelperTests|FullyQualifiedName~InternalFormatCapabilitiesTests' --logger 'trx;LogFileName=phase5b-units-capabilities-closure.trx' --results-directory artifacts/rhi-phase5b
+```

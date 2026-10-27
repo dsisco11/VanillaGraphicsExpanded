@@ -20,8 +20,8 @@ internal sealed partial class GpuResourceManager
         /// <inheritdoc />
         public void Validate(in GpuSemaphoreInitialization initialization) { }
         /// <inheritdoc />
-        public GpuSemaphoreMetadata? Initialize(StateCache cache, in GpuSemaphoreInitialization initialization, out nint id)
-            => RHI.RHICommandContext.Current.OpenGL.InitializeSemaphore(out id);
+        public GpuSemaphoreMetadata? Initialize(RHI.RHICommandContext execution, in GpuSemaphoreInitialization initialization, out nint id)
+            => execution.InitializeSemaphore(out id);
         #endregion
     }
     #endregion

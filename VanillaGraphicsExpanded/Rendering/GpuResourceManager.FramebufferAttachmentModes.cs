@@ -39,7 +39,7 @@ internal sealed partial class GpuResourceManager
         foreach (var pair in actual.Attachments)
         {
             var image = pair.Value;
-            var mode = image.Mode != GpuFramebufferAttachmentMode.Unknown ? image.Mode : GpuSupport.Graphics.SupportsOvrMultiview
+            var mode = image.Mode != GpuFramebufferAttachmentMode.Unknown ? image.Mode : RHI.RHICommandContext.Current.Capabilities.Multiview
                 ? GpuFramebufferAttachmentMode.Unknown : GpuFramebufferAttachmentMode.Ordinary;
             if (image.Kind != GpuResourceKind.Texture || FindResource(image.Kind, image.Id)
                 is GpuResourceMetadataEntry<GpuTextureMetadata> backing
