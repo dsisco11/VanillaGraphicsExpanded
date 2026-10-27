@@ -270,19 +270,41 @@ Phase 5a: Commit the existing immediate-rendering implementation checkpoint
   This is a source-control checkpoint, not a completed migration unit or architectural acceptance.
     It does not permit introducing migration shims, completing Phase 5, or beginning command recording.
 
-  ☐ Review the remaining staged and unstaged Phase 5 changes after the mechanical commit. Include the
+  ☑ Review the remaining staged and unstaged Phase 5 changes after the mechanical commit. Include the
     coupled shader/PSO, geometry, attachment passes, resource bindings, uniforms, immediate submission,
     affected callers, external integration and test migrations already implemented; exclude unrelated work.
-  ☐ Record the exact candidate and existing Debug/Release compilation and focused behavior receipts.
+  ☑ Record the exact candidate and existing Debug/Release compilation and focused behavior receipts.
     Retain full-suite failures/skips and isolated rerun results explicitly; an isolated pass does not turn
     a failed broad run into a green run. Do not add benchmarks, performance baselines or live-game gates.
-  ☐ Reconcile the checkpoint's known architectural shortcomings with tasks in 5b–5e, including concrete
+  ☑ Reconcile the checkpoint's known architectural shortcomings with tasks in 5b–5e, including concrete
     backend access from the manager, semantic RHI objects and resource wrappers. Keep those tasks open;
     this checkpoint does not certify those dependencies or require redesign before recording current work.
-  ☐ Stage and commit the reviewed implementation checkpoint as a separate commit after the mechanical
+  ☑ Stage and commit the reviewed implementation checkpoint as a separate commit after the mechanical
     changes. Preserve unrelated staged work and record the commit ID and remaining qualification limits.
-  ☐ Completion: the checkpoint commit is recorded and every outstanding redesign/qualification item
+  ☑ Completion: the checkpoint commit is recorded and every outstanding redesign/qualification item
     remains assigned below. The original Phase 5 completion gate and no-shim requirements remain intact.
+
+  Checkpoint receipt:
+    Implementation commit: 866c9b0a6d4c285ae7c059d7290658cfc1fc4b86; tree:
+    4e09255c29581a3b14ea6fa2fe845b0cc38c451a. Already present when this checkpoint was closed;
+    the index and working tree were clean. Reviewed its scope against the mechanical predecessor
+    61ab9610: shader generator/tests, rendering/resource and consumer migrations, integration and linked
+    planning/architecture documents. No additional implementation changes were staged for this closure.
+    Existing delegated receipts are retained locally under artifacts/rhi-phase5/checkpoint-5a/:
+    - vge-phase5-bulk-debug-tests-build-25.log: Debug test-project build, 0 errors, 200 warnings.
+    - vge-phase5-release-production-build-4.log: Release production build, 0 errors, 337 warnings.
+    - vge-phase5-focused-debug-tests-6.log: GPU selection, 205 passed and 2 failed, 0 skipped.
+      vge-phase5-directlighting-debug-tests-2.log: the two DirectLightingSubmission cases passed on rerun.
+    - vge-phase5-nongpu-debug-tests-2.log: broader selection, 2111 passed, 1 failed, 12 skipped.
+      Failure: ChunkProcessingServicePhase2Tests.Enqueue_Newer_Version_Supersedes_Older_Queued_Immediately_Without_Snapshot
+      timed out. vge-phase5-chunkprocessing-isolated-debug-tests-1.log: that case passed in isolation.
+    These are pre-checkpoint working-tree receipts, not source-sealed validation of commit 866c9b0a.
+    Neither rerun changes the failed broad-run result; no fresh behavior, installed-game, visual or
+    performance qualification is claimed. The checkpoint records existing work and evidence only.
+    Second scope review and checkpoint-completion audit confirmed the commit boundary and explicit
+    qualification limits. Known manager, semantic-object, wrapper, geometry, binding, restoration,
+    streaming and integration shortcomings remain assigned to unchecked tasks in 5b–5e. Phase 5
+    architectural acceptance and all command-recording work remain open.
 
 Phase 5b: Correct manager-to-execution dependency direction
   Depends on the implementation checkpoint in 5a.
