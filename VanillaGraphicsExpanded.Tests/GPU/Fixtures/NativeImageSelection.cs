@@ -28,7 +28,7 @@ internal sealed class NativeImageSelection : IDisposable
     /// <summary>Restores exact native setup only in the originating fixture namespace.</summary>
     public void Dispose()
     {
-        if (!GpuResource.IsCurrentResourceContext(origin)) throw new InvalidOperationException("Native fixture context changed.");
+        if (!VanillaGraphicsExpanded.Rendering.Integration.RenderContextRegistry.IsCurrentResourceContext(origin)) throw new InvalidOperationException("Native fixture context changed.");
         OpenGLImageSlotBindings.BindImageTexture(OpenGlStateCache.Current, unit, previous.Texture, previous.Level,
             previous.Layered, previous.Layer, previous.Access, previous.Format);
     }

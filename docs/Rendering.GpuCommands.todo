@@ -851,39 +851,46 @@ Phase 8e: Put resource labels and native diagnostics beneath the backend
 Phase 8f: Preserve legitimate manager ownership and close affected caller dependencies
   Depends on 8e.
 
-  ☐ Recheck GpuResource registration, liveness, retention, association replacement, original-context checks,
+  ☑ Recheck GpuResource registration, liveness, retention, association replacement, original-context checks,
     queued deletion and cleanup against their retained manager/owner contracts. Preserve these responsibilities;
     do not reroute every manager reference or introduce tracking in GpuResource<TMetadata> merely to remove imports.
-  ☐ Remove GpuResourceManager.MetadataOperation's concrete OpenGlStateCache/ResourceOperationGuard
+  ☑ Remove GpuResourceManager.MetadataOperation's concrete OpenGlStateCache/ResourceOperationGuard
     dependency and MetadataPublication's native guard parameter through the final internal RHI execution
     contract. Separate backend reentry/cancellation guards from manager metadata transactions; preserve
     original identity, interruption, deletion/context retirement and exactly-once publication, without
     shifting canonical transaction ownership or adding a forwarding facade/second authority.
-  ☐ Complete that guard migration across GpuResourceManager.BufferTextureCreation, FramebufferBackings,
+  ☑ Complete that guard migration across GpuResourceManager.BufferTextureCreation, FramebufferBackings,
     MetadataObservation, ImageAcquisition, MetadataAcquisition, NativeObservation, TextureCommandInputs,
     TextureViewCreation, ProgramSnapshots and Registry.CancelResourceOperation callers. Include context-local
     tools and failure/recovery paths; remove superseded concrete guard types from manager signatures.
-  ☐ Isolate GpuResource.ContextIdentity's GLFW.GetCurrentContext fallback behind the existing final context
+  ☑ Isolate GpuResource.ContextIdentity's GLFW.GetCurrentContext fallback behind the existing final context
     identity/admission boundary. Preserve context-local/headless tools, original-context ownership checks
     and manager lifetimes; do not add a second context registry or remove legitimate owner identity policy.
-  ☐ Verify EngineBoundaryResources' complete construction/consumer closure, including its BufferRangeTarget
+  ☑ Verify EngineBoundaryResources' complete construction/consumer closure, including its BufferRangeTarget
     footprint and OpenGLBackend.BoundaryAdmission/OpenGlStateCache.BoundaryBindings/BoundaryEntry callers.
     Place this native footprint with its backend implementation and keep it private there; if any managed
     consumer remains, migrate its input through the final semantic boundary in the same unit. Do not create
     a new frontend abstraction solely to wrap backend-owned data.
-  ☐ Preserve published-metadata/availability reads in GpuTextureRef, GpuBufferRef, GpuSamplerRef,
+  ☑ Preserve published-metadata/availability reads in GpuTextureRef, GpuBufferRef, GpuSamplerRef,
     GpuRenderbufferRef, auxiliary refs and wrapper validity/revision accessors. Verify they do not acquire,
     recover, execute native work or grant mutation/lifecycle authority to consumers.
-  ☐ Preserve GpuBufferObject upload queue policy, TextureStreamingManager storage-revision checks,
+  ☑ Preserve GpuBufferObject upload queue policy, TextureStreamingManager storage-revision checks,
     GpuSamplers context retirement and shader reload context-generation checks where they remain owner policy.
     Any execution/admission work discovered inside those helpers must use the final RHI operation in the same unit.
-  ☐ Inventory the full wrapper hierarchy, partial files, reference values and helper chains for concrete
+  ☑ Inventory the full wrapper hierarchy, partial files, reference values and helper chains for concrete
     cache/backend types, reader selection, native diagnostics, capability access, fully qualified calls,
     aliases and indirect execution. Explicitly classify backend-owned OpenGLPassTarget and private geometry
     recipients by callers and ownership; directory names/internal visibility alone do not justify an exemption.
-  ☐ Update every affected production, generated-binding and test caller directly, and remove superseded
+  ☑ Update every affected production, generated-binding and test caller directly, and remove superseded
     APIs and imports in its owning correction unit. No forwarding facade, compatibility alias, duplicate
     registry, dispatcher, cache or delayed shim-removal task is permitted.
+  Evidence: second review and independent stage-completion audit passed against the linked authority.
+    Debug and ordinary Release each passed 545/545 focused tests with zero skips; both full test-project/
+    production builds completed with zero errors. Coverage includes registered/local exclusions,
+    interruption, deletion/name reuse, two physical local contexts, supplied-only CPU image projection,
+    refs, retirement, native boundary footprints and lifecycle/restoration. No staging or commit was
+    performed; existing staged changes were preserved. Subphases 8g–8i and Phase 9 remain open.
+    [Routes, retained policy and final receipts](Rendering.GpuCommands.Migrations.md#manager-operation-exclusions-and-retained-ownership-phase-8f).
 
 Phase 8g: Remove legacy state purges and complete intercepted state propagation
   Depends on 8a–8f.

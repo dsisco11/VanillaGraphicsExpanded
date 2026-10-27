@@ -1,7 +1,5 @@
 using VanillaGraphicsExpanded.Rendering.RHI;
-using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System;
-using OpenTK.Graphics.OpenGL;
 
 namespace VanillaGraphicsExpanded.Rendering;
 
@@ -13,7 +11,7 @@ internal sealed partial class GpuResourceManager
     internal static GpuTextureMetadata AcquireExternalImageTexture(int id)
     {
         if (id <= 0) throw new ArgumentOutOfRangeException(nameof(id));
-        OpenGlStateCache.Current.RequireResourceOperationAvailable(GpuResourceKind.Texture, id);
+        RHICommandContext.RequireResourceOperationAvailable(GpuResourceKind.Texture, id);
         var manager = GpuResourceManagerSystem.CurrentManager;
         if (manager is not null && !manager.IsMetadataRegistryRetired)
         {
@@ -30,8 +28,7 @@ internal sealed partial class GpuResourceManager
     }
 
     /// <summary>Refreshes an image association after explicit owner replacement without letting imported IDs adopt reused objects.</summary>
-    internal static void AcquireImageMetadata(GpuFramebufferAttachment image, GpuTextureMetadata? acquiredTexture = null,
-        GpuRenderbufferMetadata? acquiredRenderbuffer = null)
+    internal static void AcquireImageMetadata(GpuFramebufferAttachment image)
     {
         if (image.IsDisposed || image.ResourceId == 0) return;
         if (image.ResourceManager is { } manager && manager.CanAcquireWrapperMetadata(image))
@@ -55,11 +52,13 @@ internal sealed partial class GpuResourceManager
             if (!entry.ContainsRecipient(image)) manager.AssociateImageResource(entry, image);
             return;
         }
+        GpuTextureMetadata? acquiredTexture = null;
+        GpuRenderbufferMetadata? acquiredRenderbuffer = null;
         // Context-local tools have no persistent registry. The manager still owns projection
         // and snapshot assignment, so wrappers never synthesize dimensions or sample counts.
         // Withdraw the old projection before any read that can fail or reject this selection.
         DiscardUntrackedMetadata(image);
-        if (image.Resource is null) OpenGlStateCache.Current.RequireResourceOperationAvailable(image.Kind, image.ResourceId);
+        if (image.Resource is null) RHICommandContext.RequireResourceOperationAvailable(image.Kind, image.ResourceId);
         // Typed local owners already hold command-established facts. Raw local IDs have no
         // such owner or registry guarantee and retain explicit native discovery.
         if (image.Resource is { } owner)

@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -54,8 +55,7 @@ internal sealed partial class ShaderLinkBatch : IDisposable
         // Nested creation must not add a second submission window over unfinished outer work.
         previous?.WaitForSubmitted();
         disable |= forceSynchronous;
-        bool arb = !disable && GpuSupport.Graphics.SupportsArbParallelShaderCompile;
-        Enabled = arb || (!disable && GpuSupport.Graphics.SupportsKhrParallelShaderCompile);
+        Enabled = !disable && RHICommandContext.Current.Capabilities.ParallelShaderCompilation;
         current = this;
         try { if (Enabled) Fill(); }
         catch { Dispose(); throw; }

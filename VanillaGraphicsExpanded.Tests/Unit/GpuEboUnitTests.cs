@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
@@ -23,14 +24,14 @@ public class GpuEboUnitTests
     }
 
     [Theory]
-    [InlineData(DrawElementsType.UnsignedByte)]
-    [InlineData(DrawElementsType.UnsignedShort)]
-    [InlineData(DrawElementsType.UnsignedInt)]
-    public void DrawElementsType_AllValidTypes_AreSupported(DrawElementsType indexType)
+    [InlineData(IndexFormat.UnsignedByte)]
+    [InlineData(IndexFormat.UnsignedShort)]
+    [InlineData(IndexFormat.UnsignedInt)]
+    public void IndexFormat_AllValidTypes_AreSupported(IndexFormat indexType)
     {
         // This test documents which index types should be supported by GpuEbo
         // We verify that these are valid enum values that can be used with the API
-        Assert.True(Enum.IsDefined(typeof(DrawElementsType), indexType));
+        Assert.True(Enum.IsDefined(typeof(IndexFormat), indexType));
     }
 
     [Theory]
@@ -112,7 +113,7 @@ public class GpuEboUnitTests
         var indexTypeProperty = typeof(GpuEbo).GetProperty("IndexType");
         
         Assert.NotNull(indexTypeProperty);
-        Assert.Equal(typeof(DrawElementsType), indexTypeProperty.PropertyType);
+        Assert.Equal(typeof(IndexFormat), indexTypeProperty.PropertyType);
         Assert.True(indexTypeProperty.CanRead);
         Assert.False(indexTypeProperty.CanWrite);
     }
@@ -186,21 +187,21 @@ public class GpuEboUnitTests
     }
 
     [Fact]
-    public void IndexDataTypes_CorrespondToDrawElementsTypes()
+    public void IndexDataTypes_CorrespondToIndexFormats()
     {
-        // This test documents the correspondence between C# types and DrawElementsType values
-        // uint[] → DrawElementsType.UnsignedInt
-        // ushort[] → DrawElementsType.UnsignedShort  
-        // byte[] → DrawElementsType.UnsignedByte
+        // This test documents the correspondence between C# types and IndexFormat values
+        // uint[] → IndexFormat.UnsignedInt
+        // ushort[] → IndexFormat.UnsignedShort
+        // byte[] → IndexFormat.UnsignedByte
         
         Assert.Equal(4, sizeof(uint)); // 4 bytes = UnsignedInt
         Assert.Equal(2, sizeof(ushort)); // 2 bytes = UnsignedShort
         Assert.Equal(1, sizeof(byte)); // 1 byte = UnsignedByte
         
         // Verify the enum values exist
-        Assert.True(Enum.IsDefined(typeof(DrawElementsType), DrawElementsType.UnsignedInt));
-        Assert.True(Enum.IsDefined(typeof(DrawElementsType), DrawElementsType.UnsignedShort));
-        Assert.True(Enum.IsDefined(typeof(DrawElementsType), DrawElementsType.UnsignedByte));
+        Assert.True(Enum.IsDefined(typeof(IndexFormat), IndexFormat.UnsignedInt));
+        Assert.True(Enum.IsDefined(typeof(IndexFormat), IndexFormat.UnsignedShort));
+        Assert.True(Enum.IsDefined(typeof(IndexFormat), IndexFormat.UnsignedByte));
     }
 
     [Fact]

@@ -1,4 +1,3 @@
-using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using System.Collections.Immutable;
 using VanillaGraphicsExpanded.Rendering.RHI;

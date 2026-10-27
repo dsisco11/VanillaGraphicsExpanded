@@ -1,10 +1,9 @@
 using VanillaGraphicsExpanded.Rendering.RHI;
-using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System;
 
 namespace VanillaGraphicsExpanded.Rendering;
 
-/// <summary>Publishes OpenGlStateCache command results to canonical entries and their synchronized wrapper snapshots.</summary>
+/// <summary>Publishes backend command results to canonical entries and their synchronized wrapper snapshots.</summary>
 internal sealed partial class GpuResourceManager
 {
     #region Internal API
@@ -65,7 +64,7 @@ internal sealed partial class GpuResourceManager
             }
             return;
         }
-        OpenGlStateCache.Current.RequireResourceOperationAvailable(resource.Kind, resource.ResourceId);
+        RHICommandContext.RequireResourceOperationAvailable(resource.Kind, resource.ResourceId);
         T data;
         try
         {

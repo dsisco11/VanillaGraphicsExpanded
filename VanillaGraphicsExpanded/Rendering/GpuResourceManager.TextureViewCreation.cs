@@ -1,4 +1,4 @@
-using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 
 namespace VanillaGraphicsExpanded.Rendering;
@@ -26,7 +26,7 @@ internal sealed partial class GpuResourceManager
         public GpuTextureMetadata? Initialize(RHI.RHICommandContext execution, in GpuTextureViewInitialization initialization, out nint id)
         {
             id = 0;
-            OpenGlStateCache.Current.RequireResourceOperationAvailable(GpuResourceKind.Texture, initialization.Source);
+            RHICommandContext.RequireResourceOperationAvailable(GpuResourceKind.Texture, initialization.Source);
             GpuTextureMetadata backing;
             if (source is not null)
             {

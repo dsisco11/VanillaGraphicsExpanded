@@ -2,7 +2,6 @@ using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering.Pipeline.Passes;
 
 namespace VanillaGraphicsExpanded.Rendering;

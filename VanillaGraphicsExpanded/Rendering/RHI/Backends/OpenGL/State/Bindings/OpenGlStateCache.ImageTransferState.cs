@@ -20,7 +20,7 @@ internal sealed partial class OpenGlStateCache
     /// <summary>Rejects a changed native namespace before an independent restoration setter can run.</summary>
     private static void RequireImageTransferContext((nint Handle,long Generation) origin)
     {
-        if(!GpuResource.IsCurrentResourceContext(origin)) throw new InvalidOperationException("The image-transfer context changed during restoration.");
+        if(!VanillaGraphicsExpanded.Rendering.Integration.RenderContextRegistry.IsCurrentResourceContext(origin)) throw new InvalidOperationException("The image-transfer context changed during restoration.");
     }
     #endregion
 
@@ -32,7 +32,7 @@ internal sealed partial class OpenGlStateCache
         /// <summary>Restores both values even when one independent restoration fails.</summary>
         public void Dispose()
         {
-            if (!GpuResource.IsCurrentResourceContext(origin))
+            if (!VanillaGraphicsExpanded.Rendering.Integration.RenderContextRegistry.IsCurrentResourceContext(origin))
                 throw new EngineBoundaryRestoreException("Image-transfer restoration requires its originating context.", new InvalidOperationException("The native context changed during transfer."));
             var owner=cache; var nativeOrigin=origin; bool originalScissor=scissor,originalSrgb=srgb;
             var failures = new System.Collections.Generic.List<Exception>();

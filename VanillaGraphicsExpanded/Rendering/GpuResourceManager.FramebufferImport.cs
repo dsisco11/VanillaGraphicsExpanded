@@ -1,6 +1,5 @@
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
-using OpenTK.Graphics.OpenGL;
 namespace VanillaGraphicsExpanded.Rendering;
 /// <summary>Owns explicit imported framebuffer recovery, identity replacement and failure publication.</summary>
 internal sealed partial class GpuResourceManager

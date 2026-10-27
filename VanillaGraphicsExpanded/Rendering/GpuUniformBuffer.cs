@@ -2,7 +2,6 @@ using System;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Diagnostics;
 
-using OpenTK.Graphics.OpenGL;
 
 namespace VanillaGraphicsExpanded.Rendering;
 

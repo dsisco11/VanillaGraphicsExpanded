@@ -1,6 +1,5 @@
 using System;
 
-using OpenTK.Graphics.OpenGL;
 
 namespace VanillaGraphicsExpanded.Rendering;
 

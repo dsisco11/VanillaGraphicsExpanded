@@ -1,6 +1,7 @@
 using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
+using OpenTK.Windowing.GraphicsLibraryFramework;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Integration;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
@@ -22,27 +23,115 @@ public sealed class GpuOperationContextFoundationTests(HeadlessGLFixture fixture
     public void GuardAdmissionAndDeletionAreContextScoped()
     {
         fixture.EnsureContextValid();
-        var cache = OpenGlStateCache.Current;
-        var origin = cache.EnterResourceOperation(new(GpuResourceKind.Buffer, 123));
+        var origin = RHICommandContext.EnterResourceOperation(new(GpuResourceKind.Buffer, 123));
         var temporaryOwner = new object();
-        OpenGlStateCache.ResourceOperationGuard? next = null;
+        IRHIResourceOperation? next = null;
         try
         {
             // Re-register the same native fixture with a new lifetime; this checks guard identity, not a second native context.
             RenderContextRegistry.Retire(fixture);
             RenderContextRegistry.RegisterCurrent(temporaryOwner, static _ => true);
-            next = cache.EnterResourceOperation(new(GpuResourceKind.Buffer, 123));
-            cache.CancelResourceOperation(GpuResourceKind.Buffer, 123);
+            next = RHICommandContext.EnterResourceOperation(new(GpuResourceKind.Buffer, 123));
+            RHICommandContext.CancelResourceOperation(GpuResourceKind.Buffer, 123);
             Assert.True(next.Deleted);
             Assert.False(origin.Deleted);
             Assert.False(origin.Cancelled);
         }
         finally
         {
-            if (next is not null) cache.ExitResourceOperation(next);
-            cache.ExitResourceOperation(origin);
+            if (next is not null) next.Dispose();
+            origin.Dispose();
             RenderContextRegistry.Retire(temporaryOwner);
             RenderContextRegistry.RegisterCurrent(fixture, static _ => true);
+            OpenGlStateCache.Current.InvalidateAll();
+        }
+    }
+
+    /// <summary>Out-of-order cleanup and repeated disposal release only the captured exclusion, without publication or admission.</summary>
+    [Fact]
+    public void SemanticGuardCleanupKeepsUnrelatedOperationAndRejectsReentry()
+    {
+        fixture.EnsureContextValid();
+        var first = RHICommandContext.EnterResourceOperation(new(GpuResourceKind.Buffer, 123));
+        using var second = RHICommandContext.EnterResourceOperation(new(GpuResourceKind.Texture, 123));
+        try
+        {
+            Assert.Throws<InvalidOperationException>(() => RHICommandContext.RequireResourceOperationAvailable(GpuResourceKind.Buffer, 123));
+            RHICommandContext.RequireResourceOperationAvailable(GpuResourceKind.Buffer, 123, first);
+            first.Interrupt();
+            Assert.True(first.Cancelled);
+            Assert.False(first.Deleted);
+            first.Dispose();
+            first.Dispose();
+            RHICommandContext.RequireResourceOperationAvailable(GpuResourceKind.Buffer, 123);
+            Assert.Throws<InvalidOperationException>(() => RHICommandContext.RequireResourceOperationAvailable(GpuResourceKind.Texture, 123));
+            RHICommandContext.CancelResourceOperation(GpuResourceKind.Texture, 123);
+            Assert.True(second.Cancelled);
+            Assert.True(second.Deleted);
+            using var replacement = RHICommandContext.EnterResourceOperation(new(GpuResourceKind.Texture, 123));
+            Assert.False(replacement.Cancelled);
+            Assert.False(replacement.Deleted);
+        }
+        finally { first.Dispose(); }
+    }
+
+    /// <summary>Physical local namespaces isolate same-name guards and reject completion from another local context.</summary>
+    [Fact]
+    public unsafe void LocalContextsKeepOriginalOperationIdentity()
+    {
+        fixture.EnsureContextValid();
+        var original = GLFW.GetCurrentContext();
+        GLFW.WindowHint(WindowHintInt.ContextVersionMajor, 4);
+        GLFW.WindowHint(WindowHintInt.ContextVersionMinor, 5);
+        GLFW.WindowHint(WindowHintBool.Visible, false);
+        var firstContext = GLFW.CreateWindow(8, 8, "Operation local A", null, null);
+        var secondContext = GLFW.CreateWindow(8, 8, "Operation local B", null, null);
+        GpuBufferObject? owner = null;
+        GpuResourceManager.MetadataOperation<GpuBufferMetadata>? operation = null;
+        IRHIResourceOperation? second = null;
+        try
+        {
+            Assert.True(firstContext != null && secondContext != null);
+            GLFW.MakeContextCurrent(firstContext);
+            owner = RHICommandContext.Current.CreateBuffer(new RHIBufferDescription
+            {
+                Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable,
+                Capacity = 16, Usage = BufferUsage.StaticDraw
+            }).RequireResource();
+            operation = new(owner, GpuMetadataChange.Storage);
+            int id = (int)owner.ResourceId;
+            Assert.Throws<InvalidOperationException>(() => RHICommandContext.RequireResourceOperationAvailable(GpuResourceKind.Buffer, id));
+
+            // The second namespace may use the same numeric name, but cannot cancel or complete A's transaction.
+            GLFW.MakeContextCurrent(secondContext);
+            _ = RHICommandContext.Current;
+            second = RHICommandContext.EnterResourceOperation(new(GpuResourceKind.Buffer, id));
+            RHICommandContext.CancelResourceOperation(GpuResourceKind.Buffer, id);
+            Assert.True(second.Deleted);
+            Assert.Throws<InvalidOperationException>(() => operation.RequireLive());
+            second.Dispose();
+            second = null;
+
+            GLFW.MakeContextCurrent(firstContext);
+            _ = RHICommandContext.Current;
+            operation.RequireLive();
+            operation.Commit(new GpuBufferMetadata(16, BufferUsage.StaticDraw));
+            Assert.Equal((nint)16, owner.SizeBytes);
+            Assert.Equal(OpenTK.Graphics.OpenGL.ErrorCode.NoError, GL.GetError());
+        }
+        finally
+        {
+            second?.Dispose();
+            if (firstContext != null)
+            {
+                GLFW.MakeContextCurrent(firstContext);
+                operation?.Dispose();
+                owner?.Dispose();
+                GLFW.DestroyWindow(firstContext);
+            }
+            if (secondContext != null) GLFW.DestroyWindow(secondContext);
+            GLFW.MakeContextCurrent(original);
+            GpuSupport.Initialize();
             OpenGlStateCache.Current.InvalidateAll();
         }
     }

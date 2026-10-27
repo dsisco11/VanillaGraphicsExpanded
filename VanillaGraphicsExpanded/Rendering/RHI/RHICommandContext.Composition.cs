@@ -14,4 +14,8 @@ public sealed partial class RHICommandContext
     /// <summary>Rejects owner operations outside this context's originating execution domain.</summary>
     internal void RequireContext() => backend.RequireContext();
     #endregion
+    #region Private
+    /// <summary>Selects existing CPU-only exclusion authority without constructing an admitted backend.</summary>
+    private static IRHIResourceOperationExecution ResourceOperations => Backends.OpenGL.OpenGlStateCache.Current;
+    #endregion
 }

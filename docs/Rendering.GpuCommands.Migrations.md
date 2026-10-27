@@ -1417,3 +1417,62 @@ preload both binding tables, so startup-order proof also includes source inspect
 dispatch remains OpenGL4. Explicit error assertions retain their existing release behavior and are not
 an automatic native-success protocol. Subphases 8f–8i and Phase 9 remain open. No JIT overrides,
 instrumented Release, staging, commit, game launch or performance qualification was performed.
+
+
+## Manager operation exclusions and retained ownership (Phase 8f)
+
+### Authority and routes
+
+The nine 8f tasks and mandatory migration contract govern this unit. Controlling sources are the
+RHI proposal (ownership, shared operation sequence, exact integration and outcomes), contracts
+(internal execution, references/factories), GPU resource and shader binding documents, canonical
+resource proposal and inventory/API coverage. The archived creation/publication proposal at
+`3f307365:docs/Rendering.CommandPublication.Proposal.md` supplies the shared commit/interruption
+rules; the texture-reference proposal at `b9fca04c:docs/Rendering.GpuTextureRef.Proposal.md` supplies
+published-only access, original dependencies and nonowning consumer retention.
+
+| Task / contract | Before and final route | Evidence scope |
+| --- | --- | --- |
+| Base resource and manager ownership | Registration, weak associations, liveness, retention counts, replacement, captured queues and original-context retirement remain in GpuResource / existing manager services. No transaction, registration or availability state enters the generic snapshot base. | Lifecycle/retirement, alias/replacement and queue regressions; source review of ResourceLifecycle, WrapperAssociations and deletion drain. |
+| MetadataOperation / MetadataPublication | Concrete cache and ResourceOperationGuard fields/parameters become private IRHIResourceOperation. Manager still withdraws, accumulates effects and commits canonical candidates once. RHICommandContext's CPU-only IRHIResourceOperationExecution gate is implemented by the existing cache; only Composition selects it. Token disposal releases the captured cache, not current-context state. | Explicit participation, caught interruption/reentry, failed disposal without recovery, exactly-once alias publication, original-context and deletion/name-reuse tests. |
+| Manager caller closure | BufferTextureCreation, FramebufferBackings, MetadataObservation, ImageAcquisition, MetadataAcquisition, NativeObservation, TextureCommandInputs, TextureViewCreation, ProgramSnapshots and Registry use final RHI exclusion entrypoints. No manager cache/backend imports or concrete guard signatures remain. Supplied attachment facts use query-free RHI/manager projection rather than native admission; tracked unavailable facts cannot be overridden. Unknown-fact acquisition remains admitted. | Source/caller inventory plus acquisition/recovery/import and publication suites. |
+| Context discovery | Physical fallback and current-resource checks now belong to existing RenderContextRegistry. CaptureCreationContext keeps resource-kind policy; RequireOriginalContext keeps owner rejection. The old static wrapper check is removed and all backend, owner and fixture callers use the registry directly. Transactions recheck owner affinity before withdrawal and participation/commit. | Registered generation/retirement and two-unregistered-physical-context tests. Local exclusions use the existing admitted native context identity; CPU registry tools do not construct a backend. |
+| Boundary footprint | EngineBoundaryResources moves from frontend Integration to backend Boundaries, including native BufferRangeTarget data. Only backend BoundaryAdmission, BoundaryBindings and BoundaryEntry construct/consume production footprints. Native fixtures import that owning namespace directly. | Complete construction/consumer search and boundary regression suites. |
+| Consumer refs | Texture/buffer/renderbuffer/sampler snapshots and auxiliary usability/revision access remain manager-owned published reads. They retain managed objects without native reads, recovery, mutation or deletion authority. Fixed shader refs retain exact executable identity. | Reference/dependency, unavailable/recovery, view/source replacement and retirement regressions; helper-chain review. |
+| Owner helper policy | Buffer queued upload/copy/growth, TextureStreamingManager destination storage certificates, GpuSamplers retirement and shader reload generation checks remain with their owners. Upload execution already enters RHI; prepared storage alignment now uses semantic RHICapabilities and link batches consume ParallelShaderCompilation there. GpuEbo's remaining native IndexType becomes existing IndexFormat, with all fixture callers migrated. | Buffer/EBO, streaming, sampler and shader workflow tests; no duplicate capability discovery or allocation policy. |
+| Hierarchy and private recipients | Reviewed all partials of GpuResource, GpuTexture and framebuffer/attachment owners; all buffer subclasses, owned/borrowed/view textures (including CloudBlueNoiseTexture), renderbuffers/samplers, VAOs, queries/fences, transform feedback, semaphores/memory objects and native executable owners, plus typed refs and helper chains. OpenGLPassTarget is a backend-created framebuffer realization owning its configuration lease, not attachment storage. CreateGeometryVertexArray is a private backend recipient handoff. EngineGeometryInputs' private recipients are nonowning exact engine-import admission; ArrayReader proves existing engine realization without native queries and buffer discovery goes through the manager's RHI-backed reader. | Caller/ownership inspection, not directory or internal-visibility exemptions. Stale wrapper/native imports removed. Native capability discovery, binary-cache opaque driver identity and explicit profiling/interception stay at their existing intentional boundaries; broad reset/propagation corrections remain 8g. |
+| Direct migration / reconciliation | No old namespace alias, wrapper context-check forwarder, new registry/cache/dispatcher or compatibility facade. Existing backend guard object implements the exclusion contract directly; native backend callers retain the same guard authority. | Final source/diff review, ordinary builds and independent audit; final receipts below. |
+
+### Validation and review
+
+The initial build required the installed pinned shader-compiler cache after the sandbox profile could
+not provide it. Cold production/test shader catalogs were rebuilt through the normal repository tooling.
+Compilation exposed GpuEbo's remaining native enum and one test enum ambiguity; both were corrected.
+The first focused run exposed three CPU-only supplied-image projections incorrectly requiring native
+admission; their unchanged tests now exercise the corrected pure supplied-fact route. Expanded lifecycle
+coverage then exposed a fixture conflating retained wrapper association with raw numeric selector
+scopes, reading retired metadata before selector entry and retaining an old unasserted sampler rejection
+expectation. The fixture now checks typed reference/RHI rejection and raw selector-scope restoration
+separately, retaining owner-mutation rejection, native-storage and replacement-entry oracles. Raw backend
+scopes select the current numeric identity; they cannot infer which retired wrapper a caller once held.
+Runtime exception policy was not relaxed. Those preliminary failing receipts do not qualify the final candidate.
+
+Final delegated validation on the corrected candidate:
+
+- Debug: **545/545 passed**, zero skips; full test-project/production build **0 errors**.
+- Ordinary Release: **545/545 passed**, zero skips; full test-project/production build **0 errors**.
+- Exact selection: `artifacts/phase8f/focused-filter.txt`.
+- Final build logs: `debug-final-lifecycle-build-2.log`, `release-final-lifecycle-build-2.log`.
+- Final behavior logs/TRX: `debug-qualified-2.log/.trx`, `release-qualified-2.log/.trx`.
+  All named receipts are under `artifacts/phase8f/`; earlier failing runs are superseded, not omitted.
+
+Second implementation review and independent audit-stage-completion review directly consulted the
+nine-task contract, parent design task and controlling current/archived sources. No required finding
+or evidence gap remains. Registered/local publication, interruption, original identity, exactly-once
+completion, context retirement and physical local-context isolation passed. The final expanded selection
+also covers supplied-only CPU projections, framebuffer discovery/multiview, wrapper/ref lifetime,
+EBO, streaming and shader workflows. No production behavior was changed to satisfy obsolete raw selector
+expectations. No native optional-feature or live rendering qualification is inferred from these focused
+receipts; integrated/package/user evidence remains Phase 9. State propagation/purge, aggregate closure
+and service naming remain open in 8g–8i. No JIT override, instrumented Release, benchmark, game launch,
+staging or commit was performed. Existing user staging was preserved.

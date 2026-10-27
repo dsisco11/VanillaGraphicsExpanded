@@ -72,7 +72,9 @@ association admission. Candidate cleanup uses the same route, preserving origina
 
 Private import operations also admit borrowed textures, executable adoption, interface acquisition and
 selected framebuffer images. Imported framebuffer recovery keeps its operation guard until descriptor
-and backing-image resolution finishes. Image validation reads supplied facts only. Manager entry delivery
+and backing-image resolution finishes. Image validation reads supplied facts only. Supplied imported-image projection enters the private RHI
+gate without native admission, associates available canonical facts or projects supplied local facts,
+and never acquires or recovers a tracked backing. Unknown-fact acquisition retains native admission. Manager entry delivery
 is authoritative for registered images; weak owner/image relationships cover local tools and intentional
 owner replacement and skip already-delivered entry recipients. Dependency notification failure does not
 convert a successfully committed replacement allocation into a failed candidate.
@@ -84,6 +86,17 @@ recertifying the native layout. Explicit engine draw-time index selection can ce
 binding; that packet uses a backend-owned array without modifying the original engine array. A nonzero
 index association must still match exactly.
 Integration adapters retain engine ownership/layout and borrowing policy, not native execution authority.
+
+Execution exclusion is separate from canonical publication. The manager's `MetadataOperation<T>`
+retains its original resource/entry, accumulated effects, availability and exactly-once commit policy.
+It holds only `IRHIResourceOperation`, a private RHI exclusion with original identity, interruption and
+observed-deletion state. `IRHIResourceOperationExecution` is implemented by the existing backend cache;
+the thin context composition root selects that same authority without constructing or admitting a native
+backend. Registry-only deletion, reentry checks and exceptional unwind therefore require no GPU queries
+or fresh native admission. Disposing the exclusion releases its originating cache bookkeeping, never
+publishes metadata or performs recovery. Registered generations isolate operations; admitted local tools
+also distinguish physical contexts. Owner context checks run before availability withdrawal and again
+before participating dispatch/commit. Physical discovery is confined to `RenderContextRegistry`.
 
 ## Resource references and factories
 

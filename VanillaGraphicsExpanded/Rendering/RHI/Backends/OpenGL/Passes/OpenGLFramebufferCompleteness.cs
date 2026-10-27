@@ -12,7 +12,7 @@ internal static class OpenGLFramebufferCompleteness
     {
         var origin=GpuResource.CaptureCreationContext(GpuResourceKind.Framebuffer);
         var status=GL.CheckNamedFramebufferStatus(framebuffer,FramebufferTarget.Framebuffer);
-        if(!GpuResource.IsCurrentResourceContext(origin))throw new InvalidOperationException("Framebuffer completeness returned in a foreign context.");
+        if(!VanillaGraphicsExpanded.Rendering.Integration.RenderContextRegistry.IsCurrentResourceContext(origin))throw new InvalidOperationException("Framebuffer completeness returned in a foreign context.");
         if(status!=FramebufferStatus.FramebufferComplete)throw new InvalidOperationException($"Framebuffer incomplete: {status}.");
     }
     #endregion

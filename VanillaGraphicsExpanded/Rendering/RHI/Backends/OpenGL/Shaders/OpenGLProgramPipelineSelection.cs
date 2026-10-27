@@ -14,7 +14,7 @@ internal static class OpenGLProgramPipelineSelection
         var origin=GpuResource.CaptureCreationContext(GpuResourceKind.ProgramPipeline);
         cache.SetProgramPipelineSelectionKnowledge(null);
         GL.BindProgramPipeline(pipeline);
-        if(!GpuResource.IsCurrentResourceContext(origin))throw new InvalidOperationException("Pipeline selection returned in a foreign context.");
+        if(!VanillaGraphicsExpanded.Rendering.Integration.RenderContextRegistry.IsCurrentResourceContext(origin))throw new InvalidOperationException("Pipeline selection returned in a foreign context.");
         cache.SetProgramPipelineSelectionKnowledge(pipeline);
     }
     #endregion

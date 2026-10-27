@@ -1,4 +1,4 @@
-using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 
 namespace VanillaGraphicsExpanded.Rendering;
@@ -15,7 +15,7 @@ internal sealed partial class GpuResourceManager
     /// <summary>Reuses canonical backing capacity, reading only previously unknown external buffers.</summary>
     internal static GpuBufferMetadata AcquireBufferTextureInput(int buffer)
     {
-        OpenGlStateCache.Current.RequireResourceOperationAvailable(GpuResourceKind.Buffer, buffer);
+        RHICommandContext.RequireResourceOperationAvailable(GpuResourceKind.Buffer, buffer);
         if (GpuResourceManagerSystem.CurrentManager is { } manager && manager.CanObserveNativeMetadata)
             return manager.AcquireResource(GpuResourceKind.Buffer, buffer, new GpuBufferMetadataReader())?.Metadata
                 ?? throw new InvalidOperationException("Buffer texture backing is unavailable.");

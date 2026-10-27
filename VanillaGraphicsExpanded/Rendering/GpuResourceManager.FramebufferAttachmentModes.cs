@@ -1,7 +1,6 @@
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
-using OpenTK.Graphics.OpenGL;
 
 namespace VanillaGraphicsExpanded.Rendering;
 

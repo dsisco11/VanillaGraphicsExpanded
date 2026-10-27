@@ -6,7 +6,7 @@ internal partial interface IRHIResourceExecution
     /// <summary>Admits AcquireBorrowedTexture through the original resource context and manager authority.</summary>
     void AcquireBorrowedTexture(BorrowedTexture owner);
     /// <summary>Admits AcquireAttachmentImage through the original resource context and manager authority.</summary>
-    void AcquireAttachmentImage(GpuFramebufferAttachment image, GpuTextureMetadata? texture = null, GpuRenderbufferMetadata? renderbuffer = null);
+    void AcquireAttachmentImage(GpuFramebufferAttachment image);
     /// <summary>Admits AcquireExternalAttachmentTexture through the original resource context and manager authority.</summary>
     GpuTextureMetadata AcquireExternalAttachmentTexture(int id);
     /// <summary>Admits AcquireProgramInterface through the original resource context and manager authority.</summary>

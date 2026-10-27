@@ -1,4 +1,4 @@
-using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
+using VanillaGraphicsExpanded.Rendering.RHI;
 namespace VanillaGraphicsExpanded.Rendering;
 
 /// <summary>Coordinates canonical refresh and typed snapshot publication on the originating context.</summary>
@@ -53,13 +53,13 @@ internal sealed partial class GpuResourceManager
 
     /// <summary>Commits a supplied result, allowing only an explicitly authorized operation past its execution guard.</summary>
     private void PublishMetadataCore<TMetadata>(GpuResourceMetadataEntry<TMetadata> entry, TMetadata candidate,
-        GpuMetadataChange change, bool renewTextureAssociation, OpenGlStateCache.ResourceOperationGuard? operation)
+        GpuMetadataChange change, bool renewTextureAssociation, IRHIResourceOperation? operation)
         where TMetadata : struct
     {
         RequireMetadataContext();
         RequireLiveEntry(entry);
         if (entry.OperationInProgress && operation is null) throw new System.InvalidOperationException("An operation owns this resource result.");
-        OpenGlStateCache.Current.RequireResourceOperationAvailable(entry.Kind, entry.Id, operation);
+        RHICommandContext.RequireResourceOperationAvailable(entry.Kind, entry.Id, operation);
         BeginMetadataCompletion(entry, change);
         entry.BeginRefresh(change);
         change |= entry.PendingChange;

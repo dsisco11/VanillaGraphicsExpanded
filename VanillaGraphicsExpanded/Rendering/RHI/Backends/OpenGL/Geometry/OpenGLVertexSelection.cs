@@ -14,7 +14,7 @@ internal static class OpenGLVertexSelection
         var origin=GpuResource.CaptureCreationContext(GpuResourceKind.VertexArray);
         cache.SetVertexArrayKnowledge(null);
         GL.BindVertexArray(vertexArray);
-        if(!GpuResource.IsCurrentResourceContext(origin))throw new InvalidOperationException("Vertex selection returned in a foreign context.");
+        if(!VanillaGraphicsExpanded.Rendering.Integration.RenderContextRegistry.IsCurrentResourceContext(origin))throw new InvalidOperationException("Vertex selection returned in a foreign context.");
         cache.SetVertexArrayKnowledge(vertexArray);
     }
     #endregion

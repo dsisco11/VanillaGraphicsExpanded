@@ -36,6 +36,10 @@ bindings/CPU blocks instead. `LiquidPoolInputAdapter` translates the three suppo
 inputs without engine executable ownership. Real native terrain/material/atmosphere/frame/light hooks
 retain their engine interfaces. See [supported replacements](GpuProgram.md#shared-workflows-and-compatibility).
 
+Storage-range alignment validation consumes cached semantic RHI capabilities. Shader batch policy
+likewise consumes the RHI parallel-compilation capability; originating context/generation checks remain
+with the asset and lifetime owners. Neither helper selects a concrete cache or native capability variant.
+
 ## Prepared executable bindings
 
 The C# attributes remain the authoritative contract. `ArrayLength` and optional `ShaderType`

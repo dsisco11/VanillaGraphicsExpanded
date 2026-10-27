@@ -65,7 +65,10 @@ Borrowed texture admission, executable adoption, interface acquisition and impor
 publication enter through private `RHICommandContext` resource operations. The admitted backend invokes
 manager acquisition; wrappers and interface preparation do not select native readers. Available aliases
 reuse their canonical entries. Converting a reference, reading a published snapshot and validating an
-attachment slot never acquire or recover facts.
+attachment slot never acquire or recover facts. Imported images with supplied canonical metadata use
+the same RHI entry but project through the manager without native admission. Tracked images associate
+only with available original canonical facts; supplied snapshots cannot recover or override an unavailable
+entry. Unknown image facts still require explicit admitted acquisition.
 
 Imported framebuffer publication holds one metadata operation while discovering descriptors and resolving
 backing images. The manager preserves face, layer, view range and observed attachment-mode evidence;
@@ -107,6 +110,17 @@ are held by the backend against the original program wrapper, association and me
 submission supersedes only that wrapper's previous request, and completion consumes it once. Snapshot assignment precedes
 availability and dependent notification. Selected framebuffer images project backing metadata without
 another canonical entry or reader when facts are available.
+
+Execution exclusion is separate from canonical publication. The manager's `MetadataOperation<T>`
+retains its original resource/entry, accumulated effects, availability and exactly-once commit policy.
+It holds only `IRHIResourceOperation`, a private RHI exclusion with original identity, interruption and
+observed-deletion state. `IRHIResourceOperationExecution` is implemented by the existing backend cache;
+the thin context composition root selects that same authority without constructing or admitting a native
+backend. Registry-only deletion, reentry checks and exceptional unwind therefore require no GPU queries
+or fresh native admission. Disposing the exclusion releases its originating cache bookkeeping, never
+publishes metadata or performs recovery. Registered generations isolate operations; admitted local tools
+also distinguish physical contexts. Owner context checks run before availability withdrawal and again
+before participating dispatch/commit. Physical discovery is confined to `RenderContextRegistry`.
 
 ## Shader executable ownership
 

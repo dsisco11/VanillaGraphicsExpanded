@@ -282,7 +282,7 @@ public sealed class GpuResourceWrapperLifecycleTests(HeadlessGLFixture fixture)
 
     /// <summary>Retired aliases cannot bind or reallocate a native name after its registry identity is replaced.</summary>
     [Fact]
-    public void RetiredWrappersRejectScopesAndStorageChangesAfterNameReuse()
+    public void RetiredWrappersRejectOwnerAndTypedUseAfterNameReuse()
     {
         using var lifetime = StartManager();
         using var texture = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba8, Width = System.Math.Max(1, 8), Height = System.Math.Max(1, 4), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
@@ -307,15 +307,22 @@ public sealed class GpuResourceWrapperLifecycleTests(HeadlessGLFixture fixture)
         var replacementFramebuffer = manager.RegisterCreatedResource<GpuFramebufferMetadata>(GpuResourceKind.Framebuffer, framebuffer.FboId);
         try
         {
-            VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(2, textureSentinel, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)textureSentinel).Target)))]);
+            RHICommandContext.Current.BindSampledTextures([new(2, textureSentinel, Dimension: TextureDimension.Two)]);
             bufferSentinel.Bind();
-            Assert.Throws<ObjectDisposedException>(() => OpenGlStateCache.Current.BindTextureScope(OpenGLImageValues.Target(((GpuTextureRef)texture).Target), 2, texture.TextureId));
+            Assert.Throws<InvalidOperationException>(() => ((GpuTextureRef)texture).Target);
+            // Raw selector scopes operate on the current numeric identity, not the retired wrapper association.
+            // They must still restore sentinels; typed operations below reject the old retained owner.
+            using (OpenGlStateCache.Current.BindTextureScope(TextureTarget.Texture2D, 2, texture.TextureId))
+                Assert.Equal(texture.TextureId, OpenGlStateCache.Current.GetBoundTexture(TextureTarget.Texture2D, 2));
+            using (OpenGlStateCache.Current.BindBufferScope(BufferTarget.ShaderStorageBuffer, buffer.BufferId))
+                Assert.Equal(buffer.BufferId, GL.GetInteger(GetPName.ShaderStorageBufferBinding));
+            Assert.Throws<InvalidOperationException>(() => RHICommandContext.Current.BindBuffer(BufferRole.ShaderStorage, buffer));
             Assert.Throws<ObjectDisposedException>(() => texture.Resize(16, 8));
-            Assert.Throws<ObjectDisposedException>(() => OpenGlStateCache.Current.BindBufferScope(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBufferValues.Target(buffer.Role), buffer.BufferId));
             buffer.Allocate(64);
             Assert.Throws<ObjectDisposedException>(() => framebuffer.Bind());
             Assert.Throws<ObjectDisposedException>(() => framebuffer.Resize(16, 8));
-            VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(2, texture, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)texture).Target)))]);
+            Assert.Throws<InvalidOperationException>(() => RHICommandContext.Current.BindSampledTextures(
+                [new(2, texture, Dimension: TextureDimension.Two)]));
             buffer.Bind();
             Assert.Equal(textureSentinel.TextureId, OpenGlStateCache.Current.GetBoundTexture(TextureTarget.Texture2D, 2));
             Assert.Equal(bufferSentinel.BufferId, GL.GetInteger(GetPName.ShaderStorageBufferBinding));

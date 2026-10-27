@@ -59,6 +59,21 @@ internal static class RenderContextRegistry
             return default;
         }
     }
+    /// <summary>Captures the registered lifetime, or physical identity for explicitly context-local resource tools.</summary>
+    internal static unsafe (nint Handle, long Generation) CaptureResourceContext()
+    {
+        var registered = Current();
+        return registered != default ? registered : ((nint)GLFW.GetCurrentContext(), 0);
+    }
+
+    /// <summary>Checks original resource affinity without native metadata acquisition or a second registry.</summary>
+    internal static unsafe bool IsCurrentResourceContext((nint Handle, long Generation) origin)
+    {
+        if (origin == default) return true;
+        return origin.Generation == 0 ? origin.Handle == (nint)GLFW.GetCurrentContext()
+            : origin == Current() && IsAlive(origin);
+    }
+
     /// <summary>Tests registration liveness without selecting or querying a native context.</summary>
     internal static bool IsAlive((nint Handle, long Generation) context)
     {

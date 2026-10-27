@@ -3,7 +3,6 @@ using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 
-using OpenTK.Graphics.OpenGL;
 
 namespace VanillaGraphicsExpanded.Rendering;
 

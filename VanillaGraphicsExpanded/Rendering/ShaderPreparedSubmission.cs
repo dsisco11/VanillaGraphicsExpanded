@@ -1,8 +1,6 @@
 using VanillaGraphicsExpanded.Rendering.RHI;
-using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System;
 using System.Collections.Generic;
-using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering.Contracts;
 using VanillaGraphicsExpanded.Rendering.Spirv;
 
@@ -131,7 +129,7 @@ internal static class ShaderPreparedSubmission
         Require(binding, range.Buffer?.IsValid == true);
         if (range.Buffer?.IsValid == true) ShaderInputValidation.RequireMetadata(range.Buffer);
         if (range.Buffer?.IsValid == true && (range.OffsetBytes < 0 || range.SizeBytes <= 0 || range.OffsetBytes > range.Buffer.SizeBytes - range.SizeBytes ||
-            range.OffsetBytes % OpenGlStateCache.Current.StorageBufferOffsetAlignment != 0))
+            range.OffsetBytes % RHICommandContext.Current.Capabilities.ShaderStorageBufferOffsetAlignment != 0))
             throw new InvalidOperationException($"Invalid storage range for {binding.Contract.Name}.");
     }
     /// <summary>Checks counter storage using retained executable activity.</summary>

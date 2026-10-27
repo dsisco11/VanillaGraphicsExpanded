@@ -1,7 +1,6 @@
 using System;
 using VanillaGraphicsExpanded.Rendering.RHI;
 
-using OpenTK.Graphics.OpenGL;
 
 namespace VanillaGraphicsExpanded.Rendering;
 
@@ -12,10 +11,10 @@ namespace VanillaGraphicsExpanded.Rendering;
 internal sealed class GpuEbo : GpuBufferObject
 {
     private int indexCount;
-    private DrawElementsType indexType;
+    private IndexFormat indexType;
 
     public int IndexCount => indexCount;
-    public DrawElementsType IndexType => indexType;
+    public IndexFormat IndexType => indexType;
 
     /// <summary>Declares index-buffer policy without native allocation or publication.</summary>
     internal GpuEbo(BufferUsage usage, string? debugName)
@@ -32,7 +31,7 @@ internal sealed class GpuEbo : GpuBufferObject
 
         UploadData(indices);
         indexCount = indices.Length;
-        indexType = DrawElementsType.UnsignedInt;
+        indexType = IndexFormat.UnsignedInt;
     }
 
     public bool TryUploadIndices(uint[] indices)
@@ -48,7 +47,7 @@ internal sealed class GpuEbo : GpuBufferObject
         }
 
         indexCount = indices.Length;
-        indexType = DrawElementsType.UnsignedInt;
+        indexType = IndexFormat.UnsignedInt;
         return true;
     }
 
@@ -56,7 +55,7 @@ internal sealed class GpuEbo : GpuBufferObject
     {
         UploadData(indices);
         indexCount = indices.Length;
-        indexType = DrawElementsType.UnsignedInt;
+        indexType = IndexFormat.UnsignedInt;
     }
 
     public bool TryUploadIndices(ReadOnlySpan<uint> indices)
@@ -67,7 +66,7 @@ internal sealed class GpuEbo : GpuBufferObject
         }
 
         indexCount = indices.Length;
-        indexType = DrawElementsType.UnsignedInt;
+        indexType = IndexFormat.UnsignedInt;
         return true;
     }
 
@@ -77,7 +76,7 @@ internal sealed class GpuEbo : GpuBufferObject
 
         UploadData(indices);
         indexCount = indices.Length;
-        indexType = DrawElementsType.UnsignedShort;
+        indexType = IndexFormat.UnsignedShort;
     }
 
     public bool TryUploadIndices(ushort[] indices)
@@ -93,7 +92,7 @@ internal sealed class GpuEbo : GpuBufferObject
         }
 
         indexCount = indices.Length;
-        indexType = DrawElementsType.UnsignedShort;
+        indexType = IndexFormat.UnsignedShort;
         return true;
     }
 
@@ -101,7 +100,7 @@ internal sealed class GpuEbo : GpuBufferObject
     {
         UploadData(indices);
         indexCount = indices.Length;
-        indexType = DrawElementsType.UnsignedShort;
+        indexType = IndexFormat.UnsignedShort;
     }
 
     public bool TryUploadIndices(ReadOnlySpan<ushort> indices)
@@ -112,7 +111,7 @@ internal sealed class GpuEbo : GpuBufferObject
         }
 
         indexCount = indices.Length;
-        indexType = DrawElementsType.UnsignedShort;
+        indexType = IndexFormat.UnsignedShort;
         return true;
     }
 
@@ -122,7 +121,7 @@ internal sealed class GpuEbo : GpuBufferObject
 
         UploadData(indices);
         indexCount = indices.Length;
-        indexType = DrawElementsType.UnsignedByte;
+        indexType = IndexFormat.UnsignedByte;
     }
 
     public bool TryUploadIndices(byte[] indices)
@@ -138,7 +137,7 @@ internal sealed class GpuEbo : GpuBufferObject
         }
 
         indexCount = indices.Length;
-        indexType = DrawElementsType.UnsignedByte;
+        indexType = IndexFormat.UnsignedByte;
         return true;
     }
 
@@ -146,7 +145,7 @@ internal sealed class GpuEbo : GpuBufferObject
     {
         UploadData(indices);
         indexCount = indices.Length;
-        indexType = DrawElementsType.UnsignedByte;
+        indexType = IndexFormat.UnsignedByte;
     }
 
     public bool TryUploadIndices(ReadOnlySpan<byte> indices)
@@ -157,7 +156,7 @@ internal sealed class GpuEbo : GpuBufferObject
         }
 
         indexCount = indices.Length;
-        indexType = DrawElementsType.UnsignedByte;
+        indexType = IndexFormat.UnsignedByte;
         return true;
     }
 

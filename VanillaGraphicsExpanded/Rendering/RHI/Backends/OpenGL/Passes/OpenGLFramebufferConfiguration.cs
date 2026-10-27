@@ -75,7 +75,7 @@ internal static class OpenGLFramebufferConfiguration
                 image.TextureId, image.MipLevel, image.Layer ?? ((int)image.CubeFace!.Value - (int)CubeFace.PositiveX));
         else OpenTK.Graphics.OpenGL4.GL.NamedFramebufferTexture(id, (OpenTK.Graphics.OpenGL4.FramebufferAttachment)slot,
             image?.TextureId ?? 0, image?.MipLevel ?? 0);
-        if (!GpuResource.IsCurrentResourceContext(origin)) throw new InvalidOperationException("Attachment configuration returned in a foreign context.");
+        if (!VanillaGraphicsExpanded.Rendering.Integration.RenderContextRegistry.IsCurrentResourceContext(origin)) throw new InvalidOperationException("Attachment configuration returned in a foreign context.");
     }
     #endregion
 

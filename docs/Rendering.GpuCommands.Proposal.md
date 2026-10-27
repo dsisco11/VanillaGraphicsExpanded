@@ -661,6 +661,16 @@ the recording boundary, not full concurrent execution qualification. Worker reco
 integration remain separate design decisions requiring additional approval and their own race/lifetime
 tests; this implementation does not require a performance study to assess that future work.
 
+## Execution exclusions and resource lifetimes
+
+Canonical metadata transactions remain manager-owned. Their private RHI exclusion contract exposes
+original identity, interruption and deletion state only; it neither holds candidates nor commits them.
+The existing backend cache supplies that exclusion through the thin context composition root without
+native admission. This preserves registry-only tools, cancellation and originating-cache cleanup while
+removing concrete cache guards from manager signatures. Context-local operations also preserve physical
+namespace identity through the existing context registry. Ordinary wrappers retain ownership, usage
+retention and queued retirement policy; consumer references read only published facts.
+
 ## Optional diagnostics
 
 Resource owners keep managed names and submit optional labels through the RHI using the existing

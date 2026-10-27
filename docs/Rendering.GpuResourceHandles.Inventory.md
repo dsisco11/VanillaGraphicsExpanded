@@ -64,7 +64,7 @@ sampling policy and configuration remain separate wrapper operations.
 | Texture | `BorrowedTexture(int)` | Reuses available covered canonical facts; unknown or unavailable objects use native target/image discovery. Non-owning; transfer rejected; dispose is local only. Same live native object must share the owner's canonical entry. |
 | Texture | `GpuBufferView`, derived `GpuBufferTexture` | Own the texture name, not the buffer. Buffer ID, format, offset and size describe the view; track texture association changes. Whole-buffer views currently use size zero as a sentinel, not a cached capacity; preserve that convention. |
 | Texture | `GpuTextureView` | Owns a distinct texture object sharing immutable storage, with source reference/ID/generation, target, format, base/count levels and layers. It gets its own canonical texture entry, distinct from its source. Preserve current source-generation validation. |
-| Buffer | `GpuBufferObject`: `GpuVbo`, `GpuEbo`, `GpuUniformBuffer`, `GpuShaderStorageBuffer`, `GpuAtomicCounterBuffer`, `GpuIndirectBuffer`, `GpuPixelPackBuffer`, `GpuPixelUnpackBuffer` | Core CreateBuffers only; capacity/usage/immutable/access flags are storage metadata. `Role` is the wrapper's intended semantic binding policy. EBO index type/count are authored interpretation/content extent, not discoverable from GL bytes. Pack/unpack methods return mapping pointers to their callers; they do not retain a mapping snapshot for notification to refresh. |
+| Buffer | `GpuBufferObject`: `GpuVbo`, `GpuEbo`, `GpuUniformBuffer`, `GpuShaderStorageBuffer`, `GpuAtomicCounterBuffer`, `GpuIndirectBuffer`, `GpuPixelPackBuffer`, `GpuPixelUnpackBuffer` | Core CreateBuffers only; capacity/usage/immutable/access flags are storage metadata. `Role` is the wrapper's intended semantic binding policy. EBO index type/count use semantic IndexFormat and authored content extent, not discoverable GL facts. Pack/unpack methods return mapping pointers to their callers; they do not retain a mapping snapshot for notification to refresh. |
 | Framebuffer | `GpuFramebuffer`: `DynamicGpuFramebuffer`, `StaticGpuFramebuffer` | Generated owners and external non-owning wraps. Attachment dictionary, wrapped extent, surface/pass metadata and dirty publication. External attachment changes refresh actual attachment descriptions, preserving ownership of existing image wrappers. Window-surface format/samples remain on the explicit surface publication path; default framebuffer zero is not a native object handle. Static attachment locks stay in force. |
 | Texture / Renderbuffer | `GpuFramebufferAttachment` | Constructors immediately allocate owned backing storage, or factories retain a typed/raw external image; base `OwnsResource=false`, but owned backing storage is released through its existing disposal queue/finalizer mechanism. Associate with the backing entry and receive an image metadata projection. Selected mip/layer/cube face remain local view choices. External dimensions/format/samples must refresh. `Detach` rejected. |
 | Renderbuffer | `RHICommandContext.CreateRenderbuffer` / `OpenGLRenderbufferIntegration.Borrow` | Creation owns; explicit native integration borrows. Storage format, width, height and actual sample count refresh from native storage. Only owning wrappers may transfer their handle; Wrap borrowers reject Detach and ReleaseHandle without affecting the external owner. |
@@ -80,6 +80,14 @@ sampling policy and configuration remain separate wrapper operations.
 
 The `new IsValid` properties in concrete wrappers must also consume shared validity; changing only the
 base property would leave bypasses. Debug labels and authored policies remain wrapper-local.
+
+The native `EngineBoundaryResources` footprint belongs to backend boundary admission/restoration and
+has no managed consumer. `OpenGLPassTarget` is a private framebuffer realization retaining its original
+configuration lease and nonowned image projections. Private geometry-array creation completes an
+unpublished `GpuVao` through the manager before cache membership. Engine geometry import recipients
+remain nonowning members of the explicit OpenGL integration boundary: their empty-array reader uses
+engine realization proof, while unknown buffer facts use the manager's RHI-backed reader. None supplies
+an ordinary wrapper with native execution authority.
 
 ## Lifecycle and existing enforcement
 

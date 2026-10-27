@@ -38,7 +38,7 @@ internal sealed partial class GpuResourceManager
             // follows the same ownership cleanup even before canonical registration exists.
             var candidate = creation.Initialize(RHI.RHICommandContext.Current, request, out id);
             if (!candidate.HasValue || id == 0) return null;
-            if (origin != RenderContextRegistry.Current() || !GpuResource.IsCurrentResourceContext(nativeOrigin))
+            if (origin != RenderContextRegistry.Current() || !VanillaGraphicsExpanded.Rendering.Integration.RenderContextRegistry.IsCurrentResourceContext(nativeOrigin))
                 throw new InvalidOperationException("The creation context changed before publication.");
             ValidateMetadataType<TMetadata>(creation.Kind, id);
             if (manager is not null)
@@ -53,7 +53,7 @@ internal sealed partial class GpuResourceManager
                 candidate = entry.Metadata;
             }
             recipient.SetCreationIdentity(id, nativeOrigin);
-            if (!GpuResource.IsCurrentResourceContext(nativeOrigin) || origin != RenderContextRegistry.Current()
+            if (!VanillaGraphicsExpanded.Rendering.Integration.RenderContextRegistry.IsCurrentResourceContext(nativeOrigin) || origin != RenderContextRegistry.Current()
                 || origin != default && !RenderContextRegistry.IsAlive(origin))
                 throw new InvalidOperationException("The creation context retired during identity handoff.");
             if (manager is not null)

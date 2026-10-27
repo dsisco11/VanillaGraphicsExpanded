@@ -1,5 +1,4 @@
 using VanillaGraphicsExpanded.Rendering.RHI;
-using OpenTK.Graphics.OpenGL;
 
 namespace VanillaGraphicsExpanded.Rendering;
 

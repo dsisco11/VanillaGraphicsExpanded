@@ -2,7 +2,6 @@ using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using System.Threading;
 
-using OpenTK.Graphics.OpenGL;
 
 namespace VanillaGraphicsExpanded.Rendering;
 
@@ -56,7 +55,7 @@ public abstract partial class GpuResource : IDisposable
         RequireRetirement();
         if (ResourceId != 0 && !IsValid) throw new InvalidOperationException("The original resource allocation has retired.");
         var origin = NativeProgramContext != default ? NativeProgramContext : nativeContext;
-        if (ResourceId != 0 && origin != default && (origin.Generation == 0 ? !IsCurrentResourceContext(origin) : !Integration.RenderContextRegistry.IsAlive(origin)))
+        if (ResourceId != 0 && origin != default && (origin.Generation == 0 ? !Integration.RenderContextRegistry.IsCurrentResourceContext(origin) : !Integration.RenderContextRegistry.IsAlive(origin)))
             throw new InvalidOperationException("The original resource context has retired.");
 
         nint id = ResourceId;
@@ -187,7 +186,7 @@ public abstract partial class GpuResource : IDisposable
         if (origin.Generation == 0)
         {
             // An unregistered tool has no foreign-context cleanup service. Never delete a name in another namespace.
-            if (IsCurrentResourceContext(origin))
+            if (Integration.RenderContextRegistry.IsCurrentResourceContext(origin))
             {
                 RHICommandContext.Current.RetireResource(new(kind, id));
             }

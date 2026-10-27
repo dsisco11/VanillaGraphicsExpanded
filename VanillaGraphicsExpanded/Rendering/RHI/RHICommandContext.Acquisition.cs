@@ -5,8 +5,13 @@ public sealed partial class RHICommandContext
     #region Internal API
     /// <summary>Routes explicit AcquireBorrowedTexture without exposing native execution to resource wrappers.</summary>
     internal void AcquireBorrowedTexture(BorrowedTexture owner) => backend.AcquireBorrowedTexture(owner);
-    /// <summary>Routes explicit AcquireAttachmentImage without exposing native execution to resource wrappers.</summary>
-    internal void AcquireAttachmentImage(GpuFramebufferAttachment image, GpuTextureMetadata? texture = null, GpuRenderbufferMetadata? renderbuffer = null) => backend.AcquireAttachmentImage(image, texture, renderbuffer);
+    /// <summary>Projects supplied canonical facts without admission; only unknown image acquisition enters native execution.</summary>
+    internal static void AcquireAttachmentImage(GpuFramebufferAttachment image, GpuTextureMetadata? texture = null, GpuRenderbufferMetadata? renderbuffer = null)
+    {
+        if (texture.HasValue || renderbuffer.HasValue)
+            GpuResourceManager.AssociateSuppliedImageMetadata(image, texture, renderbuffer);
+        else Current.backend.AcquireAttachmentImage(image);
+    }
     /// <summary>Routes explicit AcquireExternalAttachmentTexture without exposing native execution to resource wrappers.</summary>
     internal GpuTextureMetadata AcquireExternalAttachmentTexture(int id) => backend.AcquireExternalAttachmentTexture(id);
     /// <summary>Routes explicit AcquireProgramInterface without exposing native execution to resource wrappers.</summary>

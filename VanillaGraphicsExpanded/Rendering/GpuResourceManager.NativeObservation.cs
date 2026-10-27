@@ -1,4 +1,4 @@
-using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
+using VanillaGraphicsExpanded.Rendering.RHI;
 namespace VanillaGraphicsExpanded.Rendering;
 
 /// <summary>Selects existing entries for native command observation within their owning context.</summary>
@@ -13,7 +13,7 @@ internal sealed partial class GpuResourceManager
     {
         if (id == 0 || !CanObserveNativeMetadata) return null;
         RequireMetadataContext();
-        OpenGlStateCache.Current.RequireResourceOperationAvailable(kind, id);
+        RHICommandContext.RequireResourceOperationAvailable(kind, id);
         var entry = FindResource(kind, id);
         return entry?.State == GpuResourceRegistrationState.Live ? entry : null;
     }

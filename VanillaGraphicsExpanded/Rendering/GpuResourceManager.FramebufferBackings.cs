@@ -1,7 +1,5 @@
 using VanillaGraphicsExpanded.Rendering.RHI;
-using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System;
-using OpenTK.Graphics.OpenGL;
 
 namespace VanillaGraphicsExpanded.Rendering;
 
@@ -12,7 +10,7 @@ internal sealed partial class GpuResourceManager
     /// <summary>Uses available covered texture facts unless the external owner explicitly requests recovery.</summary>
     internal static GpuTextureMetadata AcquireFramebufferTexture(int id, TextureDimension target, bool recover)
     {
-        OpenGlStateCache.Current.RequireResourceOperationAvailable(GpuResourceKind.Texture, id);
+        RHICommandContext.RequireResourceOperationAvailable(GpuResourceKind.Texture, id);
         var manager = GpuResourceManagerSystem.CurrentManager;
         if (manager?.CanObserveNativeMetadata == true)
         {
@@ -29,7 +27,7 @@ internal sealed partial class GpuResourceManager
     /// <summary>Uses one renderbuffer snapshot for every image selection in a framebuffer discovery.</summary>
     internal static GpuRenderbufferMetadata AcquireFramebufferRenderbuffer(int id, bool recover)
     {
-        OpenGlStateCache.Current.RequireResourceOperationAvailable(GpuResourceKind.Renderbuffer, id);
+        RHICommandContext.RequireResourceOperationAvailable(GpuResourceKind.Renderbuffer, id);
         var manager = GpuResourceManagerSystem.CurrentManager;
         if (manager?.CanObserveNativeMetadata == true)
         {

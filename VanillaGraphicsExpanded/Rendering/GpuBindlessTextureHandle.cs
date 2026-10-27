@@ -49,7 +49,7 @@ internal sealed class GpuBindlessTextureHandle : IDisposable
     /// <summary>Releases residency without sending commands into a replacement context.</summary>
     public void Dispose()
     {
-        if (GpuResource.IsCurrentResourceContext(origin)) MakeNonResident();
+        if (VanillaGraphicsExpanded.Rendering.Integration.RenderContextRegistry.IsCurrentResourceContext(origin)) MakeNonResident();
         resident = false;
         handle = 0;
     }
@@ -60,6 +60,6 @@ internal sealed class GpuBindlessTextureHandle : IDisposable
     { this.handle = handle; origin = GpuResource.CaptureCreationContext(GpuResourceKind.Texture); }
     /// <summary>Rejects use after the issuing context has retired.</summary>
     private void RequireOrigin()
-    { if (!GpuResource.IsCurrentResourceContext(origin)) throw new InvalidOperationException("The bindless context has retired."); }
+    { if (!VanillaGraphicsExpanded.Rendering.Integration.RenderContextRegistry.IsCurrentResourceContext(origin)) throw new InvalidOperationException("The bindless context has retired."); }
     #endregion
 }

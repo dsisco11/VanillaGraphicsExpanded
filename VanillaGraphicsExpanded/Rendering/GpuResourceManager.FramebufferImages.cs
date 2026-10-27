@@ -1,6 +1,5 @@
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Collections.Generic;
-using OpenTK.Graphics.OpenGL;
 namespace VanillaGraphicsExpanded.Rendering;
 /// <summary>Resolves descriptor backings once and projects exact image selections through canonical manager facts.</summary>
 internal sealed partial class GpuResourceManager

@@ -45,7 +45,7 @@ public class GpuEboIntegrationTests : IDisposable
         Assert.Equal(BufferUsage.StaticDraw, ebo.Usage);
         Assert.Equal(0, ebo.SizeBytes);
         Assert.Equal(0, ebo.IndexCount);
-        Assert.Equal(default(DrawElementsType), ebo.IndexType);
+        Assert.Equal(default(IndexFormat), ebo.IndexType);
         Assert.Null(ebo.DebugName);
         Assert.False(ebo.IsDisposed);
     }
@@ -136,7 +136,7 @@ public class GpuEboIntegrationTests : IDisposable
 
         // Assert
         Assert.Equal(indices.Length, ebo.IndexCount);
-        Assert.Equal(DrawElementsType.UnsignedInt, ebo.IndexType);
+        Assert.Equal(IndexFormat.UnsignedInt, ebo.IndexType);
         Assert.Equal(indices.Length * sizeof(uint), ebo.SizeBytes);
         Assert.True(ebo.IsValid);
     }
@@ -166,7 +166,7 @@ public class GpuEboIntegrationTests : IDisposable
         // Assert
         Assert.True(result);
         Assert.Equal(indices.Length, ebo.IndexCount);
-        Assert.Equal(DrawElementsType.UnsignedInt, ebo.IndexType);
+        Assert.Equal(IndexFormat.UnsignedInt, ebo.IndexType);
     }
 
     [Fact]
@@ -198,7 +198,7 @@ public class GpuEboIntegrationTests : IDisposable
 
         // Assert
         Assert.Equal(indices.Length, ebo.IndexCount);
-        Assert.Equal(DrawElementsType.UnsignedInt, ebo.IndexType);
+        Assert.Equal(IndexFormat.UnsignedInt, ebo.IndexType);
         Assert.Equal(indices.Length * sizeof(uint), ebo.SizeBytes);
     }
 
@@ -217,7 +217,7 @@ public class GpuEboIntegrationTests : IDisposable
         // Assert
         Assert.True(result);
         Assert.Equal(indices.Length, ebo.IndexCount);
-        Assert.Equal(DrawElementsType.UnsignedInt, ebo.IndexType);
+        Assert.Equal(IndexFormat.UnsignedInt, ebo.IndexType);
     }
 
     #endregion
@@ -237,7 +237,7 @@ public class GpuEboIntegrationTests : IDisposable
 
         // Assert
         Assert.Equal(indices.Length, ebo.IndexCount);
-        Assert.Equal(DrawElementsType.UnsignedShort, ebo.IndexType);
+        Assert.Equal(IndexFormat.UnsignedShort, ebo.IndexType);
         Assert.Equal(indices.Length * sizeof(ushort), ebo.SizeBytes);
         Assert.True(ebo.IsValid);
     }
@@ -267,7 +267,7 @@ public class GpuEboIntegrationTests : IDisposable
         // Assert
         Assert.True(result);
         Assert.Equal(indices.Length, ebo.IndexCount);
-        Assert.Equal(DrawElementsType.UnsignedShort, ebo.IndexType);
+        Assert.Equal(IndexFormat.UnsignedShort, ebo.IndexType);
     }
 
     [Fact]
@@ -299,7 +299,7 @@ public class GpuEboIntegrationTests : IDisposable
 
         // Assert
         Assert.Equal(indices.Length, ebo.IndexCount);
-        Assert.Equal(DrawElementsType.UnsignedShort, ebo.IndexType);
+        Assert.Equal(IndexFormat.UnsignedShort, ebo.IndexType);
         Assert.Equal(indices.Length * sizeof(ushort), ebo.SizeBytes);
     }
 
@@ -318,7 +318,7 @@ public class GpuEboIntegrationTests : IDisposable
         // Assert
         Assert.True(result);
         Assert.Equal(indices.Length, ebo.IndexCount);
-        Assert.Equal(DrawElementsType.UnsignedShort, ebo.IndexType);
+        Assert.Equal(IndexFormat.UnsignedShort, ebo.IndexType);
     }
 
     #endregion
@@ -338,7 +338,7 @@ public class GpuEboIntegrationTests : IDisposable
 
         // Assert
         Assert.Equal(indices.Length, ebo.IndexCount);
-        Assert.Equal(DrawElementsType.UnsignedByte, ebo.IndexType);
+        Assert.Equal(IndexFormat.UnsignedByte, ebo.IndexType);
         Assert.Equal(indices.Length * sizeof(byte), ebo.SizeBytes);
         Assert.True(ebo.IsValid);
     }
@@ -368,7 +368,7 @@ public class GpuEboIntegrationTests : IDisposable
         // Assert
         Assert.True(result);
         Assert.Equal(indices.Length, ebo.IndexCount);
-        Assert.Equal(DrawElementsType.UnsignedByte, ebo.IndexType);
+        Assert.Equal(IndexFormat.UnsignedByte, ebo.IndexType);
     }
 
     [Fact]
@@ -400,7 +400,7 @@ public class GpuEboIntegrationTests : IDisposable
 
         // Assert
         Assert.Equal(indices.Length, ebo.IndexCount);
-        Assert.Equal(DrawElementsType.UnsignedByte, ebo.IndexType);
+        Assert.Equal(IndexFormat.UnsignedByte, ebo.IndexType);
         Assert.Equal(indices.Length * sizeof(byte), ebo.SizeBytes);
     }
 
@@ -419,7 +419,7 @@ public class GpuEboIntegrationTests : IDisposable
         // Assert
         Assert.True(result);
         Assert.Equal(indices.Length, ebo.IndexCount);
-        Assert.Equal(DrawElementsType.UnsignedByte, ebo.IndexType);
+        Assert.Equal(IndexFormat.UnsignedByte, ebo.IndexType);
     }
 
     #endregion
@@ -439,13 +439,13 @@ public class GpuEboIntegrationTests : IDisposable
         // Act
         ebo.UploadIndices(firstIndices);
         Assert.Equal(firstIndices.Length, ebo.IndexCount);
-        Assert.Equal(DrawElementsType.UnsignedInt, ebo.IndexType);
+        Assert.Equal(IndexFormat.UnsignedInt, ebo.IndexType);
 
         ebo.UploadIndices(secondIndices);
 
         // Assert - Second upload should overwrite first
         Assert.Equal(secondIndices.Length, ebo.IndexCount);
-        Assert.Equal(DrawElementsType.UnsignedShort, ebo.IndexType);
+        Assert.Equal(IndexFormat.UnsignedShort, ebo.IndexType);
         Assert.Equal(secondIndices.Length * sizeof(ushort), ebo.SizeBytes);
     }
 
@@ -462,7 +462,7 @@ public class GpuEboIntegrationTests : IDisposable
 
         // Assert
         Assert.Equal(0, ebo.IndexCount);
-        Assert.Equal(DrawElementsType.UnsignedInt, ebo.IndexType);
+        Assert.Equal(IndexFormat.UnsignedInt, ebo.IndexType);
         Assert.Equal(0, ebo.SizeBytes);
     }
 
@@ -481,7 +481,7 @@ public class GpuEboIntegrationTests : IDisposable
         
         int originalBufferId = ebo.BufferId;
         int originalIndexCount = ebo.IndexCount;
-        DrawElementsType originalIndexType = ebo.IndexType;
+        IndexFormat originalIndexType = ebo.IndexType;
 
         // Act
         int detachedId = (int)ebo.Detach();
@@ -490,7 +490,7 @@ public class GpuEboIntegrationTests : IDisposable
         Assert.Equal(originalBufferId, detachedId);
         Assert.Equal(0, ebo.BufferId);
         Assert.Equal(0, ebo.IndexCount); // Should be reset
-        Assert.Equal(default(DrawElementsType), ebo.IndexType); // Should be reset
+        Assert.Equal(default(IndexFormat), ebo.IndexType); // Should be reset
         Assert.True(ebo.IsDisposed);
         Assert.False(ebo.IsValid);
 
@@ -515,7 +515,7 @@ public class GpuEboIntegrationTests : IDisposable
         // Assert
         Assert.Equal(0, ebo.BufferId);
         Assert.Equal(0, ebo.IndexCount); // Should be reset
-        Assert.Equal(default(DrawElementsType), ebo.IndexType); // Should be reset
+        Assert.Equal(default(IndexFormat), ebo.IndexType); // Should be reset
         Assert.True(ebo.IsDisposed);
         Assert.False(ebo.IsValid);
     }

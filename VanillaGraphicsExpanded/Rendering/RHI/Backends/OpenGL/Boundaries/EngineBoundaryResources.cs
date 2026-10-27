@@ -5,7 +5,7 @@ using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using VanillaGraphicsExpanded.Rendering.Contracts;
 using VanillaGraphicsExpanded.Rendering.Spirv;
-namespace VanillaGraphicsExpanded.Rendering.Integration;
+namespace VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 
 /// <summary>Immutable borrowed-slot footprint derived from prepared executable assignments and explicit helper effects.</summary>
 internal sealed class EngineBoundaryResources

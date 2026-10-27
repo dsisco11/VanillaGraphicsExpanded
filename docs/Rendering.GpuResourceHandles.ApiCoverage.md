@@ -103,6 +103,9 @@ applies those same destinations only where their execution has a represented met
 Buffer, texture, buffer-texture, renderbuffer, sampler and auxiliary-resource dispatch live under the focused
 `Rendering/RHI/Backends/OpenGL` modules; OpenGlStateCache retains selector knowledge and operation reconciliation.
 Shader, framebuffer and vertex families execute in their focused OpenGL backend modules as well.
+Manager transaction admission reaches the existing cache exclusion through the private RHI operation
+contract. Concrete cache guards never enter manager publication signatures; canonical commit,
+interruption and original-association retirement remain manager-owned.
 Every route is native command -> existing observation/publication services -> context's GpuResourceManager -> canonical
 struct update -> typed wrapper snapshots -> existing dependent validation/publication. Read canonical
 facts once per change, not once per wrapper. Texture and renderbuffer changes also project selected

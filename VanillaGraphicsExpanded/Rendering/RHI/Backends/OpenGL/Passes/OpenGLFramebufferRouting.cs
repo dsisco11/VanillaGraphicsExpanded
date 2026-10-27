@@ -67,7 +67,7 @@ internal static class OpenGLFramebufferRouting
                 else GL.DrawBuffers(native.Length, native);
             }
         }
-        if (!GpuResource.IsCurrentResourceContext(origin)) throw new InvalidOperationException("Framebuffer routing returned in a foreign context.");
+        if (!VanillaGraphicsExpanded.Rendering.Integration.RenderContextRegistry.IsCurrentResourceContext(origin)) throw new InvalidOperationException("Framebuffer routing returned in a foreign context.");
         cache.RememberFramebufferDrawRouting(framebuffer, route);
     }
     /// <summary>Identifies single-route window restoration without changing grouped selector meaning.</summary>

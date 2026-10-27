@@ -22,7 +22,7 @@ internal static class OpenGLFramebufferSelection
         var origin = GpuResource.CaptureCreationContext(GpuResourceKind.Framebuffer);
         cache.SetFramebufferSelectionKnowledge(target, null);
         GL.BindFramebuffer((FramebufferTarget)target, framebuffer);
-        if (!GpuResource.IsCurrentResourceContext(origin)) throw new InvalidOperationException("Framebuffer selection returned in a foreign context.");
+        if (!VanillaGraphicsExpanded.Rendering.Integration.RenderContextRegistry.IsCurrentResourceContext(origin)) throw new InvalidOperationException("Framebuffer selection returned in a foreign context.");
         cache.SetFramebufferSelectionKnowledge(target, framebuffer);
     }
     /// <summary>Forwards an exact engine call without converting unknown native acceptance into cache certainty.</summary>

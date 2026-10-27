@@ -10,10 +10,14 @@ internal sealed partial class OpenGLBackend
         owner.RequireOriginalContext(); GpuResourceManager.AcquireWrapperMetadata(owner, GpuTextureMetadataReader.Instance);
     }
     /// <inheritdoc />
-    public void AcquireAttachmentImage(GpuFramebufferAttachment image, GpuTextureMetadata? texture = null, GpuRenderbufferMetadata? renderbuffer = null)
+    public void AcquireAttachmentImage(GpuFramebufferAttachment image)
     {
         RequireContext();
-        GpuResourceManager.AcquireImageMetadata(image, texture, renderbuffer);
+        if (image.ViewCount != 0 && (!Capabilities.Multiview
+            || image.AttachmentMode == GpuFramebufferAttachmentMode.Multiview && image.ViewCount > Capabilities.MaxMultiviewViews
+            || (long)image.BaseView + image.ViewCount > Capabilities.MaxArrayTextureLayers))
+            throw new System.ArgumentOutOfRangeException(nameof(image), "The image selection exceeds multiview capabilities.");
+        GpuResourceManager.AcquireImageMetadata(image);
     }
     /// <inheritdoc />
     public GpuTextureMetadata AcquireExternalAttachmentTexture(int id)

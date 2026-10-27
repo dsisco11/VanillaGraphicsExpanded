@@ -1,4 +1,4 @@
-using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using VanillaGraphicsExpanded.Rendering.Integration;
 
@@ -13,20 +13,46 @@ internal sealed partial class GpuResourceManager
         private readonly GpuResource<T> resource;
         private readonly GpuResourceMetadataEntry<T>? entry;
         private readonly (nint Handle, long Generation) context;
-        private readonly OpenGlStateCache cache;
-        private readonly OpenGlStateCache.ResourceOperationGuard guard;
+        private readonly IRHIResourceOperation guard;
         private GpuMetadataChange effects;
         private bool completed, disposed, completionAttempted;
+
+        #region Public API
+        /// <summary>Releases bookkeeping without reading native state or treating disposal as success.</summary>
+        public void Dispose()
+        {
+            if (disposed) return;
+            disposed = true;
+            try
+            {
+                if (entry is not null) entry.OperationInProgress = false;
+                if (!completed)
+                {
+                    if (entry is null)
+                    {
+                        if (!guard.Deleted && resource.ResourceId == guard.Handle.Id) DiscardUntrackedMetadata(resource, effects);
+                        PublishOwnerImages(resource, false);
+                    }
+                    else
+                    {
+                        entry.BeginRefresh(effects);
+                        WithdrawOperationDependents(entry, resource, effects);
+                    }
+                }
+            }
+            finally { guard.Dispose(); }
+        }
+        #endregion
 
         #region Internal API
         /// <summary>Withdraws affected metadata before any participating command executes.</summary>
         internal MetadataOperation(GpuResource<T> resource, GpuMetadataChange effects)
         {
             ObjectDisposedException.ThrowIf(!resource.IsValid, resource);
+            resource.RequireOriginalContext();
             this.resource = resource;
             this.effects = effects;
             context = RenderContextRegistry.Current();
-            cache = OpenGlStateCache.Current;
             var manager = resource.ResourceManager;
             if (manager is not null && manager.CanAcquireWrapperMetadata(resource))
             {
@@ -41,7 +67,7 @@ internal sealed partial class GpuResourceManager
                     throw new InvalidOperationException("Metadata completion is already in progress.");
                 }
             }
-            guard = cache.EnterResourceOperation(new(resource.Kind, resource.ResourceId));
+            guard = RHICommandContext.EnterResourceOperation(new(resource.Kind, resource.ResourceId));
             try
             {
                 if (entry is not null)
@@ -55,7 +81,7 @@ internal sealed partial class GpuResourceManager
             catch
             {
                 if (entry is not null) entry.OperationInProgress = false;
-                cache.ExitResourceOperation(guard);
+                guard.Dispose();
                 throw;
             }
         }
@@ -73,7 +99,7 @@ internal sealed partial class GpuResourceManager
         }
 
         /// <summary>Prevents a caught participating dispatch failure from certifying the enclosing result.</summary>
-        internal void Interrupt() => guard.Cancelled = true;
+        internal void Interrupt() => guard.Interrupt();
 
         /// <summary>Commits a complete supplied candidate once; native recovery is the operation owner's choice.</summary>
         internal void Commit(T candidate)
@@ -102,35 +128,11 @@ internal sealed partial class GpuResourceManager
                 throw new InvalidOperationException("The original operation is no longer available for completion.");
             // Preserve terminal-operation rejection above, then recheck affinity before
             // a participating dispatch or commit that could still use the live identity.
+            resource.RequireOriginalContext();
             entry?.Manager.RequireMetadataContext();
         }
         #endregion
 
-        #region Public API
-        /// <summary>Releases bookkeeping without reading native state or treating disposal as success.</summary>
-        public void Dispose()
-        {
-            if (disposed) return;
-            disposed = true;
-            try
-            {
-                if (entry is not null) entry.OperationInProgress = false;
-                if (!completed)
-                {
-                    if (entry is null)
-                    {
-                        if (!guard.Deleted && resource.ResourceId == guard.Handle.Id) DiscardUntrackedMetadata(resource, effects);
-                        PublishOwnerImages(resource, false);
-                    }
-                    else
-                    {
-                        entry.BeginRefresh(effects);
-                        WithdrawOperationDependents(entry, resource, effects);
-                    }
-                }
-            }
-            finally { cache.ExitResourceOperation(guard); }
-        }
-        #endregion
+
     }
 }

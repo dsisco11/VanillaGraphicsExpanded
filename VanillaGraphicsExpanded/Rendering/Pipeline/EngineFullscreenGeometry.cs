@@ -112,7 +112,7 @@ internal sealed class EngineFullscreenGeometry : GraphicsGeometry
         // The adapter owns terminal cleanup. Suppress the engine leak diagnostic when
         // ownership moves to deferred cleanup or the retired context reclaims its names.
         GC.SuppressFinalize(mesh);
-        if (GpuResource.IsCurrentResourceContext(origin))
+        if (VanillaGraphicsExpanded.Rendering.Integration.RenderContextRegistry.IsCurrentResourceContext(origin))
         {
             OpenGLRHIContext.DeleteEngineMesh(render, mesh);
             return;

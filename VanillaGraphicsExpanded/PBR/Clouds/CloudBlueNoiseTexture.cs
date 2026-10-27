@@ -1,6 +1,5 @@
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
-using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Noise;
 using VanillaGraphicsExpanded.Rendering;
 

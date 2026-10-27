@@ -1,4 +1,3 @@
-using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Collections.Immutable;
 using System.Linq;
@@ -84,7 +83,7 @@ public abstract partial class GpuTexture : GpuResource<GpuTextureMetadata>, IDis
         Allocate2DStorage(target, format, width, height, mipLevels);
     }
 
-    /// <summary>Changes existing storage and receives its resulting snapshot through OpenGlStateCache publication.</summary>
+    /// <summary>Changes existing storage and receives its resulting snapshot through manager publication.</summary>
     protected void Reallocate2DStorageInPlace(int width, int height, int mipLevels)
     {
         RequireMutableStorage();

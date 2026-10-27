@@ -326,7 +326,7 @@ public sealed class GpuFramebufferAttachment : GpuResource<GpuImageMetadata>
         try
         {
             ValidateSelection();
-            RHICommandContext.Current.AcquireAttachmentImage(this);
+            RHICommandContext.AcquireAttachmentImage(this);
             RHICommandContext.Current.ObserveAttachmentOwner(resource, this);
             if (!ownsStorage) GC.SuppressFinalize(this);
         }
@@ -355,7 +355,7 @@ public sealed class GpuFramebufferAttachment : GpuResource<GpuImageMetadata>
         attachmentMode = mode;
         disposalQueue = GpuResourceManagerSystem.CaptureDisposalQueue();
         ValidateSelection();
-        RHICommandContext.Current.AcquireAttachmentImage(this, acquiredTexture, acquiredRenderbuffer);
+        RHICommandContext.AcquireAttachmentImage(this, acquiredTexture, acquiredRenderbuffer);
         GC.SuppressFinalize(this);
     }
 
@@ -378,10 +378,7 @@ public sealed class GpuFramebufferAttachment : GpuResource<GpuImageMetadata>
     {
         if ((uint)MipLevel > 30) throw new ArgumentOutOfRangeException(nameof(MipLevel));
         if ((ViewCount != 0 || attachmentMode == GpuFramebufferAttachmentMode.Multiview)
-            && (target != TextureDimension.TwoArray || Layer.HasValue || BaseView < 0 || ViewCount < 1
-            || !RHICommandContext.Current.Capabilities.Multiview
-            || attachmentMode == GpuFramebufferAttachmentMode.Multiview && ViewCount > RHICommandContext.Current.Capabilities.MaxMultiviewViews
-            || (long)BaseView + ViewCount > RHICommandContext.Current.Capabilities.MaxArrayTextureLayers))
+            && (target != TextureDimension.TwoArray || Layer.HasValue || BaseView < 0 || ViewCount < 1))
             throw new ArgumentOutOfRangeException(nameof(ViewCount));
         if (Layer.HasValue && (Layer.Value < 0 || target is not (TextureDimension.OneArray
             or TextureDimension.TwoArray or TextureDimension.Three or TextureDimension.CubeArray

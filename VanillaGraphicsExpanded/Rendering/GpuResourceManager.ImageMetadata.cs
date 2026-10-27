@@ -1,6 +1,5 @@
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
-using OpenTK.Graphics.OpenGL;
 
 namespace VanillaGraphicsExpanded.Rendering;
 
@@ -8,6 +7,31 @@ namespace VanillaGraphicsExpanded.Rendering;
 internal sealed partial class GpuResourceManager
 {
     #region Internal API
+    /// <summary>Associates existing covered facts or projects supplied backing metadata without acquisition or native admission.</summary>
+    internal static void AssociateSuppliedImageMetadata(GpuFramebufferAttachment image, GpuTextureMetadata? texture,
+        GpuRenderbufferMetadata? renderbuffer)
+    {
+        ObjectDisposedException.ThrowIf(image.IsDisposed, image);
+        RHICommandContext.RequireResourceOperationAvailable(image.Kind, image.ResourceId);
+        if (image.ResourceManager is { } manager && manager.CanAcquireWrapperMetadata(image))
+        {
+            // Supplied facts never override a tracked association or recover an unavailable entry.
+            var entry = image.Kind == GpuResourceKind.Texture
+                ? (GpuResourceRegistration?)manager.LookupAvailableResource<GpuTextureMetadata>(image.Kind, image.ResourceId)
+                : manager.LookupAvailableResource<GpuRenderbufferMetadata>(image.Kind, image.ResourceId);
+            if (entry is null) throw new InvalidOperationException("The supplied image's canonical backing is unavailable.");
+            manager.AssociateImageResource(entry, image);
+            return;
+        }
+        DiscardUntrackedMetadata(image);
+        var candidate = image.Kind == GpuResourceKind.Texture && texture is { } textureFacts
+            ? ProjectTextureImage(textureFacts, image.MetadataImageSelection)
+            : image.Kind == GpuResourceKind.Renderbuffer && renderbuffer is { } renderbufferFacts
+                ? ProjectRenderbufferImage(renderbufferFacts, image.MetadataImageSelection) : null;
+        if (!candidate.HasValue) throw new InvalidOperationException("The supplied framebuffer image selection is unavailable.");
+        image.HandleMetadataChanged(candidate.Value);
+    }
+
     /// <summary>Associates an image selection with the same backing registration without another native query.</summary>
     internal void AssociateImageResource(GpuResourceRegistration entry, GpuFramebufferAttachment resource)
     {
