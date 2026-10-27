@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Numerics;
 using OpenTK.Graphics.OpenGL;
@@ -27,10 +28,10 @@ public sealed class BloomLocalExposureShaderTests(HeadlessGLFixture fixture) : L
     {
         EnsureShaderTestAvailable();
         var program = Programs.Create<BloomShaderProgram>(p => p.LocalExposureEnabled = true);
-        using var source = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba32f, [.04f, .04f, .04f, 1f]);
-        using var spatial = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rg32f, [MathF.Log2(.04f), 1f]);
+        using var source = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba32f, [.04f, .04f, .04f, 1f]);
+        using var spatial = TestFramework.CreateTexture(1, 1, TextureFormat.Rg32f, [MathF.Log2(.04f), 1f]);
         using var history = ExposureTestStorage.Create(0);
-        using var target = TestFramework.CreateTestGBuffer(1, 1, PixelInternalFormat.Rgba32f);
+        using var target = TestFramework.CreateTestGBuffer(1, 1, TextureFormat.Rgba32f);
         program.SourceImage = source; program.SecondaryImage = source; program.LocalBase = spatial;
         program.ExposureBuffer = history;
         program.CaptureLocal(Settings(enabled), MathF.Log2(.18f));
@@ -48,11 +49,11 @@ public sealed class BloomLocalExposureShaderTests(HeadlessGLFixture fixture) : L
         EnsureShaderTestAvailable();
         var program = Programs.Create<BloomShaderProgram>(p => p.LocalExposureEnabled = true);
         float[] values = [.04f, .16f, .64f, 2.56f];
-        using var source = TestFramework.CreateTexture(2, 2, PixelInternalFormat.Rgba32f,
+        using var source = TestFramework.CreateTexture(2, 2, TextureFormat.Rgba32f,
             values.SelectMany(v => new[] { v, v, v, 1f }).ToArray());
-        using var spatial = TestFramework.CreateTexture(2, 2, PixelInternalFormat.Rg32f,
+        using var spatial = TestFramework.CreateTexture(2, 2, TextureFormat.Rg32f,
             values.SelectMany(v => new[] { MathF.Log2(v), 1f }).ToArray());
-        using var target = TestFramework.CreateTestGBuffer(1, 1, PixelInternalFormat.Rgba32f);
+        using var target = TestFramework.CreateTestGBuffer(1, 1, TextureFormat.Rgba32f);
         program.SourceImage = source; program.SecondaryImage = source; program.LocalBase = spatial;
         program.CaptureLocal(Settings(true), MathF.Log2(.18f));
         program.Capture(Vector4.Zero, new(0, 0, 1, 0));
@@ -77,8 +78,8 @@ public sealed class BloomLocalExposureShaderTests(HeadlessGLFixture fixture) : L
         using var publication = new TestFrameLightingPublication();
         GpuShaderProgramLibraries.Get<BloomShaderProgram>(assets.Api, "pbr_bloom")!.FrameLightingInputs = publication.Buffer;
         GpuShaderProgramLibraries.Get<BloomShaderProgram>(assets.Api, "pbr_bloom_local_exposure")!.FrameLightingInputs = publication.Buffer;
-        using var source = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba32f, [.04f, .04f, .04f, 1f]);
-        using var spatial = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rg32f, [MathF.Log2(.04f), 1f]);
+        using var source = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba32f, [.04f, .04f, .04f, 1f]);
+        using var spatial = TestFramework.CreateTexture(1, 1, TextureFormat.Rg32f, [MathF.Log2(.04f), 1f]);
         using var owner = new BloomRenderer();
         using var draw = new PostprocessDraw();
         var settings = new PostprocessParameters(1, 0, 0, 5, 0, 1, 16);

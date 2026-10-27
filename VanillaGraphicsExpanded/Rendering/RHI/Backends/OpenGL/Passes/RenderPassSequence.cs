@@ -46,7 +46,7 @@ internal sealed class RenderPassSequence : IDisposable
         if(target is OpenGLPassTarget realized)
         {
             if(!realized.IsReusable)throw new InvalidOperationException("The pass target realization is obsolete.");
-            realized.ValidateDeclaredRouting(outputs);
+            realized.ValidateDeclaredRouting(System.Array.ConvertAll(outputs, value => value == DrawBuffersEnum.None ? -1 : (int)value - (int)DrawBuffersEnum.ColorAttachment0));
             backend.SelectPassTarget(realized);
             backend.RequirePassCompleteness(target, outputs);
             return;

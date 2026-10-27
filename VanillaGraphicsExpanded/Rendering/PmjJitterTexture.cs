@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 
 using OpenTK.Graphics.OpenGL;
@@ -39,7 +40,7 @@ public sealed class PmjJitterTexture : GpuTexture
         filterMode = TextureFilterMode.Nearest;
         debugName = "Sampling.PMJ.Jitter";
 
-        AllocateOrReallocate2DTexture(CycleLength, 1, PixelInternalFormat.Rg16, mipLevels: 1);
+        AllocateOrReallocate2DTexture(CycleLength, 1, TextureFormat.Rg16, mipLevels: 1);
 
         PmjSequence seq = cache.GetOrCreateSequence(config);
         ushort[] rg = PmjConversions.ToRg16UNormInterleaved(seq);

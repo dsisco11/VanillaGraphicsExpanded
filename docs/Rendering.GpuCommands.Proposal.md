@@ -191,6 +191,12 @@ old borrowers and native views retain their original associations and cannot sil
 Failed replacement preserves the existing documented failure behavior rather than inventing rollback of
 already retired storage. Shader/pipeline candidate installation has its stricter preservation contract below.
 
+Managed image and framebuffer contracts carry project-owned dimensions, cube faces, formats, slots and
+routing selections throughout wrappers, initialization, canonical metadata and capability-cache keys.
+A native translation helper is not a replacement for migrating those callers. Encode values only at
+backend dispatch and decode native query results or actual external arguments at their native boundary.
+Resource consumers and manager acquisition services never invoke native codecs.
+
 The manager continues to own registry entries, canonical metadata, dependencies, alias publication and
 retirement. Creation factories hide those mechanics; they do not replace them with a second registry,
 reference-counting system or metadata authority.

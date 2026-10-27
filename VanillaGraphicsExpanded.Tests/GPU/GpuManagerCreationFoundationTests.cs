@@ -226,7 +226,7 @@ public sealed class GpuManagerCreationFoundationTests(HeadlessGLFixture fixture)
             var result = GpuResourceManager.CreateResource<EmptyRequest, GpuFramebufferMetadata, FramebufferCreation>(
                 default, recipient, out _, new(backing.RenderbufferId));
             Assert.True(result.HasValue);
-            Assert.Equal(GpuFramebufferAttachmentMode.Ordinary, result.Value.Attachments[FramebufferAttachment.ColorAttachment0].Mode);
+            Assert.Equal(GpuFramebufferAttachmentMode.Ordinary, result.Value.Attachments[FramebufferSlot.Color0].Mode);
             var manager = GpuResourceManagerSystem.CurrentManager!;
             var entry = Assert.IsType<GpuResourceMetadataEntry<GpuFramebufferMetadata>>(manager.GetResourceRegistration(recipient));
             Assert.Equal(entry.Metadata, result.Value);
@@ -396,8 +396,8 @@ public sealed class GpuManagerCreationFoundationTests(HeadlessGLFixture fixture)
             id = GL.GenFramebuffer();
             using var binding = OpenGlStateCache.Current.BindFramebufferScope(FramebufferTarget.Framebuffer, checked((int)id));
             GL.FramebufferRenderbuffer(FramebufferTarget.Framebuffer, FramebufferAttachment.ColorAttachment0, RenderbufferTarget.Renderbuffer, renderbuffer);
-            var images = ImmutableDictionary<FramebufferAttachment, GpuFramebufferImageMetadata>.Empty.Add(
-                FramebufferAttachment.ColorAttachment0, new(GpuResourceKind.Renderbuffer, renderbuffer, 0, 0, 0, false));
+            var images = ImmutableDictionary<FramebufferSlot, GpuFramebufferImageMetadata>.Empty.Add(
+                FramebufferSlot.Color0, new(GpuResourceKind.Renderbuffer, renderbuffer, 0, 0, 0, false));
             return new(images, 0, 0, 0, 0, false);
         }
     }

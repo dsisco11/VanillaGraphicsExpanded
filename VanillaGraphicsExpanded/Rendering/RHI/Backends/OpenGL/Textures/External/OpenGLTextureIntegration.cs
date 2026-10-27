@@ -11,7 +11,7 @@ internal static class OpenGLTextureIntegration
     internal static RHICreationResult<GpuBufferTexture> CreateBufferView(int buffer, SizedInternalFormat format, bool whole, nint offset, nint length, string? label)
     {
         _ = RHICommandContext.Current;
-        var request = new GpuBufferTextureInitialization { Buffer = buffer, Format = format, Mode = whole ? GpuBufferTextureMode.Whole : GpuBufferTextureMode.Range };
+        var request = new GpuBufferTextureInitialization { Buffer = buffer, Format = OpenGLImageValues.Format((PixelInternalFormat)format), Mode = whole ? GpuBufferTextureMode.Whole : GpuBufferTextureMode.Range };
         if (!whole) { request.Offset = offset; request.Size = length; }
         var owner = new GpuBufferTexture();
         try
@@ -113,7 +113,7 @@ internal static class OpenGLTextureIntegration
     {
         var request = new GpuTextureViewInitialization
         {
-            Source = sourceId, Target = target, Format = format, BaseLevel = baseLevel,
+            Source = sourceId, Target = OpenGLImageValues.Dimension(target), Format = OpenGLImageValues.Format(format), BaseLevel = baseLevel,
             LevelCount = levelCount, BaseLayer = baseLayer, LayerCount = layerCount
         };
         var view = new GpuTextureView(sourceId);

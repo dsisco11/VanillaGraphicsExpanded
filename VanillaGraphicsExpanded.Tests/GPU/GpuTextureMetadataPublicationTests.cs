@@ -50,7 +50,7 @@ public sealed class GpuTextureMetadataPublicationTests(HeadlessGLFixture fixture
 
         using var view = RHICommandContext.Current.CreateTextureView(new RHITextureViewDescription { Source = source, Dimension = TextureDimension.TwoArray, Format = TextureFormat.Rgba32f, BaseMip = 0, MipCount = 1, BaseLayer = 1, LayerCount = 2, Label = null }).RequireResource();
         Assert.True(view.IsValid);
-        Assert.Equal(TextureTarget.Texture2DArray, view.Target);
+        Assert.Equal(TextureDimension.TwoArray, view.Target);
         Assert.Equal(1, view.BaseLayer); Assert.Equal(2, view.LayerCount);
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
@@ -114,9 +114,9 @@ public sealed class GpuTextureMetadataPublicationTests(HeadlessGLFixture fixture
         fixture.EnsureContextValid();
         using var texture = RHICommandContext.Current.CreateDynamicTexture3D(new RHITextureDescription { Dimension = TextureDimension.TwoArray, Format = TextureFormat.Rgba32f, Width = 4, Height = 4, Depth = 4, MipLevels = 1, Storage = immutable ? ResourceStorageMode.Immutable : ResourceStorageMode.Mutable }).RequireResource();
         using var sentinel = RHICommandContext.Current.CreateDynamicTexture3D(new RHITextureDescription { Dimension = TextureDimension.TwoArray, Format = TextureFormat.Rgba32f, Width = 2, Height = 2, Depth = 2, MipLevels = 1, Storage = ResourceStorageMode.Mutable }).RequireResource();
-        using var binding = OpenGlStateCache.Current.BindTextureScope(((GpuTextureRef)sentinel).Target, 0, sentinel.TextureId);
+        using var binding = OpenGlStateCache.Current.BindTextureScope(OpenGLImageValues.Target(((GpuTextureRef)sentinel).Target), 0, sentinel.TextureId);
         GL.Enable((EnableCap)(-1));
-        Assert.True(new GpuTextureMetadataReader(TextureTarget.Texture2DArray).TryRead(texture.TextureId, out var data));
+        Assert.True(new GpuTextureMetadataReader(TextureDimension.TwoArray).TryRead(texture.TextureId, out var data));
         Assert.Equal(4, data.Levels[0].Width);
         Assert.Equal(immutable, data.ImmutableStorage);
         Assert.Equal(immutable ? 1 : 0, data.ImmutableLevels);

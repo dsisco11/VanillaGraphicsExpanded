@@ -1,3 +1,5 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
+using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Noise;
 using VanillaGraphicsExpanded.Rendering;
@@ -18,7 +20,7 @@ public sealed class PmjJitterTextureUploadTests(HeadlessGLFixture fixture):Rende
         var config=new PmjConfig(count,seed,PmjVariant.Pmj02,PmjOutputKind.Vector2F32,true,0,false);
         ushort[] expected=PmjConversions.ToRg16UNormInterleaved(PmjGenerator.Generate(config));
         using var texture=PmjJitterTexture.Create(count,seed);
-        Assert.Equal(PixelInternalFormat.Rg16,texture.InternalFormat);
+        Assert.Equal(TextureFormat.Rg16,texture.InternalFormat);
         Assert.Equal(count,texture.Width);Assert.Equal(1,texture.Height);
         Assert.Equal(TextureFilterMode.Nearest,texture.FilterMode);
         float[] actual=texture.ReadPixels();Assert.Equal(expected.Length,actual.Length);

@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -11,7 +12,7 @@ public abstract partial class GpuFramebuffer
     internal ulong AttachmentRevision { get; private set; }
     private bool passMetadataPublished;
     internal bool HasRenderPassMetadata => ownsFramebuffer || passMetadataPublished;
-    internal IEnumerable<KeyValuePair<FramebufferAttachment, GpuFramebufferAttachment>> AttachmentImages => attachments;
+    internal IEnumerable<KeyValuePair<FramebufferSlot, GpuFramebufferAttachment>> AttachmentImages => attachments;
 
     #region Public API
     /// <summary>Captures all external attachment metadata after framebuffer publication or refresh.</summary>

@@ -41,7 +41,7 @@ public sealed class GpuResourceAliasMetadataTests(HeadlessGLFixture fixture)
             Assert.True(view.IsValid);
 
             Assert.Equal(buffer.BufferId, view.BufferId);
-            Assert.Equal(SizedInternalFormat.R32f, view.Format);
+            Assert.Equal(TextureFormat.R32f, view.Format);
             Assert.Equal((nint)(ranged ? offset : 0), view.OffsetBytes);
             Assert.Equal((nint)(ranged ? 256 : 0), view.SizeBytes);
             Assert.Equal(ErrorCode.NoError, GL.GetError());

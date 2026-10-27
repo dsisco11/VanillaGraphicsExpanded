@@ -423,10 +423,10 @@ public sealed class AtmosphereOwnedSkyTests(HeadlessGLFixture fixture) : LumOnSh
         {
             this.width = width; this.height = height;
             this.program = program;
-            Target = framework.CreateTestGBuffer(width, height, PixelInternalFormat.Rgba32f, PixelInternalFormat.Rgba32f,
-                PixelInternalFormat.Rgba32f, PixelInternalFormat.Rgba32f, PixelInternalFormat.Rgba32f,
-                PixelInternalFormat.Rgba32f, PixelInternalFormat.Rgba32ui, PixelInternalFormat.Rgba32f);
-            depth = framework.CreateTexture(width, height, PixelInternalFormat.R32f, Enumerable.Repeat(liquidDepth, width * height).ToArray());
+            Target = framework.CreateTestGBuffer(width, height, TextureFormat.Rgba32f, TextureFormat.Rgba32f,
+                TextureFormat.Rgba32f, TextureFormat.Rgba32f, TextureFormat.Rgba32f,
+                TextureFormat.Rgba32f, TextureFormat.Rgba32ui, TextureFormat.Rgba32f);
+            depth = framework.CreateTexture(width, height, TextureFormat.R32f, Enumerable.Repeat(liquidDepth, width * height).ToArray());
         }
         /// <summary>Publishes constant radiance without a directional Mie contribution.</summary>
         internal void PublishConstant(Vector3 radiance)

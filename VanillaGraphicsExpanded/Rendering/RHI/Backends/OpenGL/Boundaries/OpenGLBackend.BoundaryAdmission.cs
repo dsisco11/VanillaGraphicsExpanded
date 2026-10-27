@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.Integration.OpenGL;
 using System.Linq;
 using System;
 using VanillaGraphicsExpanded.Rendering.Integration;
@@ -27,7 +28,7 @@ internal sealed partial class OpenGLBackend
             programSelection: geometry || description.Compute.Length != 0);
         if (description.SampledSlots.Length != 0 || description.UniformSlots.Length != 0)
             resources = resources.Union(new EngineBoundaryResources(
-            textures: description.SampledSlots.Select(slot => (slot.Slot, (OpenTK.Graphics.OpenGL.TextureTarget)OpenGLImageValues.Target(slot.Dimension))),
+            textures: description.SampledSlots.Select(slot => (slot.Slot, slot.Dimension)),
             buffers: description.UniformSlots.Select(slot => (OpenTK.Graphics.OpenGL.BufferRangeTarget.UniformBuffer, slot)),
             geometry: false, framebuffers: false, programSelection: false));
         foreach (var reference in description.Graphics)

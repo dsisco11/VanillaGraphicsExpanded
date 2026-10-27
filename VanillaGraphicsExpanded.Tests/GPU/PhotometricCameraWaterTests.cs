@@ -1,3 +1,5 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Collections.Immutable;
 using System.Numerics;
 using OpenTK.Graphics.OpenGL;
@@ -23,12 +25,12 @@ public sealed class PhotometricCameraWaterTests(HeadlessGLFixture fixture) : Lum
         EnsureShaderTestAvailable();
         var program = Programs.Create<PBRCompositeShaderProgram>(p =>
         { p.LumOnEnabled = false; p.EnablePbrComposite = false; p.EnableShortRangeAo = false; });
-        using var zero = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba32f, new float[4]);
-        using var depth = TestFramework.CreateTexture(1, 1, PixelInternalFormat.R32f, [.75f]);
-        using var normal = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba32f, [.5f, 1f, .5f, 1]);
+        using var zero = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba32f, new float[4]);
+        using var depth = TestFramework.CreateTexture(1, 1, TextureFormat.R32f, [.75f]);
+        using var normal = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba32f, [.5f, 1f, .5f, 1]);
         using var surface = LayeredTestTexture.Create(normal, zero, zero);
-        using var optical = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba32f, [-.7f, -1.4f, -2.1f, -7]);
-        using var output = CreateMRTRenderTarget(1, 1, PixelInternalFormat.Rgba32f);
+        using var optical = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba32f, [-.7f, -1.4f, -2.1f, -7]);
+        using var output = CreateMRTRenderTarget(1, 1, TextureFormat.Rgba32f);
         using var camera = TestFrameCamera.Create([1,0,0,0, 0,1,0,0, 0,0,20,0, 0,0,0,1],
             [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1]);
         using var publication = new TestFrameLightingPublication();
@@ -43,9 +45,9 @@ public sealed class PhotometricCameraWaterTests(HeadlessGLFixture fixture) : Lum
         foreach (float scale in new[] { 1f, .25f })
         {
             publication.Capture(scale);
-            using var direct = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba32f, [2*scale, scale, .5f*scale, 1]);
+            using var direct = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba32f, [2*scale, scale, .5f*scale, 1]);
             using var lighting = LayeredTestTexture.Create(direct, zero, zero);
-            using var source = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba32f, [-2.1f*scale, -2.8f*scale, -3.5f*scale, -1]);
+            using var source = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba32f, [-2.1f*scale, -2.8f*scale, -3.5f*scale, -1]);
             using var water = LayeredTestTexture.Create(optical, source);
             program.DirectLighting = lighting;
             program.SetWaterVolume(new(water, medium, cameraSource, cameraSource));
@@ -76,13 +78,13 @@ public sealed class PhotometricCameraWaterTests(HeadlessGLFixture fixture) : Lum
         EnsureShaderTestAvailable();
         var program = Programs.Create<PBRCompositeShaderProgram>(p =>
         { p.LumOnEnabled = false; p.EnablePbrComposite = false; p.EnableShortRangeAo = false; });
-        using var zero = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba32f, new float[4]);
-        using var depth = TestFramework.CreateTexture(1, 1, PixelInternalFormat.R32f, [.75f]);
-        using var normal = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba32f, [.5f, 1f, .5f, 1f]);
+        using var zero = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba32f, new float[4]);
+        using var depth = TestFramework.CreateTexture(1, 1, TextureFormat.R32f, [.75f]);
+        using var normal = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba32f, [.5f, 1f, .5f, 1f]);
         using var lighting = LayeredTestTexture.Create(zero, zero, zero);
         using var surface = LayeredTestTexture.Create(normal, zero, zero);
         using var water = LayeredTestTexture.Create(zero, zero);
-        using var output = CreateMRTRenderTarget(1, 1, PixelInternalFormat.Rgba32f);
+        using var output = CreateMRTRenderTarget(1, 1, TextureFormat.Rgba32f);
         using var camera = TestFrameCamera.Create([1,0,0,0, 0,1,0,0, 0,0,20,0, 0,0,0,1],
             [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1]);
         camera.SetLightingCalibration(new(8, .2f, AccessorSkyFloor: .25f,

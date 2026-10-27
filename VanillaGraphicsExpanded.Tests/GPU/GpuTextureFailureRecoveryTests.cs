@@ -97,12 +97,12 @@ public sealed class GpuTextureFailureRecoveryTests(HeadlessGLFixture fixture)
         using var framebuffer = DynamicGpuFramebuffer.CreateEmpty();
         using var faults = new NativeReadFailure { Enabled = true, Throw = throws };
         Assert.Throws<InvalidOperationException>(() => GpuResourceManager.RecoverWrapperMetadata(texture, GpuTextureMetadataReader.Instance));
-        Assert.Throws<InvalidOperationException>(() => framebuffer.SetAttachment(FramebufferAttachment.ColorAttachment0, image));
+        Assert.Throws<InvalidOperationException>(() => framebuffer.SetAttachment(FramebufferSlot.Color0, image));
         Assert.Equal(0, image.Width);
         Assert.Equal(0, image.Height);
         faults.Enabled = false;
         GpuResourceManager.RecoverWrapperMetadata(texture, GpuTextureMetadataReader.Instance);
-        framebuffer.SetAttachment(FramebufferAttachment.ColorAttachment0, image);
+        framebuffer.SetAttachment(FramebufferSlot.Color0, image);
         Assert.Equal(4, image.Width);
         Assert.True(framebuffer.CheckStatus(out _));
         Assert.Equal(ErrorCode.NoError, GL.GetError());
@@ -117,15 +117,15 @@ public sealed class GpuTextureFailureRecoveryTests(HeadlessGLFixture fixture)
         using var texture = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba8, Width = System.Math.Max(1, 4), Height = System.Math.Max(1, 4), MipLevels = 2, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (2) - 1, Label = null }).RequireResource();
         using var image = GpuFramebufferAttachment.FromTexture(texture, mipLevel: 1);
         using var framebuffer = DynamicGpuFramebuffer.CreateEmpty();
-        using var binding = OpenGlStateCache.Current.BindTextureScope(((GpuTextureRef)texture).Target, 0, texture.TextureId);
+        using var binding = OpenGlStateCache.Current.BindTextureScope(OpenGLImageValues.Target(((GpuTextureRef)texture).Target), 0, texture.TextureId);
         // Simulate an external owner withdrawing and later restoring the selected image.
         GL.TexImage2D(TextureTarget.Texture2D, 1, PixelInternalFormat.Rgba8, 0, 0, 0, PixelFormat.Rgba, PixelType.UnsignedByte, IntPtr.Zero);
         GpuResourceManager.RecoverWrapperMetadata(texture, GpuTextureMetadataReader.Instance);
-        Assert.Throws<InvalidOperationException>(() => framebuffer.SetAttachment(FramebufferAttachment.ColorAttachment0, image));
+        Assert.Throws<InvalidOperationException>(() => framebuffer.SetAttachment(FramebufferSlot.Color0, image));
         Assert.Equal(0, image.Width);
         GL.TexImage2D(TextureTarget.Texture2D, 1, PixelInternalFormat.Rgba8, 2, 2, 0, PixelFormat.Rgba, PixelType.UnsignedByte, IntPtr.Zero);
         GpuResourceManager.RecoverWrapperMetadata(texture, GpuTextureMetadataReader.Instance);
-        framebuffer.SetAttachment(FramebufferAttachment.ColorAttachment0, image);
+        framebuffer.SetAttachment(FramebufferSlot.Color0, image);
         Assert.Equal(2, image.Width);
         Assert.True(framebuffer.CheckStatus(out _));
         Assert.Equal(ErrorCode.NoError, GL.GetError());
@@ -138,9 +138,9 @@ public sealed class GpuTextureFailureRecoveryTests(HeadlessGLFixture fixture)
     {
         #region Public API
         /// <summary>Creates a small texture through the normal specialized-owner constructor.</summary>
-        public ReplacementTexture() : base(4, 4, PixelInternalFormat.Rgba8, TextureFilterMode.Nearest, null) { }
+        public ReplacementTexture() : base(4, 4, TextureFormat.Rgba8, TextureFilterMode.Nearest, null) { }
         /// <summary>Exercises replacement rather than the dynamic owner's separate in-place resize operation.</summary>
-        public void Replace() => AllocateOrReallocate2DTexture(8, 4, PixelInternalFormat.Rgba8, 1);
+        public void Replace() => AllocateOrReallocate2DTexture(8, 4, TextureFormat.Rgba8, 1);
         #endregion
     }
 

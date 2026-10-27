@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Collections.Immutable;
 using OpenTK.Graphics.OpenGL;
 
@@ -6,7 +7,7 @@ namespace VanillaGraphicsExpanded.Rendering;
 /// <summary>Reconciles retained image references with manager-published native attachment descriptors.</summary>
 public abstract partial class GpuFramebuffer
 {
-    private ImmutableDictionary<FramebufferAttachment, GpuFramebufferImageMetadata>? reconciledAttachmentDescriptors;
+    private ImmutableDictionary<FramebufferSlot, GpuFramebufferImageMetadata>? reconciledAttachmentDescriptors;
 
     #region Internal API
     /// <summary>Withdraws cached helper results without rewriting a newly observed native configuration.</summary>
@@ -20,7 +21,7 @@ public abstract partial class GpuFramebuffer
         PublishAttachmentsChanged();
     }
     /// <summary>Resolves a requested external image from one reusable canonical framebuffer discovery.</summary>
-    internal GpuFramebufferAttachment DiscoverAttachment(FramebufferAttachment slot, bool forceNative)
+    internal GpuFramebufferAttachment DiscoverAttachment(FramebufferSlot slot, bool forceNative)
     {
         return RHI.RHICommandContext.Current.DiscoverFramebufferAttachment(this, slot, forceNative);
     }
@@ -30,13 +31,12 @@ public abstract partial class GpuFramebuffer
         if (!allowUnpublishedExternal && !ownsFramebuffer && !passMetadataPublished || attachmentsDirty || metadata.Attachments is null || !recoverBackings && ReferenceEquals(metadata.Attachments, reconciledAttachmentDescriptors)) return;
         // Unavailable descriptors must not reacquire a deleted attachment through a reused name.
         if (ResourceManager?.GetResourceRegistration(this) is { MetadataRevision: > 0, MetadataAvailable: false }) return;
-        var candidate = RHI.RHICommandContext.Current.ResolveFramebufferAttachments(this, attachments, recoverBackings);
-        InstallAttachmentReferences(candidate, metadata.Attachments);
+        RHI.RHICommandContext.Current.ResolveFramebufferAttachments(this, recoverBackings);
     }
 
     /// <summary>Installs resolved domain references after their complete native descriptor set has been certified.</summary>
-    internal void InstallAttachmentReferences(System.Collections.Generic.Dictionary<FramebufferAttachment, GpuFramebufferAttachment> candidate,
-        ImmutableDictionary<FramebufferAttachment, GpuFramebufferImageMetadata> descriptors)
+    internal void InstallAttachmentReferences(System.Collections.Generic.Dictionary<FramebufferSlot, GpuFramebufferAttachment> candidate,
+        ImmutableDictionary<FramebufferSlot, GpuFramebufferImageMetadata> descriptors)
     {
         // Commit retained references only after every projection succeeds. Failed discovery
         // leaves the previous helper set intact while the caller withdraws its availability.

@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.Integration.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
@@ -26,7 +27,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 ///     public void MyTest()
 ///     {
 ///         EnsureContextValid();
-///         using var rt = CreateRenderTarget(64, 64, PixelInternalFormat.Rgba16f);
+///         using var rt = CreateRenderTarget(64, 64, TextureFormat.Rgba16f);
 ///         // ... render and verify ...
 ///     }
 /// }
@@ -81,12 +82,12 @@ public abstract class RenderTestBase : IDisposable
     /// </summary>
     /// <param name="width">Width in pixels.</param>
     /// <param name="height">Height in pixels.</param>
-    /// <param name="format">Internal format (e.g., PixelInternalFormat.Rgba16f).</param>
+    /// <param name="format">Internal format (e.g., TextureFormat.Rgba16f).</param>
     /// <returns>A framebuffer borrowing a texture owned by this test fixture.</returns>
-    protected GpuFramebuffer CreateRenderTarget(int width, int height, PixelInternalFormat format)
+    protected GpuFramebuffer CreateRenderTarget(int width, int height, TextureFormat format)
     {
         EnsureContextValid(beginUniformFrame: false);
-        var texture = _targetResources.Own(RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Format((OpenTK.Graphics.OpenGL.PixelInternalFormat)(format)), Width = System.Math.Max(1, width), Height = System.Math.Max(1, height), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource());
+        var texture = _targetResources.Own(RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = format, Width = System.Math.Max(1, width), Height = System.Math.Max(1, height), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource());
         var gBuffer = DynamicGpuFramebuffer.CreateSingle(texture);
         return gBuffer ?? throw new InvalidOperationException("Failed to create GBuffer");
     }
@@ -98,13 +99,13 @@ public abstract class RenderTestBase : IDisposable
     /// <param name="height">Height in pixels.</param>
     /// <param name="formats">Internal formats for each color attachment.</param>
     /// <returns>A framebuffer borrowing textures owned by this test fixture.</returns>
-    protected GpuFramebuffer CreateMRTRenderTarget(int width, int height, params PixelInternalFormat[] formats)
+    protected GpuFramebuffer CreateMRTRenderTarget(int width, int height, params TextureFormat[] formats)
     {
         EnsureContextValid(beginUniformFrame: false);
         var textures = new DynamicTexture2D[formats.Length];
         for (int i = 0; i < formats.Length; i++)
         {
-            textures[i] = _targetResources.Own(RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Format((OpenTK.Graphics.OpenGL.PixelInternalFormat)(formats[i])), Width = System.Math.Max(1, width), Height = System.Math.Max(1, height), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource());
+            textures[i] = _targetResources.Own(RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = formats[i], Width = System.Math.Max(1, width), Height = System.Math.Max(1, height), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource());
         }
         var gBuffer = DynamicGpuFramebuffer.CreateMRT(textures);
         return gBuffer ?? throw new InvalidOperationException("Failed to create MRT GBuffer");

@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Numerics;
 using Moq;
@@ -27,9 +28,9 @@ public sealed class CameraExposureDisplayTests(HeadlessGLFixture fixture):LumOnS
     {
         EnsureShaderTestAvailable();
         var shader=Programs.Create<PostLumaShaderProgram>();
-        using var source=TestFramework.CreateTexture(1,1,PixelInternalFormat.Rgba32f,[.18f,.18f,.18f,.3f]);
+        using var source=TestFramework.CreateTexture(1,1,TextureFormat.Rgba32f,[.18f,.18f,.18f,.3f]);
         using var exposure=ExposureTestStorage.Create(ev);
-        using var target=TestFramework.CreateTestGBuffer(1,1,PixelInternalFormat.Rgba32f);
+        using var target=TestFramework.CreateTestGBuffer(1,1,TextureFormat.Rgba32f);
         using var draw=new PostprocessDraw();
         shader.SourceImage=source;shader.ExposureBuffer=exposure;
         shader.Capture(new(0,0,1,automatic?1:0),new(0,0,0,automatic?-8:ev));
@@ -63,9 +64,9 @@ public sealed class CameraExposureDisplayTests(HeadlessGLFixture fixture):LumOnS
         var native=FinalDisplayParameters.Capture(api.Object);
         using var grading=new ColorGradingLut();
         shader.GradingLookup=grading.Prepare(Programs.Api,new(1,1,1,0));
-        using var source=TestFramework.CreateTexture(1,1,PixelInternalFormat.Rgba32f,[.18f,.018f,.0018f,1f]);
-        using var zero=TestFramework.CreateTexture(1,1,PixelInternalFormat.Rgba32f,[0f,0f,0f,0f]);
-        using var target=TestFramework.CreateTestGBuffer(1,1,PixelInternalFormat.Rgba32f);
+        using var source=TestFramework.CreateTexture(1,1,TextureFormat.Rgba32f,[.18f,.018f,.0018f,1f]);
+        using var zero=TestFramework.CreateTexture(1,1,TextureFormat.Rgba32f,[0f,0f,0f,0f]);
+        using var target=TestFramework.CreateTestGBuffer(1,1,TextureFormat.Rgba32f);
         using var draw=new PostprocessDraw();
         using var camera = TestFrameCamera.CreateIdentity(1, 1);
         using var neutralExposure = ExposureTestStorage.Create(0);
@@ -123,7 +124,7 @@ public sealed class CameraExposureDisplayTests(HeadlessGLFixture fixture):LumOnS
     {
         EnsureShaderTestAvailable();
         var meter=Programs.CreateCompute(CameraHistogramShaderProgram.Create);var adapt=Programs.CreateCompute(CameraAdaptShaderProgram.Create);
-        using var source=TestFramework.CreateTexture(1,1,PixelInternalFormat.Rgba32f,[luminance,luminance,luminance,1f]);
+        using var source=TestFramework.CreateTexture(1,1,TextureFormat.Rgba32f,[luminance,luminance,luminance,1f]);
         using var targets = new CameraExposureTargets();
         using var draw=new PostprocessDraw();
         var settings=new CameraExposureSettings().Snapshot();
@@ -137,8 +138,8 @@ public sealed class CameraExposureDisplayTests(HeadlessGLFixture fixture):LumOnS
         adapt.Dispatch(1); GL.MemoryBarrier(MemoryBarrierFlags.ShaderStorageBarrierBit); targets.Publish();
         float ev=ExposureTestStorage.Read<float>(targets.Exposure)[0];
         var final=Programs.Create<FinalDisplayShaderProgram>();
-        using var zero=TestFramework.CreateTexture(1,1,PixelInternalFormat.Rgba32f,[0f,0f,0f,0f]);
-        using var display=TestFramework.CreateTestGBuffer(1,1,PixelInternalFormat.Rgba32f);
+        using var zero=TestFramework.CreateTexture(1,1,TextureFormat.Rgba32f,[0f,0f,0f,0f]);
+        using var display=TestFramework.CreateTestGBuffer(1,1,TextureFormat.Rgba32f);
         using var camera = TestFrameCamera.CreateIdentity(1, 1);
         final.FrameInputs = camera;
         final.SceneImage=source;final.BloomImage=zero;final.ShaftImage=zero;final.ExposureBuffer=targets.Exposure;

@@ -1,3 +1,5 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
+using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.PBR.Postprocessing;
 using VanillaGraphicsExpanded.Rendering;
@@ -53,7 +55,7 @@ public sealed class AmbientOcclusionLightingContributionTests(HeadlessGLFixture 
         Assert.InRange(weakOccluded.Diffuse[channel]/weakNeutral.Diffuse[channel],visibility-.001f,visibility+.001f);
 
         float[] wrongDepth=(float[])stages.Reconstructed.Clone();for(int i=1;i<wrongDepth.Length;i+=4)wrongDepth[i]+=20;
-        using var rejected=TestFramework.CreateTexture(width,height,PixelInternalFormat.Rgba32f,wrongDepth);
+        using var rejected=TestFramework.CreateTexture(width,height,TextureFormat.Rgba32f,wrongDepth);
         var unmatched=lighting.Capture(rejected);
         for(int c=0;c<3;c++)Assert.InRange(unmatched.Combined[channel+c],neutral.Combined[channel+c]-.0001f,neutral.Combined[channel+c]+.0001f);
         int rawChannel=((pixel/width/2)*((width+1)/2)+(pixel%width/2))*4;

@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.Integration.OpenGL;
 using System;
 using System.Runtime.ExceptionServices;
 using OpenTK.Graphics.OpenGL4;
@@ -70,8 +71,8 @@ internal sealed partial class OpenGLBackend
             throw new ArgumentException("An image blit requires single-image selections, represented aspects and nearest/linear filtering.");
         ValidateBlitArea(blit.SourceArea, source.Image);
         ValidateBlitArea(blit.DestinationArea, destination.Image);
-        var fromFormat = OpenGLImageValues.Format(source.Image.Format);
-        var toFormat = OpenGLImageValues.Format(destination.Image.Format);
+        var fromFormat = source.Image.Format;
+        var toFormat = destination.Image.Format;
         bool color = blit.Aspects == ImageAspects.Color;
         if (color)
         {
@@ -119,9 +120,9 @@ internal sealed partial class OpenGLBackend
             && source.Subresource.Layer + (from?.BaseLayer ?? 0) == destination.Subresource.Layer + (to?.BaseLayer ?? 0);
     }
     /// <summary>Recognizes packed depth/stencil storage in addition to stencil-only images.</summary>
-    private static bool StencilFormat(OpenTK.Graphics.OpenGL.PixelInternalFormat format)
-        => TextureFormatHelper.IsStencilFormat(format) || format is OpenTK.Graphics.OpenGL.PixelInternalFormat.Depth24Stencil8
-            or OpenTK.Graphics.OpenGL.PixelInternalFormat.Depth32fStencil8;
+    private static bool StencilFormat(TextureFormat format)
+        => TextureFormatHelper.IsStencilFormat(format) || format is TextureFormat.Depth24Stencil8
+            or TextureFormat.Depth32fStencil8;
     /// <summary>Classifies signed integer attachments without native queries or numeric token inference.</summary>
     private static bool SignedIntegerFormat(TextureFormat format) => format is TextureFormat.R8i or TextureFormat.R16i or TextureFormat.R32i
         or TextureFormat.Rg8i or TextureFormat.Rg16i or TextureFormat.Rg32i or TextureFormat.Rgb8i or TextureFormat.Rgb16i

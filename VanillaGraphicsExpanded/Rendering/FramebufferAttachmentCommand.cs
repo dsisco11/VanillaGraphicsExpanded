@@ -1,9 +1,10 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
 
 namespace VanillaGraphicsExpanded.Rendering;
 
 /// <summary>Retains command admission evidence separately from queryable native attachment descriptors.</summary>
-internal readonly record struct FramebufferAttachmentCommand(FramebufferAttachment Slot, int Texture, int Level,
+internal readonly record struct FramebufferAttachmentCommand(FramebufferSlot Slot, int Texture, int Level,
     int Layer, int BaseView, int ViewCount, GpuFramebufferAttachmentMode Mode, bool Eligible, bool Rejected)
 {
     #region Internal API

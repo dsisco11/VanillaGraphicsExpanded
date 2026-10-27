@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.Integration.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System;
@@ -25,10 +26,10 @@ internal sealed class RenderPassTargets : IDisposable
         if (target.FboId == 0)
         {
             var surface = target.Surface ?? throw new NotSupportedException("Strict passes require published window-surface metadata.");
-            if (description.Colors.Count != 1 || description.Colors[0].SurfaceBuffer != surface.Buffer)
+            if (description.Colors.Count != 1 || description.Colors[0].SurfaceBuffer != (surface.Buffer == SurfaceColorBuffer.BackLeft ? DrawBuffersEnum.BackLeft : DrawBuffersEnum.FrontLeft))
                 throw new ArgumentException("Window passes require their published front/back color route.");
-            description.Colors[0].Clear?.Validate(OpenGLImageValues.Format(surface.Color));
-            Signature = new([new(OpenGLImageValues.Format(surface.Color))], surface.DepthStencil is { } surfaceDepth ? OpenGLImageValues.Format(surfaceDepth) : null, surface.Samples, surface.HasDepth, surface.HasStencil);
+            description.Colors[0].Clear?.Validate(surface.Color);
+            Signature = new([new(surface.Color)], surface.DepthStencil is { } surfaceDepth ? surfaceDepth : null, surface.Samples, surface.HasDepth, surface.HasStencil);
             Area = description.Area ?? new(0, 0, target.Width, target.Height);
             if (Area.X < 0 || Area.Y < 0 || Area.Width <= 0 || Area.Height <= 0
                 || (long)Area.X + Area.Width > target.Width || (long)Area.Y + Area.Height > target.Height)
@@ -48,7 +49,7 @@ internal sealed class RenderPassTargets : IDisposable
         foreach (var pair in target.AttachmentImages)
         {
             var image = pair.Value;
-            if (pair.Key >= FramebufferAttachment.ColorAttachment0 && pair.Key <= FramebufferAttachment.ColorAttachment15
+            if (pair.Key >= FramebufferSlot.Color0 && pair.Key <= FramebufferSlot.Color15
                 && !TargetFormatPolicy.IsColor(image.Format))
                 throw new InvalidOperationException("Strict pass metadata requires a supported sized color format.");
             if (count++ == 0) { width = image.Width; height = image.Height; samples = Math.Max(1, image.Samples); }
@@ -63,13 +64,13 @@ internal sealed class RenderPassTargets : IDisposable
         foreach (var color in description.Colors)
         {
             if (color.Attachment < 0) { colors.Add(new(null, color.DiscardOutput)); continue; }
-            var image = target.GetAttachment(FramebufferAttachment.ColorAttachment0 + color.Attachment)
+            var image = target.GetAttachment(FramebufferSlot.Color0 + color.Attachment)
                 ?? throw new InvalidOperationException("A routed color attachment is missing.");
             colors.Add(new(image.Format));
             color.Clear?.Validate(image.Format);
         }
-        var depth = target.GetAttachment(FramebufferAttachment.DepthAttachment);
-        var stencil = target.GetAttachment(FramebufferAttachment.StencilAttachment);
+        var depth = target.GetAttachment(FramebufferSlot.Depth);
+        var stencil = target.GetAttachment(FramebufferSlot.Stencil);
         if (depth is not null && stencil is not null && (depth.ResourceId != stencil.ResourceId
             || depth.TextureId != stencil.TextureId || depth.MipLevel != stencil.MipLevel
             || depth.Layer != stencil.Layer || depth.CubeFace != stencil.CubeFace))

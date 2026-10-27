@@ -39,7 +39,7 @@ public sealed partial class PBRCompositeRenderer
         };
         var display = GpuShaderProgramLibraries.Get<PBRDisplayResolveShaderProgram>(capi, "pbr_display_resolve");
         if (display?.EnsureReady() != true) return null;
-        var primaryColor = gBufferManager.PrimaryFramebuffer.GetAttachment(FramebufferAttachment.ColorAttachment0)
+        var primaryColor = gBufferManager.PrimaryFramebuffer.GetAttachment(FramebufferSlot.Color0)
             ?? throw new InvalidOperationException("Primary color metadata is unavailable.");
         pipelines.Add(PreparePipeline(ref displayPipeline, display,
             new([new(primaryColor.Format)], samples: primaryColor.Samples)));

@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Diagnostics;
 using OpenTK.Graphics.OpenGL;
@@ -23,7 +24,7 @@ public sealed class DepthHierarchyMeasurementTests(HeadlessGLFixture fixture, IT
         using var compute=new DepthHierarchyPass();
         using var raster=new RasterDepthHierarchyReference();
         using var draw=new PostprocessDraw();
-        using var source=TestFramework.CreateTexture(width,height,PixelInternalFormat.R32f,
+        using var source=TestFramework.CreateTexture(width,height,TextureFormat.R32f,
             Enumerable.Range(0,width*height).Select(i=>.1f+.8f*((i*31)%101)/101f).ToArray());
         compute.Prepare(width,height,Programs.CreateDepthHierarchy());
         var pipelines=raster.Prepare(draw,width,height,Programs.Create<RasterDepthCopyShaderProgram>(),Programs.Create<RasterDepthReductionShaderProgram>());

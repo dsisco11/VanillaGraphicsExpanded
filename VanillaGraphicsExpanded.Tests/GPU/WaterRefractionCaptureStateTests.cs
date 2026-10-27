@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.LumOn;
@@ -74,8 +75,8 @@ public sealed class WaterRefractionCaptureStateTests(HeadlessGLFixture fixture) 
         using var direct = new DirectLightingRenderer(api, gbuffer, directBuffers);
         using var composite = new PBRCompositeRenderer(api, gbuffer, directBuffers, config, () => null);
         using var capture = new VanillaGraphicsExpanded.PBR.Liquids.WaterRefractionCapture(api, direct, composite);
-        using var callerTarget = CreateRenderTarget(2, 2, PixelInternalFormat.Rgba32f);
-        using var readTarget = CreateRenderTarget(1, 1, PixelInternalFormat.Rgba32f);
+        using var callerTarget = CreateRenderTarget(2, 2, TextureFormat.Rgba32f);
+        using var readTarget = CreateRenderTarget(1, 1, TextureFormat.Rgba32f);
         terrain.UploadTerrain(gbuffer, [.75f], [.5f, .5f, 1, 1], [.5f, 0, 0, 0], [.5f, .5f, .5f, 1]);
         var caller = VanillaGraphicsExpanded.Rendering.Shaders.GpuShaderProgramLibraries.Get<PBRDisplayResolveShaderProgram>(api, "pbr_display_resolve")!;
         caller.PrimaryScene = terrain.Color;
@@ -399,7 +400,7 @@ public sealed class WaterRefractionCaptureStateTests(HeadlessGLFixture fixture) 
                 Assert.True(composite.PrepareFrame());
                 Assert.Equal(ErrorCode.NoError, GL.GetError());
                 var ordinaryColor = Assert.IsType<DynamicTexture2D>(composite.SceneLinearColor);
-                Assert.Equal(PixelInternalFormat.R11fG11fB10f, ordinaryColor.InternalFormat);
+                Assert.Equal(TextureFormat.R11fG11fB10f, ordinaryColor.InternalFormat);
                 float[] sentinel = [13f, 7f, 3f];
                 ordinaryColor.UploadDataImmediate(sentinel);
                 terrain.UploadTerrain(gbuffer, [depth], [.5f, .5f, 1, 1], [.5f, 0, 0, 0], [depth, depth, depth, 1]);

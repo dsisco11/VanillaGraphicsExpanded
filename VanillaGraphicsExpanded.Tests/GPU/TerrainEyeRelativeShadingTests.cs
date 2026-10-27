@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.Integration.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Numerics;
@@ -27,11 +28,11 @@ public sealed class TerrainEyeRelativeShadingTests : RenderTestBase
     {
         EnsureContextValid();
         using var drawing = new ShaderTestFramework();
-        using var target = drawing.CreateTestGBuffer(2, 2, PixelInternalFormat.Rgba32f);
-        using var texture = drawing.CreateTexture(64, 64, PixelInternalFormat.Rgba32f,
+        using var target = drawing.CreateTestGBuffer(2, 2, TextureFormat.Rgba32f);
+        using var texture = drawing.CreateTexture(64, 64, TextureFormat.Rgba32f,
             Enumerable.Range(0,64*64).SelectMany(_ => new[] {.8f,.5f,.9f,.25f}).ToArray());
-        using var indices = drawing.CreateTexture(1,1,PixelInternalFormat.R32f,[1f]);
-        using var records = drawing.CreateTexture(2,1,PixelInternalFormat.Rgba32f,[0,0,1,1,.04f,0,0,0]);
+        using var indices = drawing.CreateTexture(1,1,TextureFormat.R32f,[1f]);
+        using var records = drawing.CreateTexture(2,1,TextureFormat.Rgba32f,[0,0,1,1,.04f,0,0,0]);
         using var inputs = new PackedUniformBuffer(32);
         byte[] inputBytes = new byte[32];
         int vs = BuiltShaderFixture.LoadFixture("tests/eye-relative.vsh", ShaderType.VertexShader), fs = BuiltShaderFixture.LoadFixture("tests/eye-relative.fsh", ShaderType.FragmentShader);
@@ -43,11 +44,11 @@ public sealed class TerrainEyeRelativeShadingTests : RenderTestBase
             Assert.True(linked != 0, GL.GetProgramInfoLog(program));
             var layout = BuiltShaderFixture.Layout(program, "tests/eye-relative.vsh", "tests/eye-relative.fsh");
             OpenGLProgramSelection.Select(OpenGlStateCache.Current, program); OpenGLVertexSelection.Bind(OpenGlStateCache.Current, vao);
-            VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, texture, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)texture).Target))]);
+            VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, texture, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)texture).Target)))]);
             // This fixture owns non-mipmapped atlas sampling, independent of earlier render passes.
             VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageBindings.BindSampler(OpenGlStateCache.Current, 0, 0); VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageBindings.BindSampler(OpenGlStateCache.Current, 1, 0); VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageBindings.BindSampler(OpenGlStateCache.Current, 2, 0);
             GL.Uniform1(layout.GetUniformLocation(program,"vge_normalDepthTex"),0);
-            VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(1, indices, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)indices).Target))]); VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(2, records, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)records).Target))]);
+            VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(1, indices, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)indices).Target)))]); VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(2, records, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)records).Target)))]);
             GL.Uniform1(layout.GetUniformLocation(program,"vge_displacementTex"),1);
             GL.Uniform1(layout.GetUniformLocation(program,"vge_displacementRecords"),2);
             OpenGlStateCache.Current.SetCapability(EnableCap.DepthTest,false); OpenGlStateCache.Current.SetCapability(EnableCap.Blend,false); OpenGlStateCache.Current.SetCapability(EnableCap.CullFace,false);

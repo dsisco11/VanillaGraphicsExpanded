@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.Integration.OpenGL;
 using OpenTK.Graphics.OpenGL;
 namespace VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 /// <summary>Executes native integration framebuffer-owner requests with original-context admission.</summary>
@@ -27,27 +28,32 @@ internal sealed partial class OpenGLBackend
         return new OpenGLFramebufferConfigurationLease(cache, owner);
     }
     /// <inheritdoc />
-    public void SelectFramebufferOwner(GpuFramebuffer? owner, FramebufferTarget target)
+    public void SelectFramebufferOwner(GpuFramebuffer? owner, FramebufferSelection target)
     {
         RequireContext();
-        if (owner is null) OpenGLFramebufferSelection.Bind(cache, target, 0);
-        else { owner.RequireOriginalContext(); OpenGLFramebufferConfiguration.BindFramebufferResource(owner, target); }
+        if (owner is null) OpenGLFramebufferSelection.Bind(cache, OpenGLResourceValues.Native(target), 0);
+        else { owner.RequireOriginalContext(); OpenGLFramebufferConfiguration.BindFramebufferResource(owner, OpenGLResourceValues.Native(target)); }
     }
     /// <inheritdoc />
-    public void ConfigureFramebufferRouting(GpuFramebuffer owner, DrawBuffersEnum[] routing, ReadBufferMode read)
-    { RequireContext(); OpenGLFramebufferConfiguration.ConfigureRouting(owner, routing, read); }
+    public void ConfigureFramebufferRouting(GpuFramebuffer owner, System.ReadOnlySpan<int> routing, int? read)
+    {
+        RequireContext();
+        var native = new DrawBuffersEnum[routing.Length];
+        for (int i = 0; i < native.Length; i++)
+            native[i] = routing[i] == -1 ? DrawBuffersEnum.None : (uint)routing[i] < 32
+                ? DrawBuffersEnum.ColorAttachment0 + routing[i] : throw new System.ArgumentOutOfRangeException(nameof(routing));
+        if (read.HasValue && (uint)read.Value >= 32) throw new System.ArgumentOutOfRangeException(nameof(read));
+        OpenGLFramebufferConfiguration.ConfigureRouting(owner, native, read.HasValue ? ReadBufferMode.ColorAttachment0 + read.Value : ReadBufferMode.None);
+    }
     /// <inheritdoc />
-    public void ConfigureFramebufferAttachment(GpuFramebuffer owner, FramebufferAttachment slot, GpuFramebufferAttachment? image)
+    public void ConfigureFramebufferAttachment(GpuFramebuffer owner, FramebufferSlot slot, GpuFramebufferAttachment? image)
     { RequireMutableFramebufferOwner(owner); OpenGLFramebufferConfiguration.FramebufferTexture(owner, slot, image); }
     /// <inheritdoc />
-    public void RefreshFramebufferAttachments(GpuFramebuffer owner, System.Collections.Generic.IEnumerable<System.Collections.Generic.KeyValuePair<FramebufferAttachment, GpuFramebufferAttachment>> images)
-    { RequireMutableFramebufferOwner(owner); OpenGLFramebufferConfiguration.ReattachFramebuffer(owner, images); }
+    public void RefreshFramebufferAttachments(GpuFramebuffer owner)
+    { RequireMutableFramebufferOwner(owner); OpenGLFramebufferConfiguration.ReattachFramebuffer(owner, owner.AttachmentImages); }
     /// <inheritdoc />
     public void RequireFramebufferComplete(GpuFramebuffer owner)
     { RequireContext(); owner.RequireOriginalContext(); OpenGLFramebufferCompleteness.RequireComplete(owner.FboId); }
-    /// <inheritdoc />
-    public TextureFormat DescribeAttachment(GpuFramebufferAttachment image)
-    { RequireContext(); return OpenGLImageValues.Format(image.InternalFormat); }
     /// <inheritdoc />
     public void SelectFramebufferColorOutput(GpuFramebuffer owner, int attachment, bool read)
     {

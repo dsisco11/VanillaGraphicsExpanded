@@ -35,8 +35,8 @@ public sealed class ColorGradingLutTests(HeadlessGLFixture fixture, ITestOutputH
         using var owner = new ColorGradingLut();
         Vector4 controls = new(gamma, extraGamma, gain, contrast);
         var texture = owner.Prepare(Programs.Api, controls);
-        Assert.Equal(TextureTarget.Texture3D, texture.TextureTarget);
-        Assert.Equal(PixelInternalFormat.Rgba16f, texture.InternalFormat);
+        Assert.Equal(TextureDimension.Three, texture.TextureTarget);
+        Assert.Equal(TextureFormat.Rgba16f, texture.InternalFormat);
         Assert.Equal(64, texture.Width);
         Assert.Equal(64, texture.Height);
         Assert.Equal(64, texture.Depth);
@@ -241,7 +241,7 @@ public sealed class ColorGradingLutTests(HeadlessGLFixture fixture, ITestOutputH
         float p = 1 / MathF.Tan(1);
         using var camera = TestFrameCamera.CreateFromProjection(new Matrix4x4(p,0,0,0,0,p,0,0,0,0,-1,-1,0,0,-.2f,0), size, size);
         shader.Frame = camera; shader.GalaxyMap = resources.Galaxy;
-        using var transmission = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Width = 512, Height = 1, Format = TextureFormat.Rgba32f, MipLevels = 1, Storage = ResourceStorageMode.Mutable, BaseLevel = 0, MaxLevel = 0, Filter = TextureFilterMode.Nearest, Label = null }, [new RHITextureInitialData(new(new(), 0, 0, 0, 512, 1), VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLPixelValues.Encoding(TextureFormatHelper.GetPixelFormat(PixelInternalFormat.Rgba32f), OpenTK.Graphics.OpenGL.PixelType.Float), System.Runtime.InteropServices.MemoryMarshal.AsBytes((AtmosphereExternalTransmission.Build(.001f, 1, TestContext.Current.CancellationToken).ToArray()).AsSpan()).ToArray())]).RequireResource();
+        using var transmission = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Width = 512, Height = 1, Format = TextureFormat.Rgba32f, MipLevels = 1, Storage = ResourceStorageMode.Mutable, BaseLevel = 0, MaxLevel = 0, Filter = TextureFilterMode.Nearest, Label = null }, [new RHITextureInitialData(new(new(), 0, 0, 0, 512, 1), new RHIPixelEncoding(TextureFormatHelper.GetPixelFormat(TextureFormat.Rgba32f), PixelComponentType.Float), System.Runtime.InteropServices.MemoryMarshal.AsBytes((AtmosphereExternalTransmission.Build(.001f, 1, TestContext.Current.CancellationToken).ToArray()).AsSpan()).ToArray())]).RequireResource();
         shader.ExternalTransmission = transmission;
         using var color = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba32f, Width = System.Math.Max(1, size), Height = System.Math.Max(1, size), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         using var glow = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba32f, Width = System.Math.Max(1, size), Height = System.Math.Max(1, size), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
@@ -299,9 +299,9 @@ public sealed class ColorGradingLutTests(HeadlessGLFixture fixture, ITestOutputH
         width = width == 0 ? colors.Length : width;
         int height = colors.Length / width;
         float[] input = colors.SelectMany(color => new[] { color.X, color.Y, color.Z, .37f }).ToArray();
-        using var source = TestFramework.CreateTexture(width, height, PixelInternalFormat.Rgba32f, input);
-        using var zero = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba32f, [0f, 0f, 0f, 0f]);
-        using var target = TestFramework.CreateTestGBuffer(width, height, PixelInternalFormat.Rgba8);
+        using var source = TestFramework.CreateTexture(width, height, TextureFormat.Rgba32f, input);
+        using var zero = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba32f, [0f, 0f, 0f, 0f]);
+        using var target = TestFramework.CreateTestGBuffer(width, height, TextureFormat.Rgba8);
         using var frame = TestFrameCamera.CreateIdentity(width, height);
         using var exposure = ExposureTestStorage.Create(ev);
         using var draw = new PostprocessDraw();

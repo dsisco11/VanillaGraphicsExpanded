@@ -1,3 +1,5 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
+using VanillaGraphicsExpanded.Rendering.RHI;
 using VanillaGraphicsExpanded.LumOn;
 using System;
 using System.Collections.Generic;
@@ -140,20 +142,20 @@ public partial class LumOnProbeAtlasTraceWorldProbeFallbackFunctionalTests : Lum
         // HZB mip0: same as depth in this test.
         var hzb = depth;
 
-        using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorPos);
-        using var anchorNormalTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorNormal);
-        using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depth);
-        using var directTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, direct);
-        using var emissiveTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, emissive);
-        using var historyAtlasTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, historyAtlas);
-        using var historyMetaTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rg32f, historyMeta);
-        using var hzbTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, hzb);
+        using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, TextureFormat.Rgba16f, anchorPos);
+        using var anchorNormalTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, TextureFormat.Rgba16f, anchorNormal);
+        using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.R32f, depth);
+        using var directTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.Rgba16f, direct);
+        using var emissiveTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.Rgba16f, emissive);
+        using var historyAtlasTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, TextureFormat.Rgba16f, historyAtlas);
+        using var historyMetaTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, TextureFormat.Rg32f, historyMeta);
+        using var hzbTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.R32f, hzb);
 
-        using var wpRadianceAtlasTex = TestFramework.CreateTexture(wpRadianceAtlasWidth, wpRadianceAtlasHeight, PixelInternalFormat.Rgba16f, wpRadianceAtlas);
-        using var wpVis0Tex = TestFramework.CreateTexture(wpScalarAtlasWidth, wpScalarAtlasHeight, PixelInternalFormat.Rgba16f, wpVis0);
-        using var wpMeta0Tex = TestFramework.CreateTexture(wpScalarAtlasWidth, wpScalarAtlasHeight, PixelInternalFormat.Rg32f, wpMeta0);
+        using var wpRadianceAtlasTex = TestFramework.CreateTexture(wpRadianceAtlasWidth, wpRadianceAtlasHeight, TextureFormat.Rgba16f, wpRadianceAtlas);
+        using var wpVis0Tex = TestFramework.CreateTexture(wpScalarAtlasWidth, wpScalarAtlasHeight, TextureFormat.Rgba16f, wpVis0);
+        using var wpMeta0Tex = TestFramework.CreateTexture(wpScalarAtlasWidth, wpScalarAtlasHeight, TextureFormat.Rg32f, wpMeta0);
 
-        using var output = TestFramework.CreateTestGBuffer(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, PixelInternalFormat.Rg32f);
+        using var output = TestFramework.CreateTestGBuffer(AtlasWidth, AtlasHeight, TextureFormat.Rgba16f, TextureFormat.Rg32f);
 
         var programId = CompileProbeAtlasTraceShaderWithWorldProbeFallback(wpLevels, wpResolution, wpBaseSpacing);
         {

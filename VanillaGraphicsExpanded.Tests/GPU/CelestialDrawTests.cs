@@ -36,7 +36,7 @@ public sealed class CelestialDrawTests(HeadlessGLFixture fixture) : LumOnShaderF
         Assert.Equal(1024,stars.Count);
         using var shaders=new GraphicsStateShaders();
         var shader=shaders.Get();
-        using var target=CreateMRTRenderTarget(1,1,PixelInternalFormat.Rgba32f,PixelInternalFormat.Rgba32f);
+        using var target=CreateMRTRenderTarget(1,1,TextureFormat.Rgba32f,TextureFormat.Rgba32f);
         var context=RHICommandContext.Current;
         using var pipeline=context.CreateGraphicsPipeline(new(shader,CelestialStarGeometry.Layout,
             context.DescribeRenderTargets(FramebufferTestSetup.DescribeAttachments(target,[new(AttachmentIndex:0),new(AttachmentIndex:1)])),DynamicPipelineState.Viewport)).RequireResource();
@@ -196,7 +196,7 @@ public sealed class CelestialDrawTests(HeadlessGLFixture fixture) : LumOnShaderF
             using var binding=OpenGlStateCache.Current.BindTextureScope(TextureTarget.TextureCubeMap,0,cube.TextureId);
             GL.TexSubImage2D(TextureTarget.TextureCubeMapPositiveX+face,0,0,0,2,2,PixelFormat.Rgba,PixelType.Float,values);
         }
-        using var transmission=RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Width = 2, Height = 1, Format = TextureFormat.Rgba32f, MipLevels = 1, Storage = ResourceStorageMode.Mutable, BaseLevel = 0, MaxLevel = 0, Filter = TextureFilterMode.Nearest, Label = null }, [new RHITextureInitialData(new(new(), 0, 0, 0, 2, 1), VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLPixelValues.Encoding(TextureFormatHelper.GetPixelFormat(PixelInternalFormat.Rgba32f), OpenTK.Graphics.OpenGL.PixelType.Float), System.Runtime.InteropServices.MemoryMarshal.AsBytes((new float[] { .5f,.25f,.75f,1,.5f,.25f,.75f,1 }).AsSpan()).ToArray())]).RequireResource();
+        using var transmission=RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Width = 2, Height = 1, Format = TextureFormat.Rgba32f, MipLevels = 1, Storage = ResourceStorageMode.Mutable, BaseLevel = 0, MaxLevel = 0, Filter = TextureFilterMode.Nearest, Label = null }, [new RHITextureInitialData(new(new(), 0, 0, 0, 2, 1), new RHIPixelEncoding(TextureFormatHelper.GetPixelFormat(TextureFormat.Rgba32f), PixelComponentType.Float), System.Runtime.InteropServices.MemoryMarshal.AsBytes((new float[] { .5f,.25f,.75f,1,.5f,.25f,.75f,1 }).AsSpan()).ToArray())]).RequireResource();
         shader.GalaxyMap=cube;shader.ExternalTransmission=transmission;
         using var geometry=new ArrayGraphicsGeometry(CelestialDrawPass.FullscreenLayout,PrimitiveTopology.Triangles,new Dictionary<int,GpuVbo>(),3);
         float[] actual=Draw(shader,geometry,CelestialDrawPass.FullscreenLayout,32,1);
@@ -224,7 +224,7 @@ public sealed class CelestialDrawTests(HeadlessGLFixture fixture) : LumOnShaderF
         Matrix4x4 projection=Projection(size,fov);
         using var camera=TestFrameCamera.CreateFromProjection(projection,size,size);
         shader.Frame=camera;shader.DrawInputs.Capture(Matrix4x4.Identity,1,horizon);
-        using var extinction=RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Width = 2, Height = 1, Format = TextureFormat.Rgba32f, MipLevels = 1, Storage = ResourceStorageMode.Mutable, BaseLevel = 0, MaxLevel = 0, Filter = TextureFilterMode.Nearest, Label = null }, [new RHITextureInitialData(new(new(), 0, 0, 0, 2, 1), VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLPixelValues.Encoding(TextureFormatHelper.GetPixelFormat(PixelInternalFormat.Rgba32f), OpenTK.Graphics.OpenGL.PixelType.Float), System.Runtime.InteropServices.MemoryMarshal.AsBytes((new float[] { transmission.X,transmission.Y,transmission.Z,1,transmission.X,transmission.Y,transmission.Z,1 }).AsSpan()).ToArray())]).RequireResource();
+        using var extinction=RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Width = 2, Height = 1, Format = TextureFormat.Rgba32f, MipLevels = 1, Storage = ResourceStorageMode.Mutable, BaseLevel = 0, MaxLevel = 0, Filter = TextureFilterMode.Nearest, Label = null }, [new RHITextureInitialData(new(new(), 0, 0, 0, 2, 1), new RHIPixelEncoding(TextureFormatHelper.GetPixelFormat(TextureFormat.Rgba32f), PixelComponentType.Float), System.Runtime.InteropServices.MemoryMarshal.AsBytes((new float[] { transmission.X,transmission.Y,transmission.Z,1,transmission.X,transmission.Y,transmission.Z,1 }).AsSpan()).ToArray())]).RequireResource();
         shader.ExternalTransmission=table??extinction;
         Vector3 direction=Vector3.Normalize(new((centre.X/size*2-1)/projection.M11,(centre.Y/size*2-1)/projection.M22,behind?1:-1));
         using var buffer=RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = null }).RequireResource();

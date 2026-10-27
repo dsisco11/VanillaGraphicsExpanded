@@ -43,7 +43,7 @@ public sealed class GpuFramebufferMetadataInterceptionTests(HeadlessGLFixture fi
             Attach(variant, framebuffer.FboId, resource);
             Assert.Equal(framebuffer.FboId, GL.GetInteger(GetPName.DrawFramebufferBinding));
             Assert.Equal(readSentinel, GL.GetInteger(GetPName.ReadFramebufferBinding));
-            var descriptor = alias.Snapshot.Attachments[FramebufferAttachment.ColorAttachment0];
+            var descriptor = alias.Snapshot.Attachments[FramebufferSlot.Color0];
             Assert.Equal(resource, descriptor.Id);
             Assert.Equal(variant is 4 or 5 ? GpuResourceKind.Renderbuffer : GpuResourceKind.Texture, descriptor.Kind);
             Assert.Equal(variant is 6 or 7 or 11 ? 1 : 0, descriptor.Layer);
@@ -116,10 +116,10 @@ public sealed class GpuFramebufferMetadataInterceptionTests(HeadlessGLFixture fi
             GL.Enable((EnableCap)(-1));
             Attach(0, framebuffer.FboId, texture.TextureId);
             Assert.Equal(ErrorCode.InvalidEnum, GL.GetError());
-            var expected = entry.Metadata.Attachments[FramebufferAttachment.ColorAttachment0];
+            var expected = entry.Metadata.Attachments[FramebufferSlot.Color0];
             RejectAttachment(framebuffer.FboId, texture.TextureId);
             Assert.Equal(ErrorCode.InvalidValue, GL.GetError());
-            Assert.Equal(expected, entry.Metadata.Attachments[FramebufferAttachment.ColorAttachment0]);
+            Assert.Equal(expected, entry.Metadata.Attachments[FramebufferSlot.Color0]);
             Assert.True(GpuResourceManagerSystem.CurrentManager!.IsResourceMetadataAvailable(framebuffer));
             framebuffer.Bind();
             Assert.Equal(texture.TextureId, framebuffer.GetColorTextureId(0));
@@ -140,10 +140,10 @@ public sealed class GpuFramebufferMetadataInterceptionTests(HeadlessGLFixture fi
             using var framebuffer=DynamicGpuFramebuffer.Create([image])!;
             using var packed=RHICommandContext.Current.CreateRenderbuffer(new RHIRenderbufferDescription { Format = TextureFormat.Depth24Stencil8, Width = 4, Height = 4, Samples = 0, Label = null }).RequireResource();
             AttachPacked(framebuffer.FboId,packed.RenderbufferId);
-            var depth=framebuffer.GetAttachment(FramebufferAttachment.DepthAttachment);
+            var depth=framebuffer.GetAttachment(FramebufferSlot.Depth);
             Assert.NotNull(depth);
-            Assert.Same(depth,framebuffer.GetAttachment(FramebufferAttachment.StencilAttachment));
-            Assert.Same(depth,framebuffer.GetAttachment(FramebufferAttachment.DepthStencilAttachment));
+            Assert.Same(depth,framebuffer.GetAttachment(FramebufferSlot.Stencil));
+            Assert.Same(depth,framebuffer.GetAttachment(FramebufferSlot.DepthStencil));
             framebuffer.Bind();
             Assert.Equal(packed.RenderbufferId,depth.RenderbufferId);
             Assert.Equal(ErrorCode.NoError,GL.GetError());

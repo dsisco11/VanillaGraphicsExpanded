@@ -26,7 +26,7 @@ internal sealed partial class OpenGLBackend
             var entry = active.Binding;
             if (entry.Contract.Kind != ShaderBindingKind.Sampler) continue;
             inputs.TrySampler(active.Identity, active.Element, out var input);
-            var target = (Legacy.TextureTarget)GpuPreparedBindings.CompatibleTextureTarget(entry.Type);
+            var target = OpenGLImageValues.Target((TextureDimension)GpuPreparedBindings.CompatibleTextureTarget(entry.Type));
             int texture = input.Texture.IsEmpty ? 0 : input.Texture.TextureId;
             int sampler = input.Sampler.IsEmpty ? ResolvePolicySampler((ShaderSamplerPolicy)entry.Contract.Binding.Sampler)
                 : checked((int)input.Sampler.RequireResource().ResourceId);

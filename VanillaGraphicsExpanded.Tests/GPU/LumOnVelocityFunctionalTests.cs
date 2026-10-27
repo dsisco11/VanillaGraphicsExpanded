@@ -1,3 +1,5 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
+using VanillaGraphicsExpanded.Rendering.RHI;
 using VanillaGraphicsExpanded.LumOn;
 using System;
 using System.Numerics;
@@ -45,7 +47,7 @@ public class LumOnVelocityFunctionalTests : LumOnShaderFunctionalTestBase
             invCurrViewProjMatrix: invCurrViewProj,
             prevViewProjMatrix: prevViewProj,
             historyValid: historyValid);
-        var identity=TestFramework.CreateTexture(ScreenWidth,ScreenHeight,PixelInternalFormat.Rgba32ui);
+        var identity=TestFramework.CreateTexture(ScreenWidth,ScreenHeight,TextureFormat.Rgba32ui);
         identity.UploadDataImmediate(new uint[ScreenWidth*ScreenHeight*4]);
         programId.PatchIdentity=identity;
 
@@ -101,12 +103,12 @@ public class LumOnVelocityFunctionalTests : LumOnShaderFunctionalTestBase
     {
         EnsureShaderTestAvailable();
         var program=CompileVelocityShader();
-        using var identity=TestFramework.CreateTexture(ScreenWidth,ScreenHeight,PixelInternalFormat.Rgba32ui);
+        using var identity=TestFramework.CreateTexture(ScreenWidth,ScreenHeight,TextureFormat.Rgba32ui);
         var ids=new uint[ScreenWidth*ScreenHeight*4];for(int i=3;i<ids.Length;i+=4)ids[i]=(1u<<16)|27u;
         identity.UploadDataImmediate(ids);
         program.PatchIdentity=identity;
-        using var depth=TestFramework.CreateTexture(ScreenWidth,ScreenHeight,PixelInternalFormat.R32f,CreateUniformDepthData(ScreenWidth,ScreenHeight,.5f));
-        using var target=TestFramework.CreateTestGBuffer(ScreenWidth,ScreenHeight,PixelInternalFormat.Rgba32f);
+        using var depth=TestFramework.CreateTexture(ScreenWidth,ScreenHeight,TextureFormat.R32f,CreateUniformDepthData(ScreenWidth,ScreenHeight,.5f));
+        using var target=TestFramework.CreateTestGBuffer(ScreenWidth,ScreenHeight,TextureFormat.Rgba32f);
         var matrix=LumOnTestInputFactory.CreateIdentityMatrix();SetupVelocityUniforms(program,matrix,matrix,1);program.PrimaryDepth=depth;program.PatchIdentity=identity;
         Assert.True(program.ProgramLayout.TryGetContractSamplerSpec("gBufferPatchId",out int contractUnit,out bool required));Assert.Equal(1,contractUnit);
         int identityLocation=program.ProgramLayout.GetUniformLocation(program.ProgramId,"gBufferPatchId");
@@ -126,9 +128,9 @@ public class LumOnVelocityFunctionalTests : LumOnShaderFunctionalTestBase
     {
         EnsureShaderTestAvailable();
         var program = CompileVelocityShader();
-        using var depth = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f,
+        using var depth = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.R32f,
             CreateUniformDepthData(ScreenWidth, ScreenHeight, .5f));
-        using var target = TestFramework.CreateTestGBuffer(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba32f);
+        using var target = TestFramework.CreateTestGBuffer(ScreenWidth, ScreenHeight, TextureFormat.Rgba32f);
         float[] previous = CreateRotationZ(.1f);
         previous[12] = .015625f;
         previous[13] = -.03125f;
@@ -167,9 +169,9 @@ public class LumOnVelocityFunctionalTests : LumOnShaderFunctionalTestBase
 
         // Depth that is not sky and not zero.
         var depthData = CreateUniformDepthData(ScreenWidth, ScreenHeight, depth: 0.5f);
-        using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
+        using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.R32f, depthData);
 
-        using var outRt = TestFramework.CreateTestGBuffer(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba32f);
+        using var outRt = TestFramework.CreateTestGBuffer(ScreenWidth, ScreenHeight, TextureFormat.Rgba32f);
 
         float[] invCurr = LumOnTestInputFactory.CreateIdentityMatrix();
         float[] prev = LumOnTestInputFactory.CreateIdentityMatrix();
@@ -208,9 +210,9 @@ public class LumOnVelocityFunctionalTests : LumOnShaderFunctionalTestBase
 
 
         var depthData = CreateUniformDepthData(ScreenWidth, ScreenHeight, depth: 0.5f);
-        using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
+        using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.R32f, depthData);
 
-        using var outRt = TestFramework.CreateTestGBuffer(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba32f);
+        using var outRt = TestFramework.CreateTestGBuffer(ScreenWidth, ScreenHeight, TextureFormat.Rgba32f);
 
         // With invCurr = I and prevViewProj = translate(+tx,0,0) in clip space,
         // prevUv.x = currUv.x + tx*0.5 => velocityUv.x = -tx*0.5.
@@ -254,9 +256,9 @@ public class LumOnVelocityFunctionalTests : LumOnShaderFunctionalTestBase
 
 
         var depthData = CreateUniformDepthData(ScreenWidth, ScreenHeight, depth: 0.5f);
-        using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
+        using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.R32f, depthData);
 
-        using var outRt = TestFramework.CreateTestGBuffer(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba32f);
+        using var outRt = TestFramework.CreateTestGBuffer(ScreenWidth, ScreenHeight, TextureFormat.Rgba32f);
 
         float[] invCurr = LumOnTestInputFactory.CreateIdentityMatrix();
         float[] prev = CreateRotationZ(radians: 10f * MathF.PI / 180f);

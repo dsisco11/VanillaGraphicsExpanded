@@ -15,17 +15,17 @@ public sealed class SceneColorParticleTests(HeadlessGLFixture fixture) : LumOnSh
     #region Public API
     /// <summary>Ordered radiance survives without overwriting material data; later opaque depth owns replacement pixels.</summary>
     [Theory]
-    [InlineData(0, PixelInternalFormat.DepthComponent32)]
-    [InlineData(0, PixelInternalFormat.DepthComponent32f)]
-    [InlineData(1, PixelInternalFormat.DepthComponent32)]
-    [InlineData(2, PixelInternalFormat.DepthComponent32)]
-    [InlineData(3, PixelInternalFormat.DepthComponent32)]
-    public void CaptureAndResolveSeparateMaterialDepthAndParticleRadiance(int scenario, PixelInternalFormat depthFormat)
+    [InlineData(0, TextureFormat.DepthComponent32)]
+    [InlineData(0, TextureFormat.DepthComponent32f)]
+    [InlineData(1, TextureFormat.DepthComponent32)]
+    [InlineData(2, TextureFormat.DepthComponent32)]
+    [InlineData(3, TextureFormat.DepthComponent32)]
+    public void CaptureAndResolveSeparateMaterialDepthAndParticleRadiance(int scenario, TextureFormat depthFormat)
     {
         EnsureShaderTestAvailable();
         EstablishScissor(false);
-        using var material = new GpuFramebufferAttachment(2, 2, PixelInternalFormat.Rgba32f);
-        using var glow = new GpuFramebufferAttachment(2, 2, PixelInternalFormat.Rgba32f);
+        using var material = new GpuFramebufferAttachment(2, 2, TextureFormat.Rgba32f);
+        using var glow = new GpuFramebufferAttachment(2, 2, TextureFormat.Rgba32f);
         using var depthStorage = new DepthTexture(2, 2, depthFormat);
         using var depth = GpuFramebufferAttachment.FromTexture(depthStorage);
         using var primary = DynamicGpuFramebuffer.Create([material, glow], depth);
@@ -114,11 +114,11 @@ public sealed class SceneColorParticleTests(HeadlessGLFixture fixture) : LumOnSh
     [Fact]
     public void PrimaryRepublicationInvalidatesAndDisposalKeepsBorrowedImages()
     {
-        const PixelInternalFormat depthFormat = PixelInternalFormat.DepthComponent32;
+        const TextureFormat depthFormat = TextureFormat.DepthComponent32;
         EnsureShaderTestAvailable();
         EstablishScissor(false);
-        using var material = new GpuFramebufferAttachment(2, 2, PixelInternalFormat.Rgba16f);
-        using var glow = new GpuFramebufferAttachment(2, 2, PixelInternalFormat.Rgba8);
+        using var material = new GpuFramebufferAttachment(2, 2, TextureFormat.Rgba16f);
+        using var glow = new GpuFramebufferAttachment(2, 2, TextureFormat.Rgba8);
         using var depthStorage = new DepthTexture(2, 2, depthFormat);
         using var depth = GpuFramebufferAttachment.FromTexture(depthStorage);
         using var engine = DynamicGpuFramebuffer.Create([material, glow], depth);
@@ -167,7 +167,7 @@ public sealed class SceneColorParticleTests(HeadlessGLFixture fixture) : LumOnSh
         GL.ProgramUniform1(program.ProgramId, GL.GetUniformLocation(program.ProgramId, "cameraUnderwater"), 1f);
         GL.ProgramUniform1(program.ProgramId, GL.GetUniformLocation(program.ProgramId, "shadowIntensity"), 0f);
         GL.ProgramUniform3(program.ProgramId, GL.GetUniformLocation(program.ProgramId, "lightPosition"), 0f, 1f, 0f);
-        using var target = CreateMRTRenderTarget(1, 1, Enumerable.Repeat(PixelInternalFormat.Rgba32f, ssao > 0 ? 4 : 2).ToArray());
+        using var target = CreateMRTRenderTarget(1, 1, Enumerable.Repeat(TextureFormat.Rgba32f, ssao > 0 ? 4 : 2).ToArray());
         TestFramework.RenderQuadTo(program.ProgramId, target);
         float[] actual = target[0].ReadPixels();
         float[] authored = [.5f, .25f, .75f];
@@ -191,12 +191,12 @@ public sealed class SceneColorParticleTests(HeadlessGLFixture fixture) : LumOnSh
         EnsureShaderTestAvailable();
         fixture.InitializeResourceDisposal();
         EstablishScissor(false);
-        using var material = new GpuFramebufferAttachment(2, 2, PixelInternalFormat.Rgba16f);
-        using var glow = new GpuFramebufferAttachment(2, 2, PixelInternalFormat.Rgba8);
-        using var depthStorage = new DepthTexture(2, 2, PixelInternalFormat.DepthComponent32);
+        using var material = new GpuFramebufferAttachment(2, 2, TextureFormat.Rgba16f);
+        using var glow = new GpuFramebufferAttachment(2, 2, TextureFormat.Rgba8);
+        using var depthStorage = new DepthTexture(2, 2, TextureFormat.DepthComponent32);
         using var depth = GpuFramebufferAttachment.FromTexture(depthStorage);
         using var primary = DynamicGpuFramebuffer.Create([material, glow], depth);
-        using var other = CreateRenderTarget(2, 2, PixelInternalFormat.Rgba16f);
+        using var other = CreateRenderTarget(2, 2, TextureFormat.Rgba16f);
         using var capture = new SceneColorParticleTargets(primary);
         try
         {
@@ -251,9 +251,9 @@ public sealed class SceneColorParticleTests(HeadlessGLFixture fixture) : LumOnSh
     {
         EnsureShaderTestAvailable();
         EstablishScissor(false);
-        using var material = new GpuFramebufferAttachment(2, 2, PixelInternalFormat.Rgba16f);
-        using var glow = new GpuFramebufferAttachment(2, 2, PixelInternalFormat.Rgba8);
-        using var depthStorage = new DepthTexture(2, 2, PixelInternalFormat.DepthComponent24);
+        using var material = new GpuFramebufferAttachment(2, 2, TextureFormat.Rgba16f);
+        using var glow = new GpuFramebufferAttachment(2, 2, TextureFormat.Rgba8);
+        using var depthStorage = new DepthTexture(2, 2, TextureFormat.DepthComponent24);
         using var depth = GpuFramebufferAttachment.FromTexture(depthStorage);
         using var primary = DynamicGpuFramebuffer.Create([material, glow], depth);
         Assert.Throws<InvalidOperationException>(() => new SceneColorParticleTargets(primary));

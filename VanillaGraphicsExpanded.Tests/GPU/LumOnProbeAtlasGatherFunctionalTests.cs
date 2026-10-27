@@ -1,3 +1,5 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
+using VanillaGraphicsExpanded.Rendering.RHI;
 using VanillaGraphicsExpanded.LumOn;
 using System.Collections.Generic;
 using System.Globalization;
@@ -252,39 +254,39 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
         CreateTestMatricesForDepth(pixelDepth, out var invProjection, out var viewMatrix, out var probeWorldZ, out _);
 
         using var screenProbeAtlas = TestFramework.CreateTexture(
-            AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, CreateUniformAtlas(1f, 1f, 1f));
+            AtlasWidth, AtlasHeight, TextureFormat.Rgba16f, CreateUniformAtlas(1f, 1f, 1f));
         using var anchorPos = TestFramework.CreateTexture(
-            ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, CreateProbeAnchors(probeWorldZ, validity: validScreenProbes ? 1f : 0f));
+            ProbeGridWidth, ProbeGridHeight, TextureFormat.Rgba16f, CreateProbeAnchors(probeWorldZ, validity: validScreenProbes ? 1f : 0f));
         using var anchorNormal = TestFramework.CreateTexture(
-            ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, CreateProbeNormals(0f, 1f, 0f));
+            ProbeGridWidth, ProbeGridHeight, TextureFormat.Rgba16f, CreateProbeNormals(0f, 1f, 0f));
         using var depth = TestFramework.CreateTexture(
-            ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, CreateDepthBuffer(pixelDepth));
+            ScreenWidth, ScreenHeight, TextureFormat.R32f, CreateDepthBuffer(pixelDepth));
         using var normal = TestFramework.CreateTexture(
-            ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, CreateNormalBuffer(0f, 1f, 0f));
+            ScreenWidth, ScreenHeight, TextureFormat.Rgba16f, CreateNormalBuffer(0f, 1f, 0f));
 
         using var worldProbeRadiance = TestFramework.CreateTexture(
-            worldProbeRadianceAtlasWidth, worldProbeRadianceAtlasHeight, PixelInternalFormat.Rgba16f,
+            worldProbeRadianceAtlasWidth, worldProbeRadianceAtlasHeight, TextureFormat.Rgba16f,
             CreateWorldProbeRadianceAtlas(worldProbeRadianceAtlasWidth, worldProbeRadianceAtlasHeight, 1f,
                 constantAgreement ? 1f : 0f, constantAgreement ? 1f : 0f));
         using var worldProbeVis = TestFramework.CreateTexture(
-            worldProbeScalarAtlasWidth, worldProbeScalarAtlasHeight, PixelInternalFormat.Rgba16f,
+            worldProbeScalarAtlasWidth, worldProbeScalarAtlasHeight, TextureFormat.Rgba16f,
             CreateUniformColorData(worldProbeScalarAtlasWidth, worldProbeScalarAtlasHeight, 0.5f, 1f, 0f, 0f));
         using var worldProbeMeta = TestFramework.CreateTexture(
-            worldProbeScalarAtlasWidth, worldProbeScalarAtlasHeight, PixelInternalFormat.Rg32f,
+            worldProbeScalarAtlasWidth, worldProbeScalarAtlasHeight, TextureFormat.Rg32f,
             CreateUniformData(worldProbeScalarAtlasWidth, worldProbeScalarAtlasHeight, 2, 1f, 0f));
-        using var output = TestFramework.CreateTestGBuffer(HalfResWidth, HalfResHeight, PixelInternalFormat.Rgba16f);
+        using var output = TestFramework.CreateTestGBuffer(HalfResWidth, HalfResHeight, TextureFormat.Rgba16f);
 
         // Each gather receives its own production input layout. SH9 uses a DC coefficient
         // for constant white radiance and zero higher bands.
-        using var shDc = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f,
+        using var shDc = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, TextureFormat.Rgba16f,
             CreateUniformColorData(ProbeGridWidth, ProbeGridHeight, resolvedBlack ? 0 : 3.5449077f * LightingStorage.PersistentScale,
                 resolvedBlack ? 0 : 3.5449077f * LightingStorage.PersistentScale, resolvedBlack ? 0 : 3.5449077f * LightingStorage.PersistentScale, negativeReconstruction ? -10 * LightingStorage.PersistentScale : 0));
-        using var shZero = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f,
+        using var shZero = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, TextureFormat.Rgba16f,
             CreateUniformColorData(ProbeGridWidth, ProbeGridHeight, 0, 0, 0, 0));
-        using var shCoverage = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f,
+        using var shCoverage = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, TextureFormat.Rgba16f,
             CreateUniformColorData(ProbeGridWidth, ProbeGridHeight, 0, 0, 0, 1));
         // The Y linear band reconstructs a negative value at the authored +Y receiver despite positive coverage.
-        using var shLinear = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f,
+        using var shLinear = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, TextureFormat.Rgba16f,
             CreateUniformColorData(ProbeGridWidth, ProbeGridHeight, negativeReconstruction ? -10 * LightingStorage.PersistentScale : 0,
                 negativeReconstruction ? -10 * LightingStorage.PersistentScale : 0, 0, 0));
         LumOnProbeSh9GatherShaderProgram? sh = null;
@@ -423,16 +425,16 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
         var depthData = CreateDepthBuffer(pixelDepth);
         var normalData = CreateNormalBuffer(0f, 1f, 0f);  // Upward, matching probes
 
-        using var atlasTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, atlasData);
-        using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorPosData);
-        using var anchorNormalTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorNormalData);
-        using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
-        using var normalTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, normalData);
+        using var atlasTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, TextureFormat.Rgba16f, atlasData);
+        using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, TextureFormat.Rgba16f, anchorPosData);
+        using var anchorNormalTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, TextureFormat.Rgba16f, anchorNormalData);
+        using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.R32f, depthData);
+        using var normalTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.Rgba16f, normalData);
 
         // Create half-res output
         using var outputGBuffer = TestFramework.CreateTestGBuffer(
             HalfResWidth, HalfResHeight,
-            PixelInternalFormat.Rgba16f);
+            TextureFormat.Rgba16f);
 
         var programId = CompileGatherShader();
 
@@ -517,15 +519,15 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
         var depthData = CreateDepthBuffer(pixelDepth);
         var normalData = CreateNormalBuffer(0f, 1f, 0f);
 
-        using var atlasTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, atlasData);
-        using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorPosData);
-        using var anchorNormalTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorNormalData);
-        using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
-        using var normalTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, normalData);
+        using var atlasTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, TextureFormat.Rgba16f, atlasData);
+        using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, TextureFormat.Rgba16f, anchorPosData);
+        using var anchorNormalTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, TextureFormat.Rgba16f, anchorNormalData);
+        using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.R32f, depthData);
+        using var normalTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.Rgba16f, normalData);
 
         using var outputGBuffer = TestFramework.CreateTestGBuffer(
             HalfResWidth, HalfResHeight,
-            PixelInternalFormat.Rgba16f);
+            TextureFormat.Rgba16f);
 
         var programId = CompileGatherShader();
 
@@ -629,15 +631,15 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
         var depthData = CreateDepthBuffer(pixelDepth);
         var normalData = CreateNormalBuffer(0f, 1f, 0f);
 
-        using var atlasTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, atlasData);
-        using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorPosData);
-        using var anchorNormalTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorNormalData);
-        using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
-        using var normalTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, normalData);
+        using var atlasTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, TextureFormat.Rgba16f, atlasData);
+        using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, TextureFormat.Rgba16f, anchorPosData);
+        using var anchorNormalTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, TextureFormat.Rgba16f, anchorNormalData);
+        using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.R32f, depthData);
+        using var normalTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.Rgba16f, normalData);
 
         using var outputGBuffer = TestFramework.CreateTestGBuffer(
             HalfResWidth, HalfResHeight,
-            PixelInternalFormat.Rgba16f);
+            TextureFormat.Rgba16f);
 
         var programId = CompileGatherShader();
 
@@ -741,15 +743,15 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
         var depthData = CreateDepthBuffer(pixelDepth);
         var normalData = CreateNormalBuffer(0f, 1f, 0f);  // Pixel normal = upward
 
-        using var atlasTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, atlasData);
-        using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorPosData);
-        using var anchorNormalTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorNormalData);
-        using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
-        using var normalTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, normalData);
+        using var atlasTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, TextureFormat.Rgba16f, atlasData);
+        using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, TextureFormat.Rgba16f, anchorPosData);
+        using var anchorNormalTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, TextureFormat.Rgba16f, anchorNormalData);
+        using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.R32f, depthData);
+        using var normalTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.Rgba16f, normalData);
 
         using var outputGBuffer = TestFramework.CreateTestGBuffer(
             HalfResWidth, HalfResHeight,
-            PixelInternalFormat.Rgba16f);
+            TextureFormat.Rgba16f);
 
         var programId = CompileGatherShader();
 
@@ -815,16 +817,16 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
         var depthData = CreateDepthBuffer(pixelDepth);
         var normalData = CreateNormalBuffer(0f, 1f, 0f);
 
-        using var atlasTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, atlasData);
-        using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorPosData);
-        using var anchorNormalTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorNormalData);
-        using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
-        using var normalTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, normalData);
+        using var atlasTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, TextureFormat.Rgba16f, atlasData);
+        using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, TextureFormat.Rgba16f, anchorPosData);
+        using var anchorNormalTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, TextureFormat.Rgba16f, anchorNormalData);
+        using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.R32f, depthData);
+        using var normalTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.Rgba16f, normalData);
 
         // First render without tint to get baseline
         using var baselineOutput = TestFramework.CreateTestGBuffer(
             HalfResWidth, HalfResHeight,
-            PixelInternalFormat.Rgba16f);
+            TextureFormat.Rgba16f);
 
         var programId = CompileGatherShader();
 
@@ -843,7 +845,7 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
         // Now render with tint
         using var tintedOutput = TestFramework.CreateTestGBuffer(
             HalfResWidth, HalfResHeight,
-            PixelInternalFormat.Rgba16f);
+            TextureFormat.Rgba16f);
 
         SetupGatherUniforms(programId, invProjection, viewMatrix, intensity: 1.0f, indirectTint: tint);
 
@@ -928,15 +930,15 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
         var anchorNormalData = CreateProbeNormals(0f, 1f, 0f);
         var normalData = CreateNormalBuffer(0f, 1f, 0f);
 
-        using var atlasTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, atlasData);
-        using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorPosData);
-        using var anchorNormalTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorNormalData);
-        using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
-        using var normalTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, normalData);
+        using var atlasTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, TextureFormat.Rgba16f, atlasData);
+        using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, TextureFormat.Rgba16f, anchorPosData);
+        using var anchorNormalTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, TextureFormat.Rgba16f, anchorNormalData);
+        using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.R32f, depthData);
+        using var normalTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.Rgba16f, normalData);
 
         using var outputGBuffer = TestFramework.CreateTestGBuffer(
             HalfResWidth, HalfResHeight,
-            PixelInternalFormat.Rgba16f);
+            TextureFormat.Rgba16f);
 
         var programId = CompileGatherShader();
 
@@ -997,15 +999,15 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
         var depthData = CreateDepthBuffer(pixelDepth);
         var normalData = CreateNormalBuffer(0f, 1f, 0f);
 
-        using var atlasTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, atlasData);
-        using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorPosData);
-        using var anchorNormalTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorNormalData);
-        using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
-        using var normalTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, normalData);
+        using var atlasTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, TextureFormat.Rgba16f, atlasData);
+        using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, TextureFormat.Rgba16f, anchorPosData);
+        using var anchorNormalTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, TextureFormat.Rgba16f, anchorNormalData);
+        using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.R32f, depthData);
+        using var normalTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.Rgba16f, normalData);
 
         using var outputGBuffer = TestFramework.CreateTestGBuffer(
             HalfResWidth, HalfResHeight,
-            PixelInternalFormat.Rgba16f);
+            TextureFormat.Rgba16f);
 
         var programId = CompileGatherShader();
 
@@ -1071,15 +1073,15 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
         {
             var anchorPosData = CreateProbeAnchors(probeWorldZ, validity: 1.0f);
 
-            using var atlasTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, atlasData);
-            using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorPosData);
-            using var anchorNormalTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorNormalData);
-            using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
-            using var normalTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, normalData);
+            using var atlasTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, TextureFormat.Rgba16f, atlasData);
+            using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, TextureFormat.Rgba16f, anchorPosData);
+            using var anchorNormalTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, TextureFormat.Rgba16f, anchorNormalData);
+            using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.R32f, depthData);
+            using var normalTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.Rgba16f, normalData);
 
             using var outputGBuffer = TestFramework.CreateTestGBuffer(
                 HalfResWidth, HalfResHeight,
-                PixelInternalFormat.Rgba16f);
+                TextureFormat.Rgba16f);
 
             SetupGatherUniforms(programId, invProjection, viewMatrix);
 
@@ -1100,15 +1102,15 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
         {
             var anchorPosData = CreateProbeAnchors(probeWorldZ, validity: 0.5f);
 
-            using var atlasTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, atlasData);
-            using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorPosData);
-            using var anchorNormalTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorNormalData);
-            using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
-            using var normalTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, normalData);
+            using var atlasTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, TextureFormat.Rgba16f, atlasData);
+            using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, TextureFormat.Rgba16f, anchorPosData);
+            using var anchorNormalTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, TextureFormat.Rgba16f, anchorNormalData);
+            using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.R32f, depthData);
+            using var normalTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.Rgba16f, normalData);
 
             using var outputGBuffer = TestFramework.CreateTestGBuffer(
                 HalfResWidth, HalfResHeight,
-                PixelInternalFormat.Rgba16f);
+                TextureFormat.Rgba16f);
 
             SetupGatherUniforms(programId, invProjection, viewMatrix);
 
@@ -1168,15 +1170,15 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
 
         // Stride 1
         {
-            using var atlasTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, atlasData);
-            using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorPosData);
-            using var anchorNormalTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorNormalData);
-            using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
-            using var normalTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, normalData);
+            using var atlasTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, TextureFormat.Rgba16f, atlasData);
+            using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, TextureFormat.Rgba16f, anchorPosData);
+            using var anchorNormalTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, TextureFormat.Rgba16f, anchorNormalData);
+            using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.R32f, depthData);
+            using var normalTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.Rgba16f, normalData);
 
             using var outputGBuffer = TestFramework.CreateTestGBuffer(
                 HalfResWidth, HalfResHeight,
-                PixelInternalFormat.Rgba16f);
+                TextureFormat.Rgba16f);
 
             SetupGatherUniforms(programId, invProjection, viewMatrix, sampleStride: 1);
 
@@ -1195,15 +1197,15 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
 
         // Stride 2
         {
-            using var atlasTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, atlasData);
-            using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorPosData);
-            using var anchorNormalTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorNormalData);
-            using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
-            using var normalTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, normalData);
+            using var atlasTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, TextureFormat.Rgba16f, atlasData);
+            using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, TextureFormat.Rgba16f, anchorPosData);
+            using var anchorNormalTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, TextureFormat.Rgba16f, anchorNormalData);
+            using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.R32f, depthData);
+            using var normalTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.Rgba16f, normalData);
 
             using var outputGBuffer = TestFramework.CreateTestGBuffer(
                 HalfResWidth, HalfResHeight,
-                PixelInternalFormat.Rgba16f);
+                TextureFormat.Rgba16f);
 
             SetupGatherUniforms(programId, invProjection, viewMatrix, sampleStride: 2);
 
@@ -1257,15 +1259,15 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
         var depthData = CreateDepthBuffer(pixelDepth);
         var normalData = CreateNormalBuffer(0f, 1f, 0f);  // Upward normal
 
-        using var atlasTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, atlasData);
-        using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorPosData);
-        using var anchorNormalTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorNormalData);
-        using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
-        using var normalTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, normalData);
+        using var atlasTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, TextureFormat.Rgba16f, atlasData);
+        using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, TextureFormat.Rgba16f, anchorPosData);
+        using var anchorNormalTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, TextureFormat.Rgba16f, anchorNormalData);
+        using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.R32f, depthData);
+        using var normalTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.Rgba16f, normalData);
 
         using var outputGBuffer = TestFramework.CreateTestGBuffer(
             HalfResWidth, HalfResHeight,
-            PixelInternalFormat.Rgba16f);
+            TextureFormat.Rgba16f);
 
         var programId = CompileGatherShader();
 
@@ -1380,15 +1382,15 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
 
         // Strict leak threshold (0.1)
         {
-            using var atlasTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, atlasData);
-            using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorPosData);
-            using var anchorNormalTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorNormalData);
-            using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
-            using var normalTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, normalData);
+            using var atlasTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, TextureFormat.Rgba16f, atlasData);
+            using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, TextureFormat.Rgba16f, anchorPosData);
+            using var anchorNormalTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, TextureFormat.Rgba16f, anchorNormalData);
+            using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.R32f, depthData);
+            using var normalTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.Rgba16f, normalData);
 
             using var outputGBuffer = TestFramework.CreateTestGBuffer(
                 HalfResWidth, HalfResHeight,
-                PixelInternalFormat.Rgba16f);
+                TextureFormat.Rgba16f);
 
             SetupGatherUniformsWithLeak(programId, invProjection, viewMatrix, leakThreshold: 0.1f);
 
@@ -1407,15 +1409,15 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
 
         // Permissive leak threshold (0.9)
         {
-            using var atlasTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, atlasData);
-            using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorPosData);
-            using var anchorNormalTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorNormalData);
-            using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
-            using var normalTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, normalData);
+            using var atlasTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, TextureFormat.Rgba16f, atlasData);
+            using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, TextureFormat.Rgba16f, anchorPosData);
+            using var anchorNormalTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, TextureFormat.Rgba16f, anchorNormalData);
+            using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.R32f, depthData);
+            using var normalTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.Rgba16f, normalData);
 
             using var outputGBuffer = TestFramework.CreateTestGBuffer(
                 HalfResWidth, HalfResHeight,
-                PixelInternalFormat.Rgba16f);
+                TextureFormat.Rgba16f);
 
             SetupGatherUniformsWithLeak(programId, invProjection, viewMatrix, leakThreshold: 0.9f);
 
@@ -1457,12 +1459,12 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
         }
 
         using var atlasTex = TestFramework.CreateTexture(
-            AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, CreateUniformAtlas(1f, 1f, 1f, hitDist: 0f));
-        using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorPosData);
-        using var anchorNormalTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, CreateProbeNormals(0f, 1f, 0f));
-        using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, CreateDepthBuffer(pixelDepth));
-        using var normalTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, CreateNormalBuffer(0f, 1f, 0f));
-        using var output = TestFramework.CreateTestGBuffer(HalfResWidth, HalfResHeight, PixelInternalFormat.Rgba16f);
+            AtlasWidth, AtlasHeight, TextureFormat.Rgba16f, CreateUniformAtlas(1f, 1f, 1f, hitDist: 0f));
+        using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, TextureFormat.Rgba16f, anchorPosData);
+        using var anchorNormalTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, TextureFormat.Rgba16f, CreateProbeNormals(0f, 1f, 0f));
+        using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.R32f, CreateDepthBuffer(pixelDepth));
+        using var normalTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.Rgba16f, CreateNormalBuffer(0f, 1f, 0f));
+        using var output = TestFramework.CreateTestGBuffer(HalfResWidth, HalfResHeight, TextureFormat.Rgba16f);
 
         var programId = CompileGatherShader();
 

@@ -32,10 +32,10 @@ public sealed class CloudVolumeStorageTests(HeadlessGLFixture fixture) : LumOnSh
         while (!storage.InitializeNext(() => true)) { }
         Assert.False(storage.Ready); Assert.True(storage.PublishPending(() => true, () => true));
         var fields = storage.Published;
-        Assert.Equal(PixelInternalFormat.R16f, fields.Density.InternalFormat);
-        Assert.Equal(PixelInternalFormat.Rg16f, fields.Direct.InternalFormat);
+        Assert.Equal(TextureFormat.R16f, fields.Density.InternalFormat);
+        Assert.Equal(TextureFormat.Rg16f, fields.Direct.InternalFormat);
         Assert.Equal(TextureFilterMode.Linear, fields.Diffuse.FilterMode);
-        Assert.Equal(TextureTarget.Texture3D, fields.Density.TextureTarget);
+        Assert.Equal(TextureDimension.Three, fields.Density.TextureTarget);
         Assert.Equal(1, fields.Density.StorageMipLevels);
         var first = Query(probe, fields, output, new Vector3(125, 0, 125));
         Assert.Equal(Vector4.Zero with {Y=1, Z=1}, first[0]); Assert.Equal(new Vector4(4,4,4,0), first[1]);

@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using System.Buffers.Binary;
 using System.IO;
@@ -64,7 +65,7 @@ internal static class DdsBc7Rgba8Codec
         encoder.OutputOptions.GenerateMipMaps = false;
         encoder.OutputOptions.DdsPreferDxt10Header = true;
 
-        DdsFile dds = encoder.EncodeToDds(rgba, width, height, PixelFormat.Rgba32);
+        DdsFile dds = encoder.EncodeToDds(rgba, width, height, BCnEncoder.Encoder.PixelFormat.Rgba32);
         dds.Write(stream);
     }
 

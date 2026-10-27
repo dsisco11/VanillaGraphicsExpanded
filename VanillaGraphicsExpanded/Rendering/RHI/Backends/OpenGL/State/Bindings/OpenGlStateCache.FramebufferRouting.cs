@@ -1,3 +1,4 @@
+using System.Linq;
 using System;
 using System.Collections.Generic;
 using OpenTK.Graphics.OpenGL;
@@ -14,7 +15,7 @@ internal sealed partial class OpenGlStateCache
     internal bool TryCopyFramebufferDrawRouting(int framebuffer,out DrawBuffersEnum[] route)
     {
         if(TryGetImmutableFramebuffer(framebuffer,out var immutable))
-        { route=immutable.CaptureDeclaredRouting();return true; }
+        { route=System.Array.ConvertAll(immutable.CaptureDeclaredRouting(), value => value == -1 ? DrawBuffersEnum.None : DrawBuffersEnum.ColorAttachment0 + value);return true; }
         if(framebufferDrawRouting.TryGetValue(framebuffer,out var stored))
         { route=(DrawBuffersEnum[])stored.Clone();return true; }
         route=[];return false;
@@ -31,7 +32,7 @@ internal sealed partial class OpenGlStateCache
     internal bool ValidateImmutableFramebufferRouting(int framebuffer,ReadOnlySpan<DrawBuffersEnum> route)
     {
         if(!TryGetImmutableFramebuffer(framebuffer,out var immutable))return false;
-        immutable.ValidateDeclaredRouting(route);return true;
+        immutable.ValidateDeclaredRouting(route.ToArray().Select(value => value == DrawBuffersEnum.None ? -1 : (int)value - (int)DrawBuffersEnum.ColorAttachment0).ToArray());return true;
     }
     /// <summary>Stores only a backend-owned completed route, padding unspecified outputs with None.</summary>
     internal void RememberFramebufferDrawRouting(int framebuffer,ReadOnlySpan<DrawBuffersEnum> route)

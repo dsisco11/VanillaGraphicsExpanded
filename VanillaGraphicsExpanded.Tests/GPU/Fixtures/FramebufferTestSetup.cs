@@ -26,11 +26,11 @@ internal static class FramebufferTestSetup
         var outputs = colors?.ToArray() ?? [new(AttachmentIndex: 0)];
         if (!target.OwnsNativeFramebuffer) return new(target.SurfaceReference, outputs, actions: actions, area: area);
         var selected = outputs.Select(output => !output.DiscardOutput && output.AttachmentIndex is { } index
-            ? output with { Image = Select(target.GetAttachment(FramebufferAttachment.ColorAttachment0 + index)
+            ? output with { Image = Select(target.GetAttachment(FramebufferSlot.Color0 + index)
                 ?? throw new InvalidOperationException("Fixture color image is unavailable.")), AttachmentIndex = null }
             : output).ToArray();
-        var depth = target.GetAttachment(FramebufferAttachment.DepthAttachment);
-        var stencil = target.GetAttachment(FramebufferAttachment.StencilAttachment);
+        var depth = target.GetAttachment(FramebufferSlot.Depth);
+        var stencil = target.GetAttachment(FramebufferSlot.Stencil);
         return new(selected, depthStencil: depth is not null ? Select(depth) : stencil is not null ? Select(stencil) : null,
             actions: actions, area: area);
     }
@@ -39,7 +39,7 @@ internal static class FramebufferTestSetup
     {
         if (image.Resource is GpuResource<GpuTextureMetadata> texture)
             return RHIAttachment.FromTexture(new GpuTextureRef(texture), new(image.MipLevel,
-                image.Layer ?? (image.CubeFace is { } face ? (int)face - (int)TextureTarget.TextureCubeMapPositiveX : 0)), image.MetadataImageSelection.Layered);
+                image.Layer ?? (image.CubeFace is { } face ? (int)face - (int)CubeFace.PositiveX : 0)), image.MetadataImageSelection.Layered);
         if (image.Resource is GpuRenderbuffer renderbuffer) return RHIAttachment.FromRenderbuffer(renderbuffer);
         throw new InvalidOperationException("Use an explicitly imported surface for an external framebuffer image.");
     }
@@ -55,7 +55,7 @@ internal static class FramebufferTestSetup
     /// <summary>Builds explicit copy inputs from fixture-owned image metadata without retaining framebuffer ownership.</summary>
     internal static RHIImageBlit DescribeCopy(GpuFramebuffer source, GpuFramebuffer destination, ImageAspects aspect=ImageAspects.Color)
     {
-        var slot=aspect==ImageAspects.Color?FramebufferAttachment.ColorAttachment0:FramebufferAttachment.DepthAttachment;
+        var slot=aspect==ImageAspects.Color?FramebufferSlot.Color0:FramebufferSlot.Depth;
         var from=source.GetAttachment(slot)??throw new InvalidOperationException("The selected source image is unavailable.");
         var to=destination.GetAttachment(slot)??throw new InvalidOperationException("The selected destination image is unavailable.");
         return new(Select(from),new(0,0,from.Width,from.Height),Select(to),new(0,0,to.Width,to.Height),aspect);

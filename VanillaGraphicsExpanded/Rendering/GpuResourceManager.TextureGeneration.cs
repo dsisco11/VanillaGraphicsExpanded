@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 
 namespace VanillaGraphicsExpanded.Rendering;
@@ -20,8 +21,8 @@ internal sealed partial class GpuResourceManager
             foreach (var image in entry.Metadata.Levels)
                 if (image.Level == entry.Metadata.BaseLevel && image.Allocated)
                     extent = System.Math.Max(extent, System.Math.Max(image.Width,
-                        entry.Metadata.Target == OpenTK.Graphics.OpenGL.TextureTarget.Texture1DArray ? 1 :
-                        entry.Metadata.Target == OpenTK.Graphics.OpenGL.TextureTarget.Texture3D ? System.Math.Max(image.Height, image.Depth) : image.Height));
+                        entry.Metadata.Target == RHI.TextureDimension.OneArray ? 1 :
+                        entry.Metadata.Target == RHI.TextureDimension.Three ? System.Math.Max(image.Height, image.Depth) : image.Height));
             int last = entry.Metadata.BaseLevel;
             while ((extent >>= 1) > 0) last++;
             last = System.Math.Min(last, entry.Metadata.MaxLevel);

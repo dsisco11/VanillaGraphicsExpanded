@@ -227,13 +227,13 @@ internal sealed class CloudVolumeStorage(Func<CloudVolumeMaintenanceProgram> cre
     /// <summary>Rejects filtered/image formats unsupported by the active driver before allocation.</summary>
     private static void ValidateFormats()
     {
-        foreach (var format in new[] { SizedInternalFormat.R16f, SizedInternalFormat.Rg16f, SizedInternalFormat.Rgba16f })
+        foreach (var format in new[] { TextureFormat.R16f, TextureFormat.Rg16f, TextureFormat.Rgba16f })
         {
-            var caps = GpuSupport.GetInternalFormatCapabilities(ImageTarget.Texture3D, format);
+            var caps = GpuSupport.GetInternalFormatCapabilities(TextureDimension.Three, format);
             if (!caps.Supported || caps.ImageLoadSupport == 0 || caps.ImageStoreSupport == 0 || caps.FilterSupport == 0)
                 throw new NotSupportedException("Cloud volume format unavailable: " + format);
         }
-        var descriptor = GpuSupport.GetInternalFormatCapabilities(ImageTarget.Texture2D, SizedInternalFormat.Rgba32f);
+        var descriptor = GpuSupport.GetInternalFormatCapabilities(TextureDimension.Two, TextureFormat.Rgba32f);
         if (!descriptor.Supported || descriptor.ImageLoadSupport == 0 || descriptor.ImageStoreSupport == 0)
             throw new NotSupportedException("Cloud descriptor storage unavailable.");
     }

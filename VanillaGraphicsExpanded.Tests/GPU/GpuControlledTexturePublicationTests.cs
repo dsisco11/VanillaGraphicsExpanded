@@ -25,8 +25,8 @@ public sealed class GpuControlledTexturePublicationTests(HeadlessGLFixture fixtu
             using var recipient = new TextureRecipient();
             var request = new GpuTextureInitialization
             {
-                Target = TextureTarget.Texture2DMultisample, AllocationMode = GpuTextureAllocationMode.Mutable,
-                InternalFormat = PixelInternalFormat.Rgba8, Width = 8, Height = 8, Levels = 1,
+                Target = TextureDimension.TwoMultisample, AllocationMode = GpuTextureAllocationMode.Mutable,
+                InternalFormat = TextureFormat.Rgba8, Width = 8, Height = 8, Levels = 1,
                 Samples = 3, FixedSampleLocations = true
             };
             var result = GpuResourceManager.CreateTexture(request, recipient, out var handle);
@@ -51,7 +51,7 @@ public sealed class GpuControlledTexturePublicationTests(HeadlessGLFixture fixtu
         try
         {
             using var texture = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba8, Width = System.Math.Max(1, 8), Height = System.Math.Max(1, 8), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
-            using var binding = OpenGlStateCache.Current.BindTextureScope(((GpuTextureRef)texture).Target, 0, texture.TextureId);
+            using var binding = OpenGlStateCache.Current.BindTextureScope(OpenGLImageValues.Target(((GpuTextureRef)texture).Target), 0, texture.TextureId);
             VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLTexturesCalls.ExecuteCoreTexImage2D(TextureTarget.Texture2D, int.MaxValue, PixelInternalFormat.Rgba8,
                 1, 1, 0, PixelFormat.Rgba, PixelType.UnsignedByte, IntPtr.Zero);
             Assert.Equal(8, texture.Width);
@@ -74,8 +74,8 @@ public sealed class GpuControlledTexturePublicationTests(HeadlessGLFixture fixtu
             using var recipient = new TextureRecipient();
             var request = new GpuTextureInitialization
             {
-                Target = TextureTarget.Texture2D, AllocationMode = GpuTextureAllocationMode.Mutable,
-                InternalFormat = PixelInternalFormat.Rgba8, Width = 8, Height = 8, Levels = 3
+                Target = TextureDimension.Two, AllocationMode = GpuTextureAllocationMode.Mutable,
+                InternalFormat = TextureFormat.Rgba8, Width = 8, Height = 8, Levels = 3
             };
             using var fault = new AllocationFailure();
             GpuResourceHandle handle = default;
@@ -108,7 +108,7 @@ public sealed class GpuControlledTexturePublicationTests(HeadlessGLFixture fixtu
             using var operation = new GpuResourceManager.MetadataOperation<GpuTextureMetadata>(texture, GpuMetadataChange.Metadata);
             Assert.Throws<InvalidOperationException>(() =>
             {
-                if (recovery == 0) manager.RefreshTextureParameter(entry, TextureParameterName.TextureBaseLevel);
+                if (recovery == 0) manager.RefreshTextureParameter(entry, TextureMetadataField.BaseMip);
                 else if (recovery == 1) manager.RefreshTextureImages(entry, 0, 0, 0, false, true);
                 else manager.RefreshGeneratedTextureMetadata(entry, true);
             });
@@ -142,7 +142,7 @@ public sealed class GpuControlledTexturePublicationTests(HeadlessGLFixture fixtu
             Assert.Equal(original[0], entry.Metadata.Levels[0]);
             Assert.Equal(original[1], entry.Metadata.Levels[1]);
             Assert.Equal(original[3], entry.Metadata.Levels[3]);
-            Assert.Equal(PixelInternalFormat.Rgba16f, entry.Metadata.Levels[2].Format);
+            Assert.Equal(TextureFormat.Rgba16f, entry.Metadata.Levels[2].Format);
             Assert.Equal(storage + 1, entry.StorageRevision);
             GL.GetTextureLevelParameter(texture.TextureId, 2, GetTextureParameter.TextureInternalFormat, out int format);
             Assert.Equal((int)PixelInternalFormat.Rgba16f, format);
@@ -163,8 +163,8 @@ public sealed class GpuControlledTexturePublicationTests(HeadlessGLFixture fixtu
             using var recipient = new TextureRecipient();
             var request = new GpuTextureInitialization
             {
-                Target = TextureTarget.Texture2D, AllocationMode = immutable ? GpuTextureAllocationMode.Immutable : GpuTextureAllocationMode.Mutable,
-                InternalFormat = PixelInternalFormat.Rgba8, Width = 8, Height = 8, Levels = immutable ? 4 : 1, MaxLevel = 3
+                Target = TextureDimension.Two, AllocationMode = immutable ? GpuTextureAllocationMode.Immutable : GpuTextureAllocationMode.Mutable,
+                InternalFormat = TextureFormat.Rgba8, Width = 8, Height = 8, Levels = immutable ? 4 : 1, MaxLevel = 3
             };
             Assert.NotNull(GpuResourceManager.CreateTexture(request, recipient, out var handle));
             var entry = Assert.IsType<GpuResourceMetadataEntry<GpuTextureMetadata>>(
@@ -196,9 +196,9 @@ public sealed class GpuControlledTexturePublicationTests(HeadlessGLFixture fixtu
             using var recipient = new TextureRecipient();
             var request = new GpuTextureInitialization
             {
-                Target = TextureTarget.Texture2DMultisample,
+                Target = TextureDimension.TwoMultisample,
                 AllocationMode = immutable ? GpuTextureAllocationMode.Immutable : GpuTextureAllocationMode.Mutable,
-                InternalFormat = PixelInternalFormat.Rgba8, Width = 8, Height = 4, Levels = 1, Samples = 1
+                InternalFormat = TextureFormat.Rgba8, Width = 8, Height = 4, Levels = 1, Samples = 1
             };
             Assert.Throws<ArgumentException>(() => GpuResourceManager.CreateTexture(request, recipient, out _));
             Assert.Equal((nint)0, recipient.ResourceId);
@@ -265,7 +265,7 @@ public sealed class GpuControlledTexturePublicationTests(HeadlessGLFixture fixtu
             Assert.Equal(8, image.Width);
             Assert.Equal(4, image.Height);
             Assert.Equal(3, image.Depth);
-            Assert.Equal(PixelInternalFormat.Rgba32f, image.Format);
+            Assert.Equal(TextureFormat.Rgba32f, image.Format);
             GL.GetTextureLevelParameter(view.TextureId, 0, GetTextureParameter.TextureWidth, out int width);
             GL.GetTextureLevelParameter(view.TextureId, 0, GetTextureParameter.TextureDepth, out int depth);
             Assert.Equal(image.Width, width);

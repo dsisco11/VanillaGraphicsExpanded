@@ -22,11 +22,11 @@ public abstract partial class GpuTexture : GpuResource<GpuTextureMetadata>, IDis
     /// <summary>Accesses the base image height through the typed metadata snapshot.</summary>
     protected int height => BaseImage.Height;
     /// <summary>Accesses the base image depth through the typed metadata snapshot.</summary>
-    protected int depth => textureTarget == TextureTarget.TextureCubeMap ? 6 : BaseImage.Depth;
+    protected int depth => textureTarget == TextureDimension.Cube ? 6 : BaseImage.Depth;
     /// <summary>Accesses the base image internalFormat through the typed metadata snapshot.</summary>
-    protected PixelInternalFormat internalFormat => BaseImage.Format;
+    protected TextureFormat internalFormat => BaseImage.Format;
     /// <summary>Accesses the canonical native target independently of sampler policy.</summary>
-    protected TextureTarget textureTarget => metadata.Target;
+    protected TextureDimension textureTarget => metadata.Target;
     protected TextureFilterMode filterMode;
     protected string? debugName;
 
@@ -34,8 +34,8 @@ public abstract partial class GpuTexture : GpuResource<GpuTextureMetadata>, IDis
     public int Width => width;
     public int Height => height;
     public int Depth => depth;
-    public PixelInternalFormat InternalFormat => internalFormat;
-    public TextureTarget TextureTarget => textureTarget;
+    public TextureFormat InternalFormat => internalFormat;
+    public TextureDimension TextureTarget => textureTarget;
     /// <summary>Reports the mip levels allocated by this texture owner without querying driver storage.</summary>
     internal int StorageMipLevels
     {
@@ -78,8 +78,8 @@ public abstract partial class GpuTexture : GpuResource<GpuTextureMetadata>, IDis
 
     #region Allocation Helpers
     /// <summary>Replaces owned two-dimensional storage using creation arguments rather than editing a snapshot.</summary>
-    protected void AllocateOrReallocate2DTexture(int width, int height, PixelInternalFormat format, int mipLevels,
-        TextureTarget target = TextureTarget.Texture2D)
+    protected void AllocateOrReallocate2DTexture(int width, int height, TextureFormat format, int mipLevels,
+        TextureDimension target = TextureDimension.Two)
     {
         RequireMutableStorage();
         Validate2DAllocation(target, width, height, mipLevels);
@@ -99,11 +99,11 @@ public abstract partial class GpuTexture : GpuResource<GpuTextureMetadata>, IDis
     }
 
     /// <summary>Replaces layered storage while retaining requested dimensions only as command arguments.</summary>
-    protected void AllocateOrReallocate3DTexture(int width, int height, int depth, PixelInternalFormat format,
-        TextureTarget target, bool immutableStorage = false)
+    protected void AllocateOrReallocate3DTexture(int width, int height, int depth, TextureFormat format,
+        TextureDimension target, bool immutableStorage = false)
     {
         RequireMutableStorage();
-        if (target is not (TextureTarget.Texture3D or TextureTarget.Texture2DArray))
+        if (target is not (TextureDimension.Three or TextureDimension.TwoArray))
             throw new InvalidOperationException($"Layered allocation is not supported for {target}.");
         DeleteTextureIfAllocated();
         var request = new GpuTextureInitialization { Target = target, InternalFormat = format,
@@ -288,9 +288,9 @@ public abstract partial class GpuTexture : GpuResource<GpuTextureMetadata>, IDis
         Ensure2DLike();
 
         var pixelType = TextureFormatHelper.GetPixelType(internalFormat);
-        if (pixelType != PixelType.UnsignedShort)
+        if (pixelType != PixelComponentType.UnsignedShort)
         {
-            throw new InvalidOperationException($"UploadDataStreamed(ushort[]) requires {nameof(PixelType)}.{nameof(PixelType.UnsignedShort)}, but format is {internalFormat} -> {pixelType}.");
+            throw new InvalidOperationException($"UploadDataStreamed(ushort[]) requires {nameof(PixelComponentType)}.{nameof(PixelComponentType.UnsignedShort)}, but format is {internalFormat} -> {pixelType}.");
         }
 
         int channels = GetChannelCount();
@@ -399,7 +399,7 @@ public abstract partial class GpuTexture : GpuResource<GpuTextureMetadata>, IDis
         }
         ArgumentNullException.ThrowIfNull(data);
         Ensure3DLike();
-        if (TextureFormatHelper.GetPixelType(internalFormat) != PixelType.UnsignedByte)
+        if (TextureFormatHelper.GetPixelType(internalFormat) != PixelComponentType.UnsignedByte)
             throw new InvalidOperationException($"Byte upload requires an unsigned-byte texture format, got {internalFormat}.");
         int expected = checked(regionWidth * regionHeight * regionDepth * GetChannelCount());
         if (data.Length != expected)
@@ -416,7 +416,7 @@ public abstract partial class GpuTexture : GpuResource<GpuTextureMetadata>, IDis
         ObjectDisposedException.ThrowIf(!base.IsValid,this);
         ArgumentNullException.ThrowIfNull(data);
         Ensure3DLike();
-        if(TextureFormatHelper.GetPixelType(internalFormat)!=PixelType.UnsignedShort)
+        if(TextureFormatHelper.GetPixelType(internalFormat)!=PixelComponentType.UnsignedShort)
             throw new InvalidOperationException($"Unsigned-short upload requires a matching texture format, got {internalFormat}.");
         if(data.Length!=checked(regionWidth*regionHeight*regionDepth*GetChannelCount()))
             throw new ArgumentException("Unsigned-short data does not match the texture region.",nameof(data));
@@ -438,9 +438,9 @@ public abstract partial class GpuTexture : GpuResource<GpuTextureMetadata>, IDis
         Ensure3DLike();
 
         var pixelType = TextureFormatHelper.GetPixelType(internalFormat);
-        if (pixelType != PixelType.UnsignedInt)
+        if (pixelType != PixelComponentType.UnsignedInt)
         {
-            throw new InvalidOperationException($"UploadDataImmediate(uint[]) requires {nameof(PixelType)}.{nameof(PixelType.UnsignedInt)}, but format is {internalFormat} -> {pixelType}.");
+            throw new InvalidOperationException($"UploadDataImmediate(uint[]) requires {nameof(PixelComponentType)}.{nameof(PixelComponentType.UnsignedInt)}, but format is {internalFormat} -> {pixelType}.");
         }
 
         int channels = GetChannelCount();
@@ -464,7 +464,7 @@ public abstract partial class GpuTexture : GpuResource<GpuTextureMetadata>, IDis
         if (!base.IsValid) throw new ObjectDisposedException(nameof(GpuTexture));
         ArgumentNullException.ThrowIfNull(data);
         Ensure2DLike();
-        if (TextureFormatHelper.GetPixelType(internalFormat) != PixelType.UnsignedByte)
+        if (TextureFormatHelper.GetPixelType(internalFormat) != PixelComponentType.UnsignedByte)
             throw new InvalidOperationException("Byte upload requires an unsigned-byte texture format.");
         if (x < 0 || y < 0 || regionWidth <= 0 || regionHeight <= 0 || x + regionWidth > width || y + regionHeight > height)
             throw new ArgumentOutOfRangeException(nameof(regionWidth));
@@ -509,9 +509,9 @@ public abstract partial class GpuTexture : GpuResource<GpuTextureMetadata>, IDis
         Ensure2DLike();
 
         var pixelType = TextureFormatHelper.GetPixelType(internalFormat);
-        if (pixelType != PixelType.UnsignedInt)
+        if (pixelType != PixelComponentType.UnsignedInt)
         {
-            throw new InvalidOperationException($"UploadDataImmediate(uint[]) requires {nameof(PixelType)}.{nameof(PixelType.UnsignedInt)}, but format is {internalFormat} -> {pixelType}.");
+            throw new InvalidOperationException($"UploadDataImmediate(uint[]) requires {nameof(PixelComponentType)}.{nameof(PixelComponentType.UnsignedInt)}, but format is {internalFormat} -> {pixelType}.");
         }
 
         int channels = GetChannelCount();
@@ -573,9 +573,9 @@ public abstract partial class GpuTexture : GpuResource<GpuTextureMetadata>, IDis
         }
 
         var pixelType = TextureFormatHelper.GetPixelType(internalFormat);
-        if (pixelType != PixelType.UnsignedInt)
+        if (pixelType != PixelComponentType.UnsignedInt)
         {
-            throw new InvalidOperationException($"UploadDataImmediate(uint[]) requires {nameof(PixelType)}.{nameof(PixelType.UnsignedInt)}, but format is {internalFormat} -> {pixelType}.");
+            throw new InvalidOperationException($"UploadDataImmediate(uint[]) requires {nameof(PixelComponentType)}.{nameof(PixelComponentType.UnsignedInt)}, but format is {internalFormat} -> {pixelType}.");
         }
 
         int channels = GetChannelCount();
@@ -602,9 +602,9 @@ public abstract partial class GpuTexture : GpuResource<GpuTextureMetadata>, IDis
         Ensure2DLike();
 
         var pixelType = TextureFormatHelper.GetPixelType(internalFormat);
-        if (pixelType != PixelType.UnsignedShort)
+        if (pixelType != PixelComponentType.UnsignedShort)
         {
-            throw new InvalidOperationException($"UploadDataImmediate(ushort[]) requires {nameof(PixelType)}.{nameof(PixelType.UnsignedShort)}, but format is {internalFormat} -> {pixelType}.");
+            throw new InvalidOperationException($"UploadDataImmediate(ushort[]) requires {nameof(PixelComponentType)}.{nameof(PixelComponentType.UnsignedShort)}, but format is {internalFormat} -> {pixelType}.");
         }
 
         int channels = GetChannelCount();
@@ -705,20 +705,20 @@ public abstract partial class GpuTexture : GpuResource<GpuTextureMetadata>, IDis
     {
         return internalFormat switch
         {
-            PixelInternalFormat.R16f or PixelInternalFormat.R32f or PixelInternalFormat.R16 or PixelInternalFormat.R8 => 1,
-            PixelInternalFormat.DepthComponent or PixelInternalFormat.DepthComponent16 or PixelInternalFormat.DepthComponent24 or PixelInternalFormat.DepthComponent32f => 1,
-            PixelInternalFormat.Depth24Stencil8 or PixelInternalFormat.Depth32fStencil8 => 1,
-            PixelInternalFormat.R8ui or PixelInternalFormat.R16ui or PixelInternalFormat.R32ui => 1,
-            PixelInternalFormat.Rg16f or PixelInternalFormat.Rg32f or PixelInternalFormat.Rg16 or PixelInternalFormat.Rg8 => 2,
-            PixelInternalFormat.Rg8ui or PixelInternalFormat.Rg16ui or PixelInternalFormat.Rg32ui => 2,
-            PixelInternalFormat.R11fG11fB10f or PixelInternalFormat.Rgb16f or PixelInternalFormat.Rgb32f or PixelInternalFormat.Rgb8 or PixelInternalFormat.Rgb => 3,
+            TextureFormat.R16f or TextureFormat.R32f or TextureFormat.R16 or TextureFormat.R8 => 1,
+            TextureFormat.DepthComponent or TextureFormat.DepthComponent16 or TextureFormat.DepthComponent24 or TextureFormat.DepthComponent32f => 1,
+            TextureFormat.Depth24Stencil8 or TextureFormat.Depth32fStencil8 => 1,
+            TextureFormat.R8ui or TextureFormat.R16ui or TextureFormat.R32ui => 1,
+            TextureFormat.Rg16f or TextureFormat.Rg32f or TextureFormat.Rg16 or TextureFormat.Rg8 => 2,
+            TextureFormat.Rg8ui or TextureFormat.Rg16ui or TextureFormat.Rg32ui => 2,
+            TextureFormat.R11fG11fB10f or TextureFormat.Rgb16f or TextureFormat.Rgb32f or TextureFormat.Rgb8 or TextureFormat.Rgb => 3,
             _ => 4
         };
     }
 
     private void Ensure2DLike()
     {
-        if (textureTarget != TextureTarget.Texture2D && textureTarget != TextureTarget.TextureRectangle)
+        if (textureTarget != TextureDimension.Two && textureTarget != TextureDimension.Rectangle)
         {
             // Most users of the 2D overloads should be on Texture2D/Rectangle.
             // Array/cube-array targets should use 3D overloads.
@@ -734,9 +734,9 @@ public abstract partial class GpuTexture : GpuResource<GpuTextureMetadata>, IDis
     private void Ensure3DLike()
     {
         // Targets that upload via TexSubImage3D.
-        if (textureTarget != TextureTarget.Texture3D
-            && textureTarget != TextureTarget.Texture2DArray
-            && textureTarget != TextureTarget.TextureCubeMapArray)
+        if (textureTarget != TextureDimension.Three
+            && textureTarget != TextureDimension.TwoArray
+            && textureTarget != TextureDimension.CubeArray)
         {
             throw new InvalidOperationException($"3D upload is not supported for target {textureTarget}.");
         }

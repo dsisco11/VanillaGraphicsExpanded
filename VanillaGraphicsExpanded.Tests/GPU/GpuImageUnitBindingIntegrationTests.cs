@@ -49,7 +49,7 @@ public sealed class GpuImageUnitBindingIntegrationTests
             GL.BindBuffer(BufferTarget.TextureBuffer, 0);
 
             using var bufferTexture = VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLTextureIntegration.CreateBufferView(bufferId, SizedInternalFormat.R32f, true, 0, 0, "TestBufferTexture").RequireResource();
-            VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageSlotBindings.BindImageTexture(OpenGlStateCache.Current, 1, bufferTexture.TextureId, 0, false, 0, TextureAccess.ReadOnly, (SizedInternalFormat)((GpuTextureRef)bufferTexture).RequireMetadata().Buffer!.Value.Format);
+            VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageSlotBindings.BindImageTexture(OpenGlStateCache.Current, 1, bufferTexture.TextureId, 0, false, 0, TextureAccess.ReadOnly, (SizedInternalFormat)OpenGLImageValues.Format(((GpuTextureRef)bufferTexture).RequireMetadata().Buffer!.Value.Format));
 
             GL.GetInteger((GetIndexedPName)All.ImageBindingName, 1, out int boundName1);
             GL.GetInteger((GetIndexedPName)All.ImageBindingAccess, 1, out int boundAccess1);

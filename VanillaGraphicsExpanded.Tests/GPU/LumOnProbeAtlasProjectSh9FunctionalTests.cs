@@ -1,3 +1,5 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
+using VanillaGraphicsExpanded.Rendering.RHI;
 using VanillaGraphicsExpanded.LumOn;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
@@ -171,19 +173,19 @@ public partial class LumOnProbeAtlasProjectSh9FunctionalTests : LumOnShaderFunct
         var atlas = CreateUniformAtlas(1.0f, 0.5f, 0.25f, hitDist: 10f);
         var meta = CreateUniformMetaAtlas(confidence: 1.0f, flags: HitFlag);
 
-        using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchors);
-        using var atlasTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, atlas);
-        using var metaTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rg32f, meta);
+        using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, TextureFormat.Rgba16f, anchors);
+        using var atlasTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, TextureFormat.Rgba16f, atlas);
+        using var metaTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, TextureFormat.Rg32f, meta);
 
         using var outSh9 = TestFramework.CreateTestGBuffer(
             ProbeGridWidth, ProbeGridHeight,
-            PixelInternalFormat.Rgba16f,
-            PixelInternalFormat.Rgba16f,
-            PixelInternalFormat.Rgba16f,
-            PixelInternalFormat.Rgba16f,
-            PixelInternalFormat.Rgba16f,
-            PixelInternalFormat.Rgba16f,
-            PixelInternalFormat.Rgba16f);
+            TextureFormat.Rgba16f,
+            TextureFormat.Rgba16f,
+            TextureFormat.Rgba16f,
+            TextureFormat.Rgba16f,
+            TextureFormat.Rgba16f,
+            TextureFormat.Rgba16f,
+            TextureFormat.Rgba16f);
 
         var programId = CompileProjectShader();
         SetupProjectUniforms(programId);
@@ -252,25 +254,25 @@ public partial class LumOnProbeAtlasProjectSh9FunctionalTests : LumOnShaderFunct
         var depth = CreateUniformDepthData(ScreenWidth, ScreenHeight, 0.5f);
         var gbufNormal = CreateUniformNormalData(ScreenWidth, ScreenHeight, 0, 1, 0);
 
-        using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchors);
-        using var anchorNormTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, normals);
+        using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, TextureFormat.Rgba16f, anchors);
+        using var anchorNormTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, TextureFormat.Rgba16f, normals);
 
-        using var atlasTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, atlas);
-        using var metaTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rg32f, meta);
+        using var atlasTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, TextureFormat.Rgba16f, atlas);
+        using var metaTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, TextureFormat.Rg32f, meta);
 
-        using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depth);
-        using var gbufNormTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, gbufNormal);
+        using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.R32f, depth);
+        using var gbufNormTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.Rgba16f, gbufNormal);
 
         // 1) Project atlas → SH9
         using var outSh9 = TestFramework.CreateTestGBuffer(
             ProbeGridWidth, ProbeGridHeight,
-            PixelInternalFormat.Rgba16f,
-            PixelInternalFormat.Rgba16f,
-            PixelInternalFormat.Rgba16f,
-            PixelInternalFormat.Rgba16f,
-            PixelInternalFormat.Rgba16f,
-            PixelInternalFormat.Rgba16f,
-            PixelInternalFormat.Rgba16f);
+            TextureFormat.Rgba16f,
+            TextureFormat.Rgba16f,
+            TextureFormat.Rgba16f,
+            TextureFormat.Rgba16f,
+            TextureFormat.Rgba16f,
+            TextureFormat.Rgba16f,
+            TextureFormat.Rgba16f);
 
         var projectId = CompileProjectShader();
         SetupProjectUniforms(projectId);
@@ -282,7 +284,7 @@ public partial class LumOnProbeAtlasProjectSh9FunctionalTests : LumOnShaderFunct
         TestFramework.RenderQuadTo(projectId, outSh9);
 
         // 2) SH9 gather using projected coefficients
-        using var outIndirectSh9 = TestFramework.CreateTestGBuffer(HalfResWidth, HalfResHeight, PixelInternalFormat.Rgba16f);
+        using var outIndirectSh9 = TestFramework.CreateTestGBuffer(HalfResWidth, HalfResHeight, TextureFormat.Rgba16f);
 
         var sh9GatherId = CompileSh9GatherShader();
         SetupSh9GatherUniforms(sh9GatherId, identity, identity);
@@ -302,7 +304,7 @@ public partial class LumOnProbeAtlasProjectSh9FunctionalTests : LumOnShaderFunct
         var sh9Out = outIndirectSh9[0].ReadPixels();
 
         // 3) Atlas gather integration
-        using var outIndirectAtlas = TestFramework.CreateTestGBuffer(HalfResWidth, HalfResHeight, PixelInternalFormat.Rgba16f);
+        using var outIndirectAtlas = TestFramework.CreateTestGBuffer(HalfResWidth, HalfResHeight, TextureFormat.Rgba16f);
 
         var atlasGatherId = CompileAtlasGatherShader();
         SetupAtlasGatherUniforms(atlasGatherId, identity, identity);

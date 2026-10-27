@@ -20,9 +20,9 @@ public sealed class GpuRenderBoundaryTests(HeadlessGLFixture fixture) : RenderTe
     public void FramebufferScopeRestoresActualEngineBindings(bool defaultFramebuffer)
     {
         EnsureContextValid();
-        using var draw = CreateMRTRenderTarget(2, 2, PixelInternalFormat.Rgba32f, PixelInternalFormat.Rgba32f, PixelInternalFormat.Rgba32f);
-        using var read = CreateRenderTarget(1, 1, PixelInternalFormat.Rgba32f);
-        using var nested = CreateRenderTarget(3, 3, PixelInternalFormat.Rgba32f);
+        using var draw = CreateMRTRenderTarget(2, 2, TextureFormat.Rgba32f, TextureFormat.Rgba32f, TextureFormat.Rgba32f);
+        using var read = CreateRenderTarget(1, 1, TextureFormat.Rgba32f);
+        using var nested = CreateRenderTarget(3, 3, TextureFormat.Rgba32f);
         // Raw writes outside supported interception explicitly withdraw primed binding knowledge.
         OpenGLFramebufferSelection.Bind(OpenGlStateCache.Current, FramebufferTarget.Framebuffer, nested.FboId);
         GL.BindFramebuffer(FramebufferTarget.DrawFramebuffer, defaultFramebuffer ? 0 : draw.FboId);
@@ -61,7 +61,7 @@ public sealed class GpuRenderBoundaryTests(HeadlessGLFixture fixture) : RenderTe
     {
         EnsureContextValid();
         using var state = LegacyFixedFunctionReference.Capture(OpenGlStateCache.Current);
-        using var target = CreateMRTRenderTarget(2, 2, PixelInternalFormat.Rgba32f, PixelInternalFormat.R32f, PixelInternalFormat.R32f);
+        using var target = CreateMRTRenderTarget(2, 2, TextureFormat.Rgba32f, TextureFormat.R32f, TextureFormat.R32f);
         target[0].UploadDataImmediate(Enumerable.Repeat(2f, 16).ToArray());
         target[1].UploadDataImmediate(Enumerable.Repeat(3f, 4).ToArray());
         target[2].UploadDataImmediate(Enumerable.Repeat(17f, 4).ToArray());
@@ -84,7 +84,7 @@ public sealed class GpuRenderBoundaryTests(HeadlessGLFixture fixture) : RenderTe
     {
         EnsureContextValid();
         using var scope = OpenGlStateCache.Current.BindFramebufferScope();
-        using var target = CreateRenderTarget(3, 5, PixelInternalFormat.Rgba32f);
+        using var target = CreateRenderTarget(3, 5, TextureFormat.Rgba32f);
         using (var borrowed = DynamicGpuFramebuffer.Wrap(target.FboId, "Borrowed test target", width: 3, height: 5))
         {
             Assert.Equal(3, borrowed.Width);
@@ -107,10 +107,10 @@ public sealed class GpuRenderBoundaryTests(HeadlessGLFixture fixture) : RenderTe
     {
         EnsureContextValid();
         using var scope = OpenGlStateCache.Current.BindFramebufferScope();
-        using var source = CreateMRTRenderTarget(2, 2, PixelInternalFormat.Rgba32f, PixelInternalFormat.Rgba32f);
-        using var destination = CreateMRTRenderTarget(2, 2, PixelInternalFormat.Rgba32f, PixelInternalFormat.Rgba32f);
-        using var callerDraw = CreateMRTRenderTarget(2, 2, PixelInternalFormat.Rgba32f, PixelInternalFormat.Rgba32f);
-        using var callerRead = CreateRenderTarget(2, 2, PixelInternalFormat.Rgba32f);
+        using var source = CreateMRTRenderTarget(2, 2, TextureFormat.Rgba32f, TextureFormat.Rgba32f);
+        using var destination = CreateMRTRenderTarget(2, 2, TextureFormat.Rgba32f, TextureFormat.Rgba32f);
+        using var callerDraw = CreateMRTRenderTarget(2, 2, TextureFormat.Rgba32f, TextureFormat.Rgba32f);
+        using var callerRead = CreateRenderTarget(2, 2, TextureFormat.Rgba32f);
         source[0].UploadDataImmediate(Enumerable.Repeat(7f, 16).ToArray());
         source[1].UploadDataImmediate(Enumerable.Repeat(11f, 16).ToArray());
         destination[0].UploadDataImmediate(new float[16]);
@@ -184,8 +184,8 @@ public sealed class GpuRenderBoundaryTests(HeadlessGLFixture fixture) : RenderTe
     {
         EnsureContextValid();
         using var scope = OpenGlStateCache.Current.BindFramebufferScope();
-        using var source = CreateRenderTarget(2, 2, PixelInternalFormat.Rgba32f);
-        using var destination = CreateRenderTarget(2, 2, PixelInternalFormat.Rgba32f);
+        using var source = CreateRenderTarget(2, 2, TextureFormat.Rgba32f);
+        using var destination = CreateRenderTarget(2, 2, TextureFormat.Rgba32f);
         var copy = FramebufferTestSetup.DescribeCopy(source, destination);
         {
             // Repeated blits must continue to copy the current source data.
@@ -210,8 +210,8 @@ public sealed class GpuRenderBoundaryTests(HeadlessGLFixture fixture) : RenderTe
         EnsureContextValid();
         using var scope = OpenGlStateCache.Current.BindFramebufferScope();
         using var state = LegacyFixedFunctionReference.Capture(OpenGlStateCache.Current);
-        using var sourceDepth = new DepthTexture(2, 2, PixelInternalFormat.DepthComponent24);
-        using var destinationDepth = new DepthTexture(2, 2, PixelInternalFormat.DepthComponent24);
+        using var sourceDepth = new DepthTexture(2, 2, TextureFormat.DepthComponent24);
+        using var destinationDepth = new DepthTexture(2, 2, TextureFormat.DepthComponent24);
         using var source = DynamicGpuFramebuffer.CreateDepthOnly(sourceDepth)!;
         using var destination = DynamicGpuFramebuffer.CreateDepthOnly(destinationDepth)!;
         GL.Disable(EnableCap.ScissorTest);
@@ -234,8 +234,8 @@ public sealed class GpuRenderBoundaryTests(HeadlessGLFixture fixture) : RenderTe
         EnsureContextValid();
         using var scope = OpenGlStateCache.Current.BindFramebufferScope();
         using var state = LegacyFixedFunctionReference.Capture(OpenGlStateCache.Current);
-        using var sourceDepth = new DepthTexture(2, 2, PixelInternalFormat.DepthComponent24);
-        using var destinationDepth = new DepthTexture(2, 2, PixelInternalFormat.DepthComponent24);
+        using var sourceDepth = new DepthTexture(2, 2, TextureFormat.DepthComponent24);
+        using var destinationDepth = new DepthTexture(2, 2, TextureFormat.DepthComponent24);
         using var sourceColor = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba32f, Width = System.Math.Max(1, 2), Height = System.Math.Max(1, 2), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         using var destinationColor = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba32f, Width = System.Math.Max(1, 2), Height = System.Math.Max(1, 2), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         using var source = DynamicGpuFramebuffer.CreateSingle(sourceColor)!;
@@ -273,7 +273,7 @@ public sealed class GpuRenderBoundaryTests(HeadlessGLFixture fixture) : RenderTe
         using var state = LegacyFixedFunctionReference.Capture(OpenGlStateCache.Current);
         using var color = RHICommandContext.Current.CreateRenderbuffer(new RHIRenderbufferDescription { Format = TextureFormat.Rgba32f, Width = 2, Height = 2, Samples = 0, Label = null }).RequireResource();
         using var source = DynamicGpuFramebuffer.CreateEmpty("Tests.ColorRenderbuffer");
-        using var destination = CreateRenderTarget(2, 2, PixelInternalFormat.Rgba32f);
+        using var destination = CreateRenderTarget(2, 2, TextureFormat.Rgba32f);
         source.Bind();
         GL.FramebufferRenderbuffer(FramebufferTarget.Framebuffer, FramebufferAttachment.ColorAttachment0,
             RenderbufferTarget.Renderbuffer, color.RenderbufferId);
@@ -285,7 +285,7 @@ public sealed class GpuRenderBoundaryTests(HeadlessGLFixture fixture) : RenderTe
         // The externally owned framebuffer has no managed attachment metadata.
         using var borrowed = DynamicGpuFramebuffer.Wrap(source.FboId, width: 2, height: 2);
         var copy = new RHIImageBlit(RHIAttachment.FromRenderbuffer(color),new(0,0,2,2),
-            FramebufferTestSetup.Select(destination.GetAttachment(FramebufferAttachment.ColorAttachment0)!),new(0,0,2,2));
+            FramebufferTestSetup.Select(destination.GetAttachment(FramebufferSlot.Color0)!),new(0,0,2,2));
         RHICommandContext.Current.BlitImages(copy);
         Assert.Equal((int)ReadBufferMode.None, GL.GetInteger(GetPName.ReadBuffer));
         Assert.All(destination[0].ReadPixels(), value => Assert.Equal(0.25f, value));

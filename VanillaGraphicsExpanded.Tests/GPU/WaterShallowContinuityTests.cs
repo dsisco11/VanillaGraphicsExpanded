@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Numerics;
 using OpenTK.Graphics.OpenGL;
@@ -84,8 +85,8 @@ public sealed class WaterShallowContinuityTests(HeadlessGLFixture fixture, ITest
         inputs.Scenario = 12; inputs.Quality = quality; inputs.Budget = 1 << quality; inputs.SelectReceiver = 1;
         inputs.Normal = Vector3.Normalize(new Vector3(curved ? -.7f : -.4f,0,1));
         inputs.Color = halfColor ?? color; inputs.Depth = halfDepth ?? depth;
-        using var target = CreateMRTRenderTarget(1,1,PixelInternalFormat.Rgba32f,PixelInternalFormat.Rgba32f,
-            PixelInternalFormat.Rgba32f,PixelInternalFormat.Rgba32f,PixelInternalFormat.Rgba32f,PixelInternalFormat.Rgba32f);
+        using var target = CreateMRTRenderTarget(1,1,TextureFormat.Rgba32f,TextureFormat.Rgba32f,
+            TextureFormat.Rgba32f,TextureFormat.Rgba32f,TextureFormat.Rgba32f,TextureFormat.Rgba32f);
         var filter = Programs.Create<WaterReceiverFilterShaderProgram>();
         var filterInputs = (IWaterReceiverFilterBindings)filter;
         var projection = Matrix4x4.CreatePerspectiveFieldOfView(MathF.PI/3,1,.1f,100);
@@ -95,7 +96,7 @@ public sealed class WaterShallowContinuityTests(HeadlessGLFixture fixture, ITest
         program.FrameInputs = frameCamera;
         filter.FrameInputs = frameCamera;
         filterInputs.Normal = inputs.Normal; filterInputs.Color = halfColor ?? color; filterInputs.Depth = halfDepth ?? depth;
-        using var filterTarget = CreateMRTRenderTarget(1,1,PixelInternalFormat.Rgba32f,PixelInternalFormat.Rgba32f);
+        using var filterTarget = CreateMRTRenderTarget(1,1,TextureFormat.Rgba32f,TextureFormat.Rgba32f);
         float maximumJump = 0, maximumAssociationError = 0;
         float maximumFilterJump = 0;
         int switches = 0, previousMethod = 0, rays = 0, uv = 0;

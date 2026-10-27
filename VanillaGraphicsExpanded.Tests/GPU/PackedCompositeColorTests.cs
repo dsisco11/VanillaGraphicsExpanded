@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Numerics;
 using OpenTK.Graphics.OpenGL;
@@ -26,20 +27,20 @@ public sealed class PackedCompositeColorTests(HeadlessGLFixture fixture) : LumOn
     {
         EnsureShaderTestAvailable();
         var shader = Programs.Create<PBRCompositeShaderProgram>(p => { p.LumOnEnabled = lumon; p.EnablePbrComposite = lumon; p.EnableShortRangeAo = false; });
-        using var direct = TestFramework.CreateTexture(1,1,PixelInternalFormat.Rgba32f,[1.13f,2.27f,4.39f,1f]);
-        using var specular = TestFramework.CreateTexture(1,1,PixelInternalFormat.Rgba32f,[0f,0f,0f,1f]);
-        using var emission = TestFramework.CreateTexture(1,1,PixelInternalFormat.Rgba32f,[0f,0f,0f,1f]);
-        using var indirect = TestFramework.CreateTexture(1,1,PixelInternalFormat.Rgba32f,[0f,0f,0f,1f]);
-        using var albedo = TestFramework.CreateTexture(1,1,PixelInternalFormat.Rgba32f,[.5f,.5f,.5f,1f]);
+        using var direct = TestFramework.CreateTexture(1,1,TextureFormat.Rgba32f,[1.13f,2.27f,4.39f,1f]);
+        using var specular = TestFramework.CreateTexture(1,1,TextureFormat.Rgba32f,[0f,0f,0f,1f]);
+        using var emission = TestFramework.CreateTexture(1,1,TextureFormat.Rgba32f,[0f,0f,0f,1f]);
+        using var indirect = TestFramework.CreateTexture(1,1,TextureFormat.Rgba32f,[0f,0f,0f,1f]);
+        using var albedo = TestFramework.CreateTexture(1,1,TextureFormat.Rgba32f,[.5f,.5f,.5f,1f]);
         float encodedX=.5f, encodedZ=1f, receiverX=0f;
-        using var normal = TestFramework.CreateTexture(1,1,PixelInternalFormat.Rgba32f,[encodedX,.5f,encodedZ,1f]);
-        using var material = TestFramework.CreateTexture(1,1,PixelInternalFormat.Rgba32f,[.5f,0f,0f,0f]);
-        using var position = TestFramework.CreateTexture(1,1,PixelInternalFormat.Rgba32f,[receiverX,0f,-2f,1f]);
-        using var depth = TestFramework.CreateTexture(1,1,PixelInternalFormat.R32f,[.75f]);
+        using var normal = TestFramework.CreateTexture(1,1,TextureFormat.Rgba32f,[encodedX,.5f,encodedZ,1f]);
+        using var material = TestFramework.CreateTexture(1,1,TextureFormat.Rgba32f,[.5f,0f,0f,0f]);
+        using var position = TestFramework.CreateTexture(1,1,TextureFormat.Rgba32f,[receiverX,0f,-2f,1f]);
+        using var depth = TestFramework.CreateTexture(1,1,TextureFormat.R32f,[.75f]);
         using var neutralExposure = ExposureTestStorage.Create(0);
         using var lighting = LayeredTestTexture.Create(direct,specular,emission);
         using var surface = LayeredTestTexture.Create(normal,material,indirect);
-        using var target = TestFramework.CreateTestGBuffer(1,1,PixelInternalFormat.R11fG11fB10f,PixelInternalFormat.Rgba16f,PixelInternalFormat.R32f);
+        using var target = TestFramework.CreateTestGBuffer(1,1,TextureFormat.R11fG11fB10f,TextureFormat.Rgba16f,TextureFormat.R32f);
         using var positions = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = null }).RequireResource(); positions.UploadData(new float[] {-1,-1,0, 3,-1,0, -1,3,0});
         using var uv = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = null }).RequireResource(); uv.UploadData(new float[] {0,0, 2,0, 0,2});
         using var geometry = new ArrayGraphicsGeometry(EngineFullscreenGeometry.Layout, PrimitiveTopology.Triangles,
@@ -79,7 +80,7 @@ public sealed class PackedCompositeColorTests(HeadlessGLFixture fixture) : LumOn
 
         // The immediate scene-linear handoff samples missing RGB alpha as one.
         var resolve=Programs.Create<PBRDisplayResolveShaderProgram>();
-        using var handoff=TestFramework.CreateTestGBuffer(1,1,PixelInternalFormat.Rgba32f);
+        using var handoff=TestFramework.CreateTestGBuffer(1,1,TextureFormat.Rgba32f);
         resolve.PrimaryScene=target[0];resolve.PrimaryDepth=depth;
         resolve.SceneLinear=1;resolve.ParticleLayerEnabled=0;
         var handoffDescription=FramebufferTestSetup.DescribeAttachments(handoff, [new(AttachmentIndex:0)]);
@@ -98,8 +99,8 @@ public sealed class PackedCompositeColorTests(HeadlessGLFixture fixture) : LumOn
         // The production display shader must accept RGB scene storage and still publish opaque RGBA.
         var display=Programs.Create<FinalDisplayShaderProgram>();
         using var grading=new ColorGradingLut(); display.GradingLookup=grading.Prepare(Programs.Api,new(1,1,1,0));
-        using var output=TestFramework.CreateTestGBuffer(1,1,PixelInternalFormat.Rgba32f);
-        using var zero=TestFramework.CreateTexture(1,1,PixelInternalFormat.Rgba32f,[0f,0f,0f,0f]);
+        using var output=TestFramework.CreateTestGBuffer(1,1,TextureFormat.Rgba32f);
+        using var zero=TestFramework.CreateTexture(1,1,TextureFormat.Rgba32f,[0f,0f,0f,0f]);
         display.FrameInputs=frameCamera;display.SceneImage=target[0];display.BloomImage=zero;display.ShaftImage=zero;display.ExposureBuffer=neutralExposure;
         display.Capture(false,new(new(1,1,1,0),Vector4.Zero,Vector4.Zero),Vector4.Zero);
         using var draw=new PostprocessDraw();

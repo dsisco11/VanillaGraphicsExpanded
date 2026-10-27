@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using VanillaGraphicsExpanded.LumOn;
 using System;
@@ -43,7 +44,7 @@ public sealed class LumOnWorldProbeRadianceTileResolveFunctionalTests : LumOnSha
         try
         {
 
-            using var output = TestFramework.CreateTestGBuffer(width, height, PixelInternalFormat.Rgba16f);
+            using var output = TestFramework.CreateTestGBuffer(width, height, TextureFormat.Rgba16f);
 
             FramebufferTestSetup.BindForEngineRendering(output);
             GL.ClearColor(0f, 0f, 0f, 0f);

@@ -298,7 +298,7 @@ public sealed class GpuMetadataOperationFoundationTests(HeadlessGLFixture fixtur
             ulong revision = entry.MetadataRevision;
             using (var operation = new OpenGLFramebufferConfiguration.FramebufferOperation(framebuffer))
             {
-                Assert.Throws<ArgumentException>(() => VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLFramebufferConfiguration.FramebufferTexture(framebuffer, FramebufferAttachment.DepthAttachment, image, operation));
+                Assert.Throws<ArgumentException>(() => VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLFramebufferConfiguration.FramebufferTexture(framebuffer, FramebufferSlot.Depth, image, operation));
                 Assert.Throws<InvalidOperationException>(() => operation.Commit());
             }
             Assert.False(entry.MetadataAvailable);

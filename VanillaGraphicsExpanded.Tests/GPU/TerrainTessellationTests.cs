@@ -144,7 +144,7 @@ public sealed class TerrainTessellationTests : RenderTestBase
         using var ordinary = GpuProgramObject.Adopt(TerrainShaderTestFixture.Link(vertex, fragment));
         using var vao = NativeResourceSetup.CreateVertexArray();
         using var framework = new ShaderTestFramework();
-        using var target = framework.CreateTestGBuffer(4, 4, PixelInternalFormat.Rgba32f);
+        using var target = framework.CreateTestGBuffer(4, 4, TextureFormat.Rgba32f);
         FramebufferTestSetup.BindForEngineRendering(target);
         OpenGLVertexSelection.Bind(OpenGlStateCache.Current, vao.VertexArrayId);
         OpenGLProgramSelection.Select(OpenGlStateCache.Current, tessellated);
@@ -296,7 +296,7 @@ public sealed class TerrainTessellationTests : RenderTestBase
             ordinary = TerrainShaderTestFixture.Link(vertex, fragment);
             Assert.True(TerrainShaderTestFixture.LinkTessellation(vertex, fragment, TerrainTessellationTestAssets.Generate(shaders.Source(vertex)), TerrainTessellationPatches.EnabledDefine, out tessellated, out string error), error);
             using var framework = new ShaderTestFramework();
-            using var target = framework.CreateTestGBuffer(16, 16, PixelInternalFormat.Rgba32f, 2);
+            using var target = framework.CreateTestGBuffer(16, 16, TextureFormat.Rgba32f, 2);
             using var camera = TestFrameCamera.CreateIdentity(16,16);
             Assert.True(VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindUniformSnapshot(GpuBindingRegistry.Ubo.Frame, camera.Capture()));
             FramebufferTestSetup.BindForEngineRendering(target);

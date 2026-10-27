@@ -36,12 +36,12 @@ public sealed class SceneColorParticlePublicationTests(HeadlessGLFixture fixture
         using var assets = new BinaryShaderApiFixture();
         using var programs = new RuntimeLightingPrograms();
         using var drawing = new ShaderTestFramework();
-        using var material = new GpuFramebufferAttachment(2, 2, PixelInternalFormat.Rgba16f);
-        using var glow = new GpuFramebufferAttachment(2, 2, PixelInternalFormat.Rgba8);
-        using var depthStorage = new DepthTexture(2, 2, PixelInternalFormat.DepthComponent32f);
+        using var material = new GpuFramebufferAttachment(2, 2, TextureFormat.Rgba16f);
+        using var glow = new GpuFramebufferAttachment(2, 2, TextureFormat.Rgba8);
+        using var depthStorage = new DepthTexture(2, 2, TextureFormat.DepthComponent32f);
         using var depth = GpuFramebufferAttachment.FromTexture(depthStorage);
-        using var normal = new GpuFramebufferAttachment(2, 2, PixelInternalFormat.Rgba16f);
-        using var position = new GpuFramebufferAttachment(2, 2, PixelInternalFormat.Rgba16f);
+        using var normal = new GpuFramebufferAttachment(2, 2, TextureFormat.Rgba16f);
+        using var position = new GpuFramebufferAttachment(2, 2, TextureFormat.Rgba16f);
         using var engine = DynamicGpuFramebuffer.Create(ssao ? [material, glow, normal, position] : [material, glow], depth);
         var primary = new FrameBufferRef
         {
@@ -87,7 +87,7 @@ public sealed class SceneColorParticlePublicationTests(HeadlessGLFixture fixture
         using var direct = new DirectLightingRenderer(api, gbuffer, directBuffers);
         var config = new VanillaGraphicsExpanded.LumOn.VgeConfig(); config.LumOn.Enabled = false;
         using var composite = new PBRCompositeRenderer(api, gbuffer, directBuffers, config, () => null);
-        using var separateRead = CreateRenderTarget(2, 2, PixelInternalFormat.Rgba16f);
+        using var separateRead = CreateRenderTarget(2, 2, TextureFormat.Rgba16f);
         bool previousRefraction = VanillaGraphicsExpanded.ModSystems.ConfigModSystem.Config.WaterRefractionEnabled;
         int previousScale = VanillaGraphicsExpanded.ModSystems.ConfigModSystem.Config.WaterRefractionBackgroundScale;
         VanillaGraphicsExpanded.ModSystems.ConfigModSystem.Config.WaterRefractionEnabled = true;

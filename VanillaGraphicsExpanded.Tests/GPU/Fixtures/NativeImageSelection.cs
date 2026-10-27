@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
@@ -21,7 +22,7 @@ internal sealed class NativeImageSelection : IDisposable
         int Read(All field) { GL.GetInteger((GetIndexedPName)field, unit, out int value); return value; }
         previous = new(Read(All.ImageBindingName), Read(All.ImageBindingLevel), Read(All.ImageBindingLayered) != 0,
             Read(All.ImageBindingLayer), (TextureAccess)Read(All.ImageBindingAccess), (SizedInternalFormat)Read(All.ImageBindingFormat));
-        var format = formatOverride ?? (metadata.Buffer?.Format ?? (SizedInternalFormat)texture.RequireImage(level).Format);
+        var format = formatOverride ?? (SizedInternalFormat)OpenGLImageValues.Format(metadata.Buffer?.Format ?? texture.RequireImage(level).Format);
         OpenGLImageSlotBindings.BindImageTexture(OpenGlStateCache.Current, unit, texture.TextureId, level, layered, layer, access, format);
     }
     /// <summary>Restores exact native setup only in the originating fixture namespace.</summary>

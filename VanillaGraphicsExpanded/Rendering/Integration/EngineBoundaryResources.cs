@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using OpenTK.Graphics.OpenGL;
+using VanillaGraphicsExpanded.Rendering.RHI;
 using VanillaGraphicsExpanded.Rendering.Contracts;
 using VanillaGraphicsExpanded.Rendering.Spirv;
 namespace VanillaGraphicsExpanded.Rendering.Integration;
@@ -9,7 +10,7 @@ namespace VanillaGraphicsExpanded.Rendering.Integration;
 /// <summary>Immutable borrowed-slot footprint derived from prepared executable assignments and explicit helper effects.</summary>
 internal sealed class EngineBoundaryResources
 {
-    internal IReadOnlyList<(int Unit, TextureTarget Target)> Textures { get; }
+    internal IReadOnlyList<(int Unit, TextureDimension Target)> Textures { get; }
     internal IReadOnlyList<int> Images { get; }
     internal IReadOnlyList<(BufferRangeTarget Target, int Slot)> Buffers { get; }
 
@@ -19,7 +20,7 @@ internal sealed class EngineBoundaryResources
 
     #region Public API
     /// <summary>Copies explicit helper slots and the selector families the declared work can actually change.</summary>
-    internal EngineBoundaryResources(IEnumerable<(int Unit, TextureTarget Target)>? textures = null,
+    internal EngineBoundaryResources(IEnumerable<(int Unit, TextureDimension Target)>? textures = null,
         IEnumerable<int>? images = null, IEnumerable<(BufferRangeTarget Target, int Slot)>? buffers = null,
         bool geometry = true, bool framebuffers = true, bool programSelection = true)
     {
@@ -38,7 +39,7 @@ internal sealed class EngineBoundaryResources
     internal static EngineBoundaryResources From(GpuPreparedBindings prepared)
     {
         ArgumentNullException.ThrowIfNull(prepared);
-        var textures = new List<(int, TextureTarget)>();
+        var textures = new List<(int, TextureDimension)>();
         var images = new List<int>();
         var buffers = new List<(BufferRangeTarget, int)>();
         foreach (var entry in prepared.Entries)
@@ -51,7 +52,7 @@ internal sealed class EngineBoundaryResources
                     case ShaderBindingKind.Sampler:
                         int target = GpuPreparedBindings.CompatibleTextureTarget(entry.Type);
                         if (target == 0) throw new InvalidOperationException("Unsupported prepared sampler footprint.");
-                        textures.Add((slot, (TextureTarget)target)); break;
+                        textures.Add((slot, (TextureDimension)target)); break;
                     case ShaderBindingKind.Image: images.Add(slot); break;
                     case ShaderBindingKind.UniformBlock: buffers.Add((BufferRangeTarget.UniformBuffer, slot)); break;
                     case ShaderBindingKind.StorageBlock: buffers.Add((BufferRangeTarget.ShaderStorageBuffer, slot)); break;

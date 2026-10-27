@@ -40,7 +40,7 @@ internal sealed partial class OpenGLBackend
         owner.RequireOriginalContext(); GpuResourceManager.AcquireWrapperMetadata(owner, GpuShaderMetadataReader.Instance);
     }
     /// <inheritdoc />
-    public GpuFramebufferAttachment DiscoverFramebufferAttachment(GpuFramebuffer owner, OpenTK.Graphics.OpenGL.FramebufferAttachment slot, bool recover)
+    public GpuFramebufferAttachment DiscoverFramebufferAttachment(GpuFramebuffer owner, FramebufferSlot slot, bool recover)
     {
         RequireContext();
         owner.RequireOriginalContext(); return GpuResourceManager.DiscoverFramebufferAttachment(owner, slot, recover);
@@ -53,10 +53,13 @@ internal sealed partial class OpenGLBackend
         GpuResourceManager.PublishImportedFramebuffer(owner, publish, replacementId, width, height);
     }
     /// <inheritdoc />
-    public System.Collections.Generic.Dictionary<OpenTK.Graphics.OpenGL.FramebufferAttachment, GpuFramebufferAttachment> ResolveFramebufferAttachments(GpuFramebuffer owner, System.Collections.Generic.IReadOnlyDictionary<OpenTK.Graphics.OpenGL.FramebufferAttachment, GpuFramebufferAttachment> images, bool recover)
+    public void ResolveFramebufferAttachments(GpuFramebuffer owner, bool recover)
     {
         RequireContext();
-        owner.RequireOriginalContext(); return GpuResourceManager.ResolveFramebufferAttachments(owner, images, recover);
+        owner.RequireOriginalContext();
+        var images = GpuResourceManager.ResolveFramebufferAttachments(owner,
+            new System.Collections.Generic.Dictionary<FramebufferSlot, GpuFramebufferAttachment>(owner.AttachmentImages), recover);
+        owner.InstallAttachmentReferences(images, owner.PublishedMetadata.Attachments!);
     }
     /// <inheritdoc />
     public void ObserveAttachmentOwner(GpuResource owner, GpuFramebufferAttachment image)

@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.Integration.OpenGL;
 using System;
 using OpenTK.Graphics.OpenGL;
 
@@ -53,9 +54,9 @@ internal sealed partial class OpenGLBackend
         if (request.Has(11) && !Enum.IsDefined(request.Filter)) throw new ArgumentOutOfRangeException(nameof(request));
         bool multi = request.Dimension is TextureDimension.TwoMultisample or TextureDimension.TwoMultisampleArray;
         if (multi && request.Has(11)) throw new ArgumentException("Multisample textures have no sampling-filter request.");
-        var format = OpenGLImageValues.Format(request.Format);
+        var format = request.Format;
         var pixels = TextureFormatHelper.GetPixelFormat(format);
-        if (request.Filter == TextureFilterMode.Linear && pixels is PixelFormat.RedInteger or PixelFormat.RgInteger or PixelFormat.RgbInteger or PixelFormat.RgbaInteger)
+        if (request.Filter == TextureFilterMode.Linear && pixels is PixelChannelLayout.RedInteger or PixelChannelLayout.RgInteger or PixelChannelLayout.RgbInteger or PixelChannelLayout.RgbaInteger)
             throw new ArgumentException("Integer textures require nearest filtering.");
         if ((typeof(T) == typeof(DynamicTexture2D) || typeof(T) == typeof(DynamicTextureCube)) && (TextureFormatHelper.IsDepthFormat(format) || TextureFormatHelper.IsStencilFormat(format)))
             throw new ArgumentException("Use a depth/stencil owner for this representation.");
@@ -81,7 +82,7 @@ internal sealed partial class OpenGLBackend
         if (description.Has(3)) ArgumentOutOfRangeException.ThrowIfNegativeOrZero(description.Height);
         if (description.Has(4)) ArgumentOutOfRangeException.ThrowIfNegativeOrZero(description.Depth);
         if (description.Storage is not (ResourceStorageMode.Mutable or ResourceStorageMode.Immutable)) throw new ArgumentException("Image storage must be mutable or immutable.");
-        var result = new GpuTextureInitialization { Target = OpenGLImageValues.Target(description.Dimension), InternalFormat = OpenGLImageValues.Format(description.Format),
+        var result = new GpuTextureInitialization { Target = description.Dimension, InternalFormat = description.Format,
             Width = description.Width, Levels = description.MipLevels, AllocationMode = description.Storage == ResourceStorageMode.Immutable ? GpuTextureAllocationMode.Immutable : GpuTextureAllocationMode.Mutable };
         if (description.Has(3)) result.Height = description.Height;
         if (description.Has(4)) result.Depth = description.Depth;

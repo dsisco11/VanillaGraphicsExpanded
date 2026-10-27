@@ -1,5 +1,5 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
-using OpenTK.Graphics.OpenGL;
 
 namespace VanillaGraphicsExpanded.Rendering;
 
@@ -11,7 +11,7 @@ internal struct GpuBufferTextureInitialization
 {
     private byte assigned;
     private int buffer;
-    private SizedInternalFormat format;
+    private TextureFormat format;
     private GpuBufferTextureMode mode;
     private nint offset, size;
 
@@ -19,7 +19,7 @@ internal struct GpuBufferTextureInitialization
     /// <summary>Identifies the live backing buffer, without transferring ownership.</summary>
     public int Buffer { readonly get => buffer; set { buffer = value; assigned |= 1; } }
     /// <summary>Specifies the texel interpretation.</summary>
-    public SizedInternalFormat Format { readonly get => format; set { format = value; assigned |= 2; } }
+    public TextureFormat Format { readonly get => format; set { format = value; assigned |= 2; } }
     /// <summary>Selects whole-store or explicit-range semantics.</summary>
     public GpuBufferTextureMode Mode { readonly get => mode; set { mode = value; assigned |= 4; } }
     /// <summary>Specifies the native-width first byte of a range.</summary>
@@ -36,16 +36,16 @@ internal struct GpuBufferTextureInitialization
             throw new ArgumentException("Buffer texture initialization requires backing, format and mode.");
         if (mode == GpuBufferTextureMode.Whole ? (assigned & 24) != 0 : (assigned & 24) != 24 || offset < 0 || size <= 0)
             throw new ArgumentException("Whole views reject ranges; range views require nonnegative offset and positive size.");
-        if (format is not (SizedInternalFormat.R8 or SizedInternalFormat.R16 or SizedInternalFormat.R16f or SizedInternalFormat.R32f
-            or SizedInternalFormat.R8i or SizedInternalFormat.R16i or SizedInternalFormat.R32i
-            or SizedInternalFormat.R8ui or SizedInternalFormat.R16ui or SizedInternalFormat.R32ui
-            or SizedInternalFormat.Rg8 or SizedInternalFormat.Rg16 or SizedInternalFormat.Rg16f or SizedInternalFormat.Rg32f
-            or SizedInternalFormat.Rg8i or SizedInternalFormat.Rg16i or SizedInternalFormat.Rg32i
-            or SizedInternalFormat.Rg8ui or SizedInternalFormat.Rg16ui or SizedInternalFormat.Rg32ui
-            or SizedInternalFormat.Rgb32f or SizedInternalFormat.Rgb32i or SizedInternalFormat.Rgb32ui
-            or SizedInternalFormat.Rgba8 or SizedInternalFormat.Rgba16 or SizedInternalFormat.Rgba16f or SizedInternalFormat.Rgba32f
-            or SizedInternalFormat.Rgba8i or SizedInternalFormat.Rgba16i or SizedInternalFormat.Rgba32i
-            or SizedInternalFormat.Rgba8ui or SizedInternalFormat.Rgba16ui or SizedInternalFormat.Rgba32ui))
+        if (format is not (TextureFormat.R8 or TextureFormat.R16 or TextureFormat.R16f or TextureFormat.R32f
+            or TextureFormat.R8i or TextureFormat.R16i or TextureFormat.R32i
+            or TextureFormat.R8ui or TextureFormat.R16ui or TextureFormat.R32ui
+            or TextureFormat.Rg8 or TextureFormat.Rg16 or TextureFormat.Rg16f or TextureFormat.Rg32f
+            or TextureFormat.Rg8i or TextureFormat.Rg16i or TextureFormat.Rg32i
+            or TextureFormat.Rg8ui or TextureFormat.Rg16ui or TextureFormat.Rg32ui
+            or TextureFormat.Rgb32f or TextureFormat.Rgb32i or TextureFormat.Rgb32ui
+            or TextureFormat.Rgba8 or TextureFormat.Rgba16 or TextureFormat.Rgba16f or TextureFormat.Rgba32f
+            or TextureFormat.Rgba8i or TextureFormat.Rgba16i or TextureFormat.Rgba32i
+            or TextureFormat.Rgba8ui or TextureFormat.Rgba16ui or TextureFormat.Rgba32ui))
             throw new ArgumentException("The selected format is not valid for buffer textures.");
     }
     #endregion

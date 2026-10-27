@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.PBR;
@@ -20,10 +21,10 @@ public sealed class SceneColorHandoffTests(HeadlessGLFixture fixture) : LumOnSha
     {
         EnsureShaderTestAvailable();
         var program = Programs.Create<PBRDisplayResolveShaderProgram>();
-        using var scene = TestFramework.CreateTexture(2, 1, PixelInternalFormat.Rgba32f,
+        using var scene = TestFramework.CreateTexture(2, 1, TextureFormat.Rgba32f,
             new[] { 8f, 4f, 2f, .25f, 8f, 4f, 2f, .75f });
-        using var depth = TestFramework.CreateTexture(2, 1, PixelInternalFormat.R32f, new[] { .5f, 1f });
-        using var output = TestFramework.CreateTestGBuffer(2, 1, PixelInternalFormat.Rgba32f);
+        using var depth = TestFramework.CreateTexture(2, 1, TextureFormat.R32f, new[] { .5f, 1f });
+        using var output = TestFramework.CreateTestGBuffer(2, 1, TextureFormat.Rgba32f);
         program.PrimaryScene = scene;
         program.PrimaryDepth = depth;
         program.SceneLinear = linearScene;
@@ -52,12 +53,12 @@ public sealed class SceneColorHandoffTests(HeadlessGLFixture fixture) : LumOnSha
     {
         EnsureShaderTestAvailable();
         var program = Programs.Create<PBRDisplayResolveShaderProgram>();
-        using var scene = TestFramework.CreateTexture(2, 1, PixelInternalFormat.Rgba32f,
+        using var scene = TestFramework.CreateTexture(2, 1, TextureFormat.Rgba32f,
             new[] { 8f, 4f, 2f, .25f, 8f, 4f, 2f, .75f });
-        using var depth = TestFramework.CreateTexture(2, 1, PixelInternalFormat.R32f, new[] { .5f, 1f });
+        using var depth = TestFramework.CreateTexture(2, 1, TextureFormat.R32f, new[] { .5f, 1f });
         using var layer = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba32f, Width = System.Math.Max(1, 2), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         layer.UploadDataImmediate(Enumerable.Repeat(new[] { 4f * coverage, 8f * coverage, 2f * coverage, coverage }, 2).SelectMany(pixel => pixel).ToArray());
-        using var output = TestFramework.CreateTestGBuffer(2, 1, PixelInternalFormat.Rgba32f);
+        using var output = TestFramework.CreateTestGBuffer(2, 1, TextureFormat.Rgba32f);
         program.PrimaryScene = scene;
         program.PrimaryDepth = depth;
         program.ParticleLayer = layer;

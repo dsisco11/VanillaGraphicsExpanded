@@ -38,8 +38,8 @@ internal sealed partial class OpenGLBackend
         RequireContext();
         owner.RequireOriginalContext();
         var previous = GpuResourceManager.AcquireTextureCommandInput(owner);
-        if (baseLevel < 0 || maxLevel < 0 || previous.Target == TextureTarget.TextureRectangle && baseLevel != 0
-            || previous.Target is TextureTarget.Texture2DMultisample or TextureTarget.Texture2DMultisampleArray or TextureTarget.TextureBuffer)
+        if (baseLevel < 0 || maxLevel < 0 || previous.Target == TextureDimension.Rectangle && baseLevel != 0
+            || previous.Target is TextureDimension.TwoMultisample or TextureDimension.TwoMultisampleArray or TextureDimension.Buffer)
             throw new ArgumentOutOfRangeException(nameof(baseLevel));
         using var operation = new GpuResourceManager.MetadataOperation<GpuTextureMetadata>(owner, GpuMetadataChange.Metadata);
         int id = owner.TextureId;

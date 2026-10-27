@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Runtime.InteropServices;
 using OpenTK.Graphics.OpenGL;
@@ -18,7 +19,7 @@ internal sealed class FramebufferBmpCapture(int width, int height) : IDisposable
             throw new ArgumentException("Framebuffer dimensions do not match the capture buffer.", nameof(framebuffer));
         int byteCount = width * height * 4;
         readback.AllocateOrphan(byteCount);
-        var attachment = framebuffer.GetAttachment(FramebufferAttachment.ColorAttachment0)
+        var attachment = framebuffer.GetAttachment(FramebufferSlot.Color0)
             ?? throw new InvalidOperationException("No color image is available for capture.");
         using var texture = new BorrowedTexture(attachment.TextureId);
         RHICommandContext.Current.TransferTextureToBuffer(texture, new(readback, 0,

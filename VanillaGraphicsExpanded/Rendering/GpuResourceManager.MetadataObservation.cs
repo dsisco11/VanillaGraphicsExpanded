@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System;
 
@@ -20,7 +21,7 @@ internal sealed partial class GpuResourceManager
         {
             var target = resource is GpuTexture owner ? owner.TextureTarget
                 : resource is GpuTextureView view ? view.Target
-                : resource is GpuBufferView ? OpenTK.Graphics.OpenGL.TextureTarget.TextureBuffer : 0;
+                : resource is GpuBufferView ? RHI.TextureDimension.Buffer : 0;
             texture.HandleMetadataChanged(default(GpuTextureMetadata) with { Target = target });
         }
         else resource.HandleMetadataChanged(default);

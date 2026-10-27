@@ -10,7 +10,7 @@ internal sealed partial class GpuResourceManager
     #region Internal API
     /// <summary>Updates represented unit locations or a block binding while preserving the remaining interface.</summary>
     internal bool RefreshProgramFields(GpuResourceMetadataEntry<GpuProgramMetadata> entry, GpuProgramMetadata previous,
-        bool unit, int location, int count, ProgramInterface block, int index, int? supplied)
+        bool unit, int location, int count, RHI.ProgramBlockKind block, int index, int? supplied)
     {
         RequireMetadataContext();
         RequireLiveEntry(entry);
@@ -40,7 +40,7 @@ internal sealed partial class GpuResourceManager
                 for (int i = 0; i < resources.Count; i++)
                 {
                     var resource = resources[i];
-                    if (resource.Interface != block || resource.Index != index) continue;
+                    if (resource.Interface != (block == RHI.ProgramBlockKind.Uniform ? ProgramInterface.UniformBlock : ProgramInterface.ShaderStorageBlock) || resource.Index != index) continue;
                     int value;
                     if (supplied.HasValue) value = supplied.Value;
                     else

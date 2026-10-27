@@ -26,7 +26,7 @@ internal static class OpenGLFramebufferConfiguration
     }
 
     /// <summary>Reattaches selected images as one coherent metadata publication.</summary>
-    internal static void ReattachFramebuffer(GpuFramebuffer resource, IEnumerable<KeyValuePair<FramebufferAttachment, GpuFramebufferAttachment>> attachments)
+    internal static void ReattachFramebuffer(GpuFramebuffer resource, IEnumerable<KeyValuePair<FramebufferSlot, GpuFramebufferAttachment>> attachments)
     {
         using var operation = new FramebufferOperation(resource);
         foreach (var pair in attachments) FramebufferTexture(resource, pair.Key, pair.Value, operation);
@@ -34,7 +34,7 @@ internal static class OpenGLFramebufferConfiguration
     }
 
     /// <summary>Owns standalone attachment publication or contributes to an explicitly supplied composition.</summary>
-    internal static void FramebufferTexture(GpuFramebuffer resource, FramebufferAttachment slot, GpuFramebufferAttachment? image,
+    internal static void FramebufferTexture(GpuFramebuffer resource, FramebufferSlot slot, GpuFramebufferAttachment? image,
         FramebufferOperation? operation = null)
     {
         OpenGlStateCache.Current.RequireMutableFramebufferConfiguration(resource.FboId);
@@ -44,11 +44,11 @@ internal static class OpenGLFramebufferConfiguration
         {
             active.RequireParticipation(resource);
             image?.ValidateSlot(slot);
-            if (image is { ImageTarget: TextureTarget.Texture2DArray, AttachmentMode: GpuFramebufferAttachmentMode.Unknown }
+            if (image is { ImageTarget: TextureDimension.TwoArray, AttachmentMode: GpuFramebufferAttachmentMode.Unknown }
                 && GpuSupport.Graphics.SupportsOvrMultiview)
                 throw new NotSupportedException("Unknown native multiview attachment replay semantics.");
 
-            DispatchFramebufferAttachment(resource.FboId, slot, image);
+            DispatchFramebufferAttachment(resource.FboId, OpenGLResourceValues.Native(slot), image);
             active.SetAttachment(slot, image);
             if (owned is not null) owned.Commit();
         }
@@ -72,7 +72,7 @@ internal static class OpenGLFramebufferConfiguration
                 OpenTK.Graphics.OpenGL4.RenderbufferTarget.Renderbuffer, image.RenderbufferId);
         else if (image?.Layer is not null || image?.CubeFace is not null)
             OpenTK.Graphics.OpenGL4.GL.NamedFramebufferTextureLayer(id, (OpenTK.Graphics.OpenGL4.FramebufferAttachment)slot,
-                image.TextureId, image.MipLevel, image.Layer ?? ((int)image.CubeFace!.Value - (int)TextureTarget.TextureCubeMapPositiveX));
+                image.TextureId, image.MipLevel, image.Layer ?? ((int)image.CubeFace!.Value - (int)CubeFace.PositiveX));
         else OpenTK.Graphics.OpenGL4.GL.NamedFramebufferTexture(id, (OpenTK.Graphics.OpenGL4.FramebufferAttachment)slot,
             image?.TextureId ?? 0, image?.MipLevel ?? 0);
         if (!GpuResource.IsCurrentResourceContext(origin)) throw new InvalidOperationException("Attachment configuration returned in a foreign context.");
@@ -99,7 +99,7 @@ internal static class OpenGLFramebufferConfiguration
         /// <summary>Prevents a caught command failure from publishing a partial result.</summary>
         internal void Interrupt() => operation.Interrupt();
         /// <summary>Updates only the slots affected by the completed command.</summary>
-        internal void SetAttachment(FramebufferAttachment slot, GpuFramebufferAttachment? image)
+        internal void SetAttachment(FramebufferSlot slot, GpuFramebufferAttachment? image)
             => candidate = OpenGlStateCache.WithFramebufferAttachment(candidate, slot, image);
         /// <summary>Commits the complete candidate without native rediscovery.</summary>
         internal void Commit() => operation.Commit(candidate);

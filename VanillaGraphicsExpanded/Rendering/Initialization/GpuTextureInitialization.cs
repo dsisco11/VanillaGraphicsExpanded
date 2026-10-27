@@ -1,5 +1,5 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
-using OpenTK.Graphics.OpenGL;
 
 namespace VanillaGraphicsExpanded.Rendering;
 
@@ -10,9 +10,9 @@ internal enum GpuTextureAllocationMode { Mutable, Immutable }
 internal partial struct GpuTextureInitialization
 {
     private Inputs assigned;
-    private TextureTarget target;
+    private TextureDimension target;
     private GpuTextureAllocationMode allocationMode;
-    private PixelInternalFormat internalFormat;
+    private TextureFormat internalFormat;
     private int width;
     private int height;
     private int depth;
@@ -28,11 +28,11 @@ internal partial struct GpuTextureInitialization
 
     #region Public API
     /// <summary>Supplies the requested target; target-specific validation occurs before dispatch.</summary>
-    public TextureTarget Target { readonly get => target; set { target = value; assigned |= Inputs.Target; } }
+    public TextureDimension Target { readonly get => target; set { target = value; assigned |= Inputs.Target; } }
     /// <summary>Supplies the requested allocation mode; target-specific validation occurs before dispatch.</summary>
     public GpuTextureAllocationMode AllocationMode { readonly get => allocationMode; set { allocationMode = value; assigned |= Inputs.AllocationMode; } }
     /// <summary>Supplies the requested internal format; target-specific validation occurs before dispatch.</summary>
-    public PixelInternalFormat InternalFormat { readonly get => internalFormat; set { internalFormat = value; assigned |= Inputs.InternalFormat; } }
+    public TextureFormat InternalFormat { readonly get => internalFormat; set { internalFormat = value; assigned |= Inputs.InternalFormat; } }
     /// <summary>Supplies the requested width; target-specific validation occurs before dispatch.</summary>
     public int Width { readonly get => width; set { width = value; assigned |= Inputs.Width; } }
     /// <summary>Supplies the requested height; target-specific validation occurs before dispatch.</summary>

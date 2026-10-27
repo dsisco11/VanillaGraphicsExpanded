@@ -151,7 +151,7 @@ public sealed class WaterRefractionTests(HeadlessGLFixture fixture, ITestOutputH
         Assert.True(program.EnsureReady(), string.Join("\n", assets.Logs));
         if (!string.IsNullOrEmpty(binaryDirectory)) Assert.NotEmpty(assets.Overrides);
         program.SceneLinear = sceneLinear;
-        using var target = CreateMRTRenderTarget(frameSize, frameSize, PixelInternalFormat.Rgb32f, PixelInternalFormat.R32f, PixelInternalFormat.Rgba32f, PixelInternalFormat.Rgba32f, PixelInternalFormat.Rgba32f, PixelInternalFormat.Rgba32f);
+        using var target = CreateMRTRenderTarget(frameSize, frameSize, TextureFormat.Rgb32f, TextureFormat.R32f, TextureFormat.Rgba32f, TextureFormat.Rgba32f, TextureFormat.Rgba32f, TextureFormat.Rgba32f);
         using var terrain = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba32f, Width = System.Math.Max(1, compatibility == FlowCase ? 8 : 1), Height = System.Math.Max(1, compatibility == FlowCase ? 8 : 1), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         using var material = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba32f, Width = System.Math.Max(1, 1), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         using var depth = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.R32f, Width = System.Math.Max(1, frameSize), Height = System.Math.Max(1, frameSize), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
@@ -208,7 +208,7 @@ public sealed class WaterRefractionTests(HeadlessGLFixture fixture, ITestOutputH
             float[] sphere = [0, 0, 0, 10, 1, .5f, .25f, .125f];
             for (int index = 0; index < sphere.Length; index++) program.SetFogSphereComponent(index, sphere[index]);
         }
-        using var shadow = compatibility == ShadowCase ? new DepthTexture(1, 1, PixelInternalFormat.DepthComponent32f) : null;
+        using var shadow = compatibility == ShadowCase ? new DepthTexture(1, 1, TextureFormat.DepthComponent32f) : null;
         if (shadow is not null)
         {
             // Constant cascade coordinates and depth zero establish complete solar occlusion.
@@ -401,7 +401,7 @@ public sealed class WaterRefractionTests(HeadlessGLFixture fixture, ITestOutputH
                 diagnosticInputs.Color = reducedColor ?? sceneColor;
                 diagnosticInputs.Depth = reducedDepth ?? sceneDepth;
                 using var diagnosticTarget = CreateMRTRenderTarget(frameSize, frameSize,
-                    PixelInternalFormat.Rgba32f, PixelInternalFormat.Rgba32f, PixelInternalFormat.Rgba32f);
+                    TextureFormat.Rgba32f, TextureFormat.Rgba32f, TextureFormat.Rgba32f);
                 using var diagnosticDraw = new VanillaGraphicsExpanded.Tests.GPU.Helpers.ShaderTestFramework();
                 diagnosticDraw.RenderQuadTo(diagnostic, diagnosticTarget);
                 receiverDecision = $" decision={string.Join(",", diagnosticTarget[0].ReadPixelsRegion(center, center, 1, 1))} sample={string.Join(",", diagnosticTarget[1].ReadPixelsRegion(center, center, 1, 1))}";

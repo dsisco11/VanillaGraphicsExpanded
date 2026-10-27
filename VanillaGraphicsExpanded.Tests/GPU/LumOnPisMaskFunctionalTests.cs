@@ -1,3 +1,5 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
+using VanillaGraphicsExpanded.Rendering.RHI;
 using VanillaGraphicsExpanded.LumOn;
 using System.Globalization;
 using OpenTK.Graphics.OpenGL;
@@ -70,7 +72,7 @@ public sealed class LumOnPisMaskFunctionalTests : LumOnShaderFunctionalTestBase
             program.ScreenProbeAtlasHistory = Create( 16, 16, radiance);
             program.ScreenProbeAtlasMetaHistory = Create( 16, 16, CreateUniformColorData(16, 16, 1, 0, 0, 0));
             UpdateAndBindLumOnFrameUbo(program);
-            using var output = TestFramework.CreateTestGBuffer(2, 2, PixelInternalFormat.Rg32f, PixelInternalFormat.R32f);
+            using var output = TestFramework.CreateTestGBuffer(2, 2, TextureFormat.Rg32f, TextureFormat.R32f);
             TestFramework.RenderQuadTo(program, output);
             var mask = output[0].ReadPixels();
             uint low = BitConverter.SingleToUInt32Bits(mask[0]), high = BitConverter.SingleToUInt32Bits(mask[1]);
@@ -87,7 +89,7 @@ public sealed class LumOnPisMaskFunctionalTests : LumOnShaderFunctionalTestBase
         /// <summary>Binds a controlled floating point texture using the existing explicit resource contract.</summary>
         DynamicTexture2D Create(int width, int height, float[] data)
         {
-            var texture = TestFramework.CreateTexture(width, height, PixelInternalFormat.Rgba32f, data);
+            var texture = TestFramework.CreateTexture(width, height, TextureFormat.Rgba32f, data);
             textures.Add(texture);
             return texture;
         }

@@ -68,11 +68,11 @@ internal sealed class ProductionSkyDrawScene : IDisposable
             var cube = Own(RHICommandContext.Current.CreateTextureCube(new RHITextureDescription { Dimension = TextureDimension.Cube, Format = TextureFormat.Rgba32f, Width = 1, Height = 1, MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource());
             for (int face = 0; face < 6; face++)
             {
-                using var binding = OpenGlStateCache.Current.BindTextureScope(((GpuTextureRef)cube).Target, 0, cube.TextureId);
+                using var binding = OpenGlStateCache.Current.BindTextureScope(OpenGLImageValues.Target(((GpuTextureRef)cube).Target), 0, cube.TextureId);
                 GL.TexSubImage2D(TextureTarget.TextureCubeMapPositiveX + face, 0, 0, 0, 1, 1,
                     PixelFormat.Rgba, PixelType.Float, new float[] { .02f, .01f, .005f, 1 });
             }
-            var transmission = Own(RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Width = 2, Height = 1, Format = TextureFormat.Rgba32f, MipLevels = 1, Storage = ResourceStorageMode.Mutable, BaseLevel = 0, MaxLevel = 0, Filter = TextureFilterMode.Nearest, Label = null }, [new RHITextureInitialData(new(new(), 0, 0, 0, 2, 1), VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLPixelValues.Encoding(TextureFormatHelper.GetPixelFormat(PixelInternalFormat.Rgba32f), OpenTK.Graphics.OpenGL.PixelType.Float), System.Runtime.InteropServices.MemoryMarshal.AsBytes((new float[] { .8f, .7f, .6f, 1f, .8f, .7f, .6f, 1f }).AsSpan()).ToArray())]).RequireResource());
+            var transmission = Own(RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Width = 2, Height = 1, Format = TextureFormat.Rgba32f, MipLevels = 1, Storage = ResourceStorageMode.Mutable, BaseLevel = 0, MaxLevel = 0, Filter = TextureFilterMode.Nearest, Label = null }, [new RHITextureInitialData(new(new(), 0, 0, 0, 2, 1), new RHIPixelEncoding(TextureFormatHelper.GetPixelFormat(TextureFormat.Rgba32f), PixelComponentType.Float), System.Runtime.InteropServices.MemoryMarshal.AsBytes((new float[] { .8f, .7f, .6f, 1f, .8f, .7f, .6f, 1f }).AsSpan()).ToArray())]).RequireResource());
             galaxy.GalaxyMap = star.GalaxyMap = cube;
             galaxy.ExternalTransmission = star.ExternalTransmission = transmission;
             moon.DrawInputs.Capture(new(Vector3.Normalize(new(-.002f, 0, -1)), Vector3.UnitX,
@@ -90,7 +90,7 @@ internal sealed class ProductionSkyDrawScene : IDisposable
             api.SetupGet(value => value.Render.ShaderUniforms).Returns(uniforms);
             api.SetupGet(value => value.Ambient.BlendedFogMin).Returns(.25f);
             api.SetupGet(value => value.World.Player).Returns(CreatePlayer());
-            var depth = Own(RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Width = 1, Height = 1, Format = TextureFormat.R32f, MipLevels = 1, Storage = ResourceStorageMode.Mutable, BaseLevel = 0, MaxLevel = 0, Filter = TextureFilterMode.Nearest, Label = null }, [new RHITextureInitialData(new(new(), 0, 0, 0, 1, 1), VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLPixelValues.Encoding(TextureFormatHelper.GetPixelFormat(PixelInternalFormat.R32f), OpenTK.Graphics.OpenGL.PixelType.Float), System.Runtime.InteropServices.MemoryMarshal.AsBytes((new float[] { 1f }).AsSpan()).ToArray())]).RequireResource());
+            var depth = Own(RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Width = 1, Height = 1, Format = TextureFormat.R32f, MipLevels = 1, Storage = ResourceStorageMode.Mutable, BaseLevel = 0, MaxLevel = 0, Filter = TextureFilterMode.Nearest, Label = null }, [new RHITextureInitialData(new(new(), 0, 0, 0, 1, 1), new RHIPixelEncoding(TextureFormatHelper.GetPixelFormat(TextureFormat.R32f), PixelComponentType.Float), System.Runtime.InteropServices.MemoryMarshal.AsBytes((new float[] { 1f }).AsSpan()).ToArray())]).RequireResource());
             var frames = Enumerable.Repeat<FrameBufferRef>(null!, 25).ToList();
             frames[(int)EnumFrameBuffer.LiquidDepth] = new() { DepthTextureId = depth.TextureId };
             api.SetupGet(value => value.Render.FrameBuffers).Returns(frames);
@@ -171,7 +171,7 @@ internal sealed class ProductionSkyDrawScene : IDisposable
         return outputs.Select(image =>
         {
             float[] pixels = new float[Size * Size * 4];
-            using var binding = OpenGlStateCache.Current.BindTextureScope(((GpuTextureRef)image).Target, 0, image.TextureId);
+            using var binding = OpenGlStateCache.Current.BindTextureScope(OpenGLImageValues.Target(((GpuTextureRef)image).Target), 0, image.TextureId);
             GL.GetTexImage(TextureTarget.Texture2D, 0, PixelFormat.Rgba, PixelType.Float, pixels);
             return pixels;
         }).ToArray();

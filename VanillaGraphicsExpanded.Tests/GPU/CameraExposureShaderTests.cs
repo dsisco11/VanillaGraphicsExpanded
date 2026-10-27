@@ -49,7 +49,7 @@ public sealed class CameraExposureShaderTests(HeadlessGLFixture fixture) : LumOn
         var meter=Programs.CreateCompute(CameraHistogramShaderProgram.Create);
         var adapt=Programs.CreateCompute(CameraAdaptShaderProgram.Create);
         using var targets=new CameraExposureTargets();
-        using var source=TestFramework.CreateTexture(1,1,PixelInternalFormat.Rgba32f,[.18f,.18f,.18f,1f]);
+        using var source=TestFramework.CreateTexture(1,1,TextureFormat.Rgba32f,[.18f,.18f,.18f,1f]);
         using var camera=TestFrameCamera.CreateIdentity(1,1);
         using var external=ExposureTestStorage.Create(7);
         meter.SceneRadiance=source;meter.Histogram=targets.Histogram;meter.Capture(Settings(),true);
@@ -86,7 +86,7 @@ public sealed class CameraExposureShaderTests(HeadlessGLFixture fixture) : LumOn
         using var publication = new TestFrameLightingPublication();
         publication.Capture(scale);
         float stored = 32 * scale;
-        using var source = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba32f, [stored, stored, stored, .37f]);
+        using var source = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba32f, [stored, stored, stored, .37f]);
         rig.Meter(source, Settings(), publication.Buffer);
         var bins = rig.ReadHistogram();
         AssertClose(1, bins.Where((_, i) => i % 2 == 0).Sum(), .001f);
@@ -103,7 +103,7 @@ public sealed class CameraExposureShaderTests(HeadlessGLFixture fixture) : LumOn
         using var rig = CreateRig();
         float[] levels = [.18f, 0, float.NaN, float.PositiveInfinity, MathF.Pow(2, 40), MathF.Pow(2, -17)];
         float[] pixels = Pixels(index => levels[index % levels.Length]);
-        using var source = TestFramework.CreateTexture(128, 72, PixelInternalFormat.Rgba32f, pixels);
+        using var source = TestFramework.CreateTexture(128, 72, TextureFormat.Rgba32f, pixels);
         rig.Meter(source, Settings());
         float[] histogram = rig.ReadHistogram();
         AssertClose(384, histogram.Where((_, i) => i % 2 == 0).Sum(), .001f);
@@ -113,7 +113,7 @@ public sealed class CameraExposureShaderTests(HeadlessGLFixture fixture) : LumOn
             if (float.IsNaN(pixels[i])) Assert.True(float.IsNaN(unchanged[i]));
             else Assert.Equal(pixels[i], unchanged[i]);
         AssertClose(0, rig.Adapt(Settings(), 3, 0, true));
-        using var empty=TestFramework.CreateTexture(1,1,PixelInternalFormat.Rgba32f,[0f,0f,0f,1f]);
+        using var empty=TestFramework.CreateTexture(1,1,TextureFormat.Rgba32f,[0f,0f,0f,1f]);
         rig.Meter(empty,Settings());
         Assert.All(rig.ReadHistogram(),value=>Assert.Equal(0,value));
     }
@@ -127,7 +127,7 @@ public sealed class CameraExposureShaderTests(HeadlessGLFixture fixture) : LumOn
         EnsureShaderTestAvailable();
         using var rig=CreateRig();
         float[] pixels=Pixels(i=>MathF.Pow(2,-10+(i%61)*.4f));
-        using var source=TestFramework.CreateTexture(128,72,PixelInternalFormat.Rgba32f,pixels);
+        using var source=TestFramework.CreateTexture(128,72,TextureFormat.Rgba32f,pixels);
         rig.Meter(source,Settings() with {CenterWeighted=weighted});
         float[] actual=rig.ReadHistogram();
         double[] counts=new double[64],sums=new double[64];int[] population=new int[64];
@@ -156,7 +156,7 @@ public sealed class CameraExposureShaderTests(HeadlessGLFixture fixture) : LumOn
     {
         EnsureShaderTestAvailable();using var rig=CreateRig();
         float value=MathF.Pow(2,39.99f);
-        using var source=TestFramework.CreateTexture(width,height,PixelInternalFormat.Rgba32f,
+        using var source=TestFramework.CreateTexture(width,height,TextureFormat.Rgba32f,
             Enumerable.Range(0,width*height).SelectMany(_=>new[]{value,value,value,1f}).ToArray());
         rig.Meter(source,Settings());float[] bins=rig.ReadHistogram();
         int samples=((width+1)/2)*((height+1)/2);
@@ -165,7 +165,7 @@ public sealed class CameraExposureShaderTests(HeadlessGLFixture fixture) : LumOn
         for(int group=0;group<CameraExposureTargets.HistogramGroupCount;group++)
             for(int bin=0;bin<62;bin++){Assert.Equal(0,bins[(group*64+bin)*2]);Assert.Equal(0,bins[(group*64+bin)*2+1]);}
         AssertClose(-12,rig.Adapt(Settings(),0,0,true));
-        using var empty=TestFramework.CreateTexture(1,1,PixelInternalFormat.Rgba32f,[0f,0f,0f,1f]);
+        using var empty=TestFramework.CreateTexture(1,1,TextureFormat.Rgba32f,[0f,0f,0f,1f]);
         rig.Meter(empty,Settings());
         Assert.All(rig.ReadHistogram(),value=>Assert.Equal(0,value));
     }
@@ -175,13 +175,13 @@ public sealed class CameraExposureShaderTests(HeadlessGLFixture fixture) : LumOn
     {
         EnsureShaderTestAvailable();
         using var rig = CreateRig();
-        using var outliers = TestFramework.CreateTexture(128, 72, PixelInternalFormat.Rgba32f,
+        using var outliers = TestFramework.CreateTexture(128, 72, TextureFormat.Rgba32f,
             Pixels(i => i < 216 ? .001f : i >= 2304 - 216 ? 4096 : .18f));
         var trimmed = Settings() with { LowPercentile = .1f, HighPercentile = .9f };
         rig.Meter(outliers, trimmed);
         AssertClose(0, rig.Adapt(trimmed, 0, 0, true));
         Assert.True(MathF.Abs(rig.Adapt(Settings(), 0, 0, true)) > .25f);
-        using var partial = TestFramework.CreateTexture(128, 72, PixelInternalFormat.Rgba32f, Pixels(i => i < 576 ? .125f : 8));
+        using var partial = TestFramework.CreateTexture(128, 72, TextureFormat.Rgba32f, Pixels(i => i < 576 ? .125f : 8));
         var settings = Settings() with { LowPercentile = .125f, HighPercentile = .875f };
         rig.Meter(partial, settings);
         // Retained population is one sixth log2(.125) and five sixths log2(8), giving mean log2=2.
@@ -194,10 +194,10 @@ public sealed class CameraExposureShaderTests(HeadlessGLFixture fixture) : LumOn
     {
         EnsureShaderTestAvailable();
         using var rig = CreateRig();
-        using var equal = TestFramework.CreateTexture(128, 72, PixelInternalFormat.Rgba32f, Pixels(i => i < 1152 ? 1 : 4));
+        using var equal = TestFramework.CreateTexture(128, 72, TextureFormat.Rgba32f, Pixels(i => i < 1152 ? 1 : 4));
         rig.Meter(equal, Settings());
         AssertClose(MathF.Log2(.18f) - 1, rig.Adapt(Settings(), 0, 0, true));
-        using var central = TestFramework.CreateTexture(128, 72, PixelInternalFormat.Rgba32f,
+        using var central = TestFramework.CreateTexture(128, 72, TextureFormat.Rgba32f,
             Pixels(i => Math.Abs(i % 64 - 32) < 8 && Math.Abs(i / 64 - 18) < 8 ? 16 : .18f));
         rig.Meter(central, Settings());
         float uniform = rig.Adapt(Settings(), 0, 0, true);
@@ -215,7 +215,7 @@ public sealed class CameraExposureShaderTests(HeadlessGLFixture fixture) : LumOn
         using var rig=CreateRig();
         var pixels=Pixels(_=>.18f);
         pixels[0]=pixels[1]=pixels[2]=64;
-        using var scene=TestFramework.CreateTexture(128,72,PixelInternalFormat.Rgba32f,pixels);
+        using var scene=TestFramework.CreateTexture(128,72,TextureFormat.Rgba32f,pixels);
         rig.Meter(scene,Settings());
         var histogram=rig.ReadHistogram();
         AssertClose(2304,histogram.Where((_,i)=>i%2==0).Sum(),.001f);
@@ -243,7 +243,7 @@ public sealed class CameraExposureShaderTests(HeadlessGLFixture fixture) : LumOn
         }
         pixels[0]=float.NaN;
         pixels[((height-1)*width+width-1)*4]=float.PositiveInfinity;
-        using var scene=TestFramework.CreateTexture(width,height,PixelInternalFormat.Rgba32f,pixels);
+        using var scene=TestFramework.CreateTexture(width,height,TextureFormat.Rgba32f,pixels);
         rig.Meter(scene,Settings() with {CenterWeighted=weighted},publication.Buffer);
         var actual=rig.ReadHistogram();
         var counts=new double[64];var sums=new double[64];var populations=new int[64];
@@ -288,7 +288,7 @@ public sealed class CameraExposureShaderTests(HeadlessGLFixture fixture) : LumOn
             float value=(float)Math.Pow(2,-16+coordinate*56/63);
             double level=Math.Log2(value),position=(level+16)/56*63;
             int low=(int)Math.Floor(position);double fraction=position-low;
-            using var source=TestFramework.CreateTexture(1,1,PixelInternalFormat.Rgba32f,[value,value,value,1f]);
+            using var source=TestFramework.CreateTexture(1,1,TextureFormat.Rgba32f,[value,value,value,1f]);
             rig.Meter(source,Settings());
             float[] actual=rig.ReadHistogram();
             var counts=new double[64];double sum=0;
@@ -310,7 +310,7 @@ public sealed class CameraExposureShaderTests(HeadlessGLFixture fixture) : LumOn
         foreach(float level in new[]{-16f,40f})
         {
             float value=MathF.Pow(2,level);
-            using var source=TestFramework.CreateTexture(1,1,PixelInternalFormat.Rgba32f,[value,value,value,1f]);
+            using var source=TestFramework.CreateTexture(1,1,TextureFormat.Rgba32f,[value,value,value,1f]);
             rig.Meter(source,Settings());
             Assert.All(rig.ReadHistogram(),entry=>Assert.Equal(0,entry));
         }

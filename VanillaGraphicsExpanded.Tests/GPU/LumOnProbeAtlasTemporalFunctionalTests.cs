@@ -1,3 +1,5 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
+using VanillaGraphicsExpanded.Rendering.RHI;
 using VanillaGraphicsExpanded.LumOn;
 using System;
 using System.Collections.Generic;
@@ -70,13 +72,13 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
     {
         EnsureShaderTestAvailable();
         float oldStored = validHistory ? 64 * LightingStorage.PersistentScale : 8200;
-        using var current = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba32f,
+        using var current = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, TextureFormat.Rgba32f,
             CreateUniformAtlas(invalidCurrent, invalidCurrent, invalidCurrent, 1));
-        using var history = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba32f,
+        using var history = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, TextureFormat.Rgba32f,
             CreateUniformAtlas(oldStored, oldStored, oldStored, 1));
-        using var anchors = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f,
+        using var anchors = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, TextureFormat.Rgba16f,
             CreateValidProbeAnchors());
-        using var output = TestFramework.CreateTestGBuffer(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, PixelInternalFormat.Rg32f);
+        using var output = TestFramework.CreateTestGBuffer(AtlasWidth, AtlasHeight, TextureFormat.Rgba16f, TextureFormat.Rg32f);
         var program = CompileOctahedralTemporalShader();
         SetupOctahedralTemporalUniforms(program);
         program.ScreenProbeAtlasCurrent = current;
@@ -123,8 +125,8 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
     {
         // Disabled runtime branches still have declared samplers in the executable.
         programId.PmjJitter = GetOrCreatePmjJitterTexture(1);
-        programId.VelocityTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba32f, new float[ScreenWidth * ScreenHeight * 4]);
-        var validMetadata = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rg32f, CreateUniformMetaAtlas(1f, 0f));
+        programId.VelocityTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.Rgba32f, new float[ScreenWidth * ScreenHeight * 4]);
+        var validMetadata = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, TextureFormat.Rg32f, CreateUniformMetaAtlas(1f, 0f));
         programId.ScreenProbeAtlasMetaCurrent = validMetadata;
         programId.ScreenProbeAtlasMetaHistory = validMetadata;
         UpdateAndBindLumOnFrameUbo(
@@ -349,16 +351,16 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
         var metaCurrentData = CreateUniformMetaAtlas(1.0f, BitConverter.UInt32BitsToSingle(2u << 16));
         var metaHistoryData = CreateUniformMetaAtlas(0.2f, BitConverter.UInt32BitsToSingle(5u << 16));
 
-        using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorPos);
-        using var currentAtlasTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, currentAtlas);
-        using var historyAtlasTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, historyAtlas);
-        using var metaCurrentTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rg32f, metaCurrentData);
-        using var metaHistoryTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rg32f, metaHistoryData);
+        using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, TextureFormat.Rgba16f, anchorPos);
+        using var currentAtlasTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, TextureFormat.Rgba16f, currentAtlas);
+        using var historyAtlasTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, TextureFormat.Rgba16f, historyAtlas);
+        using var metaCurrentTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, TextureFormat.Rg32f, metaCurrentData);
+        using var metaHistoryTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, TextureFormat.Rg32f, metaHistoryData);
 
         using var outputAtlas = TestFramework.CreateTestGBuffer(
             AtlasWidth, AtlasHeight,
-            PixelInternalFormat.Rgba16f,
-            PixelInternalFormat.Rg32f);
+            TextureFormat.Rgba16f,
+            TextureFormat.Rg32f);
 
         var programId = CompileOctahedralTemporalShader(texelsPerFrame: 64);
 
@@ -435,16 +437,16 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
         var metaCurrentData = CreateUniformMetaAtlas(1.0f, 0.0f);
         var metaHistoryData = CreateUniformMetaAtlas(0.0f, 0.0f);
 
-        using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorPos);
-        using var currentAtlasTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, currentAtlas);
-        using var historyAtlasTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, historyAtlas);
-        using var metaCurrentTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rg32f, metaCurrentData);
-        using var metaHistoryTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rg32f, metaHistoryData);
+        using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, TextureFormat.Rgba16f, anchorPos);
+        using var currentAtlasTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, TextureFormat.Rgba16f, currentAtlas);
+        using var historyAtlasTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, TextureFormat.Rgba16f, historyAtlas);
+        using var metaCurrentTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, TextureFormat.Rg32f, metaCurrentData);
+        using var metaHistoryTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, TextureFormat.Rg32f, metaHistoryData);
 
         using var outputAtlas = TestFramework.CreateTestGBuffer(
             AtlasWidth, AtlasHeight,
-            PixelInternalFormat.Rgba16f,
-            PixelInternalFormat.Rg32f);
+            TextureFormat.Rgba16f,
+            TextureFormat.Rg32f);
 
         var programId = CompileOctahedralTemporalShader(texelsPerFrame: 8);
 
@@ -519,16 +521,16 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
         var metaCurrentData = CreateUniformMetaAtlas(1.0f, 0.0f);
         var metaHistoryData = CreateUniformMetaAtlas(1.0f, 0.0f);
 
-        using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorPos);
-        using var currentAtlasTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, currentAtlas);
-        using var historyAtlasTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, historyAtlas);
-        using var metaCurrentTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rg32f, metaCurrentData);
-        using var metaHistoryTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rg32f, metaHistoryData);
+        using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, TextureFormat.Rgba16f, anchorPos);
+        using var currentAtlasTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, TextureFormat.Rgba16f, currentAtlas);
+        using var historyAtlasTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, TextureFormat.Rgba16f, historyAtlas);
+        using var metaCurrentTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, TextureFormat.Rg32f, metaCurrentData);
+        using var metaHistoryTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, TextureFormat.Rg32f, metaHistoryData);
 
         using var outputAtlas = TestFramework.CreateTestGBuffer(
             AtlasWidth, AtlasHeight,
-            PixelInternalFormat.Rgba16f,
-            PixelInternalFormat.Rg32f);
+            TextureFormat.Rgba16f,
+            TextureFormat.Rg32f);
 
         var programId = CompileOctahedralTemporalShader(texelsPerFrame: 8);
 
@@ -599,16 +601,16 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
         var metaCurrentData = CreateUniformMetaAtlas(1.0f, 0.0f);
         var metaHistoryData = CreateUniformMetaAtlas(1.0f, 0.0f);
 
-        using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorPos);
-        using var currentAtlasTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, currentAtlas);
-        using var historyAtlasTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, historyAtlas);
-        using var metaCurrentTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rg32f, metaCurrentData);
-        using var metaHistoryTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rg32f, metaHistoryData);
+        using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, TextureFormat.Rgba16f, anchorPos);
+        using var currentAtlasTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, TextureFormat.Rgba16f, currentAtlas);
+        using var historyAtlasTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, TextureFormat.Rgba16f, historyAtlas);
+        using var metaCurrentTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, TextureFormat.Rg32f, metaCurrentData);
+        using var metaHistoryTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, TextureFormat.Rg32f, metaHistoryData);
 
         using var outputAtlas = TestFramework.CreateTestGBuffer(
             AtlasWidth, AtlasHeight,
-            PixelInternalFormat.Rgba16f,
-            PixelInternalFormat.Rg32f);
+            TextureFormat.Rgba16f,
+            TextureFormat.Rg32f);
 
         var programId = CompileOctahedralTemporalShader(texelsPerFrame: 8);
 
@@ -698,16 +700,16 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
         var metaCurrentData = CreateUniformMetaAtlas(1.0f, 0.0f);
         var metaHistoryData = CreateUniformMetaAtlas(1.0f, 0.0f);
 
-        using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorPos);
-        using var currentAtlasTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, currentAtlas);
-        using var historyAtlasTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, historyAtlas);
-        using var metaCurrentTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rg32f, metaCurrentData);
-        using var metaHistoryTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rg32f, metaHistoryData);
+        using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, TextureFormat.Rgba16f, anchorPos);
+        using var currentAtlasTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, TextureFormat.Rgba16f, currentAtlas);
+        using var historyAtlasTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, TextureFormat.Rgba16f, historyAtlas);
+        using var metaCurrentTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, TextureFormat.Rg32f, metaCurrentData);
+        using var metaHistoryTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, TextureFormat.Rg32f, metaHistoryData);
 
         using var outputAtlas = TestFramework.CreateTestGBuffer(
             AtlasWidth, AtlasHeight,
-            PixelInternalFormat.Rgba16f,
-            PixelInternalFormat.Rg32f);
+            TextureFormat.Rgba16f,
+            TextureFormat.Rg32f);
 
         var programId = CompileOctahedralTemporalShader();
 
@@ -790,16 +792,16 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
         var metaCurrentData = CreateUniformMetaAtlas(1.0f, 0.0f);
         var metaHistoryData = CreateUniformMetaAtlas(1.0f, 0.0f);
 
-        using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorPos);
-        using var currentAtlasTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, currentAtlas);
-        using var historyAtlasTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, historyAtlas);
-        using var metaCurrentTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rg32f, metaCurrentData);
-        using var metaHistoryTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rg32f, metaHistoryData);
+        using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, TextureFormat.Rgba16f, anchorPos);
+        using var currentAtlasTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, TextureFormat.Rgba16f, currentAtlas);
+        using var historyAtlasTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, TextureFormat.Rgba16f, historyAtlas);
+        using var metaCurrentTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, TextureFormat.Rg32f, metaCurrentData);
+        using var metaHistoryTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, TextureFormat.Rg32f, metaHistoryData);
 
         using var outputAtlas = TestFramework.CreateTestGBuffer(
             AtlasWidth, AtlasHeight,
-            PixelInternalFormat.Rgba16f,
-            PixelInternalFormat.Rg32f);
+            TextureFormat.Rgba16f,
+            TextureFormat.Rg32f);
 
         var programId = CompileOctahedralTemporalShader();
 
@@ -878,19 +880,19 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
 
         // High alpha (more history)
         {
-            using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorPos);
-            using var currentAtlasTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, currentAtlas);
-            using var historyAtlasTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, historyAtlas);
+            using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, TextureFormat.Rgba16f, anchorPos);
+            using var currentAtlasTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, TextureFormat.Rgba16f, currentAtlas);
+            using var historyAtlasTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, TextureFormat.Rgba16f, historyAtlas);
 
             var metaCurrentData = CreateUniformMetaAtlas(1.0f, 0.0f);
             var metaHistoryData = CreateUniformMetaAtlas(1.0f, 0.0f);
-            using var metaCurrentTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rg32f, metaCurrentData);
-            using var metaHistoryTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rg32f, metaHistoryData);
+            using var metaCurrentTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, TextureFormat.Rg32f, metaCurrentData);
+            using var metaHistoryTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, TextureFormat.Rg32f, metaHistoryData);
 
             using var outputAtlas = TestFramework.CreateTestGBuffer(
                 AtlasWidth, AtlasHeight,
-                PixelInternalFormat.Rgba16f,
-                PixelInternalFormat.Rg32f);
+                TextureFormat.Rgba16f,
+                TextureFormat.Rg32f);
 
             var programId = CompileOctahedralTemporalShader(texelsPerFrame: 64);
 
@@ -916,19 +918,19 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
 
         // Low alpha (more current)
         {
-            using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorPos);
-            using var currentAtlasTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, currentAtlas);
-            using var historyAtlasTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, historyAtlas);
+            using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, TextureFormat.Rgba16f, anchorPos);
+            using var currentAtlasTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, TextureFormat.Rgba16f, currentAtlas);
+            using var historyAtlasTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, TextureFormat.Rgba16f, historyAtlas);
 
             var metaCurrentData = CreateUniformMetaAtlas(1.0f, 0.0f);
             var metaHistoryData = CreateUniformMetaAtlas(1.0f, 0.0f);
-            using var metaCurrentTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rg32f, metaCurrentData);
-            using var metaHistoryTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rg32f, metaHistoryData);
+            using var metaCurrentTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, TextureFormat.Rg32f, metaCurrentData);
+            using var metaHistoryTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, TextureFormat.Rg32f, metaHistoryData);
 
             using var outputAtlas = TestFramework.CreateTestGBuffer(
                 AtlasWidth, AtlasHeight,
-                PixelInternalFormat.Rgba16f,
-                PixelInternalFormat.Rg32f);
+                TextureFormat.Rgba16f,
+                TextureFormat.Rg32f);
 
             var programId = CompileOctahedralTemporalShader(texelsPerFrame: 64);
 
@@ -985,21 +987,21 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
         var velocityData = new float[ScreenWidth * ScreenHeight * 4];
         for(int i=3;i<velocityData.Length;i+=4)velocityData[i]=BitConverter.UInt32BitsToSingle(flags);
 
-        using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorPos);
-        using var currentAtlasTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, currentAtlas);
-        using var historyAtlasTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, historyAtlas);
+        using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, TextureFormat.Rgba16f, anchorPos);
+        using var currentAtlasTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, TextureFormat.Rgba16f, currentAtlas);
+        using var historyAtlasTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, TextureFormat.Rgba16f, historyAtlas);
 
         var metaCurrentData = CreateUniformMetaAtlas(1.0f, 0.0f);
         var metaHistoryData = CreateUniformMetaAtlas(1.0f, 0.0f);
-        using var metaCurrentTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rg32f, metaCurrentData);
-        using var metaHistoryTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rg32f, metaHistoryData);
+        using var metaCurrentTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, TextureFormat.Rg32f, metaCurrentData);
+        using var metaHistoryTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, TextureFormat.Rg32f, metaHistoryData);
 
-        using var velocityTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba32f, velocityData);
+        using var velocityTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.Rgba32f, velocityData);
 
         using var outputAtlas = TestFramework.CreateTestGBuffer(
             AtlasWidth, AtlasHeight,
-            PixelInternalFormat.Rgba16f,
-            PixelInternalFormat.Rg32f);
+            TextureFormat.Rgba16f,
+            TextureFormat.Rg32f);
 
         var programId = CompileOctahedralTemporalShader(texelsPerFrame: budget);
 
@@ -1076,19 +1078,19 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
 
         // Frame 0
         {
-            using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorPos);
-            using var currentAtlasTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, currentAtlas);
-            using var historyAtlasTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, historyAtlas);
+            using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, TextureFormat.Rgba16f, anchorPos);
+            using var currentAtlasTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, TextureFormat.Rgba16f, currentAtlas);
+            using var historyAtlasTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, TextureFormat.Rgba16f, historyAtlas);
 
             var metaCurrentData = CreateUniformMetaAtlas(1.0f, 0.0f);
             var metaHistoryData = CreateUniformMetaAtlas(1.0f, 0.0f);
-            using var metaCurrentTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rg32f, metaCurrentData);
-            using var metaHistoryTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rg32f, metaHistoryData);
+            using var metaCurrentTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, TextureFormat.Rg32f, metaCurrentData);
+            using var metaHistoryTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, TextureFormat.Rg32f, metaHistoryData);
 
             using var outputAtlas = TestFramework.CreateTestGBuffer(
                 AtlasWidth, AtlasHeight,
-                PixelInternalFormat.Rgba16f,
-                PixelInternalFormat.Rg32f);
+                TextureFormat.Rgba16f,
+                TextureFormat.Rg32f);
 
             var programId = CompileOctahedralTemporalShader(texelsPerFrame: 8);
 
@@ -1111,19 +1113,19 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
 
         // Frame 1
         {
-            using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorPos);
-            using var currentAtlasTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, currentAtlas);
-            using var historyAtlasTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, historyAtlas);
+            using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, TextureFormat.Rgba16f, anchorPos);
+            using var currentAtlasTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, TextureFormat.Rgba16f, currentAtlas);
+            using var historyAtlasTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, TextureFormat.Rgba16f, historyAtlas);
 
             var metaCurrentData = CreateUniformMetaAtlas(1.0f, 0.0f);
             var metaHistoryData = CreateUniformMetaAtlas(1.0f, 0.0f);
-            using var metaCurrentTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rg32f, metaCurrentData);
-            using var metaHistoryTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rg32f, metaHistoryData);
+            using var metaCurrentTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, TextureFormat.Rg32f, metaCurrentData);
+            using var metaHistoryTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, TextureFormat.Rg32f, metaHistoryData);
 
             using var outputAtlas = TestFramework.CreateTestGBuffer(
                 AtlasWidth, AtlasHeight,
-                PixelInternalFormat.Rgba16f,
-                PixelInternalFormat.Rg32f);
+                TextureFormat.Rgba16f,
+                TextureFormat.Rg32f);
 
             var programId = CompileOctahedralTemporalShader(texelsPerFrame: 8);
 
@@ -1201,19 +1203,19 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
 
         // Strict threshold (should reject)
         {
-            using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorPos);
-            using var currentAtlasTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, currentAtlas);
-            using var historyAtlasTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, historyAtlas);
+            using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, TextureFormat.Rgba16f, anchorPos);
+            using var currentAtlasTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, TextureFormat.Rgba16f, currentAtlas);
+            using var historyAtlasTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, TextureFormat.Rgba16f, historyAtlas);
 
             var metaCurrentData = CreateUniformMetaAtlas(1.0f, 0.0f);
             var metaHistoryData = CreateUniformMetaAtlas(1.0f, 0.0f);
-            using var metaCurrentTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rg32f, metaCurrentData);
-            using var metaHistoryTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rg32f, metaHistoryData);
+            using var metaCurrentTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, TextureFormat.Rg32f, metaCurrentData);
+            using var metaHistoryTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, TextureFormat.Rg32f, metaHistoryData);
 
             using var outputAtlas = TestFramework.CreateTestGBuffer(
                 AtlasWidth, AtlasHeight,
-                PixelInternalFormat.Rgba16f,
-                PixelInternalFormat.Rg32f);
+                TextureFormat.Rgba16f,
+                TextureFormat.Rg32f);
 
             var programId = CompileOctahedralTemporalShader();
 
@@ -1240,19 +1242,19 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
 
         // Loose threshold (should accept)
         {
-            using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorPos);
-            using var currentAtlasTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, currentAtlas);
-            using var historyAtlasTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, historyAtlas);
+            using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, TextureFormat.Rgba16f, anchorPos);
+            using var currentAtlasTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, TextureFormat.Rgba16f, currentAtlas);
+            using var historyAtlasTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, TextureFormat.Rgba16f, historyAtlas);
 
             var metaCurrentData = CreateUniformMetaAtlas(1.0f, 0.0f);
             var metaHistoryData = CreateUniformMetaAtlas(1.0f, 0.0f);
-            using var metaCurrentTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rg32f, metaCurrentData);
-            using var metaHistoryTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rg32f, metaHistoryData);
+            using var metaCurrentTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, TextureFormat.Rg32f, metaCurrentData);
+            using var metaHistoryTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, TextureFormat.Rg32f, metaHistoryData);
 
             using var outputAtlas = TestFramework.CreateTestGBuffer(
                 AtlasWidth, AtlasHeight,
-                PixelInternalFormat.Rgba16f,
-                PixelInternalFormat.Rg32f);
+                TextureFormat.Rgba16f,
+                TextureFormat.Rg32f);
 
             var programId = CompileOctahedralTemporalShader();
 
@@ -1313,16 +1315,16 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
         var metaCurrentData = CreateUniformMetaAtlas(1.0f, 0.0f);
         var metaHistoryData = CreateUniformMetaAtlas(1.0f, 0.0f);
 
-        using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorPos);
-        using var currentAtlasTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, currentAtlas);
-        using var historyAtlasTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, historyAtlas);
-        using var metaCurrentTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rg32f, metaCurrentData);
-        using var metaHistoryTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rg32f, metaHistoryData);
+        using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, TextureFormat.Rgba16f, anchorPos);
+        using var currentAtlasTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, TextureFormat.Rgba16f, currentAtlas);
+        using var historyAtlasTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, TextureFormat.Rgba16f, historyAtlas);
+        using var metaCurrentTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, TextureFormat.Rg32f, metaCurrentData);
+        using var metaHistoryTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, TextureFormat.Rg32f, metaHistoryData);
 
         using var outputAtlas = TestFramework.CreateTestGBuffer(
             AtlasWidth, AtlasHeight,
-            PixelInternalFormat.Rgba16f,
-            PixelInternalFormat.Rg32f);
+            TextureFormat.Rgba16f,
+            TextureFormat.Rg32f);
 
         var programId = CompileOctahedralTemporalShader();
 
@@ -1405,16 +1407,16 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
             var metaCurrentData = CreateUniformMetaAtlas(1.0f, 0.0f);
             var metaHistoryData = CreateUniformMetaAtlas(1.0f, 0.0f);
 
-            using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorPos);
-            using var currentAtlasTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, currentAtlas);
-            using var historyAtlasTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, historyAtlas);
-            using var metaCurrentTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rg32f, metaCurrentData);
-            using var metaHistoryTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rg32f, metaHistoryData);
+            using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, TextureFormat.Rgba16f, anchorPos);
+            using var currentAtlasTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, TextureFormat.Rgba16f, currentAtlas);
+            using var historyAtlasTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, TextureFormat.Rgba16f, historyAtlas);
+            using var metaCurrentTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, TextureFormat.Rg32f, metaCurrentData);
+            using var metaHistoryTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, TextureFormat.Rg32f, metaHistoryData);
 
             using var outputAtlas = TestFramework.CreateTestGBuffer(
                 AtlasWidth, AtlasHeight,
-                PixelInternalFormat.Rgba16f,
-                PixelInternalFormat.Rg32f);
+                TextureFormat.Rgba16f,
+                TextureFormat.Rg32f);
 
             var programId = CompileOctahedralTemporalShader();
 
@@ -1447,16 +1449,16 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
             var metaCurrentData = CreateUniformMetaAtlas(1.0f, 0.0f);
             var metaHistoryData = CreateUniformMetaAtlas(1.0f, 0.0f);
 
-            using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorPos);
-            using var currentAtlasTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, currentAtlas);
-            using var historyAtlasTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, historyAtlas);
-            using var metaCurrentTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rg32f, metaCurrentData);
-            using var metaHistoryTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rg32f, metaHistoryData);
+            using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, TextureFormat.Rgba16f, anchorPos);
+            using var currentAtlasTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, TextureFormat.Rgba16f, currentAtlas);
+            using var historyAtlasTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, TextureFormat.Rgba16f, historyAtlas);
+            using var metaCurrentTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, TextureFormat.Rg32f, metaCurrentData);
+            using var metaHistoryTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, TextureFormat.Rg32f, metaHistoryData);
 
             using var outputAtlas = TestFramework.CreateTestGBuffer(
                 AtlasWidth, AtlasHeight,
-                PixelInternalFormat.Rgba16f,
-                PixelInternalFormat.Rg32f);
+                TextureFormat.Rgba16f,
+                TextureFormat.Rg32f);
 
             var programId = CompileOctahedralTemporalShader();
 
@@ -1514,16 +1516,16 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
         var metaCurrentData = CreateUniformMetaAtlas(1.0f, 0.0f);
         var metaHistoryData = CreateUniformMetaAtlas(1.0f, 0.0f);
 
-        using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorPos);
-        using var currentAtlasTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, currentAtlas);
-        using var historyAtlasTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, historyAtlas);
-        using var metaCurrentTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rg32f, metaCurrentData);
-        using var metaHistoryTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rg32f, metaHistoryData);
+        using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, TextureFormat.Rgba16f, anchorPos);
+        using var currentAtlasTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, TextureFormat.Rgba16f, currentAtlas);
+        using var historyAtlasTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, TextureFormat.Rgba16f, historyAtlas);
+        using var metaCurrentTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, TextureFormat.Rg32f, metaCurrentData);
+        using var metaHistoryTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, TextureFormat.Rg32f, metaHistoryData);
 
         using var outputAtlas = TestFramework.CreateTestGBuffer(
             AtlasWidth, AtlasHeight,
-            PixelInternalFormat.Rgba16f,
-            PixelInternalFormat.Rg32f);
+            TextureFormat.Rgba16f,
+            TextureFormat.Rg32f);
 
         var programId = CompileOctahedralTemporalShader();
 
@@ -1577,13 +1579,13 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
         var currentAtlas = CreateCurrentAtlas(EncodeHitDistance(hitDist));
         var historyAtlas = CreateHistoryAtlas(EncodeHitDistance(hitDist));
 
-        using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorPos);
-        using var currentAtlasTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, currentAtlas);
-        using var historyAtlasTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, historyAtlas);
+        using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, TextureFormat.Rgba16f, anchorPos);
+        using var currentAtlasTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, TextureFormat.Rgba16f, currentAtlas);
+        using var historyAtlasTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, TextureFormat.Rgba16f, historyAtlas);
 
         using var outputAtlas = TestFramework.CreateTestGBuffer(
             AtlasWidth, AtlasHeight,
-            PixelInternalFormat.Rgba16f);
+            TextureFormat.Rgba16f);
 
         var programId = CompileOctahedralTemporalShader();
 
@@ -1649,13 +1651,13 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
         var currentAtlas = CreateCurrentAtlas(EncodeHitDistance(currentHitDist));
         var historyAtlas = CreateHistoryAtlas(EncodeHitDistance(0.001f));  // Near-zero = invalid
 
-        using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorPos);
-        using var currentAtlasTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, currentAtlas);
-        using var historyAtlasTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, historyAtlas);
+        using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, TextureFormat.Rgba16f, anchorPos);
+        using var currentAtlasTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, TextureFormat.Rgba16f, currentAtlas);
+        using var historyAtlasTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, TextureFormat.Rgba16f, historyAtlas);
 
         using var outputAtlas = TestFramework.CreateTestGBuffer(
             AtlasWidth, AtlasHeight,
-            PixelInternalFormat.Rgba16f);
+            TextureFormat.Rgba16f);
 
         var programId = CompileOctahedralTemporalShader();
 
@@ -1705,13 +1707,13 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
         var currentAtlas = CreateUniformAtlas(0.3f, 0.3f, 0.3f, EncodeHitDistance(hitDist));
         var historyAtlas = CreateUniformAtlas(5.0f, 5.0f, 5.0f, EncodeHitDistance(hitDist));
 
-        using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorPos);
-        using var currentAtlasTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, currentAtlas);
-        using var historyAtlasTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, historyAtlas);
+        using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, TextureFormat.Rgba16f, anchorPos);
+        using var currentAtlasTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, TextureFormat.Rgba16f, currentAtlas);
+        using var historyAtlasTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, TextureFormat.Rgba16f, historyAtlas);
 
         using var outputAtlas = TestFramework.CreateTestGBuffer(
             AtlasWidth, AtlasHeight,
-            PixelInternalFormat.Rgba16f);
+            TextureFormat.Rgba16f);
 
         var programId = CompileOctahedralTemporalShader();
 
@@ -1772,13 +1774,13 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
             var currentAtlas = CreateCurrentAtlas(EncodeHitDistance(currentHitDist));
             var historyAtlas = CreateHistoryAtlas(EncodeHitDistance(historyHitDist));
 
-            using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorPos);
-            using var currentAtlasTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, currentAtlas);
-            using var historyAtlasTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, historyAtlas);
+            using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, TextureFormat.Rgba16f, anchorPos);
+            using var currentAtlasTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, TextureFormat.Rgba16f, currentAtlas);
+            using var historyAtlasTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, TextureFormat.Rgba16f, historyAtlas);
 
             using var outputAtlas = TestFramework.CreateTestGBuffer(
                 AtlasWidth, AtlasHeight,
-                PixelInternalFormat.Rgba16f);
+                TextureFormat.Rgba16f);
 
             var programId = CompileOctahedralTemporalShader();
 
@@ -1806,13 +1808,13 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
             var currentAtlas = CreateCurrentAtlas(EncodeHitDistance(currentHitDist));
             var historyAtlas = CreateHistoryAtlas(EncodeHitDistance(historyHitDist));
 
-            using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorPos);
-            using var currentAtlasTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, currentAtlas);
-            using var historyAtlasTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, historyAtlas);
+            using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, TextureFormat.Rgba16f, anchorPos);
+            using var currentAtlasTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, TextureFormat.Rgba16f, currentAtlas);
+            using var historyAtlasTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, TextureFormat.Rgba16f, historyAtlas);
 
             using var outputAtlas = TestFramework.CreateTestGBuffer(
                 AtlasWidth, AtlasHeight,
-                PixelInternalFormat.Rgba16f);
+                TextureFormat.Rgba16f);
 
             var programId = CompileOctahedralTemporalShader();
 

@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
 
 namespace VanillaGraphicsExpanded.Rendering;
@@ -8,7 +9,7 @@ internal sealed partial class GpuResourceManager
     #region Internal API
     /// <summary>Reads one slot/default and preserves every unrelated descriptor under the completion guard.</summary>
     internal bool RefreshFramebufferField(GpuResourceMetadataEntry<GpuFramebufferMetadata> entry,
-        FramebufferAttachment? slot, FramebufferDefaultParameter? parameter)
+        FramebufferSlot? slot, FramebufferMetadataField? parameter)
     {
         RequireMetadataContext();
         RequireLiveEntry(entry);

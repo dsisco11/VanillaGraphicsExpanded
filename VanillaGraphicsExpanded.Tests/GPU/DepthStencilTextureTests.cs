@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System;
 using OpenTK.Graphics.OpenGL;
@@ -21,7 +22,7 @@ public sealed class DepthStencilTextureTests : RenderTestBase
     public void DepthTexture_ReadPixels_UsesDepthAttachment()
     {
         EnsureContextValid();
-        using var texture = new DepthTexture(4, 4, PixelInternalFormat.DepthComponent24);
+        using var texture = new DepthTexture(4, 4, TextureFormat.DepthComponent24);
         using var framebuffer = DynamicGpuFramebuffer.CreateDepthOnly(texture)
             ?? throw new InvalidOperationException("Depth framebuffer creation failed.");
 

@@ -44,7 +44,7 @@ internal sealed class CloudVolumeDensity(Func<int,PackedUniformBuffer?,CloudVolu
         if(Busy||Chained)throw new InvalidOperationException("Density work is already pending.");
         if(failed)throw new InvalidOperationException(Failure);
         if(!current()||!input.Storage.IsSupported||map.TextureId!=input.Storage.Map||map.Width!=input.Storage.Width||
-            map.Height!=input.Storage.Width||map.InternalFormat!=PixelInternalFormat.Rgba32f||!input.Placement.IsFinite)
+            map.Height!=input.Storage.Width||map.InternalFormat!=TextureFormat.Rgba32f||!input.Placement.IsFinite)
             throw new InvalidOperationException("Native cloud input is unavailable for submission.");
         UpdateCompleted=false;Prepare();
         if(validatedBounds is null&&NeedsObservation(storage,input))
@@ -124,7 +124,7 @@ internal sealed class CloudVolumeDensity(Func<int,PackedUniformBuffer?,CloudVolu
         ObjectDisposedException.ThrowIf(disposed,this);
         if(failed)return false;
         if(!current()||!input.Storage.IsSupported||map.TextureId!=input.Storage.Map||map.Width!=input.Storage.Width||
-            map.Height!=input.Storage.Width||map.InternalFormat!=PixelInternalFormat.Rgba32f||!input.Placement.IsFinite)
+            map.Height!=input.Storage.Width||map.InternalFormat!=TextureFormat.Rgba32f||!input.Placement.IsFinite)
         {Ready=false;return false;}
         var source=new CloudVolumeIdentity(input.Owner,input.World,input.Shader);
         if(identity is not null&&!identity.Matches(source)){storage.Reset();observed=false;}

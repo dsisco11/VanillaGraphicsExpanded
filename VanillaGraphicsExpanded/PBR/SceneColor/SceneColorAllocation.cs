@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
 using Vintagestory.API.Client;
 
@@ -18,16 +19,16 @@ internal struct SceneColorAllocation
     }
 
     /// <summary>Promotes scene color while retaining primary glow, OIT revealage, depth and SSAO formats.</summary>
-    internal PixelInternalFormat Select(PixelInternalFormat format)
+    internal TextureFormat Select(TextureFormat format)
     {
-        if (format != PixelInternalFormat.Rgba8) return format;
+        if (format != TextureFormat.Rgba8) return format;
         // The engine allocates primary color before its RGBA8 glow attachment. SSAO position
         // and normal attachments already use their own formats and never consume this marker.
         if (framebuffer == EnumFrameBuffer.Primary)
         {
             bool color = !primaryColorSeen;
             primaryColorSeen = true;
-            return color ? PixelInternalFormat.Rgba16f : format;
+            return color ? TextureFormat.Rgba16f : format;
         }
 
         // Engine glare images remain menu-only; scene glare owns separate floating-point storage.

@@ -33,10 +33,10 @@ public sealed class MaterialAtlasBakeSubmissionTests(HeadlessGLFixture fixture) 
             int at = (y * edge + x) * 4;
             input[at] = input[at + 1] = input[at + 2] = value; input[at + 3] = 1;
         }
-        using var source = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Width = edge, Height = edge, Format = TextureFormat.Rgba16f, MipLevels = 1, Storage = ResourceStorageMode.Mutable, BaseLevel = 0, MaxLevel = 0, Filter = TextureFilterMode.Nearest, Label = null }, [new RHITextureInitialData(new(new(), 0, 0, 0, edge, edge), VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLPixelValues.Encoding(TextureFormatHelper.GetPixelFormat(PixelInternalFormat.Rgba16f), OpenTK.Graphics.OpenGL.PixelType.Float), System.Runtime.InteropServices.MemoryMarshal.AsBytes((input).AsSpan()).ToArray())]).RequireResource();
+        using var source = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Width = edge, Height = edge, Format = TextureFormat.Rgba16f, MipLevels = 1, Storage = ResourceStorageMode.Mutable, BaseLevel = 0, MaxLevel = 0, Filter = TextureFilterMode.Nearest, Label = null }, [new RHITextureInitialData(new(new(), 0, 0, 0, edge, edge), new RHIPixelEncoding(TextureFormatHelper.GetPixelFormat(TextureFormat.Rgba16f), PixelComponentType.Float), System.Runtime.InteropServices.MemoryMarshal.AsBytes((input).AsSpan()).ToArray())]).RequireResource();
         using var destination = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba16f, Width = System.Math.Max(1, edge), Height = System.Math.Max(1, edge), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
-        using var caller = CreateRenderTarget(3, 2, PixelInternalFormat.Rgba16f);
-        using var read = CreateRenderTarget(2, 3, PixelInternalFormat.Rgba16f);
+        using var caller = CreateRenderTarget(3, 2, TextureFormat.Rgba16f);
+        using var read = CreateRenderTarget(2, 3, TextureFormat.Rgba16f);
         using var transfer = RHICommandContext.Current.CreatePixelPackBuffer(new RHIBufferDescription { Role = BufferRole.PixelPack, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StreamRead, Label = null }).RequireResource();
         transfer.AllocateOrphan(128 * 128 * 16);
         using var hostilePack = OpenGLPixelLayouts.PackScope(OpenGlStateCache.Current, new(8, RowLength: 73, SkipRows: 2, SkipPixels: 3));

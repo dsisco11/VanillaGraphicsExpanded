@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.PBR;
@@ -182,18 +183,18 @@ public sealed class PbrDirectLightingShadowTests : LumOnShaderFunctionalTestBase
         bool explicitPosition = false, float visibilityDepth = 0f, float projectionOffset = 0f, float skyVisibility = 1f)
     {
         var program = receiverProgram ??= Programs.Create<PBRDirectLightingShaderProgram>();
-        using var output = TestFramework.CreateTestGBuffer(1, 1, PixelInternalFormat.Rgba16f, 3);
-        using var albedo = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, color ?? [.6f, .6f, .6f, 1f]);
-        using var depth = TestFramework.CreateTexture(1, 1, PixelInternalFormat.R32f, [visibilityDepth]);
-        using var normal = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, upward ? [.5f, 1f, .5f, 1f] : [.5f, .5f, 1f, explicitPosition ? -1f : 1f]);
-        using var position = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, [0f, 0f, -1f, 1f]);
-        using var environment = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, [0f, 0f, 0f, skyVisibility]);
-        using var material = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, [color is null ? .4f : .9f, 0f, emission, 0f]);
+        using var output = TestFramework.CreateTestGBuffer(1, 1, TextureFormat.Rgba16f, 3);
+        using var albedo = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba16f, color ?? [.6f, .6f, .6f, 1f]);
+        using var depth = TestFramework.CreateTexture(1, 1, TextureFormat.R32f, [visibilityDepth]);
+        using var normal = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba16f, upward ? [.5f, 1f, .5f, 1f] : [.5f, .5f, 1f, explicitPosition ? -1f : 1f]);
+        using var position = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba16f, [0f, 0f, -1f, 1f]);
+        using var environment = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba16f, [0f, 0f, 0f, skyVisibility]);
+        using var material = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba16f, [color is null ? .4f : .9f, 0f, emission, 0f]);
         // A depth-format texture is required by sampler2DShadow. The production resource setters
         // bind the comparison sampler; the test must not repair or replace that binding itself.
-        using var shadow = new DepthTexture(1, 1, PixelInternalFormat.DepthComponent32f);
+        using var shadow = new DepthTexture(1, 1, TextureFormat.DepthComponent32f);
         GL.TextureSubImage2D(shadow.TextureId, 0, 0, 0, 1, 1, PixelFormat.DepthComponent, PixelType.Float, new[] { shadowDepth });
-        using var farShadow = new DepthTexture(1, 1, PixelInternalFormat.DepthComponent32f);
+        using var farShadow = new DepthTexture(1, 1, TextureFormat.DepthComponent32f);
         GL.TextureSubImage2D(farShadow.TextureId, 0, 0, 0, 1, 1, PixelFormat.DepthComponent, PixelType.Float, new[] { farDepth ?? shadowDepth });
         program.PrimaryScene = albedo;
         program.PrimaryDepth = depth;

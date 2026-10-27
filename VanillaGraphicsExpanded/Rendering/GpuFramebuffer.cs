@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -13,7 +14,7 @@ public abstract partial class GpuFramebuffer : GpuResource<GpuFramebufferMetadat
     private int wrappedWidth;
     private int wrappedHeight;
     private readonly bool ownsFramebuffer;
-    private readonly Dictionary<FramebufferAttachment, GpuFramebufferAttachment> attachments = new();
+    private readonly Dictionary<FramebufferSlot, GpuFramebufferAttachment> attachments = new();
     private string? debugName;
     private bool attachmentsDirty;
     private bool resizing;
@@ -33,7 +34,7 @@ public abstract partial class GpuFramebuffer : GpuResource<GpuFramebufferMetadat
     /// <summary>Gets the number of occupied color slots, excluding sparse holes.</summary>
     public int ColorAttachmentCount => metadata.Attachments?.Keys.Count(IsColorSlot) ?? attachments.Keys.Count(IsColorSlot);
     /// <summary>Reports whether a depth image is configured.</summary>
-    public bool HasDepthAttachment => metadata.Attachments?.ContainsKey(FramebufferAttachment.DepthAttachment) ?? attachments.ContainsKey(FramebufferAttachment.DepthAttachment);
+    public bool HasDepthAttachment => metadata.Attachments?.ContainsKey(FramebufferSlot.Depth) ?? attachments.ContainsKey(FramebufferSlot.Depth);
     /// <summary>Gets the diagnostic name.</summary>
     public string? DebugName => debugName;
     /// <summary>Gets the first configured image width or external viewport width.</summary>
@@ -44,36 +45,36 @@ public abstract partial class GpuFramebuffer : GpuResource<GpuFramebufferMetadat
     public DynamicTexture2D this[int index] => GetAttachment(ColorSlot(index))?.Resource as DynamicTexture2D
         ?? throw new InvalidOperationException("The color slot does not contain a dynamic 2D texture.");
     /// <summary>Gets a managed dynamic depth texture when present.</summary>
-    public DynamicTexture2D? DepthTexture => GetAttachment(FramebufferAttachment.DepthAttachment)?.Resource as DynamicTexture2D;
+    public DynamicTexture2D? DepthTexture => GetAttachment(FramebufferSlot.Depth)?.Resource as DynamicTexture2D;
     /// <summary>Gets a managed depth renderbuffer when present.</summary>
-    public GpuRenderbuffer? DepthRenderbuffer => GetAttachment(FramebufferAttachment.DepthAttachment)?.Resource as GpuRenderbuffer;
+    public GpuRenderbuffer? DepthRenderbuffer => GetAttachment(FramebufferSlot.Depth)?.Resource as GpuRenderbuffer;
     #endregion
 
     #region Attachments
     /// <summary>Gets an exact slot; packed depth/stencil requires both aspects to share the same image.</summary>
-    public GpuFramebufferAttachment? GetAttachment(FramebufferAttachment slot)
+    public GpuFramebufferAttachment? GetAttachment(FramebufferSlot slot)
     {
         ReconcileAttachmentMetadata();
-        if (slot == FramebufferAttachment.DepthStencilAttachment)
+        if (slot == FramebufferSlot.DepthStencil)
         {
-            var depth = GetAttachment(FramebufferAttachment.DepthAttachment);
-            return ReferenceEquals(depth, GetAttachment(FramebufferAttachment.StencilAttachment)) ? depth : null;
+            var depth = GetAttachment(FramebufferSlot.Depth);
+            return ReferenceEquals(depth, GetAttachment(FramebufferSlot.Stencil)) ? depth : null;
         }
         return attachments.GetValueOrDefault(slot);
     }
 
     /// <summary>Configures an image while preserving bindings and retaining a non-owning strong reference.</summary>
-    public abstract void SetAttachment(FramebufferAttachment slot, GpuFramebufferAttachment attachment);
+    public abstract void SetAttachment(FramebufferSlot slot, GpuFramebufferAttachment attachment);
 
     /// <summary>Detaches images and releases references without disposing shared attachment instances.</summary>
-    public abstract bool RemoveAttachment(FramebufferAttachment slot);
+    public abstract bool RemoveAttachment(FramebufferSlot slot);
 
     /// <summary>Gets a live color texture name, or zero for absent and renderbuffer-backed slots.</summary>
     public int GetColorTextureId(int index) => IsDisposed ? 0 : GetAttachment(ColorSlot(index))?.TextureId ?? 0;
     /// <summary>Gets the live depth texture name when available.</summary>
-    public int GetDepthTextureId() => IsDisposed ? 0 : GetAttachment(FramebufferAttachment.DepthAttachment)?.TextureId ?? 0;
+    public int GetDepthTextureId() => IsDisposed ? 0 : GetAttachment(FramebufferSlot.Depth)?.TextureId ?? 0;
     /// <summary>Gets the live depth renderbuffer name when available.</summary>
-    public int GetDepthRenderbufferId() => IsDisposed ? 0 : GetAttachment(FramebufferAttachment.DepthAttachment)?.RenderbufferId ?? 0;
+    public int GetDepthRenderbufferId() => IsDisposed ? 0 : GetAttachment(FramebufferSlot.Depth)?.RenderbufferId ?? 0;
 
     /// <summary>Resizes distinct whole backing resources and publishes one completed update for this framebuffer.</summary>
     public abstract bool Resize(int newWidth, int newHeight);
@@ -82,25 +83,25 @@ public abstract partial class GpuFramebuffer : GpuResource<GpuFramebufferMetadat
 
     #region Rendering
     /// <summary>Binds this framebuffer after rejecting retired images and refreshing changed image bindings.</summary>
-    public void Bind() => Bind(FramebufferTarget.Framebuffer);
+    public void Bind() => Bind(FramebufferSelection.ReadAndDraw);
 
     /// <summary>Refreshes changed images on the draw binding, optionally selecting the read alias for compatibility.</summary>
-    internal void Bind(FramebufferTarget bindingTarget)
+    internal void Bind(FramebufferSelection bindingTarget)
     {
-        if (bindingTarget is not (FramebufferTarget.Framebuffer or FramebufferTarget.DrawFramebuffer))
+        if (bindingTarget is not (FramebufferSelection.ReadAndDraw or FramebufferSelection.Draw))
             throw new ArgumentOutOfRangeException(nameof(bindingTarget));
         ValidateAttachments();
         if (attachmentsDirty)
         {
             // Shared image changes can affect several FBOs; refresh each FBO lazily
             // at its next use while preserving its independently configured routing.
-            RHI.RHICommandContext.Current.RefreshFramebufferAttachments(this, attachments);
+            RHI.RHICommandContext.Current.RefreshFramebufferAttachments(this);
             attachmentsDirty = false;
         }
         RHI.RHICommandContext.Current.SelectFramebufferOwner(this, bindingTarget);
     }
     /// <summary>Binds the default framebuffer.</summary>
-    public static void Unbind() => RHI.RHICommandContext.Current.SelectFramebufferOwner(null, FramebufferTarget.Framebuffer);
+    public static void Unbind() => RHI.RHICommandContext.Current.SelectFramebufferOwner(null, RHI.FramebufferSelection.ReadAndDraw);
     /// <summary>Checks completeness in all builds while preserving separate read and draw bindings.</summary>
     public bool CheckStatus(out string? errorMessage)
     {
@@ -197,10 +198,10 @@ public abstract partial class GpuFramebuffer : GpuResource<GpuFramebufferMetadat
             RHI.RHICommandContext.Current.AllocateFramebufferOwner(this, initialization);
             foreach (var pair in initialization.Attachments)
             {
-                if (pair.Key == FramebufferAttachment.DepthStencilAttachment)
+                if (pair.Key == FramebufferSlot.DepthStencil)
                 {
-                    attachments[FramebufferAttachment.DepthAttachment] = pair.Value;
-                    attachments[FramebufferAttachment.StencilAttachment] = pair.Value;
+                    attachments[FramebufferSlot.Depth] = pair.Value;
+                    attachments[FramebufferSlot.Stencil] = pair.Value;
                 }
                 else attachments[pair.Key] = pair.Value;
                 pair.Value.Observe(this);
@@ -228,13 +229,13 @@ public abstract partial class GpuFramebuffer : GpuResource<GpuFramebufferMetadat
         }
     }
     /// <summary>Validates a color index and maps it to its actual attachment point.</summary>
-    private static FramebufferAttachment ColorSlot(int index)
+    private static FramebufferSlot ColorSlot(int index)
     {
         if ((uint)index > 15) throw new ArgumentOutOfRangeException(nameof(index));
-        return FramebufferAttachment.ColorAttachment0 + index;
+        return FramebufferSlot.Color0 + index;
     }
     /// <summary>Identifies framebuffer color attachment points.</summary>
-    private static bool IsColorSlot(FramebufferAttachment slot) => slot >= FramebufferAttachment.ColorAttachment0
-        && slot <= FramebufferAttachment.ColorAttachment15;
+    private static bool IsColorSlot(FramebufferSlot slot) => slot >= FramebufferSlot.Color0
+        && slot <= FramebufferSlot.Color15;
     #endregion
 }

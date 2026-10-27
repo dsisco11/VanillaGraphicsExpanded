@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Collections.Immutable;
 using System.Numerics;
@@ -36,16 +37,16 @@ public sealed class PbrCompositeHdrTests : LumOnShaderFunctionalTestBase
         float[] alpha = [1, 1, 1, 1, 0, float.NaN, float.PositiveInfinity, 1, 1, 1];
         float[] receiverDepth = [.75f, .75f, .75f, .75f, .75f, .75f, .75f, 1, float.NaN, .75f];
         float[] colorData = Enumerable.Range(0, count).SelectMany(i => new[] { red[i], 3f, 2f, alpha[i] }).ToArray();
-        using var color = TestFramework.CreateTexture(count, 1, PixelInternalFormat.Rgba32f, colorData);
-        using var zero = TestFramework.CreateTexture(count, 1, PixelInternalFormat.Rgba32f, new float[count * 4]);
-        using var depth = TestFramework.CreateTexture(count, 1, PixelInternalFormat.R32f,
+        using var color = TestFramework.CreateTexture(count, 1, TextureFormat.Rgba32f, colorData);
+        using var zero = TestFramework.CreateTexture(count, 1, TextureFormat.Rgba32f, new float[count * 4]);
+        using var depth = TestFramework.CreateTexture(count, 1, TextureFormat.R32f,
             restoredOverlay ? Enumerable.Repeat(.01f, count).ToArray() : receiverDepth);
-        using var restoredDepth = TestFramework.CreateTexture(count, 1, PixelInternalFormat.R32f, receiverDepth);
-        using var normal = TestFramework.CreateTexture(count, 1, PixelInternalFormat.Rgba32f,
+        using var restoredDepth = TestFramework.CreateTexture(count, 1, TextureFormat.R32f, receiverDepth);
+        using var normal = TestFramework.CreateTexture(count, 1, TextureFormat.Rgba32f,
             Enumerable.Range(0, count).SelectMany(i => new[] { .5f, .5f, 1f, restoredOverlay || i == 4 ? -1f : 1f }).ToArray());
-        using var position = TestFramework.CreateTexture(count, 1, PixelInternalFormat.Rgba32f,
+        using var position = TestFramework.CreateTexture(count, 1, TextureFormat.Rgba32f,
             Enumerable.Range(0, count).SelectMany(_ => new[] { 0f, 0f, -2f, 1f }).ToArray());
-        using var output = CreateMRTRenderTarget(count, 1, PixelInternalFormat.Rgba32f, PixelInternalFormat.Rgba16f, PixelInternalFormat.R32f);
+        using var output = CreateMRTRenderTarget(count, 1, TextureFormat.Rgba32f, TextureFormat.Rgba16f, TextureFormat.R32f);
         using var receiverDirectLighting = LayeredTestTexture.Create(color, zero, zero);
         program.DirectLighting = receiverDirectLighting;
         using var surface = LayeredTestTexture.Create(normal, zero, zero);
@@ -91,15 +92,15 @@ public sealed class PbrCompositeHdrTests : LumOnShaderFunctionalTestBase
         {
             p.LumOnEnabled = false; p.EnablePbrComposite = false; p.EnableShortRangeAo = false;
         });
-        using var direct = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, new[] { 2f, 1f, .5f, 1f });
-        using var specular = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, new[] { .5f, .25f, .125f, 1f });
-        using var emission = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, new[] { 4f, 2f, 1f, 1f });
-        using var depth = TestFramework.CreateTexture(1, 1, PixelInternalFormat.R32f, new[] { explicitPosition ? .2f : .75f });
-        using var unused = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, new[] { .1f, .2f, .3f, 1f });
-        using var normal = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, new[] { .5f, 1f, .5f, explicitPosition ? -1f : 1f });
-        using var position = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, new[] { 0f, 0f, 1000f, 1f });
-        using var environment = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, new[] {0f,0f,0f,skyVisibility});
-        using var output = TestFramework.CreateTestGBuffer(1, 1, PixelInternalFormat.Rgba16f);
+        using var direct = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba16f, new[] { 2f, 1f, .5f, 1f });
+        using var specular = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba16f, new[] { .5f, .25f, .125f, 1f });
+        using var emission = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba16f, new[] { 4f, 2f, 1f, 1f });
+        using var depth = TestFramework.CreateTexture(1, 1, TextureFormat.R32f, new[] { explicitPosition ? .2f : .75f });
+        using var unused = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba16f, new[] { .1f, .2f, .3f, 1f });
+        using var normal = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba16f, new[] { .5f, 1f, .5f, explicitPosition ? -1f : 1f });
+        using var position = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba16f, new[] { 0f, 0f, 1000f, 1f });
+        using var environment = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba16f, new[] {0f,0f,0f,skyVisibility});
+        using var output = TestFramework.CreateTestGBuffer(1, 1, TextureFormat.Rgba16f);
         using var atmosphereOwner = new AtmosphereModSystem();
         float[] scatter = atmosphere ? [.2f,.3f,.4f,1f] : [0f,0f,0f,1f];
         float[] loss = atmosphere ? [.5f,.6f,.7f,1f] : [0f,0f,0f,1f];
@@ -140,8 +141,8 @@ public sealed class PbrCompositeHdrTests : LumOnShaderFunctionalTestBase
         environment.UploadDataImmediate(new float[] { .25f, .5f, 1f, skyVisibility });
         surface.UploadDataImmediate(new float[] { .25f, .5f, 1f, skyVisibility }, 0, 0, 2, 1, 1, 1);
         program.RefractionSourceEnabled = true;
-        using var receiverOutputs = CreateMRTRenderTarget(1, 1, PixelInternalFormat.Rgba16f,
-            PixelInternalFormat.Rgba16f, PixelInternalFormat.R32f);
+        using var receiverOutputs = CreateMRTRenderTarget(1, 1, TextureFormat.Rgba16f,
+            TextureFormat.Rgba16f, TextureFormat.R32f);
         TestFramework.RenderQuadTo(program, receiverOutputs);
         float[] expectedReceiver = receiverOutputs[1].ReadPixels();
         float[] expectedDepth = receiverOutputs[2].ReadPixels();
@@ -187,18 +188,18 @@ public sealed class PbrCompositeHdrTests : LumOnShaderFunctionalTestBase
         var program = Programs.Create<PBRCompositeShaderProgram>(p => {
             p.LumOnEnabled = lumon; p.EnablePbrComposite = false; p.EnableShortRangeAo = false;
         });
-        using var direct = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba32f, [6f, 3f, 2f, 1f]);
-        using var zero = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba32f, [0f, 0f, 0f, 0f]);
-        using var depth = TestFramework.CreateTexture(1, 1, PixelInternalFormat.R32f, [sky ? 1f : .75f]);
-        using var normal = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba32f, [.5f, 1f, .5f, 1f]);
+        using var direct = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba32f, [6f, 3f, 2f, 1f]);
+        using var zero = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba32f, [0f, 0f, 0f, 0f]);
+        using var depth = TestFramework.CreateTexture(1, 1, TextureFormat.R32f, [sky ? 1f : .75f]);
+        using var normal = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba32f, [.5f, 1f, .5f, 1f]);
         // Sky reconstruction reaches 20 metres; an exit at three metres subtracts the remaining 17.
         float signedLength = underwater ? (knownExit ? (sky ? -17 : -7) : 0) : 2;
         var medium = new WaterMedium(new Vector3(.1f, .2f, .3f), Vector3.Zero, density, 0);
         var extinction = medium.AbsorptionPerMetre;
-        using var optical = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba32f,
+        using var optical = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba32f,
             [extinction.X * signedLength, extinction.Y * signedLength, extinction.Z * signedLength, signedLength]);
-        using var source = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba32f, [0f, 0f, 0f, underwater && knownExit ? -1f : 0f]);
-        using var output = CreateMRTRenderTarget(1, 1, PixelInternalFormat.Rgba32f, PixelInternalFormat.Rgba32f, PixelInternalFormat.R32f);
+        using var source = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba32f, [0f, 0f, 0f, underwater && knownExit ? -1f : 0f]);
+        using var output = CreateMRTRenderTarget(1, 1, TextureFormat.Rgba32f, TextureFormat.Rgba32f, TextureFormat.R32f);
         using var atmosphereOwner = new AtmosphereModSystem();
         var snapshot = new AtmosphereLighting(Vector3.UnitY, Vector3.Zero, Vector3.Zero, Vector3.Zero, Vector3.Zero,
             ImmutableArray.Create(0f, 0f, 0f, 1f)) { Width = 1, Height = 1,

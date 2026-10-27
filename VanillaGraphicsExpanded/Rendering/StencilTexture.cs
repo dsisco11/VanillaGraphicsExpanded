@@ -9,7 +9,7 @@ public sealed class StencilTexture : DynamicTexture2D
 {
     /// <summary>Allocates stencil-only storage.</summary>
     public StencilTexture(int width, int height, string? debugName = null)
-        : base(width, height, TextureFormatHelper.StencilIndex8, TextureFilterMode.Nearest, debugName) { }
+        : base(width, height, TextureFormat.StencilIndex8, TextureFilterMode.Nearest, debugName) { }
 
 
 

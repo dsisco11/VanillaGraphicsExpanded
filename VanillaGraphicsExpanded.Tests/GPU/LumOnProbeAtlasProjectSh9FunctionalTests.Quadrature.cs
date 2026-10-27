@@ -1,3 +1,5 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
+using VanillaGraphicsExpanded.Rendering.RHI;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 using System.Numerics;
 using OpenTK.Graphics.OpenGL;
@@ -147,10 +149,10 @@ public partial class LumOnProbeAtlasProjectSh9FunctionalTests
             meta[pixel << 1] = confidence(x & 7, y & 7);
             meta[(pixel << 1) + 1] = BitConverter.UInt32BitsToSingle(1);
         }
-        using var anchors = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, CreateProbeAnchors(-1));
-        using var atlasTexture = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, atlas);
-        using var metadata = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rg32f, meta);
-        using var output = TestFramework.CreateTestGBuffer(ProbeGridWidth, ProbeGridHeight, Enumerable.Repeat(PixelInternalFormat.Rgba16f, 7).ToArray());
+        using var anchors = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, TextureFormat.Rgba16f, CreateProbeAnchors(-1));
+        using var atlasTexture = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, TextureFormat.Rgba16f, atlas);
+        using var metadata = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, TextureFormat.Rg32f, meta);
+        using var output = TestFramework.CreateTestGBuffer(ProbeGridWidth, ProbeGridHeight, Enumerable.Repeat(TextureFormat.Rgba16f, 7).ToArray());
         var program = CompileProjectShader();
         SetupProjectUniforms(program);
         program.ScreenProbeAtlas = atlasTexture; program.ScreenProbeAtlasMeta = metadata; using var projectAnchors = LayeredTestTexture.Create(anchors, null);
@@ -168,7 +170,7 @@ public partial class LumOnProbeAtlasProjectSh9FunctionalTests
     private Vector4 GatherProjection(float[] coefficients, Vector3? receiverNormal = null)
     {
         var normal = receiverNormal ?? Vector3.UnitY;
-        using var packed = TestFramework.CreateTestGBuffer(ProbeGridWidth, ProbeGridHeight, Enumerable.Repeat(PixelInternalFormat.Rgba16f, 7).ToArray());
+        using var packed = TestFramework.CreateTestGBuffer(ProbeGridWidth, ProbeGridHeight, Enumerable.Repeat(TextureFormat.Rgba16f, 7).ToArray());
         for (int target = 0; target < 7; target++)
         {
             var pixels = new float[(ProbeGridWidth * ProbeGridHeight) << 2];
@@ -178,11 +180,11 @@ public partial class LumOnProbeAtlasProjectSh9FunctionalTests
                     if ((target << 2) + channel < 27) pixels[pixel + channel] *= LightingStorage.PersistentScale;
             ((VanillaGraphicsExpanded.Rendering.DynamicTexture2D)packed[target]).UploadDataImmediate(pixels);
         }
-        using var anchors = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, CreateProbeAnchors(-1));
-        using var normals = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, CreateProbeNormalsEncoded(normal.X, normal.Y, normal.Z));
-        using var depth = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, CreateUniformDepthData(ScreenWidth, ScreenHeight, .5f));
-        using var guides = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, CreateUniformNormalData(ScreenWidth, ScreenHeight, normal.X, normal.Y, normal.Z));
-        using var output = TestFramework.CreateTestGBuffer(HalfResWidth, HalfResHeight, PixelInternalFormat.Rgba16f);
+        using var anchors = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, TextureFormat.Rgba16f, CreateProbeAnchors(-1));
+        using var normals = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, TextureFormat.Rgba16f, CreateProbeNormalsEncoded(normal.X, normal.Y, normal.Z));
+        using var depth = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.R32f, CreateUniformDepthData(ScreenWidth, ScreenHeight, .5f));
+        using var guides = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.Rgba16f, CreateUniformNormalData(ScreenWidth, ScreenHeight, normal.X, normal.Y, normal.Z));
+        using var output = TestFramework.CreateTestGBuffer(HalfResWidth, HalfResHeight, TextureFormat.Rgba16f);
         var program = CompileSh9GatherShader();
         var identity = LumOnTestInputFactory.CreateIdentityMatrix();
         SetupSh9GatherUniforms(program, identity, identity);

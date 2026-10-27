@@ -1,3 +1,5 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Diagnostics;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.PBR.CameraExposure;
@@ -37,7 +39,7 @@ public sealed class CameraExposureMeasurementTests(HeadlessGLFixture fixture, IT
             int i=(y*width+x)*4;
             pixels[i]=pixels[i+1]=pixels[i+2]=level;pixels[i+3]=1;
         }
-        using var source=TestFramework.CreateTexture(width,height,PixelInternalFormat.Rgba16f,pixels);
+        using var source=TestFramework.CreateTexture(width,height,TextureFormat.Rgba16f,pixels);
         using var camera=TestFrameCamera.CreateIdentity(width,height,.1f);
         var settings=new CameraExposureSettings().Snapshot() with {CenterWeighted=weighted,LowPercentile=0,HighPercentile=1};
         meter.SceneRadiance=source;meter.Histogram=targets.Histogram;meter.Capture(settings,true);

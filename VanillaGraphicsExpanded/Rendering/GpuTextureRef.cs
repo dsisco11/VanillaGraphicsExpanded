@@ -1,6 +1,6 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using System.Runtime.CompilerServices;
-using OpenTK.Graphics.OpenGL;
 
 namespace VanillaGraphicsExpanded.Rendering;
 
@@ -17,7 +17,7 @@ public readonly struct GpuTextureRef : IEquatable<GpuTextureRef>
     /// <summary>Gets the current usable native name without transferring ownership.</summary>
     public int TextureId { get { RequireMetadata(); return (int)resource!.ResourceId; } }
     /// <summary>Gets the published texture target.</summary>
-    public TextureTarget Target => RequireMetadata().Target;
+    public TextureDimension Target => RequireMetadata().Target;
     /// <summary>Returns already-published usable facts without queries or recovery.</summary>
     public bool TryGetMetadata(out GpuTextureMetadata data) =>
         GpuResourceManager.TryGetTextureReferenceMetadata(resource, out data);

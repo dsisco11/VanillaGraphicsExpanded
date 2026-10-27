@@ -57,7 +57,7 @@ public sealed class GpuBufferImageCreationTests(HeadlessGLFixture fixture)
             using var renderbuffer = RHICommandContext.Current.CreateRenderbuffer(new RHIRenderbufferDescription { Format = TextureFormat.Rgba8, Width = 8, Height = 4, Samples = 3, Label = null }).RequireResource();
             Assert.Equal(8, renderbuffer.Width);
             Assert.Equal(4, renderbuffer.Height);
-            Assert.Equal(RenderbufferStorage.Rgba8, renderbuffer.Storage);
+            Assert.Equal(TextureFormat.Rgba8, renderbuffer.Storage);
             using var binding = OpenGlStateCache.Current.BindRenderbufferScope(renderbuffer.RenderbufferId);
             GL.GetRenderbufferParameter(RenderbufferTarget.Renderbuffer, RenderbufferParameterName.RenderbufferSamples, out int samples);
             Assert.True(samples >= 3);
@@ -88,7 +88,7 @@ public sealed class GpuBufferImageCreationTests(HeadlessGLFixture fixture)
             if (renderbuffer)
             {
                 using var recipient = new FailedRecipient<GpuRenderbufferMetadata>(GpuResourceKind.Renderbuffer);
-                var request = new GpuRenderbufferInitialization { Format = RenderbufferStorage.Rgba8, Width = 4, Height = 4 };
+                var request = new GpuRenderbufferInitialization { Format = TextureFormat.Rgba8, Width = 4, Height = 4 };
                 Assert.Throws<InvalidOperationException>(() => GpuResourceManager.CreateRenderbuffer(request, recipient, out handle));
                 native = recipient.Attempted;
                 Assert.Equal((nint)0, recipient.ResourceId);
@@ -232,9 +232,9 @@ public sealed class GpuBufferImageCreationTests(HeadlessGLFixture fixture)
             using var sentinel = RHICommandContext.Current.CreateRenderbuffer(new RHIRenderbufferDescription { Format = TextureFormat.Rgba8, Width = 2, Height = 2, Samples = 0, Label = null }).RequireResource();
             using var binding = OpenGlStateCache.Current.BindRenderbufferScope(sentinel.RenderbufferId);
             using var recipient = new Recipient<GpuRenderbufferMetadata>(GpuResourceKind.Renderbuffer);
-            var request = new GpuRenderbufferInitialization { Format = RenderbufferStorage.Rgba8, Width = 8, Height = 4 };
+            var request = new GpuRenderbufferInitialization { Format = TextureFormat.Rgba8, Width = 8, Height = 4 };
             var result = GpuResourceManager.CreateRenderbuffer(request, recipient, out var handle);
-            Assert.Equal(new GpuRenderbufferMetadata(8, 4, PixelInternalFormat.Rgba8, 0), result);
+            Assert.Equal(new GpuRenderbufferMetadata(8, 4, TextureFormat.Rgba8, 0), result);
             Assert.Equal(sentinel.RenderbufferId, GL.GetInteger(GetPName.RenderbufferBinding));
             Assert.Equal(result.Value, recipient.Snapshot);
             Assert.Equal(handle.Id, recipient.ResourceId);
@@ -267,7 +267,7 @@ public sealed class GpuBufferImageCreationTests(HeadlessGLFixture fixture)
             ulong storage = entry.StorageRevision;
             owner.AllocateStorage(TextureFormat.Rgba8, 16, 8);
             Assert.Equal(storage + 1, entry.StorageRevision);
-            Assert.Equal(new GpuRenderbufferMetadata(16, 8, PixelInternalFormat.Rgba8, 0), alias.Snapshot);
+            Assert.Equal(new GpuRenderbufferMetadata(16, 8, TextureFormat.Rgba8, 0), alias.Snapshot);
             Assert.Equal(0, reader.Calls);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }

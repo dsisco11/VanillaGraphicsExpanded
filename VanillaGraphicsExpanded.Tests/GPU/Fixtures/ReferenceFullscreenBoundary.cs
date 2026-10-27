@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System;
 using System.Collections.Generic;
@@ -19,7 +20,7 @@ internal static class ReferenceFullscreenBoundary
         var coverage = new PipelineStateCoverage(dynamic: DynamicDrawStateKnowledge.Viewport, clearColor: true);
         foreach (var pipeline in pipelines) coverage = coverage.Union(PipelineStateCoverage.From(pipeline));
         // Texture allocation helpers temporarily use unit zero even when a sampler is optimized out.
-        var resources = new EngineBoundaryResources(textures: [(0, OpenTK.Graphics.OpenGL.TextureTarget.Texture2D)]);
+        var resources = new EngineBoundaryResources(textures: [(0, TextureDimension.Two)]);
         foreach (var program in programs)
         {
             // Preparation belongs before entry; no fallback may silently expand the saved footprint.

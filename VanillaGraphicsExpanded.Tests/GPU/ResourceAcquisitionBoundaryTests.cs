@@ -32,7 +32,7 @@ public sealed class ResourceAcquisitionBoundaryTests(HeadlessGLFixture fixture)
             Assert.True(owner.Resize(8, 4));
             Assert.Equal(1, notifications);
             Assert.Equal(8, image.Width);
-            image.ValidateSlot(FramebufferAttachment.ColorAttachment0);
+            image.ValidateSlot(FramebufferSlot.Color0);
             Assert.Equal(1, notifications);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
@@ -58,7 +58,7 @@ public sealed class ResourceAcquisitionBoundaryTests(HeadlessGLFixture fixture)
                 imported.AttachmentsChanged += () => notifications++;
                 imported.RefreshWrappedFramebuffer(source.FboId, 4, 4, true);
                 Assert.Equal(1, notifications);
-                var discovered = GpuFramebufferAttachmentDiscovery.Read(imported, FramebufferAttachment.ColorAttachment0);
+                var discovered = GpuFramebufferAttachmentDiscovery.Read(imported, FramebufferSlot.Color0);
                 Assert.Equal(owner.TextureId, discovered.TextureId);
                 Assert.False(discovered.OwnsStorage);
                 Assert.Equal(1, notifications);
@@ -137,11 +137,11 @@ public sealed class ResourceAcquisitionBoundaryTests(HeadlessGLFixture fixture)
         using var image = GpuFramebufferAttachment.FromTexture(owner);
         GpuResourceManager.InvalidateWrapperMetadata(owner);
         Assert.Equal(0, image.Width);
-        Assert.Throws<InvalidOperationException>(() => image.ValidateSlot(FramebufferAttachment.ColorAttachment0));
+        Assert.Throws<InvalidOperationException>(() => image.ValidateSlot(FramebufferSlot.Color0));
         Assert.Equal(0, image.Width);
         // Only an explicit owner recovery can republish this local relationship.
         GpuResourceManager.RecoverWrapperMetadata(owner, GpuTextureMetadataReader.Instance);
-        image.ValidateSlot(FramebufferAttachment.ColorAttachment0);
+        image.ValidateSlot(FramebufferSlot.Color0);
         Assert.Equal(4, image.Width);
     }
     #endregion

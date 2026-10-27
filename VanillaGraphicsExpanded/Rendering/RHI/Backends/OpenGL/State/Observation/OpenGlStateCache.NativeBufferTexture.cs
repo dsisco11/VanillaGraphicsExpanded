@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.Integration.OpenGL;
 using System;
 using System.Collections.Immutable;
 using OpenTK.Graphics.OpenGL;
@@ -24,12 +25,16 @@ internal sealed partial class OpenGlStateCache
         Current.RequireResourceOperationAvailable(GpuResourceKind.Texture, id);
         if (manager?.CanObserveNativeMetadata != true) return default;
         var entry = manager.FindObservedResource(GpuResourceKind.Texture, id) as GpuResourceMetadataEntry<GpuTextureMetadata>;
-        if (entry is null || entry.Metadata.Target != 0 && entry.Metadata.Target != TextureTarget.TextureBuffer) return default;
+        if (entry is null || entry.Metadata.Target != 0 && entry.Metadata.Target != TextureDimension.Buffer) return default;
         if (entry.OperationInProgress || entry.CompletionInProgress) throw new System.InvalidOperationException("A resource metadata operation is already in progress.");
+        // Invalid native formats must reach the exact native call without withdrawing known facts.
+        TextureFormat requestedFormat;
+        try { requestedFormat = OpenGLImageValues.Format((PixelInternalFormat)format); }
+        catch (ArgumentOutOfRangeException) { return default; }
         var previous = entry.IsUsable ? entry.Metadata.Buffer : null;
         entry.OperationInProgress = true;
         entry.BeginRefresh(GpuMetadataChange.Storage);
-        return new(entry, new(buffer, (SizedInternalFormat)format, offset, size, whole), previous);
+        return new(entry, new(buffer, requestedFormat, offset, size, whole), previous);
     }
     #endregion
 
@@ -50,7 +55,7 @@ internal sealed partial class OpenGlStateCache
                     || entry.State != GpuResourceRegistrationState.Live) return;
                 if (!TryObserveBufferAssociation(entry, requested, previous, out var association))
                     throw new InvalidOperationException("Native buffer texture association metadata is unavailable.");
-                var data = new GpuTextureMetadata(TextureTarget.TextureBuffer, ImmutableArray<GpuTextureLevelMetadata>.Empty,
+                var data = new GpuTextureMetadata(TextureDimension.Buffer, ImmutableArray<GpuTextureLevelMetadata>.Empty,
                     false, 0, 0, 0, association);
                 entry.OperationInProgress = false;
                 entry.Manager.PublishMetadata(entry, data, GpuMetadataChange.Storage, renewTextureAssociation: true);
@@ -73,7 +78,7 @@ internal sealed partial class OpenGlStateCache
         if (buffer == 0)
         {
             // Detachment ignores the requested range. Preserve the actual queried format.
-            result = new(0, (SizedInternalFormat)format, 0, 0, requested.WholeBuffer);
+            result = new(0, (TextureFormat)format, 0, 0, requested.WholeBuffer);
             return true;
         }
         var backing = entry.Manager.AcquireResource(GpuResourceKind.Buffer, (nint)buffer, new GpuBufferMetadataReader());
@@ -83,7 +88,7 @@ internal sealed partial class OpenGlStateCache
         bool validRange = requested.WholeBuffer || requested.Offset >= 0 && requested.Size > 0
             && requested.Offset <= capacity && requested.Size <= capacity - requested.Offset
             && alignment > 0 && requested.Offset % alignment == 0;
-        bool accepted = requested.BufferId == buffer && requested.Format == (SizedInternalFormat)format && validRange;
+        bool accepted = requested.BufferId == buffer && requested.Format == (TextureFormat)format && validRange;
         bool rejected = !accepted;
         // Range getters return GLint, although commands accept pointer-sized ranges. Never
         // narrow a wide command into that result. Native buffer capacity and alignment prove
@@ -113,7 +118,7 @@ internal sealed partial class OpenGlStateCache
         // A rejected association retains its previous range mode. The old descriptor is
         // eligible only when it was certified before this command and the native association
         // still identifies that backing and format.
-        if (previous is { } old && old.BufferId == buffer && old.Format == (SizedInternalFormat)format)
+        if (previous is { } old && old.BufferId == buffer && old.Format == (TextureFormat)format)
         {
             if (!rejected)
             {
@@ -132,7 +137,7 @@ internal sealed partial class OpenGlStateCache
     /// <summary>Reads the required backing association through its native query service.</summary>
     private static int ReadBufferTextureParameter(int texture, GetTextureParameter parameter)
     {
-        int value = RHI.RHICommandContext.Current.ReadExternalTextureLevelParameter(texture, 0, parameter);
+        int value = RHI.RHICommandContext.Current.ReadExternalTextureLevelParameter(texture, 0, OpenGLResourceValues.FromNative(parameter));
         return value;
     }
     #endregion

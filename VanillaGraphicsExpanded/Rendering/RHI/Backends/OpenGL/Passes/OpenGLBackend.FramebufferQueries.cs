@@ -11,6 +11,6 @@ internal sealed partial class OpenGLBackend
     /// <inheritdoc />
     public bool ReadFramebufferMetadata(nint id, out GpuFramebufferMetadata metadata) => new OpenGLFramebufferQueries(this).TryRead(id, out metadata);
     /// <inheritdoc />
-    public bool ReadFramebufferField(nint id, GpuFramebufferMetadata previous, FramebufferAttachment? slot, FramebufferDefaultParameter? parameter, out GpuFramebufferMetadata metadata) => new OpenGLFramebufferQueries(this).TryReadAffected(id, previous, slot, parameter, out metadata);
+    public bool ReadFramebufferField(nint id, GpuFramebufferMetadata previous, FramebufferSlot? slot, FramebufferMetadataField? parameter, out GpuFramebufferMetadata metadata) => new OpenGLFramebufferQueries(this).TryReadAffected(id, previous, slot, parameter, out metadata);
     #endregion
 }

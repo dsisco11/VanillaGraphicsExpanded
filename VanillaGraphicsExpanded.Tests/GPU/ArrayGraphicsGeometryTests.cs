@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.Pipeline.Descriptions;
 using System;
 using System.Collections.Generic;
@@ -28,7 +29,7 @@ public sealed class ArrayGraphicsGeometryTests(HeadlessGLFixture fixture) : Rend
         buffer.UploadData(new float[] { -1, -1, 0, 3, -1, 0, -1, 3, 0 });
         using var geometry = new ArrayGraphicsGeometry(layout, PrimitiveTopology.Triangles, new Dictionary<int, GpuVbo> { [0] = buffer });
         using var source = CreateSource();
-        using var target = CreateRenderTarget(1, 1, OpenTK.Graphics.OpenGL.PixelInternalFormat.R32f);
+        using var target = CreateRenderTarget(1, 1, TextureFormat.R32f);
         var pass = FramebufferTestSetup.DescribeAttachments(target);
         using var pipeline = commands.CreateGraphicsPipeline(new(shader.Shader, layout, commands.DescribeRenderTargets(pass), DynamicPipelineState.Viewport)).RequireResource();
         shader.HzbDepth = source; shader.SrcMip = 0;
@@ -64,7 +65,7 @@ public sealed class ArrayGraphicsGeometryTests(HeadlessGLFixture fixture) : Rend
         var commands = RHICommandContext.Current;
         using var source = CreateSource();
         shader.HzbDepth = source; shader.SrcMip = 0;
-        using var target = CreateRenderTarget(1, 1, OpenTK.Graphics.OpenGL.PixelInternalFormat.R32f);
+        using var target = CreateRenderTarget(1, 1, TextureFormat.R32f);
         var pass = FramebufferTestSetup.DescribeAttachments(target);
         using var buffer = commands.CreateVertexBuffer(new() { Role=BufferRole.Vertex, Capacity = 12, Mode = ResourceStorageMode.Mutable, Usage=BufferUsage.StaticDraw }).RequireResource();
         var layout = new RHIVertexLayout([new(0, 3, VertexComponentFormat.Float, VertexInterpretation.Floating, 0, 0, 12, 2)]);
@@ -96,7 +97,7 @@ public sealed class ArrayGraphicsGeometryTests(HeadlessGLFixture fixture) : Rend
         var commands = RHICommandContext.Current;
         using var source = CreateSource();
         shader.HzbDepth = source; shader.SrcMip = 0;
-        using var target = CreateRenderTarget(1, 1, OpenTK.Graphics.OpenGL.PixelInternalFormat.R32f);
+        using var target = CreateRenderTarget(1, 1, TextureFormat.R32f);
         var pass = FramebufferTestSetup.DescribeAttachments(target);
         var layout = new RHIVertexLayout([]);
         using var indices = commands.CreateIndexBuffer(new() { Role=BufferRole.Index, Capacity = 16, Mode = ResourceStorageMode.Mutable, Usage=BufferUsage.StaticDraw }).RequireResource();

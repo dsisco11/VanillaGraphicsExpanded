@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Numerics;
 using FluffyClouds;
 using HarmonyLib;
@@ -175,13 +176,13 @@ internal sealed class CloudNativeMapAdapter
             storageTextures = [.. storageTextures, texture];
             storageRevisions = [.. storageRevisions, texture.StorageGeneration];
             var image = ((GpuTextureRef)texture).RequireImage(0);
-            var expected = id == storage.Map || id == storage.Color ? PixelInternalFormat.Rgba32f : PixelInternalFormat.Rgba16;
+            var expected = id == storage.Map || id == storage.Color ? TextureFormat.Rgba32f : TextureFormat.Rgba16;
             if (image.Width != storage.Width || image.Height != storage.Width || image.Format != expected) return false;
         }
         var framebuffer = GpuResourceManager.AcquireExternalFacts(GpuResourceKind.Framebuffer,
             storage.Framebuffer, GpuFramebufferMetadataReader.Instance);
-        if (framebuffer is not { } facts || !facts.Attachments.TryGetValue(FramebufferAttachment.ColorAttachment0, out var map)
-            || !facts.Attachments.TryGetValue(FramebufferAttachment.ColorAttachment1, out var color)
+        if (framebuffer is not { } facts || !facts.Attachments.TryGetValue(FramebufferSlot.Color0, out var map)
+            || !facts.Attachments.TryGetValue(FramebufferSlot.Color1, out var color)
             || map.Kind != GpuResourceKind.Texture || map.Id != storage.Map || color.Kind != GpuResourceKind.Texture
             || color.Id != storage.Color || map.MipLevel != 0 || color.MipLevel != 0) return false;
         return OpenGLRHIContext.IsExternalFramebufferComplete(storage.Framebuffer);

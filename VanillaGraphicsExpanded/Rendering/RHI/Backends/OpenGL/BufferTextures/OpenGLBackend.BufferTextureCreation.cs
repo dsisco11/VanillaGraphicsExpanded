@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.Integration.OpenGL;
 using System;
 using OpenTK.Graphics.OpenGL;
 
@@ -16,7 +17,7 @@ internal sealed partial class OpenGLBackend
         var buffer = request.Buffer.RequireResource();
         _ = GpuResourceManager.RequireBufferReferenceMetadata(buffer);
         var initialization = new GpuBufferTextureInitialization { Buffer = (int)buffer.ResourceId,
-            Format = (SizedInternalFormat)OpenGLImageValues.Format(request.Format), Mode = request.WholeBuffer ? GpuBufferTextureMode.Whole : GpuBufferTextureMode.Range };
+            Format = request.Format, Mode = request.WholeBuffer ? GpuBufferTextureMode.Whole : GpuBufferTextureMode.Range };
         if (!request.WholeBuffer)
         {
             if (!request.Has(3) || !request.Has(4)) throw new ArgumentException("A ranged view requires an explicit offset and length.");

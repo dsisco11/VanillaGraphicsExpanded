@@ -53,12 +53,12 @@ internal sealed partial class OpenGLBackend
             passTargetKeys.Remove(description); passTargetKeys.Add(description, key);
             return reused;
         }
-        var images = ImmutableDictionary.CreateBuilder<Legacy.FramebufferAttachment, GpuFramebufferAttachment>();
+        var images = ImmutableDictionary.CreateBuilder<FramebufferSlot, GpuFramebufferAttachment>();
         OpenGLPassTarget? candidate = null;
         try
         {
             foreach (var image in key.Colors)
-                images.Add(Legacy.FramebufferAttachment.ColorAttachment0 + image.Slot, image.Image.CreateImage());
+                images.Add(FramebufferSlot.Color0 + image.Slot, image.Image.CreateImage());
             if (key.DepthStencil is { } depth)
             {
                 var selected = depth.CreateImage();

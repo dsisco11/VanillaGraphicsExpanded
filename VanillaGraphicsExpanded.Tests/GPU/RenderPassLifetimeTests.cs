@@ -87,7 +87,7 @@ public sealed class RenderPassLifetimeTests(HeadlessGLFixture fixture) : RenderT
         var commands = RHICommandContext.Current;
         using var image = CreateImage(4, 4);
         image.UploadDataImmediate(Enumerable.Repeat(.375f, 64).ToArray());
-        using var incoming = CreateRenderTarget(2, 2, PixelInternalFormat.Rgba8);
+        using var incoming = CreateRenderTarget(2, 2, TextureFormat.Rgba8);
         incoming.Bind();
         var wrongClear = new RHIRenderPassDescription([new(Image: RHIAttachment.FromTexture(image),
             Load: AttachmentLoad.Clear, Clear: ColorClearValue.Int(1, 2, 3, 4))]);
@@ -114,8 +114,8 @@ public sealed class RenderPassLifetimeTests(HeadlessGLFixture fixture) : RenderT
     {
         EnsureContextValid();
         var commands = RHICommandContext.Current;
-        using var target = CreateMRTRenderTarget(4, 4, PixelInternalFormat.Rgba8, PixelInternalFormat.Rgba8);
-        using var incoming = CreateRenderTarget(2, 2, PixelInternalFormat.Rgba8);
+        using var target = CreateMRTRenderTarget(4, 4, TextureFormat.Rgba8, TextureFormat.Rgba8);
+        using var incoming = CreateRenderTarget(2, 2, TextureFormat.Rgba8);
         target.Bind();
         GL.DrawBuffers(3, [DrawBuffersEnum.None, DrawBuffersEnum.ColorAttachment1, DrawBuffersEnum.ColorAttachment0]);
         OpenGlStateCache.Current.Invalidate(EPipelineState.FramebufferRouting);
@@ -147,7 +147,7 @@ public sealed class RenderPassLifetimeTests(HeadlessGLFixture fixture) : RenderT
             Format = TextureFormat.Rgba8, MipLevels = 1, Storage = ResourceStorageMode.Immutable
         }).RequireResource();
         using var flat = CreateImage(4, 4, TextureFormat.Rgba8);
-        using var incoming = CreateRenderTarget(2, 2, PixelInternalFormat.Rgba8);
+        using var incoming = CreateRenderTarget(2, 2, TextureFormat.Rgba8);
         incoming.Bind();
         var pass = new RHIRenderPassDescription([new(Image: RHIAttachment.FromTexture(layered, layered: true)), new(Image: RHIAttachment.FromTexture(flat))]);
         using var boundary = commands.EnterBoundary(new("Tests.IncompleteTarget", true, operations: BoundaryOperations.RenderPasses));

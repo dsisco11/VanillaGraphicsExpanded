@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.Integration.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Runtime.CompilerServices;
@@ -32,7 +33,7 @@ public sealed class GpuResourceWrapperLifecycleTests(HeadlessGLFixture fixture)
         using var second = new BorrowedTexture(owner.TextureId);
         Assert.Equal(12, first.Width);
         Assert.Equal(6, first.Height);
-        Assert.Equal(PixelInternalFormat.Rgba16f, first.InternalFormat);
+        Assert.Equal(TextureFormat.Rgba16f, first.InternalFormat);
         Assert.Equal(first.Width, second.Width);
         Assert.Equal(second.Width, owner.Width);
         Assert.Same(lifetime.Manager.GetResourceRegistration(first), lifetime.Manager.GetResourceRegistration(second));
@@ -52,7 +53,7 @@ public sealed class GpuResourceWrapperLifecycleTests(HeadlessGLFixture fixture)
         using var second = VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLRenderbufferIntegration.Borrow(owner.RenderbufferId);
         Assert.Equal(12, first.Width);
         Assert.Equal(6, first.Height);
-        Assert.Equal(RenderbufferStorage.Rgba16f, first.Storage);
+        Assert.Equal(TextureFormat.Rgba16f, first.Storage);
         Assert.Equal(first.Width, second.Width);
         Assert.Equal(second.Width, owner.Width);
         Assert.Same(lifetime.Manager.GetResourceRegistration(first), lifetime.Manager.GetResourceRegistration(second));
@@ -70,7 +71,7 @@ public sealed class GpuResourceWrapperLifecycleTests(HeadlessGLFixture fixture)
         var entry = Assert.IsType<GpuResourceMetadataEntry<GpuFramebufferMetadata>>(
             lifetime.Manager.GetResourceRegistration(framebuffer));
         int limit = GL.GetInteger(GetPName.MaxColorAttachments);
-        var slot = FramebufferAttachment.ColorAttachment0 + limit;
+        var slot = FramebufferSlot.Color0 + limit;
         Assert.Throws<ArgumentException>(() => framebuffer.SetAttachment(slot, image));
         Assert.False(entry.Metadata.Attachments?.ContainsKey(slot) ?? false);
         Assert.Null(framebuffer.GetAttachment(slot));
@@ -87,12 +88,12 @@ public sealed class GpuResourceWrapperLifecycleTests(HeadlessGLFixture fixture)
         using var framebuffer = DynamicGpuFramebuffer.Create([image])!;
         var entry = Assert.IsType<GpuResourceMetadataEntry<GpuFramebufferMetadata>>(
             lifetime.Manager.GetResourceRegistration(framebuffer));
-        var original = entry.Metadata.Attachments[FramebufferAttachment.ColorAttachment0];
+        var original = entry.Metadata.Attachments[FramebufferSlot.Color0];
         Assert.True(texture.Resize(8, 4, 2));
-        Assert.Equal(original, entry.Metadata.Attachments[FramebufferAttachment.ColorAttachment0]);
+        Assert.Equal(original, entry.Metadata.Attachments[FramebufferSlot.Color0]);
         Assert.False(entry.MetadataAvailable);
         framebuffer.Bind();
-        Assert.Equal(texture.TextureId, entry.Metadata.Attachments[FramebufferAttachment.ColorAttachment0].Id);
+        Assert.Equal(texture.TextureId, entry.Metadata.Attachments[FramebufferSlot.Color0].Id);
         Assert.True(entry.MetadataAvailable);
         GL.GetFramebufferAttachmentParameter(FramebufferTarget.Framebuffer, FramebufferAttachment.ColorAttachment0,
             FramebufferParameterName.FramebufferAttachmentObjectName, out int native);
@@ -149,7 +150,7 @@ public sealed class GpuResourceWrapperLifecycleTests(HeadlessGLFixture fixture)
             OpenGLFramebufferSelection.Bind(OpenGlStateCache.Current, FramebufferTarget.Framebuffer, framebuffer);
             GL.FramebufferTextureLayer(FramebufferTarget.Framebuffer, FramebufferAttachment.ColorAttachment0, texture, 0, 0);
             using var external = DynamicGpuFramebuffer.Wrap(framebuffer, width: 8, height: 1);
-            using var image = GpuFramebufferAttachmentDiscovery.Read(external, FramebufferAttachment.ColorAttachment0, forceNative: true);
+            using var image = GpuFramebufferAttachmentDiscovery.Read(external, FramebufferSlot.Color0, forceNative: true);
             Assert.Equal(0, image.Layer);
             Assert.Equal(8, image.Width);
             Assert.Equal(1, image.Height);
@@ -270,7 +271,7 @@ public sealed class GpuResourceWrapperLifecycleTests(HeadlessGLFixture fixture)
     public void ManagerDisposalDeletesQueuedOwnedAttachmentStorage()
     {
         using var lifetime = StartManager();
-        using var attachment = new GpuFramebufferAttachment(8, 4, PixelInternalFormat.Rgba8);
+        using var attachment = new GpuFramebufferAttachment(8, 4, TextureFormat.Rgba8);
         int texture = attachment.TextureId;
         attachment.Dispose();
         Assert.True(GL.IsTexture(texture));
@@ -306,15 +307,15 @@ public sealed class GpuResourceWrapperLifecycleTests(HeadlessGLFixture fixture)
         var replacementFramebuffer = manager.RegisterCreatedResource<GpuFramebufferMetadata>(GpuResourceKind.Framebuffer, framebuffer.FboId);
         try
         {
-            VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(2, textureSentinel, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)textureSentinel).Target))]);
+            VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(2, textureSentinel, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)textureSentinel).Target)))]);
             bufferSentinel.Bind();
-            Assert.Throws<ObjectDisposedException>(() => OpenGlStateCache.Current.BindTextureScope(((GpuTextureRef)texture).Target, 2, texture.TextureId));
+            Assert.Throws<ObjectDisposedException>(() => OpenGlStateCache.Current.BindTextureScope(OpenGLImageValues.Target(((GpuTextureRef)texture).Target), 2, texture.TextureId));
             Assert.Throws<ObjectDisposedException>(() => texture.Resize(16, 8));
             Assert.Throws<ObjectDisposedException>(() => OpenGlStateCache.Current.BindBufferScope(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBufferValues.Target(buffer.Role), buffer.BufferId));
             buffer.Allocate(64);
             Assert.Throws<ObjectDisposedException>(() => framebuffer.Bind());
             Assert.Throws<ObjectDisposedException>(() => framebuffer.Resize(16, 8));
-            VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(2, texture, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)texture).Target))]);
+            VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(2, texture, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)texture).Target)))]);
             buffer.Bind();
             Assert.Equal(textureSentinel.TextureId, OpenGlStateCache.Current.GetBoundTexture(TextureTarget.Texture2D, 2));
             Assert.Equal(bufferSentinel.BufferId, GL.GetInteger(GetPName.ShaderStorageBufferBinding));
@@ -343,9 +344,9 @@ public sealed class GpuResourceWrapperLifecycleTests(HeadlessGLFixture fixture)
         using var lifetime = StartManager();
         using var texture = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba8, Width = System.Math.Max(1, 8), Height = System.Math.Max(1, 4), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         using var image = GpuFramebufferAttachment.FromExternalImage(texture.TextureId, false,
-            TextureTarget.Texture2D, 1, null);
+            TextureDimension.Two, 1, null);
         Assert.False(lifetime.Manager.IsResourceMetadataAvailable(image));
-        Assert.Throws<InvalidOperationException>(() => image.ValidateSlot(FramebufferAttachment.ColorAttachment0));
+        Assert.Throws<InvalidOperationException>(() => image.ValidateSlot(FramebufferSlot.Color0));
         Assert.True(texture.IsValid);
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }

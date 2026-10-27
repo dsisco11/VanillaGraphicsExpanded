@@ -31,9 +31,9 @@ public sealed class LiquidSunHighlightTests(HeadlessGLFixture fixture) : RenderT
 
         const int size = 512;
         using var target = CreateMRTRenderTarget(size, size,
-            PixelInternalFormat.Rgba32f, PixelInternalFormat.Rgba32f,
-            PixelInternalFormat.Rgba32f, PixelInternalFormat.Rgba32f,
-            PixelInternalFormat.Rgba32f, PixelInternalFormat.Rgba32f);
+            TextureFormat.Rgba32f, TextureFormat.Rgba32f,
+            TextureFormat.Rgba32f, TextureFormat.Rgba32f,
+            TextureFormat.Rgba32f, TextureFormat.Rgba32f);
         using var terrain = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba32f, Width = System.Math.Max(1, 1), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         using var material = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba32f, Width = System.Math.Max(1, 1), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         using var depth = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.R32f, Width = System.Math.Max(1, 1), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();

@@ -26,18 +26,19 @@ internal sealed partial class OpenGLBackend
         return result;
     }
     /// <summary>Reads unknown external image descriptors without changing controlled-allocation policy.</summary>
-    public bool ReadExternalTexture(nint id, TextureTarget target, out GpuTextureMetadata metadata)
+    public bool ReadExternalTexture(nint id, TextureDimension target, out GpuTextureMetadata metadata)
     {
         RequireContext();
-        bool result = new OpenGLTextureQueries(target, this).TryRead(id, out metadata);
+        if (!System.Enum.IsDefined(target)) { metadata = default; return false; }
+        bool result = new OpenGLTextureQueries(target == TextureDimension.Undefined ? 0 : OpenGLImageValues.Target(target), this).TryRead(id, out metadata);
         RequireContext();
         return result;
     }
     /// <summary>Reads one externally changed image while preserving semantically required cube-face selectors.</summary>
-    public bool ReadExternalTextureImage(int id, TextureTarget target, TextureTarget face, int level, out GpuTextureLevelMetadata image)
+    public bool ReadExternalTextureImage(int id, TextureDimension target, CubeFace face, int level, out GpuTextureLevelMetadata image)
     {
         RequireContext();
-        bool result = OpenGLTextureImageQueries.TryRead(id, target, face, level, this, out image);
+        bool result = OpenGLTextureImageQueries.TryRead(id, target == TextureDimension.Undefined ? 0 : OpenGLImageValues.Target(target), OpenGLImageValues.Face(face), level, this, out image);
         RequireContext();
         return result;
     }
@@ -58,20 +59,21 @@ internal sealed partial class OpenGLBackend
         return result;
     }
     /// <summary>Reads one externally altered object parameter, preserving the native error queue.</summary>
-    public int ReadExternalTextureParameter(int texture, GetTextureParameter parameter)
+    public int ReadExternalTextureParameter(int texture, TextureMetadataField parameter)
     {
         RequireContext();
-        GL.GetTextureParameter(texture, (Native.GetTextureParameter)parameter, out int value);
+        GL.GetTextureParameter(texture, (Native.GetTextureParameter)OpenGLResourceValues.Native(parameter), out int value);
         RequireContext();
         return value;
     }
     /// <summary>Reads one external buffer association field without any binding fallback.</summary>
-    public int ReadExternalTextureLevelParameter(int texture, int level, GetTextureParameter parameter)
+    public int ReadExternalTextureLevelParameter(int texture, int level, TextureMetadataField parameter)
     {
         RequireContext();
-        GL.GetTextureLevelParameter(texture, level, (Native.GetTextureParameter)parameter, out int value);
+        GL.GetTextureLevelParameter(texture, level, (Native.GetTextureParameter)OpenGLResourceValues.Native(parameter), out int value);
         RequireContext();
-        return value;
+        return parameter == TextureMetadataField.InternalFormat && value > 0
+            ? (int)OpenGLImageValues.Format((PixelInternalFormat)value) : value;
     }
 
     /// <summary>Reads the optional renderbuffer-backed texture association through its required context selector.</summary>
@@ -85,7 +87,7 @@ internal sealed partial class OpenGLBackend
         GL.GetInteger((Native.GetPName)All.TextureRenderbufferDataStoreBindingNv, out int backing);
         RequireContext();
         if (backing < 0) return false;
-        metadata = new(target, System.Collections.Immutable.ImmutableArray<GpuTextureLevelMetadata>.Empty, false, 0, 0, 0, Renderbuffer: backing);
+        metadata = new(TextureDimension.RenderbufferTexture, System.Collections.Immutable.ImmutableArray<GpuTextureLevelMetadata>.Empty, false, 0, 0, 0, Renderbuffer: backing);
         return true;
     }
     #endregion

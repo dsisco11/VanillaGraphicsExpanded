@@ -1,3 +1,5 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
+using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
@@ -17,7 +19,7 @@ public sealed class WaterMediumTests(HeadlessGLFixture fixture) : LumOnShaderFun
     {
         EnsureShaderTestAvailable();
         var program = Programs.Create<WaterMediumShaderProgram>();
-        using var target = CreateRenderTarget(5, 17, PixelInternalFormat.Rgba32f);
+        using var target = CreateRenderTarget(5, 17, TextureFormat.Rgba32f);
         TestFramework.RenderQuadTo(program, target);
         var pixels = target[0].ReadPixels();
         double[] distances = [0, .000001, 1, 10, 100];

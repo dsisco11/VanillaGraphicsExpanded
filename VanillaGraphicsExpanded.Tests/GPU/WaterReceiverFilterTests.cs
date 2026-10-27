@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.Integration.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Numerics;
 using OpenTK.Graphics.OpenGL;
@@ -47,7 +48,7 @@ public sealed class WaterReceiverFilterTests(HeadlessGLFixture fixture) : LumOnS
         int width = half ? 3 : fullWidth, height = half ? 2 : fullHeight;
         int depthChannels = half ? 4 : 1;
         using var color = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba32f, Width = System.Math.Max(1, width), Height = System.Math.Max(1, height), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
-        using var depth = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Format((OpenTK.Graphics.OpenGL.PixelInternalFormat)(half ? PixelInternalFormat.Rgba32f : PixelInternalFormat.R32f)), Width = System.Math.Max(1, width), Height = System.Math.Max(1, height), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
+        using var depth = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = half ? TextureFormat.Rgba32f : TextureFormat.R32f, Width = System.Math.Max(1, width), Height = System.Math.Max(1, height), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         float[] colors = new float[width * height * 4], depths = new float[width * height * depthChannels];
         for (int y = 0; y < height; y++)
         for (int x = 0; x < width; x++)
@@ -105,7 +106,7 @@ public sealed class WaterReceiverFilterTests(HeadlessGLFixture fixture) : LumOnS
         inputs.Surface = new(0,0,-2); inputs.Normal = Vector3.UnitZ;
         
         inputs.Color = color; inputs.Depth = depth;
-        using var target = CreateMRTRenderTarget(1, 1, PixelInternalFormat.Rgba32f, PixelInternalFormat.Rgba32f, PixelInternalFormat.Rgba32f);
+        using var target = CreateMRTRenderTarget(1, 1, TextureFormat.Rgba32f, TextureFormat.Rgba32f, TextureFormat.Rgba32f);
         TestFramework.RenderQuadTo(program, target);
         float[] position = target[0].ReadPixels(), radiance = target[1].ReadPixels();
         bool rejected = scenario is "invalid" or "inconsistent" || scenario.StartsWith("all-");
@@ -164,7 +165,7 @@ public sealed class WaterReceiverFilterTests(HeadlessGLFixture fixture) : LumOnS
         int size = half ? fullSize / 2 : fullSize;
         int channels = half ? 4 : 1;
         using var color = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba32f, Width = System.Math.Max(1, size), Height = System.Math.Max(1, size), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
-        using var depth = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Format((OpenTK.Graphics.OpenGL.PixelInternalFormat)(half ? PixelInternalFormat.Rgba32f : PixelInternalFormat.R32f)), Width = System.Math.Max(1, size), Height = System.Math.Max(1, size), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
+        using var depth = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = half ? TextureFormat.Rgba32f : TextureFormat.R32f, Width = System.Math.Max(1, size), Height = System.Math.Max(1, size), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         float[] colors = new float[size * size * 4], depths = new float[size * size * channels];
         Vector3 normal = new(0, MathF.Cos(MathF.PI / 12), MathF.Sin(MathF.PI / 12));
         int origin = size / 2;
@@ -208,7 +209,7 @@ public sealed class WaterReceiverFilterTests(HeadlessGLFixture fixture) : LumOnS
         using var frameCamera = TestFrameCamera.CreateFromProjection(projection, fullSize, fullSize);
         program.FrameInputs = frameCamera;
         inputs.Color = color; inputs.Depth = depth;
-        using var target = CreateMRTRenderTarget(1,1,PixelInternalFormat.Rgba32f,PixelInternalFormat.Rgba32f);
+        using var target = CreateMRTRenderTarget(1,1,TextureFormat.Rgba32f,TextureFormat.Rgba32f);
         TestFramework.RenderQuadTo(program, target);
         var position = target[0].ReadPixels(); var sampled = target[1].ReadPixels();
         Assert.Equal(1,position[3]); Assert.Equal(1,sampled[3]);
@@ -232,7 +233,7 @@ public sealed class WaterReceiverFilterTests(HeadlessGLFixture fixture) : LumOnS
         const int fullSize = 16;
         int size = half ? fullSize/2 : fullSize;
         using var color = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba32f, Width = System.Math.Max(1, size), Height = System.Math.Max(1, size), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
-        using var depth = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Format((OpenTK.Graphics.OpenGL.PixelInternalFormat)(half ? PixelInternalFormat.Rgba32f : PixelInternalFormat.R32f)), Width = System.Math.Max(1, size), Height = System.Math.Max(1, size), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
+        using var depth = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = half ? TextureFormat.Rgba32f : TextureFormat.R32f, Width = System.Math.Max(1, size), Height = System.Math.Max(1, size), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         var colors = new float[size*size*4];
         var depths = new float[size*size*(half ? 4 : 1)];
         int origin = size/2;
@@ -263,7 +264,7 @@ public sealed class WaterReceiverFilterTests(HeadlessGLFixture fixture) : LumOnS
         inputs.SampleUv = new((origin+.75f)/size);
         inputs.Surface = new(0,0,-2); inputs.Normal = Vector3.UnitZ;
         inputs.Color = color; inputs.Depth = depth;
-        using var target = CreateMRTRenderTarget(1,1,PixelInternalFormat.Rgba32f,PixelInternalFormat.Rgba32f);
+        using var target = CreateMRTRenderTarget(1,1,TextureFormat.Rgba32f,TextureFormat.Rgba32f);
         TestFramework.RenderQuadTo(program,target);
         // Four queried corners are geometrically coplanar even though the two
         // plateaus are disconnected. Outside neighbors disprove the invented slope.

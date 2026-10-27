@@ -1,3 +1,5 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
+using VanillaGraphicsExpanded.Rendering.RHI;
 using VanillaGraphicsExpanded.LumOn;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.LumOn.Shaders;
@@ -37,9 +39,9 @@ public sealed class LumOnWorldProbeLightingEffectFunctionalTests : LumOnShaderFu
             // Split signed differences into nonnegative HDR inputs.
             float[] positive = [Math.Max(red, 0), Math.Max(green, 0), Math.Max(blue, 0), 1];
             float[] negative = [Math.Max(-red, 0), Math.Max(-green, 0), Math.Max(-blue, 0), 1];
-            using var normal = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, positive);
-            using var suppressed = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, negative);
-            using var output = TestFramework.CreateTestGBuffer(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f);
+            using var normal = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba16f, positive);
+            using var suppressed = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba16f, negative);
+            using var output = TestFramework.CreateTestGBuffer(ScreenWidth, ScreenHeight, TextureFormat.Rgba16f);
             // Apply adjacent setters after gain to catch parameter-buffer overwrites.
             program.WorldProbeEffectGain = gain;
             program.DebugMode = 43;

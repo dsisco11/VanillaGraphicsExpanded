@@ -75,8 +75,8 @@ public sealed class GpuProgramSamplerRetirementTests(HeadlessGLFixture fixture) 
         using var program = GpuProgramObject.Adopt(TerrainShaderTestFixture.Link(vertex, fragment));
         using var vao = NativeResourceSetup.CreateVertexArray();
         using var framework = new ShaderTestFramework();
-        using var texture = framework.CreateTexture(1, 1, PixelInternalFormat.Rgba32f, [.2f, .4f, .6f, 1f]);
-        using var target = framework.CreateTestGBuffer(1, 1, PixelInternalFormat.Rgba32f);
+        using var texture = framework.CreateTexture(1, 1, TextureFormat.Rgba32f, [.2f, .4f, .6f, 1f]);
+        using var target = framework.CreateTestGBuffer(1, 1, TextureFormat.Rgba32f);
         OpenGLProgramSelection.Select(OpenGlStateCache.Current, program.ProgramId);
         OpenGLVertexSelection.Bind(OpenGlStateCache.Current, vao.VertexArrayId);
         ShaderTestFramework.SetUniform(0, 5);

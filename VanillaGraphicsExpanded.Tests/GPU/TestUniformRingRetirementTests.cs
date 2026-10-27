@@ -54,7 +54,7 @@ public sealed class TestUniformRingRetirementTests(HeadlessGLFixture fixture) : 
                 if (boundary == 1)
                 {
                     // Helpers used while preparing a draw must preserve the already-written range.
-                    using var target = CreateRenderTarget(1, 1, PixelInternalFormat.Rgba16f);
+                    using var target = CreateRenderTarget(1, 1, TextureFormat.Rgba16f);
                     byte[] sentinel = new byte[16];
                     BinaryPrimitives.WriteUInt32LittleEndian(sentinel, 9999);
                     var later = ring.AllocateAndWrite(sentinel);
@@ -72,7 +72,7 @@ public sealed class TestUniformRingRetirementTests(HeadlessGLFixture fixture) : 
                 else if (boundary == 1)
                 {
                     EnsureContextValid();
-                    using var target = CreateRenderTarget(1, 1, PixelInternalFormat.Rgba16f);
+                    using var target = CreateRenderTarget(1, 1, TextureFormat.Rgba16f);
                 }
                 else
                 {

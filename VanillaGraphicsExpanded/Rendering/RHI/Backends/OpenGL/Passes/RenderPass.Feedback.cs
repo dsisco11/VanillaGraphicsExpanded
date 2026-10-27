@@ -52,10 +52,10 @@ internal sealed partial class RenderPass
             int attachedLevel = attached.MipLevel + (sameObject ? 0 : attachedView?.BaseLevel ?? 0);
             if (selectedLevel != attachedLevel) continue;
             long first = (sameObject ? 0 : view?.BaseLayer ?? 0) + (layer ?? 0);
-            long count = layer.HasValue ? 1 : data.Target == TextureTarget.Texture3D
+            long count = layer.HasValue ? 1 : data.Target == TextureDimension.Three
                 ? int.MaxValue : data.View?.LayerCount ?? int.MaxValue;
             int? attachedLayer = attached.Layer ?? (attached.CubeFace is { } face
-                ? (int)face - (int)TextureTarget.TextureCubeMapPositiveX : null);
+                ? (int)face - (int)CubeFace.PositiveX : null);
             long attachedFirst = (sameObject ? 0 : attachedView?.BaseLayer ?? 0)
                 + (attached.ViewCount > 0 ? attached.BaseView : attachedLayer ?? 0);
             long attachedCount = attached.ViewCount > 0 ? attached.ViewCount : attachedLayer.HasValue

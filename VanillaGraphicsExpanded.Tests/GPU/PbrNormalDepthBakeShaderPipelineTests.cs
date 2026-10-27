@@ -1,3 +1,5 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
+using VanillaGraphicsExpanded.Rendering.Integration.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using System.IO;
@@ -63,8 +65,8 @@ public sealed class PbrNormalDepthBakeShaderPipelineTests : RenderTestBase
             }
         }
 
-        using var heightTex = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Width = w, Height = h, Format = TextureFormat.R32f, MipLevels = 1, Storage = ResourceStorageMode.Mutable, BaseLevel = 0, MaxLevel = 0, Filter = TextureFilterMode.Nearest, Label = null }, [new RHITextureInitialData(new(new(), 0, 0, 0, w, h), VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLPixelValues.Encoding(TextureFormatHelper.GetPixelFormat(PixelInternalFormat.R32f), OpenTK.Graphics.OpenGL.PixelType.Float), System.Runtime.InteropServices.MemoryMarshal.AsBytes((heightData).AsSpan()).ToArray())]).RequireResource();
-        using var target = CreateRenderTarget(w, h, PixelInternalFormat.Rgba16f);
+        using var heightTex = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Width = w, Height = h, Format = TextureFormat.R32f, MipLevels = 1, Storage = ResourceStorageMode.Mutable, BaseLevel = 0, MaxLevel = 0, Filter = TextureFilterMode.Nearest, Label = null }, [new RHITextureInitialData(new(new(), 0, 0, 0, w, h), new RHIPixelEncoding(TextureFormatHelper.GetPixelFormat(TextureFormat.R32f), PixelComponentType.Float), System.Runtime.InteropServices.MemoryMarshal.AsBytes((heightData).AsSpan()).ToArray())]).RequireResource();
+        using var target = CreateRenderTarget(w, h, TextureFormat.Rgba16f);
 
         target.Bind();
         GL.Viewport(0, 0, w, h);
@@ -73,13 +75,13 @@ public sealed class PbrNormalDepthBakeShaderPipelineTests : RenderTestBase
 
         GL.UseProgram(programId);
 
-        VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, heightTex, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)heightTex).Target))]);
+        VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, heightTex, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)heightTex).Target)))]);
 
         using var objectParamsUbo = new ObjectParamsUbo($"Tests.Pbr.NormalDepthBake.PackParams.{programId}");
 
         // Ensure the pack shader does not take the alpha-cutoff early-out path.
         using var albedoAtlas = CreateSolidAlbedoAtlas(w, h, alpha: 1f);
-        VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(1, albedoAtlas, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)albedoAtlas).Target))]);
+        VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(1, albedoAtlas, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)albedoAtlas).Target)))]);
 
         int locHeight = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "u_height");
         int locAlbedoAtlas = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "u_albedoAtlas");
@@ -165,7 +167,7 @@ public sealed class PbrNormalDepthBakeShaderPipelineTests : RenderTestBase
             }
         }
 
-        using var heightTex = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Width = w, Height = h, Format = TextureFormat.R32f, MipLevels = 1, Storage = ResourceStorageMode.Mutable, BaseLevel = 0, MaxLevel = 0, Filter = TextureFilterMode.Nearest, Label = null }, [new RHITextureInitialData(new(new(), 0, 0, 0, w, h), VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLPixelValues.Encoding(TextureFormatHelper.GetPixelFormat(PixelInternalFormat.R32f), OpenTK.Graphics.OpenGL.PixelType.Float), System.Runtime.InteropServices.MemoryMarshal.AsBytes((heightData).AsSpan()).ToArray())]).RequireResource();
+        using var heightTex = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Width = w, Height = h, Format = TextureFormat.R32f, MipLevels = 1, Storage = ResourceStorageMode.Mutable, BaseLevel = 0, MaxLevel = 0, Filter = TextureFilterMode.Nearest, Label = null }, [new RHITextureInitialData(new(new(), 0, 0, 0, w, h), new RHIPixelEncoding(TextureFormatHelper.GetPixelFormat(TextureFormat.R32f), PixelComponentType.Float), System.Runtime.InteropServices.MemoryMarshal.AsBytes((heightData).AsSpan()).ToArray())]).RequireResource();
 
         (float minA1, float maxA1) = RenderPackAndGetAlphaMinMax(programId, heightTex, w, h, normalStrength: 0f, normalScale: 1f, depthScale: 1f);
         (float minA2, float maxA2) = RenderPackAndGetAlphaMinMax(programId, heightTex, w, h, normalStrength: 0f, normalScale: 1f, depthScale: 0.5f);
@@ -215,7 +217,7 @@ public sealed class PbrNormalDepthBakeShaderPipelineTests : RenderTestBase
             }
         }
 
-        using var heightTex = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Width = w, Height = h, Format = TextureFormat.R32f, MipLevels = 1, Storage = ResourceStorageMode.Mutable, BaseLevel = 0, MaxLevel = 0, Filter = TextureFilterMode.Nearest, Label = null }, [new RHITextureInitialData(new(new(), 0, 0, 0, w, h), VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLPixelValues.Encoding(TextureFormatHelper.GetPixelFormat(PixelInternalFormat.R32f), OpenTK.Graphics.OpenGL.PixelType.Float), System.Runtime.InteropServices.MemoryMarshal.AsBytes((heightData).AsSpan()).ToArray())]).RequireResource();
+        using var heightTex = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Width = w, Height = h, Format = TextureFormat.R32f, MipLevels = 1, Storage = ResourceStorageMode.Mutable, BaseLevel = 0, MaxLevel = 0, Filter = TextureFilterMode.Nearest, Label = null }, [new RHITextureInitialData(new(new(), 0, 0, 0, w, h), new RHIPixelEncoding(TextureFormatHelper.GetPixelFormat(TextureFormat.R32f), PixelComponentType.Float), System.Runtime.InteropServices.MemoryMarshal.AsBytes((heightData).AsSpan()).ToArray())]).RequireResource();
 
         float[] rgbFlat = RenderPackAndReadFirstPixel(programId, heightTex, w, h, normalStrength: 1f, normalScale: 0f, depthScale: 1f);
         float[] rgbTilt = RenderPackAndReadFirstPixel(programId, heightTex, w, h, normalStrength: 1f, normalScale: 2f, depthScale: 1f);
@@ -239,7 +241,7 @@ public sealed class PbrNormalDepthBakeShaderPipelineTests : RenderTestBase
         float normalScale,
         float depthScale)
     {
-        using var target = CreateRenderTarget(w, h, PixelInternalFormat.Rgba16f);
+        using var target = CreateRenderTarget(w, h, TextureFormat.Rgba16f);
 
         target.Bind();
         GL.Viewport(0, 0, w, h);
@@ -247,11 +249,11 @@ public sealed class PbrNormalDepthBakeShaderPipelineTests : RenderTestBase
         GL.Clear(ClearBufferMask.ColorBufferBit);
 
         GL.UseProgram(programId);
-        VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, heightTex, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)heightTex).Target))]);
+        VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, heightTex, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)heightTex).Target)))]);
 
         using var objectParamsUbo = new ObjectParamsUbo($"Tests.Pbr.NormalDepthBake.PackParams.{programId}");
         using var albedoAtlas = CreateSolidAlbedoAtlas(w, h, alpha: 1f);
-        VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(1, albedoAtlas, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)albedoAtlas).Target))]);
+        VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(1, albedoAtlas, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)albedoAtlas).Target)))]);
 
         int locHeight = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "u_height");
         int locAlbedoAtlas = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "u_albedoAtlas");
@@ -295,7 +297,7 @@ public sealed class PbrNormalDepthBakeShaderPipelineTests : RenderTestBase
         float normalScale,
         float depthScale)
     {
-        using var target = CreateRenderTarget(w, h, PixelInternalFormat.Rgba16f);
+        using var target = CreateRenderTarget(w, h, TextureFormat.Rgba16f);
 
         target.Bind();
         GL.Viewport(0, 0, w, h);
@@ -303,11 +305,11 @@ public sealed class PbrNormalDepthBakeShaderPipelineTests : RenderTestBase
         GL.Clear(ClearBufferMask.ColorBufferBit);
 
         GL.UseProgram(programId);
-        VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, heightTex, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)heightTex).Target))]);
+        VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, heightTex, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)heightTex).Target)))]);
 
         using var objectParamsUbo = new ObjectParamsUbo($"Tests.Pbr.NormalDepthBake.PackParams.{programId}");
         using var albedoAtlas = CreateSolidAlbedoAtlas(w, h, alpha: 1f);
-        VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(1, albedoAtlas, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)albedoAtlas).Target))]);
+        VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(1, albedoAtlas, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)albedoAtlas).Target)))]);
 
         int locHeight = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "u_height");
         int locAlbedoAtlas = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "u_albedoAtlas");
@@ -375,7 +377,7 @@ public sealed class PbrNormalDepthBakeShaderPipelineTests : RenderTestBase
             }
         }
 
-        using var hTex = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Width = w, Height = h, Format = TextureFormat.R32f, MipLevels = 1, Storage = ResourceStorageMode.Mutable, BaseLevel = 0, MaxLevel = 0, Filter = TextureFilterMode.Nearest, Label = null }, [new RHITextureInitialData(new(new(), 0, 0, 0, w, h), VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLPixelValues.Encoding(TextureFormatHelper.GetPixelFormat(PixelInternalFormat.R32f), OpenTK.Graphics.OpenGL.PixelType.Float), System.Runtime.InteropServices.MemoryMarshal.AsBytes((hData).AsSpan()).ToArray())]).RequireResource();
+        using var hTex = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Width = w, Height = h, Format = TextureFormat.R32f, MipLevels = 1, Storage = ResourceStorageMode.Mutable, BaseLevel = 0, MaxLevel = 0, Filter = TextureFilterMode.Nearest, Label = null }, [new RHITextureInitialData(new(new(), 0, 0, 0, w, h), new RHIPixelEncoding(TextureFormatHelper.GetPixelFormat(TextureFormat.R32f), PixelComponentType.Float), System.Runtime.InteropServices.MemoryMarshal.AsBytes((hData).AsSpan()).ToArray())]).RequireResource();
         using var hnTex = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.R32f, Width = System.Math.Max(1, w), Height = System.Math.Max(1, h), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         using var hnFbo = DynamicGpuFramebuffer.CreateSingle(hnTex) ?? throw new InvalidOperationException("Failed to create Hn FBO");
 
@@ -386,7 +388,7 @@ public sealed class PbrNormalDepthBakeShaderPipelineTests : RenderTestBase
         GL.Clear(ClearBufferMask.ColorBufferBit);
 
         GL.UseProgram(normalizeProgram.ProgramId);
-        VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, hTex, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)hTex).Target))]);
+        VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, hTex, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)hTex).Target)))]);
 
         using var normalizeParamsUbo = new ObjectParamsUbo($"Tests.Pbr.NormalDepthBake.NormalizeParams.{normalizeProgram.ProgramId}");
 
@@ -407,7 +409,7 @@ public sealed class PbrNormalDepthBakeShaderPipelineTests : RenderTestBase
         GpuFramebuffer.Unbind();
 
         // Pass 2: pack into RGBA16F output
-        using var outFbo = CreateRenderTarget(w, h, PixelInternalFormat.Rgba16f);
+        using var outFbo = CreateRenderTarget(w, h, TextureFormat.Rgba16f);
         outFbo.Bind();
         GL.Viewport(0, 0, w, h);
         GL.ClearColor(0f, 0f, 0f, 0f);
@@ -417,10 +419,10 @@ public sealed class PbrNormalDepthBakeShaderPipelineTests : RenderTestBase
 
         using var packParamsUbo = new ObjectParamsUbo($"Tests.Pbr.NormalDepthBake.PackParams.{packProgram.ProgramId}");
 
-        VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, hnTex, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)hnTex).Target))]);
+        VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, hnTex, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)hnTex).Target)))]);
 
         using var albedoAtlas2 = CreateSolidAlbedoAtlas(w, h, alpha: 1f);
-        VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(1, albedoAtlas2, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)albedoAtlas2).Target))]);
+        VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(1, albedoAtlas2, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)albedoAtlas2).Target)))]);
 
         int locHeight = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(packProgram.ProgramId, "u_height");
         int locAlbedoAtlas2Loc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(packProgram.ProgramId, "u_albedoAtlas");
@@ -503,8 +505,8 @@ public sealed class PbrNormalDepthBakeShaderPipelineTests : RenderTestBase
             }
         }
 
-        using var heightTex = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Width = w, Height = h, Format = TextureFormat.R32f, MipLevels = 1, Storage = ResourceStorageMode.Mutable, BaseLevel = 0, MaxLevel = 0, Filter = TextureFilterMode.Nearest, Label = null }, [new RHITextureInitialData(new(new(), 0, 0, 0, w, h), VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLPixelValues.Encoding(TextureFormatHelper.GetPixelFormat(PixelInternalFormat.R32f), OpenTK.Graphics.OpenGL.PixelType.Float), System.Runtime.InteropServices.MemoryMarshal.AsBytes((heightData).AsSpan()).ToArray())]).RequireResource();
-        using var target = CreateRenderTarget(w, h, PixelInternalFormat.Rgba16f);
+        using var heightTex = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Width = w, Height = h, Format = TextureFormat.R32f, MipLevels = 1, Storage = ResourceStorageMode.Mutable, BaseLevel = 0, MaxLevel = 0, Filter = TextureFilterMode.Nearest, Label = null }, [new RHITextureInitialData(new(new(), 0, 0, 0, w, h), new RHIPixelEncoding(TextureFormatHelper.GetPixelFormat(TextureFormat.R32f), PixelComponentType.Float), System.Runtime.InteropServices.MemoryMarshal.AsBytes((heightData).AsSpan()).ToArray())]).RequireResource();
+        using var target = CreateRenderTarget(w, h, TextureFormat.Rgba16f);
 
         // Simulate engine state bleed: blending enabled with an additive-ish alpha path.
         GL.Enable(EnableCap.Blend);
@@ -517,11 +519,11 @@ public sealed class PbrNormalDepthBakeShaderPipelineTests : RenderTestBase
 
         GL.UseProgram(programId);
 
-        VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, heightTex, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)heightTex).Target))]);
+        VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, heightTex, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)heightTex).Target)))]);
 
         using var objectParamsUbo = new ObjectParamsUbo($"Tests.Pbr.NormalDepthBake.PackParams.{programId}");
         using var albedoAtlas = CreateSolidAlbedoAtlas(w, h, alpha: 1f);
-        VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(1, albedoAtlas, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)albedoAtlas).Target))]);
+        VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(1, albedoAtlas, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)albedoAtlas).Target)))]);
 
         int locHeight = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "u_height");
         int locAlbedoAtlasLoc = global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.GetUniformLocation(programId, "u_albedoAtlas");
@@ -582,6 +584,6 @@ public sealed class PbrNormalDepthBakeShaderPipelineTests : RenderTestBase
             rgba[i + 3] = alpha;
         }
 
-        return RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Width = w, Height = h, Format = TextureFormat.Rgba8, MipLevels = 1, Storage = ResourceStorageMode.Mutable, BaseLevel = 0, MaxLevel = 0, Filter = TextureFilterMode.Nearest, Label = "Tests.Pbr.NormalDepthBake.AlbedoAtlas" }, [new RHITextureInitialData(new(new(), 0, 0, 0, w, h), VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLPixelValues.Encoding(TextureFormatHelper.GetPixelFormat(PixelInternalFormat.Rgba8), OpenTK.Graphics.OpenGL.PixelType.Float), System.Runtime.InteropServices.MemoryMarshal.AsBytes((rgba).AsSpan()).ToArray())]).RequireResource();
+        return RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Width = w, Height = h, Format = TextureFormat.Rgba8, MipLevels = 1, Storage = ResourceStorageMode.Mutable, BaseLevel = 0, MaxLevel = 0, Filter = TextureFilterMode.Nearest, Label = "Tests.Pbr.NormalDepthBake.AlbedoAtlas" }, [new RHITextureInitialData(new(new(), 0, 0, 0, w, h), new RHIPixelEncoding(TextureFormatHelper.GetPixelFormat(TextureFormat.Rgba8), PixelComponentType.Float), System.Runtime.InteropServices.MemoryMarshal.AsBytes((rgba).AsSpan()).ToArray())]).RequireResource();
     }
 }

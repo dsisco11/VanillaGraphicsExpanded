@@ -9,7 +9,7 @@ public sealed class DepthTexture : DynamicTexture2D
 {
     /// <summary>Creates a depth texture with a depth-only internal format.</summary>
     public DepthTexture(int width, int height,
-        PixelInternalFormat format = PixelInternalFormat.DepthComponent24,
+        TextureFormat format = TextureFormat.DepthComponent24,
         string? debugName = null)
         : base(width, height, ValidateFormat(format), TextureFilterMode.Nearest, debugName) { }
 
@@ -19,10 +19,10 @@ public sealed class DepthTexture : DynamicTexture2D
 
 
     /// <summary>Rejects formats that do not contain depth-only storage.</summary>
-    private static PixelInternalFormat ValidateFormat(PixelInternalFormat format)
+    private static TextureFormat ValidateFormat(TextureFormat format)
     {
         if (!TextureFormatHelper.IsDepthFormat(format) ||
-            format is PixelInternalFormat.Depth24Stencil8 or PixelInternalFormat.Depth32fStencil8)
+            format is TextureFormat.Depth24Stencil8 or TextureFormat.Depth32fStencil8)
             throw new ArgumentException("A depth-only internal format is required.", nameof(format));
 
         return format;

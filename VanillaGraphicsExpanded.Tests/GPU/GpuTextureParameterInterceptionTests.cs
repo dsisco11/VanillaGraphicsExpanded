@@ -22,7 +22,7 @@ public sealed class GpuTextureParameterInterceptionTests(HeadlessGLFixture fixtu
     {
         fixture.EnsureContextValid();
         using var texture = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba8, Width = System.Math.Max(1, 4), Height = System.Math.Max(1, 4), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
-        Assert.False(new GpuTextureMetadataReader(TextureTarget.Texture4DSgis).TryRead(texture.TextureId, out _));
+        Assert.False(new GpuTextureMetadataReader((TextureDimension)(-1)).TryRead(texture.TextureId, out _));
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
 

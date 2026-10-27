@@ -100,8 +100,8 @@ internal readonly struct OpenGLTextureQueries
                 int samples = target is TextureTarget.Texture2DMultisample or TextureTarget.Texture2DMultisampleArray
                     ? ReadLevel(texture, imageTarget, level, GetTextureParameter.TextureSamples) : 0;
                 if (format <= 0 || height < 0 || depth < 0 || samples < 0) return false;
-                levels.Add(new(level, faces == 6 ? imageTarget : 0, width, Math.Max(1, height), Math.Max(1, depth),
-                    (PixelInternalFormat)format, samples, true));
+                levels.Add(new(level, faces == 6 ? OpenGLImageValues.Face(imageTarget) : CubeFace.None, width, Math.Max(1, height), Math.Max(1, depth),
+                    OpenGLImageValues.Format((PixelInternalFormat)format), samples, true));
             }
 
         }
@@ -109,7 +109,7 @@ internal readonly struct OpenGLTextureQueries
         int baseLevel = ReadParameter(texture, GetTextureParameter.TextureBaseLevel);
         int maxLevel = ReadParameter(texture, GetTextureParameter.TextureMaxLevel);
         if (immutable < 0 || immutableLevels < 0 || baseLevel < 0 || maxLevel < 0) return false;
-        metadata = new(target, levels.ToImmutable(), immutable != 0, immutableLevels, baseLevel, maxLevel, View: view);
+        metadata = new(OpenGLImageValues.Dimension(target), levels.ToImmutable(), immutable != 0, immutableLevels, baseLevel, maxLevel, View: view);
         return true;
     }
     #endregion

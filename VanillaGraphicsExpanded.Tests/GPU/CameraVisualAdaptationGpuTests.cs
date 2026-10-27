@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.PBR.CameraExposure;
@@ -56,7 +57,7 @@ public sealed class CameraVisualAdaptationGpuTests(HeadlessGLFixture fixture, IT
         var adaptation = adaptationProgram ??= Programs.CreateCompute(CameraAdaptShaderProgram.Create);
         using var targets = new CameraExposureTargets();
         float level = MathF.Pow(2, logarithm);
-        using var scene = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba32f, [level, level, level, 1]);
+        using var scene = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba32f, [level, level, level, 1]);
         using var history = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = "Tests.InstantMeter" }).RequireResource();
         history.UploadData(previous);
         using var camera = TestFrameCamera.CreateIdentity(1, 1, dt);

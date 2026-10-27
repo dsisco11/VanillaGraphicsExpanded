@@ -203,9 +203,9 @@ public sealed class AtmosphereCelestialPublicationTests(HeadlessGLFixture fixtur
             using var radiance = OpenGlStateCache.Current.BindTextureScope(TextureTarget.Texture3D, 11, textures.Radiance.TextureId);
             using var attenuation = OpenGlStateCache.Current.BindTextureScope(TextureTarget.Texture3D, 12, textures.Attenuation.TextureId);
             using var framework = new ShaderTestFramework();
-            using var shaft = framework.CreateTexture(1, 1, PixelInternalFormat.R32f, new[] { 0f });
+            using var shaft = framework.CreateTexture(1, 1, TextureFormat.R32f, new[] { 0f });
             using var shaftBinding = OpenGlStateCache.Current.BindTextureScope(TextureTarget.Texture2D, 13, shaft.TextureId);
-            using var output = framework.CreateTestGBuffer(1, 1, PixelInternalFormat.Rgba32f);
+            using var output = framework.CreateTestGBuffer(1, 1, TextureFormat.Rgba32f);
             GL.UseProgram(program);
             GL.Uniform1(GL.GetUniformLocation(program, "vge_atmosphereAerialRadiance"), 11);
             GL.Uniform1(GL.GetUniformLocation(program, "vge_atmosphereAerialAttenuation"), 12);

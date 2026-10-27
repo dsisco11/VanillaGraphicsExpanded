@@ -46,8 +46,8 @@ internal sealed class DirectLightingComparisonFixture : IDisposable
         Width = width; Height = height;
         atmosphere.Publish(new VanillaGraphicsExpanded.PBR.Atmosphere.AtmosphereLighting(System.Numerics.Vector3.UnitZ, System.Numerics.Vector3.One, System.Numerics.Vector3.Zero, System.Numerics.Vector3.Zero, System.Numerics.Vector3.Zero, System.Collections.Immutable.ImmutableArray.Create(0f, 0f, 0f, 1f)) { Width = 1, Height = 1 });
         terrain = new(width, height);
-        shadow = new DepthTexture(1, 1, PixelInternalFormat.DepthComponent32f); shadow.UploadDataImmediate([1f]);
-        shadowFar = new DepthTexture(1, 1, PixelInternalFormat.DepthComponent32f); shadowFar.UploadDataImmediate([1f]);
+        shadow = new DepthTexture(1, 1, TextureFormat.DepthComponent32f); shadow.UploadDataImmediate([1f]);
+        shadowFar = new DepthTexture(1, 1, TextureFormat.DepthComponent32f); shadowFar.UploadDataImmediate([1f]);
         var frames = Enumerable.Repeat<FrameBufferRef>(null!, 25).ToList(); frames[0] = terrain.Primary;
         frames[(int)EnumFrameBuffer.ShadowmapNear] = new() { DepthTextureId = shadow.TextureId };
         frames[(int)EnumFrameBuffer.ShadowmapFar] = new() { DepthTextureId = shadowFar.TextureId };

@@ -1,3 +1,5 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 
 using OpenTK.Graphics.OpenGL;
@@ -36,9 +38,9 @@ internal sealed class PbrLumOnPipelineTargets : IDisposable
             DirectLightingMrt = _resources.Own(DynamicGpuFramebuffer.Create(
                 new[]
                 {
-                    _resources.Own(new GpuFramebufferAttachment(screenW, screenH, PixelInternalFormat.Rgba16f, debugName: "Test.DirectDiffuse")),
-                    _resources.Own(new GpuFramebufferAttachment(screenW, screenH, PixelInternalFormat.Rgba16f, debugName: "Test.DirectSpecular")),
-                    _resources.Own(new GpuFramebufferAttachment(screenW, screenH, PixelInternalFormat.Rgba16f, debugName: "Test.Emissive")),
+                    _resources.Own(new GpuFramebufferAttachment(screenW, screenH, TextureFormat.Rgba16f, debugName: "Test.DirectDiffuse")),
+                    _resources.Own(new GpuFramebufferAttachment(screenW, screenH, TextureFormat.Rgba16f, debugName: "Test.DirectSpecular")),
+                    _resources.Own(new GpuFramebufferAttachment(screenW, screenH, TextureFormat.Rgba16f, debugName: "Test.Emissive")),
                 },
                 depth: null,
                 debugName: "Test.PbrDirectMrt"));
@@ -47,7 +49,7 @@ internal sealed class PbrLumOnPipelineTargets : IDisposable
             Velocity = _resources.Own(DynamicGpuFramebuffer.Create(
                 new[]
                 {
-                    _resources.Own(new GpuFramebufferAttachment(screenW, screenH, PixelInternalFormat.Rgba32f, debugName: "Test.Velocity")),
+                    _resources.Own(new GpuFramebufferAttachment(screenW, screenH, TextureFormat.Rgba32f, debugName: "Test.Velocity")),
                 },
                 depth: null,
                 debugName: "Test.VelocityPass"));
@@ -59,8 +61,8 @@ internal sealed class PbrLumOnPipelineTargets : IDisposable
             ProbeAnchor = _resources.Own(DynamicGpuFramebuffer.Create(
                 new[]
                 {
-                    _resources.Own(new GpuFramebufferAttachment(probeW, probeH, PixelInternalFormat.Rgba16f, debugName: "Test.ProbeAnchorPosition")),
-                    _resources.Own(new GpuFramebufferAttachment(probeW, probeH, PixelInternalFormat.Rgba16f, debugName: "Test.ProbeAnchorNormal")),
+                    _resources.Own(new GpuFramebufferAttachment(probeW, probeH, TextureFormat.Rgba16f, debugName: "Test.ProbeAnchorPosition")),
+                    _resources.Own(new GpuFramebufferAttachment(probeW, probeH, TextureFormat.Rgba16f, debugName: "Test.ProbeAnchorNormal")),
                 },
                 depth: null,
                 debugName: "Test.ProbeAnchorMrt"));
@@ -69,8 +71,8 @@ internal sealed class PbrLumOnPipelineTargets : IDisposable
             AtlasTrace = _resources.Own(DynamicGpuFramebuffer.Create(
                 new[]
                 {
-                    _resources.Own(new GpuFramebufferAttachment(atlasW, atlasH, PixelInternalFormat.Rgba16f, debugName: "Test.AtlasTraceRadiance")),
-                    _resources.Own(new GpuFramebufferAttachment(atlasW, atlasH, PixelInternalFormat.Rg32f, debugName: "Test.AtlasTraceMeta")),
+                    _resources.Own(new GpuFramebufferAttachment(atlasW, atlasH, TextureFormat.Rgba16f, debugName: "Test.AtlasTraceRadiance")),
+                    _resources.Own(new GpuFramebufferAttachment(atlasW, atlasH, TextureFormat.Rg32f, debugName: "Test.AtlasTraceMeta")),
                 },
                 depth: null,
                 debugName: "Test.AtlasTraceMrt"));
@@ -78,8 +80,8 @@ internal sealed class PbrLumOnPipelineTargets : IDisposable
             AtlasTemporal = _resources.Own(DynamicGpuFramebuffer.Create(
                 new[]
                 {
-                    _resources.Own(new GpuFramebufferAttachment(atlasW, atlasH, PixelInternalFormat.Rgba16f, debugName: "Test.AtlasTemporalRadiance")),
-                    _resources.Own(new GpuFramebufferAttachment(atlasW, atlasH, PixelInternalFormat.Rg32f, debugName: "Test.AtlasTemporalMeta")),
+                    _resources.Own(new GpuFramebufferAttachment(atlasW, atlasH, TextureFormat.Rgba16f, debugName: "Test.AtlasTemporalRadiance")),
+                    _resources.Own(new GpuFramebufferAttachment(atlasW, atlasH, TextureFormat.Rg32f, debugName: "Test.AtlasTemporalMeta")),
                 },
                 depth: null,
                 debugName: "Test.AtlasTemporalMrt"));
@@ -87,8 +89,8 @@ internal sealed class PbrLumOnPipelineTargets : IDisposable
             AtlasFiltered = _resources.Own(DynamicGpuFramebuffer.Create(
                 new[]
                 {
-                    _resources.Own(new GpuFramebufferAttachment(atlasW, atlasH, PixelInternalFormat.Rgba16f, debugName: "Test.AtlasFilteredRadiance")),
-                    _resources.Own(new GpuFramebufferAttachment(atlasW, atlasH, PixelInternalFormat.Rg32f, debugName: "Test.AtlasFilteredMeta")),
+                    _resources.Own(new GpuFramebufferAttachment(atlasW, atlasH, TextureFormat.Rgba16f, debugName: "Test.AtlasFilteredRadiance")),
+                    _resources.Own(new GpuFramebufferAttachment(atlasW, atlasH, TextureFormat.Rg32f, debugName: "Test.AtlasFilteredMeta")),
                 },
                 depth: null,
                 debugName: "Test.AtlasFilteredMrt"));
@@ -97,7 +99,7 @@ internal sealed class PbrLumOnPipelineTargets : IDisposable
             IndirectHalf = _resources.Own(DynamicGpuFramebuffer.Create(
                 new[]
                 {
-                    _resources.Own(new GpuFramebufferAttachment(halfW, halfH, PixelInternalFormat.Rgba16f, debugName: "Test.IndirectHalf")),
+                    _resources.Own(new GpuFramebufferAttachment(halfW, halfH, TextureFormat.Rgba16f, debugName: "Test.IndirectHalf")),
                 },
                 depth: null,
                 debugName: "Test.IndirectHalfPass"));
@@ -106,7 +108,7 @@ internal sealed class PbrLumOnPipelineTargets : IDisposable
             IndirectFull = _resources.Own(DynamicGpuFramebuffer.Create(
                 new[]
                 {
-                    _resources.Own(new GpuFramebufferAttachment(screenW, screenH, PixelInternalFormat.Rgba16f, debugName: "Test.IndirectFull")),
+                    _resources.Own(new GpuFramebufferAttachment(screenW, screenH, TextureFormat.Rgba16f, debugName: "Test.IndirectFull")),
                 },
                 depth: null,
                 debugName: "Test.IndirectFullPass"));
@@ -115,9 +117,9 @@ internal sealed class PbrLumOnPipelineTargets : IDisposable
             Composite = _resources.Own(DynamicGpuFramebuffer.Create(
                 new[]
                 {
-                    _resources.Own(new GpuFramebufferAttachment(screenW, screenH, PixelInternalFormat.Rgba16f, debugName: "Test.Composite")),
-                    _resources.Own(new GpuFramebufferAttachment(screenW, screenH, PixelInternalFormat.Rgba16f, debugName: "Test.CompositeRefraction")),
-                    _resources.Own(new GpuFramebufferAttachment(screenW, screenH, PixelInternalFormat.R32f, debugName: "Test.CompositeRefractionDepth")),
+                    _resources.Own(new GpuFramebufferAttachment(screenW, screenH, TextureFormat.Rgba16f, debugName: "Test.Composite")),
+                    _resources.Own(new GpuFramebufferAttachment(screenW, screenH, TextureFormat.Rgba16f, debugName: "Test.CompositeRefraction")),
+                    _resources.Own(new GpuFramebufferAttachment(screenW, screenH, TextureFormat.R32f, debugName: "Test.CompositeRefractionDepth")),
                 },
                 depth: null,
                 debugName: "Test.CompositeFbo"));

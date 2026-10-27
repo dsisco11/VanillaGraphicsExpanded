@@ -24,7 +24,7 @@ public sealed class GpuRenderbuffer : GpuResource<GpuRenderbufferMetadata>, IDis
     private string? debugName;
 
     /// <summary>Accesses the canonical renderbuffer storage snapshot.</summary>
-    private RenderbufferStorage storage => (RenderbufferStorage)metadata.Format;
+    private TextureFormat storage => metadata.Format;
     /// <summary>Accesses the canonical renderbuffer width snapshot.</summary>
     private int width => metadata.Width;
     /// <summary>Accesses the canonical renderbuffer height snapshot.</summary>
@@ -40,7 +40,7 @@ public sealed class GpuRenderbuffer : GpuResource<GpuRenderbufferMetadata>, IDis
     /// <summary>
     /// Gets the last allocated storage format (if any).
     /// </summary>
-    public RenderbufferStorage Storage => storage;
+    public TextureFormat Storage => storage;
 
     /// <summary>
     /// Gets the last allocated width (if any).

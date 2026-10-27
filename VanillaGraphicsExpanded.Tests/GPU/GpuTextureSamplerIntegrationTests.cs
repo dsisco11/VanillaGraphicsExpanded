@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.Integration.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
@@ -34,16 +35,16 @@ public class GpuTextureSamplerIntegrationTests
         Assert.True(tex.IsValid);
 
         const int unit = 3;
-        VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(unit, tex, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)tex).Target))]);
+        VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(unit, tex, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)tex).Target)))]);
 
         Assert.Equal(0, OpenGlStateCache.Current.GetBoundSampler(unit));
 
-        using (OpenGlStateCache.Current.BindTextureScope(tex.TextureTarget, unit: 0, tex.TextureId))
+        using (OpenGlStateCache.Current.BindTextureScope(OpenGLImageValues.Target(tex.TextureTarget), unit: 0, tex.TextureId))
         {
-            GL.GetTexParameter(tex.TextureTarget, GetTextureParameter.TextureMinFilter, out int minFilter);
-            GL.GetTexParameter(tex.TextureTarget, GetTextureParameter.TextureMagFilter, out int magFilter);
-            GL.GetTexParameter(tex.TextureTarget, GetTextureParameter.TextureWrapS, out int wrapS);
-            GL.GetTexParameter(tex.TextureTarget, GetTextureParameter.TextureWrapT, out int wrapT);
+            GL.GetTexParameter(OpenGLImageValues.Target(tex.TextureTarget), GetTextureParameter.TextureMinFilter, out int minFilter);
+            GL.GetTexParameter(OpenGLImageValues.Target(tex.TextureTarget), GetTextureParameter.TextureMagFilter, out int magFilter);
+            GL.GetTexParameter(OpenGLImageValues.Target(tex.TextureTarget), GetTextureParameter.TextureWrapS, out int wrapS);
+            GL.GetTexParameter(OpenGLImageValues.Target(tex.TextureTarget), GetTextureParameter.TextureWrapT, out int wrapT);
 
             Assert.Equal((int)TextureMinFilter.Linear, minFilter);
             Assert.Equal((int)TextureMagFilter.Linear, magFilter);
@@ -51,7 +52,7 @@ public class GpuTextureSamplerIntegrationTests
             Assert.Equal((int)TextureWrapMode.ClampToEdge, wrapT);
         }
 
-        VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(unit, default, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)tex).Target))]);
+        VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(unit, default, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)tex).Target)))]);
         Assert.Equal(0, OpenGlStateCache.Current.GetBoundSampler(unit));
     }
 
@@ -67,22 +68,22 @@ public class GpuTextureSamplerIntegrationTests
         const int unit = 2;
 
         // Establish a known texture+sampler binding without going through GpuTexture.Bind (which unbinds samplers).
-        OpenGLImageBindings.BindTexture(OpenGlStateCache.Current, t1.TextureTarget, unit, t1.TextureId);
+        OpenGLImageBindings.BindTexture(OpenGlStateCache.Current, OpenGLImageValues.Target(t1.TextureTarget), unit, t1.TextureId);
         OpenGLImageBindings.BindSampler(OpenGlStateCache.Current, unit, s1);
 
-        int prevTexId = OpenGlStateCache.Current.GetBoundTexture(t1.TextureTarget, unit);
+        int prevTexId = OpenGlStateCache.Current.GetBoundTexture(OpenGLImageValues.Target(t1.TextureTarget), unit);
         int prevSamplerId = OpenGlStateCache.Current.GetBoundSampler(unit);
         Assert.Equal(t1.TextureId, prevTexId);
         Assert.Equal(s1.SamplerId, prevSamplerId);
 
         using (OpenGlStateCache.Current.BindSamplerScope(unit, 0))
-        using (OpenGlStateCache.Current.BindTextureScope(((GpuTextureRef)t2).Target, unit, t2.TextureId))
+        using (OpenGlStateCache.Current.BindTextureScope(OpenGLImageValues.Target(((GpuTextureRef)t2).Target), unit, t2.TextureId))
         {
-            Assert.Equal(t2.TextureId, OpenGlStateCache.Current.GetBoundTexture(t2.TextureTarget, unit));
+            Assert.Equal(t2.TextureId, OpenGlStateCache.Current.GetBoundTexture(OpenGLImageValues.Target(t2.TextureTarget), unit));
             Assert.Equal(0, OpenGlStateCache.Current.GetBoundSampler(unit));
         }
 
-        Assert.Equal(t1.TextureId, OpenGlStateCache.Current.GetBoundTexture(t1.TextureTarget, unit));
+        Assert.Equal(t1.TextureId, OpenGlStateCache.Current.GetBoundTexture(OpenGLImageValues.Target(t1.TextureTarget), unit));
         Assert.Equal(s1.SamplerId, OpenGlStateCache.Current.GetBoundSampler(unit));
     }
 }

@@ -73,7 +73,7 @@ public sealed class DynamicTexture3D : GpuTexture
         AllocateOrReallocate3DTexture(Math.Max(1, newWidth), Math.Max(1, newHeight), Math.Max(1, newDepth),
             internalFormat, textureTarget, ImmutableLayeredStorage);
 
-        var typeStr = textureTarget == TextureTarget.Texture2DArray ? "2D array" : "3D";
+        var typeStr = textureTarget == TextureDimension.TwoArray ? "2D array" : "3D";
         Debug.WriteLine($"[DynamicTexture3D] Allocated {width}x{height}x{depth} {typeStr} {internalFormat}");
         return true;
     }
@@ -103,7 +103,7 @@ public sealed class DynamicTexture3D : GpuTexture
         var format = TextureFormatHelper.GetPixelFormat(internalFormat);
         var encoding = RHICommandContext.Current.GetTextureEncoding(this, PixelComponentType.Float);
         int count = GetChannelCount();
-        if (format is PixelFormat.RedInteger or PixelFormat.RgInteger or PixelFormat.RgbInteger or PixelFormat.RgbaInteger)
+        if (format is PixelChannelLayout.RedInteger or PixelChannelLayout.RgInteger or PixelChannelLayout.RgbInteger or PixelChannelLayout.RgbaInteger)
             throw new InvalidOperationException("Nonzero integer clears require an explicitly encoded integer clear value.");
         RHICommandContext.Current.ClearTexture(this, new(new(), 0, 0, 0, width, height, depth), encoding, System.Runtime.InteropServices.MemoryMarshal.AsBytes(values[..count]));
     }
@@ -120,7 +120,7 @@ public sealed class DynamicTexture3D : GpuTexture
 
         int mipWidth = Math.Max(1, width >> mipLevel);
         int mipHeight = Math.Max(1, height >> mipLevel);
-        int mipDepth = textureTarget == TextureTarget.Texture3D ? Math.Max(1, depth >> mipLevel) : depth;
+        int mipDepth = textureTarget == TextureDimension.Three ? Math.Max(1, depth >> mipLevel) : depth;
 
         if (x < 0 || y < 0 || z < 0 ||
             x + regionWidth > mipWidth ||
@@ -135,7 +135,7 @@ public sealed class DynamicTexture3D : GpuTexture
         int bytesPerPixel = TextureStreamingUtils.GetBytesPerPixel(pixelFormat, PixelComponentType.Float);
         if (bytesPerPixel <= 0 || (bytesPerPixel % sizeof(float)) != 0)
         {
-            throw new InvalidOperationException($"Unsupported format/type combination for float upload: {pixelFormat}/{PixelType.Float}.");
+            throw new InvalidOperationException($"Unsupported format/type combination for float upload: {pixelFormat}/{PixelComponentType.Float}.");
         }
 
         int channelCount = bytesPerPixel / sizeof(float);

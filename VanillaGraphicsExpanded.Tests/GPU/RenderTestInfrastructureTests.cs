@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
@@ -51,7 +52,7 @@ public class RenderTestInfrastructureTests : RenderTestBase
     {
         EnsureContextValid();
 
-        using var gBuffer = CreateRenderTarget(64, 64, PixelInternalFormat.Rgba16f);
+        using var gBuffer = CreateRenderTarget(64, 64, TextureFormat.Rgba16f);
 
         Assert.True(gBuffer.FboId > 0, "FBO ID should be valid");
         Assert.Equal(64, gBuffer.Width);
@@ -67,11 +68,11 @@ public class RenderTestInfrastructureTests : RenderTestBase
 
         var formats = new[]
         {
-            PixelInternalFormat.Rgba8,
-            PixelInternalFormat.Rgba16f,
-            PixelInternalFormat.Rgba32f,
-            PixelInternalFormat.Rg16f,
-            PixelInternalFormat.R32f
+            TextureFormat.Rgba8,
+            TextureFormat.Rgba16f,
+            TextureFormat.Rgba32f,
+            TextureFormat.Rg16f,
+            TextureFormat.R32f
         };
 
         foreach (var format in formats)
@@ -88,8 +89,8 @@ public class RenderTestInfrastructureTests : RenderTestBase
         EnsureContextValid();
 
         using var gBuffer = CreateMRTRenderTarget(64, 64, 
-            PixelInternalFormat.Rgba16f, 
-            PixelInternalFormat.Rgba16f);
+            TextureFormat.Rgba16f,
+            TextureFormat.Rgba16f);
 
         Assert.True(gBuffer.FboId > 0, "FBO ID should be valid");
         Assert.Equal(2, gBuffer.ColorAttachmentCount);
@@ -103,7 +104,7 @@ public class RenderTestInfrastructureTests : RenderTestBase
     {
         EnsureContextValid();
 
-        using var gBuffer = CreateRenderTarget(64, 64, PixelInternalFormat.Rgba16f);
+        using var gBuffer = CreateRenderTarget(64, 64, TextureFormat.Rgba16f);
 
         gBuffer.Bind();
         AssertNoGLError("Bind");
@@ -117,7 +118,7 @@ public class RenderTestInfrastructureTests : RenderTestBase
     {
         EnsureContextValid();
 
-        using var gBuffer = CreateRenderTarget(64, 64, PixelInternalFormat.Rgba16f);
+        using var gBuffer = CreateRenderTarget(64, 64, TextureFormat.Rgba16f);
         AssertNoGLError("CreateRenderTarget");
 
         gBuffer.Bind();
@@ -157,7 +158,7 @@ public class RenderTestInfrastructureTests : RenderTestBase
         var programId = CompileMinimalShader(vertexSource, fragmentSource);
         Assert.True(programId > 0, "Shader compilation should succeed");
 
-        using var gBuffer = CreateRenderTarget(64, 64, PixelInternalFormat.Rgba16f);
+        using var gBuffer = CreateRenderTarget(64, 64, TextureFormat.Rgba16f);
         
         FramebufferTestSetup.BindForEngineRendering(gBuffer);
         FramebufferTestSetup.ClearAttachments(gBuffer, 0f, 0f, 0f, 0f);
@@ -190,7 +191,7 @@ public class RenderTestInfrastructureTests : RenderTestBase
     {
         EnsureContextValid();
 
-        using var gBuffer = CreateRenderTarget(4, 4, PixelInternalFormat.Rgba16f);
+        using var gBuffer = CreateRenderTarget(4, 4, TextureFormat.Rgba16f);
         
         // Clear to a known color
         gBuffer.Bind();
@@ -214,7 +215,7 @@ public class RenderTestInfrastructureTests : RenderTestBase
     {
         EnsureContextValid();
 
-        using var gBuffer = CreateRenderTarget(4, 4, PixelInternalFormat.Rgba8);
+        using var gBuffer = CreateRenderTarget(4, 4, TextureFormat.Rgba8);
         
         // Clear to a known color (roughly 64, 128, 192, 255 in byte values)
         gBuffer.Bind();
@@ -237,7 +238,7 @@ public class RenderTestInfrastructureTests : RenderTestBase
     {
         EnsureContextValid();
 
-        using var gBuffer = CreateRenderTarget(8, 8, PixelInternalFormat.Rgba16f);
+        using var gBuffer = CreateRenderTarget(8, 8, TextureFormat.Rgba16f);
         gBuffer.Bind();
         FramebufferTestSetup.ClearAttachments(gBuffer, 0.1f, 0.2f, 0.3f, 0.4f);
         GpuFramebuffer.Unbind();

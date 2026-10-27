@@ -44,7 +44,7 @@ public sealed class GpuBufferTextureInterceptionTests(HeadlessGLFixture fixture)
             Associate(variant, view.TextureId, second.BufferId, SizedInternalFormat.R32ui, 0, 128);
             bool ranged = variant is 7 or 8 or 9 or 10;
             Assert.Equal(second.BufferId, view.BufferId);
-            Assert.Equal(SizedInternalFormat.R32ui, view.Format);
+            Assert.Equal(TextureFormat.R32ui, view.Format);
             Assert.Equal(ranged ? 128 : 0, view.SizeBytes);
             Assert.Equal(!ranged, alias.Snapshot.Buffer!.Value.WholeBuffer);
             Assert.Equal(view.BufferId, alias.Snapshot.Buffer.Value.BufferId);

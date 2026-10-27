@@ -27,8 +27,8 @@ public sealed class GpuTextureDependencyRecoveryTests(HeadlessGLFixture fixture)
             using var valid = GpuFramebufferAttachment.FromTexture(source, layer: 0);
             using var first = DynamicGpuFramebuffer.CreateEmpty();
             using var second = DynamicGpuFramebuffer.CreateEmpty();
-            first.SetAttachment(FramebufferAttachment.ColorAttachment0, invalid);
-            second.SetAttachment(FramebufferAttachment.ColorAttachment0, valid);
+            first.SetAttachment(FramebufferSlot.Color0, invalid);
+            second.SetAttachment(FramebufferSlot.Color0, valid);
             ulong invalidRevision = first.AttachmentRevision;
             ulong validRevision = second.AttachmentRevision;
             var error = Assert.Throws<AggregateException>(() => source.Resize(8, 4, 1));

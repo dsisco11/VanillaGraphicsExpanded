@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using OpenTK.Graphics.OpenGL;
 
 namespace VanillaGraphicsExpanded.Rendering.RHI;
 
@@ -15,23 +14,23 @@ internal partial interface IRHIResourceExecution
     /// <summary>Executes explicit manager-authorized acquisition without changing publication authority.</summary>
     bool IsExternalTexture(nint id);
     /// <summary>Executes explicit manager-authorized acquisition without changing publication authority.</summary>
-    bool ReadExternalTexture(nint id, TextureTarget target, out GpuTextureMetadata metadata);
+    bool ReadExternalTexture(nint id, TextureDimension target, out GpuTextureMetadata metadata);
     /// <summary>Executes explicit manager-authorized acquisition without changing publication authority.</summary>
-    bool ReadExternalTextureImage(int id, TextureTarget target, TextureTarget face, int level, out GpuTextureLevelMetadata image);
+    bool ReadExternalTextureImage(int id, TextureDimension target, CubeFace face, int level, out GpuTextureLevelMetadata image);
     /// <summary>Executes explicit manager-authorized acquisition without changing publication authority.</summary>
     bool IsExternalRenderbuffer(nint id);
     /// <summary>Executes explicit manager-authorized acquisition without changing publication authority.</summary>
     bool ReadExternalRenderbuffer(nint id, out GpuRenderbufferMetadata metadata);
     /// <summary>Executes explicit manager-authorized acquisition without changing publication authority.</summary>
-    int ReadExternalTextureParameter(int texture, GetTextureParameter parameter);
+    int ReadExternalTextureParameter(int texture, TextureMetadataField parameter);
     /// <summary>Executes explicit manager-authorized acquisition without changing publication authority.</summary>
-    int ReadExternalTextureLevelParameter(int texture, int level, GetTextureParameter parameter);
+    int ReadExternalTextureLevelParameter(int texture, int level, TextureMetadataField parameter);
     /// <summary>Executes explicit manager-authorized acquisition without changing publication authority.</summary>
     bool ReadExternalRenderbufferTexture(int texture, out GpuTextureMetadata metadata);
     #endregion
     #region Format capabilities
     /// <summary>Fills the existing target/format cache through admitted native capability discovery.</summary>
-    InternalFormatCapabilities ReadFormatCapabilities(ImageTarget target, SizedInternalFormat format);
+    InternalFormatCapabilities ReadFormatCapabilities(TextureDimension target, TextureFormat format, GpuResourceKind kind = GpuResourceKind.Texture);
     #endregion
     #region Executable acquisition
     /// <summary>Executes explicit manager-authorized acquisition without changing publication authority.</summary>

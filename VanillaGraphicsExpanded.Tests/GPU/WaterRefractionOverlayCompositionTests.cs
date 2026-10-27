@@ -40,16 +40,16 @@ public sealed class WaterRefractionOverlayCompositionTests(HeadlessGLFixture fix
             value.EnablePbrComposite = false;
             value.EnableShortRangeAo = false;
         });
-        using var direct = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba32f, [6f, 3f, 2f, 1f]);
-        using var zero = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba32f, [0f, 0f, 0f, 0f]);
-        using var depth = TestFramework.CreateTexture(1, 1, PixelInternalFormat.R32f, [overlay ? .01f : .8f]);
-        using var normal = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba32f, [.5f, 1f, .5f, overlay ? -1f : 1f]);
-        using var position = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba32f, [0f, 0f, -.1f, 1f]);
+        using var direct = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba32f, [6f, 3f, 2f, 1f]);
+        using var zero = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba32f, [0f, 0f, 0f, 0f]);
+        using var depth = TestFramework.CreateTexture(1, 1, TextureFormat.R32f, [overlay ? .01f : .8f]);
+        using var normal = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba32f, [.5f, 1f, .5f, overlay ? -1f : 1f]);
+        using var position = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba32f, [0f, 0f, -.1f, 1f]);
         using var cleanColor = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba32f, Width = System.Math.Max(1, 1), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         using var cleanDepth = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.R32f, Width = System.Math.Max(1, 1), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         cleanColor.UploadDataImmediate([2f, 1f, .5f, 1f]);
         cleanDepth.UploadDataImmediate([.75f]);
-        using var target = CreateMRTRenderTarget(1, 1, PixelInternalFormat.Rgba32f, PixelInternalFormat.Rgba32f, PixelInternalFormat.R32f);
+        using var target = CreateMRTRenderTarget(1, 1, TextureFormat.Rgba32f, TextureFormat.Rgba32f, TextureFormat.R32f);
         using var atmosphere = new AtmosphereModSystem();
         var snapshot = new AtmosphereLighting(Vector3.UnitY, Vector3.Zero, Vector3.Zero, Vector3.Zero, Vector3.Zero,
             ImmutableArray.Create(0f, 0f, 0f, 1f))

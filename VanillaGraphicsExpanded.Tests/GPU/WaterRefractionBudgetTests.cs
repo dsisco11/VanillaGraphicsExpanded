@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.Integration.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Numerics;
 using OpenTK.Graphics.OpenGL;
@@ -51,9 +52,9 @@ public sealed class WaterRefractionBudgetTests(HeadlessGLFixture fixture, ITestO
             Assert.InRange(extent,float.Epsilon,.0005f);
         }
         inputs.Color=halfColor??color; inputs.Depth=halfDepth??depth;
-        using var target=CreateMRTRenderTarget(1,1,PixelInternalFormat.Rgba32f,PixelInternalFormat.Rgba32f,
-            PixelInternalFormat.Rgba32f,PixelInternalFormat.Rgba32f,PixelInternalFormat.Rgba32f,
-            PixelInternalFormat.Rgba32f,PixelInternalFormat.Rgba32f);
+        using var target=CreateMRTRenderTarget(1,1,TextureFormat.Rgba32f,TextureFormat.Rgba32f,
+            TextureFormat.Rgba32f,TextureFormat.Rgba32f,TextureFormat.Rgba32f,
+            TextureFormat.Rgba32f,TextureFormat.Rgba32f);
         foreach(bool valid in new[] {false,true})
         {
             // A distant plane has eligible support but its actual intersection lies outside screen coverage.
@@ -151,9 +152,9 @@ public sealed class WaterRefractionBudgetTests(HeadlessGLFixture fixture, ITestO
         inputs.Scenario = 12; inputs.Budget = 2; inputs.Quality = 1; inputs.SelectReceiver = 1;
         inputs.Normal = Vector3.Normalize(new Vector3(-.4f,0,1));
         inputs.Color = halfColor ?? color; inputs.Depth = halfDepth ?? depth;
-        using var target = CreateMRTRenderTarget(1,1,PixelInternalFormat.Rgba32f,PixelInternalFormat.Rgba32f,
-            PixelInternalFormat.Rgba32f,PixelInternalFormat.Rgba32f,PixelInternalFormat.Rgba32f,PixelInternalFormat.Rgba32f,
-            PixelInternalFormat.Rgba32f);
+        using var target = CreateMRTRenderTarget(1,1,TextureFormat.Rgba32f,TextureFormat.Rgba32f,
+            TextureFormat.Rgba32f,TextureFormat.Rgba32f,TextureFormat.Rgba32f,TextureFormat.Rgba32f,
+            TextureFormat.Rgba32f);
         int switches = 0, rayCount = 0, uvCount = 0, previousMethod = 0;
         Vector3 previousPosition = default, previousReference = default, previousColor = default;
         float maximumPositionError = 0, maximumColorError = 0;
@@ -213,7 +214,7 @@ public sealed class WaterRefractionBudgetTests(HeadlessGLFixture fixture, ITestO
         EnsureShaderTestAvailable();
         int size = irregular ? Size / 2 : Size;
         using var color = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba32f, Width = System.Math.Max(1, size), Height = System.Math.Max(1, size), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
-        using var depth = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Format((OpenTK.Graphics.OpenGL.PixelInternalFormat)(irregular ? PixelInternalFormat.Rgba32f : PixelInternalFormat.R32f)), Width = System.Math.Max(1, size), Height = System.Math.Max(1, size), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
+        using var depth = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = irregular ? TextureFormat.Rgba32f : TextureFormat.R32f, Width = System.Math.Max(1, size), Height = System.Math.Max(1, size), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         var colors = new float[size * size * 4]; var depths = new float[size * size * (irregular ? 4 : 1)];
         float hardware = .5f * (1 + (100.1f - 2) / 99.9f);
         if (irregular)
@@ -248,8 +249,8 @@ public sealed class WaterRefractionBudgetTests(HeadlessGLFixture fixture, ITestO
         using var frameCamera = CreateCamera(program);
         inputs.Scenario = 12; inputs.Budget = 2; inputs.Surface = surface; inputs.Normal = normal;
         inputs.Color = color; inputs.Depth = depth;
-        using var target = CreateMRTRenderTarget(1,1,PixelInternalFormat.Rgba32f,PixelInternalFormat.Rgba32f,
-            PixelInternalFormat.Rgba32f,PixelInternalFormat.Rgba32f,PixelInternalFormat.Rgba32f,PixelInternalFormat.Rgba32f);
+        using var target = CreateMRTRenderTarget(1,1,TextureFormat.Rgba32f,TextureFormat.Rgba32f,
+            TextureFormat.Rgba32f,TextureFormat.Rgba32f,TextureFormat.Rgba32f,TextureFormat.Rgba32f);
         TestFramework.RenderQuadTo(program,target);
         float[] decision = target[0].ReadPixels();
         Assert.Equal(irregular ? 2 : 1,decision[2]);
@@ -282,8 +283,8 @@ public sealed class WaterRefractionBudgetTests(HeadlessGLFixture fixture, ITestO
         inputs.Surface = new(0,0,-2); inputs.Underwater = tir ? 1 : 0;
         inputs.Normal = tir ? Vector3.Normalize(new Vector3(.9f,0,.3f)) : Vector3.UnitZ;
         inputs.Color = color; inputs.Depth = depth;
-        using var target = CreateMRTRenderTarget(1,1,PixelInternalFormat.Rgba32f,PixelInternalFormat.Rgba32f,
-            PixelInternalFormat.Rgba32f,PixelInternalFormat.Rgba32f);
+        using var target = CreateMRTRenderTarget(1,1,TextureFormat.Rgba32f,TextureFormat.Rgba32f,
+            TextureFormat.Rgba32f,TextureFormat.Rgba32f);
         TestFramework.RenderQuadTo(program,target);
         var decision = target[0].ReadPixels(); var selected = target[3].ReadPixels();
         Assert.Equal(0,decision[0]); Assert.Equal(0,selected[0]);
@@ -313,9 +314,9 @@ public sealed class WaterRefractionBudgetTests(HeadlessGLFixture fixture, ITestO
         using var frameCamera = CreateCamera(program);
         inputs.Scenario = 12; inputs.Budget = 1 << quality; inputs.Quality = quality;
         inputs.Color = halfColor ?? color; inputs.Depth = halfDepth ?? depth;
-        using var target = CreateMRTRenderTarget(1,1,PixelInternalFormat.Rgba32f,PixelInternalFormat.Rgba32f,
-            PixelInternalFormat.Rgba32f,PixelInternalFormat.Rgba32f,PixelInternalFormat.Rgba32f,
-            PixelInternalFormat.Rgba32f,PixelInternalFormat.Rgba32f);
+        using var target = CreateMRTRenderTarget(1,1,TextureFormat.Rgba32f,TextureFormat.Rgba32f,
+            TextureFormat.Rgba32f,TextureFormat.Rgba32f,TextureFormat.Rgba32f,
+            TextureFormat.Rgba32f,TextureFormat.Rgba32f);
         foreach (string scene in new[] { "exhausted", "invalid-seed", "invalid-later", "edge", "offscreen" })
         {
             var colors = new float[Size * Size * 4]; var depths = new float[Size * Size];
@@ -410,8 +411,8 @@ public sealed class WaterRefractionBudgetTests(HeadlessGLFixture fixture, ITestO
         inputs.Scenario = 12; inputs.Budget = budget; inputs.Quality = quality; inputs.SelectReceiver = 1;
         inputs.Normal = Vector3.Normalize(new Vector3(-.4f,0,1));
         inputs.Color = halfColor ?? color; inputs.Depth = halfDepth ?? depth;
-        using var target = CreateMRTRenderTarget(1,1,PixelInternalFormat.Rgba32f,PixelInternalFormat.Rgba32f,
-            PixelInternalFormat.Rgba32f,PixelInternalFormat.Rgba32f,PixelInternalFormat.Rgba32f,PixelInternalFormat.Rgba32f);
+        using var target = CreateMRTRenderTarget(1,1,TextureFormat.Rgba32f,TextureFormat.Rgba32f,
+            TextureFormat.Rgba32f,TextureFormat.Rgba32f,TextureFormat.Rgba32f,TextureFormat.Rgba32f);
         foreach (string scene in new[] { "floor", "thin", "gap", "discontinuity" })
         {
             FillScene(color,depth,scene);

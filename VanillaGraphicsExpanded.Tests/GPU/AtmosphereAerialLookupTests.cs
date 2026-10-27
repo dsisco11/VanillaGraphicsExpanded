@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Collections.Immutable;
 using System.Numerics;
@@ -25,7 +26,7 @@ public sealed class AtmosphereAerialLookupTests(HeadlessGLFixture fixture) : Lum
         EnsureShaderTestAvailable();
         var program=Programs.Create<AerialLookupProgram>();
         using var framework = new ShaderTestFramework();
-        using var target = framework.CreateTestGBuffer(1, 1, PixelInternalFormat.Rgba32f);
+        using var target = framework.CreateTestGBuffer(1, 1, TextureFormat.Rgba32f);
         using var owner = new AtmosphereModSystem();
         const int width = 4, height = 5, depth = 24;
         float[] scatter = new float[width * height * depth * 4], loss = new float[scatter.Length], mie = new float[scatter.Length];
@@ -43,7 +44,7 @@ public sealed class AtmosphereAerialLookupTests(HeadlessGLFixture fixture) : Lum
         owner.Publish(new(Vector3.UnitY, Vector3.Zero, Vector3.Zero, Vector3.Zero, Vector3.Zero,
             ImmutableArray.CreateRange(new float[width * height * 4]))
         { Width = width, Height = height, AerialRadiance = ImmutableArray.CreateRange(scatter), AerialAttenuation = ImmutableArray.CreateRange(loss), AerialMie = ImmutableArray.CreateRange(mie) });
-        using var neutral=framework.CreateTexture(1,1,PixelInternalFormat.R32f,[0f]);
+        using var neutral=framework.CreateTexture(1,1,TextureFormat.R32f,[0f]);
         program.Radiance=AtmosphereModSystem.AerialRadianceTexture;program.Attenuation=AtmosphereModSystem.AerialAttenuationTexture;program.Occlusion=neutral;
         using var draw=new PostprocessDraw();
         foreach (float row in new[] { .25f, .5f, .75f })
@@ -83,8 +84,8 @@ public sealed class AtmosphereAerialLookupTests(HeadlessGLFixture fixture) : Lum
     {
         EnsureShaderTestAvailable();var program=Programs.Create<AerialLookupProgram>();
         using var framework=new ShaderTestFramework();
-        using var target=framework.CreateTestGBuffer(2,1,PixelInternalFormat.Rgba32f);
-        using var mask=framework.CreateTexture(2,1,PixelInternalFormat.R32f,[0f,1f]);
+        using var target=framework.CreateTestGBuffer(2,1,TextureFormat.Rgba32f);
+        using var mask=framework.CreateTexture(2,1,TextureFormat.R32f,[0f,1f]);
         using var owner=new AtmosphereModSystem();const int width=4,height=5,depth=24;
         float[] scatter=Enumerable.Repeat(new[]{2f,1f,.5f,1f},width*height*depth).SelectMany(x=>x).ToArray();
         float[] loss=Enumerable.Repeat(new[]{.4f,.4f,.4f,1f},width*height*depth).SelectMany(x=>x).ToArray();

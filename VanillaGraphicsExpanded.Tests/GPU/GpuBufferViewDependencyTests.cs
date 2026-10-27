@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.Integration.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Runtime.CompilerServices;
@@ -74,7 +75,7 @@ public sealed class GpuBufferViewDependencyTests(HeadlessGLFixture fixture)
             using var sentinelBuffer = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = null }).RequireResource();
             sentinelBuffer.Allocate(64);
             using var sentinel = CreateView(sentinelBuffer, false);
-            VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageSlotBindings.BindImageTexture(OpenGlStateCache.Current, 0, sentinel.TextureId, 0, false, 0, TextureAccess.ReadOnly, (SizedInternalFormat)((GpuTextureRef)sentinel).RequireMetadata().Buffer!.Value.Format);
+            VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageSlotBindings.BindImageTexture(OpenGlStateCache.Current, 0, sentinel.TextureId, 0, false, 0, TextureAccess.ReadOnly, (SizedInternalFormat)OpenGLImageValues.Format(((GpuTextureRef)sentinel).RequireMetadata().Buffer!.Value.Format));
             var original = entry.Reader ?? new GpuBufferMetadataReader();
             entry.Reader = new UnavailableReader();
             Assert.Throws<InvalidOperationException>(() => Resize(buffer, 128, true));
@@ -89,7 +90,7 @@ public sealed class GpuBufferViewDependencyTests(HeadlessGLFixture fixture)
             Assert.True(manager.IsResourceMetadataAvailable(alias));
             Assert.True(manager.IsResourceMetadataAvailable(view));
             Assert.Equal(ranged ? 64 : 0, view.SizeBytes);
-            VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageSlotBindings.BindImageTexture(OpenGlStateCache.Current, 0, view.TextureId, 0, false, 0, TextureAccess.ReadOnly, (SizedInternalFormat)((GpuTextureRef)view).RequireMetadata().Buffer!.Value.Format);
+            VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageSlotBindings.BindImageTexture(OpenGlStateCache.Current, 0, view.TextureId, 0, false, 0, TextureAccess.ReadOnly, (SizedInternalFormat)OpenGLImageValues.Format(((GpuTextureRef)view).RequireMetadata().Buffer!.Value.Format));
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
         finally { harmony.UnpatchAll(harmony.Id); fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
@@ -110,15 +111,15 @@ public sealed class GpuBufferViewDependencyTests(HeadlessGLFixture fixture)
             buffer.Allocate(64);
             using var view = CreateView(buffer, false);
             using var sentinel = CreateView(buffer, false);
-            VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, sentinel, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)sentinel).Target))]);
-            VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageSlotBindings.BindImageTexture(OpenGlStateCache.Current, 0, sentinel.TextureId, 0, false, 0, TextureAccess.ReadOnly, (SizedInternalFormat)((GpuTextureRef)sentinel).RequireMetadata().Buffer!.Value.Format);
+            VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, sentinel, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)sentinel).Target)))]);
+            VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageSlotBindings.BindImageTexture(OpenGlStateCache.Current, 0, sentinel.TextureId, 0, false, 0, TextureAccess.ReadOnly, (SizedInternalFormat)OpenGLImageValues.Format(((GpuTextureRef)sentinel).RequireMetadata().Buffer!.Value.Format));
             GpuResourceManager.InvalidateWrapperMetadata(view);
             buffer.Allocate(128);
             Assert.False(view.IsValid);
             Assert.Throws<InvalidOperationException>(() =>
             {
-                if (consumer == 0) VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, view, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)view).Target))]);
-                else if (consumer == 1) VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageSlotBindings.BindImageTexture(OpenGlStateCache.Current, 0, view.TextureId, 0, false, 0, TextureAccess.ReadOnly, (SizedInternalFormat)((GpuTextureRef)view).RequireMetadata().Buffer!.Value.Format);
+                if (consumer == 0) VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, view, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)view).Target)))]);
+                else if (consumer == 1) VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageSlotBindings.BindImageTexture(OpenGlStateCache.Current, 0, view.TextureId, 0, false, 0, TextureAccess.ReadOnly, (SizedInternalFormat)OpenGLImageValues.Format(((GpuTextureRef)view).RequireMetadata().Buffer!.Value.Format));
                 else { using var binding = new VanillaGraphicsExpanded.Tests.GPU.Fixtures.NativeImageSelection(0, view); }
             });
             OpenGLImageBindings.ActiveTexture(OpenGlStateCache.Current, 0);
@@ -193,8 +194,8 @@ public sealed class GpuBufferViewDependencyTests(HeadlessGLFixture fixture)
             ulong revision = viewEntry.StorageRevision;
             var reader = new CountingReader(backing.Reader!);
             backing.Reader = reader;
-            VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, view, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)view).Target))]);
-            VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageSlotBindings.BindImageTexture(OpenGlStateCache.Current, 0, view.TextureId, 0, false, 0, TextureAccess.ReadOnly, (SizedInternalFormat)((GpuTextureRef)view).RequireMetadata().Buffer!.Value.Format);
+            VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, view, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)view).Target)))]);
+            VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageSlotBindings.BindImageTexture(OpenGlStateCache.Current, 0, view.TextureId, 0, false, 0, TextureAccess.ReadOnly, (SizedInternalFormat)OpenGLImageValues.Format(((GpuTextureRef)view).RequireMetadata().Buffer!.Value.Format));
             Assert.Equal(0, reader.Reads);
             AllocateNative(buffer, 128);
             Assert.Equal(0, reader.Reads);

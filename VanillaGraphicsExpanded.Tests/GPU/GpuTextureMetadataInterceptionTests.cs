@@ -31,14 +31,14 @@ public sealed class GpuTextureMetadataInterceptionTests(HeadlessGLFixture fixtur
             using var image = GpuFramebufferAttachment.FromTexture(source);
             using var framebuffer = DynamicGpuFramebuffer.Create([image])!;
             framebuffer.Bind();
-            using var binding = OpenGlStateCache.Current.BindTextureScope(((GpuTextureRef)texture).Target, 0, texture.TextureId);
+            using var binding = OpenGlStateCache.Current.BindTextureScope(OpenGLImageValues.Target(((GpuTextureRef)texture).Target), 0, texture.TextureId);
             var entry = GpuResourceManagerSystem.CurrentManager!.GetResourceRegistration(texture)!;
             ulong revision = entry.MetadataRevision;
             DefineCopiedOrCompressed(compressed);
             Assert.Equal(compressed ? 4 : 6, texture.Width);
             Assert.Equal(4, texture.Height);
             Assert.Equal(revision + 1, entry.MetadataRevision);
-            Assert.Equal(compressed ? (PixelInternalFormat)InternalFormat.CompressedRgbaBptcUnorm : PixelInternalFormat.Rgba8, texture.InternalFormat);
+            Assert.Equal(compressed ? TextureFormat.CompressedRgbaBptcUnorm : TextureFormat.Rgba8, texture.InternalFormat);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
         finally { harmony.UnpatchAll(harmony.Id); fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
@@ -57,7 +57,7 @@ public sealed class GpuTextureMetadataInterceptionTests(HeadlessGLFixture fixtur
             GL.TextureStorage2D(raw, 4, SizedInternalFormat.Rgba8, 8, 8);
             using var texture = new BorrowedTexture(raw);
             using var view = RHICommandContext.Current.CreateTextureView(new RHITextureViewDescription { Source = texture, Dimension = TextureDimension.Two, Format = TextureFormat.Rgba8, BaseMip = 0, MipCount = 4, BaseLayer = 0, LayerCount = 1, Label = null }).RequireResource();
-            using var binding = OpenGlStateCache.Current.BindTextureScope(((GpuTextureRef)texture).Target, 0, texture.TextureId);
+            using var binding = OpenGlStateCache.Current.BindTextureScope(OpenGLImageValues.Target(((GpuTextureRef)texture).Target), 0, texture.TextureId);
             var entry = GpuResourceManagerSystem.CurrentManager!.GetResourceRegistration(texture)!;
             ulong storage = entry.StorageRevision;
             GenerateLevels();
@@ -117,7 +117,7 @@ public sealed class GpuTextureMetadataInterceptionTests(HeadlessGLFixture fixtur
         try
         {
             using var texture = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba8, Width = System.Math.Max(1, 4), Height = System.Math.Max(1, 4), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
-            using var binding = OpenGlStateCache.Current.BindTextureScope(((GpuTextureRef)texture).Target, 0, texture.TextureId);
+            using var binding = OpenGlStateCache.Current.BindTextureScope(OpenGLImageValues.Target(((GpuTextureRef)texture).Target), 0, texture.TextureId);
             var entry = GpuResourceManagerSystem.CurrentManager!.GetResourceRegistration(texture)!;
             ulong revision = entry.MetadataRevision;
             DefineSpecial(0);
@@ -142,7 +142,7 @@ public sealed class GpuTextureMetadataInterceptionTests(HeadlessGLFixture fixtur
         try
         {
             using var texture = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba8, Width = System.Math.Max(1, 8), Height = System.Math.Max(1, 8), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
-            using var binding = OpenGlStateCache.Current.BindTextureScope(((GpuTextureRef)texture).Target, 0, texture.TextureId);
+            using var binding = OpenGlStateCache.Current.BindTextureScope(OpenGLImageValues.Target(((GpuTextureRef)texture).Target), 0, texture.TextureId);
             VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLTexturesCalls.ExecuteCoreTexImage2D(TextureTarget.Texture2D, 1, PixelInternalFormat.Rgba8, 4, 4, 0, PixelFormat.Rgba, PixelType.UnsignedByte, IntPtr.Zero);
             texture.SetMipRange(1, 3);
             var entry = Assert.IsType<GpuResourceMetadataEntry<GpuTextureMetadata>>(GpuResourceManagerSystem.CurrentManager!.GetResourceRegistration(texture));
@@ -176,11 +176,11 @@ public sealed class GpuTextureMetadataInterceptionTests(HeadlessGLFixture fixtur
         try
         {
             using var texture = RHICommandContext.Current.CreateTextureCube(new RHITextureDescription { Dimension = TextureDimension.Cube, Format = TextureFormat.Rgba8, Width = 4, Height = 4, MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
-            using var image = GpuFramebufferAttachment.FromTexture(texture, cubeFace: TextureTarget.TextureCubeMapPositiveX);
+            using var image = GpuFramebufferAttachment.FromTexture(texture, cubeFace: CubeFace.PositiveX);
             using var framebuffer = DynamicGpuFramebuffer.Create([image])!;
             int changed = 0;
             framebuffer.AttachmentsChanged += () => changed++;
-            using var binding = OpenGlStateCache.Current.BindTextureScope(((GpuTextureRef)texture).Target, 0, texture.TextureId);
+            using var binding = OpenGlStateCache.Current.BindTextureScope(OpenGLImageValues.Target(((GpuTextureRef)texture).Target), 0, texture.TextureId);
             DefineCubeFace();
             Assert.Equal(8, image.Width);
             Assert.Equal(1, changed);
@@ -210,7 +210,7 @@ public sealed class GpuTextureMetadataInterceptionTests(HeadlessGLFixture fixtur
             OpenGlStateCache.Current.InvalidateAll();
             DefineTarget(variant, 8);
             Assert.Equal(8, texture.Width);
-            Assert.Equal(target, texture.TextureTarget);
+            Assert.Equal(OpenGLImageValues.Dimension(target), texture.TextureTarget);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
         finally

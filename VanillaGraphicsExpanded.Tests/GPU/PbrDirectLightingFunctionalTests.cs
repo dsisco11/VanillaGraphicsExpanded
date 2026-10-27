@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using System.Numerics;
@@ -33,12 +34,12 @@ public sealed class PbrDirectLightingFunctionalTests : LumOnShaderFunctionalTest
         using var publication = new TestFrameLightingPublication();
         publication.Capture(storageScale);
         program.FrameLightingInputs = publication.Buffer;
-        using var output = TestFramework.CreateTestGBuffer(1, 1, PixelInternalFormat.Rgba32f,
-            PixelInternalFormat.Rgba32f, PixelInternalFormat.Rgba32f);
-        using var albedo = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, [.5f, .25f, .125f, 1f]);
-        using var depth = TestFramework.CreateTexture(1, 1, PixelInternalFormat.R32f, [0f]);
-        using var normal = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, [.5f, .5f, 1f, 1f]);
-        using var material = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, [.5f, 0f, 0f, 0f]);
+        using var output = TestFramework.CreateTestGBuffer(1, 1, TextureFormat.Rgba32f,
+            TextureFormat.Rgba32f, TextureFormat.Rgba32f);
+        using var albedo = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba16f, [.5f, .25f, .125f, 1f]);
+        using var depth = TestFramework.CreateTexture(1, 1, TextureFormat.R32f, [0f]);
+        using var normal = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba16f, [.5f, .5f, 1f, 1f]);
+        using var material = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba16f, [.5f, 0f, 0f, 0f]);
         using var shadow = CreateShadowTexture();
         RenderDirectLighting(program, output, albedo, depth, normal, material, shadow, shadow,
             (0, 0, 1), (0, 0, 0), 0, default, default,
@@ -65,12 +66,12 @@ public sealed class PbrDirectLightingFunctionalTests : LumOnShaderFunctionalTest
     {
         EnsureShaderTestAvailable();
         var program = CompilePbrDirectLightingProgram();
-        using var output = TestFramework.CreateTestGBuffer(1, 1, PixelInternalFormat.Rgba16f,
-            PixelInternalFormat.Rgba16f, PixelInternalFormat.Rgba16f);
-        using var color = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, new[] { .2f, .8f, .1f, 1f });
-        using var depth = TestFramework.CreateTexture(1, 1, PixelInternalFormat.R32f, new[] { 0f });
-        using var normal = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, new[] { .5f, .5f, 1f, 1f });
-        using var material = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, new[] { .8f, metallic, 0f, transmission });
+        using var output = TestFramework.CreateTestGBuffer(1, 1, TextureFormat.Rgba16f,
+            TextureFormat.Rgba16f, TextureFormat.Rgba16f);
+        using var color = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba16f, new[] { .2f, .8f, .1f, 1f });
+        using var depth = TestFramework.CreateTexture(1, 1, TextureFormat.R32f, new[] { 0f });
+        using var normal = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba16f, new[] { .5f, .5f, 1f, 1f });
+        using var material = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba16f, new[] { .8f, metallic, 0f, transmission });
         using var shadow = CreateShadowTexture();
         RenderDirectLighting(program, output, color, depth, normal, material, shadow, shadow,
             lightDirection: (0f, 0f, -1f), rgbaLightIn: (1f, 1f, 1f), pointLightCount: 0,
@@ -102,14 +103,14 @@ public sealed class PbrDirectLightingFunctionalTests : LumOnShaderFunctionalTest
         var programId = CompilePbrDirectLightingProgram();
         {
             using var output = TestFramework.CreateTestGBuffer(1, 1,
-                PixelInternalFormat.Rgba16f,
-                PixelInternalFormat.Rgba16f,
-                PixelInternalFormat.Rgba16f);
+                TextureFormat.Rgba16f,
+                TextureFormat.Rgba16f,
+                TextureFormat.Rgba16f);
 
-            using var primaryScene = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, new[] { 0.5f, 0.5f, 0.5f, 1f });
-            using var primaryDepth = TestFramework.CreateTexture(1, 1, PixelInternalFormat.R32f, new[] { 0.0f });
-            using var gBufferNormal = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, new[] { 0.5f, 0.5f, 1.0f, 1.0f });
-            using var gBufferMaterial = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, new[] { roughness, 0.0f, 0.0f, 1.0f });
+            using var primaryScene = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba16f, new[] { 0.5f, 0.5f, 0.5f, 1f });
+            using var primaryDepth = TestFramework.CreateTexture(1, 1, TextureFormat.R32f, new[] { 0.0f });
+            using var gBufferNormal = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba16f, new[] { 0.5f, 0.5f, 1.0f, 1.0f });
+            using var gBufferMaterial = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba16f, new[] { roughness, 0.0f, 0.0f, 1.0f });
             using var dummyShadow = CreateShadowTexture();
 
             RenderDirectLighting(programId, output,
@@ -138,20 +139,20 @@ public sealed class PbrDirectLightingFunctionalTests : LumOnShaderFunctionalTest
         var programId = CompilePbrDirectLightingProgram();
         {
             using var output = TestFramework.CreateTestGBuffer(1, 1,
-                PixelInternalFormat.Rgba16f,
-                PixelInternalFormat.Rgba16f,
-                PixelInternalFormat.Rgba16f);
+                TextureFormat.Rgba16f,
+                TextureFormat.Rgba16f,
+                TextureFormat.Rgba16f);
 
             // Inputs
             var baseColor = (r: 0.8f, g: 0.2f, b: 0.1f);
-            using var primaryScene = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, new[] { baseColor.r, baseColor.g, baseColor.b, 1f });
-            using var primaryDepth = TestFramework.CreateTexture(1, 1, PixelInternalFormat.R32f, new[] { 0.0f });
+            using var primaryScene = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba16f, new[] { baseColor.r, baseColor.g, baseColor.b, 1f });
+            using var primaryDepth = TestFramework.CreateTexture(1, 1, TextureFormat.R32f, new[] { 0.0f });
 
             // Normal = +Z (packed to 0..1)
-            using var gBufferNormal = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, new[] { 0.5f, 0.5f, 1.0f, 1.0f });
+            using var gBufferNormal = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba16f, new[] { 0.5f, 0.5f, 1.0f, 1.0f });
 
             // Roughness, metallic, emissiveScalar, reflectivity
-            using var gBufferMaterial = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, new[] { 0.5f, 0.0f, 0.0f, 0.0f });
+            using var gBufferMaterial = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba16f, new[] { 0.5f, 0.0f, 0.0f, 0.0f });
 
             using var dummyShadow = CreateShadowTexture();
 
@@ -188,17 +189,17 @@ public sealed class PbrDirectLightingFunctionalTests : LumOnShaderFunctionalTest
         var programId = CompilePbrDirectLightingProgram();
         {
             using var output = TestFramework.CreateTestGBuffer(1, 1,
-                PixelInternalFormat.Rgba16f,
-                PixelInternalFormat.Rgba16f,
-                PixelInternalFormat.Rgba16f);
+                TextureFormat.Rgba16f,
+                TextureFormat.Rgba16f,
+                TextureFormat.Rgba16f);
 
-            using var primaryScene = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, new[] { 0.7f, 0.7f, 0.7f, 1f });
-            using var primaryDepth = TestFramework.CreateTexture(1, 1, PixelInternalFormat.R32f, new[] { 0.0f });
-            using var gBufferNormal = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, new[] { 0.5f, 0.5f, 1.0f, 1.0f });
+            using var primaryScene = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba16f, new[] { 0.7f, 0.7f, 0.7f, 1f });
+            using var primaryDepth = TestFramework.CreateTexture(1, 1, TextureFormat.R32f, new[] { 0.0f });
+            using var gBufferNormal = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba16f, new[] { 0.5f, 0.5f, 1.0f, 1.0f });
             using var dummyShadow = CreateShadowTexture();
 
             // Metallic = 1, emissive = 0
-            using var gBufferMaterialMetal = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, new[] { 0.2f, 1.0f, 0.0f, 1.0f });
+            using var gBufferMaterialMetal = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba16f, new[] { 0.2f, 1.0f, 0.0f, 1.0f });
 
             RenderDirectLighting(programId, output,
                 primaryScene, primaryDepth, gBufferNormal, gBufferMaterialMetal,
@@ -229,12 +230,12 @@ public sealed class PbrDirectLightingFunctionalTests : LumOnShaderFunctionalTest
     {
         EnsureShaderTestAvailable();
         var program = CompilePbrDirectLightingProgram();
-        using var output = TestFramework.CreateTestGBuffer(1, 1, PixelInternalFormat.Rgba32f,
-            PixelInternalFormat.Rgba32f, PixelInternalFormat.Rgba32f);
-        using var albedo = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, [.75f, .25f, .125f, 1f]);
-        using var depth = TestFramework.CreateTexture(1, 1, PixelInternalFormat.R32f, [0f]);
-        using var normal = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, [.5f, .5f, 1f, 1f]);
-        using var material = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, [.5f, 0f, 0f, 0f]);
+        using var output = TestFramework.CreateTestGBuffer(1, 1, TextureFormat.Rgba32f,
+            TextureFormat.Rgba32f, TextureFormat.Rgba32f);
+        using var albedo = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba16f, [.75f, .25f, .125f, 1f]);
+        using var depth = TestFramework.CreateTexture(1, 1, TextureFormat.R32f, [0f]);
+        using var normal = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba16f, [.5f, .5f, 1f, 1f]);
+        using var material = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba16f, [.5f, 0f, 0f, 0f]);
         using var shadow = CreateShadowTexture();
         RenderDirectLighting(program, output, albedo, depth, normal, material, shadow, shadow,
             (0, 0, 1), (0, 0, 0), 1, (0, 0, 0), (2, 3, 4), inverseViewYaw: inverseViewYaw);
@@ -260,12 +261,12 @@ public sealed class PbrDirectLightingFunctionalTests : LumOnShaderFunctionalTest
         EnsureShaderTestAvailable();
         var program = CompilePbrDirectLightingProgram();
         using var output = TestFramework.CreateTestGBuffer(1, 1,
-            PixelInternalFormat.Rgba16f, PixelInternalFormat.Rgba16f, PixelInternalFormat.Rgba16f);
+            TextureFormat.Rgba16f, TextureFormat.Rgba16f, TextureFormat.Rgba16f);
         // Binary-exact colors keep the comparison independent of half-float input rounding.
-        using var albedo = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, new[] { .75f, .25f, .125f, 1f });
-        using var depth = TestFramework.CreateTexture(1, 1, PixelInternalFormat.R32f, new[] { 0f });
-        using var normal = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, new[] { .5f, .5f, 1f, 1f });
-        using var material = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, new[] { .5f, metallic, 0f, materialAlpha });
+        using var albedo = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba16f, new[] { .75f, .25f, .125f, 1f });
+        using var depth = TestFramework.CreateTexture(1, 1, TextureFormat.R32f, new[] { 0f });
+        using var normal = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba16f, new[] { .5f, .5f, 1f, 1f });
+        using var material = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba16f, new[] { .5f, metallic, 0f, materialAlpha });
         using var shadow = CreateShadowTexture();
 
         RenderDirectLighting(program, output, albedo, depth, normal, material, shadow, shadow,
@@ -297,11 +298,11 @@ public sealed class PbrDirectLightingFunctionalTests : LumOnShaderFunctionalTest
         EnsureShaderTestAvailable();
         var program = CompilePbrDirectLightingProgram();
         using var output = TestFramework.CreateTestGBuffer(1, 1,
-            PixelInternalFormat.Rgba16f, PixelInternalFormat.Rgba16f, PixelInternalFormat.Rgba16f);
-        using var albedo = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, new[] { .75f, .25f, .125f, 1f });
-        using var depth = TestFramework.CreateTexture(1, 1, PixelInternalFormat.R32f, new[] { 0f });
-        using var normal = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, new[] { .5f, .5f, 1f, 1f });
-        using var material = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, new[] { .5f, 0f, 0f, 0f });
+            TextureFormat.Rgba16f, TextureFormat.Rgba16f, TextureFormat.Rgba16f);
+        using var albedo = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba16f, new[] { .75f, .25f, .125f, 1f });
+        using var depth = TestFramework.CreateTexture(1, 1, TextureFormat.R32f, new[] { 0f });
+        using var normal = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba16f, new[] { .5f, .5f, 1f, 1f });
+        using var material = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba16f, new[] { .5f, 0f, 0f, 0f });
         using var shadow = CreateShadowTexture();
 
         RenderDirectLighting(program, output, albedo, depth, normal, material, shadow, shadow,
@@ -326,17 +327,17 @@ public sealed class PbrDirectLightingFunctionalTests : LumOnShaderFunctionalTest
         var programId = CompilePbrDirectLightingProgram();
         {
             using var output = TestFramework.CreateTestGBuffer(1, 1,
-                PixelInternalFormat.Rgba16f,
-                PixelInternalFormat.Rgba16f,
-                PixelInternalFormat.Rgba16f);
+                TextureFormat.Rgba16f,
+                TextureFormat.Rgba16f,
+                TextureFormat.Rgba16f);
 
             var baseColor = (r: 0.3f, g: 0.4f, b: 0.5f);
 
-            using var primaryScene = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, new[] { baseColor.r, baseColor.g, baseColor.b, 1f });
-            using var primaryDepth = TestFramework.CreateTexture(1, 1, PixelInternalFormat.R32f, new[] { 0.0f });
-            using var gBufferNormal = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, new[] { 0.5f, 0.5f, 1.0f, 1.0f });
+            using var primaryScene = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba16f, new[] { baseColor.r, baseColor.g, baseColor.b, 1f });
+            using var primaryDepth = TestFramework.CreateTexture(1, 1, TextureFormat.R32f, new[] { 0.0f });
+            using var gBufferNormal = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba16f, new[] { 0.5f, 0.5f, 1.0f, 1.0f });
 
-            using var gBufferMaterial = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, new[] { 0.5f, 0.0f, emissiveScalar, 1.0f });
+            using var gBufferMaterial = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba16f, new[] { 0.5f, 0.0f, emissiveScalar, 1.0f });
             using var dummyShadow = CreateShadowTexture();
 
             // No lights at all
@@ -376,18 +377,18 @@ public sealed class PbrDirectLightingFunctionalTests : LumOnShaderFunctionalTest
         var programId = CompilePbrDirectLightingProgram();
         {
             using var outputA = TestFramework.CreateTestGBuffer(1, 1,
-                PixelInternalFormat.Rgba16f,
-                PixelInternalFormat.Rgba16f,
-                PixelInternalFormat.Rgba16f);
+                TextureFormat.Rgba16f,
+                TextureFormat.Rgba16f,
+                TextureFormat.Rgba16f);
             using var outputB = TestFramework.CreateTestGBuffer(1, 1,
-                PixelInternalFormat.Rgba16f,
-                PixelInternalFormat.Rgba16f,
-                PixelInternalFormat.Rgba16f);
+                TextureFormat.Rgba16f,
+                TextureFormat.Rgba16f,
+                TextureFormat.Rgba16f);
 
-            using var primaryScene = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, new[] { 0.6f, 0.6f, 0.6f, 1f });
-            using var primaryDepth = TestFramework.CreateTexture(1, 1, PixelInternalFormat.R32f, new[] { 0.0f });
-            using var gBufferNormal = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, new[] { 0.5f, 0.5f, 1.0f, 1.0f });
-            using var gBufferMaterial = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, new[] { 0.4f, 0.0f, 0.0f, 0.0f });
+            using var primaryScene = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba16f, new[] { 0.6f, 0.6f, 0.6f, 1f });
+            using var primaryDepth = TestFramework.CreateTexture(1, 1, TextureFormat.R32f, new[] { 0.0f });
+            using var gBufferNormal = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba16f, new[] { 0.5f, 0.5f, 1.0f, 1.0f });
+            using var gBufferMaterial = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba16f, new[] { 0.4f, 0.0f, 0.0f, 0.0f });
             using var dummyShadow = CreateShadowTexture();
 
             // Depth zero at the center reconstructs viewPos=(0,0,-1).
@@ -395,7 +396,7 @@ public sealed class PbrDirectLightingFunctionalTests : LumOnShaderFunctionalTest
             // stay in view space while the inverse view and world normals rotate together.
             var delta = (x: offsetX, y: offsetY, z: offsetZ);
             var worldNormal = Vector3.TransformNormal(Vector3.UnitZ, Matrix4x4.CreateRotationY(yaw));
-            using var rotatedNormal = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f,
+            using var rotatedNormal = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba16f,
                 new[] { worldNormal.X * .5f + .5f, worldNormal.Y * .5f + .5f, worldNormal.Z * .5f + .5f, 1f });
 
             RenderDirectLighting(programId, outputA,
@@ -441,18 +442,18 @@ public sealed class PbrDirectLightingFunctionalTests : LumOnShaderFunctionalTest
 
         var programId = CompilePbrCompositeProgram();
         {
-            using var output = TestFramework.CreateTestGBuffer(1, 1, PixelInternalFormat.Rgba16f, 1);
+            using var output = TestFramework.CreateTestGBuffer(1, 1, TextureFormat.Rgba16f, 1);
 
-            using var directDiffuse = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, new[] { 0.1f, 0.2f, 0.3f, 1f });
-            using var directSpecular = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, new[] { 0.4f, 0.0f, 0.1f, 1f });
-            using var emissive = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, new[] { 0.05f, 0.05f, 0.0f, 1f });
-            using var primaryDepth = TestFramework.CreateTexture(1, 1, PixelInternalFormat.R32f, new[] { 0.0f });
+            using var directDiffuse = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba16f, new[] { 0.1f, 0.2f, 0.3f, 1f });
+            using var directSpecular = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba16f, new[] { 0.4f, 0.0f, 0.1f, 1f });
+            using var emissive = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba16f, new[] { 0.05f, 0.05f, 0.0f, 1f });
+            using var primaryDepth = TestFramework.CreateTexture(1, 1, TextureFormat.R32f, new[] { 0.0f });
 
             // Unused when lumOnEnabled=0, but provided for completeness.
-            using var indirect = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, new[] { 0f, 0f, 0f, 1f });
-            using var albedo = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, new[] { 0f, 0f, 0f, 1f });
-            using var material = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, new[] { 0f, 0f, 0f, 0f });
-            using var normal = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, new[] { 0.5f, 0.5f, 1f, 1f });
+            using var indirect = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba16f, new[] { 0f, 0f, 0f, 1f });
+            using var albedo = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba16f, new[] { 0f, 0f, 0f, 1f });
+            using var material = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba16f, new[] { 0f, 0f, 0f, 0f });
+            using var normal = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba16f, new[] { 0.5f, 0.5f, 1f, 1f });
 
             RenderComposite(programId, output,
                 directDiffuse, directSpecular, emissive,
@@ -472,7 +473,7 @@ public sealed class PbrDirectLightingFunctionalTests : LumOnShaderFunctionalTest
     /// <summary>Supplies real depth storage for the comparison-sampler contract.</summary>
     private static DepthTexture CreateShadowTexture()
     {
-        var texture=new DepthTexture(1,1,PixelInternalFormat.DepthComponent32f);
+        var texture=new DepthTexture(1,1,TextureFormat.DepthComponent32f);
         texture.UploadDataImmediate([1f]);return texture;
     }
 
@@ -529,10 +530,10 @@ public sealed class PbrDirectLightingFunctionalTests : LumOnShaderFunctionalTest
 
 
         // Samplers
-        using var environment = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, [0f, 0f, 0f, 1f]);
+        using var environment = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba16f, [0f, 0f, 0f, 1f]);
         using var surface = LayeredTestTexture.Create(gBufferNormal, gBufferMaterial, environment);
         programId.GBufferSurface = surface;
-        using var position = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba32f, new float[4]);
+        using var position = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba32f, new float[4]);
         programId.GBufferPosition = position;
         programId.PrimaryScene = primaryScene;
         programId.PrimaryDepth = primaryDepth;
@@ -616,8 +617,8 @@ public sealed class PbrDirectLightingFunctionalTests : LumOnShaderFunctionalTest
 
         using var lightingArray = LayeredTestTexture.Create(directDiffuse, directSpecular, emissive);
         programId.DirectLighting = lightingArray;
-        using var position = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba32f, new float[4]);
-        using var environment = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, new float[4]);
+        using var position = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba32f, new float[4]);
+        using var environment = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba16f, new float[4]);
         programId.GBufferPosition = position;
         using var surface = LayeredTestTexture.Create(gBufferNormal, gBufferMaterial, environment);
         programId.GBufferSurface = surface;

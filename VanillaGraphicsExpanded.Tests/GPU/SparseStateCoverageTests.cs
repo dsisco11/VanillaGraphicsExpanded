@@ -119,7 +119,7 @@ public sealed class SparseStateCoverageTests(HeadlessGLFixture fixture) : Render
     public void ClearOnlyEnvelopeClearsPixelsWithoutOwningUnrelatedGroups()
     {
         var cache = Prepare();
-        using var target = CreateRenderTarget(4, 4, PixelInternalFormat.Rgba32f);
+        using var target = CreateRenderTarget(4, 4, TextureFormat.Rgba32f);
         target[0].UploadDataImmediate(Enumerable.Repeat(.25f, 64).ToArray());
         cache.SetCapability(EnableCap.ScissorTest, true); cache.SetScissor(0, 0, 1, 1);
         cache.SetColorMask(GlColorMask.FromRgba(false, false, false, false));
@@ -165,7 +165,7 @@ public sealed class SparseStateCoverageTests(HeadlessGLFixture fixture) : Render
     public void NonClearLoadsDoNotApplyClearState(bool discard)
     {
         var cache = Prepare();
-        using var target = CreateRenderTarget(2, 2, PixelInternalFormat.Rgba32f);
+        using var target = CreateRenderTarget(2, 2, TextureFormat.Rgba32f);
         target[0].UploadDataImmediate(Enumerable.Repeat(.375f, 16).ToArray());
         var load = discard ? AttachmentLoad.Discard : AttachmentLoad.Preserve;
         var description = new RenderPassDesc(target, [new(0, load)]);

@@ -25,9 +25,9 @@ public sealed class Texture3D : GpuTexture
         if (x < 0 || y < 0 || regionWidth <= 0 || regionHeight <= 0 ||
             (long)x + regionWidth > width || (long)y + regionHeight > height)
             throw new ArgumentOutOfRangeException(nameof(regionWidth), "Readback region must lie within the texture.");
-        PixelFormat format = TextureFormatHelper.GetPixelFormat(internalFormat);
-        if (format is PixelFormat.RedInteger or PixelFormat.RgInteger or PixelFormat.RgbInteger or PixelFormat.RgbaInteger
-            or PixelFormat.DepthComponent or PixelFormat.DepthStencil)
+        PixelChannelLayout format = TextureFormatHelper.GetPixelFormat(internalFormat);
+        if (format is PixelChannelLayout.RedInteger or PixelChannelLayout.RgInteger or PixelChannelLayout.RgbInteger or PixelChannelLayout.RgbaInteger
+            or PixelChannelLayout.Depth or PixelChannelLayout.DepthStencil)
             throw new NotSupportedException("Floating-point color readback requires a noninteger color texture.");
 
         int count = checked(regionWidth * regionHeight * GetChannelCount());

@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.PBR.Liquids;
@@ -41,13 +42,13 @@ public sealed class LiquidProductionPipelineTests(HeadlessGLFixture fixture) : R
                 : "pbr_liquid")
                 .UniformBlocks["VgeFrameUBO"].Slot);
             Assert.True(shader.EnsureReady(), string.Join("\n", assets.Logs));
-            using var depth = new DepthTexture(1, 1, PixelInternalFormat.DepthComponent24);
+            using var depth = new DepthTexture(1, 1, TextureFormat.DepthComponent24);
             // These are the final installed engine OIT formats after its BeforeOIT attachment replacement.
             using var target = route == "depth" ? DynamicGpuFramebuffer.CreateDepthOnly(depth)!
-                : route == "surface" ? CreateMRTRenderTarget(1, 1, PixelInternalFormat.Rgb8,
-                    PixelInternalFormat.R16f, PixelInternalFormat.Rgba8, PixelInternalFormat.Rgba16f,
-                    PixelInternalFormat.Rgba16f, PixelInternalFormat.Rgba16f)
-                : CreateMRTRenderTarget(1, 1, PixelInternalFormat.Rgba32f, PixelInternalFormat.Rgba32f);
+                : route == "surface" ? CreateMRTRenderTarget(1, 1, TextureFormat.Rgb8,
+                    TextureFormat.R16f, TextureFormat.Rgba8, TextureFormat.Rgba16f,
+                    TextureFormat.Rgba16f, TextureFormat.Rgba16f)
+                : CreateMRTRenderTarget(1, 1, TextureFormat.Rgba32f, TextureFormat.Rgba32f);
             var outputs = route == "depth" ? LiquidPipelineStates.DepthOutputs
                 : route == "surface" ? LiquidPipelineStates.SurfaceOutputs : [new RHIColorAttachment(AttachmentIndex:0),new RHIColorAttachment(AttachmentIndex:1)];
             var targets = RHICommandContext.Current.DescribeRenderTargets(FramebufferTestSetup.DescribeAttachments(target,outputs));

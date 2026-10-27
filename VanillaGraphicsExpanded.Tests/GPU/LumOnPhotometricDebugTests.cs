@@ -1,3 +1,5 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
+using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.LumOn;
 using VanillaGraphicsExpanded.LumOn.Shaders;
@@ -22,10 +24,10 @@ public sealed class LumOnPhotometricDebugTests(HeadlessGLFixture fixture) : LumO
         EnsureShaderTestAvailable();
         var program = Programs.Create<LumOnDebugShaderProgram>(identity: LumOnDebugShaderProgramFamily.GetProgramName(mode));
         UpdateAndBindLumOnFrameUbo(program, screenWidth: 1, screenHeight: 1);
-        using var source = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba32f, [.125f, .0625f, .03125f, 1]);
+        using var source = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba32f, [.125f, .0625f, .03125f, 1]);
         program.ProbeAtlasTrace = source; program.ProbeAtlasCurrent = source;
         program.ProbeAtlasFiltered = source; program.ProbeAtlasGatherInput = source;
-        using var output = TestFramework.CreateTestGBuffer(1, 1, PixelInternalFormat.Rgba32f);
+        using var output = TestFramework.CreateTestGBuffer(1, 1, TextureFormat.Rgba32f);
         TestFramework.RenderQuadTo(program, output);
         float[] actual = output[0].ReadPixels();
         Assert.Equal(new[] { 2f, 1f, .5f, 1f }, actual);
@@ -38,14 +40,14 @@ public sealed class LumOnPhotometricDebugTests(HeadlessGLFixture fixture) : LumO
         EnsureShaderTestAvailable();
         var program = Programs.Create<LumOnDebugShaderProgram>(identity: LumOnDebugShaderProgramFamily.GetProgramName(LumOnDebugMode.RadianceOverlay));
         UpdateAndBindLumOnFrameUbo(program, screenWidth: 1, screenHeight: 1);
-        using var depth = TestFramework.CreateTexture(1, 1, PixelInternalFormat.R32f, [.75f]);
+        using var depth = TestFramework.CreateTexture(1, 1, TextureFormat.R32f, [.75f]);
         using var publication = new TestFrameLightingPublication();
         program.FrameLightingInputs = publication.Buffer; program.PrimaryDepth = depth;
-        using var output = TestFramework.CreateTestGBuffer(1, 1, PixelInternalFormat.Rgba32f);
+        using var output = TestFramework.CreateTestGBuffer(1, 1, TextureFormat.Rgba32f);
         foreach (float scale in new[] { 1f, .25f })
         {
             publication.Capture(scale);
-            using var source = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba32f, [2*scale, scale, .5f*scale, 1]);
+            using var source = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba32f, [2*scale, scale, .5f*scale, 1]);
             program.IndirectHalf = source;
             TestFramework.RenderQuadTo(program, output);
             float[] actual = output[0].ReadPixels();
@@ -67,14 +69,14 @@ public sealed class LumOnPhotometricDebugTests(HeadlessGLFixture fixture) : LumO
         program.WorldProbeEffectGain = 3;
         using var publication = new TestFrameLightingPublication();
         program.FrameLightingInputs = publication.Buffer;
-        using var output = TestFramework.CreateTestGBuffer(1, 1, PixelInternalFormat.Rgba32f);
+        using var output = TestFramework.CreateTestGBuffer(1, 1, TextureFormat.Rgba32f);
         float[]? earlier = null;
         foreach (float scale in new[] { 1f, .25f })
         {
             // Only the encoded sources and frozen multiplier change; their physical RGB remains identical.
             publication.Capture(scale);
-            using var full = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba32f, [2 * scale, scale, .5f * scale, 1]);
-            using var suppressed = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba32f, [.5f * scale, .25f * scale, .125f * scale, 1]);
+            using var full = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba32f, [2 * scale, scale, .5f * scale, 1]);
+            using var suppressed = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba32f, [.5f * scale, .25f * scale, .125f * scale, 1]);
             using var direct = LayeredTestTexture.Create(full, null, null);
             program.DirectLighting = direct;
             program.IndirectDiffuseFull = full;

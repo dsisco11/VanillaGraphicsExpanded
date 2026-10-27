@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Collections.Generic;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
@@ -12,7 +13,7 @@ internal sealed class SceneColorFrameTargets
     [
         EnumFrameBuffer.Primary
     ];
-    private readonly Dictionary<int, (int Width, int Height, PixelInternalFormat Format)> images = new();
+    private readonly Dictionary<int, (int Width, int Height, TextureFormat Format)> images = new();
 
     #region Public API
     /// <summary>Validates actual scene storage, accepting omitted postprocess dimensions in engine publications.</summary>
@@ -43,7 +44,7 @@ internal sealed class SceneColorFrameTargets
                 cached = (image.Width, image.Height, image.InternalFormat);
                 images[id] = cached;
             }
-            if (cached.Format is not (PixelInternalFormat.Rgba16f or PixelInternalFormat.Rgba32f))
+            if (cached.Format is not (TextureFormat.Rgba16f or TextureFormat.Rgba32f))
             {
                 failure = $"{kind} color texture {id} uses {cached.Format}; floating-point RGBA storage is required.";
                 return false;

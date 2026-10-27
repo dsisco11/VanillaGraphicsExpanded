@@ -1,3 +1,5 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
+using VanillaGraphicsExpanded.Rendering.RHI;
 using VanillaGraphicsExpanded.LumOn;
 using System.Numerics;
 using OpenTK.Graphics.OpenGL;
@@ -103,12 +105,12 @@ public class LumOnProbeAnchorFunctionalTests : LumOnShaderFunctionalTestBase
         // Valid normals everywhere
         var normalData = CreateEncodedNormalBufferUniform(0f, 1f, 0f);
 
-        using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
-        using var normalTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, normalData);
+        using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.R32f, depthData);
+        using var normalTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.Rgba16f, normalData);
 
         using var outputGBuffer = TestFramework.CreateTestGBuffer(
             ProbeGridWidth, ProbeGridHeight,
-            PixelInternalFormat.Rgba16f, PixelInternalFormat.Rgba16f);
+            TextureFormat.Rgba16f, TextureFormat.Rgba16f);
 
         var programId = CompileProbeAnchorShader();
         var invProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
@@ -350,13 +352,13 @@ public class LumOnProbeAnchorFunctionalTests : LumOnShaderFunctionalTestBase
         var depthData = LumOnTestInputFactory.CreateDepthBufferUniform(testDepth, channels: 1);
         var normalData = CreateEncodedNormalBufferUniform(0f, 1f, 0f); // Upward normal encoded
 
-        using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
-        using var normalTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, normalData);
+        using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.R32f, depthData);
+        using var normalTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.Rgba16f, normalData);
 
         // Create output MRT GBuffer (position + normal)
         using var outputGBuffer = TestFramework.CreateTestGBuffer(
             ProbeGridWidth, ProbeGridHeight,
-            PixelInternalFormat.Rgba16f, PixelInternalFormat.Rgba16f);
+            TextureFormat.Rgba16f, TextureFormat.Rgba16f);
 
         // Compile shader and set uniforms - use realistic matrices for proper depth reconstruction
         var programId = CompileProbeAnchorShader();
@@ -430,13 +432,13 @@ public class LumOnProbeAnchorFunctionalTests : LumOnShaderFunctionalTestBase
         var depthData = LumOnTestInputFactory.CreateDepthBufferUniform(testDepth, channels: 1);
         var normalData = CreateEncodedNormalBufferUniform(0f, 1f, 0f); // Upward normal encoded
 
-        using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
-        using var normalTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, normalData);
+        using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.R32f, depthData);
+        using var normalTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.Rgba16f, normalData);
 
         // Create output MRT GBuffer
         using var outputGBuffer = TestFramework.CreateTestGBuffer(
             ProbeGridWidth, ProbeGridHeight,
-            PixelInternalFormat.Rgba16f, PixelInternalFormat.Rgba16f);
+            TextureFormat.Rgba16f, TextureFormat.Rgba16f);
 
         // Compile and setup - use realistic matrices for proper depth reconstruction
         var programId = CompileProbeAnchorShader();
@@ -504,13 +506,13 @@ public class LumOnProbeAnchorFunctionalTests : LumOnShaderFunctionalTestBase
         var depthData = LumOnTestInputFactory.CreateDepthBufferUniform(testDepth, channels: 1);
         var normalData = CreateEncodedNormalBufferUniform(0f, 1f, 0f); // Upward normal encoded
 
-        using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
-        using var normalTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, normalData);
+        using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.R32f, depthData);
+        using var normalTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.Rgba16f, normalData);
 
         // Create output GBuffer
         using var outputGBuffer = TestFramework.CreateTestGBuffer(
             ProbeGridWidth, ProbeGridHeight,
-            PixelInternalFormat.Rgba16f, PixelInternalFormat.Rgba16f);
+            TextureFormat.Rgba16f, TextureFormat.Rgba16f);
 
         // Compile and setup - use realistic matrices for proper depth reconstruction
         var programId = CompileProbeAnchorShader();
@@ -575,13 +577,13 @@ public class LumOnProbeAnchorFunctionalTests : LumOnShaderFunctionalTestBase
         var depthData = LumOnTestInputFactory.CreateDepthBufferUniform(skyDepth, channels: 1);
         var normalData = CreateEncodedNormalBufferUniform(0f, 1f, 0f); // Upward normal encoded
 
-        using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
-        using var normalTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, normalData);
+        using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.R32f, depthData);
+        using var normalTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.Rgba16f, normalData);
 
         // Create output GBuffer
         using var outputGBuffer = TestFramework.CreateTestGBuffer(
             ProbeGridWidth, ProbeGridHeight,
-            PixelInternalFormat.Rgba16f, PixelInternalFormat.Rgba16f);
+            TextureFormat.Rgba16f, TextureFormat.Rgba16f);
 
         // Compile and setup - use realistic matrices for proper depth reconstruction
         var programId = CompileProbeAnchorShader();
@@ -656,13 +658,13 @@ public class LumOnProbeAnchorFunctionalTests : LumOnShaderFunctionalTestBase
         var depthData = LumOnTestInputFactory.CreateDepthBufferCheckerboard(channels: 1);
         var normalData = CreateEncodedNormalBufferUniform(0f, 1f, 0f); // Upward normal encoded
 
-        using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
-        using var normalTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, normalData);
+        using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.R32f, depthData);
+        using var normalTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.Rgba16f, normalData);
 
         // Create output GBuffer
         using var outputGBuffer = TestFramework.CreateTestGBuffer(
             ProbeGridWidth, ProbeGridHeight,
-            PixelInternalFormat.Rgba16f, PixelInternalFormat.Rgba16f);
+            TextureFormat.Rgba16f, TextureFormat.Rgba16f);
 
         // Compile and setup - use realistic matrices for proper depth reconstruction
         var programId = CompileProbeAnchorShader();
@@ -740,13 +742,13 @@ public class LumOnProbeAnchorFunctionalTests : LumOnShaderFunctionalTestBase
             normalData[idx + 3] = 1.0f;
         }
 
-        using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
-        using var normalTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, normalData);
+        using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.R32f, depthData);
+        using var normalTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.Rgba16f, normalData);
 
         // Create output GBuffer
         using var outputGBuffer = TestFramework.CreateTestGBuffer(
             ProbeGridWidth, ProbeGridHeight,
-            PixelInternalFormat.Rgba16f, PixelInternalFormat.Rgba16f);
+            TextureFormat.Rgba16f, TextureFormat.Rgba16f);
 
         // Compile and setup - use realistic matrices for proper depth reconstruction
         var programId = CompileProbeAnchorShader();
@@ -812,13 +814,13 @@ public class LumOnProbeAnchorFunctionalTests : LumOnShaderFunctionalTestBase
         var depthData = LumOnTestInputFactory.CreateDepthBufferUniform(testDepth, channels: 1);
         var normalData = CreateEncodedNormalBufferAxisAligned();
 
-        using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
-        using var normalTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, normalData);
+        using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.R32f, depthData);
+        using var normalTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.Rgba16f, normalData);
 
         // Create output GBuffer
         using var outputGBuffer = TestFramework.CreateTestGBuffer(
             ProbeGridWidth, ProbeGridHeight,
-            PixelInternalFormat.Rgba16f, PixelInternalFormat.Rgba16f);
+            TextureFormat.Rgba16f, TextureFormat.Rgba16f);
 
         // Compile and setup - use realistic matrices for proper depth reconstruction
         var programId = CompileProbeAnchorShader();

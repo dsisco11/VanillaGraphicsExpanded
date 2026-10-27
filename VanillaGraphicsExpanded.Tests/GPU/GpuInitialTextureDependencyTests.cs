@@ -63,7 +63,7 @@ public sealed class GpuInitialTextureDependencyTests(HeadlessGLFixture fixture)
         public bool IsResource(nint id)=>GL.IsTexture((int)id);
         /// <inheritdoc />
         public bool TryRead(nint id,out GpuTextureMetadata value)
-        { value=new(TextureTarget.TextureBuffer,ImmutableArray<GpuTextureLevelMetadata>.Empty,false,0,0,0,new(buffer,SizedInternalFormat.R32f,0,0,true)); return true; }
+        { value=new(TextureDimension.Buffer,ImmutableArray<GpuTextureLevelMetadata>.Empty,false,0,0,0,new(buffer,TextureFormat.R32f,0,0,true)); return true; }
     }
     /// <summary>Receives the acquired snapshot without taking texture ownership.</summary>
     private sealed class Alias(int id):GpuResource<GpuTextureMetadata>

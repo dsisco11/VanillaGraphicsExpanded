@@ -1,6 +1,5 @@
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
-using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering.Pipeline.Descriptions;
 
 namespace VanillaGraphicsExpanded.Rendering;
@@ -11,8 +10,8 @@ public abstract partial class GpuFramebuffer
     internal SurfaceMetadata? Surface { get; private set; }
 
     /// <summary>Describes the single supported front/back window color route and its exact native format.</summary>
-    internal sealed record SurfaceMetadata(DrawBuffersEnum Buffer, PixelInternalFormat Color,
-        PixelInternalFormat? DepthStencil, int Samples, bool HasDepth, bool HasStencil);
+    internal sealed record SurfaceMetadata(SurfaceColorBuffer Buffer, TextureFormat Color,
+        TextureFormat? DepthStencil, int Samples, bool HasDepth, bool HasStencil);
 
     #region Internal API
     /// <summary>Queries the current window surface once at its publication boundary; unsupported formats reject explicitly.</summary>

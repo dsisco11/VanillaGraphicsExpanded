@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Globalization;
 using System.Text;
@@ -35,7 +36,7 @@ public sealed class BloomRadialDiagnosticsTests(HeadlessGLFixture fixture,ITestO
             GpuShaderProgramLibraries.Get<BloomShaderProgram>(assets.Api,"pbr_bloom")!.FrameLightingInputs=publication.Buffer;
             float[] input=Impulse(size,size*.5-.5,size*.5-.5);
             for(int i=0;i<input.Length;i++)input[i]*=scale;
-            using var source=TestFramework.CreateTexture(size,size,PixelInternalFormat.Rgba32f,input);
+            using var source=TestFramework.CreateTexture(size,size,TextureFormat.Rgba32f,input);
             {
     var c=RHICommandContext.Current;
     using var scope14=c.EnterBoundary(new("Tests.BloomPrecision",true,graphics:System.Linq.Enumerable.Select<RHIGraphicsPipeline,RHIGraphicsPipelineRef>([pipeline],value=>value),operations:BoundaryOperations.RenderPasses));
@@ -86,7 +87,7 @@ public sealed class BloomRadialDiagnosticsTests(HeadlessGLFixture fixture,ITestO
         {
             double sourceX=size*.5-.5+phase.X,sourceY=size*.5-.5+phase.Y;
             float[] pixels=Impulse(size,sourceX,sourceY);
-            using var source=TestFramework.CreateTexture(size,size,PixelInternalFormat.Rgba32f,pixels);
+            using var source=TestFramework.CreateTexture(size,size,TextureFormat.Rgba32f,pixels);
             double cx=(sourceX+.5)/2-.5,cy=(sourceY+.5)/2-.5;
             double priorEnergy=0;float[]? prior=null;
             for(int levels=1;levels<=6;levels++)

@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.PBR.Liquids;
@@ -31,7 +32,7 @@ public sealed class LiquidBlendPolicyTests(HeadlessGLFixture fixture) : RenderTe
     public void SurfaceOutputMatchesEngineEquation(int output, float red, float green, float blue, float alpha)
     {
         EnsureContextValid(); using var programs = new ComponentShaderPrograms(); var shader = programs.Create<BlendProgram>();
-        using var target = CreateMRTRenderTarget(1, 1, PixelInternalFormat.Rgba32f, PixelInternalFormat.Rgba32f);
+        using var target = CreateMRTRenderTarget(1, 1, TextureFormat.Rgba32f, TextureFormat.Rgba32f);
         using var pipeline = RHICommandContext.Current.CreateGraphicsPipeline(new(shader.Shader, new([]),
             new([new(TextureFormat.Rgba32f), new(TextureFormat.Rgba32f)]), DynamicPipelineState.Viewport,
             blending: [output < 6 ? LiquidPipelineStates.SurfaceBlending[output] : LiquidPipelineStates.VolumeBlending[output - 6], new()])).RequireResource();

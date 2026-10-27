@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Numerics;
 using OpenTK.Graphics.OpenGL;
@@ -23,10 +24,10 @@ public sealed class WaterTransportTests(HeadlessGLFixture fixture) : LumOnShader
         using var attenuation = RHICommandContext.Current.CreateDynamicTexture3D(new RHITextureDescription { Dimension = TextureDimension.Three, Format = TextureFormat.Rgba32f, Width = System.Math.Max(1, 1), Height = System.Math.Max(1, 1), Depth = System.Math.Max(1, 1), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Linear, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         aerial.UploadDataImmediate(new float[] {1,2,3,0, 0,0,0,0},0,0,0,1,2,1,0);
         attenuation.UploadDataImmediate([.2f,.4f,.6f,0],0,0,0,1,1,1,0);
-        using var neutralOcclusion = TestFramework.CreateTexture(1, 1, PixelInternalFormat.R32f, [0f]);
+        using var neutralOcclusion = TestFramework.CreateTexture(1, 1, TextureFormat.R32f, [0f]);
         program.LightShaftOcclusion = neutralOcclusion;
         program.AerialRadiance = aerial; program.AerialAttenuation = attenuation;
-        using var target = CreateMRTRenderTarget(4, 13, PixelInternalFormat.Rgba32f,PixelInternalFormat.Rgba32f);
+        using var target = CreateMRTRenderTarget(4, 13, TextureFormat.Rgba32f,TextureFormat.Rgba32f);
         TestFramework.RenderQuadTo(program, target);
         float[] pixels = target[0].ReadPixels();
         double[] weights = [0, .25, .5, 1], fallback = [2,4,8], receiver = [16,8,4];

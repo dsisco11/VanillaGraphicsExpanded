@@ -1,4 +1,4 @@
-using OpenTK.Graphics.OpenGL;
+using VanillaGraphicsExpanded.Rendering.RHI;
 
 namespace VanillaGraphicsExpanded.Rendering;
 
@@ -6,10 +6,10 @@ namespace VanillaGraphicsExpanded.Rendering;
 internal sealed class GpuTextureMetadataReader : IGpuResourceMetadataReader<GpuTextureMetadata>
 {
     internal static readonly GpuTextureMetadataReader Instance = new();
-    private readonly TextureTarget knownTarget;
+    private readonly TextureDimension knownTarget;
     #region Internal API
     /// <summary>Retains an established target for face-specific external queries.</summary>
-    internal GpuTextureMetadataReader(TextureTarget knownTarget = 0) => this.knownTarget = knownTarget;
+    internal GpuTextureMetadataReader(TextureDimension knownTarget = 0) => this.knownTarget = knownTarget;
     #endregion
     #region Public API
     /// <inheritdoc />

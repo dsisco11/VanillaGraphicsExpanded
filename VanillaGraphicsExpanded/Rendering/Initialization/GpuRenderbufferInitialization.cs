@@ -1,5 +1,5 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
-using OpenTK.Graphics.OpenGL;
 
 namespace VanillaGraphicsExpanded.Rendering;
 
@@ -7,12 +7,12 @@ namespace VanillaGraphicsExpanded.Rendering;
 internal struct GpuRenderbufferInitialization
 {
     private byte assigned;
-    private RenderbufferStorage format;
+    private TextureFormat format;
     private int width, height, samples, coverageSamples;
 
     #region Public API
     /// <summary>Specifies the required storage format.</summary>
-    public RenderbufferStorage Format { readonly get => format; set { format = value; assigned |= 1; } }
+    public TextureFormat Format { readonly get => format; set { format = value; assigned |= 1; } }
     /// <summary>Specifies the required width.</summary>
     public int Width { readonly get => width; set { width = value; assigned |= 2; } }
     /// <summary>Specifies the required height.</summary>
@@ -29,7 +29,7 @@ internal struct GpuRenderbufferInitialization
     /// <summary>Rejects incomplete and invalid storage requests before native allocation.</summary>
     internal readonly void Validate()
     {
-        if ((assigned & 7) != 7 || !Enum.IsDefined(format) || width <= 0 || height <= 0 || samples < 0)
+        if ((assigned & 7) != 7 || format == TextureFormat.Undefined || !Enum.IsDefined(format) || width <= 0 || height <= 0 || samples < 0)
             throw new ArgumentException("Renderbuffer initialization requires a format, positive extents and nonnegative samples.");
         if (HasCoverageSamples && (samples <= 0 || coverageSamples < samples))
             throw new ArgumentException("Coverage storage requires positive color samples and at least that many coverage samples.");

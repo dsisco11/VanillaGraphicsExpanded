@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.Integration.OpenGL;
 using System;
 using VanillaGraphicsExpanded.Rendering.Pipeline.Passes;
 namespace VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
@@ -25,7 +26,7 @@ internal sealed partial class OpenGLBackend
                 if (!input.Texture.IsEmpty)
                 {
                     var metadata = input.Texture.RequireMetadata();
-                    if (metadata.Target != target) throw new ArgumentException("Sampled texture dimension does not match its declared slot.", nameof(inputs));
+                    if (metadata.Target != input.Dimension) throw new ArgumentException("Sampled texture dimension does not match its declared slot.", nameof(inputs));
                     RenderPass.ValidateSampledTexture(input.Texture);
                     input.Texture.Resource!.RequireOriginalContext();
                     RetainExecutionResource(input.Texture.Resource);

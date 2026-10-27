@@ -22,17 +22,17 @@ internal readonly struct OpenGLFramebufferQueries(OpenGLBackend backend)
     {
         metadata = default;
         if (!IsResource(id)) return false;
-        var attachments = ImmutableDictionary.CreateBuilder<FramebufferAttachment, GpuFramebufferImageMetadata>();
+        var attachments = ImmutableDictionary.CreateBuilder<FramebufferSlot, GpuFramebufferImageMetadata>();
         int limit = backend.NativeCapabilities.MaxColorAttachments;
         for (int index = 0; index < limit; index++)
-            if (!ReadAttachment(id, FramebufferAttachment.ColorAttachment0 + index, attachments)) return false;
-        if (!ReadAttachment(id, FramebufferAttachment.DepthAttachment, attachments)
-            || !ReadAttachment(id, FramebufferAttachment.StencilAttachment, attachments)) return false;
-        int width = ReadDefault(id, FramebufferDefaultParameter.FramebufferDefaultWidth);
-        int height = ReadDefault(id, FramebufferDefaultParameter.FramebufferDefaultHeight);
-        int layers = ReadDefault(id, FramebufferDefaultParameter.FramebufferDefaultLayers);
-        int samples = ReadDefault(id, FramebufferDefaultParameter.FramebufferDefaultSamples);
-        int fixedSamples = ReadDefault(id, FramebufferDefaultParameter.FramebufferDefaultFixedSampleLocations);
+            if (!ReadAttachment(id, FramebufferSlot.Color0 + index, attachments)) return false;
+        if (!ReadAttachment(id, FramebufferSlot.Depth, attachments)
+            || !ReadAttachment(id, FramebufferSlot.Stencil, attachments)) return false;
+        int width = ReadDefault(id, FramebufferMetadataField.Width);
+        int height = ReadDefault(id, FramebufferMetadataField.Height);
+        int layers = ReadDefault(id, FramebufferMetadataField.Layers);
+        int samples = ReadDefault(id, FramebufferMetadataField.Samples);
+        int fixedSamples = ReadDefault(id, FramebufferMetadataField.FixedSampleLocations);
         if (width < 0 || height < 0 || layers < 0 || samples < 0 || fixedSamples < 0) return false;
         metadata = new(attachments.ToImmutable(), width, height, layers, samples, fixedSamples != 0);
         return true;
@@ -41,20 +41,20 @@ internal readonly struct OpenGLFramebufferQueries(OpenGLBackend backend)
 
     #region Internal API
     /// <summary>Recovers only one affected slot or one attachmentless field of an otherwise known descriptor.</summary>
-    internal bool TryReadAffected(nint id, GpuFramebufferMetadata previous, FramebufferAttachment? slot,
-        FramebufferDefaultParameter? parameter, out GpuFramebufferMetadata candidate)
+    internal bool TryReadAffected(nint id, GpuFramebufferMetadata previous, FramebufferSlot? slot,
+        FramebufferMetadataField? parameter, out GpuFramebufferMetadata candidate)
     {
         backend.RequireContext();
         candidate = previous;
         if (slot.HasValue)
         {
             var attachments = previous.Attachments.ToBuilder();
-            if (slot == FramebufferAttachment.DepthStencilAttachment)
+            if (slot == FramebufferSlot.DepthStencil)
             {
-                attachments.Remove(FramebufferAttachment.DepthAttachment);
-                attachments.Remove(FramebufferAttachment.StencilAttachment);
-                if (!ReadAttachment(id, FramebufferAttachment.DepthAttachment, attachments)
-                    || !ReadAttachment(id, FramebufferAttachment.StencilAttachment, attachments)) return false;
+                attachments.Remove(FramebufferSlot.Depth);
+                attachments.Remove(FramebufferSlot.Stencil);
+                if (!ReadAttachment(id, FramebufferSlot.Depth, attachments)
+                    || !ReadAttachment(id, FramebufferSlot.Stencil, attachments)) return false;
             }
             else
             {
@@ -69,11 +69,11 @@ internal readonly struct OpenGLFramebufferQueries(OpenGLBackend backend)
             if (value < 0) return false;
             candidate = parameter.Value switch
             {
-                FramebufferDefaultParameter.FramebufferDefaultWidth => previous with { DefaultWidth = value },
-                FramebufferDefaultParameter.FramebufferDefaultHeight => previous with { DefaultHeight = value },
-                FramebufferDefaultParameter.FramebufferDefaultLayers => previous with { DefaultLayers = value },
-                FramebufferDefaultParameter.FramebufferDefaultSamples => previous with { DefaultSamples = value },
-                FramebufferDefaultParameter.FramebufferDefaultFixedSampleLocations => previous with { DefaultFixedSampleLocations = value != 0 },
+                FramebufferMetadataField.Width => previous with { DefaultWidth = value },
+                FramebufferMetadataField.Height => previous with { DefaultHeight = value },
+                FramebufferMetadataField.Layers => previous with { DefaultLayers = value },
+                FramebufferMetadataField.Samples => previous with { DefaultSamples = value },
+                FramebufferMetadataField.FixedSampleLocations => previous with { DefaultFixedSampleLocations = value != 0 },
                 _ => previous
             };
         }
@@ -83,8 +83,8 @@ internal readonly struct OpenGLFramebufferQueries(OpenGLBackend backend)
 
     #region Private
     /// <summary>Reads one selected image without resolving a deleted retained name as a new allocation.</summary>
-    private bool ReadAttachment(nint id, FramebufferAttachment slot,
-        ImmutableDictionary<FramebufferAttachment, GpuFramebufferImageMetadata>.Builder attachments)
+    private bool ReadAttachment(nint id, FramebufferSlot slot,
+        ImmutableDictionary<FramebufferSlot, GpuFramebufferImageMetadata>.Builder attachments)
     {
         int type = Read(id, slot, FramebufferParameterName.FramebufferAttachmentObjectType);
         if (type == (int)All.None) return true;
@@ -104,26 +104,26 @@ internal readonly struct OpenGLFramebufferQueries(OpenGLBackend backend)
         int baseView = multiview ? Read(id, slot, (FramebufferParameterName)All.FramebufferAttachmentTextureBaseViewIndexOvr) : 0;
         int views = multiview ? Read(id, slot, (FramebufferParameterName)All.FramebufferAttachmentTextureNumViewsOvr) : 0;
         if (level < 0 || layer < 0 || face < 0 || layered < 0 || baseView < 0 || views < 0) return false;
-        attachments.Add(slot, new(GpuResourceKind.Texture, name, level, layer, (TextureTarget)face, layered != 0, baseView, views));
+        attachments.Add(slot, new(GpuResourceKind.Texture, name, level, layer, OpenGLImageValues.Face((TextureTarget)face), layered != 0, baseView, views));
         return true;
     }
 
     /// <summary>Uses an invalid sentinel to detect unavailable attachment facts without consuming errors.</summary>
-    private int Read(nint id, FramebufferAttachment slot, FramebufferParameterName parameter)
+    private int Read(nint id, FramebufferSlot slot, FramebufferParameterName parameter)
     {
         int value = -1;
         backend.RequireContext();
-        Native.GL.GetNamedFramebufferAttachmentParameter(unchecked((int)id), (Native.FramebufferAttachment)slot, (Native.FramebufferParameterName)parameter, out value);
+        Native.GL.GetNamedFramebufferAttachmentParameter(unchecked((int)id), (Native.FramebufferAttachment)OpenGLResourceValues.Native(slot), (Native.FramebufferParameterName)parameter, out value);
         backend.RequireContext();
         return value;
     }
 
     /// <summary>Reads one attachmentless default using the native object name.</summary>
-    private int ReadDefault(nint id, FramebufferDefaultParameter parameter)
+    private int ReadDefault(nint id, FramebufferMetadataField parameter)
     {
         int value = -1;
         backend.RequireContext();
-        Native.GL.GetNamedFramebufferParameter(unchecked((int)id), (Native.FramebufferDefaultParameter)parameter, out value);
+        Native.GL.GetNamedFramebufferParameter(unchecked((int)id), (Native.FramebufferDefaultParameter)OpenGLResourceValues.Native(parameter), out value);
         backend.RequireContext();
         return value;
     }

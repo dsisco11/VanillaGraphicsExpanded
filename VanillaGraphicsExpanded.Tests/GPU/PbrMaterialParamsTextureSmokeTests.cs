@@ -1,3 +1,5 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
+using VanillaGraphicsExpanded.Rendering.Integration.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
 
@@ -28,7 +30,7 @@ public sealed class PbrMaterialParamsTextureSmokeTests
         using var store = new MaterialAtlasTextureStore();
         store.SyncToAtlasPages([(101, 1, 1)], false);
         Assert.True(store.TryGetPageTextures(101, out var page));
-        Assert.Equal(PixelInternalFormat.Rgba16f, page.MaterialParamsTexture.InternalFormat);
+        Assert.Equal(TextureFormat.Rgba16f, page.MaterialParamsTexture.InternalFormat);
         Assert.Equal(0f, page.MaterialParamsTexture.ReadPixels()[3]);
         page.MaterialParamsTexture.UploadDataImmediate(MaterialTransmission.Pack([.25f, .5f, .75f], .35f), 0, 0, 1, 1);
         float[] actual = page.MaterialParamsTexture.ReadPixels();
@@ -58,12 +60,12 @@ public sealed class PbrMaterialParamsTextureSmokeTests
             data[i + 2] = 0.75f;
         }
 
-        using DynamicTexture2D materialTex = framework.CreateTexture(width, height, PixelInternalFormat.Rgb16f, data, TextureFilterMode.Nearest);
+        using DynamicTexture2D materialTex = framework.CreateTexture(width, height, TextureFormat.Rgb16f, data, TextureFilterMode.Nearest);
 
         Assert.True(materialTex.IsValid);
         Assert.Equal(width, materialTex.Width);
         Assert.Equal(height, materialTex.Height);
-        Assert.Equal(PixelInternalFormat.Rgb16f, materialTex.InternalFormat);
+        Assert.Equal(TextureFormat.Rgb16f, materialTex.InternalFormat);
 
         // Validate upload via readback (driver-independent)
         var uploaded = materialTex.ReadPixels();
@@ -73,10 +75,10 @@ public sealed class PbrMaterialParamsTextureSmokeTests
         Assert.Equal(0.75f, uploaded[2], 2);
 
         // Bind input texture (and clear any prior GL error state)
-        VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, materialTex, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)materialTex).Target))]);
+        VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, materialTex, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)materialTex).Target)))]);
         _ = GL.GetError();
 
-        using var output = framework.CreateTestGBuffer(1, 1, PixelInternalFormat.Rgba16f, 1);
+        using var output = framework.CreateTestGBuffer(1, 1, TextureFormat.Rgba16f, 1);
 
         int programId = CompileMinimalProgram(VertexShaderSource, FragmentShaderSource);
         try

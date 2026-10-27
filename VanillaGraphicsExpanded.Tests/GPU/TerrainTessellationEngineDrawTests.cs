@@ -61,7 +61,7 @@ public sealed class TerrainTessellationEngineDrawTests : RenderTestBase
             GL.BufferData(BufferTarget.ElementArrayBuffer, 6 * sizeof(uint),
                 ordinaryDraw ? new uint[] { 0, 1, 2, 0, 1, 2 } : new uint[] { 2, 2, 2, 0, 1, 2 }, BufferUsageHint.StaticDraw);
             using var framework = new ShaderTestFramework();
-            using var target = framework.CreateTestGBuffer(8, 8, PixelInternalFormat.Rgba32f);
+            using var target = framework.CreateTestGBuffer(8, 8, TextureFormat.Rgba32f);
             using var camera = TestFrameCamera.CreateIdentity(8,8);
             Assert.True(VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindUniformSnapshot(GpuBindingRegistry.Ubo.Frame, camera.Capture()));
             FramebufferTestSetup.BindForEngineRendering(target); GL.Disable(EnableCap.DepthTest); GL.Disable(EnableCap.Blend); GL.Disable(EnableCap.CullFace);

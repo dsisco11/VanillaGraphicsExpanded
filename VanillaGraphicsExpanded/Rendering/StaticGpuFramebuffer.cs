@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -9,7 +10,7 @@ namespace VanillaGraphicsExpanded.Rendering;
 /// <summary>Owns an immutable attachment layout and output route established before publication.</summary>
 public sealed class StaticGpuFramebuffer : GpuFramebuffer
 {
-    private readonly DrawBuffersEnum[] routing;
+    private readonly int[] routing;
     private readonly List<GpuResource> frozen = new();
     private IDisposable? configuration;
 
@@ -19,10 +20,10 @@ public sealed class StaticGpuFramebuffer : GpuFramebuffer
         GpuFramebufferAttachment? depth = null, string? debugName = null, int firstColorAttachment = 0)
         => new(colors, depth, debugName, firstColorAttachment);
     /// <summary>Rejects replacement of constructor-declared attachments.</summary>
-    public override void SetAttachment(FramebufferAttachment slot, GpuFramebufferAttachment attachment)
+    public override void SetAttachment(FramebufferSlot slot, GpuFramebufferAttachment attachment)
         => throw new InvalidOperationException("Static framebuffer attachments cannot change.");
     /// <summary>Rejects removal of constructor-declared attachments.</summary>
-    public override bool RemoveAttachment(FramebufferAttachment slot)
+    public override bool RemoveAttachment(FramebufferSlot slot)
         => throw new InvalidOperationException("Static framebuffer attachments cannot change.");
     /// <summary>Requires replacement of the static allocation instead of resizing its attached images.</summary>
     public override bool Resize(int width, int height)
@@ -32,16 +33,16 @@ public sealed class StaticGpuFramebuffer : GpuFramebuffer
     #region Internal API
     #region Declaration admission
     /// <summary>Certifies the immutable route once when a reusable pass declaration is constructed.</summary>
-    internal override void ValidateDeclaredRouting(ReadOnlySpan<DrawBuffersEnum> route)
+    internal override void ValidateDeclaredRouting(ReadOnlySpan<int> route)
     {
         ObjectDisposedException.ThrowIf(IsDisposed, this);
         for (int i = 0; i < Math.Max(route.Length, routing.Length); i++)
-            if ((i < route.Length ? route[i] : DrawBuffersEnum.None) !=
-                (i < routing.Length ? routing[i] : DrawBuffersEnum.None))
+            if ((i < route.Length ? route[i] : -1) !=
+                (i < routing.Length ? routing[i] : -1))
                 throw new InvalidOperationException("A static framebuffer pass must use its constructor-declared routing.");
     }
     /// <summary>Returns an independent immutable configuration snapshot for explicit state observations.</summary>
-    internal override DrawBuffersEnum[] CaptureDeclaredRouting() => (DrawBuffersEnum[])routing.Clone();
+    internal override int[] CaptureDeclaredRouting() => (int[])routing.Clone();
     #endregion
 
     #endregion

@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.Integration.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using VanillaGraphicsExpanded.Rendering;
@@ -89,16 +90,16 @@ public sealed class TerrainDisplacementRasterTests : RenderTestBase
         {
             Assert.True(TerrainShaderTestFixture.LinkTessellation(vertex,fragment,TerrainTessellationTestAssets.Generate(source,depthBias:mode==12),TerrainTessellationPatches.EnabledDefine, out program,out string error),error);
             using var framework=new ShaderTestFramework();
-            using var amplitude=framework.CreateTexture(16,16,PixelInternalFormat.R32f,Enumerable.Range(0,256).Select(i => mode is 10 or 11 ? (i%16<8 ? 1f : 2f) : mode==6 ? 0f : mode==8 ? 2f : 1f).ToArray());
-            using var records=framework.CreateTexture(mode is 10 or 11 ? 4 : 2,1,PixelInternalFormat.Rgba32f,mode is 10 or 11 ? new float[] {0,0,.5f,1,.04f,0,0,0, .5f,0,.5f,1,.02f,0,0,0} : new float[] {0,0,mode==7 ? .5f : 1f,1,.04f,0,0,0});
+            using var amplitude=framework.CreateTexture(16,16,TextureFormat.R32f,Enumerable.Range(0,256).Select(i => mode is 10 or 11 ? (i%16<8 ? 1f : 2f) : mode==6 ? 0f : mode==8 ? 2f : 1f).ToArray());
+            using var records=framework.CreateTexture(mode is 10 or 11 ? 4 : 2,1,TextureFormat.Rgba32f,mode is 10 or 11 ? new float[] {0,0,.5f,1,.04f,0,0,0, .5f,0,.5f,1,.02f,0,0,0} : new float[] {0,0,mode==7 ? .5f : 1f,1,.04f,0,0,0});
             var pixels=new float[256*4]; for(int i=0;i<256;i++) pixels[i*4+3]=(mode is 10 or 11) && i%16>=8 ? 0 : height;
-            using var atlas=framework.CreateTexture(16,16,PixelInternalFormat.Rgba32f,pixels);
-            using var target=framework.CreateTestGBuffer(16,16,PixelInternalFormat.Rgba32f);
+            using var atlas=framework.CreateTexture(16,16,TextureFormat.Rgba32f,pixels);
+            using var target=framework.CreateTestGBuffer(16,16,TextureFormat.Rgba32f);
             using var camera = TestFrameCamera.CreateIdentity(128,128);
             Assert.True(VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindUniformSnapshot(GpuBindingRegistry.Ubo.Frame, camera.Capture()));
             var layout = GpuProgramLayout.TryBuild(program);
             FramebufferTestSetup.BindForEngineRendering(target); OpenGLProgramSelection.Select(OpenGlStateCache.Current, program); OpenGLVertexSelection.Bind(OpenGlStateCache.Current, vao);
-            VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, amplitude, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)amplitude).Target))]); VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(1, atlas, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)atlas).Target))]); VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(2, records, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)records).Target))]);
+            VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, amplitude, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)amplitude).Target)))]); VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(1, atlas, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)atlas).Target)))]); VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(2, records, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)records).Target)))]);
             ShaderTestFramework.SetUniform(layout.GetUniformLocation(program,"vge_displacementTex"),0);
             ShaderTestFramework.SetUniform(layout.GetUniformLocation(program,"vge_normalDepthTex"),1);
             ShaderTestFramework.SetUniform(layout.GetUniformLocation(program,"vge_tessellationDistance"),10f,20f);

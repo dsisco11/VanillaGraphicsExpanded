@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.Integration.OpenGL;
 using OpenTK.Graphics.OpenGL;
 using Native = OpenTK.Graphics.OpenGL4;
 
@@ -18,10 +19,10 @@ internal static class OpenGLImageSlotBindings
             ImageAccess.ReadWrite => TextureAccess.ReadWrite,
             _ => throw new System.ArgumentOutOfRangeException(nameof(image))
         };
-        var format = texture == 0 ? PixelInternalFormat.Rgba8
-            : image.Format is { } supplied ? OpenGLImageValues.Format(supplied) : image.Texture.RequireImage(image.Level).Format;
+        var format = texture == 0 ? TextureFormat.Rgba8
+            : image.Format is { } supplied ? supplied : image.Texture.RequireImage(image.Level).Format;
         BindImageTexture(cache, unit, texture, texture == 0 ? 0 : image.Level,
-            texture != 0 && image.Layered, texture == 0 ? 0 : image.Layer, access, (SizedInternalFormat)format);
+            texture != 0 && image.Layered, texture == 0 ? 0 : image.Layer, access, (SizedInternalFormat)OpenGLImageValues.Format(format));
     }
     /// <summary>Suppresses only a known identical view and withdraws the slot before dispatch or interruption.</summary>
     internal static void BindImageTexture(OpenGlStateCache cache, int unit, int texture, int level, bool layered,

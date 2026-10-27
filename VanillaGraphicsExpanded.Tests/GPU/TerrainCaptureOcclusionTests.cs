@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Numerics;
 using OpenTK.Graphics.OpenGL;
@@ -30,7 +31,7 @@ public sealed class TerrainCaptureOcclusionTests(HeadlessGLFixture fixture) : Lu
         EnsureShaderTestAvailable();
         TerrainCaptureProgram shader = topsoil ? Programs.Create<TopsoilTerrainCaptureProgram>() : Programs.Create<OpaqueTerrainCaptureProgram>();
         shader.Capture(new(.45f, .5f, .537f, alpha), cutoff);
-        using var target = TestFramework.CreateTestGBuffer(1, 1, PixelInternalFormat.Rgba16f);
+        using var target = TestFramework.CreateTestGBuffer(1, 1, TextureFormat.Rgba16f);
         var layout = new RHIVertexLayout([]);
         using var geometry = new ArrayGraphicsGeometry(layout, PrimitiveTopology.Triangles, new Dictionary<int, GpuVbo>(), proceduralVertices: 3);
         var metadata = RHICommandContext.Current.DescribeRenderTargets(FramebufferTestSetup.DescribeAttachments(target, [new(AttachmentIndex:0)]));

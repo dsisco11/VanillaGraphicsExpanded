@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Numerics;
 using Newtonsoft.Json;
@@ -41,8 +42,8 @@ public sealed class CameraExposureEV100PipelineTests(HeadlessGLFixture fixture) 
         var settings = authored.Snapshot();
         Assert.Equal(legacy.Snapshot(), settings);
         using var lighting = new TestFrameLightingPublication(); lighting.Capture(scale);
-        using var source = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba32f, [nits * scale, nits * scale, nits * scale, 1]);
-        using var zero = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba32f, [0, 0, 0, 0]);
+        using var source = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba32f, [nits * scale, nits * scale, nits * scale, 1]);
+        using var zero = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba32f, [0, 0, 0, 0]);
         using var targets = new CameraExposureTargets();
         using var frame = TestFrameCamera.CreateIdentity(1, 1);
         var histogram = Programs.CreateCompute(CameraHistogramShaderProgram.Create);
@@ -73,7 +74,7 @@ public sealed class CameraExposureEV100PipelineTests(HeadlessGLFixture fixture) 
         double pivot = Math.Log2(.18) + (automatic ? .5 : 0);
         final.Capture(false, new(controls, Vector4.Zero, Vector4.Zero), new(settings.ManualLogGain + .5f, automatic ? 1 : 0, 0, (float)pivot));
         final.CaptureLocal(localPolicy);
-        using var display = TestFramework.CreateTestGBuffer(1, 1, PixelInternalFormat.Rgba32f);
+        using var display = TestFramework.CreateTestGBuffer(1, 1, TextureFormat.Rgba32f);
         using var draw = new PostprocessDraw(); var pipeline = draw.Prepare(final,display.PostprocessPass());
         {
     var commands=RHICommandContext.Current;

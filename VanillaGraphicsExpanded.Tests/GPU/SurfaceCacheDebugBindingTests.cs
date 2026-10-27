@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.Integration.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
@@ -19,21 +20,21 @@ public sealed class SurfaceCacheDebugBindingTests : LumOnShaderFunctionalTestBas
     #region Production array setters
     /// <summary>Array-backed cache resources bind and clear their declared array target without OpenGL errors.</summary>
     [Theory]
-    [InlineData(0, 26, PixelInternalFormat.R32ui)]
-    [InlineData(1, 27, PixelInternalFormat.Rgba16f)]
-    [InlineData(2, 28, PixelInternalFormat.Rgba8)]
-    public void SurfaceCacheSettersBindArrayTextures(int resource, int unit, PixelInternalFormat format)
+    [InlineData(0, 26, TextureFormat.R32ui)]
+    [InlineData(1, 27, TextureFormat.Rgba16f)]
+    [InlineData(2, 28, TextureFormat.Rgba8)]
+    public void SurfaceCacheSettersBindArrayTextures(int resource, int unit, TextureFormat format)
     {
         EnsureContextValid();
         var program = Programs.Create<LumOnDebugShaderProgram>(identity: LumOnDebugShaderProgramFamily.GetProgramName(resource == 2 ? LumOnDebugMode.LumonSceneMaterial : LumOnDebugMode.LumonSceneIrradiance));
-        using var texture = RHICommandContext.Current.CreateTexture3D(new RHITextureDescription { Dimension = TextureDimension.TwoArray, Format = VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Format((OpenTK.Graphics.OpenGL.PixelInternalFormat)(format)), Width = System.Math.Max(1, 2), Height = System.Math.Max(1, 2), Depth = System.Math.Max(1, 2), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Linear, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
+        using var texture = RHICommandContext.Current.CreateTexture3D(new RHITextureDescription { Dimension = TextureDimension.TwoArray, Format = format, Width = System.Math.Max(1, 2), Height = System.Math.Max(1, 2), Depth = System.Math.Max(1, 2), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Linear, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         Assert.Equal(ErrorCode.NoError, GL.GetError());
         using var sentinel = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba8, Width = System.Math.Max(1, 1), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         program.PrimaryDepth = sentinel;
         using var surfaceInput1 = LayeredTestTexture.Create(sentinel, null, null);
         program.GBufferSurface = surfaceInput1;
         UpdateAndBindLumOnFrameUbo(program);
-        VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(unit, sentinel, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)sentinel).Target))]);
+        VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(unit, sentinel, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)sentinel).Target)))]);
         Set(texture);
         using var active = ShaderBindingTestPipeline.Create(program);
         RHICommandContext.Current.SetPipeline(active);
@@ -88,7 +89,7 @@ public sealed class SurfaceCacheDebugBindingTests : LumOnShaderFunctionalTestBas
             program.LumonSceneTilesPerAtlas = 1;
             program.DebugMode = (int)LumOnDebugMode.LumonSceneIrradiance;
             UpdateAndBindLumOnFrameUbo(program);
-            using var output = TestFramework.CreateTestGBuffer(1, 1, PixelInternalFormat.Rgba32f);
+            using var output = TestFramework.CreateTestGBuffer(1, 1, TextureFormat.Rgba32f);
             TestFramework.RenderQuadTo(program, output);
             float[] pixel = output[0].ReadPixels();
             Assert.InRange(pixel[0], .499f, .501f);

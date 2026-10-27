@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using OpenTK.Graphics.OpenGL;
 
@@ -8,7 +9,7 @@ internal static class GpuFramebufferAttachmentDiscovery
 {
     #region Public API
     /// <summary>Borrows a current attachment, preserving exact cube-face and individual-layer selection.</summary>
-    public static GpuFramebufferAttachment Read(GpuFramebuffer framebuffer, FramebufferAttachment slot, bool forceNative = false)
+    public static GpuFramebufferAttachment Read(GpuFramebuffer framebuffer, FramebufferSlot slot, bool forceNative = false)
     {
         var known = forceNative ? null : framebuffer.GetAttachment(slot);
         if (known is not null)

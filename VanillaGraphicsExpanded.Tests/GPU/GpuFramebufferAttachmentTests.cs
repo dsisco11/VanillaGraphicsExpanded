@@ -24,12 +24,12 @@ public sealed class GpuFramebufferAttachmentTests(HeadlessGLFixture fixture) : R
         using var replacement = GpuFramebufferAttachment.FromTexture(replacementTexture);
         using var first = DynamicGpuFramebuffer.Create([attachment])!;
         using var second = DynamicGpuFramebuffer.Create([attachment])!;
-        first.SetAttachment(FramebufferAttachment.ColorAttachment0, replacement);
-        Assert.Same(attachment, second.GetAttachment(FramebufferAttachment.ColorAttachment0));
+        first.SetAttachment(FramebufferSlot.Color0, replacement);
+        Assert.Same(attachment, second.GetAttachment(FramebufferSlot.Color0));
         first.Dispose();
         Assert.True(replacement.IsValid);
-        second.RemoveAttachment(FramebufferAttachment.ColorAttachment0);
-        Assert.Null(second.GetAttachment(FramebufferAttachment.ColorAttachment0));
+        second.RemoveAttachment(FramebufferSlot.Color0);
+        Assert.Null(second.GetAttachment(FramebufferSlot.Color0));
         Assert.True(attachment.IsValid);
         attachment.Dispose();
         Assert.Equal((nint)0, attachment.ResourceId);
@@ -46,9 +46,9 @@ public sealed class GpuFramebufferAttachmentTests(HeadlessGLFixture fixture) : R
         using var texture = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba8, Width = System.Math.Max(1, 8), Height = System.Math.Max(1, 4), MipLevels = 3, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (3) - 1, Label = null }).RequireResource();
         using var attachment = GpuFramebufferAttachment.FromTexture(texture, mipLevel: 1);
         using var framebuffer = DynamicGpuFramebuffer.CreateEmpty();
-        framebuffer.SetAttachment(FramebufferAttachment.ColorAttachment3, attachment);
-        Assert.Null(framebuffer.GetAttachment(FramebufferAttachment.ColorAttachment0));
-        Assert.Same(attachment, framebuffer.GetAttachment(FramebufferAttachment.ColorAttachment3));
+        framebuffer.SetAttachment(FramebufferSlot.Color3, attachment);
+        Assert.Null(framebuffer.GetAttachment(FramebufferSlot.Color0));
+        Assert.Same(attachment, framebuffer.GetAttachment(FramebufferSlot.Color3));
         Assert.Equal(4, attachment.Width);
         Assert.Equal(2, attachment.Height);
         framebuffer.Bind();
@@ -83,19 +83,19 @@ public sealed class GpuFramebufferAttachmentTests(HeadlessGLFixture fixture) : R
     {
         EnsureContextValid();
         using var packed = new DepthStencilTexture(4, 4);
-        using var depth = new DepthTexture(4, 4, PixelInternalFormat.DepthComponent24);
+        using var depth = new DepthTexture(4, 4, TextureFormat.DepthComponent24);
         using var combined = GpuFramebufferAttachment.FromTexture(packed);
         using var depthOnly = GpuFramebufferAttachment.FromTexture(depth);
         using var framebuffer = DynamicGpuFramebuffer.CreateEmpty();
-        framebuffer.SetAttachment(FramebufferAttachment.DepthStencilAttachment, combined);
-        Assert.Same(combined, framebuffer.GetAttachment(FramebufferAttachment.DepthAttachment));
-        Assert.Same(combined, framebuffer.GetAttachment(FramebufferAttachment.StencilAttachment));
-        framebuffer.SetAttachment(FramebufferAttachment.DepthAttachment, depthOnly);
-        Assert.Same(depthOnly, framebuffer.GetAttachment(FramebufferAttachment.DepthAttachment));
-        Assert.Same(combined, framebuffer.GetAttachment(FramebufferAttachment.StencilAttachment));
-        framebuffer.RemoveAttachment(FramebufferAttachment.DepthStencilAttachment);
-        Assert.Null(framebuffer.GetAttachment(FramebufferAttachment.DepthAttachment));
-        Assert.Null(framebuffer.GetAttachment(FramebufferAttachment.StencilAttachment));
+        framebuffer.SetAttachment(FramebufferSlot.DepthStencil, combined);
+        Assert.Same(combined, framebuffer.GetAttachment(FramebufferSlot.Depth));
+        Assert.Same(combined, framebuffer.GetAttachment(FramebufferSlot.Stencil));
+        framebuffer.SetAttachment(FramebufferSlot.Depth, depthOnly);
+        Assert.Same(depthOnly, framebuffer.GetAttachment(FramebufferSlot.Depth));
+        Assert.Same(combined, framebuffer.GetAttachment(FramebufferSlot.Stencil));
+        framebuffer.RemoveAttachment(FramebufferSlot.DepthStencil);
+        Assert.Null(framebuffer.GetAttachment(FramebufferSlot.Depth));
+        Assert.Null(framebuffer.GetAttachment(FramebufferSlot.Stencil));
     }
     /// <summary>Borrowed wrappers observe explicit backing-resource retirement and cannot transfer its handle.</summary>
     [Fact]
@@ -173,8 +173,8 @@ public sealed class GpuFramebufferAttachmentTests(HeadlessGLFixture fixture) : R
         using var image = GpuFramebufferAttachment.FromRenderbuffer(buffer);
         buffer.AllocateStorage(TextureFormat.DepthComponent24, 2, 2);
         using var framebuffer = DynamicGpuFramebuffer.CreateEmpty();
-        framebuffer.SetAttachment(FramebufferAttachment.DepthAttachment, image);
-        Assert.Throws<ArgumentException>(() => framebuffer.SetAttachment(FramebufferAttachment.ColorAttachment0, image));
+        framebuffer.SetAttachment(FramebufferSlot.Depth, image);
+        Assert.Throws<ArgumentException>(() => framebuffer.SetAttachment(FramebufferSlot.Color0, image));
     }
     /// <summary>A throwing observer cannot prevent the other framebuffers from seeing committed resize changes.</summary>
     [Fact]
@@ -212,7 +212,7 @@ public sealed class GpuFramebufferAttachmentTests(HeadlessGLFixture fixture) : R
     {
         EnsureContextValid();
         var oldLifetime = new ManagerLifetime();
-        var attachment = new GpuFramebufferAttachment(2, 2, PixelInternalFormat.Rgba8);
+        var attachment = new GpuFramebufferAttachment(2, 2, TextureFormat.Rgba8);
         using var backing = Assert.IsType<DynamicTexture2D>(attachment.Resource);
         oldLifetime.Dispose();
         using var newLifetime = new ManagerLifetime();
@@ -230,12 +230,12 @@ public sealed class GpuFramebufferAttachmentTests(HeadlessGLFixture fixture) : R
         using var first = DynamicGpuFramebuffer.CreateEmpty();
         using var second = DynamicGpuFramebuffer.CreateEmpty();
         var (weak, texture) = CreateSharedAttachment(first, second);
-        first.RemoveAttachment(FramebufferAttachment.ColorAttachment0);
+        first.RemoveAttachment(FramebufferSlot.Color0);
         GC.Collect();
         GC.WaitForPendingFinalizers();
         Assert.True(weak.IsAlive);
         Assert.False(texture.IsDisposed);
-        second.RemoveAttachment(FramebufferAttachment.ColorAttachment0);
+        second.RemoveAttachment(FramebufferSlot.Color0);
         GC.Collect();
         GC.WaitForPendingFinalizers();
         GC.Collect();
@@ -251,7 +251,7 @@ public sealed class GpuFramebufferAttachmentTests(HeadlessGLFixture fixture) : R
         EnsureContextValid();
         using var lifetime = new ManagerLifetime();
         var queue = GpuResourceManagerSystem.CaptureDisposalQueue();
-        var attachment = new GpuFramebufferAttachment(2, 2, PixelInternalFormat.Rgba8);
+        var attachment = new GpuFramebufferAttachment(2, 2, TextureFormat.Rgba8);
         var texture = Assert.IsType<DynamicTexture2D>(attachment.Resource);
         int handle = texture.TextureId;
         attachment.Dispose();
@@ -304,16 +304,16 @@ public sealed class GpuFramebufferAttachmentTests(HeadlessGLFixture fixture) : R
     [MethodImpl(MethodImplOptions.NoInlining)]
     private static (WeakReference Attachment, DynamicTexture2D Texture) CreateSharedAttachment(GpuFramebuffer first, GpuFramebuffer second)
     {
-        var attachment = new GpuFramebufferAttachment(2, 2, PixelInternalFormat.Rgba8);
-        first.SetAttachment(FramebufferAttachment.ColorAttachment0, attachment);
-        second.SetAttachment(FramebufferAttachment.ColorAttachment0, attachment);
+        var attachment = new GpuFramebufferAttachment(2, 2, TextureFormat.Rgba8);
+        first.SetAttachment(FramebufferSlot.Color0, attachment);
+        second.SetAttachment(FramebufferSlot.Color0, attachment);
         return (new WeakReference(attachment), (DynamicTexture2D)attachment.Resource!);
     }
     /// <summary>Separates the finalizable wrapper lifetime from the retained backing-resource probe.</summary>
     [MethodImpl(MethodImplOptions.NoInlining)]
     private static (WeakReference Attachment, DynamicTexture2D Texture) CreateUnreachableAttachment()
     {
-        var attachment = new GpuFramebufferAttachment(2, 2, PixelInternalFormat.Rgba8);
+        var attachment = new GpuFramebufferAttachment(2, 2, TextureFormat.Rgba8);
         return (new WeakReference(attachment), (DynamicTexture2D)attachment.Resource!);
     }
     #endregion

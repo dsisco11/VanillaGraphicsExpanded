@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.Integration.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
@@ -14,32 +15,32 @@ public sealed class DynamicTextureCubeTests(HeadlessGLFixture fixture) : RenderT
     #region Public API
     /// <summary>All six faces of a non-power-of-two mip chain can be attached and populated in different color formats.</summary>
     [Theory]
-    [InlineData(PixelInternalFormat.Rgba8)]
-    [InlineData(PixelInternalFormat.Rgba16f)]
-    [InlineData(PixelInternalFormat.R32f)]
-    [InlineData(PixelInternalFormat.R11fG11fB10f)]
-    public void ColorFacesAndMipsAreIndependent(PixelInternalFormat format)
+    [InlineData(TextureFormat.Rgba8)]
+    [InlineData(TextureFormat.Rgba16f)]
+    [InlineData(TextureFormat.R32f)]
+    [InlineData(TextureFormat.R11fG11fB10f)]
+    public void ColorFacesAndMipsAreIndependent(TextureFormat format)
     {
         EnsureContextValid();
-        using var cube = RHICommandContext.Current.CreateTextureCube(new RHITextureDescription { Dimension = TextureDimension.Cube, Format = VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Format((OpenTK.Graphics.OpenGL.PixelInternalFormat)(format)), Width = 3, Height = 3, MipLevels = 2, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Linear, BaseLevel = 0, MaxLevel = (2) - 1, Label = "Test.ColorCube" }).RequireResource();
-        Assert.Equal(TextureTarget.TextureCubeMap, cube.TextureTarget);
+        using var cube = RHICommandContext.Current.CreateTextureCube(new RHITextureDescription { Dimension = TextureDimension.Cube, Format = format, Width = 3, Height = 3, MipLevels = 2, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Linear, BaseLevel = 0, MaxLevel = (2) - 1, Label = "Test.ColorCube" }).RequireResource();
+        Assert.Equal(TextureDimension.Cube, cube.TextureTarget);
         Assert.Equal(format, cube.InternalFormat); Assert.Equal(2, cube.MipLevels);
         Assert.Equal(TextureFilterMode.Linear, cube.FilterMode); Assert.Equal("Test.ColorCube", cube.DebugName);
         for (int mip = 0; mip < cube.MipLevels; mip++) for (int face = 0; face < 6; face++)
         {
-            using var image = GpuFramebufferAttachment.FromTexture(cube, mip, cubeFace: TextureTarget.TextureCubeMapPositiveX + face);
+            using var image = GpuFramebufferAttachment.FromTexture(cube, mip, cubeFace: CubeFace.PositiveX + face);
             using var target = DynamicGpuFramebuffer.Create([image]);
             using var binding = OpenGlStateCache.Current.BindFramebufferScope();
             OpenGLFramebufferSelection.Bind(OpenGlStateCache.Current, FramebufferTarget.DrawFramebuffer, target.FboId);
             GL.ClearBuffer(ClearBuffer.Color, 0, new[] { (face + 1) / 8f, .5f, .25f, 1f });
         }
-        using var textureBinding = OpenGlStateCache.Current.BindTextureScope(((GpuTextureRef)cube).Target, 0, cube.TextureId);
-        GL.GetTexParameter(TextureTarget.TextureCubeMap, GetTextureParameter.TextureMinFilter, out int minimum);
+        using var textureBinding = OpenGlStateCache.Current.BindTextureScope(OpenGLImageValues.Target(((GpuTextureRef)cube).Target), 0, cube.TextureId);
+        GL.GetTexParameter(OpenTK.Graphics.OpenGL.TextureTarget.TextureCubeMap, GetTextureParameter.TextureMinFilter, out int minimum);
         Assert.Equal((int)TextureMinFilter.LinearMipmapLinear, minimum);
         for (int mip = 0; mip < cube.MipLevels; mip++) for (int face = 0; face < 6; face++)
         {
             int size = Math.Max(1, 3 >> mip); float[] data = new float[size * size * 4];
-            GL.GetTexImage(TextureTarget.TextureCubeMapPositiveX + face, mip, PixelFormat.Rgba, PixelType.Float, data);
+            GL.GetTexImage(OpenTK.Graphics.OpenGL.TextureTarget.TextureCubeMapPositiveX + face, mip, PixelFormat.Rgba, PixelType.Float, data);
             for (int pixel = 0; pixel < size * size; pixel++) Assert.InRange(MathF.Abs(data[pixel * 4] - (face + 1) / 8f), 0, .004f);
         }
         Assert.Equal(ErrorCode.NoError, GL.GetError());
@@ -51,16 +52,16 @@ public sealed class DynamicTextureCubeTests(HeadlessGLFixture fixture) : RenderT
     {
         EnsureContextValid();
         using var cube = RHICommandContext.Current.CreateTextureCube(new RHITextureDescription { Dimension = TextureDimension.Cube, Format = TextureFormat.R32ui, Width = 2, Height = 2, MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
-        using var image = GpuFramebufferAttachment.FromTexture(cube, cubeFace: TextureTarget.TextureCubeMapPositiveX);
+        using var image = GpuFramebufferAttachment.FromTexture(cube, cubeFace: CubeFace.PositiveX);
         using var target = DynamicGpuFramebuffer.Create([image]);
         using var binding = OpenGlStateCache.Current.BindFramebufferScope();
         OpenGLFramebufferSelection.Bind(OpenGlStateCache.Current, FramebufferTarget.DrawFramebuffer, target.FboId);
         GL.ClearBuffer(ClearBuffer.Color, 0, new uint[] { 7, 0, 0, 0 });
-        using var textureBinding = OpenGlStateCache.Current.BindTextureScope(((GpuTextureRef)cube).Target, 0, cube.TextureId);
+        using var textureBinding = OpenGlStateCache.Current.BindTextureScope(OpenGLImageValues.Target(((GpuTextureRef)cube).Target), 0, cube.TextureId);
         uint[] data = new uint[4];
-        GL.GetTexImage(TextureTarget.TextureCubeMapPositiveX, 0, PixelFormat.RedInteger, PixelType.UnsignedInt, data);
+        GL.GetTexImage(OpenTK.Graphics.OpenGL.TextureTarget.TextureCubeMapPositiveX, 0, PixelFormat.RedInteger, PixelType.UnsignedInt, data);
         Assert.All(data, value => Assert.Equal(7u, value));
-        GL.GetTexParameter(TextureTarget.TextureCubeMap, GetTextureParameter.TextureMinFilter, out int minimum);
+        GL.GetTexParameter(OpenTK.Graphics.OpenGL.TextureTarget.TextureCubeMap, GetTextureParameter.TextureMinFilter, out int minimum);
         Assert.Equal((int)TextureMinFilter.Nearest, minimum);
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
@@ -88,7 +89,7 @@ public sealed class DynamicTextureCubeTests(HeadlessGLFixture fixture) : RenderT
     {
         EnsureContextValid();
         using var cube = new ReallocatableCube(4);
-        using var image = GpuFramebufferAttachment.FromTexture(cube, mipLevel: 1, cubeFace: TextureTarget.TextureCubeMapNegativeZ);
+        using var image = GpuFramebufferAttachment.FromTexture(cube, mipLevel: 1, cubeFace: CubeFace.NegativeZ);
         using var target = DynamicGpuFramebuffer.Create([image]);
         int original = cube.TextureId;
         cube.Replace(8, inPlace);
@@ -100,7 +101,7 @@ public sealed class DynamicTextureCubeTests(HeadlessGLFixture fixture) : RenderT
         using var bindings = OpenGlStateCache.Current.BindFramebufferScope();
         target.Bind();
         GL.ClearBuffer(ClearBuffer.Color, 0, new[] { .25f, .5f, .75f, 1f });
-        using var textureBinding = OpenGlStateCache.Current.BindTextureScope(((GpuTextureRef)cube).Target, 0, cube.TextureId);
+        using var textureBinding = OpenGlStateCache.Current.BindTextureScope(OpenGLImageValues.Target(((GpuTextureRef)cube).Target), 0, cube.TextureId);
         float[] data = new float[4 * 4 * 4];
         GL.GetTexImage(TextureTarget.TextureCubeMapNegativeZ, 1, PixelFormat.Rgba, PixelType.Float, data);
         for (int pixel = 0; pixel < 16; pixel++) Assert.Equal(.25f, data[pixel * 4]);
@@ -117,13 +118,13 @@ public sealed class DynamicTextureCubeTests(HeadlessGLFixture fixture) : RenderT
         internal ReallocatableCube(int size)
         {
             filterMode = TextureFilterMode.Linear;
-            AllocateOrReallocate2DTexture(size, size, PixelInternalFormat.Rgba16f, 2, TextureTarget.TextureCubeMap);
+            AllocateOrReallocate2DTexture(size, size, TextureFormat.Rgba16f, 2, TextureDimension.Cube);
         }
         /// <summary>Requests in-place or replacement storage and lets native publication deliver the new dimensions.</summary>
         internal void Replace(int size, bool inPlace)
         {
             if (inPlace) Reallocate2DStorageInPlace(size, size, 2);
-            else AllocateOrReallocate2DTexture(size, size, PixelInternalFormat.Rgba16f, 2, TextureTarget.TextureCubeMap);
+            else AllocateOrReallocate2DTexture(size, size, TextureFormat.Rgba16f, 2, TextureDimension.Cube);
         }
         #endregion
     }

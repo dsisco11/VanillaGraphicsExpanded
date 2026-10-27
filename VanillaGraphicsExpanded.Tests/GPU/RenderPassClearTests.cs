@@ -31,9 +31,9 @@ public sealed class RenderPassClearTests(HeadlessGLFixture fixture) : RenderTest
             : GpuFramebufferAttachment.FromRenderbuffer((GpuRenderbuffer)signedStorage);
         using var unsigned = unsignedStorage is GpuTexture unsignedTexture ? GpuFramebufferAttachment.FromTexture(unsignedTexture)
             : GpuFramebufferAttachment.FromRenderbuffer((GpuRenderbuffer)unsignedStorage);
-        target.SetAttachment(FramebufferAttachment.ColorAttachment0, floats);
-        target.SetAttachment(FramebufferAttachment.ColorAttachment2, signed);
-        target.SetAttachment(FramebufferAttachment.ColorAttachment4, unsigned);
+        target.SetAttachment(FramebufferSlot.Color0, floats);
+        target.SetAttachment(FramebufferSlot.Color2, signed);
+        target.SetAttachment(FramebufferSlot.Color4, unsigned);
         GL.ColorMask(false, false, false, false); GL.Enable(EnableCap.ScissorTest); GL.Scissor(0, 0, 0, 0);
         OpenGlStateCache.Current.InvalidateAll();
         try
@@ -106,7 +106,7 @@ public sealed class RenderPassClearTests(HeadlessGLFixture fixture) : RenderTest
     public void AreaAndUnrequestedColorContentsArePreserved(bool discard)
     {
         EnsureContextValid();
-        using var target = CreateMRTRenderTarget(4, 4, PixelInternalFormat.Rgba32f, PixelInternalFormat.Rgba32f);
+        using var target = CreateMRTRenderTarget(4, 4, TextureFormat.Rgba32f, TextureFormat.Rgba32f);
         target[0].UploadDataImmediate(Enumerable.Repeat(.25f, 64).ToArray());
         target[1].UploadDataImmediate(Enumerable.Repeat(.75f, 64).ToArray());
         RenderPassTestBoundary.Run(boundary =>

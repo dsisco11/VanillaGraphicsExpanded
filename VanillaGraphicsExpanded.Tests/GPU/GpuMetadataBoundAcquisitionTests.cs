@@ -32,14 +32,14 @@ public sealed class GpuMetadataBoundAcquisitionTests(HeadlessGLFixture fixture)
             using var framebuffer = DynamicGpuFramebuffer.Create([image])!;
             using var sentinelFramebuffer = DynamicGpuFramebuffer.CreateEmpty();
             using var bufferBinding = OpenGlStateCache.Current.BindBufferScope(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBufferValues.Target(sentinelBuffer.Role), sentinelBuffer.BufferId);
-            using var textureBinding = OpenGlStateCache.Current.BindTextureScope(((GpuTextureRef)sentinelTexture).Target, 0, sentinelTexture.TextureId);
+            using var textureBinding = OpenGlStateCache.Current.BindTextureScope(OpenGLImageValues.Target(((GpuTextureRef)sentinelTexture).Target), 0, sentinelTexture.TextureId);
             using var framebufferBinding = OpenGlStateCache.Current.BindFramebufferScope(FramebufferTarget.Framebuffer, sentinelFramebuffer.FboId);
             Assert.True(new GpuBufferMetadataReader().TryRead(buffer.BufferId, out var bufferMetadata));
             Assert.Equal((nint)96, bufferMetadata.Capacity);
-            Assert.True(new GpuTextureMetadataReader(TextureTarget.Texture2D).TryRead(texture.TextureId, out var textureMetadata));
-            Assert.Equal(TextureTarget.Texture2D, textureMetadata.Target);
+            Assert.True(new GpuTextureMetadataReader(TextureDimension.Two).TryRead(texture.TextureId, out var textureMetadata));
+            Assert.Equal(TextureDimension.Two, textureMetadata.Target);
             Assert.True(GpuFramebufferMetadataReader.Instance.TryRead(framebuffer.FboId, out var framebufferMetadata));
-            Assert.Equal(texture.TextureId, framebufferMetadata.Attachments[FramebufferAttachment.ColorAttachment0].Id);
+            Assert.Equal(texture.TextureId, framebufferMetadata.Attachments[FramebufferSlot.Color0].Id);
             Assert.Equal(sentinelBuffer.BufferId, GL.GetInteger(GetPName.ArrayBufferBinding));
             Assert.Equal(sentinelTexture.TextureId, GL.GetInteger(GetPName.TextureBinding2D));
             Assert.Equal(sentinelFramebuffer.FboId, GL.GetInteger(GetPName.ReadFramebufferBinding));
@@ -79,7 +79,7 @@ public sealed class GpuMetadataBoundAcquisitionTests(HeadlessGLFixture fixture)
             Assert.Equal(buffer.BufferId, view.BufferId);
             Assert.Equal((nint)(ranged ? offset : 0), view.OffsetBytes);
             Assert.Equal((nint)(ranged ? 256 : 0), view.SizeBytes);
-            Assert.Equal(SizedInternalFormat.R32f, view.Format);
+            Assert.Equal(TextureFormat.R32f, view.Format);
             Assert.Equal(sentinel.TextureId, GL.GetInteger(GetPName.TextureBindingBuffer));
             var entry = GpuResourceManagerSystem.CurrentManager!.GetResourceRegistration(view)!;
             Assert.True(entry.MetadataAvailable);

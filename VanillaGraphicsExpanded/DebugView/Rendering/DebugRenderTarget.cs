@@ -53,7 +53,7 @@ internal sealed class DebugRenderTarget : IDisposable
             targets[id] = target = replacement;
         }
         return target.Surface is { } surface
-            ? new(target.SurfaceReference, [new(WindowBuffer:surface.Buffer==DrawBuffersEnum.FrontLeft?SurfaceColorBuffer.FrontLeft:SurfaceColorBuffer.BackLeft)])
+            ? new(target.SurfaceReference, [new(WindowBuffer:surface.Buffer)])
             : new(target.SurfaceReference, Enumerable.Range(0,colorCount).Select(i=>new RHIColorAttachment(AttachmentIndex:i)));
     }
 

@@ -65,7 +65,7 @@ public sealed class LumOnHistorySubmissionTests(HeadlessGLFixture fixture) : Ren
     public void ClearOnlyBoundaryRestoresOnSuccessAndException(bool fail)
     {
         EnsureContextValid();
-        using var target = CreateRenderTarget(4, 4, PixelInternalFormat.Rgba32f);
+        using var target = CreateRenderTarget(4, 4, TextureFormat.Rgba32f);
 #if DEBUG
         long draws = OpenGlStateCache.Current.DrawSubmissions;
 #endif

@@ -49,7 +49,7 @@ public sealed class GpuTextureViewInterceptionTests(HeadlessGLFixture fixture)
             Assert.Equal(2, first.Snapshot.Levels.Length);
             // Explicit acquisition uses named baseline queries while preserving source-relative facts.
             {
-                Assert.True(new GpuTextureMetadataReader(TextureTarget.Texture2DArray).TryRead(viewId, out var boundSnapshot));
+                Assert.True(new GpuTextureMetadataReader(TextureDimension.TwoArray).TryRead(viewId, out var boundSnapshot));
                 Assert.Equal(first.Snapshot.View, boundSnapshot.View);
                 Assert.Equal(first.Snapshot.Levels.ToArray(), boundSnapshot.Levels.ToArray());
                 Assert.Equal(ErrorCode.NoError, GL.GetError());

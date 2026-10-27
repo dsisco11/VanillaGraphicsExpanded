@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Collections.Generic;
 using OpenTK.Graphics.OpenGL;
 namespace VanillaGraphicsExpanded.Rendering;
@@ -6,13 +7,13 @@ internal sealed partial class GpuResourceManager
 {
     #region Internal API
     /// <summary>Builds a complete image candidate before the framebuffer commits its retained composition.</summary>
-    internal static Dictionary<FramebufferAttachment, GpuFramebufferAttachment> ResolveFramebufferAttachments(
-        GpuFramebuffer owner, IReadOnlyDictionary<FramebufferAttachment, GpuFramebufferAttachment> images, bool recover, GpuFramebufferMetadata? candidateMetadata = null)
+    internal static Dictionary<FramebufferSlot, GpuFramebufferAttachment> ResolveFramebufferAttachments(
+        GpuFramebuffer owner, IReadOnlyDictionary<FramebufferSlot, GpuFramebufferAttachment> images, bool recover, GpuFramebufferMetadata? candidateMetadata = null)
     {
         var descriptors = candidateMetadata?.Attachments ?? owner.PublishedMetadata.Attachments
             ?? throw new System.InvalidOperationException("Framebuffer descriptors are unavailable.");
-        var candidate = new System.Collections.Generic.Dictionary<FramebufferAttachment, GpuFramebufferAttachment>(images);
-        foreach (var slot in new System.Collections.Generic.List<FramebufferAttachment>(candidate.Keys))
+        var candidate = new System.Collections.Generic.Dictionary<FramebufferSlot, GpuFramebufferAttachment>(images);
+        foreach (var slot in new System.Collections.Generic.List<FramebufferSlot>(candidate.Keys))
             if (!descriptors.ContainsKey(slot)) candidate.Remove(slot);
         // Packed depth/stencil and repeated color selections describe the same image.
         // Preserve that relationship so combined-aspect helpers retain one reference.
@@ -37,7 +38,7 @@ internal sealed partial class GpuResourceManager
             }
             var backing = owner.ResourceManager is { IsMetadataRegistryRetired: false } activeManager
                 ? activeManager.FindResource(data.Kind, data.Id) : null;
-            var target = data.CubeFace != 0 ? data.CubeFace
+            var target = data.CubeFace != 0 ? TextureDimension.Cube
                 : backing is GpuResourceMetadataEntry<GpuTextureMetadata> texture ? texture.Metadata.Target : 0;
             GpuTextureMetadata? acquiredTexture = null;
             GpuRenderbufferMetadata? acquiredRenderbuffer = null;
@@ -46,13 +47,13 @@ internal sealed partial class GpuResourceManager
                 if (!textures.TryGetValue(data.Id, out var textureFacts))
                 {
                     // Reuse one complete backing snapshot across distinct layers/faces of the same image.
-                    var storageTarget = data.CubeFace != 0 ? TextureTarget.TextureCubeMap
+                    var storageTarget = data.CubeFace != 0 ? TextureDimension.Cube
                         : backing is GpuResourceMetadataEntry<GpuTextureMetadata> known ? known.Metadata.Target : 0;
                     textureFacts = AcquireFramebufferTexture(checked((int)data.Id), storageTarget, recover);
                     textures.Add(data.Id, textureFacts);
                 }
                 acquiredTexture = textureFacts;
-                target = data.CubeFace != 0 ? data.CubeFace : textureFacts.Target;
+                target = textureFacts.Target;
             }
             else
             {
@@ -63,14 +64,14 @@ internal sealed partial class GpuResourceManager
                 }
                 acquiredRenderbuffer = renderbufferFacts;
             }
-            bool range = target == TextureTarget.Texture2DArray && data.Mode != GpuFramebufferAttachmentMode.Ordinary
+            bool range = target == TextureDimension.TwoArray && data.Mode != GpuFramebufferAttachmentMode.Ordinary
                 && data.ViewCount > 0 && (data.Layered || data.Mode == GpuFramebufferAttachmentMode.Multiview);
             var image = GpuFramebufferAttachment.FromExternalImage(checked((int)data.Id), data.Kind == GpuResourceKind.Renderbuffer,
                 target, data.MipLevel,
                 !data.Layered && data.Mode != GpuFramebufferAttachmentMode.Multiview
-                    && target is TextureTarget.Texture1DArray or TextureTarget.Texture2DArray
-                    or TextureTarget.Texture3D or TextureTarget.TextureCubeMapArray or TextureTarget.Texture2DMultisampleArray ? data.Layer : null,
-                acquiredTexture, range ? data.BaseView : 0, range ? data.ViewCount : 0, data.Mode, acquiredRenderbuffer);
+                    && target is TextureDimension.OneArray or TextureDimension.TwoArray
+                    or TextureDimension.Three or TextureDimension.CubeArray or TextureDimension.TwoMultisampleArray ? data.Layer : null,
+                acquiredTexture, range ? data.BaseView : 0, range ? data.ViewCount : 0, data.Mode, acquiredRenderbuffer, data.CubeFace == CubeFace.None ? null : data.CubeFace);
             candidate[pair.Key] = image;
             resolved.Add(data, image);
         }

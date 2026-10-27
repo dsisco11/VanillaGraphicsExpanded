@@ -182,7 +182,7 @@ public sealed class ShaderInputSubmissionTests : RenderTestBase
         using var programs = new ComponentShaderPrograms();
         using var first = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.R32f, Width = System.Math.Max(1, 4), Height = System.Math.Max(1, 4), MipLevels = 3, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (3) - 1, Label = null }).RequireResource();
         using var second = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.R32f, Width = System.Math.Max(1, 4), Height = System.Math.Max(1, 4), MipLevels = 3, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (3) - 1, Label = null }).RequireResource();
-        using var target = CreateRenderTarget(1, 1, PixelInternalFormat.R32f);
+        using var target = CreateRenderTarget(1, 1, TextureFormat.R32f);
         using var draws = new VanillaGraphicsExpanded.Tests.GPU.Helpers.ShaderTestFramework();
         GpuSupport.Initialize();
         Assert.True(GpuSupport.IsInitializedForCurrentContext);

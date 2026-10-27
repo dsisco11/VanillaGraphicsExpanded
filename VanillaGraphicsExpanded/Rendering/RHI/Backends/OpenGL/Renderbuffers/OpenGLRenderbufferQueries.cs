@@ -37,7 +37,7 @@ internal readonly struct OpenGLRenderbufferQueries
         GL.GetNamedRenderbufferParameter(name, Native.RenderbufferParameterName.RenderbufferSamples, out samples);
         backend.RequireContext();
         if (width < 0 || height < 0 || format <= 0 || samples < 0) return false;
-        metadata = new(width, height, (PixelInternalFormat)format, samples);
+        metadata = new(width, height, OpenGLImageValues.Format((PixelInternalFormat)format), samples);
         return true;
     }
     #endregion

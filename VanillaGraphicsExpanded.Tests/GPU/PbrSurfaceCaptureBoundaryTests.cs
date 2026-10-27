@@ -1,3 +1,5 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
+using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
 using TinyTokenizer.Ast;
 using VanillaGraphicsExpanded.PBR;
@@ -75,7 +77,7 @@ public sealed class PbrSurfaceCaptureBoundaryTests : RenderTestBase
             GL.UseProgram(program);
             GL.Uniform1(GL.GetUniformLocation(program, "vge_pbrRoute"), route);
             using var framework = new ShaderTestFramework();
-            using var output = framework.CreateTestGBuffer(1, 1, PixelInternalFormat.Rgba32f);
+            using var output = framework.CreateTestGBuffer(1, 1, TextureFormat.Rgba32f);
             framework.RenderQuadTo(program, output);
             float[] actual = output[0].ReadPixels();
             for (int channel = 0; channel < 3; channel++)

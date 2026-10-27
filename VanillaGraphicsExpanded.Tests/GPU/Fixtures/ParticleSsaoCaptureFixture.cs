@@ -35,7 +35,7 @@ internal sealed class ParticleSsaoCaptureFixture : IDisposable
             Glow = CreateColor([0, 0, 0, 0]);
             Normal = CreateColor([1, 2, 3, 4]);
             Position = CreateColor([5, 6, 7, 8]);
-            Depth = resources.Own(new DepthTexture(Width, 1, PixelInternalFormat.DepthComponent32f));
+            Depth = resources.Own(new DepthTexture(Width, 1, TextureFormat.DepthComponent32f));
             Depth.UploadDataImmediate([.75f, .75f, .75f, .75f]);
             var primary = resources.Own(DynamicGpuFramebuffer.CreateMRT([Material, Glow, Normal, Position], Depth)!);
             Targets = new SceneColorParticleTargets(primary, captureSsao: true);

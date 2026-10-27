@@ -18,10 +18,10 @@ internal sealed partial class OpenGLBackend
         RequireContext();
         if (name == 0) return null;
         bool whole = request.Mode == GpuBufferTextureMode.Whole;
-        if (whole) GL.TextureBuffer(name, (Native.SizedInternalFormat)request.Format, request.Buffer);
-        else GL.TextureBufferRange(name, (Native.SizedInternalFormat)request.Format, request.Buffer, request.Offset, request.Size);
+        if (whole) GL.TextureBuffer(name, (Native.SizedInternalFormat)OpenGLImageValues.Format(request.Format), request.Buffer);
+        else GL.TextureBufferRange(name, (Native.SizedInternalFormat)OpenGLImageValues.Format(request.Format), request.Buffer, request.Offset, request.Size);
         RequireContext();
-        return new(OpenTK.Graphics.OpenGL.TextureTarget.TextureBuffer, ImmutableArray<GpuTextureLevelMetadata>.Empty,
+        return new(TextureDimension.Buffer, ImmutableArray<GpuTextureLevelMetadata>.Empty,
             false, 0, 0, 0, new(request.Buffer, request.Format, whole ? 0 : request.Offset, whole ? 0 : request.Size, whole));
     }
 
@@ -37,7 +37,7 @@ internal sealed partial class OpenGLBackend
         finally { id = name; }
         RequireContext();
         if (name == 0) return null;
-        GL.TextureView(name, (Native.TextureTarget)request.Target, request.Source, (Native.PixelInternalFormat)request.Format,
+        GL.TextureView(name, (Native.TextureTarget)OpenGLImageValues.Target(request.Target), request.Source, (Native.PixelInternalFormat)OpenGLImageValues.Format(request.Format),
             request.BaseLevel, request.LevelCount, request.BaseLayer, request.LayerCount);
         RequireContext();
         return candidate;

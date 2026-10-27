@@ -1,5 +1,5 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Collections.Immutable;
-using OpenTK.Graphics.OpenGL;
 
 namespace VanillaGraphicsExpanded.Rendering;
 
@@ -9,7 +9,7 @@ internal sealed partial class GpuResourceManager
     #region Internal API
     /// <summary>Retains unaffected images and parameters while acquiring an inclusive range of changed levels.</summary>
     internal bool RefreshTextureImages(GpuResourceMetadataEntry<GpuTextureMetadata> entry,
-        int firstLevel, int lastLevel, TextureTarget face, bool generation, bool wasAvailable)
+        int firstLevel, int lastLevel, CubeFace face, bool generation, bool wasAvailable)
     {
         RequireMetadataContext();
         RequireLiveEntry(entry);
@@ -21,11 +21,11 @@ internal sealed partial class GpuResourceManager
         try
         {
             var images = entry.Metadata.Levels.ToBuilder();
-            int faces = entry.Metadata.Target == TextureTarget.TextureCubeMap && face == 0 ? 6 : 1;
+            int faces = entry.Metadata.Target == TextureDimension.Cube && face == 0 ? 6 : 1;
             for (int level = firstLevel; level <= lastLevel; level++)
                 for (int index = 0; index < faces; index++)
                 {
-                    TextureTarget selected = faces == 6 ? TextureTarget.TextureCubeMapPositiveX + index : face;
+                    CubeFace selected = faces == 6 ? CubeFace.PositiveX + index : face;
                     if (!GpuTextureImageReader.TryRead((int)entry.Id, entry.Metadata.Target, selected, level, out var image)) return false;
                     changed |= ReplaceImage(images, image);
                 }

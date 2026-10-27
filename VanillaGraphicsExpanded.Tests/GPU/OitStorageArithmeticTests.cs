@@ -25,7 +25,7 @@ public sealed class OitStorageArithmeticTests(HeadlessGLFixture fixture) : Rende
             .Replace("@import \"./pbr_oit_safety.glsl\"", File.ReadAllText(Path.Combine(includes, "pbr_oit_safety.glsl")));
         using var program = Link(shaders, "#version 330 core\n" + owned + "\nuniform vec4 testColor;uniform float testGlow;void main(){writeOit(testColor,testGlow);}");
         using var framework = new ShaderTestFramework();
-        using var output = CreateMRTRenderTarget(1, 1, Enumerable.Repeat(PixelInternalFormat.Rgba32f, 6).ToArray());
+        using var output = CreateMRTRenderTarget(1, 1, Enumerable.Repeat(TextureFormat.Rgba32f, 6).ToArray());
         int color = GL.GetUniformLocation(program.ProgramId, "testColor"), glow = GL.GetUniformLocation(program.ProgramId, "testGlow");
         foreach (float invalidAlpha in new[] { -.1f, 1.1f, float.NaN, float.PositiveInfinity })
         {
@@ -68,7 +68,7 @@ public sealed class OitStorageArithmeticTests(HeadlessGLFixture fixture) : Rende
         using var program = Link(shaders, tree.ToText());
         GL.ProgramUniform1(program.ProgramId, GL.GetUniformLocation(program.ProgramId, "vge_sceneLinear"), 1);
         using var framework = new ShaderTestFramework();
-        using var output = CreateMRTRenderTarget(5, 1, Enumerable.Repeat(PixelInternalFormat.Rgba32f, 6).ToArray());
+        using var output = CreateMRTRenderTarget(5, 1, Enumerable.Repeat(TextureFormat.Rgba32f, 6).ToArray());
         framework.RenderQuadTo(program.ProgramId, output, (.125f,.125f,.125f,.125f));
         float[] reveal = output[1].ReadPixels(), logarithm = output[2].ReadPixels();
         for (int x=0; x<5; x++)
@@ -90,7 +90,7 @@ public sealed class OitStorageArithmeticTests(HeadlessGLFixture fixture) : Rende
             .Replace(main, "void main(){OIT(testColor,0.0,testDepth);}").Commit();
         using var program = Link(shaders, tree.ToText());
         using var framework = new ShaderTestFramework();
-        using var output = CreateMRTRenderTarget(1, 1, Enumerable.Repeat(PixelInternalFormat.Rgba32f, 6).ToArray());
+        using var output = CreateMRTRenderTarget(1, 1, Enumerable.Repeat(TextureFormat.Rgba32f, 6).ToArray());
         GL.ProgramUniform1(program.ProgramId, GL.GetUniformLocation(program.ProgramId, "vge_sceneLinear"), 1);
         int color = GL.GetUniformLocation(program.ProgramId, "testColor"), depth = GL.GetUniformLocation(program.ProgramId, "testDepth");
         GL.ProgramUniform4(program.ProgramId, color, 8f, 4f, 2f, .75f);
@@ -158,8 +158,8 @@ public sealed class OitStorageArithmeticTests(HeadlessGLFixture fixture) : Rende
         bins.UploadDataImmediate(new float[width * 4], 0, 0, 1, width, 1, 1);
         bins.UploadDataImmediate(new float[width * 4], 0, 0, 2, width, 1, 1);
         float[] reveal = Enumerable.Range(0, width).SelectMany(i => new[] { i == 8 ? -1f : 0f, 1f, 1f, 1f }).ToArray();
-        using var transmission = framework.CreateTexture(width, 1, PixelInternalFormat.Rgba32f, reveal);
-        using var zero = framework.CreateTexture(width, 1, PixelInternalFormat.Rgba32f, new float[width * 4]);
+        using var transmission = framework.CreateTexture(width, 1, TextureFormat.Rgba32f, reveal);
+        using var zero = framework.CreateTexture(width, 1, TextureFormat.Rgba32f, new float[width * 4]);
         using var bindBins = OpenGlStateCache.Current.BindTextureScope(TextureTarget.Texture2DArray, 0, bins.TextureId);
         using var bindReveal = OpenGlStateCache.Current.BindTextureScope(TextureTarget.Texture2D, 1, transmission.TextureId);
         using var bindZero = OpenGlStateCache.Current.BindTextureScope(TextureTarget.Texture2D, 2, zero.TextureId);
@@ -168,7 +168,7 @@ public sealed class OitStorageArithmeticTests(HeadlessGLFixture fixture) : Rende
         GL.ProgramUniform1(program.ProgramId, GL.GetUniformLocation(program.ProgramId, "OITreveal"), 1);
         GL.ProgramUniform1(program.ProgramId, GL.GetUniformLocation(program.ProgramId, "revealage"), 2);
         GL.ProgramUniform1(program.ProgramId, GL.GetUniformLocation(program.ProgramId, "inGlow"), 2);
-        using var output = CreateMRTRenderTarget(width, 1, PixelInternalFormat.Rgba16f, PixelInternalFormat.Rgba32f);
+        using var output = CreateMRTRenderTarget(width, 1, TextureFormat.Rgba16f, TextureFormat.Rgba32f);
         framework.RenderQuadTo(program.ProgramId, output, (.125f, .25f, .5f, .75f));
         float[] actual = output[0].ReadPixels();
         for (int column = 0; column < width; column++)
@@ -199,7 +199,7 @@ public sealed class OitStorageArithmeticTests(HeadlessGLFixture fixture) : Rende
             """).Commit();
         using var program = Link(shaders, tree.ToText());
         using var framework = new ShaderTestFramework();
-        using var output = CreateRenderTarget(4, 1, PixelInternalFormat.Rgba32f);
+        using var output = CreateRenderTarget(4, 1, TextureFormat.Rgba32f);
         framework.RenderQuadTo(program.ProgramId, output);
         float[] pixels = output[0].ReadPixels();
         for (int column = 0; column < 4; column++)
@@ -236,7 +236,7 @@ public sealed class OitStorageArithmeticTests(HeadlessGLFixture fixture) : Rende
             """;
         using var program = Link(shaders, fragment);
         using var framework = new ShaderTestFramework();
-        using var output = CreateMRTRenderTarget(1, 1, Enumerable.Repeat(PixelInternalFormat.Rgba32f, 6).ToArray());
+        using var output = CreateMRTRenderTarget(1, 1, Enumerable.Repeat(TextureFormat.Rgba32f, 6).ToArray());
         framework.RenderQuadTo(program.ProgramId, output);
         // The numerator exceeds the binary16 ceiling; RGBA32F accumulation must retain
         // it before resolve. Positively weighted alpha divides away the common sum.

@@ -71,14 +71,14 @@ public sealed class GpuExternalAcquisitionReuseTests(HeadlessGLFixture fixture)
             Assert.True(GL.IsRenderbuffer(renderbuffer.RenderbufferId));
             using var selectedView = GpuFramebufferAttachment.FromTexture(view, layer: 1);
             using var selectedRenderbuffer = GpuFramebufferAttachment.FromRenderbuffer(renderbuffer);
-            selectedView.ValidateSlot(FramebufferAttachment.ColorAttachment0);
-            selectedRenderbuffer.ValidateSlot(FramebufferAttachment.ColorAttachment0);
+            selectedView.ValidateSlot(FramebufferSlot.Color0);
+            selectedRenderbuffer.ValidateSlot(FramebufferSlot.Color0);
             Assert.Equal(8, selectedView.Width);
             Assert.Equal(4, selectedRenderbuffer.Height);
             GpuResourceManager.InvalidateWrapperMetadata(view);
             GpuResourceManager.InvalidateWrapperMetadata(renderbuffer);
-            Assert.Throws<InvalidOperationException>(() => selectedView.ValidateSlot(FramebufferAttachment.ColorAttachment0));
-            Assert.Throws<InvalidOperationException>(() => selectedRenderbuffer.ValidateSlot(FramebufferAttachment.ColorAttachment0));
+            Assert.Throws<InvalidOperationException>(() => selectedView.ValidateSlot(FramebufferSlot.Color0));
+            Assert.Throws<InvalidOperationException>(() => selectedRenderbuffer.ValidateSlot(FramebufferSlot.Color0));
             Assert.False(selectedView.IsValid);
             Assert.Equal(0, selectedRenderbuffer.Width);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
@@ -155,7 +155,7 @@ public sealed class GpuExternalAcquisitionReuseTests(HeadlessGLFixture fixture)
             using var texture = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba8, Width = System.Math.Max(1, 8), Height = System.Math.Max(1, 4), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
             using var borrowed = new BorrowedTexture(texture.TextureId);
             using var image = GpuFramebufferAttachment.FromTextureId(texture.TextureId);
-            image.ValidateSlot(FramebufferAttachment.ColorAttachment0);
+            image.ValidateSlot(FramebufferSlot.Color0);
             Assert.Equal(8, borrowed.Width);
             Assert.Equal(4, image.Height);
             var manager = GpuResourceManagerSystem.CurrentManager!;
@@ -208,16 +208,16 @@ public sealed class GpuExternalAcquisitionReuseTests(HeadlessGLFixture fixture)
             using var capability = new DirectStateAccessCapabilityScope(dsa);
             using var texture = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba8, Width = System.Math.Max(1, 8), Height = System.Math.Max(1, 4), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
             using var image = GpuFramebufferAttachment.FromTexture(texture);
-            image.ValidateSlot(FramebufferAttachment.ColorAttachment0);
-            image.ValidateSlot(FramebufferAttachment.ColorAttachment0);
+            image.ValidateSlot(FramebufferSlot.Color0);
+            image.ValidateSlot(FramebufferSlot.Color0);
             Assert.Equal(8, image.Width);
             // Withdrawal deliberately leaves native storage intact. Projection must not silently
             // reacquire it and turn an interrupted owner's old allocation back into usable facts.
             GpuResourceManager.InvalidateWrapperMetadata(texture, GpuMetadataChange.Storage);
-            Assert.Throws<InvalidOperationException>(() => image.ValidateSlot(FramebufferAttachment.ColorAttachment0));
+            Assert.Throws<InvalidOperationException>(() => image.ValidateSlot(FramebufferSlot.Color0));
             Assert.Equal(0, image.Width);
-            GpuResourceManager.ObserveWrapperMetadata(texture, new GpuTextureMetadataReader(TextureTarget.Texture2D), GpuMetadataChange.Metadata);
-            image.ValidateSlot(FramebufferAttachment.ColorAttachment0);
+            GpuResourceManager.ObserveWrapperMetadata(texture, new GpuTextureMetadataReader(TextureDimension.Two), GpuMetadataChange.Metadata);
+            image.ValidateSlot(FramebufferSlot.Color0);
             Assert.Equal(8, image.Width);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }

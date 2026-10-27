@@ -203,6 +203,6 @@ public sealed class FramebufferRoutingCacheTests(HeadlessGLFixture fixture, ITes
     #endregion
     #region Private
     /// <summary>Creates a three-output dynamic target so sparse route changes remain valid native configurations.</summary>
-    private DynamicGpuFramebuffer Target() => (DynamicGpuFramebuffer)CreateMRTRenderTarget(2, 2, PixelInternalFormat.Rgba32f, PixelInternalFormat.Rgba32f, PixelInternalFormat.Rgba32f);
+    private DynamicGpuFramebuffer Target() => (DynamicGpuFramebuffer)CreateMRTRenderTarget(2, 2, TextureFormat.Rgba32f, TextureFormat.Rgba32f, TextureFormat.Rgba32f);
     #endregion
 }

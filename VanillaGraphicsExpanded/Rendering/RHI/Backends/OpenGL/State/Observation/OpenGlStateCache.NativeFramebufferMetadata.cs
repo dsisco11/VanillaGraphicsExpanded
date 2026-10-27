@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.Integration.OpenGL;
 using System;
 using OpenTK.Graphics.OpenGL;
 
@@ -54,12 +55,14 @@ internal sealed partial class OpenGlStateCache
             bool imageExists = false;
             var source = entry.Manager.FindObservedResource(GpuResourceKind.Texture, texture)
                 as GpuResourceMetadataEntry<GpuTextureMetadata>;
-            if (source?.IsUsable == true && source.Metadata.Target == TextureTarget.Texture2DArray)
+            if (source?.IsUsable == true && source.Metadata.Target == TextureDimension.TwoArray)
                 foreach (var image in source.Metadata.Levels)
                     if (image.Level == level && image.Allocated) { imageExists = true; break; }
 
+            // Invalid native slots still reach OpenGL unchanged. They have no canonical selection.
+            if (!validSlot) return observation;
             bool eligible = family is 0 or 1 && !rejected && imageExists;
-            return new(entry, observation.Known, new((FramebufferAttachment)slot, texture, level, family == 1 ? layer : -1,
+            return new(entry, observation.Known, new(OpenGLResourceValues.FromNative((FramebufferAttachment)slot), texture, level, family == 1 ? layer : -1,
                 0, 0, GpuFramebufferAttachmentMode.Ordinary, eligible, rejected));
         }
         catch
@@ -92,14 +95,14 @@ internal sealed partial class OpenGlStateCache
                 if (!entry.Manager.CanObserveNativeMetadata)
                     throw new InvalidOperationException("Framebuffer metadata completion requires its originating context.");
                 if (command.HasValue) entry.Manager.RecordFramebufferAttachmentCommand(entry, command.Value);
-                bool validSlot = command is { } selected && (selected.Slot is FramebufferAttachment.DepthAttachment
-                    or FramebufferAttachment.StencilAttachment or FramebufferAttachment.DepthStencilAttachment
-                    || selected.Slot >= FramebufferAttachment.ColorAttachment0
-                        && (int)selected.Slot - (int)FramebufferAttachment.ColorAttachment0 < GpuSupport.Graphics.MaxColorAttachments);
+                bool validSlot = command is { } selected && (selected.Slot is FramebufferSlot.Depth
+                    or FramebufferSlot.Stencil or FramebufferSlot.DepthStencil
+                    || selected.Slot >= FramebufferSlot.Color0
+                        && (int)selected.Slot - (int)FramebufferSlot.Color0 < GpuSupport.Graphics.MaxColorAttachments);
                 bool success;
                 if (known && (validSlot || parameter.HasValue))
                 {
-                    success = entry.Manager.RefreshFramebufferField(entry, validSlot ? command!.Value.Slot : null, parameter);
+                    success = entry.Manager.RefreshFramebufferField(entry, validSlot ? command!.Value.Slot : null, parameter.HasValue ? OpenGLResourceValues.FromNative(parameter.Value) : null);
                 }
                 else success = entry.Manager.RefreshMetadata(entry, GpuMetadataChange.Metadata);
                 if (!success)

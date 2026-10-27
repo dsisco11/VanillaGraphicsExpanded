@@ -46,13 +46,14 @@ existing manager services commit snapshots and notifications exactly once.
 The context routes private resource work through the internal `IRHIResourceExecution` contract inherited
 by `IRHIBackend`. Its creation, acquisition/observation and retirement partials are not public consumer
 operations. Initialization records, nullable metadata and native identities remain inside this handoff.
-Existing owner allocation/configuration records also cross this private handoff. Canonical metadata and
-initialization records retain their existing schema, but direct operation selectors use project-owned
-resource types: framebuffer slots/selection, metadata fields, program-block kinds and image storage
-targets. Routing carries color indices (minus one disables an output) and an optional read-color index.
+Existing owner allocation/configuration records also cross this private handoff. Image and framebuffer
+canonical metadata, initialization records, wrappers and capability-cache keys use project-owned texture dimensions, cube faces, formats and framebuffer slots end to end. Direct
+query selectors use metadata fields and program-block kinds. Routing carries color indices
+(minus one disables an output) and an optional read-color index.
 No OpenTK enum occurs directly in RHICommandContext or IRHIResourceExecution signatures, including
-collection keys. Native integration converts incoming legacy selectors; backend lowering converts logical
-requests to native arguments. These pure codecs issue no graphics calls and own no resource state.
+collection keys. Native adapters decode actual external arguments; backend execution encodes semantic
+inputs and decodes native query results. The codecs live inside the backend. Ordinary resource wrappers, manager
+acquisition services and capability caches do not call native translation helpers.
 Query-free image description/encoding projections translate published canonical facts only; they never
 acquire or recover metadata. Native window discovery and optional bindless handle issuance/residency
 are private owner services. The manager receives the admitted context explicitly for initialization; it never retrieves or stores

@@ -1,3 +1,5 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
+using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.PBR.SceneColor;
 using VanillaGraphicsExpanded.Rendering;
@@ -40,7 +42,7 @@ public sealed class SceneCompatibilityEnvelopeTests(HeadlessGLFixture fixture) :
             "\nvoid main(){vec3 vexPos=vec3(positionRadius,0,0);vec4 rgbaCloud;float cloudOpaqueness=1,selfThickness=1;" + edge + undulation + color + modulation +
             "vec4 skyGlow=vec4(3,1,2,1);" + body + "outColor=vec4(VgeCompatibilityLuminance(col.rgb),col.a);}");
         using var framework = new ShaderTestFramework();
-        using var target = CreateMRTRenderTarget(1, 1, PixelInternalFormat.Rgba32f);
+        using var target = CreateMRTRenderTarget(1, 1, TextureFormat.Rgba32f);
         foreach (float radius in new[] { 0f, 1000f, 10000f })
         foreach (float brightness in new[] { -1f, 1f })
         foreach (float global in new[] { -2f, 2f })
@@ -88,7 +90,7 @@ public sealed class SceneCompatibilityEnvelopeTests(HeadlessGLFixture fixture) :
             outColor=vec4(VgeCompatibilityLuminance(c.rgb),c.a);}
             """);
         using var framework = new ShaderTestFramework();
-        using var target = CreateMRTRenderTarget(1, 1, PixelInternalFormat.Rgba32f);
+        using var target = CreateMRTRenderTarget(1, 1, TextureFormat.Rgba32f);
         float[] colors = [1, 2, 3, 200, 400, 100];
         int count = pointSources ? 2 : 0;
         var pointBounds = SceneColorPointLightBounds.FromEngine(count, colors);
@@ -133,7 +135,7 @@ public sealed class SceneCompatibilityEnvelopeTests(HeadlessGLFixture fixture) :
             float getSkyMurkiness(){return fixtureMurk;}
             """ + perception + underwater + "\nvoid main(){vec4 skyGlow=vec4(3,1,2,glowAlpha);" + body + "outColor=vec4(VgeCompatibilityLuminance(col.rgb),col.a);}");
         using var framework = new ShaderTestFramework();
-        using var target = CreateMRTRenderTarget(1, 1, PixelInternalFormat.Rgba32f);
+        using var target = CreateMRTRenderTarget(1, 1, TextureFormat.Rgba32f);
         float bound = SceneColorCompatibilityBounds.Clouds(3, 3, 2, 4, 5, 2, 7, 0, 1);
         foreach (float glow in new[] { 0f, .5f, 1f })
         foreach (float fogAmount in new[] { 0f, .5f, 1f })
@@ -168,7 +170,7 @@ public sealed class SceneCompatibilityEnvelopeTests(HeadlessGLFixture fixture) :
             "uniform vec3 pointLights[3];uniform vec3 pointLightColors[3];uniform int pointLightQuantity;uniform vec3 samplePosition;float glitchStrengthFL=0;\n" +
             function + "\nvoid main(){outColor=getPointLightRgbvl(samplePosition);}");
         using var framework = new ShaderTestFramework();
-        using var target = CreateMRTRenderTarget(1, 1, PixelInternalFormat.Rgba32f);
+        using var target = CreateMRTRenderTarget(1, 1, TextureFormat.Rgba32f);
         GL.ProgramUniform1(program.ProgramId, GL.GetUniformLocation(program.ProgramId, "pointLightQuantity"), 3);
         GL.ProgramUniform3(program.ProgramId, GL.GetUniformLocation(program.ProgramId, "pointLightColors"), 3, colors);
         GL.ProgramUniform3(program.ProgramId, GL.GetUniformLocation(program.ProgramId, "pointLights"), 3, new float[] { 0, 0, 0, 4, 2, -1, -8, 2, 1 });
@@ -202,7 +204,7 @@ public sealed class SceneCompatibilityEnvelopeTests(HeadlessGLFixture fixture) :
             void main(){vec4 colour;float dayLight=1.1;float undulate=noiseValue*undulatingModeness;
             """ + grey + "{\n" + color + "}\noutColor=vec4(VgeCompatibilityLuminance(colour.rgb),colour.a);}");
         using var framework = new ShaderTestFramework();
-        using var target = CreateMRTRenderTarget(1, 1, PixelInternalFormat.Rgba32f);
+        using var target = CreateMRTRenderTarget(1, 1, TextureFormat.Rgba32f);
         float bound = SceneColorCompatibilityBounds.CloudMap(1, 1, 2, 3, 4, 5, 2);
         float peak = 0;
         foreach (float brightness in new[] { -1f, 0f, 1f })
@@ -236,7 +238,7 @@ public sealed class SceneCompatibilityEnvelopeTests(HeadlessGLFixture fixture) :
             "vec4 applyFog(vec4 c,float f){return vec4(mix(c.rgb,vec3(6,4,2),f),c.a);}" +
             "void main(){vec4 texColor=vec4(0,0,0,1),texGlow=vec4(0),skyColor=vec4(3,2,1,1),skyGlow=vec4(0),outGlow;float fogAmount=1,dayLight=0;int weirdMathToMakeMoonLookNicer=" + nonlinear + ";" + body + "outColor.rgb=VgeCompatibilityLuminance(outColor.rgb);}");
         using var framework = new ShaderTestFramework();
-        using var target = CreateMRTRenderTarget(1, 1, PixelInternalFormat.Rgba32f);
+        using var target = CreateMRTRenderTarget(1, 1, TextureFormat.Rgba32f);
         float bound = SceneColorCompatibilityBounds.Moon(0, 1, 6, 3, 7, nonlinear != 0, 0, 1);
         foreach (float murk in new[] { 0f, .5f, 1f })
         {

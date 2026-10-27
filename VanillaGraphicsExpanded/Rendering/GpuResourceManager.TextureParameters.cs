@@ -7,7 +7,7 @@ internal sealed partial class GpuResourceManager
 {
     #region Internal API
     /// <summary>Reads only the represented field and retains the original registration's other known facts.</summary>
-    internal bool RefreshTextureParameter(GpuResourceMetadataEntry<GpuTextureMetadata> entry, TextureParameterName parameter)
+    internal bool RefreshTextureParameter(GpuResourceMetadataEntry<GpuTextureMetadata> entry, RHI.TextureMetadataField parameter)
     {
         RequireMetadataContext();
         RequireLiveEntry(entry);
@@ -17,14 +17,14 @@ internal sealed partial class GpuResourceManager
         bool finished = false;
         try
         {
-            int value = RHI.RHICommandContext.Current.ReadExternalTextureParameter((int)entry.Id, (GetTextureParameter)parameter);
+            int value = RHI.RHICommandContext.Current.ReadExternalTextureParameter((int)entry.Id, parameter);
             if (value < 0) return false;
             RequireMetadataContext();
             RequireLiveEntry(entry);
             RequireUninterruptedCompletion(entry);
             // An external command may be rejected. The targeted result preserves that
             // native outcome without rescanning any images or consuming the error queue.
-            var result = parameter == TextureParameterName.TextureBaseLevel
+            var result = parameter == RHI.TextureMetadataField.BaseMip
                 ? entry.Metadata with { BaseLevel = value } : entry.Metadata with { MaxLevel = value };
             entry.Publish(result, GpuMetadataChange.Metadata);
             finished = true;

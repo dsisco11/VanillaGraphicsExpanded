@@ -49,10 +49,10 @@ internal sealed partial class OpenGLBackend
         using var pack = cache.BindBufferScope(BufferTarget.PixelPackBuffer, (int)buffer.ResourceId);
         using var pixels = OpenGLPixelLayouts.PackScope(cache, new(1, layout.RowLength, ImageHeight: layout.ImageHeight));
         var region = request.Region;
-        int y = data.Target == TextureTarget.Texture1DArray ? region.Subresource.Layer + region.Z : region.Y;
-        int z = data.Target == TextureTarget.Texture1DArray ? 0 : region.Subresource.Layer + region.Z;
-        int height = data.Target == TextureTarget.Texture1DArray ? region.Depth : region.Height;
-        int depth = data.Target == TextureTarget.Texture1DArray ? 1 : region.Depth;
+        int y = data.Target == TextureDimension.OneArray ? region.Subresource.Layer + region.Z : region.Y;
+        int z = data.Target == TextureDimension.OneArray ? 0 : region.Subresource.Layer + region.Z;
+        int height = data.Target == TextureDimension.OneArray ? region.Depth : region.Height;
+        int depth = data.Target == TextureDimension.OneArray ? 1 : region.Depth;
         GL.GetTextureSubImage((int)image.ResourceId, region.Subresource.MipLevel, region.X, y, z, region.Width, height, depth,
             OpenGLPixelValues.Channels(request.Encoding.Channels), OpenGLPixelValues.Type(request.Encoding.Type),
             checked((int)Math.Min(int.MaxValue, storage.Capacity - request.Offset)), request.Offset);
@@ -76,8 +76,8 @@ internal sealed partial class OpenGLBackend
             throw new ArgumentException("Image copies require matching sample counts; resolving samples is a pass operation.");
         cache.RequireResourceOperationAvailable(GpuResourceKind.Texture, source.Resource.ResourceId);
         cache.RequireResourceOperationAvailable(GpuResourceKind.Texture, destination.Resource.ResourceId);
-        bool sourceArray = from.Target == TextureTarget.Texture1DArray;
-        bool destinationArray = to.Target == TextureTarget.Texture1DArray;
+        bool sourceArray = from.Target == TextureDimension.OneArray;
+        bool destinationArray = to.Target == TextureDimension.OneArray;
         if (sourceArray != destinationArray) throw new ArgumentException("One-dimensional array copies require matching dimensionality.");
         int sourceLayer = sourceRegion.Subresource.Layer + sourceRegion.Z;
         int destinationLayer = destinationRegion.Subresource.Layer + destinationRegion.Z;
@@ -86,9 +86,9 @@ internal sealed partial class OpenGLBackend
             && sourceRegion.Y < destinationRegion.Y + destinationRegion.Height && destinationRegion.Y < sourceRegion.Y + sourceRegion.Height
             && sourceLayer < destinationLayer + destinationRegion.Depth && destinationLayer < sourceLayer + sourceRegion.Depth)
             throw new ArgumentException("Copy regions within the same image must not overlap.");
-        GL.CopyImageSubData((int)source.Resource.ResourceId, (Native.ImageTarget)from.Target, sourceRegion.Subresource.MipLevel,
+        GL.CopyImageSubData((int)source.Resource.ResourceId, (Native.ImageTarget)OpenGLImageValues.Target(from.Target), sourceRegion.Subresource.MipLevel,
             sourceRegion.X, sourceArray ? sourceLayer : sourceRegion.Y, sourceArray ? 0 : sourceLayer,
-            (int)destination.Resource.ResourceId, (Native.ImageTarget)to.Target, destinationRegion.Subresource.MipLevel,
+            (int)destination.Resource.ResourceId, (Native.ImageTarget)OpenGLImageValues.Target(to.Target), destinationRegion.Subresource.MipLevel,
             destinationRegion.X, destinationArray ? destinationLayer : destinationRegion.Y, destinationArray ? 0 : destinationLayer,
             sourceRegion.Width, sourceArray ? sourceRegion.Depth : sourceRegion.Height, sourceArray ? 1 : sourceRegion.Depth);
         RequireContext();

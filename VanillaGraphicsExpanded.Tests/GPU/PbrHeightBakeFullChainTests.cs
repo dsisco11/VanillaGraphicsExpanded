@@ -1,3 +1,5 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
+using VanillaGraphicsExpanded.Rendering.Integration.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using System.IO;
@@ -71,7 +73,7 @@ public sealed class PbrHeightBakeFullChainTests : RenderTestBase
             // 1) Luminance.
             RenderTo(texL, progL, (paramsUbo) =>
             {
-                VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, atlas, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)atlas).Target))]);
+                VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, atlas, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)atlas).Target)))]);
 
                 UploadHeightBakeParams(paramsUbo, progL, (cpu) =>
                 {
@@ -91,8 +93,8 @@ public sealed class PbrHeightBakeFullChainTests : RenderTestBase
             // 3) D0 = L - base
             RenderTo(texD0, progSub, (paramsUbo) =>
             {
-                VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, texL, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)texL).Target))]);
-                VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(1, texBase, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)texBase).Target))]);
+                VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, texL, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)texL).Target)))]);
+                VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(1, texBase, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)texBase).Target)))]);
 
                 UploadHeightBakeParams(paramsUbo, progSub, (cpu) =>
                 {
@@ -106,7 +108,7 @@ public sealed class PbrHeightBakeFullChainTests : RenderTestBase
             // 4) Gradient field from D0 (we treat D0 as detail D).
             RenderTo(texGxy, progGrad, (paramsUbo) =>
             {
-                VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, texD0, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)texD0).Target))]);
+                VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, texD0, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)texD0).Target)))]);
 
                 UploadHeightBakeParams(paramsUbo, progGrad, (cpu) =>
                 {
@@ -119,7 +121,7 @@ public sealed class PbrHeightBakeFullChainTests : RenderTestBase
             // 5) Divergence
             RenderTo(texDiv, progDiv, (paramsUbo) =>
             {
-                VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, texGxy, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)texGxy).Target))]);
+                VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, texGxy, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)texGxy).Target)))]);
 
                 UploadHeightBakeParams(paramsUbo, progDiv, (cpu) =>
                 {
@@ -137,8 +139,8 @@ public sealed class PbrHeightBakeFullChainTests : RenderTestBase
 
                 RenderTo(dst, progJacobi, (paramsUbo) =>
                 {
-                    VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, src, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)src).Target))]);
-                    VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(1, texDiv, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)texDiv).Target))]);
+                    VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, src, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)src).Target)))]);
+                    VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(1, texDiv, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)texDiv).Target)))]);
 
                     UploadHeightBakeParams(paramsUbo, progJacobi, (cpu) =>
                     {
@@ -154,7 +156,7 @@ public sealed class PbrHeightBakeFullChainTests : RenderTestBase
             (float invNeg, float invPos) = ComputeAsymmetricInvScales(texH, mean);
             RenderTo(texHn, progNorm, (paramsUbo) =>
             {
-                VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, texH, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)texH).Target))]);
+                VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, texH, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)texH).Target)))]);
 
                 UploadHeightBakeParams(paramsUbo, progNorm, (cpu) =>
                 {
@@ -168,9 +170,9 @@ public sealed class PbrHeightBakeFullChainTests : RenderTestBase
             // 8) Pack to atlas
             RenderTo(outAtlas, progPack, (paramsUbo) =>
             {
-                VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, texHn, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)texHn).Target))]);
+                VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, texHn, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)texHn).Target)))]);
 
-                VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(1, atlas, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)atlas).Target))]);
+                VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(1, atlas, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)atlas).Target)))]);
 
                 UploadHeightBakeParams(paramsUbo, progPack, (cpu) =>
                 {
@@ -230,7 +232,7 @@ public sealed class PbrHeightBakeFullChainTests : RenderTestBase
 
             RenderTo(texL, progL, (paramsUbo) =>
             {
-                VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, atlas, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)atlas).Target))]);
+                VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, atlas, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)atlas).Target)))]);
 
                 UploadHeightBakeParams(paramsUbo, progL, (cpu) =>
                 {
@@ -244,7 +246,7 @@ public sealed class PbrHeightBakeFullChainTests : RenderTestBase
             (float invNeg, float invPos) = ComputeAsymmetricInvScales(texL, mean);
             RenderTo(texHn, progNorm, (paramsUbo) =>
             {
-                VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, texL, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)texL).Target))]);
+                VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, texL, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)texL).Target)))]);
 
                 UploadHeightBakeParams(paramsUbo, progNorm, (cpu) =>
                 {
@@ -256,9 +258,9 @@ public sealed class PbrHeightBakeFullChainTests : RenderTestBase
 
             RenderTo(outAtlas, progPack, (paramsUbo) =>
             {
-                VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, texHn, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)texHn).Target))]);
+                VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, texHn, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)texHn).Target)))]);
 
-                VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(1, atlas, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)atlas).Target))]);
+                VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(1, atlas, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)atlas).Target)))]);
 
                 UploadHeightBakeParams(paramsUbo, progPack, (cpu) =>
                 {
@@ -324,7 +326,7 @@ public sealed class PbrHeightBakeFullChainTests : RenderTestBase
             // 1) Luminance.
             RenderTo(texL, progL, (paramsUbo) =>
             {
-                VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, atlas, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)atlas).Target))]);
+                VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, atlas, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)atlas).Target)))]);
 
                 UploadHeightBakeParams(paramsUbo, progL, (cpu) =>
                 {
@@ -340,8 +342,8 @@ public sealed class PbrHeightBakeFullChainTests : RenderTestBase
             // 3) D0 = L - base
             RenderTo(texD0, progSub, (paramsUbo) =>
             {
-                VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, texL, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)texL).Target))]);
-                VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(1, texBase, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)texBase).Target))]);
+                VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, texL, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)texL).Target)))]);
+                VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(1, texBase, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)texBase).Target)))]);
 
                 UploadHeightBakeParams(paramsUbo, progSub, (cpu) =>
                 {
@@ -354,7 +356,7 @@ public sealed class PbrHeightBakeFullChainTests : RenderTestBase
             // 4) Gradient
             RenderTo(texGxy, progGrad, (paramsUbo) =>
             {
-                VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, texD0, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)texD0).Target))]);
+                VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, texD0, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)texD0).Target)))]);
 
                 UploadHeightBakeParams(paramsUbo, progGrad, (cpu) =>
                 {
@@ -366,7 +368,7 @@ public sealed class PbrHeightBakeFullChainTests : RenderTestBase
             // 5) Divergence
             RenderTo(texDiv, progDiv, (paramsUbo) =>
             {
-                VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, texGxy, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)texGxy).Target))]);
+                VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, texGxy, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)texGxy).Target)))]);
 
                 UploadHeightBakeParams(paramsUbo, progDiv, (cpu) =>
                 {
@@ -383,8 +385,8 @@ public sealed class PbrHeightBakeFullChainTests : RenderTestBase
 
                 RenderTo(dst, progJacobi, (paramsUbo) =>
                 {
-                    VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, src, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)src).Target))]);
-                    VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(1, texDiv, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)texDiv).Target))]);
+                    VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, src, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)src).Target)))]);
+                    VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(1, texDiv, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)texDiv).Target)))]);
 
                     UploadHeightBakeParams(paramsUbo, progJacobi, (cpu) =>
                     {
@@ -398,7 +400,7 @@ public sealed class PbrHeightBakeFullChainTests : RenderTestBase
             (float invNeg, float invPos) = ComputeAsymmetricInvScales(texH, mean);
             RenderTo(texHn, progNorm, (paramsUbo) =>
             {
-                VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, texH, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)texH).Target))]);
+                VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, texH, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)texH).Target)))]);
 
                 UploadHeightBakeParams(paramsUbo, progNorm, (cpu) =>
                 {
@@ -411,9 +413,9 @@ public sealed class PbrHeightBakeFullChainTests : RenderTestBase
             // 8) Pack twice with different scales.
             RenderTo(outAtlas1, progPack, (paramsUbo) =>
             {
-                VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, texHn, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)texHn).Target))]);
+                VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, texHn, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)texHn).Target)))]);
 
-                VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(1, atlas, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)atlas).Target))]);
+                VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(1, atlas, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)atlas).Target)))]);
 
                 UploadHeightBakeParams(paramsUbo, progPack, (cpu) =>
                 {
@@ -426,9 +428,9 @@ public sealed class PbrHeightBakeFullChainTests : RenderTestBase
 
             RenderTo(outAtlas2, progPack, (paramsUbo) =>
             {
-                VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, texHn, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)texHn).Target))]);
+                VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, texHn, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)texHn).Target)))]);
 
-                VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(1, atlas, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)atlas).Target))]);
+                VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(1, atlas, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)atlas).Target)))]);
 
                 UploadHeightBakeParams(paramsUbo, progPack, (cpu) =>
                 {
@@ -507,7 +509,7 @@ public sealed class PbrHeightBakeFullChainTests : RenderTestBase
             // 1) Luminance.
             RenderTo(texL, progL, (paramsUbo) =>
             {
-                VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, atlas, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)atlas).Target))]);
+                VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, atlas, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)atlas).Target)))]);
 
                 UploadHeightBakeParams(paramsUbo, progL, (cpu) =>
                 {
@@ -523,8 +525,8 @@ public sealed class PbrHeightBakeFullChainTests : RenderTestBase
             // 3) D0 = L - base
             RenderTo(texD0, progSub, (paramsUbo) =>
             {
-                VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, texL, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)texL).Target))]);
-                VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(1, texBase, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)texBase).Target))]);
+                VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, texL, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)texL).Target)))]);
+                VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(1, texBase, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)texBase).Target)))]);
 
                 UploadHeightBakeParams(paramsUbo, progSub, (cpu) =>
                 {
@@ -537,7 +539,7 @@ public sealed class PbrHeightBakeFullChainTests : RenderTestBase
             // 4) Gradient
             RenderTo(texGxy, progGrad, (paramsUbo) =>
             {
-                VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, texD0, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)texD0).Target))]);
+                VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, texD0, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)texD0).Target)))]);
 
                 UploadHeightBakeParams(paramsUbo, progGrad, (cpu) =>
                 {
@@ -549,7 +551,7 @@ public sealed class PbrHeightBakeFullChainTests : RenderTestBase
             // 5) Divergence
             RenderTo(texDiv, progDiv, (paramsUbo) =>
             {
-                VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, texGxy, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)texGxy).Target))]);
+                VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, texGxy, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)texGxy).Target)))]);
 
                 UploadHeightBakeParams(paramsUbo, progDiv, (cpu) =>
                 {
@@ -566,8 +568,8 @@ public sealed class PbrHeightBakeFullChainTests : RenderTestBase
 
                 RenderTo(dst, progJacobi, (paramsUbo) =>
                 {
-                    VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, src, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)src).Target))]);
-                    VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(1, texDiv, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)texDiv).Target))]);
+                    VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, src, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)src).Target)))]);
+                    VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(1, texDiv, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)texDiv).Target)))]);
 
                     UploadHeightBakeParams(paramsUbo, progJacobi, (cpu) =>
                     {
@@ -581,7 +583,7 @@ public sealed class PbrHeightBakeFullChainTests : RenderTestBase
             (float invNeg, float invPos) = ComputeAsymmetricInvScales(texH, mean);
             RenderTo(texHn, progNorm, (paramsUbo) =>
             {
-                VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, texH, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)texH).Target))]);
+                VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, texH, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)texH).Target)))]);
 
                 UploadHeightBakeParams(paramsUbo, progNorm, (cpu) =>
                 {
@@ -594,9 +596,9 @@ public sealed class PbrHeightBakeFullChainTests : RenderTestBase
             // 8) Pack with normalScale=0 (flat) and normalScale=1 (non-flat).
             RenderTo(outAtlasFlat, progPack, (paramsUbo) =>
             {
-                VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, texHn, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)texHn).Target))]);
+                VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, texHn, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)texHn).Target)))]);
 
-                VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(1, atlas, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)atlas).Target))]);
+                VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(1, atlas, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)atlas).Target)))]);
 
                 UploadHeightBakeParams(paramsUbo, progPack, (cpu) =>
                 {
@@ -609,9 +611,9 @@ public sealed class PbrHeightBakeFullChainTests : RenderTestBase
 
             RenderTo(outAtlasScaled, progPack, (paramsUbo) =>
             {
-                VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, texHn, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)texHn).Target))]);
+                VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, texHn, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)texHn).Target)))]);
 
-                VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(1, atlas, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)atlas).Target))]);
+                VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(1, atlas, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)atlas).Target)))]);
 
                 UploadHeightBakeParams(paramsUbo, progPack, (cpu) =>
                 {
@@ -710,7 +712,7 @@ public sealed class PbrHeightBakeFullChainTests : RenderTestBase
 
         RenderTo(dst, programId, (paramsUbo) =>
         {
-            VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, src, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)src).Target))]);
+            VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, src, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)src).Target)))]);
 
             UploadHeightBakeParams(paramsUbo, programId, (cpu) =>
             {
@@ -816,7 +818,7 @@ public sealed class PbrHeightBakeFullChainTests : RenderTestBase
             }
         }
 
-        return RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Width = width, Height = height, Format = TextureFormat.Rgba8, MipLevels = 1, Storage = ResourceStorageMode.Mutable, BaseLevel = 0, MaxLevel = 0, Filter = TextureFilterMode.Nearest, Label = null }, [new RHITextureInitialData(new(new(), 0, 0, 0, width, height), VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLPixelValues.Encoding(TextureFormatHelper.GetPixelFormat(PixelInternalFormat.Rgba8), OpenTK.Graphics.OpenGL.PixelType.Float), System.Runtime.InteropServices.MemoryMarshal.AsBytes((data).AsSpan()).ToArray())]).RequireResource();
+        return RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Width = width, Height = height, Format = TextureFormat.Rgba8, MipLevels = 1, Storage = ResourceStorageMode.Mutable, BaseLevel = 0, MaxLevel = 0, Filter = TextureFilterMode.Nearest, Label = null }, [new RHITextureInitialData(new(new(), 0, 0, 0, width, height), new RHIPixelEncoding(TextureFormatHelper.GetPixelFormat(TextureFormat.Rgba8), PixelComponentType.Float), System.Runtime.InteropServices.MemoryMarshal.AsBytes((data).AsSpan()).ToArray())]).RequireResource();
     }
 
     private static void AssertFiniteAndHasVariance(DynamicTexture2D tex, int channels, string name)

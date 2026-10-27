@@ -1,3 +1,5 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
+using VanillaGraphicsExpanded.Rendering.RHI;
 using VanillaGraphicsExpanded.LumOn;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.LumOn.Shaders;
@@ -33,9 +35,9 @@ public sealed class LumOnTraceOutcomeDebugFunctionalTests : LumOnShaderFunctiona
         var program = Programs.Create<LumOnDebugShaderProgram>(identity: LumOnDebugShaderProgramFamily.GetProgramName(LumOnDebugMode.ProbeAtlasTraceOutcome));
         {
             uint flags = (outcome << 16) | (1u << 8) | (1u << 14) | 3u;
-            using var metadata = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rg32f,
+            using var metadata = TestFramework.CreateTexture(1, 1, TextureFormat.Rg32f,
                 new float[] { 0f, BitConverter.UInt32BitsToSingle(flags) });
-            using var output = TestFramework.CreateTestGBuffer(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f);
+            using var output = TestFramework.CreateTestGBuffer(ScreenWidth, ScreenHeight, TextureFormat.Rgba16f);
             program.DebugMode = 69;
             UpdateAndBindLumOnFrameUbo(program);
             program.ProbeAtlasMeta = metadata;

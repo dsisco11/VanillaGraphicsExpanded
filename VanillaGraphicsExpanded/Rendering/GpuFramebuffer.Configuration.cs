@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -10,7 +11,7 @@ public abstract partial class GpuFramebuffer
 {
     #region Protected API
     /// <summary>Attaches borrowed images and establishes routing, including leading holes and depth-only targets.</summary>
-    private protected DrawBuffersEnum[] ConfigureAttachments(IReadOnlyList<GpuFramebufferAttachment> colors,
+    private protected int[] ConfigureAttachments(IReadOnlyList<GpuFramebufferAttachment> colors,
         GpuFramebufferAttachment? depth, int firstColorAttachment)
     {
         ArgumentNullException.ThrowIfNull(colors);
@@ -19,22 +20,22 @@ public abstract partial class GpuFramebuffer
         for (int i = 0; i < colors.Count; i++) SetAttachmentCore(ColorSlot(firstColorAttachment + i), colors[i]);
         if (depth is not null) SetAttachmentCore(depth.DepthStencilSlot, depth);
         // Preserve shader locations without allocating dummy storage for leading holes.
-        var route = colors.Count == 0 ? Array.Empty<DrawBuffersEnum>()
+        var route = colors.Count == 0 ? Array.Empty<int>()
             : Enumerable.Range(0, firstColorAttachment + colors.Count)
-                .Select(i => i < firstColorAttachment ? DrawBuffersEnum.None : DrawBuffersEnum.ColorAttachment0 + i).ToArray();
+                .Select(i => i < firstColorAttachment ? -1 : i).ToArray();
         if (route.Length == 0)
         {
-            RHI.RHICommandContext.Current.ConfigureFramebufferRouting(this, route, ReadBufferMode.None);
+            RHI.RHICommandContext.Current.ConfigureFramebufferRouting(this, Array.Empty<int>(), null);
         }
         else
         {
-            RHI.RHICommandContext.Current.ConfigureFramebufferRouting(this, route, ReadBufferMode.ColorAttachment0 + firstColorAttachment);
+            RHI.RHICommandContext.Current.ConfigureFramebufferRouting(this, Enumerable.Range(0, route.Length).Select(i => i < firstColorAttachment ? -1 : i).ToArray(), firstColorAttachment);
         }
         if (!CheckStatus(out var error)) throw new InvalidOperationException(error);
         return route;
     }
     /// <summary>Commits a validated attachment for mutable subclasses or construction before publication.</summary>
-    private protected void SetAttachmentCore(FramebufferAttachment slot, GpuFramebufferAttachment attachment)
+    private protected void SetAttachmentCore(FramebufferSlot slot, GpuFramebufferAttachment attachment)
     {
         RHI.RHICommandContext.Current.RequireMutableFramebufferOwner(this);
         RequireMutableStorage();
@@ -47,10 +48,10 @@ public abstract partial class GpuFramebuffer
         attachment.AttachTo(this, slot);
         // Packed attachment calls update two independent GL aspect slots. Keep both
         // references so replacing depth later does not lose the remaining stencil image.
-        if (slot == FramebufferAttachment.DepthStencilAttachment)
+        if (slot == FramebufferSlot.DepthStencil)
         {
-            attachments[FramebufferAttachment.DepthAttachment] = attachment;
-            attachments[FramebufferAttachment.StencilAttachment] = attachment;
+            attachments[FramebufferSlot.Depth] = attachment;
+            attachments[FramebufferSlot.Stencil] = attachment;
         }
         else attachments[slot] = attachment;
         attachment.Observe(this);
@@ -58,22 +59,22 @@ public abstract partial class GpuFramebuffer
     }
 
     /// <summary>Detaches mutable configuration without changing independently owned image lifetimes.</summary>
-    private protected bool RemoveAttachmentCore(FramebufferAttachment slot)
+    private protected bool RemoveAttachmentCore(FramebufferSlot slot)
     {
         RHI.RHICommandContext.Current.RequireMutableFramebufferOwner(this);
         RequireMutableStorage();
         ObjectDisposedException.ThrowIf(IsDisposed, this);
-        bool present = slot == FramebufferAttachment.DepthStencilAttachment
-            ? attachments.ContainsKey(FramebufferAttachment.DepthAttachment) || attachments.ContainsKey(FramebufferAttachment.StencilAttachment)
+        bool present = slot == FramebufferSlot.DepthStencil
+            ? attachments.ContainsKey(FramebufferSlot.Depth) || attachments.ContainsKey(FramebufferSlot.Stencil)
             : attachments.ContainsKey(slot);
         if (!present) return false;
         // Detachment must remain possible when the outgoing image is unavailable. Keep any
         // other pending replacements dirty so their native attachments refresh at rendering use.
         RHI.RHICommandContext.Current.ConfigureFramebufferAttachment(this, slot, null);
-        if (slot == FramebufferAttachment.DepthStencilAttachment)
+        if (slot == FramebufferSlot.DepthStencil)
         {
-            attachments.Remove(FramebufferAttachment.DepthAttachment);
-            attachments.Remove(FramebufferAttachment.StencilAttachment);
+            attachments.Remove(FramebufferSlot.Depth);
+            attachments.Remove(FramebufferSlot.Stencil);
         }
         else attachments.Remove(slot);
         PublishAttachmentsChanged();

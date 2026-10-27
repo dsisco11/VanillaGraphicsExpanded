@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System.Runtime.CompilerServices;
 using HarmonyLib;
@@ -73,19 +74,19 @@ public sealed class GpuFramebufferRoutingInterceptionTests(HeadlessGLFixture fix
         fixture.EnsureContextValid(); fixture.InitializeResourceDisposal();
         try
         {
-            using var first=new GpuFramebufferAttachment(4,4,PixelInternalFormat.Rgba8);
-            using var replacement=new GpuFramebufferAttachment(8,4,PixelInternalFormat.Rgba8);
+            using var first=new GpuFramebufferAttachment(4,4,TextureFormat.Rgba8);
+            using var replacement=new GpuFramebufferAttachment(8,4,TextureFormat.Rgba8);
             using var owner=DynamicGpuFramebuffer.Create([first])!;
             using var alias=DynamicGpuFramebuffer.Wrap(owner.FboId);
             alias.PublishRenderPassMetadata();
             ulong revision=alias.AttachmentRevision;
-            owner.SetAttachment(FramebufferAttachment.ColorAttachment0,replacement);
+            owner.SetAttachment(FramebufferSlot.Color0,replacement);
             Assert.True(alias.AttachmentRevision>revision);
-            Assert.Same(replacement,owner.GetAttachment(FramebufferAttachment.ColorAttachment0));
+            Assert.Same(replacement,owner.GetAttachment(FramebufferSlot.Color0));
             Assert.Equal(replacement.TextureId,alias.GetColorTextureId(0));
             Assert.Equal(8,alias.Width);
             alias.Bind(); owner.Bind();
-            Assert.Same(replacement,owner.GetAttachment(FramebufferAttachment.ColorAttachment0));
+            Assert.Same(replacement,owner.GetAttachment(FramebufferSlot.Color0));
             Assert.True(replacement.IsValid);
             Assert.True(first.IsValid);
             Assert.Equal(ErrorCode.NoError,GL.GetError());

@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using OpenTK.Graphics.OpenGL;
 
@@ -39,23 +40,23 @@ internal sealed partial class GpuResourceManager
     /// <summary>Selects a represented mip, cube face or layer; unsupported or absent images stay unavailable.</summary>
     private static GpuImageMetadata? ProjectTextureImage(GpuTextureMetadata data, GpuImageSelection selection)
     {
-        if (data.Target == TextureTarget.TextureBuffer || data.Levels.IsDefault || selection.Level < 0 || selection.Layer < 0) return null;
-        if (data.Target == TextureTarget.TextureCubeMap && selection.Layered)
+        if (data.Target == TextureDimension.Buffer || data.Levels.IsDefault || selection.Level < 0 || selection.Layer < 0) return null;
+        if (data.Target == TextureDimension.Cube && selection.Layered)
             return ProjectLayeredCubeImage(data, selection);
         foreach (var level in data.Levels)
         {
             if (level.Level != selection.Level || !level.Allocated || level.Width <= 0
                 || level.Height <= 0 || level.Depth <= 0) continue;
-            if (data.Target == TextureTarget.TextureCubeMap && level.Face != selection.Face) continue;
-            if (data.Target != TextureTarget.TextureCubeMap && selection.Face != 0) return null;
-            bool oneDimensionalArray = data.Target == TextureTarget.Texture1DArray;
-            bool hasLayers = oneDimensionalArray || data.Target is TextureTarget.Texture3D
-                or TextureTarget.Texture2DArray or TextureTarget.TextureCubeMapArray or TextureTarget.Texture2DMultisampleArray;
+            if (data.Target == TextureDimension.Cube && level.Face != selection.Face) continue;
+            if (data.Target != TextureDimension.Cube && selection.Face != 0) return null;
+            bool oneDimensionalArray = data.Target == TextureDimension.OneArray;
+            bool hasLayers = oneDimensionalArray || data.Target is TextureDimension.Three
+                or TextureDimension.TwoArray or TextureDimension.CubeArray or TextureDimension.TwoMultisampleArray;
             int layers = oneDimensionalArray ? level.Height : level.Depth;
             if (hasLayers ? selection.Layer >= layers : selection.Layer != 0 || selection.Layered) return null;
             if (selection.ViewCount != 0)
             {
-                if (data.Target != TextureTarget.Texture2DArray || !selection.Layered || selection.BaseView < 0
+                if (data.Target != TextureDimension.TwoArray || !selection.Layered || selection.BaseView < 0
                     || selection.ViewCount < 1 || (long)selection.BaseView + selection.ViewCount > layers) return null;
                 return new(level.Width, level.Height, selection.ViewCount, level.Format, level.Samples);
             }
@@ -73,7 +74,7 @@ internal sealed partial class GpuResourceManager
         for (int face = 0; face < 6; face++)
         {
             var selected = ProjectTextureImage(data, new(selection.Level, 0,
-                TextureTarget.TextureCubeMapPositiveX + face, false));
+                CubeFace.PositiveX + face, false));
             if (!selected.HasValue || image.HasValue && image.Value != selected.Value) return null;
             image = selected;
         }

@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
 
 namespace VanillaGraphicsExpanded.Rendering;
@@ -33,21 +34,21 @@ public abstract partial class GpuFramebuffer
     /// <summary>Borrows a depth texture image and leaves this framebuffer bound for scratch operations.</summary>
     public void Attach(DepthTexture texture, int mipLevel = 0)
     {
-        SetAttachment(FramebufferAttachment.DepthAttachment, GpuFramebufferAttachment.FromTexture(texture, mipLevel));
+        SetAttachment(FramebufferSlot.Depth, GpuFramebufferAttachment.FromTexture(texture, mipLevel));
         Bind();
     }
 
     /// <summary>Borrows packed depth/stencil storage and leaves this framebuffer bound.</summary>
     public void Attach(DepthStencilTexture texture, int mipLevel = 0)
     {
-        SetAttachment(FramebufferAttachment.DepthStencilAttachment, GpuFramebufferAttachment.FromTexture(texture, mipLevel));
+        SetAttachment(FramebufferSlot.DepthStencil, GpuFramebufferAttachment.FromTexture(texture, mipLevel));
         Bind();
     }
 
     /// <summary>Borrows stencil storage and leaves this framebuffer bound.</summary>
     public void Attach(StencilTexture texture, int mipLevel = 0)
     {
-        SetAttachment(FramebufferAttachment.StencilAttachment, GpuFramebufferAttachment.FromTexture(texture, mipLevel));
+        SetAttachment(FramebufferSlot.Stencil, GpuFramebufferAttachment.FromTexture(texture, mipLevel));
         Bind();
     }
 
@@ -55,7 +56,7 @@ public abstract partial class GpuFramebuffer
     public void Attach(GpuRenderbuffer renderbuffer, bool isDepthStencil = false)
     {
         var image = GpuFramebufferAttachment.FromRenderbuffer(renderbuffer);
-        SetAttachment(isDepthStencil ? FramebufferAttachment.DepthStencilAttachment : image.DepthStencilSlot, image);
+        SetAttachment(isDepthStencil ? FramebufferSlot.DepthStencil : image.DepthStencilSlot, image);
         Bind();
     }
     #endregion

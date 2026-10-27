@@ -1,3 +1,5 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
@@ -84,8 +86,8 @@ public sealed class AmbientOcclusionPerformanceTests(HeadlessGLFixture fixture, 
         EnsureShaderTestAvailable();
         using var inputs = new CapturedAmbientOcclusionFixture(Programs, directory!);
         using var draw = new PostprocessDraw();
-        using var referenceTarget = TestFramework.CreateTestGBuffer((inputs.Width + 1) / 2, (inputs.Height + 1) / 2, PixelInternalFormat.Rgba16f);
-        using var currentTarget = TestFramework.CreateTestGBuffer((inputs.Width + 1) / 2, (inputs.Height + 1) / 2, PixelInternalFormat.Rgba16f);
+        using var referenceTarget = TestFramework.CreateTestGBuffer((inputs.Width + 1) / 2, (inputs.Height + 1) / 2, TextureFormat.Rgba16f);
+        using var currentTarget = TestFramework.CreateTestGBuffer((inputs.Width + 1) / 2, (inputs.Height + 1) / 2, TextureFormat.Rgba16f);
         var actions = inputs.PrepareComparison(Programs.Create<AoHorizonReferenceProgram>(), draw, referenceTarget, currentTarget);
         actions.Reference();
         AssertSameImage(inputs.CapturedOutput, referenceTarget[0].ReadPixels());
@@ -104,8 +106,8 @@ public sealed class AmbientOcclusionPerformanceTests(HeadlessGLFixture fixture, 
             verticalFov: height == 1 ? 1 : 90,
             occluderTransmission: .3f, receiverTransmission: .2f);
         using var draw = new PostprocessDraw();
-        using var referenceTarget = TestFramework.CreateTestGBuffer((width + 1) / 2, (height + 1) / 2, PixelInternalFormat.Rgba16f);
-        using var currentTarget = TestFramework.CreateTestGBuffer((width + 1) / 2, (height + 1) / 2, PixelInternalFormat.Rgba16f);
+        using var referenceTarget = TestFramework.CreateTestGBuffer((width + 1) / 2, (height + 1) / 2, TextureFormat.Rgba16f);
+        using var currentTarget = TestFramework.CreateTestGBuffer((width + 1) / 2, (height + 1) / 2, TextureFormat.Rgba16f);
         var actions = inputs.PrepareHorizonComparison(Programs.Create<AoHorizonReferenceProgram>(), draw, referenceTarget, currentTarget, quality);
         VerifyAndMeasure(actions, referenceTarget, currentTarget, width, height, quality, scene, measure, "Synthetic analytic scene");
     }

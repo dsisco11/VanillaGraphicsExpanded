@@ -30,7 +30,7 @@ public sealed class DepthHierarchyPassTests(HeadlessGLFixture fixture) : LumOnSh
         var compute=Programs.CreateDepthHierarchy();
         float[] values=Enumerable.Range(0,width*height).Select(i=>.1f+.8f*((i*31)%101)/101f).ToArray();
         values[^1]=.001f;
-        using var source=TestFramework.CreateTexture(width,height,PixelInternalFormat.R32f,values);
+        using var source=TestFramework.CreateTexture(width,height,TextureFormat.R32f,values);
         owner.Prepare(width,height,compute);
         using(var hostile=new HostileFullscreenState()) {
             owner.Render(source, record: width % 2 != 0);
@@ -75,7 +75,7 @@ public sealed class DepthHierarchyPassTests(HeadlessGLFixture fixture) : LumOnSh
         EnsureShaderTestAvailable();
         using var owner=new DepthHierarchyPass();
         var compute=Programs.CreateDepthHierarchy();
-        using var source=TestFramework.CreateTexture(257,131,PixelInternalFormat.R32f,
+        using var source=TestFramework.CreateTexture(257,131,TextureFormat.R32f,
             Enumerable.Repeat(.5f,257*131).ToArray());
         using var external=RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = "Tests.Hzb.ExternalStorage" }).RequireResource();
         external.UploadData(new uint[] { 123 }); external.BindBase(0);
@@ -102,7 +102,7 @@ public sealed class DepthHierarchyPassTests(HeadlessGLFixture fixture) : LumOnSh
             int width=extent.Item1,height=extent.Item2;
             owner.Prepare(width,height,compute);
             var texture=owner.Texture!;
-            using var source=TestFramework.CreateTexture(width,height,PixelInternalFormat.R32f);
+            using var source=TestFramework.CreateTexture(width,height,TextureFormat.R32f);
             for(int frame=0;frame<8;frame++) {
                 float depth=.125f+frame*.0625f;
                 source.UploadDataImmediate(Enumerable.Repeat(depth,width*height).ToArray());

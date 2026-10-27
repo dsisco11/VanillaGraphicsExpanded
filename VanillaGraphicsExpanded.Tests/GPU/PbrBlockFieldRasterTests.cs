@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.Integration.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
@@ -27,10 +28,10 @@ public sealed class PbrBlockFieldRasterTests(HeadlessGLFixture fixture) : Render
         using var program = GpuProgramObject.Adopt(TerrainShaderTestFixture.Link(vertex, fragment));
         using var vao = NativeResourceSetup.CreateVertexArray();
         using var framework = new ShaderTestFramework();
-        using var target = framework.CreateTestGBuffer(8, 8, PixelInternalFormat.Rgba32f, PixelInternalFormat.Rgba32f,
-            PixelInternalFormat.Rgba32f, PixelInternalFormat.Rgba32f, PixelInternalFormat.Rgba32f,
-            PixelInternalFormat.Rgba32f, PixelInternalFormat.Rgba32ui, PixelInternalFormat.Rgba32f);
-        using var texture = framework.CreateTexture(1, 1, PixelInternalFormat.Rgba32f, [1f, 1f, 1f, 1f]);
+        using var target = framework.CreateTestGBuffer(8, 8, TextureFormat.Rgba32f, TextureFormat.Rgba32f,
+            TextureFormat.Rgba32f, TextureFormat.Rgba32f, TextureFormat.Rgba32f,
+            TextureFormat.Rgba32f, TextureFormat.Rgba32ui, TextureFormat.Rgba32f);
+        using var texture = framework.CreateTexture(1, 1, TextureFormat.Rgba32f, [1f, 1f, 1f, 1f]);
         using var camera = TestFrameCamera.CreateIdentity(8, 8);
         camera.SetLightingCalibration(LightingCalibration.Default);
         Assert.True(VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindUniformSnapshot(GpuBindingRegistry.Ubo.Frame, camera.Capture()));
@@ -69,7 +70,7 @@ public sealed class PbrBlockFieldRasterTests(HeadlessGLFixture fixture) : Render
                     ActiveUniformType.UnsignedIntSampler2DArray => 2, ActiveUniformType.UnsignedIntSampler2D => 3, _ => -1 };
                 if (unit >= 0) GL.Uniform1(GL.GetUniformLocation(program.ProgramId, name), unit);
             }
-            VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, texture, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)texture).Target))]);
+            VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, texture, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)texture).Target)))]);
             GL.Disable(EnableCap.DepthTest); GL.Disable(EnableCap.Blend); GL.Disable(EnableCap.CullFace);
             GL.Disable(EnableCap.ScissorTest); GL.ColorMask(true, true, true, true);
             FramebufferTestSetup.BindForEngineRendering(target); GL.DrawArrays(PrimitiveType.Triangles, 0, 3);

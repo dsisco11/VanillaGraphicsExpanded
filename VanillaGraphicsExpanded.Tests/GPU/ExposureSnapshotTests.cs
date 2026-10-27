@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Globalization;
 using OpenTK.Graphics.OpenGL;
@@ -135,9 +136,9 @@ public sealed class ExposureSnapshotTests(HeadlessGLFixture fixture) : LumOnShad
     private float[] Capture(float[] state,LocalExposureParameters local,CameraExposureParameters camera,bool antialias,
         float[]? pixels=null,int width=1,int height=1,float scale=1,float baseLog=-12)
     {
-        using var scene=TestFramework.CreateTexture(width,height,PixelInternalFormat.Rgba32f,
+        using var scene=TestFramework.CreateTexture(width,height,TextureFormat.Rgba32f,
             pixels ?? [MathF.Pow(2,baseLog)*scale,MathF.Pow(2,baseLog)*scale,MathF.Pow(2,baseLog)*scale,1]);
-        using var baseImage=TestFramework.CreateTexture(1,1,PixelInternalFormat.Rg32f,[baseLog,1f]);
+        using var baseImage=TestFramework.CreateTexture(1,1,TextureFormat.Rg32f,[baseLog,1f]);
         using var frame=TestFrameCamera.CreateIdentity(width,height);
         using var lighting=new TestFrameLightingPublication();
         lighting.Capture(scale);

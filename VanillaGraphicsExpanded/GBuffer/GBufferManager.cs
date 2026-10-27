@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System;
 using System.Collections.Generic;
@@ -337,13 +338,13 @@ public sealed partial class GBufferManager : IDisposable
     private void AttachToFramebuffer(int fboId)
     {
         bool complete = OpenGLRHIContext.ConfigureEngineFramebuffer(fboId,
-            new Dictionary<FramebufferAttachment, GpuFramebufferAttachment?>
+            new Dictionary<FramebufferSlot, GpuFramebufferAttachment?>
             {
-                [FramebufferAttachment.ColorAttachment3] = GpuFramebufferAttachment.FromTextureId(PositionTextureId),
-                [FramebufferAttachment.ColorAttachment4] = GpuFramebufferAttachment.FromTexture(surfaceTex!, layer: GBufferTextures.NormalLayer),
-                [FramebufferAttachment.ColorAttachment5] = GpuFramebufferAttachment.FromTexture(surfaceTex!, layer: GBufferTextures.MaterialLayer),
-                [FramebufferAttachment.ColorAttachment6] = GpuFramebufferAttachment.FromTexture(patchIdTex!),
-                [FramebufferAttachment.ColorAttachment7] = GpuFramebufferAttachment.FromTexture(surfaceTex!, layer: GBufferTextures.EnvironmentLayer)
+                [FramebufferSlot.Color3] = GpuFramebufferAttachment.FromTextureId(PositionTextureId),
+                [FramebufferSlot.Color4] = GpuFramebufferAttachment.FromTexture(surfaceTex!, layer: GBufferTextures.NormalLayer),
+                [FramebufferSlot.Color5] = GpuFramebufferAttachment.FromTexture(surfaceTex!, layer: GBufferTextures.MaterialLayer),
+                [FramebufferSlot.Color6] = GpuFramebufferAttachment.FromTexture(patchIdTex!),
+                [FramebufferSlot.Color7] = GpuFramebufferAttachment.FromTexture(surfaceTex!, layer: GBufferTextures.EnvironmentLayer)
             });
         OpenGLRHIContext.ApplyEngineFramebufferBlend(GBufferBlendPso, forceDirty: true);
         if (!complete) capi.Logger.Error("[VGE] Framebuffer incomplete after attaching G-buffer.");
@@ -353,8 +354,8 @@ public sealed partial class GBufferManager : IDisposable
     private void DetachFromFramebuffer(int fboId)
     {
         OpenGLRHIContext.DetachEngineFramebuffer(fboId,
-            [FramebufferAttachment.ColorAttachment4, FramebufferAttachment.ColorAttachment5,
-                FramebufferAttachment.ColorAttachment6, FramebufferAttachment.ColorAttachment7],
+            [FramebufferSlot.Color4, FramebufferSlot.Color5,
+                FramebufferSlot.Color6, FramebufferSlot.Color7],
             [DrawBuffersEnum.ColorAttachment0, DrawBuffersEnum.ColorAttachment1,
                 DrawBuffersEnum.ColorAttachment2, DrawBuffersEnum.ColorAttachment3]);
         if (PrimaryFramebuffer.IsValid && PrimaryFramebuffer.FboId == fboId)

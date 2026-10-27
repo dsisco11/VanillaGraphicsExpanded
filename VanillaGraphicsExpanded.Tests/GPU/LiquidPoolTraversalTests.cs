@@ -82,7 +82,7 @@ public sealed class LiquidPoolTraversalTests(HeadlessGLFixture fixture) : Render
         AccessTools.Field(typeof(MeshDataPoolManager), "pools").SetValue(manager, new List<MeshDataPool> { storage.Pool });
         AccessTools.Field(typeof(MeshDataPool), "poolOrigin").SetValue(storage.Pool, new Vec3i(10, 20, 30));
         using var submission = new LiquidGraphicsSubmission(api.Object);
-        using var target = CreateRenderTarget(1, 1, PixelInternalFormat.Rgba32f);
+        using var target = CreateRenderTarget(1, 1, TextureFormat.Rgba32f);
         var player = new Vec3d(1, 2, 3);
         var harmony = new Harmony("VGE.Tests.LiquidPoolTraversal");
         harmony.CreateClassProcessor(typeof(LiquidPoolSubmissionHook)).Patch();

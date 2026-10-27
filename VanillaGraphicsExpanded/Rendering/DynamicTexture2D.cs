@@ -12,7 +12,7 @@ namespace VanillaGraphicsExpanded.Rendering;
 /// <remarks>
 /// Usage:
 /// <code>
-/// using var texture = DynamicTexture.Create(1920, 1080, PixelInternalFormat.Rgba16f);
+/// using var texture = DynamicTexture.Create(1920, 1080, TextureFormat.Rgba16f);
 /// texture.Bind(0); // Bind to texture unit 0
 /// // ... use texture ...
 /// </code>
@@ -33,7 +33,7 @@ public class DynamicTexture2D : GpuTexture
     internal DynamicTexture2D() { }
 
     /// <summary>Initializes storage for a specialized two-dimensional texture.</summary>
-    protected DynamicTexture2D(int width, int height, PixelInternalFormat format, TextureFilterMode filter, string? debugName)
+    protected DynamicTexture2D(int width, int height, TextureFormat format, TextureFilterMode filter, string? debugName)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(width);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(height);
@@ -150,9 +150,9 @@ public class DynamicTexture2D : GpuTexture
         if (data is null) throw new ArgumentNullException(nameof(data));
 
         var pixelType = TextureFormatHelper.GetPixelType(internalFormat);
-        if (pixelType != PixelType.UnsignedShort)
+        if (pixelType != PixelComponentType.UnsignedShort)
         {
-            throw new InvalidOperationException($"UploadDataImmediate(ushort[]) requires {nameof(PixelType)}.{nameof(PixelType.UnsignedShort)}, but format is {internalFormat} -> {pixelType}.");
+            throw new InvalidOperationException($"UploadDataImmediate(ushort[]) requires {nameof(PixelComponentType)}.{nameof(PixelComponentType.UnsignedShort)}, but format is {internalFormat} -> {pixelType}.");
         }
 
         int expectedSize = width * height * GetChannelCount();
@@ -273,9 +273,9 @@ public class DynamicTexture2D : GpuTexture
         if (data is null) throw new ArgumentNullException(nameof(data));
 
         var pixelType = TextureFormatHelper.GetPixelType(internalFormat);
-        if (pixelType != PixelType.UnsignedShort)
+        if (pixelType != PixelComponentType.UnsignedShort)
         {
-            throw new InvalidOperationException($"EnqueueUploadData(ushort[]) requires {nameof(PixelType)}.{nameof(PixelType.UnsignedShort)}, but format is {internalFormat} -> {pixelType}.");
+            throw new InvalidOperationException($"EnqueueUploadData(ushort[]) requires {nameof(PixelComponentType)}.{nameof(PixelComponentType.UnsignedShort)}, but format is {internalFormat} -> {pixelType}.");
         }
 
         int mipWidth = Math.Max(1, width >> mipLevel);
@@ -370,7 +370,7 @@ public class DynamicTexture2D : GpuTexture
     protected virtual RHIPixelEncoding ReadbackEncoding => RHICommandContext.Current.GetTextureEncoding(this, PixelComponentType.Float);
 
     /// <summary>Gets the pixel type used for floating-point readback.</summary>
-    protected virtual PixelType ReadbackType => PixelType.Float;
+    protected virtual PixelComponentType ReadbackType => PixelComponentType.Float;
 
 #endregion
 

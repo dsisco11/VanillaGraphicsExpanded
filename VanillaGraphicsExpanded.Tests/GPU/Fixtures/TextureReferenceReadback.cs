@@ -17,7 +17,7 @@ internal static class TextureReferenceReadback
         var image = texture.RequireImage(0);
         using var request = RHICommandContext.Current.EnqueueReadback(new(texture,
             new(new(0), 0, 0, 0, image.Width, image.Height, 1),
-            OpenGLPixelValues.Encoding(TextureFormatHelper.GetPixelFormat(image.Format), PixelType.Float)));
+            new RHIPixelEncoding(TextureFormatHelper.GetPixelFormat(image.Format), PixelComponentType.Float)));
         if (request.Wait() != CompletionStatus.Ready)
             throw new InvalidOperationException("Fixture image readback failed.", request.Error);
         using var mapping = request.MapReadyReadback();

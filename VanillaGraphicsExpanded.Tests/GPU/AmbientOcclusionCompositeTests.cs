@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.PBR;
@@ -55,25 +56,25 @@ public sealed class AmbientOcclusionCompositeTests(HeadlessGLFixture fixture) : 
     {
         EnsureShaderTestAvailable();
         var shader = Programs.Create<PBRCompositeShaderProgram>(p => { p.LumOnEnabled = lumon; p.EnablePbrComposite = pbr; p.EnableShortRangeAo = false; });
-        using var direct = TestFramework.CreateTexture(1,1,PixelInternalFormat.Rgba32f,[1f,1f,1f,1f]);
-        using var specular = TestFramework.CreateTexture(1,1,PixelInternalFormat.Rgba32f,[2f,2f,2f,1f]);
-        using var emission = TestFramework.CreateTexture(1,1,PixelInternalFormat.Rgba32f,[3f,3f,3f,1f]);
-        using var indirect = TestFramework.CreateTexture(1,1,PixelInternalFormat.Rgba32f,[2f,2f,2f,1f]);
-        using var albedo = TestFramework.CreateTexture(1,1,PixelInternalFormat.Rgba32f,[.5f,.5f,.5f,1f]);
+        using var direct = TestFramework.CreateTexture(1,1,TextureFormat.Rgba32f,[1f,1f,1f,1f]);
+        using var specular = TestFramework.CreateTexture(1,1,TextureFormat.Rgba32f,[2f,2f,2f,1f]);
+        using var emission = TestFramework.CreateTexture(1,1,TextureFormat.Rgba32f,[3f,3f,3f,1f]);
+        using var indirect = TestFramework.CreateTexture(1,1,TextureFormat.Rgba32f,[2f,2f,2f,1f]);
+        using var albedo = TestFramework.CreateTexture(1,1,TextureFormat.Rgba32f,[.5f,.5f,.5f,1f]);
         float encodedX=offAxis?.5f:.5f+.5f*MathF.Sqrt(1-nDotV*nDotV);
         float encodedZ=offAxis?1f:.5f+.5f*nDotV;
         float receiverX=offAxis?2*MathF.Sqrt(1-nDotV*nDotV)/nDotV:0;
-        using var normal = TestFramework.CreateTexture(1,1,PixelInternalFormat.Rgba32f,[encodedX,.5f,encodedZ,1f]);
-        using var proxyNormal = TestFramework.CreateTexture(1,1,PixelInternalFormat.Rgba32f,[encodedX,.5f,encodedZ,-1f]);
-        using var material = TestFramework.CreateTexture(1,1,PixelInternalFormat.Rgba32f,[roughness,metallic,0f,0f]);
-        using var position = TestFramework.CreateTexture(1,1,PixelInternalFormat.Rgba32f,[receiverX,0f,-2f,1f]);
-        using var depth = TestFramework.CreateTexture(1,1,PixelInternalFormat.R32f,[.75f]);
-        using var visibility = TestFramework.CreateTexture(1,1,PixelInternalFormat.Rgba32f,[ao,2f,0f,0f]);
-        using var wrongDepth = TestFramework.CreateTexture(1,1,PixelInternalFormat.Rgba32f,[ao,20f,0f,0f]);
+        using var normal = TestFramework.CreateTexture(1,1,TextureFormat.Rgba32f,[encodedX,.5f,encodedZ,1f]);
+        using var proxyNormal = TestFramework.CreateTexture(1,1,TextureFormat.Rgba32f,[encodedX,.5f,encodedZ,-1f]);
+        using var material = TestFramework.CreateTexture(1,1,TextureFormat.Rgba32f,[roughness,metallic,0f,0f]);
+        using var position = TestFramework.CreateTexture(1,1,TextureFormat.Rgba32f,[receiverX,0f,-2f,1f]);
+        using var depth = TestFramework.CreateTexture(1,1,TextureFormat.R32f,[.75f]);
+        using var visibility = TestFramework.CreateTexture(1,1,TextureFormat.Rgba32f,[ao,2f,0f,0f]);
+        using var wrongDepth = TestFramework.CreateTexture(1,1,TextureFormat.Rgba32f,[ao,20f,0f,0f]);
         using var lighting = LayeredTestTexture.Create(direct,specular,emission);
         using var surface = LayeredTestTexture.Create(normal,material,indirect);
         using var proxySurface = LayeredTestTexture.Create(proxyNormal,material,indirect);
-        using var target = TestFramework.CreateTestGBuffer(1,1,PixelInternalFormat.Rgba32f,3);
+        using var target = TestFramework.CreateTestGBuffer(1,1,TextureFormat.Rgba32f,3);
         using var positions = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = null }).RequireResource(); positions.UploadData(new float[] {-1,-1,0, 3,-1,0, -1,3,0});
         using var uv = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = null }).RequireResource(); uv.UploadData(new float[] {0,0, 2,0, 0,2});
         using var geometry = new ArrayGraphicsGeometry(EngineFullscreenGeometry.Layout, PrimitiveTopology.Triangles,

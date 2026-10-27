@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Numerics;
 using OpenTK.Graphics.OpenGL;
@@ -28,9 +29,9 @@ public sealed class OwnedPostprocessShaderTests(HeadlessGLFixture fixture, ITest
     {
         EnsureShaderTestAvailable();
         var shader = Programs.Create<BloomShaderProgram>();
-        using var source = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba32f, [1f,1f,1f,.3f]);
+        using var source = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba32f, [1f,1f,1f,.3f]);
         using var exposure = ExposureTestStorage.Create(ev);
-        using var target = TestFramework.CreateTestGBuffer(1, 1, PixelInternalFormat.Rgba32f);
+        using var target = TestFramework.CreateTestGBuffer(1, 1, TextureFormat.Rgba32f);
         shader.SourceImage=source; shader.SecondaryImage=source; shader.ExposureBuffer=exposure;
         shader.Capture(new(0,0,0,automatic?1:0),new(2,.5f,1,automatic?-8:ev)); Draw(shader,target);
         Assert.InRange(target[0].ReadPixels()[0],weight-.00001f,weight+.00001f);
@@ -43,9 +44,9 @@ public sealed class OwnedPostprocessShaderTests(HeadlessGLFixture fixture, ITest
     {
         EnsureShaderTestAvailable();
         var shader=Programs.Create<BloomShaderProgram>();
-        using var red=TestFramework.CreateTexture(1,1,PixelInternalFormat.Rgba32f,[4f,0f,0f,1f]);
-        using var green=TestFramework.CreateTexture(1,1,PixelInternalFormat.Rgba32f,[0f,4f,0f,1f]);
-        using var target=TestFramework.CreateTestGBuffer(1,1,PixelInternalFormat.Rgba32f);
+        using var red=TestFramework.CreateTexture(1,1,TextureFormat.Rgba32f,[4f,0f,0f,1f]);
+        using var green=TestFramework.CreateTexture(1,1,TextureFormat.Rgba32f,[0f,4f,0f,1f]);
+        using var target=TestFramework.CreateTestGBuffer(1,1,TextureFormat.Rgba32f);
         shader.SecondaryImage=red;
         shader.SourceImage=red; shader.Capture(Vector4.Zero,new(1,0,1,0)); Draw(shader,target);
         Assert.Equal(0,target[0].ReadPixels()[0]);
@@ -53,7 +54,7 @@ public sealed class OwnedPostprocessShaderTests(HeadlessGLFixture fixture, ITest
         Assert.Equal(4,target[0].ReadPixels()[1]);
         shader.SourceImage=red; shader.Capture(Vector4.Zero,new(0,.5f,.25f,-20)); Draw(shader,target);
         Assert.Equal(new[]{1f,0f,0f,1f},target[0].ReadPixels());
-        using var knee=TestFramework.CreateTexture(1,1,PixelInternalFormat.Rgba32f,[1f,1f,1f,1f]);
+        using var knee=TestFramework.CreateTexture(1,1,TextureFormat.Rgba32f,[1f,1f,1f,1f]);
         shader.SourceImage=knee;
         foreach(float threshold in new[]{.999f,1f,1.001f})
         {
@@ -69,8 +70,8 @@ public sealed class OwnedPostprocessShaderTests(HeadlessGLFixture fixture, ITest
     public void BloomExtractionSelectsBeforeSymmetricReduction()
     {
         EnsureShaderTestAvailable();var shader=Programs.Create<BloomShaderProgram>();
-        using var source=TestFramework.CreateTexture(2,2,PixelInternalFormat.Rgba32f,[4f,4f,4f,1f,0f,0f,0f,1f,0f,0f,0f,1f,0f,0f,0f,1f]);
-        using var target=TestFramework.CreateTestGBuffer(1,1,PixelInternalFormat.Rgba32f);
+        using var source=TestFramework.CreateTexture(2,2,TextureFormat.Rgba32f,[4f,4f,4f,1f,0f,0f,0f,1f,0f,0f,0f,1f,0f,0f,0f,1f]);
+        using var target=TestFramework.CreateTestGBuffer(1,1,TextureFormat.Rgba32f);
         shader.SourceImage=source;shader.SecondaryImage=source;
         shader.Capture(Vector4.Zero,new(2,0,1,0));Draw(shader,target);
         Assert.Equal(new[]{1f,1f,1f,1f},target[0].ReadPixels());
@@ -82,9 +83,9 @@ public sealed class OwnedPostprocessShaderTests(HeadlessGLFixture fixture, ITest
     {
         EnsureShaderTestAvailable();
         var shader=Programs.Create<BloomShaderProgram>();
-        using var source=TestFramework.CreateTexture(1,1,PixelInternalFormat.Rgba32f,[4f,2f,1f,.3f]);
-        using var secondary=TestFramework.CreateTexture(1,1,PixelInternalFormat.Rgba32f,[3f,1.5f,.75f,1f]);
-        using var target=TestFramework.CreateTestGBuffer(17,9,PixelInternalFormat.Rgba32f);
+        using var source=TestFramework.CreateTexture(1,1,TextureFormat.Rgba32f,[4f,2f,1f,.3f]);
+        using var secondary=TestFramework.CreateTexture(1,1,TextureFormat.Rgba32f,[3f,1.5f,.75f,1f]);
+        using var target=TestFramework.CreateTestGBuffer(17,9,TextureFormat.Rgba32f);
         shader.SourceImage=source; shader.SecondaryImage=secondary;
         foreach(int mode in new[]{1,2,3,4})
         {
@@ -109,9 +110,9 @@ public sealed class OwnedPostprocessShaderTests(HeadlessGLFixture fixture, ITest
         var shader=Programs.Create<BloomShaderProgram>();
         float[] pixels=new float[33*17*4];
         pixels[(8*33+16)*4]=256;
-        using var source=TestFramework.CreateTexture(33,17,PixelInternalFormat.Rgba32f,pixels);
-        using var horizontal=TestFramework.CreateTestGBuffer(33,17,PixelInternalFormat.Rgba32f);
-        using var result=TestFramework.CreateTestGBuffer(33,17,PixelInternalFormat.Rgba32f);
+        using var source=TestFramework.CreateTexture(33,17,TextureFormat.Rgba32f,pixels);
+        using var horizontal=TestFramework.CreateTestGBuffer(33,17,TextureFormat.Rgba32f);
+        using var result=TestFramework.CreateTestGBuffer(33,17,TextureFormat.Rgba32f);
         shader.SourceImage=source; shader.SecondaryImage=source;
         shader.CaptureGaussian(4,false); Draw(shader,horizontal);
         shader.SourceImage=horizontal[0]; shader.CaptureGaussian(4,true); Draw(shader,result);
@@ -164,11 +165,11 @@ public sealed class OwnedPostprocessShaderTests(HeadlessGLFixture fixture, ITest
     public void BloomGaussianFootprintHasNoSparseTapTroughs(int radius,float phase)
     {
         EnsureShaderTestAvailable();var shader=Programs.Create<BloomShaderProgram>();
-        using var target=TestFramework.CreateTestGBuffer(33,17,PixelInternalFormat.Rgba32f);
+        using var target=TestFramework.CreateTestGBuffer(33,17,TextureFormat.Rgba32f);
         {
             float[] pixels=new float[33*17*4];
             pixels[(8*33+16)*4]=1-phase;pixels[(8*33+17)*4]=phase;
-            using var source=TestFramework.CreateTexture(33,17,PixelInternalFormat.Rgba32f,pixels);
+            using var source=TestFramework.CreateTexture(33,17,TextureFormat.Rgba32f,pixels);
             shader.SourceImage=source;shader.SecondaryImage=source;
             shader.CaptureGaussian(radius,false);Draw(shader,target);
             float[] image=target[0].ReadPixels();
@@ -220,7 +221,7 @@ public sealed class OwnedPostprocessShaderTests(HeadlessGLFixture fixture, ITest
         using var assets=new BinaryShaderApiFixture();
         using var platform=new EngineShaderPlatformScope();
         Assert.True(VgeShaderPrograms.RegisterAll(assets.Api));
-        using var source=TestFramework.CreateTexture(1,1,PixelInternalFormat.Rgba32f,[16f,8f,4f,.4f]);
+        using var source=TestFramework.CreateTexture(1,1,TextureFormat.Rgba32f,[16f,8f,4f,.4f]);
         using var publication=new TestFrameLightingPublication();
         GpuShaderProgramLibraries.Get<BloomShaderProgram>(assets.Api, "pbr_bloom")!.FrameLightingInputs=publication.Buffer;
         using var owner=new BloomRenderer();
@@ -266,7 +267,7 @@ public sealed class OwnedPostprocessShaderTests(HeadlessGLFixture fixture, ITest
         using var platform=new EngineShaderPlatformScope();
         Assert.True(VgeShaderPrograms.RegisterAll(assets.Api));
         float[] pixels=new float[257*129*4];pixels[(64*257+128)*4]=256;
-        using var source=TestFramework.CreateTexture(257,129,PixelInternalFormat.Rgba32f,pixels);
+        using var source=TestFramework.CreateTexture(257,129,TextureFormat.Rgba32f,pixels);
         using var publication=new TestFrameLightingPublication();
         GpuShaderProgramLibraries.Get<BloomShaderProgram>(assets.Api, "pbr_bloom")!.FrameLightingInputs=publication.Buffer;
         using var owner=new BloomRenderer();
@@ -307,7 +308,7 @@ public sealed class OwnedPostprocessShaderTests(HeadlessGLFixture fixture, ITest
         using var assets=new BinaryShaderApiFixture();
         using var platform=new EngineShaderPlatformScope();
         Assert.True(VgeShaderPrograms.RegisterAll(assets.Api));
-        using var source=TestFramework.CreateTexture(1280,720,PixelInternalFormat.Rgba16f,CreateUniformColorData(1280,720,8,4,2));
+        using var source=TestFramework.CreateTexture(1280,720,TextureFormat.Rgba16f,CreateUniformColorData(1280,720,8,4,2));
         using var publication=new TestFrameLightingPublication();
         GpuShaderProgramLibraries.Get<BloomShaderProgram>(assets.Api, "pbr_bloom")!.FrameLightingInputs=publication.Buffer;
         using var owner=new BloomRenderer();

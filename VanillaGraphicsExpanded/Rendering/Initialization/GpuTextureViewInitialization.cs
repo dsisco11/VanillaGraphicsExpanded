@@ -1,5 +1,5 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
-using OpenTK.Graphics.OpenGL;
 
 namespace VanillaGraphicsExpanded.Rendering;
 
@@ -8,8 +8,8 @@ internal struct GpuTextureViewInitialization
 {
     private byte assigned;
     private int valueSource;
-    private TextureTarget valueTarget;
-    private PixelInternalFormat valueFormat;
+    private TextureDimension valueTarget;
+    private TextureFormat valueFormat;
     private int valueBaseLevel;
     private int valueLevelCount;
     private int valueBaseLayer;
@@ -18,9 +18,9 @@ internal struct GpuTextureViewInitialization
     /// <summary>Supplies the required Source input.</summary>
     public int Source { readonly get => valueSource; set { valueSource = value; assigned |= 1; } }
     /// <summary>Supplies the required Target input.</summary>
-    public TextureTarget Target { readonly get => valueTarget; set { valueTarget = value; assigned |= 2; } }
+    public TextureDimension Target { readonly get => valueTarget; set { valueTarget = value; assigned |= 2; } }
     /// <summary>Supplies the required Format input.</summary>
-    public PixelInternalFormat Format { readonly get => valueFormat; set { valueFormat = value; assigned |= 4; } }
+    public TextureFormat Format { readonly get => valueFormat; set { valueFormat = value; assigned |= 4; } }
     /// <summary>Supplies the required BaseLevel input.</summary>
     public int BaseLevel { readonly get => valueBaseLevel; set { valueBaseLevel = value; assigned |= 8; } }
     /// <summary>Supplies the required LevelCount input.</summary>

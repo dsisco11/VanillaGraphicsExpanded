@@ -1,3 +1,5 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using System.Numerics;
 using OpenTK.Graphics.OpenGL;
@@ -274,18 +276,18 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
         var radianceData = CreateUniformSHRadiance(1f, 1f, 1f);
         var historyMetaData = CreateHistoryMeta(5f, 0f, 0f, -1f, 1f);
 
-        using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
-        using var normalTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, normalData);
-        using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorPosData);
-        using var anchorNormalTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorNormalData);
-        using var radiance0Tex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, radianceData);
-        using var radiance1Tex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, radianceData);
-        using var indirectHalfTex = TestFramework.CreateTexture(HalfResWidth, HalfResHeight, PixelInternalFormat.Rgba16f, new float[HalfResWidth * HalfResHeight * 4]);
-        using var historyMetaTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, historyMetaData);
+        using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.R32f, depthData);
+        using var normalTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.Rgba16f, normalData);
+        using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, TextureFormat.Rgba16f, anchorPosData);
+        using var anchorNormalTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, TextureFormat.Rgba16f, anchorNormalData);
+        using var radiance0Tex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, TextureFormat.Rgba16f, radianceData);
+        using var radiance1Tex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, TextureFormat.Rgba16f, radianceData);
+        using var indirectHalfTex = TestFramework.CreateTexture(HalfResWidth, HalfResHeight, TextureFormat.Rgba16f, new float[HalfResWidth * HalfResHeight * 4]);
+        using var historyMetaTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, TextureFormat.Rgba16f, historyMetaData);
 
         using var outputGBuffer = TestFramework.CreateTestGBuffer(
             ScreenWidth, ScreenHeight,
-            PixelInternalFormat.Rgba16f);
+            TextureFormat.Rgba16f);
 
         var programId = CompileDebugShader(MODE_PROBE_GRID);
 
@@ -362,18 +364,18 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
         var radianceData = CreateUniformSHRadiance(1f, 1f, 1f);
         var historyMetaData = CreateHistoryMeta(5f, 0f, 0f, -1f, 1f);
 
-        using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
-        using var normalTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, normalData);
-        using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorPosData);
-        using var anchorNormalTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorNormalData);
-        using var radiance0Tex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, radianceData);
-        using var radiance1Tex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, radianceData);
-        using var indirectHalfTex = TestFramework.CreateTexture(HalfResWidth, HalfResHeight, PixelInternalFormat.Rgba16f, new float[HalfResWidth * HalfResHeight * 4]);
-        using var historyMetaTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, historyMetaData);
+        using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.R32f, depthData);
+        using var normalTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.Rgba16f, normalData);
+        using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, TextureFormat.Rgba16f, anchorPosData);
+        using var anchorNormalTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, TextureFormat.Rgba16f, anchorNormalData);
+        using var radiance0Tex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, TextureFormat.Rgba16f, radianceData);
+        using var radiance1Tex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, TextureFormat.Rgba16f, radianceData);
+        using var indirectHalfTex = TestFramework.CreateTexture(HalfResWidth, HalfResHeight, TextureFormat.Rgba16f, new float[HalfResWidth * HalfResHeight * 4]);
+        using var historyMetaTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, TextureFormat.Rgba16f, historyMetaData);
 
         using var outputGBuffer = TestFramework.CreateTestGBuffer(
             ScreenWidth, ScreenHeight,
-            PixelInternalFormat.Rgba16f);
+            TextureFormat.Rgba16f);
 
         var programId = CompileDebugShader(MODE_SCENE_DEPTH);
 
@@ -455,18 +457,18 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
             indirectData[idx + 3] = 1f;
         }
 
-        using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
-        using var normalTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, normalData);
-        using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorPosData);
-        using var anchorNormalTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorNormalData);
-        using var radiance0Tex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, radianceData);
-        using var radiance1Tex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, radianceData);
-        using var indirectHalfTex = TestFramework.CreateTexture(HalfResWidth, HalfResHeight, PixelInternalFormat.Rgba16f, indirectData);
-        using var historyMetaTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, historyMetaData);
+        using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.R32f, depthData);
+        using var normalTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.Rgba16f, normalData);
+        using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, TextureFormat.Rgba16f, anchorPosData);
+        using var anchorNormalTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, TextureFormat.Rgba16f, anchorNormalData);
+        using var radiance0Tex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, TextureFormat.Rgba16f, radianceData);
+        using var radiance1Tex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, TextureFormat.Rgba16f, radianceData);
+        using var indirectHalfTex = TestFramework.CreateTexture(HalfResWidth, HalfResHeight, TextureFormat.Rgba16f, indirectData);
+        using var historyMetaTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, TextureFormat.Rgba16f, historyMetaData);
 
         using var outputGBuffer = TestFramework.CreateTestGBuffer(
             ScreenWidth, ScreenHeight,
-            PixelInternalFormat.Rgba16f);
+            TextureFormat.Rgba16f);
 
         var programId = CompileDebugShader(MODE_RADIANCE_OVERLAY);
 
@@ -525,18 +527,18 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
         var radianceData = CreateUniformSHRadiance(1f, 1f, 1f);
         var historyMetaData = CreateHistoryMeta(5f, 0f, 0f, -1f, 1f);
 
-        using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
-        using var normalTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, normalData);
-        using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorPosData);
-        using var anchorNormalTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorNormalData);
-        using var radiance0Tex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, radianceData);
-        using var radiance1Tex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, radianceData);
-        using var indirectHalfTex = TestFramework.CreateTexture(HalfResWidth, HalfResHeight, PixelInternalFormat.Rgba16f, new float[HalfResWidth * HalfResHeight * 4]);
-        using var historyMetaTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, historyMetaData);
+        using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.R32f, depthData);
+        using var normalTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.Rgba16f, normalData);
+        using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, TextureFormat.Rgba16f, anchorPosData);
+        using var anchorNormalTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, TextureFormat.Rgba16f, anchorNormalData);
+        using var radiance0Tex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, TextureFormat.Rgba16f, radianceData);
+        using var radiance1Tex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, TextureFormat.Rgba16f, radianceData);
+        using var indirectHalfTex = TestFramework.CreateTexture(HalfResWidth, HalfResHeight, TextureFormat.Rgba16f, new float[HalfResWidth * HalfResHeight * 4]);
+        using var historyMetaTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, TextureFormat.Rgba16f, historyMetaData);
 
         using var outputGBuffer = TestFramework.CreateTestGBuffer(
             ScreenWidth, ScreenHeight,
-            PixelInternalFormat.Rgba16f);
+            TextureFormat.Rgba16f);
 
         var programId = CompileDebugShader(MODE_SCENE_DEPTH);
 
@@ -606,18 +608,18 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
         var radianceData = CreateUniformSHRadiance(1f, 1f, 1f);
         var historyMetaData = CreateHistoryMeta(5f, 0f, 1f, 0f, 1f);
 
-        using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
-        using var normalTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, normalData);
-        using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorPosData);
-        using var anchorNormalTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorNormalData);
-        using var radiance0Tex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, radianceData);
-        using var radiance1Tex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, radianceData);
-        using var indirectHalfTex = TestFramework.CreateTexture(HalfResWidth, HalfResHeight, PixelInternalFormat.Rgba16f, new float[HalfResWidth * HalfResHeight * 4]);
-        using var historyMetaTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, historyMetaData);
+        using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.R32f, depthData);
+        using var normalTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.Rgba16f, normalData);
+        using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, TextureFormat.Rgba16f, anchorPosData);
+        using var anchorNormalTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, TextureFormat.Rgba16f, anchorNormalData);
+        using var radiance0Tex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, TextureFormat.Rgba16f, radianceData);
+        using var radiance1Tex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, TextureFormat.Rgba16f, radianceData);
+        using var indirectHalfTex = TestFramework.CreateTexture(HalfResWidth, HalfResHeight, TextureFormat.Rgba16f, new float[HalfResWidth * HalfResHeight * 4]);
+        using var historyMetaTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, TextureFormat.Rgba16f, historyMetaData);
 
         using var outputGBuffer = TestFramework.CreateTestGBuffer(
             ScreenWidth, ScreenHeight,
-            PixelInternalFormat.Rgba16f);
+            TextureFormat.Rgba16f);
 
         var programId = CompileDebugShader(MODE_SCENE_NORMAL);
 
@@ -675,18 +677,18 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
         var radianceData = CreateUniformSHRadiance(1f, 1f, 1f);
         var historyMetaData = CreateHistoryMeta(5f, 0f, 0f, -1f, 1f);
 
-        using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
-        using var normalTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, normalData);
-        using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorPosData);
-        using var anchorNormalTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorNormalData);
-        using var radiance0Tex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, radianceData);
-        using var radiance1Tex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, radianceData);
-        using var indirectHalfTex = TestFramework.CreateTexture(HalfResWidth, HalfResHeight, PixelInternalFormat.Rgba16f, new float[HalfResWidth * HalfResHeight * 4]);
-        using var historyMetaTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, historyMetaData);
+        using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.R32f, depthData);
+        using var normalTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.Rgba16f, normalData);
+        using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, TextureFormat.Rgba16f, anchorPosData);
+        using var anchorNormalTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, TextureFormat.Rgba16f, anchorNormalData);
+        using var radiance0Tex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, TextureFormat.Rgba16f, radianceData);
+        using var radiance1Tex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, TextureFormat.Rgba16f, radianceData);
+        using var indirectHalfTex = TestFramework.CreateTexture(HalfResWidth, HalfResHeight, TextureFormat.Rgba16f, new float[HalfResWidth * HalfResHeight * 4]);
+        using var historyMetaTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, TextureFormat.Rgba16f, historyMetaData);
 
         using var outputGBuffer = TestFramework.CreateTestGBuffer(
             ScreenWidth, ScreenHeight,
-            PixelInternalFormat.Rgba16f);
+            TextureFormat.Rgba16f);
 
         var programId = CompileDebugShader(MODE_SH_COEFFICIENTS);
 
@@ -751,18 +753,18 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
         var radianceData = CreateUniformSHRadiance(1f, 1f, 1f);
         var historyMetaData = CreateHistoryMeta(5f, 0f, 0f, -1f, 1f);
 
-        using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
-        using var normalTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, normalData);
-        using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorPosData);
-        using var anchorNormalTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorNormalData);
-        using var radiance0Tex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, radianceData);
-        using var radiance1Tex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, radianceData);
-        using var indirectHalfTex = TestFramework.CreateTexture(HalfResWidth, HalfResHeight, PixelInternalFormat.Rgba16f, new float[HalfResWidth * HalfResHeight * 4]);
-        using var historyMetaTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, historyMetaData);
+        using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.R32f, depthData);
+        using var normalTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.Rgba16f, normalData);
+        using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, TextureFormat.Rgba16f, anchorPosData);
+        using var anchorNormalTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, TextureFormat.Rgba16f, anchorNormalData);
+        using var radiance0Tex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, TextureFormat.Rgba16f, radianceData);
+        using var radiance1Tex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, TextureFormat.Rgba16f, radianceData);
+        using var indirectHalfTex = TestFramework.CreateTexture(HalfResWidth, HalfResHeight, TextureFormat.Rgba16f, new float[HalfResWidth * HalfResHeight * 4]);
+        using var historyMetaTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, TextureFormat.Rgba16f, historyMetaData);
 
         using var outputGBuffer = TestFramework.CreateTestGBuffer(
             ScreenWidth, ScreenHeight,
-            PixelInternalFormat.Rgba16f);
+            TextureFormat.Rgba16f);
 
         var programId = CompileDebugShader(MODE_PROBE_DEPTH);
 
@@ -831,18 +833,18 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
         var radianceData = CreateUniformSHRadiance(0.5f, 0.5f, 0.5f);
         var historyMetaData = CreateHistoryMeta(5f, 0f, 0f, -1f, 1f);
 
-        using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
-        using var normalTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, normalData);
-        using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorPosData);
-        using var anchorNormalTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorNormalData);
-        using var radiance0Tex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, radianceData);
-        using var radiance1Tex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, radianceData);
-        using var indirectHalfTex = TestFramework.CreateTexture(HalfResWidth, HalfResHeight, PixelInternalFormat.Rgba16f, new float[HalfResWidth * HalfResHeight * 4]);
-        using var historyMetaTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, historyMetaData);
+        using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.R32f, depthData);
+        using var normalTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.Rgba16f, normalData);
+        using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, TextureFormat.Rgba16f, anchorPosData);
+        using var anchorNormalTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, TextureFormat.Rgba16f, anchorNormalData);
+        using var radiance0Tex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, TextureFormat.Rgba16f, radianceData);
+        using var radiance1Tex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, TextureFormat.Rgba16f, radianceData);
+        using var indirectHalfTex = TestFramework.CreateTexture(HalfResWidth, HalfResHeight, TextureFormat.Rgba16f, new float[HalfResWidth * HalfResHeight * 4]);
+        using var historyMetaTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, TextureFormat.Rgba16f, historyMetaData);
 
         using var outputGBuffer = TestFramework.CreateTestGBuffer(
             ScreenWidth, ScreenHeight,
-            PixelInternalFormat.Rgba16f);
+            TextureFormat.Rgba16f);
 
         var programId = CompileDebugShader(MODE_PROBE_NORMAL);
 
@@ -905,18 +907,18 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
         var radianceData = CreateUniformSHRadiance(0.5f, 0.5f, 0.5f);
         var historyMetaData = CreateHistoryMeta(-probeWorldZ, 0f, 0f, -1f, 0.9f);
 
-        using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
-        using var normalTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, normalData);
-        using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorPosData);
-        using var anchorNormalTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorNormalData);
-        using var radiance0Tex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, radianceData);
-        using var radiance1Tex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, radianceData);
-        using var indirectHalfTex = TestFramework.CreateTexture(HalfResWidth, HalfResHeight, PixelInternalFormat.Rgba16f, new float[HalfResWidth * HalfResHeight * 4]);
-        using var historyMetaTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, historyMetaData);
+        using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.R32f, depthData);
+        using var normalTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.Rgba16f, normalData);
+        using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, TextureFormat.Rgba16f, anchorPosData);
+        using var anchorNormalTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, TextureFormat.Rgba16f, anchorNormalData);
+        using var radiance0Tex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, TextureFormat.Rgba16f, radianceData);
+        using var radiance1Tex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, TextureFormat.Rgba16f, radianceData);
+        using var indirectHalfTex = TestFramework.CreateTexture(HalfResWidth, HalfResHeight, TextureFormat.Rgba16f, new float[HalfResWidth * HalfResHeight * 4]);
+        using var historyMetaTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, TextureFormat.Rgba16f, historyMetaData);
 
         using var outputGBuffer = TestFramework.CreateTestGBuffer(
             ScreenWidth, ScreenHeight,
-            PixelInternalFormat.Rgba16f);
+            TextureFormat.Rgba16f);
 
         var programId = CompileDebugShader(MODE_TEMPORAL_WEIGHT);
 
@@ -979,18 +981,18 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
         var radianceData = CreateUniformSHRadiance(0.5f, 0.5f, 0.5f);
         var historyMetaData = CreateHistoryMeta(-probeWorldZ, 0f, 0f, -1f, 1f);
 
-        using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
-        using var normalTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, normalData);
-        using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorPosData);
-        using var anchorNormalTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorNormalData);
-        using var radiance0Tex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, radianceData);
-        using var radiance1Tex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, radianceData);
-        using var indirectHalfTex = TestFramework.CreateTexture(HalfResWidth, HalfResHeight, PixelInternalFormat.Rgba16f, new float[HalfResWidth * HalfResHeight * 4]);
-        using var historyMetaTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, historyMetaData);
+        using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.R32f, depthData);
+        using var normalTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.Rgba16f, normalData);
+        using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, TextureFormat.Rgba16f, anchorPosData);
+        using var anchorNormalTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, TextureFormat.Rgba16f, anchorNormalData);
+        using var radiance0Tex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, TextureFormat.Rgba16f, radianceData);
+        using var radiance1Tex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, TextureFormat.Rgba16f, radianceData);
+        using var indirectHalfTex = TestFramework.CreateTexture(HalfResWidth, HalfResHeight, TextureFormat.Rgba16f, new float[HalfResWidth * HalfResHeight * 4]);
+        using var historyMetaTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, TextureFormat.Rgba16f, historyMetaData);
 
         using var outputGBuffer = TestFramework.CreateTestGBuffer(
             ScreenWidth, ScreenHeight,
-            PixelInternalFormat.Rgba16f);
+            TextureFormat.Rgba16f);
 
         var programId = CompileDebugShader(MODE_TEMPORAL_REJECTION);
 
@@ -1053,18 +1055,18 @@ public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
         var radianceData = CreateUniformSHRadiance(0.5f, 0.5f, 0.5f);
         var historyMetaData = CreateHistoryMeta(-probeWorldZ, 0f, 0f, -1f, 1f);
 
-        using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
-        using var normalTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, normalData);
-        using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorPosData);
-        using var anchorNormalTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorNormalData);
-        using var radiance0Tex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, radianceData);
-        using var radiance1Tex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, radianceData);
-        using var indirectHalfTex = TestFramework.CreateTexture(HalfResWidth, HalfResHeight, PixelInternalFormat.Rgba16f, new float[HalfResWidth * HalfResHeight * 4]);
-        using var historyMetaTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, historyMetaData);
+        using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.R32f, depthData);
+        using var normalTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.Rgba16f, normalData);
+        using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, TextureFormat.Rgba16f, anchorPosData);
+        using var anchorNormalTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, TextureFormat.Rgba16f, anchorNormalData);
+        using var radiance0Tex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, TextureFormat.Rgba16f, radianceData);
+        using var radiance1Tex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, TextureFormat.Rgba16f, radianceData);
+        using var indirectHalfTex = TestFramework.CreateTexture(HalfResWidth, HalfResHeight, TextureFormat.Rgba16f, new float[HalfResWidth * HalfResHeight * 4]);
+        using var historyMetaTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, TextureFormat.Rgba16f, historyMetaData);
 
         using var outputGBuffer = TestFramework.CreateTestGBuffer(
             ScreenWidth, ScreenHeight,
-            PixelInternalFormat.Rgba16f);
+            TextureFormat.Rgba16f);
 
         var programId = CompileDebugShader(MODE_INTERPOLATION_WEIGHTS);
 

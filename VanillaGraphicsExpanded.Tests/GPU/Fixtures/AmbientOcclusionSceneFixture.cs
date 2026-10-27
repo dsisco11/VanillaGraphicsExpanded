@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Diagnostics;
 using System.Numerics;
@@ -75,12 +76,12 @@ internal sealed class AmbientOcclusionSceneFixture : IDisposable
             colors[i*4]=colors[i*4+1]=colors[i*4+2]=.5f;colors[i*4+3]=1;
             positions[i*4]=rayX*z;positions[i*4+1]=rayY*z;positions[i*4+2]=-z;positions[i*4+3]=1;
         }
-        Depth=framework.CreateTexture(width,height,PixelInternalFormat.R32f,depths);
-        normal=framework.CreateTexture(width,height,PixelInternalFormat.Rgba32f,normals);
-        material=framework.CreateTexture(width,height,PixelInternalFormat.Rgba32f,materialData);
-        environment=framework.CreateTexture(width,height,PixelInternalFormat.Rgba32f,EnvironmentData(availability));
-        Albedo=framework.CreateTexture(width,height,PixelInternalFormat.Rgba32f,colors);
-        Position=framework.CreateTexture(width,height,PixelInternalFormat.Rgba32f,positions);
+        Depth=framework.CreateTexture(width,height,TextureFormat.R32f,depths);
+        normal=framework.CreateTexture(width,height,TextureFormat.Rgba32f,normals);
+        material=framework.CreateTexture(width,height,TextureFormat.Rgba32f,materialData);
+        environment=framework.CreateTexture(width,height,TextureFormat.Rgba32f,EnvironmentData(availability));
+        Albedo=framework.CreateTexture(width,height,TextureFormat.Rgba32f,colors);
+        Position=framework.CreateTexture(width,height,TextureFormat.Rgba32f,positions);
         Surface=LayeredTestTexture.Create(normal,material,environment);
         hierarchy.Prepare(width,height,compute);
     }

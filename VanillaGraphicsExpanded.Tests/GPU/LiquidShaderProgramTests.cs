@@ -454,10 +454,10 @@ public sealed class LiquidShaderProgramTests(HeadlessGLFixture fixture, ITestOut
         program.FrameLightingInputs = publication.Buffer;
         Assert.True(program.EnsureReady(), string.Join("\n", assets.Logs));
         using var terrain = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba8, Width = System.Math.Max(1, 1), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
-        using var depth = new DepthTexture(1, 1, PixelInternalFormat.DepthComponent32f);
+        using var depth = new DepthTexture(1, 1, TextureFormat.DepthComponent32f);
         using var material = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba16f, Width = System.Math.Max(1, 1), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
-        using var near = new DepthTexture(1, 1, PixelInternalFormat.DepthComponent32f);
-        using var far = new DepthTexture(1, 1, PixelInternalFormat.DepthComponent32f);
+        using var near = new DepthTexture(1, 1, TextureFormat.DepthComponent32f);
+        using var far = new DepthTexture(1, 1, TextureFormat.DepthComponent32f);
         using var radiance = RHICommandContext.Current.CreateDynamicTexture3D(new RHITextureDescription { Dimension = TextureDimension.Three, Format = TextureFormat.Rgba16f, Width = System.Math.Max(1, 1), Height = System.Math.Max(1, 1), Depth = System.Math.Max(1, 1), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Linear, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         using var attenuation = RHICommandContext.Current.CreateDynamicTexture3D(new RHITextureDescription { Dimension = TextureDimension.Three, Format = TextureFormat.Rgba16f, Width = System.Math.Max(1, 1), Height = System.Math.Max(1, 1), Depth = System.Math.Max(1, 1), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Linear, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         // Exercise both the preserved engine API and the interface boundary against
@@ -603,7 +603,7 @@ public sealed class LiquidShaderProgramTests(HeadlessGLFixture fixture, ITestOut
         program.TerrainTexture = texture;
         program.DepthTexture = texture;
         program.MaterialParamsTexture = texture;
-        var shadow=new DepthTexture(1,1,PixelInternalFormat.DepthComponent32f);
+        var shadow=new DepthTexture(1,1,TextureFormat.DepthComponent32f);
         program.ShadowMapNear = shadow;
         program.ShadowMapFar = shadow;
         program.AerialRadianceTexture = volume;

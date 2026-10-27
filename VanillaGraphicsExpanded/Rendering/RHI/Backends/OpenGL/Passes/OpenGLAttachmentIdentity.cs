@@ -32,12 +32,12 @@ internal readonly record struct OpenGLAttachmentIdentity(GpuResource Resource, G
         {
             var data = attachment.Texture.RequireMetadata();
             resource = attachment.Texture.Resource!;
-            bool cube = data.Target == TextureTarget.TextureCubeMap;
-            bool array = data.Target is TextureTarget.Texture1DArray or TextureTarget.Texture2DArray
-                or TextureTarget.Texture3D or TextureTarget.TextureCubeMapArray or TextureTarget.Texture2DMultisampleArray;
+            bool cube = data.Target == TextureDimension.Cube;
+            bool array = data.Target is TextureDimension.OneArray or TextureDimension.TwoArray
+                or TextureDimension.Three or TextureDimension.CubeArray or TextureDimension.TwoMultisampleArray;
             if (attachment.Layered && !cube && !array || !attachment.Layered && !cube && !array && attachment.Subresource.Layer != 0)
                 throw new ArgumentException("The supplied image selection is incompatible with its published target.");
-            var face = cube && !attachment.Layered ? TextureTarget.TextureCubeMapPositiveX + attachment.Subresource.Layer : 0;
+            var face = cube && !attachment.Layered ? CubeFace.PositiveX + attachment.Subresource.Layer : 0;
             if (cube && !attachment.Layered && (uint)attachment.Subresource.Layer >= 6)
                 throw new ArgumentOutOfRangeException(nameof(attachment));
             image = GpuResourceManager.RequireTextureAttachmentMetadata(data,
@@ -61,12 +61,12 @@ internal readonly record struct OpenGLAttachmentIdentity(GpuResource Resource, G
         if (Resource is GpuResource<GpuRenderbufferMetadata> renderbuffer)
             return GpuFramebufferAttachment.FromRenderbufferReference(new(renderbuffer));
         var texture = new GpuTextureRef((GpuResource<GpuTextureMetadata>)Resource);
-        bool cube = texture.Target == TextureTarget.TextureCubeMap;
-        bool array = texture.Target is TextureTarget.Texture1DArray or TextureTarget.Texture2DArray
-            or TextureTarget.Texture3D or TextureTarget.TextureCubeMapArray or TextureTarget.Texture2DMultisampleArray;
+        bool cube = texture.Target == TextureDimension.Cube;
+        bool array = texture.Target is TextureDimension.OneArray or TextureDimension.TwoArray
+            or TextureDimension.Three or TextureDimension.CubeArray or TextureDimension.TwoMultisampleArray;
         return GpuFramebufferAttachment.FromTexture(texture, Subresource.MipLevel,
             !Layered && array ? Subresource.Layer : null,
-            !Layered && cube ? TextureTarget.TextureCubeMapPositiveX + Subresource.Layer : null);
+            !Layered && cube ? CubeFace.PositiveX + Subresource.Layer : null);
     }
     #endregion
 }

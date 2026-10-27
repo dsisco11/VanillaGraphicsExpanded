@@ -90,7 +90,7 @@ public sealed class AoMinimumChildProductionTests(HeadlessGLFixture fixture, ITe
     {
         using var draw=new PostprocessDraw();
         var reference=Programs.Create<AoHorizonReferenceProgram>();
-        using var original=TestFramework.CreateTestGBuffer((width+1)/2,(height+1)/2,PixelInternalFormat.Rgba16f);
+        using var original=TestFramework.CreateTestGBuffer((width+1)/2,(height+1)/2,TextureFormat.Rgba16f);
         prepare(reference,draw,original).Reference();
         float[] rawOriginal=original[0].ReadPixels();
         if(captured is not null) SameBits(captured,rawOriginal);

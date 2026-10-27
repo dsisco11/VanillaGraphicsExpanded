@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System;
 using OpenTK.Graphics.OpenGL;
@@ -17,7 +18,7 @@ internal sealed partial class GpuResourceManager
         if (manager is not null && !manager.IsMetadataRegistryRetired)
         {
             var existing = manager.FindResource(GpuResourceKind.Texture, id) as GpuResourceMetadataEntry<GpuTextureMetadata>;
-            if (existing?.Metadata.Target == TextureTarget.TextureBuffer)
+            if (existing?.Metadata.Target == TextureDimension.Buffer)
                 throw new NotSupportedException("Buffer textures cannot supply framebuffer images.");
             var reader = new GpuTextureMetadataReader(existing?.Metadata.Target ?? 0);
             return manager.AcquireResource(GpuResourceKind.Texture, id, reader)?.Metadata

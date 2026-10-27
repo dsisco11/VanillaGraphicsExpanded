@@ -38,7 +38,8 @@ internal static class SceneColorAllocationHook
     }
 
     /// <summary>Supplies the selected format at the original allocation site without reallocating texture names.</summary>
-    internal static PixelInternalFormat SelectFormat(PixelInternalFormat format) => allocation.Select(format);
+    internal static PixelInternalFormat SelectFormat(PixelInternalFormat format) => Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Format(
+        allocation.Select(Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Format(format)));
 
     /// <summary>Wraps framebuffer assignments and RGBA8 format operands while retaining labels and exception regions.</summary>
     [HarmonyTranspiler]

@@ -31,13 +31,13 @@ internal sealed partial class OpenGLBackend
 
     #region Private
     /// <summary>Maps logical array slices to native rows for the one-dimensional array target.</summary>
-    private static OpenGlStateCache.PixelUnpackState PixelLayoutForTarget(OpenGlStateCache.PixelUnpackState layout, TextureTarget target)
-        => target == TextureTarget.Texture1DArray ? layout with { RowLength = checked(layout.RowLength * layout.ImageHeight), ImageHeight = 0 } : layout;
+    private static OpenGlStateCache.PixelUnpackState PixelLayoutForTarget(OpenGlStateCache.PixelUnpackState layout, TextureDimension target)
+        => target == TextureDimension.OneArray ? layout with { RowLength = checked(layout.RowLength * layout.ImageHeight), ImageHeight = 0 } : layout;
 
     /// <summary>Checks all initial subresources and byte ranges before creating any native allocation.</summary>
     private static void ValidateTextureInitialData(in GpuTextureInitialization request, ReadOnlySpan<RHITextureInitialData> initialData)
     {
-        if (request.Target is TextureTarget.Texture2DMultisample or TextureTarget.Texture2DMultisampleArray && !initialData.IsEmpty)
+        if (request.Target is TextureDimension.TwoMultisample or TextureDimension.TwoMultisampleArray && !initialData.IsEmpty)
             throw new ArgumentException("Multisample storage cannot be initialized from client pixels.");
         foreach (var item in initialData)
         {
@@ -45,9 +45,9 @@ internal sealed partial class OpenGLBackend
             if (region.Subresource.MipLevel < 0 || region.Subresource.MipLevel >= request.Levels) throw new ArgumentOutOfRangeException(nameof(initialData));
             int level = region.Subresource.MipLevel;
             int width = Math.Max(1, request.Width >> level);
-            int height = request.Target == TextureTarget.Texture1DArray ? 1 : Math.Max(1, request.Height >> level);
-            int depth = request.Target == TextureTarget.Texture3D ? Math.Max(1, request.Depth >> level)
-                : request.Target == TextureTarget.TextureCubeMap ? 6 : request.Target == TextureTarget.Texture1DArray ? request.Height : request.Depth;
+            int height = request.Target == TextureDimension.OneArray ? 1 : Math.Max(1, request.Height >> level);
+            int depth = request.Target == TextureDimension.Three ? Math.Max(1, request.Depth >> level)
+                : request.Target == TextureDimension.Cube ? 6 : request.Target == TextureDimension.OneArray ? request.Height : request.Depth;
             ValidateRegionBounds(region, width, height, depth);
             _ = ValidatePixelLayout(region, item.Encoding, item.Bytes.Length, item.RowPitch, item.SlicePitch);
         }
@@ -56,23 +56,23 @@ internal sealed partial class OpenGLBackend
     /// <summary>Checks selected view-relative mip bounds without native discovery.</summary>
     private static void ValidateTextureRegion(GpuTextureMetadata metadata, in RHITextureRegion region, bool allowMultisample = false)
     {
-        if (metadata.Target == TextureTarget.TextureBuffer || !allowMultisample && metadata.Target is TextureTarget.Texture2DMultisample or TextureTarget.Texture2DMultisampleArray)
+        if (metadata.Target == TextureDimension.Buffer || !allowMultisample && metadata.Target is TextureDimension.TwoMultisample or TextureDimension.TwoMultisampleArray)
             throw new ArgumentException("This operation requires a non-multisample image.");
         foreach (var image in metadata.Levels)
             if (image.Level == region.Subresource.MipLevel && image.Allocated)
             {
-                int height = metadata.Target == TextureTarget.Texture1DArray ? 1 : image.Height;
-                int depth = metadata.Target == TextureTarget.TextureCubeMap ? 6
-                    : metadata.Target == TextureTarget.Texture1DArray ? image.Height : image.Depth;
+                int height = metadata.Target == TextureDimension.OneArray ? 1 : image.Height;
+                int depth = metadata.Target == TextureDimension.Cube ? 6
+                    : metadata.Target == TextureDimension.OneArray ? image.Height : image.Depth;
                 ValidateRegionBounds(region, image.Width, height, depth);
-                if (metadata.Target == TextureTarget.TextureCubeMap)
+                if (metadata.Target == TextureDimension.Cube)
                 {
                     // External mutable cubes may have independently defined or absent faces.
                     for (int face = region.Subresource.Layer + region.Z; face < region.Subresource.Layer + region.Z + region.Depth; face++)
                     {
                         bool found = false;
                         foreach (var selected in metadata.Levels)
-                            if (selected.Level == region.Subresource.MipLevel && selected.Face == TextureTarget.TextureCubeMapPositiveX + face && selected.Allocated)
+                            if (selected.Level == region.Subresource.MipLevel && selected.Face == CubeFace.PositiveX + face && selected.Allocated)
                             {
                                 ValidateRegionBounds(region, selected.Width, selected.Height, 6);
                                 found = true;
@@ -117,16 +117,16 @@ internal sealed partial class OpenGLBackend
     }
 
     /// <summary>Dispatches one named upload with cube faces and array layers expressed in native coordinates.</summary>
-    private static void UploadImagePixels(int id, TextureTarget target, in RHITextureRegion region, RHIPixelEncoding encoding, nint pixels)
+    private static void UploadImagePixels(int id, TextureDimension target, in RHITextureRegion region, RHIPixelEncoding encoding, nint pixels)
     {
         var format = OpenGLPixelValues.Channels(encoding.Channels);
         var type = OpenGLPixelValues.Type(encoding.Type);
         int z = checked(region.Subresource.Layer + region.Z);
-        if (target == TextureTarget.Texture1D)
+        if (target == TextureDimension.One)
             GL.TextureSubImage1D(id, region.Subresource.MipLevel, region.X, region.Width, format, type, pixels);
-        else if (target == TextureTarget.Texture1DArray)
+        else if (target == TextureDimension.OneArray)
             GL.TextureSubImage2D(id, region.Subresource.MipLevel, region.X, z, region.Width, region.Depth, format, type, pixels);
-        else if (target is TextureTarget.Texture2D or TextureTarget.TextureRectangle)
+        else if (target is TextureDimension.Two or TextureDimension.Rectangle)
             GL.TextureSubImage2D(id, region.Subresource.MipLevel, region.X, region.Y, region.Width, region.Height, format, type, pixels);
         else GL.TextureSubImage3D(id, region.Subresource.MipLevel, region.X, region.Y, z, region.Width, region.Height, region.Depth, format, type, pixels);
     }

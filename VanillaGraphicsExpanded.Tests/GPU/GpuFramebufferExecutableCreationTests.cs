@@ -30,11 +30,11 @@ public sealed class GpuFramebufferExecutableCreationTests(HeadlessGLFixture fixt
         {
             using var texture = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba8, Width = System.Math.Max(1, 4), Height = System.Math.Max(1, 4), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
             using var framebuffer = DynamicGpuFramebuffer.CreateSingle(texture)!;
-            var before = GpuFramebufferAttachmentDiscovery.Read(framebuffer, FramebufferAttachment.ColorAttachment0);
+            var before = GpuFramebufferAttachmentDiscovery.Read(framebuffer, FramebufferSlot.Color0);
             Assert.Equal(4, before.Width);
             using (OpenGlStateCache.Current.BindTextureScope(TextureTarget.Texture2D, 0, texture.TextureId))
                 GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.Rgba8, 8, 6, 0, PixelFormat.Rgba, PixelType.UnsignedByte, IntPtr.Zero);
-            var recovered = GpuFramebufferAttachmentDiscovery.Read(framebuffer, FramebufferAttachment.ColorAttachment0, forceNative: true);
+            var recovered = GpuFramebufferAttachmentDiscovery.Read(framebuffer, FramebufferSlot.Color0, forceNative: true);
             Assert.Equal(texture.TextureId, recovered.TextureId);
             Assert.Equal(8, recovered.Width);
             Assert.Equal(6, recovered.Height);
@@ -63,7 +63,7 @@ public sealed class GpuFramebufferExecutableCreationTests(HeadlessGLFixture fixt
             {
                 using var owner = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba8, Width = System.Math.Max(1, 4), Height = System.Math.Max(1, 4), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
                 using var operation = new GpuResourceManager.MetadataOperation<GpuTextureMetadata>(owner, GpuMetadataChange.Storage);
-                Assert.Throws<InvalidOperationException>(() => GpuResourceManager.AcquireFramebufferTexture(owner.TextureId, TextureTarget.Texture2D, true));
+                Assert.Throws<InvalidOperationException>(() => GpuResourceManager.AcquireFramebufferTexture(owner.TextureId, TextureDimension.Two, true));
             }
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
@@ -83,14 +83,14 @@ public sealed class GpuFramebufferExecutableCreationTests(HeadlessGLFixture fixt
             using var framebuffer = DynamicGpuFramebuffer.CreateSingle(first)!;
             var entry = Assert.IsType<GpuResourceMetadataEntry<GpuFramebufferMetadata>>(
                 GpuResourceManagerSystem.CurrentManager!.GetResourceRegistration(framebuffer));
-            var original = entry.Metadata.Attachments[FramebufferAttachment.ColorAttachment0];
+            var original = entry.Metadata.Attachments[FramebufferSlot.Color0];
             PatchQueries(harmony);
             queries = 0; queriedSlots.Clear();
             OpenGLFramebufferCalls.ExecuteCoreNamedFramebufferTexture(framebuffer.FboId, FramebufferAttachment.ColorAttachment1, second.TextureId, 0);
             Assert.True(queries > 0);
             Assert.Equal(FramebufferAttachment.ColorAttachment1, Assert.Single(queriedSlots));
-            Assert.Equal(original, entry.Metadata.Attachments[FramebufferAttachment.ColorAttachment0]);
-            Assert.Equal(second.TextureId, entry.Metadata.Attachments[FramebufferAttachment.ColorAttachment1].Id);
+            Assert.Equal(original, entry.Metadata.Attachments[FramebufferSlot.Color0]);
+            Assert.Equal(second.TextureId, entry.Metadata.Attachments[FramebufferSlot.Color1].Id);
             if (GpuSupport.Graphics.SupportsFramebufferNoAttachments)
             {
                 var attachments = entry.Metadata.Attachments;
@@ -124,24 +124,24 @@ public sealed class GpuFramebufferExecutableCreationTests(HeadlessGLFixture fixt
             using var recipient = new Recipient<GpuFramebufferMetadata>(GpuResourceKind.Framebuffer);
             var request = new GpuFramebufferInitialization
             {
-                Attachments = ImmutableDictionary<FramebufferAttachment, GpuFramebufferAttachment>.Empty
-                    .Add(FramebufferAttachment.ColorAttachment0, firstImage)
+                Attachments = ImmutableDictionary<FramebufferSlot, GpuFramebufferAttachment>.Empty
+                    .Add(FramebufferSlot.Color0, firstImage)
             };
             PatchQueries(harmony);
             queries = 0;
             var created = GpuResourceManager.CreateFramebuffer(request, recipient, out _);
             Assert.NotNull(created);
-            Assert.Equal(first.TextureId, created.Value.Attachments[FramebufferAttachment.ColorAttachment0].Id);
+            Assert.Equal(first.TextureId, created.Value.Attachments[FramebufferSlot.Color0].Id);
             Assert.Equal(0, queries);
             using var framebuffer = DynamicGpuFramebuffer.CreateEmpty();
             var entry = Assert.IsType<GpuResourceMetadataEntry<GpuFramebufferMetadata>>(
                 GpuResourceManagerSystem.CurrentManager!.GetResourceRegistration(framebuffer));
-            framebuffer.SetAttachment(FramebufferAttachment.ColorAttachment0, firstImage);
+            framebuffer.SetAttachment(FramebufferSlot.Color0, firstImage);
             queries = 0;
-            framebuffer.SetAttachment(FramebufferAttachment.ColorAttachment1, secondImage);
+            framebuffer.SetAttachment(FramebufferSlot.Color1, secondImage);
             Assert.Equal(0, queries);
-            Assert.Equal(first.TextureId, entry.Metadata.Attachments[FramebufferAttachment.ColorAttachment0].Id);
-            Assert.Equal(second.TextureId, entry.Metadata.Attachments[FramebufferAttachment.ColorAttachment1].Id);
+            Assert.Equal(first.TextureId, entry.Metadata.Attachments[FramebufferSlot.Color0].Id);
+            Assert.Equal(second.TextureId, entry.Metadata.Attachments[FramebufferSlot.Color1].Id);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
         finally { harmony.UnpatchAll(harmony.Id); fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }

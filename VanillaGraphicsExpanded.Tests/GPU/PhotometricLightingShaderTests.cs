@@ -442,7 +442,7 @@ public sealed class PhotometricLightingShaderTests(HeadlessGLFixture fixture) : 
                 GL.BufferData(BufferTarget.ShaderStorageBuffer, frozenStorage.Length, frozenStorage, BufferUsageHint.StaticDraw);
                 GL.BindBufferBase(BufferRangeTarget.ShaderStorageBuffer, GpuBindingRegistry.Ssbo.FrameLighting, storageBuffer);
             }
-            using var target = CreateRenderTarget(8, 2, PixelInternalFormat.Rgba32f);
+            using var target = CreateRenderTarget(8, 2, TextureFormat.Rgba32f);
             GL.BindFramebuffer(FramebufferTarget.Framebuffer, target.FboId); GL.Viewport(0, 0, 8, 2);
             GL.Disable(EnableCap.DepthTest); GL.Disable(EnableCap.Blend); GL.Disable(EnableCap.CullFace);
             GL.Disable(EnableCap.ScissorTest); GL.ColorMask(true, true, true, true); GL.UseProgram(program);

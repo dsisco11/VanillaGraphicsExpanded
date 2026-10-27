@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.LumOn.Scene;
@@ -33,9 +34,9 @@ public sealed partial class LumOnNearFieldFunctionalTests
     {
         EnsureShaderTestAvailable();
         using var fixture = new NearFieldVoxelFixture(resolution: resolution);
-        Assert.Equal(PixelInternalFormat.Rgba8, fixture.Scene.Light.InternalFormat);
-        Assert.Equal(PixelInternalFormat.Rgba8, fixture.Scene.Materials.InternalFormat);
-        Assert.Equal(PixelInternalFormat.R8ui, fixture.Scene.Regions.InternalFormat);
+        Assert.Equal(TextureFormat.Rgba8, fixture.Scene.Light.InternalFormat);
+        Assert.Equal(TextureFormat.Rgba8, fixture.Scene.Materials.InternalFormat);
+        Assert.Equal(TextureFormat.R8ui, fixture.Scene.Regions.InternalFormat);
         Assert.All(ReadReadiness(fixture.Scene), ready => Assert.Equal(0, ready));
         fixture.Publish(new ControlledVoxelWorld());
         var previousOrigin = fixture.Scene.Origin;

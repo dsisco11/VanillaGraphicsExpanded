@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.PBR;
@@ -32,10 +33,10 @@ internal sealed class AmbientOcclusionLightingFixture : IDisposable
         this.scene=scene;
         positions.UploadData(new float[]{-1,-1,0,3,-1,0,-1,3,0});uv.UploadData(new float[]{0,0,2,0,0,2});
         geometry=new ArrayGraphicsGeometry(EngineFullscreenGeometry.Layout,PrimitiveTopology.Triangles,new Dictionary<int,GpuVbo>{[0]=positions,[1]=uv});
-        directTarget=framework.CreateTestGBuffer(scene.Width,scene.Height,PixelInternalFormat.Rgba32f,3);
-        outputTarget=framework.CreateTestGBuffer(scene.Width,scene.Height,PixelInternalFormat.Rgba32f,3);
-        shadow=new DepthTexture(1,1,PixelInternalFormat.DepthComponent32f);shadow.UploadDataImmediate([1f]);
-        indirect=framework.CreateTexture(1,1,PixelInternalFormat.Rgba32f,[availability,availability,availability,1f]);
+        directTarget=framework.CreateTestGBuffer(scene.Width,scene.Height,TextureFormat.Rgba32f,3);
+        outputTarget=framework.CreateTestGBuffer(scene.Width,scene.Height,TextureFormat.Rgba32f,3);
+        shadow=new DepthTexture(1,1,TextureFormat.DepthComponent32f);shadow.UploadDataImmediate([1f]);
+        indirect=framework.CreateTexture(1,1,TextureFormat.Rgba32f,[availability,availability,availability,1f]);
         var direct=programs.Create<PBRDirectLightingShaderProgram>();
         direct.FrameInputs=scene.Camera;direct.LightsInputs=lights;direct.PrimaryScene=scene.Albedo;
         direct.PrimaryDepth=scene.Depth;direct.GBufferPosition=scene.Position;direct.GBufferSurface=scene.Surface;

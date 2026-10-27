@@ -30,14 +30,14 @@ public sealed class RHICommandContextIntegrationTests(HeadlessGLFixture fixture)
         using var pipeline = RHICommandContext.Current.CreateGraphicsPipeline(new(shader.Shader, Layout(3),
             new([new(TextureFormat.R32f)], TextureFormat.Depth24Stencil8), DynamicPipelineState.Viewport)).RequireResource();
         using var geometry = Geometry();
-        using var source = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Width = 8, Height = 8, Format = TextureFormat.R32f, MipLevels = 1, Storage = ResourceStorageMode.Mutable, BaseLevel = 0, MaxLevel = 0, Filter = TextureFilterMode.Nearest, Label = null }, [new RHITextureInitialData(new(new(), 0, 0, 0, 8, 8), VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLPixelValues.Encoding(TextureFormatHelper.GetPixelFormat(PixelInternalFormat.R32f), OpenTK.Graphics.OpenGL.PixelType.Float), System.Runtime.InteropServices.MemoryMarshal.AsBytes((Enumerable.Repeat(.2f, 64).ToArray()).AsSpan()).ToArray())]).RequireResource();
+        using var source = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Width = 8, Height = 8, Format = TextureFormat.R32f, MipLevels = 1, Storage = ResourceStorageMode.Mutable, BaseLevel = 0, MaxLevel = 0, Filter = TextureFilterMode.Nearest, Label = null }, [new RHITextureInitialData(new(new(), 0, 0, 0, 8, 8), new RHIPixelEncoding(TextureFormatHelper.GetPixelFormat(TextureFormat.R32f), PixelComponentType.Float), System.Runtime.InteropServices.MemoryMarshal.AsBytes((Enumerable.Repeat(.2f, 64).ToArray()).AsSpan()).ToArray())]).RequireResource();
         using var color = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.R32f, Width = System.Math.Max(1, 4), Height = System.Math.Max(1, 4), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         using var depth = new DepthStencilTexture(4, 4);
         using var colorImage = GpuFramebufferAttachment.FromTexture(color);
         using var depthImage = GpuFramebufferAttachment.FromTexture(depth);
         using var target = DynamicGpuFramebuffer.CreateEmpty();
-        target.SetAttachment(FramebufferAttachment.ColorAttachment0, colorImage);
-        target.SetAttachment(FramebufferAttachment.DepthStencilAttachment, depthImage);
+        target.SetAttachment(FramebufferSlot.Color0, colorImage);
+        target.SetAttachment(FramebufferSlot.DepthStencil, depthImage);
         shader.HzbDepth = source; shader.SrcMip = 0;
         GL.Disable(EnableCap.DepthTest); GL.Disable(EnableCap.StencilTest);
         GL.DepthMask(false); GL.StencilMaskSeparate(StencilFace.Front, 0x35); GL.StencilMaskSeparate(StencilFace.Back, 0x53);
@@ -73,8 +73,8 @@ public sealed class RHICommandContextIntegrationTests(HeadlessGLFixture fixture)
         var shader = programs.Create<RasterDepthReductionShaderProgram>();
         using var pipeline = Pipeline(shader);
         using var geometry = Geometry();
-        using var source = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Width = 8, Height = 8, Format = TextureFormat.R32f, MipLevels = 1, Storage = ResourceStorageMode.Mutable, BaseLevel = 0, MaxLevel = 0, Filter = TextureFilterMode.Nearest, Label = null }, [new RHITextureInitialData(new(new(), 0, 0, 0, 8, 8), VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLPixelValues.Encoding(TextureFormatHelper.GetPixelFormat(PixelInternalFormat.R32f), OpenTK.Graphics.OpenGL.PixelType.Float), System.Runtime.InteropServices.MemoryMarshal.AsBytes((Enumerable.Repeat(.2f, 64).ToArray()).AsSpan()).ToArray())]).RequireResource();
-        using var target = CreateRenderTarget(4, 4, PixelInternalFormat.R32f);
+        using var source = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Width = 8, Height = 8, Format = TextureFormat.R32f, MipLevels = 1, Storage = ResourceStorageMode.Mutable, BaseLevel = 0, MaxLevel = 0, Filter = TextureFilterMode.Nearest, Label = null }, [new RHITextureInitialData(new(new(), 0, 0, 0, 8, 8), new RHIPixelEncoding(TextureFormatHelper.GetPixelFormat(TextureFormat.R32f), PixelComponentType.Float), System.Runtime.InteropServices.MemoryMarshal.AsBytes((Enumerable.Repeat(.2f, 64).ToArray()).AsSpan()).ToArray())]).RequireResource();
+        using var target = CreateRenderTarget(4, 4, TextureFormat.R32f);
         shader.HzbDepth = source; shader.SrcMip = 0;
         GL.Disable(EnableCap.ScissorTest); GL.Scissor(2, 1, 1, 2); GL.DepthMask(false);
         OpenGlStateCache.Current.InvalidateAll();
@@ -116,8 +116,8 @@ public sealed class RHICommandContextIntegrationTests(HeadlessGLFixture fixture)
         var shader = programs.Create<RasterDepthReductionShaderProgram>();
         using var pipeline = Pipeline(shader);
         using var geometry = Geometry();
-        using var source = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Width = 2, Height = 2, Format = TextureFormat.R32f, MipLevels = 1, Storage = ResourceStorageMode.Mutable, BaseLevel = 0, MaxLevel = 0, Filter = TextureFilterMode.Nearest, Label = null }, [new RHITextureInitialData(new(new(), 0, 0, 0, 2, 2), VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLPixelValues.Encoding(TextureFormatHelper.GetPixelFormat(PixelInternalFormat.R32f), OpenTK.Graphics.OpenGL.PixelType.Float), System.Runtime.InteropServices.MemoryMarshal.AsBytes((new float[] { .2f, .4f, .6f, .8f }).AsSpan()).ToArray())]).RequireResource();
-        using var target = CreateRenderTarget(1, 1, PixelInternalFormat.R32f);
+        using var source = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Width = 2, Height = 2, Format = TextureFormat.R32f, MipLevels = 1, Storage = ResourceStorageMode.Mutable, BaseLevel = 0, MaxLevel = 0, Filter = TextureFilterMode.Nearest, Label = null }, [new RHITextureInitialData(new(new(), 0, 0, 0, 2, 2), new RHIPixelEncoding(TextureFormatHelper.GetPixelFormat(TextureFormat.R32f), PixelComponentType.Float), System.Runtime.InteropServices.MemoryMarshal.AsBytes((new float[] { .2f, .4f, .6f, .8f }).AsSpan()).ToArray())]).RequireResource();
+        using var target = CreateRenderTarget(1, 1, TextureFormat.R32f);
         shader.HzbDepth = source; shader.SrcMip = 0;
         RHICommandContext? escaped = null;
         {
@@ -150,7 +150,7 @@ public sealed class RHICommandContextIntegrationTests(HeadlessGLFixture fixture)
         using var second=RHICommandContext.Current.CreateDynamicTexture2D(new(){Dimension=TextureDimension.Two,
             Width=2,Height=2,Format=TextureFormat.R32f,MipLevels=1,Storage=ResourceStorageMode.Mutable}).RequireResource();
         first.UploadDataImmediate(new float[]{.2f,.4f,.6f,.8f});second.UploadDataImmediate(new float[]{.7f,.8f,.9f,1});
-        using var target=CreateRenderTarget(1,1,PixelInternalFormat.R32f);
+        using var target=CreateRenderTarget(1,1,TextureFormat.R32f);
         shader.HzbDepth=first;shader.SrcMip=0;
         var commands=RHICommandContext.Current;
         using var boundary=commands.EnterBoundary(new("Tests.ChangedBindings",true,graphics:[pipeline],operations:BoundaryOperations.RenderPasses));
@@ -188,8 +188,8 @@ public sealed class RHICommandContextIntegrationTests(HeadlessGLFixture fixture)
         var shader = programs.Create<RasterDepthReductionShaderProgram>();
         using var pipeline = Pipeline(shader);
         using var geometry = Geometry(failure == "layout" ? 2 : 3, failure == "topology" ? PrimitiveTopology.Lines : PrimitiveTopology.Triangles);
-        using var source = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Width = 2, Height = 2, Format = TextureFormat.R32f, MipLevels = 1, Storage = ResourceStorageMode.Mutable, BaseLevel = 0, MaxLevel = 0, Filter = TextureFilterMode.Nearest, Label = null }, [new RHITextureInitialData(new(new(), 0, 0, 0, 2, 2), VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLPixelValues.Encoding(TextureFormatHelper.GetPixelFormat(PixelInternalFormat.R32f), OpenTK.Graphics.OpenGL.PixelType.Float), System.Runtime.InteropServices.MemoryMarshal.AsBytes((new float[] { .2f, .4f, .6f, .8f }).AsSpan()).ToArray())]).RequireResource();
-        using var target = CreateRenderTarget(1, 1, failure == "target" ? PixelInternalFormat.Rgba16f : PixelInternalFormat.R32f);
+        using var source = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Width = 2, Height = 2, Format = TextureFormat.R32f, MipLevels = 1, Storage = ResourceStorageMode.Mutable, BaseLevel = 0, MaxLevel = 0, Filter = TextureFilterMode.Nearest, Label = null }, [new RHITextureInitialData(new(new(), 0, 0, 0, 2, 2), new RHIPixelEncoding(TextureFormatHelper.GetPixelFormat(TextureFormat.R32f), PixelComponentType.Float), System.Runtime.InteropServices.MemoryMarshal.AsBytes((new float[] { .2f, .4f, .6f, .8f }).AsSpan()).ToArray())]).RequireResource();
+        using var target = CreateRenderTarget(1, 1, failure == "target" ? TextureFormat.Rgba16f : TextureFormat.R32f);
         if (failure != "resources") shader.HzbDepth = source;
         shader.SrcMip = 0;
 #if DEBUG
@@ -224,8 +224,8 @@ public sealed class RHICommandContextIntegrationTests(HeadlessGLFixture fixture)
         var shader = programs.Create<RasterDepthReductionShaderProgram>();
         using var pipeline = Pipeline(shader);
         using var geometry = Geometry();
-        using var source = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Width = 2, Height = 2, Format = TextureFormat.R32f, MipLevels = 1, Storage = ResourceStorageMode.Mutable, BaseLevel = 0, MaxLevel = 0, Filter = TextureFilterMode.Nearest, Label = null }, [new RHITextureInitialData(new(new(), 0, 0, 0, 2, 2), VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLPixelValues.Encoding(TextureFormatHelper.GetPixelFormat(PixelInternalFormat.R32f), OpenTK.Graphics.OpenGL.PixelType.Float), System.Runtime.InteropServices.MemoryMarshal.AsBytes((new float[] { .2f, .4f, .6f, .8f }).AsSpan()).ToArray())]).RequireResource();
-        using var target = CreateRenderTarget(1, 1, PixelInternalFormat.R32f);
+        using var source = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Width = 2, Height = 2, Format = TextureFormat.R32f, MipLevels = 1, Storage = ResourceStorageMode.Mutable, BaseLevel = 0, MaxLevel = 0, Filter = TextureFilterMode.Nearest, Label = null }, [new RHITextureInitialData(new(new(), 0, 0, 0, 2, 2), new RHIPixelEncoding(TextureFormatHelper.GetPixelFormat(TextureFormat.R32f), PixelComponentType.Float), System.Runtime.InteropServices.MemoryMarshal.AsBytes((new float[] { .2f, .4f, .6f, .8f }).AsSpan()).ToArray())]).RequireResource();
+        using var target = CreateRenderTarget(1, 1, TextureFormat.R32f);
         shader.HzbDepth = source; shader.SrcMip = 0;
         var previous = programs.Create<RasterDepthReductionShaderProgram>();
         previous.HzbDepth = source; previous.SrcMip = 0;

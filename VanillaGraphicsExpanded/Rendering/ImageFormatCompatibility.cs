@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
 
 namespace VanillaGraphicsExpanded.Rendering;
@@ -7,28 +8,28 @@ internal static class ImageFormatCompatibility
 {
     #region Public API
     /// <summary>Rejects unsupported image formats and storage/view texel-size disagreement before binding.</summary>
-    internal static bool Matches(PixelInternalFormat storage, SizedInternalFormat view)
+    internal static bool Matches(TextureFormat storage, TextureFormat view)
     {
         int bytes = Bytes(view);
-        return bytes != 0 && bytes == Bytes((SizedInternalFormat)storage);
+        return bytes != 0 && bytes == Bytes(storage);
     }
     #endregion
 
     #region Private
     /// <summary>Maps the formats accepted by image load/store to their complete texel sizes.</summary>
-    private static int Bytes(SizedInternalFormat format) => format switch
+    private static int Bytes(TextureFormat format) => format switch
     {
-        SizedInternalFormat.Rgba32f or SizedInternalFormat.Rgba32i or SizedInternalFormat.Rgba32ui => 16,
-        SizedInternalFormat.Rgba16f or SizedInternalFormat.Rgba16 or SizedInternalFormat.Rgba16Snorm or
-            SizedInternalFormat.Rgba16i or SizedInternalFormat.Rgba16ui or
-            SizedInternalFormat.Rg32f or SizedInternalFormat.Rg32i or SizedInternalFormat.Rg32ui => 8,
-        SizedInternalFormat.Rgba8 or SizedInternalFormat.Rgba8Snorm or SizedInternalFormat.Rgba8i or SizedInternalFormat.Rgba8ui or
-            SizedInternalFormat.Rgb10A2 or SizedInternalFormat.Rgb10A2ui or SizedInternalFormat.R11fG11fB10f or
-            SizedInternalFormat.Rg16f or SizedInternalFormat.Rg16 or SizedInternalFormat.Rg16Snorm or SizedInternalFormat.Rg16i or SizedInternalFormat.Rg16ui or
-            SizedInternalFormat.R32f or SizedInternalFormat.R32i or SizedInternalFormat.R32ui => 4,
-        SizedInternalFormat.Rg8 or SizedInternalFormat.Rg8Snorm or SizedInternalFormat.Rg8i or SizedInternalFormat.Rg8ui or
-            SizedInternalFormat.R16f or SizedInternalFormat.R16 or SizedInternalFormat.R16Snorm or SizedInternalFormat.R16i or SizedInternalFormat.R16ui => 2,
-        SizedInternalFormat.R8 or SizedInternalFormat.R8Snorm or SizedInternalFormat.R8i or SizedInternalFormat.R8ui => 1,
+        TextureFormat.Rgba32f or TextureFormat.Rgba32i or TextureFormat.Rgba32ui => 16,
+        TextureFormat.Rgba16f or TextureFormat.Rgba16 or TextureFormat.Rgba16Snorm or
+            TextureFormat.Rgba16i or TextureFormat.Rgba16ui or
+            TextureFormat.Rg32f or TextureFormat.Rg32i or TextureFormat.Rg32ui => 8,
+        TextureFormat.Rgba8 or TextureFormat.Rgba8Snorm or TextureFormat.Rgba8i or TextureFormat.Rgba8ui or
+            TextureFormat.Rgb10A2 or TextureFormat.Rgb10A2ui or TextureFormat.R11fG11fB10f or
+            TextureFormat.Rg16f or TextureFormat.Rg16 or TextureFormat.Rg16Snorm or TextureFormat.Rg16i or TextureFormat.Rg16ui or
+            TextureFormat.R32f or TextureFormat.R32i or TextureFormat.R32ui => 4,
+        TextureFormat.Rg8 or TextureFormat.Rg8Snorm or TextureFormat.Rg8i or TextureFormat.Rg8ui or
+            TextureFormat.R16f or TextureFormat.R16 or TextureFormat.R16Snorm or TextureFormat.R16i or TextureFormat.R16ui => 2,
+        TextureFormat.R8 or TextureFormat.R8Snorm or TextureFormat.R8i or TextureFormat.R8ui => 1,
         _ => 0
     };
     #endregion

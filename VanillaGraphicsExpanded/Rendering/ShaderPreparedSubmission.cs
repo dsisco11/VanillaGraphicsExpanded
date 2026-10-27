@@ -93,20 +93,20 @@ internal static class ShaderPreparedSubmission
         image.Texture.RequireMetadata();
         var selected = image.Texture.RequireImage(image.Level);
         var target = image.Texture.Target;
-        int layers = target == TextureTarget.TextureCubeMap ? 6
-            : target == TextureTarget.Texture1DArray ? selected.Height : selected.Depth;
+        int layers = target == TextureDimension.Cube ? 6
+            : target == TextureDimension.OneArray ? selected.Height : selected.Depth;
         var viewTarget = image.Layered ? target : target switch
         {
-            TextureTarget.Texture1DArray => TextureTarget.Texture1D,
-            TextureTarget.Texture2DMultisampleArray => TextureTarget.Texture2DMultisample,
-            TextureTarget.Texture3D or TextureTarget.Texture2DArray or TextureTarget.TextureCubeMap
-                or TextureTarget.TextureCubeMapArray => TextureTarget.Texture2D,
+            TextureDimension.OneArray => TextureDimension.One,
+            TextureDimension.TwoMultisampleArray => TextureDimension.TwoMultisample,
+            TextureDimension.Three or TextureDimension.TwoArray or TextureDimension.Cube
+                or TextureDimension.CubeArray => TextureDimension.Two,
             _ => target
         };
-        var format = image.Format is { } supplied ? OpenGLImageValues.Format(supplied) : selected.Format;
+        var format = image.Format ?? selected.Format;
         if (image.Layer < 0 || (!image.Layered && image.Layer >= layers) ||
             image.Access is not (ImageAccess.ReadOnly or ImageAccess.WriteOnly or ImageAccess.ReadWrite) ||
-            !ImageFormatCompatibility.Matches(image.Texture.RequireImage(image.Level).Format, (SizedInternalFormat)format) ||
+            !ImageFormatCompatibility.Matches(image.Texture.RequireImage(image.Level).Format, format) ||
             !ShaderResourceFormatCompatibility.Matches(binding.Type, format) ||
             GpuPreparedBindings.CompatibleTextureTarget(binding.Type) != (int)viewTarget)
             throw new InvalidOperationException($"Invalid image view for {binding.Contract.Name}.");
@@ -153,8 +153,8 @@ internal static class ShaderPreparedSubmission
     /// <summary>Selects the whole allocation for layered shader types when the property supplies no explicit view.</summary>
     private static RHIImageBinding DefaultImageView(GpuPreparedBindings.Entry binding, GpuTextureRef texture)
     {
-        var target = (TextureTarget)GpuPreparedBindings.CompatibleTextureTarget(binding.Type);
-        return new(texture!, Layered: target is TextureTarget.Texture3D or TextureTarget.Texture2DArray or TextureTarget.TextureCubeMap);
+        var target = (TextureDimension)GpuPreparedBindings.CompatibleTextureTarget(binding.Type);
+        return new(texture!, Layered: target is TextureDimension.Three or TextureDimension.TwoArray or TextureDimension.Cube);
     }
     /// <summary>Projects one array element without changing its preparation-owned activity or required policy.</summary>
     private static GpuPreparedBindings.Entry Element(GpuPreparedBindings.Entry binding, int element) => binding with

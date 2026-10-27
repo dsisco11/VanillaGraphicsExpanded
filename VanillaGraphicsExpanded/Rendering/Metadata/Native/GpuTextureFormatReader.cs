@@ -1,5 +1,5 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
-using OpenTK.Graphics.OpenGL;
 
 namespace VanillaGraphicsExpanded.Rendering;
 
@@ -8,12 +8,12 @@ internal static class GpuTextureFormatReader
 {
     #region Internal API
     /// <summary>Distinguishes explicit storage formats from requests whose representation is driver-selected.</summary>
-    internal static bool IsExplicitFormat(PixelInternalFormat supplied)
-        => supplied is not ((PixelInternalFormat)All.Red or (PixelInternalFormat)All.Rg or PixelInternalFormat.Rgb
-            or PixelInternalFormat.Rgba or PixelInternalFormat.DepthComponent or PixelInternalFormat.DepthStencil
-            or PixelInternalFormat.CompressedRed or PixelInternalFormat.CompressedRg
-            or PixelInternalFormat.CompressedRgb or PixelInternalFormat.CompressedRgba
-            or PixelInternalFormat.CompressedSrgb or PixelInternalFormat.CompressedSrgbAlpha);
+    internal static bool IsExplicitFormat(TextureFormat supplied)
+        => supplied is not (TextureFormat.Red or TextureFormat.Rg or TextureFormat.Rgb
+            or TextureFormat.Rgba or TextureFormat.DepthComponent or TextureFormat.DepthStencil
+            or TextureFormat.CompressedRed or TextureFormat.CompressedRg
+            or TextureFormat.CompressedRgb or TextureFormat.CompressedRgba
+            or TextureFormat.CompressedSrgb or TextureFormat.CompressedSrgbAlpha);
 
 
     #endregion

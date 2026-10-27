@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Numerics;
 using VanillaGraphicsExpanded.PBR.Atmosphere;
@@ -34,12 +35,12 @@ public sealed class PostprocessingPhotometricTests(HeadlessGLFixture fixture) : 
             lumon, 1, Vector3.One, LightingCalibration.EmissionReferenceNits, 0).Total;
         float scale = LightingStorage.FrameScale(256, bound);
         using var publication = new TestFrameLightingPublication(); publication.Capture(scale);
-        using var source = TestFramework.CreateTexture(1, 1, PixelInternalFormat.R11fG11fB10f,
+        using var source = TestFramework.CreateTexture(1, 1, TextureFormat.R11fG11fB10f,
             new[] { background * scale, background * scale, background * scale });
         float[] stored = source.ReadPixels();
         foreach (float component in stored.Take(3)) Assert.True(component > 0, $"LumOn={lumon}: scale={scale:R}, bound={bound:R}");
-        using var zero = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba32f, [0f, 0f, 0f, 0f]);
-        using var target = TestFramework.CreateTestGBuffer(1, 1, PixelInternalFormat.Rgba32f);
+        using var zero = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba32f, [0f, 0f, 0f, 0f]);
+        using var target = TestFramework.CreateTestGBuffer(1, 1, TextureFormat.Rgba32f);
         using var camera = TestFrameCamera.CreateIdentity(1, 1);
         using var exposure = ExposureTestStorage.Create(8);
         using var draw = new PostprocessDraw();
@@ -61,8 +62,8 @@ public sealed class PostprocessingPhotometricTests(HeadlessGLFixture fixture) : 
     {
         EnsureShaderTestAvailable();
         using var publication = new TestFrameLightingPublication(); publication.Capture(LightingStorage.MinimumFrameScale);
-        using var source = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, [65504f, 65504f, 65504f, 1f]);
-        using var target = TestFramework.CreateTestGBuffer(1, 1, PixelInternalFormat.Rgba16f);
+        using var source = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba16f, [65504f, 65504f, 65504f, 1f]);
+        using var target = TestFramework.CreateTestGBuffer(1, 1, TextureFormat.Rgba16f);
         using var camera = TestFrameCamera.CreateIdentity(1, 1);
         using var exposure = ExposureTestStorage.Create(ev);
         using var draw = new PostprocessDraw();
@@ -86,8 +87,8 @@ public sealed class PostprocessingPhotometricTests(HeadlessGLFixture fixture) : 
     public void LumaAndRadialShaftsContainHalfStorage(bool shafts)
     {
         EnsureShaderTestAvailable();
-        using var source = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba32f, [float.MaxValue, float.PositiveInfinity, float.NegativeInfinity, .25f]);
-        using var target = TestFramework.CreateTestGBuffer(1, 1, PixelInternalFormat.Rgba16f);
+        using var source = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba32f, [float.MaxValue, float.PositiveInfinity, float.NegativeInfinity, .25f]);
+        using var target = TestFramework.CreateTestGBuffer(1, 1, TextureFormat.Rgba16f);
         using var camera = TestFrameCamera.CreateIdentity(1, 1);
         using var draw = new PostprocessDraw();
         GpuProgram program;
@@ -112,8 +113,8 @@ public sealed class PostprocessingPhotometricTests(HeadlessGLFixture fixture) : 
     {
         EnsureShaderTestAvailable();
         var shader = Programs.Create<BloomShaderProgram>();
-        using var source = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba32f, [float.NaN, 1f, 1f, 1f]);
-        using var target = TestFramework.CreateTestGBuffer(1, 1, PixelInternalFormat.Rgba16f);
+        using var source = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba32f, [float.NaN, 1f, 1f, 1f]);
+        using var target = TestFramework.CreateTestGBuffer(1, 1, TextureFormat.Rgba16f);
         using var draw = new PostprocessDraw();
         FramebufferTestSetup.ClearAttachments(target, .25f, .5f, .75f, .125f);
         shader.SourceImage = source; shader.SecondaryImage = source;
@@ -135,9 +136,9 @@ public sealed class PostprocessingPhotometricTests(HeadlessGLFixture fixture) : 
     {
         EnsureShaderTestAvailable();
         var shader = Programs.Create<BloomShaderProgram>();
-        using var source = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba32f, [input, input, input, .37f]);
-        using var secondary = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba32f, [48000f, 48000f, 48000f, .7f]);
-        using var target = TestFramework.CreateTestGBuffer(1, 1, PixelInternalFormat.Rgba16f);
+        using var source = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba32f, [input, input, input, .37f]);
+        using var secondary = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba32f, [48000f, 48000f, 48000f, .7f]);
+        using var target = TestFramework.CreateTestGBuffer(1, 1, TextureFormat.Rgba16f);
         using var exposure = ExposureTestStorage.Create(0);
         using var draw = new PostprocessDraw();
         shader.SourceImage = source; shader.SecondaryImage = secondary; shader.ExposureBuffer = exposure;
@@ -162,10 +163,10 @@ public sealed class PostprocessingPhotometricTests(HeadlessGLFixture fixture) : 
     {
         EnsureShaderTestAvailable();
         using var publication = new TestFrameLightingPublication(); publication.Capture(scale);
-        using var source = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba32f, [8 * scale, 4 * scale, 2 * scale, .37f]);
-        using var zero = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba32f, [0f, 0f, 0f, 0f]);
-        using var glare = TestFramework.CreateTestGBuffer(1, 1, PixelInternalFormat.Rgba16f);
-        using var target = TestFramework.CreateTestGBuffer(1, 1, PixelInternalFormat.Rgba32f);
+        using var source = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba32f, [8 * scale, 4 * scale, 2 * scale, .37f]);
+        using var zero = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba32f, [0f, 0f, 0f, 0f]);
+        using var glare = TestFramework.CreateTestGBuffer(1, 1, TextureFormat.Rgba16f);
+        using var target = TestFramework.CreateTestGBuffer(1, 1, TextureFormat.Rgba32f);
         using var camera = TestFrameCamera.CreateIdentity(1, 1);
         using var exposure = ExposureTestStorage.Create(-2);
         using var draw = new PostprocessDraw();

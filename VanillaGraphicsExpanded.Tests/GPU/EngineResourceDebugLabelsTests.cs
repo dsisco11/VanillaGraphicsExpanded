@@ -51,8 +51,8 @@ public sealed class EngineResourceDebugLabelsTests(HeadlessGLFixture fixture) : 
     public void DefaultTablePreservesSharedDepthOwnershipAcrossRebuilds()
     {
         EnsureContextValid();
-        using var first = CreateMRTRenderTarget(2, 2, PixelInternalFormat.Rgba16f, PixelInternalFormat.Rgba16f, PixelInternalFormat.Rgba16f);
-        using var second = CreateMRTRenderTarget(2, 2, PixelInternalFormat.Rgba16f, PixelInternalFormat.Rgba16f, PixelInternalFormat.Rgba16f);
+        using var first = CreateMRTRenderTarget(2, 2, TextureFormat.Rgba16f, TextureFormat.Rgba16f, TextureFormat.Rgba16f);
+        using var second = CreateMRTRenderTarget(2, 2, TextureFormat.Rgba16f, TextureFormat.Rgba16f, TextureFormat.Rgba16f);
         using var depth = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.R32f, Width = System.Math.Max(1, 2), Height = System.Math.Max(1, 2), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         using var replacement = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.R32f, Width = System.Math.Max(1, 2), Height = System.Math.Max(1, 2), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         var frames = new[] { Borrow(first), Borrow(second) };
@@ -75,7 +75,7 @@ public sealed class EngineResourceDebugLabelsTests(HeadlessGLFixture fixture) : 
     public void OitReplacementObjectsAreLabeledWithoutChangingBindings()
     {
         EnsureContextValid();
-        using var target = CreateMRTRenderTarget(2, 2, PixelInternalFormat.Rgba16f, PixelInternalFormat.Rgba16f, PixelInternalFormat.Rgba16f);
+        using var target = CreateMRTRenderTarget(2, 2, TextureFormat.Rgba16f, TextureFormat.Rgba16f, TextureFormat.Rgba16f);
         using var reveal = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba16f, Width = System.Math.Max(1, 2), Height = System.Math.Max(1, 2), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         using var buckets = RHICommandContext.Current.CreateTexture3D(new RHITextureDescription { Dimension = TextureDimension.TwoArray, Format = TextureFormat.Rgba16f, Width = System.Math.Max(1, 2), Height = System.Math.Max(1, 2), Depth = System.Math.Max(1, 3), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Linear, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         using var replacement = RHICommandContext.Current.CreateTexture3D(new RHITextureDescription { Dimension = TextureDimension.TwoArray, Format = TextureFormat.Rgba16f, Width = System.Math.Max(1, 2), Height = System.Math.Max(1, 2), Depth = System.Math.Max(1, 3), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Linear, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();

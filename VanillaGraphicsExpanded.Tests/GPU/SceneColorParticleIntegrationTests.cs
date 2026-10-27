@@ -59,12 +59,12 @@ public sealed class SceneColorParticleIntegrationTests(HeadlessGLFixture fixture
     {
         EnsureContextValid();
         fixture.InitializeResourceDisposal();
-        using var material = new GpuFramebufferAttachment(2, 2, PixelInternalFormat.Rgba16f);
-        using var glow = new GpuFramebufferAttachment(2, 2, PixelInternalFormat.Rgba32f);
-        using var depthStorage = new DepthTexture(2, 2, PixelInternalFormat.DepthComponent32f);
+        using var material = new GpuFramebufferAttachment(2, 2, TextureFormat.Rgba16f);
+        using var glow = new GpuFramebufferAttachment(2, 2, TextureFormat.Rgba32f);
+        using var depthStorage = new DepthTexture(2, 2, TextureFormat.DepthComponent32f);
         using var depth = GpuFramebufferAttachment.FromTexture(depthStorage);
         using var primary = DynamicGpuFramebuffer.Create([material, glow], depth);
-        using var other = CreateRenderTarget(2, 2, PixelInternalFormat.Rgba32f);
+        using var other = CreateRenderTarget(2, 2, TextureFormat.Rgba32f);
         using var capture = new SceneColorParticleTargets(primary);
         FramebufferTestSetup.BindForEngineRendering(primary);
         GL.Disable(EnableCap.ScissorTest);

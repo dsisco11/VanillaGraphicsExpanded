@@ -1,3 +1,5 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
+using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.PBR.SceneColor;
 using VanillaGraphicsExpanded.Rendering;
@@ -28,7 +30,7 @@ public sealed class NativeFogColorEnvelopeTests(HeadlessGLFixture fixture) : Ren
             helper + function + "\nvoid main(){outColor=applySpheresFog(vec4(1,2,3,1),standardFog,vec3(0,0,1));if(decode>0)outColor.rgb=VgeCompatibilityLuminance(outColor.rgb);}");
         using var program = GpuProgramObject.Adopt(TerrainShaderTestFixture.Link(vertex, fragment));
         using var framework = new ShaderTestFramework();
-        using var target = CreateMRTRenderTarget(1, 1, PixelInternalFormat.Rgba32f);
+        using var target = CreateMRTRenderTarget(1, 1, TextureFormat.Rgba32f);
         foreach (float density in new[] { 0f, .25f, 10f })
         foreach (float standardFog in new[] { 0f, .5f, 1f })
         {

@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.Integration.OpenGL;
 using System;
 using OpenTK.Graphics.OpenGL;
 using Native = OpenTK.Graphics.OpenGL4;
@@ -27,7 +28,7 @@ internal sealed partial class OpenGLBackend
     {
         RequireContext();
         var data = owner.MetadataSnapshot;
-        AllocateRenderbufferStorage(owner, new() { Format = OpenGLImageValues.Format(data.Format), Width = width, Height = height, Samples = data.Samples });
+        AllocateRenderbufferStorage(owner, new() { Format = data.Format, Width = width, Height = height, Samples = data.Samples });
     }
     #endregion
 
@@ -58,7 +59,7 @@ internal sealed partial class OpenGLBackend
     private static GpuRenderbufferInitialization LowerRenderbuffer(in RHIRenderbufferDescription request)
     {
         if (!request.Has(0) || !request.Has(1) || !request.Has(2)) throw new ArgumentException("Renderbuffer format and extent are required.");
-        var result = new GpuRenderbufferInitialization { Format = (RenderbufferStorage)OpenGLImageValues.Format(request.Format), Width = request.Width, Height = request.Height };
+        var result = new GpuRenderbufferInitialization { Format = request.Format, Width = request.Width, Height = request.Height };
         if (request.Has(3)) result.Samples = request.Samples;
         if (request.Has(4)) result.CoverageSamples = request.CoverageSamples;
         result.Validate();
@@ -71,10 +72,10 @@ internal sealed partial class OpenGLBackend
     {
         int samples = request.Samples;
         if (request.HasCoverageSamples)
-            GL.Ext.NamedRenderbufferStorageMultisampleCoverage(id, request.CoverageSamples, samples, (Native.InternalFormat)request.Format, request.Width, request.Height);
+            GL.Ext.NamedRenderbufferStorageMultisampleCoverage(id, request.CoverageSamples, samples, (Native.InternalFormat)OpenGLImageValues.Format(request.Format), request.Width, request.Height);
         else if (samples > 0)
         {
-            var support = GpuSupport.GetInternalFormatCapabilities(ImageTarget.Renderbuffer, (SizedInternalFormat)request.Format);
+            var support = GpuSupport.GetInternalFormatCapabilities(TextureDimension.Two, request.Format, GpuResourceKind.Renderbuffer);
             if (!support.Supported) throw new ArgumentOutOfRangeException(nameof(request));
             int selected = support.SampleCounts.IsDefaultOrEmpty ? samples : int.MaxValue;
             foreach (int count in support.SampleCounts)
@@ -82,17 +83,17 @@ internal sealed partial class OpenGLBackend
             if (!support.Supported || selected == int.MaxValue)
                 throw new ArgumentOutOfRangeException(nameof(request), "No supported sample count satisfies the requested format.");
             samples = selected;
-            GL.NamedRenderbufferStorageMultisample(id, samples, (Native.RenderbufferStorage)request.Format, request.Width, request.Height);
+            GL.NamedRenderbufferStorageMultisample(id, samples, (Native.RenderbufferStorage)OpenGLImageValues.Format(request.Format), request.Width, request.Height);
         }
-        else GL.NamedRenderbufferStorage(id, (Native.RenderbufferStorage)request.Format, request.Width, request.Height);
+        else GL.NamedRenderbufferStorage(id, (Native.RenderbufferStorage)OpenGLImageValues.Format(request.Format), request.Width, request.Height);
         CheckRenderbufferStep(operation, creationGuard);
-        if (request.HasCoverageSamples || samples > 0 && GpuSupport.GetInternalFormatCapabilities(ImageTarget.Renderbuffer, (SizedInternalFormat)request.Format).SampleCounts.IsDefaultOrEmpty)
+        if (request.HasCoverageSamples || samples > 0 && GpuSupport.GetInternalFormatCapabilities(TextureDimension.Two, request.Format, GpuResourceKind.Renderbuffer).SampleCounts.IsDefaultOrEmpty)
         {
             GL.GetNamedRenderbufferParameter(id, Native.RenderbufferParameterName.RenderbufferSamples, out samples);
             CheckRenderbufferStep(operation, creationGuard);
             if (samples <= 0) throw new InvalidOperationException("Allocated renderbuffer samples are unavailable.");
         }
-        return new(request.Width, request.Height, (PixelInternalFormat)request.Format, samples);
+        return new(request.Width, request.Height, request.Format, samples);
     }
 
     /// <summary>Stops allocation-result reads after original identity or context retirement.</summary>

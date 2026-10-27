@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using VanillaGraphicsExpanded.LumOn;
 using VanillaGraphicsExpanded.PBR;
@@ -82,30 +83,30 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
         var zeroIndirectFullData = CreateUniformColorData(ScreenWidth, ScreenHeight, 0f, 0f, 0f, 1f);
         var injectedIndirectFullData = CreateUniformColorData(ScreenWidth, ScreenHeight, 0.2f, 0.2f, 0.2f, 1f);
 
-        using var primaryScene = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, primarySceneData);
-        using var primaryDepth = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, primaryDepthData);
-        using var gBufferAlbedo = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, gBufferAlbedoData);
-        using var gBufferNormal = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, gBufferNormalData);
-        using var gBufferMaterial = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, gBufferMaterialData);
+        using var primaryScene = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.Rgba16f, primarySceneData);
+        using var primaryDepth = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.R32f, primaryDepthData);
+        using var gBufferAlbedo = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.Rgba16f, gBufferAlbedoData);
+        using var gBufferNormal = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.Rgba16f, gBufferNormalData);
+        using var gBufferMaterial = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.Rgba16f, gBufferMaterialData);
 
         // Comparison samplers require depth storage, independently of the numerical fixture values.
-        using var shadowNear = new DepthTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.DepthComponent32f);
+        using var shadowNear = new DepthTexture(ScreenWidth, ScreenHeight, TextureFormat.DepthComponent32f);
         shadowNear.UploadDataImmediate(shadowNearData);
-        using var shadowFar = new DepthTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.DepthComponent32f);
+        using var shadowFar = new DepthTexture(ScreenWidth, ScreenHeight, TextureFormat.DepthComponent32f);
         shadowFar.UploadDataImmediate(shadowFarData);
 
-        using var historyRadiance = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, historyRadianceData);
-        using var historyMeta = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rg32f, historyMetaData);
+        using var historyRadiance = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, TextureFormat.Rgba16f, historyRadianceData);
+        using var historyMeta = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, TextureFormat.Rg32f, historyMetaData);
 
-        using var zeroIndirectFull = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, zeroIndirectFullData);
-        using var injectedIndirectFull = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, injectedIndirectFullData);
+        using var zeroIndirectFull = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.Rgba16f, zeroIndirectFullData);
+        using var injectedIndirectFull = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.Rgba16f, injectedIndirectFullData);
 
         using var targets = new PbrLumOnPipelineTargets();
         // The composite executable exports color and both refraction outputs, even when only color is inspected.
         using var baselineComposite = TestFramework.CreateTestGBuffer(ScreenWidth, ScreenHeight,
-            PixelInternalFormat.Rgba16f, PixelInternalFormat.Rgba16f, PixelInternalFormat.R32f);
+            TextureFormat.Rgba16f, TextureFormat.Rgba16f, TextureFormat.R32f);
         using var injectedComposite = TestFramework.CreateTestGBuffer(ScreenWidth, ScreenHeight,
-            PixelInternalFormat.Rgba16f, PixelInternalFormat.Rgba16f, PixelInternalFormat.R32f);
+            TextureFormat.Rgba16f, TextureFormat.Rgba16f, TextureFormat.R32f);
 
         {
             var pbrDirectProg = Programs.Create<PBRDirectLightingShaderProgram>();
@@ -169,11 +170,11 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
             pbrDirectProg.PrimaryDepth = primaryDepth;
 
             // This synthetic outdoor scene has full propagated sunlight at every receiver.
-            using var directEnvironment = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, [0f, 0f, 0f, 1f]);
+            using var directEnvironment = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba16f, [0f, 0f, 0f, 1f]);
             using var surface = LayeredTestTexture.Create(gBufferNormal, gBufferMaterial, directEnvironment);
             pbrDirectProg.GBufferSurface = surface;
             pbrCompositeProg.GBufferSurface = surface;
-            using var receiverPosition = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba32f, new float[4]);
+            using var receiverPosition = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba32f, new float[4]);
             pbrDirectProg.GBufferPosition = receiverPosition;
             pbrCompositeProg.GBufferPosition = receiverPosition;
             pbrDirectProg.ShadowMapNear = shadowNear;
@@ -209,7 +210,7 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
                 prevViewProjMatrix: proj,
                 historyValid: 1);
 
-            using var patchIdentity=TestFramework.CreateTexture(ScreenWidth,ScreenHeight,PixelInternalFormat.Rgba32ui);
+            using var patchIdentity=TestFramework.CreateTexture(ScreenWidth,ScreenHeight,TextureFormat.Rgba32ui);
             patchIdentity.UploadDataImmediate(new uint[ScreenWidth*ScreenHeight*4]);
             velocityProg.PatchIdentity=patchIdentity;
             velocityProg.PrimaryDepth = primaryDepth;
@@ -698,7 +699,7 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
         GL.GetInteger(GetPName.ActiveTexture, out int prevActiveTex);
 
         GL.ActiveTexture(TextureUnit.Texture0 + expectedUnit);
-        GL.GetInteger(expectedTexture.TextureTarget == TextureTarget.Texture2DArray ? GetPName.TextureBinding2DArray : GetPName.TextureBinding2D, out int boundTexId);
+        GL.GetInteger(expectedTexture.TextureTarget == TextureDimension.TwoArray ? GetPName.TextureBinding2DArray : GetPName.TextureBinding2D, out int boundTexId);
 
         // Restore.
         GL.ActiveTexture((TextureUnit)prevActiveTex);
@@ -785,7 +786,7 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
         string stage,
         int textureId,
         int mipLevel,
-        PixelInternalFormat expectedInternalFormat,
+        TextureFormat expectedInternalFormat,
         int expectedWidth,
         int expectedHeight)
     {
@@ -801,7 +802,7 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
 
         GL.BindTexture(TextureTarget.Texture2D, prevBinding);
 
-        Assert.Equal((int)expectedInternalFormat, internalFormat);
+        Assert.Equal(expectedInternalFormat, OpenGLImageValues.Format((PixelInternalFormat)internalFormat));
         Assert.Equal(expectedWidth, width);
         Assert.Equal(expectedHeight, height);
     }

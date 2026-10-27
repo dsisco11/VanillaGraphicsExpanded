@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using OpenTK.Graphics.OpenGL;
@@ -9,7 +10,7 @@ internal sealed partial class GpuResourceManager
 {
     // These are pending observation arguments, consumed by the next canonical read.
     // Original entry keys prevent queued observations from attaching to a reused name.
-    private readonly ConditionalWeakTable<GpuResourceRegistration, Dictionary<FramebufferAttachment, FramebufferAttachmentCommand>> framebufferCommands = new();
+    private readonly ConditionalWeakTable<GpuResourceRegistration, Dictionary<FramebufferSlot, FramebufferAttachmentCommand>> framebufferCommands = new();
 
     #region Internal API
     /// <summary>Retains a completed command for the next canonical read, including deferred attachment groups.</summary>
@@ -19,10 +20,10 @@ internal sealed partial class GpuResourceManager
         RequireMetadataContext();
         RequireLiveEntry(entry);
         var commands = framebufferCommands.GetValue(entry, static _ => new());
-        if (command.Slot == FramebufferAttachment.DepthStencilAttachment)
+        if (command.Slot == FramebufferSlot.DepthStencil)
         {
-            commands[FramebufferAttachment.DepthAttachment] = command;
-            commands[FramebufferAttachment.StencilAttachment] = command;
+            commands[FramebufferSlot.Depth] = command;
+            commands[FramebufferSlot.Stencil] = command;
         }
         else commands[command.Slot] = command;
     }
@@ -43,7 +44,7 @@ internal sealed partial class GpuResourceManager
                 ? GpuFramebufferAttachmentMode.Unknown : GpuFramebufferAttachmentMode.Ordinary;
             if (image.Kind != GpuResourceKind.Texture || FindResource(image.Kind, image.Id)
                 is GpuResourceMetadataEntry<GpuTextureMetadata> backing
-                    && backing.Metadata.Target != 0 && backing.Metadata.Target != TextureTarget.Texture2DArray)
+                    && backing.Metadata.Target != 0 && backing.Metadata.Target != TextureDimension.TwoArray)
                 mode = GpuFramebufferAttachmentMode.Ordinary;
             bool unchanged = previous is not null && previous.TryGetValue(pair.Key, out var prior)
                 && (prior with { Mode = GpuFramebufferAttachmentMode.Unknown }) == (image with { Mode = GpuFramebufferAttachmentMode.Unknown });

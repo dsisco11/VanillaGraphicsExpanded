@@ -146,7 +146,7 @@ public sealed class FrameLightingStorageTests(HeadlessGLFixture fixture) : LumOn
         int program=TerrainShaderTestFixture.Link(vertex,modules.Compile(ShaderType.FragmentShader,source));
         try
         {
-            using var target=TestFramework.CreateTestGBuffer(2,1,PixelInternalFormat.Rgba16f);
+            using var target=TestFramework.CreateTestGBuffer(2,1,TextureFormat.Rgba16f);
             float? retainedFaint=null;
             foreach(float bound in new[]{0f,float.MaxValue})
             foreach(int highlight in new[]{0,1})

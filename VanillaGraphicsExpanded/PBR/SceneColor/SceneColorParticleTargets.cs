@@ -49,14 +49,14 @@ internal sealed class SceneColorParticleTargets : IDisposable
         this.primary = primary;
         try
         {
-            var depth = GpuFramebufferAttachmentDiscovery.Read(primary, FramebufferAttachment.DepthAttachment);
-            var glow = GpuFramebufferAttachmentDiscovery.Read(primary, FramebufferAttachment.ColorAttachment1);
+            var depth = GpuFramebufferAttachmentDiscovery.Read(primary, FramebufferSlot.Depth);
+            var glow = GpuFramebufferAttachmentDiscovery.Read(primary, FramebufferSlot.Color1);
             // Exact copies let the resolve identify surviving particle depth without
             // guessing a tolerance that could include a later foreground surface.
-            if (depth.InternalFormat is not (PixelInternalFormat.DepthComponent32 or PixelInternalFormat.DepthComponent32f) || depth.Samples != 0
+            if (depth.InternalFormat is not (TextureFormat.DepthComponent32 or TextureFormat.DepthComponent32f) || depth.Samples != 0
                 || depth.TextureId == 0 || glow.Width != depth.Width || glow.Height != depth.Height)
                 throw new InvalidOperationException("Particle capture requires matching single-sample primary 32-bit depth and glow images.");
-            var color = Allocate(PixelInternalFormat.Rgba16f, "Radiance");
+            var color = Allocate(TextureFormat.Rgba16f, "Radiance");
             var before = Allocate(depth.InternalFormat, "BeforeDepth");
             var after = Allocate(depth.InternalFormat, "AfterDepth");
             // Owned allocations already have canonical texture recipients. Retain those
@@ -65,17 +65,17 @@ internal sealed class SceneColorParticleTargets : IDisposable
             BeforeDepth = new((GpuResource<GpuTextureMetadata>)before.Resource!);
             AfterDepth = new((GpuResource<GpuTextureMetadata>)after.Resource!);
             BorrowedTexture.GetOrReplace(ref visibilityDepthInput, depth.TextureId);
-            var receiver = Allocate(PixelInternalFormat.R32f, "ReceiverDepth");
-            var visible = Allocate(PixelInternalFormat.Rgba16f, "VisibleRadiance");
+            var receiver = Allocate(TextureFormat.R32f, "ReceiverDepth");
+            var visible = Allocate(TextureFormat.Rgba16f, "VisibleRadiance");
             if (captureSsao)
             {
-                var normal = Allocate(PixelInternalFormat.Rgba16f, "SsaoNormal");
-                var position = Allocate(PixelInternalFormat.Rgba16f, "SsaoPosition");
+                var normal = Allocate(TextureFormat.Rgba16f, "SsaoNormal");
+                var position = Allocate(TextureFormat.Rgba16f, "SsaoPosition");
                 DrawTarget = DynamicGpuFramebuffer.Create([color, glow, normal, position], depth, "SceneColor.Particles.Draw");
                 // Deferred lighting keeps the original position attachment until
                 // composition finishes. Only then are surviving particle values restored.
-                BorrowedTexture.GetOrReplace(ref normalOutput,GpuFramebufferAttachmentDiscovery.Read(primary,FramebufferAttachment.ColorAttachment2).TextureId);
-                BorrowedTexture.GetOrReplace(ref positionOutput,GpuFramebufferAttachmentDiscovery.Read(primary,FramebufferAttachment.ColorAttachment3).TextureId);
+                BorrowedTexture.GetOrReplace(ref normalOutput,GpuFramebufferAttachmentDiscovery.Read(primary,FramebufferSlot.Color2).TextureId);
+                BorrowedTexture.GetOrReplace(ref positionOutput,GpuFramebufferAttachmentDiscovery.Read(primary,FramebufferSlot.Color3).TextureId);
                 SsaoPass=new([new(Image:RHIAttachment.FromTexture(normalOutput)),new(Image:RHIAttachment.FromTexture(positionOutput))],label:"SceneColor.Particles.SsaoRestore");
             }
             else DrawTarget = DynamicGpuFramebuffer.Create([color, glow], depth, "SceneColor.Particles.Draw");
@@ -147,9 +147,9 @@ internal sealed class SceneColorParticleTargets : IDisposable
     }
 
     /// <summary>Tracks owned allocations immediately so partial setup failures cannot leak storage.</summary>
-    private GpuFramebufferAttachment Allocate(PixelInternalFormat format, string name)
+    private GpuFramebufferAttachment Allocate(TextureFormat format, string name)
     {
-        if (format is PixelInternalFormat.DepthComponent32 or PixelInternalFormat.DepthComponent32f)
+        if (format is TextureFormat.DepthComponent32 or TextureFormat.DepthComponent32f)
         {
             var depth = new DepthTexture(primary.Width, primary.Height, format,
                 debugName: "SceneColor.Particles." + name);

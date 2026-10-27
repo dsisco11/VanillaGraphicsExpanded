@@ -8,10 +8,10 @@ internal sealed partial class OpenGlStateCache
     #region Private
     /// <summary>Constructs canonical selections centrally, including packed depth/stencil expansion.</summary>
     internal static GpuFramebufferMetadata WithFramebufferAttachment(GpuFramebufferMetadata candidate,
-        FramebufferAttachment slot, GpuFramebufferAttachment? image)
+        FramebufferSlot slot, GpuFramebufferAttachment? image)
     {
-        if (slot == FramebufferAttachment.DepthStencilAttachment)
-            return WithFramebufferAttachment(WithFramebufferAttachment(candidate, FramebufferAttachment.DepthAttachment, image), FramebufferAttachment.StencilAttachment, image);
+        if (slot == FramebufferSlot.DepthStencil)
+            return WithFramebufferAttachment(WithFramebufferAttachment(candidate, FramebufferSlot.Depth, image), FramebufferSlot.Stencil, image);
         var selections = candidate.Attachments;
         if (image is null) return candidate with { Attachments = selections.Remove(slot) };
         var descriptor = new GpuFramebufferImageMetadata(image.Kind, image.ResourceId, image.MipLevel,

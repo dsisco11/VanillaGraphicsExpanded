@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System;
 using System.Numerics;
@@ -194,7 +195,7 @@ public sealed class AtmospherePublicationTests(HeadlessGLFixture fixture) : Rend
         var external = AtmosphereModSystem.ExternalTransmissionTexture!;
         Assert.Equal(snapshot.ExternalTransmission.IsEmpty ? 1 : 512, external.Width);
         Assert.Equal(1, external.Height);
-        Assert.Equal(PixelInternalFormat.Rgba32f, external.InternalFormat);
+        Assert.Equal(TextureFormat.Rgba32f, external.InternalFormat);
         Assert.Equal(snapshot.ExternalTransmission.IsEmpty ? new[] { 0f, 0f, 0f, 1f }
             : snapshot.ExternalTransmission.ToArray(), external.ReadPixels());
     }

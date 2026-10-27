@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.Integration.OpenGL;
 using System;
 using VanillaGraphicsExpanded.Rendering.Integration;
 using VanillaGraphicsExpanded.Rendering.Pipeline;
@@ -26,16 +27,16 @@ internal sealed partial class OpenGLBackend
         {
             var source = description.Colors[output];
             TextureFormat? format = source.Image is { } image
-                ? OpenGLImageValues.Format(OpenGLAttachmentIdentity.Resolve(image).Image.Format) : null;
+                ? OpenGLAttachmentIdentity.Resolve(image).Image.Format : null;
             colors[output] = new(format, source.DiscardOutput);
         }
         var first = key.DepthStencil?.Image ?? key.Colors[0].Image.Image;
         var depth = key.DepthStencil?.Image;
         var signature = new Pipeline.Descriptions.RenderTargetSignature(colors,
-            depth is { } imageDepth ? OpenGLImageValues.Format(imageDepth.Format) : null,
+            depth is { } imageDepth ? imageDepth.Format : null,
             Math.Max(1, first.Samples), depth is { } d && TextureFormatHelper.IsDepthFormat(d.Format),
             depth is { } s && (TextureFormatHelper.IsStencilFormat(s.Format)
-                || s.Format is OpenTK.Graphics.OpenGL.PixelInternalFormat.Depth24Stencil8 or OpenTK.Graphics.OpenGL.PixelInternalFormat.Depth32fStencil8));
+                || s.Format is TextureFormat.Depth24Stencil8 or TextureFormat.Depth32fStencil8));
         return signature;
     }
     #endregion

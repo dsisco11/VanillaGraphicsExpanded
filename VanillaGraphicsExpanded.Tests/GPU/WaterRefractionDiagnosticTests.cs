@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using VanillaGraphicsExpanded.Rendering.Shaders.Fixtures;
 using System.Numerics;
@@ -78,9 +79,9 @@ public sealed class WaterRefractionDiagnosticTests(HeadlessGLFixture fixture, IT
             TestFramework.RenderQuadTo(reduction,reduced!);
             inputs.Color = halfColor!; inputs.Depth = halfDepth!;
         }
-        using var target = CreateMRTRenderTarget(size, size, PixelInternalFormat.Rgba32f, PixelInternalFormat.Rgba32f,
-            PixelInternalFormat.Rgba32f, PixelInternalFormat.Rgba32f, PixelInternalFormat.Rgba32f,
-            PixelInternalFormat.Rgba32f, PixelInternalFormat.Rgba32f);
+        using var target = CreateMRTRenderTarget(size, size, TextureFormat.Rgba32f, TextureFormat.Rgba32f,
+            TextureFormat.Rgba32f, TextureFormat.Rgba32f, TextureFormat.Rgba32f,
+            TextureFormat.Rgba32f, TextureFormat.Rgba32f);
         TestFramework.RenderQuadTo(program, target);
         int[] columns = scenario == 6 ? [1, 3, 6, 12, 32, 64] : [64];
         foreach (int x in columns)

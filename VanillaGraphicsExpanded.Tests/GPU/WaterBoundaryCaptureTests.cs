@@ -156,11 +156,11 @@ public sealed class WaterBoundaryCaptureTests(HeadlessGLFixture fixture, ITestOu
             // This opt-in draw-only comparison uses the same production owner and
             // fixed workload for externally supplied, equally optimized binaries.
             const int size = 512;
-            using var measuredTarget = CreateMRTRenderTarget(size, size, PixelInternalFormat.Rgba32f, PixelInternalFormat.Rgba32f);
+            using var measuredTarget = CreateMRTRenderTarget(size, size, TextureFormat.Rgba32f, TextureFormat.Rgba32f);
             using var measuredDepth = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.R32f, Width = System.Math.Max(1, size), Height = System.Math.Max(1, size), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
             using var indicesTexture = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.R32f, Width = System.Math.Max(1, size), Height = System.Math.Max(1, size), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
             using var recordsTexture = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba32f, Width = System.Math.Max(1, 4), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
-            using var shadow = new DepthTexture(1, 1, PixelInternalFormat.DepthComponent32f);
+            using var shadow = new DepthTexture(1, 1, TextureFormat.DepthComponent32f);
             measuredDepth.UploadDataImmediate(Enumerable.Repeat(deviceDepth, size * size).ToArray());
             bool phaseMeasurement = Environment.GetEnvironmentVariable("VGE_MEASURE_WATER_PHASE") == "1";
             recordsTexture.UploadDataImmediate([.1f, .2f, .3f, 0, 0, 0, 0, 0, .1f, .2f, .3f, 0, .25f, 0, 0, 0]);

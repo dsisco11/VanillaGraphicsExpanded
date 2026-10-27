@@ -18,8 +18,8 @@ internal sealed partial class OpenGLBackend
         cache.RequireResourceOperationAvailable(GpuResourceKind.Texture, texture.Resource.ResourceId);
         // Sparse allocation/page shape is native integration policy, absent from canonical metadata.
         // Preserve its native rejection behavior rather than inventing facts or querying on every call.
-        using var selection = cache.BindTextureScope(metadata.Target, cache.GetActiveTextureUnit(), (int)texture.Resource.ResourceId);
-        GL.Arb.TexPageCommitment((All)metadata.Target, region.Subresource.MipLevel,
+        using var selection = cache.BindTextureScope(OpenGLImageValues.Target(metadata.Target), cache.GetActiveTextureUnit(), (int)texture.Resource.ResourceId);
+        GL.Arb.TexPageCommitment((All)OpenGLImageValues.Target(metadata.Target), region.Subresource.MipLevel,
             region.X, region.Y, checked(region.Subresource.Layer + region.Z), region.Width, region.Height, region.Depth, commit);
         RequireContext();
     }

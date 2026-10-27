@@ -19,14 +19,14 @@ internal static class OpenGLTextureImageQueries
         var queryTarget = face != 0 ? face : target;
         int width = Read(texture, queryTarget, level, GetTextureParameter.TextureWidth, backend);
         if (width < 0) return false;
-        if (width == 0) { image = new(level, face, 0, 0, 0, 0, 0, false); return true; }
+        if (width == 0) { image = new(level, OpenGLImageValues.Face(face), 0, 0, 0, 0, 0, false); return true; }
         int height = Read(texture, queryTarget, level, GetTextureParameter.TextureHeight, backend);
         int depth = Read(texture, queryTarget, level, GetTextureParameter.TextureDepth, backend);
         int format = Read(texture, queryTarget, level, GetTextureParameter.TextureInternalFormat, backend);
         int samples = target is TextureTarget.Texture2DMultisample or TextureTarget.Texture2DMultisampleArray
             ? Read(texture, queryTarget, level, GetTextureParameter.TextureSamples, backend) : 0;
         if (height < 0 || depth < 0 || format <= 0 || samples < 0) return false;
-        image = new(level, face, width, System.Math.Max(1, height), System.Math.Max(1, depth), (PixelInternalFormat)format, samples, true);
+        image = new(level, OpenGLImageValues.Face(face), width, System.Math.Max(1, height), System.Math.Max(1, depth), OpenGLImageValues.Format((PixelInternalFormat)format), samples, true);
         return true;
     }
     #endregion

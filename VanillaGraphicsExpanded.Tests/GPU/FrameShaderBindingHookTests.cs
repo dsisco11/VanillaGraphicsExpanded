@@ -72,7 +72,7 @@ public sealed class FrameShaderBindingHookTests(HeadlessGLFixture fixture) : Ren
             GL.GetInteger(GetIndexedPName.UniformBufferBinding,GpuBindingRegistry.Ubo.Lights,out int absentLights);
             Assert.Equal(0,absentLights);
             using var framework = new ShaderTestFramework();
-            using var target = framework.CreateTestGBuffer(2,2,PixelInternalFormat.Rgba32f);
+            using var target = framework.CreateTestGBuffer(2,2,TextureFormat.Rgba32f);
             engine.Stop();
             framework.RenderQuadTo(program.ProgramId,target);
             engine.Use();
@@ -164,7 +164,7 @@ public sealed class FrameShaderBindingHookTests(HeadlessGLFixture fixture) : Ren
         int fragment=shaders.Compile(ShaderType.FragmentShader,"#version 330 core\n"+helper+
             "\nlayout(location=0)out vec4 result;void main(){result=vec4(VgeDirectionalAlbedo(.37,.003),0,1);}");
         using var program=GpuProgramObject.Adopt(TerrainShaderTestFixture.Link(vertex,fragment));
-        using var target=CreateRenderTarget(1,1,PixelInternalFormat.Rgba32f);
+        using var target=CreateRenderTarget(1,1,TextureFormat.Rgba32f);
         var engine=new FrameConsumerProgram(program.ProgramId);
         var harmony=new Harmony("tests.energy-native."+Guid.NewGuid());
         var previousProgram=ShaderProgramBase.CurrentShaderProgram;

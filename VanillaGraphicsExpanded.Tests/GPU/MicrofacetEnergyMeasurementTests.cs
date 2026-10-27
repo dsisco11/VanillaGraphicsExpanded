@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.Integration.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System;
 using VanillaGraphicsExpanded.Rendering.RHI;
@@ -56,7 +57,7 @@ public sealed class MicrofacetEnergyMeasurementTests(HeadlessGLFixture fixture, 
                     """;
                 programs.Add(TerrainShaderTestFixture.Link(vertex,modules.Compile(ShaderType.FragmentShader,source)));
             }
-            using var target=CreateRenderTarget(256,256,PixelInternalFormat.Rgba32f);
+            using var target=CreateRenderTarget(256,256,TextureFormat.Rgba32f);
             GL.BindFramebuffer(FramebufferTarget.Framebuffer,target.FboId);GL.Viewport(0,0,256,256);
             GL.Disable(EnableCap.DepthTest);GL.Disable(EnableCap.CullFace);GL.Disable(EnableCap.Blend);
             GL.Disable(EnableCap.ScissorTest);GL.ColorMask(true,true,true,true);
@@ -110,9 +111,9 @@ public sealed class MicrofacetEnergyMeasurementTests(HeadlessGLFixture fixture, 
             int fragment=modules.Compile(ShaderType.FragmentShader,"#version 330 core\n"+helper+"\nlayout(binding=0)uniform sampler2D coordinates;layout(location=0)out vec4 result;void main(){vec2 p=texelFetch(coordinates,ivec2(int(gl_FragCoord.x),0),0).rg;result=vec4(VgeDirectionalAlbedo(p.x,p.y),0,1);}");
             program=TerrainShaderTestFixture.Link(vertex,fragment);
             var inputs=references.SelectMany(row=>new[]{(float)row[0],(float)row[1]}).ToArray();
-            using var coordinates=RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Width = references.Length, Height = 1, Format = TextureFormat.Rg32f, MipLevels = 1, Storage = ResourceStorageMode.Mutable, BaseLevel = 0, MaxLevel = 0, Filter = TextureFilterMode.Nearest, Label = null }, [new RHITextureInitialData(new(new(), 0, 0, 0, references.Length, 1), VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLPixelValues.Encoding(TextureFormatHelper.GetPixelFormat(PixelInternalFormat.Rg32f), OpenTK.Graphics.OpenGL.PixelType.Float), System.Runtime.InteropServices.MemoryMarshal.AsBytes((inputs).AsSpan()).ToArray())]).RequireResource();
-            using var target=CreateRenderTarget(references.Length,1,PixelInternalFormat.Rgba32f);
-            VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, coordinates, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)coordinates).Target))]);VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageBindings.BindSampler(OpenGlStateCache.Current, 0, GpuSamplers.NearestClamp.SamplerId);Helpers.MicrofacetTextureReference.Bind();
+            using var coordinates=RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Width = references.Length, Height = 1, Format = TextureFormat.Rg32f, MipLevels = 1, Storage = ResourceStorageMode.Mutable, BaseLevel = 0, MaxLevel = 0, Filter = TextureFilterMode.Nearest, Label = null }, [new RHITextureInitialData(new(new(), 0, 0, 0, references.Length, 1), new RHIPixelEncoding(TextureFormatHelper.GetPixelFormat(TextureFormat.Rg32f), PixelComponentType.Float), System.Runtime.InteropServices.MemoryMarshal.AsBytes((inputs).AsSpan()).ToArray())]).RequireResource();
+            using var target=CreateRenderTarget(references.Length,1,TextureFormat.Rgba32f);
+            VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, coordinates, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)coordinates).Target)))]);VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageBindings.BindSampler(OpenGlStateCache.Current, 0, GpuSamplers.NearestClamp.SamplerId);Helpers.MicrofacetTextureReference.Bind();
             GL.BindFramebuffer(FramebufferTarget.Framebuffer,target.FboId);GL.Viewport(0,0,references.Length,1);
             GL.Disable(EnableCap.DepthTest);GL.Disable(EnableCap.CullFace);GL.Disable(EnableCap.Blend);
             GL.Disable(EnableCap.ScissorTest);GL.ColorMask(true,true,true,true);

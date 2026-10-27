@@ -33,9 +33,9 @@ public sealed class GpuRenderbufferMetadataInterceptionTests(HeadlessGLFixture f
             int firstChanges = 0, secondChanges = 0;
             firstFramebuffer.AttachmentsChanged += () => firstChanges++;
             secondFramebuffer.AttachmentsChanged += () => secondChanges++;
-            using (OpenGlStateCache.Current.BindTextureScope(((GpuTextureRef)texture).Target, 0, texture.TextureId))
+            using (OpenGlStateCache.Current.BindTextureScope(OpenGLImageValues.Target(((GpuTextureRef)texture).Target), 0, texture.TextureId))
             using (var operation = new GpuResourceManager.MetadataOperation<GpuTextureMetadata>(texture, GpuMetadataChange.Storage))
-                new VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBackend(OpenGlStateCache.Current).DefineTextureImages(texture.TextureId, new GpuTextureInitialization { Target = TextureTarget.Texture2D, AllocationMode = GpuTextureAllocationMode.Mutable, InternalFormat = PixelInternalFormat.Rgba8, Width = 8, Height = 4, Levels = 1 }.Resolve(), operation);
+                new VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBackend(OpenGlStateCache.Current).DefineTextureImages(texture.TextureId, new GpuTextureInitialization { Target = TextureDimension.Two, AllocationMode = GpuTextureAllocationMode.Mutable, InternalFormat = TextureFormat.Rgba8, Width = 8, Height = 4, Levels = 1 }.Resolve(), operation);
             var manager = GpuResourceManagerSystem.CurrentManager!;
             Assert.False(manager.IsResourceMetadataAvailable(first));
             Assert.False(manager.IsResourceMetadataAvailable(second));
@@ -44,7 +44,7 @@ public sealed class GpuRenderbufferMetadataInterceptionTests(HeadlessGLFixture f
             Assert.Equal(1, secondChanges);
             Assert.Throws<InvalidOperationException>(() => firstFramebuffer.Bind());
             Assert.Throws<InvalidOperationException>(() => secondFramebuffer.Bind());
-            GpuResourceManager.ObserveWrapperMetadata(texture, new GpuTextureMetadataReader(TextureTarget.Texture2D), GpuMetadataChange.Storage);
+            GpuResourceManager.ObserveWrapperMetadata(texture, new GpuTextureMetadataReader(TextureDimension.Two), GpuMetadataChange.Storage);
             Assert.Equal(2, firstChanges);
             Assert.Equal(2, secondChanges);
             Assert.Equal(8, first.Width);

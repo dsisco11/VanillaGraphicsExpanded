@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -11,9 +12,9 @@ public sealed partial class DynamicGpuFramebuffer : GpuFramebuffer
 {
     #region Public API
     /// <inheritdoc />
-    public override void SetAttachment(FramebufferAttachment slot, GpuFramebufferAttachment attachment) => SetAttachmentCore(slot, attachment);
+    public override void SetAttachment(FramebufferSlot slot, GpuFramebufferAttachment attachment) => SetAttachmentCore(slot, attachment);
     /// <inheritdoc />
-    public override bool RemoveAttachment(FramebufferAttachment slot) => RemoveAttachmentCore(slot);
+    public override bool RemoveAttachment(FramebufferSlot slot) => RemoveAttachmentCore(slot);
     /// <inheritdoc />
     public override bool Resize(int width, int height) => ResizeCore(width, height);
     #endregion

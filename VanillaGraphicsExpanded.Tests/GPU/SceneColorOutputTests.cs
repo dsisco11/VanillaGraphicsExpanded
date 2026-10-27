@@ -1,3 +1,5 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
+using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering.Shaders.Fixtures;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
@@ -16,7 +18,7 @@ public sealed class SceneColorOutputTests(HeadlessGLFixture fixture) : LumOnShad
     {
         EnsureShaderTestAvailable();
         var program = Programs.Create<SceneColorOutputShaderProgram>();
-        using var target = CreateRenderTarget(2, 1, PixelInternalFormat.Rgba32f);
+        using var target = CreateRenderTarget(2, 1, TextureFormat.Rgba32f);
         TestFramework.RenderQuadTo(program, target);
         float[] actual = target[0].ReadPixels();
         Assert.Equal(new[] { 8f, 2f, 0f, .375f }, actual[..4]);

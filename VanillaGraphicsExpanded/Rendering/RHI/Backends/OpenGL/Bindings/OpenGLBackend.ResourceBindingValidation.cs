@@ -129,10 +129,10 @@ internal sealed partial class OpenGLBackend
         bool layered = view.Layered;
         if (input.DefaultView)
         {
-            var target = (Legacy.TextureTarget)GpuPreparedBindings.CompatibleTextureTarget(binding.Type);
-            layered = target is Legacy.TextureTarget.Texture3D or Legacy.TextureTarget.Texture2DArray
-                or Legacy.TextureTarget.TextureCubeMap or Legacy.TextureTarget.Texture1DArray
-                or Legacy.TextureTarget.TextureCubeMapArray or Legacy.TextureTarget.Texture2DMultisampleArray;
+            var target = (TextureDimension)GpuPreparedBindings.CompatibleTextureTarget(binding.Type);
+            layered = target is TextureDimension.Three or TextureDimension.TwoArray
+                or TextureDimension.Cube or TextureDimension.OneArray
+                or TextureDimension.CubeArray or TextureDimension.TwoMultisampleArray;
         }
         return view with { Layered = layered };
     }

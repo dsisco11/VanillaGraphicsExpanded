@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.Integration.OpenGL;
 using OpenTK.Graphics.OpenGL;
 using Native = OpenTK.Graphics.OpenGL4;
 using GL = OpenTK.Graphics.OpenGL4.GL;
@@ -9,9 +10,15 @@ internal sealed partial class OpenGLBackend
 {
     #region Public API
     /// <summary>Queries supported representation and sample choices once per cached target/format selection.</summary>
-    public InternalFormatCapabilities ReadFormatCapabilities(ImageTarget target, SizedInternalFormat format)
+    public InternalFormatCapabilities ReadFormatCapabilities(TextureDimension imageTarget, TextureFormat imageFormat, GpuResourceKind kind = GpuResourceKind.Texture)
     {
         RequireContext();
+        if (kind is not (GpuResourceKind.Texture or GpuResourceKind.Renderbuffer)) throw new System.InvalidOperationException("Unsupported format resource kind.");
+        if (kind == GpuResourceKind.Renderbuffer && imageTarget != TextureDimension.Two
+            || imageTarget == TextureDimension.Undefined || !System.Enum.IsDefined(imageTarget))
+            throw new System.InvalidOperationException("Unsupported format capability target.");
+        var target = kind == GpuResourceKind.Renderbuffer ? ImageTarget.Renderbuffer : (ImageTarget)OpenGLImageValues.Target(imageTarget);
+        var format = (SizedInternalFormat)OpenGLImageValues.Format(imageFormat);
         // This is explicit capability discovery, retaining its targeted cold-query error policy.
         GlDebug.ThrowIfErrors("Before internal format capability query");
         int supported = ReadFormatField(target, format, InternalFormatParameter.InternalformatSupported);

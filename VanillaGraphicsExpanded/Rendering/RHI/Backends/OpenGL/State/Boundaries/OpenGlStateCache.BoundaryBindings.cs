@@ -85,7 +85,7 @@ internal sealed partial class OpenGlStateCache
         }
         try
         {
-            foreach (var slot in footprint.Textures) CaptureBoundaryTexture(slot.Unit, slot.Target, bindings);
+            foreach (var slot in footprint.Textures) CaptureBoundaryTexture(slot.Unit, OpenGLImageValues.Target(slot.Target), bindings);
         }
         finally
         {

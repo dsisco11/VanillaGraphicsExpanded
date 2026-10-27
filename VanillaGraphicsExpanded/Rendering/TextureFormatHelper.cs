@@ -1,137 +1,122 @@
-using OpenTK.Graphics.OpenGL;
+using VanillaGraphicsExpanded.Rendering.RHI;
 
 namespace VanillaGraphicsExpanded.Rendering;
 
 /// <summary>
-/// Helper class for mapping OpenGL texture formats.
+/// Classifies semantic texture storage and client pixel representations.
 /// Provides consistent format/type pairs for texture creation.
 /// </summary>
 public static class TextureFormatHelper
 {
-    /// <summary>OpenGL's sized stencil-only texture format, absent from this OpenTK enum.</summary>
-    public const PixelInternalFormat StencilIndex8 = (PixelInternalFormat)All.StencilIndex8;
-
     /// <summary>
-    /// Gets the appropriate PixelFormat for a given internal format.
+    /// Gets the appropriate PixelChannelLayout for a given internal format.
     /// </summary>
-    public static PixelFormat GetPixelFormat(PixelInternalFormat internalFormat)
+    public static PixelChannelLayout GetPixelFormat(TextureFormat internalFormat)
     {
         return internalFormat switch
         {
-            PixelInternalFormat.R8i or PixelInternalFormat.R16i or PixelInternalFormat.R32i or PixelInternalFormat.R8ui or PixelInternalFormat.R16ui or PixelInternalFormat.R32ui => PixelFormat.RedInteger,
-            PixelInternalFormat.Rg8i or PixelInternalFormat.Rg16i or PixelInternalFormat.Rg32i or PixelInternalFormat.Rg8ui or PixelInternalFormat.Rg16ui or PixelInternalFormat.Rg32ui => PixelFormat.RgInteger,
-            PixelInternalFormat.Rgb8i or PixelInternalFormat.Rgb16i or PixelInternalFormat.Rgb32i or PixelInternalFormat.Rgb8ui or PixelInternalFormat.Rgb16ui or PixelInternalFormat.Rgb32ui => PixelFormat.RgbInteger,
-            PixelInternalFormat.Rgba8i or PixelInternalFormat.Rgba16i or PixelInternalFormat.Rgba32i or PixelInternalFormat.Rgba8ui or PixelInternalFormat.Rgba16ui or PixelInternalFormat.Rgba32ui or PixelInternalFormat.Rgb10A2ui => PixelFormat.RgbaInteger,
-            PixelInternalFormat.Rgba16f => PixelFormat.Rgba,
-            PixelInternalFormat.Rgba32f => PixelFormat.Rgba,
-            PixelInternalFormat.Rgba16 => PixelFormat.Rgba,
-            PixelInternalFormat.Rgba8 => PixelFormat.Rgba,
-            PixelInternalFormat.Rgba => PixelFormat.Rgba,
-            PixelInternalFormat.R11fG11fB10f => PixelFormat.Rgb,
-            PixelInternalFormat.Rgb16f => PixelFormat.Rgb,
-            PixelInternalFormat.Rgb32f => PixelFormat.Rgb,
-            PixelInternalFormat.Rgb16 => PixelFormat.Rgb,
-            PixelInternalFormat.Rgb8 => PixelFormat.Rgb,
-            PixelInternalFormat.Rgb => PixelFormat.Rgb,
-            PixelInternalFormat.Rg16f => PixelFormat.Rg,
-            PixelInternalFormat.Rg32f => PixelFormat.Rg,
-            PixelInternalFormat.Rg16 => PixelFormat.Rg,
-            PixelInternalFormat.Rg8 => PixelFormat.Rg,
-            PixelInternalFormat.R16f => PixelFormat.Red,
-            PixelInternalFormat.R32f => PixelFormat.Red,
-            PixelInternalFormat.R16 => PixelFormat.Red,
-            PixelInternalFormat.R8 => PixelFormat.Red,
-            PixelInternalFormat.DepthComponent => PixelFormat.DepthComponent,
-            PixelInternalFormat.DepthComponent16 => PixelFormat.DepthComponent,
-            PixelInternalFormat.DepthComponent24 => PixelFormat.DepthComponent,
-            PixelInternalFormat.DepthComponent32 => PixelFormat.DepthComponent,
-            PixelInternalFormat.DepthComponent32f => PixelFormat.DepthComponent,
-            PixelInternalFormat.Depth24Stencil8 => PixelFormat.DepthStencil,
-            PixelInternalFormat.Depth32fStencil8 => PixelFormat.DepthStencil,
-            StencilIndex8 => PixelFormat.StencilIndex,
-            _ => PixelFormat.Rgba
+            TextureFormat.R8i or TextureFormat.R16i or TextureFormat.R32i or TextureFormat.R8ui or TextureFormat.R16ui or TextureFormat.R32ui => PixelChannelLayout.RedInteger,
+            TextureFormat.Rg8i or TextureFormat.Rg16i or TextureFormat.Rg32i or TextureFormat.Rg8ui or TextureFormat.Rg16ui or TextureFormat.Rg32ui => PixelChannelLayout.RgInteger,
+            TextureFormat.Rgb8i or TextureFormat.Rgb16i or TextureFormat.Rgb32i or TextureFormat.Rgb8ui or TextureFormat.Rgb16ui or TextureFormat.Rgb32ui => PixelChannelLayout.RgbInteger,
+            TextureFormat.Rgba8i or TextureFormat.Rgba16i or TextureFormat.Rgba32i or TextureFormat.Rgba8ui or TextureFormat.Rgba16ui or TextureFormat.Rgba32ui or TextureFormat.Rgb10A2ui => PixelChannelLayout.RgbaInteger,
+            TextureFormat.Rgba16f => PixelChannelLayout.Rgba,
+            TextureFormat.Rgba32f => PixelChannelLayout.Rgba,
+            TextureFormat.Rgba16 => PixelChannelLayout.Rgba,
+            TextureFormat.Rgba8 => PixelChannelLayout.Rgba,
+            TextureFormat.Rgba => PixelChannelLayout.Rgba,
+            TextureFormat.R11fG11fB10f => PixelChannelLayout.Rgb,
+            TextureFormat.Rgb16f => PixelChannelLayout.Rgb,
+            TextureFormat.Rgb32f => PixelChannelLayout.Rgb,
+            TextureFormat.Rgb16 => PixelChannelLayout.Rgb,
+            TextureFormat.Rgb8 => PixelChannelLayout.Rgb,
+            TextureFormat.Rgb => PixelChannelLayout.Rgb,
+            TextureFormat.Rg16f => PixelChannelLayout.Rg,
+            TextureFormat.Rg32f => PixelChannelLayout.Rg,
+            TextureFormat.Rg16 => PixelChannelLayout.Rg,
+            TextureFormat.Rg8 => PixelChannelLayout.Rg,
+            TextureFormat.R16f => PixelChannelLayout.Red,
+            TextureFormat.R32f => PixelChannelLayout.Red,
+            TextureFormat.R16 => PixelChannelLayout.Red,
+            TextureFormat.R8 => PixelChannelLayout.Red,
+            TextureFormat.DepthComponent => PixelChannelLayout.Depth,
+            TextureFormat.DepthComponent16 => PixelChannelLayout.Depth,
+            TextureFormat.DepthComponent24 => PixelChannelLayout.Depth,
+            TextureFormat.DepthComponent32 => PixelChannelLayout.Depth,
+            TextureFormat.DepthComponent32f => PixelChannelLayout.Depth,
+            TextureFormat.Depth24Stencil8 => PixelChannelLayout.DepthStencil,
+            TextureFormat.Depth32fStencil8 => PixelChannelLayout.DepthStencil,
+            TextureFormat.StencilIndex8 => PixelChannelLayout.Stencil,
+            _ => PixelChannelLayout.Rgba
         };
     }
 
     /// <summary>
-    /// Gets the appropriate PixelType for a given internal format.
+    /// Gets the appropriate PixelComponentType for a given internal format.
     /// </summary>
-    public static PixelType GetPixelType(PixelInternalFormat internalFormat)
+    public static PixelComponentType GetPixelType(TextureFormat internalFormat)
     {
         return internalFormat switch
         {
-            PixelInternalFormat.R8ui or PixelInternalFormat.Rg8ui or PixelInternalFormat.Rgb8ui or PixelInternalFormat.Rgba8ui => PixelType.UnsignedByte,
-            PixelInternalFormat.R8i or PixelInternalFormat.Rg8i or PixelInternalFormat.Rgb8i or PixelInternalFormat.Rgba8i => PixelType.Byte,
-            PixelInternalFormat.R16i or PixelInternalFormat.Rg16i or PixelInternalFormat.Rgb16i or PixelInternalFormat.Rgba16i => PixelType.Short,
-            PixelInternalFormat.R16ui or PixelInternalFormat.Rg16ui or PixelInternalFormat.Rgb16ui or PixelInternalFormat.Rgba16ui => PixelType.UnsignedShort,
-            PixelInternalFormat.R32i or PixelInternalFormat.Rg32i or PixelInternalFormat.Rgb32i or PixelInternalFormat.Rgba32i => PixelType.Int,
-            PixelInternalFormat.Rgb32ui => PixelType.UnsignedInt,
-            PixelInternalFormat.Rgb10A2ui => PixelType.UnsignedInt2101010Rev,
-            PixelInternalFormat.R32ui => PixelType.UnsignedInt,
-            PixelInternalFormat.Rg32ui => PixelType.UnsignedInt,
-            PixelInternalFormat.Rgba32ui => PixelType.UnsignedInt,
-            PixelInternalFormat.Rgba16f => PixelType.HalfFloat,
-            PixelInternalFormat.Rgba32f => PixelType.Float,
-            PixelInternalFormat.Rgba16 => PixelType.UnsignedShort,
-            PixelInternalFormat.Rgba8 => PixelType.UnsignedByte,
-            PixelInternalFormat.Rgba => PixelType.UnsignedByte,
-            PixelInternalFormat.R11fG11fB10f => PixelType.Float,
-            PixelInternalFormat.Rgb16f => PixelType.HalfFloat,
-            PixelInternalFormat.Rgb32f => PixelType.Float,
-            PixelInternalFormat.Rgb16 => PixelType.UnsignedShort,
-            PixelInternalFormat.Rgb8 => PixelType.UnsignedByte,
-            PixelInternalFormat.Rgb => PixelType.UnsignedByte,
-            PixelInternalFormat.Rg16f => PixelType.HalfFloat,
-            PixelInternalFormat.Rg32f => PixelType.Float,
-            PixelInternalFormat.Rg16 => PixelType.UnsignedShort,
-            PixelInternalFormat.Rg8 => PixelType.UnsignedByte,
-            PixelInternalFormat.R16f => PixelType.HalfFloat,
-            PixelInternalFormat.R32f => PixelType.Float,
-            PixelInternalFormat.R16 => PixelType.UnsignedShort,
-            PixelInternalFormat.R8 => PixelType.UnsignedByte,
-            PixelInternalFormat.DepthComponent => PixelType.Float,
-            PixelInternalFormat.DepthComponent16 => PixelType.UnsignedShort,
-            PixelInternalFormat.DepthComponent24 => PixelType.UnsignedInt,
-            PixelInternalFormat.DepthComponent32 => PixelType.UnsignedInt,
-            PixelInternalFormat.DepthComponent32f => PixelType.Float,
-            PixelInternalFormat.Depth24Stencil8 => PixelType.UnsignedInt248,
-            PixelInternalFormat.Depth32fStencil8 => PixelType.Float32UnsignedInt248Rev,
-            StencilIndex8 => PixelType.UnsignedByte,
-            _ => PixelType.UnsignedByte
+            TextureFormat.R8ui or TextureFormat.Rg8ui or TextureFormat.Rgb8ui or TextureFormat.Rgba8ui => PixelComponentType.UnsignedByte,
+            TextureFormat.R8i or TextureFormat.Rg8i or TextureFormat.Rgb8i or TextureFormat.Rgba8i => PixelComponentType.Byte,
+            TextureFormat.R16i or TextureFormat.Rg16i or TextureFormat.Rgb16i or TextureFormat.Rgba16i => PixelComponentType.Short,
+            TextureFormat.R16ui or TextureFormat.Rg16ui or TextureFormat.Rgb16ui or TextureFormat.Rgba16ui => PixelComponentType.UnsignedShort,
+            TextureFormat.R32i or TextureFormat.Rg32i or TextureFormat.Rgb32i or TextureFormat.Rgba32i => PixelComponentType.Int,
+            TextureFormat.Rgb32ui => PixelComponentType.UnsignedInt,
+            TextureFormat.Rgb10A2ui => PixelComponentType.UnsignedInt2101010,
+            TextureFormat.R32ui => PixelComponentType.UnsignedInt,
+            TextureFormat.Rg32ui => PixelComponentType.UnsignedInt,
+            TextureFormat.Rgba32ui => PixelComponentType.UnsignedInt,
+            TextureFormat.Rgba16f => PixelComponentType.Half,
+            TextureFormat.Rgba32f => PixelComponentType.Float,
+            TextureFormat.Rgba16 => PixelComponentType.UnsignedShort,
+            TextureFormat.Rgba8 => PixelComponentType.UnsignedByte,
+            TextureFormat.Rgba => PixelComponentType.UnsignedByte,
+            TextureFormat.R11fG11fB10f => PixelComponentType.Float,
+            TextureFormat.Rgb16f => PixelComponentType.Half,
+            TextureFormat.Rgb32f => PixelComponentType.Float,
+            TextureFormat.Rgb16 => PixelComponentType.UnsignedShort,
+            TextureFormat.Rgb8 => PixelComponentType.UnsignedByte,
+            TextureFormat.Rgb => PixelComponentType.UnsignedByte,
+            TextureFormat.Rg16f => PixelComponentType.Half,
+            TextureFormat.Rg32f => PixelComponentType.Float,
+            TextureFormat.Rg16 => PixelComponentType.UnsignedShort,
+            TextureFormat.Rg8 => PixelComponentType.UnsignedByte,
+            TextureFormat.R16f => PixelComponentType.Half,
+            TextureFormat.R32f => PixelComponentType.Float,
+            TextureFormat.R16 => PixelComponentType.UnsignedShort,
+            TextureFormat.R8 => PixelComponentType.UnsignedByte,
+            TextureFormat.DepthComponent => PixelComponentType.Float,
+            TextureFormat.DepthComponent16 => PixelComponentType.UnsignedShort,
+            TextureFormat.DepthComponent24 => PixelComponentType.UnsignedInt,
+            TextureFormat.DepthComponent32 => PixelComponentType.UnsignedInt,
+            TextureFormat.DepthComponent32f => PixelComponentType.Float,
+            TextureFormat.Depth24Stencil8 => PixelComponentType.UnsignedInt248,
+            TextureFormat.Depth32fStencil8 => PixelComponentType.Float32UnsignedInt248,
+            TextureFormat.StencilIndex8 => PixelComponentType.UnsignedByte,
+            _ => PixelComponentType.UnsignedByte
         };
     }
 
     /// <summary>
     /// Checks if the format is a depth or depth-stencil format.
     /// </summary>
-    public static bool IsDepthFormat(PixelInternalFormat internalFormat)
+    public static bool IsDepthFormat(TextureFormat internalFormat)
     {
         return internalFormat switch
         {
-            PixelInternalFormat.DepthComponent => true,
-            PixelInternalFormat.DepthComponent16 => true,
-            PixelInternalFormat.DepthComponent24 => true,
-            PixelInternalFormat.DepthComponent32 => true,
-            PixelInternalFormat.DepthComponent32f => true,
-            PixelInternalFormat.Depth24Stencil8 => true,
-            PixelInternalFormat.Depth32fStencil8 => true,
+            TextureFormat.DepthComponent => true,
+            TextureFormat.DepthComponent16 => true,
+            TextureFormat.DepthComponent24 => true,
+            TextureFormat.DepthComponent32 => true,
+            TextureFormat.DepthComponent32f => true,
+            TextureFormat.Depth24Stencil8 => true,
+            TextureFormat.Depth32fStencil8 => true,
             _ => false
         };
     }
 
     /// <summary>Checks whether a texture has stencil-only storage.</summary>
-    public static bool IsStencilFormat(PixelInternalFormat internalFormat) => internalFormat == StencilIndex8;
+    public static bool IsStencilFormat(TextureFormat internalFormat) => internalFormat == TextureFormat.StencilIndex8;
 
-    /// <summary>
-    /// Gets the OpenGL filter parameter value for a filter mode.
-    /// </summary>
-    public static int GetFilterParameter(TextureFilterMode mode)
-    {
-        return mode switch
-        {
-            TextureFilterMode.Nearest => (int)TextureMinFilter.Nearest,
-            TextureFilterMode.Linear => (int)TextureMinFilter.Linear,
-            _ => (int)TextureMinFilter.Nearest
-        };
-    }
 }

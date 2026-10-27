@@ -41,7 +41,7 @@ public sealed class FramebufferAttachmentNotificationTests(HeadlessGLFixture fix
         Assert.Equal(1, notifications);
         Assert.Equal(4, depth.Width);
         Assert.Equal(3, depth.Height);
-        Assert.Equal(RenderbufferStorage.DepthComponent24, depth.Storage);
+        Assert.Equal(TextureFormat.DepthComponent24, depth.Storage);
         Assert.Equal(0, depth.Samples);
         Assert.True(framebuffer.CheckStatus(out string? error), error);
         Assert.False(framebuffer.Resize(4, 3));
@@ -82,7 +82,7 @@ public sealed class FramebufferAttachmentNotificationTests(HeadlessGLFixture fix
         using var first = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba32f, Width = System.Math.Max(1, 2), Height = System.Math.Max(1, 2), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         using var replacement = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba32f, Width = System.Math.Max(1, 2), Height = System.Math.Max(1, 2), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         using var source = DynamicGpuFramebuffer.CreateSingle(first)!;
-        using var destination = CreateRenderTarget(2, 2, PixelInternalFormat.Rgba32f);
+        using var destination = CreateRenderTarget(2, 2, TextureFormat.Rgba32f);
         using var wrapped = DynamicGpuFramebuffer.Wrap(source.FboId, width: 2, height: 2);
         first.UploadDataImmediate(Enumerable.Repeat(3f, 16).ToArray());
         replacement.UploadDataImmediate(Enumerable.Repeat(9f, 16).ToArray());
@@ -114,8 +114,8 @@ public sealed class FramebufferAttachmentNotificationTests(HeadlessGLFixture fix
     {
         EnsureContextValid();
         using var scope = OpenGlStateCache.Current.BindFramebufferScope();
-        using var source = CreateMRTRenderTarget(2, 2, PixelInternalFormat.Rgba32f, PixelInternalFormat.Rgba32f);
-        using var destination = CreateRenderTarget(2, 2, PixelInternalFormat.Rgba32f);
+        using var source = CreateMRTRenderTarget(2, 2, TextureFormat.Rgba32f, TextureFormat.Rgba32f);
+        using var destination = CreateRenderTarget(2, 2, TextureFormat.Rgba32f);
         var copy = FramebufferTestSetup.DescribeCopy(source, destination);
         int notifications = 0;
         source.AttachmentsChanged += () =>
@@ -143,8 +143,8 @@ public sealed class FramebufferAttachmentNotificationTests(HeadlessGLFixture fix
     {
         EnsureContextValid();
         using var scope = OpenGlStateCache.Current.BindFramebufferScope();
-        using var source = CreateRenderTarget(2, 2, PixelInternalFormat.Rgba32f);
-        using var destination = CreateRenderTarget(2, 2, PixelInternalFormat.Rgba32f);
+        using var source = CreateRenderTarget(2, 2, TextureFormat.Rgba32f);
+        using var destination = CreateRenderTarget(2, 2, TextureFormat.Rgba32f);
         var copy = FramebufferTestSetup.DescribeCopy(source, destination);
         int notifications = 0;
         source.AttachmentsChanged += () => notifications++;
@@ -166,8 +166,8 @@ public sealed class FramebufferAttachmentNotificationTests(HeadlessGLFixture fix
     {
         EnsureContextValid();
         using var scope = OpenGlStateCache.Current.BindFramebufferScope();
-        using var source = CreateRenderTarget(2, 2, PixelInternalFormat.Rgba32f);
-        using var destination = CreateRenderTarget(2, 2, PixelInternalFormat.Rgba32f);
+        using var source = CreateRenderTarget(2, 2, TextureFormat.Rgba32f);
+        using var destination = CreateRenderTarget(2, 2, TextureFormat.Rgba32f);
         var retired = CreateReleasedTransferIntent(source, destination);
         GC.Collect();
         GC.WaitForPendingFinalizers();

@@ -1,3 +1,5 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
+using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 namespace VanillaGraphicsExpanded.Tests.GPU;
@@ -16,7 +18,7 @@ public sealed class AmbientOcclusionIntegralTests(HeadlessGLFixture fixture) : L
     [InlineData(1.2f)]
     public void AnalyticIntegralMatchesQuadrature(float angle) {
         EnsureShaderTestAvailable();var program=Programs.Create<AoIntegralProgram>();
-        using var target=TestFramework.CreateTestGBuffer(1,1,PixelInternalFormat.Rgba32f);
+        using var target=TestFramework.CreateTestGBuffer(1,1,TextureFormat.Rgba32f);
         float low=Math.Max(-MathF.PI/2,angle-MathF.PI/2),high=Math.Min(MathF.PI/2,angle+MathF.PI/2);
         foreach(var fraction in new[]{(1f,1f),(.2f,.8f),(.8f,.2f),(0f,0f)}) {
             float a=low*fraction.Item1,b=high*fraction.Item2;
@@ -38,7 +40,7 @@ public sealed class AmbientOcclusionIntegralTests(HeadlessGLFixture fixture) : L
     [InlineData(2f)]
     public void RunningHorizonUsesBoundedOrderedEvidence(float relaxation) {
         EnsureShaderTestAvailable();var program=Programs.Create<AoIntegralProgram>();
-        using var target=TestFramework.CreateTestGBuffer(1,1,PixelInternalFormat.Rgba32f);
+        using var target=TestFramework.CreateTestGBuffer(1,1,TextureFormat.Rgba32f);
         foreach(float[] evidence in new float[][] { [.8f,.8f,.8f,.8f], [.8f,0f,0f,0f], [.2f,.6f,.4f,.9f], [0f,0f,0f,0f] }) {
             float actual=0,expected=0;
             foreach(float candidate in evidence) {

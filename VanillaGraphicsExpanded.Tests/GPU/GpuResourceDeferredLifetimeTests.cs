@@ -61,7 +61,7 @@ public sealed class GpuResourceDeferredLifetimeTests(HeadlessGLFixture fixture)
     {
         fixture.EnsureContextValid();
         fixture.InitializeResourceDisposal();
-        var attachment = new GpuFramebufferAttachment(4, 4, PixelInternalFormat.Rgba8);
+        var attachment = new GpuFramebufferAttachment(4, 4, TextureFormat.Rgba8);
         var owner = Assert.IsType<DynamicTexture2D>(attachment.Resource);
         int nativeId = owner.TextureId;
         using var alias = new BorrowedTexture(nativeId);

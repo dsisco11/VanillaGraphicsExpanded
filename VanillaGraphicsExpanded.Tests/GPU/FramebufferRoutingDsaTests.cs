@@ -47,10 +47,10 @@ public sealed class FramebufferRoutingDsaTests(HeadlessGLFixture fixture,ITestOu
         using var originalBindings=OpenGlStateCache.Current.BindFramebufferScope();
         using var window=DynamicGpuFramebuffer.Wrap(0,width:1,height:1);window.PublishSurfaceMetadata(1,1);
         var metadata=window.Surface!;
-        DrawBufferMode grouped=metadata.Buffer==DrawBuffersEnum.BackLeft?DrawBufferMode.Back:DrawBufferMode.Front;
+        DrawBufferMode grouped=metadata.Buffer==SurfaceColorBuffer.BackLeft?DrawBufferMode.Back:DrawBufferMode.Front;
         OpenGLFramebufferSelection.Bind(OpenGlStateCache.Current, FramebufferTarget.DrawFramebuffer,0);int previous=GL.GetInteger(GetPName.DrawBuffer0);GL.DrawBuffer(grouped); OpenGlStateCache.Current.Invalidate(EPipelineState.FramebufferRouting);
         OpenGLFramebufferSelection.Bind(OpenGlStateCache.Current, FramebufferTarget.ReadFramebuffer,0);int previousRead=GL.GetInteger(GetPName.ReadBuffer);
-        using var incoming=CreateRenderTarget(1,1,PixelInternalFormat.Rgba32f);incoming.Bind();
+        using var incoming=CreateRenderTarget(1,1,TextureFormat.Rgba32f);incoming.Bind();
         try
         {
             using(var capture=new GraphicsTransitionCapture())
@@ -59,7 +59,7 @@ public sealed class FramebufferRoutingDsaTests(HeadlessGLFixture fixture,ITestOu
     var commands=RHICommandContext.Current;
     using var scope44=commands.EnterBoundary(new("Tests.Dsa.Window",true,graphics:System.Linq.Enumerable.Select<RHIGraphicsPipeline,RHIGraphicsPipelineRef>([],value=>value),operations:BoundaryOperations.RenderPasses));
     scope44.Run(()=>{
-                    commands.BeginRenderPass(FramebufferTestSetup.DescribeAttachments(window, [new(Load:AttachmentLoad.Clear,Clear:ColorClearValue.Float(.25f,.5f,.75f,1),WindowBuffer:metadata.Buffer==DrawBuffersEnum.BackLeft?SurfaceColorBuffer.BackLeft:SurfaceColorBuffer.FrontLeft)]));commands.EndRenderPass();
+                    commands.BeginRenderPass(FramebufferTestSetup.DescribeAttachments(window, [new(Load:AttachmentLoad.Clear,Clear:ColorClearValue.Float(.25f,.5f,.75f,1),WindowBuffer:metadata.Buffer==SurfaceColorBuffer.BackLeft?SurfaceColorBuffer.BackLeft:SurfaceColorBuffer.FrontLeft)]));commands.EndRenderPass();
                 });
 }
                 Assert.Contains(capture.Calls,call=>call==$"RoutingWindow:0:{grouped}");
@@ -68,7 +68,7 @@ public sealed class FramebufferRoutingDsaTests(HeadlessGLFixture fixture,ITestOu
             }
             Assert.Equal(incoming.FboId,GL.GetInteger(GetPName.DrawFramebufferBinding));
             OpenGLFramebufferSelection.Bind(OpenGlStateCache.Current, FramebufferTarget.DrawFramebuffer,0);Assert.Equal((int)grouped,GL.GetInteger(GetPName.DrawBuffer0));
-            OpenGLFramebufferSelection.Bind(OpenGlStateCache.Current, FramebufferTarget.ReadFramebuffer,0);GL.ReadBuffer((ReadBufferMode)metadata.Buffer);
+            OpenGLFramebufferSelection.Bind(OpenGlStateCache.Current, FramebufferTarget.ReadFramebuffer,0);GL.ReadBuffer(metadata.Buffer == SurfaceColorBuffer.BackLeft ? ReadBufferMode.BackLeft : ReadBufferMode.FrontLeft);
             using var pack=OpenGLPixelLayouts.PackScope(OpenGlStateCache.Current, new(1));byte[] pixel=new byte[4];GL.ReadPixels(0,0,1,1,PixelFormat.Rgba,PixelType.UnsignedByte,pixel);
             Assert.InRange(pixel[0],(byte)63,(byte)65);
         }

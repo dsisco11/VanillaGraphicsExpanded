@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System;
 using OpenTK.Graphics.OpenGL;
@@ -9,7 +10,7 @@ internal sealed partial class GpuResourceManager
 {
     #region Internal API
     /// <summary>Uses available covered texture facts unless the external owner explicitly requests recovery.</summary>
-    internal static GpuTextureMetadata AcquireFramebufferTexture(int id, TextureTarget target, bool recover)
+    internal static GpuTextureMetadata AcquireFramebufferTexture(int id, TextureDimension target, bool recover)
     {
         OpenGlStateCache.Current.RequireResourceOperationAvailable(GpuResourceKind.Texture, id);
         var manager = GpuResourceManagerSystem.CurrentManager;

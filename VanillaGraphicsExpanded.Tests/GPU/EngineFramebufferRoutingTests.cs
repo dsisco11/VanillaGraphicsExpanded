@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System.Runtime.CompilerServices;
 using HarmonyLib;
@@ -21,7 +22,7 @@ public sealed class EngineFramebufferRoutingTests(HeadlessGLFixture fixture) : R
     public void PatchedNativeRoutingSharesTheOwnedMapping(bool array)
     {
         EnsureContextValid();
-        using var target = CreateMRTRenderTarget(2, 2, PixelInternalFormat.Rgba32f, PixelInternalFormat.Rgba32f);
+        using var target = CreateMRTRenderTarget(2, 2, TextureFormat.Rgba32f, TextureFormat.Rgba32f);
         target.Bind();
         var cache = OpenGlStateCache.Current;
         OpenGLFramebufferRouting.SetDrawBuffer(cache, DrawBufferMode.ColorAttachment0);

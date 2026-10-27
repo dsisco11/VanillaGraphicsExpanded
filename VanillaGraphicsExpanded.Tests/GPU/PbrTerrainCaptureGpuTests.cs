@@ -1,3 +1,5 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
+using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
 using TinyTokenizer.Ast;
 using VanillaGraphicsExpanded.PBR;
@@ -54,7 +56,7 @@ public sealed class PbrTerrainCaptureGpuTests : RenderTestBase
             GL.GetProgram(program, GetProgramParameterName.LinkStatus, out int linked);
             Assert.True(linked != 0, GL.GetProgramInfoLog(program));
             using var framework = new ShaderTestFramework();
-            using var output = framework.CreateTestGBuffer(1, 1, PixelInternalFormat.Rgba32f);
+            using var output = framework.CreateTestGBuffer(1, 1, TextureFormat.Rgba32f);
             framework.RenderQuadTo(program, output);
             float[] actual = output[0].ReadPixels();
             float[] expected = [Linear(.2f), Linear(.4f), Linear(.8f), 1f];
@@ -95,7 +97,7 @@ public sealed class PbrTerrainCaptureGpuTests : RenderTestBase
             inputs.Integer(12, back ? 1 : 0);
             inputs.Publish();
             using var framework = new ShaderTestFramework();
-            using var output = framework.CreateTestGBuffer(4, 4, PixelInternalFormat.Rgba32f);
+            using var output = framework.CreateTestGBuffer(4, 4, TextureFormat.Rgba32f);
             framework.RenderQuadTo(program, output);
             float[] actual = output[0].ReadPixels();
             float[] expected = [x, y, z, 1];
@@ -133,7 +135,7 @@ public sealed class PbrTerrainCaptureGpuTests : RenderTestBase
             inputs.Vector(32, sideView ? 1f : 0f, 0f, sideView ? 0f : 1f);
             inputs.Publish();
             using var framework = new ShaderTestFramework();
-            using var output = framework.CreateTestGBuffer(1, 1, PixelInternalFormat.Rgba32f);
+            using var output = framework.CreateTestGBuffer(1, 1, TextureFormat.Rgba32f);
             framework.RenderQuadTo(program, output);
             float[] actual = output[0].ReadPixels();
             float[] tint = [.2f, .8f, .1f];
@@ -174,7 +176,7 @@ public sealed class PbrTerrainCaptureGpuTests : RenderTestBase
             inputs.Integer(4, underwater ? 1 : 0);
             inputs.Publish();
             using var framework = new ShaderTestFramework();
-            using var output = framework.CreateTestGBuffer(1, 1, PixelInternalFormat.Rgba32f);
+            using var output = framework.CreateTestGBuffer(1, 1, TextureFormat.Rgba32f);
             framework.RenderQuadTo(program, output);
             float[] actual = output[0].ReadPixels();
             Assert.InRange(actual[0], reflection - .00001f, reflection + .00001f);

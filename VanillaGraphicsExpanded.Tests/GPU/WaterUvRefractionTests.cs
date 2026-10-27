@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Numerics;
 using OpenTK.Graphics.OpenGL;
@@ -342,8 +343,8 @@ public sealed class WaterUvRefractionTests(HeadlessGLFixture fixture) : LumOnSha
         program.FrameInputs = frameCamera;
         inputs.Underwater = underwater ? 1 : 0;
         inputs.Color = reducedColor ?? color; inputs.Depth = reducedDepth ?? depth;
-        using var target = CreateMRTRenderTarget(1,1,PixelInternalFormat.Rgba32f,PixelInternalFormat.Rgba32f,
-            PixelInternalFormat.Rgba32f,PixelInternalFormat.Rgba32f,PixelInternalFormat.Rgba32f,PixelInternalFormat.Rgba32f);
+        using var target = CreateMRTRenderTarget(1,1,TextureFormat.Rgba32f,TextureFormat.Rgba32f,
+            TextureFormat.Rgba32f,TextureFormat.Rgba32f,TextureFormat.Rgba32f,TextureFormat.Rgba32f);
         TestFramework.RenderQuadTo(program,target);
         return [target[0].ReadPixels(),target[1].ReadPixels(),target[2].ReadPixels(),target[3].ReadPixels(),target[4].ReadPixels(),target[5].ReadPixels()];
     }

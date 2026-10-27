@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.Integration.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Reflection;
@@ -20,14 +21,14 @@ public sealed class SceneColorFrameTargetsTests(HeadlessGLFixture fixture) : Ren
     #region Public API
     /// <summary>HDR storage accepts floating RGBA while rejecting normalized and integer scene images.</summary>
     [Theory]
-    [InlineData(PixelInternalFormat.Rgba16f, true)]
-    [InlineData(PixelInternalFormat.Rgba32f, true)]
-    [InlineData(PixelInternalFormat.Rgba8, false)]
-    [InlineData(PixelInternalFormat.Rgba32ui, false)]
-    public void RequiresFloatingColorStorage(PixelInternalFormat format, bool expected)
+    [InlineData(TextureFormat.Rgba16f, true)]
+    [InlineData(TextureFormat.Rgba32f, true)]
+    [InlineData(TextureFormat.Rgba8, false)]
+    [InlineData(TextureFormat.Rgba32ui, false)]
+    public void RequiresFloatingColorStorage(TextureFormat format, bool expected)
     {
         EnsureContextValid();
-        using var image = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Format((OpenTK.Graphics.OpenGL.PixelInternalFormat)(format)), Width = System.Math.Max(1, 2), Height = System.Math.Max(1, 2), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
+        using var image = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = format, Width = System.Math.Max(1, 2), Height = System.Math.Max(1, 2), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         var frames = CreatePublications(image);
         var targets = new SceneColorFrameTargets();
         Assert.Equal(expected, targets.Prepare(frames, out _));
@@ -67,9 +68,9 @@ public sealed class SceneColorFrameTargetsTests(HeadlessGLFixture fixture) : Ren
     }
     /// <summary>Unused menu glare may retain normalized storage and omitted dimensions without blocking the owned HDR scene.</summary>
     [Theory]
-    [InlineData(PixelInternalFormat.Rgba16f, true)]
-    [InlineData(PixelInternalFormat.Rgba8, true)]
-    public void InstalledLowResolutionAttachmentUsesNativeDimensions(PixelInternalFormat format, bool expected)
+    [InlineData(TextureFormat.Rgba16f, true)]
+    [InlineData(TextureFormat.Rgba8, true)]
+    public void InstalledLowResolutionAttachmentUsesNativeDimensions(TextureFormat format, bool expected)
     {
         EnsureContextValid();
         var setup = AccessTools.Method(typeof(ClientPlatformWindows), nameof(ClientPlatformWindows.SetupDefaultFrameBuffers));

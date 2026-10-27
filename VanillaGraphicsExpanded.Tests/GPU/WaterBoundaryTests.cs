@@ -1,3 +1,5 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
+using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
@@ -17,7 +19,7 @@ public sealed class WaterBoundaryTests(HeadlessGLFixture fixture) : LumOnShaderF
     {
         EnsureShaderTestAvailable();
         var program = Programs.Create<WaterBoundaryShaderProgram>();
-        using var target = CreateRenderTarget(5, 3, PixelInternalFormat.Rgba32f);
+        using var target = CreateRenderTarget(5, 3, TextureFormat.Rgba32f);
         TestFramework.RenderQuadTo(program, target);
         var values = target[0].ReadPixels();
         double[] lengths = [2, 3, 5, 0];

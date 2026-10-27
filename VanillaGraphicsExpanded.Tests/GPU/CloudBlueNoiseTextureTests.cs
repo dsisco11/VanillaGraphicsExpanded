@@ -1,3 +1,5 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
+using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.PBR.Clouds;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
@@ -16,7 +18,7 @@ public sealed class CloudBlueNoiseTextureTests(HeadlessGLFixture fixture) : Rend
         EnsureContextValid();
         using var texture = CloudBlueNoiseTexture.Create();
         int id = texture.TextureId, side = CloudBlueNoiseTexture.Side, pixels = side * side;
-        Assert.Equal(PixelInternalFormat.R32f, texture.InternalFormat);
+        Assert.Equal(TextureFormat.R32f, texture.InternalFormat);
         Assert.Equal(side, texture.Width); Assert.Equal(side * 8, texture.Height);
         float[] values = texture.ReadPixels();
         for (int frame = 0; frame < 8; frame++)

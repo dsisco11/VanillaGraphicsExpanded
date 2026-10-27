@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.Integration.OpenGL;
 using System;
 using OpenTK.Graphics.OpenGL;
 
@@ -19,8 +20,8 @@ internal sealed partial class OpenGLBackend
         var facts = request.Source.RequireMetadata();
         var initialization = new GpuTextureViewInitialization
         {
-            Source = (int)source.ResourceId, Target = OpenGLImageValues.Target(request.Dimension),
-            Format = OpenGLImageValues.Format(request.Format), BaseLevel = request.BaseMip, LevelCount = request.MipCount,
+            Source = (int)source.ResourceId, Target = request.Dimension,
+            Format = request.Format, BaseLevel = request.BaseMip, LevelCount = request.MipCount,
             BaseLayer = request.BaseLayer, LayerCount = request.LayerCount
         };
         var owner = new GpuTextureView((int)source.ResourceId);

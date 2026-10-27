@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.Integration.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
@@ -40,16 +41,16 @@ public sealed class TerrainReliefNumericalTests : RenderTestBase
         using var program=GpuProgramObject.Adopt(TerrainShaderTestFixture.Link(vertex,fs));
         using var vao=NativeResourceSetup.CreateVertexArray();
         using var draw=new ShaderTestFramework();
-        using var heights=draw.CreateTexture(64,64,PixelInternalFormat.Rgba32f,Enumerable.Range(0,4096).SelectMany(_=>new[]{.5f,.5f,1f,height}).ToArray());
-        using var indices=draw.CreateTexture(1,1,PixelInternalFormat.R32f,[index]);
-        using var records=draw.CreateTexture(2,1,PixelInternalFormat.Rgba32f,[0,0,1,1,amplitude,0,0,0]);
-        using var target=draw.CreateTestGBuffer(32,32,PixelInternalFormat.Rgba32f);
+        using var heights=draw.CreateTexture(64,64,TextureFormat.Rgba32f,Enumerable.Range(0,4096).SelectMany(_=>new[]{.5f,.5f,1f,height}).ToArray());
+        using var indices=draw.CreateTexture(1,1,TextureFormat.R32f,[index]);
+        using var records=draw.CreateTexture(2,1,TextureFormat.Rgba32f,[0,0,1,1,amplitude,0,0,0]);
+        using var target=draw.CreateTestGBuffer(32,32,TextureFormat.Rgba32f);
         int id=program.ProgramId;
         using var inputs = new PackedUniformBuffer(16);
         byte[] inputBytes = new byte[16];
         var layout=BuiltShaderFixture.Layout(id,fragmentPath);
         OpenGLProgramSelection.Select(OpenGlStateCache.Current, id); OpenGLVertexSelection.Bind(OpenGlStateCache.Current, vao.VertexArrayId);
-        VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, heights, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)heights).Target))]); VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(1, indices, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)indices).Target))]); VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(2, records, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)records).Target))]);
+        VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, heights, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)heights).Target)))]); VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(1, indices, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)indices).Target)))]); VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(2, records, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)records).Target)))]);
         ShaderTestFramework.SetUniform(layout.GetUniformLocation(id,"vge_normalDepthTex"),0);
         ShaderTestFramework.SetUniform(layout.GetUniformLocation(id,"vge_displacementTex"),1);
         ShaderTestFramework.SetUniform(layout.GetUniformLocation(id,"vge_displacementRecords"),2);

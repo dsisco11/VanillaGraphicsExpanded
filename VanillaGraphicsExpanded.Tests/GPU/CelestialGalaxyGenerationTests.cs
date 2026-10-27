@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System.Diagnostics;
 using System.Numerics;
@@ -79,7 +80,7 @@ public sealed class CelestialGalaxyGenerationTests(HeadlessGLFixture fixture, IT
         var source = CelestialSource.Create(new(3, 64, 4096, 7));
         using var first = Generate(source);
         using var second = Generate(source);
-        Assert.Equal(PixelInternalFormat.R11fG11fB10f, first.Galaxy.InternalFormat);
+        Assert.Equal(TextureFormat.R11fG11fB10f, first.Galaxy.InternalFormat);
         Vector3 reference = Vector3.Zero, stored = Vector3.Zero;
         float maximum = 0;
         for (int face = 0; face < 6; face++)

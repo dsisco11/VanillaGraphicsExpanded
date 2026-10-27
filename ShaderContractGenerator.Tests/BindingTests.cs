@@ -219,9 +219,9 @@ public sealed class BindingTests
     }
     /// <summary>Explicit target metadata is independent of texture wrapper names.</summary>
     [Theory]
-    [InlineData("Texture2D", 3553)]
-    [InlineData("DynamicTexture2D", 3553)]
-    [InlineData("RenamedTexture", 3553)]
+    [InlineData("Texture2D", 2)]
+    [InlineData("DynamicTexture2D", 2)]
+    [InlineData("RenamedTexture", 2)]
     [InlineData("Texture3D", 0)]
     [InlineData("GpuTexture", 0)]
     public void ExplicitTextureTargetsReachPreparedContract(string textureType, int target)

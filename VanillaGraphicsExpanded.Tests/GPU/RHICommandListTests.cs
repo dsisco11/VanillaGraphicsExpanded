@@ -212,7 +212,7 @@ public sealed class RHICommandListTests(HeadlessGLFixture fixture) : RenderTestB
         using var source = context.CreateDynamicTexture2D(new() { Dimension = TextureDimension.Two, Width = 2, Height = 2,
             Format = TextureFormat.R32f, MipLevels = 1, Storage = ResourceStorageMode.Mutable }).RequireResource();
         source.UploadDataImmediate(new float[] { .2f, .4f, .6f, .8f });
-        using var target = CreateRenderTarget(1, 1, OpenTK.Graphics.OpenGL.PixelInternalFormat.R32f);
+        using var target = CreateRenderTarget(1, 1, TextureFormat.R32f);
         using var pipeline = context.CreateGraphicsPipeline(new(shader.Shader, layout, new([new(TextureFormat.R32f)]), DynamicPipelineState.Viewport)).RequireResource();
         shader.HzbDepth = source; shader.SrcMip = 0;
         using var list = context.CreateCommandList(); var draws = new RHIDrawIndexed[] { new(0, 3) };
@@ -277,7 +277,7 @@ public sealed class RHICommandListTests(HeadlessGLFixture fixture) : RenderTestB
     public void RejectedSubmissionCannotEndAnExistingPass()
     {
         Start(); var context = RHICommandContext.Current;
-        using var target = CreateRenderTarget(1, 1, OpenTK.Graphics.OpenGL.PixelInternalFormat.R32f);
+        using var target = CreateRenderTarget(1, 1, TextureFormat.R32f);
         using var boundary = context.EnterBoundary(new("Original active pass", true, operations: BoundaryOperations.RenderPasses));
         context.BeginRenderPass(FramebufferTestSetup.DescribeAttachments(target));
         using var list = context.CreateCommandList(); list.Close();

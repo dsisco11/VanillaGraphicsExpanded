@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.Integration.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
@@ -30,20 +31,20 @@ public sealed class GpuTextureAttachmentRepairTests(HeadlessGLFixture fixture)
             using var framebuffer = DynamicGpuFramebuffer.CreateEmpty();
             using var read = DynamicGpuFramebuffer.CreateEmpty();
             using var draw = DynamicGpuFramebuffer.CreateEmpty();
-            framebuffer.SetAttachment(FramebufferAttachment.ColorAttachment0, invalid);
-            framebuffer.SetAttachment(FramebufferAttachment.ColorAttachment1, invalid);
-            framebuffer.SetAttachment(FramebufferAttachment.ColorAttachment2, valid);
+            framebuffer.SetAttachment(FramebufferSlot.Color0, invalid);
+            framebuffer.SetAttachment(FramebufferSlot.Color1, invalid);
+            framebuffer.SetAttachment(FramebufferSlot.Color2, valid);
             if (managed) Assert.True(source.Resize(8, 4, 1));
             else Assert.Throws<AggregateException>(() => source.Resize(8, 4, 1));
             Assert.Throws<InvalidOperationException>(() => framebuffer.Bind());
             OpenGLFramebufferSelection.Bind(OpenGlStateCache.Current, FramebufferTarget.ReadFramebuffer, read.FboId);
             OpenGLFramebufferSelection.Bind(OpenGlStateCache.Current, FramebufferTarget.DrawFramebuffer, draw.FboId);
             // Each repair must operate independently of the still-invalid neighboring slot.
-            if (replace) framebuffer.SetAttachment(FramebufferAttachment.ColorAttachment0, valid);
-            else Assert.True(framebuffer.RemoveAttachment(FramebufferAttachment.ColorAttachment0));
+            if (replace) framebuffer.SetAttachment(FramebufferSlot.Color0, valid);
+            else Assert.True(framebuffer.RemoveAttachment(FramebufferSlot.Color0));
             Assert.Equal(read.FboId, GL.GetInteger(GetPName.ReadFramebufferBinding));
             Assert.Equal(draw.FboId, GL.GetInteger(GetPName.DrawFramebufferBinding));
-            Assert.True(framebuffer.RemoveAttachment(FramebufferAttachment.ColorAttachment1));
+            Assert.True(framebuffer.RemoveAttachment(FramebufferSlot.Color1));
             Assert.Equal(read.FboId, GL.GetInteger(GetPName.ReadFramebufferBinding));
             Assert.Equal(draw.FboId, GL.GetInteger(GetPName.DrawFramebufferBinding));
             framebuffer.Bind();
@@ -75,13 +76,13 @@ public sealed class GpuTextureAttachmentRepairTests(HeadlessGLFixture fixture)
             else using (new GpuResourceManager.MetadataOperation<GpuTextureMetadata>(source, storage ? GpuMetadataChange.Storage : GpuMetadataChange.Metadata)) { }
             Assert.False(view.IsValid);
             OpenGLImageBindings.BindTexture(OpenGlStateCache.Current, TextureTarget.Texture2DArray, 0, 0);
-            VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, view, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)view).Target))]);
+            VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, view, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)view).Target)))]);
             Assert.Equal(0, GL.GetInteger(GetPName.TextureBinding2DArray));
             // Reacquiring view facts leaves its allocation intact; source storage publication retires dependencies.
-            if (own) GpuResourceManager.ObserveWrapperMetadata(view, new GpuTextureMetadataReader(TextureTarget.Texture2DArray), GpuMetadataChange.Metadata);
+            if (own) GpuResourceManager.ObserveWrapperMetadata(view, new GpuTextureMetadataReader(TextureDimension.TwoArray), GpuMetadataChange.Metadata);
             else source.SetMipRange(0, 0);
             Assert.Equal(!storage, view.IsValid);
-            VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, view, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)view).Target))]);
+            VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, view, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)view).Target)))]);
             Assert.Equal(storage ? 0 : view.TextureId, GL.GetInteger(GetPName.TextureBinding2DArray));
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }

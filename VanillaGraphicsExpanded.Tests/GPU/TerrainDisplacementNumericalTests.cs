@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.Integration.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
@@ -36,7 +37,7 @@ public sealed class TerrainDisplacementNumericalTests : RenderTestBase
         int fragment=shaders.Load(ShaderType.FragmentShader,"tests/displacement-metric.fsh");
         using var program=GpuProgramObject.Adopt(TerrainShaderTestFixture.Link(vertex,fragment));
         using var vao=NativeResourceSetup.CreateVertexArray();using var framework=new ShaderTestFramework();
-        using var target=framework.CreateTestGBuffer(1,1,PixelInternalFormat.Rgba32f);
+        using var target=framework.CreateTestGBuffer(1,1,TextureFormat.Rgba32f);
         int id=program.ProgramId;var layout=BuiltShaderFixture.Layout(id,"tests/displacement-metric.fsh");
         FramebufferTestSetup.BindForEngineRendering(target);OpenGLProgramSelection.Select(OpenGlStateCache.Current, id);OpenGLVertexSelection.Bind(OpenGlStateCache.Current, vao.VertexArrayId);
         UboPacking.WriteFloat(inputBytes, 172,distance);
@@ -86,7 +87,7 @@ public sealed class TerrainDisplacementNumericalTests : RenderTestBase
         OpenGLBufferBindings.BindBufferBase(OpenGlStateCache.Current, BufferRangeTarget.UniformBuffer,GpuBindingRegistry.Ubo.Frame,0);
         Assert.Equal(-1,GL.GetUniformBlockIndex(program.ProgramId,"VgeFrameUBO"));
         using var framework = new ShaderTestFramework();
-        using var target = framework.CreateTestGBuffer(1,1,PixelInternalFormat.Rgba32f);
+        using var target = framework.CreateTestGBuffer(1,1,TextureFormat.Rgba32f);
         framework.RenderQuadTo(program.ProgramId,target);
         Assert.Equal(ErrorCode.NoError,GL.GetError());
         Assert.Equal(new float[] {7,7,1,1},target[0].ReadPixels());
@@ -124,11 +125,11 @@ public sealed class TerrainDisplacementNumericalTests : RenderTestBase
             using var framework=new ShaderTestFramework();
             var data=new float[16*16*4];
             for(int y=0;y<16;y++) for(int x=0;x<16;x++) data[(y*16+x)*4+3]=x<8?height:1-height;
-            using var atlas=framework.CreateTexture(16,16,PixelInternalFormat.Rgba32f,data);
-            using var target=framework.CreateTestGBuffer(1,1,PixelInternalFormat.Rgba32f);
+            using var atlas=framework.CreateTexture(16,16,TextureFormat.Rgba32f,data);
+            using var target=framework.CreateTestGBuffer(1,1,TextureFormat.Rgba32f);
             var layout = BuiltShaderFixture.Layout(program,"tests/displacement-height.fsh");
             FramebufferTestSetup.BindForEngineRendering(target); OpenGLProgramSelection.Select(OpenGlStateCache.Current, program); OpenGLVertexSelection.Bind(OpenGlStateCache.Current, vao);
-            VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, atlas, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)atlas).Target))]); ShaderTestFramework.SetUniform(layout.GetUniformLocation(program,"vge_normalDepthTex"),0);
+            VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, atlas, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)atlas).Target)))]); ShaderTestFramework.SetUniform(layout.GetUniformLocation(program,"vge_normalDepthTex"),0);
             UboPacking.WriteVec3(inputBytes, 160,u,v,amplitude);
             UboPacking.WriteVec2(inputBytes, 144,10f,20f);
             UboPacking.WriteVec2(inputBytes, 136,16f,8f);

@@ -54,7 +54,7 @@ public sealed class NativeFrameLightingBindingTests(HeadlessGLFixture fixture) :
             GL.BindBufferBase(BufferRangeTarget.ShaderStorageBuffer, 3, face.BufferId);
             GL.BindBufferBase(BufferRangeTarget.ShaderStorageBuffer, GpuBindingRegistry.Ssbo.FrameLighting, frame.BufferId);
             using var framework = new ShaderTestFramework();
-            using var target = CreateMRTRenderTarget(1, 1, PixelInternalFormat.Rgba32f);
+            using var target = CreateMRTRenderTarget(1, 1, TextureFormat.Rgba32f);
             framework.RenderQuadTo(program.ProgramId, target);
             var lookup = MicrofacetTextureReference.Sample(MicrofacetEnergyLookup.Prepare().Width,.5f,1);
             var coefficients=lookup.Value;

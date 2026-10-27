@@ -1266,26 +1266,53 @@ Package/integrated/user qualification remains later work. The agent did not stag
 user-controlled staging was preserved.
 
 
-### Resource selector isolation correction
+### Semantic resource boundary correction
 
-Direct OpenTK selectors were removed from every RHICommandContext and IRHIResourceExecution partial,
-including older framebuffer configuration, image discovery, format capability and narrow executable /
-framebuffer observation operations. Project-owned logical selectors preserve omission, unknown targets,
-cube-face zero, disabled routing outputs and native integration error contracts. Framebuffer image maps
-remain in their existing owner/manager domain rather than crossing RHI as native-enum-keyed collections.
-The existing image enum codec moved to explicit OpenGL integration without a forwarding alias or second
-codec. Legacy owner/metadata inputs convert at that integration boundary; backend execution lowers the
-logical selectors. Canonical metadata structures, native execution authority and resource ownership are
-unchanged. RHIContractIsolationTests recursively checks direct, array, by-reference and generic signature
-types for OpenTK leakage.
+The selector-only implementation was insufficient: wrappers converted legacy schemas through
+`OpenGLResourceSelectors`, while the image codec lived in general integration. The correction replaces
+those inputs throughout their owning contracts instead of retaining translation facades.
 
+| Owning area | Completed contract |
+| --- | --- |
+| Framebuffer wrappers, initialization and canonical attachment dictionaries | `FramebufferSlot` keys and `FramebufferSelection`; declared routing uses color indices with -1 disabled. |
+| Texture/renderbuffer owners, initialization, refs and image metadata | `TextureDimension`, `TextureFormat` and a separate `CubeFace`; surface facts use `SurfaceColorBuffer`. |
+| Manager selected-field recovery | Project-owned texture/framebuffer fields and program-block kinds cross the existing private RHI handoff. |
+| GpuSupport format cache | One cache keyed by resource kind, texture dimension and semantic format; failures do not publish entries. |
+| Prepared image validation and caller composition | Consume semantic canonical facts directly, without native enum conversion or queries. |
+| Native dispatch, external observation and acquisition query results | Encode/decode once inside the existing backend; actual external adapters may decode actual native inputs. |
 
-Delegated canonical Debug and ordinary optimized Release rebuilds each passed 138/138 focused tests,
-with zero failures/skips and shader generation enabled. Final receipts are
-`artifacts/rhi-selectors-final-debug.log`, `rhi-selectors-final-release.log` and corresponding TRXs
-under `artifacts/TestResults/`. The selection covers contract isolation, image acquisition/publication,
-framebuffer routing/discovery, capability-cache failure semantics, texture formats/images, cube/view
-selection and shader creation/uniform metadata. Native selector conversion initially changed the
-capability service's invalid-target exception; the correction preserves its existing
-InvalidOperationException contract and prevents publishing failed cache entries. No JIT overrides,
-instrumented Release builds, staging or commits were performed by the agent.
+`OpenGLResourceSelectors` and the redundant `ImageStorageTarget` selector are removed. The single image
+codec resides under the backend. Ordinary wrappers, manager services and capability caches do not call
+native codecs. Attachment.Format reads the now-semantic canonical field directly; its obsolete backend
+projection operation was removed. There are no compatibility overloads, aliases or forwarding facades.
+
+The audit covered framebuffer configuration/discovery and attachment construction, texture/renderbuffer
+allocation and selected-image metadata, manager texture/framebuffer/program field recovery, format-cache
+requests, prepared image validation, native readers/observation, and affected production/test callers.
+`RHIContractIsolationTests` checks signatures, canonical image/initialization field schemas and managed
+method IL for native codec dependencies. A separate schema check keeps build-time shader dimensions
+consistent with runtime logical dimensions. Native enum ordinal casts are not used for semantic encoding.
+
+Earlier 138-case selector receipts establish only the superseded signature check.
+
+Corrective validation uses canonical generators and normal optimization:
+
+- Debug: 396/396 passed, zero skips; `artifacts/semantic-resources-matrix-debug.log`.
+- Ordinary Release: 396/396 passed in two fresh-process partitions on the same final binaries:
+  92 affected-class cases and 304 complementary cases. Receipts are
+  `artifacts/semantic-resources-release-isolated.log` and
+  `artifacts/semantic-resources-release-complement.log`.
+- Shader contract generator: 157/157 passed; `artifacts/semantic-resources-generator-debug.log`.
+- Boundary/schema/format/capability core: 27/27 passed; `artifacts/semantic-resources-core-debug.log`.
+
+The exact broad filter is `artifacts/semantic-resources-test-filter.txt`; matching TRXs are in
+`artifacts/TestResults/`. The combined ordinary Release run passed 385/396 and remains recorded in
+`artifacts/semantic-resources-matrix-release.log`. Its 11 failures concern observer/fault-injection or
+call-counter assertions in GpuProgramMetadataInterceptionTests, GpuFramebufferExecutableCreationTests,
+OwnerCreationBoundaryTests, GpuControlledTexturePublicationTests and FramebufferRoutingCacheTests.
+All five complete classes passed together in the fresh 92-case process; the complement passed 304.
+No assertions were removed, no JIT overrides or instrumented builds were used, and this does not claim
+a clean combined-process Release run. Debug exercises that complete selection together.
+
+Installed runtime/package acceptance remains later work. The agent did not stage or commit changes.
+Subphases 8d–8i and Phase 9 remain open.

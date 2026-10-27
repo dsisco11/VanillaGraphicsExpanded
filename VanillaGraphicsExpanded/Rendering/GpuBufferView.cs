@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using System.Diagnostics;
 
@@ -16,7 +17,7 @@ public class GpuBufferView : GpuResource<GpuTextureMetadata>, IDisposable
     /// <summary>Gets the native buffer-view bufferId from the canonical texture snapshot.</summary>
     private int bufferId => checked((int)(metadata.Buffer?.BufferId ?? 0));
     /// <summary>Gets the native buffer-view format from the canonical texture snapshot.</summary>
-    private SizedInternalFormat format => metadata.Buffer?.Format ?? 0;
+    private TextureFormat format => metadata.Buffer?.Format ?? 0;
     /// <summary>Gets the native buffer-view offsetBytes from the canonical texture snapshot.</summary>
     private nint offsetBytes => metadata.Buffer?.Offset ?? 0;
     /// <summary>Gets the native buffer-view sizeBytes from the canonical texture snapshot.</summary>
@@ -44,7 +45,7 @@ public class GpuBufferView : GpuResource<GpuTextureMetadata>, IDisposable
     /// <summary>
     /// Gets the sized internal format used to interpret buffer texels.
     /// </summary>
-    public SizedInternalFormat Format => format;
+    public TextureFormat Format => format;
 
     /// <summary>
     /// Gets the byte offset into <see cref="BufferId"/> for this view.

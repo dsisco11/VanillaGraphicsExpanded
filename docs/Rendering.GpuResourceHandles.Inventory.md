@@ -178,7 +178,12 @@ once per discovery. Attachment validation consumes published facts without recov
 receive projections through their backing entry; manager-owned weak owner/image links cover local tools
 and intentional owner replacement without duplicating canonical delivery.
 
-### Manager API and generic base
+#Image storage schemas use `TextureDimension`, `CubeFace` and `TextureFormat`; framebuffer descriptors
+use `FramebufferSlot` keys. These values remain semantic through initialization, manager publication,
+wrapper accessors and validation. Native format and target tokens are encoded or decoded exclusively
+by backend execution or actual external native adapters. Surface facts use `SurfaceColorBuffer`.
+
+## Manager API and generic base
 
 Use one `ConcurrentDictionary<GpuResourceHandle, GpuResourceRegistration>` inside the context-scoped
 manager. `GpuResourceHandle` is a readonly value key containing kind and `nint` ID, without ownership

@@ -1,3 +1,5 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
+using VanillaGraphicsExpanded.Rendering.RHI;
 using VanillaGraphicsExpanded.LumOn;
 using System.Collections.Generic;
 
@@ -35,7 +37,7 @@ public sealed class LumOnHzbFunctionalTests : LumOnShaderFunctionalTestBase
             0.55f, 0.45f, 0.35f, 0.25f,
         ];
 
-        using var primaryDepth = TestFramework.CreateTexture(w, h, PixelInternalFormat.R32f, baseDepth);
+        using var primaryDepth = TestFramework.CreateTexture(w, h, TextureFormat.R32f, baseDepth);
 
         using var hierarchy=new DepthHierarchyPass();
         using var draw=new VanillaGraphicsExpanded.PBR.Postprocessing.PostprocessDraw();
@@ -95,21 +97,21 @@ public sealed class LumOnHzbFunctionalTests : LumOnShaderFunctionalTestBase
             colorData[i * 4 + 3] = 1.0f;
         }
 
-        using var primaryDepth = TestFramework.CreateTexture(screenW, screenH, PixelInternalFormat.R32f, depthData);
-        using var primaryColor = TestFramework.CreateTexture(screenW, screenH, PixelInternalFormat.Rgba16f, colorData);
-        using var material = TestFramework.CreateTexture(screenW, screenH, PixelInternalFormat.Rgba16f, new float[screenW * screenH * 4]);
+        using var primaryDepth = TestFramework.CreateTexture(screenW, screenH, TextureFormat.R32f, depthData);
+        using var primaryColor = TestFramework.CreateTexture(screenW, screenH, TextureFormat.Rgba16f, colorData);
+        using var material = TestFramework.CreateTexture(screenW, screenH, TextureFormat.Rgba16f, new float[screenW * screenH * 4]);
 
         // Match existing test conventions: 2x2 probes, 16x16 atlas.
         var anchorPosData = CreateValidProbeAnchors();
         var anchorNormalData = CreateProbeNormalsUpward();
         var historyData = new float[AtlasWidth * AtlasHeight * 4];
 
-        using var probePos = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorPosData);
-        using var probeNorm = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, anchorNormalData);
-        using var history = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, historyData);
-        using var metaHistory = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rg32f, new float[AtlasWidth * AtlasHeight * 2]);
+        using var probePos = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, TextureFormat.Rgba16f, anchorPosData);
+        using var probeNorm = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, TextureFormat.Rgba16f, anchorNormalData);
+        using var history = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, TextureFormat.Rgba16f, historyData);
+        using var metaHistory = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, TextureFormat.Rg32f, new float[AtlasWidth * AtlasHeight * 2]);
 
-        using var outputAtlas = TestFramework.CreateTestGBuffer(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f);
+        using var outputAtlas = TestFramework.CreateTestGBuffer(AtlasWidth, AtlasHeight, TextureFormat.Rgba16f);
 
         var progMip0 = Programs.Create<LumOnScreenProbeAtlasTraceShaderProgram>(settings: new Dictionary<string, string?>
             {

@@ -95,7 +95,7 @@ public sealed class DriverProgramCacheTests(HeadlessGLFixture fixture, ITestOutp
             using var assets = new BinaryShaderApiFixture();
             using var program = new FixtureProgram();
             program.Initialize(assets.Api);
-            using var target = CreateRenderTarget(8, 8, PixelInternalFormat.Rgba32f);
+            using var target = CreateRenderTarget(8, 8, TextureFormat.Rgba32f);
             int previous = 0;
             for (int generation = -1; generation < 3; generation++)
             {

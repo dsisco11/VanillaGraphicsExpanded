@@ -51,7 +51,7 @@ internal sealed partial class OpenGLBackend
             try
             {
                 backend.cache.Apply(boundary);
-                backend.SelectFramebufferOwner(target, FramebufferTarget.Framebuffer);
+                backend.SelectFramebufferOwner(target, FramebufferSelection.ReadAndDraw);
                 backend.cache.Apply(capture);
             }
             catch { Dispose(); throw; }

@@ -39,7 +39,7 @@ public sealed class ShaderPreparedMetadataValidationTests(HeadlessGLFixture fixt
             Assert.Throws<InvalidOperationException>(() => ShaderPreparedSubmission.ValidateSamplerArray(sampler, [sentinel, texture]));
             Assert.Throws<InvalidOperationException>(() => ShaderPreparedSubmission.ValidateImage(image, texture));
             Assert.Equal(sentinel.TextureId, GL.GetInteger(GetPName.TextureBinding2D));
-            GpuResourceManager.ObserveWrapperMetadata(texture, new GpuTextureMetadataReader(TextureTarget.Texture2D), GpuMetadataChange.Metadata);
+            GpuResourceManager.ObserveWrapperMetadata(texture, new GpuTextureMetadataReader(TextureDimension.Two), GpuMetadataChange.Metadata);
             ShaderPreparedSubmission.ValidateSamplerArray(sampler, [texture, sentinel]);
             ShaderPreparedSubmission.ValidateImage(image, texture);
             Assert.Equal(ErrorCode.NoError, GL.GetError());

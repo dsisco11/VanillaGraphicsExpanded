@@ -27,11 +27,11 @@ internal sealed partial class OpenGLBackend
             RequireContext();
         }
         var candidate = new GpuFramebufferMetadata(
-            ImmutableDictionary<OpenTK.Graphics.OpenGL.FramebufferAttachment, GpuFramebufferImageMetadata>.Empty,
+            ImmutableDictionary<FramebufferSlot, GpuFramebufferImageMetadata>.Empty,
             request.DefaultWidth, request.DefaultHeight, request.DefaultLayers, request.DefaultSamples, request.DefaultFixedSampleLocations);
         foreach (var pair in request.Attachments)
         {
-            AttachFramebufferImage(name, (FramebufferAttachment)pair.Key, pair.Value);
+            AttachFramebufferImage(name, (FramebufferAttachment)OpenGLResourceValues.Native(pair.Key), pair.Value);
             RequireContext();
             candidate = OpenGlStateCache.WithFramebufferAttachment(candidate, pair.Key, pair.Value);
         }
@@ -51,7 +51,7 @@ internal sealed partial class OpenGLBackend
             GL.NamedFramebufferTextureLayer(name, slot, image.TextureId, image.MipLevel, layer);
         else if (image.CubeFace is { } face)
             GL.NamedFramebufferTextureLayer(name, slot, image.TextureId, image.MipLevel,
-                (int)face - (int)OpenTK.Graphics.OpenGL.TextureTarget.TextureCubeMapPositiveX);
+                (int)face - (int)CubeFace.PositiveX);
         else GL.NamedFramebufferTexture(name, slot, image.TextureId, image.MipLevel);
     }
     #endregion

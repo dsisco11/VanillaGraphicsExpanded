@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.PBR;
@@ -28,16 +29,16 @@ public sealed class PbrStandaloneCompositionTests : LumOnShaderFunctionalTestBas
         {
             p.LumOnEnabled = lumon; p.EnablePbrComposite = false; p.EnableShortRangeAo = false;
         });
-        using var zero = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, new float[4]);
-        using var emission = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, new[] { .25f, .25f, .25f, 1f });
-        using var indirect = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, new[] { .75f, .75f, .75f, 1f });
-        using var albedo = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, new[] { .5f, .5f, .5f, 1f });
-        using var normal = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, new[] { .5f, .5f, 1f, 1f });
-        using var material = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, new[] { roughness, metallic, 0f, 0f });
-        using var environment = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, new[] { availability, availability, availability, 1f });
-        using var depth = TestFramework.CreateTexture(1, 1, PixelInternalFormat.R32f, new[] { .25f });
-        using var output = TestFramework.CreateTestGBuffer(1, 1, PixelInternalFormat.Rgba16f);
-        using var position = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba32f, new float[4]);
+        using var zero = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba16f, new float[4]);
+        using var emission = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba16f, new[] { .25f, .25f, .25f, 1f });
+        using var indirect = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba16f, new[] { .75f, .75f, .75f, 1f });
+        using var albedo = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba16f, new[] { .5f, .5f, .5f, 1f });
+        using var normal = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba16f, new[] { .5f, .5f, 1f, 1f });
+        using var material = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba16f, new[] { roughness, metallic, 0f, 0f });
+        using var environment = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba16f, new[] { availability, availability, availability, 1f });
+        using var depth = TestFramework.CreateTexture(1, 1, TextureFormat.R32f, new[] { .25f });
+        using var output = TestFramework.CreateTestGBuffer(1, 1, TextureFormat.Rgba16f);
+        using var position = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba32f, new float[4]);
         program.GBufferPosition = position;
         FramebufferTestSetup.BindForEngineRendering(output);
         {

@@ -1,4 +1,5 @@
 using System;
+using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
 
 namespace VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
@@ -198,6 +199,7 @@ internal static class OpenGLImageValues
     /// <summary>Maps the image dimension to its native allocation target.</summary>
     internal static TextureTarget Target(TextureDimension dimension) => dimension switch
     {
+        TextureDimension.RenderbufferTexture => (TextureTarget)All.TextureRenderbufferNv,
         TextureDimension.Buffer => TextureTarget.TextureBuffer,
         TextureDimension.One => TextureTarget.Texture1D,
         TextureDimension.Two => TextureTarget.Texture2D,
@@ -214,6 +216,7 @@ internal static class OpenGLImageValues
     /// <summary>Translates established native image shape into semantic allocation policy.</summary>
     internal static TextureDimension Dimension(TextureTarget target) => target switch
     {
+        (TextureTarget)All.TextureRenderbufferNv => TextureDimension.RenderbufferTexture,
         TextureTarget.TextureBuffer => TextureDimension.Buffer, TextureTarget.Texture1D => TextureDimension.One, TextureTarget.Texture2D => TextureDimension.Two,
         TextureTarget.Texture3D => TextureDimension.Three, TextureTarget.Texture1DArray => TextureDimension.OneArray,
         TextureTarget.Texture2DArray => TextureDimension.TwoArray, TextureTarget.TextureCubeMap => TextureDimension.Cube,
@@ -221,5 +224,15 @@ internal static class OpenGLImageValues
         TextureTarget.Texture2DMultisample => TextureDimension.TwoMultisample, TextureTarget.Texture2DMultisampleArray => TextureDimension.TwoMultisampleArray,
         _ => throw new ArgumentOutOfRangeException(nameof(target))
     };
+    /// <summary>Lowers an explicit cube selection; None preserves ordinary image discovery.</summary>
+    internal static TextureTarget Face(CubeFace face) => face == CubeFace.None ? 0
+        : face >= CubeFace.PositiveX && face <= CubeFace.NegativeZ
+            ? TextureTarget.TextureCubeMapPositiveX + ((int)face - (int)CubeFace.PositiveX)
+            : throw new ArgumentOutOfRangeException(nameof(face));
+    /// <summary>Decodes a native face once when publishing canonical image facts.</summary>
+    internal static CubeFace Face(TextureTarget face) => face == 0 ? CubeFace.None
+        : face >= TextureTarget.TextureCubeMapPositiveX && face <= TextureTarget.TextureCubeMapNegativeZ
+            ? CubeFace.PositiveX + ((int)face - (int)TextureTarget.TextureCubeMapPositiveX)
+            : throw new ArgumentOutOfRangeException(nameof(face));
     #endregion
 }

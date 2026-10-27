@@ -25,10 +25,10 @@ public sealed class GpuFramebufferMultiviewInterceptionTests(HeadlessGLFixture f
             using var capabilities=new DirectStateAccessCapabilityScope(direct);
             using var first=DynamicGpuFramebuffer.Create([image])!; using var target=DynamicGpuFramebuffer.Create([image])!;
             OpenGLFramebufferSelection.Bind(OpenGlStateCache.Current, FramebufferTarget.DrawFramebuffer,first.FboId); OpenGLFramebufferSelection.Bind(OpenGlStateCache.Current, FramebufferTarget.ReadFramebuffer,target.FboId);
-            target.SetAttachment(FramebufferAttachment.ColorAttachment0,image);
+            target.SetAttachment(FramebufferSlot.Color0,image);
             Assert.Equal(first.FboId,GL.GetInteger(GetPName.DrawFramebufferBinding)); Assert.Equal(target.FboId,GL.GetInteger(GetPName.ReadFramebufferBinding));
             var entry=(GpuResourceMetadataEntry<GpuFramebufferMetadata>)GpuResourceManagerSystem.CurrentManager!.GetResourceRegistration(target)!;
-            var descriptor=entry.Metadata.Attachments[FramebufferAttachment.ColorAttachment0]; Assert.Equal(GpuFramebufferAttachmentMode.Multiview,descriptor.Mode); Assert.Equal(1,descriptor.BaseView); Assert.Equal(2,descriptor.ViewCount); Assert.Equal(useView?view.TextureId:array.TextureId,descriptor.Id);
+            var descriptor=entry.Metadata.Attachments[FramebufferSlot.Color0]; Assert.Equal(GpuFramebufferAttachmentMode.Multiview,descriptor.Mode); Assert.Equal(1,descriptor.BaseView); Assert.Equal(2,descriptor.ViewCount); Assert.Equal(useView?view.TextureId:array.TextureId,descriptor.Id);
             Assert.Equal(2,image.ImageDepth); Assert.Equal(ErrorCode.NoError,GL.GetError());
         }
         finally { RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Texture, texture)); fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
@@ -44,9 +44,9 @@ public sealed class GpuFramebufferMultiviewInterceptionTests(HeadlessGLFixture f
             using var array=new BorrowedTexture(texture);
             GL.Ovr.NamedFramebufferTextureMultiview(framebuffer,FramebufferAttachment.ColorAttachment0,texture,0,1,2);
             using var imported=DynamicGpuFramebuffer.Wrap(framebuffer); imported.PublishRenderPassMetadata();
-            var image=imported.GetAttachment(FramebufferAttachment.ColorAttachment0)!; Assert.Equal(2,image.ImageDepth); Assert.Equal(GpuFramebufferAttachmentMode.Unknown,image.AttachmentMode);
+            var image=imported.GetAttachment(FramebufferSlot.Color0)!; Assert.Equal(2,image.ImageDepth); Assert.Equal(GpuFramebufferAttachmentMode.Unknown,image.AttachmentMode);
             using var ordinary=GpuFramebufferAttachment.FromTexture(array,layer:0); using var target=DynamicGpuFramebuffer.Create([ordinary])!;
-            Assert.Throws<NotSupportedException>(()=>image.AttachTo(target,FramebufferAttachment.ColorAttachment0)); Assert.Equal(ErrorCode.NoError,GL.GetError());
+            Assert.Throws<NotSupportedException>(()=>image.AttachTo(target,FramebufferSlot.Color0)); Assert.Equal(ErrorCode.NoError,GL.GetError());
         }
         finally { VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Framebuffer, framebuffer)); RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Texture, texture)); fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
@@ -59,7 +59,7 @@ public sealed class GpuFramebufferMultiviewInterceptionTests(HeadlessGLFixture f
         try
         {
             GL.BindTexture(TextureTarget.Texture2DArray,texture); GL.TexImage3D(TextureTarget.Texture2DArray,0,PixelInternalFormat.Rgba8,8,4,4,0,PixelFormat.Rgba,PixelType.UnsignedByte,IntPtr.Zero);
-            GpuResourceManagerSystem.CurrentManager!.AcquireResource(GpuResourceKind.Texture,texture,new GpuTextureMetadataReader(TextureTarget.Texture2DArray));
+            GpuResourceManagerSystem.CurrentManager!.AcquireResource(GpuResourceKind.Texture,texture,new GpuTextureMetadataReader(TextureDimension.TwoArray));
             using var array=new BorrowedTexture(texture); using var image=GpuFramebufferAttachment.FromMultiviewTexture(array,1,2); using var capabilities=new DirectStateAccessCapabilityScope(direct); using var framebuffer=DynamicGpuFramebuffer.Create([image])!;
             OpenGLImageBindings.BindTexture(OpenGlStateCache.Current, TextureTarget.Texture2DArray,0,texture);
             VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLTexturesCalls.ExecuteCoreTexImage3D(TextureTarget.Texture2DArray, 0, PixelInternalFormat.Rgba8, 16, 8, 4, 0, PixelFormat.Rgba, PixelType.UnsignedByte, IntPtr.Zero);

@@ -201,12 +201,13 @@ public sealed class RHIImageTests(HeadlessGLFixture fixture)
     public void MissingSampleChoicesReadOnlyAllocationSamples(bool renderbuffer)
     {
         Start();
-        var target = renderbuffer ? OpenTK.Graphics.OpenGL.ImageTarget.Renderbuffer : OpenTK.Graphics.OpenGL.ImageTarget.Texture2DMultisample;
-        const OpenTK.Graphics.OpenGL.SizedInternalFormat format = OpenTK.Graphics.OpenGL.SizedInternalFormat.Rgba8;
-        var support = GpuSupport.GetInternalFormatCapabilities(target, format);
+        var target = renderbuffer ? TextureDimension.Two : TextureDimension.TwoMultisample;
+        var kind = renderbuffer ? GpuResourceKind.Renderbuffer : GpuResourceKind.Texture;
+        const TextureFormat format = TextureFormat.Rgba8;
+        var support = GpuSupport.GetInternalFormatCapabilities(target, format, kind);
         var field = HarmonyLib.AccessTools.Field(typeof(GpuSupport), "formatCapabilities");
-        var cache = (System.Collections.Generic.Dictionary<(OpenTK.Graphics.OpenGL.ImageTarget, OpenTK.Graphics.OpenGL.SizedInternalFormat), InternalFormatCapabilities>)field.GetValue(null)!;
-        cache[(target, format)] = support with { SampleCounts = System.Collections.Immutable.ImmutableArray<int>.Empty };
+        var cache = (System.Collections.Generic.Dictionary<(GpuResourceKind, TextureDimension, TextureFormat), InternalFormatCapabilities>)field.GetValue(null)!;
+        cache[(kind, target, format)] = support with { SampleCounts = System.Collections.Immutable.ImmutableArray<int>.Empty };
         try
         {
             if (renderbuffer)
@@ -225,7 +226,7 @@ public sealed class RHIImageTests(HeadlessGLFixture fixture)
             }
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { cache[(target, format)] = support; Finish(); }
+        finally { cache[(kind, target, format)] = support; Finish(); }
     }
 
     /// <summary>A partially configured candidate is retired once and the original native exception propagates.</summary>

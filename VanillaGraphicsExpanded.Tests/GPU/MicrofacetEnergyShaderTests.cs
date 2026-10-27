@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System.Numerics;
 using OpenTK.Graphics.OpenGL;
@@ -253,7 +254,7 @@ public sealed class MicrofacetEnergyShaderTests(HeadlessGLFixture fixture) : Ren
             GL.Uniform1(GL.GetUniformLocation(program, "grazing"), grazing ? 1 : 0);
             GL.Uniform1(GL.GetUniformLocation(program, "waterAngle"), waterAngle);
             MicrofacetTextureReference.Bind();
-            using var target = CreateRenderTarget(1, 1, PixelInternalFormat.Rgba32f);
+            using var target = CreateRenderTarget(1, 1, TextureFormat.Rgba32f);
             GL.BindFramebuffer(FramebufferTarget.Framebuffer, target.FboId);
             GL.Viewport(0, 0, 1, 1);
             GL.Disable(EnableCap.DepthTest); GL.Disable(EnableCap.Blend); GL.Disable(EnableCap.CullFace);

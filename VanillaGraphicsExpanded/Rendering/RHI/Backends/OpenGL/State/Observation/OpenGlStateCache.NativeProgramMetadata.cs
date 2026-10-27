@@ -73,7 +73,7 @@ internal sealed partial class OpenGlStateCache
             if (unsupportedUnits || !returned || !entry.Manager.CanObserveNativeMetadata
                 || !entry.Manager.IsRegistered(entry) || entry.State != GpuResourceRegistrationState.Live) return;
             bool success = known && (unit || block != 0)
-                ? entry.Manager.RefreshProgramFields(entry, previous, unit, location, count, block, index, supplied)
+                ? entry.Manager.RefreshProgramFields(entry, previous, unit, location, count, block == ProgramInterface.UniformBlock ? ProgramBlockKind.Uniform : ProgramBlockKind.Storage, index, supplied)
                 : entry.Manager.RefreshMetadata(entry, GpuMetadataChange.Metadata);
             if (!success) throw new InvalidOperationException("Native program metadata is unavailable after mutation.");
         }

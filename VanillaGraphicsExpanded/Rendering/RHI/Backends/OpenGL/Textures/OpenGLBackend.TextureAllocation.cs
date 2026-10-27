@@ -15,7 +15,7 @@ internal sealed partial class OpenGLBackend
     {
         RequireContext();
         int name = 0;
-        try { GL.CreateTextures((Native.TextureTarget)request.Target, 1, out name); }
+        try { GL.CreateTextures((Native.TextureTarget)OpenGLImageValues.Target(request.Target), 1, out name); }
         finally { id = name; }
         RequireContext();
         if (name == 0) return null;
@@ -48,56 +48,56 @@ internal sealed partial class OpenGLBackend
     {
         RequireContext();
         bool immutable = request.AllocationMode == GpuTextureAllocationMode.Immutable;
-        bool multisample = request.Target is TextureTarget.Texture2DMultisample or TextureTarget.Texture2DMultisampleArray;
-        bool three = request.Target is TextureTarget.Texture3D or TextureTarget.Texture2DArray or TextureTarget.TextureCubeMapArray;
-        bool one = request.Target == TextureTarget.Texture1D;
+        bool multisample = request.Target is TextureDimension.TwoMultisample or TextureDimension.TwoMultisampleArray;
+        bool three = request.Target is TextureDimension.Three or TextureDimension.TwoArray or TextureDimension.CubeArray;
+        bool one = request.Target == TextureDimension.One;
         // Mutable image definition has no core named equivalent. The backend alone owns this
         // temporary selection; immutable allocation never mutates a texture binding.
-        using var binding = !immutable ? cache.BindTextureScope(request.Target, 0, name) : (OpenGlStateCache.TextureScope?)null;
+        using var binding = !immutable ? cache.BindTextureScope(OpenGLImageValues.Target(request.Target), 0, name) : (OpenGlStateCache.TextureScope?)null;
         if (immutable)
         {
             if (multisample)
             {
-                if (request.Target == TextureTarget.Texture2DMultisampleArray)
-                    GL.TextureStorage3DMultisample(name, request.Samples, (Native.SizedInternalFormat)request.InternalFormat,
+                if (request.Target == TextureDimension.TwoMultisampleArray)
+                    GL.TextureStorage3DMultisample(name, request.Samples, (Native.SizedInternalFormat)OpenGLImageValues.Format(request.InternalFormat),
                         request.Width, request.Height, request.Depth, request.FixedSampleLocations);
-                else GL.TextureStorage2DMultisample(name, request.Samples, (Native.SizedInternalFormat)request.InternalFormat,
+                else GL.TextureStorage2DMultisample(name, request.Samples, (Native.SizedInternalFormat)OpenGLImageValues.Format(request.InternalFormat),
                     request.Width, request.Height, request.FixedSampleLocations);
             }
-            else if (three) GL.TextureStorage3D(name, request.Levels, (Native.SizedInternalFormat)request.InternalFormat, request.Width, request.Height, request.Depth);
-            else if (one) GL.TextureStorage1D(name, request.Levels, (Native.SizedInternalFormat)request.InternalFormat, request.Width);
-            else GL.TextureStorage2D(name, request.Levels, (Native.SizedInternalFormat)request.InternalFormat, request.Width, request.Height);
+            else if (three) GL.TextureStorage3D(name, request.Levels, (Native.SizedInternalFormat)OpenGLImageValues.Format(request.InternalFormat), request.Width, request.Height, request.Depth);
+            else if (one) GL.TextureStorage1D(name, request.Levels, (Native.SizedInternalFormat)OpenGLImageValues.Format(request.InternalFormat), request.Width);
+            else GL.TextureStorage2D(name, request.Levels, (Native.SizedInternalFormat)OpenGLImageValues.Format(request.InternalFormat), request.Width, request.Height);
             CheckTextureStep(operation, creationGuard);
         }
-        int faces = request.Target == TextureTarget.TextureCubeMap ? 6 : 1;
+        int faces = request.Target == TextureDimension.Cube ? 6 : 1;
         var images = ImmutableArray.CreateBuilder<GpuTextureLevelMetadata>(request.Levels * faces);
         // Null client data must not become an offset into a caller's pixel-unpack buffer.
         using var unpack = !immutable ? cache.BindBufferScope(BufferTarget.PixelUnpackBuffer, 0) : (OpenGlStateCache.BufferScope?)null;
         for (int level = 0; level < request.Levels; level++)
         {
             int width = Math.Max(1, request.Width >> level);
-            int height = request.Target == TextureTarget.Texture1DArray ? request.Height : Math.Max(1, request.Height >> level);
-            int depth = request.Target == TextureTarget.Texture3D ? Math.Max(1, request.Depth >> level) : request.Depth;
+            int height = request.Target == TextureDimension.OneArray ? request.Height : Math.Max(1, request.Height >> level);
+            int depth = request.Target == TextureDimension.Three ? Math.Max(1, request.Depth >> level) : request.Depth;
             for (int face = 0; face < faces; face++)
             {
-                TextureTarget target = faces == 6 ? TextureTarget.TextureCubeMapPositiveX + face : request.Target;
+                TextureTarget target = faces == 6 ? TextureTarget.TextureCubeMapPositiveX + face : OpenGLImageValues.Target(request.Target);
                 if (!immutable)
                 {
                     if (multisample)
                     {
-                        if (request.Target == TextureTarget.Texture2DMultisampleArray)
+                        if (request.Target == TextureDimension.TwoMultisampleArray)
                             GL.TexImage3DMultisample((Native.TextureTargetMultisample)target, request.Samples,
-                                (Native.PixelInternalFormat)request.InternalFormat, width, height, depth, request.FixedSampleLocations);
+                                (Native.PixelInternalFormat)OpenGLImageValues.Format(request.InternalFormat), width, height, depth, request.FixedSampleLocations);
                         else GL.TexImage2DMultisample((Native.TextureTargetMultisample)target, request.Samples,
-                            (Native.PixelInternalFormat)request.InternalFormat, width, height, request.FixedSampleLocations);
+                            (Native.PixelInternalFormat)OpenGLImageValues.Format(request.InternalFormat), width, height, request.FixedSampleLocations);
                     }
                     else
                     {
-                        var pixels = (Native.PixelFormat)TextureFormatHelper.GetPixelFormat(request.InternalFormat);
-                        var type = (Native.PixelType)TextureFormatHelper.GetPixelType(request.InternalFormat);
-                        if (three) GL.TexImage3D((Native.TextureTarget)target, level, (Native.PixelInternalFormat)request.InternalFormat, width, height, depth, 0, pixels, type, IntPtr.Zero);
-                        else if (one) GL.TexImage1D((Native.TextureTarget)target, level, (Native.PixelInternalFormat)request.InternalFormat, width, 0, pixels, type, IntPtr.Zero);
-                        else GL.TexImage2D((Native.TextureTarget)target, level, (Native.PixelInternalFormat)request.InternalFormat, width, height, 0, pixels, type, IntPtr.Zero);
+                        var pixels = OpenGLPixelValues.Channels(TextureFormatHelper.GetPixelFormat(request.InternalFormat));
+                        var type = OpenGLPixelValues.Type(TextureFormatHelper.GetPixelType(request.InternalFormat));
+                        if (three) GL.TexImage3D((Native.TextureTarget)target, level, (Native.PixelInternalFormat)OpenGLImageValues.Format(request.InternalFormat), width, height, depth, 0, pixels, type, IntPtr.Zero);
+                        else if (one) GL.TexImage1D((Native.TextureTarget)target, level, (Native.PixelInternalFormat)OpenGLImageValues.Format(request.InternalFormat), width, 0, pixels, type, IntPtr.Zero);
+                        else GL.TexImage2D((Native.TextureTarget)target, level, (Native.PixelInternalFormat)OpenGLImageValues.Format(request.InternalFormat), width, height, 0, pixels, type, IntPtr.Zero);
                     }
                     CheckTextureStep(operation, creationGuard);
                 }
@@ -107,16 +107,16 @@ internal sealed partial class OpenGLBackend
                     GL.GetTexLevelParameter((Native.TextureTarget)target, level, Native.GetTextureParameter.TextureInternalFormat, out int resolved);
                     CheckTextureStep(operation, creationGuard);
                     if (resolved <= 0) throw new InvalidOperationException("Unsized texture format resolution failed.");
-                    format = (PixelInternalFormat)resolved;
+                    format = OpenGLImageValues.Format((PixelInternalFormat)resolved);
                 }
                 int samples = multisample ? request.Samples : 0;
-                if (multisample && GpuSupport.GetInternalFormatCapabilities((ImageTarget)request.Target, (SizedInternalFormat)request.InternalFormat).SampleCounts.IsDefaultOrEmpty)
+                if (multisample && GpuSupport.GetInternalFormatCapabilities(request.Target, request.InternalFormat).SampleCounts.IsDefaultOrEmpty)
                 {
                     GL.GetTextureLevelParameter(name, 0, Native.GetTextureParameter.TextureSamples, out samples);
                     CheckTextureStep(operation, creationGuard);
                     if (samples <= 0) throw new InvalidOperationException("Allocated texture samples are unavailable.");
                 }
-                images.Add(new(level, faces == 6 ? target : 0, width, height, depth, format, samples, true));
+                images.Add(new(level, faces == 6 ? OpenGLImageValues.Face(target) : CubeFace.None, width, height, depth, format, samples, true));
             }
         }
         if (!multisample)
@@ -127,8 +127,8 @@ internal sealed partial class OpenGLBackend
             CheckTextureStep(operation, creationGuard);
         }
         GpuTextureViewMetadata? view = immutable ? new(0, request.Levels, 0,
-            request.Target == TextureTarget.TextureCubeMap ? 6 : request.Target == TextureTarget.Texture1DArray ? request.Height
-            : request.Target is TextureTarget.Texture2DArray or TextureTarget.TextureCubeMapArray or TextureTarget.Texture2DMultisampleArray ? request.Depth : 1) : null;
+            request.Target == TextureDimension.Cube ? 6 : request.Target == TextureDimension.OneArray ? request.Height
+            : request.Target is TextureDimension.TwoArray or TextureDimension.CubeArray or TextureDimension.TwoMultisampleArray ? request.Depth : 1) : null;
         return new(request.Target, images.MoveToImmutable(), immutable, immutable ? request.Levels : 0,
             request.BaseLevel, request.MaxLevel, View: view);
     }

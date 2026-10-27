@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.PBR;
@@ -20,10 +21,10 @@ public sealed class PbrDisplayResolveTests : LumOnShaderFunctionalTestBase
     {
         EnsureShaderTestAvailable();
         var program = Programs.Create<PBRDisplayResolveShaderProgram>();
-        using var scene = TestFramework.CreateTexture(3, 1, PixelInternalFormat.Rgba16f,
+        using var scene = TestFramework.CreateTexture(3, 1, TextureFormat.Rgba16f,
             new[] { 0f, 1f, 4f, .5f, -.5f, .125f, 16f, 1f, .125f, .5f, .75f, .25f });
-        using var depth = TestFramework.CreateTexture(3, 1, PixelInternalFormat.R32f, new[] { .5f, .9999993f, 1f });
-        using var output = TestFramework.CreateTestGBuffer(3, 1, PixelInternalFormat.Rgba8);
+        using var depth = TestFramework.CreateTexture(3, 1, TextureFormat.R32f, new[] { .5f, .9999993f, 1f });
+        using var output = TestFramework.CreateTestGBuffer(3, 1, TextureFormat.Rgba8);
         FramebufferTestSetup.BindForEngineRendering(output);
         {
             program.PrimaryScene = scene;
@@ -50,10 +51,10 @@ public sealed class PbrDisplayResolveTests : LumOnShaderFunctionalTestBase
     {
         EnsureShaderTestAvailable();
         var program = Programs.Create<PBRDisplayResolveShaderProgram>();
-        using var scene = TestFramework.CreateTexture(2, 1, PixelInternalFormat.Rgba32f,
+        using var scene = TestFramework.CreateTexture(2, 1, TextureFormat.Rgba32f,
             new[] { scale, scale * .25f, scale * .0625f, .37f, scale, scale * .25f, scale * .0625f, .37f });
-        using var depth = TestFramework.CreateTexture(2, 1, PixelInternalFormat.R32f, new[] { .5f, .5f });
-        using var output = TestFramework.CreateTestGBuffer(2, 1, PixelInternalFormat.Rgba32f);
+        using var depth = TestFramework.CreateTexture(2, 1, TextureFormat.R32f, new[] { .5f, .5f });
+        using var output = TestFramework.CreateTestGBuffer(2, 1, TextureFormat.Rgba32f);
         FramebufferTestSetup.BindForEngineRendering(output);
         {
             program.PrimaryScene = scene;
@@ -98,9 +99,9 @@ public sealed class PbrDisplayResolveTests : LumOnShaderFunctionalTestBase
             pixels[index * 4 + 3] = 73f / 255f;
             depths[index] = x < 16 ? .5f : 1f;
         }
-        using var scene = TestFramework.CreateTexture(width, 8, PixelInternalFormat.Rgba32f, pixels);
-        using var depth = TestFramework.CreateTexture(width, 8, PixelInternalFormat.R32f, depths);
-        using var output = TestFramework.CreateTestGBuffer(width, 8, PixelInternalFormat.Rgba8);
+        using var scene = TestFramework.CreateTexture(width, 8, TextureFormat.Rgba32f, pixels);
+        using var depth = TestFramework.CreateTexture(width, 8, TextureFormat.R32f, depths);
+        using var output = TestFramework.CreateTestGBuffer(width, 8, TextureFormat.Rgba8);
         FramebufferTestSetup.BindForEngineRendering(output);
         {
             program.PrimaryScene = scene;
@@ -142,11 +143,11 @@ public sealed class PbrDisplayResolveTests : LumOnShaderFunctionalTestBase
             pixels[offset] = pixels[offset + 1] = pixels[offset + 2] = radiance;
             pixels[offset + 3] = 73f / 255f;
         }
-        using var scene = TestFramework.CreateTexture(width, height, PixelInternalFormat.Rgba32f, pixels);
-        using var depth = TestFramework.CreateTexture(width, height, PixelInternalFormat.R32f,
+        using var scene = TestFramework.CreateTexture(width, height, TextureFormat.Rgba32f, pixels);
+        using var depth = TestFramework.CreateTexture(width, height, TextureFormat.R32f,
             Enumerable.Repeat(.5f, width * height).ToArray());
-        using var output = TestFramework.CreateTestGBuffer(width, height, PixelInternalFormat.Rgba8);
-        using var preciseOutput = TestFramework.CreateTestGBuffer(width, height, PixelInternalFormat.Rgba32f);
+        using var output = TestFramework.CreateTestGBuffer(width, height, TextureFormat.Rgba8);
+        using var preciseOutput = TestFramework.CreateTestGBuffer(width, height, TextureFormat.Rgba32f);
         float[] precise = Render(preciseOutput);
         float[] first = Render();
         Assert.Equal(first, Render());

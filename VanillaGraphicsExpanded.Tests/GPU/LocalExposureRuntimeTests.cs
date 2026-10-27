@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Numerics;
 using OpenTK.Graphics.OpenGL;
@@ -33,7 +34,7 @@ public sealed class LocalExposureRuntimeTests(HeadlessGLFixture fixture, ITestOu
         using var publication = new TestFrameLightingPublication(); publication.Capture(scale);
         using var owner = new LocalExposureRenderer(); owner.FrameLightingInputs = publication.Buffer;
         var result = owner.Render(Programs.Api, scene, Candidate());
-        Assert.Equal(PixelInternalFormat.Rg32f, result.InternalFormat);
+        Assert.Equal(TextureFormat.Rg32f, result.InternalFormat);
         Assert.Equal(2, result.Width); Assert.Equal(2, result.Height);
         double[] expected = Reduce(colors, 13, 7, 2, 2);
         float[] logarithms = owner.Logarithms.ReadPixels(), filtered = result.ReadPixels();
@@ -156,7 +157,7 @@ public sealed class LocalExposureRuntimeTests(HeadlessGLFixture fixture, ITestOu
         using var source = Scene(colors, 2, 1);
         using var glare = Scene([new(.00001f)], 1, 1);
         using var empty = Scene([Vector3.Zero], 1, 1);
-        using var baseImage = TestFramework.CreateTexture(2, 1, PixelInternalFormat.Rg32f, bases);
+        using var baseImage = TestFramework.CreateTexture(2, 1, TextureFormat.Rg32f, bases);
         using var history = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = "Tests.LocalFinal.Exposure" }).RequireResource();
         history.UploadData(new[] { 6f, 0f, metered, 1f, 20f, 1f, 0f, 0f });
         using var grading = new ColorGradingLut();
@@ -195,7 +196,7 @@ public sealed class LocalExposureRuntimeTests(HeadlessGLFixture fixture, ITestOu
         using var scene = Scene([new(.001f), new(.001f)], 2, 1);
         using var bloom = Scene([new(.002f)], 1, 1);
         using var shafts = Scene([new(.0005f)], 1, 1);
-        using var spatial = TestFramework.CreateTexture(2, 1, PixelInternalFormat.Rg32f, [-10f, 1f, -9f, 1f]);
+        using var spatial = TestFramework.CreateTexture(2, 1, TextureFormat.Rg32f, [-10f, 1f, -9f, 1f]);
         using var history = ExposureTestStorage.Create(6);
         using var grading = new ColorGradingLut();
         Vector4 controls = new(1, 1, 1, 0);
@@ -222,7 +223,7 @@ public sealed class LocalExposureRuntimeTests(HeadlessGLFixture fixture, ITestOu
         const float metered = -12.7348446f;
         using var source = Scene(colors, 2, 1);
         using var zero = Scene([Vector3.Zero], 1, 1);
-        using var baseImage = TestFramework.CreateTexture(2, 1, PixelInternalFormat.Rg32f, bases);
+        using var baseImage = TestFramework.CreateTexture(2, 1, TextureFormat.Rg32f, bases);
         using var history = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = "Tests.CapturedMean.Exposure" }).RequireResource();
         history.UploadData(new[] { 6f, 0f, metered, 1f, 10.26f, 1f, 0f, 0f });
         using var grading = new ColorGradingLut();
@@ -250,7 +251,7 @@ public sealed class LocalExposureRuntimeTests(HeadlessGLFixture fixture, ITestOu
         using var scene = Scene(black ? [Vector3.Zero, Vector3.Zero] : [new(.00004f), new(.001f)], 2, 1);
         using var glare = Scene([new(.001f)], 1, 1);
         using var empty = Scene([Vector3.Zero], 1, 1);
-        using var spatial = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rg32f, black ? [-14, 1] : [0, 0]);
+        using var spatial = TestFramework.CreateTexture(1, 1, TextureFormat.Rg32f, black ? [-14, 1] : [0, 0]);
         using var history = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = "Tests.LocalFinal.NeutralGuidance" }).RequireResource();
         history.UploadData(new[] { 6f, 0f, -8f, 1f, 6f, 0f, 0f, 0f });
         using var grading = new ColorGradingLut(); var lookup = grading.Prepare(Programs.Api, new(1, 1, 1, 0));
@@ -266,7 +267,7 @@ public sealed class LocalExposureRuntimeTests(HeadlessGLFixture fixture, ITestOu
     #region GPU fixtures
     /// <summary>Creates explicit stored scene RGB without modifying the input calibration.</summary>
     private DynamicTexture2D Scene(Vector3[] pixels, int width, int height, float scale = 1) => TestFramework.CreateTexture(width, height,
-        PixelInternalFormat.Rgba32f, pixels.SelectMany(c => new[] { c.X * scale, c.Y * scale, c.Z * scale, 1f }).ToArray());
+        TextureFormat.Rgba32f, pixels.SelectMany(c => new[] { c.X * scale, c.Y * scale, c.Z * scale, 1f }).ToArray());
 
     /// <summary>Runs the actual final program with local guidance and published global exposure storage.</summary>
     private float[] Final(DynamicTexture2D source, DynamicTexture2D glare, DynamicTexture2D empty, DynamicTexture2D localBase,
@@ -279,7 +280,7 @@ public sealed class LocalExposureRuntimeTests(HeadlessGLFixture fixture, ITestOu
         var bindings = program.ProgramLayout.BinaryInterface!.PreparedBindings;
         Assert.False(bindings.Resolve(GpuBindingEntry.Identity(ShaderBindingKind.StorageBlock, "CameraAdaptation")).Active);
         Assert.Equal(optionalVariant, bindings.Resolve(GpuBindingEntry.Identity(ShaderBindingKind.Sampler, "localBaseImage")).Active);
-        using var target = TestFramework.CreateTestGBuffer(2, 1, PixelInternalFormat.Rgba32f);
+        using var target = TestFramework.CreateTestGBuffer(2, 1, TextureFormat.Rgba32f);
         using var camera = TestFrameCamera.CreateIdentity(2, 1);
         using var draw = new PostprocessDraw();
         program.FrameInputs = camera; program.SceneImage = source; program.BloomImage = glare; program.ShaftImage = empty;

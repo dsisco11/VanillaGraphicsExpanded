@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Collections.Immutable;
 using System.Numerics;
@@ -146,7 +147,7 @@ public sealed class SunDiskDrawTests(HeadlessGLFixture fixture) : LumOnShaderFun
         shader.DrawInputs.Capture(lighting, maximumScale);
         using var color = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba32f, Width = System.Math.Max(1, size), Height = System.Math.Max(1, size), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         using var glow = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba32f, Width = System.Math.Max(1, size), Height = System.Math.Max(1, size), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
-        using var depthImage = new DepthTexture(size, size, PixelInternalFormat.DepthComponent32f);
+        using var depthImage = new DepthTexture(size, size, TextureFormat.DepthComponent32f);
         using var target = DynamicGpuFramebuffer.CreateMRT([color, glow], depthImage)!;
         using var geometry = new ArrayGraphicsGeometry(CelestialDrawPass.FullscreenLayout, PrimitiveTopology.Triangles,
             new Dictionary<int, GpuVbo>(), proceduralVertices: 3);

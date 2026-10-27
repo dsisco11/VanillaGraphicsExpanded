@@ -1,3 +1,5 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using System.Collections.Generic;
 using OpenTK.Graphics.OpenGL;
@@ -37,7 +39,7 @@ public sealed class PbrLumOnPipelineTargetsLifetimeTests : IDisposable
             // Enumerate actual slots so MRT storage is checked alongside single-output targets.
             for (int index = 0; ; index++)
             {
-                var attachment = framebuffer.GetAttachment(FramebufferAttachment.ColorAttachment0 + index);
+                var attachment = framebuffer.GetAttachment(FramebufferSlot.Color0 + index);
                 if (attachment is null) break;
                 Assert.True(attachment.OwnsStorage);
                 textures.Add(attachment.TextureId);

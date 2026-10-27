@@ -52,12 +52,14 @@ uniform frame callbacks advance allocation/publication epochs without purging bi
 
 ## Explicit acquisition and image dependencies
 
-Private resource execution uses logical framebuffer slots, selection and metadata-query fields rather
-than OpenTK enums in its method signatures. Texture formats use the existing project-owned enum;
-format-query targets distinguish texture shapes from renderbuffers. Explicit native integration translates
-legacy owner selectors, and backend lowering translates the logical requests. The shared OpenGL image
-value codec lives with native integration and performs conversion only, with no native dispatch or state.
-Canonical metadata and initialization schemas retain their established ownership.
+Image and framebuffer wrapper APIs, canonical metadata, initialization records and capability-cache keys
+use project-owned `TextureDimension`, `CubeFace`, `TextureFormat` and `FramebufferSlot` values.
+Texture shapes and cube-face selections are separate facts. Format capability requests distinguish
+texture dimensions from renderbuffer resource kind; the shared cache holds these semantic keys.
+Framebuffer selection and targeted query fields also use project-owned types, and routing carries
+color indices. Native adapters decode actual external inputs, while the backend's codecs encode
+commands and decode query results. Ordinary resources and manager services never call those codecs.
+Canonical metadata and initialization retain their existing manager ownership.
 
 Borrowed texture admission, executable adoption, interface acquisition and imported framebuffer
 publication enter through private `RHICommandContext` resource operations. The admitted backend invokes

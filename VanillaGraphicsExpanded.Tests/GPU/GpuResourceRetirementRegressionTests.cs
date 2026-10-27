@@ -19,7 +19,7 @@ public sealed class GpuResourceRetirementRegressionTests(HeadlessGLFixture fixtu
         fixture.EnsureContextValid(); fixture.InitializeResourceDisposal();
         try
         {
-            using var image = new GpuFramebufferAttachment(2,2,PixelInternalFormat.Rgba8);
+            using var image = new GpuFramebufferAttachment(2,2,TextureFormat.Rgba8);
             using var target = StaticGpuFramebuffer.Create([image]);
             int id = target.FboId;
             var cache = OpenGlStateCache.Current;

@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Noise;
@@ -28,7 +29,7 @@ internal sealed class CloudBlueNoiseTexture : GpuTexture
         if (IsValid) return;
         filterMode = TextureFilterMode.Nearest;
         debugName = "Cloud.Primary.BlueNoise";
-        AllocateOrReallocate2DTexture(Side, Side * Frames, PixelInternalFormat.R32f, mipLevels: 1);
+        AllocateOrReallocate2DTexture(Side, Side * Frames, TextureFormat.R32f, mipLevels: 1);
         UploadDataImmediate(Masks.Value);
     }
     #endregion

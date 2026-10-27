@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System.Reflection;
 using System.Reflection.Emit;
@@ -71,16 +72,16 @@ public sealed class SceneColorAllocationTests(HeadlessGLFixture fixture) : Rende
         EnsureContextValid();
         var allocation = new SceneColorAllocation();
         allocation.Begin(EnumFrameBuffer.Primary);
-        Assert.Equal(PixelInternalFormat.DepthComponent32, allocation.Select(PixelInternalFormat.DepthComponent32));
-        var formats = new List<PixelInternalFormat> { allocation.Select(PixelInternalFormat.Rgba8), allocation.Select(PixelInternalFormat.Rgba8) };
-        if (ssao) formats.AddRange(new[] { allocation.Select(PixelInternalFormat.Rgba16f), allocation.Select(PixelInternalFormat.Rgba16f) });
-        Assert.Equal(PixelInternalFormat.Rgba16f, formats[0]);
-        Assert.Equal(PixelInternalFormat.Rgba8, formats[1]);
+        Assert.Equal(TextureFormat.DepthComponent32, allocation.Select(TextureFormat.DepthComponent32));
+        var formats = new List<TextureFormat> { allocation.Select(TextureFormat.Rgba8), allocation.Select(TextureFormat.Rgba8) };
+        if (ssao) formats.AddRange(new[] { allocation.Select(TextureFormat.Rgba16f), allocation.Select(TextureFormat.Rgba16f) });
+        Assert.Equal(TextureFormat.Rgba16f, formats[0]);
+        Assert.Equal(TextureFormat.Rgba8, formats[1]);
         int texture = GL.GenTexture();
         try
         {
             GL.BindTexture(TextureTarget.Texture2D, texture);
-            GL.TexImage2D(TextureTarget.Texture2D, 0, formats[0], 1, 1, 0, PixelFormat.Rgba, PixelType.Float, new[] { 8f, 4f, 2f, 1f });
+            GL.TexImage2D(TextureTarget.Texture2D, 0, OpenGLImageValues.Format(formats[0]), 1, 1, 0, PixelFormat.Rgba, PixelType.Float, new[] { 8f, 4f, 2f, 1f });
             GL.GetTexLevelParameter(TextureTarget.Texture2D, 0, GetTextureParameter.TextureInternalFormat, out int actual);
             Assert.Equal((int)PixelInternalFormat.Rgba16f, actual);
             float[] result = new float[4];
@@ -92,9 +93,9 @@ public sealed class SceneColorAllocationTests(HeadlessGLFixture fixture) : Rende
         foreach (var kind in Enum.GetValues<EnumFrameBuffer>())
         {
             allocation.Begin(kind);
-            Assert.Equal(PixelInternalFormat.Rgb8, allocation.Select(PixelInternalFormat.Rgb8));
-            Assert.Equal(PixelInternalFormat.DepthComponent32, allocation.Select(PixelInternalFormat.DepthComponent32));
-            Assert.Equal(PixelInternalFormat.Rgba16f, allocation.Select(PixelInternalFormat.Rgba16f));
+            Assert.Equal(TextureFormat.Rgb8, allocation.Select(TextureFormat.Rgb8));
+            Assert.Equal(TextureFormat.DepthComponent32, allocation.Select(TextureFormat.DepthComponent32));
+            Assert.Equal(TextureFormat.Rgba16f, allocation.Select(TextureFormat.Rgba16f));
         }
     }
 
@@ -117,9 +118,9 @@ public sealed class SceneColorAllocationTests(HeadlessGLFixture fixture) : Rende
     {
         var allocation = new SceneColorAllocation();
         allocation.Begin(kind);
-        Assert.Equal(sceneColor ? PixelInternalFormat.Rgba16f : PixelInternalFormat.Rgba8,
-            allocation.Select(PixelInternalFormat.Rgba8));
-        Assert.Equal(PixelInternalFormat.Rgb8, allocation.Select(PixelInternalFormat.Rgb8));
+        Assert.Equal(sceneColor ? TextureFormat.Rgba16f : TextureFormat.Rgba8,
+            allocation.Select(TextureFormat.Rgba8));
+        Assert.Equal(TextureFormat.Rgb8, allocation.Select(TextureFormat.Rgb8));
     }
 
     /// <summary>Nested setup restores the parent allocation sequence after inner cleanup.</summary>

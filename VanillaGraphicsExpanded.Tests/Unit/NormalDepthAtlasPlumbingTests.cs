@@ -1,3 +1,5 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Collections;
 using System.Collections.Immutable;
 using System.Reflection;
@@ -27,8 +29,8 @@ public sealed class NormalDepthAtlasPlumbingTests
 
         pagesByAtlasTexId.Clear();
 
-        Texture2D materialParams = CreateFakeTexture2D(textureId: 111, internalFormat: PixelInternalFormat.Rgb16f);
-        Texture2D normalDepth = CreateFakeTexture2D(textureId: normalDepthTexId, internalFormat: PixelInternalFormat.Rgba16f);
+        Texture2D materialParams = CreateFakeTexture2D(textureId: 111, internalFormat: TextureFormat.Rgb16f);
+        Texture2D normalDepth = CreateFakeTexture2D(textureId: normalDepthTexId, internalFormat: TextureFormat.Rgba16f);
 
         var pageTextures = new MaterialAtlasPageTextures(materialParams, normalDepth);
 
@@ -98,7 +100,7 @@ public sealed class NormalDepthAtlasPlumbingTests
         return (T)value;
     }
 
-    private static Texture2D CreateFakeTexture2D(int textureId, PixelInternalFormat internalFormat)
+    private static Texture2D CreateFakeTexture2D(int textureId, TextureFormat internalFormat)
     {
         // Tests should not require a live GL context; we create an uninitialized instance and
         // populate the minimum fields used by IsValid/TextureId.
@@ -107,7 +109,7 @@ public sealed class NormalDepthAtlasPlumbingTests
 #pragma warning restore SYSLIB0050
 
         SetPrivateInstanceField(tex, "textureId", textureId);
-        tex.HandleMetadataChanged(new GpuTextureMetadata(TextureTarget.Texture2D,
+        tex.HandleMetadataChanged(new GpuTextureMetadata(TextureDimension.Two,
             ImmutableArray.Create(new GpuTextureLevelMetadata(0, 0, 1, 1, 1, internalFormat, 0, true)),
             false, 0, 0, 0));
         SetPrivateInstanceField(tex, "filterMode", TextureFilterMode.Nearest);

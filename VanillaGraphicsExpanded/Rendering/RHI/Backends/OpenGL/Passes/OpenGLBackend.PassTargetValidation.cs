@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.Integration.OpenGL;
 using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
@@ -26,7 +27,7 @@ internal sealed partial class OpenGLBackend
             if (color.Image is not { } supplied) continue;
             if (slot >= NativeCapabilities.MaxColorAttachments) throw new ArgumentOutOfRangeException(nameof(description));
             var image = OpenGLAttachmentIdentity.Resolve(supplied);
-            var format = OpenGLImageValues.Format(image.Image.Format);
+            var format = image.Image.Format;
             if (!VanillaGraphicsExpanded.Rendering.Pipeline.Descriptions.TargetFormatPolicy.IsColor(format))
                 throw new ArgumentException("A color route requires a supported color image format.");
             color.Clear?.Validate(format);
@@ -51,7 +52,7 @@ internal sealed partial class OpenGLBackend
         var first = key.DepthStencil?.Image ?? key.Colors[0].Image.Image;
         bool hasDepth = key.DepthStencil is { } depth && TextureFormatHelper.IsDepthFormat(depth.Image.Format);
         bool hasStencil = key.DepthStencil is { } stencil && (TextureFormatHelper.IsStencilFormat(stencil.Image.Format)
-            || stencil.Image.Format is Legacy.PixelInternalFormat.Depth24Stencil8 or Legacy.PixelInternalFormat.Depth32fStencil8);
+            || stencil.Image.Format is TextureFormat.Depth24Stencil8 or TextureFormat.Depth32fStencil8);
         if ((!hasDepth && (description.Actions.DepthLoad != AttachmentLoad.Preserve || description.Actions.DepthStore != AttachmentStore.Preserve))
             || (!hasStencil && (description.Actions.StencilLoad != AttachmentLoad.Preserve || description.Actions.StencilStore != AttachmentStore.Preserve)))
             throw new ArgumentException("The pass intentions require a missing depth/stencil aspect.");
@@ -61,7 +62,7 @@ internal sealed partial class OpenGLBackend
         foreach (var color in description.Colors)
             if (color.Image.HasValue)
             {
-                color.Clear?.Validate(OpenGLImageValues.Format(key.Colors[imageIndex].Image.Image.Format));
+                color.Clear?.Validate(key.Colors[imageIndex].Image.Image.Format);
                 imageIndex++;
             }
     }

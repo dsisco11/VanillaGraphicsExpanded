@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System.Numerics;
 using System.Text.RegularExpressions;
@@ -82,7 +83,7 @@ public sealed class LocalExposurePrototypeTests(HeadlessGLFixture fixture, ITest
     public void GuidedReconstructionRejectsBrightLeakage()
     {
         EnsureShaderTestAvailable();
-        using var texture = TestFramework.CreateTexture(2, 1, PixelInternalFormat.Rg32f, [-16, 1, 8, 1]);
+        using var texture = TestFramework.CreateTexture(2, 1, TextureFormat.Rg32f, [-16, 1, 8, 1]);
         string body = "float b; bool valid=VgeSampleLocalBase(sourceImage,vec2(.5),guidance,1.0,b); outColor=vec4(b,valid?1:0,0,1);";
         foreach (float guidance in new[] { -16f, 8f })
         {
@@ -92,7 +93,7 @@ public sealed class LocalExposurePrototypeTests(HeadlessGLFixture fixture, ITest
         }
         float[] border = Draw("float b; bool v=VgeSampleLocalBase(sourceImage,vec2(0),-16.0,1.0,b); outColor=vec4(b,v?1:0,0,1);", 1, 1, texture);
         Assert.Equal(-16, border[0]); Assert.Equal(1, border[1]);
-        using var missing = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rg32f, [0, 0]);
+        using var missing = TestFramework.CreateTexture(1, 1, TextureFormat.Rg32f, [0, 0]);
         float[] invalid = Draw(body, 1, 1, missing, null, 1, -16);
         Assert.Equal(0, invalid[1]); Assert.Equal(-16, invalid[0]);
     }
@@ -105,11 +106,11 @@ public sealed class LocalExposurePrototypeTests(HeadlessGLFixture fixture, ITest
     public void CorruptedBaseMetadataIsRejected(float corrupted)
     {
         EnsureShaderTestAvailable();
-        using var mixed = TestFramework.CreateTexture(3, 1, PixelInternalFormat.Rg32f, [-16, 1, corrupted, 1, -16, 1]);
+        using var mixed = TestFramework.CreateTexture(3, 1, TextureFormat.Rg32f, [-16, 1, corrupted, 1, -16, 1]);
         float[] filtered = Draw("outColor=vec4(VgeFilterLocalBase(sourceImage,ivec2(gl_FragCoord.xy),1.0),0,1);", 3, 1, mixed);
         Assert.Equal(-16, filtered[0]); Assert.Equal(1, filtered[1]);
         Assert.Equal(0, filtered[5]); Assert.Equal(-16, filtered[8]);
-        using var missing = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rg32f, [corrupted, 1]);
+        using var missing = TestFramework.CreateTexture(1, 1, TextureFormat.Rg32f, [corrupted, 1]);
         float[] guided = Draw("float b;bool v=VgeSampleLocalBase(sourceImage,vec2(.5),-16.0,1.0,b);outColor=vec4(b,v?1:0,0,1);", 1, 1, missing);
         Assert.Equal(-16, guided[0]); Assert.Equal(0, guided[1]);
     }
@@ -123,7 +124,7 @@ public sealed class LocalExposurePrototypeTests(HeadlessGLFixture fixture, ITest
     public void InvalidRangeWidthsAreNeutral(float width)
     {
         EnsureShaderTestAvailable();
-        using var valid = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rg32f, [-16, 1]);
+        using var valid = TestFramework.CreateTexture(1, 1, TextureFormat.Rg32f, [-16, 1]);
         float[] result = Draw("vec2 f=VgeFilterLocalBase(sourceImage,ivec2(0),storage);float b;bool v=VgeSampleLocalBase(sourceImage,vec2(.5),-16.0,storage,b);outColor=vec4(f,b,v?1:0);", 1, 1, valid, storage: width);
         Assert.Equal(new[] { 0f, 0f, -16f, 0f }, result);
         float[] pixel = Draw("outColor=vec4(VgeFilterLocalBase(sourceImage,ivec2(-1),1.0),0,1);", 1, 1, valid);
@@ -135,8 +136,8 @@ public sealed class LocalExposurePrototypeTests(HeadlessGLFixture fixture, ITest
     public void InvalidCoordinatesAreRejectedBeforeIntegerConversion()
     {
         EnsureShaderTestAvailable();
-        using var coordinates = TestFramework.CreateTexture(6, 1, PixelInternalFormat.R32f, [-1, .5f, 2, 1e30f, float.NaN, float.PositiveInfinity]);
-        using var valid = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rg32f, [-16, 1]);
+        using var coordinates = TestFramework.CreateTexture(6, 1, TextureFormat.R32f, [-1, .5f, 2, 1e30f, float.NaN, float.PositiveInfinity]);
+        using var valid = TestFramework.CreateTexture(1, 1, TextureFormat.Rg32f, [-16, 1]);
         float[] result = Draw("float q=texelFetch(sourceImage,ivec2(gl_FragCoord.xy),0).r;float b;bool v=VgeSampleLocalBase(baseImage,vec2(q),-16.0,1.0,b);outColor=vec4(b,v?1:0,0,1);", 6, 1, coordinates, valid);
         for (int i = 0; i < 6; i++)
         {
@@ -150,7 +151,7 @@ public sealed class LocalExposurePrototypeTests(HeadlessGLFixture fixture, ITest
     public void InvalidCameraInputsMetadataProducesNeutralCorrection()
     {
         EnsureShaderTestAvailable();
-        using var metadata = TestFramework.CreateTexture(6, 1, PixelInternalFormat.R32f, [-151, 129, 1e30f, -1e30f, float.NaN, float.PositiveInfinity]);
+        using var metadata = TestFramework.CreateTexture(6, 1, TextureFormat.R32f, [-151, 129, 1e30f, -1e30f, float.NaN, float.PositiveInfinity]);
         float[] result = Draw("float q=texelFetch(sourceImage,ivec2(gl_FragCoord.xy),0).r;outColor=vec4(VgeLocalExposureStops(q,0.0,0.0,vec2(1),vec2(8)),VgeLocalExposureStops(0.0,q,0.0,vec2(.5),vec2(8)),0,1);", 6, 1, metadata);
         for (int i = 0; i < 6; i++) Assert.Equal(new[] { 0f, 0f, 0f, 1f }, result.Skip(i * 4).Take(4));
     }
@@ -160,7 +161,7 @@ public sealed class LocalExposurePrototypeTests(HeadlessGLFixture fixture, ITest
     public void InvalidDisplayPivotProducesNeutralCorrection()
     {
         EnsureShaderTestAvailable();
-        using var metadata=TestFramework.CreateTexture(3,1,PixelInternalFormat.R32f,[float.NaN,float.PositiveInfinity,float.NegativeInfinity]);
+        using var metadata=TestFramework.CreateTexture(3,1,TextureFormat.R32f,[float.NaN,float.PositiveInfinity,float.NegativeInfinity]);
         float[] result=Draw("float q=texelFetch(sourceImage,ivec2(gl_FragCoord.xy),0).r;outColor=vec4(VgeLocalExposureStops(-12.0,2.0,q,vec2(.5),vec2(4)),0,0,1);",3,1,metadata);
         for(int i=0;i<3;i++)Assert.Equal(new[]{0f,0f,0f,1f},result.Skip(i*4).Take(4));
     }
@@ -170,7 +171,7 @@ public sealed class LocalExposurePrototypeTests(HeadlessGLFixture fixture, ITest
     public void GuidedInterpolationMatchesIndependentWeights()
     {
         EnsureShaderTestAvailable();
-        using var values = TestFramework.CreateTexture(2, 2, PixelInternalFormat.Rg32f, [-14, 1, -13, 1, -12, 1, -11, 1]);
+        using var values = TestFramework.CreateTexture(2, 2, TextureFormat.Rg32f, [-14, 1, -13, 1, -12, 1, -11, 1]);
         float[] actual = Draw("float b;bool v=VgeSampleLocalBase(sourceImage,vec2(.375,.625),-12.5,1.0,b);outColor=vec4(b,v?1:0,0,1);", 1, 1, values);
         double numerator = 0, denominator = 0;
         for (int y = 0; y < 2; y++) for (int x = 0; x < 2; x++)
@@ -190,7 +191,7 @@ public sealed class LocalExposurePrototypeTests(HeadlessGLFixture fixture, ITest
     public void BoundsAndSmoothJoinPreserveBaseDetail()
     {
         EnsureShaderTestAvailable();
-        using var values = TestFramework.CreateTexture(9, 1, PixelInternalFormat.R32f, [-100, -4, -1, -.0001f, 0, .0001f, 1, 4, 100]);
+        using var values = TestFramework.CreateTexture(9, 1, TextureFormat.R32f, [-100, -4, -1, -.0001f, 0, .0001f, 1, 4, 100]);
         float[] result = Draw("float b=texelFetch(sourceImage,ivec2(gl_FragCoord.xy),0).r;float s=VgeLocalExposureStops(b,0.0,0.0,strengths,bounds);outColor=vec4(s,b+s,(b+.25)+s,1);", 9, 1, values, null, 1, 0, new(.5f, .25f), new(3, 2));
         float[] samples = [-100, -4, -1, -.0001f, 0, .0001f, 1, 4, 100];
         for (int i = 0; i < samples.Length; i++)
@@ -218,8 +219,8 @@ public sealed class LocalExposurePrototypeTests(HeadlessGLFixture fixture, ITest
         Vector4 controls = new(1, 1, 1.111798286f, .143282309f);
         using var lookup = new ColorGradingLut();
         var graded = lookup.Prepare(Programs.Api, controls);
-        using var baselineInput = TestFramework.CreateTexture(16, 8, PixelInternalFormat.Rgba32f, colors.SelectMany(c => new[] { c.X, c.Y, c.Z, 1f }).ToArray());
-        using var candidateInput = TestFramework.CreateTexture(16, 8, PixelInternalFormat.Rgba32f, local.Color);
+        using var baselineInput = TestFramework.CreateTexture(16, 8, TextureFormat.Rgba32f, colors.SelectMany(c => new[] { c.X, c.Y, c.Z, 1f }).ToArray());
+        using var candidateInput = TestFramework.CreateTexture(16, 8, TextureFormat.Rgba32f, local.Color);
         const string body = "vec3 c=texelFetch(sourceImage,ivec2(gl_FragCoord.xy),0).rgb*64.0;outColor=vec4(texture(gradingLookup,(VgeGradingCoordinate(c)*63.0+.5)/64.0).rgb,1);";
         float[] baseline = Draw(body, 16, 8, baselineInput, null, grading: graded);
         float[] candidate = Draw(body, 16, 8, candidateInput, null, grading: graded);
@@ -243,12 +244,12 @@ public sealed class LocalExposurePrototypeTests(HeadlessGLFixture fixture, ITest
     private (float[] Log, float[] Base, float[] Color) Pipeline(Vector3[] colors, int width, int height, float storage,
         float globalStops, Vector2 strengths, Vector2 bounds)
     {
-        using var input = TestFramework.CreateTexture(width, height, PixelInternalFormat.Rgba32f,
+        using var input = TestFramework.CreateTexture(width, height, TextureFormat.Rgba32f,
             colors.SelectMany(c => new[] { c.X * storage, c.Y * storage, c.Z * storage, 1f }).ToArray());
-        float[] logs = Draw("float q;bool v=VgeLocalLogLuminance(texelFetch(sourceImage,ivec2(gl_FragCoord.xy),0).rgb/storage,q);outColor=vec4(q,v?1:0,0,1);", width, height, input, null, storage, format: PixelInternalFormat.Rg32f);
-        using var logImage = TestFramework.CreateTexture(width, height, PixelInternalFormat.Rg32f, logs);
-        float[] filtered = Draw("outColor=vec4(VgeFilterLocalBase(sourceImage,ivec2(gl_FragCoord.xy),1.0),0,1);", width, height, logImage, format: PixelInternalFormat.Rg32f);
-        using var baseImage = TestFramework.CreateTexture(width, height, PixelInternalFormat.Rg32f, filtered);
+        float[] logs = Draw("float q;bool v=VgeLocalLogLuminance(texelFetch(sourceImage,ivec2(gl_FragCoord.xy),0).rgb/storage,q);outColor=vec4(q,v?1:0,0,1);", width, height, input, null, storage, format: TextureFormat.Rg32f);
+        using var logImage = TestFramework.CreateTexture(width, height, TextureFormat.Rg32f, logs);
+        float[] filtered = Draw("outColor=vec4(VgeFilterLocalBase(sourceImage,ivec2(gl_FragCoord.xy),1.0),0,1);", width, height, logImage, format: TextureFormat.Rg32f);
+        using var baseImage = TestFramework.CreateTexture(width, height, TextureFormat.Rg32f, filtered);
         float[] color = Draw("vec3 c=texelFetch(sourceImage,ivec2(gl_FragCoord.xy),0).rgb/storage;float q,b;float s=0;bool v=VgeLocalLogLuminance(c,q);if(v&&VgeSampleLocalBase(baseImage,gl_FragCoord.xy/vec2(textureSize(sourceImage,0)),q,1.0,b))s=VgeLocalExposureStops(b,globalStops,0.0,strengths,bounds);outColor=vec4(v?c*exp2(s):vec3(0),s);", width, height, input, baseImage, storage, globalStops, strengths, bounds);
         return (logs, filtered, color);
     }
@@ -256,7 +257,7 @@ public sealed class LocalExposurePrototypeTests(HeadlessGLFixture fixture, ITest
     /// <summary>Compiles the shared production helper at GLSL 330 and submits one tiny independent diagnostic pass.</summary>
     private float[] Draw(string body, int width, int height, DynamicTexture2D input, DynamicTexture2D? baseImage = null,
         float storage = 1, float globalStops = 0, Vector2 strengths = default, Vector2 bounds = default,
-        PixelInternalFormat format = PixelInternalFormat.Rgba32f, DynamicTexture3D? grading = null)
+        TextureFormat format = TextureFormat.Rgba32f, DynamicTexture3D? grading = null)
     {
         string root = Path.Combine(AppContext.BaseDirectory, "assets/shaders/includes");
         string fragment = "#version 330 core\nuniform sampler2D sourceImage;uniform sampler2D baseImage;uniform sampler3D gradingLookup;uniform float storage,globalStops,guidance;uniform vec2 strengths,bounds;out vec4 outColor;\n"

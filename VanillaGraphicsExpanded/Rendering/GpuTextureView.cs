@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using System.Diagnostics;
 
@@ -26,9 +27,9 @@ public sealed class GpuTextureView : GpuResource<GpuTextureMetadata>, IDisposabl
     /// <summary>Supplies the local source certificate to manager-owned dependency validation.</summary>
     internal object? SourceStorageIdentity => sourceStorageIdentity;
     /// <summary>Gets the native view target from the canonical texture snapshot.</summary>
-    private TextureTarget target => metadata.Target;
+    private TextureDimension target => metadata.Target;
     /// <summary>Gets the native view internalFormat from the canonical texture snapshot.</summary>
-    private PixelInternalFormat internalFormat => metadata.Levels.IsDefaultOrEmpty ? 0 : metadata.Levels[0].Format;
+    private TextureFormat internalFormat => metadata.Levels.IsDefaultOrEmpty ? 0 : metadata.Levels[0].Format;
     /// <summary>Gets the native view baseLevel from the canonical texture snapshot.</summary>
     private int baseLevel => metadata.View?.BaseLevel ?? 0;
     /// <summary>Gets the native view levelCount from the canonical texture snapshot.</summary>
@@ -63,12 +64,12 @@ public sealed class GpuTextureView : GpuResource<GpuTextureMetadata>, IDisposabl
     /// <summary>
     /// Gets the view target used for binding.
     /// </summary>
-    public TextureTarget Target => target;
+    public TextureDimension Target => target;
 
     /// <summary>
     /// Gets the internal format used for interpreting the shared storage.
     /// </summary>
-    public PixelInternalFormat InternalFormat => internalFormat;
+    public TextureFormat InternalFormat => internalFormat;
 
     /// <summary>
     /// Gets the first mip level exposed by this view.

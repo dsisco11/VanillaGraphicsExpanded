@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using OpenTK.Graphics.OpenGL;
 namespace VanillaGraphicsExpanded.Rendering;
@@ -6,7 +7,7 @@ internal sealed partial class GpuResourceManager
 {
     #region Internal API
     /// <summary>Discovers one image from reusable canonical descriptors without independently scanning native slots.</summary>
-    internal static GpuFramebufferAttachment DiscoverFramebufferAttachment(GpuFramebuffer owner, FramebufferAttachment slot, bool recover)
+    internal static GpuFramebufferAttachment DiscoverFramebufferAttachment(GpuFramebuffer owner, FramebufferSlot slot, bool recover)
     {
         try
         {
@@ -44,7 +45,7 @@ internal sealed partial class GpuResourceManager
                 if (owner.ResourceManager?.GetResourceRegistration(owner) is GpuResourceMetadataEntry<GpuFramebufferMetadata> entry)
                     candidate = entry.Manager.ReconcileFramebufferAttachmentModes(entry, candidate);
                 var images = ResolveFramebufferAttachments(owner,
-                    new System.Collections.Generic.Dictionary<FramebufferAttachment, GpuFramebufferAttachment>(owner.AttachmentImages), true, candidate);
+                    new System.Collections.Generic.Dictionary<FramebufferSlot, GpuFramebufferAttachment>(owner.AttachmentImages), true, candidate);
                 operation.RequireLive();
                 operation.Commit(candidate);
                 owner.InstallAttachmentReferences(images, owner.PublishedMetadata.Attachments!);

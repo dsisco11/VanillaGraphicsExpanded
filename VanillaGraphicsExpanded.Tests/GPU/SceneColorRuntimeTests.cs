@@ -61,12 +61,12 @@ public sealed class SceneColorRuntimeTests(HeadlessGLFixture fixture, ITestOutpu
         using var material = GpuFramebufferAttachment.FromTexture(materialTexture);
         using var glowTexture = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba8, Width = System.Math.Max(1, 2), Height = System.Math.Max(1, 2), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         using var glow = GpuFramebufferAttachment.FromTexture(glowTexture);
-        using var depthStorage = new DepthTexture(2, 2, PixelInternalFormat.DepthComponent32f);
+        using var depthStorage = new DepthTexture(2, 2, TextureFormat.DepthComponent32f);
         using var depth = GpuFramebufferAttachment.FromTexture(depthStorage);
-        using var liquidDepth = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Width = 2, Height = 2, Format = TextureFormat.R32f, MipLevels = 1, Storage = ResourceStorageMode.Mutable, BaseLevel = 0, MaxLevel = 0, Filter = TextureFilterMode.Nearest, Label = null }, [new RHITextureInitialData(new(new(), 0, 0, 0, 2, 2), VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLPixelValues.Encoding(TextureFormatHelper.GetPixelFormat(PixelInternalFormat.R32f), OpenTK.Graphics.OpenGL.PixelType.Float), System.Runtime.InteropServices.MemoryMarshal.AsBytes((new float[] { 1f, 1f, 1f, 1f }).AsSpan()).ToArray())]).RequireResource();
-        using var normals = drawing.CreateTexture(2,2,PixelInternalFormat.Rgba16f,Enumerable.Repeat(new[]{0f,0f,1f,0f},4).SelectMany(value=>value).ToArray());
-        using var positions = drawing.CreateTexture(2,2,PixelInternalFormat.Rgba16f,Enumerable.Repeat(new[]{1f,0f,-1f,0f},4).SelectMany(value=>value).ToArray());
-        using var revealage = drawing.CreateTexture(2,2,PixelInternalFormat.R16f,[1f,1f,1f,1f]);
+        using var liquidDepth = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Width = 2, Height = 2, Format = TextureFormat.R32f, MipLevels = 1, Storage = ResourceStorageMode.Mutable, BaseLevel = 0, MaxLevel = 0, Filter = TextureFilterMode.Nearest, Label = null }, [new RHITextureInitialData(new(new(), 0, 0, 0, 2, 2), new RHIPixelEncoding(TextureFormatHelper.GetPixelFormat(TextureFormat.R32f), PixelComponentType.Float), System.Runtime.InteropServices.MemoryMarshal.AsBytes((new float[] { 1f, 1f, 1f, 1f }).AsSpan()).ToArray())]).RequireResource();
+        using var normals = drawing.CreateTexture(2,2,TextureFormat.Rgba16f,Enumerable.Repeat(new[]{0f,0f,1f,0f},4).SelectMany(value=>value).ToArray());
+        using var positions = drawing.CreateTexture(2,2,TextureFormat.Rgba16f,Enumerable.Repeat(new[]{1f,0f,-1f,0f},4).SelectMany(value=>value).ToArray());
+        using var revealage = drawing.CreateTexture(2,2,TextureFormat.R16f,[1f,1f,1f,1f]);
         using var normalAttachment = GpuFramebufferAttachment.FromTexture(normals);
         using var positionAttachment = GpuFramebufferAttachment.FromTexture(positions);
         using var engine = DynamicGpuFramebuffer.Create([material, glow, normalAttachment, positionAttachment], depth);

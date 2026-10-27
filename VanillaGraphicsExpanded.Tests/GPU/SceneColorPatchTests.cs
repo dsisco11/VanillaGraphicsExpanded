@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using OpenTK.Graphics.OpenGL;
 using TinyTokenizer.Ast;
@@ -29,7 +30,7 @@ public sealed class SceneColorPatchTests(HeadlessGLFixture fixture) : RenderTest
             + "=NoiseFromPixelPosition(ivec2(gl_FragCoord.xy),256,1920);}").Commit();
         using var program = Link(shaders, tree.ToText());
         using var framework = new ShaderTestFramework();
-        using var target = CreateMRTRenderTarget(4, 4, Enumerable.Repeat(PixelInternalFormat.Rgba32f, cloud ? 6 : 1).ToArray());
+        using var target = CreateMRTRenderTarget(4, 4, Enumerable.Repeat(TextureFormat.Rgba32f, cloud ? 6 : 1).ToArray());
         foreach (int linearScene in new[] { 0, 1 })
         {
             GL.ProgramUniform1(program.ProgramId, GL.GetUniformLocation(program.ProgramId, "vge_sceneLinear"), linearScene);
@@ -89,7 +90,7 @@ public sealed class SceneColorPatchTests(HeadlessGLFixture fixture) : RenderTest
         tree.CreateEditor().Replace(main, "void main(){OIT(vec4(.5,.25,.75,.4),.2,30.0);}").Commit();
         using var program = Link(shaders, tree.ToText());
         using var framework = new ShaderTestFramework();
-        using var target = CreateMRTRenderTarget(1, 1, Enumerable.Repeat(PixelInternalFormat.Rgba32f, 6).ToArray());
+        using var target = CreateMRTRenderTarget(1, 1, Enumerable.Repeat(TextureFormat.Rgba32f, 6).ToArray());
         GL.ProgramUniform1(program.ProgramId, GL.GetUniformLocation(program.ProgramId, "vge_sceneLinear"), linearScene);
         framework.RenderQuadTo(program.ProgramId, target);
         float[] accumulation = target[3].ReadPixels();
@@ -123,9 +124,9 @@ public sealed class SceneColorPatchTests(HeadlessGLFixture fixture) : RenderTest
         tree.CreateEditor().Replace(main, "void main(){OITreveal=vec4(1);OITaccumulation0=traverse(vec3(.5,0,.5),vec3(.1,1,.1),.25,0.0);}").Commit();
         using var program = Link(shaders, tree.ToText());
         using var framework = new ShaderTestFramework();
-        using var map = framework.CreateTexture(1, 1, PixelInternalFormat.Rgba32f, new[] { 1f, 0f, 0f, 1f });
-        using var color = framework.CreateTexture(1, 1, PixelInternalFormat.Rgba32f, new[] { .5f, .25f, .75f, sampleAlpha });
-        using var target = CreateMRTRenderTarget(1, 1, Enumerable.Repeat(PixelInternalFormat.Rgba32f, 6).ToArray());
+        using var map = framework.CreateTexture(1, 1, TextureFormat.Rgba32f, new[] { 1f, 0f, 0f, 1f });
+        using var color = framework.CreateTexture(1, 1, TextureFormat.Rgba32f, new[] { .5f, .25f, .75f, sampleAlpha });
+        using var target = CreateMRTRenderTarget(1, 1, Enumerable.Repeat(TextureFormat.Rgba32f, 6).ToArray());
         GL.ProgramUniform1(program.ProgramId, GL.GetUniformLocation(program.ProgramId, "vge_sceneLinear"), linearScene);
         GL.ProgramUniform1(program.ProgramId, GL.GetUniformLocation(program.ProgramId, "cloudMap"), 0);
         GL.ProgramUniform1(program.ProgramId, GL.GetUniformLocation(program.ProgramId, "cloudCol"), 1);

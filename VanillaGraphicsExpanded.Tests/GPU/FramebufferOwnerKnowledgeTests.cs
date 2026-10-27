@@ -17,7 +17,7 @@ public sealed class FramebufferOwnerKnowledgeTests(HeadlessGLFixture fixture) : 
     public void DetachPreservesExecutedRouting()
     {
         EnsureContextValid();
-        using var target = CreateRenderTarget(2, 2, PixelInternalFormat.Rgba32f);
+        using var target = CreateRenderTarget(2, 2, TextureFormat.Rgba32f);
         var cache = OpenGlStateCache.Current;
         Assert.True(cache.TryCopyFramebufferDrawRouting(target.FboId, out var expected));
         int id = checked((int)target.Detach());
@@ -35,7 +35,7 @@ public sealed class FramebufferOwnerKnowledgeTests(HeadlessGLFixture fixture) : 
     public void BorrowedRefreshPreservesExecutedRouting()
     {
         EnsureContextValid();
-        using var target = CreateRenderTarget(2, 2, PixelInternalFormat.Rgba32f);
+        using var target = CreateRenderTarget(2, 2, TextureFormat.Rgba32f);
         using var borrowed = DynamicGpuFramebuffer.Wrap(target.FboId, width: 2, height: 2);
         var cache = OpenGlStateCache.Current;
         Assert.True(cache.TryCopyFramebufferDrawRouting(target.FboId, out var expected));
@@ -50,7 +50,7 @@ public sealed class FramebufferOwnerKnowledgeTests(HeadlessGLFixture fixture) : 
     public void ScreenResizePreservesKnowledgeAndCallbackOrdering()
     {
         EnsureContextValid();
-        using var target = CreateRenderTarget(2, 2, PixelInternalFormat.Rgba32f);
+        using var target = CreateRenderTarget(2, 2, TextureFormat.Rgba32f);
         target.Bind();
         var cache = OpenGlStateCache.Current;
         Assert.True(cache.TryCopyFramebufferDrawRouting(target.FboId, out var expected));

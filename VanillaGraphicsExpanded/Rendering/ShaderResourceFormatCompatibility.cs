@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering.Contracts;
 
@@ -11,7 +12,7 @@ internal static class ShaderResourceFormatCompatibility
 
     #region Public API
     /// <summary>Checks the resource's format interpretation without reflecting its executable or allocation.</summary>
-    internal static bool Matches(ActiveUniformType type, PixelInternalFormat format)
+    internal static bool Matches(ActiveUniformType type, TextureFormat format)
     {
         // Comparison samplers require depth storage in addition to floating-point interpretation.
         bool shadow = (ShaderResourceType)type is ShaderResourceType.Sampler1DShadow or ShaderResourceType.Sampler2DShadow or
@@ -73,17 +74,17 @@ internal static class ShaderResourceFormatCompatibility
     };
 
     /// <summary>Classifies integer formats explicitly; normalized, depth and floating storage yields floating values.</summary>
-    private static ScalarClass Classify(PixelInternalFormat format) => format switch
+    private static ScalarClass Classify(TextureFormat format) => format switch
     {
-        PixelInternalFormat.R8i or PixelInternalFormat.R16i or PixelInternalFormat.R32i or
-            PixelInternalFormat.Rg8i or PixelInternalFormat.Rg16i or PixelInternalFormat.Rg32i or
-            PixelInternalFormat.Rgb8i or PixelInternalFormat.Rgb16i or PixelInternalFormat.Rgb32i or
-            PixelInternalFormat.Rgba8i or PixelInternalFormat.Rgba16i or PixelInternalFormat.Rgba32i => ScalarClass.Signed,
-        PixelInternalFormat.R8ui or PixelInternalFormat.R16ui or PixelInternalFormat.R32ui or
-            PixelInternalFormat.Rg8ui or PixelInternalFormat.Rg16ui or PixelInternalFormat.Rg32ui or
-            PixelInternalFormat.Rgb8ui or PixelInternalFormat.Rgb16ui or PixelInternalFormat.Rgb32ui or
-            PixelInternalFormat.Rgba8ui or PixelInternalFormat.Rgba16ui or PixelInternalFormat.Rgba32ui or
-            PixelInternalFormat.Rgb10A2ui => ScalarClass.Unsigned,
+        TextureFormat.R8i or TextureFormat.R16i or TextureFormat.R32i or
+            TextureFormat.Rg8i or TextureFormat.Rg16i or TextureFormat.Rg32i or
+            TextureFormat.Rgb8i or TextureFormat.Rgb16i or TextureFormat.Rgb32i or
+            TextureFormat.Rgba8i or TextureFormat.Rgba16i or TextureFormat.Rgba32i => ScalarClass.Signed,
+        TextureFormat.R8ui or TextureFormat.R16ui or TextureFormat.R32ui or
+            TextureFormat.Rg8ui or TextureFormat.Rg16ui or TextureFormat.Rg32ui or
+            TextureFormat.Rgb8ui or TextureFormat.Rgb16ui or TextureFormat.Rgb32ui or
+            TextureFormat.Rgba8ui or TextureFormat.Rgba16ui or TextureFormat.Rgba32ui or
+            TextureFormat.Rgb10A2ui => ScalarClass.Unsigned,
         _ => ScalarClass.Floating
     };
     #endregion

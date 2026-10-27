@@ -1,3 +1,5 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
+using VanillaGraphicsExpanded.Rendering.RHI;
 using VanillaGraphicsExpanded.LumOn;
 using System.Numerics;
 using OpenTK.Graphics.OpenGL;
@@ -207,14 +209,14 @@ public class LumOnUpsampleFunctionalTests : LumOnShaderFunctionalTestBase
         var depthData = CreateDepthBuffer(pixelDepth);
         var normalData = CreateNormalBuffer(0f, 1f, 0f);  // Upward
 
-        using var halfResTex = TestFramework.CreateTexture(HalfResWidth, HalfResHeight, PixelInternalFormat.Rgba16f, halfResData);
-        using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
-        using var normalTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, normalData);
+        using var halfResTex = TestFramework.CreateTexture(HalfResWidth, HalfResHeight, TextureFormat.Rgba16f, halfResData);
+        using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.R32f, depthData);
+        using var normalTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.Rgba16f, normalData);
 
         // Create full-res output
         using var outputGBuffer = TestFramework.CreateTestGBuffer(
             ScreenWidth, ScreenHeight,
-            PixelInternalFormat.Rgba16f);
+            TextureFormat.Rgba16f);
 
         var programId = CompileUpsampleShader();
         SetupUpsampleUniforms(programId);
@@ -281,11 +283,11 @@ public class LumOnUpsampleFunctionalTests : LumOnShaderFunctionalTestBase
         var depthData = CreateDepthBuffer(pixelDepth);
         var normalData = CreateNormalBuffer(0f, 1f, 0f);
 
-        using var halfResTex = TestFramework.CreateTexture(HalfResWidth, HalfResHeight, PixelInternalFormat.Rgba16f, halfResData);
-        using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
-        using var normalTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, normalData);
+        using var halfResTex = TestFramework.CreateTexture(HalfResWidth, HalfResHeight, TextureFormat.Rgba16f, halfResData);
+        using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.R32f, depthData);
+        using var normalTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.Rgba16f, normalData);
 
-        using var outputGBuffer = TestFramework.CreateTestGBuffer(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f);
+        using var outputGBuffer = TestFramework.CreateTestGBuffer(ScreenWidth, ScreenHeight, TextureFormat.Rgba16f);
 
         // Compile two shader variants: one with hole fill disabled, one with it enabled
         var programIdNoFill = Programs.Create<LumOnUpsampleShaderProgram>(settings: new Dictionary<string, string?> { ["VGE_LUMON_UPSAMPLE_HOLEFILL"] = "0" });
@@ -366,13 +368,13 @@ public class LumOnUpsampleFunctionalTests : LumOnShaderFunctionalTestBase
         var depthData = CreateDepthBuffer(pixelDepth);
         var normalData = CreateNormalBuffer(0f, 1f, 0f);
 
-        using var halfResTex = TestFramework.CreateTexture(HalfResWidth, HalfResHeight, PixelInternalFormat.Rgba16f, halfResData);
-        using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
-        using var normalTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, normalData);
+        using var halfResTex = TestFramework.CreateTexture(HalfResWidth, HalfResHeight, TextureFormat.Rgba16f, halfResData);
+        using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.R32f, depthData);
+        using var normalTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.Rgba16f, normalData);
 
         using var outputGBuffer = TestFramework.CreateTestGBuffer(
             ScreenWidth, ScreenHeight,
-            PixelInternalFormat.Rgba16f);
+            TextureFormat.Rgba16f);
 
         var programId = CompileUpsampleShader();
         SetupUpsampleUniforms(programId);
@@ -465,13 +467,13 @@ public class LumOnUpsampleFunctionalTests : LumOnShaderFunctionalTestBase
         var depthData = CreateDepthBufferWithEdge(0.2f, 0.8f);
         var normalData = CreateNormalBuffer(0f, 1f, 0f);
 
-        using var halfResTex = TestFramework.CreateTexture(HalfResWidth, HalfResHeight, PixelInternalFormat.Rgba16f, halfResData);
-        using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
-        using var normalTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, normalData);
+        using var halfResTex = TestFramework.CreateTexture(HalfResWidth, HalfResHeight, TextureFormat.Rgba16f, halfResData);
+        using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.R32f, depthData);
+        using var normalTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.Rgba16f, normalData);
 
         using var outputGBuffer = TestFramework.CreateTestGBuffer(
             ScreenWidth, ScreenHeight,
-            PixelInternalFormat.Rgba16f);
+            TextureFormat.Rgba16f);
 
         var programId = CompileUpsampleShader();
         // Use standard sigma values for edge-aware filtering
@@ -535,13 +537,13 @@ public class LumOnUpsampleFunctionalTests : LumOnShaderFunctionalTestBase
         var depthData = CreateDepthBuffer(pixelDepth);
         var normalData = CreateNormalBuffer(0f, 1f, 0f);
 
-        using var halfResTex = TestFramework.CreateTexture(HalfResWidth, HalfResHeight, PixelInternalFormat.Rgba16f, halfResData);
-        using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
-        using var normalTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, normalData);
+        using var halfResTex = TestFramework.CreateTexture(HalfResWidth, HalfResHeight, TextureFormat.Rgba16f, halfResData);
+        using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.R32f, depthData);
+        using var normalTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.Rgba16f, normalData);
 
         using var outputGBuffer = TestFramework.CreateTestGBuffer(
             ScreenWidth, ScreenHeight,
-            PixelInternalFormat.Rgba16f);
+            TextureFormat.Rgba16f);
 
         // Compile with denoising DISABLED (compile-time define)
         var programId = Programs.Create<LumOnUpsampleShaderProgram>(settings: new Dictionary<string, string?> { ["VGE_LUMON_UPSAMPLE_DENOISE"] = "0" });
@@ -603,13 +605,13 @@ public class LumOnUpsampleFunctionalTests : LumOnShaderFunctionalTestBase
         var depthData = CreateDepthBuffer(1.0f);  // Sky
         var normalData = CreateNormalBuffer(0f, 1f, 0f);
 
-        using var halfResTex = TestFramework.CreateTexture(HalfResWidth, HalfResHeight, PixelInternalFormat.Rgba16f, halfResData);
-        using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
-        using var normalTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, normalData);
+        using var halfResTex = TestFramework.CreateTexture(HalfResWidth, HalfResHeight, TextureFormat.Rgba16f, halfResData);
+        using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.R32f, depthData);
+        using var normalTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.Rgba16f, normalData);
 
         using var outputGBuffer = TestFramework.CreateTestGBuffer(
             ScreenWidth, ScreenHeight,
-            PixelInternalFormat.Rgba16f);
+            TextureFormat.Rgba16f);
 
         var programId = CompileUpsampleShader();
         SetupUpsampleUniforms(programId);
@@ -669,13 +671,13 @@ public class LumOnUpsampleFunctionalTests : LumOnShaderFunctionalTestBase
 
         // With denoising
         {
-            using var halfResTex = TestFramework.CreateTexture(HalfResWidth, HalfResHeight, PixelInternalFormat.Rgba16f, halfResData);
-            using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
-            using var normalTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, normalData);
+            using var halfResTex = TestFramework.CreateTexture(HalfResWidth, HalfResHeight, TextureFormat.Rgba16f, halfResData);
+            using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.R32f, depthData);
+            using var normalTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.Rgba16f, normalData);
 
             using var outputGBuffer = TestFramework.CreateTestGBuffer(
                 ScreenWidth, ScreenHeight,
-                PixelInternalFormat.Rgba16f);
+                TextureFormat.Rgba16f);
 
             var programId = CompileUpsampleShader();
             SetupUpsampleUniforms(programId);
@@ -693,13 +695,13 @@ public class LumOnUpsampleFunctionalTests : LumOnShaderFunctionalTestBase
 
         // Without denoising (simple bilinear) - compile with DENOISE=0
         {
-            using var halfResTex = TestFramework.CreateTexture(HalfResWidth, HalfResHeight, PixelInternalFormat.Rgba16f, halfResData);
-            using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
-            using var normalTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, normalData);
+            using var halfResTex = TestFramework.CreateTexture(HalfResWidth, HalfResHeight, TextureFormat.Rgba16f, halfResData);
+            using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.R32f, depthData);
+            using var normalTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.Rgba16f, normalData);
 
             using var outputGBuffer = TestFramework.CreateTestGBuffer(
                 ScreenWidth, ScreenHeight,
-                PixelInternalFormat.Rgba16f);
+                TextureFormat.Rgba16f);
 
             var programId = Programs.Create<LumOnUpsampleShaderProgram>(settings: new Dictionary<string, string?> { ["VGE_LUMON_UPSAMPLE_DENOISE"] = "0" });
             SetupUpsampleUniforms(programId);
@@ -750,13 +752,13 @@ public class LumOnUpsampleFunctionalTests : LumOnShaderFunctionalTestBase
 
         // Small spatial sigma (sharper)
         {
-            using var halfResTex = TestFramework.CreateTexture(HalfResWidth, HalfResHeight, PixelInternalFormat.Rgba16f, halfResData);
-            using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
-            using var normalTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, normalData);
+            using var halfResTex = TestFramework.CreateTexture(HalfResWidth, HalfResHeight, TextureFormat.Rgba16f, halfResData);
+            using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.R32f, depthData);
+            using var normalTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.Rgba16f, normalData);
 
             using var outputGBuffer = TestFramework.CreateTestGBuffer(
                 ScreenWidth, ScreenHeight,
-                PixelInternalFormat.Rgba16f);
+                TextureFormat.Rgba16f);
 
             var programId = CompileUpsampleShader();
             SetupUpsampleUniforms(programId, spatialSigma: 0.5f);
@@ -784,13 +786,13 @@ public class LumOnUpsampleFunctionalTests : LumOnShaderFunctionalTestBase
 
         // Large spatial sigma (blurrier)
         {
-            using var halfResTex = TestFramework.CreateTexture(HalfResWidth, HalfResHeight, PixelInternalFormat.Rgba16f, halfResData);
-            using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
-            using var normalTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, normalData);
+            using var halfResTex = TestFramework.CreateTexture(HalfResWidth, HalfResHeight, TextureFormat.Rgba16f, halfResData);
+            using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.R32f, depthData);
+            using var normalTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.Rgba16f, normalData);
 
             using var outputGBuffer = TestFramework.CreateTestGBuffer(
                 ScreenWidth, ScreenHeight,
-                PixelInternalFormat.Rgba16f);
+                TextureFormat.Rgba16f);
 
             var programId = CompileUpsampleShader();
             SetupUpsampleUniforms(programId, spatialSigma: 4.0f);
@@ -858,13 +860,13 @@ public class LumOnUpsampleFunctionalTests : LumOnShaderFunctionalTestBase
         var depthData = CreateDepthBufferWithEdge(0.3f, 0.7f);  // Sharp depth edge
         var normalData = CreateNormalBuffer(0f, 1f, 0f);
 
-        using var halfResTex = TestFramework.CreateTexture(HalfResWidth, HalfResHeight, PixelInternalFormat.Rgba16f, halfResData);
-        using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.R32f, depthData);
-        using var normalTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, PixelInternalFormat.Rgba16f, normalData);
+        using var halfResTex = TestFramework.CreateTexture(HalfResWidth, HalfResHeight, TextureFormat.Rgba16f, halfResData);
+        using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.R32f, depthData);
+        using var normalTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.Rgba16f, normalData);
 
         using var outputGBuffer = TestFramework.CreateTestGBuffer(
             ScreenWidth, ScreenHeight,
-            PixelInternalFormat.Rgba16f);
+            TextureFormat.Rgba16f);
 
         var programId = CompileUpsampleShader();
         SetupUpsampleUniforms(programId, depthSigma: 0.05f);  // Strict depth filtering

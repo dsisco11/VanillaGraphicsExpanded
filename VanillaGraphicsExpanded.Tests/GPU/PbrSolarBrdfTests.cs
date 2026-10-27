@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System.Globalization;
 using System.Numerics;
@@ -186,7 +187,7 @@ public sealed class PbrSolarBrdfTests(HeadlessGLFixture fixture) : RenderTestBas
             GL.LinkProgram(program);
             GL.GetProgram(program, GetProgramParameterName.LinkStatus, out int linked);
             Assert.True(linked != 0, GL.GetProgramInfoLog(program));
-            using var target = CreateRenderTarget(1, 1, PixelInternalFormat.Rgba32f);
+            using var target = CreateRenderTarget(1, 1, TextureFormat.Rgba32f);
             GL.BindFramebuffer(FramebufferTarget.Framebuffer, target.FboId);
             GL.Viewport(0, 0, 1, 1);
             GL.Disable(EnableCap.DepthTest);

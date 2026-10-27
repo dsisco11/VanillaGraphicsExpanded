@@ -14,7 +14,7 @@ internal sealed partial class OpenGLBackend
         return status == OpenTK.Graphics.OpenGL4.FramebufferStatus.FramebufferComplete;
     }
     /// <summary>Publishes a complete attachment set through the existing manager operation once.</summary>
-    internal bool ConfigureEngineFramebuffer(int framebuffer, IReadOnlyDictionary<FramebufferAttachment, GpuFramebufferAttachment?> attachments)
+    internal bool ConfigureEngineFramebuffer(int framebuffer, IReadOnlyDictionary<FramebufferSlot, GpuFramebufferAttachment?> attachments)
     {
         RequireContext();
         using var target = DynamicGpuFramebuffer.Wrap(framebuffer);
@@ -52,10 +52,10 @@ internal sealed partial class OpenGLBackend
         ApplyEngineFramebufferBlend(blend, true);
     }
     /// <summary>Removes only declared extension attachments and restores the engine teardown route.</summary>
-    internal void DetachEngineFramebuffer(int framebuffer, FramebufferAttachment[] attachments, DrawBuffersEnum[] route)
+    internal void DetachEngineFramebuffer(int framebuffer, FramebufferSlot[] attachments, DrawBuffersEnum[] route)
     {
         RequireContext();
-        var changes = new Dictionary<FramebufferAttachment, GpuFramebufferAttachment?>();
+        var changes = new Dictionary<FramebufferSlot, GpuFramebufferAttachment?>();
         foreach (var slot in attachments) changes.Add(slot, null);
         ConfigureEngineFramebuffer(framebuffer, changes);
         OpenGLFramebufferSelection.Bind(cache, FramebufferTarget.Framebuffer, framebuffer);

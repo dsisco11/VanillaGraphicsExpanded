@@ -39,8 +39,8 @@ public sealed class StaticGpuFramebufferTests(HeadlessGLFixture fixture, ITestOu
         Assert.Throws<InvalidOperationException>(() => texture.Resize(3, 3));
         Assert.Throws<InvalidOperationException>(texture.Dispose);
         Assert.Throws<InvalidOperationException>(attachment.Dispose);
-        Assert.Throws<InvalidOperationException>(() => alias.SetAttachment(FramebufferAttachment.ColorAttachment0, attachment));
-        Assert.Throws<InvalidOperationException>(() => alias.RemoveAttachment(FramebufferAttachment.ColorAttachment0));
+        Assert.Throws<InvalidOperationException>(() => alias.SetAttachment(FramebufferSlot.Color0, attachment));
+        Assert.Throws<InvalidOperationException>(() => alias.RemoveAttachment(FramebufferSlot.Color0));
         Assert.Throws<InvalidOperationException>(() => alias.Resize(3, 3));
         Assert.Throws<InvalidOperationException>(() => VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Framebuffer, target.FboId)));
         target.Bind();
@@ -165,7 +165,7 @@ public sealed class StaticGpuFramebufferTests(HeadlessGLFixture fixture, ITestOu
         using var texture = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba32f, Width = System.Math.Max(1, 2), Height = System.Math.Max(1, 2), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         using var image = GpuFramebufferAttachment.FromTexture(texture);
         using var target = StaticGpuFramebuffer.Create([image]);
-        using var incoming = CreateRenderTarget(1, 1, PixelInternalFormat.Rgba32f);
+        using var incoming = CreateRenderTarget(1, 1, TextureFormat.Rgba32f);
         incoming.Bind();
         var pass = FramebufferTestSetup.DescribeAttachments(target, [new(AttachmentIndex:0, Load:AttachmentLoad.Clear, Clear: ColorClearValue.Float(.25f, .5f, .75f, 1))]);
         Assert.Throws<InvalidOperationException>(() => FramebufferTestSetup.DescribeAttachments(target, [new(AttachmentIndex: -1)]));

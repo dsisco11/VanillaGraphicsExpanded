@@ -9,7 +9,7 @@ public sealed class DepthStencilTexture : DynamicTexture2D
 {
     /// <summary>Creates a packed depth-stencil texture.</summary>
     public DepthStencilTexture(int width, int height,
-        PixelInternalFormat format = PixelInternalFormat.Depth24Stencil8,
+        TextureFormat format = TextureFormat.Depth24Stencil8,
         string? debugName = null)
         : base(width, height, ValidateFormat(format), TextureFilterMode.Nearest, debugName) { }
 
@@ -32,9 +32,9 @@ public sealed class DepthStencilTexture : DynamicTexture2D
 
 
     /// <summary>Rejects formats without packed depth-stencil storage.</summary>
-    private static PixelInternalFormat ValidateFormat(PixelInternalFormat format)
+    private static TextureFormat ValidateFormat(TextureFormat format)
     {
-        if (format is not (PixelInternalFormat.Depth24Stencil8 or PixelInternalFormat.Depth32fStencil8))
+        if (format is not (TextureFormat.Depth24Stencil8 or TextureFormat.Depth32fStencil8))
             throw new ArgumentException("A packed depth-stencil internal format is required.", nameof(format));
 
         return format;

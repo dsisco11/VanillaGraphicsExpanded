@@ -17,11 +17,11 @@ internal sealed partial class OpenGLBackend
         return value;
     }
     /// <inheritdoc />
-    public bool ReadExternalProgramBlockBinding(int program, ProgramInterface block, int index, out int value)
+    public bool ReadExternalProgramBlockBinding(int program, ProgramBlockKind block, int index, out int value)
     {
         RequireContext();
         int[] values = [-1];
-        GL.GetProgramResource(program, (Native.ProgramInterface)block, index, 1,
+        GL.GetProgramResource(program, (Native.ProgramInterface)OpenGLResourceValues.Native(block), index, 1,
             [Native.ProgramProperty.BufferBinding], 1, out int written, values);
         RequireContext();
         value = values[0];

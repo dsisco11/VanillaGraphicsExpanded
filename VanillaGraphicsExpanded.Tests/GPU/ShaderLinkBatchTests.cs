@@ -70,7 +70,7 @@ public sealed class ShaderLinkBatchTests(HeadlessGLFixture fixture, ITestOutputH
 #if DEBUG
         Assert.Equal(enabled ? 2 : 0, batch.PeakOutstanding);
 #endif
-        using var target = CreateRenderTarget(8, 8, PixelInternalFormat.Rgba32f);
+        using var target = CreateRenderTarget(8, 8, TextureFormat.Rgba32f);
         FramebufferTestSetup.BindForEngineRendering(target);
         RenderFullscreenQuad(program.ProgramId);
         var pixel = ReadPixel(target, 4, 4);
@@ -430,7 +430,7 @@ public sealed class ShaderLinkBatchTests(HeadlessGLFixture fixture, ITestOutputH
         EnsureContextValid();
         using var cache = DriverProgramCache.UseStoreForTesting(null);
         using var assets = new BinaryShaderApiFixture();
-        using var target = CreateRenderTarget(8, 8, PixelInternalFormat.Rgba32f);
+        using var target = CreateRenderTarget(8, 8, TextureFormat.Rgba32f);
         // ABBA retains the same binaries and work, exposing order effects from the driver cache.
         foreach (bool disable in new[] { true, false, false, true })
         {

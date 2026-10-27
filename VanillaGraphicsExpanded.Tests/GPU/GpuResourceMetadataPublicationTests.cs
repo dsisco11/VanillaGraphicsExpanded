@@ -177,7 +177,7 @@ public sealed class GpuResourceMetadataPublicationTests(HeadlessGLFixture fixtur
         Assert.Equal(6, owner.Height);
         Assert.Equal(owner.Width, image.Width);
         Assert.Equal(owner.Height, image.Height);
-        Assert.Equal(PixelInternalFormat.Rgba16f, image.InternalFormat);
+        Assert.Equal(TextureFormat.Rgba16f, image.InternalFormat);
         GL.GetTextureLevelParameter(owner.TextureId, 0, GetTextureParameter.TextureWidth, out int actualWidth);
         Assert.Equal(actualWidth, owner.Width);
         Assert.Equal(ErrorCode.NoError, GL.GetError());
@@ -196,7 +196,7 @@ public sealed class GpuResourceMetadataPublicationTests(HeadlessGLFixture fixtur
         Assert.Equal(5, owner.Height);
         Assert.Equal(owner.Width, image.Width);
         Assert.Equal(owner.Height, image.Height);
-        Assert.Equal(PixelInternalFormat.Rgba8, image.InternalFormat);
+        Assert.Equal(TextureFormat.Rgba8, image.InternalFormat);
         using var binding = OpenGlStateCache.Current.BindRenderbufferScope(owner.RenderbufferId);
         GL.GetRenderbufferParameter(RenderbufferTarget.Renderbuffer, RenderbufferParameterName.RenderbufferWidth, out int actualWidth);
         Assert.Equal(actualWidth, owner.Width);
@@ -222,7 +222,7 @@ public sealed class GpuResourceMetadataPublicationTests(HeadlessGLFixture fixtur
         buffer.Allocate(1024);
         using var bufferView = RHICommandContext.Current.CreateBufferTexture(new RHIBufferTextureDescription { Buffer = buffer, Format = TextureFormat.R32f, WholeBuffer = true, Label = null }).RequireResource();
         Assert.Equal(buffer.BufferId, bufferView.BufferId);
-        Assert.Equal(SizedInternalFormat.R32f, bufferView.Format);
+        Assert.Equal(TextureFormat.R32f, bufferView.Format);
         GL.GetTextureLevelParameter(bufferView.TextureId, 0, (GetTextureParameter)All.TextureBufferDataStoreBindingExt, out int actualBuffer);
         Assert.Equal(actualBuffer, bufferView.BufferId);
         Assert.Equal(ErrorCode.NoError, GL.GetError());
@@ -258,22 +258,22 @@ public sealed class GpuResourceMetadataPublicationTests(HeadlessGLFixture fixtur
         var manager = GpuResourceManagerSystem.CurrentManager!;
         var entry = Assert.IsType<GpuResourceMetadataEntry<GpuFramebufferMetadata>>(manager.GetResourceRegistration(framebuffer));
         ulong revision = entry.MetadataRevision;
-        var previous = entry.Metadata.Attachments[FramebufferAttachment.ColorAttachment0];
+        var previous = entry.Metadata.Attachments[FramebufferSlot.Color0];
         using var bindings = cache.BindFramebufferScope();
         framebuffer.Bind();
         try
         {
             using (var operation = new OpenGLFramebufferConfiguration.FramebufferOperation(framebuffer))
             {
-                VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLFramebufferConfiguration.FramebufferTexture(framebuffer, FramebufferAttachment.ColorAttachment0, replacement, operation);
+                VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLFramebufferConfiguration.FramebufferTexture(framebuffer, FramebufferSlot.Color0, replacement, operation);
                 Assert.False(entry.MetadataAvailable);
                 Assert.Equal(revision, entry.MetadataRevision);
-                var invalid = FramebufferAttachment.DepthAttachment;
+                var invalid = FramebufferSlot.Depth;
                 Assert.Throws<ArgumentException>(() => VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLFramebufferConfiguration.FramebufferTexture(framebuffer, invalid, replacement, operation));
             }
             Assert.False(entry.MetadataAvailable);
             Assert.Equal(revision, entry.MetadataRevision);
-            Assert.Equal(previous, entry.Metadata.Attachments[FramebufferAttachment.ColorAttachment0]);
+            Assert.Equal(previous, entry.Metadata.Attachments[FramebufferSlot.Color0]);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
         finally { while (GL.GetError() != ErrorCode.NoError) { } }
@@ -318,7 +318,7 @@ public sealed class GpuResourceMetadataPublicationTests(HeadlessGLFixture fixtur
             GL.GetTextureLevelParameter(view.TextureId, 0, GetTextureParameter.TextureInternalFormat, out int actualFormat);
             Assert.Equal(actualBuffer, view.BufferId);
             Assert.Equal(buffer.BufferId, actualBuffer);
-            Assert.Equal((SizedInternalFormat)actualFormat, view.Format);
+            Assert.Equal(OpenGLImageValues.Format((PixelInternalFormat)actualFormat), view.Format);
             if (ranged)
             {
                 GL.GetTextureLevelParameter(view.TextureId, 0, (GetTextureParameter)All.TextureBufferOffset, out int actualOffset);
@@ -333,7 +333,7 @@ public sealed class GpuResourceMetadataPublicationTests(HeadlessGLFixture fixtur
             using var alias = new TextureAlias(view.TextureId);
             manager.AssociateResource(entry, alias);
             Assert.Equal(entry.Metadata.Buffer, alias.Buffer);
-            Assert.Equal(new GpuTextureBufferMetadata(buffer.BufferId, SizedInternalFormat.R32f,
+            Assert.Equal(new GpuTextureBufferMetadata(buffer.BufferId, TextureFormat.R32f,
                 ranged ? offset : 0, ranged ? size : 0, !ranged), alias.Buffer);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }

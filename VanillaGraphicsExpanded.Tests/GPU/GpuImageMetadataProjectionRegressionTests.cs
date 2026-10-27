@@ -52,12 +52,12 @@ public sealed class GpuImageMetadataProjectionRegressionTests(HeadlessGLFixture 
         {
             using var texture = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba8, Width = System.Math.Max(1, 8), Height = System.Math.Max(1, 4), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
             using var sentinel = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba8, Width = System.Math.Max(1, 2), Height = System.Math.Max(1, 2), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
-            using (OpenGlStateCache.Current.BindTextureScope(((GpuTextureRef)texture).Target, 0, texture.TextureId))
+            using (OpenGlStateCache.Current.BindTextureScope(OpenGLImageValues.Target(((GpuTextureRef)texture).Target), 0, texture.TextureId))
                 GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.Rgba8, 12, 6, 0, PixelFormat.Rgba, PixelType.UnsignedByte, IntPtr.Zero);
             // This direct external mutation bypasses command publication, so its owner must
             // explicitly withdraw the old covered snapshot before requesting recovery.
             GpuResourceManager.InvalidateWrapperMetadata(texture, GpuMetadataChange.Storage);
-            using var binding = OpenGlStateCache.Current.BindTextureScope(((GpuTextureRef)sentinel).Target, 0, sentinel.TextureId);
+            using var binding = OpenGlStateCache.Current.BindTextureScope(OpenGLImageValues.Target(((GpuTextureRef)sentinel).Target), 0, sentinel.TextureId);
             using var image = GpuFramebufferAttachment.FromTextureId(texture.TextureId);
             var manager = GpuResourceManagerSystem.CurrentManager!;
             Assert.Same(manager.GetResourceRegistration(texture), manager.GetResourceRegistration(image));
@@ -83,11 +83,11 @@ public sealed class GpuImageMetadataProjectionRegressionTests(HeadlessGLFixture 
         {
             using var capabilities = new DirectStateAccessCapabilityScope(dsa);
             using var cube = RHICommandContext.Current.CreateTextureCube(new RHITextureDescription { Dimension = TextureDimension.Cube, Format = TextureFormat.Rgba8, Width = 8, Height = 8, MipLevels = 2, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (2) - 1, Label = null }).RequireResource();
-            using var image = GpuFramebufferAttachment.FromTextureId(cube.TextureId, mipLevel: 1, cubeFace: TextureTarget.TextureCubeMapNegativeZ);
+            using var image = GpuFramebufferAttachment.FromTextureId(cube.TextureId, mipLevel: 1, cubeFace: CubeFace.NegativeZ);
             Assert.Equal(4, image.Width);
             Assert.Equal(4, image.Height);
-            Assert.Equal(TextureTarget.TextureCubeMapNegativeZ, image.CubeFace);
-            Assert.Equal(PixelInternalFormat.Rgba8, image.InternalFormat);
+            Assert.Equal(CubeFace.NegativeZ, image.CubeFace);
+            Assert.Equal(TextureFormat.Rgba8, image.InternalFormat);
             Assert.Same(GpuResourceManagerSystem.CurrentManager!.GetResourceRegistration(cube),
                 GpuResourceManagerSystem.CurrentManager.GetResourceRegistration(image));
             Assert.Equal(ErrorCode.NoError, GL.GetError());
@@ -110,14 +110,14 @@ public sealed class GpuImageMetadataProjectionRegressionTests(HeadlessGLFixture 
                 GL.FramebufferTextureLayer(FramebufferTarget.Framebuffer, FramebufferAttachment.ColorAttachment0, texture, 0, 0);
             using var wrapped = DynamicGpuFramebuffer.Wrap(framebuffer, width: 8, height: 4);
             wrapped.PublishRenderPassMetadata();
-            var image = Assert.IsType<GpuFramebufferAttachment>(wrapped.GetAttachment(FramebufferAttachment.ColorAttachment0));
+            var image = Assert.IsType<GpuFramebufferAttachment>(wrapped.GetAttachment(FramebufferSlot.Color0));
             Assert.Equal(0, image.Layer);
             Assert.Equal(8, image.Width);
             Assert.Equal(4, image.Height);
             Assert.Equal(1, image.ImageDepth);
             var manager = GpuResourceManagerSystem.CurrentManager!;
             var entry = Assert.IsType<GpuResourceMetadataEntry<GpuFramebufferMetadata>>(manager.GetResourceRegistration(wrapped));
-            var descriptor = entry.Metadata.Attachments[FramebufferAttachment.ColorAttachment0];
+            var descriptor = entry.Metadata.Attachments[FramebufferSlot.Color0];
             Assert.Equal(0, descriptor.Layer);
             Assert.False(descriptor.Layered);
             Assert.Equal((nint)texture, descriptor.Id);

@@ -732,11 +732,39 @@ Phase 8c: Centralize acquisition, recovery and image dependency publication
   ☑ Verify known versus unknown external facts, context-local recovery, unavailable snapshots, resize,
     aliases/views, same-ID reuse, dependent failure and borrowed ownership. Ordinary fact reads remain query-free.
 
-  Qualification: second review and independent stage audit complete. Debug passed 253/253;
-    Release passed the same 253 cases in two fresh-process partitions (68 + 185). The broad Release
-    run retains seven order-sensitive Harmony observer failures; it is not claimed clean.
-    [Caller closure, authority mapping and exact evidence](Rendering.GpuCommands.Migrations.md#acquisition-and-image-publication-boundary-phase-8c).
-    No agent staging/commit. Subphases 8d–8i and Phase 9 remain open.
+  Corrective scope: completed. The earlier selector-signature correction moved native translation into
+    ordinary wrappers/managers and therefore did not complete the intended semantic migration.
+
+  ☑ Inventory every OpenGLResourceSelectors/OpenGLImageValues dependency outside backend and explicit
+    external native adapters, including wrappers, metadata/initialization, manager query services,
+    GpuSupport's format cache, prepared validation and all affected production/test callers.
+  ☑ Migrate framebuffer slots, selection and routing throughout wrapper APIs, canonical descriptors,
+    initialization and caller composition to project-owned values. Native attachment/output selectors
+    are interpreted only by backend execution or final external native adapters; remove wrapper conversions.
+  ☑ Migrate affected texture/renderbuffer formats, shapes and selected-image facts throughout resource
+    APIs, canonical metadata, initialization, reference consumers and validation. Carry semantic facts
+    directly; update callers and blocking dependencies together rather than adding overloads or facades.
+  ☑ Make manager acquisition/recovery fields and capability-cache keys/requests project-owned end to end.
+    Move native interpretation into the existing backend reader/observation boundary. Preserve targeted
+    reads, available-fact reuse, original associations, query-free validation and failed-query behavior.
+  ☑ Remove OpenGLResourceSelectors and nonbackend image-value translation dependencies once callers
+    are migrated. Keep one native codec inside the backend; explicit external adapters may decode real
+    engine/native inputs, but ordinary wrappers/managers must not use those adapters to submit RHI work.
+  ☑ Reconcile proposal/contracts/current-state docs and strengthen architectural regression checks to
+    reject wrapper/manager/capability dependencies on native translation helpers, not just OpenTK types
+    in RHI signatures. Delegate Debug/Release behavioral checks and review complete caller closure
+    before closing the reopened work. No aliases, compatibility overloads, forwarding facades or commits.
+
+  Earlier evidence: Debug 253/253; Release 253 in two fresh-process partitions (68 + 185), with seven
+    disclosed order-sensitive Harmony observer failures in the combined run. The later 138-case selector
+    checks prove signature isolation only and do not qualify the reopened semantic migration.
+    [Authority, previous receipts and corrective scope](Rendering.GpuCommands.Migrations.md#acquisition-and-image-publication-boundary-phase-8c).
+    Corrective validation: Debug 396/396; ordinary Release 396/396 across fresh-process partitions
+    (92 + 304) on the same binaries; generator suite 157/157. The combined Release run retains
+    11 observer/fault-injection/counter failures; it is not a clean-suite receipt. No JIT overrides.
+    Source/schema/codec isolation checks and all affected callers compile in both configurations.
+    Receipts/filter and the combined-process limitation are recorded in the linked migration ledger.
+    Subphases 8d–8i and Phase 9 remain open.
 
 Phase 8d: Remove capability and shader-layout backend dependencies
   Depends on 8c.

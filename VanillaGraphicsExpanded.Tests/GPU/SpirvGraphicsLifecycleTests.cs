@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Diagnostics;
 using OpenTK.Graphics.OpenGL;
@@ -216,7 +217,7 @@ public sealed class SpirvGraphicsLifecycleTests : RenderTestBase
             output.WriteLine($"Link and numeric reflection: {Stopwatch.GetElapsedTime(start).TotalMilliseconds:F3} ms");
             GL.GetProgram(program, GetProgramParameterName.LinkStatus, out int linked);
             Assert.True(linked != 0, GL.GetProgramInfoLog(program));
-            using var target = CreateRenderTarget(8, 8, PixelInternalFormat.Rgba32f);
+            using var target = CreateRenderTarget(8, 8, TextureFormat.Rgba32f);
             FramebufferTestSetup.BindForEngineRendering(target);
             start = Stopwatch.GetTimestamp();
             for (int i = 0; i < 8; i++) RenderFullscreenQuad(program);

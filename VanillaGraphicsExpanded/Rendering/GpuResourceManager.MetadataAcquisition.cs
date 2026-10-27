@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System;
 
@@ -26,7 +27,7 @@ internal sealed partial class GpuResourceManager
             if (resource is GpuTexture && manager.FindResource(resource.Kind, resource.ResourceId)
                 is GpuResourceMetadataEntry<GpuTextureMetadata> texture)
             {
-                if (texture.Metadata.Target == OpenTK.Graphics.OpenGL.TextureTarget.TextureBuffer)
+                if (texture.Metadata.Target == RHI.TextureDimension.Buffer)
                     throw new NotSupportedException("Use GpuBufferView for buffer textures.");
                 // The canonical entry already knows the immutable object target. Preserve that
                 // fact when an external borrower conservatively refreshes through an older API.
@@ -66,7 +67,7 @@ internal sealed partial class GpuResourceManager
             var entry = manager.FindResource(resource.Kind, resource.ResourceId) as GpuResourceMetadataEntry<T>;
             // Reject incompatible borrowing before withdrawing another wrapper's valid snapshot.
             if (resource is GpuTexture && entry is GpuResourceMetadataEntry<GpuTextureMetadata> texture
-                && texture.Metadata.Target == OpenTK.Graphics.OpenGL.TextureTarget.TextureBuffer)
+                && texture.Metadata.Target == RHI.TextureDimension.Buffer)
                 throw new NotSupportedException("Use GpuBufferView for buffer textures.");
             if (entry?.OperationInProgress == true)
                 throw new InvalidOperationException("Metadata cannot be acquired during an unfinished update.");

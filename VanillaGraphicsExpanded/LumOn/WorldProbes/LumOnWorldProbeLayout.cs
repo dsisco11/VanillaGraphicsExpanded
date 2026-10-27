@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 
 using OpenTK.Graphics.OpenGL;
@@ -24,15 +25,15 @@ internal static class LumOnWorldProbeLayout
 
     #region Formats
 
-    public static readonly PixelInternalFormat ShL1Format = PixelInternalFormat.Rgba16f;
+    public static readonly TextureFormat ShL1Format = TextureFormat.Rgba16f;
 
-    public static readonly PixelInternalFormat RadianceAtlasFormat = PixelInternalFormat.Rgba16f;
+    public static readonly TextureFormat RadianceAtlasFormat = TextureFormat.Rgba16f;
 
-    public static readonly PixelInternalFormat VisibilityFormat = PixelInternalFormat.Rgba16f;
+    public static readonly TextureFormat VisibilityFormat = TextureFormat.Rgba16f;
 
-    public static readonly PixelInternalFormat DistanceFormat = PixelInternalFormat.Rg16f;
+    public static readonly TextureFormat DistanceFormat = TextureFormat.Rg16f;
 
-    public static readonly PixelInternalFormat MetaFormat = PixelInternalFormat.Rg32f;
+    public static readonly TextureFormat MetaFormat = TextureFormat.Rg32f;
 
     #endregion
 

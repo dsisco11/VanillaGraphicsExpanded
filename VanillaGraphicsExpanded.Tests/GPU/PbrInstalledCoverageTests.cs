@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.Integration.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
@@ -51,11 +52,11 @@ public sealed class PbrInstalledCoverageTests(HeadlessGLFixture fixture) : Rende
         using var program = GpuProgramObject.Adopt(TerrainShaderTestFixture.Link(vertex, fragment));
         using var vao = NativeResourceSetup.CreateVertexArray();
         using var framework = new ShaderTestFramework();
-        using var target = framework.CreateTestGBuffer(1, 1, PixelInternalFormat.Rgba32f, oit > 0 ? 6 : 2);
-        using var texture = framework.CreateTexture(1, 1, PixelInternalFormat.Rgba32f, new[] { .2f, .4f, .6f, alpha });
+        using var target = framework.CreateTestGBuffer(1, 1, TextureFormat.Rgba32f, oit > 0 ? 6 : 2);
+        using var texture = framework.CreateTexture(1, 1, TextureFormat.Rgba32f, new[] { .2f, .4f, .6f, alpha });
         var layout = GpuProgramLayout.TryBuild(program.ProgramId);
         OpenGLProgramSelection.Select(OpenGlStateCache.Current, program.ProgramId); OpenGLVertexSelection.Bind(OpenGlStateCache.Current, vao.VertexArrayId);
-        VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, texture, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(((GpuTextureRef)texture).Target))]);
+        VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, texture, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)texture).Target)))]);
         ShaderTestFramework.SetUniform(layout.GetUniformLocation(program.ProgramId, family == "standard" ? "tex" : "entityTex"), 0);
         ShaderTestFramework.SetUniform(layout.GetUniformLocation(program.ProgramId, "vge_pbrRoute"), route);
         ShaderTestFramework.SetUniform(layout.GetUniformLocation(program.ProgramId, "vge_atmosphereAerialRadiance"), 11);

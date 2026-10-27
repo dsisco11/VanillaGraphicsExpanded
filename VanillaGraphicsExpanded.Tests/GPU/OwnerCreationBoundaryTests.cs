@@ -41,7 +41,7 @@ public sealed class OwnerCreationBoundaryTests(HeadlessGLFixture fixture)
             {
                 if (family == 0) { using var owner = DynamicGpuFramebuffer.Create([image]); }
                 else if (family == 1) { using var owner = StaticGpuFramebuffer.Create([image]); }
-                else { using var owner = new GpuFramebufferAttachment(RenderbufferStorage.DepthComponent24, 4, 4); }
+                else { using var owner = new GpuFramebufferAttachment(TextureFormat.DepthComponent24, 4, 4); }
             }));
             Assert.NotEqual(0, candidate);
             harmony.UnpatchAll(harmony.Id);
@@ -64,7 +64,7 @@ public sealed class OwnerCreationBoundaryTests(HeadlessGLFixture fixture)
         var harmony = new Harmony("Tests.OwnerConfiguration." + Guid.NewGuid());
         try
         {
-            using var image = new GpuFramebufferAttachment(4, 4, PixelInternalFormat.Rgba8);
+            using var image = new GpuFramebufferAttachment(4, 4, TextureFormat.Rgba8);
             candidate = 0;
             harmony.Patch(AccessTools.Method(typeof(OpenGLBackend), nameof(OpenGLBackend.ConfigureFramebufferAttachment)),
                 postfix: new HarmonyMethod(typeof(OwnerCreationBoundaryTests), nameof(FailAfterAttachment)));
@@ -98,7 +98,7 @@ public sealed class OwnerCreationBoundaryTests(HeadlessGLFixture fixture)
                 prefix: new HarmonyMethod(typeof(OwnerCreationBoundaryTests), nameof(FailProjection)));
             Assert.Same(failure, Assert.Throws<InvalidOperationException>(() =>
             {
-                using var image = new GpuFramebufferAttachment(RenderbufferStorage.DepthComponent24, 4, 4);
+                using var image = new GpuFramebufferAttachment(TextureFormat.DepthComponent24, 4, 4);
             }));
             harmony.UnpatchAll(harmony.Id);
             fixture.CleanupGpuResources();

@@ -29,8 +29,8 @@ public sealed class GBufferExternalFramebufferTests(HeadlessGLFixture fixture) :
     {
         EnsureContextValid();
         using var framework = new ShaderTestFramework();
-        using var primary = framework.CreateTestGBuffer(1, 1, PixelInternalFormat.Rgba32f);
-        using var oit = framework.CreateTestGBuffer(1, 1, PixelInternalFormat.Rgba32f, 6);
+        using var primary = framework.CreateTestGBuffer(1, 1, TextureFormat.Rgba32f);
+        using var oit = framework.CreateTestGBuffer(1, 1, TextureFormat.Rgba32f, 6);
         using var assets = new BinaryShaderApiFixture();
         var render = new Mock<IRenderAPI>();
         var frames = Enumerable.Range(0, (int)EnumFrameBuffer.Primary + 1).Select(_ => new FrameBufferRef()).ToList();
@@ -86,7 +86,7 @@ public sealed class GBufferExternalFramebufferTests(HeadlessGLFixture fixture) :
     {
         EnsureContextValid();
         using var framework = new ShaderTestFramework();
-        using var primary = framework.CreateTestGBuffer(2, 2, PixelInternalFormat.Rgba16f, 4);
+        using var primary = framework.CreateTestGBuffer(2, 2, TextureFormat.Rgba16f, 4);
         using var assets = new BinaryShaderApiFixture();
         var frames = Enumerable.Range(0, (int)EnumFrameBuffer.Primary + 1).Select(_ => new FrameBufferRef()).ToList();
         var frame = frames[(int)EnumFrameBuffer.Primary];
@@ -134,7 +134,7 @@ public sealed class GBufferExternalFramebufferTests(HeadlessGLFixture fixture) :
     {
         EnsureContextValid();
         using var framework = new ShaderTestFramework();
-        using var primary = framework.CreateTestGBuffer(2, 2, PixelInternalFormat.Rgba16f, 4);
+        using var primary = framework.CreateTestGBuffer(2, 2, TextureFormat.Rgba16f, 4);
         using var assets = new BinaryShaderApiFixture();
         var frames = Enumerable.Range(0, (int)EnumFrameBuffer.Primary + 1).Select(_ => new FrameBufferRef()).ToList();
         var frame = frames[(int)EnumFrameBuffer.Primary];
@@ -167,7 +167,7 @@ public sealed class GBufferExternalFramebufferTests(HeadlessGLFixture fixture) :
     {
         EnsureContextValid();
         using var framework = new ShaderTestFramework();
-        using var primary = framework.CreateTestGBuffer(2, 2, PixelInternalFormat.Rgba16f, 4);
+        using var primary = framework.CreateTestGBuffer(2, 2, TextureFormat.Rgba16f, 4);
         using var assets = new BinaryShaderApiFixture();
         var frames = Enumerable.Range(0, (int)EnumFrameBuffer.Primary + 1).Select(_ => new FrameBufferRef()).ToList();
         var frame = frames[(int)EnumFrameBuffer.Primary];
