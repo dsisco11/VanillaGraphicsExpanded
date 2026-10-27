@@ -19,27 +19,7 @@ public abstract partial class GpuFramebuffer
     /// use the separate window-surface metadata publication entry point.</remarks>
     public void PublishRenderPassMetadata()
     {
-        RequireMutableStorage();
-        ObjectDisposedException.ThrowIf(IsDisposed, this);
-        if (ownsFramebuffer) throw new InvalidOperationException("Managed attachments already provide metadata.");
-        if (fboId == 0) throw new NotSupportedException("Default framebuffer surface metadata is unavailable.");
-        passMetadataPublished = false;
-        // One manager-owned discovery supplies both canonical descriptors and image reconciliation.
-        // Do not scan slots independently before asking the canonical reader for the same facts.
-        try
-        {
-            GpuResourceManager.RecoverWrapperMetadata(this, GpuFramebufferMetadataReader.Instance);
-            ReconcileAttachmentMetadata(allowUnpublishedExternal: true, recoverBackings: true);
-        }
-        catch
-        {
-            GpuResourceManager.InvalidateWrapperMetadata(this);
-            GpuResourceManager.DiscardUntrackedMetadata(this);
-            throw;
-        }
-        passMetadataPublished = true;
-        PublishAttachmentsChanged();
-
+        RHI.RHICommandContext.Current.PublishImportedFramebuffer(this, true);
     }
     #endregion
 

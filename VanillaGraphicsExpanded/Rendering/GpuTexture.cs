@@ -84,13 +84,9 @@ public abstract partial class GpuTexture : GpuResource<GpuTextureMetadata>, IDis
         RequireMutableStorage();
         Validate2DAllocation(target, width, height, mipLevels);
         DeleteTextureIfAllocated();
-        try { Allocate2DStorage(target, format, width, height, mipLevels); }
-        catch
-        {
-            try { DeleteTextureIfAllocated(); } catch { }
-            throw;
-        }
-        GpuFramebufferAttachmentObservers.NotifyChanged(this);
+        // The admitted allocation owns candidate cleanup and distinguishes dependent
+        // notification failure from failure to establish the replacement allocation.
+        Allocate2DStorage(target, format, width, height, mipLevels);
     }
 
     /// <summary>Changes existing storage and receives its resulting snapshot through OpenGlStateCache publication.</summary>
@@ -100,8 +96,6 @@ public abstract partial class GpuTexture : GpuResource<GpuTextureMetadata>, IDis
         if (!base.IsValid) throw new InvalidOperationException("Cannot reallocate retired texture storage.");
         Validate2DAllocation(textureTarget, width, height, mipLevels);
         Allocate2DStorage(textureTarget, internalFormat, width, height, mipLevels);
-        if (ResourceManager?.GetResourceRegistration(this) is null)
-            GpuFramebufferAttachmentObservers.NotifyChanged(this);
     }
 
     /// <summary>Replaces layered storage while retaining requested dimensions only as command arguments.</summary>
@@ -115,13 +109,7 @@ public abstract partial class GpuTexture : GpuResource<GpuTextureMetadata>, IDis
         var request = new GpuTextureInitialization { Target = target, InternalFormat = format,
             Width = width, Height = height, Depth = depth, Levels = 1, BaseLevel = 0, MaxLevel = 0,
             AllocationMode = immutableStorage ? GpuTextureAllocationMode.Immutable : GpuTextureAllocationMode.Mutable };
-        try { RHICommandContext.Current.AllocateTextureOwner(this, request, filterMode, debugName); }
-        catch
-        {
-            try { DeleteTextureIfAllocated(); } catch { }
-            throw;
-        }
-        GpuFramebufferAttachmentObservers.NotifyChanged(this);
+        RHICommandContext.Current.AllocateTextureOwner(this, request, filterMode, debugName);
     }
 
     /// <summary>Withdraws the previous owning association before deleting its native name.</summary>
@@ -217,7 +205,7 @@ public abstract partial class GpuTexture : GpuResource<GpuTextureMetadata>, IDis
         if (data.Length != expected)
         {
             throw new ArgumentException(
-                $"Data array size {data.Length} doesn't match expected size {expected} ({width}×{height}×{channels} channels)",
+                $"Data array size {data.Length} doesn't match expected size {expected} ({width}Ã—{height}Ã—{channels} channels)",
                 nameof(data));
         }
 
@@ -257,7 +245,7 @@ public abstract partial class GpuTexture : GpuResource<GpuTextureMetadata>, IDis
         if (x < 0 || y < 0 || x + regionWidth > width || y + regionHeight > height)
         {
             throw new ArgumentOutOfRangeException(
-                $"Region ({x}, {y}, {regionWidth}, {regionHeight}) extends beyond texture bounds ({width}×{height})");
+                $"Region ({x}, {y}, {regionWidth}, {regionHeight}) extends beyond texture bounds ({width}Ã—{height})");
         }
 
         int channels = GetChannelCount();
@@ -265,7 +253,7 @@ public abstract partial class GpuTexture : GpuResource<GpuTextureMetadata>, IDis
         if (data.Length != expected)
         {
             throw new ArgumentException(
-                $"Data array size {data.Length} doesn't match expected size {expected} ({regionWidth}×{regionHeight}×{channels} channels)",
+                $"Data array size {data.Length} doesn't match expected size {expected} ({regionWidth}Ã—{regionHeight}Ã—{channels} channels)",
                 nameof(data));
         }
 
@@ -310,7 +298,7 @@ public abstract partial class GpuTexture : GpuResource<GpuTextureMetadata>, IDis
         if (data.Length != expected)
         {
             throw new ArgumentException(
-                $"Data array size {data.Length} doesn't match expected size {expected} ({width}×{height}×{channels} channels)",
+                $"Data array size {data.Length} doesn't match expected size {expected} ({width}Ã—{height}Ã—{channels} channels)",
                 nameof(data));
         }
 
@@ -356,7 +344,7 @@ public abstract partial class GpuTexture : GpuResource<GpuTextureMetadata>, IDis
         if (data.Length != expected)
         {
             throw new ArgumentException(
-                $"Data array size {data.Length} doesn't match expected size {expected} ({regionWidth}×{regionHeight}×{regionDepth}×{channels} channels)",
+                $"Data array size {data.Length} doesn't match expected size {expected} ({regionWidth}Ã—{regionHeight}Ã—{regionDepth}Ã—{channels} channels)",
                 nameof(data));
         }
 
@@ -395,7 +383,7 @@ public abstract partial class GpuTexture : GpuResource<GpuTextureMetadata>, IDis
         if (data.Length != expected)
         {
             throw new ArgumentException(
-                $"Data array size {data.Length} doesn't match expected size {expected} ({regionWidth}×{regionHeight}×{regionDepth}×{channels} channels)",
+                $"Data array size {data.Length} doesn't match expected size {expected} ({regionWidth}Ã—{regionHeight}Ã—{regionDepth}Ã—{channels} channels)",
                 nameof(data));
         }
         RHICommandContext.Current.UploadTexture(this, new RHITextureRegion(new(mipLevel), x, y, z, regionWidth, regionHeight, regionDepth), RHICommandContext.Current.GetTextureEncoding(this, PixelComponentType.Float), System.Runtime.InteropServices.MemoryMarshal.AsBytes((data).AsSpan()));
@@ -460,7 +448,7 @@ public abstract partial class GpuTexture : GpuResource<GpuTextureMetadata>, IDis
         if (data.Length < expected)
         {
             throw new ArgumentException(
-                $"Data array size {data.Length} is smaller than expected size {expected} ({regionWidth}×{regionHeight}×{regionDepth}×{channels} channels)",
+                $"Data array size {data.Length} is smaller than expected size {expected} ({regionWidth}Ã—{regionHeight}Ã—{regionDepth}Ã—{channels} channels)",
                 nameof(data));
         }
         RHICommandContext.Current.UploadTexture(this, new RHITextureRegion(new(mipLevel), x, y, z, regionWidth, regionHeight, regionDepth), RHICommandContext.Current.GetTextureEncoding(this, PixelComponentType.UnsignedInt), System.Runtime.InteropServices.MemoryMarshal.AsBytes((data).AsSpan()));
@@ -500,7 +488,7 @@ public abstract partial class GpuTexture : GpuResource<GpuTextureMetadata>, IDis
         if (data.Length != expected)
         {
             throw new ArgumentException(
-                $"Data array size {data.Length} doesn't match expected size {expected} ({width}×{height}×{channels} channels)",
+                $"Data array size {data.Length} doesn't match expected size {expected} ({width}Ã—{height}Ã—{channels} channels)",
                 nameof(data));
         }
 
@@ -531,7 +519,7 @@ public abstract partial class GpuTexture : GpuResource<GpuTextureMetadata>, IDis
         if (data.Length < expected)
         {
             throw new ArgumentException(
-                $"Data array size {data.Length} is smaller than expected size {expected} ({width}×{height}×{channels} channels)",
+                $"Data array size {data.Length} is smaller than expected size {expected} ({width}Ã—{height}Ã—{channels} channels)",
                 nameof(data));
         }
         RHICommandContext.Current.UploadTexture(this, new RHITextureRegion(new(0), 0, 0, 0, width, height, 1), RHICommandContext.Current.GetTextureEncoding(this, PixelComponentType.UnsignedInt), System.Runtime.InteropServices.MemoryMarshal.AsBytes((data).AsSpan()));
@@ -552,7 +540,7 @@ public abstract partial class GpuTexture : GpuResource<GpuTextureMetadata>, IDis
         if (x < 0 || y < 0 || x + regionWidth > width || y + regionHeight > height)
         {
             throw new ArgumentOutOfRangeException(
-                $"Region ({x}, {y}, {regionWidth}, {regionHeight}) extends beyond texture bounds ({width}×{height})");
+                $"Region ({x}, {y}, {regionWidth}, {regionHeight}) extends beyond texture bounds ({width}Ã—{height})");
         }
 
         int channels = GetChannelCount();
@@ -560,7 +548,7 @@ public abstract partial class GpuTexture : GpuResource<GpuTextureMetadata>, IDis
         if (data.Length != expected)
         {
             throw new ArgumentException(
-                $"Data array size {data.Length} doesn't match expected size {expected} ({regionWidth}×{regionHeight}×{channels} channels)",
+                $"Data array size {data.Length} doesn't match expected size {expected} ({regionWidth}Ã—{regionHeight}Ã—{channels} channels)",
                 nameof(data));
         }
         RHICommandContext.Current.UploadTexture(this, new RHITextureRegion(new(0), x, y, 0, regionWidth, regionHeight, 1), RHICommandContext.Current.GetTextureEncoding(this, PixelComponentType.Float), System.Runtime.InteropServices.MemoryMarshal.AsBytes((data).AsSpan()));
@@ -581,7 +569,7 @@ public abstract partial class GpuTexture : GpuResource<GpuTextureMetadata>, IDis
         if (x < 0 || y < 0 || x + regionWidth > width || y + regionHeight > height)
         {
             throw new ArgumentOutOfRangeException(
-                $"Region ({x}, {y}, {regionWidth}, {regionHeight}) extends beyond texture bounds ({width}×{height})");
+                $"Region ({x}, {y}, {regionWidth}, {regionHeight}) extends beyond texture bounds ({width}Ã—{height})");
         }
 
         var pixelType = TextureFormatHelper.GetPixelType(internalFormat);
@@ -595,7 +583,7 @@ public abstract partial class GpuTexture : GpuResource<GpuTextureMetadata>, IDis
         if (data.Length < expected)
         {
             throw new ArgumentException(
-                $"Data array size {data.Length} is smaller than expected size {expected} ({regionWidth}×{regionHeight}×{channels} channels)",
+                $"Data array size {data.Length} is smaller than expected size {expected} ({regionWidth}Ã—{regionHeight}Ã—{channels} channels)",
                 nameof(data));
         }
         RHICommandContext.Current.UploadTexture(this, new RHITextureRegion(new(0), x, y, 0, regionWidth, regionHeight, 1), RHICommandContext.Current.GetTextureEncoding(this, PixelComponentType.UnsignedInt), System.Runtime.InteropServices.MemoryMarshal.AsBytes((data).AsSpan()));
@@ -624,7 +612,7 @@ public abstract partial class GpuTexture : GpuResource<GpuTextureMetadata>, IDis
         if (data.Length != expected)
         {
             throw new ArgumentException(
-                $"Data array size {data.Length} doesn't match expected size {expected} ({width}×{height}×{channels} channels)",
+                $"Data array size {data.Length} doesn't match expected size {expected} ({width}Ã—{height}Ã—{channels} channels)",
                 nameof(data));
         }
         RHICommandContext.Current.UploadTexture(this, new RHITextureRegion(new(0), 0, 0, 0, width, height, 1), RHICommandContext.Current.GetTextureEncoding(this, PixelComponentType.UnsignedShort), System.Runtime.InteropServices.MemoryMarshal.AsBytes((data).AsSpan()));

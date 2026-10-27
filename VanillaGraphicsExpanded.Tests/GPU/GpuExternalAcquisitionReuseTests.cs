@@ -29,7 +29,7 @@ public sealed class GpuExternalAcquisitionReuseTests(HeadlessGLFixture fixture)
             using var view = RHICommandContext.Current.CreateBufferTexture(new RHIBufferTextureDescription { Buffer = buffer, Format = TextureFormat.R32f, WholeBuffer = true, Label = null }).RequireResource();
             var manager = GpuResourceManagerSystem.CurrentManager!;
             int observed = 0;
-            foreach (var method in typeof(GL).GetMethods().Where(method => method.Name is "GetTextureLevelParameter" or "GetTexLevelParameter"))
+            foreach (var method in typeof(OpenTK.Graphics.OpenGL4.GL).GetMethods().Where(method => method.Name == "GetTextureLevelParameter"))
                 harmony.Patch(method, prefix: new HarmonyMethod(typeof(GpuExternalAcquisitionReuseTests), nameof(ObserveAssociationRead)));
             associationRead = () =>
             {

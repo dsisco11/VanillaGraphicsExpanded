@@ -707,30 +707,36 @@ Phase 8b: Close owner creation entry points without disturbing private handoff
 Phase 8c: Centralize acquisition, recovery and image dependency publication
   Depends on 8b.
 
-  ☐ Route BorrowedTexture construction/GetOrReplace acquisition through the final external import/refresh
+  ☑ Route BorrowedTexture construction/GetOrReplace acquisition through the final external import/refresh
     boundary. Preserve nonownership, original association and reuse of available canonical facts; no query
     on reference conversion, ordinary metadata access or known content-only updates.
-  ☐ Move GpuFramebuffer.DiscoverAttachment and ReconcileAttachmentMetadata acquisition/recovery orchestration
+  ☑ Move GpuFramebuffer.DiscoverAttachment and ReconcileAttachmentMetadata acquisition/recovery orchestration
     behind the final RHI resource boundary, including AcquireWrapperMetadata, RecoverWrapperMetadata,
     AcquireFramebufferTexture and AcquireFramebufferRenderbuffer. Keep attachment selection/ownership
     policy in its owning domain and preserve exact face/layer/view selection.
-  ☐ Complete PublishRenderPassMetadata and RefreshWrappedFramebuffer migration: one admitted operation
+  ☑ Complete PublishRenderPassMetadata and RefreshWrappedFramebuffer migration: one admitted operation
     owns identity replacement, discovery, availability withdrawal, failure and publication. Remove wrapper
     sequencing of manager recovery, InvalidateWrapperMetadata and DiscardUntrackedMetadata around cache effects.
-  ☐ Reconcile GpuFramebufferAttachment's AcquireExternalImageTexture and AcquireImageMetadata calls in
+  ☑ Reconcile GpuFramebufferAttachment's AcquireExternalImageTexture and AcquireImageMetadata calls in
     construction, NotifyChanged and ValidateSlot. Manager-owned acquisition decides unknown facts;
     validation consumes supplied/published facts, and context-local failures cannot leave stale facts usable.
-  ☐ Route GpuProgramObject/GpuShaderModule adoption and GpuProgramInterface's acquisition fallback through
+  ☑ Route GpuProgramObject/GpuShaderModule adoption and GpuProgramInterface's acquisition fallback through
     their final shader/import contracts. Remove native reader selection from general wrappers/interface
     preparation; preserve legitimate backend-internal adoption and manager-owned reader authority.
-  ☐ Consolidate GpuTexture allocation/reallocation and GpuRenderbuffer allocation calls to
+  ☑ Consolidate GpuTexture allocation/reallocation and GpuRenderbuffer allocation calls to
     GpuFramebufferAttachmentObservers.NotifyChanged with manager-owned dependency publication.
     Reconcile GpuFramebufferAttachment observer registration, NotifyChanged and NotifyDependents and the
     ConditionalWeakTable helper; remove superseded notification machinery where the manager replaces it.
     Preserve context-local/no-registration behavior, weak ownership, dependent invalidation on failure
     and exactly-once notifications without a second registry or publication authority.
-  ☐ Verify known versus unknown external facts, context-local recovery, unavailable snapshots, resize,
+  ☑ Verify known versus unknown external facts, context-local recovery, unavailable snapshots, resize,
     aliases/views, same-ID reuse, dependent failure and borrowed ownership. Ordinary fact reads remain query-free.
+
+  Qualification: second review and independent stage audit complete. Debug passed 253/253;
+    Release passed the same 253 cases in two fresh-process partitions (68 + 185). The broad Release
+    run retains seven order-sensitive Harmony observer failures; it is not claimed clean.
+    [Caller closure, authority mapping and exact evidence](Rendering.GpuCommands.Migrations.md#acquisition-and-image-publication-boundary-phase-8c).
+    No agent staging/commit. Subphases 8d–8i and Phase 9 remain open.
 
 Phase 8d: Remove capability and shader-layout backend dependencies
   Depends on 8c.

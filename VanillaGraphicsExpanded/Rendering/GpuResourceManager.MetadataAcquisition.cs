@@ -50,9 +50,11 @@ internal sealed partial class GpuResourceManager
         catch
         {
             DiscardUntrackedMetadata(resource);
+            PublishOwnerImages(resource, false);
             throw;
         }
         resource.HandleMetadataChanged(data);
+        PublishOwnerImages(resource, true);
     }
 
     /// <summary>Explicitly withdraws external facts before reacquiring them; available lookup never forces this path.</summary>

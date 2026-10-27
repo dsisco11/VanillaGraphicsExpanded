@@ -1,53 +1,50 @@
 using System;
-
 namespace VanillaGraphicsExpanded.Rendering;
-
-/// <summary>Publishes rebuilt external framebuffer identities and attachment metadata.</summary>
+/// <summary>Publishes external framebuffer identity through the admitted resource transaction.</summary>
 public abstract partial class GpuFramebuffer
 {
+    private bool externalPublicationInProgress;
     #region Public API
-    /// <summary>Refreshes external identity for compatibility callers without requiring strict pass metadata.</summary>
+    /// <summary>Refreshes an external identity and viewport without requiring complete pass metadata.</summary>
     public void RefreshWrappedFramebuffer(int existingFboId, int width, int height)
-        => RefreshWrappedFramebuffer(existingFboId, width, height, publishPassMetadata: false);
-
-    /// <summary>Refreshes external storage identity even when dimensions and integer GL names are unchanged.</summary>
-    /// <param name="existingFboId">The positive framebuffer name published by the external owner after rebuilding.</param>
-    /// <param name="width">The positive viewport width of the rebuilt framebuffer.</param>
-    /// <param name="height">The positive viewport height of the rebuilt framebuffer.</param>
-    /// <param name="publishPassMetadata">Resolves strict target metadata before publishing the single change notification.</param>
-    /// <remarks>Clears cached attachment references and always notifies subscribers, including for equal-size rebuilds.</remarks>
+        => RefreshWrappedFramebuffer(existingFboId, width, height, false);
+    /// <summary>Refreshes external identity and optionally publishes its complete selected-image set.</summary>
     public void RefreshWrappedFramebuffer(int existingFboId, int width, int height, bool publishPassMetadata)
+        => RHI.RHICommandContext.Current.PublishImportedFramebuffer(this, publishPassMetadata, existingFboId, width, height);
+    #endregion
+    #region Internal API
+    /// <summary>Validates owner policy and withdraws retained composition before an explicit external publication.</summary>
+    internal bool BeginExternalPublication(int? replacementId, int width, int height)
     {
-        // Explicit owner publication can replace a retired allocation; shared usage guards still apply.
-        RequireMutableStorage(allowRetired: true);
+        if (externalPublicationInProgress) throw new InvalidOperationException("External publication is already in progress.");
+        RequireMutableStorage(allowRetired: replacementId.HasValue);
         ObjectDisposedException.ThrowIf(IsDisposed, this);
         if (ownsFramebuffer) throw new InvalidOperationException("Only borrowed framebuffers can be refreshed.");
-        if (existingFboId <= 0 || width <= 0 || height <= 0) throw new ArgumentOutOfRangeException(nameof(existingFboId));
-        bool replacesIdentity = fboId != existingFboId || ResourceManager?.IsResourceLive(this) == false;
-        // A retained wrapper must keep the original association until its borrow releases.
-        // Refreshing facts for the same live identity does not transfer that borrow.
-        if (replacesIdentity) RequireRetirement();
-        Surface = null;
-        attachments.Clear();
-        attachmentsDirty = false;
-        passMetadataPublished = false;
-        if (replacesIdentity)
-            ResourceManager?.ReplaceWrapperResource(this);
-        fboId = existingFboId;
-        ResourceManager?.RegisterWrapperDeclaration(this);
-        GpuResourceManager.InvalidateWrapperMetadata(this);
-        GpuResourceManager.DiscardUntrackedMetadata(this);
-        wrappedWidth = width;
-        wrappedHeight = height;
-        if (!publishPassMetadata) PublishAttachmentsChanged();
-        else
+        if (!replacementId.HasValue && fboId == 0) throw new NotSupportedException("Default framebuffer surface metadata is unavailable.");
+        bool replaces = replacementId.HasValue && (fboId != replacementId.Value || ResourceManager?.IsResourceLive(this) == false);
+        if (replacementId.HasValue)
         {
-            // Publication observes the completed image set once; failed discovery still
-            // withdraws the old metadata and notifies existing borrowed-image consumers.
-            try { PublishRenderPassMetadata(); }
-            catch { PublishAttachmentsChanged(); throw; }
+            if (replacementId.Value <= 0 || width <= 0 || height <= 0) throw new ArgumentOutOfRangeException(nameof(replacementId));
+            if (replaces) RequireRetirement();
+            Surface = null;
+            attachments.Clear();
+            attachmentsDirty = false;
+            reconciledAttachmentDescriptors = null;
+            wrappedWidth = width; wrappedHeight = height;
         }
+        attachmentsDirty = false;
+        reconciledAttachmentDescriptors = null;
+        passMetadataPublished = false;
+        externalPublicationInProgress = true;
+        return replaces;
     }
-
+    /// <summary>Commits pass readiness and emits the sole explicit publication notification, including on failure.</summary>
+    internal void CompleteExternalPublication(bool available)
+    {
+        externalPublicationInProgress = false;
+        passMetadataPublished = available;
+        if (!available) attachments.Clear();
+        PublishAttachmentsChanged();
+    }
     #endregion
 }

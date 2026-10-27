@@ -88,6 +88,7 @@ internal sealed partial class GpuResourceManager
             else DeliverUntrackedOperationResult(resource, candidate, effects);
             completed = true;
             if (entry is not null) entry.OperationInProgress = false;
+            else PublishOwnerImages(resource, true, reportMissingImages: (effects & GpuMetadataChange.Storage) != 0);
         }
 
         /// <summary>Checks original identity after any external callback or native read.</summary>
@@ -119,6 +120,7 @@ internal sealed partial class GpuResourceManager
                     if (entry is null)
                     {
                         if (!guard.Deleted && resource.ResourceId == guard.Handle.Id) DiscardUntrackedMetadata(resource, effects);
+                        PublishOwnerImages(resource, false);
                     }
                     else
                     {

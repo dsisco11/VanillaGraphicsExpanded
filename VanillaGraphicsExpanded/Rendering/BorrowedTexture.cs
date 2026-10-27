@@ -1,11 +1,11 @@
-using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using OpenTK.Graphics.OpenGL;
 
 namespace VanillaGraphicsExpanded.Rendering;
 
 /// <summary>Exposes an externally owned texture through the typed texture contract without acquiring its storage.</summary>
-/// <remarks>Unobserved external storage mutations require explicit refresh; deletion observed by OpenGlStateCache retires the common registration.</remarks>
+/// <remarks>Observed storage changes update canonical facts; deletion retires the original common registration.</remarks>
 internal sealed class BorrowedTexture : GpuTexture
 {
     #region Public API
@@ -18,7 +18,7 @@ internal sealed class BorrowedTexture : GpuTexture
         SetCreationIdentity(externalTexture, CaptureCreationContext(GpuResourceKind.Texture));
         try
         {
-            GpuResourceManager.AcquireWrapperMetadata(this, GpuTextureMetadataReader.Instance);
+            RHICommandContext.Current.AcquireBorrowedTexture(this);
             if (width <= 0 || height <= 0)
                 throw new ArgumentException("Texture has no allocated base-level image.", nameof(externalTexture));
         }
@@ -44,7 +44,7 @@ internal sealed class BorrowedTexture : GpuTexture
         }
         else if (selected.ResourceManager is not { } manager || !manager.IsResourceMetadataAvailable(selected))
         {
-            GpuResourceManager.AcquireWrapperMetadata(selected, GpuTextureMetadataReader.Instance);
+            RHICommandContext.Current.AcquireBorrowedTexture(selected);
         }
         if (selected.Width <= 0 || selected.Height <= 0)
             throw new InvalidOperationException("Texture has no allocated base-level image.");

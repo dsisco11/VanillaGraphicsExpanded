@@ -130,8 +130,6 @@ public sealed class GpuRenderbuffer : GpuResource<GpuRenderbufferMetadata>, IDis
         }
 
         RHICommandContext.Current.AllocateRenderbufferStorage(this, new RHIRenderbufferDescription { Format = storage, Width = width, Height = height, Samples = samples });
-        if (ResourceManager?.GetResourceRegistration(this) is null)
-            GpuFramebufferAttachmentObservers.NotifyChanged(this);
     }
 
     /// <summary>

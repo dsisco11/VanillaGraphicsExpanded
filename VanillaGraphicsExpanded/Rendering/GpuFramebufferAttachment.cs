@@ -64,7 +64,7 @@ public sealed class GpuFramebufferAttachment : GpuResource<GpuImageMetadata>
         TextureTarget? cubeFace = null)
     {
         if ((uint)mipLevel > 30) throw new ArgumentOutOfRangeException(nameof(mipLevel));
-        var data = GpuResourceManager.AcquireExternalImageTexture(textureId);
+        var data = RHICommandContext.Current.AcquireExternalAttachmentTexture(textureId);
         if (cubeFace.HasValue && (data.Target != TextureTarget.TextureCubeMap || !IsCubeFace(cubeFace.Value) || layer.HasValue))
             throw new ArgumentOutOfRangeException(nameof(cubeFace));
         var image = new GpuFramebufferAttachment(textureId, false, cubeFace ?? data.Target, mipLevel, layer, data);
@@ -182,13 +182,6 @@ public sealed class GpuFramebufferAttachment : GpuResource<GpuImageMetadata>
             or TextureTarget.Texture3D or TextureTarget.TextureCubeMapArray or TextureTarget.Texture2DMultisampleArray,
         BaseView, ViewCount);
 
-    /// <summary>Publishes changes to remaining framebuffer references without retaining them strongly.</summary>
-    internal void NotifyChanged()
-    {
-        try { GpuResourceManager.AcquireImageMetadata(this); }
-        finally { NotifyDependents(); }
-    }
-
     /// <summary>Invalidates every retained framebuffer after manager publication or failed image acquisition.</summary>
     internal void NotifyDependents()
     {
@@ -226,10 +219,6 @@ public sealed class GpuFramebufferAttachment : GpuResource<GpuImageMetadata>
     internal void ValidateSlot(FramebufferAttachment slot)
     {
         if (!IsValid) throw new InvalidOperationException("Framebuffer attachment storage has retired.");
-        // Without a registration, selected image facts have no persistent availability guarantee.
-        // Refresh through the manager before using them, including after an earlier failed resize.
-        if (ResourceManager?.GetResourceRegistration(this) is null)
-            GpuResourceManager.AcquireImageMetadata(this);
         if (Width <= 0 || Height <= 0)
             throw new InvalidOperationException("The selected framebuffer image metadata is unavailable.");
         if (ResourceManager is { } manager && manager.GetResourceRegistration(this) is not null
@@ -276,7 +265,7 @@ public sealed class GpuFramebufferAttachment : GpuResource<GpuImageMetadata>
     {
         ReleaseStorage();
         GC.SuppressFinalize(this);
-        NotifyChanged();
+        NotifyDependents();
         framebuffers.Clear();
     }
     #endregion
@@ -336,8 +325,8 @@ public sealed class GpuFramebufferAttachment : GpuResource<GpuImageMetadata>
         try
         {
             ValidateSelection();
-            GpuResourceManager.AcquireImageMetadata(this);
-            GpuFramebufferAttachmentObservers.Register(resource, this);
+            RHICommandContext.Current.AcquireAttachmentImage(this);
+            RHICommandContext.Current.ObserveAttachmentOwner(resource, this);
             if (!ownsStorage) GC.SuppressFinalize(this);
         }
         catch
@@ -364,7 +353,7 @@ public sealed class GpuFramebufferAttachment : GpuResource<GpuImageMetadata>
         attachmentMode = mode;
         disposalQueue = GpuResourceManagerSystem.CaptureDisposalQueue();
         ValidateSelection();
-        GpuResourceManager.AcquireImageMetadata(this, acquiredTexture, acquiredRenderbuffer);
+        RHICommandContext.Current.AcquireAttachmentImage(this, acquiredTexture, acquiredRenderbuffer);
         GC.SuppressFinalize(this);
     }
 

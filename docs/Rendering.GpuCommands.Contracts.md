@@ -46,8 +46,13 @@ existing manager services commit snapshots and notifications exactly once.
 The context routes private resource work through the internal `IRHIResourceExecution` contract inherited
 by `IRHIBackend`. Its creation, acquisition/observation and retirement partials are not public consumer
 operations. Initialization records, nullable metadata and native identities remain inside this handoff.
-Existing owner allocation/configuration records also cross this private handoff; their native values
-remain inside the existing owner/metadata domain rather than entering public RHI descriptions.
+Existing owner allocation/configuration records also cross this private handoff. Canonical metadata and
+initialization records retain their existing schema, but direct operation selectors use project-owned
+resource types: framebuffer slots/selection, metadata fields, program-block kinds and image storage
+targets. Routing carries color indices (minus one disables an output) and an optional read-color index.
+No OpenTK enum occurs directly in RHICommandContext or IRHIResourceExecution signatures, including
+collection keys. Native integration converts incoming legacy selectors; backend lowering converts logical
+requests to native arguments. These pure codecs issue no graphics calls and own no resource state.
 Query-free image description/encoding projections translate published canonical facts only; they never
 acquire or recover metadata. Native window discovery and optional bindless handle issuance/residency
 are private owner services. The manager receives the admitted context explicitly for initialization; it never retrieves or stores
@@ -59,6 +64,13 @@ those reads, including narrow executable-field and framebuffer-field recovery. P
 never calls these services. Cached limits come from `RHICapabilities`; there is no separate discovery path.
 Retirement reaches one backend kind dispatcher only after existing owner/queue original-context and
 association admission. Candidate cleanup uses the same route, preserving original errors and identities.
+
+Private import operations also admit borrowed textures, executable adoption, interface acquisition and
+selected framebuffer images. Imported framebuffer recovery keeps its operation guard until descriptor
+and backing-image resolution finishes. Image validation reads supplied facts only. Manager entry delivery
+is authoritative for registered images; weak owner/image relationships cover local tools and intentional
+owner replacement and skip already-delivered entry recipients. Dependency notification failure does not
+convert a successfully committed replacement allocation into a failed candidate.
 
 Imported geometry certification acquires configuration through this contract and retains the original
 association/revision. A transient `RHIGeometryContext` supplies originating namespace and the selected

@@ -59,8 +59,9 @@ use separate namespaces. Uncontracted active slots and ambiguous mappings reject
 inactive required entries remain legal. No sampler/image uniform writes repair a fixed assignment.
 Preparation has no native program-ID parameter, native query path or manager acquisition fallback.
 Unavailable snapshots, uninitialized collections and missing required properties or unit assignments
-reject preparation. `GpuProgramInterface` acquires canonical facts through the manager when its caller
-has no snapshot; graphics and compute candidates supply their existing owner snapshots directly.
+reject preparation. `GpuProgramInterface` requests canonical facts through the private RHI acquisition boundary when its caller
+has no snapshot; the admitted backend invokes manager acquisition. Graphics and compute candidates supply
+their existing owner snapshots directly.
 Unit/block changes revalidate prepared resource tables through the existing revision machinery;
 relinking or binary installation withdraws executable preparation until the owner validates its replacement.
 Cached driver executables retain their candidate owner during installation; the manager delivers the

@@ -35,7 +35,11 @@ internal sealed partial class GpuResourceManager
             entry.BeginRefresh(change);
             entry.NotifyProgramDependents(change, available: false);
         }
-        else DiscardUntrackedMetadata(resource, change);
+        else
+        {
+            DiscardUntrackedMetadata(resource, change);
+            PublishOwnerImages(resource, false);
+        }
     }
 
     /// <summary>Explicitly recovers complete native facts after existing commands; established results use operation-owned publication.</summary>
@@ -70,6 +74,7 @@ internal sealed partial class GpuResourceManager
         catch
         {
             DiscardUntrackedMetadata(resource, change);
+            PublishOwnerImages(resource, false);
             throw;
         }
         // Storage identity is independent of snapshot availability. Metadata-only recovery
@@ -77,6 +82,7 @@ internal sealed partial class GpuResourceManager
         if ((change & GpuMetadataChange.Storage) != 0 && resource is GpuTexture texture)
             texture.UntrackedStorageIdentity = new();
         resource.HandleMetadataChanged(data);
+        PublishOwnerImages(resource, true);
     }
 
     #endregion

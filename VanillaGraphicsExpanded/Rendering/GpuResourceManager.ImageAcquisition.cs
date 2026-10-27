@@ -58,7 +58,7 @@ internal sealed partial class GpuResourceManager
         // and snapshot assignment, so wrappers never synthesize dimensions or sample counts.
         // Withdraw the old projection before any read that can fail or reject this selection.
         DiscardUntrackedMetadata(image);
-        OpenGlStateCache.Current.RequireResourceOperationAvailable(image.Kind, image.ResourceId);
+        if (image.Resource is null) OpenGlStateCache.Current.RequireResourceOperationAvailable(image.Kind, image.ResourceId);
         // Typed local owners already hold command-established facts. Raw local IDs have no
         // such owner or registry guarantee and retain explicit native discovery.
         if (image.Resource is { } owner)

@@ -30,7 +30,7 @@ internal sealed class GpuProgramInterface
         Graphics = graphics;
         // Acquisition belongs to the interface owner. Binding preparation itself accepts
         // only a complete snapshot and cannot fall back to native inspection.
-        var snapshot = metadata ?? GpuResourceManager.AcquireProgramMetadata(program);
+        var snapshot = metadata ?? RHI.RHICommandContext.Current.AcquireProgramInterface(program);
         var array = contracts.ToArray();
         this.contracts = array;
         PreparedBindings = new GpuPreparedBindings(GpuBindingContract.Merge(array), snapshot);

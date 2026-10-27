@@ -58,10 +58,31 @@ internal sealed partial class OpenGLBackend
         var request = description;
         RequireContext();
         var initialization = LowerTexture(request).Resolve();
-        if (!GpuResourceManager.CreateTexture(initialization, owner, out _).HasValue)
-            throw new InvalidOperationException("Texture initialization did not complete.");
-        ApplyTextureFilterPolicy(owner, request);
-        owner.SetDebugName(request.Label);
+        try
+        {
+            if (!GpuResourceManager.CreateTexture(initialization, owner, out _).HasValue)
+                throw new InvalidOperationException("Texture initialization did not complete.");
+            ApplyTextureFilterPolicy(owner, request);
+            owner.SetDebugName(request.Label);
+        }
+        catch
+        {
+            // Keep the existing wrapper reusable, but never leave a failed candidate ID
+            // installed. Cleanup belongs to execution and preserves the initialization error.
+            int id = owner.TextureId;
+            if (id != 0)
+            {
+                try
+                {
+                    owner.ResourceManager?.ReplaceWrapperResource(owner);
+                    owner.SetCreationIdentity(0);
+                    RetireResource(new(GpuResourceKind.Texture, id));
+                }
+                catch { owner.SetCreationIdentity(0); }
+            }
+            GpuResourceManager.PublishOwnerImages(owner, false);
+            throw;
+        }
     }
     #endregion
 

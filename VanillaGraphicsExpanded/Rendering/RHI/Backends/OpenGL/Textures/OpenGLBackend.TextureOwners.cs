@@ -12,7 +12,13 @@ internal sealed partial class OpenGLBackend
             Depth = request.Depth, MipLevels = request.Levels, BaseLevel = request.BaseLevel, MaxLevel = request.MaxLevel,
             Storage = request.AllocationMode == GpuTextureAllocationMode.Immutable ? ResourceStorageMode.Immutable : ResourceStorageMode.Mutable,
             Filter = filter, Label = label };
-        if (owner.ResourceId == 0) InitializeTextureOwner(owner, description);
+        if (owner.ResourceId == 0)
+        {
+            InitializeTextureOwner(owner, description);
+            // Allocation and filter policy are complete before dependents see replacement.
+            // A missing image selection must not delete the successful owner allocation.
+            GpuResourceManager.PublishOwnerImages(owner, true, reportMissingImages: true);
+        }
         else AllocateTextureStorage(owner, description);
     }
     /// <inheritdoc />

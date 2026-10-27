@@ -172,6 +172,12 @@ width/height/format/sample fields become accessors; backing reference, ownership
 local. Projection uses canonical data without another query or entry. Unsupported selections make that
 association unavailable. It is a typed view of the backing entry, not a second canonical metadata source.
 
+Explicit image acquisition and imported framebuffer publication use private RHI resource operations.
+Wrappers retain selection and composition; the manager chooses readers and resolves each distinct backing
+once per discovery. Attachment validation consumes published facts without recovery. Registered images
+receive projections through their backing entry; manager-owned weak owner/image links cover local tools
+and intentional owner replacement without duplicating canonical delivery.
+
 ### Manager API and generic base
 
 Use one `ConcurrentDictionary<GpuResourceHandle, GpuResourceRegistration>` inside the context-scoped

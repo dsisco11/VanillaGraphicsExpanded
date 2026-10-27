@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using OpenTK.Graphics.OpenGL;
 
@@ -31,7 +32,7 @@ internal sealed class GpuShaderModule : GpuResource<GpuShaderMetadata>
     internal GpuShaderModule(int shaderId, ShaderType type)
     {
         this.shaderId = shaderId;
-        GpuResourceManager.AcquireWrapperMetadata(this, GpuShaderMetadataReader.Instance);
+        RHICommandContext.Current.AdoptShaderOwner(this);
         if (metadata.Type != type) throw new ArgumentException("Native shader stage differs from the adopted stage.", nameof(type));
     }
     #endregion

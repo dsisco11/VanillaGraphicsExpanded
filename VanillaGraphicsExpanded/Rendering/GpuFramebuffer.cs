@@ -127,7 +127,7 @@ public abstract partial class GpuFramebuffer : GpuResource<GpuFramebufferMetadat
     /// <summary>Supplies the current immutable descriptor to command-owned composition.</summary>
     internal GpuFramebufferMetadata MetadataSnapshot => metadata;
 
-    /// <summary>Validates registered image snapshots and refreshes context-local selections with binding-preserving native reads.</summary>
+    /// <summary>Validates supplied image snapshots without acquiring or recovering native facts.</summary>
     internal void ValidateAttachments()
     {
         ObjectDisposedException.ThrowIf(IsDisposed || fboId != 0 && !IsValid, this);
@@ -142,7 +142,7 @@ public abstract partial class GpuFramebuffer : GpuResource<GpuFramebufferMetadat
     /// <summary>Invalidates bindings only while this framebuffer still references the changed attachment.</summary>
     internal void OnAttachmentChanged(GpuFramebufferAttachment attachment)
     {
-        if (IsDisposed || !attachments.ContainsValue(attachment)) return;
+        if (IsDisposed || externalPublicationInProgress || !attachments.ContainsValue(attachment)) return;
         attachmentsDirty = true;
         if (!resizing) PublishAttachmentsChanged();
     }

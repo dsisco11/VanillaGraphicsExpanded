@@ -1190,3 +1190,102 @@ ClientRenderingCompositionTests and CompleteGraphicsDrawTests.
 
 Package identity, integrated lighting and user-run live acceptance remain later qualification work.
 The agent did not stage or commit changes; existing user staging was left untouched.
+
+
+## Acquisition and image-publication boundary (Phase 8c)
+
+Authority: the implementation plan's mandatory migration contract and 8c tasks; the RHI proposal's
+Resource creation and adoption, Backend dispatch and publication and Engine integration sections;
+Rendering.GpuCommands.Contracts.md internal resource execution; Rendering.GpuResources.md;
+Rendering.GpuResourceHandles.Inventory.md selected-image and canonical-entry contracts;
+Rendering.ShaderBindingState.md prepared bindings; archived command-publication proposal
+`3f307365:docs/Rendering.CommandPublication.Proposal.md` acquisition/helper dispositions and operation
+commit rules; archived texture-reference proposal `b9fca04c:docs/Rendering.GpuTextureRef.Proposal.md`.
+Existing API exclusions and the unchanged consumer-only texture reference remain in force.
+
+| Task | Final route / source evidence |
+| --- | --- |
+| Borrowed texture construction and reuse | `BorrowedTexture` calls private RHI `AcquireBorrowedTexture`; the backend admits context, and the existing manager chooses acquisition/reuse. Nonownership and original entry identity remain unchanged. |
+| Attachment discovery/reconciliation | `DiscoverFramebufferAttachment` and `ResolveFramebufferAttachments` cross the private execution contract. Manager FramebufferImport/FramebufferImages own reads and one backing snapshot per native object; wrappers retain exact selection/composition and commit references only after resolution. |
+| External framebuffer refresh/publication | `PublishImportedFramebuffer` owns replacement, discovery and failure withdrawal. Existing `MetadataOperation` keeps the framebuffer unavailable through backing resolution; mode evidence is reconciled before image projection. Wrapper domain hooks install composition and emit one final event, suppressing intermediate owner notifications. |
+| Image construction/validation | Construction explicitly invokes `AcquireAttachmentImage` or `AcquireExternalAttachmentTexture`. `ValidateSlot` consumes supplied snapshots and availability, without hidden reacquisition. Failure clears local projections. |
+| Executable adoption/interface fallback | `GpuProgramObject`, `GpuShaderModule` and `GpuProgramInterface` use private RHI import/acquisition operations; native reader selection stays in the backend/manager transaction. No competing shader ownership system is added. |
+| Image dependent publication | Remove `GpuFramebufferAttachmentObservers` and wrapper allocation notification calls. Canonical entries remain authoritative. Manager OwnerImages retains weak relationships only for local tools/replacement and skips current-entry images. Local metadata operations and explicit acquisition/recovery publish or withdraw projections. Texture replacement reports dependency errors after allocation/filter completion; failed initialization cleanup lives in backend execution. |
+| Verification | Existing external reuse, local failure/recovery, same-ID retirement, view/alias, ownership and shader-import suites, plus ResourceAcquisitionBoundaryTests covering single notifications and guarded import failure/recovery. |
+
+No old-name forwarding APIs, second canonical registry, temporary adapters, forced query-on-validation,
+Release instrumentation, benchmark requirement, automatic staging or commit is introduced. Further
+capability, label, lifetime and interception cleanup remains in the explicitly incomplete subphases.
+
+
+Second review and the independent audit-stage-completion pass reconstructed all seven tasks against
+the linked authority, reviewed the final source and caller closure, and reconciled the documentation.
+No required acquisition/publication gap remains in this unit. Later capability, label, retention and
+full interception qualification tasks remain unchecked; this does not establish live visual acceptance.
+
+Delegated canonical shader-enabled Debug and ordinary optimized Release compilation used
+`NUGET_PACKAGES=C:\Users\Sisco\.nuget\packages` and
+`dotnet test VanillaGraphicsExpanded.Tests/VanillaGraphicsExpanded.Tests.csproj -c <Debug|Release>
+--no-restore --tl:off -v:minimal --filter <selection> --logger 'trx;LogFileName=<receipt>.trx'
+--results-directory artifacts/TestResults`. Debug passed 253/253 with no failures/skips.
+Release passed the same 253 cases across two fresh-process partitions (68 and 185), with no failures/skips
+in either partition. Those partitions use the same final binaries, `--no-build --no-restore` and unchanged
+assertions; no JIT overrides, production NoInlining changes or instrumented Release build were used.
+
+The broad single-process Release run is retained and is not a clean-suite receipt: it passed 246/253.
+Seven failures concern order-sensitive Harmony observation/fault injection in
+GpuFramebufferExecutableCreationTests.ExternalFramebufferEditsReadOnlyAffectedFields,
+GpuProgramMetadataInterceptionTests.DesktopExtStageSelectionForcesFullProgramRestore (two cases),
+DesktopExtActiveProgramSelectsUniformOwner (two cases), and
+OwnerCreationBoundaryTests.FailedConfigurationPreservesBorrowedImages (two cases).
+All three complete affected classes passed together in a fresh process (68 cases); the complementary
+selection passed 185. This qualifies focused behavior with an explicit combined-process test-harness
+limitation, rather than claiming the broad Release run passed. The association-read fixture's separate
+legacy-GL observer was corrected to observe the actual OpenGL4 native query methods.
+
+Final logs: `artifacts/phase8c-accepted-debug.log`, `phase8c-accepted-release.log`,
+`phase8c-release-isolated.log` and `phase8c-release-complement.log`; matching TRXs are under
+`artifacts/TestResults/`. Latest production source changed at `2026-10-27T21:08:50.1839050Z`;
+Debug production/test assemblies were compiled at `21:09:32Z` / `21:09:44Z` and Release at
+`21:10:41Z` / `21:10:47Z`. Subsequent edits only record documentation and checklist evidence.
+
+The full selection OR-joins `FullyQualifiedName~` for GpuExternalAcquisitionReuseTests,
+FramebufferAttachmentDiscoveryTests, GpuFramebufferAttachmentTests, GpuTextureFailureRecoveryTests,
+FramebufferOwnerKnowledgeTests, OwnerCreationBoundaryTests, ResourceAcquisitionBoundaryTests,
+GpuFramebufferExecutableCreationTests, GpuResourceMetadataAcquisitionTests,
+GpuFramebufferMetadataInterceptionTests, GpuFramebufferMultiviewInterceptionTests,
+GpuProgramMetadataInterceptionTests, GpuResourceRetirementRegressionTests,
+GpuProgramUniformMetadataTests, RHIShaderCreationTests, CloudNativeAdapterTests, GpuTextureRefTests,
+GpuResourceKindLifecycleTests, GpuTextureViewInterceptionTests, GpuTextureDependencyRecoveryTests,
+GpuInitialTextureDependencyTests, GpuBufferViewDependencyTests, CloudStoredVolumeViewTests,
+ArrayTextureViewTests and GpuMetadataBoundAcquisitionTests. The isolated Release selection contains the
+three affected classes above; the complement ANDs the full selection with `FullyQualifiedName!~`
+exclusions for those same classes. New boundary coverage comprises nine cases.
+
+Package/integrated/user qualification remains later work. The agent did not stage or commit changes;
+user-controlled staging was preserved.
+
+
+### Resource selector isolation correction
+
+Direct OpenTK selectors were removed from every RHICommandContext and IRHIResourceExecution partial,
+including older framebuffer configuration, image discovery, format capability and narrow executable /
+framebuffer observation operations. Project-owned logical selectors preserve omission, unknown targets,
+cube-face zero, disabled routing outputs and native integration error contracts. Framebuffer image maps
+remain in their existing owner/manager domain rather than crossing RHI as native-enum-keyed collections.
+The existing image enum codec moved to explicit OpenGL integration without a forwarding alias or second
+codec. Legacy owner/metadata inputs convert at that integration boundary; backend execution lowers the
+logical selectors. Canonical metadata structures, native execution authority and resource ownership are
+unchanged. RHIContractIsolationTests recursively checks direct, array, by-reference and generic signature
+types for OpenTK leakage.
+
+
+Delegated canonical Debug and ordinary optimized Release rebuilds each passed 138/138 focused tests,
+with zero failures/skips and shader generation enabled. Final receipts are
+`artifacts/rhi-selectors-final-debug.log`, `rhi-selectors-final-release.log` and corresponding TRXs
+under `artifacts/TestResults/`. The selection covers contract isolation, image acquisition/publication,
+framebuffer routing/discovery, capability-cache failure semantics, texture formats/images, cube/view
+selection and shader creation/uniform metadata. Native selector conversion initially changed the
+capability service's invalid-target exception; the correction preserves its existing
+InvalidOperationException contract and prevents publishing failed cache entries. No JIT overrides,
+instrumented Release builds, staging or commits were performed by the agent.

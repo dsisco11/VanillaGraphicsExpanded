@@ -50,6 +50,35 @@ Observed deletion removes that route through the backend's existing retirement p
 Screen resize preserves unrelated executed knowledge and runs resource callbacks in dependency order;
 uniform frame callbacks advance allocation/publication epochs without purging bindings each frame.
 
+## Explicit acquisition and image dependencies
+
+Private resource execution uses logical framebuffer slots, selection and metadata-query fields rather
+than OpenTK enums in its method signatures. Texture formats use the existing project-owned enum;
+format-query targets distinguish texture shapes from renderbuffers. Explicit native integration translates
+legacy owner selectors, and backend lowering translates the logical requests. The shared OpenGL image
+value codec lives with native integration and performs conversion only, with no native dispatch or state.
+Canonical metadata and initialization schemas retain their established ownership.
+
+Borrowed texture admission, executable adoption, interface acquisition and imported framebuffer
+publication enter through private `RHICommandContext` resource operations. The admitted backend invokes
+manager acquisition; wrappers and interface preparation do not select native readers. Available aliases
+reuse their canonical entries. Converting a reference, reading a published snapshot and validating an
+attachment slot never acquire or recover facts.
+
+Imported framebuffer publication holds one metadata operation while discovering descriptors and resolving
+backing images. The manager preserves face, layer, view range and observed attachment-mode evidence;
+the framebuffer owns its retained image composition. Identity replacement, availability withdrawal and
+failure notification belong to that explicit transaction. A completed publication emits one owner event;
+a failed publication withdraws old metadata and retained composition while preserving borrowed storage.
+
+Canonical entry recipients deliver registered image projections and dependent notifications. A
+manager-owned weak owner/image relationship covers context-local owners and intentional owner replacement;
+it contains no canonical metadata or native-ID registry, and skips images already delivered by their
+current entry. Local projection uses supplied owner snapshots. Missing selections become unavailable,
+and one failed dependent does not starve other images. Storage operations report missing local image
+selections after the owner allocation has committed; that dependency error does not retire the successful
+allocation. Candidate initialization failure remains separate and clears the failed identity in the backend.
+
 ## Command results and queries
 
 The OpenGL RHI backend owns buffer/image, synchronization, query-result, readback, capture and optional

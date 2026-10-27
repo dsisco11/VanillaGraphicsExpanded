@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using OpenTK.Graphics.OpenGL;
 
@@ -72,7 +73,7 @@ internal sealed class GpuProgramObject : GpuResource<GpuProgramMetadata>
     {
         this.programId = programId;
         this.debugName = debugName;
-        if (programId != 0) GpuResourceManager.AcquireWrapperMetadata(this, GpuProgramMetadataReader.Instance);
+        if (programId != 0) RHICommandContext.Current.AdoptProgramOwner(this);
     }
     #endregion
 }
