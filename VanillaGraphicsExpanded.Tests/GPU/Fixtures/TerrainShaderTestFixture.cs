@@ -21,7 +21,7 @@ internal sealed class TerrainShaderTestFixture : IDisposable
         try
         {
             var stages = TerrainTessellationStages.Describe(sources, prefix);
-            var result = RHICommandContext.Current.OpenGL.CreateEngineTessellationProgram(vertex, fragment, stages.Control, stages.Evaluation, null);
+            var result = VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLRHIContext.CreateEngineTessellationProgram(vertex, fragment, stages.Control, stages.Evaluation, null);
             if (!result.TryGetResource(out var owner)) { error = result.Diagnostics ?? "Tessellation linking failed."; return false; }
             using (owner) program = (int)owner!.Detach();
             return true;
@@ -32,7 +32,7 @@ internal sealed class TerrainShaderTestFixture : IDisposable
     /// <summary>Compiles through the production module abstraction and owns the result until fixture disposal.</summary>
     internal int Compile(ShaderType type, string source)
     {
-        var module = RHICommandContext.Current.OpenGL.CompileExternalStage(new(PrecompiledStageFixture.Stage(type), source)).RequireResource();
+        var module = VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLRHIContext.CompileExternalStage(new(PrecompiledStageFixture.Stage(type), source)).RequireResource();
         stages.Add(module!.ShaderId, (module, source));
         return module.ShaderId;
     }
@@ -41,7 +41,7 @@ internal sealed class TerrainShaderTestFixture : IDisposable
     internal int Load(ShaderType type, string path)
     {
         byte[] binary = File.ReadAllBytes(Path.Combine(AppContext.BaseDirectory, "assets", "shaders", path + ".spv"));
-        var module = RHICommandContext.Current.OpenGL.CompileExternalStage(new(PrecompiledStageFixture.Stage(type), binary)).RequireResource();
+        var module = VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLRHIContext.CompileExternalStage(new(PrecompiledStageFixture.Stage(type), binary)).RequireResource();
         stages.Add(module!.ShaderId, (module, string.Empty));
         return module.ShaderId;
     }

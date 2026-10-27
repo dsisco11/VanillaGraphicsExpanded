@@ -62,12 +62,13 @@ public sealed class GpuProgramCandidateMetadataTests(HeadlessGLFixture fixture)
         Start();
         try
         {
+            using var capture = new NativeShaderAllocationCapture();
             using var request = RHICommandContext.Current.BeginCreateShader(RHIShaderInputs.ComputeDescription());
-            var native = request.Program ?? request.Result.RequireResource().Program;
-            int id = native.ProgramId;
+            int id = capture.Program;
             var manager = GpuResourceManagerSystem.CurrentManager!;
-            var entry = manager.GetResourceRegistration(native);
-            int[] stages = request.Stages.Select(stage => stage.ShaderId).ToArray();
+            var entry = capture.Registration;
+            Assert.NotNull(entry);
+            int[] stages = capture.Stages;
             Complete(request);
             using var shader = request.Result.RequireResource();
             Assert.Equal(id, shader.Program.ProgramId);
@@ -89,10 +90,11 @@ public sealed class GpuProgramCandidateMetadataTests(HeadlessGLFixture fixture)
         Start();
         try
         {
+            using var capture = new NativeShaderAllocationCapture();
             using var request = RHICommandContext.Current.BeginCreateShader(RHIShaderInputs.ComputeDescription());
             var ready = request.Status == CompletionStatus.Ready ? request.Result.RequireResource() : null;
-            int id = (request.Program ?? ready!.Program).ProgramId;
-            int[] stages = request.Stages.Select(stage => stage.ShaderId).ToArray();
+            int id = capture.Program;
+            int[] stages = capture.Stages;
             Exception? failure = null;
             var worker = new Thread(() =>
             {

@@ -143,7 +143,7 @@ public sealed class FramebufferRoutingCacheTests(HeadlessGLFixture fixture, ITes
             wrapped.RefreshWrappedFramebuffer(id, 2, 2);
             Assert.Equal(DrawBuffersEnum.ColorAttachment0, OpenGLFramebufferRouting.Capture(cache, id)[0]);
         }
-        finally { VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.OpenGL.DeleteFramebuffer(id); }
+        finally { VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Framebuffer, id)); }
         using var replacement = Target();
         replacement.Bind();
         Assert.Equal(DrawBuffersEnum.ColorAttachment0, OpenGLFramebufferRouting.Capture(cache, replacement.FboId)[0]);

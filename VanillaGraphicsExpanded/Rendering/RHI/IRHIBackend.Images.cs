@@ -6,6 +6,8 @@ namespace VanillaGraphicsExpanded.Rendering.RHI;
 internal partial interface IRHIBackend
 {
     #region Public API
+    /// <summary>Initializes an unpublished specialized owner before its existing manager handoff.</summary>
+    void InitializeTextureOwner(GpuTexture owner, in RHITextureDescription description);
     /// <summary>Creates a completed existing owner from frozen image intent and stable initial content.</summary>
     RHICreationResult<T> CreateTexture<T>(in RHITextureDescription description, ReadOnlySpan<RHITextureInitialData> initialData) where T : GpuTexture;
     /// <summary>Creates a completed renderbuffer owner without changing selectors.</summary>

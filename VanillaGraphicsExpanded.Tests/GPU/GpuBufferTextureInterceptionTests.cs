@@ -141,7 +141,7 @@ public sealed class GpuBufferTextureInterceptionTests(HeadlessGLFixture fixture)
             Assert.Null(GpuResourceManagerSystem.CurrentManager!.FindResource(GpuResourceKind.Texture, texture));
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { harmony.UnpatchAll(harmony.Id); RHICommandContext.Current.OpenGL.DeleteTexture(texture); fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { harmony.UnpatchAll(harmony.Id); RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Texture, texture)); fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
     }
     /// <summary>A native dispatch exception preserves the original failure and withdraws the unchanged association snapshot.</summary>
     [Fact]

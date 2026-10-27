@@ -42,7 +42,7 @@ public sealed class StaticGpuFramebufferTests(HeadlessGLFixture fixture, ITestOu
         Assert.Throws<InvalidOperationException>(() => alias.SetAttachment(FramebufferAttachment.ColorAttachment0, attachment));
         Assert.Throws<InvalidOperationException>(() => alias.RemoveAttachment(FramebufferAttachment.ColorAttachment0));
         Assert.Throws<InvalidOperationException>(() => alias.Resize(3, 3));
-        Assert.Throws<InvalidOperationException>(() => VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.OpenGL.DeleteFramebuffer(target.FboId));
+        Assert.Throws<InvalidOperationException>(() => VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Framebuffer, target.FboId)));
         target.Bind();
         Assert.Throws<InvalidOperationException>(() => OpenGLFramebufferRouting.SetDrawBuffer(StateCache.Current, DrawBufferMode.None));
         texture.UploadDataImmediate(Enumerable.Repeat(.375f, 16).ToArray());
@@ -65,9 +65,9 @@ public sealed class StaticGpuFramebufferTests(HeadlessGLFixture fixture, ITestOu
         int id = (int)target.Detach(); try
         {
             Assert.True(array.Resize(3, 3, 3));
-            VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.OpenGL.DeleteFramebuffer(id);
+            VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Framebuffer, id));
         }
-        finally { if (GL.IsFramebuffer(id)) VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.OpenGL.DeleteFramebuffer(id); }
+        finally { if (GL.IsFramebuffer(id)) VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Framebuffer, id)); }
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
     /// <summary>Construction rejects untracked native images and releases guards retained before that rejection.</summary>
@@ -143,14 +143,14 @@ public sealed class StaticGpuFramebufferTests(HeadlessGLFixture fixture, ITestOu
             StateCache.Current.RequireMutableFramebufferConfiguration(id);
             target.Dispose();
             Assert.True(GL.IsFramebuffer(id));
-            VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.OpenGL.DeleteFramebuffer(id);
+            VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Framebuffer, id));
             Assert.False(GL.IsFramebuffer(id));
         }
         finally
         {
             VanillaGraphicsExpanded.Rendering.Integration.RenderContextRegistry.Retire(replacement);
             VanillaGraphicsExpanded.Rendering.Integration.RenderContextRegistry.RegisterCurrent(fixture, static _ => true);
-            if (GL.IsFramebuffer(id)) VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.OpenGL.DeleteFramebuffer(id);
+            if (GL.IsFramebuffer(id)) VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Framebuffer, id));
         }
     }
     #endregion

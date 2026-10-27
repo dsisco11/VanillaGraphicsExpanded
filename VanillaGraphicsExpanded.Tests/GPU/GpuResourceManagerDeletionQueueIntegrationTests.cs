@@ -160,7 +160,7 @@ public sealed class GpuResourceManagerDeletionQueueIntegrationTests
         {
             VanillaGraphicsExpanded.Rendering.Integration.RenderContextRegistry.Retire(replacement);
             VanillaGraphicsExpanded.Rendering.Integration.RenderContextRegistry.RegisterCurrent(fixture, static _ => true);
-            if (id != 0) RHICommandContext.Current.OpenGL.DeleteBuffer(id);
+            if (id != 0) RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Buffer, id));
             manager.Dispose(); GpuResourceManagerSystem.Shutdown(); TextureStreamingSystem.Dispose();
         }
     }

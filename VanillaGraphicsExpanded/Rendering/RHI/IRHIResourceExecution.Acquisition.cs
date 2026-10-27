@@ -45,6 +45,6 @@ internal partial interface IRHIResourceExecution
     #endregion
     #region Geometry certification
     /// <summary>Executes explicit manager-authorized acquisition without changing publication authority.</summary>
-    void CertifyGeometryConfiguration(int array, RHIVertexLayout layout, IReadOnlyList<RHIVertexStream> streams, RHIIndexStream indices);
+    bool CertifyGeometryConfiguration(int array, RHIVertexLayout layout, IReadOnlyList<RHIVertexStream> streams, RHIIndexStream indices, bool indexSelectedAtDraw);
     #endregion
 }

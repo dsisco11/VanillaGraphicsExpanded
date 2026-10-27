@@ -69,7 +69,7 @@ public sealed class GpuOperationContextFoundationTests(HeadlessGLFixture fixture
         finally
         {
             RenderContextRegistry.RegisterCurrent(fixture, static _ => true);
-            if (id != 0 && GL.IsBuffer(id)) RHICommandContext.Current.OpenGL.DeleteBuffer(id);
+            if (id != 0 && GL.IsBuffer(id)) RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Buffer, id));
             fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll();
         }
     }

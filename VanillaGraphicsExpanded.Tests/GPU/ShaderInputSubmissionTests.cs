@@ -48,12 +48,12 @@ public sealed class ShaderInputSubmissionTests : RenderTestBase
             // Capturing a CPU version performs no allocation; the engine slot is explicit.
             var captured = block.Capture();
             Assert.True(block.IsDirty);
-            Assert.True(RHICommandContext.Current.OpenGL.BindEngineUniform(14, block.Capture()));
+            Assert.True(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLRHIContext.BindEngineUniform(14, block.Capture()));
             Assert.False(block.IsDirty);
 #if DEBUG
             Assert.Equal(1, ring.AllocationsWritten);
 #endif
-            Assert.True(RHICommandContext.Current.OpenGL.BindEngineUniform(14, block.Capture()));
+            Assert.True(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLRHIContext.BindEngineUniform(14, block.Capture()));
 #if DEBUG
             Assert.Equal(1, ring.AllocationsWritten);
 #endif
@@ -65,15 +65,15 @@ public sealed class ShaderInputSubmissionTests : RenderTestBase
             using var competing = new PackedUniformBuffer(32);
             BitConverter.GetBytes(0.75f).CopyTo(bytes, 0);
             competing.SetBytes(bytes);
-            Assert.True(RHICommandContext.Current.OpenGL.BindEngineUniform(14, competing.Capture()));
+            Assert.True(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLRHIContext.BindEngineUniform(14, competing.Capture()));
             Assert.Equal(0.75f, SubmittedDepthSigma());
-            Assert.True(RHICommandContext.Current.OpenGL.BindEngineUniform(14, block.Capture()));
+            Assert.True(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLRHIContext.BindEngineUniform(14, block.Capture()));
             Assert.Equal(0.25f, SubmittedDepthSigma());
 #if DEBUG
             Assert.Equal(2, ring.AllocationsWritten);
 #endif
             block.SetBytes(bytes);
-            Assert.True(RHICommandContext.Current.OpenGL.BindEngineUniform(14, block.Capture()));
+            Assert.True(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLRHIContext.BindEngineUniform(14, block.Capture()));
             Assert.Equal(0.75f, SubmittedDepthSigma());
 #if DEBUG
             Assert.Equal(3, ring.AllocationsWritten);
@@ -86,12 +86,12 @@ public sealed class ShaderInputSubmissionTests : RenderTestBase
 
             first.InvalidateAssets();
             first.EnsureReady();
-            Assert.True(RHICommandContext.Current.OpenGL.BindEngineUniform(14, block.Capture()));
+            Assert.True(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLRHIContext.BindEngineUniform(14, block.Capture()));
 #if DEBUG
             Assert.Equal(3, ring.AllocationsWritten);
 #endif
             ring.EndFrame();
-            Assert.Throws<InvalidOperationException>(() => RHICommandContext.Current.OpenGL.BindEngineUniform(14, block.Capture()));
+            Assert.Throws<InvalidOperationException>(() => VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLRHIContext.BindEngineUniform(14, block.Capture()));
 #if DEBUG
             Assert.Equal(3, ring.AllocationsWritten);
 #endif
@@ -99,7 +99,7 @@ public sealed class ShaderInputSubmissionTests : RenderTestBase
             for (int frame = 1; frame <= 2; frame++)
             {
                 ring.BeginFrame(frame);
-                Assert.True(RHICommandContext.Current.OpenGL.BindEngineUniform(14, block.Capture()));
+                Assert.True(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLRHIContext.BindEngineUniform(14, block.Capture()));
                 Assert.Equal(0.75f, SubmittedDepthSigma());
 #if DEBUG
                 Assert.Equal(3 + frame, ring.AllocationsWritten);
@@ -107,26 +107,26 @@ public sealed class ShaderInputSubmissionTests : RenderTestBase
                 ring.EndFrame();
             }
             ring.BeginFrame(2);
-            Assert.True(RHICommandContext.Current.OpenGL.BindEngineUniform(14, block.Capture()));
+            Assert.True(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLRHIContext.BindEngineUniform(14, block.Capture()));
 #if DEBUG
             Assert.Equal(6, ring.AllocationsWritten);
 #endif
             Assert.Equal(0.75f, SubmittedDepthSigma());
             replacement.BeginFrame(0);
             GpuUniformRingSystem.SetCurrent(replacement);
-            Assert.True(RHICommandContext.Current.OpenGL.BindEngineUniform(14, block.Capture()));
+            Assert.True(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLRHIContext.BindEngineUniform(14, block.Capture()));
 #if DEBUG
             Assert.Equal(1, replacement.AllocationsWritten);
 #endif
             block.Dispose();
-            Assert.True(RHICommandContext.Current.OpenGL.BindEngineUniform(14, block.Capture()));
+            Assert.True(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLRHIContext.BindEngineUniform(14, block.Capture()));
 #if DEBUG
             Assert.Equal(2, replacement.AllocationsWritten);
             Assert.Equal(64, replacement.BytesWritten);
 #endif
             Assert.Equal(0.75f, SubmittedDepthSigma());
             replacement.Dispose();
-            Assert.Throws<ObjectDisposedException>(() => RHICommandContext.Current.OpenGL.BindEngineUniform(14, block.Capture()));
+            Assert.Throws<ObjectDisposedException>(() => VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLRHIContext.BindEngineUniform(14, block.Capture()));
         }
         finally { GpuUniformRingSystem.ClearCurrent(); }
     }

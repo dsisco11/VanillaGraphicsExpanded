@@ -117,7 +117,7 @@ internal sealed class TerrainDetailWorkload : IDisposable
         OpenGLProgramSelection.Select(StateCache.Current, id);OpenGLVertexSelection.Bind(StateCache.Current, vao.VertexArrayId);StateCache.Current.SetPatchVertices(3);
         bindTarget();bindHeight(mode);
         // Publish this fixture's actual view instead of inheriting a prior test's camera range.
-        Assert.True(RHICommandContext.Current.OpenGL.BindEngineUniform(GpuBindingRegistry.Ubo.Frame, camera.Capture()));
+        Assert.True(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLRHIContext.BindEngineUniform(GpuBindingRegistry.Ubo.Frame, camera.Capture()));
         GL.Disable(EnableCap.DepthTest);GL.Disable(EnableCap.CullFace);GL.Disable(EnableCap.Blend);
         var layout=GpuProgramLayout.TryBuild(id);
         ShaderTestFramework.SetUniform(layout.GetUniformLocation(id,"vge_displacementTex"),0);

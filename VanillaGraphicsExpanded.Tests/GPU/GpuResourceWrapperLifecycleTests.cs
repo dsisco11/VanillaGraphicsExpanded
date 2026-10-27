@@ -119,7 +119,7 @@ public sealed class GpuResourceWrapperLifecycleTests(HeadlessGLFixture fixture)
             if (reuseId) lifetime.Manager.ObserveDeletion(GpuResourceKind.Framebuffer, original);
             else
             {
-                VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.OpenGL.DeleteFramebuffer(original);
+                VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Framebuffer, original));
                 replacement = GL.GenFramebuffer();
                 OpenGLFramebufferSelection.Bind(StateCache.Current, FramebufferTarget.Framebuffer, replacement);
             }
@@ -131,7 +131,7 @@ public sealed class GpuResourceWrapperLifecycleTests(HeadlessGLFixture fixture)
             Assert.False(lifetime.Manager.IsResourceMetadataAvailable(external));
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.OpenGL.DeleteFramebuffer(replacement); }
+        finally { VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Framebuffer, replacement)); }
     }
 
     /// <summary>Native one-dimensional array discovery preserves layer zero as one unit-height plane.</summary>
@@ -159,8 +159,8 @@ public sealed class GpuResourceWrapperLifecycleTests(HeadlessGLFixture fixture)
         }
         finally
         {
-            VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.OpenGL.DeleteFramebuffer(framebuffer);
-            RHICommandContext.Current.OpenGL.DeleteTexture(texture);
+            VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Framebuffer, framebuffer));
+            RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Texture, texture));
         }
     }
 
@@ -179,7 +179,7 @@ public sealed class GpuResourceWrapperLifecycleTests(HeadlessGLFixture fixture)
             Assert.True(GL.IsTexture(texture));
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { RHICommandContext.Current.OpenGL.DeleteTexture(texture); }
+        finally { RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Texture, texture)); }
     }
 
     /// <summary>Disposing one borrower removes its subscription without deleting or unbinding shared storage.</summary>
@@ -257,7 +257,7 @@ public sealed class GpuResourceWrapperLifecycleTests(HeadlessGLFixture fixture)
             owner.Dispose();
             Assert.True(GL.IsTexture(transferred));
         }
-        finally { RHICommandContext.Current.OpenGL.DeleteTexture(transferred); }
+        finally { RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Texture, transferred)); }
         Assert.False(borrower.IsValid);
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
@@ -330,9 +330,9 @@ public sealed class GpuResourceWrapperLifecycleTests(HeadlessGLFixture fixture)
         }
         finally
         {
-            RHICommandContext.Current.OpenGL.DeleteTexture(texture.TextureId);
-            RHICommandContext.Current.OpenGL.DeleteBuffer(buffer.BufferId);
-            VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.OpenGL.DeleteFramebuffer(framebuffer.FboId);
+            RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Texture, texture.TextureId));
+            RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Buffer, buffer.BufferId));
+            VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Framebuffer, framebuffer.FboId));
         }
     }
 
@@ -428,7 +428,7 @@ public sealed class GpuResourceWrapperLifecycleTests(HeadlessGLFixture fixture)
             Assert.False(borrower.IsValid);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { RHICommandContext.Current.OpenGL.DeleteTexture(native); }
+        finally { RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Texture, native)); }
     }
 
     /// <summary>Retiring an originating context discards pending native work rather than deleting in its replacement.</summary>

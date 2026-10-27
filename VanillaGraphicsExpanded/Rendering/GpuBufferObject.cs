@@ -1110,7 +1110,7 @@ public abstract class GpuBufferObject : GpuResource<GpuBufferMetadata>, IDisposa
         /// <summary>Rejects disposal or replacement before touching mapping storage.</summary>
         private void RequireOwner()
         {
-            context.OpenGL.RequireContext();
+            context.RequireContext();
             if (!owner.IsValid || owner.BufferId != nativeId) throw new InvalidOperationException("The mapped allocation has retired.");
         }
         #endregion

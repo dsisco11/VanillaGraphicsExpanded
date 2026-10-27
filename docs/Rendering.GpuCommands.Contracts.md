@@ -50,8 +50,11 @@ Retirement reaches one backend kind dispatcher only after existing owner/queue o
 association admission. Candidate cleanup uses the same route, preserving original errors and identities.
 
 Imported geometry certification acquires configuration through this contract and retains the original
-association/revision. A transient `RHIGeometryContext` supplies originating namespace and cache configuration
-epoch; the manager can check an existing receipt without querying or recertifying the native layout.
+association/revision. A transient `RHIGeometryContext` supplies originating namespace and the selected
+array's observed configuration revision; the manager can check an existing receipt without querying or
+recertifying the native layout. Explicit engine draw-time index selection can certify a detached element
+binding; that packet uses a backend-owned array without modifying the original engine array. A nonzero
+index association must still match exactly.
 Integration adapters retain engine ownership/layout and borrowing policy, not native execution authority.
 
 ## Resource references and factories
@@ -166,6 +169,19 @@ executable revision change or context retirement invalidates the fixed realizati
 return `RHICreationResult<RHIGraphicsPipeline>` / `RHICreationResult<RHIComputePipeline>`; they consume
 the ready shader interface and never relink/reflect independently. Realizations may be managed-only
 application data, with no invented native registry entries. Their consumer refs retain exact identity.
+
+`IRHIContextLifetime` admits fixed objects against their originating context and thread without exposing
+a concrete backend. Graphics pipelines retain opaque `IRHIGraphicsPipelineRealization` data; the OpenGL
+implementation owns relevance and selective restoration coverage. Managed PSOs have no native registry
+entries. Pending shader requests retain an `IRHIShaderCreation` operation, whose implementation owns
+unpublished native stages and programs. Query/readback tickets use the internal execution contract for
+observation and mapping, preserving original cleanup and completion ownership.
+
+Backend construction and native lifetime notifications belong to the OpenGL composition boundary.
+Restricted engine shader/stage integration exposes named operations and never returns a backend. Ordinary
+context and owner-authorized operations dispatch through `IRHIBackend`; there is no context backend
+escape property. Stable pinned upload memory is consumed immediately, and staged uploads carry a typed
+buffer reference rather than rediscovering an allocation by numeric ID.
 
 PSO equality covers all behavior fields and exact shader generation, excludes labels, framebuffer identity,
 ordinary values and current resource instances. Renderer owners reuse realizations; no global PSO cache

@@ -115,7 +115,7 @@ public sealed class FramebufferAttachmentDiscoveryTests(HeadlessGLFixture fixtur
         }
         finally
         {
-            RHICommandContext.Current.OpenGL.DeleteTexture(texture);
+            RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Texture, texture));
         }
     }
     #endregion

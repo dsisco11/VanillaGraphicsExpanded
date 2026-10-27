@@ -124,7 +124,7 @@ internal sealed partial class OpenGLBackend
         return name == 0 ? null : new GpuQueryMetadata();
     }
     /// <summary>Reads only a submitted generation; availability polling never requests a blocking result.</summary>
-    internal bool TryReadQuery(GpuQuery owner, long revision, bool wait, out ulong result)
+    public bool TryReadQuery(GpuQuery owner, long revision, bool wait, out ulong result)
     {
         // Native callbacks must not reenter an unfinished execution-state transition.
         if (queryTransition) throw new InvalidOperationException("An auxiliary operation is already in progress.");

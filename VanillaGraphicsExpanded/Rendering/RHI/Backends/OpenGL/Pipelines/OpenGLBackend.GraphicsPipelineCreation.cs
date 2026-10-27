@@ -21,7 +21,7 @@ internal sealed partial class OpenGLBackend
         PipelineDescriptionValidation.Validate(description, NativeCapabilities);
         GraphicsInterfaceValidation.Validate(description, graphics);
         var relevance = new GraphicsStateRelevance(description, NativeCapabilities, graphics);
-        return new(new RHIGraphicsPipeline(this, description, shader.Interface.PreparedBindings, relevance), null);
+        return new(new RHIGraphicsPipeline(this, description, new OpenGLGraphicsPipelineRealization(relevance)), null);
     }
     #endregion
 }

@@ -158,7 +158,7 @@ internal sealed class TextureStreamingManager : IDisposable
             return TextureStageResult.Rejected(TextureStageRejectReason.InvalidArguments);
         }
 
-        if (!TryComputeUploadByteCount(target.UploadTarget, region, pixelFormat, pixelType, unpackRowLength, unpackImageHeight, out int requiredBytes))
+        if (!TryComputeUploadByteCount(target.UploadTarget, region, pixelFormat, pixelType, unpackRowLength, unpackImageHeight, unpackAlignment, out int requiredBytes))
         {
             return TextureStageResult.Rejected(TextureStageRejectReason.InvalidArguments);
         }
@@ -310,7 +310,7 @@ internal sealed class TextureStreamingManager : IDisposable
             return TextureStageResult.Rejected(TextureStageRejectReason.DataTypeMismatch);
         }
 
-        if (!TryComputeUploadByteCount(target.UploadTarget, region, pixelFormat, pixelType, unpackRowLength, unpackImageHeight, out int requiredBytes))
+        if (!TryComputeUploadByteCount(target.UploadTarget, region, pixelFormat, pixelType, unpackRowLength, unpackImageHeight, unpackAlignment, out int requiredBytes))
         {
             return TextureStageResult.Rejected(TextureStageRejectReason.InvalidArguments);
         }
@@ -465,7 +465,7 @@ internal sealed class TextureStreamingManager : IDisposable
             return TextureStageResult.Rejected(TextureStageRejectReason.DataTypeMismatch);
         }
 
-        if (!TryComputeUploadByteCount(target.UploadTarget, region, pixelFormat, pixelType, unpackRowLength, unpackImageHeight, out int requiredBytes))
+        if (!TryComputeUploadByteCount(target.UploadTarget, region, pixelFormat, pixelType, unpackRowLength, unpackImageHeight, unpackAlignment, out int requiredBytes))
         {
             return TextureStageResult.Rejected(TextureStageRejectReason.InvalidArguments);
         }
@@ -621,7 +621,7 @@ internal sealed class TextureStreamingManager : IDisposable
             return TextureStageResult.Rejected(TextureStageRejectReason.DataTypeMismatch);
         }
 
-        if (!TryComputeUploadByteCount(target.UploadTarget, region, pixelFormat, pixelType, unpackRowLength, unpackImageHeight, out int requiredBytes))
+        if (!TryComputeUploadByteCount(target.UploadTarget, region, pixelFormat, pixelType, unpackRowLength, unpackImageHeight, unpackAlignment, out int requiredBytes))
         {
             return TextureStageResult.Rejected(TextureStageRejectReason.InvalidArguments);
         }
@@ -1633,7 +1633,7 @@ internal sealed class TextureStreamingManager : IDisposable
     {
         if (owned.ByteCount < prepared.ByteCount) return false;
         using var handle = owned.Memory.Pin();
-        RHI.RHICommandContext.Current.OpenGL.ExecuteStreamingUpload(prepared.Request, (nint)handle.Pointer, GetUploadUnpackState(prepared));
+        SubmitPreparedUpload(prepared, (nint)handle.Pointer);
         return true;
     }
 
@@ -1836,6 +1836,7 @@ internal sealed class TextureStreamingManager : IDisposable
         PixelType pixelType,
         int unpackRowLength,
         int unpackImageHeight,
+        int unpackAlignment,
         out int byteCount)
     {
         byteCount = 0;
@@ -1884,7 +1885,12 @@ internal sealed class TextureStreamingManager : IDisposable
         }
 
         long slices = dim == UploadDimension.Tex3D ? region.Depth : 1;
-        long byteCountLong = (long)rowLength * imageHeight * slices * bytesPerPixel;
+        int alignment = unpackAlignment > 0 ? unpackAlignment : 4;
+        if (alignment is not (1 or 2 or 4 or 8)) return false;
+        // Include row alignment in staging allocation and copying, not just in the submitted unpack state.
+        long rowBytes = (long)rowLength * bytesPerPixel;
+        long rowPitch = (rowBytes + alignment - 1) / alignment * alignment;
+        long byteCountLong = rowPitch * imageHeight * slices;
         if (byteCountLong <= 0 || byteCountLong > int.MaxValue)
         {
             return false;
@@ -1944,14 +1950,8 @@ internal sealed class TextureStreamingManager : IDisposable
             return false;
         }
 
-        long slices = dim == UploadDimension.Tex3D ? region.Depth : 1;
-        long byteCountLong = (long)rowLength * imageHeight * slices * bytesPerPixel;
-        if (byteCountLong <= 0 || byteCountLong > int.MaxValue)
-        {
-            return false;
-        }
-
-        int byteCount = (int)byteCountLong;
+        if (!TryComputeUploadByteCount(request.Target.UploadTarget, region, request.PixelFormat, request.PixelType,
+            request.UnpackRowLength, request.UnpackImageHeight, request.UnpackAlignment, out int byteCount)) return false;
         if (request.Data.ByteLength < byteCount)
         {
             return false;
@@ -1963,7 +1963,7 @@ internal sealed class TextureStreamingManager : IDisposable
     /// <summary>Uploads from a staged pixel buffer while restoring the borrowed unpack layout.</summary>
     private static void IssuePboUpload(in PreparedUpload prepared, in PboUpload pboUpload)
     {
-        RHI.RHICommandContext.Current.OpenGL.ExecuteStreamingUpload(prepared.Request, pboUpload.OffsetBytes, GetUploadUnpackState(prepared), pboUpload.BufferId);
+        SubmitPreparedUpload(prepared, pboUpload.OffsetBytes, pboUpload.Buffer);
     }
 
     private static bool TryUploadDirect(in PreparedUpload prepared)
@@ -1986,20 +1986,42 @@ internal sealed class TextureStreamingManager : IDisposable
         }
     }
 
-    /// <summary>Defines the complete unpack layout required by a prepared upload.</summary>
-    private static StateCache.PixelUnpackState GetUploadUnpackState(in PreparedUpload prepared)
+    /// <summary>Validates the queued destination certificate and submits typed image/buffer inputs through RHI.</summary>
+    private static void SubmitPreparedUpload(in PreparedUpload prepared, nint source, GpuBufferRef staging = default)
     {
-        TextureUploadRequest request = prepared.Request;
-        // Neutral skip and byte-order fields prevent incoming engine state from changing source addressing.
-        return new StateCache.PixelUnpackState(
-            Alignment: request.UnpackAlignment > 0 ? request.UnpackAlignment : 4,
-            RowLength: prepared.RowLength != request.Region.Width ? prepared.RowLength : 0,
-            ImageHeight: prepared.ImageHeight != request.Region.Height ? prepared.ImageHeight : 0);
+        var request = prepared.Request;
+        var owner = request.TextureOwner;
+        if (owner is not null && (!owner.IsValid || owner.TextureId != request.TextureId
+            || !ReferenceEquals(owner.UntrackedStorageIdentity, request.StorageIdentity)
+            || GpuResourceManager.TextureStorageRevision(owner) != request.StorageRevision))
+            throw new InvalidOperationException("The staged destination allocation has been replaced.");
+        // Raw engine destinations are acquired explicitly only at their existing external boundary.
+        // VGE-owned destinations use their retained reference and already published facts without readback.
+        using var borrowed = owner is null ? new BorrowedTexture(request.TextureId) : null;
+        GpuTextureRef destination = owner ?? borrowed!;
+        var input = request.Region;
+        var target = request.Target.UploadTarget;
+        bool face = target is >= TextureTarget.TextureCubeMapPositiveX and <= TextureTarget.TextureCubeMapNegativeZ;
+        bool oneArray = target == TextureTarget.Texture1DArray;
+        var region = new RHITextureRegion(new(input.MipLevel, face ? target - TextureTarget.TextureCubeMapPositiveX : 0),
+            input.X, oneArray ? 0 : input.Y, oneArray ? input.Y : input.Z,
+            input.Width, oneArray ? 1 : input.Height, oneArray ? input.Height : input.Depth);
+        var encoding = RHI.Backends.OpenGL.OpenGLPixelValues.Encoding(request.PixelFormat, request.PixelType);
+        int pixelBytes = RHI.Backends.OpenGL.OpenGLPixelValues.PixelBytes(encoding);
+        int alignment = request.UnpackAlignment > 0 ? request.UnpackAlignment : 4;
+        int rowPitch = TextureStreamingUtils.AlignUp(checked(prepared.RowLength * pixelBytes), alignment);
+        int slicePitch = oneArray ? rowPitch : checked(rowPitch * prepared.ImageHeight);
+        var execution = RHICommandContext.Current;
+        if (staging.IsEmpty)
+            execution.UploadTexturePointer(destination, region, encoding, source, prepared.ByteCount, rowPitch, slicePitch);
+        else
+            execution.TransferBufferToTexture(destination, new(staging, source, region, encoding, rowPitch, slicePitch));
     }
 
+    /// <summary>Consumes pinned source bytes through the complete prepared upload contract.</summary>
     private static void UploadSubImage(in PreparedUpload prepared, IntPtr dataPtr)
     {
-        RHI.RHICommandContext.Current.OpenGL.ExecuteStreamingUpload(prepared.Request, dataPtr, GetUploadUnpackState(prepared));
+        SubmitPreparedUpload(prepared, dataPtr);
     }
 
     private readonly record struct PreparedUpload(
@@ -2078,7 +2100,7 @@ internal sealed class TextureStreamingManager : IDisposable
                 buffer!.FlushMappedRange(offset, prepared.ByteCount);
             }
 
-            upload = new PboUpload(BufferId, offset, allocationSize, -1);
+            upload = new PboUpload(BufferId, offset, allocationSize, -1, buffer!);
             return true;
         }
 
@@ -2119,7 +2141,7 @@ internal sealed class TextureStreamingManager : IDisposable
                 flushRange = new MappedFlushRange(offset, byteCount);
             }
 
-            upload = new PboUpload(BufferId, offset, allocationSize, -1);
+            upload = new PboUpload(BufferId, offset, allocationSize, -1, buffer!);
             return true;
         }
 
@@ -2325,7 +2347,7 @@ internal sealed class TextureStreamingManager : IDisposable
 
             _ = buffer.Unmap();
 
-            upload = new PboUpload(buffer.BufferId, 0, prepared.ByteCount, index);
+            upload = new PboUpload(buffer.BufferId, 0, prepared.ByteCount, index, buffer);
             return true;
         }
 
@@ -2375,7 +2397,7 @@ internal sealed class TextureStreamingManager : IDisposable
 
             _ = buffer.Unmap();
 
-            upload = new PboUpload(buffer.BufferId, 0, byteCount, index);
+            upload = new PboUpload(buffer.BufferId, 0, byteCount, index, buffer);
             return true;
         }
 
@@ -2665,7 +2687,8 @@ internal readonly struct TextureUploadData
     }
 }
 
-internal readonly record struct PboUpload(int BufferId, int OffsetBytes, int AllocationSizeBytes, int SlotIndex);
+/// <summary>Retains the original staged allocation alongside ring bookkeeping until consumption completes.</summary>
+internal readonly record struct PboUpload(int BufferId, int OffsetBytes, int AllocationSizeBytes, int SlotIndex, GpuBufferRef Buffer);
 
 internal enum UploadDimension
 {

@@ -40,10 +40,10 @@ internal static class TestShaderInterfaces
     {
         Shaders.Remove(shader);
         if (shaderReleases?.Remove(shader, out var released) == true) released();
-        VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.OpenGL.DeleteShader(shader);
+        VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Shader, shader));
     }
     /// <summary>Deletes a fixture program and forgets its metadata.</summary>
-    public static void DeleteProgram(int program) { ForgetProgram(program); VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.OpenGL.DeleteProgram(program); }
+    public static void DeleteProgram(int program) { ForgetProgram(program); VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Program, program)); }
     /// <summary>Forgets a production-owned fixture before its pipeline disposes.</summary>
     public static void ForgetProgram(int program)
     {

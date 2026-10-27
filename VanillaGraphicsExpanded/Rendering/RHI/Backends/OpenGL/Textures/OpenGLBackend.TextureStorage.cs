@@ -53,7 +53,7 @@ internal sealed partial class OpenGLBackend
 
     #region Internal API
     /// <summary>Initializes an unpublished specialized owner without exposing recipients in public factories.</summary>
-    internal void InitializeTextureOwner(GpuTexture owner, in RHITextureDescription description)
+    public void InitializeTextureOwner(GpuTexture owner, in RHITextureDescription description)
     {
         var request = description;
         RequireContext();

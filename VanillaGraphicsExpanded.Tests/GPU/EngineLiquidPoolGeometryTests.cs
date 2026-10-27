@@ -21,11 +21,13 @@ public sealed class EngineLiquidPoolGeometryTests(HeadlessGLFixture fixture) : R
 {
     #region Public API
     /// <summary>A complete admitted group draws through the pool adapter and retires without deleting borrowed engine storage.</summary>
-    [Fact]
-    public void PoolGroupsDrawAndRejectInvalidRanges()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void PoolGroupsDrawAndRejectInvalidRanges(bool detachedIndices)
     {
         EnsureContextValid();
-        using var storage = new LiquidPoolStorage(); using var geometry = new EngineLiquidPoolGeometry(storage.Pool);
+        using var storage = new LiquidPoolStorage(detachedIndices); using var geometry = new EngineLiquidPoolGeometry(storage.Pool);
         using var programs = new ComponentShaderPrograms(); var shader = programs.Create<RasterDepthReductionShaderProgram>();
         using var pipeline = RHICommandContext.Current.CreateGraphicsPipeline(new(shader.Shader, EngineLiquidPoolGeometry.Layout,
             new([new(TextureFormat.R32f)]), DynamicPipelineState.Viewport)).RequireResource();
@@ -58,6 +60,9 @@ public sealed class EngineLiquidPoolGeometryTests(HeadlessGLFixture fixture) : R
         });
 }
         Assert.InRange(target[0].ReadPixels()[0], .1999f, .2001f);
+        OpenTK.Graphics.OpenGL4.GL.GetVertexArray(storage.Mesh.VaoId,
+            (OpenTK.Graphics.OpenGL4.VertexArrayParameter)OpenTK.Graphics.OpenGL4.All.ElementArrayBufferBinding, out int nativeElements);
+        Assert.Equal(detachedIndices ? 0 : storage.Mesh.vboIdIndex, nativeElements);
         int original = storage.Mesh.customDataIntVboId; storage.Mesh.customDataIntVboId = 0;
         Assert.False(geometry.IsCurrent); Assert.Throws<InvalidOperationException>(() => geometry.Inputs);
         storage.Mesh.customDataIntVboId = original; geometry.Dispose(); Assert.True(GL.IsVertexArray(storage.Mesh.VaoId));
@@ -145,7 +150,7 @@ internal sealed class LiquidPoolStorage : IDisposable
 
     #region Public API
     /// <summary>Configures separate engine streams and the shared interleaved pair of integer attributes.</summary>
-    internal LiquidPoolStorage()
+    internal LiquidPoolStorage(bool detachedIndices = false)
     {
         OpenGLVertexSelection.Bind(StateCache.Current, vao.VertexArrayId); indices.UploadIndices(new uint[] { 0, 1, 2 }); OpenTK.Graphics.OpenGL4.GL.VertexArrayElementBuffer(vao.VertexArrayId, indices.BufferId);
         streams[0].UploadData(new float[] { -1, -1, 0, 3, -1, 0, -1, 3, 0 });
@@ -173,6 +178,8 @@ internal sealed class LiquidPoolStorage : IDisposable
         Mesh.VaoId = vao.VertexArrayId; Mesh.vboIdIndex = indices.BufferId; Mesh.drawMode = PrimitiveType.Triangles;
         Mesh.xyzVboId = streams[0].BufferId; Mesh.uvVboId = streams[1].BufferId; Mesh.rgbaVboId = streams[2].BufferId;
         Mesh.flagsVboId = streams[3].BufferId; Mesh.customDataFloatVboId = streams[4].BufferId; Mesh.customDataIntVboId = streams[5].BufferId;
+        if (detachedIndices) OpenTK.Graphics.OpenGL4.GL.VertexArrayElementBuffer(vao.VertexArrayId, 0);
+        StateCache.Current.ForgetEngineMeshUpload(vao.VertexArrayId);
         Pool = (MeshDataPool)RuntimeHelpers.GetUninitializedObject(typeof(MeshDataPool));
         Pool.VerticesPoolSize = 3; Pool.IndicesPoolSize = 3; Pool.indicesGroupsCount = 1;
         Pool.indicesStartsByte = [0, 0]; Pool.indicesSizes = [3];

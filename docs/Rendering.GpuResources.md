@@ -59,8 +59,9 @@ specializations and authored bindings. The backend creates stages/programs throu
 or installs a selected binary, publishes one canonical executable snapshot and prepares its interface.
 SPIR-V input admission checks the selected entry-point name and execution model before native ingestion;
 this declaration check does not reflect resource bindings or replace native compiler diagnostics.
-Temporary stages are retired after completion. Pending creation exposes outcomes rather than a partial
-executable; cancellation retires only its candidate allocations against their original context.
+Temporary stages are retired after completion. Pending creation exposes outcomes through
+`IRHIShaderCreation`; the OpenGL implementation privately retains native candidate stages and programs.
+Cancellation retires only those candidate allocations against their original context.
 
 `RHIShader` owns one ready `GpuProgramObject` and immutable prepared interface. Its consumer ref retains
 that exact generation and rejects native executable changes or retirement without querying or repairing
@@ -68,6 +69,12 @@ metadata. `ComputeShaderAsset` owns a compatible RHI shader and lightweight comp
 native registration. Asset replacement builds a fresh set before transferring ownership, preserving the
 installed set on failure. Program and stage wrappers own identity, canonical metadata and native lifetime;
 compilation and linking belong to backend execution rather than wrapper methods.
+Graphics and compute realizations retain the backend-neutral `IRHIContextLifetime` admission contract.
+Graphics relevance and restoration coverage live in opaque backend-owned realization data; semantic
+pipeline objects retain immutable descriptions, fixed shader references and independent lifetime state.
+OpenGL composition and restricted engine shader integration live in `OpenGLRHIContext`; no semantic
+context property exposes the concrete backend.
+
 Compute dispatch guards both its selected realization and native executable against retirement and
 rejects recursive submission or pipeline-selection changes. Managed retirement unbinds a selected owned
 program before deletion, preventing subsequent scopes from capturing a deleted restoration target.
@@ -139,7 +146,8 @@ retain source storage provenance and expose view-relative mips/layers. Failed cr
 candidate texture, never its backing. External borrowing lives at the native integration boundary and
 reuses available manager facts; readers execute only for unknown external facts or explicit recovery.
 Queued uploads retain their selected destination storage certificate and revision, so replacement cannot
-receive stale staged bytes. These payload certificates are separate from consumer references and content
+receive stale staged bytes. PBO payloads retain typed buffer references through consumption; pinned
+client payloads and PBO transfers use semantic RHI upload/transfer operations. These payload certificates are separate from consumer references and content
 readiness. Physical-context tools use the same creation/retirement path without another registry.
 
 Exact image adapters live in backend texture, buffer-texture and renderbuffer external modules; sampler
@@ -167,7 +175,8 @@ its scoped read-only bytes remain tied to the original context. Synchronous call
 `RHIReadbackTicket.Wait()` with the shared `DefaultWaitTimeout`; callers can also supply an explicit
 timeout or poll without blocking. Cancellation retires native storage
 without putting in-flight ranges into a reusable CPU pool. Registered-context retirement cancels pending
-requests and abandons native cleanup rather than issuing it into a replacement namespace. Existing queues
+requests and abandons native cleanup rather than issuing it into a replacement namespace. Tickets use
+the internal backend-neutral execution contract for observation and mapping. Existing queues
 may retain and map their own fenced output storage through the same backend instead of adding a copy.
 
 Transform-feedback creation configures named output ranges from frozen authored descriptions. Capture
@@ -195,7 +204,11 @@ publication. Managed deletion uses the admitted backend after original-context q
 
 The manager authorizes cold external vertex-array configuration discovery through the RHI context.
 The backend performs native checks, while the completed receipt retains the original array association
-and metadata revision. Context-local receipts additionally use the existing configuration epoch.
+and metadata revision. Context-local receipts use the selected array's observed configuration revision,
+so unrelated array configuration does not expire their proof. An engine array with explicitly draw-time
+index selection may remain detached; after certifying its attributes and detached state, the backend
+realizes a private array from the declared streams and original index allocation. A different nonzero
+index attachment rejects certification. Native engine arrays are never repaired as a side effect.
 `IsEngineGeometryConfigurationCurrent` checks the receipt against current context/cache knowledge without
 native configuration reads. Engine adapters retain layout, ownership and borrow-expiry policy.
 

@@ -246,9 +246,10 @@ public sealed class ShaderLinkBatchTests(HeadlessGLFixture fixture, ITestOutputH
         var plan = new ShaderLoadPlan(Settings(Graphics));
         var inputs = DriverProgramCache.Prepare(plan, Read,
             () => ShaderDigestIndexCache.ForAssets(assets.Api.Assets, ShaderImportsSystem.DefaultDomain));
+        using var capture = new NativeShaderAllocationCapture();
         using var pending = VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BeginCreateShader(ShaderExecutableInputs.Create(plan, inputs));
-        int program = (pending.Program ?? pending.Result.RequireResource().Program).ProgramId;
-        int[] stages = pending.Stages.Select(stage => stage.ShaderId).ToArray();
+        int program = capture.Program;
+        int[] stages = capture.Stages;
         if (transfer)
         {
             while (pending.TryComplete() == VanillaGraphicsExpanded.Rendering.RHI.CompletionStatus.Pending)

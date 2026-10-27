@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.LumOn;
@@ -27,14 +28,15 @@ public sealed class PreparedGraphicsPipelineTests(HeadlessGLFixture fixture, ITe
         var shader = programs.Create<LumOnUpsampleShaderProgram>();
         var description = Description(shader);
         using var pipeline = RHICommandContext.Current.CreateGraphicsPipeline(description).RequireResource();
-        var relevance = pipeline.Relevance;
+        var realization = Assert.IsType<OpenGLGraphicsPipelineRealization>(pipeline.Realization);
+        var relevance = realization.Relevance;
         var metadata = shader.GraphicsInterface!;
 #if DEBUG
         using var acquisition = new ProgramAcquisitionCapture();
         int resourceQueries = acquisition.Reads;
 #endif
         for (int i = 0; i < 100; i++) pipeline.ValidateTargets(description.Targets);
-        Assert.Same(relevance, pipeline.Relevance);
+        Assert.Same(realization, pipeline.Realization);
         Assert.Same(metadata, shader.GraphicsInterface);
 #if DEBUG
         Assert.Equal(resourceQueries, acquisition.Reads);
@@ -46,10 +48,11 @@ public sealed class PreparedGraphicsPipelineTests(HeadlessGLFixture fixture, ITe
         Assert.ThrowsAny<Exception>(() => pipeline.RequireShader());
         using var replacement = RHICommandContext.Current.CreateGraphicsPipeline(Description(shader)).RequireResource();
         Assert.NotEqual(pipeline.Description.Shader, replacement.Description.Shader);
-        Assert.NotSame(relevance, replacement.Relevance);
-        Assert.Equal(relevance.Rasterizer, replacement.Relevance.Rasterizer);
-        Assert.Equal(relevance.Depth, replacement.Relevance.Depth);
-        Assert.Equal(relevance.Blending, replacement.Relevance.Blending);
+        var replacementState = Assert.IsType<OpenGLGraphicsPipelineRealization>(replacement.Realization);
+        Assert.NotSame(realization, replacementState);
+        Assert.Equal(relevance.Rasterizer, replacementState.Relevance.Rasterizer);
+        Assert.Equal(relevance.Depth, replacementState.Relevance.Depth);
+        Assert.Equal(relevance.Blending, replacementState.Relevance.Blending);
         Assert.NotNull(replacement.RequireShader());
     }
 
@@ -107,33 +110,24 @@ public sealed class PreparedGraphicsPipelineTests(HeadlessGLFixture fixture, ITe
         shader.EnableShortRangeAo = !shader.EnableShortRangeAo;
         Assert.True(shader.EnsureReady());
         Assert.ThrowsAny<Exception>(() => original.RequireShader());
-        Assert.Throws<InvalidOperationException>(() => RHICommandContext.Current.CreateGraphicsPipeline(description).RequireResource());
+        Assert.Throws<ObjectDisposedException>(() => RHICommandContext.Current.CreateGraphicsPipeline(description).RequireResource());
         using var replacement = RHICommandContext.Current.CreateGraphicsPipeline(Description(shader)).RequireResource();
         Assert.NotNull(replacement.RequireShader());
     }
 
-    /// <summary>Existing linked terrain tessellation metadata refines unknown patch input to verified polygon output.</summary>
+    /// <summary>Linked tessellation output refines conservative patch relevance without descriptor queries.</summary>
     [Fact]
     public void VerifiedTessellationOutputRefinesPrimitiveRelevanceWithoutQueries()
     {
         fixture.MakeCurrent();
-        using var stages = new TerrainShaderTestFixture();
-        int vertex = stages.Compile(ShaderType.VertexShader, PbrSurfaceInstalledShaderTests.Build("chunkopaque.vsh", 2, 0, 0, 0, 0));
-        int fragment = stages.Compile(ShaderType.FragmentShader, PbrSurfaceInstalledShaderTests.Build("chunkopaque.fsh", 2, 0, 0, 0, 0));
-        var sources = TerrainTessellationTestAssets.Generate(stages.Source(vertex));
-        var selectedStages = TerrainTessellationStages.Describe(sources, TerrainTessellationPatches.EnabledDefine);
-        using var program = RHICommandContext.Current.OpenGL.CreateEngineTessellationProgram(vertex, fragment,
-            selectedStages.Control, selectedStages.Evaluation, null).RequireResource();
-        var kinds = new[] { ShaderStageKind.Vertex, ShaderStageKind.Fragment,
-            ShaderStageKind.TessellationControl, ShaderStageKind.TessellationEvaluation };
-        var contract = new GpuShaderContract("linked-terrain", kinds.Select(kind =>
-            new ShaderStageContract(kind.ToString(), kind.ToString(), kind, new())), 1);
-        var plan = new ShaderLoadPlan(new ShaderSettings(contract));
-        // This test consumes only linked primitive modes, not packaged vertex/output admission.
-        var metadata = new GraphicsExecutableInterface(GpuResourceManager.RequireProgramSnapshot(program));
+        var shaderDescription = new RHIShaderDescription(ShaderKind.Graphics,
+            [new(ShaderStage.Vertex, "#version 450\nvoid main() { gl_Position=vec4(0,0,0,1); }"),
+             new(ShaderStage.TessellationControl, "#version 450\nlayout(vertices=3) out; void main() { gl_out[gl_InvocationID].gl_Position=gl_in[gl_InvocationID].gl_Position; if(gl_InvocationID==0) { gl_TessLevelInner[0]=1; gl_TessLevelOuter[0]=1; gl_TessLevelOuter[1]=1; gl_TessLevelOuter[2]=1; } }"),
+             new(ShaderStage.TessellationEvaluation, "#version 450\nlayout(triangles,equal_spacing,ccw) in; void main() { gl_Position=gl_TessCoord.x*gl_in[0].gl_Position+gl_TessCoord.y*gl_in[1].gl_Position+gl_TessCoord.z*gl_in[2].gl_Position; }"),
+             new(ShaderStage.Fragment, "#version 450\nlayout(location=0) out vec4 color; void main() { color=vec4(1); }")], new());
+        using var reference = RHICommandContext.Current.CreateShader(shaderDescription).RequireResource();
+        var metadata = reference.Interface.Graphics!;
         Assert.Equal(PrimitiveTopology.Triangles, metadata.TessellationOutput);
-        using var programs = new ComponentShaderPrograms();
-        var reference = programs.Create<RasterDepthReductionShaderProgram>().Shader;
         var description = new RHIGraphicsPipelineDescription(reference, new([]),
             new([new(TextureFormat.Rgba16f)]), DynamicPipelineState.Viewport,
             assembly: new() { Topology = PrimitiveTopology.Patches });

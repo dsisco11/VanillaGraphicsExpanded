@@ -674,3 +674,70 @@ $filter = Get-Content artifacts/rhi-phase5b/focused-filter.txt -Raw
 dotnet test VanillaGraphicsExpanded.Tests/VanillaGraphicsExpanded.Tests.csproj -c Debug --no-build --no-restore --filter $filter.Trim() --logger 'trx;LogFileName=phase5b-focused-complete.trx' --results-directory artifacts/rhi-phase5b
 dotnet test VanillaGraphicsExpanded.Tests/VanillaGraphicsExpanded.Tests.csproj -c Debug --no-build --no-restore --filter 'FullyQualifiedName~GpuResourceMetadataRegistryTests|FullyQualifiedName~GpuResourceDisposalQueueTests|FullyQualifiedName~GpuResourceAssociationStressTests|FullyQualifiedName~GpuInitializationIntentTests|FullyQualifiedName~TextureFormatHelperTests|FullyQualifiedName~InternalFormatCapabilitiesTests' --logger 'trx;LogFileName=phase5b-units-capabilities-closure.trx' --results-directory artifacts/rhi-phase5b
 ```
+
+## Semantic objects and backend realization (Phase 5c)
+
+| Previous dependency | Final route |
+| --- | --- |
+| Graphics/compute PSO stored concrete backend; graphics PSO stored native relevance/coverage | Fixed semantic description, shader identity and lifetime use IRHIContextLifetime. Opaque IRHIGraphicsPipelineRealization contains backend-owned OpenGL relevance/coverage, with no independent native allocation or registry entry. |
+| Pending shader request stored native program/stage candidates | RHIPendingShaderCreation owns an IRHIShaderCreation operation. OpenGLPendingShaderCreation retains candidate owners and native completion/cleanup. Ready ownership still transfers once through the existing result. |
+| Query/readback tickets depended on OpenGLBackend | Internal backend-neutral execution contract for captured-generation query observation, waits and immediate mapping. Original staging/fence ownership and cancellation remain intact. |
+| Context cast its backend and exposed Current.OpenGL | Ordinary/owner operations use IRHIBackend, including mapping and private texture initialization. OpenGLRHIContext composes admission and exposes named cache/engine-integration operations without returning a backend. Native retirement notifications remain at that boundary. |
+| Cloud/fullscreen/liquid adapters inspected native backend origin and cache epoch | Manager certification handles context/configuration freshness. Adapters retain engine ownership, authored layout, callback expiry and original-context retirement. |
+| Local certification expired on unrelated VAO changes or staging retirement | Cache revisions apply to the selected array; certified buffer dependencies narrow deletion invalidation. Explicit acquisition also establishes its proven element-binding knowledge, so an equal managed bind does not invalidate its own receipt. No full VAO layout or canonical metadata mirror is introduced. |
+| Engine liquid allocator left its element binding detached | Explicit engine draw-time index selection certifies the detached state; backend-owned VAO realization supplies the original index stream for RHI draws. A different nonzero association still rejects. Engine-owned arrays remain untouched. |
+| Streaming queue obtained the concrete backend | Pinned immediate bytes use UploadTexturePointer and the ordinary semantic upload; PBO payloads retain a GpuBufferRef and use TransferBufferToTexture. Existing destination storage certificates, staging ownership and ring completion remain. Unknown raw engine destinations use explicit nonowning acquisition; owned destinations reuse supplied metadata. The old streaming executor is removed. |
+
+Traceability: fixed realization and candidate/result ownership map to the proposal's Shader and pipeline
+objects and Immediate execution and recorded lists, and contracts' Executable and pipeline contracts and
+Submission and failure rules. Context composition and native integration map to Steady-state source
+ownership and Engine integration and migration boundaries. Geometry retains the existing resource and
+prepared-submission identity, bounds, borrow-expiry and restoration contracts. The unchanged private
+initialization/retirement transaction retains the pinned command-publication and texture-reference
+contracts. Neither a public native-object operation, parallel owner/registry nor temporary migration shim
+is introduced. Native fixture operations now select their implementation explicitly instead of depending
+on a semantic context escape; pending cleanup fixtures observe native allocations without exposing
+provisional objects through the pending API.
+
+Installed-engine inspection: VintagestoryLib 1.22.7.0, MVID
+8a3ad3aa-2940-4c39-ae1b-881de9e65346. AllocateEmptyMesh detaches its EBO before releasing its VAO;
+ordinary/grouped non-SSBO RenderMesh selects mesh.vboIdIndex for the draw and detaches afterward.
+The exact IL receipt is artifacts/rhi-phase5c/baseline/engine-geometry-il.txt. RHI geometry does not call
+those engine draw helpers or inherit their temporary association mutation.
+
+Validation used HEAD 382905ccbfe476725c1569adc335e6bc22aa47a3 plus the working candidate.
+The 3,392-file source/shader/tool-input fingerprint is
+bec03a7ef30234fa4ae036ad414c9847d2397db2f0a28eb3f3d12140676effc2
+(path, NUL, bytes, NUL in sorted repository-path order; docs excluded).
+The machine-readable receipt is artifacts/rhi-phase5c/source-candidate.json.
+
+| Receipt under artifacts/rhi-phase5c/candidate | Result |
+| --- | --- |
+| final-debug-build.log | Canonical Debug test-project build: 0 errors, 530 warnings. |
+| final-release-build.log | Canonical Release production build: 0 errors, 334 warnings. |
+| final-targeted-tests.log, final-targeted.trx, final-targeted-filter.txt | 121 cases: 119 passed, 2 inherited failures, 0 skipped. All four direct/PBO × R8/RGB8 padded-row content and unpack-restoration cases passed. |
+| final-dependencies.trx | Registry, disposal, associations, initialization intent, formats and capabilities: 53 passed, none failed/skipped. |
+| final-pending-retirement.trx | Pending candidate original-owner retirement: 2 passed, none failed/skipped. |
+
+The two unchanged RHIProgramCaptureTests failures (CaptureIsPureAndGuardsAuthoredCallbacks and
+FailedCaptureReleasesItsMutationGuard) reject the authored render_infrastructure fixture interface
+schema/identity before entering their capture assertions. Both fail on the canonical checkpoint baseline
+in artifacts/rhi-phase5c/baseline/focused.trx; fixture reconciliation remains explicitly assigned to 5e.
+They do not qualify capture behavior. Dedicated lifecycle, completion, fixed-generation, wrong-thread,
+context-retirement, geometry certification and pending-owner tests pass on this candidate. Inherited
+geometry failures are resolved without weakening original association or configuration checks.
+
+Canonical commands used default shader producers, without instrumentation or shader-build suppression:
+
+```powershell
+dotnet build VanillaGraphicsExpanded.Tests/VanillaGraphicsExpanded.Tests.csproj -c Debug -m:1 -v:minimal
+dotnet build VanillaGraphicsExpanded/VanillaGraphicsExpanded.csproj -c Release -m:1 -v:minimal
+$filter = (Get-Content artifacts/rhi-phase5c/candidate/final-targeted-filter.txt -Raw).Trim()
+dotnet test VanillaGraphicsExpanded.Tests/VanillaGraphicsExpanded.Tests.csproj -c Debug --no-build --no-restore --filter $filter --logger 'trx;LogFileName=final-targeted.trx' --results-directory artifacts/rhi-phase5c/candidate
+```
+
+Second source review and independent stage-completion audit reconciled the selected tasks with their
+linked ownership, publication, reference and submission contracts. No required 5c finding remains.
+The remaining native descriptor translation in streaming and other wrapper/consumer bypasses remain
+with 5d; combined migration and fixture qualification remain with 5e. Phase 5 and command recording
+remain open. No staging, commit, deployment, package publication or game launch was performed.

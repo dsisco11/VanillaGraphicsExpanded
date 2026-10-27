@@ -1,12 +1,11 @@
 using System;
-using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 
 namespace VanillaGraphicsExpanded.Rendering.RHI;
 
 /// <summary>Observes one issued query generation without taking ownership of its resource.</summary>
 public sealed class RHIQueryTicket
 {
-    private readonly OpenGLBackend backend;
+    private readonly IRHIBackend backend;
     private readonly GpuQuery query;
     private readonly long revision;
     private ulong result;
@@ -26,7 +25,7 @@ public sealed class RHIQueryTicket
     #endregion
     #region Internal API
     /// <summary>Captures backend, resource and issued revision without a native read.</summary>
-    internal RHIQueryTicket(OpenGLBackend backend, GpuQuery query, long revision)
+    internal RHIQueryTicket(IRHIBackend backend, GpuQuery query, long revision)
     { this.backend = backend; this.query = query; this.revision = revision; }
     #endregion
     #region Private

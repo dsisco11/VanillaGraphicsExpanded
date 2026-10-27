@@ -102,9 +102,9 @@ public sealed class GpuProgramNarrowPublicationTests(HeadlessGLFixture fixture)
             using var owner = GpuProgramObject.Create();
             var entry = Assert.IsType<GpuResourceMetadataEntry<GpuProgramMetadata>>(
                 GpuResourceManagerSystem.CurrentManager!.GetResourceRegistration(owner));
-            VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.OpenGL.SubmitProgramExecutable(owner);
+            new VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBackend(StateCache.Current).SubmitProgramExecutable(owner);
             Assert.False(entry.MetadataAvailable);
-            Assert.False(VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.OpenGL.CompleteProgramLink(owner, out _));
+            Assert.False(new VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBackend(StateCache.Current).CompleteProgramLink(owner, out _));
             Assert.True(entry.MetadataAvailable);
             Assert.False(entry.Metadata.ExecutableAvailable);
             Assert.Empty(entry.Metadata.Resources);
@@ -137,7 +137,7 @@ public sealed class GpuProgramNarrowPublicationTests(HeadlessGLFixture fixture)
             };
             harmony.Patch(AccessTools.Method(typeof(OpenTK.Graphics.OpenGL4.GL), nameof(GL.LinkProgram), [typeof(int)]),
                 prefix: new HarmonyMethod(typeof(GpuProgramNarrowPublicationTests), nameof(ObserveLink)));
-            VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.OpenGL.SubmitProgramExecutable(owner);
+            new VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBackend(StateCache.Current).SubmitProgramExecutable(owner);
             Assert.Equal(1, callbacks);
             Assert.Equal(0, reader.Calls);
             Assert.False(entry.MetadataAvailable);
@@ -197,23 +197,23 @@ public sealed class GpuProgramNarrowPublicationTests(HeadlessGLFixture fixture)
             GL.CompileShader(shader);
             using var owner = GpuProgramObject.Create();
             GL.AttachShader(owner.ProgramId, shader);
-            VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.OpenGL.SubmitProgramExecutable(owner);
+            new VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBackend(StateCache.Current).SubmitProgramExecutable(owner);
             var first = owner.PendingLink;
             Assert.NotNull(first);
-            VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.OpenGL.SubmitProgramExecutable(owner);
+            new VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBackend(StateCache.Current).SubmitProgramExecutable(owner);
             Assert.NotSame(first, owner.PendingLink);
-            Assert.True(VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.OpenGL.CompleteProgramLink(owner, out string log), log);
+            Assert.True(new VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBackend(StateCache.Current).CompleteProgramLink(owner, out string log), log);
             Assert.Null(owner.PendingLink);
             harmony.Patch(AccessTools.Method(typeof(GL), nameof(GL.GetProgram), [typeof(int), typeof(GetProgramParameterName), typeof(int).MakeByRefType()]),
                 prefix: new HarmonyMethod(typeof(GpuProgramNarrowPublicationTests), nameof(CountInterface)));
             interfaceQueries = 0;
-            Assert.False(VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.OpenGL.CompleteProgramLink(owner, out _));
+            Assert.False(new VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBackend(StateCache.Current).CompleteProgramLink(owner, out _));
             Assert.Equal(0, interfaceQueries);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
         finally
         {
-            harmony.UnpatchAll(harmony.Id); VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.OpenGL.DeleteShader(shader);
+            harmony.UnpatchAll(harmony.Id); VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Shader, shader));
             fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll();
         }
     }
@@ -334,7 +334,7 @@ public sealed class GpuProgramNarrowPublicationTests(HeadlessGLFixture fixture)
             return candidate;
         }
         catch { candidate.Dispose(); throw; }
-        finally { VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.OpenGL.DeleteShader(shader); }
+        finally { VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Shader, shader)); }
     }
 
     /// <summary>Observes interface enumeration and integer unit reads at their exact native signatures.</summary>
@@ -382,14 +382,14 @@ public sealed class GpuProgramDeferredContextTests(HeadlessGLFixture fixture)
         {
             using var owner = GpuProgramObject.Create();
             native = owner.ProgramId;
-            VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.OpenGL.SubmitProgramExecutable(owner);
+            new VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBackend(StateCache.Current).SubmitProgramExecutable(owner);
             var entry = GpuResourceManagerSystem.CurrentManager!.GetResourceRegistration(owner)!;
             RenderContextRegistry.Retire(fixture);
             RenderContextRegistry.RegisterCurrent(fixture, static _ => true);
             harmony.Patch(AccessTools.Method(typeof(GL), nameof(GL.GetProgram), [typeof(int), typeof(GetProgramParameterName), typeof(int).MakeByRefType()]),
                 prefix: new HarmonyMethod(typeof(GpuProgramDeferredContextTests), nameof(CountQuery)));
             queries = 0;
-            Assert.False(VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.OpenGL.CompleteProgramLink(owner, out _));
+            Assert.False(new VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBackend(StateCache.Current).CompleteProgramLink(owner, out _));
             Assert.Equal(0, queries);
             Assert.Equal(GpuResourceRegistrationState.ContextRetired, entry.State);
             Assert.False(entry.MetadataAvailable);
@@ -398,7 +398,7 @@ public sealed class GpuProgramDeferredContextTests(HeadlessGLFixture fixture)
         {
             harmony.UnpatchAll(harmony.Id);
             RenderContextRegistry.RegisterCurrent(fixture, static _ => true);
-            if (native != 0 && GL.IsProgram(native)) VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.OpenGL.DeleteProgram(native);
+            if (native != 0 && GL.IsProgram(native)) VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Program, native));
             fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll();
         }
     }

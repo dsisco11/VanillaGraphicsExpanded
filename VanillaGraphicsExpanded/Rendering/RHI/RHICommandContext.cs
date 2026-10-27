@@ -1,26 +1,13 @@
 using System;
-using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 
 namespace VanillaGraphicsExpanded.Rendering.RHI;
 
 /// <summary>Coordinates semantic execution on the originating rendering context.</summary>
 public sealed partial class RHICommandContext
 {
-    [ThreadStatic] private static RHICommandContext? current;
     private readonly IRHIBackend backend;
 
     #region Public API
-    /// <summary>Gets the current context's admitted execution service, including context-local tools.</summary>
-    public static RHICommandContext Current
-    {
-        get
-        {
-            if (current is null || !((OpenGLBackend)current.backend).IsCurrentContext)
-                current = new(new OpenGLBackend(StateCache.Current));
-            current.backend.RequireContext();
-            return current;
-        }
-    }
     /// <summary>Gets semantic cached limits without new native discovery.</summary>
     public RHICapabilities Capabilities => backend.Capabilities;
     /// <summary>Uploads stable client bytes immediately; no recording storage is allocated.</summary>
@@ -33,18 +20,16 @@ public sealed partial class RHICommandContext
     #endregion
 
     #region Internal API
-    /// <summary>Provides native services only to existing manager and integration boundaries.</summary>
-    internal OpenGLBackend OpenGL => (OpenGLBackend)backend;
     #region Owner-authorized buffer operations
     /// <summary>Admits owner-authorized storage replacement through the same backend transaction.</summary>
     internal void AllocateBufferStorage(GpuBufferObject owner, in RHIBufferDescription description, ReadOnlySpan<byte> initialData = default) =>
         backend.AllocateBufferStorage(owner, description, initialData);
     /// <summary>Maps an owner-selected CPU range without exposing pointers in recorded commands.</summary>
-    internal nint MapBuffer(GpuBufferRef buffer, nint offset, nint byteCount, BufferMapAccess access) => OpenGL.MapBuffer(buffer, offset, byteCount, access);
+    internal nint MapBuffer(GpuBufferRef buffer, nint offset, nint byteCount, BufferMapAccess access) => backend.MapBuffer(buffer, offset, byteCount, access);
     /// <summary>Flushes an explicit mapped range under originating-context validation.</summary>
-    internal void FlushMappedBuffer(GpuBufferRef buffer, nint offset, nint byteCount) => OpenGL.FlushMappedBuffer(buffer, offset, byteCount);
+    internal void FlushMappedBuffer(GpuBufferRef buffer, nint offset, nint byteCount) => backend.FlushMappedBuffer(buffer, offset, byteCount);
     /// <summary>Ends immediate mapping of an existing owner.</summary>
-    internal bool UnmapBuffer(GpuBufferRef buffer) => OpenGL.UnmapBuffer(buffer);
+    internal bool UnmapBuffer(GpuBufferRef buffer) => backend.UnmapBuffer(buffer);
     /// <summary>Allocates immutable owner storage using an explicit access request.</summary>
     internal void AllocateImmutableBuffer(GpuBufferObject owner, nint capacity, StorageAccess access)
     {

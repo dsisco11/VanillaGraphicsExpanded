@@ -12,7 +12,7 @@ internal static class OpenGLBufferBindings
     /// <summary>Preserves generic and VAO-owned element binding semantics without a second cache.</summary>
     internal static void BindBuffer(StateCache cache, Legacy.BufferTarget target, int buffer)
     {
-        var context = RHICommandContext.Current.OpenGL;
+        var context = RHICommandContext.Current;
         context.RequireContext();
         if (!cache.NeedsBufferBinding(target, buffer)) return;
         var native = Target(target);
@@ -34,7 +34,7 @@ internal static class OpenGLBufferBindings
     /// <summary>Uses a full indexed key and establishes the generic binding side effect.</summary>
     internal static void BindBufferBase(StateCache cache, Legacy.BufferRangeTarget target, int slot, int buffer)
     {
-        var context = RHICommandContext.Current.OpenGL;
+        var context = RHICommandContext.Current;
         context.RequireContext();
         if (!cache.NeedsIndexedBufferBinding(target, slot, buffer, 0, 0, false)) return;
         var native = IndexedTarget(target);
@@ -47,7 +47,7 @@ internal static class OpenGLBufferBindings
     /// <summary>Preserves native-width ranges and updates knowledge only after dispatch.</summary>
     internal static void BindBufferRange(StateCache cache, Legacy.BufferRangeTarget target, int slot, int buffer, nint offset, nint size)
     {
-        var context = RHICommandContext.Current.OpenGL;
+        var context = RHICommandContext.Current;
         context.RequireContext();
         if (!cache.NeedsIndexedBufferBinding(target, slot, buffer, offset, size, true)) return;
         var native = IndexedTarget(target);

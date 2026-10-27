@@ -44,9 +44,11 @@ public sealed class RHIBufferTests(HeadlessGLFixture fixture)
             context.CopyBuffer(source, 4, destination, 2, 4);
             context.ClearBuffer(source, 4, 4, 9);
             byte[] bytes = new byte[4];
-            context.OpenGL.ReadBuffer(destination, 2, bytes);
+            using (var readback = context.EnqueueReadback(new(new RHIBufferRange(destination, 2, bytes.Length))))
+            { Assert.Equal(CompletionStatus.Ready, readback.Wait()); using var mapped = readback.MapReadyReadback(); mapped.Bytes.CopyTo(bytes); }
             Assert.Equal(initial, bytes);
-            context.OpenGL.ReadBuffer(source, 4, bytes);
+            using (var readback = context.EnqueueReadback(new(new RHIBufferRange(source, 4, bytes.Length))))
+            { Assert.Equal(CompletionStatus.Ready, readback.Wait()); using var mapped = readback.MapReadyReadback(); mapped.Bytes.CopyTo(bytes); }
             Assert.Equal(new byte[] { 9, 9, 9, 9 }, bytes);
             if (immutable) Assert.Throws<InvalidOperationException>(() => context.UploadBuffer(source, 0, initial));
             else context.UploadBuffer(source, 0, initial);
@@ -188,7 +190,7 @@ public sealed class RHIBufferTests(HeadlessGLFixture fixture)
             localContext.BindBuffer(BufferRole.Vertex, owner);
             Assert.True(StateCache.Current.TryGetCachedBoundBuffer(BufferTarget.ArrayBuffer, out _));
             GLFW.MakeContextCurrent(original);
-            originalContext.OpenGL.RequireContext();
+            originalContext.RequireContext();
             Assert.False(StateCache.Current.TryGetCachedBoundBuffer(BufferTarget.ArrayBuffer, out _));
             Assert.Throws<InvalidOperationException>(() => originalContext.ClearBuffer(owner, 0, 16));
             Assert.Throws<InvalidOperationException>(() => owner.Dispose());

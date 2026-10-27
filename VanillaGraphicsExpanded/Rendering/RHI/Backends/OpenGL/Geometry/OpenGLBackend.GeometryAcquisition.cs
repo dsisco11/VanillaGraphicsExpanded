@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using OpenTK.Graphics.OpenGL4;
 
 namespace VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
@@ -9,15 +10,15 @@ internal sealed partial class OpenGLBackend
 {
     #region Public API
     /// <inheritdoc />
-    public RHIGeometryContext CaptureGeometryContext()
+    public RHIGeometryContext CaptureGeometryContext(int array)
     {
         RequireContext();
-        return new(NativeOrigin, cache.VertexConfigurationEpoch);
+        return new(NativeOrigin, cache.GetVertexConfigurationRevision(array));
     }
 
     /// <summary>Checks named external configuration and published capacities without changing any native selector.</summary>
-    public void CertifyGeometryConfiguration(int array, RHIVertexLayout layout,
-        IReadOnlyList<RHIVertexStream> streams, RHIIndexStream indices)
+    public bool CertifyGeometryConfiguration(int array, RHIVertexLayout layout,
+        IReadOnlyList<RHIVertexStream> streams, RHIIndexStream indices, bool indexSelectedAtDraw)
     {
         RequireContext();
         // Attribute-to-binding and binding-slot facts use the indexed queries defined for the selected VAO.
@@ -56,8 +57,14 @@ internal sealed partial class OpenGLBackend
         }
         GL.GetVertexArray(array, (VertexArrayParameter)All.ElementArrayBufferBinding, out int elements);
         RequireContext();
-        if (elements != indices.Range.Buffer.RequireResource().ResourceId)
+        // Ordinary engine meshes may select their index buffer only at draw time. Do not mutate that array:
+        // certify the detached state, then realize a private VAO from the validated streams for RHI draws.
+        if (elements != indices.Range.Buffer.RequireResource().ResourceId && !(indexSelectedAtDraw && elements == 0))
             throw new InvalidOperationException("The external array uses a different index allocation.");
+        cache.EstablishVertexArrayElementKnowledge(array, elements);
+        cache.EstablishVertexConfigurationDependencies(array, streams.Select(stream => checked((int)stream.Range.Buffer.RequireResource().ResourceId)),
+            checked((int)indices.Range.Buffer.RequireResource().ResourceId));
+        return elements != 0;
     }
     #endregion
 

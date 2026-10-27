@@ -10,6 +10,9 @@ namespace VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 internal static class RHIShaderInputs
 {
     #region Internal API
+    /// <summary>Supplies a real resource-free baseline executable for native submission and lifecycle guards.</summary>
+    internal static RHIShaderDescription EmptyComputeDescription() => new(ShaderKind.Compute,
+        [new(ShaderStage.Compute, "#version 450\nlayout(local_size_x=1) in; void main() {}")], new());
     /// <summary>Reads the existing canonical test SPIR-V asset; no native compilation inputs are fabricated.</summary>
     internal static RHIShaderDescription ComputeDescription()
     {

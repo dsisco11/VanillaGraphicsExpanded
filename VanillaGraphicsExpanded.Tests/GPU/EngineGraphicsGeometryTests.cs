@@ -37,7 +37,12 @@ public sealed class EngineGraphicsGeometryTests(HeadlessGLFixture fixture) : Ren
             var indices = new RHIIndexStream(new(elements, 0, 4));
             var receipt = GpuResourceManager.AcquireEngineGeometryConfiguration(array, layout, [], indices);
             Assert.True(GpuResourceManager.IsEngineGeometryConfigurationCurrent(receipt));
-            Assert.True(GpuResourceManager.IsEngineGeometryConfigurationCurrent(receipt));
+            using (var unrelated = GpuVao.Create())
+            {
+                var mutation = StateCache.BeginNativeVertexMetadata(unrelated.VertexArrayId, named: true, elementBinding: false);
+                mutation.Complete(true);
+                Assert.True(GpuResourceManager.IsEngineGeometryConfigurationCurrent(receipt));
+            }
 
             var manager = GpuResourceManagerSystem.CurrentManager!;
             var entry = Assert.IsType<GpuResourceMetadataEntry<GpuVertexArrayMetadata>>(manager.GetResourceRegistration(array));
@@ -50,6 +55,26 @@ public sealed class EngineGraphicsGeometryTests(HeadlessGLFixture fixture) : Ren
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
         finally { fixture.CleanupGpuResources(); }
+    }
+
+    /// <summary>Changing a certified original index association rejects both its receipt and a mismatched reacquisition.</summary>
+    [Fact]
+    public void ChangedImportedIndexAssociationRejectsReuse()
+    {
+        EnsureContextValid();
+        using var native = new NativeMesh();
+        using var geometry = EngineFullscreenGeometry.Upload(native.Render.Object, native.Data);
+        var packet = geometry.Inputs;
+        var receipt = packet.ImportedArray!;
+        Assert.True(GpuResourceManager.IsEngineGeometryConfigurationCurrent(receipt));
+        using var replacement = RHICommandContext.Current.CreateIndexBuffer(new RHIBufferDescription
+            { Role = BufferRole.Index, Mode = ResourceStorageMode.Mutable, Capacity = 12, Usage = BufferUsage.StaticDraw }).RequireResource();
+        OpenGLVertexSelection.Bind(StateCache.Current, native.Mesh.VaoId);
+        OpenGLBufferBindings.BindBuffer(StateCache.Current, BufferTarget.ElementArrayBuffer, replacement.BufferId);
+        Assert.False(GpuResourceManager.IsEngineGeometryConfigurationCurrent(receipt));
+        Assert.Throws<InvalidOperationException>(() => GpuResourceManager.AcquireEngineGeometryConfiguration(
+            receipt.Array, packet.Layout, packet.Streams, packet.Indices!.Value));
+        Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
 
     /// <summary>The actual engine helper remains query-free on repeated draws and mutated mesh metadata rejects.</summary>
@@ -72,7 +97,11 @@ public sealed class EngineGraphicsGeometryTests(HeadlessGLFixture fixture) : Ren
         using var incomingVao = GpuVao.Create(); using var incomingIndices = RHICommandContext.Current.CreateIndexBuffer(new RHIBufferDescription { Role = BufferRole.Index, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = null }).RequireResource();
         OpenGLVertexSelection.Bind(StateCache.Current, incomingVao.VertexArrayId); incomingIndices.UploadIndices(new uint[] { 0, 1, 2 }); OpenTK.Graphics.OpenGL4.GL.VertexArrayElementBuffer(incomingVao.VertexArrayId, incomingIndices.BufferId);
         int priorVao = incomingSameMesh ? native.Mesh.VaoId : incomingVao.VertexArrayId;
-        OpenGLVertexSelection.Bind(StateCache.Current, priorVao); OpenGLBufferBindings.BindBuffer(StateCache.Current, BufferTarget.ElementArrayBuffer, incomingIndices.BufferId);
+        int priorElements = incomingSameMesh ? native.Mesh.vboIdIndex : incomingIndices.BufferId;
+        OpenGLVertexSelection.Bind(StateCache.Current, priorVao);
+        // The imported array already has its certified EBO. Only configure the independent sentinel;
+        // changing an imported array after certification must invalidate it, even for an unknown equal bind.
+        if (!incomingSameMesh) OpenGLBufferBindings.BindBuffer(StateCache.Current, BufferTarget.ElementArrayBuffer, priorElements);
         shader.HzbDepth = source; shader.SrcMip = 0;
         {
     var commands=RHICommandContext.Current;
@@ -103,14 +132,8 @@ public sealed class EngineGraphicsGeometryTests(HeadlessGLFixture fixture) : Ren
 }
         Assert.Equal(0, native.Draws);
         Assert.Equal(priorVao, GL.GetInteger(GetPName.VertexArrayBinding));
-        Assert.Equal(incomingIndices.BufferId, GL.GetInteger(GetPName.ElementArrayBufferBinding));
+        Assert.Equal(priorElements, GL.GetInteger(GetPName.ElementArrayBufferBinding));
         Assert.InRange(target[0].ReadPixels()[0], .1999f, .2001f);
-        // The engine cleared its EBO association; a managed DSA rebind must update the same cache owner.
-        if (incomingSameMesh)
-        {
-            OpenGLBufferBindings.BindBuffer(StateCache.Current, BufferTarget.ElementArrayBuffer, 0);
-            native.RebindElements(incomingIndices);
-        }
         var failure = new ArithmeticException("Fixture operation failure.");
         Assert.Same(failure, Assert.Throws<ArithmeticException>(() =>
         {
@@ -125,7 +148,7 @@ public sealed class EngineGraphicsGeometryTests(HeadlessGLFixture fixture) : Ren
             });
         }));
         Assert.Equal(priorVao, GL.GetInteger(GetPName.VertexArrayBinding));
-        Assert.Equal(incomingIndices.BufferId, GL.GetInteger(GetPName.ElementArrayBufferBinding));
+        Assert.Equal(priorElements, GL.GetInteger(GetPName.ElementArrayBufferBinding));
         geometry.Dispose(); Assert.Equal(1, native.Deletes);
         Assert.False(GpuResourceManager.IsEngineGeometryConfigurationCurrent(certification));
         Assert.Equal(ErrorCode.NoError, GL.GetError());
@@ -215,10 +238,10 @@ public sealed class EngineGraphicsGeometryTests(HeadlessGLFixture fixture) : Ren
     /// <summary>Releases fixture native names after the test restores its actual namespace.</summary>
     private static void DeleteNativeMesh(VAO mesh)
     {
-        VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.OpenGL.DeleteVertexArray(mesh.VaoId);
-        RHICommandContext.Current.OpenGL.DeleteBuffer(mesh.xyzVboId);
-        RHICommandContext.Current.OpenGL.DeleteBuffer(mesh.uvVboId);
-        RHICommandContext.Current.OpenGL.DeleteBuffer(mesh.vboIdIndex);
+        VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.VertexArray, mesh.VaoId));
+        RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Buffer, mesh.xyzVboId));
+        RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Buffer, mesh.uvVboId));
+        RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Buffer, mesh.vboIdIndex));
     }
 
     /// <summary>Owns native engine-layout storage while invoking the installed no-window RenderMesh implementation.</summary>

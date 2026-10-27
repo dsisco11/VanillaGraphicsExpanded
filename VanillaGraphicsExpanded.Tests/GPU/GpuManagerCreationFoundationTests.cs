@@ -185,7 +185,7 @@ public sealed class GpuManagerCreationFoundationTests(HeadlessGLFixture fixture)
         finally
         {
             RenderContextRegistry.RegisterCurrent(fixture, static _ => true);
-            if (GL.IsBuffer(state.Id)) RHICommandContext.Current.OpenGL.DeleteBuffer(state.Id);
+            if (GL.IsBuffer(state.Id)) RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Buffer, state.Id));
             fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll();
         }
     }
@@ -303,7 +303,7 @@ public sealed class GpuManagerCreationFoundationTests(HeadlessGLFixture fixture)
         finally
         {
             fixture.MakeCurrent();
-            if (state.Id != 0 && GL.IsBuffer(state.Id)) RHICommandContext.Current.OpenGL.DeleteBuffer(state.Id);
+            if (state.Id != 0 && GL.IsBuffer(state.Id)) RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Buffer, state.Id));
             fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll();
         }
     }

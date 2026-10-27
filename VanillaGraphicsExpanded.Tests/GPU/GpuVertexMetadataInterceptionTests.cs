@@ -114,7 +114,7 @@ public sealed class GpuVertexMetadataInterceptionTests(HeadlessGLFixture fixture
             GL.GetVertexArrayIndexed(vao,0,VertexArrayIndexedParameter.VertexAttribArrayEnabled,out int enabled); Assert.Equal(1,enabled);
             Assert.Equal(ErrorCode.NoError,GL.GetError());
         }
-        finally { harmony.UnpatchAll(harmony.Id); VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.OpenGL.DeleteVertexArray(vao); fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { harmony.UnpatchAll(harmony.Id); VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.VertexArray, vao)); fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
     }
     #endregion
     #region Private

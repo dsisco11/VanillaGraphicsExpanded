@@ -80,7 +80,7 @@ public sealed class FrameShaderBindingHookTests(HeadlessGLFixture fixture) : Ren
             Assert.Throws<InvalidOperationException>(() => VgeFrameRenderer.Current);
             using var foreign = new PackedUniformBuffer(VgeFrameUniformBuffer.PackedSize);
             foreign.SetBytes(new byte[VgeFrameUniformBuffer.PackedSize]);
-            Assert.True(RHICommandContext.Current.OpenGL.BindEngineUniform(GpuBindingRegistry.Ubo.Frame, foreign.Capture()));
+            Assert.True(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLRHIContext.BindEngineUniform(GpuBindingRegistry.Ubo.Frame, foreign.Capture()));
             var unrelated = Binding();
             Assert.Throws<InvalidOperationException>(() => VgeFrameRenderer.Current);
             engine.Use();
@@ -88,7 +88,7 @@ public sealed class FrameShaderBindingHookTests(HeadlessGLFixture fixture) : Ren
             events.Render(EnumRenderStage.Before);
             events.Render(EnumRenderStage.Opaque);
             byte[] expected = VgeFrameRenderer.Current.Bytes.ToArray();
-            Assert.True(RHICommandContext.Current.OpenGL.BindEngineUniform(GpuBindingRegistry.Ubo.Frame, foreign.Capture()));
+            Assert.True(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLRHIContext.BindEngineUniform(GpuBindingRegistry.Ubo.Frame, foreign.Capture()));
             AtmosphereSunDrawHook.Prefix(out bool outer);
             try
             {

@@ -46,7 +46,7 @@ internal sealed class EngineGeometryInputs : IDisposable
             var indexStream = new RHIIndexStream(new(new GpuBufferRef(elements), 0, checked((nint)indices * sizeof(uint))));
             // The manager owns acquisition and its native reader. The resulting packet
             // retains the original revision and must be re-admitted after external mutation.
-            var certificate = GpuResourceManager.AcquireEngineGeometryConfiguration(array, layout, vertexStreams, indexStream);
+            var certificate = GpuResourceManager.AcquireEngineGeometryConfiguration(array, layout, vertexStreams, indexStream, indexSelectedAtDraw: true);
             Inputs = new(layout, vertexStreams, indexStream, certificate, borrow);
         }
         catch { Dispose(); throw; }

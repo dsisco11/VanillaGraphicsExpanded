@@ -14,7 +14,7 @@ internal sealed partial class StateCache
         try
         {
             // Binding identity cannot establish whether feedback is capturing or paused.
-            return !QueryBoundary(() => RHI.RHICommandContext.Current.OpenGL.ReadTransformFeedbackActive());
+            return !QueryBoundary(() => RHI.Backends.OpenGL.OpenGLRHIContext.ReadTransformFeedbackActive());
         }
         catch (Exception error) when (error is not OutOfMemoryException)
         {

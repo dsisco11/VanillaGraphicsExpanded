@@ -12,7 +12,8 @@ internal sealed partial class OpenGLBackend
     {
         ArgumentNullException.ThrowIfNull(geometry);
         geometry.RequireLive();
-        geometry.ImportedArray?.RequireCurrent(NativeOrigin, cache.VertexConfigurationEpoch);
+        if (geometry.ImportedArray is { } imported)
+            imported.RequireCurrent(NativeOrigin, cache.GetVertexConfigurationRevision(checked((int)imported.Array.ResourceId)));
         if (geometry.Layout != pipeline.Description.VertexLayout)
             throw new InvalidOperationException("Geometry layout does not match the selected graphics pipeline.");
         foreach (var attribute in geometry.Layout.Attributes)

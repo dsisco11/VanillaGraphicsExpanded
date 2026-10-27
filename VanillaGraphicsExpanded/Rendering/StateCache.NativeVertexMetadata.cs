@@ -3,9 +3,6 @@ namespace VanillaGraphicsExpanded.Rendering;
 /// <summary>Publishes vertex-array configuration revisions without introducing a native layout mirror.</summary>
 internal sealed partial class StateCache
 {
-    /// <summary>Conservatively expires context-local helper facts without a per-object registry or layout mirror.</summary>
-    internal ulong VertexConfigurationEpoch { get; private set; }
-
     #region Internal API
     /// <summary>Captures an existing VAO registration and withdraws helper assumptions before mutation.</summary>
     internal static NativeVertexMetadata BeginNativeVertexMetadata(int selector, bool named, bool elementBinding)
@@ -13,7 +10,7 @@ internal sealed partial class StateCache
         var cache = Current;
         int vao = named ? selector : cache.GetCurrentVao();
         cache.RequireResourceOperationAvailable(GpuResourceKind.VertexArray, vao);
-        cache.VertexConfigurationEpoch++;
+        cache.InvalidateVertexConfiguration(vao);
         if (elementBinding) cache.elementArrayBufferByVao.Remove(vao);
         var manager = GpuResourceManagerSystem.CurrentManager;
         var entry = manager?.FindObservedResource(GpuResourceKind.VertexArray, vao)
@@ -37,7 +34,7 @@ internal sealed partial class StateCache
         internal void Complete(bool nativeReturned)
         {
             if (entry is not null) entry.OperationInProgress = false;
-            cache.VertexConfigurationEpoch++;
+            cache.InvalidateVertexConfiguration(vao);
             if (elementBinding) cache.elementArrayBufferByVao.Remove(vao);
             if (!nativeReturned || entry is null || !entry.Manager.CanObserveNativeMetadata
                 || !entry.Manager.IsRegistered(entry) || entry.State != GpuResourceRegistrationState.Live) return;

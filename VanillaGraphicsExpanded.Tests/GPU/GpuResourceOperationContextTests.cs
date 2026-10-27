@@ -40,7 +40,7 @@ public sealed class GpuResourceOperationContextTests(HeadlessGLFixture fixture)
             {
                 Assert.Throws<InvalidOperationException>(() => { using var operation = new GpuResourceManager.MetadataOperation<GpuBufferMetadata>(buffer, GpuMetadataChange.Storage); });
                 Assert.Throws<InvalidOperationException>(() => GpuResourceManager.AcquireTextureCommandInput(texture));
-                Assert.Throws<InvalidOperationException>(() => VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.OpenGL.SubmitProgramExecutable(program));
+                Assert.Throws<InvalidOperationException>(() => new VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBackend(StateCache.Current).SubmitProgramExecutable(program));
                 Assert.Throws<InvalidOperationException>(() => OpenGLProgramCalls.ExecuteCoreLinkProgram(program.ProgramId));
                 Assert.Throws<InvalidOperationException>(() => GpuResourceManager.RequireProgramSnapshot(program));
                 Assert.Throws<InvalidOperationException>(() => GpuResourceManager.AcquireEngineGeometryConfiguration(vao, new([]), [], default));

@@ -1,7 +1,6 @@
 using VanillaGraphicsExpanded.Rendering.Integration.OpenGL;
 using System.Collections.Generic;
 using VanillaGraphicsExpanded.Rendering.RHI;
-using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System;
 using System.Linq;
 using System.Runtime.CompilerServices;
@@ -36,7 +35,7 @@ internal sealed class CloudSimpleGeometry : GraphicsGeometry
 
     /// <summary>Caches only validated native storage names/capacities; neither mesh nor weather input is retained here.</summary>
     private sealed record StorageReceipt(int Vao, int Elements, int Positions, int Colors, int Flags, int Instances, int Capacity,
-        (nint Handle, long Generation) Context, EngineGeometryInputs Geometry);
+        EngineGeometryInputs Geometry);
 
     #region Public API
     /// <summary>Verifies a new mesh's native layout once, retaining no borrow after this callback-scoped adapter is disposed.</summary>
@@ -72,8 +71,7 @@ internal sealed class CloudSimpleGeometry : GraphicsGeometry
     #region Private
     /// <summary>Detects retirement or native storage replacement without driver queries on ordinary draws.</summary>
     private static bool Matches(VAO mesh, StorageReceipt receipt) => !mesh.Disposed && mesh.Initialized
-        && receipt.Context == RHICommandContext.Current.OpenGL.NativeOrigin
-        && receipt.Geometry.Inputs.ImportedArray!.IsCurrent(receipt.Context, StateCache.Current.VertexConfigurationEpoch)
+        && GpuResourceManager.IsEngineGeometryConfigurationCurrent(receipt.Geometry.Inputs.ImportedArray!)
         && receipt.Geometry.Inputs.Streams.All(stream => stream.Range.Buffer.TryGetMetadata(out var data) && data.Capacity >= stream.Range.Offset + stream.Range.Length)
         && mesh.VaoId == receipt.Vao && mesh.vboIdIndex == receipt.Elements && mesh.xyzVboId == receipt.Positions
         && mesh.rgbaVboId == receipt.Colors && mesh.flagsVboId == receipt.Flags && mesh.customDataShortVboId == receipt.Instances;
@@ -88,7 +86,7 @@ internal sealed class CloudSimpleGeometry : GraphicsGeometry
         var geometry = new EngineGeometryInputs(mesh, Layout,
             new Dictionary<int, int> { [0] = buffers[0], [1] = buffers[1], [2] = buffers[2], [3] = buffers[3] }, 24, 36, instances);
         return new(mesh.VaoId, mesh.vboIdIndex, buffers[0], buffers[1], buffers[2], buffers[3], instances,
-            RHICommandContext.Current.OpenGL.NativeOrigin, geometry);
+            geometry);
     }
     #endregion
 }

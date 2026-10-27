@@ -350,7 +350,7 @@ internal sealed partial class StateCache
         if (currentRenderbuffer.HasValue) return currentRenderbuffer.Value;
         // Metadata observation can recover bindings after a rejected native command.
         // Boundary restoration owns any required diagnostics; this query preserves errors.
-        currentRenderbuffer = RHI.RHICommandContext.Current.OpenGL.ReadImageSelector(GetPName.RenderbufferBinding);
+        currentRenderbuffer = RHI.Backends.OpenGL.OpenGLRHIContext.ReadImageSelector(GetPName.RenderbufferBinding);
         return currentRenderbuffer.Value;
     }
 
@@ -368,18 +368,18 @@ internal sealed partial class StateCache
     {
         private readonly int previous;
         private readonly StateCache cache;
-        private readonly RHI.Backends.OpenGL.OpenGLBackend backend;
+        private readonly RHI.RHICommandContext context;
 
         public RenderbufferScope(int previous)
         {
             this.previous = previous;
             cache = StateCache.Current;
-            backend = RHI.RHICommandContext.Current.OpenGL;
+            context = RHI.RHICommandContext.Current;
         }
 
         public void Dispose()
         {
-            if (!backend.IsCurrentContext) { RenderbufferScopeTracker.ClearThreadStack(); cache.RenderbufferKnowledge = null; return; }
+            if (!context.IsCurrentContext) { RenderbufferScopeTracker.ClearThreadStack(); cache.RenderbufferKnowledge = null; return; }
             RenderbufferScopeTracker.End(previous);
         }
     }
@@ -413,7 +413,7 @@ internal sealed partial class StateCache
 
         try
         {
-            int enumValue = RHI.RHICommandContext.Current.OpenGL.ReadImageSelector(GetPName.ActiveTexture);
+            int enumValue = RHI.Backends.OpenGL.OpenGLRHIContext.ReadImageSelector(GetPName.ActiveTexture);
             activeTextureUnit = enumValue - (int)TextureUnit.Texture0;
         }
         catch when (!restoringBoundary && !resolvingBoundary && activeBoundary is null)
@@ -442,7 +442,7 @@ internal sealed partial class StateCache
             OpenGLImageBindings.ActiveTexture(this, unit);
             if (TryGetTextureBindingQuery(target, out GetPName pname))
             {
-                int id = RHI.RHICommandContext.Current.OpenGL.ReadImageSelector(pname);
+                int id = RHI.Backends.OpenGL.OpenGLRHIContext.ReadImageSelector(pname);
                 dict[target] = id;
                 return id;
             }
@@ -479,7 +479,7 @@ internal sealed partial class StateCache
     public readonly struct TextureScope : IDisposable
     {
         private readonly StateCache cache;
-        private readonly RHI.Backends.OpenGL.OpenGLBackend backend;
+        private readonly RHI.RHICommandContext context;
         private readonly TextureTarget target;
         private readonly int unit;
         private readonly int previousTexture;
@@ -488,7 +488,7 @@ internal sealed partial class StateCache
         public TextureScope(StateCache cache, TextureTarget target, int unit, int previousTexture, int previousActiveUnit)
         {
             this.cache = cache;
-            backend = RHI.RHICommandContext.Current.OpenGL;
+            context = RHI.RHICommandContext.Current;
             this.target = target;
             this.unit = unit;
             this.previousTexture = previousTexture;
@@ -497,7 +497,7 @@ internal sealed partial class StateCache
 
         public void Dispose()
         {
-            if (!backend.IsCurrentContext) { cache.ForgetImageBinding(target, null); cache.ActiveTextureKnowledge = null; return; }
+            if (!context.IsCurrentContext) { cache.ForgetImageBinding(target, null); cache.ActiveTextureKnowledge = null; return; }
             OpenGLImageBindings.BindTexture(cache, target, unit, previousTexture);
             OpenGLImageBindings.ActiveTexture(cache, previousActiveUnit);
         }
@@ -514,7 +514,7 @@ internal sealed partial class StateCache
         try
         {
             OpenGLImageBindings.ActiveTexture(this, unit);
-            int sampler = RHI.RHICommandContext.Current.OpenGL.ReadImageSelector(GetPName.SamplerBinding);
+            int sampler = RHI.Backends.OpenGL.OpenGLRHIContext.ReadImageSelector(GetPName.SamplerBinding);
             samplerBindingByUnit[unit] = sampler;
             return sampler;
         }
@@ -546,21 +546,21 @@ internal sealed partial class StateCache
     public readonly struct SamplerScope : IDisposable
     {
         private readonly StateCache cache;
-        private readonly RHI.Backends.OpenGL.OpenGLBackend backend;
+        private readonly RHI.RHICommandContext context;
         private readonly int unit;
         private readonly int previous;
 
         public SamplerScope(StateCache cache, int unit, int previous)
         {
             this.cache = cache;
-            backend = RHI.RHICommandContext.Current.OpenGL;
+            context = RHI.RHICommandContext.Current;
             this.unit = unit;
             this.previous = previous;
         }
 
         public void Dispose()
         {
-            if (!backend.IsCurrentContext) { cache.SetSamplerKnowledge(unit, null); return; }
+            if (!context.IsCurrentContext) { cache.SetSamplerKnowledge(unit, null); return; }
             OpenGLImageBindings.BindSampler(cache, unit, previous);
         }
     }
@@ -666,7 +666,7 @@ internal sealed partial class StateCache
         /// <summary>Restores an element association on its original VAO without changing a later selection.</summary>
         public void Dispose()
         {
-            context.OpenGL.RequireContext();
+            context.RequireContext();
             if (vao.HasValue && cache.GetCurrentVao() != vao.Value)
             {
                 using var selection = cache.BindVertexArrayScope(vao.Value);

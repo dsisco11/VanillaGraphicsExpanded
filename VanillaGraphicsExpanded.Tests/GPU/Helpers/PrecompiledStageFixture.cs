@@ -16,7 +16,7 @@ internal static class PrecompiledStageFixture
     internal static GpuShaderModule Load(ShaderStageSelection selection, ShaderAssetReader read)
     {
         var input = ShaderExecutableInputs.CreateStage(selection, read(selection.BinaryPath));
-        return RHICommandContext.Current.OpenGL.CompileExternalStage(input).RequireResource();
+        return VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLRHIContext.CompileExternalStage(input).RequireResource();
     }
     /// <summary>Maps legacy test-native signatures to supplied semantic stage inputs.</summary>
     internal static ShaderStage Stage(ShaderType kind) => kind switch

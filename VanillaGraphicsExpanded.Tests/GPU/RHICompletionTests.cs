@@ -228,6 +228,48 @@ public sealed class RHICompletionTests(HeadlessGLFixture fixture)
             StateCache.Current.InvalidateAll();
         }
     }
+    /// <summary>Foreign-thread observation and mapping reject without consuming the original request or its completion.</summary>
+    [Fact]
+    public void ForeignThreadCannotObserveOrMapResults()
+    {
+        Start();
+        try
+        {
+            var context = RHICommandContext.Current;
+            using var source = Buffer(context, new byte[16]);
+            using var request = context.EnqueueReadback(new RHIReadbackDescription(new RHIBufferRange(source, 0, 16)));
+            using var query = context.CreateQuery(new(QueryKind.Timestamp)).RequireResource();
+            context.WriteTimestamp(query);
+            var result = context.RequestQueryResult(query);
+            Exception? threadFailure = null;
+            var worker = new System.Threading.Thread(() =>
+            {
+                try
+                {
+                Assert.Throws<InvalidOperationException>(() => request.Poll());
+                Assert.Throws<InvalidOperationException>(() => result.Poll());
+                }
+                catch (Exception error) { threadFailure = error; }
+            });
+            worker.Start(); worker.Join();
+            Assert.Null(threadFailure);
+            Assert.Equal(CompletionStatus.Pending, request.Status);
+            Assert.Equal(CompletionStatus.Pending, result.Status);
+            Assert.Equal(CompletionStatus.Ready, request.Wait(TimeSpan.FromSeconds(5)));
+            Assert.Equal(CompletionStatus.Ready, result.Wait());
+            using var mapping = request.MapReadyReadback();
+            threadFailure = null;
+            worker = new System.Threading.Thread(() =>
+            {
+                try { Assert.Throws<InvalidOperationException>(() => { _ = mapping.Bytes.Length; }); }
+                catch (Exception error) { threadFailure = error; }
+            });
+            worker.Start(); worker.Join();
+            Assert.Null(threadFailure);
+            Assert.Equal(16, mapping.Bytes.Length);
+        }
+        finally { Finish(); }
+    }
     #endregion
 
     #region Private

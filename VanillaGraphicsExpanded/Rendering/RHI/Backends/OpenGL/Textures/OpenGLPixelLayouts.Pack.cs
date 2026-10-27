@@ -10,7 +10,7 @@ internal static partial class OpenGLPixelLayouts
     /// <summary>Gets the cached layout, querying GL only when the state is unknown.</summary>
     internal static StateCache.PixelPackState GetPack(StateCache cache)
     {
-        var backend = RHICommandContext.Current.OpenGL;
+        var backend = RHICommandContext.Current;
         backend.RequireContext();
         // External rendering boundaries must invalidate the cache before borrowing state.
         return cache.PixelPackKnowledge ??= new StateCache.PixelPackState(
@@ -27,7 +27,7 @@ internal static partial class OpenGLPixelLayouts
     /// <summary>Applies a pack layout, omitting driver calls for known unchanged values.</summary>
     internal static void SetPack(StateCache cache, StateCache.PixelPackState state)
     {
-        var backend = RHICommandContext.Current.OpenGL;
+        var backend = RHICommandContext.Current;
         backend.RequireContext();
         if (state.Alignment is not (1 or 2 or 4 or 8)) throw new ArgumentOutOfRangeException(nameof(state));
         if (state.RowLength < 0 || state.SkipRows < 0 || state.SkipPixels < 0 || state.ImageHeight < 0 || state.SkipImages < 0) throw new ArgumentOutOfRangeException(nameof(state));
@@ -54,7 +54,7 @@ internal static partial class OpenGLPixelLayouts
     /// <summary>Applies a temporary layout and restores the previous layout on disposal.</summary>
     internal static PixelPackScope PackScope(StateCache cache, StateCache.PixelPackState state)
     {
-        var backend = RHICommandContext.Current.OpenGL;
+        var backend = RHICommandContext.Current;
         backend.RequireContext();
         var previous = GetPack(cache);
         try { SetPack(cache, state); }
@@ -73,12 +73,12 @@ internal static partial class OpenGLPixelLayouts
     {
         private readonly StateCache cache;
         private readonly StateCache.PixelPackState previous;
-        private readonly OpenGLBackend backend;
+        private readonly RHICommandContext backend;
         #region Internal API
         /// <summary>Captures original context and selector facts after the temporary transition succeeds.</summary>
         internal PixelPackScope(StateCache cache, StateCache.PixelPackState previous)
         {
-            this.cache = cache; this.previous = previous; backend = RHICommandContext.Current.OpenGL;
+            this.cache = cache; this.previous = previous; backend = RHICommandContext.Current;
         }
         #endregion
         #region Public API

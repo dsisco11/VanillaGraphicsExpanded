@@ -173,7 +173,7 @@ public abstract partial class GpuTexture : GpuResource<GpuTextureMetadata>, IDis
             Width = width, Height = height, Depth = depth, MipLevels = 1, Storage = immutableStorage ? ResourceStorageMode.Immutable : ResourceStorageMode.Mutable,
             Filter = filterMode, BaseLevel = 0, MaxLevel = 0, Label = debugName
         };
-        try { RHICommandContext.Current.OpenGL.InitializeTextureOwner(this, request); }
+        try { RHICommandContext.Current.InitializeTextureOwner(this, request); }
         catch
         {
             try { DeleteTextureIfAllocated(); } catch { }
@@ -188,7 +188,7 @@ public abstract partial class GpuTexture : GpuResource<GpuTextureMetadata>, IDis
         if (textureId == 0) return;
         RequireRetirement();
         ResourceManager?.ReplaceWrapperResource(this);
-        RHICommandContext.Current.OpenGL.DeleteTexture(textureId);
+        RHICommandContext.Current.RetireResource(new(GpuResourceKind.Texture, textureId));
         textureId = 0;
     }
     #endregion

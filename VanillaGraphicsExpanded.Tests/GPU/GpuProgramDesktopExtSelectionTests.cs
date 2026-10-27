@@ -27,8 +27,8 @@ public sealed partial class GpuProgramMetadataInterceptionTests
         {
             using var a = CreateProgram(out int shaderA);
             using var b = CreateProgram(out int shaderB);
-            VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.OpenGL.DeleteShader(shaderA);
-            VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.OpenGL.DeleteShader(shaderB);
+            VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Shader, shaderA));
+            VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Shader, shaderB));
             var manager = GpuResourceManagerSystem.CurrentManager!;
             var entryA = manager.GetResourceRegistration(a)!;
             var entryB = manager.GetResourceRegistration(b)!;
@@ -61,7 +61,7 @@ public sealed partial class GpuProgramMetadataInterceptionTests
                 Assert.Equal(ErrorCode.InvalidOperation, GL.GetError());
                 Assert.Equal(a.ProgramId, GL.GetInteger(GetPName.CurrentProgram));
             }
-            finally { VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.OpenGL.DeleteProgram(unlinked); }
+            finally { VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Program, unlinked)); }
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
         finally
@@ -88,7 +88,7 @@ public sealed partial class GpuProgramMetadataInterceptionTests
         try
         {
             using var program = CreateProgram(out int shader);
-            VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.OpenGL.DeleteShader(shader);
+            VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Shader, shader));
             OpenGLProgramSelection.Select(StateCache.Current, program.ProgramId);
             DesktopSelect(unsigned, true, native);
             Assert.Equal(program.ProgramId, GL.GetInteger(GetPName.CurrentProgram));
@@ -107,7 +107,7 @@ public sealed partial class GpuProgramMetadataInterceptionTests
         {
             harmony.UnpatchAll(harmony.Id);
             OpenGLProgramSelection.Select(StateCache.Current, 0);
-            VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.OpenGL.DeleteProgram(native);
+            VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Program, native));
             fixture.CleanupGpuResources();
             StateCache.Current.InvalidateAll();
         }
@@ -134,10 +134,10 @@ public sealed partial class GpuProgramMetadataInterceptionTests
         }
         catch
         {
-            VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.OpenGL.DeleteProgram(program);
+            VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Program, program));
             throw;
         }
-        finally { VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.OpenGL.DeleteShader(vertex); }
+        finally { VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Shader, vertex)); }
     }
 
     /// <summary>Records native capability separately from correctness assertions.</summary>

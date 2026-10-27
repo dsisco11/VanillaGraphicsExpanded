@@ -117,7 +117,7 @@ public sealed class GpuTextureLifetimeTests : RenderTestBase
             Assert.True(GL.IsTexture(texture));
             Assert.Equal(ErrorCode.NoError,GL.GetError());
         }
-        finally { RHICommandContext.Current.OpenGL.DeleteTexture(texture); }
+        finally { RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Texture, texture)); }
     }
     #endregion
 }

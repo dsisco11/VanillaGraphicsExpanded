@@ -11,12 +11,15 @@ internal sealed class RHIGeometryImport
     #region Internal API
     /// <summary>Gets a nonowning recipient for an already configured native array.</summary>
     internal GpuResource<GpuVertexArrayMetadata> Array { get; }
+    /// <summary>Reports whether the certified native array already selects the declared index allocation.</summary>
+    internal bool CanUseNativeArray { get; }
     /// <summary>Gets the importer-established originating native namespace.</summary>
     internal (nint Handle, long Generation) Origin { get; }
     /// <summary>Captures only completed certified identity; this never queries or recovers external configuration.</summary>
-    internal RHIGeometryImport(GpuResource<GpuVertexArrayMetadata> array, (nint Handle, long Generation) origin, ulong localEpoch)
+    internal RHIGeometryImport(GpuResource<GpuVertexArrayMetadata> array, (nint Handle, long Generation) origin, ulong localEpoch, bool canUseNativeArray)
     {
         Array = array;
+        CanUseNativeArray = canUseNativeArray;
         Origin = origin;
         association = array.ResourceManager?.GetResourceRegistration(array);
         revision = association?.MetadataRevision ?? 0;

@@ -47,7 +47,7 @@ public sealed partial class RHICommandContext
     #endregion
     #region Geometry certification
     /// <summary>Routes explicit acquisition through the context execution contract.</summary>
-    internal void CertifyGeometryConfiguration(int array, RHIVertexLayout layout, IReadOnlyList<RHIVertexStream> streams, RHIIndexStream indices) => backend.CertifyGeometryConfiguration(array, layout, streams, indices);
+    internal bool CertifyGeometryConfiguration(int array, RHIVertexLayout layout, IReadOnlyList<RHIVertexStream> streams, RHIIndexStream indices, bool indexSelectedAtDraw) => backend.CertifyGeometryConfiguration(array, layout, streams, indices, indexSelectedAtDraw);
     #endregion
     #endregion
 }

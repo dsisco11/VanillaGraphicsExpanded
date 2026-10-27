@@ -39,7 +39,7 @@ public sealed class AtmosphereSunRasterTests(HeadlessGLFixture fixture) : Render
             FramebufferTestSetup.BindForEngineRendering(target);
             UboPacking.WriteFloat(inputBytes, 0, elevation);
             inputs.SetBytes(inputBytes);
-            Assert.True(RHICommandContext.Current.OpenGL.BindEngineUniform(GpuBindingRegistry.Ubo.ShaderInputs, inputs.Capture()));
+            Assert.True(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLRHIContext.BindEngineUniform(GpuBindingRegistry.Ubo.ShaderInputs, inputs.Capture()));
             GL.DrawArrays(PrimitiveType.Triangles, 0, 3);
             float[] actual = target[0].ReadPixels();
             float visible = AtmosphereSolarDisk.Visibility(elevation, 0);
@@ -88,10 +88,10 @@ public sealed class AtmosphereSunRasterTests(HeadlessGLFixture fixture) : Render
             float[] view = Vintagestory.API.MathTools.Mat4f.Create();
             view[12] = iteration * 37f; view[13] = iteration * -19f; view[14] = iteration * 123f;
             using var camera = TestFrameCamera.CreateSolar(64,64,view);
-            Assert.True(RHICommandContext.Current.OpenGL.BindEngineUniform(GpuBindingRegistry.Ubo.Frame, camera.Capture()));
+            Assert.True(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLRHIContext.BindEngineUniform(GpuBindingRegistry.Ubo.Frame, camera.Capture()));
             UboPacking.WriteVec4(inputBytes, 16, 0f, 0f, -1f, iteration == 2 ? 0f : -1f);
             inputs.SetBytes(inputBytes);
-            Assert.True(RHICommandContext.Current.OpenGL.BindEngineUniform(GpuBindingRegistry.Ubo.ShaderInputs, inputs.Capture()));
+            Assert.True(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLRHIContext.BindEngineUniform(GpuBindingRegistry.Ubo.ShaderInputs, inputs.Capture()));
             GL.DrawArrays(PrimitiveType.Triangles, 0, 6);
             float[] pixels = target[0].ReadPixels();
             float[] glowPixels = target[1].ReadPixels();

@@ -37,7 +37,7 @@ public sealed class GpuTextureReferenceTests(HeadlessGLFixture fixture)
         }
         finally
         {
-            if (detached != 0) RHICommandContext.Current.OpenGL.DeleteTexture(detached);
+            if (detached != 0) RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Texture, detached));
             fixture.CleanupGpuResources();
             StateCache.Current.InvalidateAll();
         }

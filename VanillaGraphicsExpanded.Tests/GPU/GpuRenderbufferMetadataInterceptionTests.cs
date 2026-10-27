@@ -35,7 +35,7 @@ public sealed class GpuRenderbufferMetadataInterceptionTests(HeadlessGLFixture f
             secondFramebuffer.AttachmentsChanged += () => secondChanges++;
             using (texture.BindScope(0))
             using (var operation = new GpuResourceManager.MetadataOperation<GpuTextureMetadata>(texture, GpuMetadataChange.Storage))
-                VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.OpenGL.DefineTextureImages(texture.TextureId, new GpuTextureInitialization { Target = TextureTarget.Texture2D, AllocationMode = GpuTextureAllocationMode.Mutable, InternalFormat = PixelInternalFormat.Rgba8, Width = 8, Height = 4, Levels = 1 }.Resolve(), operation);
+                new VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBackend(StateCache.Current).DefineTextureImages(texture.TextureId, new GpuTextureInitialization { Target = TextureTarget.Texture2D, AllocationMode = GpuTextureAllocationMode.Mutable, InternalFormat = PixelInternalFormat.Rgba8, Width = 8, Height = 4, Levels = 1 }.Resolve(), operation);
             var manager = GpuResourceManagerSystem.CurrentManager!;
             Assert.False(manager.IsResourceMetadataAvailable(first));
             Assert.False(manager.IsResourceMetadataAvailable(second));
@@ -85,7 +85,7 @@ public sealed class GpuRenderbufferMetadataInterceptionTests(HeadlessGLFixture f
         finally
         {
             harmony.UnpatchAll(harmony.Id);
-            RHICommandContext.Current.OpenGL.DeleteRenderbuffer(sentinel);
+            RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Renderbuffer, sentinel));
             fixture.CleanupGpuResources();
             StateCache.Current.InvalidateAll();
         }

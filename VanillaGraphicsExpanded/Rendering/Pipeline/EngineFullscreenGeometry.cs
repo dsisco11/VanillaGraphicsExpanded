@@ -1,7 +1,6 @@
 using VanillaGraphicsExpanded.Rendering.Integration.OpenGL;
 using System.Collections.Generic;
 using VanillaGraphicsExpanded.Rendering.RHI;
-using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System;
 using System.Linq;
 using OpenTK.Graphics.OpenGL;
@@ -37,17 +36,21 @@ internal sealed class EngineFullscreenGeometry : GraphicsGeometry
             || data.Indices.Take(data.IndicesCount).Any(i => i < 0 || i >= data.VerticesCount))
             throw new ArgumentException("Expected indexed position/UV geometry without a color stream.", nameof(data));
         StateCache.Current.RequireOutsideEngineBoundary();
-        var context = RHICommandContext.Current.OpenGL.NativeOrigin;
+        var execution = RHICommandContext.Current;
+        var context = GpuResource.CaptureCreationContext(GpuResourceKind.VertexArray);
         var deletionManager = GpuResourceManagerSystem.CurrentManager;
         // Upload may bind arrays through the engine; existing scopes preserve the caller's bindings.
         using var vertexScope = StateCache.Current.BindVertexArrayScope(0);
         using var arrayScope = StateCache.Current.BindBufferScope(BufferTarget.ArrayBuffer, 0);
         MeshRef? uploaded = null;
+        bool certified = false;
         try
         {
             uploaded = render.UploadMesh(data);
             if (uploaded is not VAO native) throw new InvalidOperationException("Unsupported engine mesh representation.");
-            return new(render, native, data.VerticesCount, data.IndicesCount, context, deletionManager);
+            var geometry = new EngineFullscreenGeometry(render, native, data.VerticesCount, data.IndicesCount, context, deletionManager, execution);
+            certified = true;
+            return geometry;
         }
         catch (Exception failure)
         {
@@ -57,8 +60,9 @@ internal sealed class EngineFullscreenGeometry : GraphicsGeometry
         }
         finally
         {
-            // Upload is a cold external operation; query subsequent bindings only when needed by restoration.
-            StateCache.Current.ForgetEngineMeshUpload((uploaded as VAO)?.VaoId);
+            // Successful acquisition already established the uploaded array's selector facts. Preserve them;
+            // forgetting those facts here would make a known-equal bind invalidate its own certificate.
+            if (!certified) StateCache.Current.ForgetEngineMeshUpload((uploaded as VAO)?.VaoId);
         }
     }
 
@@ -89,12 +93,11 @@ internal sealed class EngineFullscreenGeometry : GraphicsGeometry
     #region Private
     /// <summary>Checks the installed VAO once; native queries never occur on its draw path.</summary>
     private EngineFullscreenGeometry(IRenderAPI render, VAO mesh, int vertices, int count,
-        (nint Handle, long Generation) context, GpuResourceManager? deletionManager)
+        (nint Handle, long Generation) context, GpuResourceManager? deletionManager, RHICommandContext execution)
     {
         this.render = render; this.mesh = mesh; this.count = count;
         this.context = context; this.deletionManager = deletionManager;
-        if (context != RHICommandContext.Current.OpenGL.NativeOrigin)
-            throw new InvalidOperationException("Engine mesh publication requires its uploading context.");
+        execution.RequireContext();
         vao = mesh.VaoId; positions = mesh.xyzVboId; uv = mesh.uvVboId; elements = mesh.vboIdIndex;
         if (vao == 0 || positions == 0 || uv == 0 || elements == 0 || mesh.IndicesCount != count
             || mesh.drawMode != PrimitiveType.Triangles || !HasOnlyPositionUvStreams(mesh))

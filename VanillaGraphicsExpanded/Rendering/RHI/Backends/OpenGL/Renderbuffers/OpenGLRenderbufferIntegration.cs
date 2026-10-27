@@ -10,7 +10,7 @@ internal static class OpenGLRenderbufferIntegration
     internal static GpuRenderbuffer Borrow(int nativeName, string? label = null)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(nativeName);
-        RHICommandContext.Current.OpenGL.RequireContext();
+        RHICommandContext.Current.RequireContext();
         var wrapper = new GpuRenderbuffer(0, false, label);
         wrapper.SetCreationIdentity(nativeName, GpuResource.CaptureCreationContext(GpuResourceKind.Renderbuffer));
         try

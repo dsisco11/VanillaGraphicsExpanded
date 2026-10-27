@@ -28,7 +28,7 @@ internal sealed partial class OpenGLBackend
         {
             var pipeline = reference.RequirePipeline();
             var shader = pipeline.RequireShader();
-            coverage = coverage.Union(pipeline.Coverage);
+            coverage = coverage.Union(((OpenGLGraphicsPipelineRealization)pipeline.Realization).Coverage);
             resources = resources.Union(EngineBoundaryResources.From(shader.Interface.PreparedBindings));
         }
         foreach (var reference in description.Compute)

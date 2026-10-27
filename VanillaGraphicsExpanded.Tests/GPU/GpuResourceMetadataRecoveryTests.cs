@@ -58,7 +58,7 @@ public sealed class GpuResourceMetadataRecoveryTests(HeadlessGLFixture fixture)
             using var buffer = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = null }).RequireResource();
             buffer.Allocate(16);
             int oldId = buffer.BufferId;
-            RHICommandContext.Current.OpenGL.DeleteBuffer(oldId);
+            RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Buffer, oldId));
             Assert.False(buffer.IsValid);
             Assert.False(buffer.IsDisposed);
             Assert.False(GL.IsBuffer(oldId));
@@ -110,7 +110,7 @@ public sealed class GpuResourceMetadataRecoveryTests(HeadlessGLFixture fixture)
         finally
         {
             if (contextRetired) RenderContextRegistry.RegisterCurrent(fixture, static _ => true);
-            if (native != 0 && GL.IsBuffer(native)) RHICommandContext.Current.OpenGL.DeleteBuffer(native);
+            if (native != 0 && GL.IsBuffer(native)) RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Buffer, native));
             fixture.CleanupGpuResources();
             StateCache.Current.InvalidateAll();
         }
@@ -149,7 +149,7 @@ public sealed class GpuResourceMetadataRecoveryTests(HeadlessGLFixture fixture)
         }
         finally
         {
-            if (native != 0 && GL.IsTexture(native)) RHICommandContext.Current.OpenGL.DeleteTexture(native);
+            if (native != 0 && GL.IsTexture(native)) RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Texture, native));
             fixture.CleanupGpuResources();
             StateCache.Current.InvalidateAll();
         }
@@ -170,7 +170,7 @@ public sealed class GpuResourceMetadataRecoveryTests(HeadlessGLFixture fixture)
             using (texture.BindScope(0))
             using (var operation = new GpuResourceManager.MetadataOperation<GpuTextureMetadata>(texture, GpuMetadataChange.Storage))
             {
-                VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.OpenGL.DefineTextureImages(texture.TextureId, new GpuTextureInitialization { Target = TextureTarget.Texture2D, AllocationMode = GpuTextureAllocationMode.Mutable, InternalFormat = PixelInternalFormat.Rgba8, Width = 12, Height = 6, Levels = 1 }.Resolve(), operation);
+                new VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBackend(StateCache.Current).DefineTextureImages(texture.TextureId, new GpuTextureInitialization { Target = TextureTarget.Texture2D, AllocationMode = GpuTextureAllocationMode.Mutable, InternalFormat = PixelInternalFormat.Rgba8, Width = 12, Height = 6, Levels = 1 }.Resolve(), operation);
                 // Abandon the operation after a real accepted image replacement.
             }
             Assert.False(entry.MetadataAvailable);
@@ -213,7 +213,7 @@ public sealed class GpuResourceMetadataRecoveryTests(HeadlessGLFixture fixture)
         }
         finally
         {
-            if (GL.IsBuffer(buffer)) RHICommandContext.Current.OpenGL.DeleteBuffer(buffer);
+            if (GL.IsBuffer(buffer)) RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Buffer, buffer));
             fixture.CleanupGpuResources();
             StateCache.Current.InvalidateAll();
         }

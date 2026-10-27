@@ -158,7 +158,7 @@ public sealed class GpuMetadataOperationFoundationTests(HeadlessGLFixture fixtur
             int id = owner.BufferId;
             using (var operation = new GpuResourceManager.MetadataOperation<GpuBufferMetadata>(owner, GpuMetadataChange.Storage))
             {
-                RHICommandContext.Current.OpenGL.DeleteBuffer(id);
+                RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Buffer, id));
                 Assert.Throws<InvalidOperationException>(() => operation.Commit(new(64, BufferUsageHint.StaticDraw)));
             }
             Assert.False(GL.IsBuffer(id));
@@ -191,7 +191,7 @@ public sealed class GpuMetadataOperationFoundationTests(HeadlessGLFixture fixtur
         }
         finally
         {
-            if (id != 0 && GL.IsBuffer(id)) RHICommandContext.Current.OpenGL.DeleteBuffer(id);
+            if (id != 0 && GL.IsBuffer(id)) RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Buffer, id));
             fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll();
         }
     }

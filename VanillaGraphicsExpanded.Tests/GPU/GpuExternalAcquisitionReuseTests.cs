@@ -192,7 +192,7 @@ public sealed class GpuExternalAcquisitionReuseTests(HeadlessGLFixture fixture)
             Assert.Equal(recovered.Height, stable.Height);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { RHICommandContext.Current.OpenGL.DeleteTexture(native); fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Texture, native)); fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
     }
 
     /// <summary>Local image validation uses the owner's latest facts and clears failed projections.</summary>

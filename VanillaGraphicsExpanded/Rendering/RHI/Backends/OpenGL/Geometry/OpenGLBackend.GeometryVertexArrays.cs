@@ -31,8 +31,8 @@ internal sealed partial class OpenGLBackend
     {
         if (geometry.ImportedArray is { } imported)
         {
-            imported.RequireCurrent(NativeOrigin, cache.VertexConfigurationEpoch);
-            return imported.Array;
+            imported.RequireCurrent(NativeOrigin, cache.GetVertexConfigurationRevision(checked((int)imported.Array.ResourceId)));
+            if (imported.CanUseNativeArray) return imported.Array;
         }
         if (geometryVertexArrays.TryGetValue(geometry, out var current))
         {
@@ -122,7 +122,7 @@ internal sealed partial class OpenGLBackend
             Array = array;
             registration = array.ResourceManager?.GetResourceRegistration(array);
             revision = registration?.MetadataRevision ?? 0;
-            localEpoch = cache.VertexConfigurationEpoch;
+            localEpoch = cache.GetVertexConfigurationRevision(Array.VertexArrayId);
             streamNames = new int[geometry.Streams.Length];
             for (int index = 0; index < streamNames.Length; index++)
                 streamNames[index] = checked((int)geometry.Streams[index].Range.Buffer.RequireResource().ResourceId);
@@ -134,7 +134,7 @@ internal sealed partial class OpenGLBackend
         {
             if (retired || !Array.IsValid || !ReferenceEquals(registration, Array.ResourceManager?.GetResourceRegistration(Array))) return false;
             if (registration is not null && Array.ResourceManager?.IsResourceMetadataAvailable(Array) != true) return false;
-            if (registration is not null ? registration.MetadataRevision != revision : localEpoch != cache.VertexConfigurationEpoch) return false;
+            if (registration is not null ? registration.MetadataRevision != revision : localEpoch != cache.GetVertexConfigurationRevision(Array.VertexArrayId)) return false;
             for (int index = 0; index < streamNames.Length; index++)
                 if (streamNames[index] != geometry.Streams[index].Range.Buffer.RequireResource().ResourceId) return false;
             return elementName == (geometry.Indices is { } indices ? indices.Range.Buffer.RequireResource().ResourceId : 0);

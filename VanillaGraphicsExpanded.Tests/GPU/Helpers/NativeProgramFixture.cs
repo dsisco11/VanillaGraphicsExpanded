@@ -10,7 +10,7 @@ internal static class NativeProgramFixture
     /// <summary>Submits and completes the same manager-owned program through the final backend publication operation.</summary>
     internal static bool Link(GpuProgramObject owner, out string diagnostics)
     {
-        var backend = RHICommandContext.Current.OpenGL;
+        var backend = new VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBackend(StateCache.Current);
         backend.SubmitProgramExecutable(owner);
         return backend.CompleteProgramLink(owner, out diagnostics);
     }

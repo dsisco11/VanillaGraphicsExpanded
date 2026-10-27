@@ -95,7 +95,7 @@ public sealed class TerrainDisplacementRasterTests : RenderTestBase
             using var atlas=framework.CreateTexture(16,16,PixelInternalFormat.Rgba32f,pixels);
             using var target=framework.CreateTestGBuffer(16,16,PixelInternalFormat.Rgba32f);
             using var camera = TestFrameCamera.CreateIdentity(128,128);
-            Assert.True(RHICommandContext.Current.OpenGL.BindEngineUniform(GpuBindingRegistry.Ubo.Frame, camera.Capture()));
+            Assert.True(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLRHIContext.BindEngineUniform(GpuBindingRegistry.Ubo.Frame, camera.Capture()));
             var layout = GpuProgramLayout.TryBuild(program);
             FramebufferTestSetup.BindForEngineRendering(target); OpenGLProgramSelection.Select(StateCache.Current, program); OpenGLVertexSelection.Bind(StateCache.Current, vao);
             amplitude.Bind(0); atlas.Bind(1); records.Bind(2);

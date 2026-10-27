@@ -33,10 +33,10 @@ internal sealed partial class OpenGLBackend : IRHIBackend
     internal (nint Handle, long Generation) NativeOrigin => origin == default ? (nativeContext, 0) : origin;
 
     /// <summary>Reports registered origin retirement without issuing GL or accepting another context.</summary>
-    internal bool HasRetiredOrigin => retired || origin != default && !RenderContextRegistry.IsAlive(origin);
+    public bool HasRetiredOrigin => retired || origin != default && !RenderContextRegistry.IsAlive(origin);
 
     /// <summary>Reports exact context identity, without accepting a replacement registered lifetime.</summary>
-    internal unsafe bool IsCurrentContext => !retired && nativeContext == (nint)GLFW.GetCurrentContext()
+    public unsafe bool IsCurrentContext => Environment.CurrentManagedThreadId == thread && !retired && nativeContext == (nint)GLFW.GetCurrentContext()
         && origin == RenderContextRegistry.Current() && (origin == default || RenderContextRegistry.IsAlive(origin));
 
     /// <summary>Loads core bindings and admits the required baseline once, before any managed execution.</summary>

@@ -123,7 +123,7 @@ public sealed class LiquidPoolTraversalTests(HeadlessGLFixture fixture) : Render
             run(); Assert.Equal(2, draws);
             using (var bindingPipeline = ShaderBindingTestPipeline.Create(program)) { RHICommandContext.Current.SetPipeline(bindingPipeline); RHICommandContext.Current.BindResources(program.CaptureBindings()); Assert.Equal(identity, ReadDraw()[..16]); Assert.Equal(0, ReadDraw()[19]); }
             // Shadow pass matrices and opaque dispatch cannot replace or upload the already shared frame again.
-            Assert.True(RHICommandContext.Current.OpenGL.BindEngineUniform(GpuBindingRegistry.Ubo.Frame, sharedFrame.Capture()));
+            Assert.True(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLRHIContext.BindEngineUniform(GpuBindingRegistry.Ubo.Frame, sharedFrame.Capture()));
             var firstBinding = FrameBinding();
             Assert.True(GpuUniformRingSystem.TryGetCurrent(out var ring));
 #if DEBUG
@@ -134,7 +134,7 @@ public sealed class LiquidPoolTraversalTests(HeadlessGLFixture fixture) : Render
             publisher.OnRenderFrame(.016f, EnumRenderStage.Opaque);
             Assert.Same(sharedFrame, VgeFrameRenderer.Current);
             Assert.Equal(publishedBytes, sharedFrame.Bytes.ToArray());
-            Assert.True(RHICommandContext.Current.OpenGL.BindEngineUniform(GpuBindingRegistry.Ubo.Frame, sharedFrame.Capture()));
+            Assert.True(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLRHIContext.BindEngineUniform(GpuBindingRegistry.Ubo.Frame, sharedFrame.Capture()));
             Assert.Equal(firstBinding, FrameBinding());
 #if DEBUG
             Assert.Equal(uploads, ring.AllocationsWritten);

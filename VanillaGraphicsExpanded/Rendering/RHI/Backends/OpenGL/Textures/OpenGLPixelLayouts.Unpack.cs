@@ -10,7 +10,7 @@ internal static partial class OpenGLPixelLayouts
     /// <summary>Gets the cached layout, querying GL only when the state is unknown.</summary>
     internal static StateCache.PixelUnpackState GetUnpack(StateCache cache)
     {
-        var backend = RHICommandContext.Current.OpenGL;
+        var backend = RHICommandContext.Current;
         backend.RequireContext();
         // External rendering boundaries must invalidate the cache before borrowing state.
         return cache.PixelUnpackKnowledge ??= new StateCache.PixelUnpackState(
@@ -27,7 +27,7 @@ internal static partial class OpenGLPixelLayouts
     /// <summary>Applies an unpack layout, omitting driver calls for known unchanged values.</summary>
     internal static void SetUnpack(StateCache cache, StateCache.PixelUnpackState state)
     {
-        var backend = RHICommandContext.Current.OpenGL;
+        var backend = RHICommandContext.Current;
         backend.RequireContext();
         if (state.Alignment is not (1 or 2 or 4 or 8)) throw new ArgumentOutOfRangeException(nameof(state));
         if (state.RowLength < 0 || state.SkipRows < 0 || state.SkipPixels < 0 || state.ImageHeight < 0 || state.SkipImages < 0) throw new ArgumentOutOfRangeException(nameof(state));
@@ -54,7 +54,7 @@ internal static partial class OpenGLPixelLayouts
     /// <summary>Applies a temporary layout and restores the previous layout on disposal.</summary>
     internal static PixelUnpackScope UnpackScope(StateCache cache, StateCache.PixelUnpackState state)
     {
-        var backend = RHICommandContext.Current.OpenGL;
+        var backend = RHICommandContext.Current;
         backend.RequireContext();
         var previous = GetUnpack(cache);
         try { SetUnpack(cache, state); }
@@ -73,12 +73,12 @@ internal static partial class OpenGLPixelLayouts
     {
         private readonly StateCache cache;
         private readonly StateCache.PixelUnpackState previous;
-        private readonly OpenGLBackend backend;
+        private readonly RHICommandContext backend;
         #region Internal API
         /// <summary>Captures original context and selector facts after the temporary transition succeeds.</summary>
         internal PixelUnpackScope(StateCache cache, StateCache.PixelUnpackState previous)
         {
-            this.cache = cache; this.previous = previous; backend = RHICommandContext.Current.OpenGL;
+            this.cache = cache; this.previous = previous; backend = RHICommandContext.Current;
         }
         #endregion
         #region Public API

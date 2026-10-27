@@ -352,31 +352,39 @@ Phase 5c: Separate backend-neutral RHI objects from OpenGL realization
     Rendering.GpuCommands.Contracts.md, sections Executable and pipeline contracts, Submission and failure rules, and Steady-state source ownership.
   Outcome: semantic objects do not depend on the concrete backend or carry OpenGL execution policy.
 
-  ☐ Design the final ownership of backend realization data and originating-context admission for fixed
+  ☑ Design the final ownership of backend realization data and originating-context admission for fixed
     objects and result-bearing operations. Distinguish backend-neutral description/identity/lifetime from
     native application state. Preserve the existing resource hierarchy and manager associations;
     do not invent parallel native owners or registry entries for purely managed pipelines.
-  ☐ Remove OpenGLBackend fields, constructor requirements and concrete-backend context checks from
+  ☑ Remove OpenGLBackend fields, constructor requirements and concrete-backend context checks from
     RHIComputePipeline and RHIGraphicsPipeline. Move native graphics relevance, restoration footprint
     and other OpenGL realization data to backend-owned implementation state behind the agreed contract.
     Preserve fixed shader generation, description equality, independent disposal and submission guards.
-  ☐ Apply the same separation to RHIPendingShaderCreation, RHIReadbackTicket and RHIQueryTicket,
+  ☑ Apply the same separation to RHIPendingShaderCreation, RHIReadbackTicket and RHIQueryTicket,
     and inspect RHIShader and the remaining RHI object/reference types for equivalent dependencies.
     Preserve pending/ready/failure/cancellation, staging ownership, original-context cleanup and diagnostics.
-  ☐ Make RHICommandContext use its backend-neutral execution contract for ordinary and owner-authorized
+  ☑ Make RHICommandContext use its backend-neutral execution contract for ordinary and owner-authorized
     operations, including mapping. Isolate concrete OpenGL selection/construction and native retirement
     notifications at the composition/integration boundary. Remove casts and the general-purpose OpenGL
     escape property; exact native engine integration must have an explicit, restricted final entry point.
-  ☐ Migrate CloudSimpleGeometry, EngineFullscreenGeometry and EngineLiquidPoolGeometry off direct
+  ☑ Migrate CloudSimpleGeometry, EngineFullscreenGeometry and EngineLiquidPoolGeometry off direct
     OpenGL.NativeOrigin and StateCache vertex-configuration epoch access. Keep engine layout/ownership
     and callback borrow policy in the adapters; use 5b's integration certification for context and native
     configuration validity. Preserve upload/adoption, replacement and original-context retirement together.
-  ☐ Resolve the inherited EngineGraphicsGeometryTests imported-configuration failures and the
+  ☑ Resolve the inherited EngineGraphicsGeometryTests imported-configuration failures and the
     EngineLiquidPoolGeometryTests index-association failure while migrating certification consumers.
     Preserve original-association and configuration checks; do not relax them to make draw fixtures pass.
-  ☐ Test unchanged fixed-generation behavior, wrong-context rejection, recursive execution/retirement,
+  ☑ Test unchanged fixed-generation behavior, wrong-context rejection, recursive execution/retirement,
     shader/pipeline replacement failure, result completion/cancellation and context loss without exposing
     concrete backend implementation types to semantic callers.
+
+  Completion evidence (2026-10-26): second source review and independent stage-completion audit passed.
+    See Rendering.GpuCommands.Migrations.md, Semantic objects and backend realization (Phase 5c), for
+    linked-document traceability, final routes, source fingerprint and exact receipts. Canonical Debug
+    and Release builds passed. Targeted checks: 119 passed, two baseline-inherited shader-capture
+    fixture schema failures retained for 5e; registry/dependency checks 53/53 and pending retirement 2/2.
+    All four CPU/PBO R8/RGB8 padded-row uploads passed. The inherited geometry failures are resolved.
+    This closes 5c only; Phase 5, 5d–5e and recording remain open. No staging or commit was performed.
 
 Phase 5d: Route resource wrappers and remaining consumer operations through final RHI contracts
   Depends on 5b–5c.
@@ -393,6 +401,36 @@ Phase 5d: Route resource wrappers and remaining consumer operations through fina
     by backend execution/restoration or explicitly qualified native integration. Migrate every ordinary
     wrapper/caller that invokes them directly. Captured shader resources must execute through complete
     RHIResourceBindings validation, original-resource guards and existing cache suppression/publication.
+  ☐ Correct the misclassified OpenGLRHIContext.BindEngineUniform entry point: expose the final semantic
+    uniform-snapshot operation through RHICommandContext and its backend-neutral execution contract.
+    Migrate FrameShaderBindingHook.UsePostfix directly and remove the superseded integration entry point.
+    Preserve slot/size/context validation, captured CPU revisions, allocation/publication/abort semantics,
+    recursion guards and existing failure behavior; do not leave a forwarding compatibility method.
+  ☐ Migrate FrameShaderBindingHook.UsePostfix's microfacet-energy texture and sampler bindings through
+    final RHI resource-binding operations with retained GpuTextureRef/GpuSamplerRef inputs. Remove its
+    indirect GpuTexture.Bind/GpuSampler.Bind execution bypass while preserving consumer membership,
+    scene-route eligibility and shared frame/light publication behavior.
+  ☐ Migrate AtmosphereShaderBindingHook.Postfix's aerial-radiance, aerial-attenuation and light-shaft
+    texture/sampler bindings from OpenGLImageBindings to final semantic RHI resource submission.
+    Retain typed resources rather than extracting native texture IDs; preserve startup empty bindings,
+    distinct sampler units, sampler clearing and the existing engine-program eligibility rules.
+  ☐ Migrate TerrainMaterialParamsTextureBindingHook.BindAtlas's material and normal/depth texture
+    bindings from ActiveTexture/BindTextureOnActiveUnit to final RHI resource submission. Keep engine
+    sampler-slot discovery/assignment at its explicit native integration boundary; preserve atlas-page
+    selection and diagnostics without allowing program assignment to justify bypassing RHI resource binding.
+  ☐ Migrate TerrainLumonSceneChunkSlotUniformBindingHook.ApplyUniformsIfNeeded's generation texture
+    binding and active-unit manipulation to final RHI resource submission with retained typed input.
+    Preserve program membership, versioned sampler/block assignments, per-use rebinding and required
+    surrounding selector behavior. LumonSceneChunkSlotUniformState.BindParameters already reaches
+    RHICommandContext through its UBO wrapper; preserve that route rather than treating it as a bypass.
+  ☐ Migrate TerrainReliefBindings.Bind's displacement-index, displacement-record and normal/depth
+    textures, plus its three sampler bindings, through final RHI resource submission. Remove engine
+    BindTexture2D(raw ID) and direct OpenGLImageBindings.BindSampler execution for those VGE-owned
+    resources. Preserve complete-page/neutral fallback, shader-generation membership and nearest sampling.
+  ☐ Verify the migrated engine shader hooks validate their complete supplied resource set before binding
+    effects, retain original resources and preserve suppression, feedback, retirement and restoration
+    checks. Keep legitimate engine program membership/slot discovery separate from resource execution;
+    do not fabricate an owned RHI shader or add another dispatcher to accommodate engine-owned programs.
   ☐ Remove superseded wrapper slot-binding APIs where captured tables replace them. Where a distinct
     owner operation remains required, define its final semantic RHI contract and migrate callers directly.
     Preserve image mip/layer/layered/access/format, sampler policy and target-specific unbinding semantics;
@@ -407,8 +445,9 @@ Phase 5d: Route resource wrappers and remaining consumer operations through fina
     LumOnRenderer, and inspect SceneColorParticleDrawScope and equivalent helpers. Put pixel-pack,
     buffer and framebuffer restoration with the backend operation that causes those effects. Preserve
     genuinely required engine-boundary admission; do not remove restoration before its final owner exists.
-  ☐ Route TextureStreamingManager's managed-pointer and PBO upload paths through the final semantic
-    RHI contract instead of Current.OpenGL.ExecuteStreamingUpload. Preserve queued destination identity,
+  ☐ Audit TextureStreamingManager's managed-pointer and PBO upload routes after their dependency closure
+    in 5c; finish removing ordinary native descriptor translation with the other consumer inputs below.
+    Keep the final semantic RHI execution route; preserve queued destination identity,
     payload lifetime, pixel layout, content readiness and failure-without-retry behavior. Include this
     inherited bypass even though its implementation predates the current shader/rendering changes.
   ☐ Replace ordinary consumer use of OpenGLImageValues and OpenGLPixelValues to construct RHI requests
@@ -418,6 +457,22 @@ Phase 5d: Route resource wrappers and remaining consumer operations through fina
   ☐ Route supported owner initialization/replacement, mutation and retirement through the final internal
     RHI contracts. Keep native IDs/adoption and unavoidable native signature translation confined to
     explicit OpenGL integration; ordinary wrappers must not import backend helpers to translate requests.
+  ☐ Remove GpuProgramObject.PendingLink's concrete OpenGLBackend.PendingProgramLink dependency.
+    Keep native link bookkeeping backend-owned while retaining the existing wrapper/manager identity
+    and canonical metadata authority. Migrate submission, completion and cleanup together; preserve
+    original-association/revision checks, supersession, one-time consumption, context retirement and
+    candidate-only cleanup without adding a parallel registry or temporary forwarding property.
+  ☐ Remove GpuFramebuffer.RequirePassCompleteness's OpenGLPassTarget downcast and direct
+    OpenGLFramebufferCompleteness invocation. Put backend realization reuse and native completeness
+    execution under their backend owner, preserving attachment/routing revision checks, default-surface
+    handling, selected draw-target requirements and avoidance of redundant completeness queries.
+    Reconcile the final route with 5e's RenderPass/RenderPassSequence/RenderPassTargets ownership audit.
+  ☐ Reconcile GpuUniformBuffer.BindPublicationRange, UniformStoragePage construction/Write and
+    GpuUniformRingBuffer.AllocateAndWrite's post-operation GL.GetError checks with the approved command-result
+    policy. Remove unjustified native error consumption outside RHI; do not merely relocate universal
+    checks to the backend or attribute unrelated earlier errors to a successful uniform operation.
+    Preserve required exceptions, publication commit/abort, upload revisions, allocation bookkeeping and
+    in-flight storage lifetime. Verify that reported failures cannot publish a successful version.
   ☐ Preserve wrapper allocation-policy inputs, ownership, borrowed associations, view dependencies,
     content readiness and original-context cleanup. Verify full-set failure before slot effects, stable
     binding suppression, feedback checks, replacement/name reuse, disposal and selective restoration.
@@ -427,20 +482,48 @@ Phase 5e: Close the redesigned dependency graph and qualify the combined migrati
   Authority: all Phase 5 linked documents and the mandatory migration contract above.
   Outcome: the actual dependency graph matches the approved RHI boundary throughout affected families.
 
-  ☐ Inventory concrete-backend imports, stored types, constructor parameters, casts, direct helper calls
-    and context escape properties across the manager, resource wrappers, semantic RHI objects and their
-    consumers. Classify genuine native implementation/composition/integration sites explicitly; an internal
+  ☐ Inventory concrete-backend imports, stored types (including backend-specific nested types),
+    constructor parameters, casts, direct helper calls, context escape properties and direct GL.*
+    execution across the manager, resource wrappers, semantic RHI objects and their consumers.
+    Inspect fully qualified calls and aliases as well as namespace imports; absence of an OpenGLBackend
+    reference does not prove that an operation passes through RHI. Classify genuine native
+    implementation/composition/integration sites explicitly; an internal
     visibility modifier or relocation into a backend directory does not establish correct dependency direction.
+  ☐ Move CloudNativeMapAdapter.ValidateStorage's native storage and framebuffer acquisition behind
+    manager-owned acquisition and backend query/integration services. Keep expected cloud layout and
+    content-publication policy in the adapter; use available canonical texture facts and acquire only
+    unknown external facts. Remove adapter-owned native selector changes and IsTexture/IsFramebuffer
+    probes without weakening dimensions, format, attachment or framebuffer-completeness validation.
+  ☐ Move CloudNativeMapAdapter.IsProgramLinked's native executable discovery behind manager-owned
+    acquisition and backend query/integration services. Reuse established link facts where available;
+    retain explicit late-acquisition/reload validation without adapter-owned IsProgram or native queries.
+  ☐ Reconcile CloudNativeMapAdapter.DrainErrors and its BeginAllocation/CompleteAllocation,
+    BeginUpload/CompleteUpload and BeginGeneration/CompleteGeneration callers with the approved
+    command-result policy. Remove adapter-owned GL error draining; preserve truthful content readiness
+    and joint-upload/generation failure certificates through explicit observed outcomes. Do not replace
+    the drains with a universal success query or publish ready content without the required evidence.
   ☐ Consolidate GBufferManager engine framebuffer attachment, routing and selection changes behind the
     restricted OpenGL integration service agreed in 5b–5c, replacing its mixture of direct backend helpers
     and cache execution. Inspect related Harmony hooks for the same split. Preserve external framebuffer
     ownership, attachment publication, blend/routing effects and restoration without exposing native
     framebuffer operations to ordinary portable callers.
+    Explicitly include LoadGBuffer, AttachToFramebuffer, DetachFromFramebuffer, ApplyGBufferBlendState
+    and ReapplyGBufferBlendState: unify backend-helper and cache execution under the final integration
+    owner; inspect VerifyBlendState and RelinquishIfDeleted for native queries/error drains/object probes
+    under the same ownership and approved query policy.
   ☐ Reconcile RenderPass, RenderPassSequence and RenderPassTargets with backend implementation ownership.
     Their native work is valid only beneath backend execution, not as an alternate consumer entry point.
     Preserve specialized pass validation, guards and restoration behind the unified context; do not add
     another dispatcher or classify an already backend-owned helper call as a consumer bypass merely
     because it uses native helpers. Verify this distinction in the final dependency review.
+  ☐ Recheck integration classifications by actual inputs, outputs and ownership, not by class name.
+    Retain justified native program replacement/stage creation (ReplaceEngineTessellationProgram,
+    CreateEngineTessellationProgram and CompileExternalStage), explicit raw-name texture/view/renderbuffer
+    acquisition, exact OpenTK forwarding, cache observation and backend composition. Do not expose these
+    as portable operations merely to eliminate a native namespace reference. Conversely, engine-owned
+    program usage does not exempt ordinary VGE resource binding from RHI. Confirm that FrozenLighting
+    BindBase calls, SceneColorProgramBindings.BindScene and LumonSceneChunkSlotUniformState.BindParameters
+    still dispatch through existing semantic buffer-binding operations; do not introduce duplicate routes.
   ☐ Migrate all affected production/test callers and blocking dependencies in complete operation-family
     units; remove superseded APIs in each unit. Reconcile affected Phase 2–4 receipts with fresh evidence
     rather than treating their earlier qualification as proof that the corrected architecture is complete.
@@ -455,6 +538,8 @@ Phase 5e: Close the redesigned dependency graph and qualify the combined migrati
     query observation; GpuProgramMetadataInterceptionTests desktop EXT restoration observations;
     GpuResourceOperationContextTests exact-external versus manager-affinity semantics; and
     GpuResourceRetirementRegressionTests delete-pending external versus managed program retirement.
+    Include the two inherited RHIProgramCaptureTests fixture interface-schema/identity failures confirmed
+    unchanged against 5c's canonical checkpoint baseline; repair their authored shader contract inputs.
     Correct obsolete fixtures at the actual native boundary and fix any confirmed runtime defect without
     weakening assertions, guards or error behavior. The baseline comparison does not qualify these cases.
   ☐ Run delegated Debug/Release compilation and relevant behavior regressions on the combined candidate,

@@ -1,13 +1,12 @@
 using System;
 using System.Threading;
-using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 
 namespace VanillaGraphicsExpanded.Rendering.RHI;
 
 /// <summary>Retains a fixed compute shader for application without owning or relinking that shader.</summary>
 public sealed class RHIComputePipeline : IDisposable
 {
-    private readonly OpenGLBackend backend;
+    private readonly IRHIContextLifetime origin;
     private int lifetime;
     #region Public API
     /// <summary>Gets the immutable description used to realize this pipeline.</summary>
@@ -26,13 +25,13 @@ public sealed class RHIComputePipeline : IDisposable
 
     #region Internal API
     /// <summary>Captures validated application data without another native allocation or registry entry.</summary>
-    internal RHIComputePipeline(OpenGLBackend backend, RHIComputePipelineDescription description)
-    { this.backend = backend; Description = description; }
+    internal RHIComputePipeline(IRHIContextLifetime origin, RHIComputePipelineDescription description)
+    { this.origin = origin; Description = description; }
     /// <summary>Requires the originating context, live realization and unchanged executable before application.</summary>
     internal RHIShader RequireShader()
     {
         ObjectDisposedException.ThrowIf(IsDisposed, this);
-        backend.RequireContext();
+        origin.RequireContext();
         return Description.Shader.RequireShader();
     }
     /// <summary>Protects this realization against retirement or recursive submission until execution returns.</summary>

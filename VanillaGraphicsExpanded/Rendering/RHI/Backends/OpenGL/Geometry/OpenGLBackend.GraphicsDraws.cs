@@ -84,20 +84,23 @@ internal sealed partial class OpenGLBackend
         int vertexArrayName = checked((int)vertexArray.ResourceId);
         activeRenderPass!.ValidatePipeline(pipeline);
         geometry.RequireLive();
-        cache.ApplyGraphicsState(pipeline, dynamics);
+        var realized = (OpenGLGraphicsPipelineRealization)pipeline.Realization;
+        cache.ApplyGraphicsState(pipeline.Description, dynamics, realized.Relevance, realized.Coverage);
         if (resources is null) ApplyExecutable(shader);
         else PublishResourceBindings(shader, resources, reuseCommittedUniforms: true);
         OpenGLVertexSelection.Bind(cache,vertexArrayName);
         shader.RequireUsable();
         geometry.RequireLive();
-        geometry.ImportedArray?.RequireCurrent(NativeOrigin, cache.VertexConfigurationEpoch);
+        if (geometry.ImportedArray is { } imported)
+            imported.RequireCurrent(NativeOrigin, cache.GetVertexConfigurationRevision(checked((int)imported.Array.ResourceId)));
     }
     /// <summary>Checks originating admission after native callbacks and records only actually issued draw commands.</summary>
     private void CompleteGraphicsPacket(RHIGeometryInputs geometry)
     {
         RequireContext();
         geometry.RequireLive();
-        geometry.ImportedArray?.RequireCurrent(NativeOrigin, cache.VertexConfigurationEpoch);
+        if (geometry.ImportedArray is { } imported)
+            imported.RequireCurrent(NativeOrigin, cache.GetVertexConfigurationRevision(checked((int)imported.Array.ResourceId)));
 #if DEBUG
         cache.RecordDrawSubmission();
 #endif

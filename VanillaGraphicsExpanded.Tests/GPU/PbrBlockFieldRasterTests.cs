@@ -33,7 +33,7 @@ public sealed class PbrBlockFieldRasterTests(HeadlessGLFixture fixture) : Render
         using var texture = framework.CreateTexture(1, 1, PixelInternalFormat.Rgba32f, [1f, 1f, 1f, 1f]);
         using var camera = TestFrameCamera.CreateIdentity(8, 8);
         camera.SetLightingCalibration(LightingCalibration.Default);
-        Assert.True(RHICommandContext.Current.OpenGL.BindEngineUniform(GpuBindingRegistry.Ubo.Frame, camera.Capture()));
+        Assert.True(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLRHIContext.BindEngineUniform(GpuBindingRegistry.Ubo.Frame, camera.Capture()));
         int buffer = GL.GenBuffer();
         try
         {

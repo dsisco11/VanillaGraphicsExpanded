@@ -56,4 +56,9 @@ public sealed partial class RHICommandContext
     /// <summary>Changes the selected mip range under the texture owner's authority.</summary>
     internal void SetMipRange(GpuTexture owner, int baseLevel, int maxLevel) => backend.SetMipRange(owner, baseLevel, maxLevel);
     #endregion
+    #region Internal API
+    /// <summary>Initializes an unpublished specialized owner without exposing recipients to consumers.</summary>
+    internal void InitializeTextureOwner(GpuTexture owner, in RHITextureDescription description) => backend.InitializeTextureOwner(owner, description);
+    #endregion
+
 }

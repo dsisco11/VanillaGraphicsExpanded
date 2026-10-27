@@ -33,7 +33,7 @@ binding and attachment validation without native discovery during reference cons
 Buffer/image/renderbuffer/sampler and auxiliary resource creation uses RHICommandContext descriptions and typed ready-owner
 results, privately lowering to manager initialization records. The OpenGL backend executes these native
 operations; the manager publishes complete snapshots. Wrappers retain growth, upload and sampling policy.
-Framebuffer, vertex-array and executable families retain StateCache execution and the same manager publication authority.
+Framebuffer, vertex-array and executable families use the same internal RHI execution boundary and manager publication authority.
 
 Buffer creation privately uses the manager handoff; image-texture, renderbuffer, buffer-texture and texture-view wrappers use the manager's
 `CreateBuffer`, `CreateTexture`, `CreateRenderbuffer`, `CreateBufferTexture` and `CreateTextureView`
@@ -45,7 +45,7 @@ renderbuffer and multisample-texture allocation without those capabilities reads
 Known source metadata supplies view geometry and backing ranges without object rediscovery. Buffer
 realization uses core `CreateBuffers`; reserved-name realization is retained only for exact external calls.
 
-Vertex arrays and program pipelines retain StateCache creation and empty manager initialization.
+Vertex arrays and program pipelines use private RHI creation and empty manager initialization.
 Queries declare their category in GpuQueryInitialization and use core CreateQueries; transform feedback
 uses core CreateTransformFeedbacks. Fences and optional external memory/semaphore objects also execute
 through the RHI backend with the same private manager handoff. Their canonical schemas stay empty,
@@ -98,6 +98,13 @@ until realization. Adapters do not duplicate those mutation guards.
 abandons dead contexts. `RenderContextRegistry` identifies handle plus registration generation and emits
 `Retiring`; absence of registration is not authority for persistent external tracking. Preserve the
 context-free declaration path and existing shutdown exception policy.
+
+Graphics pipelines retain opaque backend realization data; only the OpenGL implementation owns native
+relevance and restoration coverage. Fixed objects use a backend-neutral originating-context contract.
+Pending shader requests expose outcomes while their backend operation owns native candidates. Engine
+geometry adapters reuse manager certification; context-local freshness belongs to the selected array,
+not unrelated VAO edits. Explicit draw-time index selection can retain a detached engine array and use
+a private backend realization without editing engine-owned configuration.
 
 ## Metadata command matrix
 

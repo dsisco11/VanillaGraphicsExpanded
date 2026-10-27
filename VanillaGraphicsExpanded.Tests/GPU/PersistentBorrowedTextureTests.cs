@@ -28,7 +28,7 @@ public sealed class PersistentBorrowedTextureTests(HeadlessGLFixture fixture)
             var entry = GpuResourceManagerSystem.CurrentManager!.FindResource(GpuResourceKind.Texture, id);
             Assert.True(entry is null || entry.AssociationCount == 0);
         }
-        finally { selected?.Dispose(); RHICommandContext.Current.OpenGL.DeleteTexture(id); fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { selected?.Dispose(); RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Texture, id)); fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
     }
 
     /// <summary>Retiring the manager lifetime invalidates retained references without deleting external storage.</summary>
@@ -47,7 +47,7 @@ public sealed class PersistentBorrowedTextureTests(HeadlessGLFixture fixture)
             fixture.InitializeResourceDisposal();
             Assert.NotSame(first, BorrowedTexture.GetOrReplace(ref selected, id));
         }
-        finally { selected?.Dispose(); RHICommandContext.Current.OpenGL.DeleteTexture(id); fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { selected?.Dispose(); RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Texture, id)); fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
     }
 
     /// <summary>Stable selection preserves wrapper identity, receives mutations and binds its current native allocation.</summary>
@@ -113,14 +113,14 @@ public sealed class PersistentBorrowedTextureTests(HeadlessGLFixture fixture)
             var first = BorrowedTexture.GetOrReplace(ref selected, id);
             // Isolate same-name registry replacement from driver-specific free-name allocation policy.
             if (reuseId) GpuResourceManagerSystem.CurrentManager!.ObserveDeletion(GpuResourceKind.Texture, id);
-            else { RHICommandContext.Current.OpenGL.DeleteTexture(id); id = GL.GenTexture(); }
+            else { RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Texture, id)); id = GL.GenTexture(); }
             Assert.False(first.IsValid);
             Allocate(id, 8);
             var replacement = BorrowedTexture.GetOrReplace(ref selected, id);
             Assert.NotSame(first, replacement); Assert.Equal(8, replacement.Width);
             first.Dispose(); Assert.True(GL.IsTexture(id));
         }
-        finally { selected?.Dispose(); RHICommandContext.Current.OpenGL.DeleteTexture(id); fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { selected?.Dispose(); RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Texture, id)); fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
     }
     #endregion
 

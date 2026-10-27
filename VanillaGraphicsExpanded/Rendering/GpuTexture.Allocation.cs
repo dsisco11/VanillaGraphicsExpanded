@@ -28,7 +28,7 @@ public abstract partial class GpuTexture
             Width = width, Height = height, MipLevels = Math.Max(1, mipLevels), Storage = RHI.ResourceStorageMode.Mutable,
             Filter = filterMode, BaseLevel = 0, MaxLevel = Math.Max(1, mipLevels) - 1, Label = debugName
         };
-        if (textureId == 0) RHI.RHICommandContext.Current.OpenGL.InitializeTextureOwner(this, request);
+        if (textureId == 0) RHI.RHICommandContext.Current.InitializeTextureOwner(this, request);
         else RHI.RHICommandContext.Current.AllocateTextureStorage(this, request);
     }
     #endregion

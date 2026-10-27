@@ -55,9 +55,9 @@ public sealed class TerrainReliefNumericalTests : RenderTestBase
         ShaderTestFramework.SetUniform(layout.GetUniformLocation(id,"vge_displacementRecords"),2);
         UboPacking.WriteVec2(inputBytes, 8, scale, distance);
         using var frameCamera = TestFrameCamera.CreateIdentity(32, 32);
-        Assert.True(RHICommandContext.Current.OpenGL.BindEngineUniform(GpuBindingRegistry.Ubo.Frame, frameCamera.Capture()));
+        Assert.True(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLRHIContext.BindEngineUniform(GpuBindingRegistry.Ubo.Frame, frameCamera.Capture()));
         inputs.SetBytes(inputBytes);
-        Assert.True(RHICommandContext.Current.OpenGL.BindEngineUniform(GpuBindingRegistry.Ubo.ShaderInputs, inputs.Capture()));
+        Assert.True(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLRHIContext.BindEngineUniform(GpuBindingRegistry.Ubo.ShaderInputs, inputs.Capture()));
         FramebufferTestSetup.BindForEngineRendering(target); GL.Disable(EnableCap.DepthTest);GL.Disable(EnableCap.Blend);GL.Disable(EnableCap.CullFace);
         GL.DrawArrays(PrimitiveType.Triangles,0,3);
         float[] pixels=target[0].ReadPixels(); int center=(16*32+16)*4;

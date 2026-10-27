@@ -12,55 +12,18 @@ internal sealed partial class OpenGLBackend
     /// <inheritdoc />
     public RHICreationResult<RHIShader> CreateShader(RHIShaderDescription description)
     {
-        using var pending = BeginCreateShader(description);
+        using var pending = BeginShaderCandidate(description);
         CompleteShaderCreation(pending, true);
         return pending.Result;
     }
     /// <inheritdoc />
-    public RHIPendingShaderCreation BeginCreateShader(RHIShaderDescription description)
-    {
-        RequireContext();
-        ArgumentNullException.ThrowIfNull(description);
-        if (description.Binary is { } binary && !NativeCapabilities.ProgramBinaryFormats.Contains(binary.NativeFormat))
-            throw new NotSupportedException("The selected executable binary format is unavailable on this context.");
-        if (description.Binary is null && description.Stages.Any(stage => stage.Format == ShaderCodeFormat.Spirv)
-            && !NativeCapabilities.SupportsArbGlSpirv)
-            throw new NotSupportedException("The supplied SPIR-V stages require native SPIR-V ingestion support.");
-        var request = new RHIPendingShaderCreation(this, description) { Transition = true };
-        try
-        {
-            request.Program = GpuProgramObject.Create(description.Label);
-            if (description.RetrievableBinary)
-            {
-                GL.ProgramParameter(request.Program.ProgramId, ProgramParameterName.ProgramBinaryRetrievableHint, 1);
-                RequireContext();
-            }
-            if (description.Binary is null)
-                foreach (var input in description.Stages)
-                {
-                    var stage = CreateShaderStage(input);
-                    request.Stages.Add(stage);
-                    GL.AttachShader(request.Program.ProgramId, stage.ShaderId);
-                    RequireContext();
-                }
-            SubmitProgramExecutable(request.Program, description.Binary);
-        }
-        catch
-        {
-            try { CleanupShaderCandidate(request); } catch { }
-            throw;
-        }
-        finally { request.Transition = false; }
-        // Without completion-status support, linking is synchronous; no pretend nonblocking poll is exposed.
-        if (!NativeCapabilities.SupportsArbParallelShaderCompile && !NativeCapabilities.SupportsKhrParallelShaderCompile)
-            CompleteShaderCreation(request, true);
-        return request;
-    }
+    public RHIPendingShaderCreation BeginCreateShader(RHIShaderDescription description) => new(BeginShaderCandidate(description));
+
     #endregion
 
     #region Internal API
     /// <summary>Completes the original submitted candidate, preparing bindings only from its manager snapshot.</summary>
-    internal CompletionStatus CompleteShaderCreation(RHIPendingShaderCreation request, bool wait)
+    internal CompletionStatus CompleteShaderCreation(OpenGLPendingShaderCreation request, bool wait)
     {
         if (request.Status != CompletionStatus.Pending) return request.Status;
         if (request.Transition) throw new InvalidOperationException("Shader creation is already in progress.");
@@ -124,7 +87,7 @@ internal sealed partial class OpenGLBackend
         finally { request.Transition = false; }
     }
     /// <summary>Releases unpublished ownership without issuing native cleanup into a foreign context.</summary>
-    internal void ReleaseShaderCandidate(RHIPendingShaderCreation request)
+    internal void ReleaseShaderCandidate(OpenGLPendingShaderCreation request)
     {
         if (request.Transition) throw new InvalidOperationException("Shader creation is already in progress.");
         request.Transition = true;
@@ -134,6 +97,47 @@ internal sealed partial class OpenGLBackend
     #endregion
 
     #region Private
+    /// <summary>Submits a backend-owned candidate without exposing native state through the request.</summary>
+    private OpenGLPendingShaderCreation BeginShaderCandidate(RHIShaderDescription description)
+    {
+        RequireContext();
+        ArgumentNullException.ThrowIfNull(description);
+        if (description.Binary is { } binary && !NativeCapabilities.ProgramBinaryFormats.Contains(binary.NativeFormat))
+            throw new NotSupportedException("The selected executable binary format is unavailable on this context.");
+        if (description.Binary is null && description.Stages.Any(stage => stage.Format == ShaderCodeFormat.Spirv)
+            && !NativeCapabilities.SupportsArbGlSpirv)
+            throw new NotSupportedException("The supplied SPIR-V stages require native SPIR-V ingestion support.");
+        var request = new OpenGLPendingShaderCreation(this, description) { Transition = true };
+        try
+        {
+            request.Program = GpuProgramObject.Create(description.Label);
+            if (description.RetrievableBinary)
+            {
+                GL.ProgramParameter(request.Program.ProgramId, ProgramParameterName.ProgramBinaryRetrievableHint, 1);
+                RequireContext();
+            }
+            if (description.Binary is null)
+                foreach (var input in description.Stages)
+                {
+                    var stage = CreateShaderStage(input);
+                    request.Stages.Add(stage);
+                    GL.AttachShader(request.Program.ProgramId, stage.ShaderId);
+                    RequireContext();
+                }
+            SubmitProgramExecutable(request.Program, description.Binary);
+        }
+        catch
+        {
+            try { CleanupShaderCandidate(request); } catch { }
+            throw;
+        }
+        finally { request.Transition = false; }
+        // Without completion-status support, linking is synchronous; no pretend nonblocking poll is exposed.
+        if (!NativeCapabilities.SupportsArbParallelShaderCompile && !NativeCapabilities.SupportsKhrParallelShaderCompile)
+            CompleteShaderCreation(request, true);
+        return request;
+    }
+
     /// <summary>Allocates and submits one selected stage while retaining ownership through exceptional cleanup.</summary>
     private GpuShaderModule CreateShaderStage(RHIShaderStageDescription input)
     {
@@ -180,7 +184,7 @@ internal sealed partial class OpenGLBackend
         RequireContext();
     }
     /// <summary>Reports a detected native compile/link failure and retires only this unpublished candidate.</summary>
-    private CompletionStatus RejectShader(RHIPendingShaderCreation request, string diagnostics)
+    private CompletionStatus RejectShader(OpenGLPendingShaderCreation request, string diagnostics)
     {
         request.Result = new(null, diagnostics);
         request.Status = CompletionStatus.Failed;
@@ -188,7 +192,7 @@ internal sealed partial class OpenGLBackend
         return request.Status;
     }
     /// <summary>Preserves each owner until its original-context retirement has accepted cleanup.</summary>
-    private static void CleanupShaderCandidate(RHIPendingShaderCreation request)
+    private static void CleanupShaderCandidate(OpenGLPendingShaderCreation request)
     {
         request.Program?.Dispose(); request.Program = null;
         for (int index = request.Stages.Count - 1; index >= 0; index--)

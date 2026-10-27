@@ -66,7 +66,7 @@ internal static class TerrainTessellationPrograms
             if (program.GeometryShader is not null)
                 throw new NotSupportedException("Terrain geometry-stage modifications are not supported by the identity path.");
             var stages = TerrainTessellationStages.Describe(sources, program.VertexShader.PrefixCode);
-            var retirementError = OpenGLEngineShaderPrograms.ReplaceWithTessellation(program, stages.Control, stages.Evaluation,
+            var retirementError = VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLRHIContext.ReplaceEngineTessellationProgram(program, stages.Control, stages.Evaluation,
                 $"{(string.IsNullOrWhiteSpace(program.AssetDomain) ? "game" : program.AssetDomain)}:{program.PassName}");
             ShaderCapabilities.Publish(program, ShaderCapability.TerrainDisplacement);
             if (Requested) family[program.PassName switch { "chunkopaque" => 0, "chunktopsoil" => 1, _ => 2 }].SetTarget(program);

@@ -92,7 +92,7 @@ public sealed class CloudNativeAdapterTests(HeadlessGLFixture fixture)
             var adapter = new CloudNativeMapAdapter(native.Owner, 5);
             adapter.BeginGeneration(); adapter.BeginUpload(); native.Upload(); adapter.CompleteUpload(true); adapter.CompleteGeneration(10, true);
             Assert.True(adapter.TryGet(5, 10, out _));
-            RHICommandContext.Current.OpenGL.DeleteTexture(native.Raw1.TextureId);
+            RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Texture, native.Raw1.TextureId));
             Assert.False(adapter.TryGet(5, 10, out _));
             adapter.Retire();
         }

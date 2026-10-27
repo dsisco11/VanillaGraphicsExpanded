@@ -64,7 +64,7 @@ public sealed class GpuTextureMetadataInterceptionTests(HeadlessGLFixture fixtur
             Assert.True(view.IsValid);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { harmony.UnpatchAll(harmony.Id); RHICommandContext.Current.OpenGL.DeleteTexture(raw); fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { harmony.UnpatchAll(harmony.Id); RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Texture, raw)); fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
     }
 
     /// <summary>Bound, named and explicit-unit image definitions update aliases without changing the selected texture unit.</summary>
@@ -215,7 +215,7 @@ public sealed class GpuTextureMetadataInterceptionTests(HeadlessGLFixture fixtur
         finally
         {
             if (harmony is not null) harmony.UnpatchAll(harmony.Id);
-            RHICommandContext.Current.OpenGL.DeleteTexture(raw);
+            RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Texture, raw));
             fixture.CleanupGpuResources();
             StateCache.Current.InvalidateAll();
         }

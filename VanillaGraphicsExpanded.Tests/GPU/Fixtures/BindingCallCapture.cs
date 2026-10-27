@@ -24,6 +24,12 @@ internal sealed class BindingCallCapture : IDisposable
                 (Func<GetPName, int>)GL.GetInteger,
                 (IntegerQuery)GL.GetInteger,
                 (Action<int>)GL.BindVertexArray,
+                (Action<int>)OpenTK.Graphics.OpenGL4.GL.BindVertexArray,
+                (Action<int>)OpenTK.Graphics.OpenGL4.GL.UseProgram,
+                (Action<int>)OpenTK.Graphics.OpenGL4.GL.BindProgramPipeline,
+                (Action<OpenTK.Graphics.OpenGL4.FramebufferTarget, int>)OpenTK.Graphics.OpenGL4.GL.BindFramebuffer,
+                (Func<OpenTK.Graphics.OpenGL4.GetPName, int>)OpenTK.Graphics.OpenGL4.GL.GetInteger,
+                (CoreIntegerQuery)OpenTK.Graphics.OpenGL4.GL.GetInteger,
                 (Action<int>)GL.UseProgram,
                 (Action<int>)GL.BindProgramPipeline,
                 (Action<BufferTarget, int>)GL.BindBuffer,
@@ -55,6 +61,8 @@ internal sealed class BindingCallCapture : IDisposable
     #region Private
     /// <summary>Names the integer output query overload.</summary>
     private delegate void IntegerQuery(GetPName parameter, out int value);
+    /// <summary>Names the core integer output query overload used by managed backend operations.</summary>
+    private delegate void CoreIntegerQuery(OpenTK.Graphics.OpenGL4.GetPName parameter, out int value);
     /// <summary>Names the narrow indexed VAO query overload.</summary>
     private delegate void VertexQuery(int vao, int index, VertexArrayIndexedParameter parameter, out int value);
     /// <summary>Names the native-width indexed VAO query overload.</summary>

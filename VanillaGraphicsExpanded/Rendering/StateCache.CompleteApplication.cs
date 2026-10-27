@@ -9,15 +9,7 @@ namespace VanillaGraphicsExpanded.Rendering;
 /// <summary>Establishes complete observable graphics intent while preserving dormant native parameters.</summary>
 internal sealed partial class StateCache
 {
-    #region Public API
-    /// <summary>Uses the same prepared relevance and native write groups declared at boundary entry.</summary>
-    internal void ApplyGraphicsState(RHIGraphicsPipeline pipeline, RHIDynamicState dynamics)
-    {
-        ArgumentNullException.ThrowIfNull(pipeline);
-        pipeline.RequireShader();
-        ApplyGraphicsState(pipeline.Description, dynamics, pipeline.Relevance, pipeline.Coverage);
-    }
-
+    #region Internal API
     /// <summary>Derives conservative emitted-primitive relevance for low-level callers without a prepared executable.</summary>
     internal void ApplyGraphicsState(RHIGraphicsPipelineDescription pipeline, RHIDynamicState dynamics)
     {
@@ -25,12 +17,8 @@ internal sealed partial class StateCache
         var relevance = GraphicsStateRelevance.Derive(pipeline, GpuSupport.Graphics);
         ApplyGraphicsState(pipeline, dynamics, relevance, PipelineStateCoverage.From(relevance));
     }
-    #endregion
-
-    #region Private
-    #region Application
     /// <summary>Validates the whole request before category owners apply relevant groups through normal cached setters.</summary>
-    private void ApplyGraphicsState(RHIGraphicsPipelineDescription pipeline, RHIDynamicState dynamics,
+    internal void ApplyGraphicsState(RHIGraphicsPipelineDescription pipeline, RHIDynamicState dynamics,
         GraphicsStateRelevance relevance, PipelineStateCoverage coverage)
     {
         ArgumentNullException.ThrowIfNull(dynamics);
@@ -48,6 +36,9 @@ internal sealed partial class StateCache
         ApplyPipelineDynamics(pipeline, dynamics, relevance.Dynamic);
     }
 
+    #endregion
+
+    #region Private
     /// <summary>Applies only consumed dynamic tuples; undeclared values retain concrete defaults when relevant.</summary>
     private void ApplyPipelineDynamics(RHIGraphicsPipelineDescription pipeline, RHIDynamicState dynamics,
         DynamicDrawStateKnowledge relevant)
@@ -70,7 +61,5 @@ internal sealed partial class StateCache
             SetBlendConstant(constant.R, constant.G, constant.B, constant.A);
         }
     }
-    #endregion
-
     #endregion
 }

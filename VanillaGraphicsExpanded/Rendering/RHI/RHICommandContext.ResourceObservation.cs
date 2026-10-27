@@ -17,6 +17,6 @@ public sealed partial class RHICommandContext
     /// <summary>Requests explicit acquisition without exposing the concrete backend.</summary>
     internal bool ReadExternalProgramBlockBinding(int program, ProgramInterface block, int index, out int value) => backend.ReadExternalProgramBlockBinding(program, block, index, out value);
     /// <summary>Requests explicit acquisition without exposing the concrete backend.</summary>
-    internal RHIGeometryContext CaptureGeometryContext() => backend.CaptureGeometryContext();
+    internal RHIGeometryContext CaptureGeometryContext(int array) => backend.CaptureGeometryContext(array);
     #endregion
 }

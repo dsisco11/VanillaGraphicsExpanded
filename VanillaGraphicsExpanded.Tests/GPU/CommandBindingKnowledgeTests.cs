@@ -241,10 +241,10 @@ public sealed class CommandBindingKnowledgeTests(HeadlessGLFixture fixture)
             using var vao = GpuVao.Create();
             using var buffer = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = null }).RequireResource(); buffer.Allocate(256);
             using var capture = new BindingCallCapture();
-            var before = StateCache.Current.VertexConfigurationEpoch;
+            var before = StateCache.Current.GetVertexConfigurationRevision(vao.VertexArrayId);
             OpenGLVertexCalls.ExecuteCoreVertexArrayVertexBuffer(vao.VertexArrayId, 2, buffer.BufferId, (IntPtr)32, 24);
             OpenGLVertexCalls.ExecuteCoreVertexArrayBindingDivisor(vao.VertexArrayId, 2, 3);
-            Assert.NotEqual(before, StateCache.Current.VertexConfigurationEpoch);
+            Assert.NotEqual(before, StateCache.Current.GetVertexConfigurationRevision(vao.VertexArrayId));
             Assert.Equal(0, capture.Calls(nameof(GL.GetVertexArrayIndexed)));
             Assert.Equal(0, capture.Calls(nameof(GL.GetVertexArrayIndexed64)));
             GL.GetVertexArrayIndexed(vao.VertexArrayId, 2, (VertexArrayIndexedParameter)All.VertexBindingBuffer, out int selected);

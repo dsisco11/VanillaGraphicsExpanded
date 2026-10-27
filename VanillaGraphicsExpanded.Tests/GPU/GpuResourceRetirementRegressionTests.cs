@@ -59,7 +59,7 @@ public sealed class GpuResourceRetirementRegressionTests(HeadlessGLFixture fixtu
             using var view = VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLTextureIntegration.CreateBufferView(buffer, SizedInternalFormat.R32f, true, 0, 0, null).RequireResource();
             var entry = Assert.IsType<GpuResourceMetadataEntry<GpuTextureMetadata>>(manager.GetResourceRegistration(view));
             Assert.True(entry.MetadataAvailable);
-            RHICommandContext.Current.OpenGL.DeleteBuffer(buffer);
+            RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Buffer, buffer));
             Assert.False(GL.IsBuffer(buffer));
             Assert.Null(manager.FindResource(GpuResourceKind.Buffer, buffer));
             Assert.False(entry.MetadataAvailable);
@@ -69,7 +69,7 @@ public sealed class GpuResourceRetirementRegressionTests(HeadlessGLFixture fixtu
         }
         finally
         {
-            if (GL.IsBuffer(buffer)) RHICommandContext.Current.OpenGL.DeleteBuffer(buffer);
+            if (GL.IsBuffer(buffer)) RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Buffer, buffer));
             fixture.CleanupGpuResources();
             StateCache.Current.InvalidateAll();
         }
@@ -92,7 +92,7 @@ public sealed class GpuResourceRetirementRegressionTests(HeadlessGLFixture fixtu
             original = new GpuShaderModule(shader, ShaderType.VertexShader);
             var manager = GpuResourceManagerSystem.CurrentManager!;
             var retired = manager.GetResourceRegistration(original)!;
-            VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.OpenGL.DeleteShader(shader);
+            VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Shader, shader));
             Assert.Equal(GpuResourceRegistrationState.Deleted, retired.State);
             Assert.True(GL.IsShader(shader));
             GL.GetShader(shader, ShaderParameter.DeleteStatus, out int pending);
@@ -108,8 +108,8 @@ public sealed class GpuResourceRetirementRegressionTests(HeadlessGLFixture fixtu
         {
             original?.Dispose();
             if (attached && GL.IsProgram(program) && GL.IsShader(shader)) GL.DetachShader(program, shader);
-            if (GL.IsProgram(program)) VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.OpenGL.DeleteProgram(program);
-            if (GL.IsShader(shader)) VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.OpenGL.DeleteShader(shader);
+            if (GL.IsProgram(program)) VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Program, program));
+            if (GL.IsShader(shader)) VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Shader, shader));
             fixture.CleanupGpuResources();
             StateCache.Current.InvalidateAll();
         }
@@ -136,7 +136,7 @@ public sealed class GpuResourceRetirementRegressionTests(HeadlessGLFixture fixtu
             StateCache.Current.InvalidateAll();
             var manager = GpuResourceManagerSystem.CurrentManager!;
             var retired = manager.GetResourceRegistration(original)!;
-            VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.OpenGL.DeleteProgram(program);
+            VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Program, program));
             Assert.True(GL.IsProgram(program));
             GL.GetProgram(program, GetProgramParameterName.DeleteStatus, out int pending);
             Assert.Equal(1, pending);
@@ -154,8 +154,8 @@ public sealed class GpuResourceRetirementRegressionTests(HeadlessGLFixture fixtu
         {
             GL.UseProgram(0);
             original?.Dispose();
-            if (GL.IsProgram(program)) VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.OpenGL.DeleteProgram(program);
-            if (GL.IsShader(shader)) VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.OpenGL.DeleteShader(shader);
+            if (GL.IsProgram(program)) VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Program, program));
+            if (GL.IsShader(shader)) VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Shader, shader));
             fixture.CleanupGpuResources();
             StateCache.Current.InvalidateAll();
         }
@@ -199,16 +199,16 @@ public sealed class GpuResourceRetirementRegressionTests(HeadlessGLFixture fixtu
             var entry = manager.AcquireResource(GpuResourceKind.Framebuffer, framebuffer, GpuFramebufferMetadataReader.Instance)!;
             Assert.NotNull(entry);
             Assert.True(entry.MetadataAvailable);
-            if (renderbuffer) RHICommandContext.Current.OpenGL.DeleteRenderbuffer(backing);
-            else RHICommandContext.Current.OpenGL.DeleteTexture(backing);
+            if (renderbuffer) RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Renderbuffer, backing));
+            else RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Texture, backing));
             Assert.False(entry.MetadataAvailable);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
         finally
         {
-            VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.OpenGL.DeleteFramebuffer(framebuffer);
-            if (renderbuffer && GL.IsRenderbuffer(backing)) RHICommandContext.Current.OpenGL.DeleteRenderbuffer(backing);
-            if (!renderbuffer && GL.IsTexture(backing)) RHICommandContext.Current.OpenGL.DeleteTexture(backing);
+            VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Framebuffer, framebuffer));
+            if (renderbuffer && GL.IsRenderbuffer(backing)) RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Renderbuffer, backing));
+            if (!renderbuffer && GL.IsTexture(backing)) RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Texture, backing));
             fixture.CleanupGpuResources();
             StateCache.Current.InvalidateAll();
         }

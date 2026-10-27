@@ -106,7 +106,7 @@ public sealed class EngineBoundaryBindingTests(HeadlessGLFixture fixture)
         GL.ActiveTexture(TextureUnit.Texture0); GL.BindTexture(TextureTarget.Texture2D, texture); cache.InvalidateAll();
         Assert.True(cache.TryBeginEngineBoundary(new EngineBoundaryDeclaration("Retirement"), out var scope,
             new EngineBoundaryResources([(0, TextureTarget.Texture2D)])));
-        VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.OpenGL.DeleteTexture(texture);
+        VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Texture, texture));
         Assert.Throws<EngineBoundaryRestoreException>(() => scope!.Dispose());
         Assert.Equal(0, GL.GetInteger(GetPName.TextureBinding2D)); Assert.False(GL.IsTexture(texture));
         Assert.False(cache.TryGetCachedBoundTexture(TextureTarget.Texture2D, 0, out _));

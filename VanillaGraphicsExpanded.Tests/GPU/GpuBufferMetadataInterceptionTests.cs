@@ -159,7 +159,7 @@ public sealed class GpuBufferMetadataInterceptionTests(HeadlessGLFixture fixture
         finally
         {
             harmony.UnpatchAll(harmony.Id);
-            if (raw != 0) RHICommandContext.Current.OpenGL.DeleteBuffer(raw);
+            if (raw != 0) RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Buffer, raw));
             fixture.CleanupGpuResources();
             StateCache.Current.InvalidateAll();
         }

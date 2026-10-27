@@ -27,7 +27,7 @@ internal static class OpenGLImageSlotBindings
     internal static void BindImageTexture(StateCache cache, int unit, int texture, int level, bool layered,
         int layer, TextureAccess access, SizedInternalFormat format)
     {
-        var backend = RHICommandContext.Current.OpenGL;
+        var backend = RHICommandContext.Current;
         backend.RequireContext();
         var binding = new StateCache.ImageBinding(texture, level, layered, layer, access, format);
         if (!cache.NeedsImageBinding(unit, binding)) return;

@@ -22,8 +22,8 @@ public sealed partial class GpuProgramMetadataInterceptionTests(HeadlessGLFixtur
         var harmony=Patch(nameof(SetUnits));
         try
         {
-            using var program=CreateProgram(out int shader); VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.OpenGL.DeleteShader(shader);
-            using var sentinel=CreateProgram(out int sentinelShader); VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.OpenGL.DeleteShader(sentinelShader);
+            using var program=CreateProgram(out int shader); VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Shader, shader));
+            using var sentinel=CreateProgram(out int sentinelShader); VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Shader, sentinelShader));
             using var pipeline=GpuProgramPipeline.Create(); OpenGLProgramPipelineSelection.Bind(StateCache.Current, pipeline.PipelineId);
             bool bound=variant<3;
             OpenGLProgramSelection.Select(StateCache.Current, bound?program.ProgramId:sentinel.ProgramId);
@@ -50,7 +50,7 @@ public sealed partial class GpuProgramMetadataInterceptionTests(HeadlessGLFixtur
         fixture.EnsureContextValid(); fixture.InitializeResourceDisposal(); var harmony=Patch(nameof(SetUnits));
         try
         {
-            using var program=CreateProgram(out int shader); VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.OpenGL.DeleteShader(shader);
+            using var program=CreateProgram(out int shader); VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Shader, shader));
             using var pipeline=GpuProgramPipeline.Create(); OpenGLProgramPipelineSelection.Bind(StateCache.Current, pipeline.PipelineId); GL.ActiveShaderProgram(pipeline.PipelineId,program.ProgramId); OpenGLProgramSelection.Select(StateCache.Current, 0);
             var entry=GpuResourceManagerSystem.CurrentManager!.GetResourceRegistration(program)!; ulong revision=entry.MetadataRevision;
             int location=GL.GetUniformLocation(program.ProgramId,"inputs[0]"); SetUnits(0,program.ProgramId,location,5);
@@ -67,7 +67,7 @@ public sealed partial class GpuProgramMetadataInterceptionTests(HeadlessGLFixtur
         fixture.EnsureContextValid(); fixture.InitializeResourceDisposal(); var harmony=Patch(nameof(SetBlock));
         try
         {
-            using var program=CreateProgram(out int shader); VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.OpenGL.DeleteShader(shader);
+            using var program=CreateProgram(out int shader); VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Shader, shader));
             var entry=(GpuResourceMetadataEntry<GpuProgramMetadata>)GpuResourceManagerSystem.CurrentManager!.GetResourceRegistration(program)!;
             var kind=storage?ProgramInterface.ShaderStorageBlock:ProgramInterface.UniformBlock;
             int index=GL.GetProgramResourceIndex(program.ProgramId,kind,storage?"Output":"Parameters");
@@ -93,7 +93,7 @@ public sealed partial class GpuProgramMetadataInterceptionTests(HeadlessGLFixtur
             GL.ShaderSource(shader,Source); GL.CompileShader(shader); Link(program.ProgramId);
             Assert.True(alias.Snapshot.ExecutableAvailable); Assert.NotEmpty(alias.Snapshot.TextureUnits); Assert.Equal(ErrorCode.NoError,GL.GetError());
         }
-        finally { if(shader!=0) VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.OpenGL.DeleteShader(shader); harmony.UnpatchAll(harmony.Id); fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { if(shader!=0) VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Shader, shader)); harmony.UnpatchAll(harmony.Id); fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
     }
     /// <summary>Native dispatch exceptions withdraw existing facts until an explicit successful refresh.</summary>
     [Fact]
@@ -102,7 +102,7 @@ public sealed partial class GpuProgramMetadataInterceptionTests(HeadlessGLFixtur
         fixture.EnsureContextValid(); fixture.InitializeResourceDisposal(); var harmony=Patch(nameof(SetUnits));
         try
         {
-            using var program=CreateProgram(out int shader,true); VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.OpenGL.DeleteShader(shader);
+            using var program=CreateProgram(out int shader,true); VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Shader, shader));
             var manager=GpuResourceManagerSystem.CurrentManager!; var entry=manager.GetResourceRegistration(program)!;
             var layout=PrepareArrayLayout(program);
             int location=GL.GetUniformLocation(program.ProgramId,"inputs[0]");
@@ -127,7 +127,7 @@ public sealed partial class GpuProgramMetadataInterceptionTests(HeadlessGLFixtur
             Assert.Null(GpuResourceManagerSystem.CurrentManager!.FindResource(GpuResourceKind.Program,program));
             Assert.Equal(ErrorCode.NoError,GL.GetError());
         }
-        finally { VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.OpenGL.DeleteProgram(program); harmony.UnpatchAll(harmony.Id); fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Program, program)); harmony.UnpatchAll(harmony.Id); fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
     }
     /// <summary>A context change between admission and completion prevents publication under a different manager context.</summary>
     [Fact]
@@ -137,7 +137,7 @@ public sealed partial class GpuProgramMetadataInterceptionTests(HeadlessGLFixtur
         using var manager=new GpuResourceManager(()=>current,static _=>true); GpuResourceManagerSystem.Initialize(manager);
         try
         {
-            using var program=CreateProgram(out int shader); VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.OpenGL.DeleteShader(shader);
+            using var program=CreateProgram(out int shader); VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Shader, shader));
             var entry=manager.GetResourceRegistration(program)!; ulong revision=entry.MetadataRevision;
             var token=StateCache.BeginNativeProgramMetadata(program.ProgramId,true,false,-1,1);
             current=(origin.Item1,origin.Item2+1); token.Complete(true); current=origin;
@@ -154,8 +154,8 @@ public sealed partial class GpuProgramMetadataInterceptionTests(HeadlessGLFixtur
         fixture.EnsureContextValid(); fixture.InitializeResourceDisposal(); var harmony=Patch(nameof(SelectProgram)); var units=Patch(nameof(SetUnits));
         try
         {
-            using var first=CreateProgram(out int shader); VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.OpenGL.DeleteShader(shader);
-            using var second=CreateProgram(out shader); VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.OpenGL.DeleteShader(shader);
+            using var first=CreateProgram(out int shader); VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Shader, shader));
+            using var second=CreateProgram(out shader); VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Shader, shader));
             OpenGLProgramSelection.Select(StateCache.Current, first.ProgramId);
             var manager=GpuResourceManagerSystem.CurrentManager!; var a=manager.GetResourceRegistration(first)!; var b=manager.GetResourceRegistration(second)!;
             ulong ar=a.MetadataRevision,br=b.MetadataRevision;
@@ -176,7 +176,7 @@ public sealed partial class GpuProgramMetadataInterceptionTests(HeadlessGLFixtur
         fixture.EnsureContextValid(); fixture.InitializeResourceDisposal(); var harmony=Patch(nameof(SelectPipeline)); var units=Patch(nameof(SetUnits));
         try
         {
-            using var program=CreateProgram(out int shader); VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.OpenGL.DeleteShader(shader);
+            using var program=CreateProgram(out int shader); VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Shader, shader));
             using var first=GpuProgramPipeline.Create(); using var second=GpuProgramPipeline.Create(); OpenGLProgramPipelineSelection.Bind(StateCache.Current, first.PipelineId);
             GL.ActiveShaderProgram(second.PipelineId,program.ProgramId); OpenGLProgramSelection.Select(StateCache.Current, 0);
             SelectPipeline(extension,second.PipelineId); Assert.Equal(second.PipelineId,StateCache.Current.GetCurrentProgramPipeline());
@@ -194,7 +194,7 @@ public sealed partial class GpuProgramMetadataInterceptionTests(HeadlessGLFixtur
         fixture.EnsureContextValid(); fixture.InitializeResourceDisposal(); var harmony=Patch(nameof(InstallBinary));
         try
         {
-            using var source=CreateProgram(out int shader); VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.OpenGL.DeleteShader(shader);
+            using var source=CreateProgram(out int shader); VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Shader, shader));
             GL.GetProgram(source.ProgramId,GetProgramParameterName.ProgramBinaryLength,out int length); Assert.True(length>0);
             var binary=new byte[length]; BinaryFormat format;
             fixed(byte* pointer=binary) GL.GetProgramBinary(source.ProgramId,length,out length,out format,(IntPtr)pointer);

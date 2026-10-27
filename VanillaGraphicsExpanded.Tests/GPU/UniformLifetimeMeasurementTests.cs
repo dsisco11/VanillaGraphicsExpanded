@@ -40,10 +40,10 @@ public sealed class UniformLifetimeMeasurementTests(HeadlessGLFixture fixture, I
                 for (int mesh = 0; mesh < 4; mesh++)
                 {
                     draw.SetOrigin(new Vector3(index, mesh, 0));
-                    Assert.True(RHICommandContext.Current.OpenGL.BindEngineUniform(0, frame.Capture()));
-                    Assert.True(RHICommandContext.Current.OpenGL.BindEngineUniform(1, draw.Capture()));
-                    Assert.True(RHICommandContext.Current.OpenGL.BindEngineUniform(2, resolve.Capture()));
-                    Assert.True(RHICommandContext.Current.OpenGL.BindEngineUniform(3, referenceResolve.Capture()));
+                    Assert.True(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLRHIContext.BindEngineUniform(0, frame.Capture()));
+                    Assert.True(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLRHIContext.BindEngineUniform(1, draw.Capture()));
+                    Assert.True(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLRHIContext.BindEngineUniform(2, resolve.Capture()));
+                    Assert.True(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLRHIContext.BindEngineUniform(3, referenceResolve.Capture()));
                     publications += 4;
                 }
                 ring.EndFrame();

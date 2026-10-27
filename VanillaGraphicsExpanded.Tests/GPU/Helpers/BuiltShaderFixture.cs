@@ -28,7 +28,7 @@ internal static class BuiltShaderFixture
     public static int LoadFixture(string path, ShaderType type)
     {
         byte[] binary = File.ReadAllBytes(Path.Combine(AppContext.BaseDirectory, "assets", "shaders", path + ".spv"));
-        using var module = RHICommandContext.Current.OpenGL.CompileExternalStage(new(PrecompiledStageFixture.Stage(type), binary)).RequireResource();
+        using var module = VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLRHIContext.CompileExternalStage(new(PrecompiledStageFixture.Stage(type), binary)).RequireResource();
         return (int)module.Detach();
     }
     /// <summary>Builds the numeric interface for fixture programs without relying on stripped binary names.</summary>

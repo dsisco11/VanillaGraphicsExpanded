@@ -93,7 +93,7 @@ public sealed class GpuProgramUniformMetadataTests(HeadlessGLFixture fixture)
             GL.UseProgramStages(target.PipelineId,ProgramStageMask.ComputeShaderBit,program.ProgramId); GL.ActiveShaderProgram(target.PipelineId,program.ProgramId);
             Assert.Equal(0,nativeCalls); Assert.Equal(sentinel.PipelineId,GL.GetInteger(GetPName.ProgramPipelineBinding)); Assert.Equal(program.ProgramId,GL.GetInteger(GetPName.CurrentProgram));
             GL.GetProgramPipeline(target.PipelineId,ProgramPipelineParameter.ComputeShader,out int stage); GL.GetProgramPipeline(target.PipelineId,ProgramPipelineParameter.ActiveProgram,out int active); Assert.Equal(program.ProgramId,stage); Assert.Equal(program.ProgramId,active);
-            int id=target.PipelineId; VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.OpenGL.DeleteProgramPipeline(id); Assert.False(target.IsValid); Assert.False(GL.IsProgramPipeline(id)); Assert.Equal(ErrorCode.NoError,GL.GetError());
+            int id=target.PipelineId; VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.ProgramPipeline, id)); Assert.False(target.IsValid); Assert.False(GL.IsProgramPipeline(id)); Assert.Equal(ErrorCode.NoError,GL.GetError());
         }
         finally { harmony.UnpatchAll(harmony.Id); OpenGLProgramSelection.Select(StateCache.Current, 0); OpenGLProgramPipelineSelection.Bind(StateCache.Current, 0); fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
     }
@@ -134,8 +134,8 @@ public sealed class GpuProgramUniformMetadataTests(HeadlessGLFixture fixture)
         }
         finally
         {
-            VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.OpenGL.DeleteShader(shader);
-            if (program != 0) VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.OpenGL.DeleteProgram(program);
+            VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Shader, shader));
+            if (program != 0) VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Program, program));
         }
     }
     #endregion

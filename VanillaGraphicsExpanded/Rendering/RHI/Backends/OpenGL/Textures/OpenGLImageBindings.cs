@@ -13,8 +13,8 @@ internal static class OpenGLImageBindings
     /// <summary>Selects an active unit, retaining the existing observable selector contract.</summary>
     internal static void ActiveTexture(StateCache cache, int unit)
     {
-        var backend = RHICommandContext.Current.OpenGL;
-        if (unit < 0 || unit >= backend.NativeCapabilities.MaxCombinedTextureImageUnits) throw new ArgumentOutOfRangeException(nameof(unit));
+        var backend = RHICommandContext.Current;
+        if (unit < 0 || unit >= backend.Capabilities.MaxCombinedTextureImageUnits) throw new ArgumentOutOfRangeException(nameof(unit));
         if (cache.ActiveTextureKnowledge == unit) return;
         cache.ActiveTextureKnowledge = null;
         GL.ActiveTexture(Native.TextureUnit.Texture0 + unit);
@@ -24,7 +24,7 @@ internal static class OpenGLImageBindings
     /// <summary>Changes a target on the active unit without guessing an unknown selector.</summary>
     internal static void BindTextureOnActiveUnit(StateCache cache, TextureTarget target, int texture)
     {
-        var backend = RHICommandContext.Current.OpenGL;
+        var backend = RHICommandContext.Current;
         int? unit = cache.ActiveTextureKnowledge;
         if (unit is int known && cache.TryGetCachedBoundTexture(target, known, out int previous) && previous == texture) return;
         cache.ForgetImageBinding(target, unit);
@@ -53,8 +53,8 @@ internal static class OpenGLImageBindings
     /// <summary>Binds a certified sampler name while retaining slot suppression.</summary>
     internal static void BindSampler(StateCache cache, int unit, int sampler)
     {
-        var backend = RHICommandContext.Current.OpenGL;
-        if (unit < 0 || unit >= backend.NativeCapabilities.MaxCombinedTextureImageUnits) throw new ArgumentOutOfRangeException(nameof(unit));
+        var backend = RHICommandContext.Current;
+        if (unit < 0 || unit >= backend.Capabilities.MaxCombinedTextureImageUnits) throw new ArgumentOutOfRangeException(nameof(unit));
         if (cache.SamplerKnowledge(unit) == sampler) return;
         cache.SetSamplerKnowledge(unit, null);
         GL.BindSampler(unit, sampler);
@@ -73,7 +73,7 @@ internal static class OpenGLImageBindings
     /// <summary>Changes renderbuffer selection after existing boundary admission.</summary>
     internal static void BindRenderbuffer(StateCache cache, int renderbuffer)
     {
-        var backend = RHICommandContext.Current.OpenGL;
+        var backend = RHICommandContext.Current;
         if (renderbuffer < 0) throw new ArgumentOutOfRangeException(nameof(renderbuffer));
         cache.RequireBoundaryResource(EPipelineState.RenderbufferBinding, renderbuffer);
         if (cache.RenderbufferKnowledge == renderbuffer) return;

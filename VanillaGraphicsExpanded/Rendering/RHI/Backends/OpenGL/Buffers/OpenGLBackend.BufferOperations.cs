@@ -116,7 +116,7 @@ internal sealed partial class OpenGLBackend
     }
 
     /// <summary>Maps a current allocation using named access; failure never retries another path.</summary>
-    internal nint MapBuffer(GpuBufferRef buffer, nint offset, nint byteCount, BufferMapAccess access)
+    public nint MapBuffer(GpuBufferRef buffer, nint offset, nint byteCount, BufferMapAccess access)
     {
         var owner = RequireRange(buffer, offset, byteCount);
         const BufferMapAccess supported = BufferMapAccess.Read | BufferMapAccess.Write | BufferMapAccess.InvalidateRange
@@ -143,25 +143,19 @@ internal sealed partial class OpenGLBackend
     }
 
     /// <summary>Flushes the original mapped owner under current identity checks.</summary>
-    internal void FlushMappedBuffer(GpuBufferRef buffer, nint offset, nint byteCount)
+    public void FlushMappedBuffer(GpuBufferRef buffer, nint offset, nint byteCount)
     {
         var owner = RequireRange(buffer, offset, byteCount);
         GL.FlushMappedNamedBufferRange((int)owner.ResourceId, offset, byteCount);
     }
 
     /// <summary>Unmaps the original resource without binding or retry.</summary>
-    internal bool UnmapBuffer(GpuBufferRef buffer)
+    public bool UnmapBuffer(GpuBufferRef buffer)
     {
         var owner = RequireRange(buffer, 0, 0);
         return GL.UnmapNamedBuffer((int)owner.ResourceId);
     }
 
-    /// <summary>Reads explicit buffer bytes for an existing synchronous diagnostic consumer.</summary>
-    internal unsafe void ReadBuffer(GpuBufferRef buffer, nint offset, Span<byte> bytes)
-    {
-        var owner = RequireRange(buffer, offset, bytes.Length);
-        fixed (byte* pointer = bytes) GL.GetNamedBufferSubData((int)owner.ResourceId, offset, bytes.Length, (nint)pointer);
-    }
     #endregion
 
     #region Private

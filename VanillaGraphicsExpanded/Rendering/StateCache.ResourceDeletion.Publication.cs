@@ -20,7 +20,7 @@ internal sealed partial class StateCache
         CancelResourceOperation(kind, nativeId);
         GpuResourceManagerSystem.CurrentManager?.ObserveDeletion(kind, nativeId);
         int id = unchecked((int)nativeId);
-        RHI.RHICommandContext.NotifyResourceDeleted(this, kind, id);
+        RHI.Backends.OpenGL.OpenGLRHIContext.NotifyResourceDeleted(this, kind, id);
         // Reconcile only the bindings whose native command has an implicit unbinding effect.
         switch (kind)
         {
@@ -56,7 +56,7 @@ internal sealed partial class StateCache
                 if (currentFramebuffer == id) currentFramebuffer = 0;
                 break;
             case GpuResourceKind.VertexArray:
-                VertexConfigurationEpoch++;
+                InvalidateVertexConfiguration(id);
                 RecordBoundaryRetirement(EPipelineState.VertexArray, id);
                 elementArrayBufferByVao.Remove(id);
                 if (currentVao == id) currentVao = 0;

@@ -3,12 +3,10 @@ using System;
 namespace VanillaGraphicsExpanded.Rendering.RHI;
 
 /// <summary>Defines semantic buffer execution without native overload or binding-path selectors.</summary>
-internal partial interface IRHIBackend : IRHIResourceExecution
+internal partial interface IRHIBackend : IRHIResourceExecution, IRHIContextLifetime
 {
     /// <summary>Gets the existing context capability projection.</summary>
     RHICapabilities Capabilities { get; }
-    /// <summary>Checks original context and thread before an operation starts.</summary>
-    void RequireContext();
     /// <summary>Creates the requested existing owner and completes private metadata handoff.</summary>
     RHICreationResult<GpuBufferObject> CreateBuffer(in RHIBufferDescription description, RHIBufferInitialData initialData);
     /// <summary>Allocates storage under the owning abstraction's authority and publishes once.</summary>

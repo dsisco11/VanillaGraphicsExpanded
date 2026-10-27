@@ -34,7 +34,7 @@ public sealed class GpuInitialTextureDependencyTests(HeadlessGLFixture fixture)
             Assert.NotNull(manager.AcquireResource(GpuResourceKind.Buffer,buffer,new GpuBufferMetadataReader()));
             Assert.True(entry.StorageRevision>revision); Assert.True(manager.IsResourceMetadataAvailable(alias)); Assert.Equal(ErrorCode.NoError,GL.GetError());
         }
-        finally { RHICommandContext.Current.OpenGL.DeleteTexture(texture); RHICommandContext.Current.OpenGL.DeleteBuffer(buffer); fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Texture, texture)); RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Buffer, buffer)); fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
     }
     /// <summary>A failed association acquisition cannot publish a texture whose reported backing is nonexistent.</summary>
     [Fact]
@@ -51,7 +51,7 @@ public sealed class GpuInitialTextureDependencyTests(HeadlessGLFixture fixture)
             // Invalid-object admission is rejected before any descriptor query.
             Assert.Equal(ErrorCode.NoError,GL.GetError());
         }
-        finally { RHICommandContext.Current.OpenGL.DeleteTexture(texture); fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Texture, texture)); fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
     }
     #endregion
     #region Private

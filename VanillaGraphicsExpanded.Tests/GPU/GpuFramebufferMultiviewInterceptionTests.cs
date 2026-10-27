@@ -31,7 +31,7 @@ public sealed class GpuFramebufferMultiviewInterceptionTests(HeadlessGLFixture f
             var descriptor=entry.Metadata.Attachments[FramebufferAttachment.ColorAttachment0]; Assert.Equal(GpuFramebufferAttachmentMode.Multiview,descriptor.Mode); Assert.Equal(1,descriptor.BaseView); Assert.Equal(2,descriptor.ViewCount); Assert.Equal(useView?view.TextureId:array.TextureId,descriptor.Id);
             Assert.Equal(2,image.ImageDepth); Assert.Equal(ErrorCode.NoError,GL.GetError());
         }
-        finally { RHICommandContext.Current.OpenGL.DeleteTexture(texture); fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Texture, texture)); fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
     }
     /// <summary>Unobserved initial attachment mode may expose native range facts but cannot invent replay semantics.</summary>
     [Fact]
@@ -48,7 +48,7 @@ public sealed class GpuFramebufferMultiviewInterceptionTests(HeadlessGLFixture f
             using var ordinary=GpuFramebufferAttachment.FromTexture(array,layer:0); using var target=DynamicGpuFramebuffer.Create([ordinary])!;
             Assert.Throws<NotSupportedException>(()=>image.AttachTo(target,FramebufferAttachment.ColorAttachment0)); Assert.Equal(ErrorCode.NoError,GL.GetError());
         }
-        finally { VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.OpenGL.DeleteFramebuffer(framebuffer); RHICommandContext.Current.OpenGL.DeleteTexture(texture); fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Framebuffer, framebuffer)); RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Texture, texture)); fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
     }
     /// <summary>Backing storage publication refreshes selected extents and replays the proven OVR range.</summary>
     [Theory]
@@ -67,7 +67,7 @@ public sealed class GpuFramebufferMultiviewInterceptionTests(HeadlessGLFixture f
             Assert.Equal(16,image.Width); Assert.Equal(8,image.Height); Assert.Equal(2,image.ImageDepth);
             GL.GetFramebufferAttachmentParameter(FramebufferTarget.Framebuffer,FramebufferAttachment.ColorAttachment0,(FramebufferParameterName)All.FramebufferAttachmentTextureBaseViewIndexOvr,out int first); GL.GetFramebufferAttachmentParameter(FramebufferTarget.Framebuffer,FramebufferAttachment.ColorAttachment0,(FramebufferParameterName)All.FramebufferAttachmentTextureNumViewsOvr,out int count); Assert.Equal(1,first); Assert.Equal(2,count); Assert.Equal(ErrorCode.NoError,GL.GetError());
         }
-        finally { RHICommandContext.Current.OpenGL.DeleteTexture(texture); fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Texture, texture)); fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
     }
     #endregion
 }

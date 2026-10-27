@@ -144,7 +144,7 @@ public sealed class GpuBufferViewDependencyTests(HeadlessGLFixture fixture)
             int oldId = buffer.BufferId;
             var original = (GpuResourceMetadataEntry<GpuBufferMetadata>)manager.GetResourceRegistration(buffer)!;
             var originalMetadata = original.Metadata;
-            RHICommandContext.Current.OpenGL.DeleteBuffer(oldId);
+            RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Buffer, oldId));
             Assert.False(manager.IsResourceMetadataAvailable(view));
             // Deterministically exercise registry name reuse without assuming the driver's allocator reuses this integer.
             var replacement = manager.RegisterCreatedResource<GpuBufferMetadata>(GpuResourceKind.Buffer, oldId);
@@ -203,12 +203,12 @@ public sealed class GpuBufferViewDependencyTests(HeadlessGLFixture fixture)
             Assert.True(viewEntry.StorageRevision > revision);
             Assert.True(view.IsValid);
             Assert.Equal(0, view.SizeBytes);
-            RHICommandContext.Current.OpenGL.DeleteBuffer(buffer);
+            RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Buffer, buffer));
             Assert.False(view.IsValid);
             Assert.False(manager.IsResourceMetadataAvailable(view));
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { harmony.UnpatchAll(harmony.Id); RHICommandContext.Current.OpenGL.DeleteBuffer(buffer); fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { harmony.UnpatchAll(harmony.Id); RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Buffer, buffer)); fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
     }
     #endregion
 

@@ -68,9 +68,9 @@ internal static class FrameShaderBindingHook
                 buffers.Count > (int)Vintagestory.API.Client.EnumFrameBuffer.Transparent ? buffers[(int)Vintagestory.API.Client.EnumFrameBuffer.Transparent] : null);
             if (route == 0) return;
         }
-        if (membership.Frame && !RHICommandContext.Current.OpenGL.BindEngineUniform(GpuBindingRegistry.Ubo.Frame, VgeFrameRenderer.Current.Capture()))
+        if (membership.Frame && !VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLRHIContext.BindEngineUniform(GpuBindingRegistry.Ubo.Frame, VgeFrameRenderer.Current.Capture()))
             throw new InvalidOperationException("The engine camera consumer could not bind its shared frame snapshot.");
-        if (membership.Lights && !RHICommandContext.Current.OpenGL.BindEngineUniform(GpuBindingRegistry.Ubo.Lights, VgeLightsRenderer.Current.Capture()))
+        if (membership.Lights && !VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLRHIContext.BindEngineUniform(GpuBindingRegistry.Ubo.Lights, VgeLightsRenderer.Current.Capture()))
             throw new InvalidOperationException("The engine light consumer could not bind its shared light snapshot.");
         if (membership.Energy)
         {

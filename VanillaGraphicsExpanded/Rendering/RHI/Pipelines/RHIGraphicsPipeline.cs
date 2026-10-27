@@ -1,16 +1,13 @@
 using System;
 using System.Threading;
-using VanillaGraphicsExpanded.Rendering.Pipeline;
 using VanillaGraphicsExpanded.Rendering.Pipeline.Descriptions;
-using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
-using VanillaGraphicsExpanded.Rendering.Spirv;
 
 namespace VanillaGraphicsExpanded.Rendering.RHI;
 
 /// <summary>Owns immutable graphics application data for one fixed executable on its original context.</summary>
 public sealed class RHIGraphicsPipeline : IDisposable
 {
-    private readonly OpenGLBackend backend;
+    private readonly IRHIContextLifetime origin;
     private int lifetime;
 
     #region Public API
@@ -29,24 +26,20 @@ public sealed class RHIGraphicsPipeline : IDisposable
     #endregion
 
     #region Internal API
-    /// <summary>Gets the executable's immutable resource interface without another preparation pass.</summary>
-    internal GpuPreparedBindings Bindings { get; }
-    /// <summary>Gets the prepared native relevance used by application and selective restoration.</summary>
-    internal GraphicsStateRelevance Relevance { get; }
-    /// <summary>Gets the complete potential state footprint admitted before execution.</summary>
-    internal PipelineStateCoverage Coverage { get; }
+    /// <summary>Gets opaque backend application data without native policy on the semantic object.</summary>
+    internal IRHIGraphicsPipelineRealization Realization { get; }
     /// <summary>Publishes application data only after the backend validates every executable and state dependency.</summary>
-    internal RHIGraphicsPipeline(OpenGLBackend backend, RHIGraphicsPipelineDescription description,
-        GpuPreparedBindings bindings, GraphicsStateRelevance relevance)
+    internal RHIGraphicsPipeline(IRHIContextLifetime origin, RHIGraphicsPipelineDescription description,
+        IRHIGraphicsPipelineRealization realization)
     {
-        this.backend = backend; Description = description; Bindings = bindings;
-        Relevance = relevance; Coverage = PipelineStateCoverage.From(relevance);
+        this.origin = origin; Description = description;
+        Realization = realization;
     }
     /// <summary>Rejects retired, changed or wrong-context dependencies without consulting a mutable asset owner.</summary>
     internal RHIShader RequireShader()
     {
         ObjectDisposedException.ThrowIf(IsDisposed, this);
-        backend.RequireContext();
+        origin.RequireContext();
         return Description.Shader.RequireShader();
     }
     /// <summary>Requires an exact format/aspect/sample contract while excluding framebuffer identity and dimensions.</summary>

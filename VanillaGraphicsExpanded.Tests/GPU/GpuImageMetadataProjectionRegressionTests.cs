@@ -124,8 +124,8 @@ public sealed class GpuImageMetadataProjectionRegressionTests(HeadlessGLFixture 
         }
         finally
         {
-            VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.OpenGL.DeleteFramebuffer(framebuffer);
-            RHICommandContext.Current.OpenGL.DeleteTexture(texture);
+            VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Framebuffer, framebuffer));
+            RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Texture, texture));
             fixture.CleanupGpuResources();
             StateCache.Current.InvalidateAll();
         }

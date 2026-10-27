@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.Pipeline.Descriptions;
 using System;
 using HarmonyLib;
 using VanillaGraphicsExpanded.Rendering;
@@ -61,7 +62,7 @@ public sealed class RHIComputePipelineTests(HeadlessGLFixture fixture)
         try
         {
             var context = RHICommandContext.Current;
-            using var shader = context.CreateShader(RHIShaderInputs.ComputeDescription()).RequireResource();
+            using var shader = context.CreateShader(RHIShaderInputs.EmptyComputeDescription()).RequireResource();
             using var pipeline = context.CreateComputePipeline(new(shader)).RequireResource();
             int calls = 0;
             DispatchObservation.Callback = () =>
@@ -75,6 +76,7 @@ public sealed class RHIComputePipelineTests(HeadlessGLFixture fixture)
             harmony.Patch(AccessTools.Method(typeof(OpenTK.Graphics.OpenGL4.GL), "DispatchCompute", [typeof(int), typeof(int), typeof(int)]),
                 prefix: new HarmonyMethod(typeof(DispatchObservation), nameof(DispatchObservation.BeforeDispatch)));
             context.SetPipeline(pipeline);
+            context.BindResources(new(shader));
             // Zero workgroups exercise dispatch callbacks without running a shader whose resources are unbound.
             context.Dispatch(new(0));
             Assert.Equal(1, calls);
@@ -98,19 +100,63 @@ public sealed class RHIComputePipelineTests(HeadlessGLFixture fixture)
         try
         {
             var context = RHICommandContext.Current;
-            using var shader = context.CreateShader(RHIShaderInputs.ComputeDescription()).RequireResource();
+            using var shader = context.CreateShader(RHIShaderInputs.EmptyComputeDescription()).RequireResource();
             using var pipeline = context.CreateComputePipeline(new(shader)).RequireResource();
             context.SetPipeline(pipeline);
+            context.BindResources(new(shader));
             context.Dispatch(new(0));
             pipeline.Dispose();
             shader.Dispose();
-            using var replacement = context.CreateShader(RHIShaderInputs.ComputeDescription()).RequireResource();
+            using var replacement = context.CreateShader(RHIShaderInputs.EmptyComputeDescription()).RequireResource();
             using var replacementPipeline = context.CreateComputePipeline(new(replacement)).RequireResource();
             using var boundary = context.EnterBoundary(new("Tests.RetiredCurrentShader", true, compute: [replacementPipeline]));
             boundary.Run(() => { context.SetPipeline(replacementPipeline); context.BindResources(new(replacement)); context.Dispatch(new(0)); });
             Assert.Equal(OpenTK.Graphics.OpenGL.ErrorCode.NoError, OpenTK.Graphics.OpenGL.GL.GetError());
         }
         finally { fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+    }
+    /// <summary>Fixed pipeline admission rejects foreign threads and retired contexts without touching their native resources.</summary>
+    [Fact]
+    public void FixedRealizationsRequireTheirOriginalExecutionDomain()
+    {
+        fixture.EnsureContextValid();
+        var domain = new object();
+        VanillaGraphicsExpanded.Rendering.Integration.RenderContextRegistry.RegisterCurrent(domain, static _ => true);
+        try
+        {
+            var context = RHICommandContext.Current;
+            using var compute = context.CreateShader(new(ShaderKind.Compute,
+                [new(ShaderStage.Compute, "#version 450\nlayout(local_size_x=1) in; void main() {}")], new())).RequireResource();
+            using var graphics = context.CreateShader(new(ShaderKind.Graphics,
+                [new(ShaderStage.Vertex, "#version 450\nvoid main() { gl_Position=vec4(0,0,0,1); }"),
+                 new(ShaderStage.Fragment, "#version 450\nlayout(location=0) out vec4 color; void main() { color=vec4(1); }")], new())).RequireResource();
+            using var computePipeline = context.CreateComputePipeline(new(compute)).RequireResource();
+            using var graphicsPipeline = context.CreateGraphicsPipeline(new(graphics, new([]),
+                new([new(TextureFormat.Rgba8)]), DynamicPipelineState.Viewport)).RequireResource();
+            Exception? threadFailure = null;
+            var worker = new System.Threading.Thread(() =>
+            {
+                try
+                {
+                Assert.Throws<InvalidOperationException>(() => computePipeline.RequireShader());
+                Assert.Throws<InvalidOperationException>(() => graphicsPipeline.RequireShader());
+                }
+                catch (Exception error) { threadFailure = error; }
+            });
+            worker.Start(); worker.Join();
+            Assert.Null(threadFailure);
+            Assert.Same(compute, computePipeline.RequireShader());
+            Assert.Same(graphics, graphicsPipeline.RequireShader());
+            VanillaGraphicsExpanded.Rendering.Integration.RenderContextRegistry.Retire(domain);
+            Assert.Throws<InvalidOperationException>(() => computePipeline.RequireShader());
+            Assert.Throws<InvalidOperationException>(() => graphicsPipeline.RequireShader());
+        }
+        finally
+        {
+            VanillaGraphicsExpanded.Rendering.Integration.RenderContextRegistry.Retire(domain);
+            VanillaGraphicsExpanded.Rendering.Integration.RenderContextRegistry.RegisterCurrent(fixture, static _ => true);
+            StateCache.Current.InvalidateAll();
+        }
     }
     #endregion
 

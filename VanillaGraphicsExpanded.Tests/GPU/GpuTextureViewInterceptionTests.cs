@@ -71,8 +71,8 @@ public sealed class GpuTextureViewInterceptionTests(HeadlessGLFixture fixture)
         finally
         {
             harmony.UnpatchAll(harmony.Id);
-            RHICommandContext.Current.OpenGL.DeleteTexture(viewId);
-            RHICommandContext.Current.OpenGL.DeleteTexture(sourceId);
+            RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Texture, viewId));
+            RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Texture, sourceId));
             fixture.CleanupGpuResources();
             StateCache.Current.InvalidateAll();
         }
@@ -104,7 +104,7 @@ public sealed class GpuTextureViewInterceptionTests(HeadlessGLFixture fixture)
             Assert.Equal(sourceRevision, sourceEntry.MetadataRevision);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { harmony.UnpatchAll(harmony.Id); RHICommandContext.Current.OpenGL.DeleteTexture(sourceId); fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { harmony.UnpatchAll(harmony.Id); RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Texture, sourceId)); fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
     }
     #endregion
 

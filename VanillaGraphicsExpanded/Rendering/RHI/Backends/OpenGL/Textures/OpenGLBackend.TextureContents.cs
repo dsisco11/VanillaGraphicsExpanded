@@ -103,11 +103,17 @@ internal sealed partial class OpenGLBackend
         int tightRow = checked(region.Width * pixelBytes);
         int row = rowPitch == 0 ? tightRow : rowPitch;
         int slice = slicePitch == 0 ? checked(row * region.Height) : slicePitch;
-        if (row < tightRow || row % pixelBytes != 0 || slice < checked(row * region.Height) || slice % row != 0)
+        if (row < tightRow || slice < checked(row * region.Height) || slice % row != 0)
             throw new ArgumentException("Pitches do not represent a complete pixel/row layout.");
         long needed = checked((long)(region.Depth - 1) * slice + (long)(region.Height - 1) * row + tightRow);
         if (byteCount < needed) throw new ArgumentException("Pixel payload is shorter than its region and pitches.");
-        return new(1, row / pixelBytes, ImageHeight: slice / row);
+        // Pixel rows can contain alignment padding that is not a whole texel (for example RGB8).
+        int rowLength = row / pixelBytes;
+        int alignment = 1;
+        while (alignment <= 8 && ((long)rowLength * pixelBytes + alignment - 1) / alignment * alignment != row)
+            alignment *= 2;
+        if (alignment > 8) throw new ArgumentException("Row pitch cannot be represented by an OpenGL unpack layout.");
+        return new(alignment, rowLength, ImageHeight: slice / row);
     }
 
     /// <summary>Dispatches one named upload with cube faces and array layers expressed in native coordinates.</summary>

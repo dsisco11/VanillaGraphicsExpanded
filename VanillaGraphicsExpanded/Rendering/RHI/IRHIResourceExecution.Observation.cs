@@ -16,5 +16,5 @@ internal partial interface IRHIResourceExecution
     /// <summary>Acquires explicitly requested facts in the original context without publishing metadata.</summary>
     bool ReadExternalProgramBlockBinding(int program, ProgramInterface block, int index, out int value);
     /// <summary>Acquires explicitly requested facts in the original context without publishing metadata.</summary>
-    RHIGeometryContext CaptureGeometryContext();
+    RHIGeometryContext CaptureGeometryContext(int array);
 }

@@ -75,11 +75,11 @@ public sealed class TerrainEyeRelativeShadingTests : RenderTestBase
                 float c=MathF.Cos(radians),s=MathF.Sin(radians);
                 float[] view=[c,s,0,0,-s,c,0,0,0,0,1,0,-c*eye.X+s*eye.Y,-s*eye.X-c*eye.Y,-eye.Z,1];
                 using var frameCamera = TestFrameCamera.Create(Vintagestory.API.MathTools.Mat4f.Create(), view, 2, 2);
-                Assert.True(RHICommandContext.Current.OpenGL.BindEngineUniform(GpuBindingRegistry.Ubo.Frame, frameCamera.Capture()));
+                Assert.True(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLRHIContext.BindEngineUniform(GpuBindingRegistry.Ubo.Frame, frameCamera.Capture()));
                 UboPacking.WriteVec3(inputBytes, 0, position.X, position.Y, position.Z);
                 UboPacking.WriteInt32(inputBytes, 12, mode);
                 inputs.SetBytes(inputBytes);
-                Assert.True(RHICommandContext.Current.OpenGL.BindEngineUniform(GpuBindingRegistry.Ubo.ShaderInputs, inputs.Capture()));
+                Assert.True(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLRHIContext.BindEngineUniform(GpuBindingRegistry.Ubo.ShaderInputs, inputs.Capture()));
                 FramebufferTestSetup.BindForEngineRendering(target); GL.DrawArrays(PrimitiveType.Triangles,0,3);
                 float[] pixel=new float[4]; GL.ReadPixels(0,0,1,1,PixelFormat.Rgba,PixelType.Float,pixel);
                 return pixel;

@@ -1,12 +1,11 @@
 using System;
-using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 
 namespace VanillaGraphicsExpanded.Rendering.RHI;
 
 /// <summary>Owns staging and its completion independently of any command-list or source lifetime.</summary>
 public sealed class RHIReadbackTicket : IDisposable
 {
-    private readonly OpenGLBackend backend;
+    private readonly IRHIBackend backend;
     private GpuBufferObject? staging;
     private GpuFence? fence;
     private bool mapped;
@@ -68,7 +67,7 @@ public sealed class RHIReadbackTicket : IDisposable
     /// <summary>Reports whether an exclusive mapping still requires scope-owned cleanup.</summary>
     internal bool HasActiveMapping => mapped;
     /// <summary>Takes exclusive ownership of already-enqueued staging and its fence.</summary>
-    internal RHIReadbackTicket(OpenGLBackend backend, GpuBufferObject staging, GpuFence fence, int byteCount)
+    internal RHIReadbackTicket(IRHIBackend backend, GpuBufferObject staging, GpuFence fence, int byteCount)
     { this.backend = backend; this.staging = staging; this.fence = fence; ByteCount = byteCount; }
     /// <summary>Rejects mapped access in a foreign context or after the scope ends.</summary>
     internal void RequireMapping()
