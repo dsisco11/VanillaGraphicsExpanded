@@ -12,7 +12,7 @@ internal sealed unsafe partial class OpenGlStateCache
     internal static void ObserveDeleteObjectARB(uint a0)
     {
         int id = unchecked((int)a0);
-        var cache = OpenGLObservationContext.CurrentCache;
+        if (!OpenGLObservationContext.TryGet(out var cache, out _)) return;
         // Immediate deletion removes native type evidence. Prefer the original registered kind;
         // only an untracked, still-live shader needs native classification for deferred deletion.
         var manager = GpuResourceManagerSystem.CurrentManager;

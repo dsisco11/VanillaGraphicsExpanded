@@ -16,7 +16,7 @@ internal sealed unsafe partial class OpenGlStateCache
         int buffer = unchecked((int)a2);
         nint offset = unchecked((nint)a3);
         nint size = unchecked((nint)a4);
-        var cache = OpenGLObservationContext.CurrentCache;
+        if (!OpenGLObservationContext.TryGet(out var cache, out _)) return;
         var origin = Integration.RenderContextRegistry.CaptureResourceContext();
         bool validSlot = OpenGLBufferBindingCalls.ValidIndexedSlot(target, slot);
         int alignment = target switch

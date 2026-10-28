@@ -3,41 +3,31 @@ using OpenTK.Graphics.OpenGL;
 
 namespace VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 
-/// <summary>Publishes the observed effects of glPointSize after native dispatch.</summary>
-internal sealed unsafe partial class OpenGlStateCache
+/// <summary>Publishes established glPointSize effects through generated originating-context delivery.</summary>
+internal sealed partial class OpenGlStateCache
 {
     #region Internal API
-    /// <summary>Updates existing cache and resource authority without issuing the intercepted operation.</summary>
-    [InterceptOpenGL("glPointSize")]
-    internal static void ObservePointSize(float a0)
+    /// <summary>Assigns the domain value after generated classification and targeted withdrawal.</summary>
+    [InterceptOpenGL("glPointSize", Withdraw = nameof(WithdrawPointSize), Classify = nameof(ClassifyPointSize))]
+    internal static void ObservePointSize(OpenGlStateCache cache, float a0)
     {
-        float size = unchecked((float)a0);
-        OpenGlStateCache? cache = null;
-        (nint Handle, long Generation) operationContext = default;
-        try
-        {
-            cache = OpenGlStateCache.Current;
-            operationContext = Integration.RenderContextRegistry.CaptureResourceContext();
-            cache = OpenGLObservationContext.CurrentCache;
-            bool accepted = float.IsFinite(size) && size > 0;
-            operationContext = Integration.RenderContextRegistry.CaptureResourceContext();
-            // Established rejection preserves prior facts. Observation never vetoes the native call.
-            if (accepted || !float.IsFinite(size)) cache.ForgetExternalStateMutation(rasterizer: RasterizerStateKnowledge.PointSize);
+        float size = a0;
+        cache.ObserveExternalPointSize(size);
+    }
 
-            if (accepted && cache.OwnsKnowledgeFor(operationContext) && Integration.RenderContextRegistry.IsCurrentResourceContext(operationContext))
-                cache.ObserveExternalPointSize(size);
-        }
-        catch (Exception)
-        {
-            // Native dispatch has completed. Withdraw only uncertain affected knowledge
-            // when observation fails, without touching a foreign cache.
-            try
-            {
-                if (cache?.OwnsKnowledgeFor(operationContext) == true)
-                    cache.ForgetExternalStateMutation(rasterizer: RasterizerStateKnowledge.PointSize);
-            }
-            catch (Exception) { /* Failure recovery must not veto or retry native dispatch. */ }
-        }
+    /// <summary>Classifies the represented field from native arguments and established context facts.</summary>
+    internal static OpenGLObservedEffect ClassifyPointSize(float a0)
+    {
+        float size = a0;
+        if (float.IsFinite(size) && size > 0) return OpenGLObservedEffect.Changed;
+        if (!float.IsFinite(size)) return OpenGLObservedEffect.Uncertain;
+        return OpenGLObservedEffect.Rejected;
+    }
+
+    /// <summary>Withdraws only this operation's affected knowledge after uncertainty or delivery failure.</summary>
+    internal static void WithdrawPointSize(OpenGlStateCache cache, float a0)
+    {
+        cache.ForgetExternalStateMutation(rasterizer: RasterizerStateKnowledge.PointSize);
     }
     #endregion
 }

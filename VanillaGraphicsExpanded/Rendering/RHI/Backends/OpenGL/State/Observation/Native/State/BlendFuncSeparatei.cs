@@ -22,9 +22,13 @@ internal sealed unsafe partial class OpenGlStateCache
         {
             cache = OpenGlStateCache.Current;
             operationContext = Integration.RenderContextRegistry.CaptureResourceContext();
-            cache = OpenGLObservationContext.CurrentCache;
+            if (!OpenGLObservationContext.TryGet(out cache, out operationContext))
+            {
+                // Missing limits cannot certify this field; never preserve a potentially stale value.
+                if (cache.OwnsKnowledgeFor(operationContext)) cache.ForgetExternalStateMutation(blend: BlendStateKnowledge.Factors, index: index);
+                return;
+            }
             bool accepted = index >= 0 && index < cache.MaxDrawBuffers && (OpenGlStateCache.AcceptsExternalBlendFactors(new GlBlendFunc(sourceRgb, destinationRgb, sourceAlpha, destinationAlpha)));
-            operationContext = Integration.RenderContextRegistry.CaptureResourceContext();
             // Established rejection preserves prior facts. Observation never vetoes the native call.
             if (accepted) cache.ForgetExternalStateMutation(blend: BlendStateKnowledge.Factors, index: index);
 

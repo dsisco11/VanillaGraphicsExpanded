@@ -14,7 +14,7 @@ internal sealed unsafe partial class OpenGlStateCache
         TextureBufferTarget @target = unchecked((TextureBufferTarget)a0);
         SizedInternalFormat @internalformat = unchecked((SizedInternalFormat)a1);
         int @buffer = unchecked((int)a2);
-        _ = OpenGLObservationContext.CurrentCache;
+        if (!OpenGLObservationContext.TryGet(out _, out _)) return;
         OpenGlStateCache.ObserveBufferTexture(0, unchecked((int)@target), 0, false, false, unchecked((int)@buffer), unchecked((int)@internalformat), 0, 0, true);
     }
     #endregion

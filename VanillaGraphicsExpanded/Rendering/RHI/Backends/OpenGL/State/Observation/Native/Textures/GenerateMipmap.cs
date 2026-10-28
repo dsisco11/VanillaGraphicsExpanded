@@ -13,7 +13,7 @@ internal sealed unsafe partial class OpenGlStateCache
     internal static void ObserveGenerateMipmap(int a0)
     {
         GenerateMipmapTarget @target = unchecked((GenerateMipmapTarget)a0);
-        _ = OpenGLObservationContext.CurrentCache;
+        if (!OpenGLObservationContext.TryGet(out _, out _)) return;
         OpenGlStateCache.ObserveTextureMetadata(0, unchecked((int)@target), -1, false, false, OpenGlStateCache.TextureMetadataEffect.MipGeneration, 0);
     }
     #endregion

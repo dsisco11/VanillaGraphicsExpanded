@@ -19,9 +19,13 @@ internal sealed unsafe partial class OpenGlStateCache
         {
             cache = OpenGlStateCache.Current;
             operationContext = Integration.RenderContextRegistry.CaptureResourceContext();
-            cache = OpenGLObservationContext.CurrentCache;
+            if (!OpenGLObservationContext.TryGet(out cache, out operationContext))
+            {
+                // Missing limits cannot certify this field; never preserve a potentially stale value.
+                if (cache.OwnsKnowledgeFor(operationContext)) cache.ForgetExternalStateMutation(rasterizer: RasterizerStateKnowledge.PolygonModes);
+                return;
+            }
             bool accepted = (int)face == (int)MaterialFace.FrontAndBack && Enum.IsDefined(mode);
-            operationContext = Integration.RenderContextRegistry.CaptureResourceContext();
             // Established rejection preserves prior facts. Observation never vetoes the native call.
             // Separate face modes are outside the supported core model. A compatibility
             // context may still accept them, so they cannot leave a common mode certified.

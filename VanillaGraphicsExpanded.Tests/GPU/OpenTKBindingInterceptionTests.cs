@@ -129,7 +129,7 @@ public sealed class OpenTKBindingInterceptionTests(HeadlessGLFixture fixture) : 
         cache.SetDepthFunc(DepthFunction.Greater);
         int baseline = native.Calls;
         var target = before
-            ? AccessTools.PropertyGetter(typeof(OpenGLObservationContext), nameof(OpenGLObservationContext.CurrentCache))
+            ? AccessTools.Method(typeof(OpenGLObservationContext), nameof(OpenGLObservationContext.TryGet))
             : AccessTools.Method(typeof(OpenGlStateCache), "ObserveExternalDepthMask");
         var harmony = new Harmony("Tests.NativeObserverFault");
         try
@@ -164,6 +164,12 @@ public sealed class OpenTKBindingInterceptionTests(HeadlessGLFixture fixture) : 
             Assert.False(VanillaGraphicsExpanded.Rendering.GpuSupport.HasCachedCapabilitiesForCurrentContext);
             GL.DepthMask(false);
             Assert.Equal(1, native.Calls);
+            OpenGlStateCache.Current.SetDepthWriteMask(false);
+            Assert.Equal(1, native.Calls); // Capability-independent knowledge already suppresses a stable managed request.
+            GL.LogicOp(LogicOp.Xor);
+            Assert.True(OpenGLObservationContext.TryGet(out _, out _, requireCapabilities: false));
+            Assert.Equal(OpenGLObservedEffect.Uncertain, OpenGlStateCache.ClassifyLineWidth(2));
+            Assert.Equal(OpenGLObservedEffect.Uncertain, OpenGlStateCache.ClassifyPatchParameteri((int)PatchParameterInt.PatchVertices, 3));
             VanillaGraphicsExpanded.Rendering.GpuSupport.EnsureCurrentContext();
             GL.DepthMask(false);
             OpenGlStateCache.Current.SetDepthWriteMask(false);

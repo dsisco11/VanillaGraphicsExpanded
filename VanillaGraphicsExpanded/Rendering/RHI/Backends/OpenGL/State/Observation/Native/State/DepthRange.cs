@@ -3,42 +3,33 @@ using OpenTK.Graphics.OpenGL;
 
 namespace VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 
-/// <summary>Publishes the observed effects of glDepthRange after native dispatch.</summary>
-internal sealed unsafe partial class OpenGlStateCache
+/// <summary>Publishes established glDepthRange effects through generated originating-context delivery.</summary>
+internal sealed partial class OpenGlStateCache
 {
     #region Internal API
-    /// <summary>Updates existing cache and resource authority without issuing the intercepted operation.</summary>
-    [InterceptOpenGL("glDepthRange")]
-    internal static void ObserveDepthRange(double a0, double a1)
+    /// <summary>Assigns the domain value after generated classification and targeted withdrawal.</summary>
+    [InterceptOpenGL("glDepthRange", Withdraw = nameof(WithdrawDepthRange), Classify = nameof(ClassifyDepthRange))]
+    internal static void ObserveDepthRange(OpenGlStateCache cache, double a0, double a1)
     {
-        double near = unchecked((double)a0);
-        double far = unchecked((double)a1);
-        OpenGlStateCache? cache = null;
-        (nint Handle, long Generation) operationContext = default;
-        try
-        {
-            cache = OpenGlStateCache.Current;
-            operationContext = Integration.RenderContextRegistry.CaptureResourceContext();
-            cache = OpenGLObservationContext.CurrentCache;
-            bool accepted = double.IsFinite(near) && double.IsFinite(far);
-            operationContext = Integration.RenderContextRegistry.CaptureResourceContext();
-            // Established rejection preserves prior facts. Observation never vetoes the native call.
-            if (accepted || !double.IsFinite(near) || !double.IsFinite(far)) cache.ForgetExternalStateMutation(depth: DepthStateKnowledge.DepthRange);
+        double near = a0;
+        double far = a1;
+        cache.ObserveExternalDepthRange(near, far);
+    }
 
-            if (accepted && cache.OwnsKnowledgeFor(operationContext) && Integration.RenderContextRegistry.IsCurrentResourceContext(operationContext))
-                cache.ObserveExternalDepthRange(near, far);
-        }
-        catch (Exception)
-        {
-            // Native dispatch has completed. Withdraw only uncertain affected knowledge
-            // when observation fails, without touching a foreign cache.
-            try
-            {
-                if (cache?.OwnsKnowledgeFor(operationContext) == true)
-                    cache.ForgetExternalStateMutation(depth: DepthStateKnowledge.DepthRange);
-            }
-            catch (Exception) { /* Failure recovery must not veto or retry native dispatch. */ }
-        }
+    /// <summary>Classifies the represented field from native arguments and established context facts.</summary>
+    internal static OpenGLObservedEffect ClassifyDepthRange(double a0, double a1)
+    {
+        double near = a0;
+        double far = a1;
+        if (double.IsFinite(near) && double.IsFinite(far)) return OpenGLObservedEffect.Changed;
+        if (!double.IsFinite(near) || !double.IsFinite(far)) return OpenGLObservedEffect.Uncertain;
+        return OpenGLObservedEffect.Rejected;
+    }
+
+    /// <summary>Withdraws only this operation's affected knowledge after uncertainty or delivery failure.</summary>
+    internal static void WithdrawDepthRange(OpenGlStateCache cache, double a0, double a1)
+    {
+        cache.ForgetExternalStateMutation(depth: DepthStateKnowledge.DepthRange);
     }
     #endregion
 }

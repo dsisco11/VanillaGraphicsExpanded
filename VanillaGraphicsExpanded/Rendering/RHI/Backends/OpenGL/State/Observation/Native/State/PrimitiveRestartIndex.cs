@@ -3,41 +3,23 @@ using OpenTK.Graphics.OpenGL;
 
 namespace VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 
-/// <summary>Publishes the observed effects of glPrimitiveRestartIndex after native dispatch.</summary>
-internal sealed unsafe partial class OpenGlStateCache
+/// <summary>Publishes established glPrimitiveRestartIndex effects through generated originating-context delivery.</summary>
+internal sealed partial class OpenGlStateCache
 {
     #region Internal API
-    /// <summary>Updates existing cache and resource authority without issuing the intercepted operation.</summary>
-    [InterceptOpenGL("glPrimitiveRestartIndex")]
-    internal static void ObservePrimitiveRestartIndex(uint a0)
+    /// <summary>Assigns the domain value after generated classification and targeted withdrawal.</summary>
+    [InterceptOpenGL("glPrimitiveRestartIndex", Withdraw = nameof(WithdrawPrimitiveRestartIndex))]
+    internal static void ObservePrimitiveRestartIndex(OpenGlStateCache cache, uint a0)
     {
-        uint index = unchecked((uint)a0);
-        OpenGlStateCache? cache = null;
-        (nint Handle, long Generation) operationContext = default;
-        try
-        {
-            cache = OpenGlStateCache.Current;
-            operationContext = Integration.RenderContextRegistry.CaptureResourceContext();
-            cache = OpenGLObservationContext.CurrentCache;
-            bool accepted = true;
-            operationContext = Integration.RenderContextRegistry.CaptureResourceContext();
-            // Established rejection preserves prior facts. Observation never vetoes the native call.
-            if (accepted) cache.ForgetExternalStateMutation(assembly: PrimitiveAssemblyStateKnowledge.RestartIndex);
+        uint index = a0;
+        cache.ObserveExternalPrimitiveRestartIndex(index);
+    }
 
-            if (accepted && cache.OwnsKnowledgeFor(operationContext) && Integration.RenderContextRegistry.IsCurrentResourceContext(operationContext))
-                cache.ObserveExternalPrimitiveRestartIndex(index);
-        }
-        catch (Exception)
-        {
-            // Native dispatch has completed. Withdraw only uncertain affected knowledge
-            // when observation fails, without touching a foreign cache.
-            try
-            {
-                if (cache?.OwnsKnowledgeFor(operationContext) == true)
-                    cache.ForgetExternalStateMutation(assembly: PrimitiveAssemblyStateKnowledge.RestartIndex);
-            }
-            catch (Exception) { /* Failure recovery must not veto or retry native dispatch. */ }
-        }
+
+    /// <summary>Withdraws only this operation's affected knowledge after uncertainty or delivery failure.</summary>
+    internal static void WithdrawPrimitiveRestartIndex(OpenGlStateCache cache, uint a0)
+    {
+        cache.ForgetExternalStateMutation(assembly: PrimitiveAssemblyStateKnowledge.RestartIndex);
     }
     #endregion
 }

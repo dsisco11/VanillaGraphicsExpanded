@@ -16,7 +16,7 @@ internal sealed unsafe partial class OpenGlStateCache
         FramebufferAttachment @attachment = unchecked((FramebufferAttachment)a1);
         int @texture = unchecked((int)a2);
         int @level = unchecked((int)a3);
-        _ = OpenGLObservationContext.CurrentCache;
+        if (!OpenGLObservationContext.TryGet(out _, out _)) return;
         ObserveFramebufferMutation(unchecked((int)@framebuffer), true, unchecked((int)@attachment), unchecked((int)@texture), unchecked((int)@level), -1, 0);
     }
     #endregion

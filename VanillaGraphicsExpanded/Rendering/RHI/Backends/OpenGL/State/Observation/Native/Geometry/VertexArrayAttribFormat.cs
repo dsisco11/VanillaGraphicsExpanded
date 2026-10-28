@@ -17,7 +17,7 @@ internal sealed unsafe partial class OpenGlStateCache
         VertexAttribType @type = unchecked((VertexAttribType)a3);
         bool @normalized = a4 != 0;
         int @relativeoffset = unchecked((int)a5);
-        _ = OpenGLObservationContext.CurrentCache;
+        if (!OpenGLObservationContext.TryGet(out _, out _)) return;
         OpenGlStateCache.ObserveVertexMetadata(unchecked((int)@vaobj), true, false);
     }
     #endregion

@@ -13,7 +13,7 @@ internal sealed unsafe partial class OpenGlStateCache
     {
         int count = unchecked((int)a0);
         int* ids = unchecked((int*)a1);
-        var cache = OpenGLObservationContext.CurrentCache;
+        if (!OpenGLObservationContext.TryGet(out var cache, out _)) return;
 
         if (count <= 0) return;
         foreach (var value in new ReadOnlySpan<int>(ids, count))

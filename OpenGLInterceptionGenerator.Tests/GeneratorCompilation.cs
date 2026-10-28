@@ -17,7 +17,12 @@ internal static class GeneratorCompilation
         namespace VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
         internal static partial class OpenGLBindingInterception { internal static bool ObservationEnabled = true; }
         [AttributeUsage(AttributeTargets.Method, AllowMultiple = true)]
-        internal sealed class InterceptOpenGLAttribute(string name) : Attribute { }
+        internal sealed class InterceptOpenGLAttribute(string name) : Attribute
+        {
+            public string? Classify { get; set; }
+            public string? Withdraw { get; set; }
+        }
+        internal enum OpenGLObservedEffect { Rejected, Changed, Uncertain }
         internal sealed class OpenGLNativeSlot(nint original, Delegate callback)
         {
             internal readonly Delegate Callback = callback;
@@ -26,14 +31,14 @@ internal static class GeneratorCompilation
 
     #region Internal API
     /// <summary>Runs the incremental generator and retains compiler diagnostics for ABI contract tests.</summary>
-    internal static (Compilation Compilation, ImmutableArray<Diagnostic> Diagnostics) Run(string source, string nativeDeclarations, string? coreDeclarations = null)
+    internal static (Compilation Compilation, ImmutableArray<Diagnostic> Diagnostics) Run(string source, string nativeDeclarations, string? coreDeclarations = null, string? supportSource = null)
     {
         var references = ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")!).Split(Path.PathSeparator)
             .Select(path => MetadataReference.CreateFromFile(path)).ToList();
         references.Add(MetadataReference.CreateFromFile(bindings.GetOrAdd(nativeDeclarations + "\n#CORE#\n" + (coreDeclarations ?? nativeDeclarations), EmitBindings)));
         var options = new CSharpParseOptions(LanguageVersion.CSharp13);
         var compilation = CSharpCompilation.Create("GeneratedHooks_" + Guid.NewGuid().ToString("N"),
-            new[] { CSharpSyntaxTree.ParseText(Prelude + source, options) }, references,
+            new[] { CSharpSyntaxTree.ParseText(Prelude + source, options), CSharpSyntaxTree.ParseText(supportSource ?? "", options) }, references,
             new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary, allowUnsafe: true));
         GeneratorDriver driver = CSharpGeneratorDriver.Create(
             new[] { new InterceptionGenerator().AsSourceGenerator() }, parseOptions: options);

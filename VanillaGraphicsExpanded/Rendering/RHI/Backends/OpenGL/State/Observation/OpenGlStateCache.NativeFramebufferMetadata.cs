@@ -15,6 +15,12 @@ internal sealed partial class OpenGlStateCache
         var manager = GpuResourceManagerSystem.CurrentManager;
         if (manager?.CanObserveNativeMetadata != true && Current.resourceOperation is null) return;
         if (!named && (FramebufferTarget)selector is not (FramebufferTarget.Framebuffer or FramebufferTarget.DrawFramebuffer or FramebufferTarget.ReadFramebuffer)) return;
+        var limits = GpuSupport.Graphics;
+        bool validSlot = slot is (int)FramebufferAttachment.DepthAttachment or (int)FramebufferAttachment.StencilAttachment
+            or (int)FramebufferAttachment.DepthStencilAttachment
+            || slot >= (int)FramebufferAttachment.ColorAttachment0
+                && (long)slot - (int)FramebufferAttachment.ColorAttachment0 < limits.MaxColorAttachments;
+        if (!parameter.HasValue && !validSlot) return;
         int id = named ? selector : Current.GetCurrentFramebuffer((FramebufferTarget)selector);
         Current.InterruptNativeResourceOperation(GpuResourceKind.Framebuffer, id);
         if (manager?.CanObserveNativeMetadata != true) return;
@@ -28,11 +34,6 @@ internal sealed partial class OpenGlStateCache
         try
         {
             if (parameter.HasValue) { PublishObservedFramebuffer(entry, known, parameter: parameter); return; }
-            var limits = GpuSupport.Graphics;
-            bool validSlot = slot is (int)FramebufferAttachment.DepthAttachment or (int)FramebufferAttachment.StencilAttachment
-                or (int)FramebufferAttachment.DepthStencilAttachment
-                || slot >= (int)FramebufferAttachment.ColorAttachment0
-                    && (long)slot - (int)FramebufferAttachment.ColorAttachment0 < limits.MaxColorAttachments;
             bool rejected = !validSlot || level < 0
                 || family == 1 && (layer < 0 || layer >= limits.MaxArrayTextureLayers);
             bool imageExists = false;
@@ -47,8 +48,6 @@ internal sealed partial class OpenGlStateCache
                     }
             if (texture == 0) { rejected = !validSlot; imageExists = true; }
 
-            // Invalid native slots still reach OpenGL unchanged. They have no canonical selection.
-            if (!validSlot) { PublishObservedFramebuffer(entry, known, provenRejected: true); return; }
             bool eligible = family is 0 or 1 && !rejected && imageExists;
             PublishObservedFramebuffer(entry, known, new(OpenGLResourceValues.FromNative((FramebufferAttachment)slot), texture, level, family == 1 ? layer : -1,
                 0, 0, GpuFramebufferAttachmentMode.Ordinary, eligible, rejected));

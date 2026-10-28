@@ -3,42 +3,33 @@ using OpenTK.Graphics.OpenGL;
 
 namespace VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 
-/// <summary>Publishes the observed effects of glPolygonOffset after native dispatch.</summary>
-internal sealed unsafe partial class OpenGlStateCache
+/// <summary>Publishes established glPolygonOffset effects through generated originating-context delivery.</summary>
+internal sealed partial class OpenGlStateCache
 {
     #region Internal API
-    /// <summary>Updates existing cache and resource authority without issuing the intercepted operation.</summary>
-    [InterceptOpenGL("glPolygonOffset")]
-    internal static void ObservePolygonOffset(float a0, float a1)
+    /// <summary>Assigns the domain value after generated classification and targeted withdrawal.</summary>
+    [InterceptOpenGL("glPolygonOffset", Withdraw = nameof(WithdrawPolygonOffset), Classify = nameof(ClassifyPolygonOffset))]
+    internal static void ObservePolygonOffset(OpenGlStateCache cache, float a0, float a1)
     {
-        float factor = unchecked((float)a0);
-        float units = unchecked((float)a1);
-        OpenGlStateCache? cache = null;
-        (nint Handle, long Generation) operationContext = default;
-        try
-        {
-            cache = OpenGlStateCache.Current;
-            operationContext = Integration.RenderContextRegistry.CaptureResourceContext();
-            cache = OpenGLObservationContext.CurrentCache;
-            bool accepted = float.IsFinite(factor) && float.IsFinite(units);
-            operationContext = Integration.RenderContextRegistry.CaptureResourceContext();
-            // Established rejection preserves prior facts. Observation never vetoes the native call.
-            if (accepted || !float.IsFinite(factor) || !float.IsFinite(units)) cache.ForgetExternalStateMutation(rasterizer: RasterizerStateKnowledge.PolygonOffset);
+        float factor = a0;
+        float units = a1;
+        cache.ObserveExternalPolygonOffset(factor, units);
+    }
 
-            if (accepted && cache.OwnsKnowledgeFor(operationContext) && Integration.RenderContextRegistry.IsCurrentResourceContext(operationContext))
-                cache.ObserveExternalPolygonOffset(factor, units);
-        }
-        catch (Exception)
-        {
-            // Native dispatch has completed. Withdraw only uncertain affected knowledge
-            // when observation fails, without touching a foreign cache.
-            try
-            {
-                if (cache?.OwnsKnowledgeFor(operationContext) == true)
-                    cache.ForgetExternalStateMutation(rasterizer: RasterizerStateKnowledge.PolygonOffset);
-            }
-            catch (Exception) { /* Failure recovery must not veto or retry native dispatch. */ }
-        }
+    /// <summary>Classifies the represented field from native arguments and established context facts.</summary>
+    internal static OpenGLObservedEffect ClassifyPolygonOffset(float a0, float a1)
+    {
+        float factor = a0;
+        float units = a1;
+        if (float.IsFinite(factor) && float.IsFinite(units)) return OpenGLObservedEffect.Changed;
+        if (!float.IsFinite(factor) || !float.IsFinite(units)) return OpenGLObservedEffect.Uncertain;
+        return OpenGLObservedEffect.Rejected;
+    }
+
+    /// <summary>Withdraws only this operation's affected knowledge after uncertainty or delivery failure.</summary>
+    internal static void WithdrawPolygonOffset(OpenGlStateCache cache, float a0, float a1)
+    {
+        cache.ForgetExternalStateMutation(rasterizer: RasterizerStateKnowledge.PolygonOffset);
     }
     #endregion
 }

@@ -3,9 +3,8 @@ RHI commands and command lists — implementation plan
 
 Source proposal: [Rendering.GpuCommands.Proposal.md](Rendering.GpuCommands.Proposal.md).
 Parent design task: Rendering.GpuResourceHandles.todo, Phase 8.
-Status: Phases 1–7 have recorded qualification receipts. Corrective subphases 8a–8h are qualified.
-Subphase 8h.1 addresses newly identified observer correctness and simplification work before
-8i redesigns creation interception and maintained lifecycle metadata. Combined qualification follows
+Status: Phases 1–7 have recorded qualification receipts. Corrective subphases 8a–8h and 8h.1 are qualified.
+Subphase 8i redesigns creation interception and maintained lifecycle metadata. Combined qualification follows
 in 8j, with management naming in 8k. Phase 9 integrated/package/user qualification remains
 open, including the explicitly recorded full-lighting numerical mismatch.
 
@@ -1108,7 +1107,7 @@ Phase 8h.1: Correct effect classification and simplify native observation delive
   Follow-up finding: 8h's focused receipts do not cover the newly identified LineWidth context-rule gap.
     Correct that behavior here; preserve the historical receipts without treating them as proof of this fix.
 
-  ☐ Review native effect classification independently of argument validity. Distinguish a known change,
+  ☑ Review native effect classification independently of argument validity. Distinguish a known change,
     proven rejection and uncertain outcome using existing context/profile/capability and resource facts.
     Correct ObserveLineWidth: a positive finite width is not sufficient evidence of acceptance;
     widths above one are rejected in a forward-compatible context. Use the already captured
@@ -1117,17 +1116,19 @@ Phase 8h.1: Correct effect classification and simplify native observation delive
     setters, including ObservePatchParameteri. Add no universal GetError, Is* or verification queries,
     requested/actual mirror or native-call veto. Consult [OpenGL 4.6 core appendix E.2.1](https://registry.khronos.org/OpenGL/specs/gl/glspec46.core.pdf)
     and the registry definitions controlling each selected operation.
-  ☐ Design and implement generated common observation plumbing for simple setters, explicitly covering
+  ☑ Design and implement generated common observation plumbing for simple setters, explicitly covering
     ObserveLogicOp, ObserveDepthMask, ObserveLineWidth and ObservePatchParameteri. Move repeated
     context selection/capture, affected-field withdrawal, post-call delivery and contained targeted
-    failure recovery into one compiler-checked path using explicit affected-field declarations.
+    failure recovery into one compiler-checked path using explicit Withdraw method references.
+    Keep affected-field selection in handwritten cache methods receiving the cache and native arguments;
+    do not mirror knowledge categories on InterceptOpenGLAttribute or inside the generator.
     Keep GL acceptance/conversion semantics and state assignments in focused handwritten domain code;
     do not build a generic event bus, transaction framework or semantic interpreter in the generator.
     Preserve original-context/lifetime checks and recovery that withdraws only affected uncertain facts.
     The generator's existing outer catch alone is insufficient to replace handler-local recovery.
     Remove redundant casts, unused argument locals, constant accepted flags and duplicate context capture
     where the resulting contract makes them unnecessary. Keep one observation/publication authority.
-  ☐ Reassess which native entrypoints need metadata observation. Remove the sampler/image-unit
+  ☑ Reassess which native entrypoints need metadata observation. Remove the sampler/image-unit
     metadata routes for ObserveUniform1uiEXT and ObserveUniform1uivEXT: unsigned numeric uniform
     setters cannot assign sampler/image units, and ordinary numeric uniform contents have no represented
     canonical metadata effect. Audit related scalar/vector/named/extension spellings for the same issue.
@@ -1136,14 +1137,14 @@ Phase 8h.1: Correct effect classification and simplify native observation delive
     and [EXT_gpu_shader4 uniform-loading semantics](https://registry.khronos.org/OpenGL/extensions/EXT/EXT_gpu_shader4.txt).
     Unobserved content-only calls still execute natively unchanged. Reconcile selected-symbol inventory, ABI/catalog generation, API
     dispositions and tests; preserve semantic coverage rather than an arbitrary callback count.
-  ☐ Reorder ObserveProgramMetadata so represented-effect classification precedes
+  ☑ Reorder ObserveProgramMetadata so represented-effect classification precedes
     InterruptNativeResourceOperation, InterruptNativeMetadataCompletion, BeginRefresh and publication.
     An ordinary numeric uniform write or ignored location must not interrupt an otherwise valid
     acquisition/publication, withdraw unrelated facts, advance metadata revisions or trigger avoidable
     descriptor queries. Use established selector/interface facts; retain interruption and targeted
     recovery for actual represented unit/block/executable mutations, including reentrant callbacks.
     Review equivalent relevance-after-interruption ordering throughout native observation families.
-  ☐ Replace exception-based handling of expected initialization absence in
+  ☑ Replace exception-based handling of expected initialization absence in
     OpenGLObservationContext.CurrentCache with an explicit query-free TryGet-style result or equivalent
     direct control flow. Separate originating-context selection from full capability availability:
     capability-independent effects such as DepthMask and LogicOp should not require unrelated cached
@@ -1151,13 +1152,13 @@ Phase 8h.1: Correct effect classification and simplify native observation delive
     knowledge uncertain. Preserve foreign-context/generation safety, explicit capability discovery
     outside callbacks and native-error preservation. Do not hide routine initialization behind repeated
     caught exceptions or introduce a second context/capability service.
-  ☐ Migrate complete observation families with generator declarations, cache effects, callers and tests
+  ☑ Migrate complete observation families with generator declarations, cache effects, callers and tests
     together. Remove superseded handwritten plumbing in the same unit; retain complex metadata/dependency
     reconciliation in its existing domain owner. Keep generated native dispatch, OpenGLDriverCalls,
     OpenGLNativeSlot lifetime rooting and loader/uninstall ownership unless a concrete defect requires
     a correction. No preparation hooks, observation receipts, call counters, compatibility shims or
     parallel old/new observers may be introduced.
-  ☐ Run delegated canonical Debug/ordinary Release builds, generator diagnostics/compilation tests and
+  ☑ Run delegated canonical Debug/ordinary Release builds, generator diagnostics/compilation tests and
     native boundary regressions after the bulk migration. Cover both GL roots and shared aliases;
     accepted/rejected/uncertain effects; forward-compatible rejected wide lines and supported ordinary
     widths; unchanged native errors; observer faults with targeted recovery; no-capability startup;
@@ -1165,12 +1166,17 @@ Phase 8h.1: Correct effect classification and simplify native observation delive
     Assert ordinary unsigned/numeric writes and irrelevant locations preserve active metadata operations,
     availability and revisions without avoidable reads, while represented reentrant changes interrupt
     stale completion. Retain native-state and suppression oracles; no benchmark or timing gate.
-  ☐ Reconcile proposal/contracts, source inventory/API coverage, migration receipts and current-state
+  ☑ Reconcile proposal/contracts, source inventory/API coverage, migration receipts and current-state
     documentation. Perform second source review and an independent audit-stage-completion audit before
     checking completion. Keep 8i's separate lifecycle/query-policy redesign and later integration gates open.
-  ☐ Completion: handwritten simple observers contain their domain effect logic, generated delivery owns
+  ☑ Completion: handwritten simple observers contain their domain effect logic, generated delivery owns
     shared safety plumbing, proven rejections preserve known facts, irrelevant calls do not disturb
     metadata work, and ordinary context/capability absence uses explicit nonthrowing control flow.
+
+  Qualification: canonical Debug/ordinary Release builds passed; 666/666 focused native tests and
+    26/26 generator tests passed in each configuration, with zero skipped tests. Second source review
+    and independent completion audit passed. See Rendering.GpuCommands.Migrations.md and local
+    artifacts/phase8h.1 closure receipts. No staging or commit; 8i and later gates remain open.
 
 Phase 8i: Redesign metadata tracking around intercepted creation and observed resource changes
   Depends on 8h's native dispatch boundary and 8h.1's corrected classification, relevance ordering

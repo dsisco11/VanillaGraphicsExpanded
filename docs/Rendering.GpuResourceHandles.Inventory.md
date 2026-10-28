@@ -383,7 +383,7 @@ object's metadata; registration never adds native ownership.
 Generated callbacks replace selected entries in both OpenTK GL tables. Supported Core/Ext/Arb
 operations reach cache-owned observations independently of caller assembly, overload marshalling,
 generic element type, delegates and dynamic callers. Native ABI signatures come from the compiler's
-OpenTK PE reference; attributes select 308 native symbols and ABI-identical aliases share effects.
+OpenTK PE reference; attributes select 306 native symbols and ABI-identical aliases share effects.
 The saved original executes exactly once before observation; contained reconciliation faults neither
 cancel the call nor escape to its caller. Backend-owned work uses generated `OpenGLDriverCalls`
 overloads and its existing publication owner. No caller rewriting, generic closure cache or managed
@@ -504,3 +504,10 @@ The existing owner supplies optional names through the private RHI diagnostic co
 selectors and allocation IDs are interpreted only in backend diagnostics or its explicit engine-label
 integration helpers. Labels preserve ownership, bindings, pending errors and canonical metadata; no
 `GL.Is*` probe is used. Native labels compile out of Release independently of managed naming.
+
+Scalar post-call state delivery names compiler-checked handwritten withdrawal methods and uses generated
+origin checks/targeted recovery. Withdrawal receives the cache and native arguments; cache categories
+and argument-dependent affected targets remain inside domain methods.
+Handwritten classifiers distinguish known changes, proven rejection and uncertainty. Unsigned ordinary
+uniform setters have no represented canonical effect; signed sampler/image and opaque-handle assignments
+retain their metadata routes. Program relevance is established before operation interruption or refresh.

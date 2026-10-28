@@ -9,12 +9,21 @@ internal static class EngineRenderContext
     /// <summary>Registers the current engine window; world leave and shader reload retain its generation.</summary>
     internal static unsafe void RegisterCurrent()
     {
+        if (!TryRegisterCurrent())
+            throw new InvalidOperationException("The engine render window context is unavailable or not current.");
+    }
+
+    /// <summary>Registers an available current engine window without treating ordinary startup absence as failure.</summary>
+    internal static unsafe bool TryRegisterCurrent()
+    {
         if (ScreenManager.Platform is not ClientPlatformWindows platform || platform.window is null)
-            throw new InvalidOperationException("The engine render window is unavailable.");
+            return false;
         var owner = platform.window;
         if (OpenTK.Windowing.GraphicsLibraryFramework.GLFW.GetCurrentContext() != owner.WindowPtr)
-            throw new InvalidOperationException("The engine window context is not current.");
+            return false;
+        if (!owner.Exists) return false;
         RenderContextRegistry.RegisterCurrent(owner, static target => ((GameWindowNative)target).Exists);
+        return true;
     }
     #endregion
 }

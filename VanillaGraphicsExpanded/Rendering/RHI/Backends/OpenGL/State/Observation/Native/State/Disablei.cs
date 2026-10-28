@@ -19,7 +19,12 @@ internal sealed unsafe partial class OpenGlStateCache
         {
             cache = OpenGlStateCache.Current;
             operationContext = Integration.RenderContextRegistry.CaptureResourceContext();
-            cache = OpenGLObservationContext.CurrentCache;
+            if (!OpenGLObservationContext.TryGet(out cache, out operationContext))
+            {
+                // Missing limits cannot certify this field; never preserve a potentially stale value.
+                if (cache.OwnsKnowledgeFor(operationContext)) AdmitNativeCapability(cache, cap, index);
+                return;
+            }
             bool scissor = (int)cap == (int)EnableCap.ScissorTest && index == 0;
             bool accepted = scissor || cap == IndexedEnableCap.Blend && index >= 0 && index < cache.MaxDrawBuffers;
             operationContext = Integration.RenderContextRegistry.CaptureResourceContext();

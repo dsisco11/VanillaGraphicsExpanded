@@ -13,7 +13,7 @@ internal sealed unsafe partial class OpenGlStateCache
     {
         TextureUnit @texunit = unchecked((TextureUnit)a0);
         TextureTarget @target = unchecked((TextureTarget)a1);
-        _ = OpenGLObservationContext.CurrentCache;
+        if (!OpenGLObservationContext.TryGet(out _, out _)) return;
         OpenGlStateCache.ObserveTextureMetadata(0, unchecked((int)@target), unchecked((int)@texunit), false, true, OpenGlStateCache.TextureMetadataEffect.MipGeneration, 0);
     }
     #endregion

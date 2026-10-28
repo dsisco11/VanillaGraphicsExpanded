@@ -1791,3 +1791,70 @@ external-memory and bindless native execution where unavailable, installed-game 
 identity and live appearance remain outside these headless focused receipts. Generated mapping,
 typed test-driver substitutes and real hardware execution are distinct evidence. No staging or commit
 was performed for this closure; pre-existing staged changes are preserved.
+
+
+## Native scalar delivery and relevance corrective unit (8h.1)
+
+Task/source trace: effect classification and delivery follow the interception proposal's generated-callback,
+installation and failure contracts, the RHI contracts' authority rules and OpenGL 4.6 core E.2.1/7.6
+plus EXT_gpu_shader4. Canonical publication follows GpuResources and ShaderBindingState's supplied
+snapshot/revision contracts; archived command-publication ownership remains unchanged.
+
+- Classification/shared delivery: 29 scalar setters declare affected masks, with handwritten native rules
+  and assignments. Generated state delivery captures/selects the origin, classifies before withdrawal,
+  and performs targeted contained recovery. Indexed/dynamic-selector handlers retain domain-specific
+  recovery and explicit absence control flow. LineWidth uses captured forward-compatibility; patch counts
+  and viewport limits remain uncertain until the corresponding capability snapshot exists.
+- Relevance: unsigned EXT scalar/vector observers are removed; core/named/other numeric spellings stay
+  content-only. Signed unit/block and opaque-handle routes remain. Program selector relevance precedes
+  interruption/refresh; texture immutable mip content and known rejected target operations do likewise.
+  Invalid framebuffer attachment selectors are rejected before certification interruption. A not-yet-acquired
+  program interface remains uncertain rather than being classified as numeric; its existing completion
+  exclusion still prevents stale publication. A vector count cannot turn a numeric starting location
+  into a represented unit assignment.
+- Context: TryGet and engine-window TryRegisterCurrent use ordinary absence results without capability
+  discovery or error reads. Capability-independent scalar publication needs no unrelated limits.
+- Inventory: artifacts/phase8h.1/native-coverage.json names 306 selected symbols and updated dispositions;
+  historical 8h evidence is retained unchanged. No runtime dispatch/lifetime owner or secondary metadata
+  registry was added. Loader/uninstall/rooting and saved-original backend dispatch remain unchanged.
+
+Verification: delegated canonical shader-enabled Debug and ordinary Release builds passed with zero
+errors (205/211 warnings). Both focused native selections passed 666/666, zero skipped, using the saved
+`artifacts/phase8h.1/focused-filter.txt` selection. Generator diagnostics, compilation and native forwarding
+passed 26/26 in each configuration, including classification/recovery and classifier-triggered retirement.
+Receipts are `artifacts/phase8h.1/closure-build-*.log`, `closure-focused-*.log/.trx` and the retained
+`review-generator-debug.*` / `final-generator-release.*` logs. Exact commands and the filter reference are retained in `artifacts/phase8h.1/commands.txt`. No shaders were disabled and no JIT overrides or game launch were used.
+
+The new native regressions exercise rejected/accepted line and patch changes on both GL roots,
+no-capability independent depth publication, native error retention, ordinary signed/unsigned/named/EXT
+uniform content, invalid/ignored locations and active program certification. Numeric writes keep revisions
+and reader counts stable; represented unit mutation rejects a stale outer candidate. Existing context,
+alias, loader/uninstall, fault recovery, native output, suppression and restoration cases remain in the
+combined selection. An order-sensitive buffer failure test now injects zero-name driver output through
+the native loader fixture, preserving its no-owner/diagnostics oracle independently of managed inlining.
+
+Second source review and the separate requirement-driven audit-stage-completion pass found no remaining
+8h.1 requirement gaps. Source inspection confirms one effect/publication owner, no obsolete CurrentCache
+or unsigned numeric metadata observer, no added native query/veto/retry/receipt/lifetime counter, and no
+migration shim. The checked contract maps above to the generated delivery/classifiers, original context
+checks, program relevance ordering and native behavioral receipts. This qualifies the bounded corrective
+unit; 8i's creation/default/query lifecycle redesign and later combined/package/live gates remain open.
+No source staging, unstaging or commit was performed.
+
+
+## Domain-owned withdrawal methods
+
+Approved follow-up replaces knowledge-category properties on InterceptOpenGLAttribute with a required
+Withdraw method reference for generated scalar state delivery. All 29 scalar observers now name
+handwritten static void methods receiving OpenGlStateCache plus the exact native arguments. The cache
+domain chooses affected facts; the generator resolves/signature-checks the method and emits direct calls
+for normal withdrawal and contained recovery. Classifiers remain optional, compiler-checked domain rules.
+There is no runtime lookup, delegate allocation, cache-category whitelist or alternate old-field route.
+
+Generator regressions cover missing/incompatible withdrawal methods, native argument delivery,
+withdrawal faults, known rejection, uncertainty and context retirement. Delegated canonical shader-enabled
+Debug/ordinary Release builds passed with zero errors (224/231 warnings). Generator tests passed 34/34
+and the focused native suite passed 666/666 in each configuration, with zero skips. Logs, native TRX
+results and exact commands are retained under artifacts/withdraw-methods/. Source review confirmed that
+all 29 declarations use domain withdrawal methods, obsolete attribute fields and generator category
+mapping are removed, and original dispatch/context/recovery semantics are retained. No staging or commit.

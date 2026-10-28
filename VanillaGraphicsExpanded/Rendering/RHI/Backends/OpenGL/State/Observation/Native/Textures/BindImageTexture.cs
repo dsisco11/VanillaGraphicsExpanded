@@ -18,7 +18,7 @@ internal sealed unsafe partial class OpenGlStateCache
         int layer = unchecked((int)a4);
         TextureAccess access = unchecked((TextureAccess)a5);
         SizedInternalFormat format = unchecked((SizedInternalFormat)a6);
-        var cache = OpenGLObservationContext.CurrentCache;
+        if (!OpenGLObservationContext.TryGet(out var cache, out _)) return;
         bool represented = unit >= 0 && unit < GpuSupport.MaxImageUnits;
         bool arguments = represented && level >= 0 && layer >= 0
             && access is TextureAccess.ReadOnly or TextureAccess.WriteOnly or TextureAccess.ReadWrite

@@ -45,6 +45,11 @@ AlphaFunc and line/polygon stipple have no OpenGlStateCache mappings or PSO fiel
 forward unsupported capability values unchanged without caching them. Line/polygon smoothing,
 programmable point origin/size, clip control, depth and blend state remain supported.
 Subimage/copy-subimage/compressed-subimage commands are content-only and have no metadata adapters.
+Ordinary numeric uniform writes, including core/EXT unsigned scalar/vector and named variants, do not
+represent sampler/image assignments and have no metadata effect. Only signed unit setters and relevant
+opaque-handle setters retain observation. Irrelevant locations are classified before metadata interruption.
+See [OpenGL 4.6 section 7.6](https://registry.khronos.org/OpenGL/specs/gl/glspec46.core.pdf) and
+[EXT_gpu_shader4](https://registry.khronos.org/OpenGL/extensions/EXT/EXT_gpu_shader4.txt).
 Texture parameter adapters observe base/max levels, not GENERATE_MIPMAP. Explicit mip generation
 remains T2. Historical baseline inspection inputs remain unchanged; active comparisons apply these
 semantic exclusions rather than treating removed entries as missing implementation.
@@ -56,7 +61,7 @@ Use the [Khronos OpenGL registry](https://registry.khronos.org/OpenGL/) and
 core/compatibility features and extensions whose supported API includes `gl` or `glcore`. ES-only APIs
 are a separate API; desktop extensions are included only through the allowed managed owners above. The retained
 registry and the family rules below define supported desktop semantics independently of installed
-engine callers. The local `artifacts/phase8h/native-coverage.json` receipt records the inspected registry
+engine callers. The local `artifacts/phase8h.1/native-coverage.json` receipt records the inspected registry
 URL and SHA256, all selected native symbols and dispositions for expanded names without observers.
 `artifacts/phase8h/gl.xml` is that inspection input. These local verification artifacts may be absent
 from another checkout; they are evidence, not a replacement for the family obligations below.

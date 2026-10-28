@@ -13,7 +13,7 @@ internal sealed unsafe partial class OpenGlStateCache
     {
         TextureTarget target = unchecked((TextureTarget)a0);
         int texture = unchecked((int)a1);
-        var cache = OpenGLObservationContext.CurrentCache;
+        if (!OpenGLObservationContext.TryGet(out var cache, out _)) return;
         bool targetValid = OpenGlStateCache.RepresentsTextureBinding(target);
         int unit = targetValid ? cache.GetActiveTextureUnit() : -1;
         bool established = texture == 0;

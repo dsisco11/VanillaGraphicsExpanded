@@ -1,4 +1,5 @@
 using HarmonyLib;
+using System.Runtime.InteropServices;
 using OpenTK.Graphics.OpenGL;
 using OpenTK.Windowing.GraphicsLibraryFramework;
 using VanillaGraphicsExpanded.Rendering;
@@ -86,16 +87,24 @@ public sealed class RHIBufferTests(HeadlessGLFixture fixture)
 
     /// <summary>A failed native allocation returns diagnostics without exposing an owning declaration.</summary>
     [Fact]
-    public void FailedCreationReturnsNoOwner()
+    public unsafe void FailedCreationReturnsNoOwner()
     {
         fixture.EnsureContextValid(); fixture.InitializeResourceDisposal();
-        var harmony = new Harmony("Tests.RHIBuffer.CreationFailure");
         try
         {
             var context = RHICommandContext.Current;
-            harmony.Patch(((CreateBuffersCall)CoreGL.CreateBuffers).Method,
-                prefix: new HarmonyMethod(typeof(RHIBufferTests), nameof(FailCreation)));
+            int calls = 0;
+            using var native = new NativeDriverCapture();
+            // Inject the unsuccessful driver output at the ABI boundary, independent of
+            // whether the managed convenience overload has already been JIT-inlined.
+            native.Add("glCreateBuffers", new CreateBuffersCall((count, buffers) =>
+            {
+                calls++;
+                for (int i = 0; i < count; i++) buffers[i] = 0;
+            }));
+            native.Install();
             var result = context.CreateBuffer(Description(16));
+            Assert.Equal(1, calls);
             Assert.False(result.IsSuccess);
             Assert.False(result.TryGetResource(out var owner));
             Assert.Null(owner);
@@ -103,7 +112,7 @@ public sealed class RHIBufferTests(HeadlessGLFixture fixture)
             Assert.Throws<InvalidOperationException>(() => result.RequireResource());
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { harmony.UnpatchAll(harmony.Id); fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
+        finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
 
     #endregion
@@ -295,11 +304,9 @@ public sealed class RHIBufferTests(HeadlessGLFixture fixture)
     /// <summary>Fails before mapping any bytes to verify exception propagation.</summary>
     private static void RejectMapping() => throw new InvalidOperationException("Injected named mapping failure.");
 
-    /// <summary>Identifies the exact generated core allocation overload.</summary>
-    private delegate void CreateBuffersCall(int count, out int buffer);
-
-    /// <summary>Simulates an unsuccessful allocation without creating a native object.</summary>
-    private static bool FailCreation(out int __1) { __1 = 0; return false; }
+    /// <summary>Matches native creation output without relying on managed wrapper detours.</summary>
+    [UnmanagedFunctionPointer(CallingConvention.StdCall)]
+    private unsafe delegate void CreateBuffersCall(int count, uint* buffers);
 
     /// <summary>Runs a test callback at the exact native allocation boundary.</summary>
     private static void ObserveAllocation() => beforeAllocation?.Invoke();

@@ -20,6 +20,14 @@ the native-route replacement. External callbacks always forward original native 
 preserve arguments, return/output values and native errors. They never suppress, veto, cancel, retry,
 throw into the caller or defer an observer exception to it. Adapt old managed observation guards into
 non-vetoing effect/interruption bookkeeping; contain failures and withdraw only uncertain affected facts.
+Scalar state delivery is generated from compiler-checked withdrawal methods and optional classifiers.
+`InterceptOpenGL.Withdraw` names a static void method receiving the selected cache and exact native
+arguments. The cache domain owns affected-field selection, including argument-dependent targets;
+withdrawal performs no native execution or acquisition. The generator owns delivery safety without
+knowing cache knowledge categories. Native acceptance rules remain handwritten. Proven rejection retains
+old facts, uncertainty withdraws only affected facts, and publication/recovery checks the originating lifetime. Context selection
+uses explicit nonthrowing absence, independently of capability discovery. Numeric uniform writes and
+ignored locations do not interrupt metadata certification or refresh descriptors.
 Managed RHI validation remains separate. Backend-owned execution bypasses callbacks and retains its
 single reconciliation/publication owner. The cleanup unit precedes the native replacement; only the
 latter qualifies universal supported-caller delivery, observation-only forwarding and remaining handlers.

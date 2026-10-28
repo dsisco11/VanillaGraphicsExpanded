@@ -21,7 +21,7 @@ internal sealed unsafe partial class OpenGlStateCache
         PixelFormat @format = unchecked((PixelFormat)a7);
         PixelType @type = unchecked((PixelType)a8);
         IntPtr @pixels = unchecked((IntPtr)a9);
-        _ = OpenGLObservationContext.CurrentCache;
+        if (!OpenGLObservationContext.TryGet(out _, out _)) return;
         OpenGlStateCache.ObserveTextureMetadata(0, unchecked((int)@target), unchecked((int)@texunit), false, true, OpenGlStateCache.TextureMetadataEffect.Storage, 0, unchecked((int)@level));
     }
     #endregion

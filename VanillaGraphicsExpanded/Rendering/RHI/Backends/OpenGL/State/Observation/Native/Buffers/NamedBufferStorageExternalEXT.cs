@@ -16,7 +16,7 @@ internal sealed unsafe partial class OpenGlStateCache
         IntPtr @size = unchecked((IntPtr)a2);
         IntPtr @clientBuffer = unchecked((IntPtr)a3);
         BufferStorageMask @flags = unchecked((BufferStorageMask)a4);
-        _ = OpenGLObservationContext.CurrentCache;
+        if (!OpenGLObservationContext.TryGet(out _, out _)) return;
         OpenGlStateCache.ObserveBufferStorage(unchecked((int)@buffer), true);
     }
     #endregion

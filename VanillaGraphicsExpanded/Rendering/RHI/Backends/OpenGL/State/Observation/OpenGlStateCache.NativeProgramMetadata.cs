@@ -1,5 +1,6 @@
 using System;
 using OpenTK.Graphics.OpenGL;
+using VanillaGraphicsExpanded.Rendering.RHI;
 
 namespace VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 
@@ -24,33 +25,46 @@ internal sealed partial class OpenGlStateCache
                 if (pipeline != 0) program = Current.GetPipelineUniformProgram(pipeline);
             }
         }
-        Current.InterruptNativeResourceOperation(GpuResourceKind.Program, program);
         var entry = manager.FindObservedResource(GpuResourceKind.Program, program)
             as GpuResourceMetadataEntry<GpuProgramMetadata>;
         if (entry is null) return;
-        if (InterruptNativeMetadataCompletion(entry, GpuMetadataChange.Metadata | (executable ? GpuMetadataChange.Executable : GpuMetadataChange.None))) return;
         bool known = entry.IsUsable;
         if (unit)
         {
-            bool represented = false;
+            // An interface not yet acquired cannot prove that a location is numeric. Keep
+            // its completion exclusion effective until established selectors can classify it.
+            bool represented = entry.Metadata.Resources.IsDefault && entry.Metadata.TextureUnits.IsDefault;
             if (!entry.Metadata.TextureUnits.IsDefault)
                 foreach (var binding in entry.Metadata.TextureUnits)
-                    if (binding.Location >= location && (long)binding.Location - location < count)
+                    // A vector write starts at one uniform's location, never at an unrelated
+                    // numeric uniform merely because count extends across another location.
+                    if (binding.Location == location)
+                    {
+                        represented = true;
+                        break;
+                    }
+            if (!represented && entry.Metadata.TextureUnits.IsDefault && !entry.Metadata.Resources.IsDefault)
+                foreach (var resource in entry.Metadata.Resources)
+                    if (resource.Interface == ProgramResourceKind.Uniform && resource.Location is { } first
+                        && location >= first && (long)location - first < (resource.ArraySize ?? 1)
+                        && (resource.Type is not { } type || GpuProgramLayout.IsSamplerType(type) || GpuProgramLayout.IsImageType(type)))
                     {
                         represented = true;
                         break;
                     }
             if (!represented) return;
         }
-        entry.Reader ??= GpuProgramMetadataReader.Instance;
-        if (known && block != 0)
+        if (block != 0 && !entry.Metadata.Resources.IsDefault)
         {
             bool represented = false;
             foreach (var resource in entry.Metadata.Resources)
                 if (resource.Interface == OpenGLShaderValues.Resource((OpenTK.Graphics.OpenGL4.ProgramInterface)block) && resource.Index == blockIndex) { represented = true; break; }
             if (!represented) return;
         }
+        Current.InterruptNativeResourceOperation(GpuResourceKind.Program, program);
         var change = GpuMetadataChange.Metadata | (executable ? GpuMetadataChange.Executable : GpuMetadataChange.None);
+        if (InterruptNativeMetadataCompletion(entry, change)) return;
+        entry.Reader ??= GpuProgramMetadataReader.Instance;
         if (unsupportedUnits) manager.WithdrawUnsupportedProgramUnits(entry);
         var previous = entry.Metadata;
         entry.CompletionInterrupted = false;

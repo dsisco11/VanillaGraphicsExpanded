@@ -12,7 +12,7 @@ internal sealed unsafe partial class OpenGlStateCache
     internal static void ObserveActiveTexture(int a0)
     {
         TextureUnit texture = unchecked((TextureUnit)a0);
-        var cache = OpenGLObservationContext.CurrentCache;
+        if (!OpenGLObservationContext.TryGet(out var cache, out _)) return;
         int unit = (int)texture - (int)TextureUnit.Texture0;
         bool valid = unit >= 0 && unit < GpuSupport.MaxCombinedTextureImageUnits;
         var origin = Integration.RenderContextRegistry.CaptureResourceContext();

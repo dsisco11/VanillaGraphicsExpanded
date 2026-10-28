@@ -13,7 +13,7 @@ internal sealed unsafe partial class OpenGlStateCache
     {
         int unit = unchecked((int)a0);
         int sampler = unchecked((int)a1);
-        var cache = OpenGLObservationContext.CurrentCache;
+        if (!OpenGLObservationContext.TryGet(out var cache, out _)) return;
         bool valid = unit >= 0 && unit < GpuSupport.MaxCombinedTextureImageUnits;
         bool established = valid && cache.HasEstablishedNativeIdentity(GpuResourceKind.Sampler, sampler);
         var origin = Integration.RenderContextRegistry.CaptureResourceContext();

@@ -16,7 +16,7 @@ internal sealed unsafe partial class OpenGlStateCache
         VertexAttribIType @type = unchecked((VertexAttribIType)a2);
         int @stride = unchecked((int)a3);
         IntPtr @pointer = unchecked((IntPtr)a4);
-        _ = OpenGLObservationContext.CurrentCache;
+        if (!OpenGLObservationContext.TryGet(out _, out _)) return;
         OpenGlStateCache.ObserveVertexMetadata(0, false, false);
     }
     #endregion

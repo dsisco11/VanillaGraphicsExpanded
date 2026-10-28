@@ -12,6 +12,84 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 public sealed class GpuProgramUniformMetadataTests(HeadlessGLFixture fixture)
 {
     #region Public API
+    /// <summary>Content-only and ignored assignments preserve active certification; represented unit changes interrupt it.</summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public unsafe void IrrelevantUniformWritesDoNotInterruptMetadata(bool core)
+    {
+        fixture.EnsureContextValid();
+        fixture.InitializeResourceDisposal();
+        try
+        {
+            using var program = CreateProgram();
+            GL.UseProgram(program.ProgramId);
+            Assert.True(GL.GetError() == ErrorCode.NoError, "UseProgram setup");
+            var entry = (GpuResourceMetadataEntry<GpuProgramMetadata>)GpuResourceManagerSystem.CurrentManager!.GetResourceRegistration(program)!;
+            var snapshot = entry.Metadata;
+            var reader = new CountingReader(entry.Reader!);
+            entry.Reader = reader;
+            int numeric = GL.GetUniformLocation(program.ProgramId, "numericValue");
+            int unsigned = GL.GetUniformLocation(program.ProgramId, "unsignedValue");
+            int sampler = GL.GetUniformLocation(program.ProgramId, "inputTexture");
+            Assert.True(numeric >= 0 && unsigned >= 0 && sampler >= 0);
+            ulong revision = entry.MetadataRevision;
+            using (var operation = new GpuResourceManager.MetadataOperation<GpuProgramMetadata>(program, GpuMetadataChange.Metadata))
+            {
+                if (core)
+                {
+                    OpenTK.Graphics.OpenGL4.GL.Uniform1(numeric, 7);
+                    Assert.True(GL.GetError() == ErrorCode.NoError, "core bound signed");
+                    OpenTK.Graphics.OpenGL4.GL.Uniform1(unsigned, 9u);
+                    Assert.True(GL.GetError() == ErrorCode.NoError, "core bound unsigned");
+                    OpenTK.Graphics.OpenGL4.GL.ProgramUniform1(program.ProgramId, numeric, 8);
+                    Assert.True(GL.GetError() == ErrorCode.NoError, "core named signed");
+                    OpenTK.Graphics.OpenGL4.GL.ProgramUniform1((uint)program.ProgramId, unsigned, 10u);
+                    Assert.True(GL.GetError() == ErrorCode.NoError, "core named unsigned");
+                    OpenTK.Graphics.OpenGL4.GL.Uniform1(-1, 11);
+                }
+                else
+                {
+                    GL.Uniform1(numeric, 7);
+                    Assert.True(GL.GetError() == ErrorCode.NoError, "bound signed");
+                    GL.Uniform1(unsigned, 9u);
+                    Assert.True(GL.GetError() == ErrorCode.NoError, "bound unsigned");
+                    GL.ProgramUniform1(program.ProgramId, numeric, 8);
+                    Assert.True(GL.GetError() == ErrorCode.NoError, "named signed");
+                    GL.ProgramUniform1((uint)program.ProgramId, unsigned, 10u);
+                    Assert.True(GL.GetError() == ErrorCode.NoError, "named unsigned");
+                    GL.Uniform1(-1, 11);
+                }
+                Assert.Equal(ErrorCode.NoError, GL.GetError());
+                // A count cannot turn a numeric starting location into a unit assignment.
+                // GL rejects multiple elements for this non-array uniform; preserve that error.
+                GL.Uniform1(numeric, 2, new[] { 1, 2 });
+                Assert.Equal(ErrorCode.InvalidOperation, GL.GetError());
+                // EXT unsigned setters also remain ordinary driver dispatch, with no metadata observer.
+                var table = OpenGLBindingTable.For(typeof(GL));
+                nint scalar = table.Read("glUniform1uiEXT"), vector = table.Read("glUniform1uivEXT");
+                if (scalar != 0) ((delegate* unmanaged[Stdcall]<int, uint, void>)scalar)(unsigned, 12);
+                uint value = 13;
+                if (vector != 0) ((delegate* unmanaged[Stdcall]<int, int, uint*, void>)vector)(unsigned, 1, &value);
+                Assert.Equal(revision, entry.MetadataRevision);
+                Assert.Equal(0, reader.Reads);
+                Assert.False(entry.CompletionInterrupted);
+                operation.Commit(snapshot);
+            }
+            Assert.Equal(revision + 1, entry.MetadataRevision);
+            Assert.True(entry.IsUsable);
+            GL.GetUniform(program.ProgramId, numeric, out int actual);
+            Assert.Equal(8, actual);
+            using (var operation = new GpuResourceManager.MetadataOperation<GpuProgramMetadata>(program, GpuMetadataChange.Metadata))
+            {
+                GL.Uniform1(sampler, 2);
+                Assert.Throws<InvalidOperationException>(() => operation.Commit(snapshot));
+            }
+            Assert.Equal(0, reader.Reads);
+            Assert.Equal(ErrorCode.NoError, GL.GetError());
+        }
+        finally { GL.UseProgram(0); fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
+    }
     /// <summary>Sampler units publish metadata while numeric contents preserve revisions and caller program selections.</summary>
     [Theory]
     [InlineData(false)]
@@ -115,7 +193,7 @@ public sealed class GpuProgramUniformMetadataTests(HeadlessGLFixture fixture)
         int program = GL.CreateProgram();
         try
         {
-            GL.ShaderSource(shader, "#version 430\nlayout(local_size_x=1) in; uniform sampler2D inputTexture; uniform int numericValue; layout(std430,binding=0) buffer Output { vec4 result; }; void main() { result=texelFetch(inputTexture,ivec2(0),0)+vec4(numericValue); }");
+            GL.ShaderSource(shader, "#version 430\nlayout(local_size_x=1) in; uniform sampler2D inputTexture; uniform int numericValue; uniform uint unsignedValue; layout(std430,binding=0) buffer Output { vec4 result; }; void main() { result=texelFetch(inputTexture,ivec2(0),0)+vec4(numericValue+int(unsignedValue)); }");
             GL.CompileShader(shader);
             GL.GetShader(shader, ShaderParameter.CompileStatus, out int compiled);
             Assert.True(compiled != 0, GL.GetShaderInfoLog(shader));

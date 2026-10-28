@@ -15,7 +15,7 @@ internal sealed unsafe partial class OpenGlStateCache
         int @program = unchecked((int)a0);
         int @location = unchecked((int)a1);
         int @v0 = unchecked((int)a2);
-        _ = OpenGLObservationContext.CurrentCache;
+        if (!OpenGLObservationContext.TryGet(out _, out _)) return;
         OpenGlStateCache.ObserveProgramMetadata(unchecked((int)@program), true, true, unchecked((int)@location), 1, false, false);
     }
     #endregion

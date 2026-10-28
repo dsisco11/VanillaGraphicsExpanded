@@ -31,7 +31,7 @@ internal sealed partial class OpenGlStateCache
     internal static void ObserveProgramSelection(NativeProgramSelector selector,
         int value, int pipeline = 0, int stage = 0)
     {
-        var cache = OpenGLObservationContext.CurrentCache;
+        if (!OpenGLObservationContext.TryGet(out var cache, out _)) return;
         int? previous = selector == NativeProgramSelector.Pipeline ? cache.currentProgramPipeline
             : selector == NativeProgramSelector.PipelineUniform
                 ? cache.pipelineUniformPrograms.TryGetValue(pipeline, out int active) ? active : null

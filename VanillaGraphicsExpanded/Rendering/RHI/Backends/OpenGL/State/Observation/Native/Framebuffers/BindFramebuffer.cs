@@ -13,7 +13,7 @@ internal sealed unsafe partial class OpenGlStateCache
     {
         FramebufferTarget target = unchecked((FramebufferTarget)a0);
         int framebuffer = unchecked((int)a1);
-        var cache = OpenGLObservationContext.CurrentCache;
+        if (!OpenGLObservationContext.TryGet(out var cache, out _)) return;
         bool valid = target is FramebufferTarget.Framebuffer or FramebufferTarget.ReadFramebuffer or FramebufferTarget.DrawFramebuffer;
         bool established = valid && cache.HasEstablishedNativeIdentity(GpuResourceKind.Framebuffer, framebuffer);
         var origin = Integration.RenderContextRegistry.CaptureResourceContext();

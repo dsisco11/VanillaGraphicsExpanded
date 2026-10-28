@@ -14,7 +14,7 @@ internal sealed unsafe partial class OpenGlStateCache
         BufferRangeTarget target = unchecked((BufferRangeTarget)a0);
         int slot = unchecked((int)a1);
         int buffer = unchecked((int)a2);
-        var cache = OpenGLObservationContext.CurrentCache;
+        if (!OpenGLObservationContext.TryGet(out var cache, out _)) return;
         var origin = Integration.RenderContextRegistry.CaptureResourceContext();
         bool validSlot = OpenGLBufferBindingCalls.ValidIndexedSlot(target, slot);
         bool captureKnown = cache.TryGetFeedbackActivity(out var capture);

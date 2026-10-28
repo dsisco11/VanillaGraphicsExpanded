@@ -12,5 +12,11 @@ internal sealed class InterceptOpenGLAttribute : Attribute
 
     /// <summary>Gets the native symbol resolved against the generator's selected ABI inventory.</summary>
     public string EntryPoint { get; }
+
+    /// <summary>Names a static native-argument classifier returning an observed effect outcome.</summary>
+    public string? Classify { get; set; }
+
+    /// <summary>Names the static cache-and-native-argument method that withdraws uncertain affected knowledge.</summary>
+    public string? Withdraw { get; set; }
     #endregion
 }

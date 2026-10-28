@@ -11,24 +11,32 @@ internal sealed partial class OpenGlStateCache
     [InterceptOpenGL("glDrawBuffers")]
     [InterceptOpenGL("glDrawBuffersARB")]
     internal static unsafe void ObserveDrawBuffers(int count, int* buffers)
-        => OpenGLObservationContext.CurrentCache.ObserveDrawRouting(null, count, buffers, false);
+        {
+        if (OpenGLObservationContext.TryGet(out var cache, out _)) cache.ObserveDrawRouting(null, count, buffers, false);
+    }
 
     /// <summary>Observes equivalent named multi-output commands using their explicit framebuffer.</summary>
     [InterceptOpenGL("glNamedFramebufferDrawBuffers")]
     [InterceptOpenGL("glFramebufferDrawBuffersEXT")]
     internal static unsafe void ObserveNamedDrawBuffers(uint framebuffer, int count, int* buffers)
-        => OpenGLObservationContext.CurrentCache.ObserveDrawRouting(unchecked((int)framebuffer), count, buffers, false);
+        {
+        if (OpenGLObservationContext.TryGet(out var cache, out _)) cache.ObserveDrawRouting(unchecked((int)framebuffer), count, buffers, false);
+    }
 
     /// <summary>Preserves the distinct grouped window-buffer semantics of a scalar command.</summary>
     [InterceptOpenGL("glDrawBuffer")]
     internal static unsafe void ObserveDrawBuffer(int buffer)
-        => OpenGLObservationContext.CurrentCache.ObserveDrawRouting(null, 1, &buffer, true);
+        {
+        if (OpenGLObservationContext.TryGet(out var cache, out _)) cache.ObserveDrawRouting(null, 1, &buffer, true);
+    }
 
     /// <summary>Observes equivalent named scalar commands without querying native state.</summary>
     [InterceptOpenGL("glNamedFramebufferDrawBuffer")]
     [InterceptOpenGL("glFramebufferDrawBufferEXT")]
     internal static unsafe void ObserveNamedDrawBuffer(uint framebuffer, int buffer)
-        => OpenGLObservationContext.CurrentCache.ObserveDrawRouting(unchecked((int)framebuffer), 1, &buffer, true);
+        {
+        if (OpenGLObservationContext.TryGet(out var cache, out _)) cache.ObserveDrawRouting(unchecked((int)framebuffer), 1, &buffer, true);
+    }
     #endregion
 
     #region Private

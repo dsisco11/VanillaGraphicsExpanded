@@ -13,7 +13,7 @@ internal sealed unsafe partial class OpenGlStateCache
     {
         ExtSeparateShaderObjects @type = unchecked((ExtSeparateShaderObjects)a0);
         int @program = unchecked((int)a1);
-        _ = OpenGLObservationContext.CurrentCache;
+        if (!OpenGLObservationContext.TryGet(out _, out _)) return;
         OpenGlStateCache.ObserveProgramSelection(OpenGlStateCache.NativeProgramSelector.Stage, @program, stage: (int)@type);
     }
     #endregion

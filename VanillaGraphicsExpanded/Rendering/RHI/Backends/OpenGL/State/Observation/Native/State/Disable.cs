@@ -18,7 +18,12 @@ internal sealed unsafe partial class OpenGlStateCache
         {
             cache = OpenGlStateCache.Current;
             operationContext = Integration.RenderContextRegistry.CaptureResourceContext();
-            cache = OpenGLObservationContext.CurrentCache;
+            if (!OpenGLObservationContext.TryGet(out cache, out operationContext))
+            {
+                // Missing limits cannot certify this field; never preserve a potentially stale value.
+                if (cache.OwnsKnowledgeFor(operationContext)) AdmitNativeCapability(cache, cap);
+                return;
+            }
             bool accepted = OpenGlStateCache.AcceptsExternalCapability(cap);
             operationContext = Integration.RenderContextRegistry.CaptureResourceContext();
             if (accepted) AdmitNativeCapability(cache, cap);

@@ -3,41 +3,31 @@ using OpenTK.Graphics.OpenGL;
 
 namespace VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 
-/// <summary>Publishes the observed effects of glMinSampleShading after native dispatch.</summary>
-internal sealed unsafe partial class OpenGlStateCache
+/// <summary>Publishes established glMinSampleShading effects through generated originating-context delivery.</summary>
+internal sealed partial class OpenGlStateCache
 {
     #region Internal API
-    /// <summary>Updates existing cache and resource authority without issuing the intercepted operation.</summary>
-    [InterceptOpenGL("glMinSampleShading")]
-    internal static void ObserveMinSampleShading(float a0)
+    /// <summary>Assigns the domain value after generated classification and targeted withdrawal.</summary>
+    [InterceptOpenGL("glMinSampleShading", Withdraw = nameof(WithdrawMinSampleShading), Classify = nameof(ClassifyMinSampleShading))]
+    internal static void ObserveMinSampleShading(OpenGlStateCache cache, float a0)
     {
-        float value = unchecked((float)a0);
-        OpenGlStateCache? cache = null;
-        (nint Handle, long Generation) operationContext = default;
-        try
-        {
-            cache = OpenGlStateCache.Current;
-            operationContext = Integration.RenderContextRegistry.CaptureResourceContext();
-            cache = OpenGLObservationContext.CurrentCache;
-            bool accepted = float.IsFinite(value);
-            operationContext = Integration.RenderContextRegistry.CaptureResourceContext();
-            // Established rejection preserves prior facts. Observation never vetoes the native call.
-            if (accepted || !float.IsFinite(value)) cache.ForgetExternalStateMutation(sampling: SamplingStateKnowledge.MinimumSampleShading);
+        float value = a0;
+        cache.ObserveExternalMinSampleShading(value);
+    }
 
-            if (accepted && cache.OwnsKnowledgeFor(operationContext) && Integration.RenderContextRegistry.IsCurrentResourceContext(operationContext))
-                cache.ObserveExternalMinSampleShading(value);
-        }
-        catch (Exception)
-        {
-            // Native dispatch has completed. Withdraw only uncertain affected knowledge
-            // when observation fails, without touching a foreign cache.
-            try
-            {
-                if (cache?.OwnsKnowledgeFor(operationContext) == true)
-                    cache.ForgetExternalStateMutation(sampling: SamplingStateKnowledge.MinimumSampleShading);
-            }
-            catch (Exception) { /* Failure recovery must not veto or retry native dispatch. */ }
-        }
+    /// <summary>Classifies the represented field from native arguments and established context facts.</summary>
+    internal static OpenGLObservedEffect ClassifyMinSampleShading(float a0)
+    {
+        float value = a0;
+        if (float.IsFinite(value)) return OpenGLObservedEffect.Changed;
+        if (!float.IsFinite(value)) return OpenGLObservedEffect.Uncertain;
+        return OpenGLObservedEffect.Rejected;
+    }
+
+    /// <summary>Withdraws only this operation's affected knowledge after uncertainty or delivery failure.</summary>
+    internal static void WithdrawMinSampleShading(OpenGlStateCache cache, float a0)
+    {
+        cache.ForgetExternalStateMutation(sampling: SamplingStateKnowledge.MinimumSampleShading);
     }
     #endregion
 }

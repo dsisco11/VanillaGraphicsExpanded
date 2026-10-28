@@ -13,7 +13,7 @@ internal sealed unsafe partial class OpenGlStateCache
     {
         TransformFeedbackTarget target = unchecked((TransformFeedbackTarget)a0);
         int feedback = unchecked((int)a1);
-        var cache = OpenGLObservationContext.CurrentCache;
+        if (!OpenGLObservationContext.TryGet(out var cache, out _)) return;
         var origin = Integration.RenderContextRegistry.CaptureResourceContext();
         // A post-call native query describes the new selection, not the previously cached
         // object. Only retained activity can establish whether this bind was rejected.

@@ -7,6 +7,9 @@ internal sealed partial class OpenGlStateCache
     private (nint Handle, long Generation) rhiContextLifetime;
 
     #region Internal API
+    /// <summary>Returns the existing knowledge owner for recovery if context selection itself fails.</summary>
+    internal (nint Handle, long Generation) KnowledgeContext => (rhiNativeContext, rhiContextLifetime.Generation);
+
     /// <summary>Checks which namespace currently owns this thread-local store without consulting a foreign native context.</summary>
     internal bool OwnsKnowledgeFor((nint Handle, long Generation) origin) => rhiNativeContext == origin.Handle
         && (origin.Generation == 0 || rhiContextLifetime == origin);

@@ -10,7 +10,7 @@ internal sealed partial class OpenGlStateCache
     /// <summary>Reconciles generic and element-buffer effects together after a completed native binding command.</summary>
     internal static void ObserveBufferBinding(BufferTarget target, int buffer)
     {
-        var cache = OpenGLObservationContext.CurrentCache;
+        if (!OpenGLObservationContext.TryGet(out var cache, out _)) return;
         bool targetValid = Enum.IsDefined(target) && (target != BufferTarget.ParameterBuffer
             || GpuSupport.Graphics.ApiVersion is { Major: > 4 } or { Major: 4, Minor: >= 6 }
             || GpuSupport.Supports("GL_ARB_indirect_parameters"));

@@ -18,7 +18,7 @@ internal sealed unsafe partial class OpenGlStateCache
         int @width = unchecked((int)a4);
         int @height = unchecked((int)a5);
         bool @fixedsamplelocations = a6 != 0;
-        _ = OpenGLObservationContext.CurrentCache;
+        if (!OpenGLObservationContext.TryGet(out _, out _)) return;
         OpenGlStateCache.ObserveTextureMetadata(unchecked((int)@texture), unchecked((int)@target), -1, true, false, OpenGlStateCache.TextureMetadataEffect.Storage, 0);
     }
     #endregion

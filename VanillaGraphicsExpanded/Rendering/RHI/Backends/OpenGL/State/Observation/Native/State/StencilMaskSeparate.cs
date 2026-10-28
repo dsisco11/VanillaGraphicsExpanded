@@ -19,9 +19,13 @@ internal sealed unsafe partial class OpenGlStateCache
         {
             cache = OpenGlStateCache.Current;
             operationContext = Integration.RenderContextRegistry.CaptureResourceContext();
-            cache = OpenGLObservationContext.CurrentCache;
+            if (!OpenGLObservationContext.TryGet(out cache, out operationContext))
+            {
+                // Missing limits cannot certify this field; never preserve a potentially stale value.
+                if (cache.OwnsKnowledgeFor(operationContext)) cache.ForgetExternalStateMutation(stencil: NativeStencilFields(face, StencilStateKnowledge.FrontStencilMask, StencilStateKnowledge.BackStencilMask));
+                return;
+            }
             bool accepted = face is StencilFace.Front or StencilFace.Back or StencilFace.FrontAndBack;
-            operationContext = Integration.RenderContextRegistry.CaptureResourceContext();
             // Established rejection preserves prior facts. Observation never vetoes the native call.
             if (accepted) cache.ForgetExternalStateMutation(stencil: NativeStencilFields(face, StencilStateKnowledge.FrontStencilMask, StencilStateKnowledge.BackStencilMask));
 

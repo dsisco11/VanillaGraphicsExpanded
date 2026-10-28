@@ -12,8 +12,8 @@ internal sealed unsafe partial class OpenGlStateCache
     internal static void ObservePixelStoref(int a0, float a1)
     {
         PixelStoreParameter parameter = unchecked((PixelStoreParameter)a0);
-        float value = unchecked((float)a1);
-        var cache = OpenGLObservationContext.CurrentCache;
+        float value = a1;
+        if (!OpenGLObservationContext.TryGet(out var cache, out _)) return;
 
                 var origin = Integration.RenderContextRegistry.CaptureResourceContext();
                 bool boolean = OpenGLPixelStoreCalls.IsBoolean(parameter);

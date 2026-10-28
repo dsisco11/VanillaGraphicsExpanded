@@ -38,7 +38,7 @@ internal sealed partial class OpenGlStateCache
     internal static void ObserveFeedbackActivity(FeedbackActivityCommand command,
         TransformFeedbackPrimitiveType primitive = 0)
     {
-        var cache = OpenGLObservationContext.CurrentCache;
+        if (!OpenGLObservationContext.TryGet(out var cache, out _)) return;
         int id = OpenGLFeedbackBindings.GetExternalSelection(cache);
         bool known = cache.feedbackActivity.TryGetValue(id, out var previous);
         var origin = Integration.RenderContextRegistry.CaptureResourceContext();

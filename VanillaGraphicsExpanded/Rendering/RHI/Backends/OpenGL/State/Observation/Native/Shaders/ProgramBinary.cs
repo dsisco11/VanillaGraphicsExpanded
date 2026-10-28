@@ -15,7 +15,7 @@ internal sealed unsafe partial class OpenGlStateCache
         BinaryFormat @binaryFormat = unchecked((BinaryFormat)a1);
         IntPtr @binary = unchecked((IntPtr)a2);
         int @length = unchecked((int)a3);
-        _ = OpenGLObservationContext.CurrentCache;
+        if (!OpenGLObservationContext.TryGet(out _, out _)) return;
         OpenGlStateCache.ObserveProgramMetadata(unchecked((int)@program), true, false, -1, 1, true, false);
     }
     #endregion

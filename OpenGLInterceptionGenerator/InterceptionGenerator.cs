@@ -73,6 +73,7 @@ public sealed class InterceptionGenerator : IIncrementalGenerator
             {
                 string name = attribute.ConstructorArguments.FirstOrDefault().Value as string ?? "";
                 string? error = null;
+                StateObservation? state = null;
                 if (!signatures.TryGetValue(name, out var signature)) error = "Unknown native entrypoint: " + name;
                 else if (!selected.Add(name)) error = "Duplicate native observer: " + name;
                 else if (!method.IsStatic || !method.ReturnsVoid || method.IsGenericMethod || (method.ContainingType.ToDisplayString() != Owner && method.DeclaredAccessibility is not (Accessibility.Internal or Accessibility.Public)))
@@ -80,16 +81,25 @@ public sealed class InterceptionGenerator : IIncrementalGenerator
                 else
                 {
                     var expected = signature.Parameters.Concat(signature.Result == "void" ? Array.Empty<string>() : new[] { signature.Result }).ToArray();
-                    if (method.Parameters.Length != expected.Length || method.Parameters.Where((parameter, i) =>
+                    bool stateMethod = method.Parameters.FirstOrDefault()?.Type.ToDisplayString() == "VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGlStateCache";
+                    var parameters = method.Parameters.Skip(stateMethod ? 1 : 0).ToArray();
+                    if (parameters.Length != expected.Length || parameters.Where((parameter, i) =>
                         parameter.RefKind != RefKind.None || parameter.Type.ToDisplayString() != expected[i]).Any())
                         error = "Observer signature must match native arguments followed by its return value: " + name;
+                    else if (stateMethod)
+                    {
+                        if (signature.Result != "void") error = "State delivery requires a void native command.";
+                        else try { state = new StateObservation(method, attribute, expected); }
+                        catch (FormatException invalid) { error = invalid.Message; }
+                    }
+                    else if (attribute.NamedArguments.Length != 0) error = "State delivery declarations require an injected OpenGlStateCache parameter.";
                 }
                 if (error != null)
                 {
                     output.ReportDiagnostic(Diagnostic.Create(Invalid, method.Locations.FirstOrDefault(), error));
                     continue;
                 }
-                output.AddSource(name + ".g.cs", SourceText.From(CallbackEmitter.Emit(signature!, (method.ContainingType.ToDisplayString() == Owner ? "" : "global::" + method.ContainingType.ToDisplayString() + ".") + "@" + method.Name), Encoding.UTF8));
+                output.AddSource(name + ".g.cs", SourceText.From(CallbackEmitter.Emit(signature!, (method.ContainingType.ToDisplayString() == Owner ? "" : "global::" + method.ContainingType.ToDisplayString() + ".") + "@" + method.Name, state), Encoding.UTF8));
                 catalog.AppendLine($"        \"{name}\" => Create{name.Substring(2)}(original),");
             }
         }

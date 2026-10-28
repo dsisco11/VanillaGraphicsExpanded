@@ -3,41 +3,23 @@ using OpenTK.Graphics.OpenGL;
 
 namespace VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 
-/// <summary>Publishes the observed effects of glStencilMask after native dispatch.</summary>
-internal sealed unsafe partial class OpenGlStateCache
+/// <summary>Publishes established glStencilMask effects through generated originating-context delivery.</summary>
+internal sealed partial class OpenGlStateCache
 {
     #region Internal API
-    /// <summary>Updates existing cache and resource authority without issuing the intercepted operation.</summary>
-    [InterceptOpenGL("glStencilMask")]
-    internal static void ObserveStencilMask(uint a0)
+    /// <summary>Assigns the domain value after generated classification and targeted withdrawal.</summary>
+    [InterceptOpenGL("glStencilMask", Withdraw = nameof(WithdrawStencilMask))]
+    internal static void ObserveStencilMask(OpenGlStateCache cache, uint a0)
     {
-        uint mask = unchecked((uint)a0);
-        OpenGlStateCache? cache = null;
-        (nint Handle, long Generation) operationContext = default;
-        try
-        {
-            cache = OpenGlStateCache.Current;
-            operationContext = Integration.RenderContextRegistry.CaptureResourceContext();
-            cache = OpenGLObservationContext.CurrentCache;
-            bool accepted = true;
-            operationContext = Integration.RenderContextRegistry.CaptureResourceContext();
-            // Established rejection preserves prior facts. Observation never vetoes the native call.
-            if (accepted) cache.ForgetExternalStateMutation(stencil: (StencilStateKnowledge.FrontStencilMask | StencilStateKnowledge.BackStencilMask));
+        uint mask = a0;
+        cache.ObserveExternalStencilMask(mask);
+    }
 
-            if (accepted && cache.OwnsKnowledgeFor(operationContext) && Integration.RenderContextRegistry.IsCurrentResourceContext(operationContext))
-                cache.ObserveExternalStencilMask(mask);
-        }
-        catch (Exception)
-        {
-            // Native dispatch has completed. Withdraw only uncertain affected knowledge
-            // when observation fails, without touching a foreign cache.
-            try
-            {
-                if (cache?.OwnsKnowledgeFor(operationContext) == true)
-                    cache.ForgetExternalStateMutation(stencil: (StencilStateKnowledge.FrontStencilMask | StencilStateKnowledge.BackStencilMask));
-            }
-            catch (Exception) { /* Failure recovery must not veto or retry native dispatch. */ }
-        }
+
+    /// <summary>Withdraws only this operation's affected knowledge after uncertainty or delivery failure.</summary>
+    internal static void WithdrawStencilMask(OpenGlStateCache cache, uint a0)
+    {
+        cache.ForgetExternalStateMutation(stencil: (StencilStateKnowledge.FrontStencilMask | StencilStateKnowledge.BackStencilMask));
     }
     #endregion
 }

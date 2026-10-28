@@ -8,7 +8,7 @@ internal static class CallbackEmitter
 {
     #region Internal API
     /// <summary>Creates one rooted callback factory without reflection or per-invocation allocation.</summary>
-    internal static string Emit(NativeSignature signature, string observer)
+    internal static string Emit(NativeSignature signature, string observer, StateObservation? state = null)
     {
         string suffix = signature.Name.Substring(2);
         string parameters = string.Join(", ", signature.Parameters.Select((type, i) => type + " a" + i));
@@ -26,10 +26,20 @@ internal static class CallbackEmitter
         source.AppendLine($"    private static OpenGLNativeSlot Create{suffix}(nint original)\n    {{");
         source.AppendLine($"        {suffix}Callback callback = ({arguments}) =>\n        {{");
         source.AppendLine($"            {(returns ? "var result = " : "")}((delegate* unmanaged[Stdcall]<{abi}>)original)({arguments});");
-        source.AppendLine($"            try {{ if (ObservationEnabled) {observer}({observationArguments}); }}");
+        source.AppendLine(state == null
+            ? $"            try {{ if (ObservationEnabled) {observer}({observationArguments}); }}"
+            : "            try { if (ObservationEnabled) Observe" + suffix + "(" + observationArguments + "); }");
         source.AppendLine("            catch (global::System.Exception) { /* Observation cannot escape or repeat native dispatch. */ }");
         if (returns) source.AppendLine("            return result;");
-        source.AppendLine("        };\n        return new(original, callback);\n    }\n    #endregion\n}");
+        source.AppendLine("        };\n        return new(original, callback);\n    }");
+        if (state != null)
+        {
+            source.AppendLine("    /// <summary>Delivers the declared state effect with targeted originating-context recovery.</summary>");
+            source.AppendLine($"    private static void Observe{suffix}({parameters})\n    {{");
+            source.AppendLine(state.Emit(observer, observationArguments));
+            source.AppendLine("    }");
+        }
+        source.AppendLine("    #endregion\n}");
         return source.ToString();
     }
     #endregion

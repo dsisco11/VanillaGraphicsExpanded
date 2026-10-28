@@ -12,7 +12,7 @@ internal sealed unsafe partial class OpenGlStateCache
     internal static void ObserveUseProgram(uint a0)
     {
         int @program = unchecked((int)a0);
-        _ = OpenGLObservationContext.CurrentCache;
+        if (!OpenGLObservationContext.TryGet(out _, out _)) return;
         OpenGlStateCache.ObserveProgramSelection(OpenGlStateCache.NativeProgramSelector.Program, @program);
     }
     #endregion

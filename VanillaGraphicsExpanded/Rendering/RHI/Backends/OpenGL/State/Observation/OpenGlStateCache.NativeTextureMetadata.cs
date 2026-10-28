@@ -32,15 +32,16 @@ internal sealed partial class OpenGlStateCache
             if ((uint)unit >= (uint)GpuSupport.Graphics.MaxCombinedTextureImageUnits) return;
             id = Current.GetBoundTexture(target, unit);
         }
-        Current.InterruptNativeResourceOperation(GpuResourceKind.Texture, id);
-        if (manager?.CanObserveNativeMetadata != true) return;
-        var entry = manager.FindObservedResource(GpuResourceKind.Texture, id)
-            as GpuResourceMetadataEntry<GpuTextureMetadata>;
+        var entry = manager?.CanObserveNativeMetadata == true ? manager.FindObservedResource(GpuResourceKind.Texture, id)
+            as GpuResourceMetadataEntry<GpuTextureMetadata> : null;
         // Buffer textures only acquire storage through association commands. Image storage,
         // mip generation and represented texture parameters are invalid for this target.
         if (entry?.Metadata.Target == TextureDimension.Buffer) return;
         if (effect == TextureMetadataEffect.Parameter && entry?.Metadata.Target is TextureDimension.TwoMultisample or TextureDimension.TwoMultisampleArray) return;
         bool generation = effect == TextureMetadataEffect.MipGeneration;
+        if (generation && entry?.Metadata.ImmutableStorage == true) return;
+        Current.InterruptNativeResourceOperation(GpuResourceKind.Texture, id);
+        if (manager?.CanObserveNativeMetadata != true) return;
         bool wasAvailable = entry?.IsUsable == true;
         if (entry is not null && imageLevel >= 0
             && (!CanQueryTextureImage(entry.Metadata, imageLevel) || target != 0 && OpenGLImageValues.Dimension(target) != entry.Metadata.Target)) imageLevel = -1;
@@ -51,7 +52,6 @@ internal sealed partial class OpenGlStateCache
         {
             // Immutable storage already fixes every image descriptor. Mip regeneration can
             // only change its contents, so it must not retire view storage certificates.
-            if (generation && wasAvailable && entry.Metadata.ImmutableStorage) return;
             // A rejected named command may supply a different target. Prefer the established
             // object target so readback certifies actual state without speculative rebinding.
             if (InterruptNativeMetadataCompletion(entry, change)) return;

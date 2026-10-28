@@ -13,7 +13,7 @@ internal sealed unsafe partial class OpenGlStateCache
     {
         int @attribindex = unchecked((int)a0);
         int @bindingindex = unchecked((int)a1);
-        _ = OpenGLObservationContext.CurrentCache;
+        if (!OpenGLObservationContext.TryGet(out _, out _)) return;
         OpenGlStateCache.ObserveVertexMetadata(0, false, false);
     }
     #endregion

@@ -14,7 +14,7 @@ internal sealed unsafe partial class OpenGlStateCache
         FramebufferTarget @target = unchecked((FramebufferTarget)a0);
         FramebufferDefaultParameter @pname = unchecked((FramebufferDefaultParameter)a1);
         int @param = unchecked((int)a2);
-        _ = OpenGLObservationContext.CurrentCache;
+        if (!OpenGLObservationContext.TryGet(out _, out _)) return;
         if (unchecked((int)@pname) is >= (int)FramebufferDefaultParameter.FramebufferDefaultWidth and <= (int)FramebufferDefaultParameter.FramebufferDefaultFixedSampleLocations)
             ObserveFramebufferMutation(unchecked((int)@target), false, parameter: (FramebufferDefaultParameter)unchecked((int)@pname));
     }

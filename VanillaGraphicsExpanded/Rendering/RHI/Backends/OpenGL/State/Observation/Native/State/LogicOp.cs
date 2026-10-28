@@ -3,41 +3,25 @@ using OpenTK.Graphics.OpenGL;
 
 namespace VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 
-/// <summary>Publishes the observed effects of glLogicOp after native dispatch.</summary>
-internal sealed unsafe partial class OpenGlStateCache
+/// <summary>Publishes established glLogicOp effects through generated originating-context delivery.</summary>
+internal sealed partial class OpenGlStateCache
 {
     #region Internal API
-    /// <summary>Updates existing cache and resource authority without issuing the intercepted operation.</summary>
-    [InterceptOpenGL("glLogicOp")]
-    internal static void ObserveLogicOp(int a0)
+    /// <summary>Assigns the domain value after generated classification and targeted withdrawal.</summary>
+    [InterceptOpenGL("glLogicOp", Withdraw = nameof(WithdrawLogicOp), Classify = nameof(ClassifyLogicOp))]
+    internal static void ObserveLogicOp(OpenGlStateCache cache, int operation)
     {
-        LogicOp operation = unchecked((LogicOp)a0);
-        OpenGlStateCache? cache = null;
-        (nint Handle, long Generation) operationContext = default;
-        try
-        {
-            cache = OpenGlStateCache.Current;
-            operationContext = Integration.RenderContextRegistry.CaptureResourceContext();
-            cache = OpenGLObservationContext.CurrentCache;
-            bool accepted = Enum.IsDefined(operation);
-            operationContext = Integration.RenderContextRegistry.CaptureResourceContext();
-            // Established rejection preserves prior facts. Observation never vetoes the native call.
-            if (accepted) cache.ForgetExternalStateMutation(output: OutputStateKnowledge.LogicOperation);
+        cache.ObserveExternalLogicOp((LogicOp)operation);
+    }
 
-            if (accepted && cache.OwnsKnowledgeFor(operationContext) && Integration.RenderContextRegistry.IsCurrentResourceContext(operationContext))
-                cache.ObserveExternalLogicOp(operation);
-        }
-        catch (Exception)
-        {
-            // Native dispatch has completed. Withdraw only uncertain affected knowledge
-            // when observation fails, without touching a foreign cache.
-            try
-            {
-                if (cache?.OwnsKnowledgeFor(operationContext) == true)
-                    cache.ForgetExternalStateMutation(output: OutputStateKnowledge.LogicOperation);
-            }
-            catch (Exception) { /* Failure recovery must not veto or retry native dispatch. */ }
-        }
+    /// <summary>Invalid operation selectors are rejected without changing the established logic operation.</summary>
+    internal static OpenGLObservedEffect ClassifyLogicOp(int operation) => Enum.IsDefined((LogicOp)operation)
+        ? OpenGLObservedEffect.Changed : OpenGLObservedEffect.Rejected;
+
+    /// <summary>Withdraws only this operation's affected knowledge after uncertainty or delivery failure.</summary>
+    internal static void WithdrawLogicOp(OpenGlStateCache cache, int operation)
+    {
+        cache.ForgetExternalStateMutation(output: OutputStateKnowledge.LogicOperation);
     }
     #endregion
 }

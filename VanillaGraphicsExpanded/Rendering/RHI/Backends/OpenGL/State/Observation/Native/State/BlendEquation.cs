@@ -3,41 +3,30 @@ using OpenTK.Graphics.OpenGL;
 
 namespace VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 
-/// <summary>Publishes the observed effects of glBlendEquation after native dispatch.</summary>
-internal sealed unsafe partial class OpenGlStateCache
+/// <summary>Publishes established glBlendEquation effects through generated originating-context delivery.</summary>
+internal sealed partial class OpenGlStateCache
 {
     #region Internal API
-    /// <summary>Updates existing cache and resource authority without issuing the intercepted operation.</summary>
-    [InterceptOpenGL("glBlendEquation")]
-    internal static void ObserveBlendEquation(int a0)
+    /// <summary>Assigns the domain value after generated classification and targeted withdrawal.</summary>
+    [InterceptOpenGL("glBlendEquation", Withdraw = nameof(WithdrawBlendEquation), Classify = nameof(ClassifyBlendEquation))]
+    internal static void ObserveBlendEquation(OpenGlStateCache cache, int a0)
     {
         BlendEquationMode mode = unchecked((BlendEquationMode)a0);
-        OpenGlStateCache? cache = null;
-        (nint Handle, long Generation) operationContext = default;
-        try
-        {
-            cache = OpenGlStateCache.Current;
-            operationContext = Integration.RenderContextRegistry.CaptureResourceContext();
-            cache = OpenGLObservationContext.CurrentCache;
-            bool accepted = Enum.IsDefined(mode) && Enum.IsDefined(mode);
-            operationContext = Integration.RenderContextRegistry.CaptureResourceContext();
-            // Established rejection preserves prior facts. Observation never vetoes the native call.
-            if (accepted) cache.ForgetExternalStateMutation(blend: BlendStateKnowledge.Equations);
+        cache.ObserveExternalBlendEquation(mode);
+    }
 
-            if (accepted && cache.OwnsKnowledgeFor(operationContext) && Integration.RenderContextRegistry.IsCurrentResourceContext(operationContext))
-                cache.ObserveExternalBlendEquation(mode);
-        }
-        catch (Exception)
-        {
-            // Native dispatch has completed. Withdraw only uncertain affected knowledge
-            // when observation fails, without touching a foreign cache.
-            try
-            {
-                if (cache?.OwnsKnowledgeFor(operationContext) == true)
-                    cache.ForgetExternalStateMutation(blend: BlendStateKnowledge.Equations);
-            }
-            catch (Exception) { /* Failure recovery must not veto or retry native dispatch. */ }
-        }
+    /// <summary>Classifies the represented field from native arguments and established context facts.</summary>
+    internal static OpenGLObservedEffect ClassifyBlendEquation(int a0)
+    {
+        BlendEquationMode mode = unchecked((BlendEquationMode)a0);
+        if (Enum.IsDefined(mode)) return OpenGLObservedEffect.Changed;
+        return OpenGLObservedEffect.Rejected;
+    }
+
+    /// <summary>Withdraws only this operation's affected knowledge after uncertainty or delivery failure.</summary>
+    internal static void WithdrawBlendEquation(OpenGlStateCache cache, int a0)
+    {
+        cache.ForgetExternalStateMutation(blend: BlendStateKnowledge.Equations);
     }
     #endregion
 }

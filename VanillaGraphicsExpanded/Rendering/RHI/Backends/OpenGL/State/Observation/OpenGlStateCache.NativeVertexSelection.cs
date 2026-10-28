@@ -7,7 +7,7 @@ internal sealed partial class OpenGlStateCache
     /// <summary>Reconciles the completed native transition using local acceptance and original-context facts.</summary>
     internal static void ObserveVertexSelection(int array)
     {
-        var cache = OpenGLObservationContext.CurrentCache;
+        if (!OpenGLObservationContext.TryGet(out var cache, out _)) return;
         bool established = cache.HasEstablishedNativeIdentity(GpuResourceKind.VertexArray, array);
         var origin = Integration.RenderContextRegistry.CaptureResourceContext();
 

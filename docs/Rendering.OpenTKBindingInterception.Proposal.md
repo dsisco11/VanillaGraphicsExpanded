@@ -64,9 +64,22 @@ then invokes the observer with native arguments and any return value. Observer e
 no per-call lifetime counter is needed.
 OpenTK retains managed overload marshalling; native pointer arguments remain valid during observation.
 
-Cache observation methods own only operation-specific effects and targeted recovery through the existing cache/manager.
+Scalar state observers receive the selected `OpenGlStateCache` and name a handwritten `Withdraw`
+method on `InterceptOpenGL`. That method takes the cache followed by the exact native arguments,
+returns void, and withdraws only affected knowledge. It performs no native dispatch or acquisition.
+The generator resolves and signature-checks optional `nameof` classifiers and the required withdrawal
+method. Classifiers distinguish established changes, proven rejection and uncertainty using native
+arguments and already captured context facts. Generated delivery selects/captures the origin once, leaves rejected
+fields intact, withdraws uncertain fields and commits established effects only to the same live origin.
+It contains delivery failures by invoking the same domain-owned withdrawal method. Domain classifiers
+and assignments remain handwritten; generated code contains no cache-category mapping, GL acceptance
+rules or semantic interpreter.
+Indexed/selector-dependent state effects and resource reconciliation retain their focused domain logic
+and targeted recovery through the existing cache/manager.
 Each post-call operation keeps classification, targeted withdrawal, manager publication and cleanup
-within one call. No observation receipt crosses a caller-managed begin/complete boundary. Routing and
+within one call. Represented-effect classification precedes resource-operation interruption and
+metadata withdrawal: numeric uniform contents and ignored locations do not disturb certification.
+Unsigned uniform setters have no sampler/image metadata observer. No observation receipt crosses a caller-managed begin/complete boundary. Routing and
 selector effects preserve prior values on proven rejection. Metadata acquisition retains manager-owned
 completion exclusion; a nested observed mutation interrupts certification of the outer candidate.
 Controlled backend vertex configuration and program assignment own actual native execution and its
@@ -109,7 +122,9 @@ portable RHI contracts gain no native details, registry, cache or metadata autho
   knowledge have different lifetimes; completion cannot modify a foreign cache.
 - Capture capabilities explicitly during context admission. A native observer must not initialize
   capabilities or consume the caller's pending error queue. A context without its current cached
-  capability snapshot keeps unknown knowledge until explicit admission establishes that snapshot.
+  capability snapshot can publish capability-independent effects. Context selection uses an explicit
+  nonthrowing result for ordinary absence; limit/profile-dependent effects use available facts or
+  withdraw only their uncertain fields. Discovery remains outside native callbacks.
 - Uninstall disables further observation and atomically restores only entries still owned by this
   installation, preserving later loader results or other components' replacements. It does not wait for
   executing calls. Retain callback delegates and immutable original pointers for process lifetime so
