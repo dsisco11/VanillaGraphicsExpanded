@@ -4,7 +4,7 @@ Maintained resource metadata lifecycle — implementation plan
 Source proposal: [Rendering.MetadataLifecycle.Proposal.md](Rendering.MetadataLifecycle.Proposal.md).
 Parent integration gate: [Rendering.GpuCommands.todo](Rendering.GpuCommands.todo), subphase 8i.
 Initial inventory: [Rendering.MetadataLifecycle.Inventory.md](Rendering.MetadataLifecycle.Inventory.md).
-Status: design approved; implementation and qualification remain unchecked.
+Status: Phase 1 inventory/design reconciliation complete; implementation and qualification remain unchecked.
 
 Goal
   Maintain canonical resource facts from observed creation, guaranteed defaults and subsequent commands.
@@ -73,34 +73,39 @@ Phase 1: Complete lifecycle coverage and migration dependencies
   Outcome: every supported resource lifecycle and current reader has a named migration destination.
   This phase is inventory/design reconciliation only; no production placeholders or compatibility APIs.
 
-  ☐ Expand Rendering.MetadataLifecycle.Inventory.md from its initial factory/deletion candidates using
+  ☑ Expand Rendering.MetadataLifecycle.Inventory.md from its initial factory/deletion candidates using
     the exact compiler-referenced OpenTK assembly. Record both roots, eligible owner, native symbol,
     ABI/result/output shape, creation/realization behavior, mutation/deletion aliases and owning phase.
     Include glGen*/glCreate*, shader/program factories, shader-program combined factories, glFenceSync,
     extension imports/storage establishment and later binds/named commands that realize reserved names.
     Validate the assembly identity instead of assuming the prior artifact still matches the compiler.
-  ☐ Resolve the inventory's optional sync-import and legacy/excluded candidates against existing supported
+  ☑ Resolve the inventory's optional sync-import and legacy/excluded candidates against existing supported
     operations and authoritative native specifications. Do not expand support merely because a symbol exists.
     Record excluded features explicitly, including legacy assembly programs/display lists/EXT vertex shaders.
-  ☐ Map each existing metadata field and represented execution fact to supplied input, guaranteed default,
+  ☑ Map each existing metadata field and represented execution fact to supplied input, guaranteed default,
     derived value or driver-produced output. Name consumer requirements and cached acceptance conditions.
     Distinguish reserved names, realized empty objects and allocated storage for each kind; use explicit
     native defaults rather than publishing C# default structs or inferring semantics from Gen/Create spelling.
-  ☐ Inventory every metadata reader, Acquire*/Recover*/Refresh* entry point and consumer, including local
+  ☑ Inventory every metadata reader, Acquire*/Recover*/Refresh* entry point and consumer, including local
     tools, image projections, geometry certification, prepared shader bindings and backing dependencies.
     Name each method explicitly with its final reuse/query/removal disposition and migration owner.
     Identify production callback/reentry paths requiring completion exclusion; synthetic tests alone do
     not justify retaining guards. Carry relevance-before-interruption requirements into each family.
-  ☐ Establish initial-adoption provenance at the existing installation/context boundary. Specify how callers
+  ☑ Establish initial-adoption provenance at the existing installation/context boundary. Specify how callers
     distinguish pre-installation discovery from post-installation tracking defects and explicit recovery,
     without adding a second identity registry or guessing from a missing entry. Define manager/context/hook
     activation ordering before covered creation, including startup, reload and context-local supplied
     initialization. Phase 2 implements or verifies this ordering and qualifies its runtime behavior.
-  ☐ Record per-family accepted/rejected/uncertain outcomes and required read causes. Identify all dependencies
+  ☑ Record per-family accepted/rejected/uncertain outcomes and required read causes. Identify all dependencies
     crossing the proposed phase boundaries; move blocking caller/dependency work into the owning unit.
     No broad import-discovery allowance or generic uncertainty fallback can substitute for this mapping.
-  ☐ Completion: every supported lifecycle, represented fact, reader and consumer has an explicit disposition;
+  ☑ Completion: every supported lifecycle, represented fact, reader and consumer has an explicit disposition;
     unresolved coverage/semantic questions are resolved before the affected family begins implementation.
+
+  Verification: fresh compiler-reference PE probe and source reconciliation recorded in the lifecycle
+    inventory and Rendering.MetadataLifecycle.Bindings.tsv (430 unique symbols, exact owner/ABI/overload
+    matches). Second review and independent stage audit passed for inventory/design coverage. Runtime
+    implementation and native qualification remain with Phases 2–7; no production changes in Phase 1.
 
 Phase 2: Establish registration lifecycle with memory objects and buffers
   Depends on Phase 1.
@@ -278,6 +283,12 @@ Phase 7: Qualify complete lifecycle coverage and reconcile architecture
   ☐ Reconcile the source proposal, RHI contracts, lifecycle inventory, resource inventory/API coverage,
     acquisition analysis and permanent resource/shader-binding docs with implemented ownership and query rules.
     Record concise qualification receipts in the existing planning companions; do not create an extra audit report.
+  ☐ Remove temporary migration documents after reconciling their coverage with the implemented system and
+    automated checks, explicitly including docs/Rendering.MetadataLifecycle.Bindings.tsv. Review other
+    temporary inventories and planning evidence for removal; preserve any still-needed architectural
+    decisions in the appropriate permanent documentation. Update all affected links and references,
+    including this plan and Rendering.MetadataLifecycle.Inventory.md, so no active contract depends on
+    a deleted artifact. Do not retain a parallel manually maintained binding specification.
   ☐ Perform second source review and independent completion audit against every proposal requirement and
     linked contract. Resolve required discrepancies before checking completion or the parent 8i gate.
     Parent RHI 8j/8k and integrated/package/user qualification in Phase 9 remain separate and unchecked.
@@ -295,9 +306,8 @@ Final acceptance
     survives in a completed family. Documentation and the parent integration gate agree with actual evidence.
 
 Open evidence and scope checks
-  - The initial inventory is incomplete for configuration/realization and must be closed in Phase 1.
-  - Optional sync-import candidates require disposition against existing supported operations, not implicit
-    feature expansion. Optional native hardware coverage depends on the available test environment.
+  - Phase 1 resolves lifecycle coverage and excludes unsupported CL/X11 sync imports explicitly.
+    Optional native hardware coverage still depends on the available test environment.
   - No imported-descriptor query exception is currently established. Any newly demonstrated need must meet
     the source proposal's exact-fact/setup/consumer test; it cannot become a general fallback policy.
   - Native observational publication retains the approved limitation on detecting silent allocation failure.
