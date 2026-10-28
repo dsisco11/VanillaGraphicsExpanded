@@ -38,7 +38,9 @@ public static partial class GpuSupport
     /// <remarks>RHI admission owns the physical context check. Rendering hot paths use their retained immutable projection.</remarks>
     internal static GraphicsCapabilities CaptureRHIContext()
     {
-        Initialize();
+        // Unregistered tools can switch physical windows without a registry generation.
+        // Admission is the one acquisition boundary; ordinary capability reads remain cached.
+        Initialize(force: Integration.RenderContextRegistry.Current().Generation == 0);
         return graphics;
     }
     #endregion
@@ -56,6 +58,8 @@ public static partial class GpuSupport
         // Extend the unpublished value; initialization publishes only after all queries succeed.
         return capabilities with
         {
+            DoubleBuffered = capabilities.IsOpenGles ? null : SafeGetInt(GetPName.Doublebuffer) != 0,
+            Stereo = capabilities.IsOpenGles ? null : SafeGetInt(GetPName.Stereo) != 0,
             MaxClipDistances = IsAtLeast(capabilities.ApiVersion, 3, 0) ? SafeGetInt(GetPName.MaxClipDistances) : 0,
             ClipControl = IsAtLeast(capabilities.ApiVersion, 4, 5) || GlExtensions.Supports("GL_ARB_clip_control"),
             Graphics33 = IsAtLeast(capabilities.ApiVersion, 3, 3),

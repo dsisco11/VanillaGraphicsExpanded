@@ -21,7 +21,7 @@ internal sealed partial class OpenGlStateCache
             entry.OperationInProgress = true;
             entry.BeginRefresh(GpuMetadataChange.Metadata);
         }
-        return new(cache, vao, elementBinding, entry, Integration.RenderContextRegistry.Current());
+        return new(cache, vao, elementBinding, entry, Integration.RenderContextRegistry.CaptureResourceContext());
     }
     #endregion
 
@@ -34,6 +34,7 @@ internal sealed partial class OpenGlStateCache
         internal void Complete(bool nativeReturned)
         {
             if (entry is not null) entry.OperationInProgress = false;
+            if (!cache.OwnsKnowledgeFor(context) || !Integration.RenderContextRegistry.IsCurrentResourceContext(context)) return;
             cache.InvalidateVertexConfiguration(vao);
             if (elementBinding) cache.elementArrayBufferByVao.Remove(vao);
             if (!nativeReturned || entry is null || !entry.Manager.CanObserveNativeMetadata
@@ -45,7 +46,7 @@ internal sealed partial class OpenGlStateCache
         /// <summary>Retains a controlled EBO result only for its original context and live association.</summary>
         internal void EstablishElementBinding(int buffer)
         {
-            if (context != Integration.RenderContextRegistry.Current()) return;
+            if (!cache.OwnsKnowledgeFor(context) || !Integration.RenderContextRegistry.IsCurrentResourceContext(context)) return;
             if (entry is not null && (!entry.Manager.IsRegistered(entry)
                 || entry.State != GpuResourceRegistrationState.Live)) return;
             cache.elementArrayBufferByVao[vao] = buffer;

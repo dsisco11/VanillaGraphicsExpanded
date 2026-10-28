@@ -8,6 +8,8 @@ namespace VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 internal sealed partial class OpenGlStateCache
 {
     #region Internal API
+    /// <summary>Recognizes every target represented by this cache, including explicit optional renderbuffer textures.</summary>
+    internal static bool RepresentsTextureBinding(TextureTarget target) => TryGetTextureBindingQuery(target, out _);
     /// <summary>Exposes known active-unit facts without performing native discovery.</summary>
     internal int? ActiveTextureKnowledge { get => activeTextureUnit; set => activeTextureUnit = value; }
     /// <summary>Exposes known renderbuffer facts without another selector cache.</summary>

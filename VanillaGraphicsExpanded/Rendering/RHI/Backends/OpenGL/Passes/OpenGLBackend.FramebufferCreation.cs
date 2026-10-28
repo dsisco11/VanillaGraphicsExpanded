@@ -16,7 +16,8 @@ internal sealed partial class OpenGLBackend
         id = name;
         RequireContext();
         if (name == 0) return null;
-        cache.InvalidateFramebufferDrawRouting(name);
+        // A newly realized object starts with output zero selecting its first color attachment.
+        cache.RememberFramebufferDrawRouting(name, [OpenTK.Graphics.OpenGL.DrawBuffersEnum.ColorAttachment0]);
         if (request.HasDefaults)
         {
             GL.NamedFramebufferParameter(name, FramebufferDefaultParameter.FramebufferDefaultWidth, request.DefaultWidth);

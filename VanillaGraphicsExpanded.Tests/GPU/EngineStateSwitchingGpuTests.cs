@@ -209,9 +209,9 @@ public sealed class EngineStateSwitchingGpuTests(HeadlessGLFixture fixture) : Re
         }
     }
 
-    /// <summary>An unknown active unit stays unknown while only potentially stale target snapshots are discarded.</summary>
+    /// <summary>An initially missing active unit is acquired while unrelated units and targets remain known.</summary>
     [Fact]
-    public void UnknownActiveTextureUnitBindsWithoutQueryAndInvalidatesOnlyAffectedTarget()
+    public void UnknownActiveTextureUnitIsAcquiredWithoutDiscardingOtherUnits()
     {
         EnsureContextValid();
         var cache = OpenGlStateCache.Current;
@@ -237,8 +237,10 @@ public sealed class EngineStateSwitchingGpuTests(HeadlessGLFixture fixture) : Re
 #if DEBUG
             Assert.Equal(bindsBefore + 1, cache.TextureBindCount);
 #endif
-            Assert.False(cache.TryGetCachedActiveTextureUnit(out _));
-            Assert.False(cache.TryGetCachedBoundTexture(TextureTarget.Texture2D, 1, out _));
+            Assert.True(cache.TryGetCachedActiveTextureUnit(out int activeUnit));
+            Assert.Equal(3, activeUnit);
+            Assert.True(cache.TryGetCachedBoundTexture(TextureTarget.Texture2D, 1, out int unchanged));
+            Assert.Equal(previousTexture, unchanged);
             Assert.False(cache.TryGetCachedBoundTexture(TextureTarget.Texture2D, 3, out _));
             Assert.True(cache.TryGetCachedBoundTexture(TextureTarget.TextureCubeMap, 3, out int cachedCube));
             Assert.Equal(cubeTexture, cachedCube);

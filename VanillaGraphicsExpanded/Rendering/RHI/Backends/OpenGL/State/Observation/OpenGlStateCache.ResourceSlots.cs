@@ -40,12 +40,6 @@ internal sealed partial class OpenGlStateCache
     private readonly record struct IndexedBufferBinding(int Buffer, nint Offset, nint Size, bool Range);
 
     #region Internal API
-    /// <summary>Withdraws only the generic and indexed associations touched by a failed uniform-range bind.</summary>
-    internal void InvalidateUniformRange(int slot)
-    {
-        indexedBufferBindings.Remove((BufferRangeTarget.UniformBuffer, slot));
-        bufferBindingByTarget.Remove(BufferTarget.UniformBuffer);
-    }
     /// <summary>Compares every image-view selector using the existing knowledge store.</summary>
     internal bool NeedsImageBinding(int unit, ImageBinding binding)
     {
@@ -81,12 +75,6 @@ internal sealed partial class OpenGlStateCache
         offset = binding.Offset;
         size = binding.Size;
         return found;
-    }
-
-    /// <summary>Invalidates a borrowed engine texture slot when allocation identity cannot be tracked.</summary>
-    internal void InvalidateTextureUnit(int unit)
-    {
-        if (textureBindingsByUnit != null && unit < textureBindingsByUnit.Length) textureBindingsByUnit[unit]?.Clear();
     }
 
     #endregion

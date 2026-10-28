@@ -115,6 +115,35 @@ public sealed class GpuBufferTextureInterceptionTests(HeadlessGLFixture fixture)
         finally { harmony.UnpatchAll(harmony.Id); fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
 
+    /// <summary>Established reassociation uses supplied ranges and canonical backing capacity without descriptor verification.</summary>
+    [Fact]
+    public void EstablishedAssociationPublishesWithoutDescriptorQueries()
+    {
+        fixture.EnsureContextValid(); fixture.InitializeResourceDisposal();
+        var harmony = Patch();
+        try
+        {
+            using var first = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription
+            { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 128, Usage = BufferUsage.DynamicDraw }).RequireResource();
+            using var second = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription
+            { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 128, Usage = BufferUsage.DynamicDraw }).RequireResource();
+            using var view = RHICommandContext.Current.CreateBufferTexture(new RHIBufferTextureDescription
+            { Buffer = first, Format = TextureFormat.R32f, WholeBuffer = true }).RequireResource();
+            // Observe the actual backend query owner, not only the legacy fixture's GL class.
+            harmony.Patch(AccessTools.Method(typeof(OpenTK.Graphics.OpenGL4.GL), nameof(GL.GetTextureLevelParameter),
+                [typeof(int), typeof(int), typeof(OpenTK.Graphics.OpenGL4.GetTextureParameter), typeof(int).MakeByRefType()]),
+                prefix: new HarmonyMethod(typeof(GpuBufferTextureInterceptionTests), nameof(CountRead)));
+            reads = 0;
+            Associate(8, view.TextureId, second.BufferId, SizedInternalFormat.R32ui, 0, 64);
+            Assert.Equal(second.BufferId, view.BufferId);
+            Assert.Equal(TextureFormat.R32ui, view.Format);
+            Assert.Equal(64, view.SizeBytes);
+            Assert.Equal(0, reads);
+            Assert.Equal(ErrorCode.NoError, GL.GetError());
+        }
+        finally { harmony.UnpatchAll(harmony.Id); fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
+    }
+
     /// <summary>Untracked commands forward wide ranges unchanged without metadata queries or speculative registration.</summary>
     [Fact]
     public void UntrackedWideForwardingDoesNotObserveOrNarrow()

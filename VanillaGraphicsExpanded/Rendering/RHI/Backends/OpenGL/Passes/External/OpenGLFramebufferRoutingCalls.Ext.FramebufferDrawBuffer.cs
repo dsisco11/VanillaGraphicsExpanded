@@ -20,7 +20,7 @@ internal static unsafe partial class OpenGLFramebufferRoutingCalls
         finally
         {
             // A throwing native call keeps affected metadata unavailable.
-            observation.Complete(returned);
+            observation.Complete(returned, (DrawBufferMode)@mode);
         }
     }
 
@@ -37,7 +37,7 @@ internal static unsafe partial class OpenGLFramebufferRoutingCalls
         finally
         {
             // A throwing native call keeps affected metadata unavailable.
-            observation.Complete(returned);
+            observation.Complete(returned, (DrawBufferMode)@mode);
         }
     }
     #endregion

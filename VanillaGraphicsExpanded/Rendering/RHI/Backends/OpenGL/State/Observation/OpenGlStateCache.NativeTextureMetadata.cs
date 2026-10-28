@@ -12,7 +12,7 @@ internal sealed partial class OpenGlStateCache
     #region Internal API
     /// <summary>Resolves bound, named and explicit-unit selectors without registering untracked objects.</summary>
     internal static NativeTextureMetadata BeginNativeTextureMetadata(int selector, int nativeTarget, int nativeUnit,
-        bool named, bool explicitUnit, TextureMetadataEffect effect, int argument, int imageLevel = -1)
+        bool named, bool explicitUnit, TextureMetadataEffect effect, int argument, int imageLevel = -1, int? parameterValue = null)
     {
         // Only base/max level parameters affect represented texture metadata.
         if (effect == TextureMetadataEffect.Parameter && argument is not ((int)TextureParameterName.TextureBaseLevel or (int)TextureParameterName.TextureMaxLevel)) return default;
@@ -44,6 +44,7 @@ internal sealed partial class OpenGlStateCache
         bool wasAvailable = entry?.IsUsable == true;
         if (entry is not null && imageLevel >= 0
             && (!CanQueryTextureImage(entry.Metadata, imageLevel) || target != 0 && OpenGLImageValues.Dimension(target) != entry.Metadata.Target)) imageLevel = -1;
+        bool parameterTargetMatches = target == 0 || entry?.Metadata.Target == OpenGLImageValues.Dimension(target);
         var change = effect == TextureMetadataEffect.Parameter ? GpuMetadataChange.Metadata
             : generation ? GpuMetadataChange.None : GpuMetadataChange.Storage;
         if (entry is not null)
@@ -69,7 +70,7 @@ internal sealed partial class OpenGlStateCache
         }
         return new(entry, change, generation, wasAvailable, renewAssociation,
             effect == TextureMetadataEffect.Parameter ? (TextureParameterName)argument : 0, imageLevel,
-            nativeTarget >= (int)TextureTarget.TextureCubeMapPositiveX && nativeTarget <= (int)TextureTarget.TextureCubeMapNegativeZ ? OpenGLImageValues.Face((TextureTarget)nativeTarget) : CubeFace.None);
+            nativeTarget >= (int)TextureTarget.TextureCubeMapPositiveX && nativeTarget <= (int)TextureTarget.TextureCubeMapNegativeZ ? OpenGLImageValues.Face((TextureTarget)nativeTarget) : CubeFace.None, parameterValue, parameterTargetMatches);
     }
     #endregion
 
@@ -93,7 +94,7 @@ internal sealed partial class OpenGlStateCache
     /// <summary>Retains one original registration across native image mutation and alias publication.</summary>
     internal readonly struct NativeTextureMetadata(GpuResourceMetadataEntry<GpuTextureMetadata>? entry,
         GpuMetadataChange change, bool generation, bool wasAvailable, bool renewAssociation, TextureParameterName parameter,
-        int imageLevel, CubeFace face)
+        int imageLevel, CubeFace face, int? parameterValue, bool parameterTargetMatches)
     {
         #region Internal API
         /// <summary>Publishes real allocated images without interpreting texel upload contents.</summary>
@@ -102,6 +103,22 @@ internal sealed partial class OpenGlStateCache
             if (entry is not null) entry.OperationInProgress = false;
             if (entry is null || !entry.Manager.IsRegistered(entry) || entry.State != GpuResourceRegistrationState.Live) return;
             if (!nativeReturned) { entry.NotifyImageDependents(suppressErrors: true); return; }
+            if (parameter != 0 && wasAvailable && parameterValue.HasValue)
+            {
+                if (!entry.Manager.CanObserveNativeMetadata)
+                    throw new InvalidOperationException("Texture parameter completion requires its originating context.");
+                int value = parameterValue.Value;
+                var candidate = entry.Metadata;
+                // Negative mip parameters and mismatched named targets are defined rejections.
+                // Rectangle base level must remain zero. No new allocation can fail here.
+                bool accepts = value >= 0 && parameterTargetMatches
+                    && !(parameter == TextureParameterName.TextureBaseLevel && candidate.Target == TextureDimension.Rectangle && value != 0);
+                if (accepts)
+                    candidate = parameter == TextureParameterName.TextureBaseLevel
+                        ? candidate with { BaseLevel = value } : candidate with { MaxLevel = value };
+                entry.Manager.PublishMetadata(entry, candidate, GpuMetadataChange.Metadata);
+                return;
+            }
             bool available = parameter != 0 && wasAvailable
                     ? entry.Manager.RefreshTextureParameter(entry, OpenGLResourceValues.FromNative((GetTextureParameter)parameter))
                     : imageLevel >= 0 && wasAvailable

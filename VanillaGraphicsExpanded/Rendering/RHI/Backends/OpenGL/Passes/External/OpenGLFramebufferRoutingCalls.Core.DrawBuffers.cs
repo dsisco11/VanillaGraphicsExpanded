@@ -20,7 +20,8 @@ internal static unsafe partial class OpenGLFramebufferRoutingCalls
         finally
         {
             // A throwing native call keeps affected metadata unavailable.
-            observation.Complete(returned);
+            if (observation.CanReadArguments(@n)) observation.Complete(returned, System.Runtime.InteropServices.MemoryMarshal.CreateReadOnlySpan(ref @bufs, @n));
+            else observation.Complete(returned && observation.IsRejectedCount(@n));
         }
     }
 
@@ -37,7 +38,8 @@ internal static unsafe partial class OpenGLFramebufferRoutingCalls
         finally
         {
             // A throwing native call keeps affected metadata unavailable.
-            observation.Complete(returned);
+            if (observation.CanReadArguments(@n) && @bufs is not null && @n <= @bufs.Length) observation.Complete(returned, @bufs.AsSpan(0, @n));
+            else observation.Complete(returned && observation.IsRejectedCount(@n));
         }
     }
 
@@ -54,7 +56,8 @@ internal static unsafe partial class OpenGLFramebufferRoutingCalls
         finally
         {
             // A throwing native call keeps affected metadata unavailable.
-            observation.Complete(returned);
+            if (observation.CanReadArguments(@n) && (@n == 0 || @bufs != null)) observation.Complete(returned, new ReadOnlySpan<DrawBuffersEnum>(@bufs, @n));
+            else observation.Complete(returned && observation.IsRejectedCount(@n));
         }
     }
     #endregion

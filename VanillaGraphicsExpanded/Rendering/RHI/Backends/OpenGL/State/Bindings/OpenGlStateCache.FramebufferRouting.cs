@@ -40,7 +40,7 @@ internal sealed partial class OpenGlStateCache
         var stored=new DrawBuffersEnum[GpuSupport.Graphics.MaxDrawBuffers];
         route.CopyTo(stored);framebufferDrawRouting[framebuffer]=stored;
     }
-    /// <summary>Withdraws routing for a retired, transferred or externally changed framebuffer without native calls.</summary>
+    /// <summary>Withdraws routing for a retired name or an uncertain routing outcome without native calls.</summary>
     internal void InvalidateFramebufferDrawRouting(int framebuffer)=>framebufferDrawRouting.Remove(framebuffer);
     #endregion
 }

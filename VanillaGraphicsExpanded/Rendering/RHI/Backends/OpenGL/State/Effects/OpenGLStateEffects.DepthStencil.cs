@@ -14,7 +14,7 @@ internal static partial class OpenGLStateEffects
     internal static void DepthMask(bool enabled) => Core.GL.DepthMask(enabled);
 
     /// <summary>Issues the core DepthRange effect after cache admission; knowledge commits belong to the caller.</summary>
-    internal static void DepthRange(double near, double far) => Core.GL.DepthRange(near, far);
+    internal static void DepthRange(double near, double far) => Core.GL.DepthRangeIndexed(0, near, far);
 
     /// <summary>Issues the core StencilFuncSeparate effect after cache admission; knowledge commits belong to the caller.</summary>
     internal static void StencilFuncSeparate(StencilFace face, StencilFunction function, int reference, uint mask) => Core.GL.StencilFuncSeparate((Core.StencilFace)face, (Core.StencilFunction)function, reference, mask);

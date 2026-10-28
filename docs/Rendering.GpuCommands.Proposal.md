@@ -498,15 +498,26 @@ immutable, or make unknown external facts query-free.
 
 ## Engine integration and migration boundaries
 
-Keep compiler-checked `EngineStateCallMap` adapters and exact call replacement. An intercepted operation
-uses an internal OpenGL compatibility entry point on the backend: preserve the original overload,
-arguments, side effects and error behavior, execute it exactly once, then use the shared reconciliation
-contract. It is not converted to a suppressible managed command and is never deferred into a list.
-Allowed intercepted owners remain GL/Core, Ext and Arb; legacy exclusions and the built-in-assembly interception
-boundary remain unchanged. Backend native calls are outside rewritten engine call sites, preventing
-recursion. Raw unsupported external inputs retain conservative handling.
-Keep exact forwarding modules separate from managed core operation modules. Their required older-shaped
-signatures preserve engine behavior on the same 4.5 context; they do not provide a lower-version RHI.
+Use the approved [OpenTK binding-interception design](Rendering.OpenTKBindingInterception.Proposal.md)
+for external GL observation. Replace selected native dispatch entries in both installed OpenTK binding
+tables, independent of caller assembly. Coverage includes supported GL/Core, Ext and Arb operations;
+retain legacy/auxiliary-owner exclusions and exclude independently cached driver pointers or other
+binding libraries. Current built-in caller rewriting is the incomplete route being replaced, not a
+permanent integration requirement. Routine purges cannot substitute for missing interception.
+
+An external operation reaches its original driver function exactly once with unchanged arguments,
+return values, output buffers and native error behavior. It is never suppressed as known-equal,
+deferred into a command list, vetoed by managed guards or retried. Observer failures cannot skip native
+dispatch, escape the callback or become exceptions deferred to the external caller. Withdraw only
+uncertain affected knowledge; reflect conflicting mutations through existing operation interruption,
+availability and certificate invalidation. This observational policy does not replace managed RHI API
+validation. Shared cache/manager reconciliation and publication remain singular.
+
+Keep native callbacks, original-pointer dispatch and loader/context lifecycle inside the backend.
+Backend-owned RHI calls bypass interception while retaining their existing admission, suppression and
+effect ownership. Qualify binding reloads, callback lifetime and reentry so neither path recursively
+observes or publishes the same operation twice. Complete covered state effects, including program/
+pipeline selection and transform-feedback activity, with the native-route replacement.
 
 Define the final RHI interfaces and dependency rules before migrating callers. Migration proceeds through
 complete operation-family replacements: update every affected caller, move native execution and capability
@@ -523,9 +534,10 @@ DSA-emulation binding scopes and obsolete fallback-only tests together. Cover wr
 manager creation, native readers and fixtures, not only the public command facade. Replace forced
 DSA-disabled tests with direct core-operation/state-preservation tests; retain tests for necessary bound
 semantics and exact external calls. Do not preserve an old backend implementation just to satisfy fixtures.
-The compiler-checked engine adapters above remain a permanent external integration boundary, not a
-temporary migration exception. Existing resource/reference accessors are retained contracts, not permission
-for internal callers to issue native operations or select backend paths.
+Remove the superseded caller-rewriting maps, exact adapter dispatch and generic-discovery machinery
+with their native interception replacement. Broader engine hooks retain only their separate semantic
+integration purpose. Existing resource/reference accessors are retained contracts, not permission for
+internal callers to issue native operations or select backend paths.
 
 The final split moves native execution from `StateCache` into focused OpenGL backend modules, then
 renames the remaining class `OpenGlStateCache`. Each operation has exactly one execution owner.

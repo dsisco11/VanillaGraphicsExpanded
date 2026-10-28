@@ -127,17 +127,22 @@ the current allocation. Owner metadata is sampled without driver queries; curren
 is still checked before publication. Resize, capacity changes and executable replacement invalidate the applicable result. Failed checks never
 replace a successful result. Context-wide binding comparisons and UBO content uploads remain independent
 of this compatibility history.
-Managed resources resolve their current allocation and validity on each use. Raw engine IDs are checked
-once during validation, and their texture slot cache is invalidated before binding because equal IDs
-cannot establish external allocation identity. CPU uniform-block uploads and dirty-state commitment
+Managed resources resolve their current allocation and validity on each use. Raw engine IDs require
+allocation-identity admission; equal numeric names cannot establish the original association. Binding
+publication compares existing slot knowledge and temporarily withdraws only fields it actually changes.
+CPU uniform-block uploads and dirty-state commitment
 remain with `CpuUniformBuffer` and the existing ring allocator, using the prepared binding slot.
 
 Cloud map, primary visibility and liquid-depth consumers retain typed non-owning wrappers through the
 common resource manager. Stable selections use published metadata and ordinary slot comparisons;
 deletion invalidates their original associations before a reused name can be selected again. Simple
 cloud liquid depth uses the same typed route. Material depth is supplied as its existing owned texture.
-These covered paths do not use raw-ID slot invalidation. Unsupported raw callers retain the conservative
-validation and binding behavior above; registry membership does not extend interception coverage.
+These typed paths do not use raw-ID slot invalidation. Raw identity admission remains distinct from
+binding comparison: a numeric name alone does not establish an original allocation association.
+Complete GL interception is required regardless of caller assembly. The current built-in assembly
+rewriter's missing mod, delegate, dynamic and OpenGL4 coverage is a correctness defect, not a supported
+external-mutation mode; registry membership does not repair it. Routine state purges must not compensate
+for missing interception.
 
 [OpenGlStateCache.ResourceSlots](../VanillaGraphicsExpanded/Rendering/RHI/Backends/OpenGL/State/Observation/OpenGlStateCache.ResourceSlots.cs)
 adds complete image-view and indexed buffer-range keys to the existing context cache. Cache invalidation,

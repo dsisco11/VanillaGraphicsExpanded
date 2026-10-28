@@ -365,10 +365,15 @@ acquire a pass guard or prevent explicit owner disposal.
 
 Resource validity and metadata availability do not prove that an object is bound. OpenGlStateCache separately
 tracks selectors, image parameters, buffer ranges and framebuffer routing. Controlled known-equal bindings
-can be suppressed. Arbitrary external selectors preserve exact execution and withdraw uncertain knowledge
-for lazy recovery. Required selector-restoration scopes preserve separate read/draw framebuffer selections and original VAO
+can be suppressed. Exact external calls preserve execution and native error behavior. Established
+object-local draw routes, pixel-store fields, represented fixed state and established bindings propagate
+from legal arguments. Generic/indexed buffer aliases and selected-VAO element bindings share the existing
+selector authority. Genuinely unknown identities and unspecified conversion outcomes retain targeted acquisition. Required selector-restoration scopes preserve separate read/draw framebuffer selections and original VAO
 element-buffer associations. Vertex helpers retain authored fields and resolve only required unknown
 facts through the manager; the canonical VAO schema contains no full layout mirror.
+Restoration scopes retain their original physical context lifetime. Disposing an old scope in another
+admitted context neither restores its numeric names there nor discards that context's known selectors.
+Context admission abandons the previous lifetime's scope-stack bookkeeping.
 
 Deletion removes the original entry and invalidates its recipients. Reusing the numeric ID creates a new
 entry; old wrappers and queued work retain their original association and cannot affect the replacement.
@@ -383,13 +388,15 @@ run in its originating context. Weak recipients are pruned during acquisition, p
 Compiler-checked adapters redirect supported calls discovered in the built-in engine assemblies through
 the focused OpenGL backend execution modules. Allowed OpenTK owners are GL (also named Core by adapters), GL.Ext and GL.Arb. Other auxiliary
 owners and legacy fixed-function facilities are outside interception. Generic discovery handles concrete
-value-type instantiations from built-in assembly references; arbitrary mods and dynamic callers are outside
-that boundary. A registry entry does not extend interception to unsupported callers.
+value-type instantiations from built-in assembly references. The current discovery implementation misses
+arbitrary mod assemblies, delegates, dynamic callers and OpenGL4 callers. Those are coverage defects
+against the required complete-interception contract, not a supported external-mutation mode. A registry
+entry does not repair missing interception, and routine purges must not compensate for that defect.
 
 Cloud and depth consumers retain typed borrowers across stable selections and share existing owned material
 depth directly. Their content readiness, upload/generation certificates, frame qualification and producer
-selection remain separate from resource metadata. Unsupported raw sampler IDs retain conservative validation
-and slot invalidation. See [shader bindings](Rendering.ShaderBindingState.md#prepared-resource-submission)
+selection remain separate from resource metadata. Raw sampler IDs require allocation-identity admission;
+numeric equality cannot substitute for a retained original association. See [shader bindings](Rendering.ShaderBindingState.md#prepared-resource-submission)
 and [cloud ownership](PBR.Clouds.md#borrowed-map-contract) for consumer contracts.
 
 ## Backend state ownership
@@ -403,14 +410,25 @@ callback execution API. Manager operation services consult guards without issuin
 Admitted managed fixed-state transitions use the stateless `OpenGLStateEffects` modules to issue core
 4.5 native effects. These modules hold no knowledge, suppression, metadata or alternative dispatch path.
 The cache withholds the affected known bit before dispatch and commits it only after the effect succeeds.
+Managed viewport, scissor, depth-range and scissor-enable effects address viewport zero explicitly, preserving
+other viewport indices during both execution and restoration. Exact external global calls retain their native
+all-viewport effects; the cache represents their viewport-zero result.
 Unknown incoming selectors and selective restoration facts are queried by the cache's native observation
 services. Baseline independent blending, clip control, sample shading and fixed-index restart have no
 older-context fallback. Existing limits and profile distinctions remain authoritative.
 
 Exact engine fixed-state calls live in backend `State/External/EngineStateCalls` modules. They preserve
 the original overload, arguments and native error behavior, issue one native call without suppression or
-normalization, and withdraw only affected state fields. Invalid native arguments never become a
-managed setter exception. Metadata/resource adapters use their corresponding focused backend modules.
+normalization. Represented legal effects repopulate only their affected fields after dispatch; defined
+rejections preserve prior facts, while interrupted or unspecified outcomes leave those fields unknown.
+Original-context checks prevent completion from modifying another context's admitted cache. Invalid native
+arguments never become a managed setter exception. Metadata/resource adapters use their corresponding focused backend modules.
+Pixel-store handlers instead preserve legal integer/boolean conversion effects in independent field
+knowledge; complete layout acquisition queries only missing fields. Failed dispatch or unspecified
+float-to-integer conversion withdraws the affected field. Draw-route handlers retain established object
+identity and publish legal complete routes, using cached double-buffer/stereo surface facts for window
+selectors; read routing has no mirrored state. Routine frame advancement,
+resize callbacks, attachment publication and wrapper detach do not purge executed knowledge.
 Native calls in these modules are outside rewritten engine call sites, so forwarding cannot recurse.
 
 ## Resource diagnostics

@@ -94,15 +94,16 @@ public sealed class GlStateCacheInvalidationTests
         Assert.Equal(3, Read(cache, "activeTextureUnit"));
     }
 
-    /// <summary>VAO and buffer invalidation both forget element associations but only VAO invalidation forgets selection.</summary>
+    /// <summary>VAO selector loss preserves object-local elements; explicit buffer-state loss forgets those assignments.</summary>
     [Theory]
     [InlineData(EPipelineState.VertexArray, true)]
     [InlineData(EPipelineState.BufferBindings, false)]
-    public void ElementBufferDependenciesAreInvalidated(EPipelineState state, bool forgetVao)
+    public void ElementAssignmentsSurviveVaoSelectorLoss(EPipelineState state, bool forgetVao)
     {
         var cache = CreateSeeded();
         cache.Invalidate(state);
-        Assert.Empty((IDictionary)Read(cache, "elementArrayBufferByVao")!);
+        var elements = (IDictionary)Read(cache, "elementArrayBufferByVao")!;
+        if (forgetVao) Assert.Equal(8, elements[7]); else Assert.Empty(elements);
         Assert.Equal(forgetVao ? null : (object)7, Read(cache, "currentVao"));
         Assert.Equal(3, Read(cache, "activeTextureUnit"));
     }

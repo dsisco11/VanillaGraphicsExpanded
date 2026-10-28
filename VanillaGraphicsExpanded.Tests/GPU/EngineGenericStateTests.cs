@@ -69,7 +69,8 @@ public sealed class EngineGenericStateTests(HeadlessGLFixture fixture)
             capturedPayload = null; ReplacePair(b, new Pair { A = 37, B = 41 }); secondPayload = Assert.IsType<byte[]>(capturedPayload);
             Assert.Equal(firstRevision + 1, firstEntry.MetadataRevision);
             Assert.Equal(secondRevision + 1, secondEntry.MetadataRevision);
-            Assert.False(OpenGlStateCache.Current.TryGetCachedBoundBuffer(BufferTarget.UniformBuffer, out _));
+            Assert.True(OpenGlStateCache.Current.TryGetCachedBoundBuffer(BufferTarget.UniformBuffer, out int uniformSelection));
+            Assert.Equal(0, uniformSelection);
             Assert.Equal(0, OpenGlStateCache.Current.GetBoundBuffer(BufferTarget.UniformBuffer));
             var one = new int[1]; var two = new int[2];
             using (OpenGlStateCache.Current.BindBufferScope(BufferTarget.CopyReadBuffer, first.BufferId)) GL.GetBufferSubData(BufferTarget.CopyReadBuffer, IntPtr.Zero, 4, one);

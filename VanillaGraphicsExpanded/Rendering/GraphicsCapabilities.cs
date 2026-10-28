@@ -63,6 +63,10 @@ public sealed record GraphicsCapabilities
     #endregion
 
     #region Context characteristics
+    /// <summary>Reports default-surface back-buffer availability; null means no desktop surface facts were captured.</summary>
+    public bool? DoubleBuffered { get; init; }
+    /// <summary>Reports default-surface right-buffer availability; null means no desktop surface facts were captured.</summary>
+    public bool? Stereo { get; init; }
     /// <summary>Driver-provided OpenGL version string.</summary>
     public string VersionString { get; init; } = string.Empty;
     /// <summary>Driver-provided implementation vendor name.</summary>

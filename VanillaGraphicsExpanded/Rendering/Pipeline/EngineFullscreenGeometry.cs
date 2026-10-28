@@ -101,7 +101,6 @@ internal sealed class EngineFullscreenGeometry : GraphicsGeometry
         if (vao == 0 || positions == 0 || uv == 0 || elements == 0 || mesh.IndicesCount != count
             || mesh.drawMode != PrimitiveType.Triangles || !HasOnlyPositionUvStreams(mesh))
             throw new InvalidOperationException("Unsupported uploaded engine geometry.");
-        OpenGlStateCache.Current.ForgetEngineMeshUpload(vao);
         inputs = new(mesh, Layout, new Dictionary<int, int> { [0] = positions, [1] = uv }, vertices, count);
     }
 

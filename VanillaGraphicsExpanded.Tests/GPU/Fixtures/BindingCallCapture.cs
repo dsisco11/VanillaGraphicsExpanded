@@ -22,6 +22,9 @@ internal sealed class BindingCallCapture : IDisposable
             // Typed delegates keep overload selection checked by the compiler.
             Delegate[] methods = [
                 (Action<bool>)GL.DepthMask,
+                (Action<bool>)OpenTK.Graphics.OpenGL4.GL.DepthMask,
+                (Action<DepthFunction>)GL.DepthFunc,
+                (Action<OpenTK.Graphics.OpenGL4.DepthFunction>)OpenTK.Graphics.OpenGL4.GL.DepthFunc,
                 (Func<GetPName, int>)GL.GetInteger,
                 (IntegerQuery)GL.GetInteger,
                 (Action<int>)GL.BindVertexArray,

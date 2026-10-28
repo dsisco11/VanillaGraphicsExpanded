@@ -19,9 +19,9 @@ public sealed class CommandBindingKnowledgeTests(HeadlessGLFixture fixture)
 
     #region Public API
     #region Selector execution
-    /// <summary>Completion withdraws a selector value rediscovered reentrantly before native selection takes effect.</summary>
+    /// <summary>Completion replaces a selector value rediscovered reentrantly with the certified final native selection.</summary>
     [Fact]
-    public void InterceptedSelectionClearsReentrantIntermediateKnowledge()
+    public void InterceptedSelectionReplacesReentrantIntermediateKnowledge()
     {
         fixture.EnsureContextValid(); fixture.InitializeResourceDisposal();
         var harmony = new Harmony("Tests.CommandBindingReentrantSelector");
@@ -36,7 +36,8 @@ public sealed class CommandBindingKnowledgeTests(HeadlessGLFixture fixture)
             intermediateVao = null;
             SelectExternal(after.VertexArrayId, 0, 0);
             Assert.Equal(before.VertexArrayId, intermediateVao);
-            Assert.False(OpenGlStateCache.Current.TryGetCachedCurrentVao(out _));
+            Assert.True(OpenGlStateCache.Current.TryGetCachedCurrentVao(out int selected));
+            Assert.Equal(after.VertexArrayId, selected);
             Assert.Equal(after.VertexArrayId, OpenGlStateCache.Current.GetCurrentVao());
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }

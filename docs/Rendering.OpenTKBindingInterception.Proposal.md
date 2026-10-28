@@ -1,23 +1,24 @@
 # OpenTK binding-table interception
 
-Status: exploratory proposal for possible future adoption. This is not an implementation commitment
-or a replacement for the approved [RHI proposal](Rendering.GpuCommands.Proposal.md),
-[contracts](Rendering.GpuCommands.Contracts.md) or [implementation plan](Rendering.GpuCommands.todo).
-Caller coverage and production qualification remain to be agreed. Interception is observational:
-it must forward native calls without throwing into the caller or cancelling dispatch.
+Status: approved for implementation in subphase 8h of
+[Rendering.GpuCommands.todo](Rendering.GpuCommands.todo). This document refines the external interception
+boundary of the approved [RHI proposal](Rendering.GpuCommands.Proposal.md) and
+[contracts](Rendering.GpuCommands.Contracts.md); it does not claim the hooks are installed.
+Interception is observational: forward native calls without throwing into the caller or cancelling dispatch.
 
 ## Purpose and scope
 
 Observe selected OpenGL operations at OpenTK's native dispatch boundary, independently of the caller's
-assembly. This could replace engine call-site rewriting if broader coverage becomes necessary.
+assembly. The implementation will replace engine call-site rewriting for those operations.
 
 Coverage includes both `OpenTK.Graphics.OpenGL.GL` and `OpenTK.Graphics.OpenGL4.GL`, for supported
 Core, Ext and Arb operations. Excluded auxiliary owners and legacy compatibility features stay excluded.
 Other graphics libraries and independently cached driver pointers are outside this boundary.
 Hook queries/content-only operations only where an explicit observation contract requires them.
 
-An engine-only guarantee currently favors retaining managed caller rewriting. This document preserves
-an alternative without changing the existing coverage contract.
+The chosen boundary is the supported installed OpenTK tables, irrespective of caller assembly.
+Engine-only caller rewriting was considered, but native interception is the approved replacement.
+Existing caller rewriting remains explicitly incomplete until the owning replacement unit removes it.
 
 ## Dispatch design
 
@@ -131,16 +132,16 @@ That inventory found 697 static GL call sites across 11 scanned assemblies, with
 GL delegate construction or transform-feedback begin/end/pause/resume calls found.
 It is static evidence, not proof of all runtime-generated behavior or startup/JIT coverage.
 
-## Conditions for reconsideration
+## Adoption and qualification
 
-Revisit this option when broader OpenTK caller coverage is explicitly required, or a concrete engine
-coverage/maintenance problem justifies it. Approval should require proof of exact native signatures,
-loader/context lifetime, original-pointer bypass, always-forward observer-failure handling and exactly-once
-effects using representative native-state and error oracles. No benchmark or timing gate is required.
+Implementation must qualify exact native signatures, loader/context lifetime, original-pointer bypass,
+always-forward observer-failure handling and exactly-once effects using representative native-state and
+error oracles. The bounded probe does not substitute for these obligations. No benchmark or timing gate
+is required.
 
-If adopted, replace each operation family's caller rewriting and exact execution adapters together
+Replace each operation family's caller rewriting and exact execution adapters together
 with its hook, shared effect logic and dependent tests. Remove superseded routes in the same unit;
 do not leave two observers active or introduce temporary forwarding shims. Retain unrelated engine
 integration hooks whose purpose is broader than GL interception.
 
-No implementation task list is derived from this exploratory document without separate approval.
+The implementation tasks and dependency ordering are recorded in subphase 8h of the RHI task list.

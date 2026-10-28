@@ -1,31 +1,44 @@
+using System;
 using OpenTK.Graphics.OpenGL;
 
 namespace VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 
-/// <summary>Observes exact native buffer-binding overloads and their conditional VAO effects.</summary>
+/// <summary>Propagates established generic and VAO-owned element assignments from exact native commands.</summary>
 internal sealed partial class OpenGlStateCache
 {
     #region Internal API
-    /// <summary>Withdraws binding knowledge and observes VAO metadata only for element bindings.</summary>
-    internal static NativeBufferBinding BeginNativeBufferBinding(BufferTarget target)
+    /// <summary>Captures original selector/realization proof and withdraws only fields the native target can affect.</summary>
+    internal static NativeBufferBinding BeginNativeBufferBinding(BufferTarget target, int buffer)
     {
-        var cache = Current;
-        cache.bufferBindingByTarget.Remove(target);
-        var vertex = target == BufferTarget.ElementArrayBuffer
-            ? BeginNativeVertexMetadata(0, named: false, elementBinding: true) : default;
-        return new(cache, target, vertex);
+        var cache = EngineStateCalls.CurrentCache;
+        bool targetValid = Enum.IsDefined(target) && (target != BufferTarget.ParameterBuffer
+            || GpuSupport.Graphics.ApiVersion is { Major: > 4 } or { Major: 4, Minor: >= 6 }
+            || GpuSupport.Supports("GL_ARB_indirect_parameters"));
+        bool established = targetValid && cache.HasEstablishedNativeIdentity(GpuResourceKind.Buffer, buffer);
+        bool elements = target == BufferTarget.ElementArrayBuffer;
+        int vao = elements ? cache.GetCurrentVao() : 0;
+        if (elements && vao == 0 && GpuSupport.Graphics.CoreProfile) established = false;
+        bool sameElement = elements && cache.elementArrayBufferByVao.TryGetValue(vao, out int previous) && previous == buffer;
+        var vertex = elements && !sameElement ? BeginNativeVertexMetadata(vao, named: true, elementBinding: true) : default;
+        if (targetValid) cache.bufferBindingByTarget.Remove(target);
+        return new(cache, target, buffer, established, vertex, elements, !sameElement, vao,
+            Integration.RenderContextRegistry.CaptureResourceContext());
     }
     #endregion
 
-    /// <summary>Preserves the exact native call while invalidating only its affected binding knowledge.</summary>
-    internal readonly struct NativeBufferBinding(OpenGlStateCache cache, BufferTarget target, NativeVertexMetadata vertex)
+    /// <summary>Retains original selector authority and the single empty-schema VAO revision operation.</summary>
+    internal readonly struct NativeBufferBinding(OpenGlStateCache cache, BufferTarget target, int buffer,
+        bool established, NativeVertexMetadata vertex, bool elements, bool changesElement, int vao,
+        (nint Handle, long Generation) origin)
     {
         #region Internal API
-        /// <summary>Publishes VAO revision when applicable; other bindings have no resource metadata effect.</summary>
+        /// <summary>Publishes proven assignments, preserving both generic and VAO-local aliases without recapture.</summary>
         internal void Complete(bool returned)
         {
-            cache.bufferBindingByTarget.Remove(target);
-            if (target == BufferTarget.ElementArrayBuffer) vertex.Complete(returned);
+            if (elements && changesElement) vertex.Complete(returned);
+            if (!returned || !established || !cache.OwnsKnowledgeFor(origin) || !Integration.RenderContextRegistry.IsCurrentResourceContext(origin)) return;
+            if (elements) cache.elementArrayBufferByVao[vao] = buffer;
+            else cache.bufferBindingByTarget[target] = buffer;
         }
         #endregion
     }

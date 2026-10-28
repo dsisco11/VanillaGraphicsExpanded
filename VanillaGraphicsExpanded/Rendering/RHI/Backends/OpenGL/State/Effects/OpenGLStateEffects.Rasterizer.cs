@@ -8,10 +8,18 @@ internal static partial class OpenGLStateEffects
 {
     #region Internal API
     /// <summary>Issues the core Enable effect after cache admission; knowledge commits belong to the caller.</summary>
-    internal static void Enable(EnableCap capability) => Core.GL.Enable((Core.EnableCap)capability);
+    internal static void Enable(EnableCap capability)
+    {
+        if (capability == EnableCap.ScissorTest) Core.GL.Enable((Core.IndexedEnableCap)Core.EnableCap.ScissorTest, 0);
+        else Core.GL.Enable((Core.EnableCap)capability);
+    }
 
     /// <summary>Issues the core Disable effect after cache admission; knowledge commits belong to the caller.</summary>
-    internal static void Disable(EnableCap capability) => Core.GL.Disable((Core.EnableCap)capability);
+    internal static void Disable(EnableCap capability)
+    {
+        if (capability == EnableCap.ScissorTest) Core.GL.Disable((Core.IndexedEnableCap)Core.EnableCap.ScissorTest, 0);
+        else Core.GL.Disable((Core.EnableCap)capability);
+    }
 
     /// <summary>Issues the core Enable effect after cache admission; knowledge commits belong to the caller.</summary>
     internal static void Enable(IndexedEnableCap capability, int index) => Core.GL.Enable((Core.IndexedEnableCap)capability, index);
@@ -44,10 +52,10 @@ internal static partial class OpenGLStateEffects
     internal static void PointParameter(PointParameterName parameter, int value) => Core.GL.PointParameter((Core.PointParameterName)parameter, value);
 
     /// <summary>Issues the core Viewport effect after cache admission; knowledge commits belong to the caller.</summary>
-    internal static void Viewport(int x, int y, int width, int height) => Core.GL.Viewport(x, y, width, height);
+    internal static void Viewport(int x, int y, int width, int height) => Core.GL.ViewportIndexed(0, x, y, width, height);
 
     /// <summary>Issues the core Scissor effect after cache admission; knowledge commits belong to the caller.</summary>
-    internal static void Scissor(int x, int y, int width, int height) => Core.GL.Scissor(x, y, width, height);
+    internal static void Scissor(int x, int y, int width, int height) => Core.GL.ScissorIndexed(0, x, y, width, height);
 
     /// <summary>Issues the core ProvokingVertex effect after cache admission; knowledge commits belong to the caller.</summary>
     internal static void ProvokingVertex(ProvokingVertexMode mode) => Core.GL.ProvokingVertex((Core.ProvokingVertexMode)mode);

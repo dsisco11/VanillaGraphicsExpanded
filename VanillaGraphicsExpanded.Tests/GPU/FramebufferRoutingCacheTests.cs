@@ -82,10 +82,9 @@ public sealed class FramebufferRoutingCacheTests(HeadlessGLFixture fixture, ITes
     }
     #endregion
     #region Invalidated and retired identities
-    /// <summary>Explicit routing, legacy binding and full context-state invalidations all reject stale native route assumptions.</summary>
+    /// <summary>Explicit routing uncertainty and full context-state loss reject stale native route assumptions.</summary>
     [Theory]
     [InlineData(EPipelineState.FramebufferRouting)]
-    [InlineData(EPipelineState.FramebufferBindings)]
     [InlineData(EPipelineState.All)]
     public void ExternalMutationRequiresFreshPublication(EPipelineState invalidation)
     {

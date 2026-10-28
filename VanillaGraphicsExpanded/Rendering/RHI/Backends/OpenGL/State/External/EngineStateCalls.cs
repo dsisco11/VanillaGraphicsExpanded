@@ -14,148 +14,256 @@ internal static partial class EngineStateCalls
     public static void ClipControl(ClipOrigin origin, ClipDepthMode depth)
     {
         var cache = CurrentCache;
-        // Admit only the affected fields; preserve original native arguments, errors and execution.
-        cache.ForgetExternalStateMutation(rasterizer: RasterizerStateKnowledge.ClipControl);
-        GL.ClipControl(origin, depth);
+        cache.ValidateBoundaryMutation(rasterizer: RasterizerStateKnowledge.ClipControl);
+        bool accepted = Enum.IsDefined(origin) && Enum.IsDefined(depth);
+        var operationContext = Integration.RenderContextRegistry.CaptureResourceContext();
+        // Reject boundary misuse before dispatch, but preserve known state after defined native rejection.
+        if (accepted) cache.ForgetExternalStateMutation(rasterizer: RasterizerStateKnowledge.ClipControl);
+        try { GL.ClipControl(origin, depth); }
+        catch { if (cache.OwnsKnowledgeFor(operationContext)) cache.ForgetExternalStateMutation(rasterizer: RasterizerStateKnowledge.ClipControl); throw; }
+        if (accepted && cache.OwnsKnowledgeFor(operationContext) && Integration.RenderContextRegistry.IsCurrentResourceContext(operationContext))
+            cache.ObserveExternalClipControl(origin, depth);
     }
     /// <summary>Preserves the exact native PointParameter overload and reconciles affected knowledge.</summary>
     public static void PointParameter(PointParameterName parameter, int value)
     {
         var cache = CurrentCache;
-        // Admit only the affected fields; preserve original native arguments, errors and execution.
-        cache.ForgetExternalStateMutation(rasterizer: RasterizerStateKnowledge.PointSpriteOrigin);
-        GL.PointParameter(parameter, value);
+        cache.ValidateBoundaryMutation(rasterizer: RasterizerStateKnowledge.PointSpriteOrigin);
+        bool accepted = parameter == PointParameterName.PointSpriteCoordOrigin && Enum.IsDefined((PointSpriteCoordOriginParameter)value);
+        var operationContext = Integration.RenderContextRegistry.CaptureResourceContext();
+        // Reject boundary misuse before dispatch, but preserve known state after defined native rejection.
+        if (accepted) cache.ForgetExternalStateMutation(rasterizer: RasterizerStateKnowledge.PointSpriteOrigin);
+        try { GL.PointParameter(parameter, value); }
+        catch { if (cache.OwnsKnowledgeFor(operationContext)) cache.ForgetExternalStateMutation(rasterizer: RasterizerStateKnowledge.PointSpriteOrigin); throw; }
+        if (accepted && cache.OwnsKnowledgeFor(operationContext) && Integration.RenderContextRegistry.IsCurrentResourceContext(operationContext))
+            cache.ObserveExternalPointParameter(parameter, value);
     }
 
     /// <summary>Preserves the exact native Enable overload and reconciles affected knowledge.</summary>
     public static void Enable(EnableCap cap)
     {
         var cache = CurrentCache;
-        // Admit only the affected fields; preserve original native arguments, errors and execution.
-        AdmitCapability(cache, cap);
-        GL.Enable(cap);
+        bool accepted = OpenGlStateCache.AcceptsExternalCapability(cap);
+        var operationContext = Integration.RenderContextRegistry.CaptureResourceContext();
+        if (accepted) AdmitCapability(cache, cap);
+        try { GL.Enable(cap); }
+        catch { if (accepted && cache.OwnsKnowledgeFor(operationContext)) AdmitCapability(cache, cap); throw; }
+        if (accepted && cache.OwnsKnowledgeFor(operationContext) && Integration.RenderContextRegistry.IsCurrentResourceContext(operationContext))
+            cache.ObserveExternalCapability(cap, true);
     }
     /// <summary>Preserves the exact native Disable overload and reconciles affected knowledge.</summary>
     public static void Disable(EnableCap cap)
     {
         var cache = CurrentCache;
-        // Admit only the affected fields; preserve original native arguments, errors and execution.
-        AdmitCapability(cache, cap);
-        GL.Disable(cap);
+        bool accepted = OpenGlStateCache.AcceptsExternalCapability(cap);
+        var operationContext = Integration.RenderContextRegistry.CaptureResourceContext();
+        if (accepted) AdmitCapability(cache, cap);
+        try { GL.Disable(cap); }
+        catch { if (accepted && cache.OwnsKnowledgeFor(operationContext)) AdmitCapability(cache, cap); throw; }
+        if (accepted && cache.OwnsKnowledgeFor(operationContext) && Integration.RenderContextRegistry.IsCurrentResourceContext(operationContext))
+            cache.ObserveExternalCapability(cap, false);
     }
     /// <summary>Preserves the exact native Enable overload and reconciles affected knowledge.</summary>
     public static void Enable(IndexedEnableCap cap, int index)
     {
         var cache = CurrentCache;
-        // Admit only the affected fields; preserve original native arguments, errors and execution.
-        AdmitCapability(cache, cap, index);
-        GL.Enable(cap, index);
+        bool scissor = (int)cap == (int)EnableCap.ScissorTest && index == 0;
+        if (cap == IndexedEnableCap.Blend) cache.ValidateBoundaryMutation(blend: BlendStateKnowledge.Enabled, index: index);
+        else if (scissor) cache.ValidateBoundaryMutation(rasterizer: RasterizerStateKnowledge.ScissorEnabled);
+        else cache.RejectUnsupportedBoundaryMutation();
+        bool accepted = scissor || cap == IndexedEnableCap.Blend && index >= 0 && index < cache.MaxDrawBuffers;
+        var operationContext = Integration.RenderContextRegistry.CaptureResourceContext();
+        if (accepted) AdmitCapability(cache, cap, index);
+        try { GL.Enable(cap, index); }
+        catch { if (accepted && cache.OwnsKnowledgeFor(operationContext)) AdmitCapability(cache, cap, index); throw; }
+        if (accepted && cache.OwnsKnowledgeFor(operationContext) && Integration.RenderContextRegistry.IsCurrentResourceContext(operationContext))
+            cache.ObserveExternalCapability(cap, index, true);
     }
     /// <summary>Preserves the exact native Disable overload and reconciles affected knowledge.</summary>
     public static void Disable(IndexedEnableCap cap, int index)
     {
         var cache = CurrentCache;
-        // Admit only the affected fields; preserve original native arguments, errors and execution.
-        AdmitCapability(cache, cap, index);
-        GL.Disable(cap, index);
+        bool scissor = (int)cap == (int)EnableCap.ScissorTest && index == 0;
+        if (cap == IndexedEnableCap.Blend) cache.ValidateBoundaryMutation(blend: BlendStateKnowledge.Enabled, index: index);
+        else if (scissor) cache.ValidateBoundaryMutation(rasterizer: RasterizerStateKnowledge.ScissorEnabled);
+        else cache.RejectUnsupportedBoundaryMutation();
+        bool accepted = scissor || cap == IndexedEnableCap.Blend && index >= 0 && index < cache.MaxDrawBuffers;
+        var operationContext = Integration.RenderContextRegistry.CaptureResourceContext();
+        if (accepted) AdmitCapability(cache, cap, index);
+        try { GL.Disable(cap, index); }
+        catch { if (accepted && cache.OwnsKnowledgeFor(operationContext)) AdmitCapability(cache, cap, index); throw; }
+        if (accepted && cache.OwnsKnowledgeFor(operationContext) && Integration.RenderContextRegistry.IsCurrentResourceContext(operationContext))
+            cache.ObserveExternalCapability(cap, index, false);
     }
     /// <summary>Preserves the exact native DepthFunc overload and reconciles affected knowledge.</summary>
     public static void DepthFunc(DepthFunction function)
     {
         var cache = CurrentCache;
-        // Admit only the affected fields; preserve original native arguments, errors and execution.
-        cache.ForgetExternalStateMutation(depth: DepthStateKnowledge.Comparison);
-        GL.DepthFunc(function);
+        cache.ValidateBoundaryMutation(depth: DepthStateKnowledge.Comparison);
+        bool accepted = Enum.IsDefined(function);
+        var operationContext = Integration.RenderContextRegistry.CaptureResourceContext();
+        // Reject boundary misuse before dispatch, but preserve known state after defined native rejection.
+        if (accepted) cache.ForgetExternalStateMutation(depth: DepthStateKnowledge.Comparison);
+        try { GL.DepthFunc(function); }
+        catch { if (cache.OwnsKnowledgeFor(operationContext)) cache.ForgetExternalStateMutation(depth: DepthStateKnowledge.Comparison); throw; }
+        if (accepted && cache.OwnsKnowledgeFor(operationContext) && Integration.RenderContextRegistry.IsCurrentResourceContext(operationContext))
+            cache.ObserveExternalDepthFunc(function);
     }
     /// <summary>Preserves the exact native DepthMask overload and reconciles affected knowledge.</summary>
     public static void DepthMask(bool enabled)
     {
         var cache = CurrentCache;
-        // Admit only the affected fields; preserve original native arguments, errors and execution.
-        cache.ForgetExternalStateMutation(depth: DepthStateKnowledge.WriteEnabled);
-        GL.DepthMask(enabled);
+        cache.ValidateBoundaryMutation(depth: DepthStateKnowledge.WriteEnabled);
+        bool accepted = true;
+        var operationContext = Integration.RenderContextRegistry.CaptureResourceContext();
+        // Reject boundary misuse before dispatch, but preserve known state after defined native rejection.
+        if (accepted) cache.ForgetExternalStateMutation(depth: DepthStateKnowledge.WriteEnabled);
+        try { GL.DepthMask(enabled); }
+        catch { if (cache.OwnsKnowledgeFor(operationContext)) cache.ForgetExternalStateMutation(depth: DepthStateKnowledge.WriteEnabled); throw; }
+        if (accepted && cache.OwnsKnowledgeFor(operationContext) && Integration.RenderContextRegistry.IsCurrentResourceContext(operationContext))
+            cache.ObserveExternalDepthMask(enabled);
     }
     /// <summary>Preserves the exact native BlendFunc overload and reconciles affected knowledge.</summary>
     public static void BlendFunc(BlendingFactor source, BlendingFactor destination)
     {
         var cache = CurrentCache;
-        // Admit only the affected fields; preserve original native arguments, errors and execution.
-        cache.ForgetExternalStateMutation(blend: BlendStateKnowledge.Factors);
-        GL.BlendFunc(source, destination);
+        cache.ValidateBoundaryMutation(blend: BlendStateKnowledge.Factors);
+        bool accepted = OpenGlStateCache.AcceptsExternalBlendFactors(new GlBlendFunc((BlendingFactorSrc)source, (BlendingFactorDest)destination, (BlendingFactorSrc)source, (BlendingFactorDest)destination));
+        var operationContext = Integration.RenderContextRegistry.CaptureResourceContext();
+        // Reject boundary misuse before dispatch, but preserve known state after defined native rejection.
+        if (accepted) cache.ForgetExternalStateMutation(blend: BlendStateKnowledge.Factors);
+        try { GL.BlendFunc(source, destination); }
+        catch { if (cache.OwnsKnowledgeFor(operationContext)) cache.ForgetExternalStateMutation(blend: BlendStateKnowledge.Factors); throw; }
+        if (accepted && cache.OwnsKnowledgeFor(operationContext) && Integration.RenderContextRegistry.IsCurrentResourceContext(operationContext))
+            cache.ObserveExternalBlendFunc(source, destination);
     }
     /// <summary>Preserves the exact native BlendFunc overload and reconciles affected knowledge.</summary>
     public static void BlendFunc(int index, BlendingFactorSrc source, BlendingFactorDest destination)
     {
         var cache = CurrentCache;
-        // Admit only the affected fields; preserve original native arguments, errors and execution.
-        cache.ForgetExternalStateMutation(blend: BlendStateKnowledge.Factors, index: index);
-        GL.BlendFunc(index, source, destination);
+        cache.ValidateBoundaryMutation(blend: BlendStateKnowledge.Factors, index: index);
+        bool accepted = index >= 0 && index < cache.MaxDrawBuffers && (OpenGlStateCache.AcceptsExternalBlendFactors(new GlBlendFunc(source, destination, (BlendingFactorSrc)source, (BlendingFactorDest)destination)));
+        var operationContext = Integration.RenderContextRegistry.CaptureResourceContext();
+        // Reject boundary misuse before dispatch, but preserve known state after defined native rejection.
+        if (accepted) cache.ForgetExternalStateMutation(blend: BlendStateKnowledge.Factors, index: index);
+        try { GL.BlendFunc(index, source, destination); }
+        catch { if (cache.OwnsKnowledgeFor(operationContext)) cache.ForgetExternalStateMutation(blend: BlendStateKnowledge.Factors, index: index); throw; }
+        if (accepted && cache.OwnsKnowledgeFor(operationContext) && Integration.RenderContextRegistry.IsCurrentResourceContext(operationContext))
+            cache.ObserveExternalBlendFunc(index, source, destination);
     }
     /// <summary>Preserves the exact native BlendFuncSeparate overload and reconciles affected knowledge.</summary>
     public static void BlendFuncSeparate(BlendingFactorSrc sourceRgb, BlendingFactorDest destinationRgb,
         BlendingFactorSrc sourceAlpha, BlendingFactorDest destinationAlpha)
     {
         var cache = CurrentCache;
-        // Admit only the affected fields; preserve original native arguments, errors and execution.
-        cache.ForgetExternalStateMutation(blend: BlendStateKnowledge.Factors);
-        GL.BlendFuncSeparate(sourceRgb, destinationRgb, sourceAlpha, destinationAlpha);
+        cache.ValidateBoundaryMutation(blend: BlendStateKnowledge.Factors);
+        bool accepted = OpenGlStateCache.AcceptsExternalBlendFactors(new GlBlendFunc(sourceRgb, destinationRgb, sourceAlpha, destinationAlpha));
+        var operationContext = Integration.RenderContextRegistry.CaptureResourceContext();
+        // Reject boundary misuse before dispatch, but preserve known state after defined native rejection.
+        if (accepted) cache.ForgetExternalStateMutation(blend: BlendStateKnowledge.Factors);
+        try { GL.BlendFuncSeparate(sourceRgb, destinationRgb, sourceAlpha, destinationAlpha); }
+        catch { if (cache.OwnsKnowledgeFor(operationContext)) cache.ForgetExternalStateMutation(blend: BlendStateKnowledge.Factors); throw; }
+        if (accepted && cache.OwnsKnowledgeFor(operationContext) && Integration.RenderContextRegistry.IsCurrentResourceContext(operationContext))
+            cache.ObserveExternalBlendFuncSeparate(sourceRgb, destinationRgb, sourceAlpha, destinationAlpha);
     }
     /// <summary>Preserves the exact native BlendFuncSeparate overload and reconciles affected knowledge.</summary>
     public static void BlendFuncSeparate(int index, BlendingFactorSrc sourceRgb, BlendingFactorDest destinationRgb,
         BlendingFactorSrc sourceAlpha, BlendingFactorDest destinationAlpha)
     {
         var cache = CurrentCache;
-        // Admit only the affected fields; preserve original native arguments, errors and execution.
-        cache.ForgetExternalStateMutation(blend: BlendStateKnowledge.Factors, index: index);
-        GL.BlendFuncSeparate(index, sourceRgb, destinationRgb, sourceAlpha, destinationAlpha);
+        cache.ValidateBoundaryMutation(blend: BlendStateKnowledge.Factors, index: index);
+        bool accepted = index >= 0 && index < cache.MaxDrawBuffers && (OpenGlStateCache.AcceptsExternalBlendFactors(new GlBlendFunc(sourceRgb, destinationRgb, sourceAlpha, destinationAlpha)));
+        var operationContext = Integration.RenderContextRegistry.CaptureResourceContext();
+        // Reject boundary misuse before dispatch, but preserve known state after defined native rejection.
+        if (accepted) cache.ForgetExternalStateMutation(blend: BlendStateKnowledge.Factors, index: index);
+        try { GL.BlendFuncSeparate(index, sourceRgb, destinationRgb, sourceAlpha, destinationAlpha); }
+        catch { if (cache.OwnsKnowledgeFor(operationContext)) cache.ForgetExternalStateMutation(blend: BlendStateKnowledge.Factors, index: index); throw; }
+        if (accepted && cache.OwnsKnowledgeFor(operationContext) && Integration.RenderContextRegistry.IsCurrentResourceContext(operationContext))
+            cache.ObserveExternalBlendFuncSeparate(index, sourceRgb, destinationRgb, sourceAlpha, destinationAlpha);
     }
     /// <summary>Preserves the exact native ColorMask overload and reconciles affected knowledge.</summary>
     public static void ColorMask(bool red, bool green, bool blue, bool alpha)
     {
         var cache = CurrentCache;
-        // Admit only the affected fields; preserve original native arguments, errors and execution.
-        cache.ForgetExternalStateMutation(blend: BlendStateKnowledge.WriteMask);
-        GL.ColorMask(red, green, blue, alpha);
+        cache.ValidateBoundaryMutation(blend: BlendStateKnowledge.WriteMask);
+        bool accepted = true;
+        var operationContext = Integration.RenderContextRegistry.CaptureResourceContext();
+        // Reject boundary misuse before dispatch, but preserve known state after defined native rejection.
+        if (accepted) cache.ForgetExternalStateMutation(blend: BlendStateKnowledge.WriteMask);
+        try { GL.ColorMask(red, green, blue, alpha); }
+        catch { if (cache.OwnsKnowledgeFor(operationContext)) cache.ForgetExternalStateMutation(blend: BlendStateKnowledge.WriteMask); throw; }
+        if (accepted && cache.OwnsKnowledgeFor(operationContext) && Integration.RenderContextRegistry.IsCurrentResourceContext(operationContext))
+            cache.ObserveExternalColorMask(red, green, blue, alpha);
     }
     /// <summary>Preserves the exact native ColorMask overload and reconciles affected knowledge.</summary>
     public static void ColorMask(int index, bool red, bool green, bool blue, bool alpha)
     {
         var cache = CurrentCache;
-        // Admit only the affected fields; preserve original native arguments, errors and execution.
-        cache.ForgetExternalStateMutation(blend: BlendStateKnowledge.WriteMask, index: index);
-        GL.ColorMask(index, red, green, blue, alpha);
+        cache.ValidateBoundaryMutation(blend: BlendStateKnowledge.WriteMask, index: index);
+        bool accepted = index >= 0 && index < cache.MaxDrawBuffers && (true);
+        var operationContext = Integration.RenderContextRegistry.CaptureResourceContext();
+        // Reject boundary misuse before dispatch, but preserve known state after defined native rejection.
+        if (accepted) cache.ForgetExternalStateMutation(blend: BlendStateKnowledge.WriteMask, index: index);
+        try { GL.ColorMask(index, red, green, blue, alpha); }
+        catch { if (cache.OwnsKnowledgeFor(operationContext)) cache.ForgetExternalStateMutation(blend: BlendStateKnowledge.WriteMask, index: index); throw; }
+        if (accepted && cache.OwnsKnowledgeFor(operationContext) && Integration.RenderContextRegistry.IsCurrentResourceContext(operationContext))
+            cache.ObserveExternalColorMask(index, red, green, blue, alpha);
     }
     /// <summary>Preserves the exact native Viewport overload and reconciles affected knowledge.</summary>
     public static void Viewport(int x, int y, int width, int height)
     {
         var cache = CurrentCache;
-        // Admit only the affected fields; preserve original native arguments, errors and execution.
-        cache.ForgetExternalStateMutation(dynamic: DynamicDrawStateKnowledge.Viewport);
-        GL.Viewport(x, y, width, height);
+        cache.ValidateBoundaryMutation(dynamic: DynamicDrawStateKnowledge.Viewport);
+        bool accepted = width >= 0 && height >= 0;
+        var operationContext = Integration.RenderContextRegistry.CaptureResourceContext();
+        // Reject boundary misuse before dispatch, but preserve known state after defined native rejection.
+        if (accepted) cache.ForgetExternalStateMutation(dynamic: DynamicDrawStateKnowledge.Viewport);
+        try { GL.Viewport(x, y, width, height); }
+        catch { if (cache.OwnsKnowledgeFor(operationContext)) cache.ForgetExternalStateMutation(dynamic: DynamicDrawStateKnowledge.Viewport); throw; }
+        if (accepted && cache.OwnsKnowledgeFor(operationContext) && Integration.RenderContextRegistry.IsCurrentResourceContext(operationContext))
+            cache.ObserveExternalViewport(x, y, width, height);
     }
     /// <summary>Preserves the exact native ClearColor overload and reconciles affected knowledge.</summary>
     public static void ClearColor(float red, float green, float blue, float alpha)
     {
         var cache = CurrentCache;
-        // Admit only the affected fields; preserve original native arguments, errors and execution.
-        cache.ForgetExternalStateMutation(clearColor: true);
-        GL.ClearColor(red, green, blue, alpha);
+        cache.ValidateBoundaryMutation(clearColor: true);
+        bool accepted = float.IsFinite(red) && float.IsFinite(green) && float.IsFinite(blue) && float.IsFinite(alpha);
+        var operationContext = Integration.RenderContextRegistry.CaptureResourceContext();
+        // Reject boundary misuse before dispatch, but preserve known state after defined native rejection.
+        if (accepted || !float.IsFinite(red) || !float.IsFinite(green) || !float.IsFinite(blue) || !float.IsFinite(alpha)) cache.ForgetExternalStateMutation(clearColor: true);
+        try { GL.ClearColor(red, green, blue, alpha); }
+        catch { if (cache.OwnsKnowledgeFor(operationContext)) cache.ForgetExternalStateMutation(clearColor: true); throw; }
+        if (accepted && cache.OwnsKnowledgeFor(operationContext) && Integration.RenderContextRegistry.IsCurrentResourceContext(operationContext))
+            cache.ObserveExternalClearColor(red, green, blue, alpha);
     }
     /// <summary>Preserves the exact native LineWidth overload and reconciles affected knowledge.</summary>
     public static void LineWidth(float width)
     {
         var cache = CurrentCache;
-        // Admit only the affected fields; preserve original native arguments, errors and execution.
-        cache.ForgetExternalStateMutation(rasterizer: RasterizerStateKnowledge.LineWidth);
-        GL.LineWidth(width);
+        cache.ValidateBoundaryMutation(rasterizer: RasterizerStateKnowledge.LineWidth);
+        bool accepted = float.IsFinite(width) && width > 0;
+        var operationContext = Integration.RenderContextRegistry.CaptureResourceContext();
+        // Reject boundary misuse before dispatch, but preserve known state after defined native rejection.
+        if (accepted || !float.IsFinite(width)) cache.ForgetExternalStateMutation(rasterizer: RasterizerStateKnowledge.LineWidth);
+        try { GL.LineWidth(width); }
+        catch { if (cache.OwnsKnowledgeFor(operationContext)) cache.ForgetExternalStateMutation(rasterizer: RasterizerStateKnowledge.LineWidth); throw; }
+        if (accepted && cache.OwnsKnowledgeFor(operationContext) && Integration.RenderContextRegistry.IsCurrentResourceContext(operationContext))
+            cache.ObserveExternalLineWidth(width);
     }
     /// <summary>Preserves the exact native PointSize overload and reconciles affected knowledge.</summary>
     public static void PointSize(float size)
     {
         var cache = CurrentCache;
-        // Admit only the affected fields; preserve original native arguments, errors and execution.
-        cache.ForgetExternalStateMutation(rasterizer: RasterizerStateKnowledge.PointSize);
-        GL.PointSize(size);
+        cache.ValidateBoundaryMutation(rasterizer: RasterizerStateKnowledge.PointSize);
+        bool accepted = float.IsFinite(size) && size > 0;
+        var operationContext = Integration.RenderContextRegistry.CaptureResourceContext();
+        // Reject boundary misuse before dispatch, but preserve known state after defined native rejection.
+        if (accepted || !float.IsFinite(size)) cache.ForgetExternalStateMutation(rasterizer: RasterizerStateKnowledge.PointSize);
+        try { GL.PointSize(size); }
+        catch { if (cache.OwnsKnowledgeFor(operationContext)) cache.ForgetExternalStateMutation(rasterizer: RasterizerStateKnowledge.PointSize); throw; }
+        if (accepted && cache.OwnsKnowledgeFor(operationContext) && Integration.RenderContextRegistry.IsCurrentResourceContext(operationContext))
+            cache.ObserveExternalPointSize(size);
     }
     /// <summary>Preserves the exact native PixelStore overload and reconciles affected knowledge.</summary>
     public static void PixelStore(PixelStoreParameter parameter, int value) => OpenGLPixelStoreCalls.SetPixelStore(CurrentCache, parameter, value);
@@ -165,17 +273,29 @@ internal static partial class EngineStateCalls
     public static void PatchParameter(PatchParameterInt parameter, int value)
     {
         var cache = CurrentCache;
-        // Admit only the affected fields; preserve original native arguments, errors and execution.
-        cache.ForgetExternalStateMutation(assembly: PrimitiveAssemblyStateKnowledge.PatchVertices);
-        GL.PatchParameter(parameter, value);
+        cache.ValidateBoundaryMutation(assembly: PrimitiveAssemblyStateKnowledge.PatchVertices);
+        bool accepted = parameter == PatchParameterInt.PatchVertices && value > 0 && value <= GpuSupport.Graphics.MaxPatchVertices;
+        var operationContext = Integration.RenderContextRegistry.CaptureResourceContext();
+        // Reject boundary misuse before dispatch, but preserve known state after defined native rejection.
+        if (accepted) cache.ForgetExternalStateMutation(assembly: PrimitiveAssemblyStateKnowledge.PatchVertices);
+        try { GL.PatchParameter(parameter, value); }
+        catch { if (cache.OwnsKnowledgeFor(operationContext)) cache.ForgetExternalStateMutation(assembly: PrimitiveAssemblyStateKnowledge.PatchVertices); throw; }
+        if (accepted && cache.OwnsKnowledgeFor(operationContext) && Integration.RenderContextRegistry.IsCurrentResourceContext(operationContext))
+            cache.ObserveExternalPatchParameter(parameter, value);
     }
     /// <summary>Preserves the exact native ProvokingVertex overload and reconciles affected knowledge.</summary>
     public static void ProvokingVertex(ProvokingVertexMode mode)
     {
         var cache = CurrentCache;
-        // Admit only the affected fields; preserve original native arguments, errors and execution.
-        cache.ForgetExternalStateMutation(rasterizer: RasterizerStateKnowledge.ProvokingVertex);
-        GL.ProvokingVertex(mode);
+        cache.ValidateBoundaryMutation(rasterizer: RasterizerStateKnowledge.ProvokingVertex);
+        bool accepted = Enum.IsDefined(mode);
+        var operationContext = Integration.RenderContextRegistry.CaptureResourceContext();
+        // Reject boundary misuse before dispatch, but preserve known state after defined native rejection.
+        if (accepted) cache.ForgetExternalStateMutation(rasterizer: RasterizerStateKnowledge.ProvokingVertex);
+        try { GL.ProvokingVertex(mode); }
+        catch { if (cache.OwnsKnowledgeFor(operationContext)) cache.ForgetExternalStateMutation(rasterizer: RasterizerStateKnowledge.ProvokingVertex); throw; }
+        if (accepted && cache.OwnsKnowledgeFor(operationContext) && Integration.RenderContextRegistry.IsCurrentResourceContext(operationContext))
+            cache.ObserveExternalProvokingVertex(mode);
     }
     #endregion
 
@@ -232,7 +352,13 @@ internal static partial class EngineStateCalls
             // Existing registrations retain their generation, including explicitly owned headless contexts.
             if (Integration.RenderContextRegistry.Current().Generation == 0)
                 Integration.EngineRenderContext.RegisterCurrent();
-            return OpenGlStateCache.Current;
+            // Static limit accessors also participate in argument-derived effects. Refresh
+            // their existing capability snapshot once when the registered lifetime changes.
+            GpuSupport.EnsureCurrentContext();
+            var identity = Integration.RenderContextRegistry.CaptureResourceContext();
+            var cache = OpenGlStateCache.Current;
+            cache.SelectRHIContext(identity.Handle, identity.Generation == 0 ? default : identity);
+            return cache;
         }
     }
     #endregion

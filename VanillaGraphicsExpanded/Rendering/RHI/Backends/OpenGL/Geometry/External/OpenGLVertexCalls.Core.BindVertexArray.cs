@@ -10,7 +10,7 @@ internal static unsafe partial class OpenGLVertexCalls
     /// <summary>Executes the exact external overload once and completes its selector or routing bookkeeping.</summary>
     internal static void ExecuteCoreBindVertexArray(int @array)
     {
-        var observation = OpenGlStateCache.BeginNativeVertexSelection();
+        var observation = OpenGlStateCache.BeginNativeVertexSelection(unchecked((int)@array));
         bool returned = false;
         try
         {
@@ -27,7 +27,7 @@ internal static unsafe partial class OpenGLVertexCalls
     /// <summary>Executes the exact external overload once and completes its selector or routing bookkeeping.</summary>
     internal static void ExecuteCoreBindVertexArray(uint @array)
     {
-        var observation = OpenGlStateCache.BeginNativeVertexSelection();
+        var observation = OpenGlStateCache.BeginNativeVertexSelection(unchecked((int)@array));
         bool returned = false;
         try
         {

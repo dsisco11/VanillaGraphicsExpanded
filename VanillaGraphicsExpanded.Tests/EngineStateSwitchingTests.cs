@@ -30,9 +30,9 @@ public sealed class EngineStateSwitchingTests
         finally { harmony.UnpatchAll(harmony.Id); }
     }
 
-    /// <summary>The engine texture path cannot query or reselect the active texture unit.</summary>
+    /// <summary>The engine texture path preserves exact binding and delegates initially missing selector discovery to the cache.</summary>
     [Fact]
-    public void TextureAdapterBindsWithoutActiveUnitOperations()
+    public void TextureAdapterDelegatesMissingSelectorDiscoveryToCache()
     {
         // Inspect both sides of the adapter boundary so an accidental return to the explicit-unit API fails.
         var adapter = AccessTools.Method(typeof(EngineStateCalls), nameof(EngineStateCalls.BindTexture), [typeof(TextureTarget), typeof(int)]);
@@ -41,7 +41,8 @@ public sealed class EngineStateSwitchingTests
         Assert.Contains(binding, adapterCalls);
         var bindingCalls = PatchProcessor.GetOriginalInstructions(binding).Select(instruction => instruction.operand).OfType<MethodInfo>().ToArray();
         Assert.Single(bindingCalls, method => method.DeclaringType == typeof(GL) && method.Name == nameof(GL.BindTexture));
-        Assert.DoesNotContain(adapterCalls.Concat(bindingCalls), method => method.Name is "GetActiveTextureUnit" or "ActiveTexture" or "GetInteger");
+        Assert.Contains(bindingCalls, method => method.Name == "GetActiveTextureUnit" && method.DeclaringType == typeof(OpenGlStateCache));
+        Assert.DoesNotContain(adapterCalls.Concat(bindingCalls), method => method.Name is "ActiveTexture" or "GetInteger");
     }
 
     /// <summary>All discovered base-game call sites accept the real Harmony patch without running engine code.</summary>

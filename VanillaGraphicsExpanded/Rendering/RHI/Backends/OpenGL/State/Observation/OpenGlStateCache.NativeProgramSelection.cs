@@ -14,7 +14,7 @@ internal sealed partial class OpenGlStateCache
             cache.currentProgram = null;
             cache.currentProgramStagesKnown = false;
         }
-        return new(cache, pipeline, Integration.RenderContextRegistry.Current());
+        return new(cache, pipeline, Integration.RenderContextRegistry.CaptureResourceContext());
     }
     #endregion
 
@@ -25,6 +25,9 @@ internal sealed partial class OpenGlStateCache
         /// <summary>Leaves the affected selector unknown after successful or failed native execution.</summary>
         internal void Complete(bool returned)
         {
+            // A callback can admit another context into the thread-local store. Finishing
+            // the original dispatch must not discard that other namespace's selectors.
+            if (!cache.OwnsKnowledgeFor(context)) return;
             if (pipeline) cache.currentProgramPipeline = null;
             else
             {

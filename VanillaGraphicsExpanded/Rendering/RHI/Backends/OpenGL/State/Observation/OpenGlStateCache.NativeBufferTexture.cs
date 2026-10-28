@@ -53,12 +53,12 @@ internal sealed partial class OpenGlStateCache
                 // are collected. Publication takes over the completion guard synchronously.
                 if (!nativeReturned || !entry.Manager.IsRegistered(entry)
                     || entry.State != GpuResourceRegistrationState.Live) return;
-                if (!TryObserveBufferAssociation(entry, requested, previous, out var association))
+                if (!TryObserveBufferAssociation(entry, requested, previous, out var association, out bool renew))
                     throw new InvalidOperationException("Native buffer texture association metadata is unavailable.");
                 var data = new GpuTextureMetadata(TextureDimension.Buffer, ImmutableArray<GpuTextureLevelMetadata>.Empty,
                     false, 0, 0, 0, association);
                 entry.OperationInProgress = false;
-                entry.Manager.PublishMetadata(entry, data, GpuMetadataChange.Storage, renewTextureAssociation: true);
+                entry.Manager.PublishMetadata(entry, data, GpuMetadataChange.Storage, renewTextureAssociation: renew);
             }
             finally { entry.OperationInProgress = false; }
         }
@@ -68,10 +68,46 @@ internal sealed partial class OpenGlStateCache
     #region Private
     /// <summary>Combines native association queries with range admission facts, preserving native-width command values.</summary>
     private static bool TryObserveBufferAssociation(GpuResourceMetadataEntry<GpuTextureMetadata> entry,
-        GpuTextureBufferMetadata requested, GpuTextureBufferMetadata? previous, out GpuTextureBufferMetadata result)
+        GpuTextureBufferMetadata requested, GpuTextureBufferMetadata? previous, out GpuTextureBufferMetadata result, out bool renew)
     {
         result = default;
+        renew = false;
         if (!ReferenceEquals(entry, entry.Manager.FindObservedResource(entry.Kind, entry.Id))) return false;
+        if (!entry.Manager.CanObserveNativeMetadata) return false;
+        var established = entry.Manager.FindObservedResource(GpuResourceKind.Buffer, requested.BufferId)
+            as GpuResourceMetadataEntry<GpuBufferMetadata>;
+        if (requested.BufferId != 0 && established?.IsUsable == true)
+        {
+            var initialization = new GpuBufferTextureInitialization
+            {
+                Buffer = unchecked((int)requested.BufferId), Format = requested.Format,
+                Mode = requested.WholeBuffer ? GpuBufferTextureMode.Whole : GpuBufferTextureMode.Range
+            };
+            if (!requested.WholeBuffer) { initialization.Offset = requested.Offset; initialization.Size = requested.Size; }
+            bool eligible = true;
+            try { initialization.Validate(); }
+            catch (ArgumentException) { eligible = false; }
+            int knownAlignment = GpuSupport.Graphics.TextureBufferOffsetAlignment;
+            eligible &= requested.WholeBuffer || requested.Offset >= 0 && requested.Size > 0
+                && requested.Offset <= established.Metadata.Capacity
+                && requested.Size <= established.Metadata.Capacity - requested.Offset
+                && knownAlignment > 0 && requested.Offset % knownAlignment == 0;
+            if (eligible)
+            {
+                // Existing destination/backing realization, legal format and known byte range
+                // prove this allocation-free association; no descriptor verification is needed.
+                result = requested.WholeBuffer ? requested with { Offset = 0, Size = 0 } : requested;
+                renew = true;
+                return true;
+            }
+            if (previous is { } retained)
+            {
+                // Defined rejection does not reconnect a retained old name to a replacement
+                // allocation. The manager rechecks the original backing identity at publication.
+                result = retained;
+                return true;
+            }
+        }
         int buffer = ReadBufferTextureParameter((int)entry.Id, (GetTextureParameter)All.TextureBufferDataStoreBindingExt);
         int format = ReadBufferTextureParameter((int)entry.Id, GetTextureParameter.TextureInternalFormat);
         if (format <= 0) return false;
@@ -113,6 +149,7 @@ internal sealed partial class OpenGlStateCache
         if (accepted)
         {
             result = requested.WholeBuffer ? requested with { Offset = 0, Size = 0 } : requested;
+            renew = true;
             return true;
         }
         // A rejected association retains its previous range mode. The old descriptor is

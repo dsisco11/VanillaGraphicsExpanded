@@ -28,10 +28,15 @@ internal static class OpenGLFramebufferSelection
     /// <summary>Forwards an exact engine call without converting unknown native acceptance into cache certainty.</summary>
     internal static void ExternalBind(Legacy.FramebufferTarget target, int framebuffer)
     {
-        var cache = OpenGlStateCache.Current;
-        cache.SetFramebufferSelectionKnowledge(target, null);
+        var cache = EngineStateCalls.CurrentCache;
+        bool targetValid = target is Legacy.FramebufferTarget.Framebuffer or Legacy.FramebufferTarget.ReadFramebuffer or Legacy.FramebufferTarget.DrawFramebuffer;
+        bool established = targetValid && cache.HasEstablishedNativeIdentity(GpuResourceKind.Framebuffer, framebuffer);
+        var origin = Integration.RenderContextRegistry.CaptureResourceContext();
+        if (targetValid) cache.SetFramebufferSelectionKnowledge(target, null);
         try { Legacy.GL.BindFramebuffer(target, framebuffer); }
-        finally { cache.SetFramebufferSelectionKnowledge(target, null); }
+        catch { if (targetValid && cache.OwnsKnowledgeFor(origin)) cache.SetFramebufferSelectionKnowledge(target, null); throw; }
+        if (established && cache.OwnsKnowledgeFor(origin) && Integration.RenderContextRegistry.IsCurrentResourceContext(origin))
+            cache.SetFramebufferSelectionKnowledge(target, framebuffer);
     }
     #endregion
 }

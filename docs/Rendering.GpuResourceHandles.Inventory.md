@@ -442,13 +442,16 @@ Readers use named attachment queries with DSA,
 preserve split read/draw bindings on fallback, and gate attachmentless/multiview queries by capability.
 Native configuration notifications invalidate retained helper/completeness state; managed helper
 updates notify aliases while preserving the initiating helper's image ownership and completion event.
-Named and pointer routing adapters withdraw the existing draw-route cache without changing bindings
-or assuming success. Subsequent capture reads actual routing without consuming native errors. Read
-routing has no cached mirror and remains a native selector, not framebuffer resource metadata.
+Named and pointer routing adapters propagate legal object-local arguments for established identities
+without changing bindings or draining errors. Window selectors use cached double-buffer/stereo facts.
+Unknown named identity, unavailable initial surface facts and failed dispatch retain targeted acquisition. Read routing has no cached mirror and remains a native
+selector, not framebuffer resource metadata.
 OVR selected-image helpers preserve proven attachment mode and range on replay; ambiguous external
 acquisition retains an unknown mode and rejects replay that cannot preserve its semantics. The API
 matrix records supported families and native execution limits independently of installed engine callers.
-Third-party mods and dynamically emitted callers are outside the assembly interception boundary.
+Third-party mods, delegates, dynamically emitted callers and OpenGL4 callers are not yet covered by
+current assembly rewriting. These are defects against required complete interception, not permitted
+external-mutation behavior.
 External calls through excluded auxiliary owners likewise have no continuing observation.
 Direct VGE multiview commands use explicit optional backend operations with publication; their shared
 metadata, capabilities and replay helpers are retained independently of engine interception.
@@ -475,7 +478,7 @@ withdraws content admission; fresh allocation validation and a successful upload
 `CloudStoredVolumeConsumer` retains map, primary visibility and liquid-depth borrowers across stable
 selections and shares the owned material-depth texture directly. `DepthHierarchyRenderer` retains its
 primary-depth borrower and replaces it when selection or original allocation validity changes.
-`ScreenResourceManager` invalidates state and invokes ordered consumers after framebuffer rebuild;
+`ScreenResourceManager` preserves executed knowledge and invokes ordered consumers after framebuffer rebuild;
 consumer teardown releases managed recipients without deleting native storage. Allocation hooks retain
 content-certificate responsibility; common OpenGlStateCache deletion owns native lifetime observation.
 Available registered snapshots require no repeated descriptor acquisition. Context-local tools without

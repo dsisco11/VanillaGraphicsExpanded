@@ -50,8 +50,8 @@ internal sealed partial class OpenGlStateCache
         if (states.HasFlag(EPipelineState.ProgramPipeline)) currentProgramPipeline = null;
         if (states.HasFlag(EPipelineState.VertexArray))
         {
+            // Selection loss does not alter any VAO's established element assignment.
             currentVao = null;
-            elementArrayBufferByVao.Clear();
         }
         if (states.HasFlag(EPipelineState.FramebufferBindings))
         {
@@ -59,8 +59,9 @@ internal sealed partial class OpenGlStateCache
             currentReadFramebuffer = null;
             currentDrawFramebuffer = null;
         }
-        // Legacy external framebuffer mutations invalidate bindings; their local routes are unknown too.
-        if ((states & (EPipelineState.FramebufferRouting | EPipelineState.FramebufferBindings)) != 0)
+        // Losing selectors cannot change object-local routes. Context reset includes the
+        // explicit routing category; ordinary binding uncertainty preserves those facts.
+        if (states.HasFlag(EPipelineState.FramebufferRouting))
             framebufferDrawRouting.Clear();
         if (states.HasFlag(EPipelineState.RenderbufferBinding)) currentRenderbuffer = null;
         if (states.HasFlag(EPipelineState.TransformFeedback))

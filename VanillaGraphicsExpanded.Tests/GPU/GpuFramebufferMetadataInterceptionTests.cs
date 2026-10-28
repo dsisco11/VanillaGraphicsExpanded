@@ -67,6 +67,40 @@ public sealed class GpuFramebufferMetadataInterceptionTests(HeadlessGLFixture fi
         finally { harmony.UnpatchAll(harmony.Id); VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Framebuffer, readSentinel)); fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
 
+    /// <summary>A legal array layer beyond allocated storage remains a native attachment selection rather than an API rejection.</summary>
+    [Fact]
+    public void MissingArrayLayerPublishesSelectedDescriptor()
+    {
+        fixture.EnsureContextValid(); fixture.InitializeResourceDisposal();
+        GL.CreateFramebuffers(1, out int framebuffer);
+        try
+        {
+            using var volume = RHICommandContext.Current.CreateDynamicTexture3D(new RHITextureDescription
+            {
+                Dimension = TextureDimension.TwoArray, Format = TextureFormat.Rgba8, Width = 2, Height = 2,
+                Depth = 2, MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest
+            }).RequireResource();
+            var manager = GpuResourceManagerSystem.CurrentManager!;
+            var entry = manager.AcquireResource(GpuResourceKind.Framebuffer, framebuffer, GpuFramebufferMetadataReader.Instance)!;
+            using var alias = new FramebufferAlias(framebuffer);
+            manager.AssociateResource(entry, alias);
+            OpenGLFramebufferCalls.ExecuteCoreNamedFramebufferTextureLayer(framebuffer,
+                FramebufferAttachment.ColorAttachment0, volume.TextureId, 0, 3);
+            Assert.Equal(ErrorCode.NoError, GL.GetError());
+            GL.GetNamedFramebufferAttachmentParameter(framebuffer, FramebufferAttachment.ColorAttachment0,
+                FramebufferParameterName.FramebufferAttachmentTextureLayer, out int actualLayer);
+            Assert.Equal(3, actualLayer);
+            Assert.Equal(3, alias.Snapshot.Attachments[FramebufferSlot.Color0].Layer);
+            Assert.True(manager.IsResourceMetadataAvailable(alias));
+            Assert.Equal(ErrorCode.NoError, GL.GetError());
+        }
+        finally
+        {
+            RHICommandContext.Current.RetireResource(new(GpuResourceKind.Framebuffer, framebuffer));
+            fixture.CleanupGpuResources();
+        }
+    }
+
     /// <summary>Attachmentless defaults and rejected requests remain representable with split binding preservation.</summary>
     [Theory]
     [InlineData(0)] [InlineData(1)] [InlineData(2)] [InlineData(3)]

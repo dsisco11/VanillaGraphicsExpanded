@@ -196,19 +196,24 @@ shows this driver also returns positive OVR counts for ordinary 2D, single-layer
 attachments. A positive count cannot establish multiview command provenance. Externally acquired descriptors
 retain queried values and a separate mode established by admitted observed commands. Controlled
 selections instead retain their supplied ordinary or multiview mode and range.
-Known array allocation and legal slot/layer/level certify ordinary intercepted command eligibility;
-the resulting queried descriptor must also match. Ordinary intercepted whole-array/layer commands and managed multiview operations
-therefore remain distinct even when queries coincide. Rejected commands preserve prior evidence only
-when their descriptor is unchanged. Manager-owned transient command evidence is consumed by canonical
+Known array allocation and legal slot/layer/level certify ordinary intercepted whole-array/layer
+commands and publish their supplied descriptor without verification readback. A layer outside allocated
+depth but inside the native selection limit remains a legal descriptor; image availability/completeness
+is validated separately. Ambiguous or initially unknown facts retain targeted acquisition. Managed
+multiview operations retain their supplied mode, so they remain distinct even when native queries coincide.
+Proven rejection preserves the prior descriptor without renewing retired backing identity. Manager-owned transient command evidence is consumed by canonical
 publication, including explicitly composed managed attachment updates; no second framebuffer registry is created.
 Direct VGE multiview operations retain selected range projection and named or bound OVR replay.
 External GL.Ovr calls are not intercepted; later mutations through them cannot keep registered snapshots current.
 Initial external acquisition cannot establish an unqueryable mode; its range can be inspected, but
 ambiguous array helpers reject reattachment until a supported explicit selection establishes semantics.
-External draw-route adapters invalidate the existing routing cache and defer actual capture until use.
-Read routing has no cached mirror. Read/draw routes cannot be queried through named framebuffer
-parameter queries ([ARB_direct_state_access, issue 41](https://registry.khronos.org/OpenGL/extensions/ARB/ARB_direct_state_access.txt));
-lazy capture avoids adding binds to named routing commands. Native range/replay and regression receipts
+External draw-route adapters publish legal object-local routes for established identities from exact
+arguments, preserving unrelated mappings and known state after defined rejection. Window routes use
+cached double-buffer/stereo facts. Unknown named objects, unavailable initial surface facts and
+interrupted dispatch retain targeted acquisition. Read routing has no cached
+mirror. Read/draw routes cannot be queried through named framebuffer parameter queries
+([ARB_direct_state_access, issue 41](https://registry.khronos.org/OpenGL/extensions/ARB/ARB_direct_state_access.txt));
+initial or genuinely uncertain capture avoids adding binds to named routing commands. Native range/replay and regression receipts
 are retained in `artifacts/gpu-resource-phase4/multiview-mode-repair-focused.trx` and
 `multiview-mode-repair-combined.trx`; these are historical native-range receipts; current managed operations use the core backend.
 

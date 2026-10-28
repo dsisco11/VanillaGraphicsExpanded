@@ -73,7 +73,7 @@ internal sealed partial class OpenGLBackend : IRHIBackend
         RetirePassTargets();
     }
     private static readonly string[] RequiredEntryPoints =
-    [ "glCreateShader", "glShaderSource", "glCompileShader", "glGetShaderiv", "glGetShaderInfoLog", "glDeleteShader", "glIsShader",
+    [ "glViewportIndexedf", "glScissorIndexed", "glDepthRangeIndexed", "glEnablei", "glDisablei", "glCreateShader", "glShaderSource", "glCompileShader", "glGetShaderiv", "glGetShaderInfoLog", "glDeleteShader", "glIsShader",
       "glCreateProgram", "glAttachShader", "glDetachShader", "glLinkProgram", "glProgramParameteri", "glProgramBinary", "glGetProgramBinary",
       "glGetProgramiv", "glGetProgramInfoLog", "glGetProgramInterfaceiv", "glGetProgramResourceiv", "glGetProgramResourceName", "glGetUniformiv",
       "glDeleteProgram", "glIsProgram", "glUseProgram", "glDispatchCompute", "glDispatchComputeIndirect",

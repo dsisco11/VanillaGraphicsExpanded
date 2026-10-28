@@ -10,7 +10,7 @@ internal static unsafe partial class OpenGLBufferBindingCalls
     /// <summary>Executes the exact external overload once and completes its selector or routing bookkeeping.</summary>
     internal static void ExecuteArbBindBuffer(BufferTargetArb @target, int @buffer)
     {
-        var observation = OpenGlStateCache.BeginNativeBufferBinding((BufferTarget)@target);
+        var observation = OpenGlStateCache.BeginNativeBufferBinding((BufferTarget)@target, unchecked((int)@buffer));
         bool returned = false;
         try
         {
@@ -27,7 +27,7 @@ internal static unsafe partial class OpenGLBufferBindingCalls
     /// <summary>Executes the exact external overload once and completes its selector or routing bookkeeping.</summary>
     internal static void ExecuteArbBindBuffer(BufferTargetArb @target, uint @buffer)
     {
-        var observation = OpenGlStateCache.BeginNativeBufferBinding((BufferTarget)@target);
+        var observation = OpenGlStateCache.BeginNativeBufferBinding((BufferTarget)@target, unchecked((int)@buffer));
         bool returned = false;
         try
         {

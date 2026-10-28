@@ -84,8 +84,6 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem, ILiveConfigura
         renderingLifetime = Rendering.Integration.ClientRenderingLifetime.Find(api);
         capi.ModLoader.GetModSystem<GpuResourceManagerModSystem>()?.AdoptByRenderingRoot();
         renderingLifetime!.Attach(DisposeRendering);
-        // Begin renderer ownership with unknown state; later external mutations invalidate their affected categories.
-        OpenGlStateCache.Current.InvalidateAll();
         // Establish HDR storage before any VGE system borrows the engine framebuffer images.
         PBR.SceneColor.SceneColorPipeline.InitializeStorage(api);
         // Name the current engine table before VGE adds its own attachments.

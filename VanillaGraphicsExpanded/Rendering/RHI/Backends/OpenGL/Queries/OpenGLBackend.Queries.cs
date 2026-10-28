@@ -161,11 +161,12 @@ internal sealed partial class OpenGLBackend
             catch (Exception error) { failure = error; throw; }
             finally
             {
-                if (!IsCurrentContext) cache.ForgetBufferBinding(target);
+                if (!IsCurrentContext)
+                { if (cache.OwnsKnowledgeFor(NativeOrigin)) cache.ForgetBufferBinding(target); }
                 else
                 {
                     try { OpenGLBufferBindings.BindBuffer(cache, target, previous); }
-                    catch { cache.ForgetBufferBinding(target); if (failure is null) throw; }
+                    catch { if (cache.OwnsKnowledgeFor(NativeOrigin)) cache.ForgetBufferBinding(target); if (failure is null) throw; }
                 }
             }
         }

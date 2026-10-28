@@ -8,12 +8,21 @@ throwing placeholder or old-executor forwarding facade is introduced merely to d
 
 ## Authority and ownership
 
-Complete GL interception is a required architectural invariant. GL calls from project code, the engine
-and other mods must reach the same interception/state-cache authority regardless of caller assembly.
-Missing interception or state-effect propagation is a correctness bug; routine invalidation/recapture
-must not compensate for it. Initial unknown facts, context identity changes and uncertain operation
-outcomes retain their explicit acquisition/invalidation rules. This defines the required contract,
-not a statement that the current implementation's coverage has already been qualified.
+Complete interception of supported calls through the installed OpenTK binding tables is a required
+architectural invariant, irrespective of project, engine or other-mod caller assembly. Direct calls
+through other libraries or independently cached driver pointers are outside that boundary. Missing
+interception/effect propagation is a correctness bug, not justification for routine purging/recapture.
+Initially unknown facts, actual context identity changes and uncertain outcomes retain their existing
+acquisition/invalidation rules. This is the final contract, not current coverage qualification.
+
+The approved [binding-interception proposal](Rendering.OpenTKBindingInterception.Proposal.md) controls
+the native-route replacement. External callbacks always forward original native dispatch once and
+preserve arguments, return/output values and native errors. They never suppress, veto, cancel, retry,
+throw into the caller or defer an observer exception to it. Adapt old managed observation guards into
+non-vetoing effect/interruption bookkeeping; contain failures and withdraw only uncertain affected facts.
+Managed RHI validation remains separate. Backend-owned execution bypasses callbacks and retains its
+single reconciliation/publication owner. The cleanup unit precedes the native replacement; only the
+latter qualifies universal supported-caller delivery, observation-only forwarding and remaining handlers.
 
 The proposal controls semantics. Existing [resource](Rendering.GpuResources.md) and
 [binding](Rendering.ShaderBindingState.md#prepared-resource-submission) contracts control retained

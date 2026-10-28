@@ -27,11 +27,8 @@ internal sealed partial class OpenGlStateCache
         if (activeBoundary is not null || resolvingBoundary)
             throw new InvalidOperationException("Unsupported state mutation inside an engine boundary.");
     }
-    #endregion
-
-    #region Private
     /// <summary>Checks a scalar or indexed setter without allocating coverage objects in managed draws.</summary>
-    private void ValidateBoundaryMutation(DepthStateKnowledge depth = default,
+    internal void ValidateBoundaryMutation(DepthStateKnowledge depth = default,
         RasterizerStateKnowledge rasterizer = default, PrimitiveAssemblyStateKnowledge assembly = default,
         DynamicDrawStateKnowledge dynamic = default, BlendStateKnowledge blend = default,
         int index = -1, bool clearColor = false, StencilStateKnowledge stencil = default,
@@ -58,6 +55,9 @@ internal sealed partial class OpenGlStateCache
         if (!permitted) throw new InvalidOperationException("Managed operation exceeds the declared engine-boundary coverage.");
     }
 
+    #endregion
+
+    #region Private
     /// <summary>Checks the entire operation against entry coverage before native work or redundant-call suppression.</summary>
     private void ValidateBoundaryMutation(PipelineStateCoverage operation)
     {

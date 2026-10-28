@@ -10,6 +10,8 @@ internal static partial class EngineStateCalls
     private static void AdmitCapability(OpenGlStateCache cache, IndexedEnableCap capability, int index)
     {
         if (capability == IndexedEnableCap.Blend) cache.ForgetExternalStateMutation(blend: BlendStateKnowledge.Enabled, index: index);
+        else if ((int)capability == (int)EnableCap.ScissorTest && index == 0)
+            cache.ForgetExternalStateMutation(rasterizer: RasterizerStateKnowledge.ScissorEnabled);
         else cache.RejectUnsupportedBoundaryMutation();
     }
 
@@ -44,7 +46,7 @@ internal static partial class EngineStateCalls
             case EnableCap.PolygonSmooth: cache.ForgetExternalStateMutation(rasterizer: RasterizerStateKnowledge.PolygonSmooth); break;
             default:
                 if ((int)capability >= (int)EnableCap.ClipDistance0 && (int)capability <= (int)EnableCap.ClipDistance7)
-                    cache.ForgetExternalStateMutation(rasterizer: RasterizerStateKnowledge.ClipDistances);
+                    cache.WithdrawExternalClipDistance((int)capability - (int)EnableCap.ClipDistance0);
                 else cache.RejectUnsupportedBoundaryMutation();
                 break;
         }

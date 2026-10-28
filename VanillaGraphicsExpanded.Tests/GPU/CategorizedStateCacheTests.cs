@@ -155,8 +155,8 @@ public sealed class CategorizedStateCacheTests(HeadlessGLFixture fixture)
         var clear = new float[4];
         GL.GetFloat(GetPName.ColorClearValue, clear);
         Assert.Equal(new[] { .2f, .3f, .4f, .5f }, clear);
-        // Exact external effects withdraw their fields; managed setters reestablish supplied facts.
-        Assert.Equal(DepthStateKnowledge.None, Read<DepthStateKnowledge>(cache, "depthKnown"));
+        // Exact legal external effects establish their own fields without inventing siblings.
+        Assert.Equal(DepthStateKnowledge.Comparison, Read<DepthStateKnowledge>(cache, "depthKnown"));
         cache.SetDepthFunc(DepthFunction.Greater);
         cache.ApplyDynamic(new DynamicDrawState { X = 3, Y = 5, Width = 17, Height = 19 });
         cache.SetClearColor(.2f, .3f, .4f, .5f);

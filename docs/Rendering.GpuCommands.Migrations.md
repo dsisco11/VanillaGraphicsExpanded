@@ -1476,3 +1476,140 @@ expectations. No native optional-feature or live rendering qualification is infe
 receipts; integrated/package/user evidence remains Phase 9. State propagation/purge, aggregate closure
 and service naming remain open in 8g–8i. No JIT override, instrumented Release, benchmark, game launch,
 staging or commit was performed. Existing user staging was preserved.
+
+
+## Persistent intercepted knowledge (Phase 8g)
+
+### Authority and implemented subset
+
+The revised twelve-task 8g contract closes independent state-knowledge cleanup under the mandatory
+migration rules and retained resource/binding authority. The archived creation/publication and
+texture-reference contracts retain manager publication, original identity and published-only access.
+The user assigned native interception and every remaining shared observer correction to the immediately
+following 8h, under the approved Rendering.OpenTKBindingInterception.Proposal.md. Its all-supported-caller,
+always-forward and completed-handler requirements remain mandatory, but are not 8g completion claims.
+No unknown-runtime-mutation compatibility mode, temporary shim or routine-purge substitute is introduced.
+
+| Tasks | Source closure / current disposition | Required evidence |
+| --- | --- | --- |
+| Frame and resize | GpuUniformRingBeginRenderer already advances only controller.BeginFrame; ScreenResourceManager already invokes ordered callbacks without purging. Removed the unused backend BeginFrame/PurgeCache APIs. Uniform allocation/publication epochs are unchanged. | InterceptedKnowledgePropagationTests, uniform ring and pixel-layout regressions. |
+| Startup | StartClientSide registers the current engine context before shader-library/resource use. The cache starts unknown and SelectRHIContext resets knowledge on native/lifetime changes; removed the duplicate caller-owned InvalidateAll. Early EngineStateCalls.CurrentCache context registration remains. | Source order plus context-admission regressions; live startup is not qualified. |
+| Framebuffer wrapper publication | OnDetached only releases wrapper references/events; OnBeforeDelete no longer duplicates routing invalidation. Existing RHI publication keeps still-live routes. Fresh backend CreateFramebuffers establishes the specification's initial ColorAttachment0 route; observed deletion removes only its original route. ReadWindowSurface no longer invalidates draw routing merely to inspect surface facts. | Routing, wrapper lifecycle, native name reuse and boundary suites. |
+| Pixel-store effects | Exact int/float overloads execute once. Legal alignment/stride/skip/boolean effects update independent known fields in the existing cache. Floats use boolean conversion before nearest-integer conversion; ambiguous ties/out-of-range conversion and thrown/foreign-context return withdraw only the affected field. Defined invalid values preserve prior state and native errors. GetPack/GetUnpack query only initially missing or genuinely uncertain fields. | New direct driver oracle, rejected argument/error and partial-initial-knowledge tests; no new counters. |
+| Object-local draw routing | Core/Arb/Ext scalar, array, ref and pointer overloads retain exact dispatch. Established targets publish validated complete routes, including omitted None outputs. Invalid selectors/duplicates preserve prior routes; unknown named targets and window-buffer availability retain acquisition. Token commits recheck original context. Read routes have no mirrored state. | Routing propagation/suppression, exact forwarding, capture/restore and errors. |
+| Fixed state | Exact EngineStateCalls overloads now repopulate represented depth/stencil, rasterizer, dynamic viewport/scissor/blend constants, primitive assembly, blending/output and sampling fields. Defined rejection preserves prior facts; undefined conversions, interruption and foreign completion retain affected-field uncertainty. Existing masks remain the single authority. Managed viewport-zero effects use indexed native entrypoints so unrelated viewport indices survive boundary execution/restoration. | Driver state/error oracles, suppression captures, boundary coverage and viewport-one sentinel regression. |
+| Established bindings | Generic/indexed UBO/SSBO/atomic buffer selectors, generic aliases, selected-VAO element association, VAO selection, active texture unit, texture/sampler/renderbuffer/image selectors and framebuffer selection propagate where existing identity/metadata/limit facts prove admission. Unknown realization remains acquisition rather than a guessed success. Selector-only invalidation preserves per-object EBO/routes. | Binding aliases, initial acquisition, rejected inputs, context identity and preserved object-local knowledge. |
+| Canonical resource effects | Known base/max-level parameters publish directly. Eligible ordinary array attachment selections and buffer-texture backing/ranges publish supplied facts through existing manager entries. Proven rejection retains prior descriptors without renewing retired backing associations. Unknown/ambiguous command outcomes retain targeted readers. | Metadata/dependency, rejected association, legal out-of-depth layer and exactly-once publication suites. |
+| Context completion | Captured physical context and existing cache ownership gate success/failure cleanup. Original callbacks cannot clear another admitted namespace's knowledge; program-selector uncertainty cleanup follows the same ownership rule. Legacy texture, sampler, renderbuffer, VAO, pipeline and framebuffer scopes now retain original physical identity and skip foreign restoration. Query-buffer failure cleanup also checks cache ownership. | Foreign-context lifecycle and failure tests; no second context cache. |
+| Remaining helper purges | Removed successful EngineFullscreenGeometry admission's unconditional selector purge; failed-upload withdrawal remains because dispatch/certification may have been interrupted. Removed unused InvalidateTextureUnit and InvalidateUniformRange APIs, which had no production or test callers. | Engine geometry, binding and failure suites. |
+
+### Interception evidence and explicit 8h handoff
+
+Complete interception is not yet implemented. EngineStateTargets.Assemblies selects exactly
+VintagestoryLib, VSEssentials, VSSurvivalMod and VSCreativeMod. Its metadata recognizer accepts only
+OpenTK.Graphics.OpenGL.GL; CallsSupportedOperation recognizes direct call operands, not delegate
+construction or arbitrary dynamic code. Existing generic discovery closes observed built-in references,
+not every future instantiation. Extending the assembly list alone cannot satisfy the contract.
+
+Independent inspection of installed G:/Vintagestory/Lib/OpenTK.Graphics.dll established that ordinary
+DepthMask/PixelStore setters and generic BufferData overloads each load a function pointer from their
+own GL.EntryPoints slot and issue calli directly. Generic overloads pin data in their own method body;
+there is no common managed dispatcher. Both legacy and OpenGL4 expose LoadBindings and independent
+entry-point tables; the headless fixture reloads both tables between owning threads. Inspected methods
+have IL implementation flags without NoInlining. Patching non-generic binding wrappers alone therefore
+does not establish generic, delegate, late-loaded or already-inlined coverage.
+
+A native entry-point interception implementation would additionally have to prove ABI widths/calling
+convention, original pointer/table lifetime and reload behavior, reentry/exactly-once publication,
+backend-owned native dispatch and exception containment. Existing manager/immutable/boundary observers
+can throw managed exceptions; installing them as unmanaged callbacks without that proof is unsafe.
+No speculative native thunks, broader-but-still-incomplete caller filter or temporary interception
+facade was installed. The supported-table caller-coverage requirement is assigned to 8h rather than weakened.
+
+### Remaining uncertainty and deferred dependencies
+
+The handler inventory distinguishes implemented propagation from work still needed:
+
+- Fixed-state handlers withdraw only their affected masks while native dispatch is in progress,
+  then commit legal defined effects. This temporary withdrawal prevents callbacks from consuming stale
+  pre-command state; it no longer implies routine post-command readback. Ambiguous float conversion,
+  nonfinite outcomes and interrupted dispatch remain explicitly unknown.
+- Established binding aliases and object-local routes reuse existing facts. New/unrealized identities,
+  unknown incoming selectors and unavailable initial surface facts retain initial acquisition. Identity
+  proof is not inferred merely from a nonthrowing native return.
+- NativeVertexMetadata still invalidates layout/configuration revision certificates. The canonical VAO
+  schema intentionally contains no full layout mirror; acquiring previously unrepresented configuration
+  for certification is distinct from discarding a known binding.
+- Texture allocation/mip generation, unrepresented texture-parameter results, unknown framebuffer
+  attachment outcomes, ambiguous attachment modes and initial buffer-texture association retain their
+  resource-specific readers. Direct propagation now covers represented mip parameters, eligible ordinary
+  array selections and established buffer-texture ranges; it does not claim every native configuration
+  family is query-free. Allocation failure and driver-derived facts keep the approved outcome policy.
+- Successful program/pipeline selectors and transform-feedback activity still lack a complete observed
+  acceptance model. Begin/End/Pause/Resume transform-feedback coverage and the program/pipeline/active
+  uniform destination variants are explicit 8h implementation tasks. Current verification and selector
+  uncertainty remain until that replacement; they are not certified as the final observation design.
+- ContextIdentity's full reset is tied to actual native/lifetime identity changes. BoundaryRestoration's
+  withdrawal is tied to failed cleanup. Pixel layout scope failure and foreign-context cleanup remain
+  targeted, and cannot purge a different admitted namespace.
+- ResourceDeletion.Publication remains the single observed per-kind retirement authority. Its outcome
+  checks distinguish deferred shader/program deletion and rejected native deletion from actual retirement;
+  wrapper detach does not imply deletion. Registry retirement and content/readiness invalidations are
+  separate concerns. Complete caller interception must still be qualified before claiming every external
+  deletion reaches that authority.
+
+The revised 8g completion audit covers only the independent cleanup above. Native interception is 8h,
+combined corrective qualification is now 8i, and management-service naming is now 8j. Their checkboxes
+remain open. The evidence below does not qualify their unimplemented behavior.
+
+### Validation of independent cleanup
+
+The user deferred interception-gap discussion while the independent cleanup proceeded. Final delegated
+validation of the corrected candidate passed **405/405 tests in Debug and 405/405 in ordinary Release**,
+with zero failures or skips. Both canonical shader-enabled builds passed with zero errors. Existing
+compiler/analyzer/package warnings remain (536 Debug, 543 Release). Exact selection and receipts are
+`artifacts/phase8g/current-filter.txt`, `debug-closure-build.log`, `release-closure-build.log`,
+`debug-closure.log/.trx` and `release-closure.log/.trx`.
+
+The selection covers pixel-store conversion/partial knowledge, routing, fixed-state suppression,
+known binding aliases, frame/resize epochs, startup generations, metadata/dependency publication,
+retirement/name reuse, boundary restoration, viewport-one preservation, auxiliary/query behavior and
+physical-context scope disposal. The new six-scope regression proves disposing old texture, sampler,
+renderbuffer, VAO, pipeline and framebuffer scopes preserves another admitted context's cached and
+actual native selectors. Query-buffer foreign/failure cleanup was source-reviewed and existing query
+regressions passed; no additional diagnostic counter was introduced. Original-context restoration
+re-admits its namespace before cache comparisons, and actual context changes abandon old tracker stacks.
+
+Preliminary receipts retain test compilation/oracle corrections and the real indexed-range/startup
+findings; earlier passing runs predate the final scope correction and do not qualify that correction.
+Final builds were checked to contain both the startup capability refresh and all three context-change
+tracker resets, avoiding a compilation race with the last source edits.
+
+The original independent review qualified the implemented cleanup while wider interception remained
+open. The user subsequently moved native interception, non-vetoing observer guards, remaining handler
+propagation and universal supported-table coverage to 8h. Completion of the revised 8g boundary requires
+a fresh contract review; earlier green tests do not close 8h. No staging, commit, game launch, JIT override,
+instrumented Release, benchmark or live appearance/performance qualification was performed.
+
+### Revised completion boundary and current-source evidence
+
+The approved split retains cleanup in 8g and implements the native interception replacement in 8h.
+That next unit owns caller-discovery removal, both binding tables, ABI/loader/context/callback lifetime,
+saved-pointer backend dispatch, always-forward observer-failure behavior, external guard conversion,
+program/pipeline selectors, transform-feedback activity and remaining handler qualification. Its tests
+must prove external calls cannot be vetoed, cancelled, retried or made to throw by the observer.
+
+Second review of the revised cleanup contract retains the source mappings above and the 405-test
+Debug/Release receipts. An independently built portable-PDB probe compared current authored sources
+against both configurations: 2,303 production and 918 test source checksums matched, PE/PDB identities
+matched, and test-output binaries predated the corresponding 405-pass TRX receipts. No source mismatch
+was found. This supports reusing the existing validation instead of rebuilding unchanged code.
+Exact identity evidence: `artifacts/phase8g/source-identity/results.json`; probe source/build receipt
+is retained alongside it. Full native interception remains unimplemented and unchecked in 8h.
+
+Final independent audit against the user-approved split passed all twelve revised 8g requirements.
+The implementation, retained behavioral receipts, source-identity proof, second review and linked-document
+reconciliation support completing 8g. Its markers are complete. The fifteen native-interception tasks
+in 8h, combined qualification in 8i, service naming in 8j and integrated acceptance in Phase 9 remain
+unchecked. No additional runtime change or repeated full build was required for this closure. No staging
+or commit was performed.

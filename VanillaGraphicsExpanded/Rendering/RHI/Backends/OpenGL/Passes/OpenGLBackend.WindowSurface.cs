@@ -10,8 +10,9 @@ internal sealed partial class OpenGLBackend
     {
         RequireContext();
         using var binding = OpenGlStateCache.Current.BindFramebufferScope(FramebufferTarget.Framebuffer, 0);
-        OpenGlStateCache.Current.InvalidateFramebufferDrawRouting(0);
-        bool buffered = GL.GetInteger(GetPName.Doublebuffer) != 0;
+        // Reuse immutable context facts. The fallback serves an explicitly incomplete
+        // synthetic capability input, never ordinary frame or resize invalidation.
+        bool buffered = NativeCapabilities.DoubleBuffered ?? GL.GetInteger(GetPName.Doublebuffer) != 0;
         var attachment = buffered ? FramebufferAttachment.BackLeft : FramebufferAttachment.FrontLeft;
         /// <summary>Reads one property of the selected native window color image.</summary>
         int Read(FramebufferParameterName parameter)

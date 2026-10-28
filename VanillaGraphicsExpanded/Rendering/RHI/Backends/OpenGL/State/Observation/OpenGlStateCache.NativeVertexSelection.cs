@@ -1,24 +1,31 @@
 namespace VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 
-/// <summary>Observes native VAO selectors without treating selection as a configuration change.</summary>
+/// <summary>Propagates established VAO selection without treating selection as a configuration mutation.</summary>
 internal sealed partial class OpenGlStateCache
 {
     #region Internal API
-    /// <summary>Withdraws the selector before forwarding an exact native overload.</summary>
-    internal static NativeVertexSelection BeginNativeVertexSelection()
+    /// <summary>Captures existing realization proof before withholding the selected namespace.</summary>
+    internal static NativeVertexSelection BeginNativeVertexSelection(int array)
     {
-        var cache = Current;
+        var cache = EngineStateCalls.CurrentCache;
+        bool established = cache.HasEstablishedNativeIdentity(GpuResourceKind.VertexArray, array);
         cache.currentVao = null;
-        return new(cache);
+        return new(cache, array, established, Integration.RenderContextRegistry.CaptureResourceContext());
     }
     #endregion
 
-    /// <summary>Leaves successful and rejected selectors available for ordinary unknown-state recovery.</summary>
-    internal readonly struct NativeVertexSelection(OpenGlStateCache cache)
+    /// <summary>Retains original context and realization proof across exact native dispatch.</summary>
+    internal readonly struct NativeVertexSelection(OpenGlStateCache cache, int array, bool established,
+        (nint Handle, long Generation) origin)
     {
         #region Internal API
-        /// <summary>Discards assumptions without publishing resource metadata or consuming native errors.</summary>
-        internal void Complete(bool returned) => cache.currentVao = null;
+        /// <summary>Commits only established names on original-context return; genuinely new names need initial acquisition.</summary>
+        internal void Complete(bool returned)
+        {
+            if (!cache.OwnsKnowledgeFor(origin)) return;
+            cache.currentVao = returned && established
+                && Integration.RenderContextRegistry.IsCurrentResourceContext(origin) ? array : null;
+        }
         #endregion
     }
 }

@@ -26,23 +26,6 @@ internal sealed partial class OpenGlStateCache
     private readonly Dictionary<BufferTarget, int?> bufferBindingByTarget = new();
     private readonly Dictionary<int, int> elementArrayBufferByVao = new();
 
-    /// <summary>
-    /// Clears cached GL bindings and pixel-pack layout so the next access refetches from GL.
-    /// Useful when running alongside a mixed system that also mutates GL state.
-    /// </summary>
-    internal void PurgeCache()
-    {
-        Invalidate(EPipelineState.Bindings | EPipelineState.PixelPack);
-    }
-
-    /// <summary>
-    /// Called once per frame to clear cached GL bindings.
-    /// </summary>
-    internal void BeginFrame()
-    {
-        PurgeCache();
-    }
-
     internal int GetCurrentProgram()
     {
         if (currentProgram.HasValue) return currentProgram.Value;
@@ -195,17 +178,35 @@ internal sealed partial class OpenGlStateCache
         return new VaoScope(previous);
     }
 
+    /// <summary>Restores its original selector only within the captured native namespace.</summary>
     public readonly struct VaoScope : IDisposable
     {
         private readonly int previous;
+        private readonly OpenGlStateCache cache;
+        private readonly (nint Handle, long Generation) origin;
 
+        /// <summary>Retains the original selector, cache and physical context lifetime.</summary>
         internal VaoScope(int previous)
         {
             this.previous = previous;
+            cache = Current;
+            origin = Integration.RenderContextRegistry.CaptureResourceContext();
         }
 
+        /// <summary>Leaves a foreign admitted namespace untouched instead of restoring an old numeric name.</summary>
         public void Dispose()
         {
+            if (!Integration.RenderContextRegistry.IsCurrentResourceContext(origin))
+            {
+                if (cache.OwnsKnowledgeFor(origin))
+                {
+                    VaoScopeTracker.ClearThreadStack();
+                    cache.currentVao = null;
+                }
+                return;
+            }
+            // Re-admit the original namespace if another context used this cache meanwhile.
+            _ = RHI.RHICommandContext.Current;
             VaoScopeTracker.End(previous);
         }
     }
@@ -262,6 +263,7 @@ internal sealed partial class OpenGlStateCache
         private readonly FramebufferTarget target;
         private readonly int previousRead;
         private readonly int previousDraw;
+        private readonly (nint Handle, long Generation) origin;
 
         #region Internal API
         /// <summary>Retains independent binding names for the requested target.</summary>
@@ -271,11 +273,25 @@ internal sealed partial class OpenGlStateCache
             this.target = target;
             this.previousRead = previousRead;
             this.previousDraw = previousDraw;
+            origin = Integration.RenderContextRegistry.CaptureResourceContext();
         }
 
         /// <summary>Restores only the selected binding, or both independent bindings for a combined scope.</summary>
         public void Dispose()
         {
+            // A stale scope cannot restore selectors or erase knowledge in another context.
+            if (!Integration.RenderContextRegistry.IsCurrentResourceContext(origin))
+            {
+                if (cache.OwnsKnowledgeFor(origin))
+                {
+                    if (target != FramebufferTarget.DrawFramebuffer) cache.currentReadFramebuffer = null;
+                    if (target != FramebufferTarget.ReadFramebuffer)
+                    { cache.currentDrawFramebuffer = null; cache.currentFramebuffer = null; }
+                }
+                return;
+            }
+            // Native identity may be original again while the thread-local cache still belongs elsewhere.
+            _ = RHI.RHICommandContext.Current;
             if (target != FramebufferTarget.DrawFramebuffer)
                 OpenGLFramebufferSelection.Bind(cache, FramebufferTarget.ReadFramebuffer, previousRead);
             if (target != FramebufferTarget.ReadFramebuffer)
@@ -329,17 +345,35 @@ internal sealed partial class OpenGlStateCache
         return new ProgramPipelineScope(previous);
     }
 
+    /// <summary>Restores its original selector only within the captured native namespace.</summary>
     public readonly struct ProgramPipelineScope : IDisposable
     {
         private readonly int previous;
+        private readonly OpenGlStateCache cache;
+        private readonly (nint Handle, long Generation) origin;
 
+        /// <summary>Retains the original selector, cache and physical context lifetime.</summary>
         internal ProgramPipelineScope(int previous)
         {
             this.previous = previous;
+            cache = Current;
+            origin = Integration.RenderContextRegistry.CaptureResourceContext();
         }
 
+        /// <summary>Leaves a foreign admitted namespace untouched instead of restoring an old numeric name.</summary>
         public void Dispose()
         {
+            if (!Integration.RenderContextRegistry.IsCurrentResourceContext(origin))
+            {
+                if (cache.OwnsKnowledgeFor(origin))
+                {
+                    ProgramPipelineScopeTracker.ClearThreadStack();
+                    cache.currentProgramPipeline = null;
+                }
+                return;
+            }
+            // Re-admit the original namespace if another context used this cache meanwhile.
+            _ = RHI.RHICommandContext.Current;
             ProgramPipelineScopeTracker.End(previous);
         }
     }
@@ -364,22 +398,33 @@ internal sealed partial class OpenGlStateCache
         return new RenderbufferScope(previous);
     }
 
+    /// <summary>Retains an original renderbuffer selector for context-affine restoration.</summary>
     public readonly struct RenderbufferScope : IDisposable
     {
         private readonly int previous;
         private readonly OpenGlStateCache cache;
         private readonly RHI.RHICommandContext context;
+        private readonly (nint Handle, long Generation) origin;
 
+        /// <summary>Captures the original renderbuffer selector and its native context lifetime.</summary>
         internal RenderbufferScope(int previous)
         {
             this.previous = previous;
             cache = OpenGlStateCache.Current;
             context = RHI.RHICommandContext.Current;
+            origin = Integration.RenderContextRegistry.CaptureResourceContext();
         }
 
+        /// <summary>Restores the original renderbuffer selector without modifying foreign context knowledge.</summary>
         public void Dispose()
         {
-            if (!context.IsCurrentContext) { RenderbufferScopeTracker.ClearThreadStack(); cache.RenderbufferKnowledge = null; return; }
+            // Foreign disposal may withdraw only facts still owned by the original namespace.
+            if (!context.IsCurrentContext)
+            {
+                if (cache.OwnsKnowledgeFor(origin)) { RenderbufferScopeTracker.ClearThreadStack(); cache.RenderbufferKnowledge = null; }
+                return;
+            }
+            context.RequireContext();
             RenderbufferScopeTracker.End(previous);
         }
     }
@@ -480,24 +525,34 @@ internal sealed partial class OpenGlStateCache
     {
         private readonly OpenGlStateCache cache;
         private readonly RHI.RHICommandContext context;
+        private readonly (nint Handle, long Generation) origin;
         private readonly TextureTarget target;
         private readonly int unit;
         private readonly int previousTexture;
         private readonly int previousActiveUnit;
 
+        /// <summary>Captures the original texture selector and active unit and its native context lifetime.</summary>
         internal TextureScope(OpenGlStateCache cache, TextureTarget target, int unit, int previousTexture, int previousActiveUnit)
         {
             this.cache = cache;
             context = RHI.RHICommandContext.Current;
+            origin = Integration.RenderContextRegistry.CaptureResourceContext();
             this.target = target;
             this.unit = unit;
             this.previousTexture = previousTexture;
             this.previousActiveUnit = previousActiveUnit;
         }
 
+        /// <summary>Restores the original texture selector and active unit without modifying foreign context knowledge.</summary>
         public void Dispose()
         {
-            if (!context.IsCurrentContext) { cache.ForgetImageBinding(target, null); cache.ActiveTextureKnowledge = null; return; }
+            // Foreign disposal may withdraw only facts still owned by the original namespace.
+            if (!context.IsCurrentContext)
+            {
+                if (cache.OwnsKnowledgeFor(origin)) { cache.ForgetImageBinding(target, unit); cache.ActiveTextureKnowledge = null; }
+                return;
+            }
+            context.RequireContext();
             OpenGLImageBindings.BindTexture(cache, target, unit, previousTexture);
             OpenGLImageBindings.ActiveTexture(cache, previousActiveUnit);
         }
@@ -543,24 +598,35 @@ internal sealed partial class OpenGlStateCache
         return new SamplerScope(this, unit, previous);
     }
 
+    /// <summary>Retains an original sampler slot for context-affine restoration.</summary>
     public readonly struct SamplerScope : IDisposable
     {
         private readonly OpenGlStateCache cache;
         private readonly RHI.RHICommandContext context;
+        private readonly (nint Handle, long Generation) origin;
         private readonly int unit;
         private readonly int previous;
 
+        /// <summary>Captures the original sampler slot and its native context lifetime.</summary>
         internal SamplerScope(OpenGlStateCache cache, int unit, int previous)
         {
             this.cache = cache;
             context = RHI.RHICommandContext.Current;
+            origin = Integration.RenderContextRegistry.CaptureResourceContext();
             this.unit = unit;
             this.previous = previous;
         }
 
+        /// <summary>Restores the original sampler slot without modifying foreign context knowledge.</summary>
         public void Dispose()
         {
-            if (!context.IsCurrentContext) { cache.SetSamplerKnowledge(unit, null); return; }
+            // Foreign disposal may withdraw only facts still owned by the original namespace.
+            if (!context.IsCurrentContext)
+            {
+                if (cache.OwnsKnowledgeFor(origin)) { cache.SetSamplerKnowledge(unit, null); }
+                return;
+            }
+            context.RequireContext();
             OpenGLImageBindings.BindSampler(cache, unit, previous);
         }
     }

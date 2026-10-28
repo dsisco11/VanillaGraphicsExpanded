@@ -34,9 +34,9 @@ public sealed class PixelPackStateTests(HeadlessGLFixture fixture) : RenderTestB
         AssertState(outer);
     }
 
-    /// <summary>Targeted and complete invalidation discover raw external changes before restoring borrowed layouts.</summary>
+    /// <summary>Explicit loss of previously known facts reacquires native state before borrowing layouts.</summary>
     [Theory]
-    [InlineData(0)] [InlineData(1)] [InlineData(2)] [InlineData(3)]
+    [InlineData(0)] [InlineData(1)]
     public void InvalidationDiscoversExternalState(int boundary)
     {
         EnsureContextValid();
@@ -50,9 +50,7 @@ public sealed class PixelPackStateTests(HeadlessGLFixture fixture) : RenderTestB
         switch(boundary)
         {
             case 0: cache.DirtyPixelPackState(); break;
-            case 1: cache.InvalidateAll(); break;
-            case 2: cache.PurgeCache(); break;
-            default: cache.BeginFrame(); break;
+            default: cache.InvalidateAll(); break;
         }
         var external=new PackState(8,23,2,5,true);
         AssertState(external);
