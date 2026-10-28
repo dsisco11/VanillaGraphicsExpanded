@@ -19,9 +19,9 @@ public sealed class EngineBoundaryEntryTests(HeadlessGLFixture fixture)
 {
     #region Public API
     #region Resolution and ownership
-    /// <summary>Cold, warm and partially invalidated entries resolve exactly their missing fields.</summary>
+    /// <summary>Observed fields need no entry queries; explicit loss resolves only missing fields.</summary>
     [Fact]
-    public void ColdWarmAndPartialEntryHaveExactQueryCoverage()
+    public void ObservedWarmAndPartialEntryHaveExactQueryCoverage()
     {
         var cache = Prepare();
         GL.Enable(EnableCap.DepthTest);
@@ -34,7 +34,7 @@ public sealed class EngineBoundaryEntryTests(HeadlessGLFixture fixture)
 #endif
         Assert.True(cache.TryBeginEngineBoundary(declaration, out var first), cache.BoundaryEntryFailure?.ToString());
 #if DEBUG
-        Assert.Equal(3, cache.BoundaryQueries - queries);
+        Assert.Equal(0, cache.BoundaryQueries - queries);
         Assert.Equal(calls, cache.FixedFunctionCalls);
 #endif
         Assert.True(first!.Snapshot.Depth.TestEnabled);
@@ -118,7 +118,8 @@ public sealed class EngineBoundaryEntryTests(HeadlessGLFixture fixture)
         try
         {
 #if DEBUG
-            Assert.Equal(count * 8, cache.BoundaryQueries - queries);
+            // Native setters published enabled/factors/masks; only the two equations remain unknown.
+            Assert.Equal(count * 2, cache.BoundaryQueries - queries);
 #endif
             cache.SetBlendEnabled(false); cache.SetBlendFunc(GlBlendFunc.Default); cache.SetColorMask(GlColorMask.All);
             cache.Invalidate(EPipelineState.Blend | EPipelineState.ColorMask);
@@ -183,9 +184,9 @@ public sealed class EngineBoundaryEntryTests(HeadlessGLFixture fixture)
         finally { cache.ReleaseEngineBoundary(scope!); }
     }
 
-    /// <summary>Every scalar/backend adapter rejects undeclared effects even when its value is already known.</summary>
+    /// <summary>Managed backend transitions reject undeclared effects even when their values are known.</summary>
     [Fact]
-    public void BackendAndEngineMutationsCannotBypassCoverage()
+    public void ManagedMutationsCannotBypassCoverage()
     {
         var cache = Prepare();
         cache.SetDepthFunc(DepthFunction.Less);
@@ -195,17 +196,12 @@ public sealed class EngineBoundaryEntryTests(HeadlessGLFixture fixture)
         try
         {
             Action[] operations = [
-                () => EngineStateCalls.Enable(EnableCap.DepthTest), () => EngineStateCalls.Disable(EnableCap.CullFace),
-                () => EngineStateCalls.Disable(EnableCap.ScissorTest), () => cache.SetDepthFunc(DepthFunction.Less),
+                () => cache.SetDepthFunc(DepthFunction.Less),
                 () => cache.SetDepthWriteMask(true), () => cache.SetLineWidth(1), () => cache.SetPointSize(1),
                 () => cache.SetProvokingVertex(ProvokingVertexMode.LastVertexConvention), () => cache.SetPatchVertices(3),
-                () => EngineStateCalls.Viewport(0, 0, 16, 16), () => EngineStateCalls.ClearColor(0, 0, 0, 0),
                 () => cache.SetBlendEnabled(false), () => cache.SetBlendEnabledIndexed(0, false),
                 () => cache.SetBlendFunc(GlBlendFunc.Default), () => cache.SetBlendFuncIndexed(0, GlBlendFunc.Default),
-                () => cache.SetColorMask(GlColorMask.All), () => EngineStateCalls.ColorMask(0, true, true, true, true),
-                () => EngineStateCalls.Enable(EnableCap.StencilTest),
-                () => EngineStateCalls.Enable((IndexedEnableCap)EnableCap.ScissorTest, 0),
-                () => EngineStateCalls.PatchParameter((PatchParameterInt)(-1), 3),
+                () => cache.SetColorMask(GlColorMask.All),
                 () => { _ = cache.PatchVertices; },
                 () => { _ = cache.ProvokingVertex; }
             ];
@@ -217,6 +213,25 @@ public sealed class EngineBoundaryEntryTests(HeadlessGLFixture fixture)
             Assert.Equal(calls, cache.FixedFunctionCalls);
             Assert.Equal(queries, cache.BoundaryQueries);
 #endif
+            Assert.Equal(ErrorCode.NoError, GL.GetError());
+        }
+        finally { cache.ReleaseEngineBoundary(scope!); }
+    }
+
+    /// <summary>External native calls cannot be vetoed by a managed boundary's declared footprint.</summary>
+    [Fact]
+    public void ExternalMutationsExecuteOutsideDeclaredCoverage()
+    {
+        var cache = Prepare();
+        Assert.True(cache.TryBeginEngineBoundary(new EngineBoundaryDeclaration("External"), out var scope));
+        try
+        {
+            GL.DepthMask(false);
+            GL.Viewport(3, 5, 11, 13);
+            Assert.False(GL.GetBoolean(GetPName.DepthWritemask));
+            int[] viewport = new int[4];
+            GL.GetInteger(GetPName.Viewport, viewport);
+            Assert.Equal(new[] { 3, 5, 11, 13 }, viewport);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
         finally { cache.ReleaseEngineBoundary(scope!); }
@@ -256,13 +271,20 @@ public sealed class EngineBoundaryEntryTests(HeadlessGLFixture fixture)
     {
         var cache = Prepare();
         GL.DepthMask(false);
+        // Exercise unknown-entry recovery, rather than discarding successfully observed state implicitly.
+        cache.Invalidate(EPipelineState.Depth);
         GL.Enable((EnableCap)(-1)); // Deterministic native error before the checked incoming read.
 #if DEBUG
         long calls = cache.FixedFunctionCalls;
 #endif
         var declaration = new EngineBoundaryDeclaration("Failure", new PipelineStateCoverage(depth: DepthStateKnowledge.WriteEnabled));
-        Assert.False(cache.TryBeginEngineBoundary(declaration, out var failed));
-        Assert.Null(failed); Assert.NotNull(cache.BoundaryEntryFailure);
+        bool entered = cache.TryBeginEngineBoundary(declaration, out var failed);
+        try
+        {
+            Assert.False(entered);
+            Assert.Null(failed); Assert.NotNull(cache.BoundaryEntryFailure);
+        }
+        finally { if (failed is not null) cache.ReleaseEngineBoundary(failed); }
 #if DEBUG
         Assert.Equal(calls, cache.FixedFunctionCalls);
 #endif

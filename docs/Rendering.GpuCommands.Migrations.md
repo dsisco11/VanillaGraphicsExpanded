@@ -19,10 +19,12 @@ rg -n --glob '*.cs' --glob '!**/obj/**' --glob '!**/bin/**' '(\bGL\.|\bStateCach
 
 This is a caller/navigation inventory, not a supported-method whitelist or a new reflection test.
 The [API coverage](Rendering.GpuResourceHandles.ApiCoverage.md) families B1/T1–T4/R1/F1/V1/P1/I1/L1
-and their explicit exclusions continue to define the full exact-adapter obligation. Consult the expanded
-command names, retained `artifacts/gpu-resource-handles-baseline/api-command-matrix.csv` and pinned
-`gl.xml` when replacing each family. Current engine usage never narrows supported overloads.
-Content-only operations still migrate execution but do not gain metadata refresh adapters.
+and their explicit exclusions define the native observation/execution obligations. Consult that matrix's
+expanded command names and registry authority when replacing each family. Current native symbol/source
+mapping and unobserved-name dispositions are recorded in `artifacts/phase8h/native-coverage.json`, with
+the inspected registry input in `artifacts/phase8h/gl.xml`. The older baseline CSV is historical evidence,
+not a required missing input. Current engine usage never narrows supported overloads.
+Content-only operations still migrate execution but do not gain metadata refresh observers.
 
 The [existing inventory](Rendering.GpuResourceHandles.Inventory.md#canonical-metadata-schemas-and-field-migration)
 defines all canonical structs, fourteen native resource kinds and selected `GpuImageMetadata`
@@ -1613,3 +1615,179 @@ reconciliation support completing 8g. Its markers are complete. The fifteen nati
 in 8h, combined qualification in 8i, service naming in 8j and integrated acceptance in Phase 9 remain
 unchecked. No additional runtime change or repeated full build was required for this closure. No staging
 or commit was performed.
+
+
+## Native interception replacement: 8h completion receipt
+
+The final source review, contract audit and combined affected-test qualification are complete.
+The following task numbers refer to the ordered items under 8h in
+[the implementation plan](Rendering.GpuCommands.todo#phase-8h-replace-caller-rewriting-with-native-opentk-binding-interception).
+They preserve requirement-to-document-to-evidence traceability without treating earlier green tests as
+proof of broader closure.
+
+| Tasks | Controlling documentation and requirements | Current implementation and verification evidence |
+| --- | --- | --- |
+| H01, H16 | [API coverage](Rendering.GpuResourceHandles.ApiCoverage.md#authority-and-expansion-rules), [canonical inventory](Rendering.GpuResourceHandles.Inventory.md#native-coverage-and-consumer-gates), resource proposal and archived command-publication proposal (`3f307365`): supported desktop families, represented effects, scoped queries and exclusions | `artifacts/phase8h/native-coverage.json` maps 308 selected symbols to cache-owned source declarations and reconciles expanded unselected names. Its registry URL/SHA identifies `gl.xml`; no unresolved name disposition. ES-only EXT pipeline spellings are excluded; next-link inputs, content-only operations and unrepresented read-routing fields retain explicit dispositions. Creation registration and maintained lifecycle facts are separately assigned to 8i, without claiming those facts already exist. |
+| H02–H07 | [native dispatch/generation design](Rendering.OpenTKBindingInterception.Proposal.md#generated-callbacks-and-handwritten-observers), [RHI ownership](Rendering.GpuCommands.Contracts.md#authority-and-ownership): exact PE-derived ABI, compiler diagnostics, direct post-call delivery, no paired receipts or duplicate dispatcher | `OpenGLInterceptionGenerator/Bindings`, `CallbackEmitter`, `DriverCallEmitter` and cache-owned `State/Observation/Native` attributes. Generator tests cover invalid declarations/layouts, native widths/output/results, aliases and exact managed overload selection; 18/18 in both configurations (`closure2-generator-*`). All 169 immediate pairs, ten receipt types and nested binding/VAO receipt removed. Controlled vertex configuration/program assignment own native work and cleanup synchronously. |
+| H08–H11, H14, H18 | [installation/lifetime](Rendering.OpenTKBindingInterception.Proposal.md#installation-and-lifetime), [failure policy](Rendering.OpenTKBindingInterception.Proposal.md#observation-and-failure-policy), RHI contracts: both tables, retained originals/callbacks, unchanged once-only forwarding, no callback admission veto or error drain | `OpenGLBindingInterception`, `OpenGLBindingLoaderHook`, `OpenGLBindingTable`, `OpenGLNativeSlot`, `OpenGLObservationContext`; generated `OpenGLDriverCalls`. `OpenTKBindingInterceptionTests` covers warm/delegate/emitted callers, both roots, uninstall, late replacement, partial loader failure, loader/uninstall overlap, retained fetched callbacks and uninitialized context/native errors. Generator native tests prove return/output preservation with failing/disabled observation. Backend dispatch uses saved originals with no broad suppression flag. |
+| H12–H13, H15, H19 | [resource publication](Rendering.GpuResources.md), [prepared bindings](Rendering.ShaderBindingState.md#prepared-resource-submission), archived command-publication proposal (`3f307365`), unchanged texture reference proposal (`b9fca04c`): one manager/cache, targeted uncertainty, original associations, selectors/activity and non-vetoing external guards | Native observations interrupt affected manager operations only after native dispatch. Program selector/uniform/bindless, buffer/image, deletion and reentry regressions use real native slots rather than Harmony patches on generated bypass methods. `StaticGpuFramebufferTests.ExternalRoutingSupersedesImmutableDeclarationProof` distinguishes immutable managed policy from actual executed routing. `OpenTKFeedbackObservationTests` proves accepted/rejected activity transitions, native errors, binding preservation and removal of redundant recapture. Existing metadata failure/recipient notification tests require contained observation failures while retaining canonical availability/recovery assertions. |
+| H17 | [mandatory migration contract](Rendering.GpuCommands.todo#mandatory-migration-contract--applies-to-every-implementation-phase), [source ownership](Rendering.GpuCommands.Contracts.md#steady-state-source-ownership): full caller/dependency removal with no shims | Caller scanner/maps, generic closure machinery, exact metadata adapter catalog and handwritten native-dispatch overload inventory removed. Source search finds no old observation factories/receipts; retained shader-reload lifecycle begin/complete methods bracket real work and are not native observation receipts. Broader shader/render integration hooks retain their separate semantic purpose. |
+| H20–H21 | RHI proposal verification/migration rules, parent `Rendering.GpuResourceHandles.todo` design authority, task-linked documents above, completion-audit skill: current documentation, canonical builds, second review and independent completion audit | Final canonical shader-enabled Debug/ordinary Release builds pass; the combined selection passes 662/662 in each configuration, zero skips (`closure7-*`, exact selection `closure7-filter.txt`). Generator tests remain 18/18 in both configurations; their sources predate those receipts and are unchanged. Second source review and the separate requirement-driven completion audit pass for the native interception unit. Earlier full-suite failures remain diagnostic/integration evidence as detailed below; no JIT override, performance gate, package or live-game qualification is claimed. |
+
+The native test fixture captures real loader pointers and reports test-observer faults at the managed
+test boundary; it does not alter production callback error policy. Optional bindless opaque-handle
+substitutes never submit fabricated handles to the hardware. Native hardware behavior, generated ABI
+mapping and static engine-call inventories remain distinct evidence scopes. No installed-game startup,
+visual acceptance, other-platform driver qualification, staging or commit is claimed.
+
+
+### Historical baseline provenance
+
+The resource inventory's earlier static caller inspection and pre-manager measurements remain archived
+at `9de4c4ca:docs/Rendering.GpuResourceHandles.Inventory.md`, under "Native coverage and consumer gates"
+and "Reproducible baseline". They describe the source baseline `35e1481c9d6f94ef8de4fdded5499bccf6a11867`,
+not this implementation. Their local `artifacts/gpu-resource-handles-baseline` files are unavailable in
+this checkout and are not used to certify native interception, current test/package identities or
+performance. The current family matrix and compiler-derived slot inventory control coverage; current
+validation receipts above qualify only their stated scope. Historical source/caller observations do
+not create a requirement to restore the old scanner, replay fixture or benchmark gate.
+
+
+### Second-review corrections and current limits
+
+Source review found that `ObserveDeleteObjectARB` classified an object from `IsShader` after native
+deletion. Immediate shader destruction erased that type evidence and could leave its original shader
+registration live. Classification now prefers the existing manager registration's kind; no new registry
+or pre-call hook is introduced. `NativeShaderDeletionTests` covers both immediate and attachment-deferred
+destruction, original association retirement, wrapper unavailability and the native error queue.
+
+Boundary-entry tests now distinguish facts already published by intercepted native setters from fields
+made explicitly unknown for acquisition tests. External native calls execute even outside a managed
+boundary's declared footprint; managed transitions still enforce that footprint. The failing entry
+assertion that leaked a boundary scope now releases unexpected admitted scopes before reporting failure.
+These changes restore the intended test contract rather than permitting stale cache knowledge or
+reintroducing external vetoes.
+
+The authoritative pre-interception HEAD was built independently under `artifacts/phase8h/head-9de4c4ca`;
+`head-isolated-*` and `candidate-isolated-*` compare exact failing classes in fresh test processes.
+`ShaderTextureTargetTests` and six `AmbientOcclusionCompositeTests` fail identically on that baseline.
+`WorldProbeTraceRoutingTests` passes 11/11 in both isolated candidates, so its earlier full-run failure
+is not proven to be an interception regression. Full-suite receipts are diagnostic until the remaining
+failures are classified; the focused qualification does not certify unrelated rendering algorithms.
+
+
+### Remaining acquisition and uncertainty inventory
+
+This records current reader decisions under the retained publication/query policy. It does not claim
+the complete creation/lifecycle maintenance scheduled in 8i. Native observers reconcile already executed
+external calls; controlled RHI commands retain their supplied/default/derived publication route.
+
+| Observation owner | Established effects and remaining acquisition reason |
+| --- | --- |
+| `ObserveBufferStorage` | Interrupts the original managed operation and withdraws an existing storage snapshot without reading it. A returned external allocation does not establish its per-object outcome; the next explicit consumer recovers unknown capacity/flags through the existing manager reader. No query is added to controlled buffer allocation. |
+| `ObserveTextureMetadata` | Known legal base/max parameters publish arguments; proven rejection retains prior values. Other represented parameter conversions read only that field. Known single-image definitions recover only the selected level/face; unknown descriptors retain initial acquisition. Immutable mip generation is content-only; mutable generation inspects only potentially changed descendants when prior images are available. Storage allocation, view selection and optional renderbuffer association retain outcome/dependency acquisition. |
+| `ObserveBufferTexture` / `TryObserveBufferAssociation` | Established destination/backing identity, legal format, capacity and alignment prove allocation-free association/range effects with no query. Otherwise read backing/format and only exactly representable range fields; native-width command facts are never narrowed to GLint. Original backing association renewal remains manager-owned, with a reader only for unknown backing facts. Internal-format query results are decoded to semantic `TextureFormat` in `OpenGLBackend.ImageQueries` before comparison. |
+| `ObserveRenderbufferStorage` | Recovers the externally allocated descriptor because native allocation/coverage/sample outcome is not proven by return. Controlled allocation retains supplied dimensions/format plus the approved sample-count/resolved-format exceptions rather than full readback. |
+| `ObserveFramebufferMutation` / `PublishObservedFramebuffer` | Known eligible ordinary attachment selections publish supplied arguments; proven rejection preserves the descriptor. Other attachment/default mutations recover only the affected slot/default when the rest is available. Unknown descriptors and ambiguous optional modes retain manager discovery; routing is separate executed knowledge, not a duplicated descriptor. |
+| `ObserveProgramMetadata` | Existing represented unit/block assignments use narrow field refresh; unrepresented numeric uniform writes do not refresh metadata. Link/binary completion recovers required executable/interface outputs. Unsupported opaque-handle unit representation is withdrawn, not converted to a guessed integer unit. Next-link inputs do not create an immediate reflected executable snapshot. |
+| `ObserveProgramSelection`, `ObserveVertexSelection`, buffer/texture/sampler/framebuffer binding observations | Reuse canonical identity and known selectors for established acceptance/rejection; uncertain identities/selectors remain unknown for explicit acquisition. Program stages, pipeline selection and active uniform destination stay distinct. No registry entry or successful return is treated as proof that a native object is selected. |
+| `ObserveFeedbackActivity` | Begin depends on unrepresented output configuration; Resume depends on its retained executable. Read active/paused outcome only where history cannot prove it. Known valid Pause/End and known rejected transitions reuse observed activity; tests count the remaining narrow reads. |
+| Native deletion observations / `CompleteResourceDeletion` | Kind-specific native outcome distinguishes rejection, actual retirement and shader/program deferred destruction without draining errors. ARB generic deletion uses the original registered kind before post-deletion native evidence. Duplicate/zero names and original allocation associations retain the single retirement authority. |
+| Native VAO configuration observations | Invalidate the existing configuration revision and dependent helper certificates, retaining selected-array binding knowledge separately. The canonical VAO schema remains empty; explicitly requested unrepresented layout facts use manager query services rather than a second full layout mirror. Empty sampler/query schemas likewise remain unchanged. |
+
+Initial pre-installation state, absent creation registration and unknown external resource descriptors are
+separate from a valid supplied controlled snapshot. The new creation-tracking unit must replace avoidable
+unknowns at their lifecycle source; it is not permission to add unconditional verification to these paths.
+
+
+### Linked semantic-reference consultation
+
+The API matrix's controlling Khronos references were consulted alongside the current code: immutable
+storage and errors in ARB_buffer_storage; EXT_external_buffer and EXT_external_objects allocation/
+import semantics; attachment defaults in ARB_framebuffer_no_attachments; OVR_multiview attachment
+query fields; EXT_direct_state_access command definitions; ARB_direct_state_access issue 41 for routing
+query restrictions; ARB_texture_buffer_range association, detach and rejection rules; and
+NV_explicit_multisample's renderbuffer-texture target/query restrictions. The latter defines an allowed
+EXT command's target semantics, without adding NV-owner interception. OpenGL 3.1 manual mip generation,
+OpenGL 4.3 vertex binding, and OpenGL 4.6 sections 8.9/8.18 govern the retained selected-image/range/view
+interpretation. ARB_bindless_texture governs opaque handle versus integer-unit representation. Links
+and exact section purposes remain in the API matrix; no caller inventory overrides these definitions.
+
+The binding contract's nested `GpuProgram.md` shared-workflow/reload rules and `PBR.Clouds.md` borrowed
+map contract were also checked: retained executable/interface identity, producer readiness, ownership
+and content certificates remain separate from native state observation. This unit changes neither
+shader algorithms nor those producer/lifecycle contracts.
+
+
+### Broad-suite comparison and affected fixture closure
+
+The corrected full Debug run (`closure5-full-debug.*`) completed 8,274 cases: 7,725 passed, 500 failed,
+49 skipped. Its native boundary-entry/restoration cases pass, eliminating the earlier leaked-scope
+cascade. An independently built pre-interception HEAD (`9de4c4ca`) then ran the exact failing-method
+selection: 477 of the candidate failures reproduce; 528 cases pass and none skip. Exact case names,
+messages and outcomes are retained in `closure5-head-comparison.json` and the compared TRX files.
+This is failure provenance, not a green full-suite qualification.
+
+All 23 remaining candidate-only cases were isolated by class (`closure6-isolated-*`): 133 of 137 tests
+passed before the final fixture corrections. Controlled texture initialization now injects interruption
+after the second actual native image command and relies on existing managed completion checks for
+failure/retirement. Foundation transaction fixtures use saved-original dispatch for their explicitly
+owned work; a separate real external storage test proves native forwarding interrupts an overlapping
+owner's stale completion. Both corrected fixture groups pass their isolated qualification.
+
+The four reproducible residual cases had obsolete test assumptions: external binds contribute to actual
+native-call counters; observation does not perform capability discovery; external calls have no managed
+wrong-thread veto; and backend native effects bypass OpenTK wrapper instrumentation. Their fixtures
+now use the native dispatch boundary or explicit managed-admission checks. PSO tracing preserves
+per-operation markers, actual native state fingerprints and independent pixel assertions, including
+scalar and indexed native setters; it no longer silently misses saved-original work.
+
+The other fourteen initially candidate-only cases pass in isolated processes: camera exposure, particle
+capture/handback, installed depth, sampler-failure cleanup, worker framebuffer disposal and local
+exposure. Their full-sequence behavior is not certified by isolation alone. All of these classes now
+also pass together with the focused native-interception selection in Debug and ordinary Release:
+662/662 per configuration, zero skips. This qualifies the combined operation-family scope, rather than
+claiming the full integrated suite is green. The earlier sequence-dependent observations remain explicit
+inputs to the later integrated rendering gate.
+
+
+### Completion audit and retained acceptance boundary
+
+A second source review checked generated ABI dispatch, loader/uninstall ownership, query-free context
+selection, cache-owned effects, synchronous controlled execution, canonical publication, original
+retirement identity and the migrated test oracles. The five former shared receipt callers are now
+`OpenGLBufferBindings.BindBuffer`, `OpenGLBackend.ResolveGeometryVertexArray`, and
+`OpenGLProgramAssignments.SetUnit`, `UniformBlockBinding` and `ShaderStorageBlockBinding`; their work
+uses the synchronous vertex/program execution owners. No old receipt/factory, caller scanner/catalog,
+handwritten bypass inventory, broad suppression flag or callback enter/exit counter remains.
+
+The separate completion audit reapplied `audit-stage-completion` against H01–H21 and their inherited
+proposal/contracts/resource/binding authority, including archived controlling proposals and nested
+semantic references. The registry inspection input has the exact earlier pinned SHA256
+`B9CA2CFA5C676E901C20D34AF3407F1687CDE0F1336A5FF7A8974D04C7494AD3`; missing historical measurement/caller
+artifacts are not used as current proof. The current family matrix and regenerated native-symbol
+inventory preserve the supported obligations and explicit dispositions. Document links resolve;
+source review found only the intentional root install/uninstall calls outside the backend.
+
+Final delegated builds use canonical shader targets, ordinary Debug/Release and no JIT overrides.
+`closure7-focused-debug.trx` and `closure7-focused-release.trx` each pass all 662 selected tests with no
+skips. This includes the complete focused family selection and all thirteen classes containing the
+previously unmatched cases, in one process per configuration. The generator's unchanged code retains
+its 18/18 Debug/Release qualification. No required 8h implementation, cleanup, documentation or focused
+verification item remains failed or unverified.
+
+The full-suite comparison has a different scope: a full candidate run was compared with an archived
+HEAD failing-method selection, not an identically ordered full HEAD run. Its 477 reproduced failures
+are confirmed inherited; the other fourteen sequence-sensitive cases are not attributed to a native
+interception regression merely because the filtered baseline and isolated/combined selections pass.
+All fourteen pass the final combined selection, but the earlier complete-suite sequence remains
+unqualified. Phase 9 explicitly retains that integration/order-dependence investigation and all
+inherited failures without changing their independent output oracles or tolerances. The 8h gate asks
+for canonical builds and focused replacement regressions; this receipt does not close that later gate.
+
+Creation registration/default/configuration maintenance remains the explicitly approved 8i redesign;
+combined dependency/schema closure and naming remain 8j/8k. Other-platform/hardware variants, optional
+external-memory and bindless native execution where unavailable, installed-game startup, package
+identity and live appearance remain outside these headless focused receipts. Generated mapping,
+typed test-driver substitutes and real hardware execution are distinct evidence. No staging or commit
+was performed for this closure; pre-existing staged changes are preserved.

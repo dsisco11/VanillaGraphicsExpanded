@@ -29,9 +29,9 @@ internal sealed partial class OpenGLBackend
         {
             bool complete = initialData.Length == request.Capacity;
             if (request.Mode == ResourceStorageMode.Mutable)
-                GL.NamedBufferData(nativeId, request.Capacity, complete ? (nint)bytes : 0, OpenGLBufferValues.Usage(request.Usage));
+                OpenGLDriverCalls.NamedBufferData(nativeId, request.Capacity, complete ? (nint)bytes : 0, OpenGLBufferValues.Usage(request.Usage));
             else
-                GL.NamedBufferStorage(nativeId, request.Capacity, complete ? (nint)bytes : 0, OpenGLBufferValues.Storage(request.Access));
+                OpenGLDriverCalls.NamedBufferStorage(nativeId, request.Capacity, complete ? (nint)bytes : 0, OpenGLBufferValues.Storage(request.Access));
             RequireContext();
             operation.RequireLive();
             if (!complete && !initialData.IsEmpty)
@@ -103,9 +103,9 @@ internal sealed partial class OpenGLBackend
             return new(0, BufferUsage.StaticDraw);
         bool complete = offset == 0 && byteCount == initialization.Capacity;
         if (initialization.Mode == GpuBufferStorageMode.Mutable)
-            GL.NamedBufferData(name, initialization.Capacity, complete ? data : 0, OpenGLBufferValues.Usage(initialization.Usage));
+            OpenGLDriverCalls.NamedBufferData(name, initialization.Capacity, complete ? data : 0, OpenGLBufferValues.Usage(initialization.Usage));
         else
-            GL.NamedBufferStorage(name, initialization.Capacity, complete ? data : 0, OpenGLBufferValues.Storage(initialization.StorageFlags));
+            OpenGLDriverCalls.NamedBufferStorage(name, initialization.Capacity, complete ? data : 0, OpenGLBufferValues.Storage(initialization.StorageFlags));
         RequireContext();
         if (!complete && byteCount != 0) InitializeBufferRange(name, offset, byteCount, data,
             initialization.Mode == GpuBufferStorageMode.Mutable || (initialization.StorageFlags & StorageAccess.DynamicUpdates) != 0);
@@ -181,7 +181,7 @@ internal sealed partial class OpenGLBackend
             RequireContext();
             operation?.RequireLive();
             if (staging == 0) throw new InvalidOperationException("Initial-content staging creation failed.");
-            GL.NamedBufferData(staging, byteCount, data, Native.BufferUsageHint.StreamDraw);
+            OpenGLDriverCalls.NamedBufferData(staging, byteCount, data, Native.BufferUsageHint.StreamDraw);
             RequireContext();
             operation?.RequireLive();
             GL.CopyNamedBufferSubData(staging, destination, 0, offset, byteCount);

@@ -12,7 +12,7 @@ internal sealed partial class OpenGLBackend
     internal void DeleteBuffer(int buffer)
     {
         RequireContext();
-        GL.DeleteBuffer(buffer);
+        OpenGLDriverCalls.DeleteBuffer(buffer);
         RequireContext();
         if (buffer == 0) return;
         bool deleted = !GL.IsBuffer(buffer);
@@ -23,7 +23,7 @@ internal sealed partial class OpenGLBackend
     internal void DeleteBuffers(int count, ref int buffers)
     {
         RequireContext();
-        GL.DeleteBuffers(count, ref buffers);
+        OpenGLDriverCalls.DeleteBuffers(count, ref buffers);
         RequireContext();
         if (count <= 0) return;
         foreach (int buffer in MemoryMarshal.CreateReadOnlySpan(ref buffers, count))

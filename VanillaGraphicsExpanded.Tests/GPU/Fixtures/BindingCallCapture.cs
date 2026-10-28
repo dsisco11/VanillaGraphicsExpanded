@@ -1,82 +1,146 @@
-using System.Reflection;
-using HarmonyLib;
-using OpenTK.Graphics.OpenGL;
+using System.Runtime.InteropServices;
 
 namespace VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 
-/// <summary>Counts concrete selector and binding-read entry points without changing native behavior.</summary>
-internal sealed class BindingCallCapture : IDisposable
+/// <summary>Counts real selector and binding-query dispatch without depending on JIT-inlining of managed wrappers.</summary>
+internal sealed unsafe class BindingCallCapture : IDisposable
 {
-    [ThreadStatic] private static BindingCallCapture? active;
-    private readonly Harmony harmony = new("Tests.BindingCallCapture");
+    private readonly NativeDriverCapture native = new();
     private readonly Dictionary<string, int> calls = [];
 
-    #region Public API
-    /// <summary>Installs compiler-selected native observers after fixture initialization.</summary>
+    #region Internal API
+    /// <summary>Installs typed ABI counters on the native loader, preserving every original effect.</summary>
     internal BindingCallCapture()
     {
-        Assert.Null(active);
-        active = this;
         try
         {
-            // Typed delegates keep overload selection checked by the compiler.
-            Delegate[] methods = [
-                (Action<bool>)GL.DepthMask,
-                (Action<bool>)OpenTK.Graphics.OpenGL4.GL.DepthMask,
-                (Action<DepthFunction>)GL.DepthFunc,
-                (Action<OpenTK.Graphics.OpenGL4.DepthFunction>)OpenTK.Graphics.OpenGL4.GL.DepthFunc,
-                (Func<GetPName, int>)GL.GetInteger,
-                (IntegerQuery)GL.GetInteger,
-                (Action<int>)GL.BindVertexArray,
-                (Action<int>)OpenTK.Graphics.OpenGL4.GL.BindVertexArray,
-                (Action<int>)OpenTK.Graphics.OpenGL4.GL.UseProgram,
-                (Action<int>)OpenTK.Graphics.OpenGL4.GL.BindProgramPipeline,
-                (Action<OpenTK.Graphics.OpenGL4.FramebufferTarget, int>)OpenTK.Graphics.OpenGL4.GL.BindFramebuffer,
-                (Func<OpenTK.Graphics.OpenGL4.GetPName, int>)OpenTK.Graphics.OpenGL4.GL.GetInteger,
-                (CoreIntegerQuery)OpenTK.Graphics.OpenGL4.GL.GetInteger,
-                (Action<int>)GL.UseProgram,
-                (Action<int>)GL.BindProgramPipeline,
-                (Action<BufferTarget, int>)GL.BindBuffer,
-                (Action<OpenTK.Graphics.OpenGL4.BufferTarget, int>)OpenTK.Graphics.OpenGL4.GL.BindBuffer,
-                (Action<BufferRangeTarget, int, int>)GL.BindBufferBase,
-                (Action<BufferRangeTarget, int, int, nint, nint>)GL.BindBufferRange,
-                (Action<OpenTK.Graphics.OpenGL4.BufferRangeTarget, int, int>)OpenTK.Graphics.OpenGL4.GL.BindBufferBase,
-                (Action<OpenTK.Graphics.OpenGL4.BufferRangeTarget, int, int, nint, nint>)OpenTK.Graphics.OpenGL4.GL.BindBufferRange,
-                (Action<FramebufferTarget, int>)GL.BindFramebuffer,
-                (VertexQuery)GL.GetVertexArrayIndexed,
-                (VertexWideQuery)GL.GetVertexArrayIndexed64
-            ];
-            foreach (var method in methods)
-                harmony.Patch(method.Method, prefix: new HarmonyMethod(typeof(BindingCallCapture), nameof(Observe)));
+            nint original0 = native.Original("glDepthMask");
+            native.Add("glDepthMask", new Call0((a0) =>
+            {
+                native.Observe(() => calls["DepthMask"] = calls.GetValueOrDefault("DepthMask") + 1);
+                ((delegate* unmanaged[Stdcall]<byte, void>)original0)(a0);
+            }));
+            nint original1 = native.Original("glDepthFunc");
+            native.Add("glDepthFunc", new Call1((a0) =>
+            {
+                native.Observe(() => calls["DepthFunc"] = calls.GetValueOrDefault("DepthFunc") + 1);
+                ((delegate* unmanaged[Stdcall]<int, void>)original1)(a0);
+            }));
+            nint original2 = native.Original("glGetIntegerv");
+            native.Add("glGetIntegerv", new Call2((a0, a1) =>
+            {
+                native.Observe(() => calls["GetInteger"] = calls.GetValueOrDefault("GetInteger") + 1);
+                ((delegate* unmanaged[Stdcall]<int, int*, void>)original2)(a0, a1);
+            }));
+            nint original3 = native.Original("glBindVertexArray");
+            native.Add("glBindVertexArray", new Call3((a0) =>
+            {
+                native.Observe(() => calls["BindVertexArray"] = calls.GetValueOrDefault("BindVertexArray") + 1);
+                ((delegate* unmanaged[Stdcall]<uint, void>)original3)(a0);
+            }));
+            nint original4 = native.Original("glUseProgram");
+            native.Add("glUseProgram", new Call4((a0) =>
+            {
+                native.Observe(() => calls["UseProgram"] = calls.GetValueOrDefault("UseProgram") + 1);
+                ((delegate* unmanaged[Stdcall]<uint, void>)original4)(a0);
+            }));
+            nint original5 = native.Original("glBindProgramPipeline");
+            native.Add("glBindProgramPipeline", new Call5((a0) =>
+            {
+                native.Observe(() => calls["BindProgramPipeline"] = calls.GetValueOrDefault("BindProgramPipeline") + 1);
+                ((delegate* unmanaged[Stdcall]<uint, void>)original5)(a0);
+            }));
+            nint original6 = native.Original("glBindFramebuffer");
+            native.Add("glBindFramebuffer", new Call6((a0, a1) =>
+            {
+                native.Observe(() => calls["BindFramebuffer"] = calls.GetValueOrDefault("BindFramebuffer") + 1);
+                ((delegate* unmanaged[Stdcall]<int, uint, void>)original6)(a0, a1);
+            }));
+            nint original7 = native.Original("glBindBuffer");
+            native.Add("glBindBuffer", new Call7((a0, a1) =>
+            {
+                native.Observe(() => calls["BindBuffer"] = calls.GetValueOrDefault("BindBuffer") + 1);
+                ((delegate* unmanaged[Stdcall]<int, uint, void>)original7)(a0, a1);
+            }));
+            nint original8 = native.Original("glBindBufferBase");
+            native.Add("glBindBufferBase", new Call8((a0, a1, a2) =>
+            {
+                native.Observe(() => calls["BindBufferBase"] = calls.GetValueOrDefault("BindBufferBase") + 1);
+                ((delegate* unmanaged[Stdcall]<int, uint, uint, void>)original8)(a0, a1, a2);
+            }));
+            nint original9 = native.Original("glBindBufferRange");
+            native.Add("glBindBufferRange", new Call9((a0, a1, a2, a3, a4) =>
+            {
+                native.Observe(() => calls["BindBufferRange"] = calls.GetValueOrDefault("BindBufferRange") + 1);
+                ((delegate* unmanaged[Stdcall]<int, uint, uint, nint, nint, void>)original9)(a0, a1, a2, a3, a4);
+            }));
+            nint original10 = native.Original("glGetVertexArrayIndexediv");
+            native.Add("glGetVertexArrayIndexediv", new Call10((a0, a1, a2, a3) =>
+            {
+                native.Observe(() => calls["GetVertexArrayIndexed"] = calls.GetValueOrDefault("GetVertexArrayIndexed") + 1);
+                ((delegate* unmanaged[Stdcall]<uint, uint, int, int*, void>)original10)(a0, a1, a2, a3);
+            }));
+            nint original11 = native.Original("glGetVertexArrayIndexed64iv");
+            native.Add("glGetVertexArrayIndexed64iv", new Call11((a0, a1, a2, a3) =>
+            {
+                native.Observe(() => calls["GetVertexArrayIndexed64"] = calls.GetValueOrDefault("GetVertexArrayIndexed64") + 1);
+                ((delegate* unmanaged[Stdcall]<uint, uint, int, long*, void>)original11)(a0, a1, a2, a3);
+            }));
+            nint uniform = native.Original("glUniform1i");
+            native.Add("glUniform1i", new Uniform((location, value) =>
+            {
+                native.Observe(() => calls["Uniform1"] = calls.GetValueOrDefault("Uniform1") + 1);
+                ((delegate* unmanaged[Stdcall]<int, int, void>)uniform)(location, value);
+            }));
+            nint namedUniform = native.Original("glProgramUniform1i");
+            native.Add("glProgramUniform1i", new NamedUniform((program, location, value) =>
+            {
+                native.Observe(() => calls["ProgramUniform1"] = calls.GetValueOrDefault("ProgramUniform1") + 1);
+                ((delegate* unmanaged[Stdcall]<uint, int, int, void>)namedUniform)(program, location, value);
+            }));
+            native.Install();
         }
-        catch { Dispose(); throw; }
+        catch { native.Dispose(); throw; }
     }
-
-    /// <summary>Returns calls to the selected native method during the current interval.</summary>
-    internal int Calls(string method) => calls.GetValueOrDefault(method);
-
-    /// <summary>Clears setup or explicit verification calls before the next interval.</summary>
+    /// <summary>Returns actual dispatches for the named OpenTK operation.</summary>
+    internal int Calls(string name) => calls.GetValueOrDefault(name);
+    /// <summary>Excludes setup and explicit verification operations from the next interval.</summary>
     internal void Reset() => calls.Clear();
+    #endregion
 
-    /// <summary>Removes observers before cleanup or unrelated graphics work.</summary>
-    public void Dispose() { harmony.UnpatchAll(harmony.Id); active = null; }
+    #region Public API
+    /// <summary>Restores ordinary loading and reports any captured test assertion failure.</summary>
+    public void Dispose() => native.Dispose();
     #endregion
 
     #region Private
-    /// <summary>Names the integer output query overload.</summary>
-    private delegate void IntegerQuery(GetPName parameter, out int value);
-    /// <summary>Names the core integer output query overload used by managed backend operations.</summary>
-    private delegate void CoreIntegerQuery(OpenTK.Graphics.OpenGL4.GetPName parameter, out int value);
-    /// <summary>Names the narrow indexed VAO query overload.</summary>
-    private delegate void VertexQuery(int vao, int index, VertexArrayIndexedParameter parameter, out int value);
-    /// <summary>Names the native-width indexed VAO query overload.</summary>
-    private delegate void VertexWideQuery(int vao, int index, VertexArrayIndexed64Parameter parameter, out long value);
-
-    /// <summary>Records a call before allowing the exact native operation to execute.</summary>
-    private static void Observe(MethodBase __originalMethod)
-    {
-        if (active is { } capture)
-            capture.calls[__originalMethod.Name] = capture.calls.GetValueOrDefault(__originalMethod.Name) + 1;
-    }
+    /// <summary>Preserves a scalar bound integer uniform ABI.</summary>
+    [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate void Uniform(int location, int value);
+    /// <summary>Preserves a scalar named integer uniform ABI.</summary>
+    [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate void NamedUniform(uint program, int location, int value);
+    /// <summary>Preserves the native ABI of glDepthMask.</summary>
+    [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate void Call0(byte a0);
+    /// <summary>Preserves the native ABI of glDepthFunc.</summary>
+    [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate void Call1(int a0);
+    /// <summary>Preserves the native ABI of glGetIntegerv.</summary>
+    [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate void Call2(int a0, int* a1);
+    /// <summary>Preserves the native ABI of glBindVertexArray.</summary>
+    [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate void Call3(uint a0);
+    /// <summary>Preserves the native ABI of glUseProgram.</summary>
+    [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate void Call4(uint a0);
+    /// <summary>Preserves the native ABI of glBindProgramPipeline.</summary>
+    [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate void Call5(uint a0);
+    /// <summary>Preserves the native ABI of glBindFramebuffer.</summary>
+    [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate void Call6(int a0, uint a1);
+    /// <summary>Preserves the native ABI of glBindBuffer.</summary>
+    [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate void Call7(int a0, uint a1);
+    /// <summary>Preserves the native ABI of glBindBufferBase.</summary>
+    [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate void Call8(int a0, uint a1, uint a2);
+    /// <summary>Preserves the native ABI of glBindBufferRange.</summary>
+    [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate void Call9(int a0, uint a1, uint a2, nint a3, nint a4);
+    /// <summary>Preserves the native ABI of glGetVertexArrayIndexediv.</summary>
+    [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate void Call10(uint a0, uint a1, int a2, int* a3);
+    /// <summary>Preserves the native ABI of glGetVertexArrayIndexed64iv.</summary>
+    [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate void Call11(uint a0, uint a1, int a2, long* a3);
     #endregion
 }

@@ -87,24 +87,22 @@ public sealed class GpuVertexMetadataInterceptionTests(HeadlessGLFixture fixture
         }
         finally { harmony.UnpatchAll(harmony.Id); fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
-    /// <summary>Dispatch failure cannot publish success or make old configuration facts usable.</summary>
+    /// <summary>Publication failure cannot cancel native configuration or expose stale canonical facts.</summary>
     [Fact]
-    public void NativeDispatchFailureWithdrawsMetadata()
+    public void ObserverPublicationFailureStillExecutesNativeConfiguration()
     {
         fixture.EnsureContextValid(); fixture.InitializeResourceDisposal();
-        var harmony = new Harmony("Tests.VertexDispatchFailure." + Guid.NewGuid());
+        var harmony = new Harmony("Tests.VertexPublicationFailure." + Guid.NewGuid());
         try
         {
-            using var vao=NativeResourceSetup.CreateVertexArray(); OpenGLVertexSelection.Bind(OpenGlStateCache.Current, vao.VertexArrayId);
-            var operation = AccessTools.Method(typeof(OpenGLVertexCalls), nameof(OpenGLVertexCalls.ExecuteCoreEnableVertexArrayAttrib), [typeof(int), typeof(int)]);
-            harmony.Patch(operation,
-                transpiler: new HarmonyMethod(typeof(GpuVertexMetadataInterceptionTests), nameof(InjectDispatchFailure)));
-            // Reflection enters the patched body even when an earlier Release caller inlined the original.
-            // The other cases exercise call-site interception; this case verifies operation failure cleanup.
-            var error = Assert.Throws<System.Reflection.TargetInvocationException>(() => operation.Invoke(null, [vao.VertexArrayId, 0]));
-            Assert.IsType<ApplicationException>(error.InnerException);
+            using var vao = NativeResourceSetup.CreateVertexArray();
+            var publication = AccessTools.Method(typeof(GpuResourceMetadataEntry<GpuVertexArrayMetadata>), "Publish");
+            harmony.Patch(publication, prefix: new HarmonyMethod(typeof(GpuVertexMetadataInterceptionTests), nameof(ThrowMetadataPublication)));
+            GL.EnableVertexArrayAttrib(vao.VertexArrayId, 0);
+            GL.GetVertexArrayIndexed(vao.VertexArrayId, 0, VertexArrayIndexedParameter.VertexAttribArrayEnabled, out int enabled);
+            Assert.Equal(1, enabled);
             Assert.False(GpuResourceManagerSystem.CurrentManager!.IsResourceMetadataAvailable(vao));
-            Assert.Equal(ErrorCode.NoError,GL.GetError());
+            Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
         finally { harmony.UnpatchAll(harmony.Id); fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
@@ -128,7 +126,7 @@ public sealed class GpuVertexMetadataInterceptionTests(HeadlessGLFixture fixture
     private static Harmony Patch()
     {
         var harmony=new Harmony("VGE.Tests.VertexMetadataInterception");
-        harmony.Patch(AccessTools.Method(typeof(GpuVertexMetadataInterceptionTests),nameof(Mutate)),transpiler:new HarmonyMethod(typeof(EngineStateSwitchingHook),nameof(EngineStateSwitchingHook.Transpiler)));
+
         return harmony;
     }
     /// <summary>Preserves native addressing and error semantics for representative configuration families.</summary>
@@ -153,26 +151,10 @@ public sealed class GpuVertexMetadataInterceptionTests(HeadlessGLFixture fixture
             case 13: GL.VertexAttrib1(0,0.5f); break;
         }
     }
-    /// <summary>Replaces precisely the native dispatch, retaining the production operation's admission and failure cleanup.</summary>
-    private static System.Collections.Generic.IEnumerable<CodeInstruction> InjectDispatchFailure(System.Collections.Generic.IEnumerable<CodeInstruction> instructions)
-    {
-        var native = SymbolExtensions.GetMethodInfo(() => GL.EnableVertexArrayAttrib(0, 0));
-        var injected = SymbolExtensions.GetMethodInfo(() => ThrowDispatch(0, 0));
-        int replacements = 0;
-        // Recompile the containing operation so an already-inlined OpenTK leaf cannot bypass the fault.
-        foreach (var instruction in instructions)
-        {
-            if (instruction.Calls(native))
-            {
-                instruction.operand = injected;
-                replacements++;
-            }
-            yield return instruction;
-        }
-        if (replacements != 1) throw new InvalidOperationException("Expected exactly one native vertex dispatch site.");
-    }
-    /// <summary>Models native dispatch failure before configuration reaches the driver.</summary>
-    private static void ThrowDispatch(int array, int index) => throw new ApplicationException("native vertex dispatch failure");
+
+
+    /// <summary>Injects a managed publication fault after the real native operation has executed.</summary>
+    private static void ThrowMetadataPublication() => throw new ApplicationException("Injected publication failure.");
     /// <summary>Receives configuration publication without owning the VAO.</summary>
     private sealed class VertexAlias(int id) : GpuResource<GpuVertexArrayMetadata>
     {

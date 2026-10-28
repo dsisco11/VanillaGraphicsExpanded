@@ -13,7 +13,9 @@ internal sealed partial class GpuResourceManager
     {
         if (id == 0 || !CanObserveNativeMetadata) return null;
         RequireMetadataContext();
-        RHICommandContext.RequireResourceOperationAvailable(kind, id);
+        // Looking up established facts is not command admission. The external mutation's
+        // observer explicitly interrupts its own affected operation before changing facts;
+        // unrelated backing lookups must neither veto dispatch nor interrupt their readers.
         var entry = FindResource(kind, id);
         return entry?.State == GpuResourceRegistrationState.Live ? entry : null;
     }

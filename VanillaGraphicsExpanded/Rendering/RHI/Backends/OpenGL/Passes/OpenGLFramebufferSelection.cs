@@ -21,22 +21,9 @@ internal static class OpenGLFramebufferSelection
         if (unchanged) return;
         var origin = GpuResource.CaptureCreationContext(GpuResourceKind.Framebuffer);
         cache.SetFramebufferSelectionKnowledge(target, null);
-        GL.BindFramebuffer((FramebufferTarget)target, framebuffer);
+        OpenGLDriverCalls.BindFramebuffer((FramebufferTarget)target, framebuffer);
         if (!VanillaGraphicsExpanded.Rendering.Integration.RenderContextRegistry.IsCurrentResourceContext(origin)) throw new InvalidOperationException("Framebuffer selection returned in a foreign context.");
         cache.SetFramebufferSelectionKnowledge(target, framebuffer);
-    }
-    /// <summary>Forwards an exact engine call without converting unknown native acceptance into cache certainty.</summary>
-    internal static void ExternalBind(Legacy.FramebufferTarget target, int framebuffer)
-    {
-        var cache = EngineStateCalls.CurrentCache;
-        bool targetValid = target is Legacy.FramebufferTarget.Framebuffer or Legacy.FramebufferTarget.ReadFramebuffer or Legacy.FramebufferTarget.DrawFramebuffer;
-        bool established = targetValid && cache.HasEstablishedNativeIdentity(GpuResourceKind.Framebuffer, framebuffer);
-        var origin = Integration.RenderContextRegistry.CaptureResourceContext();
-        if (targetValid) cache.SetFramebufferSelectionKnowledge(target, null);
-        try { Legacy.GL.BindFramebuffer(target, framebuffer); }
-        catch { if (targetValid && cache.OwnsKnowledgeFor(origin)) cache.SetFramebufferSelectionKnowledge(target, null); throw; }
-        if (established && cache.OwnsKnowledgeFor(origin) && Integration.RenderContextRegistry.IsCurrentResourceContext(origin))
-            cache.SetFramebufferSelectionKnowledge(target, framebuffer);
     }
     #endregion
 }

@@ -13,7 +13,7 @@ internal static class OpenGLFramebufferConfiguration
     {
         resource.RequireOriginalContext();
         OpenGLFramebufferRouting.Restore(OpenGlStateCache.Current, resource.FboId, route);
-        OpenTK.Graphics.OpenGL4.GL.NamedFramebufferReadBuffer(resource.FboId, (OpenTK.Graphics.OpenGL4.ReadBufferMode)read);
+        OpenGLDriverCalls.NamedFramebufferReadBuffer(resource.FboId, (OpenTK.Graphics.OpenGL4.ReadBufferMode)read);
         resource.RequireOriginalContext();
     }
 
@@ -68,12 +68,12 @@ internal static class OpenGLFramebufferConfiguration
             GL.Ovr.NamedFramebufferTextureMultiview(id, slot, image.TextureId, image.MipLevel, image.BaseView, image.ViewCount);
         }
         else if (image is { Kind: GpuResourceKind.Renderbuffer })
-            OpenTK.Graphics.OpenGL4.GL.NamedFramebufferRenderbuffer(id, (OpenTK.Graphics.OpenGL4.FramebufferAttachment)slot,
+            OpenGLDriverCalls.NamedFramebufferRenderbuffer(id, (OpenTK.Graphics.OpenGL4.FramebufferAttachment)slot,
                 OpenTK.Graphics.OpenGL4.RenderbufferTarget.Renderbuffer, image.RenderbufferId);
         else if (image?.Layer is not null || image?.CubeFace is not null)
-            OpenTK.Graphics.OpenGL4.GL.NamedFramebufferTextureLayer(id, (OpenTK.Graphics.OpenGL4.FramebufferAttachment)slot,
+            OpenGLDriverCalls.NamedFramebufferTextureLayer(id, (OpenTK.Graphics.OpenGL4.FramebufferAttachment)slot,
                 image.TextureId, image.MipLevel, image.Layer ?? ((int)image.CubeFace!.Value - (int)CubeFace.PositiveX));
-        else OpenTK.Graphics.OpenGL4.GL.NamedFramebufferTexture(id, (OpenTK.Graphics.OpenGL4.FramebufferAttachment)slot,
+        else OpenGLDriverCalls.NamedFramebufferTexture(id, (OpenTK.Graphics.OpenGL4.FramebufferAttachment)slot,
             image?.TextureId ?? 0, image?.MipLevel ?? 0);
         if (!VanillaGraphicsExpanded.Rendering.Integration.RenderContextRegistry.IsCurrentResourceContext(origin)) throw new InvalidOperationException("Attachment configuration returned in a foreign context.");
     }

@@ -6,7 +6,7 @@ internal static partial class OpenGLAuxiliaryDeletionCalls
 {
     #region Private
     /// <summary>Preserves native-width sync identity and one kind-specific outcome read per nonzero name.</summary>
-    private static bool WasDeletedExternal(GpuResourceKind kind, nint id)
+    internal static bool WasDeletedExternal(GpuResourceKind kind, nint id)
     {
         if (id == 0) return true;
         return kind switch

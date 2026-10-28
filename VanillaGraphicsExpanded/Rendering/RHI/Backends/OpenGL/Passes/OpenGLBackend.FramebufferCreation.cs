@@ -20,11 +20,11 @@ internal sealed partial class OpenGLBackend
         cache.RememberFramebufferDrawRouting(name, [OpenTK.Graphics.OpenGL.DrawBuffersEnum.ColorAttachment0]);
         if (request.HasDefaults)
         {
-            GL.NamedFramebufferParameter(name, FramebufferDefaultParameter.FramebufferDefaultWidth, request.DefaultWidth);
-            GL.NamedFramebufferParameter(name, FramebufferDefaultParameter.FramebufferDefaultHeight, request.DefaultHeight);
-            GL.NamedFramebufferParameter(name, FramebufferDefaultParameter.FramebufferDefaultLayers, request.DefaultLayers);
-            GL.NamedFramebufferParameter(name, FramebufferDefaultParameter.FramebufferDefaultSamples, request.DefaultSamples);
-            GL.NamedFramebufferParameter(name, FramebufferDefaultParameter.FramebufferDefaultFixedSampleLocations, request.DefaultFixedSampleLocations ? 1 : 0);
+            OpenGLDriverCalls.NamedFramebufferParameter(name, FramebufferDefaultParameter.FramebufferDefaultWidth, request.DefaultWidth);
+            OpenGLDriverCalls.NamedFramebufferParameter(name, FramebufferDefaultParameter.FramebufferDefaultHeight, request.DefaultHeight);
+            OpenGLDriverCalls.NamedFramebufferParameter(name, FramebufferDefaultParameter.FramebufferDefaultLayers, request.DefaultLayers);
+            OpenGLDriverCalls.NamedFramebufferParameter(name, FramebufferDefaultParameter.FramebufferDefaultSamples, request.DefaultSamples);
+            OpenGLDriverCalls.NamedFramebufferParameter(name, FramebufferDefaultParameter.FramebufferDefaultFixedSampleLocations, request.DefaultFixedSampleLocations ? 1 : 0);
             RequireContext();
         }
         var candidate = new GpuFramebufferMetadata(
@@ -47,13 +47,13 @@ internal sealed partial class OpenGLBackend
         if (image.AttachmentMode == GpuFramebufferAttachmentMode.Multiview)
             throw new NotSupportedException("Multiview framebuffer creation requires an explicitly supported backend operation.");
         if (image.Kind == GpuResourceKind.Renderbuffer)
-            GL.NamedFramebufferRenderbuffer(name, slot, RenderbufferTarget.Renderbuffer, image.RenderbufferId);
+            OpenGLDriverCalls.NamedFramebufferRenderbuffer(name, slot, RenderbufferTarget.Renderbuffer, image.RenderbufferId);
         else if (image.Layer is int layer)
-            GL.NamedFramebufferTextureLayer(name, slot, image.TextureId, image.MipLevel, layer);
+            OpenGLDriverCalls.NamedFramebufferTextureLayer(name, slot, image.TextureId, image.MipLevel, layer);
         else if (image.CubeFace is { } face)
-            GL.NamedFramebufferTextureLayer(name, slot, image.TextureId, image.MipLevel,
+            OpenGLDriverCalls.NamedFramebufferTextureLayer(name, slot, image.TextureId, image.MipLevel,
                 (int)face - (int)CubeFace.PositiveX);
-        else GL.NamedFramebufferTexture(name, slot, image.TextureId, image.MipLevel);
+        else OpenGLDriverCalls.NamedFramebufferTexture(name, slot, image.TextureId, image.MipLevel);
     }
     #endregion
 }

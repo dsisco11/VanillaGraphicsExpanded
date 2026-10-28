@@ -75,16 +75,16 @@ public sealed class CompleteGraphicsStateTests(HeadlessGLFixture fixture) : IDis
     public void EngineGlobalAndIndexedEquationsShareKnowledge()
     {
         fixture.MakeCurrent(); var cache = OpenGlStateCache.Current; cache.InvalidateAll();
-        EngineStateCalls.BlendEquation(BlendEquationMode.Max);
-        EngineStateCalls.BlendEquationSeparate(1, BlendEquationMode.FuncSubtract, BlendEquationMode.Min);
+        GL.BlendEquation(BlendEquationMode.Max);
+        GL.BlendEquationSeparate(1, BlendEquationMode.FuncSubtract, BlendEquationMode.Min);
 #if DEBUG
         long calls = cache.FixedFunctionCalls;
 #endif
-        EngineStateCalls.BlendEquationSeparate(1, BlendEquationMode.FuncSubtract, BlendEquationMode.Min);
+        GL.BlendEquationSeparate(1, BlendEquationMode.FuncSubtract, BlendEquationMode.Min);
 #if DEBUG
         Assert.Equal(calls, cache.FixedFunctionCalls);
 #endif
-        EngineStateCalls.BlendEquation(BlendEquationMode.Max);
+        GL.BlendEquation(BlendEquationMode.Max);
 #if DEBUG
         Assert.Equal(calls, cache.FixedFunctionCalls);
 #endif
@@ -95,7 +95,7 @@ public sealed class CompleteGraphicsStateTests(HeadlessGLFixture fixture) : IDis
 #if DEBUG
         calls = cache.FixedFunctionCalls;
 #endif
-        EngineStateCalls.BlendEquation(BlendEquationMode.Max);
+        GL.BlendEquation(BlendEquationMode.Max);
 #if DEBUG
         Assert.Equal(calls, cache.FixedFunctionCalls);
 #endif
@@ -207,10 +207,10 @@ public sealed class CompleteGraphicsStateTests(HeadlessGLFixture fixture) : IDis
     public void PartialBlendEquationBoundaryRestoresMixedOutputs()
     {
         fixture.MakeCurrent(); var cache = OpenGlStateCache.Current; cache.InvalidateAll();
-        EngineStateCalls.BlendEquation(BlendEquationMode.Max);
-        EngineStateCalls.BlendEquationSeparate(1, BlendEquationMode.FuncSubtract, BlendEquationMode.Min);
+        GL.BlendEquation(BlendEquationMode.Max);
+        GL.BlendEquationSeparate(1, BlendEquationMode.FuncSubtract, BlendEquationMode.Min);
         Assert.True(cache.TryBeginEngineBoundary(new EngineBoundaryDeclaration("EquationsOnly", new PipelineStateCoverage(globalBlend: BlendStateKnowledge.Equations)), out var scope));
-        scope!.Run(() => { EngineStateCalls.BlendEquation(BlendEquationMode.FuncAdd); });
+        scope!.Run(() => { GL.BlendEquation(BlendEquationMode.FuncAdd); });
         GL.GetInteger((GetIndexedPName)GetPName.BlendEquationRgb, 0, out int first);
         GL.GetInteger((GetIndexedPName)GetPName.BlendEquationRgb, 1, out int second);
         Assert.Equal((int)BlendEquationMode.Max, first); Assert.Equal((int)BlendEquationMode.FuncSubtract, second);

@@ -39,15 +39,14 @@ public sealed class BindingSuppressionTests(HeadlessGLFixture fixture)
             Assert.Equal(texture, GL.GetInteger(GetPName.TextureBinding2D));
             Assert.Equal(sampler, GL.GetInteger(GetPName.SamplerBinding));
 
-            // An external mutation requires invalidation; the same request must then reach GL again.
+            // Intercepted external unbinding updates knowledge; the managed restore must reach GL.
             GL.BindTexture(TextureTarget.Texture2D, 0);
             GL.BindSampler(1, 0);
-            cache.Invalidate(EPipelineState.Bindings);
             OpenGLImageBindings.BindTexture(cache, TextureTarget.Texture2D, 1, texture);
             OpenGLImageBindings.BindSampler(cache, 1, sampler);
 #if DEBUG
-            Assert.Equal(textures + 1, cache.TextureBindCount);
-            Assert.Equal(samplers + 1, cache.SamplerBindCount);
+            Assert.Equal(textures + 2, cache.TextureBindCount);
+            Assert.Equal(samplers + 2, cache.SamplerBindCount);
 #endif
             Assert.Equal(texture, GL.GetInteger(GetPName.TextureBinding2D));
             Assert.Equal(sampler, GL.GetInteger(GetPName.SamplerBinding));
@@ -56,7 +55,7 @@ public sealed class BindingSuppressionTests(HeadlessGLFixture fixture)
             cache.Invalidate(EPipelineState.ActiveTextureUnit);
             OpenGLImageBindings.BindTextureOnActiveUnit(cache, TextureTarget.Texture2D, texture);
 #if DEBUG
-            Assert.Equal(textures + 2, cache.TextureBindCount);
+            Assert.Equal(textures + 3, cache.TextureBindCount);
 #endif
             Assert.Equal((int)TextureUnit.Texture2, GL.GetInteger(GetPName.ActiveTexture));
             Assert.Equal(texture, GL.GetInteger(GetPName.TextureBinding2D));

@@ -84,7 +84,7 @@ public sealed class GpuFramebufferMetadataInterceptionTests(HeadlessGLFixture fi
             var entry = manager.AcquireResource(GpuResourceKind.Framebuffer, framebuffer, GpuFramebufferMetadataReader.Instance)!;
             using var alias = new FramebufferAlias(framebuffer);
             manager.AssociateResource(entry, alias);
-            OpenGLFramebufferCalls.ExecuteCoreNamedFramebufferTextureLayer(framebuffer,
+            GL.NamedFramebufferTextureLayer(framebuffer,
                 FramebufferAttachment.ColorAttachment0, volume.TextureId, 0, 3);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
             GL.GetNamedFramebufferAttachmentParameter(framebuffer, FramebufferAttachment.ColorAttachment0,
@@ -202,9 +202,9 @@ public sealed class GpuFramebufferMetadataInterceptionTests(HeadlessGLFixture fi
         }
         finally { harmony.UnpatchAll(harmony.Id); VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Framebuffer, framebuffer)); fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
-    /// <summary>A changed originating context prevents observation and helper callbacks while leaving facts withdrawn.</summary>
+    /// <summary>A foreign context cannot publish framebuffer metadata or invoke helpers owned by the manager.</summary>
     [Fact]
-    public void CompletionInDifferentContextCannotNotifyHelpers()
+    public void ObservationInDifferentContextCannotNotifyHelpers()
     {
         fixture.EnsureContextValid();
         var origin=RenderContextRegistry.Current();
@@ -220,13 +220,12 @@ public sealed class GpuFramebufferMetadataInterceptionTests(HeadlessGLFixture fi
             var reader=new CountingFramebufferReader(entry.Reader!); entry.Reader=reader;
             int callbacks=0; framebuffer.AttachmentsChanged+=() => callbacks++;
             ulong revision=entry.MetadataRevision;
-            var observation=OpenGlStateCache.BeginNativeFramebufferMetadata(framebuffer.FboId,true);
             try
             {
                 current=(origin.Item1,origin.Item2+1);
-                Assert.Throws<InvalidOperationException>(() => observation.Complete(true));
+                OpenGlStateCache.ObserveNamedFramebufferParameteri((uint)framebuffer.FboId, (int)FramebufferDefaultParameter.FramebufferDefaultWidth, 4);
                 Assert.Equal(0,callbacks); Assert.Equal(0,reader.Reads);
-                Assert.Equal(revision,entry.MetadataRevision); Assert.False(entry.MetadataAvailable);
+                Assert.Equal(revision,entry.MetadataRevision); Assert.True(entry.MetadataAvailable);
             }
             finally { current=origin; }
             Assert.Equal(ErrorCode.NoError,GL.GetError());
@@ -239,9 +238,7 @@ public sealed class GpuFramebufferMetadataInterceptionTests(HeadlessGLFixture fi
     private static Harmony Patch()
     {
         var harmony = new Harmony("VGE.Tests.FramebufferMetadataInterception");
-        foreach (string name in new[] { nameof(Attach), nameof(Detach), nameof(SetDefault), nameof(RejectAttachment), nameof(AttachPacked) })
-            harmony.Patch(AccessTools.Method(typeof(GpuFramebufferMetadataInterceptionTests), name),
-                transpiler: new HarmonyMethod(typeof(EngineStateSwitchingHook), nameof(EngineStateSwitchingHook.Transpiler)));
+
         return harmony;
     }
     /// <summary>Exercises real bound, named and extension attachment forms including selected volume layers.</summary>
@@ -260,8 +257,8 @@ public sealed class GpuFramebufferMetadataInterceptionTests(HeadlessGLFixture fi
             case 7: GL.FramebufferTextureLayer(FramebufferTarget.DrawFramebuffer, FramebufferAttachment.ColorAttachment0, resource, 0, 1); break;
             case 8: GL.NamedFramebufferTexture((uint)framebuffer, FramebufferAttachment.ColorAttachment0, (uint)resource, 0); break;
             case 9: GL.FramebufferTexture(FramebufferTarget.DrawFramebuffer, FramebufferAttachment.ColorAttachment0, resource, 0); break;
-            case 10: OpenGLFramebufferCalls.ExecuteCoreFramebufferTexture2D(FramebufferTarget.DrawFramebuffer, FramebufferAttachment.ColorAttachment0, TextureTarget.Texture2D, resource, 0); break;
-            case 11: OpenGLFramebufferCalls.ExecuteCoreFramebufferTextureLayer(FramebufferTarget.DrawFramebuffer, FramebufferAttachment.ColorAttachment0, resource, 0, 1); break;
+            case 10: GL.FramebufferTexture2D(FramebufferTarget.DrawFramebuffer, FramebufferAttachment.ColorAttachment0, TextureTarget.Texture2D, resource, 0); break;
+            case 11: GL.FramebufferTextureLayer(FramebufferTarget.DrawFramebuffer, FramebufferAttachment.ColorAttachment0, resource, 0, 1); break;
         }
     }
     /// <summary>Attaches one native packed image to both depth and stencil slots.</summary>

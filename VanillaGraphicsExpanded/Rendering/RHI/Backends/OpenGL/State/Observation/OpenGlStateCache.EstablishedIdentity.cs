@@ -29,7 +29,8 @@ internal sealed partial class OpenGlStateCache
             case GpuResourceKind.Renderbuffer: return currentRenderbuffer == id;
             case GpuResourceKind.VertexArray: return currentVao == id;
             case GpuResourceKind.Framebuffer: return currentReadFramebuffer == id || currentDrawFramebuffer == id || framebufferDrawRouting.ContainsKey(id);
-            case GpuResourceKind.ProgramPipeline: return currentProgramPipeline == id;
+            case GpuResourceKind.ProgramPipeline: return currentProgramPipeline == id || pipelineUniformPrograms.ContainsKey(id);
+            case GpuResourceKind.TransformFeedback: return currentTransformFeedback == id || feedbackActivity.ContainsKey(id);
         }
         // A previously unseen native name has no realization proof. Its first selector outcome
         // remains initially unknown; later observed commands must preserve established knowledge.

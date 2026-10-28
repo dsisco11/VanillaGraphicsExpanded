@@ -86,7 +86,7 @@ public sealed class WaterRefractionReductionTests(HeadlessGLFixture fixture, ITe
             using(OpenGlStateCache.Current.BindBufferScope(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBufferValues.Target(vertices.Role), vertices.BufferId))
             {
                 vertices.UploadData(new float[] {-1,-1,0,3,-1,0,-1,3,0});
-                using (OpenGlStateCache.Current.BindVertexArrayScope(vao.VertexArrayId)) OpenGLVertexCalls.ExecuteCoreVertexAttribPointer(0,3,VertexAttribPointerType.Float,false,12,0);
+                using (OpenGlStateCache.Current.BindVertexArrayScope(vao.VertexArrayId)) GL.VertexAttribPointer(0,3,VertexAttribPointerType.Float,false,12,0);
             }
             output.WriteLine($"reduction-device renderer={GL.GetString(StringName.Renderer)} version={GL.GetString(StringName.Version)}");
             foreach(string workload in new[] {"invalid","descending","ascending","mixed"})

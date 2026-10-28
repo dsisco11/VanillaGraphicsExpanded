@@ -72,7 +72,7 @@ internal sealed partial class OpenGLBackend
     {
         int samples = request.Samples;
         if (request.HasCoverageSamples)
-            GL.Ext.NamedRenderbufferStorageMultisampleCoverage(id, request.CoverageSamples, samples, (Native.InternalFormat)OpenGLImageValues.Format(request.Format), request.Width, request.Height);
+            OpenGLDriverCalls.Ext.NamedRenderbufferStorageMultisampleCoverage(id, request.CoverageSamples, samples, (Native.InternalFormat)OpenGLImageValues.Format(request.Format), request.Width, request.Height);
         else if (samples > 0)
         {
             var support = GpuSupport.GetInternalFormatCapabilities(TextureDimension.Two, request.Format, GpuResourceKind.Renderbuffer);
@@ -83,9 +83,9 @@ internal sealed partial class OpenGLBackend
             if (!support.Supported || selected == int.MaxValue)
                 throw new ArgumentOutOfRangeException(nameof(request), "No supported sample count satisfies the requested format.");
             samples = selected;
-            GL.NamedRenderbufferStorageMultisample(id, samples, (Native.RenderbufferStorage)OpenGLImageValues.Format(request.Format), request.Width, request.Height);
+            OpenGLDriverCalls.NamedRenderbufferStorageMultisample(id, samples, (Native.RenderbufferStorage)OpenGLImageValues.Format(request.Format), request.Width, request.Height);
         }
-        else GL.NamedRenderbufferStorage(id, (Native.RenderbufferStorage)OpenGLImageValues.Format(request.Format), request.Width, request.Height);
+        else OpenGLDriverCalls.NamedRenderbufferStorage(id, (Native.RenderbufferStorage)OpenGLImageValues.Format(request.Format), request.Width, request.Height);
         CheckRenderbufferStep(operation, creationGuard);
         if (request.HasCoverageSamples || samples > 0 && GpuSupport.GetInternalFormatCapabilities(TextureDimension.Two, request.Format, GpuResourceKind.Renderbuffer).SampleCounts.IsDefaultOrEmpty)
         {

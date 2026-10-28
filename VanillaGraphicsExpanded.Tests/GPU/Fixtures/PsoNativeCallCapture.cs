@@ -1,6 +1,5 @@
 using VanillaGraphicsExpanded.Rendering.RHI;
 using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
-using System.Reflection;
 using HarmonyLib;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
@@ -10,8 +9,8 @@ using VanillaGraphicsExpanded.Rendering.Pipeline.State;
 
 namespace VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 
-/// <summary>Records a bounded family of emitted GL wrappers, separately from setup, draw application and engine restoration.</summary>
-internal sealed class PsoNativeCallCapture : IDisposable
+/// <summary>Records native state effects separately from setup, draw application and engine restoration.</summary>
+internal sealed partial class PsoNativeCallCapture : IDisposable
 {
     [ThreadStatic] private static PsoNativeCallCapture? active;
     private readonly Harmony harmony = new("Tests.PsoNativeCallCapture");
@@ -19,19 +18,10 @@ internal sealed class PsoNativeCallCapture : IDisposable
     internal readonly List<string> Events = [];
 
     #region Public API
-    /// <summary>Installs exact wrapper observers and non-mutating operation markers before measurement begins.</summary>
+    /// <summary>Installs typed native observers and managed operation markers before workload execution.</summary>
     internal PsoNativeCallCapture()
     {
         active = this;
-        string[] names = ["Enable", "Disable", "LineWidth", "PointSize", "Scissor", "BlendFuncSeparate", "BlendEquationSeparate",
-            "BlendColor", "ColorMask", "DepthFunc", "DepthMask", "StencilFuncSeparate", "StencilOpSeparate", "StencilMaskSeparate",
-            "PolygonMode", "PolygonOffset", "CullFace", "FrontFace", "Viewport", "SampleCoverage", "SampleMask", "MinSampleShading",
-            "PrimitiveRestartIndex", "PatchParameter", "PointParameter", "ProvokingVertex", "DepthRange"];
-        foreach (var method in typeof(GL).GetMethods(BindingFlags.Public | BindingFlags.Static)
-            .Concat(typeof(OpenTK.Graphics.OpenGL4.GL).GetMethods(BindingFlags.Public | BindingFlags.Static))
-            .Where(method => names.Contains(method.Name) && !method.IsGenericMethod && method.GetParameters().All(p =>
-                !p.ParameterType.IsPointer && !p.ParameterType.IsByRef && !p.ParameterType.IsArray && p.ParameterType != typeof(uint))))
-            harmony.Patch(method, prefix: new HarmonyMethod(AccessTools.Method(typeof(PsoNativeCallCapture), nameof(Observe))));
         // Observe the typed draw because optimized state helpers may already be inlined.
         var apply = AccessTools.Method(typeof(OpenGLBackend), "Draw");
         harmony.Patch(apply, prefix: new HarmonyMethod(AccessTools.Method(typeof(PsoNativeCallCapture), nameof(Application))),
@@ -39,10 +29,15 @@ internal sealed class PsoNativeCallCapture : IDisposable
         harmony.Patch(AccessTools.Method(typeof(OpenGlStateCache), "RestoreBoundaryState"),
             prefix: new HarmonyMethod(AccessTools.Method(typeof(PsoNativeCallCapture), nameof(Restoration))),
             postfix: new HarmonyMethod(AccessTools.Method(typeof(PsoNativeCallCapture), nameof(Setup))));
+        InstallNativeObservers();
     }
 
     /// <summary>Retires observers before any inspection or fixture cleanup.</summary>
-    public void Dispose() { harmony.UnpatchAll(harmony.Id); active = null; }
+    public void Dispose()
+    {
+        try { harmony.UnpatchAll(harmony.Id); }
+        finally { active = null; native.Dispose(); }
+    }
     #endregion
 
     #region Private
@@ -60,7 +55,7 @@ internal sealed class PsoNativeCallCapture : IDisposable
     {
         if(active is {} capture && reference.RequirePipeline() is {} pipeline && pipeline.Description.Blending.Any(blend=>blend.Enabled))
         {
-            // Reuse the native fingerprint reader; wrapper interception alone can miss JIT-inlined calls.
+            // Check native values independently of the emitted-call log.
             var state=System.Text.Json.JsonSerializer.Deserialize<Dictionary<string,string>>(PsoNativeStateFingerprint.Read())!;
             for(int slot=0;slot<pipeline.Description.Blending.Count;slot++)
             {
@@ -79,10 +74,5 @@ internal sealed class PsoNativeCallCapture : IDisposable
     private static void Setup() { if (active is { } capture) capture.segment = "setup"; }
     /// <summary>Labels boundary handback independently of draw setters.</summary>
     private static void Restoration() { if (active is { } capture) capture.segment = "restoration"; }
-    /// <summary>Records the selected wrapper and its enum or scalar arguments without suppressing native execution.</summary>
-    private static void Observe(MethodBase __originalMethod, object[] __args)
-    {
-        if (active is { } capture) capture.Events.Add(capture.segment + ":" + __originalMethod.Name + "(" + string.Join(",", __args) + ")");
-    }
     #endregion
 }

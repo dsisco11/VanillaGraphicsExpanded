@@ -43,9 +43,9 @@ internal sealed partial class OpenGLBackend
             throw new ArgumentOutOfRangeException(nameof(baseLevel));
         using var operation = new GpuResourceManager.MetadataOperation<GpuTextureMetadata>(owner, GpuMetadataChange.Metadata);
         int id = owner.TextureId;
-        GL.TextureParameter(id, Native.TextureParameterName.TextureBaseLevel, baseLevel);
+        OpenGLDriverCalls.TextureParameter(id, Native.TextureParameterName.TextureBaseLevel, baseLevel);
         CheckTextureStep(operation);
-        GL.TextureParameter(id, Native.TextureParameterName.TextureMaxLevel, maxLevel);
+        OpenGLDriverCalls.TextureParameter(id, Native.TextureParameterName.TextureMaxLevel, maxLevel);
         CheckTextureStep(operation);
         operation.Commit(previous with { BaseLevel = baseLevel, MaxLevel = maxLevel });
     }
@@ -103,11 +103,11 @@ internal sealed partial class OpenGLBackend
         var guard = operation is null ? cache.EnterResourceOperation(new(GpuResourceKind.Texture, id)) : null;
         try
         {
-            if (request.Has(0)) { GL.TextureParameter(id, Native.TextureParameterName.TextureMinFilter, MinFilter(request.MinFilter)); if (operation is null) CheckTextureOwner(owner, id, guard!); else CheckTextureStep(operation); }
-            if (request.Has(1)) { GL.TextureParameter(id, Native.TextureParameterName.TextureMagFilter, MinFilter(request.MagFilter)); if (operation is null) CheckTextureOwner(owner, id, guard!); else CheckTextureStep(operation); }
-            if (request.Has(2)) { GL.TextureParameter(id, Native.TextureParameterName.TextureWrapS, Address(request.AddressS)); if (operation is null) CheckTextureOwner(owner, id, guard!); else CheckTextureStep(operation); }
-            if (request.Has(3)) { GL.TextureParameter(id, Native.TextureParameterName.TextureWrapT, Address(request.AddressT)); if (operation is null) CheckTextureOwner(owner, id, guard!); else CheckTextureStep(operation); }
-            if (request.Has(4)) { GL.TextureParameter(id, Native.TextureParameterName.TextureWrapR, Address(request.AddressR)); if (operation is null) CheckTextureOwner(owner, id, guard!); else CheckTextureStep(operation); }
+            if (request.Has(0)) { OpenGLDriverCalls.TextureParameter(id, Native.TextureParameterName.TextureMinFilter, MinFilter(request.MinFilter)); if (operation is null) CheckTextureOwner(owner, id, guard!); else CheckTextureStep(operation); }
+            if (request.Has(1)) { OpenGLDriverCalls.TextureParameter(id, Native.TextureParameterName.TextureMagFilter, MinFilter(request.MagFilter)); if (operation is null) CheckTextureOwner(owner, id, guard!); else CheckTextureStep(operation); }
+            if (request.Has(2)) { OpenGLDriverCalls.TextureParameter(id, Native.TextureParameterName.TextureWrapS, Address(request.AddressS)); if (operation is null) CheckTextureOwner(owner, id, guard!); else CheckTextureStep(operation); }
+            if (request.Has(3)) { OpenGLDriverCalls.TextureParameter(id, Native.TextureParameterName.TextureWrapT, Address(request.AddressT)); if (operation is null) CheckTextureOwner(owner, id, guard!); else CheckTextureStep(operation); }
+            if (request.Has(4)) { OpenGLDriverCalls.TextureParameter(id, Native.TextureParameterName.TextureWrapR, Address(request.AddressR)); if (operation is null) CheckTextureOwner(owner, id, guard!); else CheckTextureStep(operation); }
         }
         finally { if (guard is not null) cache.ExitResourceOperation(guard); }
     }

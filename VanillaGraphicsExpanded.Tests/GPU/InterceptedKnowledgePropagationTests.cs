@@ -25,15 +25,15 @@ public sealed class InterceptedKnowledgePropagationTests(HeadlessGLFixture fixtu
         using var unpack = OpenGLPixelLayouts.UnpackScope(cache, new(4));
         if (floatingPoint)
         {
-            EngineStateCalls.PixelStore(PixelStoreParameter.PackRowLength, 6.6f);
-            EngineStateCalls.PixelStore(PixelStoreParameter.UnpackImageHeight, 12.6f);
-            EngineStateCalls.PixelStore(PixelStoreParameter.PackSwapBytes, 0.25f);
+            GL.PixelStore(PixelStoreParameter.PackRowLength, 6.6f);
+            GL.PixelStore(PixelStoreParameter.UnpackImageHeight, 12.6f);
+            GL.PixelStore(PixelStoreParameter.PackSwapBytes, 0.25f);
         }
         else
         {
-            EngineStateCalls.PixelStore(PixelStoreParameter.PackRowLength, 7);
-            EngineStateCalls.PixelStore(PixelStoreParameter.UnpackImageHeight, 13);
-            EngineStateCalls.PixelStore(PixelStoreParameter.PackSwapBytes, -2);
+            GL.PixelStore(PixelStoreParameter.PackRowLength, 7);
+            GL.PixelStore(PixelStoreParameter.UnpackImageHeight, 13);
+            GL.PixelStore(PixelStoreParameter.PackSwapBytes, -2);
         }
         // Driver observations are outside the capture interval so the independent oracle
         // does not become indistinguishable from an unnecessary cache recovery query.
@@ -54,7 +54,7 @@ public sealed class InterceptedKnowledgePropagationTests(HeadlessGLFixture fixtu
         EnsureContextValid();
         var cache = OpenGlStateCache.Current;
         using var pack = OpenGLPixelLayouts.PackScope(cache, new(8, RowLength: 11));
-        EngineStateCalls.PixelStore(PixelStoreParameter.PackAlignment, 3);
+        GL.PixelStore(PixelStoreParameter.PackAlignment, 3);
         Assert.Equal(ErrorCode.InvalidValue, GL.GetError());
         Assert.Equal(8, GL.GetInteger(GetPName.PackAlignment));
         using var calls = new BindingCallCapture();
@@ -71,7 +71,7 @@ public sealed class InterceptedKnowledgePropagationTests(HeadlessGLFixture fixtu
         var cache = OpenGlStateCache.Current;
         using var pack = OpenGLPixelLayouts.PackScope(cache, new(8));
         cache.DirtyPixelPackState();
-        EngineStateCalls.PixelStore(PixelStoreParameter.PackRowLength, 17);
+        GL.PixelStore(PixelStoreParameter.PackRowLength, 17);
         using var calls = new BindingCallCapture();
         Assert.Equal(new OpenGlStateCache.PixelPackState(8, RowLength: 17), OpenGLPixelLayouts.GetPack(cache));
         Assert.Equal(7, calls.Calls(nameof(GL.GetInteger)));
@@ -88,7 +88,7 @@ public sealed class InterceptedKnowledgePropagationTests(HeadlessGLFixture fixtu
         using var target = CreateMRTRenderTarget(2, 2, TextureFormat.Rgba32f, TextureFormat.Rgba32f);
         target.Bind();
         var cache = OpenGlStateCache.Current;
-        EngineStateCalls.DrawBuffers(2, [DrawBuffersEnum.None, DrawBuffersEnum.ColorAttachment1]);
+        GL.DrawBuffers(2, [DrawBuffersEnum.None, DrawBuffersEnum.ColorAttachment1]);
         Assert.Equal((int)DrawBuffersEnum.None, GL.GetInteger(GetPName.DrawBuffer0));
         Assert.Equal((int)DrawBuffersEnum.ColorAttachment1, GL.GetInteger(GetPName.DrawBuffer1));
         using var work = new FramebufferRoutingWorkCapture();
@@ -112,14 +112,14 @@ public sealed class InterceptedKnowledgePropagationTests(HeadlessGLFixture fixtu
         DrawBufferMode grouped = GpuSupport.Graphics.DoubleBuffered == true ? DrawBufferMode.Back : DrawBufferMode.Front;
         try
         {
-            EngineStateCalls.DrawBuffer(grouped);
+            GL.DrawBuffer(grouped);
             Assert.Equal((int)grouped, GL.GetInteger(GetPName.DrawBuffer0));
             using (var capture = new FramebufferRoutingWorkCapture())
             {
                 Assert.Equal((DrawBuffersEnum)grouped, OpenGLFramebufferRouting.Capture(cache, 0)[0]);
                 Assert.Equal(0, capture.Captures);
             }
-            EngineStateCalls.DrawBuffers(1, [DrawBuffersEnum.FrontLeft]);
+            GL.DrawBuffers(1, [DrawBuffersEnum.FrontLeft]);
             Assert.Equal((int)DrawBuffersEnum.FrontLeft, GL.GetInteger(GetPName.DrawBuffer0));
             using (var capture = new FramebufferRoutingWorkCapture())
             {
@@ -128,7 +128,7 @@ public sealed class InterceptedKnowledgePropagationTests(HeadlessGLFixture fixtu
             }
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { EngineStateCalls.DrawBuffer((DrawBufferMode)previous); }
+        finally { GL.DrawBuffer((DrawBufferMode)previous); }
     }
 
     /// <summary>Named routing rejects nonexistent identities without certifying them or discarding unrelated routes.</summary>
@@ -139,7 +139,7 @@ public sealed class InterceptedKnowledgePropagationTests(HeadlessGLFixture fixtu
         using var target = CreateRenderTarget(2, 2, TextureFormat.Rgba32f);
         var cache = OpenGlStateCache.Current;
         Assert.True(cache.TryCopyFramebufferDrawRouting(target.FboId, out var expected));
-        OpenGLFramebufferRoutingCalls.ExecuteCoreNamedFramebufferDrawBuffers(int.MaxValue, 1, [DrawBuffersEnum.ColorAttachment0]);
+        GL.NamedFramebufferDrawBuffers(int.MaxValue, 1, [DrawBuffersEnum.ColorAttachment0]);
         Assert.Equal(ErrorCode.InvalidOperation, GL.GetError());
         Assert.False(cache.TryCopyFramebufferDrawRouting(int.MaxValue, out _));
         Assert.True(cache.TryCopyFramebufferDrawRouting(target.FboId, out var actual));
@@ -155,7 +155,7 @@ public sealed class InterceptedKnowledgePropagationTests(HeadlessGLFixture fixtu
         target.Bind();
         var cache = OpenGlStateCache.Current;
         DrawBuffersEnum[] route = [DrawBuffersEnum.None, DrawBuffersEnum.ColorAttachment1];
-        EngineStateCalls.DrawBuffers(route.Length, route);
+        GL.DrawBuffers(route.Length, route);
         route[1] = DrawBuffersEnum.ColorAttachment0;
         var snapshot = OpenGLFramebufferRouting.Capture(cache, target.FboId);
         Assert.Equal(DrawBuffersEnum.ColorAttachment1, snapshot[1]);
@@ -189,7 +189,7 @@ public sealed class InterceptedKnowledgePropagationTests(HeadlessGLFixture fixtu
         EnsureContextValid();
         var cache = OpenGlStateCache.Current;
         cache.SetDepthWriteMask(true);
-        EngineStateCalls.DepthMask(false);
+        GL.DepthMask(false);
         Assert.False(GL.GetBoolean(GetPName.DepthWritemask));
         using var calls = new BindingCallCapture();
         cache.SetDepthWriteMask(false);
@@ -206,7 +206,7 @@ public sealed class InterceptedKnowledgePropagationTests(HeadlessGLFixture fixtu
         EnsureContextValid();
         var cache = OpenGlStateCache.Current;
         cache.SetDepthFunc(DepthFunction.Less);
-        EngineStateCalls.DepthFunc((DepthFunction)(-1));
+        GL.DepthFunc((DepthFunction)(-1));
         Assert.Equal(ErrorCode.InvalidEnum, GL.GetError());
         Assert.Equal((int)DepthFunction.Less, GL.GetInteger(GetPName.DepthFunc));
         using var calls = new BindingCallCapture();
@@ -227,7 +227,7 @@ public sealed class InterceptedKnowledgePropagationTests(HeadlessGLFixture fixtu
         { Role = BufferRole.Vertex, Capacity = 32, Mode = ResourceStorageMode.Mutable, Usage = BufferUsage.StaticDraw }).RequireResource();
         var cache = OpenGlStateCache.Current;
         using var scope = cache.BindBufferScope(BufferTarget.ArrayBuffer, 0);
-        EngineStateCalls.BindBuffer(BufferTarget.ArrayBuffer, buffer.BufferId);
+        GL.BindBuffer(BufferTarget.ArrayBuffer, buffer.BufferId);
         Assert.Equal(buffer.BufferId, GL.GetInteger(GetPName.ArrayBufferBinding));
         using var calls = new BindingCallCapture();
         Assert.True(cache.TryGetCachedBoundBuffer(BufferTarget.ArrayBuffer, out int selected));
@@ -255,7 +255,7 @@ public sealed class InterceptedKnowledgePropagationTests(HeadlessGLFixture fixtu
         using var scope = cache.BindBufferScope(BufferTarget.ShaderStorageBuffer, 0);
         try
         {
-            EngineStateCalls.BindBufferRange(BufferRangeTarget.ShaderStorageBuffer, 0, buffer.BufferId, 0, selectedSize);
+            GL.BindBufferRange(BufferRangeTarget.ShaderStorageBuffer, 0, buffer.BufferId, 0, selectedSize);
             Assert.Equal(buffer.BufferId, GL.GetInteger(GetPName.ShaderStorageBufferBinding));
             using var calls = new BindingCallCapture();
             Assert.True(cache.TryGetCachedIndexedBuffer(BufferRangeTarget.ShaderStorageBuffer, 0,
@@ -267,7 +267,7 @@ public sealed class InterceptedKnowledgePropagationTests(HeadlessGLFixture fixtu
             Assert.Equal(0, calls.Calls(nameof(GL.GetInteger)));
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { EngineStateCalls.BindBufferBase(BufferRangeTarget.ShaderStorageBuffer, 0, 0); }
+        finally { GL.BindBufferBase(BufferRangeTarget.ShaderStorageBuffer, 0, 0); }
         }
         finally { fixture.CleanupGpuResources(); }
     }

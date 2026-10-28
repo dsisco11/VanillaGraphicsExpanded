@@ -227,26 +227,53 @@ public sealed class GpuRemainingCreationTests(HeadlessGLFixture fixture, Xunit.I
 
     #region Private
     /// <summary>Records actual deletion dispatch, including generated names that IsObject cannot distinguish from deleted names.</summary>
-    private sealed class DeletionObservation : IDisposable
+    private sealed unsafe class DeletionObservation : IDisposable
     {
-        private readonly Harmony harmony = new("Tests.RemainingCreationDeletion." + Guid.NewGuid());
+        private readonly NativeDriverCapture native = new();
         internal static readonly HashSet<(string, nint)> Deleted = new();
-        /// <summary>Observes each family native deletion entry point.</summary>
+        #region Public API
+        /// <summary>Observes array and native-width deletion entrypoints in both binding tables.</summary>
         public DeletionObservation()
         {
             Deleted.Clear();
-            foreach (string name in new[] { "DeleteVertexArray", "DeleteProgramPipeline", "DeleteSampler", "DeleteQuery", "DeleteTransformFeedback" })
-                harmony.Patch(AccessTools.Method(typeof(OpenTK.Graphics.OpenGL4.GL), name, [typeof(int)]), prefix: new HarmonyMethod(typeof(DeletionObservation), nameof(CountInteger)));
-            harmony.Patch(AccessTools.Method(typeof(OpenTK.Graphics.OpenGL4.GL), "DeleteSync", [typeof(IntPtr)]), prefix: new HarmonyMethod(typeof(DeletionObservation), nameof(CountPointer)));
-            foreach (string name in new[] { "DeleteSemaphore", "DeleteMemoryObject" })
-                harmony.Patch(AccessTools.Method(typeof(GL.Ext), name, [typeof(int)]), prefix: new HarmonyMethod(typeof(DeletionObservation), nameof(CountInteger)));
+            foreach (var (symbol, label) in new[] {
+                ("glDeleteVertexArrays", "DeleteVertexArray"), ("glDeleteProgramPipelines", "DeleteProgramPipeline"),
+                ("glDeleteSamplers", "DeleteSampler"), ("glDeleteQueries", "DeleteQuery"),
+                ("glDeleteTransformFeedbacks", "DeleteTransformFeedback"),
+                ("glDeleteSemaphoresEXT", "DeleteSemaphore"), ("glDeleteMemoryObjectsEXT", "DeleteMemoryObject") })
+            {
+                nint original = native.Original(symbol);
+                if (original == 0) continue;
+                native.Add(symbol, new DeleteMany((count, ids) =>
+                {
+                    native.Observe(() => Record(label, count, ids));
+                    ((delegate* unmanaged[Stdcall]<int, uint*, void>)original)(count, ids);
+                }));
+            }
+            nint sync = native.Original("glDeleteSync");
+            native.Add("glDeleteSync", new DeleteSync(id =>
+            {
+                native.Observe(() => Deleted.Add(("DeleteSync", id)));
+                ((delegate* unmanaged[Stdcall]<nint, void>)sync)(id);
+            }));
+            native.Install();
         }
-        /// <summary>Records integer native identity without altering execution.</summary>
-        private static void CountInteger(System.Reflection.MethodBase __originalMethod, int __0) => Deleted.Add((__originalMethod.Name, __0));
-        /// <summary>Records full-width synchronization identity without narrowing.</summary>
-        private static void CountPointer(System.Reflection.MethodBase __originalMethod, IntPtr __0) => Deleted.Add((__originalMethod.Name, __0));
-        /// <summary>Restores native methods after observation.</summary>
-        public void Dispose() => harmony.UnpatchAll(harmony.Id);
+        /// <summary>Restores ordinary loading after the creation failure assertions.</summary>
+        public void Dispose() => native.Dispose();
+        #endregion
+        #region Private
+        /// <summary>Copies each deleted name before the native caller releases its argument storage.</summary>
+        private static void Record(string name, int count, uint* ids)
+        {
+            for (int i = 0; i < count; i++) Deleted.Add((name, unchecked((int)ids[i])));
+        }
+        /// <summary>Matches native object-array deletion.</summary>
+        [System.Runtime.InteropServices.UnmanagedFunctionPointer(System.Runtime.InteropServices.CallingConvention.StdCall)]
+        private delegate void DeleteMany(int count, uint* ids);
+        /// <summary>Matches full-width native synchronization deletion.</summary>
+        [System.Runtime.InteropServices.UnmanagedFunctionPointer(System.Runtime.InteropServices.CallingConvention.StdCall)]
+        private delegate void DeleteSync(nint id);
+        #endregion
     }
 
     /// <summary>Observes descriptor and existence queries only during controlled creation.</summary>

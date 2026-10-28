@@ -233,8 +233,8 @@ public sealed class RHIBufferTests(HeadlessGLFixture fixture)
             context.BindBufferRange(BufferRole.Uniform, 0, first, 0, 16);
             context.BindBufferRange(BufferRole.Uniform, 0, first, 0, 16);
             Assert.Equal(1, capture.Calls(nameof(GL.BindBufferRange)));
-            OpenGLBufferBindingCalls.BindBufferBase(BufferRangeTarget.UniformBuffer, 0, first.BufferId);
-            OpenGLBufferBindingCalls.BindBufferBase(BufferRangeTarget.UniformBuffer, 0, first.BufferId);
+            GL.BindBufferBase(BufferRangeTarget.UniformBuffer, 0, first.BufferId);
+            GL.BindBufferBase(BufferRangeTarget.UniformBuffer, 0, first.BufferId);
             Assert.Equal(4, capture.Calls(nameof(GL.BindBufferBase)));
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
@@ -254,8 +254,7 @@ public sealed class RHIBufferTests(HeadlessGLFixture fixture)
             var request = Description(64);
             int calls = 0;
             beforeAllocation = () => { calls++; request.Capacity = 128; };
-            harmony.Patch(((Action<int, nint, nint, OpenTK.Graphics.OpenGL4.BufferUsageHint>)CoreGL.NamedBufferData).Method,
-                prefix: new HarmonyMethod(typeof(RHIBufferTests), nameof(ObserveAllocation)));
+            using var allocation = new NativeBufferAllocationCapture(before: ObserveAllocation);
             context.AllocateBufferStorage(buffer, request);
             Assert.Equal(1, calls);
             Assert.Equal((nint)128, request.Capacity);
@@ -278,8 +277,7 @@ public sealed class RHIBufferTests(HeadlessGLFixture fixture)
             var context = RHICommandContext.Current;
             using var buffer = context.CreateBuffer(Description(16)).RequireResource();
             afterAllocation = buffer.Dispose;
-            harmony.Patch(((Action<int, nint, nint, OpenTK.Graphics.OpenGL4.BufferUsageHint>)CoreGL.NamedBufferData).Method,
-                postfix: new HarmonyMethod(typeof(RHIBufferTests), nameof(ObserveCompletedAllocation)));
+            using var allocation = new NativeBufferAllocationCapture(after: ObserveCompletedAllocation);
             Assert.Throws<InvalidOperationException>(() => context.AllocateBufferStorage(buffer, Description(64), new byte[] { 1, 2, 3, 4 }));
             Assert.True(buffer.IsDisposed);
             Assert.Equal(ErrorCode.NoError, GL.GetError());

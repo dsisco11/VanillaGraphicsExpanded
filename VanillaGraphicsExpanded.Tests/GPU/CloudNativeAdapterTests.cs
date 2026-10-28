@@ -62,7 +62,7 @@ public sealed class CloudNativeAdapterTests(HeadlessGLFixture fixture)
             if (external)
             {
                 using var binding = OpenGlStateCache.Current.BindTextureScope(TextureTarget.Texture2D, 0, native.Raw1.TextureId);
-                VanillaGraphicsExpanded.HarmonyPatches.NativeAdapters.Textures.Core.TexImage2D(
+                GL.TexImage2D(
                     TextureTarget.Texture2D, 0, PixelInternalFormat.Rgba16, 20, 20, 0, PixelFormat.Rgba, PixelType.Short, IntPtr.Zero);
             }
             else { native.Raw1.Resize(21, 20); native.Raw1.Resize(20, 20); }

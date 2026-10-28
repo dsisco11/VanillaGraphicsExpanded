@@ -28,5 +28,7 @@ internal sealed partial class OpenGlStateCache
     }
     /// <summary>Records the element selector proved by an explicit acquisition without issuing a configuration command.</summary>
     internal void EstablishVertexArrayElementKnowledge(int array, int elements) => elementArrayBufferByVao[array] = elements;
+    /// <summary>Withdraws one array's element selection while its native configuration is uncertain.</summary>
+    internal void ForgetVertexArrayElementKnowledge(int array) => elementArrayBufferByVao.Remove(array);
     #endregion
 }

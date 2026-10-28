@@ -2,6 +2,7 @@ using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
 using HarmonyLib;
+using System.Runtime.InteropServices;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 
@@ -52,7 +53,7 @@ public sealed class GpuControlledTexturePublicationTests(HeadlessGLFixture fixtu
         {
             using var texture = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba8, Width = System.Math.Max(1, 8), Height = System.Math.Max(1, 8), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
             using var binding = OpenGlStateCache.Current.BindTextureScope(OpenGLImageValues.Target(((GpuTextureRef)texture).Target), 0, texture.TextureId);
-            VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLTexturesCalls.ExecuteCoreTexImage2D(TextureTarget.Texture2D, int.MaxValue, PixelInternalFormat.Rgba8,
+            GL.TexImage2D(TextureTarget.Texture2D, int.MaxValue, PixelInternalFormat.Rgba8,
                 1, 1, 0, PixelFormat.Rgba, PixelType.UnsignedByte, IntPtr.Zero);
             Assert.Equal(8, texture.Width);
             Assert.Equal(ErrorCode.InvalidValue, GL.GetError());
@@ -61,11 +62,11 @@ public sealed class GpuControlledTexturePublicationTests(HeadlessGLFixture fixtu
         finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
 
-    /// <summary>A later mip allocation exception retires the private native name without handing out partial metadata.</summary>
+    /// <summary>A later mip allocation interruption retires the private name without handing out partial metadata.</summary>
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void FailedMipAllocationRetiresUnpublishedTexture(bool registered)
+    public void InterruptedMipAllocationRetiresUnpublishedTexture(bool registered)
     {
         fixture.EnsureContextValid();
         if (registered) fixture.InitializeResourceDisposal();
@@ -133,11 +134,11 @@ public sealed class GpuControlledTexturePublicationTests(HeadlessGLFixture fixtu
                 GpuResourceManagerSystem.CurrentManager!.GetResourceRegistration(texture));
             var original = entry.Metadata.Levels;
             ulong storage = entry.StorageRevision;
-            VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLTexturesCalls.ExecuteCoreTexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMaxLevel, 2);
+            GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMaxLevel, 2);
             Assert.Equal(original, entry.Metadata.Levels);
             Assert.Equal(2, entry.Metadata.MaxLevel);
             Assert.Equal(storage, entry.StorageRevision);
-            VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLTexturesCalls.ExecuteCoreTexImage2D(TextureTarget.Texture2D, 2, PixelInternalFormat.Rgba16f,
+            GL.TexImage2D(TextureTarget.Texture2D, 2, PixelInternalFormat.Rgba16f,
                 4, 2, 0, PixelFormat.Rgba, PixelType.Float, IntPtr.Zero);
             Assert.Equal(original[0], entry.Metadata.Levels[0]);
             Assert.Equal(original[1], entry.Metadata.Levels[1]);
@@ -171,11 +172,11 @@ public sealed class GpuControlledTexturePublicationTests(HeadlessGLFixture fixtu
                 GpuResourceManagerSystem.CurrentManager!.GetResourceRegistration(recipient));
             using var binding = OpenGlStateCache.Current.BindTextureScope(TextureTarget.Texture2D, 0, (int)handle.Id);
             ulong storage = entry.StorageRevision;
-            VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLTexturesCalls.ExecuteCoreGenerateMipmap(GenerateMipmapTarget.Texture2D);
+            GL.GenerateMipmap(GenerateMipmapTarget.Texture2D);
             Assert.Equal(4, entry.Metadata.Levels.Length);
             Assert.Equal(storage + (immutable ? 0UL : 1UL), entry.StorageRevision);
             storage = entry.StorageRevision;
-            VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLTexturesCalls.ExecuteCoreGenerateMipmap(GenerateMipmapTarget.Texture2D);
+            GL.GenerateMipmap(GenerateMipmapTarget.Texture2D);
             Assert.Equal(storage, entry.StorageRevision);
             GL.GetTextureLevelParameter((int)handle.Id, 3, GetTextureParameter.TextureWidth, out int lastWidth);
             Assert.Equal(1, lastWidth);
@@ -278,31 +279,41 @@ public sealed class GpuControlledTexturePublicationTests(HeadlessGLFixture fixtu
     #endregion
 
     #region Private
-    /// <summary>Throws on the second real mutable image command after the first image has established native storage.</summary>
-    private sealed class AllocationFailure : IDisposable
+    /// <summary>Interrupts allocation after the second real native image command without an ABI exception.</summary>
+    private sealed unsafe class AllocationFailure : IDisposable
     {
-        private readonly Harmony harmony = new("VGE.Tests.ControlledTextureAllocationFailure");
-        private static AllocationFailure? current;
+        private readonly NativeDriverCapture native = new();
         internal int Texture;
         internal int Calls;
-        /// <summary>Installs the exact integer-level pointer overload used by mutable image allocation.</summary>
+
+        /// <summary>Matches the native mutable two-dimensional image-definition ABI.</summary>
+        [UnmanagedFunctionPointer(CallingConvention.StdCall)]
+        private delegate void Image2D(int target, int level, int internalFormat, int width, int height,
+            int border, int format, int type, void* data);
+
+        /// <summary>Observes actual allocation dispatch and interrupts its existing managed completion guard.</summary>
         internal AllocationFailure()
         {
-            current = this;
-            harmony.Patch(AccessTools.Method(typeof(OpenTK.Graphics.OpenGL4.GL), nameof(OpenTK.Graphics.OpenGL4.GL.TexImage2D),
-                [typeof(OpenTK.Graphics.OpenGL4.TextureTarget), typeof(int), typeof(OpenTK.Graphics.OpenGL4.PixelInternalFormat), typeof(int), typeof(int), typeof(int), typeof(OpenTK.Graphics.OpenGL4.PixelFormat), typeof(OpenTK.Graphics.OpenGL4.PixelType), typeof(IntPtr)]),
-                prefix: new HarmonyMethod(typeof(AllocationFailure), nameof(BeforeImage)));
+            nint original = native.Original("glTexImage2D");
+            native.Add("glTexImage2D", new Image2D((target, level, internalFormat, width, height, border, format, type, data) =>
+            {
+                ((delegate* unmanaged[Stdcall]<int, int, int, int, int, int, int, int, void*, void>)original)
+                    (target, level, internalFormat, width, height, border, format, type, data);
+                native.Observe(() =>
+                {
+                    Calls++;
+                    Texture = GL.GetInteger(GetPName.TextureBinding2D);
+                    // Native work has completed. The next managed step must reject certification
+                    // of this interrupted candidate and retire the unpublished allocation.
+                    if (Calls == 2)
+                        OpenGlStateCache.Current.InterruptNativeResourceOperation(GpuResourceKind.Texture, Texture);
+                });
+            }));
+            native.Install();
         }
-        /// <summary>Removes only this test's native interception.</summary>
-        public void Dispose() { harmony.UnpatchAll(harmony.Id); current = null; }
-        /// <summary>Records the realized allocation before rejecting the second command.</summary>
-        private static void BeforeImage()
-        {
-            var fault = current!;
-            fault.Calls++;
-            fault.Texture = GL.GetInteger(GetPName.TextureBinding2D);
-            if (fault.Calls == 2) throw new InvalidOperationException("Injected image allocation failure.");
-        }
+
+        /// <summary>Restores the original loader and reports contained test-observation failures.</summary>
+        public void Dispose() => native.Dispose();
     }
 
     /// <summary>Receives the manager-created texture identity and facts without adding wrapper allocation policy.</summary>

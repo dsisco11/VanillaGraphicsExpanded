@@ -10,7 +10,7 @@ internal sealed partial class OpenGLBackend
     internal void DeleteQuery(int id)
     {
         RequireContext();
-        GL.DeleteQuery(id);
+        OpenGLDriverCalls.DeleteQuery(id);
         RequireContext();
         cache.CompleteResourceDeletion(GpuResourceKind.Query, id);
     }
@@ -18,7 +18,7 @@ internal sealed partial class OpenGLBackend
     internal void DeleteSync(nint id)
     {
         RequireContext();
-        GL.DeleteSync(id);
+        OpenGLDriverCalls.DeleteSync(id);
         RequireContext();
         cache.CompleteResourceDeletion(GpuResourceKind.Sync, id);
     }
@@ -26,7 +26,7 @@ internal sealed partial class OpenGLBackend
     internal void DeleteTransformFeedback(int id)
     {
         RequireContext();
-        GL.DeleteTransformFeedback(id);
+        OpenGLDriverCalls.DeleteTransformFeedback(id);
         RequireContext();
         cache.CompleteResourceDeletion(GpuResourceKind.TransformFeedback, id);
     }

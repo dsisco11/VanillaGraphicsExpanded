@@ -143,7 +143,7 @@ public sealed class GpuTextureMetadataInterceptionTests(HeadlessGLFixture fixtur
         {
             using var texture = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba8, Width = System.Math.Max(1, 8), Height = System.Math.Max(1, 8), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
             using var binding = OpenGlStateCache.Current.BindTextureScope(OpenGLImageValues.Target(((GpuTextureRef)texture).Target), 0, texture.TextureId);
-            VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLTexturesCalls.ExecuteCoreTexImage2D(TextureTarget.Texture2D, 1, PixelInternalFormat.Rgba8, 4, 4, 0, PixelFormat.Rgba, PixelType.UnsignedByte, IntPtr.Zero);
+            GL.TexImage2D(TextureTarget.Texture2D, 1, PixelInternalFormat.Rgba8, 4, 4, 0, PixelFormat.Rgba, PixelType.UnsignedByte, IntPtr.Zero);
             texture.SetMipRange(1, 3);
             var entry = Assert.IsType<GpuResourceMetadataEntry<GpuTextureMetadata>>(GpuResourceManagerSystem.CurrentManager!.GetResourceRegistration(texture));
             ulong revision = entry.MetadataRevision;
@@ -206,7 +206,7 @@ public sealed class GpuTextureMetadataInterceptionTests(HeadlessGLFixture fixtur
             GL.BindTexture(target, raw);
             DefineTarget(variant, 4);
             using var texture = new BorrowedTexture(raw);
-            harmony = Patch(nameof(DefineTarget));
+            harmony = new Harmony("Tests.NativeObservation." + Guid.NewGuid());
             OpenGlStateCache.Current.InvalidateAll();
             DefineTarget(variant, 8);
             Assert.Equal(8, texture.Width);
@@ -236,8 +236,7 @@ public sealed class GpuTextureMetadataInterceptionTests(HeadlessGLFixture fixtur
     private static Harmony Patch(string method)
     {
         var harmony = new Harmony("VGE.Tests.TextureMetadata." + method);
-        harmony.Patch(AccessTools.Method(typeof(GpuTextureMetadataInterceptionTests), method),
-            transpiler: new HarmonyMethod(typeof(EngineStateSwitchingHook), nameof(EngineStateSwitchingHook.Transpiler)));
+
         return harmony;
     }
 

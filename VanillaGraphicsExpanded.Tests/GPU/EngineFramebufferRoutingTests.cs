@@ -30,7 +30,7 @@ public sealed class EngineFramebufferRoutingTests(HeadlessGLFixture fixture) : R
         try
         {
             var method = AccessTools.Method(typeof(EngineFramebufferRoutingTests), nameof(ChangeRouting));
-            harmony.Patch(method, transpiler: new HarmonyMethod(typeof(EngineStateSwitchingHook), nameof(EngineStateSwitchingHook.Transpiler)));
+
             using var calls = new GraphicsTransitionCapture();
             ChangeRouting(array);
             ChangeRouting(array);

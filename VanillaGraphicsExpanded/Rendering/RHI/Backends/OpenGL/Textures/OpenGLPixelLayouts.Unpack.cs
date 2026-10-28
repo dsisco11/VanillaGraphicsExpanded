@@ -54,14 +54,14 @@ internal static partial class OpenGLPixelLayouts
             if (changeLsbFirst) cache.ForgetPixelUnpackField(OpenTK.Graphics.OpenGL.PixelStoreParameter.UnpackLsbFirst);
             if (changeImageHeight) cache.ForgetPixelUnpackField(OpenTK.Graphics.OpenGL.PixelStoreParameter.UnpackImageHeight);
             if (changeSkipImages) cache.ForgetPixelUnpackField(OpenTK.Graphics.OpenGL.PixelStoreParameter.UnpackSkipImages);
-            if (changeAlignment) { GL.PixelStore(PixelStoreParameter.UnpackAlignment, state.Alignment); backend.RequireContext(); }
-            if (changeRowLength) { GL.PixelStore(PixelStoreParameter.UnpackRowLength, state.RowLength); backend.RequireContext(); }
-            if (changeSkipRows) { GL.PixelStore(PixelStoreParameter.UnpackSkipRows, state.SkipRows); backend.RequireContext(); }
-            if (changeSkipPixels) { GL.PixelStore(PixelStoreParameter.UnpackSkipPixels, state.SkipPixels); backend.RequireContext(); }
-            if (changeSwapBytes) { GL.PixelStore(PixelStoreParameter.UnpackSwapBytes, state.SwapBytes ? 1 : 0); backend.RequireContext(); }
-            if (changeLsbFirst) { GL.PixelStore(PixelStoreParameter.UnpackLsbFirst, state.LsbFirst ? 1 : 0); backend.RequireContext(); }
-            if (changeImageHeight) { GL.PixelStore(PixelStoreParameter.UnpackImageHeight, state.ImageHeight); backend.RequireContext(); }
-            if (changeSkipImages) { GL.PixelStore(PixelStoreParameter.UnpackSkipImages, state.SkipImages); backend.RequireContext(); }
+            if (changeAlignment) { OpenGLDriverCalls.PixelStore(PixelStoreParameter.UnpackAlignment, state.Alignment); backend.RequireContext(); }
+            if (changeRowLength) { OpenGLDriverCalls.PixelStore(PixelStoreParameter.UnpackRowLength, state.RowLength); backend.RequireContext(); }
+            if (changeSkipRows) { OpenGLDriverCalls.PixelStore(PixelStoreParameter.UnpackSkipRows, state.SkipRows); backend.RequireContext(); }
+            if (changeSkipPixels) { OpenGLDriverCalls.PixelStore(PixelStoreParameter.UnpackSkipPixels, state.SkipPixels); backend.RequireContext(); }
+            if (changeSwapBytes) { OpenGLDriverCalls.PixelStore(PixelStoreParameter.UnpackSwapBytes, state.SwapBytes ? 1 : 0); backend.RequireContext(); }
+            if (changeLsbFirst) { OpenGLDriverCalls.PixelStore(PixelStoreParameter.UnpackLsbFirst, state.LsbFirst ? 1 : 0); backend.RequireContext(); }
+            if (changeImageHeight) { OpenGLDriverCalls.PixelStore(PixelStoreParameter.UnpackImageHeight, state.ImageHeight); backend.RequireContext(); }
+            if (changeSkipImages) { OpenGLDriverCalls.PixelStore(PixelStoreParameter.UnpackSkipImages, state.SkipImages); backend.RequireContext(); }
             if (GlDebug.CheckStateTransitions && !cache.RestoringBoundary) cache.CheckBoundaryNativeError();
             backend.RequireContext();
             cache.PixelUnpackKnowledge = state;

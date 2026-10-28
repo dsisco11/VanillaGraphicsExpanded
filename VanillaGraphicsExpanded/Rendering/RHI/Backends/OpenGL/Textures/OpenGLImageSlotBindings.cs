@@ -33,7 +33,7 @@ internal static class OpenGLImageSlotBindings
         var binding = new OpenGlStateCache.ImageBinding(texture, level, layered, layer, access, format);
         if (!cache.NeedsImageBinding(unit, binding)) return;
         cache.ForgetImageBinding(unit);
-        Native.GL.BindImageTexture(unit, texture, level, layered, layer, (Native.TextureAccess)access, (Native.SizedInternalFormat)format);
+        OpenGLDriverCalls.BindImageTexture(unit, texture, level, layered, layer, (Native.TextureAccess)access, (Native.SizedInternalFormat)format);
         backend.RequireContext();
         cache.EstablishImageBinding(unit, binding);
     }

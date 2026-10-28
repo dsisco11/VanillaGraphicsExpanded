@@ -162,10 +162,7 @@ public sealed class GpuBufferViewDependencyTests(HeadlessGLFixture fixture)
             manager.ObserveDeletion(GpuResourceKind.Buffer, oldId);
             using var newBuffer = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = null }).RequireResource();
             newBuffer.Allocate(128);
-            var reassociation = OpenGlStateCache.BeginNativeBufferTexture(view.TextureId, (int)TextureTarget.TextureBuffer,
-                0, true, false, newBuffer.BufferId, (int)SizedInternalFormat.R32f, 0, 0, true);
             GL.TextureBuffer(view.TextureId, SizedInternalFormat.R32f, newBuffer.BufferId);
-            reassociation.Complete(true);
             Assert.True(manager.IsResourceMetadataAvailable(view));
             Assert.True(view.IsValid);
             Assert.Equal(newBuffer.BufferId, textureEntry.Metadata.Buffer!.Value.BufferId);
@@ -243,8 +240,7 @@ public sealed class GpuBufferViewDependencyTests(HeadlessGLFixture fixture)
     private static Harmony Patch()
     {
         var harmony = new Harmony("VGE.Tests.BufferViewDependencies");
-        harmony.Patch(AccessTools.Method(typeof(GpuBufferViewDependencyTests), nameof(AllocateNative)),
-            transpiler: new HarmonyMethod(typeof(EngineStateSwitchingHook), nameof(EngineStateSwitchingHook.Transpiler)));
+
         return harmony;
     }
 

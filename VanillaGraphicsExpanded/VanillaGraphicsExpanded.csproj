@@ -154,6 +154,7 @@
   </Target>
 
   <ItemGroup>
+    <ProjectReference Include="../OpenGLInterceptionGenerator/OpenGLInterceptionGenerator.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
     <ProjectReference Include="../ShaderContractGenerator/ShaderContractGenerator.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
   </ItemGroup>
 </Project>

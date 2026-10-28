@@ -85,6 +85,36 @@ public sealed class StaticGpuFramebufferTests(HeadlessGLFixture fixture, ITestOu
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
     #endregion
+    #region External native effects
+    /// <summary>Raw native routing executes despite managed immutability and supersedes its former executed proof.</summary>
+    [Fact]
+    public void ExternalRoutingSupersedesImmutableDeclarationProof()
+    {
+        EnsureContextValid();
+        using var texture = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription {
+            Dimension = TextureDimension.Two, Format = TextureFormat.Rgba32f, Width = 2, Height = 2,
+            MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest }).RequireResource();
+        using var image = GpuFramebufferAttachment.FromTexture(texture);
+        using var target = StaticGpuFramebuffer.Create([image]);
+        target.Bind();
+        var cache = OpenGlStateCache.Current;
+        GL.NamedFramebufferDrawBuffer(target.FboId, DrawBufferMode.None);
+        Assert.Equal((int)DrawBufferMode.None, GL.GetInteger(GetPName.DrawBuffer0));
+        Assert.True(cache.TryCopyFramebufferDrawRouting(target.FboId, out var observed));
+        Assert.Equal(DrawBuffersEnum.None, observed[0]);
+        // Managed requests retain the declaration restriction but restore it when actual state differs.
+        OpenGLFramebufferRouting.SetDrawBuffer(cache, DrawBufferMode.ColorAttachment0);
+        Assert.Equal((int)DrawBufferMode.ColorAttachment0, GL.GetInteger(GetPName.DrawBuffer0));
+        Assert.Throws<InvalidOperationException>(() => OpenGLFramebufferRouting.SetDrawBuffer(cache, DrawBufferMode.None));
+        GL.NamedFramebufferDrawBuffer(target.FboId, (DrawBufferMode)(-1));
+        Assert.Equal(ErrorCode.InvalidEnum, GL.GetError());
+        using var capture = new GraphicsTransitionCapture();
+        OpenGLFramebufferRouting.SetDrawBuffer(cache, DrawBufferMode.ColorAttachment0);
+        Assert.Empty(capture.Calls);
+        Assert.Equal(ErrorCode.NoError, GL.GetError());
+    }
+    #endregion
+
     #region Retirement
     /// <summary>Worker retirement withdraws the originating cache declaration before queued native deletion.</summary>
     [Fact]

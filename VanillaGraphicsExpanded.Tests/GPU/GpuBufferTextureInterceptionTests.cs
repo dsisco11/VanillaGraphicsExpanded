@@ -172,9 +172,9 @@ public sealed class GpuBufferTextureInterceptionTests(HeadlessGLFixture fixture)
         }
         finally { harmony.UnpatchAll(harmony.Id); RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Texture, texture)); fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
-    /// <summary>A native dispatch exception preserves the original failure and withdraws the unchanged association snapshot.</summary>
+    /// <summary>A managed failure before native dispatch leaves the unchanged association snapshot valid.</summary>
     [Fact]
-    public void ThrowingNativeDispatchCannotRecertifyPreviousRange()
+    public void FailureBeforeNativeDispatchPreservesPreviousRange()
     {
         fixture.EnsureContextValid(); fixture.InitializeResourceDisposal();
         var harmony = Patch();
@@ -186,8 +186,8 @@ public sealed class GpuBufferTextureInterceptionTests(HeadlessGLFixture fixture)
                 prefix: new HarmonyMethod(typeof(GpuBufferTextureInterceptionTests), nameof(ThrowBeforeDispatch)));
             var failure = Assert.Throws<ApplicationException>(() => Associate(8, view.TextureId, buffer.BufferId, SizedInternalFormat.R32f, 0, 64));
             Assert.Equal("native boundary failure", failure.Message);
-            Assert.False(GpuResourceManagerSystem.CurrentManager!.IsResourceMetadataAvailable(view));
-            Assert.False(view.IsValid);
+            Assert.True(GpuResourceManagerSystem.CurrentManager!.IsResourceMetadataAvailable(view));
+            Assert.True(view.IsValid);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
         finally { harmony.UnpatchAll(harmony.Id); fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
@@ -199,9 +199,7 @@ public sealed class GpuBufferTextureInterceptionTests(HeadlessGLFixture fixture)
     private static Harmony Patch()
     {
         var harmony = new Harmony("VGE.Tests.BufferTextureInterception");
-        foreach (string name in new[] { nameof(Associate), nameof(InvalidTarget) })
-            harmony.Patch(AccessTools.Method(typeof(GpuBufferTextureInterceptionTests), name),
-                transpiler: new HarmonyMethod(typeof(EngineStateSwitchingHook), nameof(EngineStateSwitchingHook.Transpiler)));
+
         return harmony;
     }
     /// <summary>Dispatches actual core and extension overloads without modifying their native signatures.</summary>

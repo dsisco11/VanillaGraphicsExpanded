@@ -26,8 +26,10 @@ weak wrapper associations, shared guards and queued retirement. [BorrowedTexture
 acquires initial metadata through that common registry without acquiring ownership.
 [OpenGlStateCache](../VanillaGraphicsExpanded/Rendering/RHI/Backends/OpenGL/State/Observation/OpenGlStateCache.ResourceDeletion.Publication.cs) observes
 supported native deletion commands and preserves their binding/restoration effects.
-[EngineStateCallMap](../VanillaGraphicsExpanded/HarmonyPatches/EngineStateCallMap.cs) redirects exact
-supported GL signatures within the owner boundary below. Cloud and depth consumers retain non-owning
+[OpenGLBindingInterception](../VanillaGraphicsExpanded/Rendering/RHI/Backends/OpenGL/Interception/OpenGLBindingInterception.cs)
+installs generated native-table callbacks for supported GL symbols within the owner boundary below.
+Cache-owned post-call observations reconcile external effects; backend-owned calls use saved originals
+and their existing publication owner. Cloud and depth consumers retain non-owning
 typed wrappers for stable native selections and share owned material depth directly. Integrated
 qualification and its evidence limits are recorded in the implementation checklist.
 
@@ -140,9 +142,8 @@ history. A valid registration does not imply that the native resource is bound.
 
 ## Command coverage and consumers
 
-Interception is restricted to the managed native owners GL, GL.Ext and GL.Arb.
-The pinned OpenTK binding exposes core methods directly on GL; adapter classes named Core
-refer to that owner. All other auxiliary owners are excluded, including Amd, Ati, Ibm, Intel,
+Interception covers selected native entries in both OpenTK GL tables, restricted to the
+GL/Core, Ext and Arb owners. Core methods are exposed directly on GL. All other auxiliary owners are excluded, including Amd, Ati, Ibm, Intel,
 Mesa, Oes, Ovr, Sgis, Sun, Apple and NV. This is an owner boundary, not a filter on feature origins,
 command suffixes, extension capability checks or direct VGE resource operations.
 Unmapped calls execute unchanged and do not provide continuing metadata or lifecycle observation.

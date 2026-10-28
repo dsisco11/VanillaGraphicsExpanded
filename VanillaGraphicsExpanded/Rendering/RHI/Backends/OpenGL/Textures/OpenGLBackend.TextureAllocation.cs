@@ -60,14 +60,14 @@ internal sealed partial class OpenGLBackend
             if (multisample)
             {
                 if (request.Target == TextureDimension.TwoMultisampleArray)
-                    GL.TextureStorage3DMultisample(name, request.Samples, (Native.SizedInternalFormat)OpenGLImageValues.Format(request.InternalFormat),
+                    OpenGLDriverCalls.TextureStorage3DMultisample(name, request.Samples, (Native.SizedInternalFormat)OpenGLImageValues.Format(request.InternalFormat),
                         request.Width, request.Height, request.Depth, request.FixedSampleLocations);
-                else GL.TextureStorage2DMultisample(name, request.Samples, (Native.SizedInternalFormat)OpenGLImageValues.Format(request.InternalFormat),
+                else OpenGLDriverCalls.TextureStorage2DMultisample(name, request.Samples, (Native.SizedInternalFormat)OpenGLImageValues.Format(request.InternalFormat),
                     request.Width, request.Height, request.FixedSampleLocations);
             }
-            else if (three) GL.TextureStorage3D(name, request.Levels, (Native.SizedInternalFormat)OpenGLImageValues.Format(request.InternalFormat), request.Width, request.Height, request.Depth);
-            else if (one) GL.TextureStorage1D(name, request.Levels, (Native.SizedInternalFormat)OpenGLImageValues.Format(request.InternalFormat), request.Width);
-            else GL.TextureStorage2D(name, request.Levels, (Native.SizedInternalFormat)OpenGLImageValues.Format(request.InternalFormat), request.Width, request.Height);
+            else if (three) OpenGLDriverCalls.TextureStorage3D(name, request.Levels, (Native.SizedInternalFormat)OpenGLImageValues.Format(request.InternalFormat), request.Width, request.Height, request.Depth);
+            else if (one) OpenGLDriverCalls.TextureStorage1D(name, request.Levels, (Native.SizedInternalFormat)OpenGLImageValues.Format(request.InternalFormat), request.Width);
+            else OpenGLDriverCalls.TextureStorage2D(name, request.Levels, (Native.SizedInternalFormat)OpenGLImageValues.Format(request.InternalFormat), request.Width, request.Height);
             CheckTextureStep(operation, creationGuard);
         }
         int faces = request.Target == TextureDimension.Cube ? 6 : 1;
@@ -87,18 +87,18 @@ internal sealed partial class OpenGLBackend
                     if (multisample)
                     {
                         if (request.Target == TextureDimension.TwoMultisampleArray)
-                            GL.TexImage3DMultisample((Native.TextureTargetMultisample)target, request.Samples,
+                            OpenGLDriverCalls.TexImage3DMultisample((Native.TextureTargetMultisample)target, request.Samples,
                                 (Native.PixelInternalFormat)OpenGLImageValues.Format(request.InternalFormat), width, height, depth, request.FixedSampleLocations);
-                        else GL.TexImage2DMultisample((Native.TextureTargetMultisample)target, request.Samples,
+                        else OpenGLDriverCalls.TexImage2DMultisample((Native.TextureTargetMultisample)target, request.Samples,
                             (Native.PixelInternalFormat)OpenGLImageValues.Format(request.InternalFormat), width, height, request.FixedSampleLocations);
                     }
                     else
                     {
                         var pixels = OpenGLPixelValues.Channels(TextureFormatHelper.GetPixelFormat(request.InternalFormat));
                         var type = OpenGLPixelValues.Type(TextureFormatHelper.GetPixelType(request.InternalFormat));
-                        if (three) GL.TexImage3D((Native.TextureTarget)target, level, (Native.PixelInternalFormat)OpenGLImageValues.Format(request.InternalFormat), width, height, depth, 0, pixels, type, IntPtr.Zero);
-                        else if (one) GL.TexImage1D((Native.TextureTarget)target, level, (Native.PixelInternalFormat)OpenGLImageValues.Format(request.InternalFormat), width, 0, pixels, type, IntPtr.Zero);
-                        else GL.TexImage2D((Native.TextureTarget)target, level, (Native.PixelInternalFormat)OpenGLImageValues.Format(request.InternalFormat), width, height, 0, pixels, type, IntPtr.Zero);
+                        if (three) OpenGLDriverCalls.TexImage3D((Native.TextureTarget)target, level, (Native.PixelInternalFormat)OpenGLImageValues.Format(request.InternalFormat), width, height, depth, 0, pixels, type, IntPtr.Zero);
+                        else if (one) OpenGLDriverCalls.TexImage1D((Native.TextureTarget)target, level, (Native.PixelInternalFormat)OpenGLImageValues.Format(request.InternalFormat), width, 0, pixels, type, IntPtr.Zero);
+                        else OpenGLDriverCalls.TexImage2D((Native.TextureTarget)target, level, (Native.PixelInternalFormat)OpenGLImageValues.Format(request.InternalFormat), width, height, 0, pixels, type, IntPtr.Zero);
                     }
                     CheckTextureStep(operation, creationGuard);
                 }
@@ -122,9 +122,9 @@ internal sealed partial class OpenGLBackend
         }
         if (!multisample)
         {
-            GL.TextureParameter(name, Native.TextureParameterName.TextureBaseLevel, request.BaseLevel);
+            OpenGLDriverCalls.TextureParameter(name, Native.TextureParameterName.TextureBaseLevel, request.BaseLevel);
             CheckTextureStep(operation, creationGuard);
-            GL.TextureParameter(name, Native.TextureParameterName.TextureMaxLevel, request.MaxLevel);
+            OpenGLDriverCalls.TextureParameter(name, Native.TextureParameterName.TextureMaxLevel, request.MaxLevel);
             CheckTextureStep(operation, creationGuard);
         }
         GpuTextureViewMetadata? view = immutable ? new(0, request.Levels, 0,

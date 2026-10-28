@@ -17,7 +17,7 @@ internal static class OpenGLImageBindings
         if (unit < 0 || unit >= backend.Capabilities.MaxCombinedTextureImageUnits) throw new ArgumentOutOfRangeException(nameof(unit));
         if (cache.ActiveTextureKnowledge == unit) return;
         cache.ActiveTextureKnowledge = null;
-        GL.ActiveTexture(Native.TextureUnit.Texture0 + unit);
+        OpenGLDriverCalls.ActiveTexture(Native.TextureUnit.Texture0 + unit);
         backend.RequireContext();
         cache.ActiveTextureKnowledge = unit;
     }
@@ -28,7 +28,7 @@ internal static class OpenGLImageBindings
         int? unit = cache.ActiveTextureKnowledge;
         if (unit is int known && cache.TryGetCachedBoundTexture(target, known, out int previous) && previous == texture) return;
         cache.ForgetImageBinding(target, unit);
-        GL.BindTexture((Native.TextureTarget)target, texture);
+        OpenGLDriverCalls.BindTexture((Native.TextureTarget)target, texture);
         cache.RecordTextureBind();
         backend.RequireContext();
         if (unit is int selected) cache.ImageBindings(selected)[target] = texture;
@@ -62,7 +62,7 @@ internal static class OpenGLImageBindings
         if (unit < 0 || unit >= backend.Capabilities.MaxCombinedTextureImageUnits) throw new ArgumentOutOfRangeException(nameof(unit));
         if (cache.SamplerKnowledge(unit) == sampler) return;
         cache.SetSamplerKnowledge(unit, null);
-        GL.BindSampler(unit, sampler);
+        OpenGLDriverCalls.BindSampler(unit, sampler);
         cache.RecordSamplerBind();
         backend.RequireContext();
         cache.SetSamplerKnowledge(unit, sampler);
@@ -83,7 +83,7 @@ internal static class OpenGLImageBindings
         cache.RequireBoundaryResource(EPipelineState.RenderbufferBinding, renderbuffer);
         if (cache.RenderbufferKnowledge == renderbuffer) return;
         cache.RenderbufferKnowledge = null;
-        GL.BindRenderbuffer(Native.RenderbufferTarget.Renderbuffer, renderbuffer);
+        OpenGLDriverCalls.BindRenderbuffer(Native.RenderbufferTarget.Renderbuffer, renderbuffer);
         backend.RequireContext();
         cache.RenderbufferKnowledge = renderbuffer;
     }

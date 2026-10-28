@@ -11,7 +11,7 @@ internal static class OpenGLProgramSelection
     {
         if (!cache.PrepareProgramSelection(program)) return;
         var origin=GpuResource.CaptureCreationContext(GpuResourceKind.Program);
-        GL.UseProgram(program);
+        OpenGLDriverCalls.UseProgram(program);
         if(!VanillaGraphicsExpanded.Rendering.Integration.RenderContextRegistry.IsCurrentResourceContext(origin))
             throw new System.InvalidOperationException("Program selection returned in a foreign context.");
         cache.NotifyProgramBound(program);

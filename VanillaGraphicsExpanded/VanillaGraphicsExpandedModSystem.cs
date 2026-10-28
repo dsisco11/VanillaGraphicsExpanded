@@ -51,8 +51,7 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem, ILiveConfigura
         harmony = new HarmonyLib.Harmony(Constants.ModId);
         PBR.Tessellation.TerrainTessellationPrograms.Log = message => api.Logger.Warning(message);
         harmony.PatchAll();
-        // Rebuild render API callers only after their native state callees have been routed.
-        EngineRenderApiStatePatches.Apply(harmony);
+        OpenGLBindingInterception.Install();
         LiquidPoolInputBridgeHook.Install(harmony);
 
         // Atlas binding is injected by the renderer transpiler; retain frame-level mapping refresh.
@@ -64,6 +63,8 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem, ILiveConfigura
             () =>
             {
                 if (disposed) return;
+                try { Rendering.Integration.EngineRenderContext.RegisterCurrent(); }
+                catch (InvalidOperationException) { return; } // The optional preload may precede window availability.
                 GlExtensions.TryLoadExtensions();
                 GpuSupport.TryInitialize();
                 GlDebug.TrySuppressGroupDebugMessages();
@@ -325,6 +326,7 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem, ILiveConfigura
         }
         finally
         {
+            OpenGLBindingInterception.Uninstall();
             // Unpatch Harmony patches
             TryCleanup(PBR.HeldLighting.HeldLightSystem.Stop, cleanupFailures);
             TryCleanup(() => harmony?.UnpatchAll(Constants.ModId), cleanupFailures);

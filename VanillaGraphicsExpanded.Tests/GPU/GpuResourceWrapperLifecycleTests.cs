@@ -578,8 +578,7 @@ public sealed class GpuResourceWrapperLifecycleTests(HeadlessGLFixture fixture)
     private static Harmony Patch(string method)
     {
         var harmony = new Harmony($"VGE.Tests.GpuResourceWrapperLifecycle.{method}");
-        harmony.Patch(AccessTools.Method(typeof(GpuResourceWrapperLifecycleTests), method),
-            transpiler: new HarmonyMethod(typeof(EngineStateSwitchingHook), nameof(EngineStateSwitchingHook.Transpiler)));
+
         return harmony;
     }
 

@@ -251,9 +251,9 @@ receive stale staged bytes. PBO payloads retain typed buffer references through 
 client payloads and PBO transfers use semantic RHI upload/transfer operations. These payload certificates are separate from consumer references and content
 readiness. Physical-context tools use the same creation/retirement path without another registry.
 
-Exact image adapters live in backend texture, buffer-texture and renderbuffer external modules; sampler
-and image deletion overloads share the backend lifetime boundary. Each external call preserves its
-original signature and native errors, executes once, and uses the existing observation/publication service.
+Cache-owned native image observations reconcile texture, buffer-texture and renderbuffer effects;
+sampler and image deletion observations share the existing retirement authority. Generated native
+callbacks preserve arguments and errors, dispatch once and invoke the existing publication services.
 External selectors never use managed duplicate suppression; uncertain binding facts recover lazily.
 
 ## Synchronization, results and auxiliary execution
@@ -297,9 +297,8 @@ behavior remains authoritative for those integration facts.
 
 `GpuSyncRef`, `GpuQueryRef`, `GpuTransformFeedbackRef`, `GpuSemaphoreRef` and `GpuMemoryObjectRef`
 retain existing owners through wrapper-owned conversions. The manager certifies published usability;
-references expose no disposal, handle-transfer or native execution methods. Exact auxiliary deletion
-adapters preserve their original loader/signatures and per-name outcomes before shared retirement
-publication. Managed deletion uses the admitted backend after original-context queue admission.
+references expose no disposal, handle-transfer or native execution methods. Native auxiliary deletion
+observations preserve per-name outcomes after original dispatch and use shared retirement publication. Managed deletion uses the admitted backend after original-context queue admission.
 
 ## Recorded command ownership
 
@@ -385,13 +384,14 @@ run in its originating context. Weak recipients are pruned during acquisition, p
 
 ## External coverage and consumers
 
-Compiler-checked adapters redirect supported calls discovered in the built-in engine assemblies through
-the focused OpenGL backend execution modules. Allowed OpenTK owners are GL (also named Core by adapters), GL.Ext and GL.Arb. Other auxiliary
-owners and legacy fixed-function facilities are outside interception. Generic discovery handles concrete
-value-type instantiations from built-in assembly references. The current discovery implementation misses
-arbitrary mod assemblies, delegates, dynamic callers and OpenGL4 callers. Those are coverage defects
-against the required complete-interception contract, not a supported external-mutation mode. A registry
-entry does not repair missing interception, and routine purges must not compensate for that defect.
+Selected native entries in both `OpenTK.Graphics.OpenGL.GL` and `OpenTK.Graphics.OpenGL4.GL`
+binding tables have generated ABI-compatible callbacks. Supported Core/Ext/Arb operations reach the
+same cache-owned post-call observations regardless of caller assembly, generic element type, delegate
+or dynamically generated caller. OpenTK retains its managed argument marshalling. The callback forwards
+the original native operation once, then contains observation failures without changing native outputs
+or errors. Other auxiliary owners, legacy fixed-function facilities, other graphics libraries and
+independently cached driver pointers remain outside this boundary. Registry membership alone cannot
+repair missing observation, and routine purges must not compensate for a coverage defect.
 
 Cloud and depth consumers retain typed borrowers across stable selections and share existing owned material
 depth directly. Their content readiness, upload/generation certificates, frame qualification and producer
@@ -417,19 +417,26 @@ Unknown incoming selectors and selective restoration facts are queried by the ca
 services. Baseline independent blending, clip control, sample shading and fixed-index restart have no
 older-context fallback. Existing limits and profile distinctions remain authoritative.
 
-Exact engine fixed-state calls live in backend `State/External/EngineStateCalls` modules. They preserve
-the original overload, arguments and native error behavior, issue one native call without suppression or
-normalization. Represented legal effects repopulate only their affected fields after dispatch; defined
-rejections preserve prior facts, while interrupted or unspecified outcomes leave those fields unknown.
-Original-context checks prevent completion from modifying another context's admitted cache. Invalid native
-arguments never become a managed setter exception. Metadata/resource adapters use their corresponding focused backend modules.
-Pixel-store handlers instead preserve legal integer/boolean conversion effects in independent field
-knowledge; complete layout acquisition queries only missing fields. Failed dispatch or unspecified
-float-to-integer conversion withdraws the affected field. Draw-route handlers retain established object
-identity and publish legal complete routes, using cached double-buffer/stereo surface facts for window
-selectors; read routing has no mirrored state. Routine frame advancement,
+External fixed-state and resource effects are reconciled by cache-owned methods under
+`State/Observation/Native`. `InterceptOpenGL` attributes select native symbols; ABI-identical aliases
+share one handler. Generated callbacks dispatch before observation, without equality suppression or
+managed admission vetoes. Legal represented effects update only affected fields; proven rejections
+preserve prior facts, while uncertain effects withdraw only affected knowledge. Context checks prevent
+completion from changing a foreign cache. Initial capability discovery occurs explicitly outside native
+callbacks; observations without an admitted capability snapshot leave the context's facts unknown
+without draining native errors.
+
+Backend execution uses generated `OpenGLDriverCalls` overloads to invoke saved original pointers,
+bypassing external observation while retaining its own admission, suppression and manager publication.
+Shared effect logic never dispatches an external operation a second time. Native callbacks expose no
+begin/complete receipt; controlled operations own actual execution and cleanup synchronously.
+
+Pixel-store observations retain legal conversion effects in independent field knowledge; complete
+layout acquisition reads only missing fields. Draw-route observations retain established object
+identity and publish legal complete routes using cached surface facts; read routing has no mirrored
+state. Immutable framebuffer declarations constrain managed configuration, while executed routing
+knowledge follows external changes and controls restoration and suppression. Routine frame advancement,
 resize callbacks, attachment publication and wrapper detach do not purge executed knowledge.
-Native calls in these modules are outside rewritten engine call sites, so forwarding cannot recurse.
 
 ## Resource diagnostics
 

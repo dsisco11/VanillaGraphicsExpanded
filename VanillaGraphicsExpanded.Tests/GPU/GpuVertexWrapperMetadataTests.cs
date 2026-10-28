@@ -32,11 +32,11 @@ public sealed class GpuVertexWrapperMetadataTests(HeadlessGLFixture fixture)
             Assert.Equal(sentinel.VertexArrayId,GL.GetInteger(GetPName.VertexArrayBinding));
             var entry=GpuResourceManagerSystem.CurrentManager!.GetResourceRegistration(vao)!;
             ulong revision=entry.MetadataRevision,storage=entry.StorageRevision;
-            OpenGLVertexCalls.ExecuteCoreVertexArrayVertexBuffer(vao.VertexArrayId,2,buffer.BufferId,(IntPtr)16,16);
-            OpenGLVertexCalls.ExecuteCoreVertexArrayBindingDivisor(vao.VertexArrayId,2,3);
-            OpenGLVertexCalls.ExecuteCoreVertexArrayAttribFormat(vao.VertexArrayId,0,2,VertexAttribType.Float,false,4);
-            OpenGLVertexCalls.ExecuteCoreVertexArrayAttribBinding(vao.VertexArrayId,0,2);
-            OpenGLVertexCalls.ExecuteCoreEnableVertexArrayAttrib(vao.VertexArrayId,0);
+            GL.VertexArrayVertexBuffer(vao.VertexArrayId,2,buffer.BufferId,(IntPtr)16,16);
+            GL.VertexArrayBindingDivisor(vao.VertexArrayId,2,3);
+            GL.VertexArrayAttribFormat(vao.VertexArrayId,0,2,VertexAttribType.Float,false,4);
+            GL.VertexArrayAttribBinding(vao.VertexArrayId,0,2);
+            GL.EnableVertexArrayAttrib(vao.VertexArrayId,0);
             OpenTK.Graphics.OpenGL4.GL.VertexArrayElementBuffer(vao.VertexArrayId, buffer.BufferId);
             Assert.True(entry.MetadataRevision>revision); Assert.Equal(storage,entry.StorageRevision);
             if(direct)
@@ -60,8 +60,7 @@ public sealed class GpuVertexWrapperMetadataTests(HeadlessGLFixture fixture)
     {
         fixture.EnsureContextValid(); fixture.InitializeResourceDisposal();
         var harmony = new Harmony("Tests.RejectedExternalElementBinding");
-        harmony.Patch(AccessTools.Method(typeof(GpuVertexWrapperMetadataTests), nameof(BindExternalElement)),
-            transpiler: new HarmonyMethod(typeof(EngineStateSwitchingHook), nameof(EngineStateSwitchingHook.Transpiler)));
+
         try
         {
             using var vao=NativeResourceSetup.CreateVertexArray(); OpenGLVertexSelection.Bind(OpenGlStateCache.Current, vao.VertexArrayId);

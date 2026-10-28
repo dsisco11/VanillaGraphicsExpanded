@@ -167,7 +167,7 @@ public sealed class GpuProgramNarrowPublicationTests(HeadlessGLFixture fixture)
 
     /// <summary>Native link dispatch cannot reenter metadata acquisition before its deferred completion boundary.</summary>
     [Fact]
-    public void SubmissionRejectsReentrantAcquisition()
+    public unsafe void SubmissionRejectsReentrantAcquisition()
     {
         fixture.EnsureContextValid(); fixture.InitializeResourceDisposal();
         var executionBackend = new VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBackend(OpenGlStateCache.Current);
@@ -185,8 +185,14 @@ public sealed class GpuProgramNarrowPublicationTests(HeadlessGLFixture fixture)
                 Assert.Null(manager.AcquireResource(GpuResourceKind.Program, owner.ProgramId, reader));
                 Assert.False(entry.MetadataAvailable);
             };
-            harmony.Patch(AccessTools.Method(typeof(OpenTK.Graphics.OpenGL4.GL), nameof(GL.LinkProgram), [typeof(int)]),
-                prefix: new HarmonyMethod(typeof(GpuProgramNarrowPublicationTests), nameof(ObserveLink)));
+            using var native = new NativeDriverCapture();
+            nint original = native.Original("glLinkProgram");
+            native.Add("glLinkProgram", new NativeLink(program =>
+            {
+                native.Observe(ObserveLink);
+                ((delegate* unmanaged[Stdcall]<uint, void>)original)(program);
+            }));
+            native.Install();
             executionBackend.SubmitProgramExecutable(owner);
             Assert.Equal(1, callbacks);
             Assert.Equal(0, reader.Calls);
@@ -215,8 +221,7 @@ public sealed class GpuProgramNarrowPublicationTests(HeadlessGLFixture fixture)
             int location = GL.GetUniformLocation(owner.ProgramId, "inputs[0]");
             var reader = new RejectReader();
             entry.Reader = reader;
-            harmony.Patch(AccessTools.Method(typeof(GpuProgramNarrowPublicationTests), nameof(SetExternalUnit)),
-                transpiler: new HarmonyMethod(typeof(EngineStateSwitchingHook), nameof(EngineStateSwitchingHook.Transpiler)));
+
             PatchQueries(harmony);
             interfaceQueries = unitQueries = 0;
             SetExternalUnit(owner.ProgramId, location, 4);
@@ -356,6 +361,9 @@ public sealed class GpuProgramNarrowPublicationTests(HeadlessGLFixture fixture)
     /// <summary>Counts native setters to prove managed validation happens before driver dispatch.</summary>
     private static void CountAssignment() => assignmentCalls++;
 
+    /// <summary>Matches native executable link submission.</summary>
+    [System.Runtime.InteropServices.UnmanagedFunctionPointer(System.Runtime.InteropServices.CallingConvention.StdCall)]
+    private delegate void NativeLink(uint program);
     /// <summary>Runs a deliberately reentrant query attempt during actual native link dispatch.</summary>
     private static void ObserveLink() => duringLink?.Invoke();
 

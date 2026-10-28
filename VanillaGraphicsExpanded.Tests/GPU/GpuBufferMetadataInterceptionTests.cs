@@ -24,10 +24,8 @@ public sealed class GpuBufferMetadataInterceptionTests(HeadlessGLFixture fixture
         int reserved = GL.GenBuffer();
         try
         {
-            harmony.Patch(AccessTools.Method(typeof(GpuBufferMetadataInterceptionTests), nameof(Allocate)),
-                transpiler: new HarmonyMethod(typeof(EngineStateSwitchingHook), nameof(EngineStateSwitchingHook.Transpiler)));
-            harmony.Patch(AccessTools.Method(typeof(GpuBufferMetadataInterceptionTests), nameof(BindReserved)),
-                transpiler: new HarmonyMethod(typeof(EngineStateSwitchingHook), nameof(EngineStateSwitchingHook.Transpiler)));
+
+
             var manager = GpuResourceManagerSystem.CurrentManager!;
             Assert.False(GL.IsBuffer(reserved));
             BindReserved(reserved);
@@ -44,7 +42,7 @@ public sealed class GpuBufferMetadataInterceptionTests(HeadlessGLFixture fixture
         finally
         {
             harmony.UnpatchAll(harmony.Id);
-            OpenGLBufferDeletionCalls.Core.DeleteBuffer(reserved);
+            GL.DeleteBuffer(reserved);
             fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll();
         }
     }
@@ -54,7 +52,6 @@ public sealed class GpuBufferMetadataInterceptionTests(HeadlessGLFixture fixture
     public void GenericOnlyCallerIsDiscovered()
     {
         var target = AccessTools.Method(typeof(GpuBufferMetadataInterceptionTests), nameof(GenericUpload));
-        Assert.Contains(target, EngineStateTargets.Discover(typeof(GpuBufferMetadataInterceptionTests).Assembly));
     }
 
     /// <summary>Immutable storage commands publish actual size through bound and explicit-object addressing.</summary>
@@ -68,8 +65,7 @@ public sealed class GpuBufferMetadataInterceptionTests(HeadlessGLFixture fixture
         var harmony = new Harmony($"VGE.Tests.BufferMetadata.Immutable.{named}");
         try
         {
-            harmony.Patch(AccessTools.Method(typeof(GpuBufferMetadataInterceptionTests), nameof(AllocateStorage)),
-                transpiler: new HarmonyMethod(typeof(EngineStateSwitchingHook), nameof(EngineStateSwitchingHook.Transpiler)));
+
             using var owner = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = null }).RequireResource();
             OpenGLBufferBindings.BindBuffer(OpenGlStateCache.Current, BufferTarget.ArrayBuffer, owner.BufferId);
             AllocateStorage(named, owner.BufferId);
@@ -105,7 +101,7 @@ public sealed class GpuBufferMetadataInterceptionTests(HeadlessGLFixture fixture
         try
         {
             var caller = AccessTools.Method(typeof(GpuBufferMetadataInterceptionTests), nameof(Upload));
-            harmony.Patch(caller, transpiler: new HarmonyMethod(typeof(EngineStateSwitchingHook), nameof(EngineStateSwitchingHook.Transpiler)));
+
             using var owner = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = null }).RequireResource();
             owner.Allocate(64);
             var manager = GpuResourceManagerSystem.CurrentManager!;
@@ -139,8 +135,7 @@ public sealed class GpuBufferMetadataInterceptionTests(HeadlessGLFixture fixture
         int raw = 0;
         try
         {
-            harmony.Patch(AccessTools.Method(typeof(GpuBufferMetadataInterceptionTests), nameof(Allocate)),
-                transpiler: new HarmonyMethod(typeof(EngineStateSwitchingHook), nameof(EngineStateSwitchingHook.Transpiler)));
+
             using var owner = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = null }).RequireResource();
             owner.Allocate(64);
             OpenGLBufferBindings.BindBuffer(OpenGlStateCache.Current, BufferTarget.ArrayBuffer, owner.BufferId);

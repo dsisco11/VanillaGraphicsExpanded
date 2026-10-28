@@ -30,14 +30,14 @@ public sealed class EngineEarlyDeletionTests(HeadlessGLFixture fixture)
             if (kind == GpuResourceKind.Query)
             {
                 id = GL.GenQuery(); GL.BeginQuery(QueryTarget.SamplesPassed, id); GL.EndQuery(QueryTarget.SamplesPassed);
-                OpenGLAuxiliaryDeletionCalls.Core.DeleteQuery(id);
-                OpenGLAuxiliaryDeletionCalls.Arb.DeleteQueries(2, new[] { id, 0 });
+                GL.DeleteQuery(id);
+                GL.Arb.DeleteQueries(2, new[] { id, 0 });
                 Assert.False(GL.IsQuery(id));
             }
             else
             {
                 id = GL.GenTransformFeedback(); GL.BindTransformFeedback(TransformFeedbackTarget.TransformFeedback, id);
-                OpenGLAuxiliaryDeletionCalls.Core.DeleteTransformFeedbacks(3, new[] { id, id, 0 });
+                GL.DeleteTransformFeedbacks(3, new[] { id, id, 0 });
                 Assert.False(GL.IsTransformFeedback(id));
             }
             Assert.NotEqual(0, id);
@@ -62,7 +62,7 @@ public sealed class EngineEarlyDeletionTests(HeadlessGLFixture fixture)
         nint id = GL.FenceSync(SyncCondition.SyncGpuCommandsComplete, WaitSyncFlags.None);
         try
         {
-            OpenGLAuxiliaryDeletionCalls.Core.DeleteSync(id);
+            GL.DeleteSync(id);
             Assert.False(GL.IsSync(id));
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
@@ -86,15 +86,15 @@ public sealed class EngineEarlyDeletionTests(HeadlessGLFixture fixture)
             {
                 case GpuResourceKind.Texture:
                     id = GL.GenTexture(); GL.BindTexture(TextureTarget.Texture2D, id);
-                    EngineStateCalls.DeleteTexture(id); Assert.False(GL.IsTexture(id)); break;
+                    GL.DeleteTexture(id); Assert.False(GL.IsTexture(id)); break;
                 case GpuResourceKind.Renderbuffer:
                     id = GL.GenRenderbuffer(); GL.BindRenderbuffer(RenderbufferTarget.Renderbuffer, id);
-                    EngineStateCalls.DeleteRenderbuffer(id); Assert.False(GL.IsRenderbuffer(id)); break;
+                    GL.DeleteRenderbuffer(id); Assert.False(GL.IsRenderbuffer(id)); break;
                 case GpuResourceKind.Sampler:
-                    id = GL.GenSampler(); EngineStateCalls.DeleteSampler(id); Assert.False(GL.IsSampler(id)); break;
+                    id = GL.GenSampler(); GL.DeleteSampler(id); Assert.False(GL.IsSampler(id)); break;
                 case GpuResourceKind.Buffer:
                     id = GL.GenBuffer(); GL.BindBuffer(BufferTarget.ArrayBuffer, id);
-                    EngineStateCalls.DeleteBuffer(id); Assert.False(GL.IsBuffer(id)); break;
+                    GL.DeleteBuffer(id); Assert.False(GL.IsBuffer(id)); break;
             }
             Assert.NotEqual(0, id);
             Assert.Equal(ErrorCode.NoError, GL.GetError());

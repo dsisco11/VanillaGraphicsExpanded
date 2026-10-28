@@ -7,7 +7,7 @@ internal static unsafe partial class OpenGLTexturesCalls
 {
     #region Private
     /// <summary>Returns defined nearest-integer results; unspecified tie/overflow outcomes retain targeted acquisition.</summary>
-    private static int? ConvertTextureParameter(float value)
+    internal static int? ConvertTextureParameter(float value)
     {
         double rounded = Math.Round((double)value);
         if (!float.IsFinite(value) || rounded < int.MinValue || rounded > int.MaxValue

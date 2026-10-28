@@ -123,13 +123,13 @@ public sealed class EngineBoundaryRestorationTests(HeadlessGLFixture fixture)
 #endif
     }
 
-    /// <summary>Exact external state changes withdraw affected knowledge and cannot interrupt managed boundary authority.</summary>
+    /// <summary>External effects update targeted knowledge without managed admission vetoes or rejection guesses.</summary>
     [Fact]
-    public void ExternalOperationsWithdrawTargetedKnowledgeEvenOnFailure()
+    public void ExternalOperationsPublishTargetedKnowledgeWithoutVetoes()
     {
         var cache = Prepare();
         cache.SetDepthFunc(DepthFunction.Greater); cache.SetPointSize(2);
-        EngineStateCalls.DepthFunc(DepthFunction.Less);
+        GL.DepthFunc(DepthFunction.Less);
 #if DEBUG
         long calls = cache.FixedFunctionCalls;
 #endif
@@ -142,8 +142,24 @@ public sealed class EngineBoundaryRestorationTests(HeadlessGLFixture fixture)
         Assert.Equal(calls + 1, cache.FixedFunctionCalls);
 #endif
         Assert.True(cache.TryBeginEngineBoundary(new EngineBoundaryDeclaration("Empty"), out var scope));
-        try { Assert.Throws<InvalidOperationException>(() => EngineStateCalls.DepthMask(false)); }
+        try
+        {
+            GL.DepthMask(false);
+            Assert.False(GL.GetBoolean(GetPName.DepthWritemask));
+            // OpenGL rejects an invalid comparison; observation preserves the prior established value.
+            GL.DepthFunc((DepthFunction)(-1));
+            Assert.Equal(ErrorCode.InvalidEnum, GL.GetError());
+            Assert.Equal((int)DepthFunction.Greater, GL.GetInteger(GetPName.DepthFunc));
+            Assert.Throws<InvalidOperationException>(() => cache.SetDepthWriteMask(true));
+        }
         finally { scope!.Dispose(); }
+#if DEBUG
+        calls = cache.FixedFunctionCalls;
+#endif
+        cache.SetDepthFunc(DepthFunction.Greater);
+#if DEBUG
+        Assert.Equal(calls, cache.FixedFunctionCalls);
+#endif
     }
     #endregion
 

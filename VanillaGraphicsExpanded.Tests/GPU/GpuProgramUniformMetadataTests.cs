@@ -11,7 +11,6 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GPU")]
 public sealed class GpuProgramUniformMetadataTests(HeadlessGLFixture fixture)
 {
-    private static int nativeCalls;
     #region Public API
     /// <summary>Sampler units publish metadata while numeric contents preserve revisions and caller program selections.</summary>
     [Theory]
@@ -66,14 +65,14 @@ public sealed class GpuProgramUniformMetadataTests(HeadlessGLFixture fixture)
             var entry=(GpuResourceMetadataEntry<GpuProgramMetadata>)GpuResourceManagerSystem.CurrentManager!.GetResourceRegistration(program)!;
             OpenGLProgramAssignments.SetUnit(program.ProgramId,sampler,3);
             var reader=new CountingReader(entry.Reader!); entry.Reader=reader;
-            harmony.Patch(AccessTools.Method(typeof(GL),nameof(GL.Uniform1),[typeof(int),typeof(int)]),prefix:new HarmonyMethod(typeof(GpuProgramUniformMetadataTests),nameof(CountNative)));
-            harmony.Patch(AccessTools.Method(typeof(OpenTK.Graphics.OpenGL4.GL),nameof(GL.ProgramUniform1),[typeof(int),typeof(int),typeof(int)]),prefix:new HarmonyMethod(typeof(GpuProgramUniformMetadataTests),nameof(CountNative)));
-            nativeCalls=0; ulong revision=entry.MetadataRevision;
+            using var native = new BindingCallCapture();
+            int NativeCalls() => native.Calls(nameof(GL.Uniform1)) + native.Calls(nameof(GL.ProgramUniform1));
+            ulong revision=entry.MetadataRevision;
             OpenGLProgramAssignments.SetUnit(program.ProgramId,sampler,3);
-            Assert.Equal(0,nativeCalls); Assert.Equal(0,reader.Reads); Assert.Equal(revision,entry.MetadataRevision);
-            OpenGLProgramAssignments.SetUnit(program.ProgramId,numeric,3); Assert.Equal(1,nativeCalls); Assert.Equal(0,reader.Reads); Assert.Equal(revision,entry.MetadataRevision);
+            Assert.Equal(0,NativeCalls()); Assert.Equal(0,reader.Reads); Assert.Equal(revision,entry.MetadataRevision);
+            OpenGLProgramAssignments.SetUnit(program.ProgramId,numeric,3); Assert.Equal(1,NativeCalls()); Assert.Equal(0,reader.Reads); Assert.Equal(revision,entry.MetadataRevision);
             entry.BeginRefresh(GpuMetadataChange.Metadata); OpenGLProgramAssignments.SetUnit(program.ProgramId,sampler,3);
-            Assert.Equal(2,nativeCalls); Assert.Equal(1,reader.Reads); Assert.True(entry.IsUsable); Assert.True(entry.MetadataRevision>revision); Assert.Equal(ErrorCode.NoError,GL.GetError());
+            Assert.Equal(2,NativeCalls()); Assert.Equal(1,reader.Reads); Assert.True(entry.IsUsable); Assert.True(entry.MetadataRevision>revision); Assert.Equal(ErrorCode.NoError,GL.GetError());
         }
         finally { harmony.UnpatchAll(harmony.Id); OpenGLProgramSelection.Select(OpenGlStateCache.Current, 0); fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
@@ -89,9 +88,9 @@ public sealed class GpuProgramUniformMetadataTests(HeadlessGLFixture fixture)
             using var capabilities=new DirectStateAccessCapabilityScope(direct); using var target=NativeResourceSetup.CreateProgramPipeline();
             var manager=GpuResourceManagerSystem.CurrentManager!; var entry=manager.GetResourceRegistration(target); Assert.NotNull(entry); Assert.True(GL.IsProgramPipeline(target.PipelineId));
             Assert.Equal(sentinel.PipelineId,GL.GetInteger(GetPName.ProgramPipelineBinding)); Assert.Equal(program.ProgramId,GL.GetInteger(GetPName.CurrentProgram));
-            harmony.Patch(AccessTools.Method(typeof(GL),nameof(GL.BindProgramPipeline),[typeof(int)]),prefix:new HarmonyMethod(typeof(GpuProgramUniformMetadataTests),nameof(CountNative))); nativeCalls=0;
+            using var native = new BindingCallCapture();
             GL.UseProgramStages(target.PipelineId,ProgramStageMask.ComputeShaderBit,program.ProgramId); GL.ActiveShaderProgram(target.PipelineId,program.ProgramId);
-            Assert.Equal(0,nativeCalls); Assert.Equal(sentinel.PipelineId,GL.GetInteger(GetPName.ProgramPipelineBinding)); Assert.Equal(program.ProgramId,GL.GetInteger(GetPName.CurrentProgram));
+            Assert.Equal(0,native.Calls(nameof(GL.BindProgramPipeline))); Assert.Equal(sentinel.PipelineId,GL.GetInteger(GetPName.ProgramPipelineBinding)); Assert.Equal(program.ProgramId,GL.GetInteger(GetPName.CurrentProgram));
             GL.GetProgramPipeline(target.PipelineId,ProgramPipelineParameter.ComputeShader,out int stage); GL.GetProgramPipeline(target.PipelineId,ProgramPipelineParameter.ActiveProgram,out int active); Assert.Equal(program.ProgramId,stage); Assert.Equal(program.ProgramId,active);
             int id=target.PipelineId; VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.ProgramPipeline, id)); Assert.False(target.IsValid); Assert.False(GL.IsProgramPipeline(id)); Assert.Equal(ErrorCode.NoError,GL.GetError());
         }
@@ -100,8 +99,6 @@ public sealed class GpuProgramUniformMetadataTests(HeadlessGLFixture fixture)
     #endregion
 
     #region Private
-    /// <summary>Counts exact observed native dispatches without changing their behavior.</summary>
-    private static void CountNative() => nativeCalls++;
     /// <summary>Counts canonical reader calls while retaining native acquisition semantics.</summary>
     private sealed class CountingReader(IGpuResourceMetadataReader<GpuProgramMetadata> inner):IGpuResourceMetadataReader<GpuProgramMetadata>
     {

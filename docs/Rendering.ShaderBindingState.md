@@ -139,10 +139,12 @@ deletion invalidates their original associations before a reused name can be sel
 cloud liquid depth uses the same typed route. Material depth is supplied as its existing owned texture.
 These typed paths do not use raw-ID slot invalidation. Raw identity admission remains distinct from
 binding comparison: a numeric name alone does not establish an original allocation association.
-Complete GL interception is required regardless of caller assembly. The current built-in assembly
-rewriter's missing mod, delegate, dynamic and OpenGL4 coverage is a correctness defect, not a supported
-external-mutation mode; registry membership does not repair it. Routine state purges must not compensate
-for missing interception.
+Supported operations through both OpenTK GL binding tables are observed at native dispatch,
+regardless of caller assembly, delegate, generic instantiation or dynamic caller. Backend-owned work
+uses saved originals and publishes through its existing owner once. Native observations never veto an
+external call or deliver observer exceptions to its caller. Other native libraries and independently
+cached driver pointers are outside this boundary; routine state purges do not compensate for missing
+coverage within the supported tables.
 
 [OpenGlStateCache.ResourceSlots](../VanillaGraphicsExpanded/Rendering/RHI/Backends/OpenGL/State/Observation/OpenGlStateCache.ResourceSlots.cs)
 adds complete image-view and indexed buffer-range keys to the existing context cache. Cache invalidation,

@@ -22,6 +22,10 @@ internal sealed partial class OpenGlStateCache
         _ = TryGetImmutableFramebuffer(framebuffer.FboId, out var existing);
         if (!immutableFramebuffers.TryAdd((framebuffer.OriginalContext, framebuffer.FboId), framebuffer))
             throw new InvalidOperationException($"Immutable framebuffer identity {framebuffer.FboId} is already registered to {existing?.GetType().Name}.");
+        // Sealing follows completed controlled construction. Later external routing observations
+        // replace this executed fact; the immutable declaration remains a managed policy constraint.
+        RememberFramebufferDrawRouting(framebuffer.FboId, Array.ConvertAll(framebuffer.CaptureDeclaredRouting(),
+            value => value == -1 ? OpenTK.Graphics.OpenGL.DrawBuffersEnum.None : OpenTK.Graphics.OpenGL.DrawBuffersEnum.ColorAttachment0 + value));
     }
     /// <summary>Withdraws only the matching immutable declaration during disposal or handle transfer.</summary>
     internal void UnregisterImmutableFramebuffer(int id, GpuFramebuffer framebuffer)

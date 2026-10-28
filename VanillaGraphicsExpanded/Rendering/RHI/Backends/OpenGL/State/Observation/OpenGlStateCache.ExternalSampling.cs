@@ -10,7 +10,6 @@ internal sealed partial class OpenGlStateCache
     /// <summary>Withholds one mask word during exact dispatch, preserving independent words.</summary>
     internal void WithdrawExternalSampleMask(int index)
     {
-        ValidateBoundaryMutation(sampleMaskWords: true);
         sampleMasks.Remove(index);
     }
 

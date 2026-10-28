@@ -52,8 +52,9 @@ internal sealed partial class OpenGLBackend
                     RequireContext();
                 }
                 OpenGLFeedbackBindings.Bind(cache, owner.TransformFeedbackId);
-                GL.BeginTransformFeedback(nativePrimitive);
+                OpenGLDriverCalls.BeginTransformFeedback(nativePrimitive);
                 RequireContext();
+                cache.RecordFeedbackActivity(true, false);
                 feedbackCapture = new(previous, retained);
             }
             catch
@@ -89,7 +90,7 @@ internal sealed partial class OpenGLBackend
             RequireContext();
             var capture = feedbackCapture ?? throw new InvalidOperationException("Capture is not active.");
             Exception? failure = null;
-            try { GL.EndTransformFeedback(); RequireContext(); }
+            try { OpenGLDriverCalls.EndTransformFeedback(); RequireContext(); cache.RecordFeedbackActivity(false, false); }
             catch (Exception error) { failure = error; throw; }
             finally
             {
@@ -116,7 +117,7 @@ internal sealed partial class OpenGLBackend
             RequireContext();
             var capture = feedbackCapture ?? throw new InvalidOperationException("Capture is not active.");
             if (capture.Paused) throw new InvalidOperationException("Capture is already paused.");
-            GL.PauseTransformFeedback(); RequireContext(); capture.Paused = true;
+            OpenGLDriverCalls.PauseTransformFeedback(); RequireContext(); cache.RecordFeedbackActivity(true, true); capture.Paused = true;
         }
         finally { feedbackTransition = false; }
     }
@@ -131,7 +132,7 @@ internal sealed partial class OpenGLBackend
             RequireContext();
             var capture = feedbackCapture ?? throw new InvalidOperationException("Capture is not active.");
             if (!capture.Paused) throw new InvalidOperationException("Capture is not paused.");
-            GL.ResumeTransformFeedback(); RequireContext(); capture.Paused = false;
+            OpenGLDriverCalls.ResumeTransformFeedback(); RequireContext(); cache.RecordFeedbackActivity(true, false); capture.Paused = false;
         }
         finally { feedbackTransition = false; }
     }

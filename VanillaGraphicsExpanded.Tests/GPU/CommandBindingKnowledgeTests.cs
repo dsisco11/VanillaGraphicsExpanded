@@ -25,8 +25,7 @@ public sealed class CommandBindingKnowledgeTests(HeadlessGLFixture fixture)
     {
         fixture.EnsureContextValid(); fixture.InitializeResourceDisposal();
         var harmony = new Harmony("Tests.CommandBindingReentrantSelector");
-        harmony.Patch(AccessTools.Method(typeof(CommandBindingKnowledgeTests), nameof(SelectExternal)),
-            transpiler: new HarmonyMethod(typeof(EngineStateSwitchingHook), nameof(EngineStateSwitchingHook.Transpiler)));
+
         try
         {
             using var before = NativeResourceSetup.CreateVertexArray(); using var after = NativeResourceSetup.CreateVertexArray();
@@ -50,8 +49,7 @@ public sealed class CommandBindingKnowledgeTests(HeadlessGLFixture fixture)
     {
         fixture.EnsureContextValid(); fixture.InitializeResourceDisposal();
         var harmony = new Harmony("Tests.CommandBindingExternalSelectors");
-        harmony.Patch(AccessTools.Method(typeof(CommandBindingKnowledgeTests), nameof(SelectExternal)),
-            transpiler: new HarmonyMethod(typeof(EngineStateSwitchingHook), nameof(EngineStateSwitchingHook.Transpiler)));
+
         try
         {
             using var vao = NativeResourceSetup.CreateVertexArray();
@@ -217,7 +215,7 @@ public sealed class CommandBindingKnowledgeTests(HeadlessGLFixture fixture)
             var entry = GpuResourceManagerSystem.CurrentManager!.GetResourceRegistration(vao)!;
             ulong revision = entry.MetadataRevision;
             using var capture = new BindingCallCapture();
-            OpenGLVertexCalls.ExecuteCoreEnableVertexAttribArray(0);
+            GL.EnableVertexAttribArray(0);
             OpenGLBufferBindings.BindBuffer(cache, BufferTarget.ElementArrayBuffer, buffer.BufferId);
             Assert.Equal(revision + 1, entry.MetadataRevision);
             Assert.Equal(0, capture.Calls(nameof(GL.GetInteger)));
@@ -243,8 +241,8 @@ public sealed class CommandBindingKnowledgeTests(HeadlessGLFixture fixture)
             using var buffer = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = null }).RequireResource(); buffer.Allocate(256);
             using var capture = new BindingCallCapture();
             var before = OpenGlStateCache.Current.GetVertexConfigurationRevision(vao.VertexArrayId);
-            OpenGLVertexCalls.ExecuteCoreVertexArrayVertexBuffer(vao.VertexArrayId, 2, buffer.BufferId, (IntPtr)32, 24);
-            OpenGLVertexCalls.ExecuteCoreVertexArrayBindingDivisor(vao.VertexArrayId, 2, 3);
+            GL.VertexArrayVertexBuffer(vao.VertexArrayId, 2, buffer.BufferId, (IntPtr)32, 24);
+            GL.VertexArrayBindingDivisor(vao.VertexArrayId, 2, 3);
             Assert.NotEqual(before, OpenGlStateCache.Current.GetVertexConfigurationRevision(vao.VertexArrayId));
             Assert.Equal(0, capture.Calls(nameof(GL.GetVertexArrayIndexed)));
             Assert.Equal(0, capture.Calls(nameof(GL.GetVertexArrayIndexed64)));

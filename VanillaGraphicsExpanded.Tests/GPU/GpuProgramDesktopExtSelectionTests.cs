@@ -3,13 +3,13 @@ using System.Runtime.CompilerServices;
 using HarmonyLib;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
+using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 
 namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Checks desktop EXT separate-program selectors independently of ARB pipeline selectors.</summary>
 public sealed partial class GpuProgramMetadataInterceptionTests
 {
-    private static int restoredProgramCalls;
 
     #region Public API
     /// <summary>Signed and unsigned active-program selectors direct bound uniform publication to the actual selected program.</summary>
@@ -46,12 +46,10 @@ public sealed partial class GpuProgramMetadataInterceptionTests
             Assert.True(entryB.MetadataRevision > revisionB);
 
             // Uniform observation recovers the active selector, but cannot certify all installed stages.
-            harmony.Patch(AccessTools.Method(typeof(OpenTK.Graphics.OpenGL4.GL), nameof(GL.UseProgram), [typeof(int)]),
-                prefix: new HarmonyMethod(typeof(GpuProgramMetadataInterceptionTests), nameof(CountFullProgramRestore)));
-            restoredProgramCalls = 0;
+            using var nativeCalls = new BindingCallCapture();
             Assert.Equal(b.ProgramId, OpenGlStateCache.Current.GetCurrentProgram());
             OpenGLProgramSelection.Select(OpenGlStateCache.Current, b.ProgramId);
-            Assert.Equal(1, restoredProgramCalls);
+            Assert.Equal(1, nativeCalls.Calls(nameof(GL.UseProgram)));
 
             OpenGLProgramSelection.Select(OpenGlStateCache.Current, a.ProgramId);
             int unlinked = GL.CreateProgram();
@@ -94,13 +92,11 @@ public sealed partial class GpuProgramMetadataInterceptionTests
             Assert.Equal(program.ProgramId, GL.GetInteger(GetPName.CurrentProgram));
             Assert.Equal(program.ProgramId, OpenGlStateCache.Current.GetCurrentProgram());
 
-            harmony.Patch(AccessTools.Method(typeof(OpenTK.Graphics.OpenGL4.GL), nameof(GL.UseProgram), [typeof(int)]),
-                prefix: new HarmonyMethod(typeof(GpuProgramMetadataInterceptionTests), nameof(CountFullProgramRestore)));
-            restoredProgramCalls = 0;
+            using var nativeCalls = new BindingCallCapture();
             OpenGLProgramSelection.Select(OpenGlStateCache.Current, program.ProgramId);
-            Assert.Equal(1, restoredProgramCalls);
+            Assert.Equal(1, nativeCalls.Calls(nameof(GL.UseProgram)));
             OpenGLProgramSelection.Select(OpenGlStateCache.Current, program.ProgramId);
-            Assert.Equal(1, restoredProgramCalls);
+            Assert.Equal(1, nativeCalls.Calls(nameof(GL.UseProgram)));
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
         finally
@@ -165,7 +161,5 @@ public sealed partial class GpuProgramMetadataInterceptionTests
         }
     }
 
-    /// <summary>Counts actual full-program restoration rather than relying on cached selector equality.</summary>
-    private static void CountFullProgramRestore() => restoredProgramCalls++;
     #endregion
 }

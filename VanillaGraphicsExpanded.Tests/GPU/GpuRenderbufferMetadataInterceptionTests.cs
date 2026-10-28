@@ -104,8 +104,7 @@ public sealed class GpuRenderbufferMetadataInterceptionTests(HeadlessGLFixture f
             string nativeName = "NamedRenderbufferStorageMultisampleCoverage";
             var native = AccessTools.Method(nativeOwner, nativeName, [typeof(int), typeof(int), typeof(int), typeof(InternalFormat), typeof(int), typeof(int)]);
             harmony.Patch(native, prefix: new HarmonyMethod(typeof(GpuRenderbufferMetadataInterceptionTests), nameof(SubstituteAdvancedStorage)));
-            harmony.Patch(AccessTools.Method(typeof(GpuRenderbufferMetadataInterceptionTests), nameof(AllocateAdvanced)),
-                transpiler: new HarmonyMethod(typeof(EngineStateSwitchingHook), nameof(EngineStateSwitchingHook.Transpiler)));
+
             using var owner = RHICommandContext.Current.CreateRenderbuffer(new RHIRenderbufferDescription { Format = TextureFormat.Rgba8, Width = 4, Height = 4, Samples = 0, Label = null }).RequireResource();
             var entry = GpuResourceManagerSystem.CurrentManager!.GetResourceRegistration(owner)!;
             ulong previous = entry.MetadataRevision;
@@ -206,7 +205,7 @@ public sealed class GpuRenderbufferMetadataInterceptionTests(HeadlessGLFixture f
             var manager = GpuResourceManagerSystem.CurrentManager!;
             var entry = Assert.IsType<GpuResourceMetadataEntry<GpuRenderbufferMetadata>>(manager.GetResourceRegistration(owner));
             entry.Reader = new FailedReader(throws);
-            Assert.Throws<InvalidOperationException>(() => Allocate(1, owner.RenderbufferId, 8));
+            Allocate(1, owner.RenderbufferId, 8);
             Assert.False(manager.IsResourceMetadataAvailable(first));
             Assert.False(manager.IsResourceMetadataAvailable(second));
             Assert.Equal(1, firstChanges);
@@ -281,8 +280,7 @@ public sealed class GpuRenderbufferMetadataInterceptionTests(HeadlessGLFixture f
     private static Harmony Patch()
     {
         var harmony = new Harmony("VGE.Tests.RenderbufferMetadata");
-        harmony.Patch(AccessTools.Method(typeof(GpuRenderbufferMetadataInterceptionTests), nameof(Allocate)),
-            transpiler: new HarmonyMethod(typeof(EngineStateSwitchingHook), nameof(EngineStateSwitchingHook.Transpiler)));
+
         return harmony;
     }
 

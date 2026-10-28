@@ -99,8 +99,7 @@ public sealed class GpuFramebufferRoutingInterceptionTests(HeadlessGLFixture fix
     private static Harmony Patch()
     {
         var harmony=new Harmony("VGE.Tests.FramebufferRoutingInterception");
-        foreach(string name in new[]{nameof(DrawRoute),nameof(ReadRoute)})
-            harmony.Patch(AccessTools.Method(typeof(GpuFramebufferRoutingInterceptionTests),name),transpiler:new HarmonyMethod(typeof(EngineStateSwitchingHook),nameof(EngineStateSwitchingHook.Transpiler)));
+
         return harmony;
     }
     /// <summary>Forwards pointer/ref and named variants without copying away their signature distinctions.</summary>

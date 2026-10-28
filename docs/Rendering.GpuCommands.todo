@@ -3,9 +3,10 @@ RHI commands and command lists — implementation plan
 
 Source proposal: [Rendering.GpuCommands.Proposal.md](Rendering.GpuCommands.Proposal.md).
 Parent design task: Rendering.GpuResourceHandles.todo, Phase 8.
-Status: Phases 1–7 have recorded qualification receipts. Corrective subphases 8a–8g are qualified.
-Subphase 8h implements the approved native OpenTK interception replacement, followed by combined
-qualification in 8i and management naming in 8j. Phase 9 integrated/package/user qualification remains
+Status: Phases 1–7 have recorded qualification receipts. Corrective subphases 8a–8h are qualified.
+Subphase 8h.1 addresses newly identified observer correctness and simplification work before
+8i redesigns creation interception and maintained lifecycle metadata. Combined qualification follows
+in 8j, with management naming in 8k. Phase 9 integrated/package/user qualification remains
 open, including the explicitly recorded full-lighting numerical mismatch.
 
 Goal
@@ -48,7 +49,7 @@ Scope and implementation boundaries
     Subphase 8h implements the approved native binding-table route and shared observation corrections;
     external callbacks always forward once and never veto/cancel native calls or throw into their caller.
   - Uppercase RHI in interface names/directories. OpenGlStateCache is backend-specific; existing GPU
-    resource wrapper/metadata names and the implemented GpuTextureRef contract remain. Subphase 8j
+    resource wrapper/metadata names and the implemented GpuTextureRef contract remain. Subphase 8k
     renames management services to reflect RHI ownership without creating a parallel resource hierarchy.
   - Managed execution uses OpenTK.Graphics.OpenGL4 and core 4.5 directly. Optional features beyond 4.5
     have focused checks; no generic fallback registry, version strategies, DSA flag or variant table.
@@ -654,7 +655,8 @@ Phase 8: Close resource-wrapper and helper RHI boundary violations
   Authority: the approved proposal, final contracts and the wrapper-dependency audit findings.
   Outcome: owners retain allocation policy and manager-owned lifetimes, while execution, cache policy,
     acquisition orchestration and native diagnostics enter through their final RHI boundaries.
-  Subphases 8a–8h are dependency-ordered correction units; 8i qualifies their combined result.
+  Subphases 8a–8i, including 8h.1, are dependency-ordered correction units; 8j qualifies their combined result.
+  Historical migration receipts retain their recorded identifiers; this plan defines current numbering.
   Apply the mandatory no-shim contract to every unit, including callers, tests and obsolete API removal.
   Earlier source-closure receipts do not exempt any of the sites explicitly listed below.
 
@@ -687,7 +689,7 @@ Phase 8a: Route framebuffer cache policy and frame lifecycle through RHI
     Debug and ordinary Release compilation passed; 175 focused/lifecycle/workflow tests passed in each
     configuration, with no failures, skips, JIT overrides or instrumented product. Exact routes, traceability
     and receipts: [Framebuffer owner admission qualification](Rendering.GpuCommands.Migrations.md#framebuffer-owner-admission-qualification-phase-8a).
-    No staging or commit. Phases 8b–8j and Phase 9 remain open; complete interception coverage is not claimed.
+    No staging or commit. Phases 8b–8k and Phase 9 remain open; complete interception coverage is not claimed.
 
 Phase 8b: Close owner creation entry points without disturbing private handoff
   Depends on 8a.
@@ -709,7 +711,7 @@ Phase 8b: Close owner creation entry points without disturbing private handoff
     shader-enabled Debug/ordinary Release builds succeeded; 235 focused tests passed in each configuration
     with zero failures/skips and no JIT overrides. Final routes, cleanup cases, fixture corrections and receipts:
     [Owner creation boundary qualification](Rendering.GpuCommands.Migrations.md#owner-creation-boundary-qualification-phase-8b).
-    No staging or commits by the agent. Subphases 8c–8j and Phase 9 remain open.
+    No staging or commits by the agent. Subphases 8c–8k and Phase 9 remain open.
 
 Phase 8c: Centralize acquisition, recovery and image dependency publication
   Depends on 8b.
@@ -771,7 +773,7 @@ Phase 8c: Centralize acquisition, recovery and image dependency publication
     11 observer/fault-injection/counter failures; it is not a clean-suite receipt. No JIT overrides.
     Source/schema/codec isolation checks and all affected callers compile in both configurations.
     Receipts/filter and the combined-process limitation are recorded in the linked migration ledger.
-    Subphases 8f–8j and Phase 9 remain open.
+    Subphases 8f–8k and Phase 9 remain open.
 
 Phase 8d: Complete semantic resource schemas and remove capability/shader-layout backend dependencies
   Depends on 8c.
@@ -819,14 +821,14 @@ Phase 8d: Complete semantic resource schemas and remove capability/shader-layout
     resource compatibility across creation, adoption and publication. Cover executable reflection/assignment,
     reload, missing/invalid inputs, binding preparation and optional multiview rejection without weakening
     validation, duplicating metadata authority or introducing redundant native queries. Add schema/isolation
-    regressions with each migration; combined coverage and dependency review are reconciled in 8i.
+    regressions with each migration; combined coverage and dependency review are reconciled in 8j.
 
   Completion receipt: canonical Debug/Release builds passed; affected Debug 842/842, generator 157/157
     and build-tool identity/cache tests 256/256 passed. Ordinary Release combined 840/842; the exact two
     fault-injection cases passed 2/2 fresh on unchanged optimized binaries. Second review and independent
     stage-completion audit found no remaining 8d blocker. See Rendering.GpuCommands.Migrations.md,
     "Semantic executable and buffer boundary (Phase 8d)" for routes, traceability and receipt limits.
-    Subphases 8f–8j and Phase 9 remain open. Nothing was staged or committed.
+    Subphases 8f–8k and Phase 9 remain open. Nothing was staged or committed.
 
 Phase 8e: Put resource labels and native diagnostics beneath the backend
   Depends on 8d.
@@ -853,7 +855,7 @@ Phase 8e: Put resource labels and native diagnostics beneath the backend
     pending-error preservation, injected diagnostic failure, Release exclusion and capability startup
     ordering are covered. No instrumented Release, JIT override, game launch, staging or commit.
     [Routes, authority and final receipts](Rendering.GpuCommands.Migrations.md#resource-labels-and-native-diagnostics-boundary-phase-8e).
-    Subphases 8f–8j and Phase 9 remain open.
+    Subphases 8f–8k and Phase 9 remain open.
 
 Phase 8f: Preserve legitimate manager ownership and close affected caller dependencies
   Depends on 8e.
@@ -896,7 +898,7 @@ Phase 8f: Preserve legitimate manager ownership and close affected caller depend
     production builds completed with zero errors. Coverage includes registered/local exclusions,
     interruption, deletion/name reuse, two physical local contexts, supplied-only CPU image projection,
     refs, retirement, native boundary footprints and lifecycle/restoration. No staging or commit was
-    performed; existing staged changes were preserved. Subphases 8g–8j and Phase 9 remain open.
+    performed; existing staged changes were preserved. Subphases 8g–8k and Phase 9 remain open.
     [Routes, retained policy and final receipts](Rendering.GpuCommands.Migrations.md#manager-operation-exclusions-and-retained-ownership-phase-8f).
 
 Phase 8g: Remove legacy state purges and preserve established state knowledge
@@ -962,78 +964,301 @@ Phase 8h: Replace caller rewriting with native OpenTK binding interception
   Outcome: supported OpenTK native dispatch reaches one observational interception authority independent
     of caller assembly; backend-owned dispatch and manager/cache publication remain singular.
 
-  ☐ Establish the complete selected-operation/native-signature inventory from EngineStateCallMap,
+  ☑ Establish the complete selected-operation/native-signature inventory from EngineStateCallMap,
     EngineMetadataCallAdapters/MetadataAdapterCatalog and existing backend observation owners. Cover both
     legacy OpenGL.GL and OpenGL4.GL tables and supported Core/Ext/Arb entrypoints. Preserve exclusions for
     other auxiliary owners and legacy compatibility features. Define coverage as calls through those tables,
     not unrelated graphics libraries or independently cached driver pointers. Distinguish queries/content
     effects requiring observation from operations with no represented state/lifetime contract.
-  ☐ Implement validated installation beneath the OpenGL backend. Identify supported binding layouts and
+  ☑ Replace handwritten callback boilerplate with a narrowly scoped source generator. Declare selected
+    native entrypoints on handwritten post-call observer methods using attributes; resolve entrypoint names
+    against native signatures derived from the exact compiler-referenced OpenTK.Graphics assembly and
+    compiler-check observer parameter/return-value
+    mappings. Diagnose unknown entrypoints, incompatible signatures and duplicate registrations at build time.
+    Use compiler-resolved symbols for project methods rather than unchecked method-name strings.
+    Read binding-table name initialization and calli signatures at build time without loading OpenTK or
+    executing static constructors. Remove the maintained NativeSignatures.txt input. Diagnose unsupported
+    layouts and conflicting native ABIs; managed convenience overloads must not determine native signatures.
+  ☑ Generate ABI-correct callback delegates/thunks, registration and saved-original dispatch plumbing from
+    the same declarations. Preserve native widths, calling conventions, return values and output pointers;
+    keep reflection, dynamic invocation and per-call delegate allocation out of generated dispatch.
+    Keep generated plumbing separate from handwritten domain-specific cache/publication effects.
+  ☑ Use post-call observation exclusively: invoke the original native operation once with unchanged
+    arguments, then invoke its observer with the arguments and any native result. Generate observer exception
+    containment and an observation-enabled check after native dispatch. Do not generate preparation hooks, before/after
+    hook pairs or an observer-controlled native invocation. Never retry the native operation after observer
+    failure, and preserve its return/output values even when observation fails.
+  ☑ Migrate existing callbacks, including BindTexture, BindVertexArray, BindTransformFeedback and BlendFunci,
+    to post-call observers in complete operation-family units. Reassess current Begin/Complete dependencies:
+    use existing cached prior facts where valid, account for reentrant changes and output-buffer mutation,
+    and never assume cached pre-call facts remain valid across nested calls. Keep conflict interruption and
+    targeted failure recovery within existing cache/manager authority, executed after native dispatch.
+    Remove superseded handwritten callback factories/catalog entries and duplicate dispatch boilerplate;
+    do not retain parallel routes or introduce migration shims.
+  ☑ Simplify cache delivery: put attributes on cache-owned observation methods and let ABI-identical aliases
+    share one method. Generate direct calls rather than installation-owned forwarding observers. Normalize
+    bound/named effects within each domain; remove immediate Begin/Complete dispatch receipts when they
+    add no lifetime or failure contract. Keep manager publication and reentrant acquisition recovery intact.
+    All observation families use single post-call operations: buffer binding/storage/texture association,
+    VAO selection/configuration, program selection/metadata, renderbuffer storage, texture metadata and
+    transform-feedback activity. Remove all 169 immediate pairs, ten receipt types and the nested
+    buffer-binding/VAO receipt. Migrate the five shared backend callers to synchronous execution owners
+    that preserve actual native work and failure cleanup; update direct receipt-based tests to exercise
+    real acquisition, interruption, context ownership and controlled-operation failure.
+    Generate consumed OpenGLDriverCalls overloads from exact compiler-selected OpenTK overloads, with no
+    handwritten bypass inventory. Test indexed overload resolution and original-pointer execution.
+  ☑ Qualify the generator with compilation/diagnostic tests and representative generated native-call tests.
+    Cover void/non-void signatures where selected, pointer/output arguments, aliases and both OpenTK tables;
+    prove original dispatch precedes observation, observer failure preserves native results, and callback
+    disabled observers are skipped while native dispatch and results remain intact. Verify generated coverage matches every selected inventory entry.
+  ☑ Implement validated installation beneath the OpenGL backend. Identify supported binding layouts and
     entrypoints without treating experimental numeric slot indices as stable API names. Use exact native
     widths/calling conventions and callback lifetimes; retain true original pointers privately. No OpenTK
     type/pointer or translation helper may leak into portable RHI APIs, wrappers or manager services.
-  ☐ Integrate installation with startup and every supported LoadBindings path for both tables. Handle
+  ☑ Integrate installation with startup and every supported LoadBindings path for both tables. Handle
     already-loaded bindings, repeated installation, replacement arrays and loader failure without recording
     our callbacks as original driver addresses. Define safe loader/execution coordination and teardown;
-    restore only entries still owned by this installation after calls in flight have completed.
-  ☐ Bind observation to originating physical context/thread and registered lifetime using existing authority.
+    disable observation and atomically restore only entries still owned by this installation without waiting
+    for executing calls. Retain delegates/original pointers so already-fetched callbacks remain safe; an
+    admitted observer may finish. Coordinate cache/resource destruction through the existing lifecycle.
+    Remove per-call enter/exit counters and deferred-uninstall machinery.
+  ☑ Bind observation to originating physical context/thread and registered lifetime using existing authority.
     Shared loader tables must not imply shared state knowledge. Resolve original dispatch pointers for the
     applicable loader/context lifetime; preserve foreign-context completion and retirement behavior.
-  ☐ Implement always-forward observation: an external call executes its original native operation exactly
+  ☑ Implement always-forward observation: an external call executes its original native operation exactly
     once with unchanged arguments, return values, output buffers and native errors. No equality suppression,
     managed admission rejection, native-call cancellation, deferred execution or retry on this route.
-    Contain pre-dispatch observer faults without skipping native dispatch; contain reconciliation faults
-    without repeating it. No exception escapes the callback or is deferred back to the external caller.
-  ☐ Replace rejection-style external observer guards with non-vetoing bookkeeping. Cover
+    Run observers only after native dispatch and contain reconciliation faults without repeating it.
+    No observer exception escapes the callback or is deferred back to the external caller.
+  ☑ Replace rejection-style external observer guards with non-vetoing bookkeeping. Cover
     RequireMutableFramebufferConfiguration, RequireOutsideEngineBoundary/unsupported-boundary mutation,
     RequireResourceOperationAvailable and manager OperationInProgress/CompletionInProgress checks wherever
     they currently block exact forwarding. Native mutations still reach GL; reflect conflicting effects
     through existing operation interruption, availability and certificate invalidation. Managed RHI API
     validation remains separate. Do not hide the old rejection behind catch-and-return that skips GL.
-  ☐ Extract/reuse canonical effect logic so callbacks do not invoke an exact adapter that dispatches again.
+  ☑ Extract/reuse canonical effect logic so callbacks do not invoke an exact adapter that dispatches again.
     Preserve argument-derived/default/derived propagation completed in 8g, target/unit/indexed/object-local
     aliases and per-field masks. Observation failure withdraws only uncertain affected knowledge; recipient
     notification failure cannot undo an already committed canonical publication. No second state cache,
     resource registry, callback-owned resource lifetime or requested/actual metadata mirror.
-  ☐ Route backend-owned native execution through its saved original dispatch boundary, preserving existing
+  ☑ Route backend-owned native execution through its saved original dispatch boundary, preserving existing
     RHI admission, eligible suppression, original-context validation and exactly-once manager publication.
     Avoid broad suppression flags hiding nested external calls. Qualify recursion, reentry, extension aliases
     and any driver-internal dispatch so one logical external effect is not published twice.
-  ☐ Complete remaining program/pipeline selector propagation and transform-feedback activity acceptance.
+  ☑ Complete remaining program/pipeline selector propagation and transform-feedback activity acceptance.
     Cover UseProgram/UseProgramObject, BindProgramPipeline, ActiveShaderProgram/EXT active-program variants,
     BindTransformFeedback and Begin/End/Pause/ResumeTransformFeedback where supported. Distinguish current
     program, pipeline selection, active uniform destination and executable stage facts. Establish accepted,
     rejected and uncertain effects without universal queries; remove redundant active-state recapture when
     observed history proves the fact. Installed-engine nonuse does not prove wider OpenTK calls impossible.
-  ☐ Finish the remaining resource-configuration/selector forget-and-query inventory under the new route.
+  ☑ Finish the remaining resource-configuration/selector forget-and-query inventory under the new route.
     Account explicitly for native allocation/outcome uncertainty, initial facts, deletion-in-use and
     unrepresented schemas. Preserve the approved narrow query policy, native errors and existing empty
     VAO/sampler/query schemas; do not query merely to verify supplied facts or expand metadata without need.
-  ☐ Migrate each full operation family with its callers/tests in one unit. Remove its EngineStateTargets,
+  ☑ Migrate each full operation family with its callers/tests in one unit. Remove its EngineStateTargets,
     EngineGenericStateTargets, EngineStateSwitchingHook and EngineRenderApiStatePatches obligations as they
     become obsolete; remove exact native adapter/dispatcher routes superseded by callbacks. Retain broader
     engine shader/render integration hooks only where their separate semantic purpose still applies.
     Final closure removes obsolete caller scanning/maps, generic closure caches and forwarding modules;
     never leave old and new observers simultaneously active or introduce intermediate migration shims.
-  ☐ Qualify direct, delegate, generic value-type and late-loaded/dynamically generated OpenTK callers in
+  ☑ Qualify direct, delegate, generic value-type and late-loaded/dynamically generated OpenTK callers in
     both tables, including warm/already-compiled paths, with native-state and output-data oracles. Verify
     backend bypass, unchanged rejected-command errors, original arguments/return/output values, exactly-once
     dispatch/publication and alias effects. The isolated feasibility probe is evidence, not production proof.
-  ☐ Inject observer faults before and after native dispatch; prove calls still execute once and uncertain
+  ☑ Inject faults throughout post-call observation and its recovery; prove native calls executed once and uncertain
     facts are withdrawn without stale guesses, unrelated purges or caller exceptions. Cover reentry,
     immutable/boundary conflicts, interrupted manager operations and failed recipient notifications.
     Exercise initial/reloaded tables, concurrent loader/dispatch policy, physical context changes, retirement,
     callbacks in flight and teardown; no swallowed-failure native-call cancellation is acceptable.
-  ☐ Run delegated canonical Debug/ordinary Release builds and focused regressions on the completed family
+  ☑ Run delegated canonical Debug/ordinary Release builds and focused regressions on the completed family
     replacement. Perform second review and independent audit; reconcile proposal/contracts, inventory/API
     coverage, migration receipts, parent-plan references and permanent current-state documentation. Keep
     installed-game startup/live evidence and broader hardware limitations explicit; no benchmark or timing gate.
-  ☐ Completion: the supported OpenTK tables have one qualified always-forward observation path, managed RHI
+  ☑ Completion: the supported OpenTK tables have one qualified always-forward observation path, managed RHI
     execution bypasses duplicate observation, superseded caller rewriting is removed, and accepted effects
     propagate through the existing cache/manager without avoidable recapture or external-call vetoes.
 
-Phase 8i: Qualify corrective closure and reconcile documentation
-  Depends on 8a–8h.
+  Implementation checkpoint: OpenGLInterceptionGenerator derives native signatures and consumed
+    OpenGLDriverCalls overloads from the compiler's OpenTK.Graphics PE reference. Generated callbacks
+    directly invoke cache-owned observations; identical aliases share handlers. There are 308 selected
+    native entrypoints; three former read-routing observers had no represented effect and are omitted.
+    All 169 immediate receipt pairs, ten receipt types, the nested buffer-binding/VAO receipt and unused
+    native observation guard factory are removed. Production and test source scans find zero old factory
+    references. Controlled vertex configuration and program assignment keep actual execution and cleanup
+    inside backend owners; the cache exposes observation and knowledge updates.
+    Completion qualification: canonical Debug and ordinary Release builds pass with shader targets
+    enabled and no JIT overrides. The final combined selection passes 662/662 per configuration,
+    zero skips (artifacts/phase8h/closure7-*, exact filter closure7-filter.txt). Unchanged generator
+    sources retain 18/18 tests in both configurations. Second source review and the separate
+    audit-stage-completion contract audit pass; no required 8h item remains open.
+    Broad diagnostic execution and archived HEAD comparison identified 477 inherited failures and
+    sequence-dependent integration observations. All initially unmatched classes pass the final
+    combined selection, but full-suite ordering/output acceptance remains explicitly in Phase 9.
+    No package, installed-game startup, live appearance or wider hardware qualification is claimed.
+    Task/document/evidence mapping and exact limits: Rendering.GpuCommands.Migrations.md,
+    "Native interception replacement: 8h completion receipt". Subphases 8i–8k remain open.
+
+Phase 8h.1: Correct effect classification and simplify native observation delivery
+  Depends on 8h's implemented native dispatch boundary; precedes 8i's metadata lifecycle redesign.
+  Authority: [Rendering.OpenTKBindingInterception.Proposal.md](Rendering.OpenTKBindingInterception.Proposal.md),
+    [Rendering.GpuCommands.Contracts.md](Rendering.GpuCommands.Contracts.md), existing cache/manager
+    publication authority and [Rendering.GpuResourceHandles.ApiCoverage.md](Rendering.GpuResourceHandles.ApiCoverage.md).
+  Outcome: small handwritten effect handlers use shared generated delivery/recovery plumbing; only
+    represented effects interrupt or publish metadata, and ordinary startup does not rely on exceptions.
+  Follow-up finding: 8h's focused receipts do not cover the newly identified LineWidth context-rule gap.
+    Correct that behavior here; preserve the historical receipts without treating them as proof of this fix.
+
+  ☐ Review native effect classification independently of argument validity. Distinguish a known change,
+    proven rejection and uncertain outcome using existing context/profile/capability and resource facts.
+    Correct ObserveLineWidth: a positive finite width is not sufficient evidence of acceptance;
+    widths above one are rejected in a forward-compatible context. Use the already captured
+    IsForwardCompatibleContext fact, preserve prior line-width knowledge after proven rejection and
+    retain the caller's native error. Review equivalent state/profile-dependent omissions in other
+    setters, including ObservePatchParameteri. Add no universal GetError, Is* or verification queries,
+    requested/actual mirror or native-call veto. Consult [OpenGL 4.6 core appendix E.2.1](https://registry.khronos.org/OpenGL/specs/gl/glspec46.core.pdf)
+    and the registry definitions controlling each selected operation.
+  ☐ Design and implement generated common observation plumbing for simple setters, explicitly covering
+    ObserveLogicOp, ObserveDepthMask, ObserveLineWidth and ObservePatchParameteri. Move repeated
+    context selection/capture, affected-field withdrawal, post-call delivery and contained targeted
+    failure recovery into one compiler-checked path using explicit affected-field declarations.
+    Keep GL acceptance/conversion semantics and state assignments in focused handwritten domain code;
+    do not build a generic event bus, transaction framework or semantic interpreter in the generator.
+    Preserve original-context/lifetime checks and recovery that withdraws only affected uncertain facts.
+    The generator's existing outer catch alone is insufficient to replace handler-local recovery.
+    Remove redundant casts, unused argument locals, constant accepted flags and duplicate context capture
+    where the resulting contract makes them unnecessary. Keep one observation/publication authority.
+  ☐ Reassess which native entrypoints need metadata observation. Remove the sampler/image-unit
+    metadata routes for ObserveUniform1uiEXT and ObserveUniform1uivEXT: unsigned numeric uniform
+    setters cannot assign sampler/image units, and ordinary numeric uniform contents have no represented
+    canonical metadata effect. Audit related scalar/vector/named/extension spellings for the same issue.
+    Keep signed Uniform1i/Uniform1iv, named equivalents and opaque-handle assignments observed where
+    they affect represented units or representation availability. Consult OpenGL 4.6 core section 7.6
+    and [EXT_gpu_shader4 uniform-loading semantics](https://registry.khronos.org/OpenGL/extensions/EXT/EXT_gpu_shader4.txt).
+    Unobserved content-only calls still execute natively unchanged. Reconcile selected-symbol inventory, ABI/catalog generation, API
+    dispositions and tests; preserve semantic coverage rather than an arbitrary callback count.
+  ☐ Reorder ObserveProgramMetadata so represented-effect classification precedes
+    InterruptNativeResourceOperation, InterruptNativeMetadataCompletion, BeginRefresh and publication.
+    An ordinary numeric uniform write or ignored location must not interrupt an otherwise valid
+    acquisition/publication, withdraw unrelated facts, advance metadata revisions or trigger avoidable
+    descriptor queries. Use established selector/interface facts; retain interruption and targeted
+    recovery for actual represented unit/block/executable mutations, including reentrant callbacks.
+    Review equivalent relevance-after-interruption ordering throughout native observation families.
+  ☐ Replace exception-based handling of expected initialization absence in
+    OpenGLObservationContext.CurrentCache with an explicit query-free TryGet-style result or equivalent
+    direct control flow. Separate originating-context selection from full capability availability:
+    capability-independent effects such as DepthMask and LogicOp should not require unrelated cached
+    limits. Capability-dependent handlers must classify from available facts or leave only affected
+    knowledge uncertain. Preserve foreign-context/generation safety, explicit capability discovery
+    outside callbacks and native-error preservation. Do not hide routine initialization behind repeated
+    caught exceptions or introduce a second context/capability service.
+  ☐ Migrate complete observation families with generator declarations, cache effects, callers and tests
+    together. Remove superseded handwritten plumbing in the same unit; retain complex metadata/dependency
+    reconciliation in its existing domain owner. Keep generated native dispatch, OpenGLDriverCalls,
+    OpenGLNativeSlot lifetime rooting and loader/uninstall ownership unless a concrete defect requires
+    a correction. No preparation hooks, observation receipts, call counters, compatibility shims or
+    parallel old/new observers may be introduced.
+  ☐ Run delegated canonical Debug/ordinary Release builds, generator diagnostics/compilation tests and
+    native boundary regressions after the bulk migration. Cover both GL roots and shared aliases;
+    accepted/rejected/uncertain effects; forward-compatible rejected wide lines and supported ordinary
+    widths; unchanged native errors; observer faults with targeted recovery; no-capability startup;
+    capability-independent publication; context replacement/retirement; and exactly-once native dispatch.
+    Assert ordinary unsigned/numeric writes and irrelevant locations preserve active metadata operations,
+    availability and revisions without avoidable reads, while represented reentrant changes interrupt
+    stale completion. Retain native-state and suppression oracles; no benchmark or timing gate.
+  ☐ Reconcile proposal/contracts, source inventory/API coverage, migration receipts and current-state
+    documentation. Perform second source review and an independent audit-stage-completion audit before
+    checking completion. Keep 8i's separate lifecycle/query-policy redesign and later integration gates open.
+  ☐ Completion: handwritten simple observers contain their domain effect logic, generated delivery owns
+    shared safety plumbing, proven rejections preserve known facts, irrelevant calls do not disturb
+    metadata work, and ordinary context/capability absence uses explicit nonthrowing control flow.
+
+Phase 8i: Redesign metadata tracking around intercepted creation and observed resource changes
+  Depends on 8h's native dispatch boundary and 8h.1's corrected classification, relevance ordering
+    and simplified query-free observation delivery.
+  Authority: the approved RHI ownership/no-shim contracts and the requirement to maintain metadata
+    from the complete observed resource lifecycle rather than treating missing tracking as a query trigger.
+  Outcome: creation, guaranteed defaults and intercepted configuration maintain canonical manager-owned
+    metadata for covered resources; native reads have explicit, limited reasons and consumers reuse known facts.
+
+  ☐ Design and document the complete metadata lifecycle before implementing the redesign. Define resource
+    identity, reserved versus realized names, guaranteed defaults, known/unavailable facts, mutation,
+    replacement, deletion/name reuse and context/share-group ownership. Review the design against actual
+    readers and consumers; identify which metadata is supplied, defaulted, derived or genuinely driver-produced.
+    Agree the design before migrating families; retain one canonical manager authority and one cache authority.
+  ☐ Build an explicit creation/configuration/deletion coverage inventory from compiler-referenced OpenTK
+    bindings and existing RHI operations. Name every supported factory and relevant alias, including
+    glGen*/glCreate*, glCreateShader/glCreateShaderProgramv/glCreateProgram, glFenceSync and extension
+    allocation/import entrypoints which create or establish native identities. Cover both GL roots and
+    supported Core/Ext/Arb entrypoints; preserve existing vendor-owner and legacy-feature exclusions.
+    Specify generated names versus realized objects and the later operation that establishes their type.
+    Interception coverage gaps are defects to fix, not justification for routine discovery queries.
+  ☐ Add generated post-call creation observers and manager registration/default initialization. Consume
+    returned names, arrays and native results synchronously with their exact ABI. Never register zero,
+    failed results or an unrelated prior allocation under a reused name. Coordinate creation observation
+    with backend-owned saved-original dispatch so RHI factories register/publish once rather than twice.
+  ☐ Redesign buffer tracking for GpuBufferObject and its role wrappers using GpuBufferMetadata. Maintain
+    known size, usage, storage mode/flags and relevant mapping facts from creation/defaults and observed
+    allocation/configuration calls. Replace ObserveBufferStorage's blanket withdrawal where supplied
+    arguments establish represented facts; preserve storage identity and dependent buffer-texture lifetimes.
+  ☐ Redesign texture/image tracking for GpuTexture, BorrowedTexture, GpuTextureView, GpuBufferTexture,
+    GpuBufferView and renderbuffer-backed texture associations using GpuTextureMetadata and GpuImageMetadata.
+    Carry target, dimensions, format, levels/layers, storage mode, represented parameters, view ranges and
+    backing associations from observed commands. Fix observers such as ObserveTextureStorage2D that
+    currently discard supplied dimensions/format/mip counts. Separate content-only writes from descriptor
+    changes; retain source-storage identities and image projections without a second metadata mirror.
+  ☐ Redesign renderbuffer, framebuffer and sampler tracking using GpuRenderbufferMetadata,
+    GpuFramebufferMetadata and GpuSamplerMetadata. Maintain storage, attachments/subresources, routing,
+    attachmentless defaults and represented sampler parameters from observed lifecycle/configuration calls.
+    Include bound, named and multi-bind effects where applicable, plus attachment/dependency retirement.
+  ☐ Redesign shader/program/pipeline tracking for GpuShaderModule, GpuProgramObject, GpuProgramLayout and
+    GpuProgramPipeline using GpuShaderMetadata, GpuProgramMetadata and GpuProgramPipelineMetadata.
+    Maintain declared stages, configuration, selection and known interface assignments from observed calls.
+    Treat compilation/link status and executable reflection as specifically identified driver-produced
+    results; do not reflect an entire interface after an ordinary represented assignment.
+  ☐ Cover GpuVao, GpuTransformFeedback, GpuQuery, GpuSync, GpuSemaphore and GpuMemoryObject using
+    GpuVertexArrayMetadata, GpuTransformFeedbackMetadata, GpuQueryMetadata, GpuSyncMetadata,
+    GpuSemaphoreMetadata and GpuMemoryObjectMetadata. Register observed creation/defaults and track
+    represented configuration/lifetime facts. Keep execution-owned binding/activity knowledge in its
+    existing cache domain; do not invent canonical fields or layout mirrors solely to avoid an empty schema.
+  ☐ Define accepted/rejected/uncertain native outcome policy for each operation family. External calls
+    execute once unchanged and observers never veto them or leak errors. Retain known state after proven
+    rejection; use supplied requests for ordinary tracked properties under the approved metadata policy.
+    Do not equate a void native return with proven success, consume GL errors or add universal verification
+    reads, per-call GL.Is* checks, requested/actual mirrors or a new generic transaction framework.
+    Specify any unresolved outcome requiring a targeted read and its concrete consumer need.
+  ☐ Restrict acquisition to explicit cases: resources predating installation, supported external imports
+    whose descriptors cannot be obtained from their intercepted setup, identified driver-produced results,
+    or documented unresolved outcomes. Keep approved sample-count resolution/fallback policy explicit.
+    Unknown registration or a discarded command argument alone must not trigger a query. Distinguish an
+    interception/tracking defect from genuinely unavailable input; fix the producer rather than silently
+    recapturing metadata on ordinary reads, binding, validation or reference conversion.
+  ☐ Audit every metadata reader, acquisition/recovery entry point and its consumers against the new
+    lifecycle. Remove obsolete readback/invalidation paths and update initialization, adoption, aliases,
+    dependencies and context-local tools together. Review interruption guards against real production
+    acquisition/publication callbacks; keep only protections required by those remaining operations,
+    with scoped cleanup and targeted uncertainty. Preserve 8h.1's relevance-before-interruption ordering
+    when introducing creation/default/configuration tracking. Synthetic reentry tests alone do not justify machinery.
+  ☐ Migrate each complete operation family atomically: creation/default publication, observed mutations,
+    readers, consumers, failure/deletion handling and tests. Remove superseded APIs in that unit; introduce
+    no compatibility shims, parallel registry, second publication route or generic event/command bus.
+    Backend-specific interpretation stays beneath RHI; wrappers and portable APIs receive semantic facts.
+  ☐ Qualify with delegated canonical Debug/ordinary Release builds and focused lifecycle regressions.
+    Verify creation → configuration → consumption with descriptor readers configured to reject unexpected
+    reads; cover engine/raw OpenTK resources and RHI-owned resources, aliases/views, delayed realization,
+    external imports, name reuse, failed/invalid commands, context recreation and initial adoption.
+    Assert exactly-once registration/publication/native dispatch, stable suppression and no redundant
+    descriptor reads; independently test legitimate driver-produced results and approved narrow fallbacks.
+    Update obsolete managed-wrapper capture fixtures to the actual native boundary where necessary.
+    No benchmark, timing study, instrumented Release, game launch or automatic commit is required.
+  ☐ Reconcile the approved design, RHI contracts, resource inventory/API coverage, metadata acquisition
+    analysis and permanent ownership documentation. Perform second review and independent completion audit
+    for coverage and data flow, not just symbol presence. Keep remaining native-hook qualification explicit.
+  ☐ Completion: every covered resource has an observed identity/default/configuration lifecycle; ordinary
+    metadata consumers reuse maintained canonical facts, and every remaining query has an explicit reason
+    supported by an actual consumer. No missing observation is disguised as normal acquisition/recovery.
+
+Phase 8j: Qualify corrective closure and reconcile documentation
+  Depends on 8a–8i, including 8h.1.
 
   ☐ Record before/after routes for every named audit finding and any additional helper-chain occurrence.
     Review actual dependency direction as well as native execution location; demonstrate one admitted
@@ -1062,8 +1287,8 @@ Phase 8i: Qualify corrective closure and reconcile documentation
   ☐ Completion: all correction units and their caller dependencies satisfy the final RHI boundary with
     retained manager lifetimes, no alternate owner-side execution/acquisition route and no temporary shim.
 
-Phase 8j: Align resource-management service names with RHI ownership
-  Depends on 8i; final corrective subphase before integrated qualification.
+Phase 8k: Align resource-management service names with RHI ownership
+  Depends on 8j; final corrective subphase before integrated qualification.
 
   ☐ Inventory Gpu-prefixed management, registration and lifecycle services by responsibility. Establish
     an explicit old/new name map, including GpuResourceManager → RHIResourceManager,
@@ -1087,12 +1312,23 @@ Phase 8j: Align resource-management service names with RHI ownership
     belongs to the RHI, all callers/documentation agree, and retained resource contracts remain unchanged.
 
 Phase 9: Qualify integrated behavior and release artifacts
-  Depends on Phase 8, including subphases 8a–8j.
+  Depends on Phase 8, including subphases 8a–8k and 8h.1.
   Outcome: correctness, package identity and outstanding live evidence are explicit.
 
   ☐ Run delegated focused and integrated regressions on an immutable candidate, covering all family receipts,
     original-context retirement, aliases/views, local tools, context loss, rejected commands, exactly-once
     external calls and immediate/recorded equivalence. Keep hardware coverage gaps explicit.
+    Correct inherited integration fixtures identified against pre-interception HEAD 9de4c4ca:
+    ShaderTextureTargetTests must verify semantic conversion rather than native enum numeric equality;
+    AmbientOcclusionCompositeTests must supply the complete retained resource table required by the RHI.
+    Preserve their independent output assertions; these baseline failures are not waived by focused
+    native-interception qualification. Reconcile all 477 baseline-proven failures in
+    artifacts/phase8h/closure5-head-comparison.json, including mock setup, complete shader resource
+    tables and vertex/target declarations. Diagnose the fourteen full-sequence unmatched observations
+    (exposure, particle capture/handback, installed depth, sampler/worker cleanup and local exposure)
+    with equivalent workload ordering; they pass the final 662-case combined selection but that does
+    not certify their earlier full-suite sequence or attribute its cause. Preserve numerical oracles
+    and tolerances, and resolve any actual runtime defect before integrated acceptance.
     Investigate PbrLumOnFullPipelineIntegrationTests' direct-only composite numerical mismatch after
     correcting its depth-comparison inputs and complete MRT declaration. Preserve the independent oracle
     and existing tolerance; do not treat source-boundary qualification as integrated lighting acceptance.
@@ -1128,13 +1364,15 @@ Proposal coverage map
   Geometry, attachment targets and immediate submission: Phase 5; recorded consumption in 6.
   Uniform capture, physical publication and history: Phase 5; recording/epoch/cancellation tests in 6.
   Recording, ownership transfer, tickets, failure and CPU/GPU completion: Phases 4/6.
-  Dependency inversion for manager services, wrappers and semantic RHI objects: subphases 5b–5e and 8a–8i.
+  Dependency inversion for manager services, wrappers and semantic RHI objects: subphases 5b–5e and 8a–8j.
   Semantic buffer/shader/reflection schemas and authored resource types: subphase 8d.
   Manager operation guards, context discovery and backend-only boundary footprints: subphase 8f.
-  Transitive schema isolation and intentional composition/native-payload boundary qualification: subphase 8i.
+  Transitive schema isolation and intentional composition/native-payload boundary qualification: subphase 8j.
   Persistent state knowledge and removal of obsolete frame/resize/startup purges: subphase 8g.
   Native OpenTK dispatch, observational forwarding and remaining handler propagation: subphase 8h.
-  RHI management-service naming and complete caller/documentation reconciliation: subphase 8j.
+  Observer classification, generated safety plumbing, effect relevance and nonthrowing startup: subphase 8h.1.
+  Complete creation interception and maintained lifecycle metadata with bounded acquisition: subphase 8i.
+  RHI management-service naming and complete caller/documentation reconciliation: subphase 8k.
   Native dispatch, publication, exact integration and no-shim migration: mandatory receipts, Phases 2–8.
   Representative outcomes, efficient-execution checks, package and user-run qualification: Phase 9, supported
     by focused verification and current-state documentation in every owning migration unit.

@@ -98,8 +98,7 @@ public sealed class GpuTextureParameterInterceptionTests(HeadlessGLFixture fixtu
     private static Harmony Patch(string method)
     {
         var harmony = new Harmony("VGE.Tests.TextureParameter." + method);
-        harmony.Patch(AccessTools.Method(typeof(GpuTextureParameterInterceptionTests), method),
-            transpiler: new HarmonyMethod(typeof(EngineStateSwitchingHook), nameof(EngineStateSwitchingHook.Transpiler)));
+
         return harmony;
     }
 

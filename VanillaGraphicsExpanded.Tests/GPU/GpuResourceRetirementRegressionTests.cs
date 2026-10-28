@@ -159,7 +159,7 @@ public sealed class GpuResourceRetirementRegressionTests(HeadlessGLFixture fixtu
             OpenGlStateCache.Current.InvalidateAll();
             var manager = GpuResourceManagerSystem.CurrentManager!;
             var retired = manager.GetResourceRegistration(original)!;
-            OpenGLRenderingDeletionCalls.Core.DeleteProgram(program);
+            GL.DeleteProgram(program);
             Assert.True(GL.IsProgram(program));
             GL.GetProgram(program, GetProgramParameterName.DeleteStatus, out int pending);
             Assert.Equal(1, pending);

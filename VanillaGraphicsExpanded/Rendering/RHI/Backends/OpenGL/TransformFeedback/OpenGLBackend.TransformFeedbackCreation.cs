@@ -50,6 +50,7 @@ internal sealed partial class OpenGLBackend
         try { GL.CreateTransformFeedbacks(1, out name); }
         finally { id = name; }
         RequireContext();
+        if (name != 0) cache.RecordFeedbackCreated(name);
         return name == 0 ? null : new GpuTransformFeedbackMetadata();
     }
     #endregion

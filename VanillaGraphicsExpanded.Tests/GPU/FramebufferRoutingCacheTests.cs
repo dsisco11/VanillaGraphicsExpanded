@@ -135,7 +135,7 @@ public sealed class FramebufferRoutingCacheTests(HeadlessGLFixture fixture, ITes
         try
         {
             Assert.Equal(DrawBuffersEnum.ColorAttachment1, OpenGLFramebufferRouting.Capture(cache, id)[0]);
-            EngineStateCalls.DrawBuffer(DrawBufferMode.ColorAttachment0);
+            GL.DrawBuffer(DrawBufferMode.ColorAttachment0);
             Assert.Equal(DrawBuffersEnum.ColorAttachment0, OpenGLFramebufferRouting.Capture(cache, id)[0]);
             using var wrapped = DynamicGpuFramebuffer.Wrap(id, width: 2, height: 2);
             OpenGLFramebufferRouting.SetDrawBuffer(cache, DrawBufferMode.ColorAttachment1);

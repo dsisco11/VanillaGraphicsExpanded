@@ -9,61 +9,52 @@ namespace VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 internal sealed partial class OpenGlStateCache
 {
     #region Internal API
-    /// <summary>Captures an existing destination and its last certified descriptor before native association changes.</summary>
-    internal static NativeBufferTexture BeginNativeBufferTexture(int selector, int target, int unit,
+    /// <summary>Certifies one completed reassociation while excluding partial acquisition and publishing aliases once.</summary>
+    internal static void ObserveBufferTexture(int selector, int target, int unit,
         bool named, bool explicitUnit, int buffer, int format, nint offset, nint size, bool whole)
     {
         var manager = GpuResourceManagerSystem.CurrentManager;
-        if (manager?.CanObserveNativeMetadata != true && Current.resourceOperation is null || target != (int)TextureTarget.TextureBuffer) return default;
+        if (manager?.CanObserveNativeMetadata != true && Current.resourceOperation is null || target != (int)TextureTarget.TextureBuffer) return;
         int id = selector;
         if (!named)
         {
             int selectedUnit = explicitUnit ? unchecked(unit - (int)TextureUnit.Texture0) : Current.GetActiveTextureUnit();
-            if ((uint)selectedUnit >= (uint)GpuSupport.Graphics.MaxCombinedTextureImageUnits) return default;
+            if ((uint)selectedUnit >= (uint)GpuSupport.Graphics.MaxCombinedTextureImageUnits) return;
             id = Current.GetBoundTexture(TextureTarget.TextureBuffer, selectedUnit);
         }
-        Current.RequireResourceOperationAvailable(GpuResourceKind.Texture, id);
-        if (manager?.CanObserveNativeMetadata != true) return default;
+        Current.InterruptNativeResourceOperation(GpuResourceKind.Texture, id);
+        if (manager?.CanObserveNativeMetadata != true) return;
         var entry = manager.FindObservedResource(GpuResourceKind.Texture, id) as GpuResourceMetadataEntry<GpuTextureMetadata>;
-        if (entry is null || entry.Metadata.Target != 0 && entry.Metadata.Target != TextureDimension.Buffer) return default;
-        if (entry.OperationInProgress || entry.CompletionInProgress) throw new System.InvalidOperationException("A resource metadata operation is already in progress.");
+        if (entry is null || entry.Metadata.Target != 0 && entry.Metadata.Target != TextureDimension.Buffer) return;
+        if (InterruptNativeMetadataCompletion(entry, GpuMetadataChange.Storage)) return;
         // Invalid native formats must reach the exact native call without withdrawing known facts.
         TextureFormat requestedFormat;
         try { requestedFormat = OpenGLImageValues.Format((PixelInternalFormat)format); }
-        catch (ArgumentOutOfRangeException) { return default; }
+        catch (ArgumentOutOfRangeException) { return; }
         var previous = entry.IsUsable ? entry.Metadata.Buffer : null;
+        entry.CompletionInterrupted = false;
         entry.OperationInProgress = true;
         entry.BeginRefresh(GpuMetadataChange.Storage);
-        return new(entry, new(buffer, requestedFormat, offset, size, whole), previous);
+        var requested = new GpuTextureBufferMetadata(buffer, requestedFormat, offset, size, whole);
+
+        try
+        {
+            // Keep acquisition and reentry blocked while native association/range facts
+            // are collected. Publication takes over the completion guard synchronously.
+            if (!entry.Manager.IsRegistered(entry)
+                || entry.State != GpuResourceRegistrationState.Live) return;
+            if (!TryObserveBufferAssociation(entry, requested, previous, out var association, out bool renew))
+                throw new InvalidOperationException("Native buffer texture association metadata is unavailable.");
+            if (entry.CompletionInterrupted)
+                throw new InvalidOperationException("Buffer texture observation was interrupted by a nested mutation.");
+            var data = new GpuTextureMetadata(TextureDimension.Buffer, ImmutableArray<GpuTextureLevelMetadata>.Empty,
+                false, 0, 0, 0, association);
+            entry.OperationInProgress = false;
+            entry.Manager.PublishMetadata(entry, data, GpuMetadataChange.Storage, renewTextureAssociation: renew);
+        }
+        finally { entry.OperationInProgress = false; }
     }
     #endregion
-
-    /// <summary>Retains original destination identity across native dispatch and command-result certification.</summary>
-    internal readonly struct NativeBufferTexture(GpuResourceMetadataEntry<GpuTextureMetadata>? entry,
-        GpuTextureBufferMetadata requested, GpuTextureBufferMetadata? previous)
-    {
-        #region Internal API
-        /// <summary>Publishes accepted facts or retains a proven rejected-command result without consuming native errors.</summary>
-        internal void Complete(bool nativeReturned)
-        {
-            if (entry is null) return;
-            try
-            {
-                // Keep acquisition and reentry blocked while native association/range facts
-                // are collected. Publication takes over the completion guard synchronously.
-                if (!nativeReturned || !entry.Manager.IsRegistered(entry)
-                    || entry.State != GpuResourceRegistrationState.Live) return;
-                if (!TryObserveBufferAssociation(entry, requested, previous, out var association, out bool renew))
-                    throw new InvalidOperationException("Native buffer texture association metadata is unavailable.");
-                var data = new GpuTextureMetadata(TextureDimension.Buffer, ImmutableArray<GpuTextureLevelMetadata>.Empty,
-                    false, 0, 0, 0, association);
-                entry.OperationInProgress = false;
-                entry.Manager.PublishMetadata(entry, data, GpuMetadataChange.Storage, renewTextureAssociation: renew);
-            }
-            finally { entry.OperationInProgress = false; }
-        }
-        #endregion
-    }
 
     #region Private
     /// <summary>Combines native association queries with range admission facts, preserving native-width command values.</summary>

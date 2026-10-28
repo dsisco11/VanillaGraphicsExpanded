@@ -148,9 +148,9 @@ public sealed class CategorizedStateCacheTests(HeadlessGLFixture fixture)
         fixture.MakeCurrent();
         var cache = OpenGlStateCache.Current;
         cache.InvalidateAll();
-        EngineStateCalls.Viewport(3, 5, 17, 19);
-        EngineStateCalls.ClearColor(.2f, .3f, .4f, .5f);
-        EngineStateCalls.DepthFunc(DepthFunction.Greater);
+        GL.Viewport(3, 5, 17, 19);
+        GL.ClearColor(.2f, .3f, .4f, .5f);
+        GL.DepthFunc(DepthFunction.Greater);
         Assert.Equal(new[] { 3, 5, 17, 19 }, Viewport());
         var clear = new float[4];
         GL.GetFloat(GetPName.ColorClearValue, clear);

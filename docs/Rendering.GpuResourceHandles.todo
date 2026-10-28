@@ -1182,9 +1182,9 @@ Phase 8: Design the RHICommand and RHICommandList render hardware interface
   Implementation is tracked separately in Rendering.GpuCommands.todo; its first phase defines final
   contracts and complete replacement units before runtime migration. Runtime Phases 1–7 now have
   qualification receipts there, including the implemented OpenGlStateCache split; that plan's Phase 8
-  corrects remaining wrapper/helper RHI boundary violations and implements the approved native OpenTK
-  interception replacement (that plan's subphase 8h) before final integrated/package and user-run
-  qualification in its Phase 9.
+  corrects wrapper/helper RHI boundary violations and qualifies the native OpenTK interception
+  replacement through subphase 8h. That plan's metadata lifecycle redesign (8i), combined closure (8j)
+  and management naming (8k) remain open before integrated/package/user-run qualification in Phase 9.
   Design authority is the current resource/binding contracts, inventory/API coverage and archived
   proposals at 3f307365 (command publication) and b9fca04c (texture reference).
   This design task makes no runtime implementation claim; execution and cache renaming belong to that plan.

@@ -60,7 +60,7 @@ internal sealed partial class OpenGLBackend
         RequireContext(); owner.RequireOriginalContext();
         if ((uint)attachment >= (uint)Capabilities.MaxColorOutputs) throw new System.ArgumentOutOfRangeException(nameof(attachment));
         OpenGLFramebufferRouting.SetDrawBuffer(cache, DrawBufferMode.ColorAttachment0 + attachment);
-        if (read) OpenTK.Graphics.OpenGL4.GL.NamedFramebufferReadBuffer(owner.FboId,
+        if (read) OpenGLDriverCalls.NamedFramebufferReadBuffer(owner.FboId,
             OpenTK.Graphics.OpenGL4.ReadBufferMode.ColorAttachment0 + attachment);
         RequireContext();
     }

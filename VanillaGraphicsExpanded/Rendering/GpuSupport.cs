@@ -26,6 +26,10 @@ public static partial class GpuSupport
     internal static long CaptureCount { get; private set; }
 #endif
 
+    /// <summary>Tests registered snapshot availability without native queries or consuming the caller's error queue.</summary>
+    internal static bool HasCachedCapabilitiesForCurrentContext => Volatile.Read(ref isInitialized)
+        && cachedRegistration == Integration.RenderContextRegistry.Current();
+
     /// <summary>Reuses registered context capabilities without polling native strings on the draw path.</summary>
     internal static void EnsureCurrentContext()
     {

@@ -36,11 +36,11 @@ internal sealed partial class OpenGLBackend
                 GpuResourceManager.DiscardUntrackedMetadata(program);
                 program.OnNativeProgramMetadataChanged(GpuMetadataChange.Executable, false);
             }
-            if (binary is null) GL.LinkProgram(program.ProgramId);
+            if (binary is null) OpenGLDriverCalls.LinkProgram(program.ProgramId);
             else
             {
                 fixed (byte* bytes = binary.Bytes.AsSpan())
-                    GL.ProgramBinary(program.ProgramId, (BinaryFormat)binary.NativeFormat, (nint)bytes, binary.Bytes.Length);
+                    OpenGLDriverCalls.ProgramBinary(program.ProgramId, (BinaryFormat)binary.NativeFormat, (nint)bytes, binary.Bytes.Length);
             }
             RequireContext();
         }

@@ -22,7 +22,7 @@ public sealed class GpuVertexBufferBindingInterceptionTests(HeadlessGLFixture fi
     {
         fixture.EnsureContextValid(); fixture.InitializeResourceDisposal();
         var harmony=new Harmony("VGE.Tests.VertexBufferBindingInterception");
-        harmony.Patch(AccessTools.Method(typeof(GpuVertexBufferBindingInterceptionTests),nameof(BindNative)),transpiler:new HarmonyMethod(typeof(EngineStateSwitchingHook),nameof(EngineStateSwitchingHook.Transpiler)));
+
         try
         {
             using var vao=NativeResourceSetup.CreateVertexArray(); OpenGLVertexSelection.Bind(OpenGlStateCache.Current, vao.VertexArrayId);

@@ -96,9 +96,9 @@ public sealed partial class GpuProgramMetadataInterceptionTests(HeadlessGLFixtur
         }
         finally { if(shader!=0) VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Shader, shader)); harmony.UnpatchAll(harmony.Id); fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
-    /// <summary>Native dispatch exceptions withdraw existing facts until an explicit successful refresh.</summary>
+    /// <summary>A managed wrapper failure before native dispatch preserves the unchanged executable metadata.</summary>
     [Fact]
-    public void DispatchFailureWithdrawsMetadata()
+    public void FailureBeforeDispatchPreservesMetadata()
     {
         fixture.EnsureContextValid(); fixture.InitializeResourceDisposal(); var harmony=Patch(nameof(SetUnits));
         try
@@ -106,11 +106,14 @@ public sealed partial class GpuProgramMetadataInterceptionTests(HeadlessGLFixtur
             using var program=CreateProgram(out int shader,true); VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Shader, shader));
             var manager=GpuResourceManagerSystem.CurrentManager!; var entry=manager.GetResourceRegistration(program)!;
             var layout=PrepareArrayLayout(program);
+            var prepared=layout.BinaryInterface;
+            ulong revision=entry.MetadataRevision;
             int location=GL.GetUniformLocation(program.ProgramId,"inputs[0]");
             harmony.Patch(AccessTools.Method(typeof(GL),nameof(GL.ProgramUniform1),new[]{typeof(int),typeof(int),typeof(int)}),prefix:new HarmonyMethod(typeof(GpuProgramMetadataInterceptionTests),nameof(ThrowDispatch)));
             Assert.Throws<ApplicationException>(()=>SetUnits(3,program.ProgramId,location,7));
-            Assert.Throws<InvalidOperationException>(()=>layout.BinaryInterface);
-            Assert.False(manager.IsResourceMetadataAvailable(program));
+            Assert.Same(prepared,layout.BinaryInterface);
+            Assert.True(manager.IsResourceMetadataAvailable(program));
+            Assert.Equal(revision,entry.MetadataRevision);
             harmony.UnpatchAll(harmony.Id);
             Assert.True(manager.RefreshMetadata((GpuResourceMetadataEntry<GpuProgramMetadata>)entry,GpuMetadataChange.None)); Assert.True(manager.IsResourceMetadataAvailable(program));
             Assert.Equal(ErrorCode.NoError,GL.GetError());
@@ -130,9 +133,9 @@ public sealed partial class GpuProgramMetadataInterceptionTests(HeadlessGLFixtur
         }
         finally { VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Program, program)); harmony.UnpatchAll(harmony.Id); fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
-    /// <summary>A context change between admission and completion prevents publication under a different manager context.</summary>
+    /// <summary>Observation under a foreign manager context cannot mutate the original program registration.</summary>
     [Fact]
-    public void ContextChangePreventsCompletion()
+    public void ForeignContextPreventsObservation()
     {
         fixture.EnsureContextValid(); var origin=VanillaGraphicsExpanded.Rendering.Integration.RenderContextRegistry.Current(); var current=origin;
         using var manager=new GpuResourceManager(()=>current,static _=>true); GpuResourceManagerSystem.Initialize(manager);
@@ -140,9 +143,10 @@ public sealed partial class GpuProgramMetadataInterceptionTests(HeadlessGLFixtur
         {
             using var program=CreateProgram(out int shader); VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Shader, shader));
             var entry=manager.GetResourceRegistration(program)!; ulong revision=entry.MetadataRevision;
-            var token=OpenGlStateCache.BeginNativeProgramMetadata(program.ProgramId,true,false,-1,1);
-            current=(origin.Item1,origin.Item2+1); token.Complete(true); current=origin;
-            Assert.Equal(revision,entry.MetadataRevision); Assert.False(manager.IsResourceMetadataAvailable(program));
+            current=(origin.Item1,origin.Item2+1);
+            OpenGlStateCache.ObserveProgramMetadata(program.ProgramId,true,false,-1,1);
+            current=origin;
+            Assert.Equal(revision,entry.MetadataRevision); Assert.True(manager.IsResourceMetadataAvailable(program));
             Assert.True(manager.RefreshMetadata((GpuResourceMetadataEntry<GpuProgramMetadata>)entry,GpuMetadataChange.None)); Assert.Equal(ErrorCode.NoError,GL.GetError());
         }
         finally { current=origin; manager.Dispose(); GpuResourceManagerSystem.Shutdown(); OpenGlStateCache.Current.InvalidateAll(); }
@@ -169,10 +173,10 @@ public sealed partial class GpuProgramMetadataInterceptionTests(HeadlessGLFixtur
         }
         finally { OpenGLProgramSelection.Select(OpenGlStateCache.Current, 0); units.UnpatchAll(units.Id); harmony.UnpatchAll(harmony.Id); fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
-    /// <summary>Unsigned and EXT pipeline selectors preserve the actual active-program target after rejected rebinding.</summary>
+    /// <summary>Signed and unsigned desktop pipeline selectors preserve the actual active-program target after rejected rebinding.</summary>
     [Theory]
     [InlineData(false)] [InlineData(true)]
-    public void PipelineSelectorsRecoverActualTarget(bool extension)
+    public void PipelineSelectorsRecoverActualTarget(bool unsigned)
     {
         fixture.EnsureContextValid(); fixture.InitializeResourceDisposal(); var harmony=Patch(nameof(SelectPipeline)); var units=Patch(nameof(SetUnits));
         try
@@ -180,8 +184,8 @@ public sealed partial class GpuProgramMetadataInterceptionTests(HeadlessGLFixtur
             using var program=CreateProgram(out int shader); VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Shader, shader));
             using var first=NativeResourceSetup.CreateProgramPipeline(); using var second=NativeResourceSetup.CreateProgramPipeline(); OpenGLProgramPipelineSelection.Bind(OpenGlStateCache.Current, first.PipelineId);
             GL.ActiveShaderProgram(second.PipelineId,program.ProgramId); OpenGLProgramSelection.Select(OpenGlStateCache.Current, 0);
-            SelectPipeline(extension,second.PipelineId); Assert.Equal(second.PipelineId,OpenGlStateCache.Current.GetCurrentProgramPipeline());
-            SelectPipeline(extension,int.MaxValue); Assert.Equal(ErrorCode.InvalidOperation,GL.GetError());
+            SelectPipeline(unsigned,second.PipelineId); Assert.Equal(second.PipelineId,OpenGlStateCache.Current.GetCurrentProgramPipeline());
+            SelectPipeline(unsigned,int.MaxValue); Assert.Equal(ErrorCode.InvalidOperation,GL.GetError());
             int location=GL.GetUniformLocation(program.ProgramId,"inputs[0]"); SetUnits(0,program.ProgramId,location,5);
             GL.GetUniform(program.ProgramId,location,out int actual); Assert.Equal(5,actual);
             Assert.Equal(second.PipelineId,OpenGlStateCache.Current.GetCurrentProgramPipeline()); Assert.Equal(ErrorCode.NoError,GL.GetError());
@@ -218,7 +222,7 @@ public sealed partial class GpuProgramMetadataInterceptionTests(HeadlessGLFixtur
     private static void SelectProgram(int variant,int program) { if(variant==0) GL.UseProgram((uint)program); else GL.Arb.UseProgramObject(program); }
     /// <summary>Preserves exact unsigned core and EXT pipeline selectors.</summary>
     [MethodImpl(MethodImplOptions.NoInlining)]
-    private static void SelectPipeline(bool extension,int pipeline) { if(extension) GL.Ext.BindProgramPipeline(pipeline); else GL.BindProgramPipeline((uint)pipeline); }
+    private static void SelectPipeline(bool unsigned,int pipeline) { if(unsigned) GL.BindProgramPipeline((uint)pipeline); else GL.BindProgramPipeline(pipeline); }
     /// <summary>Forwards an actual native binary payload unchanged through interception.</summary>
     [MethodImpl(MethodImplOptions.NoInlining)]
     private static unsafe void InstallBinary(int program,BinaryFormat format,byte[] binary,int length)
@@ -236,7 +240,7 @@ public sealed partial class GpuProgramMetadataInterceptionTests(HeadlessGLFixtur
     private static Harmony Patch(string method)
     {
         var harmony=new Harmony("VGE.Tests.ProgramMetadata."+method);
-        harmony.Patch(AccessTools.Method(typeof(GpuProgramMetadataInterceptionTests),method),transpiler:new HarmonyMethod(typeof(EngineStateSwitchingHook),nameof(EngineStateSwitchingHook.Transpiler)));
+
         return harmony;
     }
     /// <summary>Preserves exact scalar, managed-vector, reference and pointer payload signatures.</summary>

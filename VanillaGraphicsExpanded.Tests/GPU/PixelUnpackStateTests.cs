@@ -46,13 +46,13 @@ public sealed class PixelUnpackStateTests(HeadlessGLFixture fixture) : RenderTes
         using var restore = OpenGLPixelLayouts.UnpackScope(cache, new(1));
         if (floatingPoint)
         {
-            OpenGLPixelStoreCalls.SetPixelStore(cache, PixelStoreParameter.UnpackImageHeight, 17f);
-            OpenGLPixelStoreCalls.SetPixelStore(cache, PixelStoreParameter.UnpackSkipImages, 3f);
+            GL.PixelStore(PixelStoreParameter.UnpackImageHeight, 17f);
+            GL.PixelStore(PixelStoreParameter.UnpackSkipImages, 3f);
         }
         else
         {
-            OpenGLPixelStoreCalls.SetPixelStore(cache, PixelStoreParameter.UnpackImageHeight, 17);
-            OpenGLPixelStoreCalls.SetPixelStore(cache, PixelStoreParameter.UnpackSkipImages, 3);
+            GL.PixelStore(PixelStoreParameter.UnpackImageHeight, 17);
+            GL.PixelStore(PixelStoreParameter.UnpackSkipImages, 3);
         }
         AssertState(new(1, ImageHeight: 17, SkipImages: 3));
     }

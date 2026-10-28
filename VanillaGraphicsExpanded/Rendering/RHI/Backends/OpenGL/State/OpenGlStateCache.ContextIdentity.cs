@@ -16,6 +16,8 @@ internal sealed partial class OpenGlStateCache
     {
         if (rhiNativeContext == nativeContext && rhiContextLifetime == lifetime) return;
         InvalidateAll();
+        feedbackActivity.Clear();
+        pipelineUniformPrograms.Clear();
         // Scope tokens retain their own restoration values. Abandon the old namespace's
         // stack frames here so stale tokens need not mutate a newly admitted stack.
         VaoScopeTracker.ClearThreadStack();

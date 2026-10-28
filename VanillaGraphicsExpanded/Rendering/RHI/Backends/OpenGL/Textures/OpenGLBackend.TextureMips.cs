@@ -28,7 +28,7 @@ internal sealed partial class OpenGLBackend
         cache.RequireResourceOperationAvailable(GpuResourceKind.Texture, owner.ResourceId);
         if (previous.ImmutableStorage)
         {
-            GL.GenerateTextureMipmap((int)owner.ResourceId);
+            OpenGLDriverCalls.GenerateTextureMipmap((int)owner.ResourceId);
             RequireContext();
             return;
         }
@@ -50,12 +50,12 @@ internal sealed partial class OpenGLBackend
         bool changed = images.Length != previous.Levels.Length || images.Any(image => !previous.Levels.Contains(image));
         if (!changed)
         {
-            GL.GenerateTextureMipmap((int)owner.ResourceId);
+            OpenGLDriverCalls.GenerateTextureMipmap((int)owner.ResourceId);
             RequireContext();
             return;
         }
         using var operation = new GpuResourceManager.MetadataOperation<GpuTextureMetadata>(owner, GpuMetadataChange.Storage);
-        GL.GenerateTextureMipmap((int)owner.ResourceId);
+        OpenGLDriverCalls.GenerateTextureMipmap((int)owner.ResourceId);
         RequireContext();
         operation.Commit(previous with { Levels = images });
     }

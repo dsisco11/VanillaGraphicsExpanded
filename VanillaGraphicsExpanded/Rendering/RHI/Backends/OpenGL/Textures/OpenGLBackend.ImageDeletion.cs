@@ -11,7 +11,7 @@ internal sealed partial class OpenGLBackend
     internal void DeleteTexture(int texture)
     {
         RequireContext();
-        GL.DeleteTexture(texture);
+        OpenGLDriverCalls.DeleteTexture(texture);
         RequireContext();
         cache.CompleteResourceDeletion(GpuResourceKind.Texture, texture);
     }
@@ -19,7 +19,7 @@ internal sealed partial class OpenGLBackend
     internal void DeleteRenderbuffer(int renderbuffer)
     {
         RequireContext();
-        GL.DeleteRenderbuffer(renderbuffer);
+        OpenGLDriverCalls.DeleteRenderbuffer(renderbuffer);
         RequireContext();
         cache.CompleteResourceDeletion(GpuResourceKind.Renderbuffer, renderbuffer);
     }
@@ -27,7 +27,7 @@ internal sealed partial class OpenGLBackend
     internal void DeleteSampler(int sampler)
     {
         RequireContext();
-        GL.DeleteSampler(sampler);
+        OpenGLDriverCalls.DeleteSampler(sampler);
         RequireContext();
         cache.CompleteResourceDeletion(GpuResourceKind.Sampler, sampler);
     }

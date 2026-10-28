@@ -1,0 +1,44 @@
+using System;
+using OpenTK.Graphics.OpenGL;
+
+namespace VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
+
+/// <summary>Publishes the observed effects of glPolygonOffset after native dispatch.</summary>
+internal sealed unsafe partial class OpenGlStateCache
+{
+    #region Internal API
+    /// <summary>Updates existing cache and resource authority without issuing the intercepted operation.</summary>
+    [InterceptOpenGL("glPolygonOffset")]
+    internal static void ObservePolygonOffset(float a0, float a1)
+    {
+        float factor = unchecked((float)a0);
+        float units = unchecked((float)a1);
+        OpenGlStateCache? cache = null;
+        (nint Handle, long Generation) operationContext = default;
+        try
+        {
+            cache = OpenGlStateCache.Current;
+            operationContext = Integration.RenderContextRegistry.CaptureResourceContext();
+            cache = OpenGLObservationContext.CurrentCache;
+            bool accepted = float.IsFinite(factor) && float.IsFinite(units);
+            operationContext = Integration.RenderContextRegistry.CaptureResourceContext();
+            // Established rejection preserves prior facts. Observation never vetoes the native call.
+            if (accepted || !float.IsFinite(factor) || !float.IsFinite(units)) cache.ForgetExternalStateMutation(rasterizer: RasterizerStateKnowledge.PolygonOffset);
+
+            if (accepted && cache.OwnsKnowledgeFor(operationContext) && Integration.RenderContextRegistry.IsCurrentResourceContext(operationContext))
+                cache.ObserveExternalPolygonOffset(factor, units);
+        }
+        catch (Exception)
+        {
+            // Native dispatch has completed. Withdraw only uncertain affected knowledge
+            // when observation fails, without touching a foreign cache.
+            try
+            {
+                if (cache?.OwnsKnowledgeFor(operationContext) == true)
+                    cache.ForgetExternalStateMutation(rasterizer: RasterizerStateKnowledge.PolygonOffset);
+            }
+            catch (Exception) { /* Failure recovery must not veto or retry native dispatch. */ }
+        }
+    }
+    #endregion
+}

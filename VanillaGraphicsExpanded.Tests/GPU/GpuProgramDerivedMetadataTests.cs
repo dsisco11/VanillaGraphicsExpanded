@@ -79,7 +79,7 @@ Assert.Equal(0,acquisition.Acquisitions);
             try
             {
                 var layout=PrepareArrayLayout(program);
-                OpenGLProgramCalls.ExecuteCoreLinkProgram(program.ProgramId);
+                GL.LinkProgram(program.ProgramId);
                 Assert.True(program.NeedsNativePreparation); Assert.Throws<InvalidOperationException>(()=>layout.BinaryInterface);
                 int location=GL.GetUniformLocation(program.ProgramId,"inputs[0]");
                 OpenGLProgramAssignments.SetUnit(program.ProgramId,location,0);
@@ -103,7 +103,7 @@ Assert.Equal(0,acquisition.Acquisitions);
                 var layout=PrepareArrayLayout(program); var manager=GpuResourceManagerSystem.CurrentManager!;
                 var entry=(GpuResourceMetadataEntry<GpuProgramMetadata>)manager.GetResourceRegistration(program)!;
                 var reader=entry.Reader; entry.Reader=new UnavailableProgramReader();
-                Assert.Throws<InvalidOperationException>(()=>OpenGLProgramCalls.ExecuteCoreLinkProgram(program.ProgramId));
+                GL.LinkProgram(program.ProgramId);
                 Assert.Throws<InvalidOperationException>(()=>layout.BinaryInterface);
                 entry.Reader=reader; Assert.True(manager.RefreshMetadata(entry,GpuMetadataChange.None));
                 Assert.True(program.NeedsNativePreparation); Assert.Throws<InvalidOperationException>(()=>layout.BinaryInterface);

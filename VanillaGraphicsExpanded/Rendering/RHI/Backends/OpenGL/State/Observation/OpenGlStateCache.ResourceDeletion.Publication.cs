@@ -65,10 +65,12 @@ internal sealed partial class OpenGlStateCache
                 RecordBoundaryRetirement(EPipelineState.Program, id);
                 break;
             case GpuResourceKind.ProgramPipeline:
+                pipelineUniformPrograms.Remove(id);
                 RecordBoundaryRetirement(EPipelineState.ProgramPipeline, id);
                 if (currentProgramPipeline == id) currentProgramPipeline = 0;
                 break;
             case GpuResourceKind.TransformFeedback:
+                feedbackActivity.Remove(id);
                 RecordBoundaryRetirement(EPipelineState.TransformFeedback, id);
                 if (currentTransformFeedback == id) currentTransformFeedback = 0;
                 break;

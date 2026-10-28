@@ -38,7 +38,7 @@ public sealed class ConfigurableRasterizerGpuTests(HeadlessGLFixture fixture, IT
         cache.ApplyConfigurableRaster(first);
         try
         {
-            EngineStateCalls.Enable(EnableCap.ClipDistance1);
+            GL.Enable(EnableCap.ClipDistance1);
             cache.SetClipDistance(0, false); Assert.True(GL.IsEnabled(EnableCap.ClipDistance1));
             cache.SetClipDistance(0, true);
             Assert.True(GL.IsEnabled(EnableCap.ClipDistance0));
@@ -57,7 +57,7 @@ public sealed class ConfigurableRasterizerGpuTests(HeadlessGLFixture fixture, IT
             cache.ApplyConfigurableRaster(second);
             cache.ApplyConfigurableRaster(first);
             Assert.False(GL.IsEnabled(EnableCap.ClipDistance0));
-            EngineStateCalls.Enable(EnableCap.ClipDistance0);
+            GL.Enable(EnableCap.ClipDistance0);
             cache.SetDepthFunc(DepthFunction.Less);
 #if DEBUG
             calls = cache.FixedFunctionCalls;

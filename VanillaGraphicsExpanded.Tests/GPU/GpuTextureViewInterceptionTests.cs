@@ -114,8 +114,7 @@ public sealed class GpuTextureViewInterceptionTests(HeadlessGLFixture fixture)
     private static Harmony Patch()
     {
         var harmony = new Harmony("VGE.Tests.TextureViewInterception");
-        harmony.Patch(AccessTools.Method(typeof(GpuTextureViewInterceptionTests), nameof(DefineView)),
-            transpiler: new HarmonyMethod(typeof(EngineStateSwitchingHook), nameof(EngineStateSwitchingHook.Transpiler)));
+
         return harmony;
     }
 

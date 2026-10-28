@@ -10,36 +10,36 @@ internal sealed partial class OpenGlStateCache
     internal enum TextureMetadataEffect { Storage, Parameter, MipGeneration, RenderbufferAssociation }
 
     #region Internal API
-    /// <summary>Resolves bound, named and explicit-unit selectors without registering untracked objects.</summary>
-    internal static NativeTextureMetadata BeginNativeTextureMetadata(int selector, int nativeTarget, int nativeUnit,
+    /// <summary>Reconciles one completed texture mutation through canonical metadata publication.</summary>
+    internal static void ObserveTextureMetadata(int selector, int nativeTarget, int nativeUnit,
         bool named, bool explicitUnit, TextureMetadataEffect effect, int argument, int imageLevel = -1, int? parameterValue = null)
     {
         // Only base/max level parameters affect represented texture metadata.
-        if (effect == TextureMetadataEffect.Parameter && argument is not ((int)TextureParameterName.TextureBaseLevel or (int)TextureParameterName.TextureMaxLevel)) return default;
+        if (effect == TextureMetadataEffect.Parameter && argument is not ((int)TextureParameterName.TextureBaseLevel or (int)TextureParameterName.TextureMaxLevel)) return;
         var manager = GpuResourceManagerSystem.CurrentManager;
-        if (manager?.CanObserveNativeMetadata != true && Current.resourceOperation is null) return default;
+        if (manager?.CanObserveNativeMetadata != true && Current.resourceOperation is null) return;
         var target = (TextureTarget)nativeTarget;
         if (target >= TextureTarget.TextureCubeMapPositiveX && target <= TextureTarget.TextureCubeMapNegativeZ)
             target = TextureTarget.TextureCubeMap;
         // Proxy definitions have no texture-object effect. Invalid targets remain native
         // errors; do not reinterpret them as the texture currently bound to another target.
-        if (target != 0 && !TryGetTextureBindingQuery(target, out _)) return default;
+        if (target != 0 && !TryGetTextureBindingQuery(target, out _)) return;
         int id = selector;
         if (!named)
         {
-            if (target == 0) return default;
+            if (target == 0) return;
             int unit = explicitUnit ? unchecked(nativeUnit - (int)TextureUnit.Texture0) : Current.GetActiveTextureUnit();
-            if ((uint)unit >= (uint)GpuSupport.Graphics.MaxCombinedTextureImageUnits) return default;
+            if ((uint)unit >= (uint)GpuSupport.Graphics.MaxCombinedTextureImageUnits) return;
             id = Current.GetBoundTexture(target, unit);
         }
-        Current.RequireResourceOperationAvailable(GpuResourceKind.Texture, id);
-        if (manager?.CanObserveNativeMetadata != true) return default;
+        Current.InterruptNativeResourceOperation(GpuResourceKind.Texture, id);
+        if (manager?.CanObserveNativeMetadata != true) return;
         var entry = manager.FindObservedResource(GpuResourceKind.Texture, id)
             as GpuResourceMetadataEntry<GpuTextureMetadata>;
         // Buffer textures only acquire storage through association commands. Image storage,
         // mip generation and represented texture parameters are invalid for this target.
-        if (entry?.Metadata.Target == TextureDimension.Buffer) return default;
-        if (effect == TextureMetadataEffect.Parameter && entry?.Metadata.Target is TextureDimension.TwoMultisample or TextureDimension.TwoMultisampleArray) return default;
+        if (entry?.Metadata.Target == TextureDimension.Buffer) return;
+        if (effect == TextureMetadataEffect.Parameter && entry?.Metadata.Target is TextureDimension.TwoMultisample or TextureDimension.TwoMultisampleArray) return;
         bool generation = effect == TextureMetadataEffect.MipGeneration;
         bool wasAvailable = entry?.IsUsable == true;
         if (entry is not null && imageLevel >= 0
@@ -51,10 +51,10 @@ internal sealed partial class OpenGlStateCache
         {
             // Immutable storage already fixes every image descriptor. Mip regeneration can
             // only change its contents, so it must not retire view storage certificates.
-            if (generation && wasAvailable && entry.Metadata.ImmutableStorage) return default;
+            if (generation && wasAvailable && entry.Metadata.ImmutableStorage) return;
             // A rejected named command may supply a different target. Prefer the established
             // object target so readback certifies actual state without speculative rebinding.
-            if (entry.OperationInProgress || entry.CompletionInProgress) throw new System.InvalidOperationException("A resource metadata operation is already in progress.");
+            if (InterruptNativeMetadataCompletion(entry, change)) return;
             entry.Reader ??= new GpuTextureMetadataReader(entry.Metadata.Target != 0 ? entry.Metadata.Target : target == 0 ? TextureDimension.Undefined : OpenGLImageValues.Dimension(target));
         }
         // A matching established target and a live realized backing prove the simple
@@ -68,41 +68,14 @@ internal sealed partial class OpenGlStateCache
             entry.OperationInProgress = true;
             entry.BeginRefresh(change);
         }
-        return new(entry, change, generation, wasAvailable, renewAssociation,
-            effect == TextureMetadataEffect.Parameter ? (TextureParameterName)argument : 0, imageLevel,
-            nativeTarget >= (int)TextureTarget.TextureCubeMapPositiveX && nativeTarget <= (int)TextureTarget.TextureCubeMapNegativeZ ? OpenGLImageValues.Face((TextureTarget)nativeTarget) : CubeFace.None, parameterValue, parameterTargetMatches);
-    }
-    #endregion
-
-    #region Private
-    /// <summary>Prevents recovery queries from replaying an invalid external mip index into the driver.</summary>
-    private static bool CanQueryTextureImage(GpuTextureMetadata metadata, int level)
-    {
-        int count = 1;
-        if (metadata.Target is not (TextureDimension.Rectangle or TextureDimension.TwoMultisample or TextureDimension.TwoMultisampleArray))
-        {
-            var caps = GpuSupport.Graphics;
-            int extent = metadata.Target == TextureDimension.Three ? caps.Max3DTextureSize
-                : metadata.Target is TextureDimension.Cube or TextureDimension.CubeArray ? caps.MaxCubeMapTextureSize : caps.MaxTextureSize;
-            while ((extent >>= 1) > 0) count++;
-        }
-        if (metadata.View is { } view) count = Math.Min(count, view.LevelCount);
-        return level < count;
-    }
-    #endregion
-
-    /// <summary>Retains one original registration across native image mutation and alias publication.</summary>
-    internal readonly struct NativeTextureMetadata(GpuResourceMetadataEntry<GpuTextureMetadata>? entry,
-        GpuMetadataChange change, bool generation, bool wasAvailable, bool renewAssociation, TextureParameterName parameter,
-        int imageLevel, CubeFace face, int? parameterValue, bool parameterTargetMatches)
-    {
-        #region Internal API
-        /// <summary>Publishes real allocated images without interpreting texel upload contents.</summary>
-        internal void Complete(bool nativeReturned)
+        var parameter = effect == TextureMetadataEffect.Parameter ? (TextureParameterName)argument : 0;
+        var face = nativeTarget >= (int)TextureTarget.TextureCubeMapPositiveX && nativeTarget <= (int)TextureTarget.TextureCubeMapNegativeZ
+            ? OpenGLImageValues.Face((TextureTarget)nativeTarget) : CubeFace.None;
+        try
         {
             if (entry is not null) entry.OperationInProgress = false;
             if (entry is null || !entry.Manager.IsRegistered(entry) || entry.State != GpuResourceRegistrationState.Live) return;
-            if (!nativeReturned) { entry.NotifyImageDependents(suppressErrors: true); return; }
+
             if (parameter != 0 && wasAvailable && parameterValue.HasValue)
             {
                 if (!entry.Manager.CanObserveNativeMetadata)
@@ -124,10 +97,29 @@ internal sealed partial class OpenGlStateCache
                     : imageLevel >= 0 && wasAvailable
                     ? entry.Manager.RefreshTextureImages(entry, imageLevel, imageLevel, face, false, true)
                     : generation ? entry.Manager.RefreshGeneratedTextureMetadata(entry, wasAvailable)
-                    : entry.Manager.RefreshMetadata(entry, change, renewTextureAssociation: nativeReturned && renewAssociation);
+                    : entry.Manager.RefreshMetadata(entry, change, renewTextureAssociation: renewAssociation);
             if (!available)
                 throw new InvalidOperationException("Native texture metadata is unavailable after image mutation.");
         }
-        #endregion
+        finally { if (entry is not null) entry.OperationInProgress = false; }
     }
+    #endregion
+
+    #region Private
+    /// <summary>Prevents recovery queries from replaying an invalid external mip index into the driver.</summary>
+    private static bool CanQueryTextureImage(GpuTextureMetadata metadata, int level)
+    {
+        int count = 1;
+        if (metadata.Target is not (TextureDimension.Rectangle or TextureDimension.TwoMultisample or TextureDimension.TwoMultisampleArray))
+        {
+            var caps = GpuSupport.Graphics;
+            int extent = metadata.Target == TextureDimension.Three ? caps.Max3DTextureSize
+                : metadata.Target is TextureDimension.Cube or TextureDimension.CubeArray ? caps.MaxCubeMapTextureSize : caps.MaxTextureSize;
+            while ((extent >>= 1) > 0) count++;
+        }
+        if (metadata.View is { } view) count = Math.Min(count, view.LevelCount);
+        return level < count;
+    }
+    #endregion
+
 }

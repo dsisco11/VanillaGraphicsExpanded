@@ -8,13 +8,13 @@ internal static partial class OpenGLStateEffects
 {
     #region Internal API
     /// <summary>Issues the core SampleCoverage effect after cache admission; knowledge commits belong to the caller.</summary>
-    internal static void SampleCoverage(float value, bool invert) => Core.GL.SampleCoverage(value, invert);
+    internal static void SampleCoverage(float value, bool invert) => OpenGLDriverCalls.SampleCoverage(value, invert);
 
     /// <summary>Issues the core MinSampleShading effect after cache admission; knowledge commits belong to the caller.</summary>
-    internal static void MinSampleShading(float value) => Core.GL.MinSampleShading(value);
+    internal static void MinSampleShading(float value) => OpenGLDriverCalls.MinSampleShading(value);
 
     /// <summary>Issues the core SampleMask effect after cache admission; knowledge commits belong to the caller.</summary>
-    internal static void SampleMask(uint index, uint mask) => Core.GL.SampleMask(index, mask);
+    internal static void SampleMask(uint index, uint mask) => OpenGLDriverCalls.SampleMask(index, mask);
 
     #endregion
 }

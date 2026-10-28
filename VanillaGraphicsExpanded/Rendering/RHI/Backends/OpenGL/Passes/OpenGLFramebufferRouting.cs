@@ -56,15 +56,15 @@ internal static class OpenGLFramebufferRouting
         {
             if (framebuffer != 0)
             {
-                if (single) GL.NamedFramebufferDrawBuffer(framebuffer, (DrawBufferMode)native[0]);
-                else GL.NamedFramebufferDrawBuffers(framebuffer, native.Length, native);
+                if (single) OpenGLDriverCalls.NamedFramebufferDrawBuffer(framebuffer, (DrawBufferMode)native[0]);
+                else OpenGLDriverCalls.NamedFramebufferDrawBuffers(framebuffer, native.Length, native);
             }
             else
             {
                 if (!cache.TryGetCachedCurrentFramebuffer(Legacy.FramebufferTarget.DrawFramebuffer, out int selected) || selected != 0)
                     throw new InvalidOperationException("Window routing requires its selected surface.");
-                if (single) GL.DrawBuffer((DrawBufferMode)native[0]);
-                else GL.DrawBuffers(native.Length, native);
+                if (single) OpenGLDriverCalls.DrawBuffer((DrawBufferMode)native[0]);
+                else OpenGLDriverCalls.DrawBuffers(native.Length, native);
             }
         }
         if (!VanillaGraphicsExpanded.Rendering.Integration.RenderContextRegistry.IsCurrentResourceContext(origin)) throw new InvalidOperationException("Framebuffer routing returned in a foreign context.");

@@ -1,15 +1,15 @@
 # OpenTK binding-table interception
 
-Status: approved for implementation in subphase 8h of
-[Rendering.GpuCommands.todo](Rendering.GpuCommands.todo). This document refines the external interception
+Status: implemented and focused qualification recorded in subphase 8h of
+[Rendering.GpuCommands.todo](Rendering.GpuCommands.todo). This document defines the external interception
 boundary of the approved [RHI proposal](Rendering.GpuCommands.Proposal.md) and
-[contracts](Rendering.GpuCommands.Contracts.md); it does not claim the hooks are installed.
+[contracts](Rendering.GpuCommands.Contracts.md). Integrated/package/live qualification remains separate.
 Interception is observational: forward native calls without throwing into the caller or cancelling dispatch.
 
 ## Purpose and scope
 
 Observe selected OpenGL operations at OpenTK's native dispatch boundary, independently of the caller's
-assembly. The implementation will replace engine call-site rewriting for those operations.
+assembly. Generated native callbacks replace engine call-site rewriting for those operations.
 
 Coverage includes both `OpenTK.Graphics.OpenGL.GL` and `OpenTK.Graphics.OpenGL4.GL`, for supported
 Core, Ext and Arb operations. Excluded auxiliary owners and legacy compatibility features stay excluded.
@@ -18,7 +18,7 @@ Hook queries/content-only operations only where an explicit observation contract
 
 The chosen boundary is the supported installed OpenTK tables, irrespective of caller assembly.
 Engine-only caller rewriting was considered, but native interception is the approved replacement.
-Existing caller rewriting remains explicitly incomplete until the owning replacement unit removes it.
+Caller rewriting and its exact managed adapter catalogs are removed for these operation families.
 
 ## Dispatch design
 
@@ -29,8 +29,7 @@ selected entries with ABI-compatible callbacks, retaining the original driver po
 flowchart TD
     E[Engine or mod calls OpenTK] --> W[OpenTK overload and argument marshalling]
     W --> H[Hooked native table entry]
-    H --> A[Capture observation context and affected knowledge]
-    A --> N[Saved original driver function]
+    H --> N[Saved original driver function]
     N --> R[Reconcile observed operation]
     R --> C[Existing OpenGlStateCache]
     R --> M[Existing manager metadata publication]
@@ -45,6 +44,41 @@ depth-write knowledge when its effect is established. For `GL.BufferData<T>`, Op
 array; the callback receives a native pointer and byte count without needing the managed element type.
 Backend-owned calls bypass interception and retain their existing admission and reconciliation.
 External observation never suppresses even a known-equal call; OpenGL receives the original arguments.
+
+## Generated callbacks and handwritten observers
+
+Cache-owned static post-call observation methods declare their native symbols with `InterceptOpenGL`.
+Equivalent core/ARB/EXT symbols may annotate the same method when their ABI and effects agree.
+Generated callbacks invoke these methods directly; the installation class does not own a parallel set
+of forwarding observers. Bound and named variants normalize into shared domain effect logic.
+A dedicated Roslyn generator reads the exact `OpenTK.Graphics` PE reference supplied by the compiler.
+It recovers native entrypoint names from binding-table initialization and decodes wrapper `calli`
+signatures for the supported GL roots and Core/Ext/Arb owners. This is build-time metadata inspection;
+it neither loads OpenTK into the analyzer host nor executes its static constructors. Attributes select
+operations; no separately maintained native-signature file is required. Managed convenience overloads
+retain their native call-site ABI. Unknown symbols, incompatible observer signatures, duplicate
+registrations, conflicting native signatures and unsupported binding layouts are compilation errors.
+The generator then emits callback factories and the registration catalog. The generated
+callback calls the immutable original pointer once, checks whether observation remains enabled,
+then invokes the observer with native arguments and any return value. Observer exceptions are contained;
+no per-call lifetime counter is needed.
+OpenTK retains managed overload marshalling; native pointer arguments remain valid during observation.
+
+Cache observation methods own only operation-specific effects and targeted recovery through the existing cache/manager.
+Each post-call operation keeps classification, targeted withdrawal, manager publication and cleanup
+within one call. No observation receipt crosses a caller-managed begin/complete boundary. Routing and
+selector effects preserve prior values on proven rejection. Metadata acquisition retains manager-owned
+completion exclusion; a nested observed mutation interrupts certification of the outer candidate.
+Controlled backend vertex configuration and program assignment own actual native execution and its
+failure cleanup synchronously, with no externally exposed observation receipt.
+They cannot invoke or cancel the original operation. Cached prior facts may be reused only while valid;
+reentrant native calls and post-call output changes must not be mistaken for unchanged pre-call state.
+No reflection, dynamic invocation or per-call delegate allocation belongs in generated dispatch.
+
+The generator also emits consumed `OpenGLDriverCalls` overloads from compiler-selected OpenTK methods.
+Exact managed parameter signatures identify their native slots, including indexed overloads that share
+a managed name. Backend calls use saved originals without external observation; no handwritten bypass
+overload inventory is maintained.
 
 ## Responsibility boundaries
 
@@ -68,10 +102,19 @@ portable RHI contracts gain no native details, registry, cache or metadata autho
   Pre-installation state remains initially unknown and uses existing acquisition rules.
 - Reinstall after `LoadBindings`, which overwrites hooks. Capture newly loaded driver addresses,
   never our own callbacks as originals.
-- Qualify concurrent loading/execution and originating-context ownership. Shared binding tables and
-  thread-local cache knowledge have different lifetimes; completion cannot modify a foreign cache.
-- Teardown only with no calls in flight. Restore only entries still owned by this installation,
-  preserving later loader results or other components' replacements.
+- Coordinate new binding-table lookups with incomplete host binding loads/replacement. Already-fetched
+  immutable callbacks may finish concurrently. Loader finalization reconciles partially loaded tables
+  even after loader failure; if observation was disabled during loading, restore late writes only where
+  they still point to this installation's callbacks. Shared binding tables and thread-local cache
+  knowledge have different lifetimes; completion cannot modify a foreign cache.
+- Capture capabilities explicitly during context admission. A native observer must not initialize
+  capabilities or consume the caller's pending error queue. A context without its current cached
+  capability snapshot keeps unknown knowledge until explicit admission establishes that snapshot.
+- Uninstall disables further observation and atomically restores only entries still owned by this
+  installation, preserving later loader results or other components' replacements. It does not wait for
+  executing calls. Retain callback delegates and immutable original pointers for process lifetime so
+  already-fetched callbacks remain callable and forward normally. An observer already admitted may finish;
+  cache/resource destruction remains coordinated by the existing rendering lifecycle.
 
 Saved-pointer backend dispatch is the preferred bypass because it avoids a broad suppression flag
 that could accidentally hide an external call made during a nested callback. Binding aliases and nested
@@ -84,8 +127,8 @@ Every intercepted call reaches the saved driver function exactly once, including
 arguments and calls conflicting with managed resource or rendering assumptions. OpenGL determines
 native acceptance and error behavior. Preserve return values, output arguments and the native error queue.
 
-Observer bookkeeping before dispatch must be contained so a managed failure cannot skip the driver call.
-Contain post-dispatch failures separately; never retry a native call because reconciliation failed.
+Observation runs only after native dispatch. There are no preparation hooks or paired before/after hooks.
+Contain post-call observer failures; never retry a native call because reconciliation failed.
 Observer failures neither escape through the native callback nor become deferred exceptions delivered
 to the external caller. Debug diagnostics may identify an observation defect without altering dispatch.
 

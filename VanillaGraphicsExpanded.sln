@@ -25,6 +25,10 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ShaderBuildModel", "ShaderB
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ShaderBuildCatalog", "ShaderBuildCatalog\ShaderBuildCatalog.csproj", "{759AD87A-FF76-4EBC-8A01-4355DBEA2030}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OpenGLInterceptionGenerator", "OpenGLInterceptionGenerator\OpenGLInterceptionGenerator.csproj", "{FAD0CE38-C70A-449E-9F32-B88D7BBEAE30}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OpenGLInterceptionGenerator.Tests", "OpenGLInterceptionGenerator.Tests\OpenGLInterceptionGenerator.Tests.csproj", "{A064D69C-762A-4C8E-B37D-11C14892E65B}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -35,6 +39,30 @@ Global
 		Release|x86 = Release|x86
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{FAD0CE38-C70A-449E-9F32-B88D7BBEAE30}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{FAD0CE38-C70A-449E-9F32-B88D7BBEAE30}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{FAD0CE38-C70A-449E-9F32-B88D7BBEAE30}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{FAD0CE38-C70A-449E-9F32-B88D7BBEAE30}.Debug|x64.Build.0 = Debug|Any CPU
+		{FAD0CE38-C70A-449E-9F32-B88D7BBEAE30}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{FAD0CE38-C70A-449E-9F32-B88D7BBEAE30}.Debug|x86.Build.0 = Debug|Any CPU
+		{FAD0CE38-C70A-449E-9F32-B88D7BBEAE30}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{FAD0CE38-C70A-449E-9F32-B88D7BBEAE30}.Release|Any CPU.Build.0 = Release|Any CPU
+		{FAD0CE38-C70A-449E-9F32-B88D7BBEAE30}.Release|x64.ActiveCfg = Release|Any CPU
+		{FAD0CE38-C70A-449E-9F32-B88D7BBEAE30}.Release|x64.Build.0 = Release|Any CPU
+		{FAD0CE38-C70A-449E-9F32-B88D7BBEAE30}.Release|x86.ActiveCfg = Release|Any CPU
+		{FAD0CE38-C70A-449E-9F32-B88D7BBEAE30}.Release|x86.Build.0 = Release|Any CPU
+		{A064D69C-762A-4C8E-B37D-11C14892E65B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A064D69C-762A-4C8E-B37D-11C14892E65B}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A064D69C-762A-4C8E-B37D-11C14892E65B}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{A064D69C-762A-4C8E-B37D-11C14892E65B}.Debug|x64.Build.0 = Debug|Any CPU
+		{A064D69C-762A-4C8E-B37D-11C14892E65B}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{A064D69C-762A-4C8E-B37D-11C14892E65B}.Debug|x86.Build.0 = Debug|Any CPU
+		{A064D69C-762A-4C8E-B37D-11C14892E65B}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A064D69C-762A-4C8E-B37D-11C14892E65B}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A064D69C-762A-4C8E-B37D-11C14892E65B}.Release|x64.ActiveCfg = Release|Any CPU
+		{A064D69C-762A-4C8E-B37D-11C14892E65B}.Release|x64.Build.0 = Release|Any CPU
+		{A064D69C-762A-4C8E-B37D-11C14892E65B}.Release|x86.ActiveCfg = Release|Any CPU
+		{A064D69C-762A-4C8E-B37D-11C14892E65B}.Release|x86.Build.0 = Release|Any CPU
 		{8C0F258B-3BF4-4F46-9FB7-DA1EBB1CF691}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{8C0F258B-3BF4-4F46-9FB7-DA1EBB1CF691}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{8C0F258B-3BF4-4F46-9FB7-DA1EBB1CF691}.Debug|x64.ActiveCfg = Debug|Any CPU

@@ -7,6 +7,7 @@ using OpenTK.Windowing.Desktop;
 using OpenTK.Windowing.GraphicsLibraryFramework;
 using Xunit;
 using VanillaGraphicsExpanded.Rendering;
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 
 namespace VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 
@@ -38,6 +39,12 @@ public sealed class HeadlessGLFixture : IAsyncLifetime
     private string? _initializationError;
     private int _bindingsLoadedThreadId = -1;
     private GpuResourceManager? _resourceManager;
+    private static readonly Lazy<HarmonyLib.Harmony> bindingHooks = new(() =>
+    {
+        var harmony = new HarmonyLib.Harmony("Tests.OpenTKBindingLoader");
+        harmony.CreateClassProcessor(typeof(OpenGLBindingLoaderHook)).Patch();
+        return harmony;
+    });
 
 #if DEBUG
     private DebugProc? _debugCallback;
@@ -72,6 +79,7 @@ public sealed class HeadlessGLFixture : IAsyncLifetime
         // Lifecycle tests must exercise specialization and linking unless a cache test opts in explicitly.
         VanillaGraphicsExpanded.Rendering.ProgramBinaries.DriverProgramCache.Bypass = true;
         Assert.SkipWhen(!_contextValid, $"OpenGL context not available: {_initializationError ?? "Unknown error"}");
+        _ = bindingHooks.Value;
 
         unsafe
         {
@@ -92,6 +100,9 @@ public sealed class HeadlessGLFixture : IAsyncLifetime
             // Drain so tests start from a known-clean state.
             while (GL.GetError() != OpenTK.Graphics.OpenGL.ErrorCode.NoError) { }
         }
+        // Capability discovery is fixture initialization, never part of an intercepted native operation.
+        GpuSupport.EnsureCurrentContext();
+        OpenGLBindingInterception.Install();
     }
 
     /// <summary>

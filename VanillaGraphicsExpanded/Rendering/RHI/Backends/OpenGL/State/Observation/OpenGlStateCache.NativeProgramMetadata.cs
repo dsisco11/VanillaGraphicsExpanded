@@ -7,13 +7,13 @@ namespace VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 internal sealed partial class OpenGlStateCache
 {
     #region Internal API
-    /// <summary>Resolves explicit or active-pipeline programs and excludes numeric uniform destinations.</summary>
-    internal static NativeProgramMetadata BeginNativeProgramMetadata(int program, bool named, bool unit, int location, int count,
+    /// <summary>Reconciles a completed native mutation and releases metadata bookkeeping on every exit.</summary>
+    internal static void ObserveProgramMetadata(int program, bool named, bool unit, int location, int count,
         bool executable = false, bool unsupportedUnits = false, ProgramInterface block = 0, int blockIndex = -1, int? supplied = null)
     {
         var manager = GpuResourceManagerSystem.CurrentManager;
-        if (manager?.CanObserveNativeMetadata != true) return default;
-        if (unit && (location < 0 || count <= 0)) return default;
+        if (manager?.CanObserveNativeMetadata != true) return;
+        if (unit && (location < 0 || count <= 0)) return;
         if (!named)
         {
             program = Current.GetCurrentProgram();
@@ -21,13 +21,14 @@ internal sealed partial class OpenGlStateCache
             if (program == 0)
             {
                 int pipeline = Current.GetCurrentProgramPipeline();
-                if (pipeline != 0) GL.GetProgramPipeline(pipeline, ProgramPipelineParameter.ActiveProgram, out program);
+                if (pipeline != 0) program = Current.GetPipelineUniformProgram(pipeline);
             }
         }
+        Current.InterruptNativeResourceOperation(GpuResourceKind.Program, program);
         var entry = manager.FindObservedResource(GpuResourceKind.Program, program)
             as GpuResourceMetadataEntry<GpuProgramMetadata>;
-        if (entry is null) return default;
-        if (entry.OperationInProgress || entry.CompletionInProgress) throw new InvalidOperationException("A program operation is already in progress.");
+        if (entry is null) return;
+        if (InterruptNativeMetadataCompletion(entry, GpuMetadataChange.Metadata | (executable ? GpuMetadataChange.Executable : GpuMetadataChange.None))) return;
         bool known = entry.IsUsable;
         if (unit)
         {
@@ -39,7 +40,7 @@ internal sealed partial class OpenGlStateCache
                         represented = true;
                         break;
                     }
-            if (!represented) return default;
+            if (!represented) return;
         }
         entry.Reader ??= GpuProgramMetadataReader.Instance;
         if (known && block != 0)
@@ -47,36 +48,28 @@ internal sealed partial class OpenGlStateCache
             bool represented = false;
             foreach (var resource in entry.Metadata.Resources)
                 if (resource.Interface == OpenGLShaderValues.Resource((OpenTK.Graphics.OpenGL4.ProgramInterface)block) && resource.Index == blockIndex) { represented = true; break; }
-            if (!represented) return default;
+            if (!represented) return;
         }
         var change = GpuMetadataChange.Metadata | (executable ? GpuMetadataChange.Executable : GpuMetadataChange.None);
         if (unsupportedUnits) manager.WithdrawUnsupportedProgramUnits(entry);
         var previous = entry.Metadata;
+        entry.CompletionInterrupted = false;
         entry.OperationInProgress = true;
         entry.BeginRefresh(change);
-        try { entry.NotifyProgramDependents(change, available: false); }
-        catch { entry.OperationInProgress = false; throw; }
-        return new(entry, unsupportedUnits, known, previous, unit, location, count, block, blockIndex, supplied);
-    }
-    #endregion
-
-    /// <summary>Retains original program identity until the native command finishes.</summary>
-    internal readonly struct NativeProgramMetadata(GpuResourceMetadataEntry<GpuProgramMetadata>? entry, bool unsupportedUnits,
-        bool known, GpuProgramMetadata previous, bool unit, int location, int count, ProgramInterface block, int index, int? supplied)
-    {
-        #region Internal API
-        /// <summary>Publishes affected facts once, retaining native failure and original registration semantics.</summary>
-        internal void Complete(bool returned)
+        try
         {
-            if (entry is null) return;
+            entry.NotifyProgramDependents(change, available: false);
+            if (entry.CompletionInterrupted)
+                throw new InvalidOperationException("Program observation was interrupted by a nested mutation.");
             entry.OperationInProgress = false;
-            if (unsupportedUnits || !returned || !entry.Manager.CanObserveNativeMetadata
+            if (unsupportedUnits || !entry.Manager.CanObserveNativeMetadata
                 || !entry.Manager.IsRegistered(entry) || entry.State != GpuResourceRegistrationState.Live) return;
             bool success = known && (unit || block != 0)
-                ? entry.Manager.RefreshProgramFields(entry, previous, unit, location, count, block == ProgramInterface.UniformBlock ? ProgramBlockKind.Uniform : ProgramBlockKind.Storage, index, supplied)
+                ? entry.Manager.RefreshProgramFields(entry, previous, unit, location, count, block == ProgramInterface.UniformBlock ? ProgramBlockKind.Uniform : ProgramBlockKind.Storage, blockIndex, supplied)
                 : entry.Manager.RefreshMetadata(entry, GpuMetadataChange.Metadata);
             if (!success) throw new InvalidOperationException("Native program metadata is unavailable after mutation.");
         }
-        #endregion
+        finally { if (entry is not null) entry.OperationInProgress = false; }
     }
+    #endregion
 }

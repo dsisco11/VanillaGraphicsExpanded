@@ -5,6 +5,7 @@ using HarmonyLib;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.HarmonyPatches;
 using VanillaGraphicsExpanded.Rendering;
+using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Qualifies exact opaque-handle forwarding and unavailable unit metadata without unsupported native dispatch.</summary>
@@ -23,7 +24,7 @@ public sealed partial class GpuProgramMetadataInterceptionTests
         {
             bool supported=Enumerable.Range(0,GL.GetInteger(GetPName.NumExtensions)).Any(index=>GL.GetString(StringNameIndexed.Extensions,index)=="GL_ARB_bindless_texture");
             output.WriteLine("Native GL_ARB_bindless_texture="+supported+"; this case uses a controlled native boundary, not native handle residency.");
-            PatchOpaqueBoundary(harmony,variant);
+            using var boundary = CaptureOpaqueBoundary(variant);
             using var program=CreateProgram(out int shader,true); VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Shader, shader));
             var layout=PrepareArrayLayout(program); OpenGLProgramSelection.Select(OpenGlStateCache.Current, program.ProgramId);
             using var alias=new ProgramAlias(program.ProgramId); GpuResourceManager.AcquireWrapperMetadata(alias,GpuProgramMetadataReader.Instance);
@@ -49,7 +50,7 @@ public sealed partial class GpuProgramMetadataInterceptionTests
         fixture.EnsureContextValid(); fixture.InitializeResourceDisposal(); var harmony=Patch(nameof(SetOpaqueHandle));
         try
         {
-            PatchOpaqueBoundary(harmony,2); using var program=CreateProgram(out int shader); VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Shader, shader)); OpenGLProgramSelection.Select(OpenGlStateCache.Current, program.ProgramId);
+            using var boundary = CaptureOpaqueBoundary(2); using var program=CreateProgram(out int shader); VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Shader, shader)); OpenGLProgramSelection.Select(OpenGlStateCache.Current, program.ProgramId);
             var manager=GpuResourceManagerSystem.CurrentManager!; var entry=manager.GetResourceRegistration(program)!; ulong revision=entry.MetadataRevision;
             int location=mode==0?-1:GL.GetUniformLocation(program.ProgramId,mode==1?"numericValue":"inputs[0]");
             SetOpaqueHandle(2,program.ProgramId,location,mode==2?0:1,ulong.MaxValue);
@@ -103,15 +104,45 @@ public sealed partial class GpuProgramMetadataInterceptionTests
     }
     #endregion
     #region Private
-    /// <summary>Installs a typed boundary capture so unsupported hardware entry points are never executed.</summary>
-    private static unsafe void PatchOpaqueBoundary(Harmony harmony,int variant)
+    /// <summary>Substitutes a typed native oracle without requiring valid resident driver handles.</summary>
+    private static unsafe NativeDriverCapture CaptureOpaqueBoundary(int variant)
     {
-        Type[] signature=variant switch { 0=>new[]{typeof(int),typeof(long)},1=>new[]{typeof(uint),typeof(int),typeof(ulong)},2=>new[]{typeof(int),typeof(int),typeof(long[])},_=>new[]{typeof(uint),typeof(int),typeof(int),typeof(ulong*)} };
-        string name=variant is 0 or 2?"UniformHandle":"ProgramUniformHandle";
-        string capture=variant switch {0=>nameof(CaptureSigned),1=>nameof(CaptureUnsigned),2=>nameof(CaptureArray),_=>nameof(CapturePointer)};
-        harmony.Patch(AccessTools.Method(typeof(GL.Arb),name,signature),prefix:new HarmonyMethod(typeof(GpuProgramMetadataInterceptionTests),capture));
+        var native = new NativeDriverCapture();
+        switch (variant)
+        {
+            case 0:
+                native.Add("glUniformHandleui64ARB", new BoundHandle((location, bits) =>
+                    native.Observe(() => { capturedHandle = bits; capturedCount = 1; })));
+                break;
+            case 1:
+                native.Add("glProgramUniformHandleui64ARB", new NamedHandle((program, location, bits) =>
+                    native.Observe(() => { capturedHandle = bits; capturedCount = 1; })));
+                break;
+            case 2:
+                native.Add("glUniformHandleui64vARB", new BoundHandles((location, count, bits) =>
+                    native.Observe(() => { capturedCount = count; if (count > 0) capturedHandle = *bits; })));
+                break;
+            default:
+                native.Add("glProgramUniformHandleui64vARB", new NamedHandles((program, location, count, bits) =>
+                    native.Observe(() => { capturedCount = count; if (count > 0) capturedHandle = *bits; })));
+                break;
+        }
+        native.Install();
+        return native;
     }
-    /// <summary>Leaves exact native signed, unsigned, array and pointer overloads for production transpilation.</summary>
+    /// <summary>Matches scalar bound opaque assignment.</summary>
+    [System.Runtime.InteropServices.UnmanagedFunctionPointer(System.Runtime.InteropServices.CallingConvention.StdCall)]
+    private delegate void BoundHandle(int location, ulong bits);
+    /// <summary>Matches scalar named opaque assignment.</summary>
+    [System.Runtime.InteropServices.UnmanagedFunctionPointer(System.Runtime.InteropServices.CallingConvention.StdCall)]
+    private delegate void NamedHandle(uint program, int location, ulong bits);
+    /// <summary>Matches vector bound opaque assignment.</summary>
+    [System.Runtime.InteropServices.UnmanagedFunctionPointer(System.Runtime.InteropServices.CallingConvention.StdCall)]
+    private unsafe delegate void BoundHandles(int location, int count, ulong* bits);
+    /// <summary>Matches vector named opaque assignment.</summary>
+    [System.Runtime.InteropServices.UnmanagedFunctionPointer(System.Runtime.InteropServices.CallingConvention.StdCall)]
+    private unsafe delegate void NamedHandles(uint program, int location, int count, ulong* bits);
+    /// <summary>Leaves exact native signed, unsigned, array and pointer overloads through the production native-slot interception.</summary>
     [MethodImpl(MethodImplOptions.NoInlining)]
     private static unsafe void SetOpaqueHandle(int variant,int program,int location,int count,ulong bits)
     {
@@ -120,14 +151,6 @@ public sealed partial class GpuProgramMetadataInterceptionTests
         else if(variant==2) GL.Arb.UniformHandle(location,count,new[]{unchecked((long)bits)});
         else GL.Arb.ProgramUniformHandle((uint)program,location,count,&bits);
     }
-    /// <summary>Captures scalar signed bits without executing a native handle command.</summary>
-    private static bool CaptureSigned(long __1) { capturedHandle=unchecked((ulong)__1); capturedCount=1; return false; }
-    /// <summary>Captures scalar unsigned bits without executing a native handle command.</summary>
-    private static bool CaptureUnsigned(ulong __2) { capturedHandle=__2; capturedCount=1; return false; }
-    /// <summary>Captures the count and managed vector payload without native dispatch.</summary>
-    private static bool CaptureArray(int __1,long[] __2) { capturedCount=__1; capturedHandle=unchecked((ulong)__2[0]); return false; }
-    /// <summary>Captures the pointer payload at its native width without native dispatch.</summary>
-    private static unsafe bool CapturePointer(int __2,ulong* __3) { capturedCount=__2; capturedHandle=*__3; return false; }
     #endregion
 }
 

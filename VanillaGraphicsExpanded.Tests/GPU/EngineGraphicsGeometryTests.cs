@@ -39,8 +39,7 @@ public sealed class EngineGraphicsGeometryTests(HeadlessGLFixture fixture) : Ren
             Assert.True(GpuResourceManager.IsEngineGeometryConfigurationCurrent(receipt));
             using (var unrelated = NativeResourceSetup.CreateVertexArray())
             {
-                var mutation = OpenGlStateCache.BeginNativeVertexMetadata(unrelated.VertexArrayId, named: true, elementBinding: false);
-                mutation.Complete(true);
+                OpenGlStateCache.ObserveVertexMetadata(unrelated.VertexArrayId, named: true, elementBinding: false);
                 Assert.True(GpuResourceManager.IsEngineGeometryConfigurationCurrent(receipt));
             }
 

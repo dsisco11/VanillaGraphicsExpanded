@@ -86,7 +86,7 @@ public sealed class GpuFramebufferExecutableCreationTests(HeadlessGLFixture fixt
             var original = entry.Metadata.Attachments[FramebufferSlot.Color0];
             PatchQueries(harmony);
             queries = 0; queriedSlots.Clear();
-            OpenGLFramebufferCalls.ExecuteCoreNamedFramebufferTexture(framebuffer.FboId, FramebufferAttachment.ColorAttachment1, second.TextureId, 0);
+            GL.NamedFramebufferTexture(framebuffer.FboId, FramebufferAttachment.ColorAttachment1, second.TextureId, 0);
             Assert.True(queries > 0);
             Assert.Equal(FramebufferAttachment.ColorAttachment1, Assert.Single(queriedSlots));
             Assert.Equal(original, entry.Metadata.Attachments[FramebufferSlot.Color0]);
@@ -95,7 +95,7 @@ public sealed class GpuFramebufferExecutableCreationTests(HeadlessGLFixture fixt
             {
                 var attachments = entry.Metadata.Attachments;
                 queries = 0; queriedSlots.Clear();
-                OpenGLFramebufferCalls.ExecuteCoreNamedFramebufferParameter(framebuffer.FboId, FramebufferDefaultParameter.FramebufferDefaultWidth, 17);
+                GL.NamedFramebufferParameter(framebuffer.FboId, FramebufferDefaultParameter.FramebufferDefaultWidth, 17);
                 Assert.Equal(1, queries);
                 Assert.Empty(queriedSlots);
                 Assert.Equal(17, entry.Metadata.DefaultWidth);

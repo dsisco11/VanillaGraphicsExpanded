@@ -54,7 +54,7 @@ public sealed class RHIShaderCreationTests(HeadlessGLFixture fixture)
             GL.GetProgram(shader.Program.ProgramId, GetProgramParameterName.AttachedShaders, out int attached);
             Assert.Equal(0, attached);
             // External relinking invalidates the captured executable even if a numeric name stays unchanged.
-            OpenGLProgramCalls.ExecuteCoreLinkProgram(shader.Program.ProgramId);
+            GL.LinkProgram(shader.Program.ProgramId);
             Assert.Throws<InvalidOperationException>(() => reference.RequireShader());
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }

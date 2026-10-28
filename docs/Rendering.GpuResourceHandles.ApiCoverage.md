@@ -15,9 +15,10 @@ per-object outcome and lifecycle obligations remain. No broader command-success 
 
 ## Explicit API exclusions
 
-Interception is restricted to the managed native owners GL, GL.Ext and GL.Arb.
-The pinned OpenTK binding exposes core methods directly on GL; adapter classes named Core
-refer to that owner. All other auxiliary owners are excluded, including Amd, Ati, Ibm, Intel,
+Interception covers the native tables for `OpenTK.Graphics.OpenGL.GL` and
+`OpenTK.Graphics.OpenGL4.GL`, restricted to GL and its Ext/Arb owners. The compiler-referenced
+OpenTK binding exposes core methods directly on GL.
+All other auxiliary owners are excluded, including Amd, Ati, Ibm, Intel,
 Mesa, Oes, Ovr, Sgis, Sun, Apple and NV. This is an owner boundary, not a filter on feature origins,
 command suffixes, extension capability checks or direct VGE resource operations.
 Unmapped calls execute unchanged and do not provide continuing metadata or lifecycle observation.
@@ -54,13 +55,12 @@ Use the [Khronos OpenGL registry](https://registry.khronos.org/OpenGL/) and
 [gl.xml](https://github.com/KhronosGroup/OpenGL-Registry/blob/main/xml/gl.xml), including desktop GL
 core/compatibility features and extensions whose supported API includes `gl` or `glcore`. ES-only APIs
 are a separate API; desktop extensions are included only through the allowed managed owners above. The retained
-registry snapshot has SHA256 `B9CA2CFA5C676E901C20D34AF3407F1687CDE0F1336A5FF7A8974D04C7494AD3`.
-The [expanded matrix](../artifacts/gpu-resource-handles-baseline/api-command-matrix.csv) preserves native
-signatures from the retained baseline expansion; [the expansion script](../artifacts/gpu-resource-handles-baseline/classify-api.ps1) and
-[registry snapshot](../artifacts/gpu-resource-handles-baseline/gl.xml) make that enumeration reproducible.
-These are API inspection artifacts, not reflection tests or a whitelist of callers. The retained baseline
-artifacts enumerate a broader API set; apply the explicit exclusions before interpreting support obligations. The expanded names
-below also include subsequent field-to-command reconciliation; retain the baseline artifacts unchanged.
+registry and the family rules below define supported desktop semantics independently of installed
+engine callers. The local `artifacts/phase8h/native-coverage.json` receipt records the inspected registry
+URL and SHA256, all selected native symbols and dispositions for expanded names without observers.
+`artifacts/phase8h/gl.xml` is that inspection input. These local verification artifacts may be absent
+from another checkout; they are evidence, not a replacement for the family obligations below.
+Historical baseline artifact links are not prerequisites for the current native-table implementation.
 
 The family rules are authoritative over the explicit adapter inventory. Review semantics for aliases and
 indirect effects; a missing spelling must be added, never inferred to be out of scope. Future registry
@@ -72,23 +72,20 @@ resolve selectors; DSA uses explicit names; multi-texture operations use explici
 multi-resource operations process all affected objects. Proxy texture targets alter proxy state, not a texture
 object, and must not notify a bound object. Preserve errors, partial success, and existing binding effects.
 
-Every OpenTK representation of each command is required: signed/unsigned IDs, pointer/IntPtr, ref/out,
-array and generic overloads, and the allowed nested extension classes. Normalize to one semantic handler without
-double notification. Extend exact adapter mapping and MethodSpecification discovery for generic calls;
-no fixed set of observed element types is the coverage boundary. Missing binding entry points need a
-capability-gated native delegate with the specification's ABI. Capability absence blocks native execution,
-not adapter implementation. Existing assembly interception boundaries remain explicit; arbitrary native
-code bypassing the OpenGlStateCache is not silently tracked.
+Every OpenTK representation of a selected command reaches its native table slot after OpenTK's
+own marshalling: signed/unsigned IDs, pointer/IntPtr, ref/out, array and generic overloads. Selection
+is independent of caller assembly and concrete generic element type. Cache-owned post-call methods
+carry `InterceptOpenGL` attributes; ABI-identical aliases share their semantic handler. The generator
+reads the compiler's exact OpenTK PE reference to recover entrypoint names and native `calli` signatures,
+with diagnostics for unsupported layouts, unknown symbols and incompatible observer signatures.
 
-Metadata adapters are ordinary C# methods under `HarmonyPatches/NativeAdapters`, grouped by command
-family and native owner. Adapters forward the exact signature to focused external execution modules
-under `Rendering/RHI/Backends/OpenGL`; `OpenGlStateCache` supplies shared observation and reconciliation.
-Those methods own native dispatch and completion together.
-Observation tokens remain internal to those execution paths, including vertex revision publication. `MetadataAdapterCatalog` declares owner pairs; initialization matches exact method
-names, return/parameter types and generic constraints. Closed generic calls instantiate those compiled
-adapter definitions with the caller's types. No runtime adapter IL emission, command-name pattern
-classification or parameter-name inference participates in dispatch. The existing engine IL discovery
-and call-operand replacement remain the interception boundary.
+Generated callbacks invoke the saved original pointer once before observation, with unchanged native
+arguments, return values and output buffers. Observer failures are contained and cannot cancel or retry
+native dispatch. Backend-owned execution uses generated `OpenGLDriverCalls` overloads from exact
+compiler-selected OpenTK methods, bypassing observation while preserving its existing publication owner.
+There is no caller scan, MethodSpecification closure inventory, exact managed adapter catalog or
+caller-managed observation receipt. Native code using other libraries or independently cached pointers
+is outside the supported tables; excluded auxiliary owners retain their explicit disposition above.
 
 ## Canonical destinations and publication route
 
@@ -128,15 +125,15 @@ The metadata revision used to invalidate stale assumptions is registration bookk
 | T4 | All texture parameter setters, bound/DSA/multi-texture and integer/float/vector forms | Classify pname effect. Refresh represented facts if affected; retain owner-only policy distinctions. Track represented base/max levels. Do not invent wrapper metadata for unrepresented parameters. | Parameter-family coverage and pname-dependent effects; base/max-level cases; unchanged storage does not spuriously replace identity. |
 | B1 | BufferData, BufferStorage, named variants, external/memory-backed storage | Refresh actual capacity/usage and represented storage facts; preserve mapping ownership and authored EBO interpretation. | Bound/DSA capacity changes, zero size, immutable rejection, all overload forms and external-memory capability cases. |
 | R1 | RenderbufferStorage, named storage, multisample/coverage aliases | Refresh actual dimensions, format and sample values, propagate to dependent attachments. | Bound/DSA allocation, rounded sample counts, rejection and alias refresh. |
-| F1 | Framebuffer texture/renderbuffer attachment, face/layer variants, default-parameter and draw/read-routing variants | Refresh attachment identity/subresource and derived target metadata; preserve ownership. Route draw/read-buffer commands through the existing routing cache. Classify default-FBO parameters separately from window-system surface publication. | All attachment forms, detach via zero, split read/draw targets, partial configurations and affected publication revisions. |
+| F1 | Framebuffer texture/renderbuffer attachment, face/layer variants, default-parameter and draw/read-routing variants | Refresh attachment identity/subresource and derived target metadata; preserve ownership. Route represented draw-buffer facts through the existing routing cache; read routing remains an unrepresented native selector. Classify default-FBO parameters separately from window-system surface publication. | All attachment forms, detach via zero, split read/draw targets, partial configurations and affected publication revisions. |
 | V1 | Vertex attribute pointer/format/binding/divisor/enables, vertex-buffer multi-bind, element-buffer binding | Revise represented VAO configuration and stale helper assumptions. Resolve current VAO and latched buffer dependencies. Fixed-function client arrays are excluded; generic shader attributes remain supported. | Bound/DSA, multi-bind partial failure, generic/integer/double formats, enablement/divisor, EBO association, stale helper use and unrelated VAOs. |
 | P1 | Link/binary installation, shader-program creation, interface block bindings, sampler/image unit assignments and link-input configuration | Invalidate reflected executable layout on actual relink/binary/interface changes; use existing preparation flow. Uniform1i/1iv and ProgramUniform1i/1iv affect retained native unit facts only at sampler/image locations. Bindless-handle assignment at those locations makes the unsupported unit representation unavailable. Ordinary numeric uniforms remain content. Attach/detach/bind-location/transform-feedback declarations affect the next link rather than inventing an immediate new executable. | Successful/failed relink, binary replacement, block/unit-binding changes, sampler/image array locations, ordinary numeric writes excluded, bindless unavailability, deferred link-input effects, prepared submission revalidation. |
 | L1 | Deletion of every represented kind, all aliases and array/ref/pointer forms | Retire the captured registration; preserve deferred native destruction and resource-specific unbinding. ARB generic object deletion resolves shader/program kind. Propagate affected attachment/VAO metadata. | Each kind, lists and duplicate/zero names, queued old identity, same-name replacement, aliases and retained native references. |
 | I1 | External storage association and sparse residency operations | Storage attachment/replacement receives corresponding T/B metadata refresh. Residency-only commitment, access flags and performance hints have no represented-size/format change; explicitly preserve that distinction. Interop registration/mapping that defines texture storage must refresh it. | Extension-capability tests for association changes; commitment without dimension changes; unavailable imports cannot publish valid metadata. |
 
 For every row, verify notification of all aliases, failure isolation, context/name reuse and dependent
-validation revisions. Exercise native adapters through actual redirection as well as direct backend
-calls. Native integration tests require supporting hardware; use deterministic adapter/dispatch tests
+validation revisions. Exercise native observations through actual table callbacks as well as direct backend
+calls. Native integration tests require supporting hardware; use deterministic callback/dispatch tests
 for absent capabilities and retain the unexecuted native cases as explicit qualification gaps. Do not
 claim full native qualification merely because this machine lacks a capability.
 
@@ -165,12 +162,12 @@ Individual extension definitions in the registry control capability/ABI/behavior
 
 ### B1 buffer storage
 
-Controlled storage publishes capacity/usage directly. Exact external storage commands withdraw the
-selected existing snapshot before dispatch and retain a pending storage effect. They perform no
-completion read; explicit manager acquisition at use recovers capacity/usage and propagates dependent
-texture revisions, including equal-sized replacement. The original entry remains guarded through
-native dispatch and is withdrawn at completion; reentrant acquisition cannot publish an intermediate
-descriptor. Interrupted calls remain unavailable.
+Controlled storage publishes capacity/usage directly. After original native dispatch, external storage
+observation withdraws the selected existing snapshot and retains a pending storage effect. It performs
+no completion read; explicit manager acquisition at use recovers capacity/usage and propagates dependent
+texture revisions, including equal-sized replacement. Post-call interruption prevents an overlapping
+managed operation/acquisition from certifying a stale candidate. No preparation hook or observation
+receipt spans the native call. Interrupted candidates remain unavailable.
 
 `glBufferData`, `glBufferDataARB`, `glBufferStorage`, `glBufferStorageExternalEXT`, `glBufferStorageMemEXT`, `glNamedBufferData`, `glNamedBufferDataEXT`, `glNamedBufferStorage`, `glNamedBufferStorageEXT`, `glNamedBufferStorageExternalEXT`, `glNamedBufferStorageMemEXT`.
 
@@ -183,8 +180,8 @@ storage; observation must not consume the pending GL error or publish the reques
 
 ### F1 framebuffer attachments
 
-Attachment/default adapters execute through focused backend modules and recover the affected slot/default after
-exact native dispatch, preserving known unaffected descriptors. Initial unknown FBOs retain full discovery.
+Attachment/default observations recover the affected slot/default after
+original native dispatch, preserving known unaffected descriptors. Initial unknown FBOs retain full discovery.
 Managed attachment operations publish command-established selections without descriptor queries. Named attachment
 queries use core named addressing; required bound queries preserve separate read/draw bindings.
 [ARB_framebuffer_no_attachments](https://registry.khronos.org/OpenGL/extensions/ARB/ARB_framebuffer_no_attachments.txt)
@@ -207,7 +204,7 @@ Direct VGE multiview operations retain selected range projection and named or bo
 External GL.Ovr calls are not intercepted; later mutations through them cannot keep registered snapshots current.
 Initial external acquisition cannot establish an unqueryable mode; its range can be inspected, but
 ambiguous array helpers reject reattachment until a supported explicit selection establishes semantics.
-External draw-route adapters publish legal object-local routes for established identities from exact
+External draw-route observations publish legal object-local routes for established identities from exact
 arguments, preserving unrelated mappings and known state after defined rejection. Window routes use
 cached double-buffer/stereo facts. Unknown named objects, unavailable initial surface facts and
 interrupted dispatch retain targeted acquisition. Read routing has no cached
@@ -259,7 +256,7 @@ without claiming resident-handle sampling or rendering qualification.
 
 VGE's terrain sampler/block hooks use the same backend observation/publication route. Authored unit-setting helpers can skip
 a stable assignment certified by available canonical unit facts, without a duplicate uniform cache.
-Exact external adapters still forward each native call unchanged. Managed ProgramUniform uses core named operations on the admitted 4.5 context. Numeric scalar/vector/matrix data use
+Generated callbacks forward each selected native call unchanged. Managed ProgramUniform uses core named operations on the admitted 4.5 context. Numeric scalar/vector/matrix data use
 the existing packed-uniform storage model and do not introduce texture-unit metadata work. Program
 pipeline creation uses core named creation; explicit-ID stage/active-program
 configuration does not bind the target pipeline unnecessarily.
@@ -271,7 +268,10 @@ selection instead of suppressing the call based on that unchanged query alone. Q
 the uniform destination only; independent binding knowledge certifies a completed full-program installation.
 
 Selector spellings include `glUseProgram`, `glUseProgramObjectARB`, `glBindProgramPipeline`,
-`glBindProgramPipelineEXT`, `glActiveProgramEXT` and `glUseShaderProgramEXT`.
+`glActiveProgramEXT` and `glUseShaderProgramEXT`.
+The EXT-suffixed pipeline-object selectors (`glBindProgramPipelineEXT`, `glActiveShaderProgramEXT`)
+belong to the unrelated OpenGL ES variant of EXT_separate_shader_objects and are outside desktop GL
+coverage; desktop pipeline objects use the core/ARB entrypoints.
 
 `glAttachObjectARB`, `glAttachShader`, `glBindAttribLocation`, `glBindAttribLocationARB`, `glBindFragDataLocation`, `glBindFragDataLocationEXT`, `glBindFragDataLocationIndexed`, `glCreateShaderProgramEXT`, `glCreateShaderProgramv`, `glCreateShaderProgramvEXT`, `glDetachObjectARB`, `glDetachShader`, `glLinkProgram`, `glLinkProgramARB`, `glProgramBinary`, `glProgramParameteri`, `glProgramParameteriARB`, `glProgramParameteriEXT`, `glShaderStorageBlockBinding`, `glTransformFeedbackVaryings`, `glTransformFeedbackVaryingsEXT`, `glUniformBlockBinding`.
 
@@ -322,10 +322,11 @@ define native association/range queries and rejected-command behavior. Preserve 
 whole-buffer convention without inferring it solely from a range equal to the backing buffer size.
 Range acquisition must account for the native-width descriptor and the narrower texture query
 results; truncated or rounded query values cannot certify requested offsets or sizes.
-The association observer preserves native-width command arguments. It verifies the resulting backing
-and format, uses native buffer capacity and cached offset alignment to establish range admission,
-and cross-checks exactly representable offsets/sizes through native range queries. A throwing native
-dispatch leaves metadata unavailable. Whole-buffer mode follows the accepted command, because
+The association observer preserves native-width command arguments. Established destination/backing
+identity, represented capacity, legal format and cached offset alignment can prove an allocation-free
+association without queries. Otherwise it acquires the resulting backing/format and cross-checks only
+exactly representable offsets/sizes through native range queries. Uncertain observations leave metadata
+unavailable without changing native dispatch or errors. Whole-buffer mode follows the accepted command, because
 queries cannot distinguish whole-buffer binding from an explicit range of the same initial size.
 OpenGL 4.6 section 8.18 defines view-relative selection and the source-derived immutable level count.
 External view discovery reads the exposed view level count before enumerating images; controlled
@@ -362,7 +363,7 @@ Unrepresented parameters and invalid multisample mip parameters have no metadata
 
 ### V1 vertex configuration
 
-Exact OpenTK vertex-configuration adapters advance the existing VAO metadata revision without
+Native vertex-configuration observations advance the existing VAO metadata revision without
 introducing a layout mirror. `BindBuffer` has a conditional effect: element-array targets revise the
 current VAO; other targets only invalidate affected binding knowledge. Wrapper configuration uses
 the same backend observation path, using core named configuration on the admitted 4.5 context.

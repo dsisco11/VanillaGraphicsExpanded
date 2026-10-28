@@ -18,15 +18,16 @@ internal static class OpenGLBufferBindings
         var native = Target(target);
         if (target == Legacy.BufferTarget.ElementArrayBuffer)
         {
-            var observation = OpenGlStateCache.BeginNativeVertexMetadata(0, named: false, elementBinding: true);
-            bool returned = false;
-            try { GL.BindBuffer(native, buffer); context.RequireContext(); returned = true; }
-            finally { observation.Complete(returned); }
-            observation.EstablishElementBinding(buffer);
+            int vao = cache.GetCurrentVao();
+            OpenGLVertexConfiguration.Execute(cache, vao, elementBinding: true, () =>
+            {
+                OpenGLDriverCalls.BindBuffer(native, buffer);
+                context.RequireContext();
+            }, elementBuffer: buffer);
             return;
         }
         cache.ForgetBufferBinding(target);
-        GL.BindBuffer(native, buffer);
+        OpenGLDriverCalls.BindBuffer(native, buffer);
         context.RequireContext();
         cache.EstablishBufferBinding(target, buffer);
     }
@@ -39,7 +40,7 @@ internal static class OpenGLBufferBindings
         if (!cache.NeedsIndexedBufferBinding(target, slot, buffer, 0, 0, false)) return;
         var native = IndexedTarget(target);
         cache.ForgetBufferBinding((Legacy.BufferTarget)target, slot);
-        GL.BindBufferBase(native, slot, buffer);
+        OpenGLDriverCalls.BindBufferBase(native, slot, buffer);
         context.RequireContext();
         cache.EstablishIndexedBufferBinding(target, slot, buffer, 0, 0, false);
     }
@@ -52,7 +53,7 @@ internal static class OpenGLBufferBindings
         if (!cache.NeedsIndexedBufferBinding(target, slot, buffer, offset, size, true)) return;
         var native = IndexedTarget(target);
         cache.ForgetBufferBinding((Legacy.BufferTarget)target, slot);
-        GL.BindBufferRange(native, slot, buffer, offset, size);
+        OpenGLDriverCalls.BindBufferRange(native, slot, buffer, offset, size);
         context.RequireContext();
         cache.EstablishIndexedBufferBinding(target, slot, buffer, offset, size, true);
     }

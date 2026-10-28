@@ -24,7 +24,7 @@ public sealed class GpuRenderbufferTextureMetadataTests(HeadlessGLFixture fixtur
         bool supported=GpuSupport.Graphics.SupportsRenderbufferTextures;
         bool ext=Enumerable.Range(0,GL.GetInteger(GetPName.NumExtensions)).Any(index=>GL.GetString(StringNameIndexed.Extensions,index)=="GL_EXT_direct_state_access");
         output.WriteLine($"Renderbuffer texture capability={supported}; EXT_DSA={ext}"); Assert.SkipUnless(supported&&ext,"Renderbuffer texture and EXT DSA capabilities required.");
-        var harmony=new Harmony("VGE.Tests.RenderbufferTexture"); harmony.Patch(AccessTools.Method(typeof(GpuRenderbufferTextureMetadataTests),nameof(Associate)),transpiler:new HarmonyMethod(typeof(EngineStateSwitchingHook),nameof(EngineStateSwitchingHook.Transpiler)));
+        var harmony=new Harmony("VGE.Tests.RenderbufferTexture");
         int texture=GL.GenTexture(),first=GL.GenRenderbuffer(),second=GL.GenRenderbuffer();
         try
         {
@@ -39,8 +39,7 @@ public sealed class GpuRenderbufferTextureMetadataTests(HeadlessGLFixture fixtur
             Associate(multi,texture,second); Assert.Equal(ErrorCode.NoError,GL.GetError());
             Assert.Equal((int)TextureUnit.Texture5,GL.GetInteger(GetPName.ActiveTexture)); Assert.Equal(second,alias.Snapshot.Renderbuffer); Assert.True(entry.StorageRevision>revision); Assert.True(manager.IsResourceMetadataAvailable(alias));
             revision=entry.StorageRevision;
-            var token=OpenGlStateCache.BeginNativeRenderbufferStorage(second,true);
-            GL.NamedRenderbufferStorage(second,RenderbufferStorage.Rgba8,16,16); token.Complete(true);
+            GL.NamedRenderbufferStorage(second,RenderbufferStorage.Rgba8,16,16);
             Assert.True(entry.StorageRevision>revision);
             Associate(multi,texture,int.MaxValue); Assert.Equal(ErrorCode.InvalidOperation,GL.GetError()); Assert.Equal(second,alias.Snapshot.Renderbuffer);
             var backingMetadata=((GpuResourceMetadataEntry<GpuRenderbufferMetadata>)manager.FindResource(GpuResourceKind.Renderbuffer,second)!).Metadata;

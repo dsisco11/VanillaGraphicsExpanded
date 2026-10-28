@@ -62,7 +62,7 @@ public sealed class GpuFramebufferMultiviewInterceptionTests(HeadlessGLFixture f
             GpuResourceManagerSystem.CurrentManager!.AcquireResource(GpuResourceKind.Texture,texture,new GpuTextureMetadataReader(TextureDimension.TwoArray));
             using var array=new BorrowedTexture(texture); using var image=GpuFramebufferAttachment.FromMultiviewTexture(array,1,2); using var capabilities=new DirectStateAccessCapabilityScope(direct); using var framebuffer=DynamicGpuFramebuffer.Create([image])!;
             OpenGLImageBindings.BindTexture(OpenGlStateCache.Current, TextureTarget.Texture2DArray,0,texture);
-            VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLTexturesCalls.ExecuteCoreTexImage3D(TextureTarget.Texture2DArray, 0, PixelInternalFormat.Rgba8, 16, 8, 4, 0, PixelFormat.Rgba, PixelType.UnsignedByte, IntPtr.Zero);
+            GL.TexImage3D(TextureTarget.Texture2DArray, 0, PixelInternalFormat.Rgba8, 16, 8, 4, 0, PixelFormat.Rgba, PixelType.UnsignedByte, IntPtr.Zero);
             framebuffer.Bind();
             Assert.Equal(16,image.Width); Assert.Equal(8,image.Height); Assert.Equal(2,image.ImageDepth);
             GL.GetFramebufferAttachmentParameter(FramebufferTarget.Framebuffer,FramebufferAttachment.ColorAttachment0,(FramebufferParameterName)All.FramebufferAttachmentTextureBaseViewIndexOvr,out int first); GL.GetFramebufferAttachmentParameter(FramebufferTarget.Framebuffer,FramebufferAttachment.ColorAttachment0,(FramebufferParameterName)All.FramebufferAttachmentTextureNumViewsOvr,out int count); Assert.Equal(1,first); Assert.Equal(2,count); Assert.Equal(ErrorCode.NoError,GL.GetError());

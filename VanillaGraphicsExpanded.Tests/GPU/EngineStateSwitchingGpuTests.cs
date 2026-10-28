@@ -23,8 +23,8 @@ public sealed class EngineStateSwitchingGpuTests(HeadlessGLFixture fixture) : Re
         cache.SetDepthWriteMask(true);
         using var calls = new BindingCallCapture();
         // Managed equality cannot suppress an intercepted call or alter its observable native effects.
-        EngineStateCalls.DepthMask(true);
-        EngineStateCalls.DepthMask(true);
+        GL.DepthMask(true);
+        GL.DepthMask(true);
         Assert.Equal(2, calls.Calls(nameof(GL.DepthMask)));
         Assert.True(GL.GetBoolean(GetPName.DepthWritemask));
         Assert.Equal(ErrorCode.NoError, GL.GetError());
@@ -41,7 +41,7 @@ public sealed class EngineStateSwitchingGpuTests(HeadlessGLFixture fixture) : Re
         try
         {
             // Negative width is rejected by GL and must never be clamped or rejected by the adapter itself.
-            EngineStateCalls.Viewport(0, 0, -1, 16);
+            GL.Viewport(0, 0, -1, 16);
             Assert.Equal(ErrorCode.InvalidValue, GL.GetError());
             var viewport = new int[4];
             GL.GetInteger(GetPName.Viewport, viewport);
@@ -70,7 +70,7 @@ public sealed class EngineStateSwitchingGpuTests(HeadlessGLFixture fixture) : Re
             GL.BindBuffer(BufferTarget.ElementArrayBuffer, buffer);
             GL.BindVertexArray(0);
             cache.InvalidateAll();
-            EngineStateCalls.BindVertexArray(array);
+            GL.BindVertexArray(array);
             Assert.Equal(buffer, cache.GetBoundBuffer(BufferTarget.ElementArrayBuffer));
             Assert.Equal(buffer, GL.GetInteger(GetPName.ElementArrayBufferBinding));
             Assert.Equal(ErrorCode.NoError, GL.GetError());
@@ -91,28 +91,28 @@ public sealed class EngineStateSwitchingGpuTests(HeadlessGLFixture fixture) : Re
         int array = GL.GenVertexArray();
         try
         {
-            EngineStateCalls.ActiveTexture(TextureUnit.Texture0);
-            EngineStateCalls.BindTexture(TextureTarget.Texture2D, texture);
-            EngineStateCalls.BindSampler(0, sampler);
-            EngineStateCalls.BindBuffer(BufferTarget.ArrayBuffer, buffer);
-            EngineStateCalls.BindFramebuffer(FramebufferTarget.Framebuffer, framebuffer);
-            EngineStateCalls.BindVertexArray(array);
+            GL.ActiveTexture(TextureUnit.Texture0);
+            GL.BindTexture(TextureTarget.Texture2D, texture);
+            GL.BindSampler(0, sampler);
+            GL.BindBuffer(BufferTarget.ArrayBuffer, buffer);
+            GL.BindFramebuffer(FramebufferTarget.Framebuffer, framebuffer);
+            GL.BindVertexArray(array);
             // Exact external selectors leave affected facts unknown until a consumer recovers them.
             Assert.Equal(array, cache.GetCurrentVao());
             Assert.Equal(framebuffer, cache.GetCurrentFramebuffer(FramebufferTarget.DrawFramebuffer));
-            EngineStateCalls.DeleteTexture(texture);
+            GL.DeleteTexture(texture);
             Assert.True(cache.TryGetCachedActiveTextureUnit(out var activeUnit));
             Assert.Equal(0, activeUnit);
-            EngineStateCalls.DeleteSampler(sampler);
+            GL.DeleteSampler(sampler);
             Assert.True(cache.TryGetCachedCurrentVao(out var cachedArray));
             Assert.Equal(array, cachedArray);
-            EngineStateCalls.DeleteBuffers(1, ref buffer);
+            GL.DeleteBuffers(1, ref buffer);
             Assert.True(cache.TryGetCachedCurrentFramebuffer(FramebufferTarget.DrawFramebuffer, out var cachedFramebuffer));
             Assert.Equal(framebuffer, cachedFramebuffer);
-            VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLRenderingDeletionCalls.Core.DeleteFramebuffer(framebuffer);
+            GL.DeleteFramebuffer(framebuffer);
             Assert.True(cache.TryGetCachedCurrentVao(out cachedArray));
             Assert.Equal(array, cachedArray);
-            VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLRenderingDeletionCalls.Core.DeleteVertexArray(array);
+            GL.DeleteVertexArray(array);
             Assert.True(cache.TryGetCachedActiveTextureUnit(out activeUnit));
             Assert.Equal(0, activeUnit);
             Assert.Equal(0, cache.GetBoundTexture(TextureTarget.Texture2D, 0));
@@ -160,9 +160,9 @@ public sealed class EngineStateSwitchingGpuTests(HeadlessGLFixture fixture) : Re
         try
         {
             cache.SetBlendFunc(GlBlendFunc.Default);
-            EngineStateCalls.Enable(EnableCap.Blend);
+            GL.Enable(EnableCap.Blend);
             ChangeIndexedBlend();
-            EngineStateCalls.Enable(EnableCap.Blend);
+            GL.Enable(EnableCap.Blend);
             cache.SetBlendFunc(GlBlendFunc.Default);
             Assert.True(GL.IsEnabled(IndexedEnableCap.Blend, 0));
             Assert.Equal((int)BlendingFactorSrc.One, GL.GetInteger(GetPName.BlendSrcRgb));
@@ -232,7 +232,7 @@ public sealed class EngineStateSwitchingGpuTests(HeadlessGLFixture fixture) : Re
 #if DEBUG
             long bindsBefore = cache.TextureBindCount;
 #endif
-            EngineStateCalls.BindTexture(TextureTarget.Texture2D, nextTexture);
+            GL.BindTexture(TextureTarget.Texture2D, nextTexture);
 
 #if DEBUG
             Assert.Equal(bindsBefore + 1, cache.TextureBindCount);
@@ -291,7 +291,7 @@ public sealed class EngineStateSwitchingGpuTests(HeadlessGLFixture fixture) : Re
     private static Harmony Patch(string method)
     {
         var harmony = new Harmony($"VGE.Tests.EngineStateSwitching.{method}");
-        harmony.Patch(AccessTools.Method(typeof(EngineStateSwitchingGpuTests), method), transpiler: new HarmonyMethod(typeof(EngineStateSwitchingHook), nameof(EngineStateSwitchingHook.Transpiler)));
+
         return harmony;
     }
     /// <summary>Provides a native call site that must remain uninlined for runtime patching.</summary>

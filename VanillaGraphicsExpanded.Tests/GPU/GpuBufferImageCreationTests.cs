@@ -13,7 +13,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 public sealed class GpuBufferImageCreationTests(HeadlessGLFixture fixture)
 {
     #region Public API
-    /// <summary>External storage remains unavailable throughout dispatch and only a later explicit acquisition reads the result.</summary>
+    /// <summary>Completed external storage remains unavailable until a later explicit acquisition reads the result.</summary>
     [Fact]
     public void ExternalBufferStorageDefersAcquisitionUntilAfterDispatch()
     {
@@ -26,15 +26,7 @@ public sealed class GpuBufferImageCreationTests(HeadlessGLFixture fixture)
             var entry = Assert.IsType<GpuResourceMetadataEntry<GpuBufferMetadata>>(manager.GetResourceRegistration(buffer));
             var reject = new RejectReader<GpuBufferMetadata>();
             entry.Reader = reject;
-            var operation = OpenGlStateCache.InvalidateNativeBufferStorage(buffer.BufferId, true);
-            try
-            {
-                Assert.Null(manager.AcquireResource(GpuResourceKind.Buffer, buffer.BufferId, reject));
-                Assert.Equal(0, reject.Calls);
-                Assert.False(entry.MetadataAvailable);
-                GL.NamedBufferData(buffer.BufferId, 64, IntPtr.Zero, BufferUsageHint.StreamDraw);
-            }
-            finally { operation.Complete(); }
+            GL.NamedBufferData(buffer.BufferId, 64, IntPtr.Zero, BufferUsageHint.StreamDraw);
             Assert.Equal(0, reject.Calls);
             Assert.False(entry.MetadataAvailable);
             Assert.NotNull(manager.AcquireResource(GpuResourceKind.Buffer, buffer.BufferId, new GpuBufferMetadataReader()));

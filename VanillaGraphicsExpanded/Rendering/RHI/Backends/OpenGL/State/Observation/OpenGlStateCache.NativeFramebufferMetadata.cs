@@ -7,44 +7,27 @@ namespace VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 /// <summary>Observes framebuffer descriptors while preserving split native bindings and retained attachment ownership.</summary>
 internal sealed partial class OpenGlStateCache
 {
-    #region Internal API
-    /// <summary>Observes represented attachmentless defaults; other parameters have no canonical field.</summary>
-    internal static NativeFramebufferMetadata BeginNativeFramebufferParameter(int selector, bool named, int parameter)
-    {
-        return parameter is >= (int)FramebufferDefaultParameter.FramebufferDefaultWidth and <= (int)FramebufferDefaultParameter.FramebufferDefaultFixedSampleLocations
-            ? BeginNativeFramebufferMetadata(selector, named, (FramebufferDefaultParameter)parameter) : default;
-    }
-
-    /// <summary>Resolves the actual framebuffer before native descriptor mutation using existing cache recovery.</summary>
-    internal static NativeFramebufferMetadata BeginNativeFramebufferMetadata(int selector, bool named, FramebufferDefaultParameter? parameter = null)
+    #region Private
+    /// <summary>Publishes one completed framebuffer mutation through the manager's existing metadata authority.</summary>
+    private static void ObserveFramebufferMutation(int selector, bool named, int slot = 0, int texture = 0,
+        int level = 0, int layer = -1, int family = 3, FramebufferDefaultParameter? parameter = null)
     {
         var manager = GpuResourceManagerSystem.CurrentManager;
-        if (manager?.CanObserveNativeMetadata != true && Current.resourceOperation is null) return default;
-        if (!named && (FramebufferTarget)selector is not (FramebufferTarget.Framebuffer or FramebufferTarget.DrawFramebuffer or FramebufferTarget.ReadFramebuffer)) return default;
+        if (manager?.CanObserveNativeMetadata != true && Current.resourceOperation is null) return;
+        if (!named && (FramebufferTarget)selector is not (FramebufferTarget.Framebuffer or FramebufferTarget.DrawFramebuffer or FramebufferTarget.ReadFramebuffer)) return;
         int id = named ? selector : Current.GetCurrentFramebuffer((FramebufferTarget)selector);
-        Current.RequireResourceOperationAvailable(GpuResourceKind.Framebuffer, id);
-        if (manager?.CanObserveNativeMetadata != true) return default;
+        Current.InterruptNativeResourceOperation(GpuResourceKind.Framebuffer, id);
+        if (manager?.CanObserveNativeMetadata != true) return;
         var entry = manager.FindObservedResource(GpuResourceKind.Framebuffer, id) as GpuResourceMetadataEntry<GpuFramebufferMetadata>;
-        if (entry is null) return default;
-        Current.RequireMutableFramebufferConfiguration(id);
-        entry.RequireMutableStorage();
+        if (entry is null) return;
         entry.Reader ??= GpuFramebufferMetadataReader.Instance;
-        if (entry.OperationInProgress || entry.CompletionInProgress) throw new InvalidOperationException("A framebuffer operation is already in progress.");
+        if (InterruptNativeMetadataCompletion(entry, GpuMetadataChange.Metadata)) return;
         bool known = entry.IsUsable;
         entry.OperationInProgress = true;
         entry.BeginRefresh(GpuMetadataChange.Metadata);
-        return new(entry, known, parameter: parameter);
-    }
-
-    /// <summary>Retains explicit array-selection arguments and certifies mode only when admission conditions are proven.</summary>
-    internal static NativeFramebufferMetadata BeginNativeFramebufferAttachment(int selector, bool named,
-        int slot, int texture, int level, int layer, int family)
-    {
-        var observation = BeginNativeFramebufferMetadata(selector, named);
-        var entry = observation.Entry;
-        if (entry is null) return observation;
         try
         {
+            if (parameter.HasValue) { PublishObservedFramebuffer(entry, known, parameter: parameter); return; }
             var limits = GpuSupport.Graphics;
             bool validSlot = slot is (int)FramebufferAttachment.DepthAttachment or (int)FramebufferAttachment.StencilAttachment
                 or (int)FramebufferAttachment.DepthStencilAttachment
@@ -65,87 +48,65 @@ internal sealed partial class OpenGlStateCache
             if (texture == 0) { rejected = !validSlot; imageExists = true; }
 
             // Invalid native slots still reach OpenGL unchanged. They have no canonical selection.
-            if (!validSlot) return new(entry, observation.Known, provenRejected: true);
+            if (!validSlot) { PublishObservedFramebuffer(entry, known, provenRejected: true); return; }
             bool eligible = family is 0 or 1 && !rejected && imageExists;
-            return new(entry, observation.Known, new(OpenGLResourceValues.FromNative((FramebufferAttachment)slot), texture, level, family == 1 ? layer : -1,
+            PublishObservedFramebuffer(entry, known, new(OpenGLResourceValues.FromNative((FramebufferAttachment)slot), texture, level, family == 1 ? layer : -1,
                 0, 0, GpuFramebufferAttachmentMode.Ordinary, eligible, rejected));
         }
-        catch
+        finally
         {
-            // No token reaches the dispatch owner when argument inspection fails.
-            observation.Complete(false);
-            throw;
+            // Argument classification failure must not leave a registration in an active operation.
+            entry.OperationInProgress = false;
+            // Dependency helpers must also lose stale observations if classification or acquisition failed.
+            if (entry.Manager.CanObserveNativeMetadata) entry.NotifyFramebufferDependents();
         }
     }
-    #endregion
 
-    /// <summary>Retains the original framebuffer registration until native descriptor acquisition finishes.</summary>
-    internal readonly struct NativeFramebufferMetadata(GpuResourceMetadataEntry<GpuFramebufferMetadata>? entry,
+    /// <summary>Applies proven effects directly and limits acquisition to unresolved framebuffer fields.</summary>
+    private static void PublishObservedFramebuffer(GpuResourceMetadataEntry<GpuFramebufferMetadata> entry,
         bool known, FramebufferAttachmentCommand? command = null, FramebufferDefaultParameter? parameter = null, bool provenRejected = false)
     {
-        #region Internal API
-        /// <summary>Exposes the original entry while constructing an attachment-specific observation.</summary>
-        internal GpuResourceMetadataEntry<GpuFramebufferMetadata>? Entry => entry;
-        /// <summary>Identifies whether unaffected facts were available before mutation.</summary>
-        internal bool Known => known;
-        /// <summary>Publishes real descriptors and invalidates every associated helper, including on acquisition failure.</summary>
-        internal void Complete(bool nativeReturned)
+        entry.OperationInProgress = false;
+        if (!entry.Manager.IsRegistered(entry) || entry.State != GpuResourceRegistrationState.Live) return;
+        if (!entry.Manager.CanObserveNativeMetadata)
+            throw new InvalidOperationException("Framebuffer metadata completion requires its originating context.");
+        if (known && (provenRejected || command is { Rejected: true }))
         {
-            if (entry is null) return;
-            entry.OperationInProgress = false;
-            if (!entry.Manager.IsRegistered(entry) || entry.State != GpuResourceRegistrationState.Live) return;
-            try
-            {
-                if (!nativeReturned) return;
-                if (!entry.Manager.CanObserveNativeMetadata)
-                    throw new InvalidOperationException("Framebuffer metadata completion requires its originating context.");
-                if (known && (provenRejected || command is { Rejected: true }))
-                {
-                    // Rejected attachment commands have no effect, so retained facts need no verification read.
-                    entry.Manager.PublishMetadata(entry, entry.Metadata, GpuMetadataChange.Metadata);
-                    return;
-                }
-                if (known && command is { Eligible: true, Mode: GpuFramebufferAttachmentMode.Ordinary } accepted)
-                {
-                    var attachments = entry.Metadata.Attachments;
-                    var descriptor = new GpuFramebufferImageMetadata(GpuResourceKind.Texture, accepted.Texture,
-                        accepted.Level, Math.Max(0, accepted.Layer), CubeFace.None, accepted.Layer < 0,
-                        Mode: GpuFramebufferAttachmentMode.Ordinary);
-                    if (accepted.Slot == FramebufferSlot.DepthStencil)
-                    {
-                        attachments = accepted.Texture == 0
-                            ? attachments.Remove(FramebufferSlot.Depth).Remove(FramebufferSlot.Stencil)
-                            : attachments.SetItem(FramebufferSlot.Depth, descriptor).SetItem(FramebufferSlot.Stencil, descriptor);
-                    }
-                    else attachments = accepted.Texture == 0 ? attachments.Remove(accepted.Slot) : attachments.SetItem(accepted.Slot, descriptor);
-                    // The live original target, realized array image and legal selection prove this
-                    // allocation-free effect. Canonical dependency/publication authority stays in the manager.
-                    entry.Manager.PublishMetadata(entry, entry.Metadata with { Attachments = attachments }, GpuMetadataChange.Metadata);
-                    return;
-                }
-                if (command.HasValue) entry.Manager.RecordFramebufferAttachmentCommand(entry, command.Value);
-                bool validSlot = command is { } selected && (selected.Slot is FramebufferSlot.Depth
-                    or FramebufferSlot.Stencil or FramebufferSlot.DepthStencil
-                    || selected.Slot >= FramebufferSlot.Color0
-                        && (int)selected.Slot - (int)FramebufferSlot.Color0 < GpuSupport.Graphics.MaxColorAttachments);
-                bool success;
-                if (known && (validSlot || parameter.HasValue))
-                {
-                    success = entry.Manager.RefreshFramebufferField(entry, validSlot ? command!.Value.Slot : null, parameter.HasValue ? OpenGLResourceValues.FromNative(parameter.Value) : null);
-                }
-                else success = entry.Manager.RefreshMetadata(entry, GpuMetadataChange.Metadata);
-                if (!success)
-                    throw new InvalidOperationException("Native framebuffer metadata is unavailable after mutation.");
-            }
-            catch when (!nativeReturned) { /* Preserve the native dispatch exception. */ }
-            finally
-            {
-                // A callback can change the current context during native dispatch.
-                // Availability stays withdrawn, but old-context helpers must not run there.
-                try { if (entry.Manager.CanObserveNativeMetadata) entry.NotifyFramebufferDependents(); }
-                catch when (!nativeReturned) { /* Preserve the original native dispatch exception. */ }
-            }
+            // Rejected attachment commands have no effect, so retained facts need no verification read.
+            entry.Manager.PublishMetadata(entry, entry.Metadata, GpuMetadataChange.Metadata);
+            return;
         }
-        #endregion
+        if (known && command is { Eligible: true, Mode: GpuFramebufferAttachmentMode.Ordinary } accepted)
+        {
+            var attachments = entry.Metadata.Attachments;
+            var descriptor = new GpuFramebufferImageMetadata(GpuResourceKind.Texture, accepted.Texture,
+                accepted.Level, Math.Max(0, accepted.Layer), CubeFace.None, accepted.Layer < 0,
+                Mode: GpuFramebufferAttachmentMode.Ordinary);
+            if (accepted.Slot == FramebufferSlot.DepthStencil)
+            {
+                attachments = accepted.Texture == 0
+                    ? attachments.Remove(FramebufferSlot.Depth).Remove(FramebufferSlot.Stencil)
+                    : attachments.SetItem(FramebufferSlot.Depth, descriptor).SetItem(FramebufferSlot.Stencil, descriptor);
+            }
+            else attachments = accepted.Texture == 0 ? attachments.Remove(accepted.Slot) : attachments.SetItem(accepted.Slot, descriptor);
+            // The live original target, realized array image and legal selection prove this
+            // allocation-free effect. Canonical dependency/publication authority stays in the manager.
+            entry.Manager.PublishMetadata(entry, entry.Metadata with { Attachments = attachments }, GpuMetadataChange.Metadata);
+            return;
+        }
+        if (command.HasValue) entry.Manager.RecordFramebufferAttachmentCommand(entry, command.Value);
+        bool validSlot = command is { } selected && (selected.Slot is FramebufferSlot.Depth
+            or FramebufferSlot.Stencil or FramebufferSlot.DepthStencil
+            || selected.Slot >= FramebufferSlot.Color0
+                && (int)selected.Slot - (int)FramebufferSlot.Color0 < GpuSupport.Graphics.MaxColorAttachments);
+        bool success;
+        if (known && (validSlot || parameter.HasValue))
+        {
+            success = entry.Manager.RefreshFramebufferField(entry, validSlot ? command!.Value.Slot : null, parameter.HasValue ? OpenGLResourceValues.FromNative(parameter.Value) : null);
+        }
+        else success = entry.Manager.RefreshMetadata(entry, GpuMetadataChange.Metadata);
+        if (!success)
+            throw new InvalidOperationException("Native framebuffer metadata is unavailable after mutation.");
     }
+    #endregion
 }

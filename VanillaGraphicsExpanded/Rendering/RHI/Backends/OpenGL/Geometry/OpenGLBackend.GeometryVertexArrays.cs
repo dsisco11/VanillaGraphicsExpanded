@@ -43,46 +43,41 @@ internal sealed partial class OpenGLBackend
         var array = CreateGeometryVertexArray();
         try
         {
-            var observation = OpenGlStateCache.BeginNativeVertexMetadata(array.VertexArrayId, named: true, elementBinding: true);
-            bool returned = false;
             int elementBuffer = geometry.Indices is { } indices
                 ? checked((int)indices.Range.Buffer.RequireResource().ResourceId) : 0;
-            try
+            OpenGLVertexConfiguration.Execute(cache, array.VertexArrayId, elementBinding: true, () =>
             {
                 // These arrays are backend-owned. No binding scope, feature variant,
                 // descriptor readback or restoration of an unrelated selector is needed.
                 foreach (var stream in geometry.Streams)
                 {
-                    GL.VertexArrayVertexBuffer(array.VertexArrayId, stream.Binding,
+                    OpenGLDriverCalls.VertexArrayVertexBuffer(array.VertexArrayId, stream.Binding,
                         checked((int)stream.Range.Buffer.RequireResource().ResourceId), stream.Range.Offset, stream.Stride);
                     RequireContext();
-                    GL.VertexArrayBindingDivisor(array.VertexArrayId, stream.Binding, stream.Divisor);
+                    OpenGLDriverCalls.VertexArrayBindingDivisor(array.VertexArrayId, stream.Binding, stream.Divisor);
                     RequireContext();
                 }
                 foreach (var attribute in geometry.Layout.Attributes)
                 {
-                    GL.VertexArrayAttribBinding(array.VertexArrayId, attribute.Location, attribute.Binding);
+                    OpenGLDriverCalls.VertexArrayAttribBinding(array.VertexArrayId, attribute.Location, attribute.Binding);
                     RequireContext();
                     if (attribute.Interpretation == VertexInterpretation.Double)
-                        GL.VertexArrayAttribLFormat(array.VertexArrayId, attribute.Location, attribute.Components,
+                        OpenGLDriverCalls.VertexArrayAttribLFormat(array.VertexArrayId, attribute.Location, attribute.Components,
                             VertexAttribDoubleType.Double, attribute.Offset);
                     else if (attribute.Interpretation == VertexInterpretation.Integer)
-                        GL.VertexArrayAttribIFormat(array.VertexArrayId, attribute.Location, attribute.Components,
+                        OpenGLDriverCalls.VertexArrayAttribIFormat(array.VertexArrayId, attribute.Location, attribute.Components,
                             OpenGLVertexValues.IntegerFormat(attribute.Storage), attribute.Offset);
                     else
-                        GL.VertexArrayAttribFormat(array.VertexArrayId, attribute.Location, attribute.Components,
+                        OpenGLDriverCalls.VertexArrayAttribFormat(array.VertexArrayId, attribute.Location, attribute.Components,
                             OpenGLVertexValues.FloatingFormat(attribute.Storage),
                             attribute.Interpretation == VertexInterpretation.Normalized, attribute.Offset);
                     RequireContext();
-                    GL.EnableVertexArrayAttrib(array.VertexArrayId, attribute.Location);
+                    OpenGLDriverCalls.EnableVertexArrayAttrib(array.VertexArrayId, attribute.Location);
                     RequireContext();
                 }
-                GL.VertexArrayElementBuffer(array.VertexArrayId, elementBuffer);
+                OpenGLDriverCalls.VertexArrayElementBuffer(array.VertexArrayId, elementBuffer);
                 RequireContext();
-                returned = true;
-            }
-            finally { observation.Complete(returned); }
-            observation.EstablishElementBinding(elementBuffer);
+            }, elementBuffer: elementBuffer);
             var realized = new GeometryVertexArray(array, geometry, cache);
             geometry.RetireWithBorrow(realized.Retire);
             geometryVertexArrays.Add(geometry, realized);

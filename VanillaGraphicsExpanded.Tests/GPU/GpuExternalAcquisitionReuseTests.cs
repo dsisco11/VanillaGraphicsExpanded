@@ -29,25 +29,33 @@ public sealed class GpuExternalAcquisitionReuseTests(HeadlessGLFixture fixture)
             using var view = RHICommandContext.Current.CreateBufferTexture(new RHIBufferTextureDescription { Buffer = buffer, Format = TextureFormat.R32f, WholeBuffer = true, Label = null }).RequireResource();
             var manager = GpuResourceManagerSystem.CurrentManager!;
             int observed = 0;
-            foreach (var method in typeof(OpenTK.Graphics.OpenGL4.GL).GetMethods().Where(method => method.Name == "GetTextureLevelParameter"))
+            foreach (var method in typeof(OpenTK.Graphics.OpenGL4.GL).GetMethods().Where(method => method.Name is "GetTextureLevelParameter" or "GetTexLevelParameter"))
                 harmony.Patch(method, prefix: new HarmonyMethod(typeof(GpuExternalAcquisitionReuseTests), nameof(ObserveAssociationRead)));
             associationRead = () =>
             {
                 observed++;
                 Assert.Null(manager.AcquireResource(GpuResourceKind.Texture, view.TextureId, GpuTextureMetadataReader.Instance));
                 Assert.False(manager.IsResourceMetadataAvailable(view));
-                Assert.Throws<InvalidOperationException>(() => OpenGlStateCache.BeginNativeBufferTexture(view.TextureId,
-                    (int)TextureTarget.TextureBuffer, 0, true, false, buffer.BufferId, (int)SizedInternalFormat.R32f, 0, 0, true));
             };
-            var operation = OpenGlStateCache.BeginNativeBufferTexture(view.TextureId, (int)TextureTarget.TextureBuffer, 0,
+            // Withdraw backing facts to force association certification through a real result query.
+            Assert.IsType<GpuResourceMetadataEntry<GpuBufferMetadata>>(manager.FindResource(GpuResourceKind.Buffer, buffer.BufferId)).BeginRefresh(GpuMetadataChange.Storage);
+            OpenGlStateCache.ObserveBufferTexture(view.TextureId, (int)TextureTarget.TextureBuffer, 0,
                 true, false, buffer.BufferId, (int)SizedInternalFormat.R32f, 0, 0, true);
-            // The unchanged valid association is enough to test certification without altering
-            // content or introducing a second intercepted mutation into the measured interval.
-            operation.Complete(true);
             associationRead = null;
             Assert.True(observed > 0);
             Assert.True(manager.IsResourceMetadataAvailable(view));
             Assert.Equal(buffer.BufferId, view.BufferId);
+            Assert.IsType<GpuResourceMetadataEntry<GpuBufferMetadata>>(manager.FindResource(GpuResourceKind.Buffer, buffer.BufferId)).BeginRefresh(GpuMetadataChange.Storage);
+            associationRead = () =>
+            {
+                associationRead = null;
+                OpenGlStateCache.ObserveBufferTexture(view.TextureId, (int)TextureTarget.TextureBuffer, 0,
+                    true, false, buffer.BufferId, (int)SizedInternalFormat.R32f, 0, 0, true);
+            };
+            Assert.Throws<InvalidOperationException>(() => OpenGlStateCache.ObserveBufferTexture(view.TextureId,
+                (int)TextureTarget.TextureBuffer, 0, true, false, buffer.BufferId, (int)SizedInternalFormat.R32f, 0, 0, true));
+            Assert.False(manager.IsResourceMetadataAvailable(view));
+            Assert.False(Assert.IsType<GpuResourceMetadataEntry<GpuTextureMetadata>>(manager.GetResourceRegistration(view)).OperationInProgress);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
         finally { associationRead = null; harmony.UnpatchAll(harmony.Id); fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
@@ -86,7 +94,7 @@ public sealed class GpuExternalAcquisitionReuseTests(HeadlessGLFixture fixture)
         finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
 
-    /// <summary>Native execution rejects partial acquisition and unrelated reentry until its guard is released.</summary>
+    /// <summary>Observation reads reject partial acquisition and nested mutations; controlled failures release their execution guards.</summary>
     [Fact]
     public void NativeObserversBlockPartialAcquisitionAndReentry()
     {
@@ -100,43 +108,48 @@ public sealed class GpuExternalAcquisitionReuseTests(HeadlessGLFixture fixture)
             buffer.Allocate(64);
             using var view = RHICommandContext.Current.CreateBufferTexture(new RHIBufferTextureDescription { Buffer = buffer, Format = TextureFormat.R32f, WholeBuffer = true, Label = null }).RequireResource();
             var manager = GpuResourceManagerSystem.CurrentManager!;
-            var textureOperation = OpenGlStateCache.BeginNativeTextureMetadata(texture.TextureId, (int)TextureTarget.Texture2D, 0,
-                true, false, OpenGlStateCache.TextureMetadataEffect.Storage, 0);
-            try
+            var textureEntry = Assert.IsType<GpuResourceMetadataEntry<GpuTextureMetadata>>(manager.GetResourceRegistration(texture));
+            int textureReads = 0;
+            textureEntry.Reader = new CallbackReader<GpuTextureMetadata>(GpuTextureMetadataReader.Instance, () =>
             {
+                textureReads++;
                 Assert.Null(manager.AcquireResource(GpuResourceKind.Texture, texture.TextureId, GpuTextureMetadataReader.Instance));
-                Assert.Throws<InvalidOperationException>(() => OpenGlStateCache.BeginNativeTextureMetadata(texture.TextureId,
-                    (int)TextureTarget.Texture2D, 0, true, false, OpenGlStateCache.TextureMetadataEffect.Storage, 0));
-            }
-            finally { textureOperation.Complete(false); }
-            Assert.False(Assert.IsType<GpuResourceMetadataEntry<GpuTextureMetadata>>(manager.GetResourceRegistration(texture)).OperationInProgress);
+                Assert.False(manager.IsResourceMetadataAvailable(texture));
+                // A nested native observation withdraws the outer candidate instead of escaping into dispatch.
+                OpenGlStateCache.ObserveTextureMetadata(texture.TextureId, (int)TextureTarget.Texture2D, 0,
+                    true, false, OpenGlStateCache.TextureMetadataEffect.Storage, 0);
+            });
+            Assert.Throws<InvalidOperationException>(() => OpenGlStateCache.ObserveTextureMetadata(texture.TextureId,
+                (int)TextureTarget.Texture2D, 0, true, false, OpenGlStateCache.TextureMetadataEffect.Storage, 0));
+            Assert.Equal(1, textureReads);
+            Assert.False(textureEntry.OperationInProgress);
+            Assert.False(textureEntry.CompletionInProgress);
             Assert.False(manager.IsResourceMetadataAvailable(texture));
-            var renderbufferOperation = OpenGlStateCache.BeginNativeRenderbufferStorage(renderbuffer.RenderbufferId, true);
-            try
+
+            var renderbufferEntry = Assert.IsType<GpuResourceMetadataEntry<GpuRenderbufferMetadata>>(manager.GetResourceRegistration(renderbuffer));
+            int renderbufferReads = 0;
+            renderbufferEntry.Reader = new CallbackReader<GpuRenderbufferMetadata>(GpuRenderbufferMetadataReader.Instance, () =>
             {
+                renderbufferReads++;
                 Assert.Null(manager.AcquireResource(GpuResourceKind.Renderbuffer, renderbuffer.RenderbufferId, GpuRenderbufferMetadataReader.Instance));
-                Assert.Throws<InvalidOperationException>(() => OpenGlStateCache.BeginNativeRenderbufferStorage(renderbuffer.RenderbufferId, true));
-            }
-            finally { renderbufferOperation.Complete(false); }
-            Assert.False(Assert.IsType<GpuResourceMetadataEntry<GpuRenderbufferMetadata>>(manager.GetResourceRegistration(renderbuffer)).OperationInProgress);
-            var vertexOperation = OpenGlStateCache.BeginNativeVertexMetadata(vao.VertexArrayId, true, false);
-            try
+                OpenGlStateCache.ObserveRenderbufferStorage(renderbuffer.RenderbufferId, true);
+            });
+            Assert.Throws<InvalidOperationException>(() => OpenGlStateCache.ObserveRenderbufferStorage(renderbuffer.RenderbufferId, true));
+            Assert.Equal(1, renderbufferReads);
+            Assert.False(renderbufferEntry.OperationInProgress);
+            Assert.False(renderbufferEntry.CompletionInProgress);
+
+            var vertexEntry = Assert.IsType<GpuResourceMetadataEntry<GpuVertexArrayMetadata>>(manager.GetResourceRegistration(vao));
+            Assert.Throws<ApplicationException>(() => OpenGLVertexConfiguration.Execute(OpenGlStateCache.Current, vao.VertexArrayId, false, () =>
             {
-                Assert.Throws<InvalidOperationException>(() => OpenGlStateCache.BeginNativeVertexMetadata(vao.VertexArrayId, true, false));
+                Assert.True(vertexEntry.OperationInProgress);
                 Assert.False(manager.IsResourceMetadataAvailable(vao));
-            }
-            finally { vertexOperation.Complete(false); }
-            Assert.False(Assert.IsType<GpuResourceMetadataEntry<GpuVertexArrayMetadata>>(manager.GetResourceRegistration(vao)).OperationInProgress);
-            var viewOperation = OpenGlStateCache.BeginNativeBufferTexture(view.TextureId, (int)TextureTarget.TextureBuffer, 0,
-                true, false, buffer.BufferId, (int)SizedInternalFormat.R32f, 0, 0, true);
-            try
-            {
-                Assert.Null(manager.AcquireResource(GpuResourceKind.Texture, view.TextureId, GpuTextureMetadataReader.Instance));
-                Assert.Throws<InvalidOperationException>(() => OpenGlStateCache.BeginNativeBufferTexture(view.TextureId,
-                    (int)TextureTarget.TextureBuffer, 0, true, false, buffer.BufferId, (int)SizedInternalFormat.R32f, 0, 0, true));
-            }
-            finally { viewOperation.Complete(false); }
-            Assert.False(Assert.IsType<GpuResourceMetadataEntry<GpuTextureMetadata>>(manager.GetResourceRegistration(view)).OperationInProgress);
+                Assert.Throws<InvalidOperationException>(() => OpenGlStateCache.Current.RequireResourceOperationAvailable(GpuResourceKind.VertexArray, vao.VertexArrayId));
+                throw new ApplicationException("Injected controlled configuration failure.");
+            }));
+            Assert.False(vertexEntry.OperationInProgress);
+            Assert.False(manager.IsResourceMetadataAvailable(vao));
+            OpenGlStateCache.Current.RequireResourceOperationAvailable(GpuResourceKind.VertexArray, vao.VertexArrayId);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
         finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
@@ -226,6 +239,21 @@ public sealed class GpuExternalAcquisitionReuseTests(HeadlessGLFixture fixture)
     #endregion
 
     #region Private
+    /// <summary>Invokes a consumer during actual metadata acquisition to test completion exclusion and interruption.</summary>
+    private sealed class CallbackReader<T>(IGpuResourceMetadataReader<T> inner, Action callback) : IGpuResourceMetadataReader<T> where T : struct
+    {
+        #region Public API
+        /// <inheritdoc />
+        public bool IsResource(nint id) => inner.IsResource(id);
+        /// <inheritdoc />
+        public bool TryRead(nint id, out T metadata)
+        {
+            callback();
+            return inner.TryRead(id, out metadata);
+        }
+        #endregion
+    }
+
     /// <summary>Exercises a reentrant consumer at the native association-query boundary.</summary>
     private static void ObserveAssociationRead() => associationRead?.Invoke();
     #endregion

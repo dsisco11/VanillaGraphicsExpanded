@@ -4,16 +4,15 @@ namespace VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 internal sealed partial class OpenGlStateCache
 {
     #region Internal API
-    /// <summary>Checks existing restoration coverage and forgets affected fields without interpreting native arguments.</summary>
+    /// <summary>Withdraws affected external facts without applying managed command-admission rules.</summary>
     internal void ForgetExternalStateMutation(DepthStateKnowledge depth = default,
         RasterizerStateKnowledge rasterizer = default, PrimitiveAssemblyStateKnowledge assembly = default,
         DynamicDrawStateKnowledge dynamic = default, BlendStateKnowledge blend = default, int index = -1,
         bool clearColor = false, StencilStateKnowledge stencil = default, SamplingStateKnowledge sampling = default,
         OutputStateKnowledge output = default, bool sampleMaskWords = false)
     {
-        // Reuse the existing field-level authority check before any native effect or knowledge withdrawal.
-        ValidateBoundaryMutation(depth, rasterizer, assembly, dynamic, blend, index, clearColor,
-            stencil, sampling, output, sampleMaskWords);
+        // Native observation cannot veto a command because a managed boundary omitted its state.
+        // Managed setters validate their declared coverage separately before native dispatch.
         depthKnown &= ~depth;
         rasterizerKnown &= ~rasterizer;
         assemblyKnown &= ~assembly;

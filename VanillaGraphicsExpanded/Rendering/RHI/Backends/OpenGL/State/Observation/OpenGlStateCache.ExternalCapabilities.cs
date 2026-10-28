@@ -16,7 +16,6 @@ internal sealed partial class OpenGlStateCache
     /// <summary>Withholds one clip bit during dispatch without discarding independent clip enables.</summary>
     internal void WithdrawExternalClipDistance(int index)
     {
-        ValidateBoundaryMutation(rasterizer: RasterizerStateKnowledge.ClipDistances);
         clipDistancesKnown &= ~(1u << index);
         rasterizerKnown &= ~RasterizerStateKnowledge.ClipDistances;
     }

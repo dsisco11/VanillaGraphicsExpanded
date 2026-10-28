@@ -19,7 +19,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 public sealed class EngineStartupContextTests(HeadlessGLFixture fixture)
 {
     #region Public API
-    /// <summary>Menu viewport routing registers the actual engine owner and reuses its capability lifetime.</summary>
+    /// <summary>Native viewport observation registers engine lifetimes while explicit admission captures capabilities.</summary>
     [Fact]
     public unsafe void EarlyViewportRegistersEngineWindowAndRetirementCreatesNewGeneration()
     {
@@ -43,7 +43,7 @@ public sealed class EngineStartupContextTests(HeadlessGLFixture fixture)
             // The former adapter path reproduces the reported failure without changing production code.
             Assert.Throws<InvalidOperationException>(() => OpenGlStateCache.Current.ApplyDynamic(new DynamicDrawState { Width = 1, Height = 1 }));
 
-            EngineStateCalls.Viewport(2, 3, 37, 41);
+            GL.Viewport(2, 3, 37, 41);
             long generation = RenderContextRegistry.Current().Generation;
             Assert.True(generation > 0);
             int[] actualViewport = new int[4];
@@ -52,7 +52,7 @@ public sealed class EngineStartupContextTests(HeadlessGLFixture fixture)
 #if DEBUG
             long captures = GpuSupport.CaptureCount;
 #endif
-            EngineStateCalls.Viewport(2, 3, 37, 41);
+            GL.Viewport(2, 3, 37, 41);
             EngineRenderContext.RegisterCurrent();
             Assert.Equal(generation, RenderContextRegistry.Current().Generation);
 #if DEBUG
@@ -60,8 +60,12 @@ public sealed class EngineStartupContextTests(HeadlessGLFixture fixture)
 #endif
 
             RenderContextRegistry.Retire(owner);
-            EngineStateCalls.Viewport(4, 5, 43, 47);
+            GL.Viewport(4, 5, 43, 47);
             Assert.True(RenderContextRegistry.Current().Generation > generation);
+#if DEBUG
+            Assert.Equal(captures, GpuSupport.CaptureCount);
+#endif
+            GpuSupport.EnsureCurrentContext();
 #if DEBUG
             Assert.Equal(captures + 1, GpuSupport.CaptureCount);
 #endif
@@ -70,8 +74,10 @@ public sealed class EngineStartupContextTests(HeadlessGLFixture fixture)
 
             RenderContextRegistry.Retire(owner);
             SetWindowField(owner, "<WindowPtr>k__BackingField", Pointer.Box(null, typeof(Window*)));
-            Assert.Throws<InvalidOperationException>(() => EngineStateCalls.Viewport(0, 0, 1, 1));
+            GL.Viewport(0, 0, 1, 1);
             Assert.Equal(0, RenderContextRegistry.Current().Generation);
+            GL.GetInteger(GetPName.Viewport, actualViewport);
+            Assert.Equal(new[] { 0, 0, 1, 1 }, actualViewport);
         }
         finally
         {
@@ -101,11 +107,11 @@ public sealed class EngineStartupContextTests(HeadlessGLFixture fixture)
 #if DEBUG
             long captures = GpuSupport.CaptureCount;
 #endif
-            EngineStateCalls.Viewport(0, 0, 1, 1);
+            GL.Viewport(0, 0, 1, 1);
 #if DEBUG
             long calls = OpenGlStateCache.Current.FixedFunctionCalls;
 #endif
-            EngineStateCalls.Viewport(0, 0, 1, 1);
+            GL.Viewport(0, 0, 1, 1);
 #if DEBUG
             Assert.Equal(calls, OpenGlStateCache.Current.FixedFunctionCalls);
 #endif

@@ -17,9 +17,9 @@ internal sealed partial class OpenGLBackend
         RequireContext();
         var outputs = new DrawBuffersEnum[Math.Max(1, route.Length)];
         for (int i = 0; i < route.Length; i++) outputs[i] = (DrawBuffersEnum)route[i];
-        GL.NamedFramebufferDrawBuffers(target.FboId, outputs.Length, outputs);
+        OpenGLDriverCalls.NamedFramebufferDrawBuffers(target.FboId, outputs.Length, outputs);
         int first = Array.FindIndex(route, value => value != Legacy.DrawBuffersEnum.None);
-        GL.NamedFramebufferReadBuffer(target.FboId, first < 0 ? ReadBufferMode.None : (ReadBufferMode)route[first]);
+        OpenGLDriverCalls.NamedFramebufferReadBuffer(target.FboId, first < 0 ? ReadBufferMode.None : (ReadBufferMode)route[first]);
         RequireContext();
         var status = GL.CheckNamedFramebufferStatus(target.FboId, FramebufferTarget.Framebuffer);
         RequireContext();
@@ -32,7 +32,7 @@ internal sealed partial class OpenGLBackend
         RequireContext();
         if (cache.TryGetCachedCurrentFramebuffer(Legacy.FramebufferTarget.DrawFramebuffer, out int current) && current == target.FboId) return;
         cache.SetFramebufferSelectionKnowledge(Legacy.FramebufferTarget.DrawFramebuffer, null);
-        GL.BindFramebuffer(FramebufferTarget.DrawFramebuffer, target.FboId);
+        OpenGLDriverCalls.BindFramebuffer(FramebufferTarget.DrawFramebuffer, target.FboId);
         RequireContext();
         cache.SetFramebufferSelectionKnowledge(Legacy.FramebufferTarget.DrawFramebuffer, target.FboId);
     }

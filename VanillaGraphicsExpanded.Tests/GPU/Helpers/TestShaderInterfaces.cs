@@ -28,7 +28,7 @@ internal static class TestShaderInterfaces
     /// <summary>Links binary fixtures and creates the same interface snapshot as production.</summary>
     public static void LinkProgram(int program)
     {
-        OpenGLProgramCalls.ExecuteCoreLinkProgram(program);
+        GL.LinkProgram(program);
         GL.GetProgram(program, GetProgramParameterName.LinkStatus, out int linked);
         if (linked == 0) return;
         GL.GetProgram(program, GetProgramParameterName.AttachedShaders, out int count);

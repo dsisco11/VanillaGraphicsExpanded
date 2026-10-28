@@ -122,6 +122,33 @@ public sealed class GpuMetadataOperationFoundationTests(HeadlessGLFixture fixtur
         finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
 
+    /// <summary>An independent external mutation executes but prevents a controlled owner from certifying stale facts.</summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ExternalStorageMutationInterruptsOwnerCompletion(bool registered)
+    {
+        fixture.EnsureContextValid();
+        if (registered) fixture.InitializeResourceDisposal();
+        try
+        {
+            using var owner = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription
+                { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 16,
+                    Usage = BufferUsage.StaticDraw }).RequireResource();
+            using (var operation = new GpuResourceManager.MetadataOperation<GpuBufferMetadata>(owner, GpuMetadataChange.Storage))
+            {
+                using var binding = OpenGlStateCache.Current.BindBufferScope(BufferTarget.ArrayBuffer, owner.BufferId);
+                GL.BufferData(BufferTarget.ArrayBuffer, 64, IntPtr.Zero, BufferUsageHint.StaticDraw);
+                Assert.Throws<InvalidOperationException>(() => operation.Commit(new(16, BufferUsage.StaticDraw)));
+            }
+            // Native work was forwarded, even though the interrupted managed candidate cannot commit.
+            Assert.True(new GpuBufferMetadataReader().TryRead(owner.BufferId, out var actual));
+            Assert.Equal((nint)64, actual.Capacity);
+            Assert.Equal(ErrorCode.NoError, GL.GetError());
+        }
+        finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
+    }
+
     /// <summary>A successful explicit reader runs once; disposal performs no additional recovery.</summary>
     [Fact]
     public void OwnerChoosesRecoveryAndCommitsItsResult()
@@ -338,11 +365,13 @@ public sealed class GpuMetadataOperationFoundationTests(HeadlessGLFixture fixtur
     #endregion
 
     #region Private
-    /// <summary>Changes actual storage for tests whose later publication candidate is already established.</summary>
+    /// <summary>Performs controlled native work whose explicit test operation owns publication.</summary>
     private static void ResizeNative(GpuVbo resource, int capacity)
     {
-        using var binding = OpenGlStateCache.Current.BindBufferScope(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBufferValues.Target(resource.Role), resource.BufferId);
-        GL.BufferData(BufferTarget.ArrayBuffer, capacity, IntPtr.Zero, BufferUsageHint.StaticDraw);
+        // Match backend execution: the enclosing operation, not an external observer,
+        // certifies this supplied or explicitly recovered candidate.
+        OpenGLDriverCalls.NamedBufferData(resource.BufferId, (nint)capacity, IntPtr.Zero,
+            OpenTK.Graphics.OpenGL4.BufferUsageHint.StaticDraw);
     }
 
     /// <summary>Counts recovery while delegating facts to the real native acquisition reader.</summary>

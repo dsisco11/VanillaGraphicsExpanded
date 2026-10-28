@@ -120,9 +120,8 @@ a private backend realization without editing engine-owned configuration.
 
 ## Metadata command matrix
 
-Interception is restricted to the managed native owners GL, GL.Ext and GL.Arb.
-The pinned OpenTK binding exposes core methods directly on GL; adapter classes named Core
-refer to that owner. All other auxiliary owners are excluded, including Amd, Ati, Ibm, Intel,
+Interception covers selected native entries in both OpenTK GL tables, restricted to the
+GL/Core, Ext and Arb owners. Core methods are exposed directly on GL. All other auxiliary owners are excluded, including Amd, Ati, Ibm, Intel,
 Mesa, Oes, Ovr, Sgis, Sun, Apple and NV. This is an owner boundary, not a filter on feature origins,
 command suffixes, extension capability checks or direct VGE resource operations.
 Unmapped calls execute unchanged and do not provide continuing metadata or lifecycle observation.
@@ -381,31 +380,22 @@ object's metadata; registration never adds native ownership.
 
 ## Native coverage and consumer gates
 
-`EngineStateTargets` scans only VintagestoryLib, VSEssentials, VSSurvivalMod and VSCreativeMod. Its IL
-discovery recognizes supported GL member references and generic MethodSpecification tokens.
-`EngineGenericStateTargets` resolves concrete value-type instantiations referenced by those assemblies,
-including calls through a generic virtual base declaration such as `UBORef.Update<T>`. Each concrete
-implementation receives the same exact native-call replacements; open definitions are never patched.
-Unreferenced generic templates produce no targets. Unresolved generic forwarding, generic declaring
-types and shared reference-type instantiations reject discovery rather than claiming unsafe coverage.
-Reflection-created instantiations and calls introduced outside the built-in assembly boundary are not
-discovered. This is static call coverage, not an installed-game startup or visual acceptance claim.
-`EngineStateCallMap` retains exact static state/
-deletion mappings, with those mappings taking precedence over metadata adapters. Ordinary C# adapters
-under `HarmonyPatches/NativeAdapters` explicitly forward every supported metadata signature, including
-generic upload definitions. `MetadataAdapterCatalog` declares each OpenTK owner/adapter type pair;
-registration validates exact names, managed types and generic constraints. `EngineMetadataCallAdapters`
-closes compiled definitions over arbitrary legal caller types without emitting IL or interpreting
-command/parameter names. Payload forwarding neither boxes nor copies upload arguments; core, ARB and
-EXT overloads share OpenGlStateCache's captured-entry observation.
-Renderbuffer storage uses the same exact-signature dispatch, including EXT coverage-sample storage.
+Generated callbacks replace selected entries in both OpenTK GL tables. Supported Core/Ext/Arb
+operations reach cache-owned observations independently of caller assembly, overload marshalling,
+generic element type, delegates and dynamic callers. Native ABI signatures come from the compiler's
+OpenTK PE reference; attributes select 308 native symbols and ABI-identical aliases share effects.
+The saved original executes exactly once before observation; contained reconciliation faults neither
+cancel the call nor escape to its caller. Backend-owned work uses generated `OpenGLDriverCalls`
+overloads and its existing publication owner. No caller rewriting, generic closure cache or managed
+adapter catalog remains. See the [native interception design](Rendering.OpenTKBindingInterception.Proposal.md)
+and [API matrix](Rendering.GpuResourceHandles.ApiCoverage.md) for supported boundaries and verification.
 Texture image definitions and mip generation resolve bound targets, explicit names and EXT texture
 units through OpenGlStateCache. Cube faces resolve their cube object; proxy targets never select an object.
 External texture-view creation observes the destination's registered identity and reads its native level/layer
 selection; it does not publish a storage mutation to the source texture's registration.
 Image acquisition limits view-relative mip queries to that exposed level count, independently of the
 source allocation's immutable level count.
-Exact buffer/image adapters forward to focused OpenGL backend external command modules.
+Buffer/image post-call observations use the existing focused cache and manager services.
 Texture parameter overloads acquire only the changed represented base/max field when the remaining
 snapshot is known. Single-image definitions acquire only the selected level/face; complete storage
 definitions and unknown external objects retain descriptor acquisition. Subimage, copy-subimage and
@@ -417,8 +407,8 @@ parameters, and advances storage revisions for changed allocation. Image depende
 that change or recovery from unavailable metadata; regenerating existing levels preserves storage certificates.
 Untracked commands execute without creating registry entries. External buffer storage withdraws
 existing facts through `InvalidateNativeBufferStorage`; explicit acquisition on demand recovers
-capacity/usage and commits the pending storage effect. A captured execution guard prevents reentrant
-acquisition during native dispatch; completion retains withdrawal without querying. Other image results recover affected facts,
+capacity/usage and commits the pending storage effect. Post-call interruption prevents an overlapping acquisition from certifying a stale candidate;
+observation retains withdrawal without querying. Other image results recover affected facts,
 including rejected allocations, while preserving native errors and binding effects.
 Manager publication invalidates associated framebuffer-image dependents after snapshot assignment or
 refresh failure. Local image tools and native-name replacement retain their wrapper observer route.
@@ -429,12 +419,12 @@ by a backing resize; deletion continues to withdraw its association before nativ
 Publishing a buffer texture acquires its concrete backing dependency in the same registry, including
 when the caller supplied a raw buffer ID. This adds neither a buffer wrapper nor native ownership;
 an existing usable backing entry requires no further native acquisition.
-Buffer-texture association adapters preserve bound, named and explicit-unit selection across core,
+Buffer-texture association observations preserve bound, named and explicit-unit selection across core,
 ARB and EXT calls. Native backing/format queries and range admission facts certify the result;
 rejected commands preserve the previous certified descriptor. Whole-buffer mode comes from the
 accepted command, not equality with an explicit full-range attachment. Range arguments retain
-pointer width in both native adapters and the owning wrapper's bound fallback.
-Framebuffer attachment/default adapters capture the original registration and recover only the affected
+pointer width at the native observation boundary and in semantic resource ranges.
+Framebuffer attachment/default observations select the original registration and recover only the affected
 slot or default when the remaining descriptor is available. Unknown descriptors use initial discovery.
 Controlled attachment composition publishes supplied selections once, without verification followed by
 a full scan. External pass discovery reuses its canonical descriptor for transactional image reconciliation.
@@ -442,34 +432,24 @@ Readers use named attachment queries with DSA,
 preserve split read/draw bindings on fallback, and gate attachmentless/multiview queries by capability.
 Native configuration notifications invalidate retained helper/completeness state; managed helper
 updates notify aliases while preserving the initiating helper's image ownership and completion event.
-Named and pointer routing adapters propagate legal object-local arguments for established identities
+Named and pointer routing observations propagate legal object-local arguments for established identities
 without changing bindings or draining errors. Window selectors use cached double-buffer/stereo facts.
 Unknown named identity, unavailable initial surface facts and failed dispatch retain targeted acquisition. Read routing has no cached mirror and remains a native
 selector, not framebuffer resource metadata.
 OVR selected-image helpers preserve proven attachment mode and range on replay; ambiguous external
 acquisition retains an unknown mode and rejects replay that cannot preserve its semantics. The API
 matrix records supported families and native execution limits independently of installed engine callers.
-Third-party mods, delegates, dynamically emitted callers and OpenGL4 callers are not yet covered by
-current assembly rewriting. These are defects against required complete interception, not permitted
-external-mutation behavior.
+Third-party mods, delegates, dynamically emitted callers and OpenGL4 callers share this native-table
+observation boundary. Other libraries and independently cached native pointers are outside it.
 External calls through excluded auxiliary owners likewise have no continuing observation.
 Direct VGE multiview commands use explicit optional backend operations with publication; their shared
 metadata, capabilities and replay helpers are retained independently of engine interception.
 Persistent consumers must establish that subsequent mutations/deletions stay inside covered routes.
 
-Installed engine IL already confirms `ClientPlatformWindows.CreateFramebuffer` and
-`SetupDefaultFrameBuffers` use the pointer `TexImage2D` signature and `FramebufferTexture2D`;
-setup also uses `TexImage2D<float>(..., float[])` and `BufferData(BufferTarget,int,IntPtr,BufferUsageHint)`.
-`DisposeFrameBuffers` uses single `DeleteTexture(int)` / `DeleteFramebuffer(int)`; `DisposeFrameBuffer`
-uses the latter. `SystemRenderOITLayers.BeforeOIT.rebuild` uses pointer `TexImage2D`/`TexImage3D` and
-`FramebufferTexture2D`/`FramebufferTextureLayer`; `freeResources` uses single texture deletion.
-Reconcile all of these, including liquid-depth rebuild, before persistent depth acquisition.
-
-Closed generic upload overloads resolve through their exact constructed MethodInfo, preserving their
-native marshalling and constraints. This supplies the common discovery mechanism for installed calls
-such as `TexImage2D<float>` and `TexImage2D<int>`.
-Buffer and texture commands use that mechanism, including callers containing only generic native calls.
-Nested extension deletion uses exact declaring types/signatures within the same assembly boundary.
+Generic uploads retain OpenTK's pinning and native marshalling before reaching the intercepted
+slot. Native observers receive the same pointer and byte count without inspecting the managed element
+type or discovering closed generic methods. Single-name managed deletion overloads reach the same
+native deletion entrypoints as array/pointer overloads.
 
 Cloud `CloudNativeMapAdapter` validates native map storage at allocation and keeps publication/world/
 upload/generation certificates. Ordinary non-owning texture recipients qualify those certificates
@@ -482,32 +462,20 @@ primary-depth borrower and replaces it when selection or original allocation val
 consumer teardown releases managed recipients without deleting native storage. Allocation hooks retain
 content-certificate responsibility; common OpenGlStateCache deletion owns native lifetime observation.
 Available registered snapshots require no repeated descriptor acquisition. Context-local tools without
-a manager retain conservative acquisition, and unobserved third-party mutations still require explicit
-invalidation/recovery rather than relying on the integer name.
+a manager retain conservative acquisition, while pre-installation or unrepresented facts retain explicit acquisition. Ordinary third-party calls
+through supported native tables use the same mutation/deletion observations.
 
-Unsupported third-party raw IDs keep current conservative validation/invalidation. This is a deliberate
-external boundary, not permission to omit the installed engine's required cloud/depth paths. Native
-signatures are preserved in [resource-command-inventory.txt](../artifacts/gpu-resource-handles-baseline/resource-command-inventory.txt)
-(VGE, CloudRendererMap and ClientPlatformWindows, with adapter/discovery flags) and
-[engine-gl-inventory.txt](../artifacts/gpu-resource-handles-baseline/engine-gl-inventory.txt)
-(broader engine callers plus built-in assembly references). `target=True` means the containing method
-is discovered for some supported call; it does not mean its unadapted mutations are intercepted.
-
-The retained baseline inventory records `CloudRendererMap.makeTexture` using pointer `TexImage2D`
-(adapter false, target true at that baseline);
-`FreeGlResources` has four single `DeleteTexture(int)` calls and one `DeleteFramebuffer(int)`
-(adapter and target true). Texture allocation and framebuffer attachment have family adapters;
-cloud/depth integration uses their common metadata and deletion routes. These use the common
-deletion path and do not require another producer teardown hook.
-The VGE IL confirms `NamedBufferData(int,int,IntPtr,BufferUsageHint)`, both buffer-texture range
-signatures in the matrix, and `BufferStorage(BufferTarget,int,IntPtr,BufferStorageFlags)`.
+Raw IDs without original allocation associations retain explicit acquisition; this is distinct from
+caller coverage and cannot substitute numeric equality for an original lifetime. Coverage is derived
+from API families and native slot declarations, rather than a static engine caller inventory.
 
 ## Validation and restoration dependencies
 
 Controlled program, VAO and pipeline selections retain submitted identities after dispatch and suppress
-known-equal calls. Exact external selectors execute each original overload and leave affected selections
-unknown for lazy recovery; querying CURRENT_PROGRAM does not certify full-program stage installation.
-Selector and routing execution resides in focused OpenGL backend modules, behind compiler-checked native adapters.
+known-equal calls. External selectors execute natively once, publish established selections and preserve
+prior facts on proven rejection; uncertain outcomes retain targeted recovery. Querying CURRENT_PROGRAM
+does not certify full-program stage installation. Backend execution uses saved originals; native-table
+callbacks invoke the cache-owned selector and routing observations after external dispatch.
 Framebuffer scopes capture only their affected read/draw directions through cached getters. Element-buffer
 scopes retain the original VAO association when another VAO becomes selected before restoration.
 Per-VAO element-buffer knowledge is independent of canonical VAO configuration revisions.
@@ -529,60 +497,6 @@ of retired names. Context retirement and unknown-state recovery remain independe
 a live registration is never evidence that an object is bound. The Prepared resource submission section of `Rendering.ShaderBindingState.md` describes the current
 validation path; historical receipts remain in planning/evidence records.
 
-
-## Reproducible baseline
-
-Source HEAD: `35e1481c9d6f94ef8de4fdded5499bccf6a11867`; runtime implementation unchanged.
-Applicability rechecked for the manager-owned metadata plan: all 40 artifact-manifest entries and
-2,701 source-manifest paths match their recorded hashes; runtime/build sources match the baseline.
-The retained 105-case and 3-case test receipts and package/test shader identities remain valid.
-No baseline rerun was needed for documentation-only reconciliation. New registration/publication costs
-remain implementation measurements, not costs claimed by these baseline fixtures.
-[Baseline artifacts](../artifacts/gpu-resource-handles-baseline/) retain the source archive, final test
-instrumentation patch/source manifest, full test-output ZIP, canonical package ZIP, binary/package
-SHA256 manifests and exact fixture outputs. [replay.ps1](../artifacts/gpu-resource-handles-baseline/replay.ps1)
-records the commands and process-only observation settings. Use the retained baseline source plus
-instrumentation for comparison, not a later checkout's runtime DLL. Restore dependencies before using
-its `--no-restore` test command. SDK: .NET 10.0.401; Release; Windows x64; RTX 4090; reported GL 4.3.0,
-NVIDIA 610.88. Binary identities include the installed engine, API, VSEssentials and OpenTK.
-
-Subagent verification: [focused suite](../artifacts/gpu-resource-handles-baseline/baseline-existing.trx)
-105 passed, zero failed/skipped; [final calibrated fixtures](../artifacts/gpu-resource-handles-baseline/baseline-final.trx)
-3 passed, zero failed/skipped. [Canonical package](../artifacts/gpu-resource-handles-baseline/package.log)
-used `./build.ps1 --configuration=Release --spirv=true` and passed. Packaged runtime SHA256 matches tested
-`A5D61F8844D81D1C2E1C5F14C5813F26E793452E6308AAA12100742468116176`; all 761 SPIR-V files match test outputs,
-and 762 shader/manifest entries match canonical generated assets. The final test DLL is
-`D5ADB644588F1853238C851C7DB33DC27597B56DC345B673C83092B6AD2066A8`.
-
-| Measured interval | Native texture binds | Texture metadata queries |
-| --- | ---: | ---: |
-| Cloud map acquisition | 5 | 12 |
-| Eight stable cloud publication generations | 0 | 0 |
-| Four cloud input borrower constructions | 0 | 24 |
-| Typed cloud view draw | 68 | 0 |
-| Depth first publication | 4 | 6 |
-| Depth stable publication | 2 | 0 |
-
-Each interval has a named `.counts.txt` receipt. `ResourceCallObserver` calibrates all four intercepted
-OpenTK entry points: BindTexture and the bound/DSA texture-parameter/level queries. Counts cover those
-entry points, not all GL queries, IsTexture checks, FBO queries, CPU costs or whole-frame time. No
-registration/dispatch implementation exists in this baseline; later measurements must report its cost
-separately. Calibration restores its native binding and is excluded from measured intervals.
-
-The cloud fixture uses a 20x20 map and 18x14 view with authored stored fields, constructs the four
-borrowers and runs actual typed view submission. Its six output images exactly match the owned-input
-fixture; draw/read FBO, active unit and texture binding are restored. `cloud-typed-view-output.f32`
-retains 20,160 bytes. This is not a full live CloudStoredVolumeConsumer scheduler measurement.
-The depth fixture runs the actual renderer with a 7x3 target, checks complete mip chains of 0.4 then
-0.7, and retains two 100-byte `.f32` outputs. Existing engine boundary/FBO tests provide complementary
-restoration/rebuild coverage. None of this establishes game appearance or frame-time improvement.
-
-Initial sandboxed restore/test attempts stalled and were canceled; successful runs used the available
-restored packages with process-only observer settings. Logs also preserve corrected test-only compiler
-failures (source removal during enumeration and an ambiguous Buffer type). The final candidate passed;
-no runtime baseline failure was observed in the selected checks, and no failing test was waived. The removed call-site inventory
-fixture's historical output is optional integration context, not required API coverage evidence or a
-fixture to restore in the final replay.
 
 ## Optional resource labels
 

@@ -103,7 +103,7 @@ public sealed class RHIAuxiliaryTests(HeadlessGLFixture fixture, Xunit.ITestOutp
         }
         finally
         {
-            if (name != 0) OpenGLImageDeletionCalls.Core.DeleteTexture(name);
+            if (name != 0) GL.DeleteTexture(name);
             Finish();
         }
     }

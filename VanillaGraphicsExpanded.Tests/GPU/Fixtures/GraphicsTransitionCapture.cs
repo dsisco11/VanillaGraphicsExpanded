@@ -1,76 +1,134 @@
 using HarmonyLib;
+using OpenTK;
 using OpenTK.Graphics.OpenGL;
+using System.Runtime.InteropServices;
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
+using GLFWBindingsContext = OpenTK.Windowing.GraphicsLibraryFramework.GLFWBindingsContext;
 
 namespace VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 
-/// <summary>Counts managed OpenGL entry calls while leaving native submission unchanged.</summary>
-internal sealed class GraphicsTransitionCapture:IDisposable
+/// <summary>Counts driver submissions from both OpenTK and backend-owned original-pointer dispatch.</summary>
+internal sealed unsafe class GraphicsTransitionCapture : IBindingsContext, IDisposable
 {
     [ThreadStatic] private static GraphicsTransitionCapture? active;
-    private readonly Harmony harmony=new("Tests.GraphicsTransitionCapture");
-    internal readonly List<string> Calls=[];
-    /// <summary>Selects one named restore to reject, leaving subsequent owners available for independent cleanup.</summary>
-    internal int FailNamedFramebuffer=-1;
+    private static readonly List<Delegate> roots = [];
+    private readonly Harmony harmony = new("Tests.GraphicsTransitionCapture");
+    private readonly GLFWBindingsContext driver = new();
+    private readonly Dictionary<string, nint> pointers = [];
+    internal readonly List<string> Calls = [];
+    /// <summary>Selects a managed restoration failure without throwing across an unmanaged callback.</summary>
+    internal int FailNamedFramebuffer = -1;
     private int failureTargetCalls;
+
     #region Public API
-    /// <summary>Installs observers for the integer/array overloads used by the production state cache and passes.</summary>
+    /// <summary>Decorates real driver addresses before production interception installs its callbacks.</summary>
     internal GraphicsTransitionCapture()
     {
-        if(active is not null)throw new InvalidOperationException("Graphics transition capture already active.");
-        active=this;
+        if (active is not null) throw new InvalidOperationException("Graphics transition capture already active.");
+        active = this;
         try
         {
-            Patch(nameof(GL.BindFramebuffer),[typeof(FramebufferTarget),typeof(int)],nameof(Framebuffer));
-            Patch(nameof(GL.UseProgram),[typeof(int)],nameof(Program));
-            Patch(nameof(GL.DrawBuffers),[typeof(int),typeof(DrawBuffersEnum[])],nameof(Routing));
-            Patch(nameof(GL.NamedFramebufferDrawBuffers),[typeof(int),typeof(int),typeof(DrawBuffersEnum[])],nameof(NamedRouting));
-            Patch(nameof(GL.DrawBuffer),[typeof(DrawBufferMode)],nameof(WindowRouting));
-            Delegate[] core = [
-                (Action<OpenTK.Graphics.OpenGL4.FramebufferTarget,int>)OpenTK.Graphics.OpenGL4.GL.BindFramebuffer,
-                (Action<int>)OpenTK.Graphics.OpenGL4.GL.UseProgram,
-                (Action<int,OpenTK.Graphics.OpenGL4.DrawBuffersEnum[]>)OpenTK.Graphics.OpenGL4.GL.DrawBuffers,
-                (Action<int,int,OpenTK.Graphics.OpenGL4.DrawBuffersEnum[]>)OpenTK.Graphics.OpenGL4.GL.NamedFramebufferDrawBuffers,
-                (Action<OpenTK.Graphics.OpenGL4.DrawBufferMode>)OpenTK.Graphics.OpenGL4.GL.DrawBuffer,
-                (Action<int,OpenTK.Graphics.OpenGL4.DrawBufferMode>)OpenTK.Graphics.OpenGL4.GL.NamedFramebufferDrawBuffer
-            ];
-            string[] observers = [nameof(Framebuffer),nameof(Program),nameof(Routing),nameof(NamedRouting),nameof(WindowRouting),nameof(NamedRouting)];
-            for (int index=0;index<core.Length;index++)
-                harmony.Patch(core[index].Method,prefix:new HarmonyMethod(typeof(GraphicsTransitionCapture),observers[index]));
+            nint bind = driver.GetProcAddress("glBindFramebuffer");
+            Add("glBindFramebuffer", new Bind((target, id) =>
+            {
+                Calls.Add($"Framebuffer:{(FramebufferTarget)target}:{id}");
+                ((delegate* unmanaged[Stdcall]<int, uint, void>)bind)(target, id);
+            }));
+            nint use = driver.GetProcAddress("glUseProgram");
+            Add("glUseProgram", new Use(id =>
+            {
+                Calls.Add($"Program:{id}");
+                ((delegate* unmanaged[Stdcall]<uint, void>)use)(id);
+            }));
+            nint draw = driver.GetProcAddress("glDrawBuffer");
+            Add("glDrawBuffer", new Draw(buffer =>
+            {
+                Calls.Add($"RoutingWindow:{GL.GetInteger(GetPName.DrawFramebufferBinding)}:{(DrawBufferMode)buffer}");
+                ((delegate* unmanaged[Stdcall]<int, void>)draw)(buffer);
+            }));
+            nint draws = driver.GetProcAddress("glDrawBuffers");
+            Add("glDrawBuffers", new Draws((count, buffers) =>
+            {
+                Calls.Add($"Routing:{GL.GetInteger(GetPName.DrawFramebufferBinding)}:{Route(count, buffers)}");
+                ((delegate* unmanaged[Stdcall]<int, int*, void>)draws)(count, buffers);
+            }));
+            nint named = driver.GetProcAddress("glNamedFramebufferDrawBuffer");
+            Add("glNamedFramebufferDrawBuffer", new Named((id, buffer) =>
+            {
+                RecordNamed(id, ((DrawBufferMode)buffer).ToString());
+                ((delegate* unmanaged[Stdcall]<uint, int, void>)named)(id, buffer);
+            }));
+            nint nameds = driver.GetProcAddress("glNamedFramebufferDrawBuffers");
+            Add("glNamedFramebufferDrawBuffers", new Nameds((id, count, buffers) =>
+            {
+                RecordNamed(id, Route(count, buffers));
+                ((delegate* unmanaged[Stdcall]<uint, int, int*, void>)nameds)(id, count, buffers);
+            }));
+            harmony.Patch(AccessTools.Method(typeof(OpenGLFramebufferRouting), "Restore"),
+                prefix: new HarmonyMethod(typeof(GraphicsTransitionCapture), nameof(BeforeRestore)));
+            GL.LoadBindings(this);
+            OpenTK.Graphics.OpenGL4.GL.LoadBindings(this);
         }
-        catch { Dispose();throw; }
+        catch { Dispose(); throw; }
     }
-    /// <summary>Removes only this fixture's observers, including after assertion failures.</summary>
-    public void Dispose(){harmony.UnpatchAll(harmony.Id);active=null;}
+
+    /// <inheritdoc />
+    public nint GetProcAddress(string name) => pointers.TryGetValue(name, out var pointer) ? pointer : driver.GetProcAddress(name);
+
+    /// <summary>Restores ordinary driver loading and removes only this fixture's managed failure injection.</summary>
+    public void Dispose()
+    {
+        GL.LoadBindings(driver);
+        OpenTK.Graphics.OpenGL4.GL.LoadBindings(driver);
+        harmony.UnpatchAll(harmony.Id);
+        active = null;
+    }
     #endregion
+
     #region Private
-    #region Registration
-    /// <summary>Resolves an exact public overload so forwarding overloads are never double counted.</summary>
-    private void Patch(string name,Type[] arguments,string observer)
+    /// <summary>Roots callbacks for the lifetime of production retained native slots.</summary>
+    private void Add(string name, Delegate callback)
     {
-        var method=AccessTools.Method(typeof(GL),name,arguments)??throw new MissingMethodException(name);
-        harmony.Patch(method,prefix:new HarmonyMethod(AccessTools.Method(typeof(GraphicsTransitionCapture),observer)));
+        roots.Add(callback);
+        pointers.Add(name, Marshal.GetFunctionPointerForDelegate(callback));
     }
-    #endregion
-    #region Observation
-    /// <summary>Records framebuffer binding category and object id before native execution.</summary>
-    private static void Framebuffer(object[] __args)=>active?.Calls.Add($"Framebuffer:{__args[0]}:{__args[1]}");
-    /// <summary>Records actual requested program transitions, including handback to the native owner.</summary>
-    private static void Program(int __0)=>active?.Calls.Add($"Program:{__0}");
-    /// <summary>Records framebuffer-local output routing changes independently of framebuffer bindings.</summary>
-    private static void Routing(object[] __args)=>active?.Calls.Add($"Routing:{GL.GetInteger(GetPName.DrawFramebufferBinding)}:{string.Join(',',((Array)__args[1]).Cast<object>().Take((int)__args[0]))}");
-    /// <summary>Records direct routing restoration and optionally injects a single independent-owner cleanup failure.</summary>
-    private static void NamedRouting(object[] __args)
+
+    /// <summary>Copies native routing only for the duration of the synchronous callback.</summary>
+    private static string Route(int count, int* values)
     {
-        int __0=(int)__args[0], __1=__args.Length==3?(int)__args[1]:1;
-        var __2=__args.Length==3?((Array)__args[2]).Cast<object>():new[] { __args[1] };
-        active?.Calls.Add($"RoutingNamed:{__0}:{string.Join(',',__2.Take(__1))}");
-        if(active?.FailNamedFramebuffer==__0 && ++active.failureTargetCalls == 2)
+        var result = new string[Math.Max(0, count)];
+        for (int i = 0; i < result.Length; i++) result[i] = ((DrawBuffersEnum)values[i]).ToString();
+        return string.Join(',', result);
+    }
+
+    /// <summary>Records named submissions independently from selected framebuffer state.</summary>
+    private void RecordNamed(uint id, string route)
+    {
+        Calls.Add($"RoutingNamed:{id}:{route}");
+        if (FailNamedFramebuffer == (int)id) failureTargetCalls++;
+    }
+
+    /// <summary>Injects cleanup failure in managed code after the target's first authored submission.</summary>
+    private static void BeforeRestore(int framebuffer)
+    {
+        if (active is { } capture && capture.FailNamedFramebuffer == framebuffer && capture.failureTargetCalls > 0)
         {
-            active.FailNamedFramebuffer=-1;throw new InvalidOperationException("Injected named restoration failure.");
+            capture.FailNamedFramebuffer = -1;
+            throw new InvalidOperationException("Injected named restoration failure.");
         }
     }
-    /// <summary>Records default-window routing without treating it as named framebuffer state.</summary>
-    private static void WindowRouting(object[] __args)=>active?.Calls.Add($"RoutingWindow:{GL.GetInteger(GetPName.DrawFramebufferBinding)}:{__args[0]}");
-    #endregion
+
+    /// <summary>Matches framebuffer selection ABI.</summary>
+    [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate void Bind(int target, uint id);
+    /// <summary>Matches program selection ABI.</summary>
+    [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate void Use(uint id);
+    /// <summary>Matches scalar draw routing ABI.</summary>
+    [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate void Draw(int buffer);
+    /// <summary>Matches array draw routing ABI.</summary>
+    [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate void Draws(int count, int* buffers);
+    /// <summary>Matches named scalar routing ABI.</summary>
+    [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate void Named(uint id, int buffer);
+    /// <summary>Matches named array routing ABI.</summary>
+    [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate void Nameds(uint id, int count, int* buffers);
     #endregion
 }
