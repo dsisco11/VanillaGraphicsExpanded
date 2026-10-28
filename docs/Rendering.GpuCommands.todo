@@ -1178,90 +1178,27 @@ Phase 8h.1: Correct effect classification and simplify native observation delive
     and independent completion audit passed. See Rendering.GpuCommands.Migrations.md and local
     artifacts/phase8h.1 closure receipts. No staging or commit; 8i and later gates remain open.
 
-Phase 8i: Redesign metadata tracking around intercepted creation and observed resource changes
-  Depends on 8h's native dispatch boundary and 8h.1's corrected classification, relevance ordering
-    and simplified query-free observation delivery.
-  Authority: the approved RHI ownership/no-shim contracts and the requirement to maintain metadata
-    from the complete observed resource lifecycle rather than treating missing tracking as a query trigger.
-  Outcome: creation, guaranteed defaults and intercepted configuration maintain canonical manager-owned
-    metadata for covered resources; native reads have explicit, limited reasons and consumers reuse known facts.
+Phase 8i: Implement the maintained metadata lifecycle plan
+  Depends on 8h's native dispatch boundary and 8h.1's corrected effect delivery.
+  Approved design: [Rendering.MetadataLifecycle.Proposal.md](Rendering.MetadataLifecycle.Proposal.md).
+  Implementation authority: [Rendering.MetadataLifecycle.todo](Rendering.MetadataLifecycle.todo).
+  Coverage companion: [Rendering.MetadataLifecycle.Inventory.md](Rendering.MetadataLifecycle.Inventory.md).
+  Outcome: covered creation/default/configuration calls maintain canonical facts; ordinary consumers reuse
+    them without discovery, and every remaining query has an explicit cause and concrete consumer.
+  Detailed execution tasks live solely in the dedicated plan; this section is the parent integration gate.
 
-  ☐ Design and document the complete metadata lifecycle before implementing the redesign. Define resource
-    identity, reserved versus realized names, guaranteed defaults, known/unavailable facts, mutation,
-    replacement, deletion/name reuse and context/share-group ownership. Review the design against actual
-    readers and consumers; identify which metadata is supplied, defaulted, derived or genuinely driver-produced.
-    Agree the design before migrating families; retain one canonical manager authority and one cache authority.
-  ☐ Build an explicit creation/configuration/deletion coverage inventory from compiler-referenced OpenTK
-    bindings and existing RHI operations. Name every supported factory and relevant alias, including
-    glGen*/glCreate*, glCreateShader/glCreateShaderProgramv/glCreateProgram, glFenceSync and extension
-    allocation/import entrypoints which create or establish native identities. Cover both GL roots and
-    supported Core/Ext/Arb entrypoints; preserve existing vendor-owner and legacy-feature exclusions.
-    Specify generated names versus realized objects and the later operation that establishes their type.
-    Interception coverage gaps are defects to fix, not justification for routine discovery queries.
-  ☐ Add generated post-call creation observers and manager registration/default initialization. Consume
-    returned names, arrays and native results synchronously with their exact ABI. Never register zero,
-    failed results or an unrelated prior allocation under a reused name. Coordinate creation observation
-    with backend-owned saved-original dispatch so RHI factories register/publish once rather than twice.
-  ☐ Redesign buffer tracking for GpuBufferObject and its role wrappers using GpuBufferMetadata. Maintain
-    known size, usage, storage mode/flags and relevant mapping facts from creation/defaults and observed
-    allocation/configuration calls. Replace ObserveBufferStorage's blanket withdrawal where supplied
-    arguments establish represented facts; preserve storage identity and dependent buffer-texture lifetimes.
-  ☐ Redesign texture/image tracking for GpuTexture, BorrowedTexture, GpuTextureView, GpuBufferTexture,
-    GpuBufferView and renderbuffer-backed texture associations using GpuTextureMetadata and GpuImageMetadata.
-    Carry target, dimensions, format, levels/layers, storage mode, represented parameters, view ranges and
-    backing associations from observed commands. Fix observers such as ObserveTextureStorage2D that
-    currently discard supplied dimensions/format/mip counts. Separate content-only writes from descriptor
-    changes; retain source-storage identities and image projections without a second metadata mirror.
-  ☐ Redesign renderbuffer, framebuffer and sampler tracking using GpuRenderbufferMetadata,
-    GpuFramebufferMetadata and GpuSamplerMetadata. Maintain storage, attachments/subresources, routing,
-    attachmentless defaults and represented sampler parameters from observed lifecycle/configuration calls.
-    Include bound, named and multi-bind effects where applicable, plus attachment/dependency retirement.
-  ☐ Redesign shader/program/pipeline tracking for GpuShaderModule, GpuProgramObject, GpuProgramLayout and
-    GpuProgramPipeline using GpuShaderMetadata, GpuProgramMetadata and GpuProgramPipelineMetadata.
-    Maintain declared stages, configuration, selection and known interface assignments from observed calls.
-    Treat compilation/link status and executable reflection as specifically identified driver-produced
-    results; do not reflect an entire interface after an ordinary represented assignment.
-  ☐ Cover GpuVao, GpuTransformFeedback, GpuQuery, GpuSync, GpuSemaphore and GpuMemoryObject using
-    GpuVertexArrayMetadata, GpuTransformFeedbackMetadata, GpuQueryMetadata, GpuSyncMetadata,
-    GpuSemaphoreMetadata and GpuMemoryObjectMetadata. Register observed creation/defaults and track
-    represented configuration/lifetime facts. Keep execution-owned binding/activity knowledge in its
-    existing cache domain; do not invent canonical fields or layout mirrors solely to avoid an empty schema.
-  ☐ Define accepted/rejected/uncertain native outcome policy for each operation family. External calls
-    execute once unchanged and observers never veto them or leak errors. Retain known state after proven
-    rejection; use supplied requests for ordinary tracked properties under the approved metadata policy.
-    Do not equate a void native return with proven success, consume GL errors or add universal verification
-    reads, per-call GL.Is* checks, requested/actual mirrors or a new generic transaction framework.
-    Specify any unresolved outcome requiring a targeted read and its concrete consumer need.
-  ☐ Restrict acquisition to explicit cases: resources predating installation, supported external imports
-    whose descriptors cannot be obtained from their intercepted setup, identified driver-produced results,
-    or documented unresolved outcomes. Keep approved sample-count resolution/fallback policy explicit.
-    Unknown registration or a discarded command argument alone must not trigger a query. Distinguish an
-    interception/tracking defect from genuinely unavailable input; fix the producer rather than silently
-    recapturing metadata on ordinary reads, binding, validation or reference conversion.
-  ☐ Audit every metadata reader, acquisition/recovery entry point and its consumers against the new
-    lifecycle. Remove obsolete readback/invalidation paths and update initialization, adoption, aliases,
-    dependencies and context-local tools together. Review interruption guards against real production
-    acquisition/publication callbacks; keep only protections required by those remaining operations,
-    with scoped cleanup and targeted uncertainty. Preserve 8h.1's relevance-before-interruption ordering
-    when introducing creation/default/configuration tracking. Synthetic reentry tests alone do not justify machinery.
-  ☐ Migrate each complete operation family atomically: creation/default publication, observed mutations,
-    readers, consumers, failure/deletion handling and tests. Remove superseded APIs in that unit; introduce
-    no compatibility shims, parallel registry, second publication route or generic event/command bus.
-    Backend-specific interpretation stays beneath RHI; wrappers and portable APIs receive semantic facts.
-  ☐ Qualify with delegated canonical Debug/ordinary Release builds and focused lifecycle regressions.
-    Verify creation → configuration → consumption with descriptor readers configured to reject unexpected
-    reads; cover engine/raw OpenTK resources and RHI-owned resources, aliases/views, delayed realization,
-    external imports, name reuse, failed/invalid commands, context recreation and initial adoption.
-    Assert exactly-once registration/publication/native dispatch, stable suppression and no redundant
-    descriptor reads; independently test legitimate driver-produced results and approved narrow fallbacks.
-    Update obsolete managed-wrapper capture fixtures to the actual native boundary where necessary.
-    No benchmark, timing study, instrumented Release, game launch or automatic commit is required.
-  ☐ Reconcile the approved design, RHI contracts, resource inventory/API coverage, metadata acquisition
-    analysis and permanent ownership documentation. Perform second review and independent completion audit
-    for coverage and data flow, not just symbol presence. Keep remaining native-hook qualification explicit.
-  ☐ Completion: every covered resource has an observed identity/default/configuration lifecycle; ordinary
-    metadata consumers reuse maintained canonical facts, and every remaining query has an explicit reason
-    supported by an actual consumer. No missing observation is disguised as normal acquisition/recovery.
+  ☐ Complete all seven phases and final acceptance of Rendering.MetadataLifecycle.todo, including its
+    complete family migrations, original identity/dependency handling, narrow query policy and no-shim rules.
+    Proposal approval and creation of the dedicated plan do not establish implementation completion.
+  ☐ Verify combined lifecycle evidence for raw OpenTK and RHI-owned resources, reserved realization,
+    aliases/views, imports, invalid commands, name/context reuse, pre-install adoption and legitimate
+    driver-produced outputs. Covered borrowing is query-free; no blanket import or no-manager exemption.
+  ☐ Reconcile lifecycle results with RHI contracts, resource inventory/API coverage, acquisition analysis
+    and permanent ownership/binding documentation. Retain explicit hardware and integrated qualification gaps.
+  ☐ Complete second review and independent completion audit against the approved design and dedicated plan
+    before closing this parent gate. Later 8j/8k and Phase 9 work remain independently required.
+  ☐ Completion: the dedicated plan is fully qualified; no missing creation/configuration observation is
+    disguised as normal acquisition, and no temporary shim or second metadata authority remains.
 
 Phase 8j: Qualify corrective closure and reconcile documentation
   Depends on 8a–8i, including 8h.1.
