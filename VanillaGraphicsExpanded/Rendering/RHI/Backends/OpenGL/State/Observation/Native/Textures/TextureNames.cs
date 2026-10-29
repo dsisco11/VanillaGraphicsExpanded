@@ -12,7 +12,7 @@ internal sealed unsafe partial class OpenGlStateCache
     internal static void ObserveGenTextures(int count, uint* names)
     {
         if (count <= 0 || names == null || !OpenGLObservationContext.TryGet(out _, out _, false)) return;
-        var manager = GpuResourceManagerSystem.CurrentManager!;
+        var manager = RHIResourceManagerSystem.CurrentManager!;
         for (int i = 0; i < count; i++)
             manager.ObserveImageCreation(GpuResourceKind.Texture, unchecked((int)names[i]), false);
     }
@@ -23,7 +23,7 @@ internal sealed unsafe partial class OpenGlStateCache
     {
         if (count <= 0 || names == null || !OpenGLObservationContext.TryGet(out _, out _, false)) return;
         if (!TryImageTarget(target, out var dimension) || dimension == TextureDimension.RenderbufferTexture) return;
-        var manager = GpuResourceManagerSystem.CurrentManager!;
+        var manager = RHIResourceManagerSystem.CurrentManager!;
         for (int i = 0; i < count; i++)
             manager.ObserveImageCreation(GpuResourceKind.Texture, unchecked((int)names[i]), true, dimension);
     }

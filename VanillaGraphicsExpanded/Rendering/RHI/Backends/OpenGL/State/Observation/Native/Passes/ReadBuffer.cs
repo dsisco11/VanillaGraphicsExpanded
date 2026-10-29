@@ -44,7 +44,7 @@ internal sealed partial class OpenGlStateCache
         }
         else
         {
-            if (GpuResourceManagerSystem.CurrentManager?.FindObservedResource(GpuResourceKind.Framebuffer, framebuffer)?.IsRealized != true) return;
+            if (RHIResourceManagerSystem.CurrentManager?.FindObservedResource(GpuResourceKind.Framebuffer, framebuffer)?.IsRealized != true) return;
             if (route != (int)ReadBufferMode.None && (route < (int)ReadBufferMode.ColorAttachment0
                 || (long)route - (int)ReadBufferMode.ColorAttachment0 >= GpuSupport.Graphics.MaxColorAttachments)) return;
         }

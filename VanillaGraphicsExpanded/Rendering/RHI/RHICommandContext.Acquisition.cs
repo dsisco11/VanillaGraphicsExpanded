@@ -9,7 +9,7 @@ public sealed partial class RHICommandContext
     internal static void AcquireAttachmentImage(GpuFramebufferAttachment image, GpuTextureMetadata? texture = null, GpuRenderbufferMetadata? renderbuffer = null)
     {
         if (texture.HasValue || renderbuffer.HasValue)
-            GpuResourceManager.AssociateSuppliedImageMetadata(image, texture, renderbuffer);
+            RHIResourceManager.AssociateSuppliedImageMetadata(image, texture, renderbuffer);
         else Current.backend.AcquireAttachmentImage(image);
     }
     /// <summary>Routes explicit AcquireExternalAttachmentTexture without exposing native execution to resource wrappers.</summary>

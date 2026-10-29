@@ -13,7 +13,7 @@ internal static class NativeResourceSetup
         var owner = new GpuVao();
         try
         {
-            if (!GpuResourceManager.CreateVertexArray(new(), owner, out _).HasValue)
+            if (!RHIResourceManager.CreateVertexArray(new(), owner, out _).HasValue)
                 throw new InvalidOperationException("Fixture vertex-array initialization failed.");
             owner.SetDebugName(label);
             return owner;
@@ -27,7 +27,7 @@ internal static class NativeResourceSetup
         var owner = new GpuProgramObject();
         try
         {
-            if (!GpuResourceManager.CreateProgram(new(), owner, out _).HasValue)
+            if (!RHIResourceManager.CreateProgram(new(), owner, out _).HasValue)
                 throw new InvalidOperationException("Fixture program initialization failed.");
             owner.SetDebugName(label);
             return owner;
@@ -41,7 +41,7 @@ internal static class NativeResourceSetup
         var owner = new GpuProgramPipeline();
         try
         {
-            if (!GpuResourceManager.CreateProgramPipeline(new(), owner, out _).HasValue)
+            if (!RHIResourceManager.CreateProgramPipeline(new(), owner, out _).HasValue)
                 throw new InvalidOperationException("Fixture pipeline initialization failed.");
             owner.SetDebugName(label);
             return owner;

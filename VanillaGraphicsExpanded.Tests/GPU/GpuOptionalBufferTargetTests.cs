@@ -32,7 +32,7 @@ public sealed unsafe class GpuOptionalBufferTargetTests(HeadlessGLFixture fixtur
             GL.CreateBuffers(1, out first); GL.NamedBufferData(first, 128, IntPtr.Zero, BufferUsageHint.StaticDraw);
             GL.CreateBuffers(1, out second); GL.NamedBufferData(second, 128, IntPtr.Zero, BufferUsageHint.StaticDraw);
             GL.BindBuffer(BufferTarget.ArrayBuffer, first);
-            var manager = GpuResourceManagerSystem.CurrentManager!;
+            var manager = RHIResourceManagerSystem.CurrentManager!;
             var old = Assert.IsType<GpuResourceMetadataEntry<GpuBufferMetadata>>(manager.FindResource(GpuResourceKind.Buffer, first));
             var incoming = Assert.IsType<GpuResourceMetadataEntry<GpuBufferMetadata>>(manager.FindResource(GpuResourceKind.Buffer, second));
             var cache = OpenGlStateCache.Current;

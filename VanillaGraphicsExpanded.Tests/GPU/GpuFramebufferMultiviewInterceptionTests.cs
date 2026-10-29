@@ -27,7 +27,7 @@ public sealed class GpuFramebufferMultiviewInterceptionTests(HeadlessGLFixture f
             OpenGLFramebufferSelection.Bind(OpenGlStateCache.Current, FramebufferTarget.DrawFramebuffer,first.FboId); OpenGLFramebufferSelection.Bind(OpenGlStateCache.Current, FramebufferTarget.ReadFramebuffer,target.FboId);
             target.SetAttachment(FramebufferSlot.Color0,image);
             Assert.Equal(first.FboId,GL.GetInteger(GetPName.DrawFramebufferBinding)); Assert.Equal(target.FboId,GL.GetInteger(GetPName.ReadFramebufferBinding));
-            var entry=(GpuResourceMetadataEntry<GpuFramebufferMetadata>)GpuResourceManagerSystem.CurrentManager!.GetResourceRegistration(target)!;
+            var entry=(GpuResourceMetadataEntry<GpuFramebufferMetadata>)RHIResourceManagerSystem.CurrentManager!.GetResourceRegistration(target)!;
             var descriptor=entry.Metadata.Attachments[FramebufferSlot.Color0]; Assert.Equal(GpuFramebufferAttachmentMode.Multiview,descriptor.Mode); Assert.Equal(1,descriptor.BaseView); Assert.Equal(2,descriptor.ViewCount); Assert.Equal(useView?view.TextureId:array.TextureId,descriptor.Id);
             Assert.Equal(2,image.ImageDepth); Assert.Equal(ErrorCode.NoError,GL.GetError());
         }
@@ -58,7 +58,7 @@ public sealed class GpuFramebufferMultiviewInterceptionTests(HeadlessGLFixture f
         try
         {
             GL.BindTexture(TextureTarget.Texture2DArray,texture); GL.TexImage3D(TextureTarget.Texture2DArray,0,PixelInternalFormat.Rgba8,8,4,4,0,PixelFormat.Rgba,PixelType.UnsignedByte,IntPtr.Zero);
-            GpuResourceManagerSystem.CurrentManager!.AcquireResource(GpuResourceKind.Texture,texture,new GpuTextureMetadataReader(TextureDimension.TwoArray));
+            RHIResourceManagerSystem.CurrentManager!.AcquireResource(GpuResourceKind.Texture,texture,new GpuTextureMetadataReader(TextureDimension.TwoArray));
             using var array=new BorrowedTexture(texture); using var image=GpuFramebufferAttachment.FromMultiviewTexture(array,1,2); using var capabilities=new DirectStateAccessCapabilityScope(direct); using var framebuffer=DynamicGpuFramebuffer.Create([image])!;
             OpenGLImageBindings.BindTexture(OpenGlStateCache.Current, TextureTarget.Texture2DArray,0,texture);
             GL.TexImage3D(TextureTarget.Texture2DArray, 0, PixelInternalFormat.Rgba8, 16, 8, 4, 0, PixelFormat.Rgba, PixelType.UnsignedByte, IntPtr.Zero);

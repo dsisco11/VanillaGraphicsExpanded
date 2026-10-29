@@ -13,7 +13,7 @@ internal sealed unsafe partial class OpenGlStateCache
         if (rejected) return false;
         int selected = named ? array : GetCurrentVao();
         if (selected == 0 && GpuSupport.HasCachedCapabilitiesForCurrentContext && GpuSupport.Graphics.CoreProfile) return false;
-        if (named && GpuResourceManagerSystem.CurrentManager?.FindObservedResource(GpuResourceKind.VertexArray, selected)
+        if (named && RHIResourceManagerSystem.CurrentManager?.FindObservedResource(GpuResourceKind.VertexArray, selected)
             is GpuResourceMetadataEntry<GpuVertexArrayMetadata> { IsRealized: false, InitialDiscovery: GpuInitialDiscovery.None, PendingChange: GpuMetadataChange.None }) return false;
         return true;
     }
@@ -63,7 +63,7 @@ internal sealed unsafe partial class OpenGlStateCache
         if (offsets == null || strides == null) return false;
         for (int index = 0; index < count; index++)
             if (buffers[index] == 0 || !RejectVertexRange(offsets[index], strides[index])
-                && GpuResourceManagerSystem.CurrentManager?.FindObservedResource(GpuResourceKind.Buffer, buffers[index]) is not GpuResourceMetadataEntry<GpuBufferMetadata> { IsRealized: false, PendingChange: GpuMetadataChange.None }) return false;
+                && RHIResourceManagerSystem.CurrentManager?.FindObservedResource(GpuResourceKind.Buffer, buffers[index]) is not GpuResourceMetadataEntry<GpuBufferMetadata> { IsRealized: false, PendingChange: GpuMetadataChange.None }) return false;
         return true;
     }
     #endregion

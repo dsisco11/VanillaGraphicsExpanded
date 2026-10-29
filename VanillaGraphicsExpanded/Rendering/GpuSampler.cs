@@ -7,7 +7,7 @@ namespace VanillaGraphicsExpanded.Rendering;
 
 /// <summary>
 /// RAII wrapper around an OpenGL sampler object.
-/// Deletion is deferred to <see cref="GpuResourceManager"/> when available.
+/// Deletion is deferred to <see cref="RHIResourceManager"/> when available.
 /// All methods require a current GL context on the calling thread.
 /// </summary>
 public sealed class GpuSampler : GpuResource<GpuSamplerMetadata>, IDisposable

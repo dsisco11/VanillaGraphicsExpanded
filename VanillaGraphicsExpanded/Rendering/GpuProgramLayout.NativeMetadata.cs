@@ -17,7 +17,7 @@ public partial class GpuProgramLayout
         shader.RequireUsable();
         var owner = shader.Program;
         BinaryInterface = shader.Interface;
-        nativeMetadata = GpuResourceManager.RequireProgramSnapshot(owner);
+        nativeMetadata = RHIResourceManager.RequireProgramSnapshot(owner);
         NativeMetadataRevision = owner.ResourceManager?.GetResourceRegistration(owner)?.MetadataRevision ?? 0;
         RebuildCache(owner.ProgramId);
         owner.SetPreparedLayout(this);

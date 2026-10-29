@@ -44,7 +44,7 @@ internal sealed partial class OpenGLBackend
 
     /// <summary>Defines storage while an explicit operation retains the original resource association.</summary>
     internal GpuTextureMetadata DefineTextureImages(int name, in GpuTextureInitialization initialization,
-        GpuResourceManager.MetadataOperation<GpuTextureMetadata>? operation = null, OpenGlStateCache.ResourceOperationGuard? creationGuard = null)
+        RHIResourceManager.MetadataOperation<GpuTextureMetadata>? operation = null, OpenGlStateCache.ResourceOperationGuard? creationGuard = null)
     {
         RequireContext();
         var request = ResolveTextureSamples(initialization);
@@ -137,7 +137,7 @@ internal sealed partial class OpenGLBackend
 
     #region Private
     /// <summary>Stops a compound operation if callbacks retired the original allocation or context.</summary>
-    private void CheckTextureStep(GpuResourceManager.MetadataOperation<GpuTextureMetadata>? operation, OpenGlStateCache.ResourceOperationGuard? creationGuard = null)
+    private void CheckTextureStep(RHIResourceManager.MetadataOperation<GpuTextureMetadata>? operation, OpenGlStateCache.ResourceOperationGuard? creationGuard = null)
     {
         RequireContext();
         operation?.RequireLive();

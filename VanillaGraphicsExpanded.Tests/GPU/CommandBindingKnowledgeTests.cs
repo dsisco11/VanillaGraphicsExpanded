@@ -214,7 +214,7 @@ public sealed class CommandBindingKnowledgeTests(HeadlessGLFixture fixture)
             OpenGLVertexSelection.Bind(OpenGlStateCache.Current, vao.VertexArrayId);
             var cache = OpenGlStateCache.Current;
             OpenGLBufferBindings.BindBuffer(cache, BufferTarget.ElementArrayBuffer, buffer.BufferId);
-            var entry = GpuResourceManagerSystem.CurrentManager!.GetResourceRegistration(vao)!;
+            var entry = RHIResourceManagerSystem.CurrentManager!.GetResourceRegistration(vao)!;
             ulong revision = entry.MetadataRevision;
             using var capture = new BindingCallCapture();
             GL.EnableVertexAttribArray(0);

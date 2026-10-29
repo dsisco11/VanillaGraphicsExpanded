@@ -20,7 +20,7 @@ public sealed unsafe class GpuSynchronizationLifecycleTests(HeadlessGLFixture fi
     {
         fixture.EnsureContextValid(); fixture.InitializeResourceDisposal();
         var table = OpenGLBindingTable.For(core ? typeof(OpenTK.Graphics.OpenGL4.GL) : typeof(GL));
-        var manager = GpuResourceManagerSystem.CurrentManager!;
+        var manager = RHIResourceManagerSystem.CurrentManager!;
         uint name = 0;
         ((delegate* unmanaged[Stdcall]<int, uint*, void>)table.Read("glGenQueries"))(1, &name);
         try
@@ -57,7 +57,7 @@ public sealed unsafe class GpuSynchronizationLifecycleTests(HeadlessGLFixture fi
         create((int)QueryTarget.Timestamp, 1, &name);
         try
         {
-            var manager = GpuResourceManagerSystem.CurrentManager!;
+            var manager = RHIResourceManagerSystem.CurrentManager!;
             var original = manager.FindResource(GpuResourceKind.Query, (int)name)!;
             Assert.True(original.IsRealized); Assert.True(original.IsUsable);
             create((int)QueryTarget.Timestamp, -1, &name);
@@ -84,7 +84,7 @@ public sealed unsafe class GpuSynchronizationLifecycleTests(HeadlessGLFixture fi
             GL.BeginQuery(QueryTarget.SamplesPassed, first);
             GL.BeginQuery(QueryTarget.AnySamplesPassed, second);
             Assert.Equal(ErrorCode.InvalidOperation, GL.GetError());
-            var entry = GpuResourceManagerSystem.CurrentManager!.FindResource(GpuResourceKind.Query, second)!;
+            var entry = RHIResourceManagerSystem.CurrentManager!.FindResource(GpuResourceKind.Query, second)!;
             Assert.False(entry.IsRealized); Assert.False(entry.IsUsable);
             GL.EndQuery(QueryTarget.SamplesPassed);
             GL.BeginQuery(QueryTarget.AnySamplesPassed, second); GL.EndQuery(QueryTarget.AnySamplesPassed);
@@ -102,7 +102,7 @@ public sealed unsafe class GpuSynchronizationLifecycleTests(HeadlessGLFixture fi
         int name = GL.Arb.GenQuery();
         try
         {
-            var manager = GpuResourceManagerSystem.CurrentManager!;
+            var manager = RHIResourceManagerSystem.CurrentManager!;
             var original = manager.FindResource(GpuResourceKind.Query, name)!;
             GL.Arb.BeginQuery(QueryTarget.SamplesPassed, name); GL.Arb.EndQuery(QueryTarget.SamplesPassed);
             Assert.True(original.IsUsable); Assert.Equal(1ul, original.MetadataRevision);
@@ -125,7 +125,7 @@ public sealed unsafe class GpuSynchronizationLifecycleTests(HeadlessGLFixture fi
         nint id = fence((int)SyncCondition.SyncGpuCommandsComplete, 0);
         try
         {
-            var manager = GpuResourceManagerSystem.CurrentManager!;
+            var manager = RHIResourceManagerSystem.CurrentManager!;
             var entry = Assert.IsType<GpuResourceMetadataEntry<GpuSyncMetadata>>(manager.FindResource(GpuResourceKind.Sync, id));
             Assert.True(entry.IsRealized); Assert.True(entry.IsUsable); Assert.Equal(1ul, entry.MetadataRevision);
             Assert.Same(entry, manager.AcquireResource(GpuResourceKind.Sync, id, new ForbiddenReader<GpuSyncMetadata>()));
@@ -148,7 +148,7 @@ public sealed unsafe class GpuSynchronizationLifecycleTests(HeadlessGLFixture fi
         using var query = context.CreateQuery(new(QueryKind.Timestamp)).RequireResource();
         using var fence = context.InsertFence();
         Assert.Equal(1, calls.QueryCreations); Assert.Equal(1, calls.FenceCreations); Assert.Equal(0, calls.IdentityReads);
-        var manager = GpuResourceManagerSystem.CurrentManager!;
+        var manager = RHIResourceManagerSystem.CurrentManager!;
         Assert.Equal(1ul, manager.GetResourceRegistration(query)!.MetadataRevision);
         Assert.Equal(1ul, manager.GetResourceRegistration(fence)!.MetadataRevision);
         context.WriteTimestamp(query);
@@ -169,7 +169,7 @@ public sealed unsafe class GpuSynchronizationLifecycleTests(HeadlessGLFixture fi
     {
         fixture.EnsureContextValid(); fixture.InitializeResourceDisposal();
         int id = GL.GenQuery();
-        var manager = GpuResourceManagerSystem.CurrentManager!;
+        var manager = RHIResourceManagerSystem.CurrentManager!;
         var entry = manager.FindResource(GpuResourceKind.Query, id)!;
         var initialized = HarmonyLib.AccessTools.Field(typeof(GpuSupport), "isInitialized");
         bool previous = (bool)initialized.GetValue(null)!;
@@ -204,7 +204,7 @@ public sealed unsafe class GpuSynchronizationLifecycleTests(HeadlessGLFixture fi
             initialized.SetValue(null, previous);
             GL.BeginQueryIndexed(QueryTarget.PrimitivesGenerated, 1, second);
             Assert.Equal(ErrorCode.InvalidOperation, GL.GetError());
-            var entry = GpuResourceManagerSystem.CurrentManager!.FindResource(GpuResourceKind.Query, second)!;
+            var entry = RHIResourceManagerSystem.CurrentManager!.FindResource(GpuResourceKind.Query, second)!;
             Assert.False(entry.IsRealized); Assert.False(entry.IsUsable);
             GL.EndQueryIndexed(QueryTarget.PrimitivesGenerated, 1);
             GL.BeginQueryIndexed(QueryTarget.PrimitivesGenerated, 1, second);
@@ -235,7 +235,7 @@ public sealed unsafe class GpuSynchronizationLifecycleTests(HeadlessGLFixture fi
             initialized.SetValue(null, previous);
             GL.BeginQueryIndexed(QueryTarget.PrimitivesGenerated, 1, second);
             GL.EndQueryIndexed(QueryTarget.PrimitivesGenerated, 1);
-            Assert.True(GpuResourceManagerSystem.CurrentManager!.FindResource(GpuResourceKind.Query, second)!.IsUsable);
+            Assert.True(RHIResourceManagerSystem.CurrentManager!.FindResource(GpuResourceKind.Query, second)!.IsUsable);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
         finally
@@ -296,7 +296,7 @@ public sealed unsafe class GpuSynchronizationLifecycleTests(HeadlessGLFixture fi
         fixture.UseContextLocalResources();
         using var query = context.CreateQuery(new(QueryKind.Timestamp)).RequireResource();
         using var fence = context.InsertFence();
-        Assert.Null(GpuResourceManagerSystem.CurrentManager);
+        Assert.Null(RHIResourceManagerSystem.CurrentManager);
         Assert.True(((GpuQueryRef)query).IsValid); Assert.True(((GpuSyncRef)fence).IsValid);
         context.WriteTimestamp(query);
         Assert.Equal(CompletionStatus.Ready, context.RequestQueryResult(query).Wait());
@@ -316,7 +316,7 @@ public sealed unsafe class GpuSynchronizationLifecycleTests(HeadlessGLFixture fi
         fixture.EnsureContextValid(); fixture.InitializeResourceDisposal();
         var context = RHICommandContext.Current;
         using var owner = context.CreateQuery(new(QueryKind.SamplesPassed)).RequireResource();
-        var original = GpuResourceManagerSystem.CurrentManager!.GetResourceRegistration(owner)!;
+        var original = RHIResourceManagerSystem.CurrentManager!.GetResourceRegistration(owner)!;
         context.BeginQuery(owner);
         GL.DeleteQuery(owner.QueryId);
         Assert.Equal(GpuResourceRegistrationState.Deleted, original.State);
@@ -324,7 +324,7 @@ public sealed unsafe class GpuSynchronizationLifecycleTests(HeadlessGLFixture fi
         context.EndQuery(owner);
         Assert.Throws<InvalidOperationException>(() => context.RequestQueryResult(owner));
         using var next = context.CreateQuery(new(QueryKind.SamplesPassed)).RequireResource();
-        Assert.NotSame(original, GpuResourceManagerSystem.CurrentManager!.GetResourceRegistration(next));
+        Assert.NotSame(original, RHIResourceManagerSystem.CurrentManager!.GetResourceRegistration(next));
         context.BeginQuery(next); context.EndQuery(next);
         Assert.Equal(ErrorCode.NoError, GL.GetError());
         owner.Dispose(); next.Dispose(); fixture.CleanupGpuResources();
@@ -344,7 +344,7 @@ public sealed unsafe class GpuSynchronizationLifecycleTests(HeadlessGLFixture fi
             GL.GetQuery(QueryTarget.SamplesPassed, GetQueryParam.CurrentQuery, out int active);
             GL.BeginQuery(QueryTarget.SamplesPassed, second);
             ErrorCode result = GL.GetError();
-            var entry = GpuResourceManagerSystem.CurrentManager!.FindResource(GpuResourceKind.Query, second)!;
+            var entry = RHIResourceManagerSystem.CurrentManager!.FindResource(GpuResourceKind.Query, second)!;
             if (active == first)
             {
                 Assert.Equal(ErrorCode.InvalidOperation, result); Assert.False(entry.IsUsable);
@@ -367,7 +367,7 @@ public sealed unsafe class GpuSynchronizationLifecycleTests(HeadlessGLFixture fi
         fixture.EnsureContextValid(); fixture.InitializeResourceDisposal();
         int query = GL.GenQuery();
         nint sync = GL.FenceSync(SyncCondition.SyncGpuCommandsComplete, WaitSyncFlags.None);
-        var manager = GpuResourceManagerSystem.CurrentManager!;
+        var manager = RHIResourceManagerSystem.CurrentManager!;
         var queryEntry = manager.FindResource(GpuResourceKind.Query, query)!;
         var syncEntry = manager.FindResource(GpuResourceKind.Sync, sync)!;
         try

@@ -199,11 +199,11 @@ public sealed class GpuFramebufferAttachmentTests(HeadlessGLFixture fixture) : R
     {
         EnsureContextValid();
         using var lifetime = new ManagerLifetime();
-        using var replacement = new GpuResourceManager();
-        Assert.Throws<InvalidOperationException>(() => GpuResourceManagerSystem.Initialize(replacement));
-        GpuResourceManagerSystem.Shutdown();
+        using var replacement = new RHIResourceManager();
+        Assert.Throws<InvalidOperationException>(() => RHIResourceManagerSystem.Initialize(replacement));
+        RHIResourceManagerSystem.Shutdown();
         replacement.Dispose();
-        Assert.Throws<ObjectDisposedException>(() => GpuResourceManagerSystem.Initialize(replacement));
+        Assert.Throws<ObjectDisposedException>(() => RHIResourceManagerSystem.Initialize(replacement));
     }
 
     /// <summary>Late disposal from a retired context cannot migrate its resource into a replacement manager queue.</summary>
@@ -217,7 +217,7 @@ public sealed class GpuFramebufferAttachmentTests(HeadlessGLFixture fixture) : R
         oldLifetime.Dispose();
         using var newLifetime = new ManagerLifetime();
         attachment.Dispose();
-        GpuResourceManagerSystem.CaptureDisposalQueue().DrainPending();
+        RHIResourceManagerSystem.CaptureDisposalQueue().DrainPending();
         Assert.False(backing.IsDisposed);
         Assert.True(GL.IsTexture(backing.TextureId));
     }
@@ -241,7 +241,7 @@ public sealed class GpuFramebufferAttachmentTests(HeadlessGLFixture fixture) : R
         GC.Collect();
         Assert.False(weak.IsAlive);
         Assert.False(texture.IsDisposed);
-        GpuResourceManagerSystem.CaptureDisposalQueue().DrainPending();
+        RHIResourceManagerSystem.CaptureDisposalQueue().DrainPending();
         Assert.True(texture.IsDisposed);
     }
     /// <summary>Owning attachments defer both explicit cleanup and finalizer cleanup to the same render queue.</summary>
@@ -250,7 +250,7 @@ public sealed class GpuFramebufferAttachmentTests(HeadlessGLFixture fixture) : R
     {
         EnsureContextValid();
         using var lifetime = new ManagerLifetime();
-        var queue = GpuResourceManagerSystem.CaptureDisposalQueue();
+        var queue = RHIResourceManagerSystem.CaptureDisposalQueue();
         var attachment = new GpuFramebufferAttachment(2, 2, TextureFormat.Rgba8);
         var texture = Assert.IsType<DynamicTexture2D>(attachment.Resource);
         int handle = texture.TextureId;
@@ -269,7 +269,7 @@ public sealed class GpuFramebufferAttachmentTests(HeadlessGLFixture fixture) : R
     {
         EnsureContextValid();
         using var lifetime = new ManagerLifetime();
-        var queue = GpuResourceManagerSystem.CaptureDisposalQueue();
+        var queue = RHIResourceManagerSystem.CaptureDisposalQueue();
         var (weak, texture) = CreateUnreachableAttachment();
         GC.Collect();
         GC.WaitForPendingFinalizers();
@@ -285,17 +285,17 @@ public sealed class GpuFramebufferAttachmentTests(HeadlessGLFixture fixture) : R
     /// <summary>Provides an isolated disposal context so test order cannot reuse a closed queue.</summary>
     private sealed class ManagerLifetime : IDisposable
     {
-        private readonly GpuResourceManager manager;
+        private readonly RHIResourceManager manager;
         /// <summary>Uses the observed context's manager and establishes its render thread.</summary>
         public ManagerLifetime()
         {
-            manager = GpuResourceManagerSystem.EnsureCurrentContext();
-            manager.OnRenderFrame(0, GpuResourceManager.Stage);
+            manager = RHIResourceManagerSystem.EnsureCurrentContext();
+            manager.OnRenderFrame(0, RHIResourceManager.Stage);
         }
         /// <summary>Drains and closes the test context before releasing its manager.</summary>
         public void Dispose()
         {
-            GpuResourceManagerSystem.Shutdown();
+            RHIResourceManagerSystem.Shutdown();
             manager.Dispose();
             TextureStreamingSystem.Dispose();
         }

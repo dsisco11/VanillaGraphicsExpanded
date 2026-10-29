@@ -28,7 +28,7 @@ public sealed class GpuResourceAliasMetadataTests(HeadlessGLFixture fixture)
             using var view = ranged
                 ? RHICommandContext.Current.CreateBufferTexture(new RHIBufferTextureDescription { Buffer = buffer, Format = TextureFormat.R32f, WholeBuffer = false, Offset = offset, Length = 256, Label = null }).RequireResource()
                 : RHICommandContext.Current.CreateBufferTexture(new RHIBufferTextureDescription { Buffer = buffer, Format = TextureFormat.R32f, WholeBuffer = true, Label = null }).RequireResource();
-            var manager = GpuResourceManagerSystem.CurrentManager!;
+            var manager = RHIResourceManagerSystem.CurrentManager!;
             var entry = Assert.IsType<GpuResourceMetadataEntry<GpuTextureMetadata>>(manager.GetResourceRegistration(view));
             Assert.NotNull(entry.Metadata.Buffer);
             Assert.Equal(buffer.BufferId, view.BufferId);
@@ -67,7 +67,7 @@ public sealed class GpuResourceAliasMetadataTests(HeadlessGLFixture fixture)
             using var owner = RHICommandContext.Current.CreateDynamicTexture3D(new RHITextureDescription { Dimension = TextureDimension.TwoArray, Format = TextureFormat.Rgba8, Width = System.Math.Max(1, 4), Height = System.Math.Max(1, 4), Depth = System.Math.Max(1, 2), MipLevels = 1, Storage = (true ? ResourceStorageMode.Immutable : ResourceStorageMode.Mutable), Filter = TextureFilterMode.Linear, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
             using var borrower = new BorrowedTexture(owner.TextureId);
             GpuResource retained = retainOwner ? owner : borrower;
-            var manager = GpuResourceManagerSystem.CurrentManager!;
+            var manager = RHIResourceManagerSystem.CurrentManager!;
             var original = manager.GetResourceRegistration(owner)!;
             int originalId = owner.TextureId;
             retained.RetainLifetimeReference();

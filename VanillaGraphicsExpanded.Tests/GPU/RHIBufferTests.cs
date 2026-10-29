@@ -40,7 +40,7 @@ public sealed class RHIBufferTests(HeadlessGLFixture fixture)
             Assert.True(result.IsSuccess); Assert.Null(result.Diagnostics);
             using var source = result.RequireResource();
             using var destination = context.CreateBuffer(Description(16)).RequireResource();
-            var entry = GpuResourceManagerSystem.CurrentManager!.GetResourceRegistration(source)!;
+            var entry = RHIResourceManagerSystem.CurrentManager!.GetResourceRegistration(source)!;
             ulong revision = entry.MetadataRevision;
             context.CopyBuffer(source, 4, destination, 2, 4);
             context.ClearBuffer(source, 4, 4, 9);

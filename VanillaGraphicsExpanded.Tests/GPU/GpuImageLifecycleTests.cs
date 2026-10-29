@@ -19,10 +19,10 @@ public sealed unsafe class GpuImageLifecycleTests(HeadlessGLFixture fixture)
     {
         fixture.EnsureContextValid();
         OpenGLBindingInterception.Uninstall();
-        GpuResourceManagerSystem.CurrentManager?.Dispose(); GpuResourceManagerSystem.Shutdown();
+        RHIResourceManagerSystem.CurrentManager?.Dispose(); RHIResourceManagerSystem.Shutdown();
         GL.CreateTextures(TextureTarget.Texture2D, 1, out int texture);
         GL.TextureStorage2D(texture, 1, SizedInternalFormat.Rgba8, 8, 4);
-        var manager = GpuResourceManagerSystem.EnsureCurrentContext();
+        var manager = RHIResourceManagerSystem.EnsureCurrentContext();
         OpenGLBindingInterception.Install();
         try
         {
@@ -39,11 +39,11 @@ public sealed unsafe class GpuImageLifecycleTests(HeadlessGLFixture fixture)
     {
         fixture.EnsureContextValid();
         OpenGLBindingInterception.Uninstall();
-        GpuResourceManagerSystem.CurrentManager?.Dispose(); GpuResourceManagerSystem.Shutdown();
+        RHIResourceManagerSystem.CurrentManager?.Dispose(); RHIResourceManagerSystem.Shutdown();
         GL.CreateFramebuffers(1, out int framebuffer);
         GL.CreateRenderbuffers(1, out int renderbuffer);
         GL.NamedRenderbufferStorage(renderbuffer, RenderbufferStorage.Rgba8, 7, 5);
-        var manager = GpuResourceManagerSystem.EnsureCurrentContext();
+        var manager = RHIResourceManagerSystem.EnsureCurrentContext();
         OpenGLBindingInterception.Install();
         try
         {
@@ -63,10 +63,10 @@ public sealed unsafe class GpuImageLifecycleTests(HeadlessGLFixture fixture)
     {
         fixture.EnsureContextValid();
         OpenGLBindingInterception.Uninstall();
-        GpuResourceManagerSystem.CurrentManager?.Dispose(); GpuResourceManagerSystem.Shutdown();
+        RHIResourceManagerSystem.CurrentManager?.Dispose(); RHIResourceManagerSystem.Shutdown();
         GL.CreateTextures(TextureTarget.Texture2D, 1, out int texture);
         GL.TextureStorage2D(texture, 1, SizedInternalFormat.Rgba8, 8, 4);
-        var manager = GpuResourceManagerSystem.EnsureCurrentContext();
+        var manager = RHIResourceManagerSystem.EnsureCurrentContext();
         var original = manager.RecordPreexistingImage<GpuTextureMetadata>(GpuResourceKind.Texture, texture);
         OpenGLBindingInterception.Install();
         try
@@ -89,12 +89,12 @@ public sealed unsafe class GpuImageLifecycleTests(HeadlessGLFixture fixture)
     {
         fixture.EnsureContextValid();
         OpenGLBindingInterception.Uninstall();
-        GpuResourceManagerSystem.CurrentManager?.Dispose(); GpuResourceManagerSystem.Shutdown();
+        RHIResourceManagerSystem.CurrentManager?.Dispose(); RHIResourceManagerSystem.Shutdown();
         GL.CreateTextures(TextureTarget.Texture2D, 1, out int texture);
         GL.TextureStorage2D(texture, 1, SizedInternalFormat.Rgba8, 8, 4);
         GL.CreateFramebuffers(1, out int framebuffer);
         GL.NamedFramebufferTexture(framebuffer, FramebufferAttachment.ColorAttachment0, texture, 0);
-        var manager = GpuResourceManagerSystem.EnsureCurrentContext();
+        var manager = RHIResourceManagerSystem.EnsureCurrentContext();
         try
         {
             var reference = new FrameBufferRef { FboId = framebuffer, ColorTextureIds = [texture] };
@@ -133,10 +133,10 @@ public sealed unsafe class GpuImageLifecycleTests(HeadlessGLFixture fixture)
     {
         fixture.EnsureContextValid();
         OpenGLBindingInterception.Uninstall();
-        GpuResourceManagerSystem.CurrentManager?.Dispose(); GpuResourceManagerSystem.Shutdown();
+        RHIResourceManagerSystem.CurrentManager?.Dispose(); RHIResourceManagerSystem.Shutdown();
         GL.CreateRenderbuffers(1, out int renderbuffer);
         GL.NamedRenderbufferStorage(renderbuffer, RenderbufferStorage.Rgba8, 7, 5);
-        var manager = GpuResourceManagerSystem.EnsureCurrentContext();
+        var manager = RHIResourceManagerSystem.EnsureCurrentContext();
         var original = manager.RecordPreexistingImage<GpuRenderbufferMetadata>(GpuResourceKind.Renderbuffer, renderbuffer);
         OpenGLBindingInterception.Install();
         try
@@ -167,7 +167,7 @@ public sealed unsafe class GpuImageLifecycleTests(HeadlessGLFixture fixture)
             GL.NamedFramebufferTexture(bound, FramebufferAttachment.ColorAttachment0, texture, 0);
             GL.NamedFramebufferTexture(unbound, FramebufferAttachment.ColorAttachment0, texture, 0);
             GL.BindFramebuffer(FramebufferTarget.Framebuffer, bound);
-            var manager = GpuResourceManagerSystem.CurrentManager!;
+            var manager = RHIResourceManagerSystem.CurrentManager!;
             var selected = Assert.IsType<GpuResourceMetadataEntry<GpuFramebufferMetadata>>(manager.FindResource(GpuResourceKind.Framebuffer, bound));
             var other = Assert.IsType<GpuResourceMetadataEntry<GpuFramebufferMetadata>>(manager.FindResource(GpuResourceKind.Framebuffer, unbound));
             GL.DeleteTexture(texture); texture = 0;
@@ -228,7 +228,7 @@ public sealed unsafe class GpuImageLifecycleTests(HeadlessGLFixture fixture)
         {
             GL.BindFramebuffer(FramebufferTarget.Framebuffer, framebuffer);
             var entry = Assert.IsType<GpuResourceMetadataEntry<GpuFramebufferMetadata>>(
-                GpuResourceManagerSystem.CurrentManager!.FindResource(GpuResourceKind.Framebuffer, framebuffer));
+                RHIResourceManagerSystem.CurrentManager!.FindResource(GpuResourceKind.Framebuffer, framebuffer));
             ulong revision = entry.MetadataRevision;
             var table = OpenGLBindingTable.For(typeof(GL));
             ((delegate* unmanaged[Stdcall]<int, int, int, uint, int, void>)table.Read("glFramebufferTexture1D"))(
@@ -258,7 +258,7 @@ public sealed unsafe class GpuImageLifecycleTests(HeadlessGLFixture fixture)
             GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.Rgba8, 4, 4, 0,
                 PixelFormat.Rgba, PixelType.UnsignedByte, nint.Zero);
             var entry = Assert.IsType<GpuResourceMetadataEntry<GpuTextureMetadata>>(
-                GpuResourceManagerSystem.CurrentManager!.FindResource(GpuResourceKind.Texture, texture));
+                RHIResourceManagerSystem.CurrentManager!.FindResource(GpuResourceKind.Texture, texture));
             GL.NamedBufferData(buffer, 64, nint.Zero, BufferUsageHint.DynamicDraw);
             GL.BindBuffer(BufferTarget.PixelUnpackBuffer, buffer);
             GL.PixelStore(PixelStoreParameter.UnpackAlignment, 4);
@@ -312,7 +312,7 @@ public sealed unsafe class GpuImageLifecycleTests(HeadlessGLFixture fixture)
             GL.PixelStore(PixelStoreParameter.UnpackSkipPixels, 0);
             GL.PixelStore(PixelStoreParameter.UnpackSkipRows, 0);
             var entry = Assert.IsType<GpuResourceMetadataEntry<GpuTextureMetadata>>(
-                GpuResourceManagerSystem.CurrentManager!.FindResource(GpuResourceKind.Texture, texture));
+                RHIResourceManagerSystem.CurrentManager!.FindResource(GpuResourceKind.Texture, texture));
             GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.Rgba8, 8, 8, 0,
                 PixelFormat.Rgba, PixelType.UnsignedByte, nint.Zero);
             Assert.Equal(persistent ? ErrorCode.NoError : ErrorCode.InvalidOperation, GL.GetError());
@@ -376,7 +376,7 @@ public sealed unsafe class GpuImageLifecycleTests(HeadlessGLFixture fixture)
                 GL.BindTexture(TextureTarget.Texture2D, id);
                 GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.Rgba, 8, 4, 0, PixelFormat.Rgba, PixelType.UnsignedByte, nint.Zero);
             }
-            var entry = Assert.IsType<GpuResourceMetadataEntry<GpuTextureMetadata>>(GpuResourceManagerSystem.CurrentManager!.FindResource(GpuResourceKind.Texture, id));
+            var entry = Assert.IsType<GpuResourceMetadataEntry<GpuTextureMetadata>>(RHIResourceManagerSystem.CurrentManager!.FindResource(GpuResourceKind.Texture, id));
             Assert.True(entry.IsUsable); Assert.Equal(8, Assert.Single(entry.Metadata.Levels).Width);
             Assert.Equal(1, reads.Reads);
             Assert.Equal(multisample ? 1 : 0, reads.SampleReads);
@@ -399,7 +399,7 @@ public sealed unsafe class GpuImageLifecycleTests(HeadlessGLFixture fixture)
         {
             GL.BindTexture(TextureTarget.Texture2D, id);
             GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.Rgba8, 4, 4, 0, PixelFormat.Rgba, PixelType.UnsignedByte, nint.Zero);
-            var entry = Assert.IsType<GpuResourceMetadataEntry<GpuTextureMetadata>>(GpuResourceManagerSystem.CurrentManager!.FindResource(GpuResourceKind.Texture, id));
+            var entry = Assert.IsType<GpuResourceMetadataEntry<GpuTextureMetadata>>(RHIResourceManagerSystem.CurrentManager!.FindResource(GpuResourceKind.Texture, id));
             ulong revision = entry.MetadataRevision;
             GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.Rgba8, 8, 8, 0, PixelFormat.RgbaInteger, PixelType.UnsignedByte, nint.Zero);
             Assert.Equal(ErrorCode.InvalidOperation, GL.GetError());
@@ -423,7 +423,7 @@ public sealed unsafe class GpuImageLifecycleTests(HeadlessGLFixture fixture)
             GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.Depth24Stencil8, 4, 4, 0,
                 PixelFormat.DepthStencil, PixelType.UnsignedInt248, nint.Zero);
             var entry = Assert.IsType<GpuResourceMetadataEntry<GpuTextureMetadata>>(
-                GpuResourceManagerSystem.CurrentManager!.FindResource(GpuResourceKind.Texture, texture));
+                RHIResourceManagerSystem.CurrentManager!.FindResource(GpuResourceKind.Texture, texture));
             ulong revision = entry.MetadataRevision;
             GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.Depth24Stencil8, 8, 8, 0,
                 PixelFormat.DepthStencil, PixelType.UnsignedByte, nint.Zero);
@@ -459,7 +459,7 @@ public sealed unsafe class GpuImageLifecycleTests(HeadlessGLFixture fixture)
             using var reads = new ImageDescriptorCapture();
             GL.CompressedTexImage2D(TextureTarget.Texture2D, 0, nativeFormat, 4, 4, 0, bytes, new byte[bytes]);
             var entry = Assert.IsType<GpuResourceMetadataEntry<GpuTextureMetadata>>(
-                GpuResourceManagerSystem.CurrentManager!.FindResource(GpuResourceKind.Texture, texture));
+                RHIResourceManagerSystem.CurrentManager!.FindResource(GpuResourceKind.Texture, texture));
             Assert.Equal(ErrorCode.NoError, GL.GetError());
             Assert.True(entry.IsUsable);
             Assert.Equal(format, Assert.Single(entry.Metadata.Levels).Format);
@@ -490,7 +490,7 @@ public sealed unsafe class GpuImageLifecycleTests(HeadlessGLFixture fixture)
             Assert.True(reference.TryGetMetadata(out var metadata));
             Assert.Equal(3, metadata.View!.Value.LevelCount); Assert.Equal(3, metadata.View.Value.LayerCount);
             Assert.Equal(4, metadata.Levels[0].Width); Assert.Equal(3, metadata.Levels[0].Depth);
-            Assert.Equal((int)source, GpuResourceManager.TextureStorageName(borrowed));
+            Assert.Equal((int)source, RHIResourceManager.TextureStorageName(borrowed));
             using var image = GpuFramebufferAttachment.FromTexture(borrowed, layer: 0);
             using var framebuffer = DynamicGpuFramebuffer.Create([image])!;
             int notifications = 0;
@@ -521,11 +521,11 @@ public sealed unsafe class GpuImageLifecycleTests(HeadlessGLFixture fixture)
             using var framebuffer = DynamicGpuFramebuffer.Create([image])!;
             int notifications = 0;
             framebuffer.AttachmentsChanged += () => notifications++;
-            using (new GpuResourceManager.MetadataOperation<GpuTextureMetadata>(source, GpuMetadataChange.Metadata)) { }
+            using (new RHIResourceManager.MetadataOperation<GpuTextureMetadata>(source, GpuMetadataChange.Metadata)) { }
             Assert.False(view.IsValid);
             Assert.Equal(0, image.Width);
             Assert.Equal(1, notifications);
-            GpuResourceManager.RecoverWrapperMetadata(source, new GpuTextureMetadataReader(TextureDimension.TwoArray));
+            RHIResourceManager.RecoverWrapperMetadata(source, new GpuTextureMetadataReader(TextureDimension.TwoArray));
             Assert.True(view.IsValid);
             Assert.Equal(4, image.Width);
             Assert.Equal(2, notifications);
@@ -552,7 +552,7 @@ public sealed unsafe class GpuImageLifecycleTests(HeadlessGLFixture fixture)
             GL.ReadBuffer(ReadBufferMode.ColorAttachment0);
             GL.BindTexture(TextureTarget.Texture2D, destination);
             GL.CopyTexImage2D(TextureTarget.Texture2D, 0, InternalFormat.Rgba8, 0, 0, 4, 4, 0);
-            var entry = Assert.IsType<GpuResourceMetadataEntry<GpuTextureMetadata>>(GpuResourceManagerSystem.CurrentManager!.FindResource(GpuResourceKind.Texture, destination));
+            var entry = Assert.IsType<GpuResourceMetadataEntry<GpuTextureMetadata>>(RHIResourceManagerSystem.CurrentManager!.FindResource(GpuResourceKind.Texture, destination));
             Assert.True(entry.IsUsable); Assert.Equal(4, Assert.Single(entry.Metadata.Levels).Width);
             Assert.Equal(0, reads.Reads); Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
@@ -579,7 +579,7 @@ public sealed unsafe class GpuImageLifecycleTests(HeadlessGLFixture fixture)
             GL.ReadBuffer(ReadBufferMode.ColorAttachment0);
             Assert.NotEqual(FramebufferErrorCode.FramebufferComplete, GL.CheckFramebufferStatus(FramebufferTarget.ReadFramebuffer));
             var entry = Assert.IsType<GpuResourceMetadataEntry<GpuTextureMetadata>>(
-                GpuResourceManagerSystem.CurrentManager!.FindResource(GpuResourceKind.Texture, destination));
+                RHIResourceManagerSystem.CurrentManager!.FindResource(GpuResourceKind.Texture, destination));
             ulong revision = entry.MetadataRevision;
             GL.CopyTexImage2D(TextureTarget.Texture2D, 0, InternalFormat.Rgba8, 0, 0, 4, 4, 0);
             Assert.Equal(ErrorCode.InvalidFramebufferOperation, GL.GetError());
@@ -617,7 +617,7 @@ public sealed unsafe class GpuImageLifecycleTests(HeadlessGLFixture fixture)
             GL.ReadBuffer(ReadBufferMode.ColorAttachment0);
             Assert.NotEqual(FramebufferErrorCode.FramebufferComplete, GL.CheckFramebufferStatus(FramebufferTarget.ReadFramebuffer));
             var entry = Assert.IsType<GpuResourceMetadataEntry<GpuTextureMetadata>>(
-                GpuResourceManagerSystem.CurrentManager!.FindResource(GpuResourceKind.Texture, destination));
+                RHIResourceManagerSystem.CurrentManager!.FindResource(GpuResourceKind.Texture, destination));
             ulong revision = entry.MetadataRevision;
             GL.CopyTexImage2D(TextureTarget.Texture2D, 0, InternalFormat.Rgba8, 0, 0, 4, 4, 0);
             Assert.Equal(ErrorCode.InvalidFramebufferOperation, GL.GetError());
@@ -640,7 +640,7 @@ public sealed unsafe class GpuImageLifecycleTests(HeadlessGLFixture fixture)
         fixture.EnsureContextValid(); fixture.InitializeResourceDisposal();
         using var reads = new ImageDescriptorCapture();
         var table = OpenGLBindingTable.For(core ? typeof(OpenTK.Graphics.OpenGL4.GL) : typeof(GL));
-        var manager = GpuResourceManagerSystem.CurrentManager!;
+        var manager = RHIResourceManagerSystem.CurrentManager!;
         uint id = 0;
         ((delegate* unmanaged[Stdcall]<int, uint*, void>)table.Read("glGenTextures"))(1, &id);
         try
@@ -675,7 +675,7 @@ public sealed unsafe class GpuImageLifecycleTests(HeadlessGLFixture fixture)
         {
             GL.BindTexture(TextureTarget.Texture2D, id);
             GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.Rgba8, 8, 4, 0, PixelFormat.Rgba, PixelType.UnsignedByte, nint.Zero);
-            var entry = Assert.IsType<GpuResourceMetadataEntry<GpuTextureMetadata>>(GpuResourceManagerSystem.CurrentManager!.FindResource(GpuResourceKind.Texture, id));
+            var entry = Assert.IsType<GpuResourceMetadataEntry<GpuTextureMetadata>>(RHIResourceManagerSystem.CurrentManager!.FindResource(GpuResourceKind.Texture, id));
             Assert.Single(entry.Metadata.Levels);
             GL.GenerateMipmap(GenerateMipmapTarget.Texture2D);
             Assert.Equal(4, entry.Metadata.Levels.Length);
@@ -709,7 +709,7 @@ public sealed unsafe class GpuImageLifecycleTests(HeadlessGLFixture fixture)
                     size, size, 0, PixelFormat.Rgba, PixelType.UnsignedByte, nint.Zero);
             }
             var entry = Assert.IsType<GpuResourceMetadataEntry<GpuTextureMetadata>>(
-                GpuResourceManagerSystem.CurrentManager!.FindResource(GpuResourceKind.Texture, texture));
+                RHIResourceManagerSystem.CurrentManager!.FindResource(GpuResourceKind.Texture, texture));
             ulong revision = entry.MetadataRevision;
             using var operation = OpenGlStateCache.Current.EnterResourceOperation(new(GpuResourceKind.Texture, texture));
             var table = OpenGLBindingTable.For(coreRoot ? typeof(OpenTK.Graphics.OpenGL4.GL) : typeof(GL));
@@ -760,7 +760,7 @@ public sealed unsafe class GpuImageLifecycleTests(HeadlessGLFixture fixture)
             ((delegate* unmanaged[Stdcall]<uint, int, int, int, void>)table.Read("glNamedRenderbufferStorage"))(rb, (int)RenderbufferStorage.Rgba8, 7, 5);
             ((delegate* unmanaged[Stdcall]<uint, int, int, uint, void>)table.Read("glNamedFramebufferRenderbuffer"))(fb, (int)FramebufferAttachment.ColorAttachment0, (int)RenderbufferTarget.Renderbuffer, rb);
             ((delegate* unmanaged[Stdcall]<uint, int, int, void>)table.Read("glNamedFramebufferParameteri"))(fb, (int)FramebufferDefaultParameter.FramebufferDefaultWidth, 11);
-            var manager = GpuResourceManagerSystem.CurrentManager!;
+            var manager = RHIResourceManagerSystem.CurrentManager!;
             var renderbuffer = Assert.IsType<GpuResourceMetadataEntry<GpuRenderbufferMetadata>>(manager.FindResource(GpuResourceKind.Renderbuffer, (int)rb));
             var framebuffer = Assert.IsType<GpuResourceMetadataEntry<GpuFramebufferMetadata>>(manager.FindResource(GpuResourceKind.Framebuffer, (int)fb));
             Assert.Equal(new GpuRenderbufferMetadata(7, 5, TextureFormat.Rgba8, 0), renderbuffer.Metadata);

@@ -33,7 +33,7 @@ internal static class OpenGLImageBindings
         backend.RequireContext();
         // A backend selector can realize an externally generated reservation. Private
         // creation candidates have no registration until their single factory handoff.
-        if (texture != 0 && GpuResourceManagerSystem.CurrentManager is { } manager)
+        if (texture != 0 && RHIResourceManagerSystem.CurrentManager is { } manager)
             manager.RealizeObservedImage(GpuResourceKind.Texture, texture, OpenGLImageValues.Dimension(target), false);
         if (unit is int selected) cache.ImageBindings(selected)[target] = texture;
     }
@@ -49,7 +49,7 @@ internal static class OpenGLImageBindings
         BindTexture(cache, target, unit, texture);
         if (texture != 0 && sampler is not null)
         {
-            _ = GpuResourceManager.RequireSamplerReferenceMetadata(sampler);
+            _ = RHIResourceManager.RequireSamplerReferenceMetadata(sampler);
             BindSampler(cache, unit, sampler.SamplerId);
             return;
         }
@@ -74,7 +74,7 @@ internal static class OpenGLImageBindings
     /// <summary>Validates the owner before using managed equality for suppression.</summary>
     internal static void BindSampler(OpenGlStateCache cache, int unit, GpuSampler sampler)
     {
-        _ = GpuResourceManager.RequireSamplerReferenceMetadata(sampler);
+        _ = RHIResourceManager.RequireSamplerReferenceMetadata(sampler);
         BindSampler(cache, unit, sampler.SamplerId);
     }
     /// <summary>Clears an existing sampler slot.</summary>
@@ -89,7 +89,7 @@ internal static class OpenGLImageBindings
         cache.RenderbufferKnowledge = null;
         OpenGLDriverCalls.BindRenderbuffer(Native.RenderbufferTarget.Renderbuffer, renderbuffer);
         backend.RequireContext();
-        GpuResourceManagerSystem.CurrentManager?.RealizeObservedImage(GpuResourceKind.Renderbuffer, renderbuffer, implicitCreation: false);
+        RHIResourceManagerSystem.CurrentManager?.RealizeObservedImage(GpuResourceKind.Renderbuffer, renderbuffer, implicitCreation: false);
         cache.RenderbufferKnowledge = renderbuffer;
     }
     /// <summary>Clears renderbuffer selection through the same boundary admission.</summary>

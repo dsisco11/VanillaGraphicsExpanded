@@ -27,7 +27,7 @@ public sealed class GpuGeometryLifecycleTests(HeadlessGLFixture fixture)
             vao = core ? GL4.GenVertexArray() : GL.GenVertexArray();
             sampler = core ? GL4.GenSampler() : GL.GenSampler();
             feedback = core ? GL4.GenTransformFeedback() : GL.GenTransformFeedback();
-            var manager = GpuResourceManagerSystem.CurrentManager!;
+            var manager = RHIResourceManagerSystem.CurrentManager!;
             var array = manager.FindResource(GpuResourceKind.VertexArray, vao)!;
             var sample = manager.FindResource(GpuResourceKind.Sampler, sampler)!;
             var capture = manager.FindResource(GpuResourceKind.TransformFeedback, feedback)!;
@@ -73,7 +73,7 @@ public sealed class GpuGeometryLifecycleTests(HeadlessGLFixture fixture)
         {
             if (core) { GL4.CreateVertexArrays(1, out vao); GL4.CreateSamplers(1, out sampler); GL4.CreateTransformFeedbacks(1, out feedback); }
             else { GL.CreateVertexArrays(1, out vao); GL.CreateSamplers(1, out sampler); GL.CreateTransformFeedbacks(1, out feedback); }
-            var manager = GpuResourceManagerSystem.CurrentManager!;
+            var manager = RHIResourceManagerSystem.CurrentManager!;
             var entries = new[] { manager.FindResource(GpuResourceKind.VertexArray, vao)!, manager.FindResource(GpuResourceKind.Sampler, sampler)!, manager.FindResource(GpuResourceKind.TransformFeedback, feedback)! };
             foreach (var entry in entries) { Assert.True(entry.IsUsable); Assert.Equal(1UL, entry.MetadataRevision); }
             if (core) GL4.BindSamplers(0, 1, new[] { sampler }); else GL.BindSamplers(0, 1, new[] { sampler });
@@ -104,22 +104,22 @@ public sealed class GpuGeometryLifecycleTests(HeadlessGLFixture fixture)
             using var array = NativeResourceSetup.CreateVertexArray();
             using var elements = RHICommandContext.Current.CreateIndexBuffer(new RHIBufferDescription
                 { Role = BufferRole.Index, Capacity = 16, Mode = ResourceStorageMode.Mutable, Usage = BufferUsage.StaticDraw }).RequireResource();
-            var manager = GpuResourceManagerSystem.CurrentManager!;
+            var manager = RHIResourceManagerSystem.CurrentManager!;
             var entry = manager.GetResourceRegistration(array)!;
             var layout = new RHIVertexLayout([]);
             var indices = new RHIIndexStream(new(elements, 0, 16));
             using var reads = new GeometryDescriptorCapture();
-            var receipt = GpuResourceManager.AcquireEngineGeometryConfiguration(array, layout, [], indices);
+            var receipt = RHIResourceManager.AcquireEngineGeometryConfiguration(array, layout, [], indices);
             ulong revision = entry.MetadataRevision;
             if (core) GL4.VertexArrayAttribFormat(array.VertexArrayId, 0, 5, OpenTK.Graphics.OpenGL4.VertexAttribType.Float, false, 0);
             else GL.VertexArrayAttribFormat(array.VertexArrayId, 0, 5, VertexAttribType.Float, false, 0);
             Assert.Equal(ErrorCode.InvalidValue, GL.GetError());
             Assert.Equal(revision, entry.MetadataRevision);
-            Assert.True(GpuResourceManager.IsEngineGeometryConfigurationCurrent(receipt));
+            Assert.True(RHIResourceManager.IsEngineGeometryConfigurationCurrent(receipt));
             if (core) GL4.VertexArrayAttribFormat(array.VertexArrayId, 0, 3, OpenTK.Graphics.OpenGL4.VertexAttribType.Float, false, 0);
             else GL.VertexArrayAttribFormat(array.VertexArrayId, 0, 3, VertexAttribType.Float, false, 0);
             Assert.Equal(revision + 1, entry.MetadataRevision);
-            Assert.False(GpuResourceManager.IsEngineGeometryConfigurationCurrent(receipt));
+            Assert.False(RHIResourceManager.IsEngineGeometryConfigurationCurrent(receipt));
             GL.VertexArrayElementBuffer(array.VertexArrayId, elements.BufferId);
             OpenGLVertexSelection.Bind(OpenGlStateCache.Current, array.VertexArrayId);
             Assert.Equal(elements.BufferId, OpenGlStateCache.Current.GetBoundBuffer(BufferTarget.ElementArrayBuffer));
@@ -140,7 +140,7 @@ public sealed class GpuGeometryLifecycleTests(HeadlessGLFixture fixture)
             using var buffer = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription
                 { Role = BufferRole.ShaderStorage, Capacity = 16, Mode = ResourceStorageMode.Mutable, Usage = BufferUsage.StaticDraw }).RequireResource();
             if (core) GL4.CreateTransformFeedbacks(1, out feedback); else GL.CreateTransformFeedbacks(1, out feedback);
-            var entry = GpuResourceManagerSystem.CurrentManager!.FindResource(GpuResourceKind.TransformFeedback, feedback)!;
+            var entry = RHIResourceManagerSystem.CurrentManager!.FindResource(GpuResourceKind.TransformFeedback, feedback)!;
             if (core) GL4.TransformFeedbackBufferRange(feedback, 0, buffer.BufferId, 0, 16);
             else GL.TransformFeedbackBufferRange(feedback, 0, buffer.BufferId, 0, 16);
             Assert.Equal(2UL, entry.MetadataRevision);
@@ -172,7 +172,7 @@ public sealed class GpuGeometryLifecycleTests(HeadlessGLFixture fixture)
             using var second = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription
                 { Role = BufferRole.ShaderStorage, Capacity = 16, Mode = ResourceStorageMode.Mutable, Usage = BufferUsage.StaticDraw }).RequireResource();
             using var feedback = RHICommandContext.Current.CreateTransformFeedback(new()).RequireResource();
-            var entry = GpuResourceManagerSystem.CurrentManager!.GetResourceRegistration(feedback)!;
+            var entry = RHIResourceManagerSystem.CurrentManager!.GetResourceRegistration(feedback)!;
             var cache = OpenGlStateCache.Current;
             GL.BindTransformFeedback(TransformFeedbackTarget.TransformFeedback, feedback.TransformFeedbackId);
             int genericBefore = GL.GetInteger(GetPName.TransformFeedbackBufferBinding);
@@ -189,7 +189,7 @@ public sealed class GpuGeometryLifecycleTests(HeadlessGLFixture fixture)
             _ = OpenGLFeedbackBindings.GetExternalActivity(cache);
             GL.TransformFeedbackBufferBase(0, 0, second.BufferId);
             Assert.False(cache.NeedsIndexedBufferBinding(BufferRangeTarget.TransformFeedbackBuffer, 0, second.BufferId, 0, 0, false));
-            Assert.Null(GpuResourceManagerSystem.CurrentManager!.FindResource(GpuResourceKind.TransformFeedback, 0));
+            Assert.Null(RHIResourceManagerSystem.CurrentManager!.FindResource(GpuResourceKind.TransformFeedback, 0));
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
         finally { GL.BindTransformFeedback(TransformFeedbackTarget.TransformFeedback, 0); fixture.CleanupGpuResources(); }
@@ -236,7 +236,7 @@ public sealed class GpuGeometryLifecycleTests(HeadlessGLFixture fixture)
             using var array = NativeResourceSetup.CreateVertexArray();
             OpenGLVertexSelection.Bind(OpenGlStateCache.Current, array.VertexArrayId);
             OpenGLBufferBindings.BindBuffer(OpenGlStateCache.Current, BufferTarget.ArrayBuffer, 0);
-            var entry = GpuResourceManagerSystem.CurrentManager!.GetResourceRegistration(array)!;
+            var entry = RHIResourceManagerSystem.CurrentManager!.GetResourceRegistration(array)!;
             ulong revision = entry.MetadataRevision;
             if (variant == 0) GL.VertexAttribPointer(0, 3, VertexAttribPointerType.Float, false, 12, (nint)4);
             else if (variant == 1) GL.VertexAttribIPointer(0, 3, VertexAttribIntegerType.Int, 12, (nint)4);
@@ -263,7 +263,7 @@ public sealed class GpuGeometryLifecycleTests(HeadlessGLFixture fixture)
             sampler = GL.GenSampler(); Assert.True(GL.IsSampler(sampler));
             GL.CreateTransformFeedbacks(1, out feedback);
             GL.BindTransformFeedback(TransformFeedbackTarget.TransformFeedback, feedback);
-            var manager = GpuResourceManagerSystem.CurrentManager!;
+            var manager = RHIResourceManagerSystem.CurrentManager!;
             var array = manager.FindResource(GpuResourceKind.VertexArray, vao)!;
             var sample = manager.FindResource(GpuResourceKind.Sampler, sampler)!;
             var capture = manager.FindResource(GpuResourceKind.TransformFeedback, feedback)!;

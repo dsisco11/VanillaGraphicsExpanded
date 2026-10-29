@@ -15,7 +15,7 @@ internal sealed unsafe partial class OpenGlStateCache
         if (!OpenGLObservationContext.TryGet(out var cache, out _)) return;
         // Immediate deletion removes native type evidence. Prefer the original registered kind;
         // only an untracked, still-live shader needs native classification for deferred deletion.
-        var manager = GpuResourceManagerSystem.CurrentManager;
+        var manager = RHIResourceManagerSystem.CurrentManager;
         bool trackedShader = manager?.FindObservedResource(GpuResourceKind.Shader, id) is not null;
         bool trackedProgram = manager?.FindObservedResource(GpuResourceKind.Program, id) is not null;
         var kind = trackedShader || !trackedProgram && GL.IsShader(id)

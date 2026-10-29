@@ -32,7 +32,7 @@ internal sealed partial class OpenGLBackend
             return;
         }
         snapshot.RequireUsable();
-        if (!GpuUniformRingSystem.TryGetCurrent(out var ring)) throw new InvalidOperationException("No open uniform allocation epoch.");
+        if (!RHIUniformRingSystem.TryGetCurrent(out var ring)) throw new InvalidOperationException("No open uniform allocation epoch.");
         var owner = snapshot.Publication;
         UniformPublication.Candidate candidate;
         if (!reuseCommittedUniforms || !owner.TryGetCommitted(ring, snapshot.ContentRevision, out candidate))

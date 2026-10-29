@@ -133,7 +133,7 @@ public sealed class SceneColorParticleTests(HeadlessGLFixture fixture) : LumOnSh
         Assert.False(capture.Captured);
         Assert.Throws<InvalidOperationException>(capture.BeginCapture);
         capture.Dispose();
-        GpuResourceManagerSystem.CaptureDisposalQueue().DrainPending();
+        RHIResourceManagerSystem.CaptureDisposalQueue().DrainPending();
         Assert.All(owned, texture => Assert.False(GL.IsTexture(texture)));
         Assert.True(GL.IsTexture(material.TextureId));
         Assert.True(GL.IsTexture(glow.TextureId));

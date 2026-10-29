@@ -63,14 +63,14 @@ internal sealed unsafe partial class OpenGlStateCache
     private static bool RealizeObservedSampler(int name)
     {
         return name != 0 && OpenGLObservationContext.TryGet(out _, out _, false)
-            && GpuResourceManagerSystem.CurrentManager!.RealizeEmptyResource<GpuSamplerMetadata>(GpuResourceKind.Sampler, name);
+            && RHIResourceManagerSystem.CurrentManager!.RealizeEmptyResource<GpuSamplerMetadata>(GpuResourceKind.Sampler, name);
     }
 
     /// <summary>Consumes factory arrays once and rejects invalid or already-live outputs.</summary>
     private static void ObserveSamplerNames(int count, uint* names, bool realized)
     {
         if (count <= 0 || names == null || !OpenGLObservationContext.TryGet(out _, out _, false)) return;
-        var manager = GpuResourceManagerSystem.CurrentManager!;
+        var manager = RHIResourceManagerSystem.CurrentManager!;
         for (int index = 0; index < count; index++)
             manager.ObserveEmptyCreation<GpuSamplerMetadata>(GpuResourceKind.Sampler, unchecked((int)names[index]), realized);
     }

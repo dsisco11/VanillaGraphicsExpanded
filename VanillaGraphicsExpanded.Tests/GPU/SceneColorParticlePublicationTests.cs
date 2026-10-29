@@ -230,7 +230,7 @@ public sealed class SceneColorParticlePublicationTests(HeadlessGLFixture fixture
                 Assert.Equal(depth.TextureId, SceneColorParticleCapture.ReceiverDepth(api, new GpuTextureRef((GpuResource<GpuTextureMetadata>)depth.Resource!)).TextureId);
                 if (cycle > 0)
                 {
-                    GpuResourceManagerSystem.CaptureDisposalQueue().DrainPending();
+                    RHIResourceManagerSystem.CaptureDisposalQueue().DrainPending();
                     Assert.False(layer.IsValid);
                 }
             }

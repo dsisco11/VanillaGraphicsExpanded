@@ -27,7 +27,7 @@ public sealed unsafe class GpuGeometryAliasTests(HeadlessGLFixture fixture)
         int previous = GL.GetInteger(GetPName.VertexArrayBinding);
         try
         {
-            var original = GpuResourceManagerSystem.CurrentManager!.FindResource(GpuResourceKind.VertexArray, vao)!;
+            var original = RHIResourceManagerSystem.CurrentManager!.FindResource(GpuResourceKind.VertexArray, vao)!;
             using var driver = new NativeDriverCapture();
             nint bind = driver.Original("glBindVertexArray");
             int forwards = 0;
@@ -54,7 +54,7 @@ public sealed unsafe class GpuGeometryAliasTests(HeadlessGLFixture fixture)
             Assert.Equal(1, forwards);
             Assert.Equal(0, variant < 2 ? value : (long)pointer);
             Assert.True(original.IsUsable); Assert.Equal(1UL, original.MetadataRevision);
-            Assert.Same(original, GpuResourceManagerSystem.CurrentManager!.FindResource(GpuResourceKind.VertexArray, vao));
+            Assert.Same(original, RHIResourceManagerSystem.CurrentManager!.FindResource(GpuResourceKind.VertexArray, vao));
             Assert.Equal(previous, GL.GetInteger(GetPName.VertexArrayBinding));
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
@@ -69,7 +69,7 @@ public sealed unsafe class GpuGeometryAliasTests(HeadlessGLFixture fixture)
         OpenGLDriverCalls.CreateVertexArrays(1, out int vao);
         try
         {
-            var manager = GpuResourceManagerSystem.CurrentManager!;
+            var manager = RHIResourceManagerSystem.CurrentManager!;
             Assert.Null(manager.FindResource(GpuResourceKind.VertexArray, vao));
             using var driver = new NativeDriverCapture();
             driver.Add("glGetVertexArrayIntegervEXT", new IntegerQuery((name, parameter, output) => *output = 0));

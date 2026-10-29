@@ -15,7 +15,7 @@ internal sealed partial class OpenGlStateCache
             | ProgramStageMask.TessEvaluationShaderBit | ProgramStageMask.ComputeShaderBit);
         if (pipeline == 0 || stages != (int)ProgramStageMask.AllShaderBits && (stages & ~valid) != 0
             || !OpenGLObservationContext.TryGet(out var cache, out _, false)) return;
-        var manager = GpuResourceManagerSystem.CurrentManager!;
+        var manager = RHIResourceManagerSystem.CurrentManager!;
         var entry = manager.FindObservedResource(GpuResourceKind.ProgramPipeline, unchecked((int)pipeline))
             as GpuResourceMetadataEntry<GpuProgramPipelineMetadata>;
         if (entry is null) return;
@@ -39,7 +39,7 @@ internal sealed partial class OpenGlStateCache
     internal static void ObserveValidateProgramPipeline(uint pipeline)
     {
         if (pipeline == 0 || !OpenGLObservationContext.TryGet(out var cache, out _, false)) return;
-        var manager = GpuResourceManagerSystem.CurrentManager!;
+        var manager = RHIResourceManagerSystem.CurrentManager!;
         if (manager.FindObservedResource(GpuResourceKind.ProgramPipeline, unchecked((int)pipeline)) is { IsRealized: false }
             && manager.RealizeObservedProgramPipeline(unchecked((int)pipeline))) cache.RecordPipelineCreated(unchecked((int)pipeline));
     }
@@ -49,7 +49,7 @@ internal sealed partial class OpenGlStateCache
     internal static unsafe void ObserveGetProgramPipeline(uint pipeline, int parameter, int* result)
     {
         if (pipeline == 0 || result == null || !OpenGLObservationContext.TryGet(out var cache, out _, false)) return;
-        var manager = GpuResourceManagerSystem.CurrentManager!;
+        var manager = RHIResourceManagerSystem.CurrentManager!;
         int id = unchecked((int)pipeline);
         if (manager.FindObservedResource(GpuResourceKind.ProgramPipeline, id) is not { } entry) return;
         if (!entry.IsRealized && manager.RealizeObservedProgramPipeline(id)) cache.RecordPipelineCreated(id);

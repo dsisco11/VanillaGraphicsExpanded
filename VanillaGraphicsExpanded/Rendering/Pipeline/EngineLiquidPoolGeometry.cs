@@ -55,7 +55,7 @@ internal sealed class EngineLiquidPoolGeometry : GraphicsGeometry
         && mesh.VaoId == vao && mesh.vboIdIndex == elements && pool.VerticesPoolSize == vertices && pool.IndicesPoolSize == indices
         && mesh.xyzVboId == streams[0] && mesh.uvVboId == streams[1] && mesh.rgbaVboId == streams[2]
         && mesh.flagsVboId == streams[3] && mesh.customDataFloatVboId == streams[4] && mesh.customDataIntVboId == streams[5]
-        && GpuResourceManager.IsEngineGeometryConfigurationCurrent(inputs.Inputs.ImportedArray!)
+        && RHIResourceManager.IsEngineGeometryConfigurationCurrent(inputs.Inputs.ImportedArray!)
         && inputs.Inputs.Streams.All(stream => stream.Range.Buffer.TryGetMetadata(out var data) && data.Capacity >= stream.Range.Offset + stream.Range.Length);
 
     /// <summary>Lends original engine storage without a native draw executor.</summary>

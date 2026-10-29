@@ -10,7 +10,7 @@ internal sealed partial class OpenGlStateCache
     private bool? ClassifyCopyImageSource(TextureFormat format)
     {
         if (!TryGetCachedCurrentFramebuffer(FramebufferTarget.ReadFramebuffer, out int id) || id == 0) return null;
-        var manager = GpuResourceManagerSystem.CurrentManager!;
+        var manager = RHIResourceManagerSystem.CurrentManager!;
         if (manager.FindObservedResource(GpuResourceKind.Framebuffer, id) is not GpuResourceMetadataEntry<GpuFramebufferMetadata> { IsUsable: true } framebuffer) return null;
         // Every attached image contributes to completeness, including attachments
         // other than the selected read image. Do not certify a copy from an

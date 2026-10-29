@@ -8,7 +8,7 @@ internal static class EnginePreexistingImages
 {
     #region Internal API
     /// <summary>Records only live framebuffer and texture names supplied by existing engine references.</summary>
-    internal static void Record(GpuResourceManager manager, IEnumerable<FrameBufferRef> framebuffers)
+    internal static void Record(RHIResourceManager manager, IEnumerable<FrameBufferRef> framebuffers)
     {
         foreach (var framebuffer in framebuffers)
         {
@@ -26,14 +26,14 @@ internal static class EnginePreexistingImages
 
     #region Private
     /// <summary>Deduplicates an engine framebuffer identity without probing native descriptors.</summary>
-    private static void RecordFramebuffer(GpuResourceManager manager, int id)
+    private static void RecordFramebuffer(RHIResourceManager manager, int id)
     {
         if (id > 0 && manager.FindResource(GpuResourceKind.Framebuffer, id) is null)
             manager.RecordPreexistingImage<GpuFramebufferMetadata>(GpuResourceKind.Framebuffer, id);
     }
 
     /// <summary>Deduplicates an engine texture identity without probing native descriptors.</summary>
-    private static void RecordTexture(GpuResourceManager manager, int id)
+    private static void RecordTexture(RHIResourceManager manager, int id)
     {
         if (id > 0 && manager.FindResource(GpuResourceKind.Texture, id) is null)
             manager.RecordPreexistingImage<GpuTextureMetadata>(GpuResourceKind.Texture, id);

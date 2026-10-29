@@ -10,7 +10,7 @@ internal static class ContextLocalTexture
     /// <summary>Initializes a local owner from explicit facts and verifies that no lifecycle service was required.</summary>
     internal static DynamicTexture2D Create(int width, int height, TextureFormat format)
     {
-        Assert.Null(GpuResourceManagerSystem.CurrentManager);
+        Assert.Null(RHIResourceManagerSystem.CurrentManager);
         var owner = new DynamicTexture2D();
         try
         {
@@ -18,7 +18,7 @@ internal static class ContextLocalTexture
             { Target = TextureDimension.Two, InternalFormat = format, Width = width, Height = height, Depth = 1,
                 Levels = 1, AllocationMode = GpuTextureAllocationMode.Mutable, BaseLevel = 0, MaxLevel = 0 },
                 TextureFilterMode.Nearest, null);
-            Assert.Null(GpuResourceManagerSystem.CurrentManager);
+            Assert.Null(RHIResourceManagerSystem.CurrentManager);
             Assert.Equal(width, owner.Width);
             return owner;
         }

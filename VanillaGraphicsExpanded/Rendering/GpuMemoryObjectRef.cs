@@ -8,7 +8,7 @@ public readonly struct GpuMemoryObjectRef
     /// <summary>Reports absence independently of retirement.</summary>
     public bool IsEmpty => resource is null;
     /// <summary>Reports managed usability without native discovery.</summary>
-    public bool IsValid => GpuResourceManager.IsAuxiliaryReferenceUsable(resource);
+    public bool IsValid => RHIResourceManager.IsAuxiliaryReferenceUsable(resource);
     #endregion
     #region Internal API
     /// <summary>Retains the supplied owner without registering it.</summary>

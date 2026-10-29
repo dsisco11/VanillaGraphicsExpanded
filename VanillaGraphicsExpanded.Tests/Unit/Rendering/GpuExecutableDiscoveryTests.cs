@@ -13,7 +13,7 @@ public sealed class GpuExecutableDiscoveryTests
     [InlineData(true)]
     public void ProgramDiscoveryRequiresRecordedCause(bool success)
     {
-        using var manager = new GpuResourceManager(static () => (123, 1), static _ => true);
+        using var manager = new RHIResourceManager(static () => (123, 1), static _ => true);
         var reader = new ProgramReader(success);
         var original = manager.RecordPreexistingExecutable<GpuProgramMetadata>(GpuResourceKind.Program, 17);
         manager.ActivateResourceObservation();

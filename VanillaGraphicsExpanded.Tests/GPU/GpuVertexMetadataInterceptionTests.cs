@@ -32,7 +32,7 @@ public sealed class GpuVertexMetadataInterceptionTests(HeadlessGLFixture fixture
             OpenGLBufferBindings.BindBuffer(cache, BufferTarget.ArrayBuffer,previous.BufferId);
             bool named=variant is 1 or 3 or 5 or 7 or 9 or 10 or 11;
             if(!named) OpenGLVertexSelection.Bind(cache, owner.VertexArrayId);
-            var manager=GpuResourceManagerSystem.CurrentManager!;
+            var manager=RHIResourceManagerSystem.CurrentManager!;
             var entry=(GpuResourceMetadataEntry<GpuVertexArrayMetadata>)manager.GetResourceRegistration(owner)!;
             using var alias=new VertexAlias(owner.VertexArrayId); manager.AssociateResource(entry,alias);
             ulong revision=entry.MetadataRevision,storage=entry.StorageRevision;
@@ -75,7 +75,7 @@ public sealed class GpuVertexMetadataInterceptionTests(HeadlessGLFixture fixture
         try
         {
             using var vao=NativeResourceSetup.CreateVertexArray(); OpenGLVertexSelection.Bind(OpenGlStateCache.Current, vao.VertexArrayId);
-            var entry=GpuResourceManagerSystem.CurrentManager!.GetResourceRegistration(vao)!;
+            var entry=RHIResourceManagerSystem.CurrentManager!.GetResourceRegistration(vao)!;
             ulong revision=entry.MetadataRevision;
             Mutate(12,vao.VertexArrayId,0);
             Assert.Equal(ErrorCode.InvalidValue,GL.GetError()); Assert.Equal(revision,entry.MetadataRevision);
@@ -101,7 +101,7 @@ public sealed class GpuVertexMetadataInterceptionTests(HeadlessGLFixture fixture
             GL.EnableVertexArrayAttrib(vao.VertexArrayId, 0);
             GL.GetVertexArrayIndexed(vao.VertexArrayId, 0, VertexArrayIndexedParameter.VertexAttribArrayEnabled, out int enabled);
             Assert.Equal(1, enabled);
-            Assert.False(GpuResourceManagerSystem.CurrentManager!.IsResourceMetadataAvailable(vao));
+            Assert.False(RHIResourceManagerSystem.CurrentManager!.IsResourceMetadataAvailable(vao));
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
         finally { harmony.UnpatchAll(harmony.Id); fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
@@ -114,7 +114,7 @@ public sealed class GpuVertexMetadataInterceptionTests(HeadlessGLFixture fixture
         try
         {
             Mutate(7,vao,0);
-            Assert.Null(GpuResourceManagerSystem.CurrentManager!.FindResource(GpuResourceKind.VertexArray,vao));
+            Assert.Null(RHIResourceManagerSystem.CurrentManager!.FindResource(GpuResourceKind.VertexArray,vao));
             GL.GetVertexArrayIndexed(vao,0,VertexArrayIndexedParameter.VertexAttribArrayEnabled,out int enabled); Assert.Equal(1,enabled);
             Assert.Equal(ErrorCode.NoError,GL.GetError());
         }

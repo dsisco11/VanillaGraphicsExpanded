@@ -19,7 +19,7 @@ internal sealed partial class OpenGLBackend
         var image = destination.Resource!;
         image.RequireOriginalContext();
         var buffer = request.Buffer.RequireResource();
-        var storage = GpuResourceManager.RequireBufferReferenceMetadata(buffer);
+        var storage = RHIResourceManager.RequireBufferReferenceMetadata(buffer);
         if (request.Offset < 0 || request.Offset > storage.Capacity) throw new ArgumentOutOfRangeException(nameof(transfer));
         ValidateTextureRegion(data, request.Region);
         var layout = PixelLayoutForTarget(ValidatePixelLayout(request.Region, request.Encoding, storage.Capacity - request.Offset, request.RowPitch, request.SlicePitch), data.Target);
@@ -40,7 +40,7 @@ internal sealed partial class OpenGLBackend
         var image = source.Resource!;
         image.RequireOriginalContext();
         var buffer = request.Buffer.RequireResource();
-        var storage = GpuResourceManager.RequireBufferReferenceMetadata(buffer);
+        var storage = RHIResourceManager.RequireBufferReferenceMetadata(buffer);
         if (request.Offset < 0 || request.Offset > storage.Capacity) throw new ArgumentOutOfRangeException(nameof(transfer));
         ValidateTextureRegion(data, request.Region);
         var layout = PixelLayoutForTarget(ValidatePixelLayout(request.Region, request.Encoding, storage.Capacity - request.Offset, request.RowPitch, request.SlicePitch), data.Target);

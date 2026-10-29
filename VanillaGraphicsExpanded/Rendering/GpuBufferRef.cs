@@ -14,7 +14,7 @@ public readonly struct GpuBufferRef : IEquatable<GpuBufferRef>
     /// <summary>Reports manager-certified availability without recovery or native queries.</summary>
     public bool IsValid => TryGetMetadata(out _);
     /// <summary>Returns already published facts only.</summary>
-    public bool TryGetMetadata(out GpuBufferMetadata data) => GpuResourceManager.TryGetBufferReferenceMetadata(resource, out data);
+    public bool TryGetMetadata(out GpuBufferMetadata data) => RHIResourceManager.TryGetBufferReferenceMetadata(resource, out data);
     /// <summary>Compares managed identity independently of mutable native allocation.</summary>
     public bool Equals(GpuBufferRef other) => ReferenceEquals(resource, other.resource);
     /// <inheritdoc />

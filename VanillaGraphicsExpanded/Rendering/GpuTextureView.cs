@@ -8,7 +8,7 @@ namespace VanillaGraphicsExpanded.Rendering;
 /// <summary>
 /// RAII wrapper around an OpenGL texture view object created by <c>glTextureView</c>.
 /// Texture views are separate texture objects that share immutable storage with a source texture.
-/// Deletion is deferred to <see cref="GpuResourceManager"/> when available.
+/// Deletion is deferred to <see cref="RHIResourceManager"/> when available.
 /// </summary>
 public sealed class GpuTextureView : GpuResource<GpuTextureMetadata>, IDisposable
 {
@@ -93,7 +93,7 @@ public sealed class GpuTextureView : GpuResource<GpuTextureMetadata>, IDisposabl
     /// <summary>
     /// Returns <c>true</c> while the view and its original managed source allocation remain live with available metadata.
     /// </summary>
-    public new bool IsValid => GpuResourceManager.TryGetTextureReferenceMetadata(this, out _);
+    public new bool IsValid => RHIResourceManager.TryGetTextureReferenceMetadata(this, out _);
 
     /// <summary>
     /// Sets the debug label for this texture view (debug builds only).

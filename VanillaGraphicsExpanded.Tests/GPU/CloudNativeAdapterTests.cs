@@ -334,8 +334,8 @@ public sealed class CloudNativeAdapterTests(HeadlessGLFixture fixture)
         try
         {
             using var native = new NativeMap();
-            var manager = GpuResourceManagerSystem.CurrentManager!;
-            _ = GpuResourceManager.AcquireExternalFacts(GpuResourceKind.Program, native.Program, GpuProgramMetadataReader.Instance);
+            var manager = RHIResourceManagerSystem.CurrentManager!;
+            _ = RHIResourceManager.AcquireExternalFacts(GpuResourceKind.Program, native.Program, GpuProgramMetadataReader.Instance);
             var program = (GpuResourceMetadataEntry<GpuProgramMetadata>)manager.FindResource(GpuResourceKind.Program, native.Program)!;
             program.Reader = new RejectRead<GpuProgramMetadata>();
             foreach (var texture in new[] { native.Map, native.Color, native.Raw1, native.Raw2 })

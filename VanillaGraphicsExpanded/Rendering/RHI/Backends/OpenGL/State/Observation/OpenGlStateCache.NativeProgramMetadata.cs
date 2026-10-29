@@ -13,7 +13,7 @@ internal sealed partial class OpenGlStateCache
         bool executable = false, bool unsupportedUnits = false, ProgramInterface block = 0, int blockIndex = -1,
         int? supplied = null, ReadOnlySpan<int> values = default)
     {
-        var manager = GpuResourceManagerSystem.CurrentManager;
+        var manager = RHIResourceManagerSystem.CurrentManager;
         if (manager?.CanObserveNativeMetadata != true || unit && (location < 0 || count <= 0)) return;
         if (!named)
         {

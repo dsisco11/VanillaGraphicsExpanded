@@ -30,7 +30,7 @@ public sealed class GpuControlledTexturePublicationTests(HeadlessGLFixture fixtu
                 InternalFormat = TextureFormat.Rgba8, Width = 8, Height = 8, Levels = 1,
                 Samples = 3, FixedSampleLocations = true
             };
-            var result = GpuResourceManager.CreateTexture(request, recipient, out var handle);
+            var result = RHIResourceManager.CreateTexture(request, recipient, out var handle);
             Assert.True(result.HasValue);
             GL.GetTextureLevelParameter((int)handle.Id, 0, GetTextureParameter.TextureSamples, out int native);
             Assert.Equal(native, result.Value.Levels[0].Samples);
@@ -80,12 +80,12 @@ public sealed class GpuControlledTexturePublicationTests(HeadlessGLFixture fixtu
             };
             using var fault = new AllocationFailure();
             GpuResourceHandle handle = default;
-            Assert.Throws<InvalidOperationException>(() => GpuResourceManager.CreateTexture(request, recipient, out handle));
+            Assert.Throws<InvalidOperationException>(() => RHIResourceManager.CreateTexture(request, recipient, out handle));
             Assert.NotEqual(0, fault.Texture);
             Assert.Equal(2, fault.Calls);
             Assert.Equal(default, handle);
             Assert.Equal((nint)0, recipient.ResourceId);
-            GpuResourceManagerSystem.CurrentManager?.OnRenderFrame(0, GpuResourceManager.Stage);
+            RHIResourceManagerSystem.CurrentManager?.OnRenderFrame(0, RHIResourceManager.Stage);
             Assert.False(GL.IsTexture(fault.Texture));
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
@@ -100,10 +100,10 @@ public sealed class GpuControlledTexturePublicationTests(HeadlessGLFixture fixtu
         try
         {
             using var texture = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba8, Width = System.Math.Max(1, 8), Height = System.Math.Max(1, 8), MipLevels = 4, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (4) - 1, Label = null }).RequireResource();
-            var manager = GpuResourceManagerSystem.CurrentManager!;
+            var manager = RHIResourceManagerSystem.CurrentManager!;
             var entry = Assert.IsType<GpuResourceMetadataEntry<GpuTextureMetadata>>(manager.GetResourceRegistration(texture));
             ulong revision = entry.MetadataRevision;
-            using var operation = new GpuResourceManager.MetadataOperation<GpuTextureMetadata>(texture, GpuMetadataChange.Metadata);
+            using var operation = new RHIResourceManager.MetadataOperation<GpuTextureMetadata>(texture, GpuMetadataChange.Metadata);
             Assert.Null(manager.RecoverResource(GpuResourceKind.Texture, texture.TextureId, GpuTextureMetadataReader.Instance));
             Assert.Equal(revision, entry.MetadataRevision);
             Assert.False(entry.MetadataAvailable);
@@ -123,7 +123,7 @@ public sealed class GpuControlledTexturePublicationTests(HeadlessGLFixture fixtu
 
             using var binding = OpenGlStateCache.Current.BindTextureScope(TextureTarget.Texture2D, 0, texture.TextureId);
             var entry = Assert.IsType<GpuResourceMetadataEntry<GpuTextureMetadata>>(
-                GpuResourceManagerSystem.CurrentManager!.GetResourceRegistration(texture));
+                RHIResourceManagerSystem.CurrentManager!.GetResourceRegistration(texture));
             var original = entry.Metadata.Levels;
             ulong storage = entry.StorageRevision;
             GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMaxLevel, 2);
@@ -159,9 +159,9 @@ public sealed class GpuControlledTexturePublicationTests(HeadlessGLFixture fixtu
                 Target = TextureDimension.Two, AllocationMode = immutable ? GpuTextureAllocationMode.Immutable : GpuTextureAllocationMode.Mutable,
                 InternalFormat = TextureFormat.Rgba8, Width = 8, Height = 8, Levels = immutable ? 4 : 1, MaxLevel = 3
             };
-            Assert.NotNull(GpuResourceManager.CreateTexture(request, recipient, out var handle));
+            Assert.NotNull(RHIResourceManager.CreateTexture(request, recipient, out var handle));
             var entry = Assert.IsType<GpuResourceMetadataEntry<GpuTextureMetadata>>(
-                GpuResourceManagerSystem.CurrentManager!.GetResourceRegistration(recipient));
+                RHIResourceManagerSystem.CurrentManager!.GetResourceRegistration(recipient));
             using var binding = OpenGlStateCache.Current.BindTextureScope(TextureTarget.Texture2D, 0, (int)handle.Id);
             ulong storage = entry.StorageRevision;
             GL.GenerateMipmap(GenerateMipmapTarget.Texture2D);
@@ -193,10 +193,10 @@ public sealed class GpuControlledTexturePublicationTests(HeadlessGLFixture fixtu
                 AllocationMode = immutable ? GpuTextureAllocationMode.Immutable : GpuTextureAllocationMode.Mutable,
                 InternalFormat = TextureFormat.Rgba8, Width = 8, Height = 4, Levels = 1, Samples = 1
             };
-            Assert.Throws<ArgumentException>(() => GpuResourceManager.CreateTexture(request, recipient, out _));
+            Assert.Throws<ArgumentException>(() => RHIResourceManager.CreateTexture(request, recipient, out _));
             Assert.Equal((nint)0, recipient.ResourceId);
             request.FixedSampleLocations = false;
-            var result = GpuResourceManager.CreateTexture(request, recipient, out var handle);
+            var result = RHIResourceManager.CreateTexture(request, recipient, out var handle);
             Assert.True(result.HasValue);
             var image = Assert.Single(result.Value.Levels);
             Assert.Equal(8, image.Width);
@@ -220,7 +220,7 @@ public sealed class GpuControlledTexturePublicationTests(HeadlessGLFixture fixtu
         {
 
             using var texture = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba16f, Width = System.Math.Max(1, 16), Height = System.Math.Max(1, 8), MipLevels = 4, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (4) - 1, Label = null }).RequireResource();
-            var manager = GpuResourceManagerSystem.CurrentManager!;
+            var manager = RHIResourceManagerSystem.CurrentManager!;
             var entry = Assert.IsType<GpuResourceMetadataEntry<GpuTextureMetadata>>(manager.GetResourceRegistration(texture));
             Assert.Equal(4, entry.Metadata.Levels.Length);
             Assert.Equal(16, entry.Metadata.Levels[0].Width);
@@ -252,7 +252,7 @@ public sealed class GpuControlledTexturePublicationTests(HeadlessGLFixture fixtu
             using var source = RHICommandContext.Current.CreateDynamicTexture3D(new RHITextureDescription { Dimension = TextureDimension.TwoArray, Format = TextureFormat.Rgba32f, Width = System.Math.Max(1, 8), Height = System.Math.Max(1, 4), Depth = System.Math.Max(1, 6), MipLevels = 1, Storage = (true ? ResourceStorageMode.Immutable : ResourceStorageMode.Mutable), Filter = TextureFilterMode.Linear, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
             using var view = RHICommandContext.Current.CreateTextureView(new RHITextureViewDescription { Source = source, Dimension = TextureDimension.TwoArray, Format = TextureFormat.Rgba32f, BaseMip = 0, MipCount = 1, BaseLayer = 2, LayerCount = 3, Label = null }).RequireResource();
             var entry = Assert.IsType<GpuResourceMetadataEntry<GpuTextureMetadata>>(
-                GpuResourceManagerSystem.CurrentManager!.GetResourceRegistration(view));
+                RHIResourceManagerSystem.CurrentManager!.GetResourceRegistration(view));
             Assert.Equal(new GpuTextureViewMetadata(0, 1, 2, 3), entry.Metadata.View);
             var image = Assert.Single(entry.Metadata.Levels);
             Assert.Equal(8, image.Width);

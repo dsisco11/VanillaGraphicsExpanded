@@ -1,6 +1,6 @@
 # GPU resource metadata and lifetime
 
-`GpuResourceManager` owns canonical metadata for the originating rendering context. Its concurrent
+`RHIResourceManager` owns canonical metadata for the originating rendering context. Its concurrent
 registry uses `GpuResourceHandle`, a resource-kind/native-width-ID value, as the key. Each entry holds
 one typed metadata snapshot, availability and revisions, shared usage guards, and weak wrapper recipients.
 Resource registrations distinguish reserved names from realized objects independently of availability and
@@ -8,6 +8,12 @@ terminal retirement. For buffers, Gen reserves; legal realization publishes capa
 mutable mode and no storage flags on the original entry. Other kinds retain their specific factory and
 realization semantics. Registration grants no native ownership. Metadata operations and native queries run on the context thread;
 concurrent containers support identity lookup and recipient removal across threads.
+`RHIResourceManagerSystem` publishes this single service and captures its original
+`RHIResourceDisposalQueue`. `RHIResourceManagerModSystem` connects that lifetime to engine callbacks;
+it does not introduce a second registry. `RHIUniformRingSystem` exposes the current allocator, while
+`RHIUniformRingFrameController` and its begin/end renderers advance and close publication epochs.
+`RHIUniformRingModSystem` owns their engine registration. The storage/allocation contract remains
+`GpuUniformRingBuffer`; `GpuBindingRegistry` remains the project's authored shader-slot assignments.
 Tracked command inputs, operation admission, deferred link submission and executable transfer validate
 the originating context and thread before dispatch or metadata withdrawal. Reusing an available snapshot
 does not bypass that check. Explicit operation steps recheck affinity after callbacks.

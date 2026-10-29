@@ -29,7 +29,7 @@ internal sealed unsafe partial class OpenGlStateCache
             activityKnown = true;
         }
         if (!rejected && activityKnown && feedback != 0
-            && GpuResourceManagerSystem.CurrentManager?.FindObservedResource(GpuResourceKind.TransformFeedback, feedback)
+            && RHIResourceManagerSystem.CurrentManager?.FindObservedResource(GpuResourceKind.TransformFeedback, feedback)
                 is GpuResourceMetadataEntry<GpuTransformFeedbackMetadata> { IsRealized: false } entry)
         {
             entry.Manager.PublishMetadata(entry, new GpuTransformFeedbackMetadata(), GpuMetadataChange.None);

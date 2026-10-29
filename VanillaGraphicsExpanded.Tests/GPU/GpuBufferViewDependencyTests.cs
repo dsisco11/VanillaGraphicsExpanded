@@ -32,7 +32,7 @@ public sealed class GpuBufferViewDependencyTests(HeadlessGLFixture fixture)
             using var buffer = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = null }).RequireResource();
             buffer.Allocate(64);
             using var view = CreateView(buffer, ranged);
-            var manager = GpuResourceManagerSystem.CurrentManager!;
+            var manager = RHIResourceManagerSystem.CurrentManager!;
             var entry = (GpuResourceMetadataEntry<GpuTextureMetadata>)manager.GetResourceRegistration(view)!;
             using var alias = new TextureAlias(view.TextureId);
             manager.AssociateResource(entry, alias);
@@ -68,7 +68,7 @@ public sealed class GpuBufferViewDependencyTests(HeadlessGLFixture fixture)
             using var buffer = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = null }).RequireResource();
             buffer.Allocate(64);
             using var view = CreateView(buffer, ranged);
-            var manager = GpuResourceManagerSystem.CurrentManager!;
+            var manager = RHIResourceManagerSystem.CurrentManager!;
             var entry = (GpuResourceMetadataEntry<GpuBufferMetadata>)manager.GetResourceRegistration(buffer)!;
             using var alias = new TextureAlias(view.TextureId);
             manager.AssociateResource((GpuResourceMetadataEntry<GpuTextureMetadata>)manager.GetResourceRegistration(view)!, alias);
@@ -115,7 +115,7 @@ public sealed class GpuBufferViewDependencyTests(HeadlessGLFixture fixture)
             using var sentinel = CreateView(buffer, false);
             VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, sentinel, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)sentinel).Target)))]);
             VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageSlotBindings.BindImageTexture(OpenGlStateCache.Current, 0, sentinel.TextureId, 0, false, 0, TextureAccess.ReadOnly, (SizedInternalFormat)OpenGLImageValues.Format(((GpuTextureRef)sentinel).RequireMetadata().Buffer!.Value.Format));
-            GpuResourceManager.InvalidateWrapperMetadata(view);
+            RHIResourceManager.InvalidateWrapperMetadata(view);
             buffer.Allocate(128);
             Assert.False(view.IsValid);
             Assert.Throws<InvalidOperationException>(() =>
@@ -144,7 +144,7 @@ public sealed class GpuBufferViewDependencyTests(HeadlessGLFixture fixture)
             using var buffer = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = null }).RequireResource();
             buffer.Allocate(64);
             using var view = CreateView(buffer, false);
-            var manager = GpuResourceManagerSystem.CurrentManager!;
+            var manager = RHIResourceManagerSystem.CurrentManager!;
             int oldId = buffer.BufferId;
             var original = (GpuResourceMetadataEntry<GpuBufferMetadata>)manager.GetResourceRegistration(buffer)!;
             var originalMetadata = original.Metadata;
@@ -183,7 +183,7 @@ public sealed class GpuBufferViewDependencyTests(HeadlessGLFixture fixture)
         try
         {
             GL.NamedBufferData(buffer, (IntPtr)64, IntPtr.Zero, BufferUsageHint.DynamicDraw);
-            var manager = GpuResourceManagerSystem.CurrentManager!;
+            var manager = RHIResourceManagerSystem.CurrentManager!;
             Assert.True(manager.FindResource(GpuResourceKind.Buffer, buffer)!.IsUsable);
             using var view = VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLTextureIntegration.CreateBufferView(buffer, SizedInternalFormat.R32f, true, 0, 0, null).RequireResource();
             var backing = Assert.IsType<GpuResourceMetadataEntry<GpuBufferMetadata>>(manager.FindResource(GpuResourceKind.Buffer, buffer));
@@ -225,7 +225,7 @@ public sealed class GpuBufferViewDependencyTests(HeadlessGLFixture fixture)
         if (native)
         {
             AllocateNative(buffer.BufferId, bytes);
-            var manager = GpuResourceManagerSystem.CurrentManager!;
+            var manager = RHIResourceManagerSystem.CurrentManager!;
             Assert.True(manager.IsResourceMetadataAvailable(buffer));
             var entry = (GpuResourceMetadataEntry<GpuBufferMetadata>)manager.GetResourceRegistration(buffer)!;
             if (manager.AcquireResource(GpuResourceKind.Buffer, buffer.BufferId, entry.Reader ?? new GpuBufferMetadataReader()) is null)

@@ -31,7 +31,7 @@ public sealed unsafe class GpuSamplerRealizationTests(HeadlessGLFixture fixture)
         int sampler = GL.GenSampler();
         try
         {
-            var manager = GpuResourceManagerSystem.CurrentManager!;
+            var manager = RHIResourceManagerSystem.CurrentManager!;
             var original = manager.FindResource(GpuResourceKind.Sampler, sampler)!;
             Assert.False(original.IsRealized);
             var table = OpenGLBindingTable.For(core ? typeof(OpenTK.Graphics.OpenGL4.GL) : typeof(GL));

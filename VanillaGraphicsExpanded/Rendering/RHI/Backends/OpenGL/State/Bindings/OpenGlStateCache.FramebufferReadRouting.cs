@@ -25,7 +25,7 @@ internal sealed partial class OpenGlStateCache
     /// <summary>Realizes an observed reservation and installs routing defaults once on that original object.</summary>
     internal void RealizeFramebuffer(int framebuffer, bool implicitCreation = false)
     {
-        var manager = GpuResourceManagerSystem.CurrentManager;
+        var manager = RHIResourceManagerSystem.CurrentManager;
         bool realized = manager?.FindObservedResource(GpuResourceKind.Framebuffer, framebuffer)?.IsRealized == true;
         var entry = manager?.RealizeObservedImage(GpuResourceKind.Framebuffer, framebuffer, implicitCreation: implicitCreation);
         // Unknown EXT objects can already have nondefault routing. Only a tracked

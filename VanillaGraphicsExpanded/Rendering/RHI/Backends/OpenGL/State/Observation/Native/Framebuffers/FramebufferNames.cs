@@ -12,7 +12,7 @@ internal sealed unsafe partial class OpenGlStateCache
     internal static void ObserveGenFramebuffers(int count, uint* names)
     {
         if (count <= 0 || names == null || !OpenGLObservationContext.TryGet(out _, out _, false)) return;
-        var manager = GpuResourceManagerSystem.CurrentManager!;
+        var manager = RHIResourceManagerSystem.CurrentManager!;
         for (int i = 0; i < count; i++)
             manager.ObserveImageCreation(GpuResourceKind.Framebuffer, unchecked((int)names[i]), false);
     }
@@ -22,7 +22,7 @@ internal sealed unsafe partial class OpenGlStateCache
     internal static void ObserveCreateFramebuffers(int count, uint* names)
     {
         if (count <= 0 || names == null || !OpenGLObservationContext.TryGet(out _, out _, false)) return;
-        var manager = GpuResourceManagerSystem.CurrentManager!;
+        var manager = RHIResourceManagerSystem.CurrentManager!;
         for (int i = 0; i < count; i++)
         {
             int id = unchecked((int)names[i]);

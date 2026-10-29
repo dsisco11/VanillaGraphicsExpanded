@@ -33,8 +33,8 @@ public sealed class GpuResourceKindLifecycleTests(HeadlessGLFixture fixture, ITe
         fixture.EnsureContextValid();
         fixture.CleanupGpuResources();
         OpenGlStateCache.Current.InvalidateAll();
-        using var manager = new GpuResourceManager();
-        GpuResourceManagerSystem.Initialize(manager);
+        using var manager = new RHIResourceManager();
+        RHIResourceManagerSystem.Initialize(manager);
         try
         {
             if (kind == GpuResourceKind.Semaphore && !RHICommandContext.Current.Capabilities.ExternalSemaphores
@@ -76,7 +76,7 @@ public sealed class GpuResourceKindLifecycleTests(HeadlessGLFixture fixture, ITe
         finally
         {
             manager.Dispose();
-            GpuResourceManagerSystem.Shutdown();
+            RHIResourceManagerSystem.Shutdown();
             OpenGlStateCache.Current.InvalidateAll();
         }
     }

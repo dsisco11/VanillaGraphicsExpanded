@@ -20,7 +20,7 @@ internal sealed unsafe partial class OpenGlStateCache
         int @minlayer = unchecked((int)a6);
         uint @numlayers = a7;
         if (!OpenGLObservationContext.TryGet(out var cache, out _, false)) return;
-        var manager = GpuResourceManagerSystem.CurrentManager!;
+        var manager = RHIResourceManagerSystem.CurrentManager!;
         var destination = manager.FindObservedResource(GpuResourceKind.Texture, texture) as GpuResourceMetadataEntry<GpuTextureMetadata>;
         var source = manager.FindObservedResource(GpuResourceKind.Texture, origtexture) as GpuResourceMetadataEntry<GpuTextureMetadata>;
         if (destination is null || destination.IsRealized || source?.IsUsable != true || !source.Metadata.ImmutableStorage

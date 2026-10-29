@@ -23,7 +23,7 @@ public sealed class GpuResourceDeferredLifetimeTests(HeadlessGLFixture fixture)
         first.Bind();
         second.Bind();
         using var borrower = DynamicGpuFramebuffer.Wrap(first.FboId, width: 4, height: 4);
-        var manager = GpuResourceManagerSystem.CurrentManager!;
+        var manager = RHIResourceManagerSystem.CurrentManager!;
         var original = manager.GetResourceRegistration(borrower);
         int notifications = 0;
         borrower.AttachmentsChanged += () => notifications++;
@@ -65,7 +65,7 @@ public sealed class GpuResourceDeferredLifetimeTests(HeadlessGLFixture fixture)
         var owner = Assert.IsType<DynamicTexture2D>(attachment.Resource);
         int nativeId = owner.TextureId;
         using var alias = new BorrowedTexture(nativeId);
-        var queue = GpuResourceManagerSystem.CaptureDisposalQueue();
+        var queue = RHIResourceManagerSystem.CaptureDisposalQueue();
         using var unrelated = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba8, Width = System.Math.Max(1, 2), Height = System.Math.Max(1, 2), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         if (pass) alias.RetainPassReference(); else alias.RetainLifetimeReference();
         try

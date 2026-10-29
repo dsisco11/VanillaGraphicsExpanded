@@ -10,7 +10,7 @@ internal static class OpenGLProgramAssignments
     /// <summary>Preserves established integer unit assignments without changing executable selection or querying ordinary values.</summary>
     internal static void SetUnit(int program,int location,int unit)
     {
-        var manager=GpuResourceManagerSystem.CurrentManager;
+        var manager=RHIResourceManagerSystem.CurrentManager;
         manager?.ValidateProgramUnit(program,location,unit);
         if(manager?.IsProgramUnitCurrent(program,location,unit)==true)return;
         ExecuteAssignment(program,
@@ -41,7 +41,7 @@ internal static class OpenGLProgramAssignments
         var cache = OpenGlStateCache.Current;
         using var operation = cache.EnterResourceOperation(new(GpuResourceKind.Program, program));
         var origin = Integration.RenderContextRegistry.CaptureResourceContext();
-        var manager = GpuResourceManagerSystem.CurrentManager;
+        var manager = RHIResourceManagerSystem.CurrentManager;
         var entry = manager?.FindObservedResource(GpuResourceKind.Program, program)
             as GpuResourceMetadataEntry<GpuProgramMetadata>;
         bool known = entry?.IsUsable == true;

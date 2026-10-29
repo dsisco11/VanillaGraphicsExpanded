@@ -3,9 +3,9 @@ RHI commands and command lists — implementation plan
 
 Source proposal: [Rendering.GpuCommands.Proposal.md](Rendering.GpuCommands.Proposal.md).
 Parent design task: Rendering.GpuResourceHandles.todo, Phase 8.
-Status: Phases 1–7 have recorded qualification receipts. Corrective subphases 8a–8j and 8h.1 are qualified.
+Status: Phases 1–7 have recorded qualification receipts. Corrective subphases 8a–8k and 8h.1 are qualified.
 The maintained metadata lifecycle and combined corrective qualification are complete.
-Management naming remains in 8k. Phase 9 integrated/package/user qualification remains
+Management naming is complete. Phase 9 integrated/package/user qualification remains
 open, including the explicitly recorded full-lighting numerical mismatch.
 
 Goal
@@ -1249,26 +1249,51 @@ Phase 8j: Qualify corrective closure and reconcile documentation
 Phase 8k: Align resource-management service names with RHI ownership
   Depends on 8j; final corrective subphase before integrated qualification.
 
-  ☐ Inventory Gpu-prefixed management, registration and lifecycle services by responsibility. Establish
+  Naming map (same namespaces and responsibilities; no resource-model changes):
+    GpuResourceManager → RHIResourceManager, including every partial.
+    GpuResourceManagerSystem → RHIResourceManagerSystem.
+    GpuResourceDisposalQueue → RHIResourceDisposalQueue.
+    GpuResourceManagerModSystem → RHIResourceManagerModSystem.
+    GpuUniformRingSystem → RHIUniformRingSystem.
+    GpuUniformRingFrameController → RHIUniformRingFrameController.
+    GpuUniformRingModSystem → RHIUniformRingModSystem.
+    GpuUniformRingBeginRenderer / GpuUniformRingEndRenderer → corresponding RHIUniformRing names.
+    Remove the empty GpuUniformRingFrameRenderers.cs navigation stub; the named files own the callbacks.
+  Retained names:
+    GpuBindingRegistry defines the project's shader ABI slots, not an RHI execution/registration service.
+    GpuUniformRingBuffer and its Allocation remain the existing storage owner/allocation contract.
+    GpuResourceRegistration, GpuResourceMetadataEntry, GpuResourceHandle and GpuInitialDiscovery remain
+    resource identity/metadata/provenance records rather than independently managed services.
+    GpuSupport remains the native capability snapshot behind RHICapabilities; GpuSamplers is shared
+    sampler-owner policy. Resource wrappers, metadata, initialization, references and shader assets retain
+    their names. No mechanical Gpu-prefix replacement extends beyond the listed management services.
+
+  ☑ Inventory Gpu-prefixed management, registration and lifecycle services by responsibility. Establish
     an explicit old/new name map, including GpuResourceManager → RHIResourceManager,
     GpuResourceManagerSystem → RHIResourceManagerSystem and GpuResourceDisposalQueue → RHIResourceDisposalQueue.
     Review GpuBindingRegistry, GpuUniformRingSystem and GpuUniformRingFrameController for RHI service
     naming according to their final ownership; do not mechanically rename every Gpu-prefixed type.
     Resource wrappers, canonical metadata and consumer references retain their existing names/contracts.
-  ☐ Apply the management-service rename in one coherent sweep across all partial declarations, filenames,
+  ☑ Apply the management-service rename in one coherent sweep across all partial declarations, filenames,
     production and test callers, composition/lifecycle hooks, generated-code inputs and relevant tooling.
     Preserve native execution, initialization/publication authority, context identity, cleanup ordering
     and API behavior. This is a naming correction, not a resource-model or ownership redesign.
-  ☐ Update proposal/contracts, inventory/coverage, parent-plan cross-references and permanent architecture
+  ☑ Update proposal/contracts, inventory/coverage, parent-plan cross-references and permanent architecture
     documentation to match the final names. Keep historical receipts intelligible without rewriting their
     original evidence. Remove superseded names from active APIs/callers; introduce no compatibility alias,
     forwarding class, duplicate service or staged migration shim.
-  ☐ Run delegated canonical Debug/ordinary Release builds and focused initialization, registration,
+  ☑ Run delegated canonical Debug/ordinary Release builds and focused initialization, registration,
     disposal, context-lifetime and binding regressions after the complete rename. Perform second review
     and independent completion audit, checking symbol/file consistency and unchanged dependency direction.
     No benchmark, timing study, instrumented Release or automatic commit is required or authorized.
-  ☐ Completion: management services consistently use uppercase RHI names where their responsibility
+  ☑ Completion: management services consistently use uppercase RHI names where their responsibility
     belongs to the RHI, all callers/documentation agree, and retained resource contracts remain unchanged.
+
+  Qualification: second source review and independent completion audit passed. Canonical shader-enabled
+    Debug and ordinary Release builds passed; each qualified 1,355 focused cases plus 35 current generator
+    cases with zero failures/skips. Naming map, source comparison, fixture correction and exact receipts
+    are recorded in Rendering.GpuCommands.Migrations.md, Management-service naming (8k), and
+    artifacts/rhi-phase8k/. Phase 9 and final acceptance remain open. No staging or commit.
 
 Phase 9: Qualify integrated behavior and release artifacts
   Depends on Phase 8, including subphases 8a–8k and 8h.1.

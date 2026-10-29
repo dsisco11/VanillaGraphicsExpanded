@@ -43,7 +43,7 @@ internal sealed class CloudStoredVolumeConsumer : ICloudVolumeConsumer
     /// <summary>Applies cached cloud controls before Opaque while preserving compatible fields for view-only changes.</summary>
     public bool Prepare()
     {
-        if(disposed || failed || AtmosphereModSystem.Lighting is not { } lighting || lighting.CalibrationGeneration==0 || !GpuUniformRingSystem.TryGetCurrent(out _)) return false;
+        if(disposed || failed || AtmosphereModSystem.Lighting is not { } lighting || lighting.CalibrationGeneration==0 || !RHIUniformRingSystem.TryGetCurrent(out _)) return false;
         var next=selection();
         try
         {

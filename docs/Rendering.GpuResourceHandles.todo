@@ -1184,8 +1184,8 @@ Phase 8: Design the RHICommand and RHICommandList render hardware interface
   qualification receipts there, including the implemented OpenGlStateCache split; that plan's Phase 8
   corrects wrapper/helper RHI boundary violations and qualifies the native OpenTK interception
   replacement and maintained metadata lifecycle through 8i, including 8h.1. Combined closure (8j)
-  is qualified; management naming (8k) and integrated/package/user-run
-  qualification in Phase 9 remain open.
+  is qualified. Management naming (8k) is qualified;
+  integrated/package/user-run qualification in Phase 9 remains open.
   Design authority is the current resource/binding contracts, inventory/API coverage and archived
   proposals at 3f307365 (command publication) and b9fca04c (texture reference).
   This design task makes no runtime implementation claim; execution and cache renaming belong to that plan.

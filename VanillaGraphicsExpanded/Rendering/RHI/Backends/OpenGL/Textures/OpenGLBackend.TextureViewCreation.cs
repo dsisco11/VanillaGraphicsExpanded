@@ -27,10 +27,10 @@ internal sealed partial class OpenGLBackend
         var owner = new GpuTextureView((int)source.ResourceId);
         try
         {
-            if (!GpuResourceManager.CreateTextureView(initialization, owner, out _, source).HasValue)
+            if (!RHIResourceManager.CreateTextureView(initialization, owner, out _, source).HasValue)
                 return new(null, "Texture view initialization did not complete.");
-            GpuResourceManager.EstablishTextureViewSource(owner, source);
-            _ = GpuResourceManager.RequireTextureReferenceMetadata(owner);
+            RHIResourceManager.EstablishTextureViewSource(owner, source);
+            _ = RHIResourceManager.RequireTextureReferenceMetadata(owner);
             owner.SetDebugName(request.Label);
             return new(owner, null);
         }

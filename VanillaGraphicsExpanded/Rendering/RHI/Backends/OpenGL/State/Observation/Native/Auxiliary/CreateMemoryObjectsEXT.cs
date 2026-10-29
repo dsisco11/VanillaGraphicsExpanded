@@ -10,7 +10,7 @@ internal sealed unsafe partial class OpenGlStateCache
     {
         if (count <= 0 || names == null || !OpenGLObservationContext.TryGet(out _, out _, false)) return;
         for (int index = 0; index < count; index++)
-            GpuResourceManagerSystem.CurrentManager!.ObserveMemoryObjectCreation(unchecked((int)names[index]));
+            RHIResourceManagerSystem.CurrentManager!.ObserveMemoryObjectCreation(unchecked((int)names[index]));
     }
     #endregion
 }

@@ -17,7 +17,7 @@ internal sealed partial class OpenGLBackend
         var owner = new GpuSampler();
         try
         {
-                if (!GpuResourceManager.CreateSampler(new(), owner, out _).HasValue) return new(null, "Sampler creation did not complete.");
+                if (!RHIResourceManager.CreateSampler(new(), owner, out _).HasValue) return new(null, "Sampler creation did not complete.");
                 ConfigureSampler(owner, request);
                 owner.SetDebugName(request.Label);
                 return new(owner, null);
@@ -30,7 +30,7 @@ internal sealed partial class OpenGLBackend
             var request = description;
             RequireContext();
             owner.RequireOriginalContext();
-            GpuResourceManager.RequireWrapperMetadataAccess(owner);
+            RHIResourceManager.RequireWrapperMetadataAccess(owner);
             ValidateSampler(request);
             cache.RequireResourceOperationAvailable(GpuResourceKind.Sampler, owner.ResourceId);
             int id = owner.SamplerId;

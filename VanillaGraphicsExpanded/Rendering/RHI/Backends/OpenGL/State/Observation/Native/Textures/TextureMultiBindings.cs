@@ -34,7 +34,7 @@ internal sealed unsafe partial class OpenGlStateCache
         if (!OpenGLObservationContext.TryGet(out var cache, out _, false)
             || !GpuSupport.HasCachedCapabilitiesForCurrentContext || count < 0
             || (ulong)first + (uint)count > (uint)GpuSupport.Graphics.MaxImageUnits) return;
-        var manager = GpuResourceManagerSystem.CurrentManager!;
+        var manager = RHIResourceManagerSystem.CurrentManager!;
         for (int index = 0; index < count; index++)
         {
             int id = textures == null ? 0 : unchecked((int)textures[index]);
@@ -55,7 +55,7 @@ internal sealed unsafe partial class OpenGlStateCache
             foreach (var binding in bindings) bindings[binding.Key] = 0;
             return;
         }
-        var entry = GpuResourceManagerSystem.CurrentManager!.FindObservedResource(GpuResourceKind.Texture, unchecked((int)name))
+        var entry = RHIResourceManagerSystem.CurrentManager!.FindObservedResource(GpuResourceKind.Texture, unchecked((int)name))
             as GpuResourceMetadataEntry<GpuTextureMetadata>;
         if (entry is null) { bindings.Clear(); return; }
         if (!entry.IsRealized) return;

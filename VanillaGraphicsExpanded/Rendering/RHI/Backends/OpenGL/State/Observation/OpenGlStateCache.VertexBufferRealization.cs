@@ -13,7 +13,7 @@ internal sealed partial class OpenGlStateCache
     /// <summary>Establishes only the array default state shared by eligible EXT named commands.</summary>
     internal bool RealizeExtVertexArray(int vao)
     {
-        var manager = GpuResourceManagerSystem.CurrentManager;
+        var manager = RHIResourceManagerSystem.CurrentManager;
         if (vao == 0 || manager?.CanObserveNativeMetadata != true) return false;
         var entry = manager.FindObservedResource(GpuResourceKind.VertexArray, vao) as GpuResourceMetadataEntry<GpuVertexArrayMetadata>;
         if (entry is null)
@@ -58,7 +58,7 @@ internal sealed partial class OpenGlStateCache
         bool arrayEstablished = named ? vao != 0 && HasEstablishedNativeIdentity(GpuResourceKind.VertexArray, vao)
             : GetCurrentVao() != 0;
         if (arrayEstablished) RealizeNativeBuffer(buffer, false);
-        else if (named && GpuResourceManagerSystem.CurrentManager?.FindObservedResource(GpuResourceKind.VertexArray, vao)
+        else if (named && RHIResourceManagerSystem.CurrentManager?.FindObservedResource(GpuResourceKind.VertexArray, vao)
             is not { IsRealized: false }) MarkUncertainBufferRealization(buffer);
     }
     #endregion

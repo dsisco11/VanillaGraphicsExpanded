@@ -10,7 +10,7 @@ internal sealed unsafe partial class OpenGlStateCache
     {
         if (count <= 0 || names == null || !OpenGLObservationContext.TryGet(out _, out _, false)) return;
         for (int i = 0; i < count; i++)
-            GpuResourceManagerSystem.CurrentManager!.ObserveSemaphoreGeneration(unchecked((int)names[i]));
+            RHIResourceManagerSystem.CurrentManager!.ObserveSemaphoreGeneration(unchecked((int)names[i]));
     }
 
     /// <summary>Uses an explicit caller result without issuing a compensating validity probe.</summary>
@@ -18,7 +18,7 @@ internal sealed unsafe partial class OpenGlStateCache
     internal static void ObserveIsSemaphoreEXT(uint name, byte result)
     {
         if (result == 0 || !OpenGLObservationContext.TryGet(out _, out _, false)) return;
-        GpuResourceManagerSystem.CurrentManager!.ObserveSemaphoreRealization(unchecked((int)name));
+        RHIResourceManagerSystem.CurrentManager!.ObserveSemaphoreRealization(unchecked((int)name));
     }
     #endregion
 }

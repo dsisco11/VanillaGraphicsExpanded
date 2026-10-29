@@ -20,7 +20,7 @@ internal sealed partial class OpenGlStateCache
     internal void ObserveFeedbackConfiguration(int feedback)
     {
         InterruptNativeResourceOperation(GpuResourceKind.TransformFeedback, feedback);
-        var manager = GpuResourceManagerSystem.CurrentManager;
+        var manager = RHIResourceManagerSystem.CurrentManager;
         if (manager?.FindObservedResource(GpuResourceKind.TransformFeedback, feedback)
             is GpuResourceMetadataEntry<GpuTransformFeedbackMetadata> { IsUsable: true } entry)
             manager.PublishMetadata(entry, new GpuTransformFeedbackMetadata(), GpuMetadataChange.Metadata);
@@ -37,7 +37,7 @@ internal sealed partial class OpenGlStateCache
             || GpuSupport.HasCachedCapabilitiesForCurrentContext
                 && index >= GpuSupport.Graphics.MaxTransformFeedbackBuffers
             || cache.feedbackActivity.TryGetValue(feedback, out var activity) && activity.Active) return;
-        if (buffer != 0 && GpuResourceManagerSystem.CurrentManager?.FindObservedResource(GpuResourceKind.Buffer, buffer) is GpuResourceMetadataEntry<GpuBufferMetadata> { IsRealized: false, PendingChange: GpuMetadataChange.None }) return;
+        if (buffer != 0 && RHIResourceManagerSystem.CurrentManager?.FindObservedResource(GpuResourceKind.Buffer, buffer) is GpuResourceMetadataEntry<GpuBufferMetadata> { IsRealized: false, PendingChange: GpuMetadataChange.None }) return;
         cache.ObserveFeedbackConfiguration(feedback);
         if (cache.currentTransformFeedback != feedback || index > int.MaxValue) return;
         if (!GpuSupport.HasCachedCapabilitiesForCurrentContext || !cache.feedbackActivity.TryGetValue(feedback, out var known) || known.Active

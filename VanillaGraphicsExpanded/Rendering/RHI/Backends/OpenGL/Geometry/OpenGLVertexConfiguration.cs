@@ -11,7 +11,7 @@ internal static class OpenGLVertexConfiguration
     {
         var origin = Integration.RenderContextRegistry.CaptureResourceContext();
         using var operation = cache.EnterResourceOperation(new(GpuResourceKind.VertexArray, vao));
-        var manager = GpuResourceManagerSystem.CurrentManager;
+        var manager = RHIResourceManagerSystem.CurrentManager;
         var entry = manager?.FindObservedResource(GpuResourceKind.VertexArray, vao)
             as GpuResourceMetadataEntry<GpuVertexArrayMetadata>;
         cache.InvalidateVertexConfiguration(vao);

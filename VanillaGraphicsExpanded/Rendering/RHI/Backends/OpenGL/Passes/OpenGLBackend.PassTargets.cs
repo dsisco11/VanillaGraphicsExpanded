@@ -12,7 +12,7 @@ internal sealed partial class OpenGLBackend
 {
     private readonly Dictionary<OpenGLPassTargetKey, OpenGLPassTarget> passTargets = new();
     private readonly ConditionalWeakTable<RHIRenderPassDescription, OpenGLPassTargetKey> passTargetKeys = new();
-    private readonly GpuResourceDisposalQueue targetDisposals = GpuResourceManagerSystem.CaptureDisposalQueue();
+    private readonly RHIResourceDisposalQueue targetDisposals = RHIResourceManagerSystem.CaptureDisposalQueue();
 
     #region Internal API
 

@@ -15,7 +15,7 @@ internal sealed partial class OpenGlStateCache
             buffer = GetBoundBuffer(BufferTarget.PixelUnpackBuffer);
         if (buffer == 0) return true;
         if (pointer < 0) return false;
-        var entry = GpuResourceManagerSystem.CurrentManager?.FindObservedResource(GpuResourceKind.Buffer, buffer)
+        var entry = RHIResourceManagerSystem.CurrentManager?.FindObservedResource(GpuResourceKind.Buffer, buffer)
             as GpuResourceMetadataEntry<GpuBufferMetadata>;
         if (entry?.IsUsable != true || !TryGetBufferMapping(buffer, out bool mapped, out bool persistent)) return null;
         if (mapped && !persistent) return false;

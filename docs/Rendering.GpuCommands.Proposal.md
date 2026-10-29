@@ -5,12 +5,17 @@ Status: approved. Design deliverable for Phase 8 of
 an execution boundary; it does not implement commands or rename `StateCache`.
 
 Use uppercase `RHI` in all interface-layer type, namespace and directory names. Existing GPU resource names remain unchanged; `OpenGlStateCache` names the backend-specific cache.
+Management services use `RHIResourceManager`, `RHIResourceManagerSystem` and
+`RHIResourceDisposalQueue`; uniform publication lifecycle services use `RHIUniformRingSystem` and
+`RHIUniformRingFrameController`. Their engine hosts and callbacks use the same RHI naming.
+Resource identity/metadata records, `GpuUniformRingBuffer` storage and authored `GpuBindingRegistry`
+shader slots retain their established names and responsibilities.
 
 ## The proposed boundary
 
 Rendering code should express **what operation to perform on which resources**. The OpenGL backend
 should decide which native calls implement it. `OpenGlStateCache` should retain executed binding knowledge
-and reconcile command effects, while `GpuResourceManager` remains the sole metadata authority.
+and reconcile command effects, while `RHIResourceManager` remains the sole metadata authority.
 
 For example, an upload helper requests `UploadBuffer(destination, offset, bytes)`. It does not select
 `NamedBufferSubData` versus `BufferSubData`, bind a temporary target or restore that binding afterward.
@@ -27,7 +32,7 @@ flowchart TD
     B --> P[Validate and consult OpenGlStateCache]
     P --> N[Execute OpenGL 4.5 operation]
     N --> R[Reconcile OpenGlStateCache]
-    R --> M[GpuResourceManager publishes metadata effects]
+    R --> M[RHIResourceManager publishes metadata effects]
     E[Exact engine GL adapters] --> B
 ```
 
@@ -38,7 +43,7 @@ flowchart TD
 | `RHICommandContext` | Replaces `GraphicsCommandContext`: owns immediate graphics/compute submission and closed-list execution, coordinating passes, pipelines, dynamic state, binding validation/publication, draw/dispatch and engine-boundary restoration. |
 | `IRHIBackend` / OpenGL implementation | Semantic operations implemented directly with core 4.5 calls; optional extension operations, outcome handling and explicit operation composition. |
 | `OpenGlStateCache` (renamed `StateCache`) | Existing executed binding/routing knowledge, suppression decisions, boundary restoration facts and forwarding established resource effects to the manager. No public native execution surface in the final design. |
-| `GpuResourceManager` | Creation handoff, original associations, canonical metadata, operation candidates, availability, revisions, dependency validation and retirement queues. |
+| `RHIResourceManager` | Creation handoff, original associations, canonical metadata, operation candidates, availability, revisions, dependency validation and retirement queues. |
 | Existing wrappers/renderers | Ownership, allocation/growth/streaming policy, content readiness, pass orchestration and ordering. |
 
 Backend operations and cache are collaborators, not two dispatchers.
@@ -234,7 +239,7 @@ Linking and program IDs are not caller-facing RHI operations. Existing asset and
 retain their responsibilities; their native execution moves behind this boundary.
 
 Native shader/program objects remain existing `GpuResource<TMetadata>` resources created and published
-through `GpuResourceManager`. `RHIShader` owns the resulting native executable resource; its prepared
+through `RHIResourceManager`. `RHIShader` owns the resulting native executable resource; its prepared
 interface derives from supplied canonical metadata through the existing preparation system. It does not
 create another canonical metadata authority. Intermediate stages are cleaned up after successful linking
 where no longer needed; failed candidates retire only their own allocations. Creation returns a typed

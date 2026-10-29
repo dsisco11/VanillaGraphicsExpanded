@@ -124,11 +124,11 @@ public sealed class StaticGpuFramebufferTests(HeadlessGLFixture fixture, ITestOu
         // Other owning-image fixtures may retain their shared disposal service.
         // This case installs its own manager to exercise its actual queue drain.
         fixture.CleanupGpuResources();
-        using var manager = new GpuResourceManager();
-        GpuResourceManagerSystem.Initialize(manager);
+        using var manager = new RHIResourceManager();
+        RHIResourceManagerSystem.Initialize(manager);
         try
         {
-            manager.OnRenderFrame(0, GpuResourceManager.Stage);
+            manager.OnRenderFrame(0, RHIResourceManager.Stage);
             using var texture = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba32f, Width = System.Math.Max(1, 2), Height = System.Math.Max(1, 2), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
             using var image = GpuFramebufferAttachment.FromTexture(texture);
             using var target = StaticGpuFramebuffer.Create([image]);
@@ -144,13 +144,13 @@ public sealed class StaticGpuFramebufferTests(HeadlessGLFixture fixture, ITestOu
             Assert.Null(failure);
             OpenGlStateCache.Current.RequireMutableFramebufferConfiguration(id);
             Assert.True(texture.Resize(3, 3));
-            manager.OnRenderFrame(0, GpuResourceManager.Stage);
+            manager.OnRenderFrame(0, RHIResourceManager.Stage);
             Assert.False(GL.IsFramebuffer(id));
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
         finally
         {
-            GpuResourceManagerSystem.Shutdown();
+            RHIResourceManagerSystem.Shutdown();
             TextureStreamingSystem.Dispose();
         }
     }

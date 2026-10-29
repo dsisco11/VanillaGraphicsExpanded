@@ -69,7 +69,7 @@ public sealed class GpuMetadataBoundAcquisitionTests(HeadlessGLFixture fixture)
             Assert.Equal((nint)(ranged ? 256 : 0), view.SizeBytes);
             Assert.Equal(TextureFormat.R32f, view.Format);
             Assert.Equal(sentinel.TextureId, GL.GetInteger(GetPName.TextureBindingBuffer));
-            var entry = GpuResourceManagerSystem.CurrentManager!.GetResourceRegistration(view)!;
+            var entry = RHIResourceManagerSystem.CurrentManager!.GetResourceRegistration(view)!;
             Assert.True(entry.MetadataAvailable);
             Assert.Equal((ulong)1, entry.MetadataRevision);
             Assert.Equal(ErrorCode.NoError, GL.GetError());

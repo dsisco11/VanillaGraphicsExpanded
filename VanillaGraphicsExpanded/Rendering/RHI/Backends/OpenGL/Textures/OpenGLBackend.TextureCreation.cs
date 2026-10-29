@@ -19,7 +19,7 @@ internal sealed partial class OpenGLBackend
         ValidateTextureInitialData(resolved, initialData);
         // The owner must capture its context's live manager before construction;
         // otherwise later recovery can attach it to a retired or missing lifetime.
-        GpuResourceManagerSystem.EnsureCurrentContext();
+        RHIResourceManagerSystem.EnsureCurrentContext();
         GpuTexture owner = typeof(T) == typeof(DynamicTexture2D) ? new DynamicTexture2D()
             : typeof(T) == typeof(DynamicTexture3D) ? new DynamicTexture3D()
             : typeof(T) == typeof(DynamicTextureCube) ? new DynamicTextureCube()
@@ -29,7 +29,7 @@ internal sealed partial class OpenGLBackend
         owner.SetAllocationPolicy(request.Has(11) ? request.Filter : TextureFilterMode.Nearest, request.Label);
         try
         {
-            if (!GpuResourceManager.CreateTexture(resolved, owner, out _, initialData.ToArray()).HasValue)
+            if (!RHIResourceManager.CreateTexture(resolved, owner, out _, initialData.ToArray()).HasValue)
             {
                 owner.Dispose();
                 return new(null, "Image initialization did not complete.");

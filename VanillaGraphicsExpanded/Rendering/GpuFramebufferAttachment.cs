@@ -12,7 +12,7 @@ public sealed class GpuFramebufferAttachment : GpuResource<GpuImageMetadata>
 {
     private GpuResource? resource;
     private readonly bool ownsStorage;
-    private readonly GpuResourceDisposalQueue disposalQueue;
+    private readonly RHIResourceDisposalQueue disposalQueue;
     private readonly List<WeakReference<GpuFramebuffer>> framebuffers = new();
     private readonly int externalId;
     private readonly bool renderbuffer;
@@ -275,7 +275,7 @@ public sealed class GpuFramebufferAttachment : GpuResource<GpuImageMetadata>
     private static DynamicTexture2D CreateTextureStorage(int width, int height, TextureFormat format,
         TextureFilterMode filter, string? debugName)
     {
-        if (GpuResourceManagerSystem.CaptureDisposalQueue().IsClosed)
+        if (RHIResourceManagerSystem.CaptureDisposalQueue().IsClosed)
             throw new InvalidOperationException("Initialize the GPU resource manager before creating new owned attachments after shutdown.");
         var owner = new DynamicTexture2D();
         try
@@ -292,7 +292,7 @@ public sealed class GpuFramebufferAttachment : GpuResource<GpuImageMetadata>
     private static GpuRenderbuffer CreateRenderbufferStorage(TextureFormat storage, int width, int height,
         int samples, string? debugName)
     {
-        if (GpuResourceManagerSystem.CaptureDisposalQueue().IsClosed)
+        if (RHIResourceManagerSystem.CaptureDisposalQueue().IsClosed)
             throw new InvalidOperationException("Initialize the GPU resource manager before creating new owned attachments after shutdown.");
         var owner = new GpuRenderbuffer(0, true, debugName);
         try
@@ -313,7 +313,7 @@ public sealed class GpuFramebufferAttachment : GpuResource<GpuImageMetadata>
     {
         this.resource = resource;
         this.ownsStorage = ownsStorage;
-        disposalQueue = GpuResourceManagerSystem.CaptureDisposalQueue();
+        disposalQueue = RHIResourceManagerSystem.CaptureDisposalQueue();
         MipLevel = mipLevel;
         this.cubeFace = cubeFace;
         Layer = layer;
@@ -322,7 +322,7 @@ public sealed class GpuFramebufferAttachment : GpuResource<GpuImageMetadata>
         attachmentMode = mode;
         renderbuffer = resource is GpuResource<GpuRenderbufferMetadata>;
         target = (resource is GpuResource<GpuTextureMetadata> texture
-            ? GpuResourceManager.RequireTextureReferenceMetadata(texture).Target : 0);
+            ? RHIResourceManager.RequireTextureReferenceMetadata(texture).Target : 0);
         try
         {
             ValidateSelection();
@@ -353,7 +353,7 @@ public sealed class GpuFramebufferAttachment : GpuResource<GpuImageMetadata>
         BaseView = baseView;
         ViewCount = viewCount;
         attachmentMode = mode;
-        disposalQueue = GpuResourceManagerSystem.CaptureDisposalQueue();
+        disposalQueue = RHIResourceManagerSystem.CaptureDisposalQueue();
         ValidateSelection();
         RHICommandContext.AcquireAttachmentImage(this, acquiredTexture, acquiredRenderbuffer);
         GC.SuppressFinalize(this);

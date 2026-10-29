@@ -36,7 +36,7 @@ public sealed class RHIShader : IDisposable
     internal RHIShader(RHIShaderDescription description, GpuProgramObject program, GpuProgramInterface prepared)
     {
         Description = description; this.program = program; Interface = prepared;
-        snapshot = GpuResourceManager.RequireProgramSnapshot(program);
+        snapshot = RHIResourceManager.RequireProgramSnapshot(program);
         registration = program.ResourceManager?.GetResourceRegistration(program);
         revision = registration?.MetadataRevision ?? 0;
     }
@@ -44,7 +44,7 @@ public sealed class RHIShader : IDisposable
     internal void RequireUsable()
     {
         ObjectDisposedException.ThrowIf(IsDisposed, this);
-        GpuResourceManager.RequireFixedExecutable(program, registration, revision, snapshot);
+        RHIResourceManager.RequireFixedExecutable(program, registration, revision, snapshot);
     }
     #endregion
 }

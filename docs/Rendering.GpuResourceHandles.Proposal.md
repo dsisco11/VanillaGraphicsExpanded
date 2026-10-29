@@ -15,7 +15,7 @@ original-entry recovery. Missing covered tracking and context-local tools grant 
 ## Intent
 
 Give owning and non-owning GPU wrappers canonical native metadata and a common notification mechanism.
-`GpuResourceManager` owns the registry. OpenGlStateCache observes backend operations and forwards metadata
+`RHIResourceManager` owns the registry. OpenGlStateCache observes backend operations and forwards metadata
 changes to the manager, which updates its canonical struct and publishes typed snapshots to wrappers.
 Borrowed resources participate in this same mechanism, preserving normal binding caching.
 
@@ -24,7 +24,7 @@ Borrowed resources participate in this same mechanism, preserving normal binding
 [GpuResource](../VanillaGraphicsExpanded/Rendering/GpuResource.cs) defines native identity, disposal,
 ownership, usage guards, context capture and deletion scheduling. Resource wrappers derive from
 `GpuResource<TMetadata>` and expose native facts through synchronized snapshots.
-[GpuResourceManager](../VanillaGraphicsExpanded/Rendering/GpuResourceManager.cs) owns canonical entries,
+[RHIResourceManager](../VanillaGraphicsExpanded/Rendering/RHIResourceManager.cs) owns canonical entries,
 weak wrapper associations, shared guards and queued retirement. [BorrowedTexture](../VanillaGraphicsExpanded/Rendering/BorrowedTexture.cs)
 acquires initial metadata through that common registry without acquiring ownership.
 [OpenGlStateCache](../VanillaGraphicsExpanded/Rendering/RHI/Backends/OpenGL/State/Observation/OpenGlStateCache.ResourceDeletion.Publication.cs) observes
@@ -40,7 +40,7 @@ qualification and its evidence limits are recorded in the implementation checkli
 
 | Component | Responsibility |
 | --- | --- |
-| GpuResourceManager | Context-scoped registry, canonical metadata, registration validity, shared existing guard state, snapshot publication and deferred deletion. |
+| RHIResourceManager | Context-scoped registry, canonical metadata, registration validity, shared existing guard state, snapshot publication and deferred deletion. |
 | GpuResource | Native identity, wrapper-local ownership/disposal and existing deletion scheduling contract. No metadata members or notification contract. |
 | GpuResource<TMetadata> | Private snapshot, protected read-only access and public HandleMetadataChanged(TMetadata data) that assigns the snapshot. No registration, availability, revision or subscription state. |
 | Typed resource wrappers | Resource-specific operations and metadata accessors; authored policy remains local. |

@@ -50,7 +50,7 @@ public sealed unsafe class GpuTextureParameterInterceptionTests(HeadlessGLFixtur
         {
             using var texture = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba8, Width = System.Math.Max(1, 8), Height = System.Math.Max(1, 8), MipLevels = 4, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (4) - 1, Label = null }).RequireResource();
             using var alias = new BorrowedTexture(texture.TextureId);
-            var entry = Assert.IsType<GpuResourceMetadataEntry<GpuTextureMetadata>>(GpuResourceManagerSystem.CurrentManager!.GetResourceRegistration(texture));
+            var entry = Assert.IsType<GpuResourceMetadataEntry<GpuTextureMetadata>>(RHIResourceManagerSystem.CurrentManager!.GetResourceRegistration(texture));
             ulong revision = entry.MetadataRevision, storage = entry.StorageRevision;
             GL.ActiveTexture(TextureUnit.Texture3);
             GL.BindTexture(TextureTarget.Texture2D, texture.TextureId);
@@ -60,7 +60,7 @@ public sealed unsafe class GpuTextureParameterInterceptionTests(HeadlessGLFixtur
             Assert.Equal(1, entry.Metadata.BaseLevel);
             Assert.Equal(revision + 1, entry.MetadataRevision);
             Assert.Equal(storage, entry.StorageRevision);
-            Assert.True(GpuResourceManagerSystem.CurrentManager.IsResourceMetadataAvailable(alias));
+            Assert.True(RHIResourceManagerSystem.CurrentManager.IsResourceMetadataAvailable(alias));
             Assert.Equal((int)(variant == 8 ? TextureUnit.Texture5 : TextureUnit.Texture3), GL.GetInteger(GetPName.ActiveTexture));
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
@@ -80,7 +80,7 @@ public sealed unsafe class GpuTextureParameterInterceptionTests(HeadlessGLFixtur
             GL.ActiveTexture(TextureUnit.Texture0);
             GL.BindTexture(TextureTarget.Texture2D, texture.TextureId);
             OpenGlStateCache.Current.InvalidateAll();
-            var entry = Assert.IsType<GpuResourceMetadataEntry<GpuTextureMetadata>>(GpuResourceManagerSystem.CurrentManager!.GetResourceRegistration(texture));
+            var entry = Assert.IsType<GpuResourceMetadataEntry<GpuTextureMetadata>>(RHIResourceManagerSystem.CurrentManager!.GetResourceRegistration(texture));
             ulong revision = entry.MetadataRevision;
             using var descriptors = new ImageDescriptorCapture(native =>
             {

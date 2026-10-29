@@ -27,7 +27,7 @@ public sealed class RHIImageTests(HeadlessGLFixture fixture)
             using var source = context.CreateTexture(Description(dimension, true)).RequireResource();
             using var destination = context.CreateTexture(Description(dimension, true)).RequireResource();
             var region = new RHITextureRegion(new(), 0, 0, 0, 4, 4, dimension == TextureDimension.TwoMultisampleArray ? 4 : 1);
-            var manager = GpuResourceManagerSystem.CurrentManager!;
+            var manager = RHIResourceManagerSystem.CurrentManager!;
             ulong revision = manager.GetResourceRegistration(destination)!.StorageRevision;
             context.CopyTexture(source, region, destination, region);
             Assert.Equal(revision, manager.GetResourceRegistration(destination)!.StorageRevision);
@@ -136,7 +136,7 @@ public sealed class RHIImageTests(HeadlessGLFixture fixture)
             byte[] result = new byte[16];
             GL.GetTextureSubImage(destination.TextureId, 0, 0, 0, 0, 2, 2, 1, PixelFormat.Rgba, PixelType.UnsignedByte, result.Length, result);
             Assert.Equal(initial, result);
-            var manager = GpuResourceManagerSystem.CurrentManager!;
+            var manager = RHIResourceManagerSystem.CurrentManager!;
             ulong revision = manager.GetResourceRegistration(source)!.StorageRevision;
             context.ClearTexture(view, selection, encoding, new byte[] { 3, 4, 5, 6 });
             GL.GetTextureSubImage(source.TextureId, 1, 0, 0, 1, 2, 2, 1, PixelFormat.Rgba, PixelType.UnsignedByte, result.Length, result);
@@ -256,7 +256,7 @@ public sealed class RHIImageTests(HeadlessGLFixture fixture)
             Assert.Throws<InvalidOperationException>(() => RHICommandContext.Current.CreateSampler(new RHISamplerDescription
                 { MinFilter = SamplerFilter.Nearest, MagFilter = SamplerFilter.Linear, AddressS = SamplerAddressMode.ClampToEdge }));
             Assert.Equal(2, calls); Assert.NotEqual(0, candidate);
-            GpuResourceManagerSystem.CurrentManager!.OnRenderFrame(0, GpuResourceManager.Stage);
+            RHIResourceManagerSystem.CurrentManager!.OnRenderFrame(0, RHIResourceManager.Stage);
             Assert.False(GL.IsSampler(candidate)); Assert.True(GL.IsSampler(survivor.SamplerId));
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }

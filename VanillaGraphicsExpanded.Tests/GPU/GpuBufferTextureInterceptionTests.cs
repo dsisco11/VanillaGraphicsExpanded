@@ -35,7 +35,7 @@ public sealed unsafe class GpuBufferTextureInterceptionTests(HeadlessGLFixture f
             using var second = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = null }).RequireResource(); second.Allocate(128);
             using var view = RHICommandContext.Current.CreateBufferTexture(new RHIBufferTextureDescription { Buffer = first, Format = TextureFormat.R32f, WholeBuffer = true, Label = null }).RequireResource();
             using var sentinel = RHICommandContext.Current.CreateBufferTexture(new RHIBufferTextureDescription { Buffer = first, Format = TextureFormat.R32f, WholeBuffer = true, Label = null }).RequireResource();
-            var manager = GpuResourceManagerSystem.CurrentManager!;
+            var manager = RHIResourceManagerSystem.CurrentManager!;
             var entry = (GpuResourceMetadataEntry<GpuTextureMetadata>)manager.GetResourceRegistration(view)!;
             using var alias = new TextureAlias(view.TextureId); manager.AssociateResource(entry, alias);
             // Invalidate cached selection while retaining actual native binding to exercise resolution.
@@ -74,7 +74,7 @@ public sealed unsafe class GpuBufferTextureInterceptionTests(HeadlessGLFixture f
         {
             using var buffer = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = null }).RequireResource(); buffer.Allocate(128);
             using var view = RHICommandContext.Current.CreateBufferTexture(new RHIBufferTextureDescription { Buffer = buffer, Format = TextureFormat.R32f, WholeBuffer = false, Offset = 0, Length = 64, Label = null }).RequireResource();
-            var entry = (GpuResourceMetadataEntry<GpuTextureMetadata>)GpuResourceManagerSystem.CurrentManager!.GetResourceRegistration(view)!;
+            var entry = (GpuResourceMetadataEntry<GpuTextureMetadata>)RHIResourceManagerSystem.CurrentManager!.GetResourceRegistration(view)!;
             if (rejection == 4) Associate(8, view.TextureId, buffer.BufferId, SizedInternalFormat.R32f, 0, 128);
             var original = entry.Metadata.Buffer;
             if (rejection == 0) Associate(8, view.TextureId, buffer.BufferId, SizedInternalFormat.R32f, 0, 256);
@@ -88,7 +88,7 @@ public sealed unsafe class GpuBufferTextureInterceptionTests(HeadlessGLFixture f
             Assert.Equal(ErrorCode.NoError, GL.GetError());
             Associate(1, view.TextureId, 0, SizedInternalFormat.R32f, 0, 0);
             Assert.Equal(0, view.BufferId);
-            Assert.True(GpuResourceManagerSystem.CurrentManager!.IsResourceMetadataAvailable(view));
+            Assert.True(RHIResourceManagerSystem.CurrentManager!.IsResourceMetadataAvailable(view));
             Assert.False(view.IsValid);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
@@ -167,14 +167,14 @@ public sealed unsafe class GpuBufferTextureInterceptionTests(HeadlessGLFixture f
             Associate(1, texture, backing.BufferId, SizedInternalFormat.R32f, 0, 0);
             Assert.Equal(0, descriptors.Reads);
             var entry = Assert.IsType<GpuResourceMetadataEntry<GpuTextureMetadata>>(
-                GpuResourceManagerSystem.CurrentManager!.FindResource(GpuResourceKind.Texture, texture));
+                RHIResourceManagerSystem.CurrentManager!.FindResource(GpuResourceKind.Texture, texture));
             var original = entry.Metadata;
             ulong revision = entry.MetadataRevision;
             nint offset = (nint)int.MaxValue + 4097, size = (nint)int.MaxValue + 8193;
             Associate(8, texture, backing.BufferId, SizedInternalFormat.R32f, offset, size);
             Assert.Equal(offset, capturedOffset); Assert.Equal(size, capturedSize);
             Assert.Equal(0, descriptors.Reads);
-            Assert.Same(entry, GpuResourceManagerSystem.CurrentManager!.FindResource(GpuResourceKind.Texture, texture));
+            Assert.Same(entry, RHIResourceManagerSystem.CurrentManager!.FindResource(GpuResourceKind.Texture, texture));
             Assert.Equal(original, entry.Metadata);
             Assert.Equal(revision, entry.MetadataRevision);
             Assert.Equal(ErrorCode.InvalidValue, GL.GetError());
@@ -195,7 +195,7 @@ public sealed unsafe class GpuBufferTextureInterceptionTests(HeadlessGLFixture f
                 prefix: new HarmonyMethod(typeof(GpuBufferTextureInterceptionTests), nameof(ThrowBeforeDispatch)));
             var failure = Assert.Throws<ApplicationException>(() => Associate(8, view.TextureId, buffer.BufferId, SizedInternalFormat.R32f, 0, 64));
             Assert.Equal("native boundary failure", failure.Message);
-            Assert.True(GpuResourceManagerSystem.CurrentManager!.IsResourceMetadataAvailable(view));
+            Assert.True(RHIResourceManagerSystem.CurrentManager!.IsResourceMetadataAvailable(view));
             Assert.True(view.IsValid);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }

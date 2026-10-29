@@ -18,7 +18,7 @@ internal sealed partial class OpenGLBackend
         owner.RequireOriginalContext();
         request.Validate();
         owner.RequireMutableStorage();
-        using var operation = new GpuResourceManager.MetadataOperation<GpuRenderbufferMetadata>(owner, GpuMetadataChange.Storage);
+        using var operation = new RHIResourceManager.MetadataOperation<GpuRenderbufferMetadata>(owner, GpuMetadataChange.Storage);
         var result = DefineRenderbuffer(owner.RenderbufferId, request, operation);
         RequireContext();
         operation.Commit(result);
@@ -67,7 +67,7 @@ internal sealed partial class OpenGLBackend
     }
     /// <summary>Resolves samples from cached format capabilities, never a whole-descriptor query.</summary>
     private GpuRenderbufferMetadata DefineRenderbuffer(int id, in GpuRenderbufferInitialization request,
-        GpuResourceManager.MetadataOperation<GpuRenderbufferMetadata>? operation = null,
+        RHIResourceManager.MetadataOperation<GpuRenderbufferMetadata>? operation = null,
         OpenGlStateCache.ResourceOperationGuard? creationGuard = null)
     {
         int samples = request.Samples;
@@ -97,7 +97,7 @@ internal sealed partial class OpenGLBackend
     }
 
     /// <summary>Stops allocation-result reads after original identity or context retirement.</summary>
-    private void CheckRenderbufferStep(GpuResourceManager.MetadataOperation<GpuRenderbufferMetadata>? operation,
+    private void CheckRenderbufferStep(RHIResourceManager.MetadataOperation<GpuRenderbufferMetadata>? operation,
         OpenGlStateCache.ResourceOperationGuard? creationGuard)
     {
         RequireContext();

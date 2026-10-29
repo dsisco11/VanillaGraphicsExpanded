@@ -87,7 +87,7 @@ public sealed class GpuOperationContextFoundationTests(HeadlessGLFixture fixture
         var firstContext = GLFW.CreateWindow(8, 8, "Operation local A", null, null);
         var secondContext = GLFW.CreateWindow(8, 8, "Operation local B", null, null);
         GpuBufferObject? owner = null;
-        GpuResourceManager.MetadataOperation<GpuBufferMetadata>? operation = null;
+        RHIResourceManager.MetadataOperation<GpuBufferMetadata>? operation = null;
         IRHIResourceOperation? second = null;
         try
         {
@@ -241,9 +241,9 @@ public sealed class GpuOperationContextFoundationTests(HeadlessGLFixture fixture
         try
         {
             using var owner = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = null }).RequireResource(); owner.Allocate(16); id = owner.BufferId;
-            var manager = GpuResourceManagerSystem.CurrentManager!;
+            var manager = RHIResourceManagerSystem.CurrentManager!;
             var entry = Assert.IsType<GpuResourceMetadataEntry<GpuBufferMetadata>>(manager.GetResourceRegistration(owner));
-            using (var operation = new GpuResourceManager.MetadataOperation<GpuBufferMetadata>(owner, GpuMetadataChange.Storage))
+            using (var operation = new RHIResourceManager.MetadataOperation<GpuBufferMetadata>(owner, GpuMetadataChange.Storage))
             {
                 RenderContextRegistry.Retire(fixture);
                 Assert.Throws<InvalidOperationException>(() => operation.Commit(new(64, BufferUsage.StaticDraw)));

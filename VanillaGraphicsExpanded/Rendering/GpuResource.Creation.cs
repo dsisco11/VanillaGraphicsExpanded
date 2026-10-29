@@ -11,7 +11,7 @@ public abstract partial class GpuResource
     internal static T CompleteOwnedCreation<T>(GpuResourceKind kind, nint id, Func<T> construct)
     {
         var origin = RenderContextRegistry.Current();
-        var manager = GpuResourceManagerSystem.CurrentManager;
+        var manager = RHIResourceManagerSystem.CurrentManager;
         try { return construct(); }
         catch
         {

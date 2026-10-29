@@ -132,7 +132,7 @@ public sealed class GpuResourceMetadataRegistryTests
     public void KindContextAndNativeWidthRemainDistinct()
     {
         using var first = CreateManager();
-        using var second = new GpuResourceManager(static () => (2, 1), static _ => true);
+        using var second = new RHIResourceManager(static () => (2, 1), static _ => true);
         nint id = nint.Size == 8 ? unchecked((nint)0x123456789L) : 12345;
         var sync = first.RegisterCreatedResource<GpuSyncMetadata>(GpuResourceKind.Sync, id);
         var buffer = first.RegisterCreatedResource<GpuBufferMetadata>(GpuResourceKind.Buffer, id);
@@ -196,7 +196,7 @@ public sealed class GpuResourceMetadataRegistryTests
     public void ContextAndThreadBoundariesRejectRetargeting()
     {
         (nint, long) current = (1, 1);
-        using var manager = new GpuResourceManager(() => current, static _ => true);
+        using var manager = new RHIResourceManager(() => current, static _ => true);
         var entry = manager.RegisterCreatedResource<GpuBufferMetadata>(GpuResourceKind.Buffer, 7);
         current = (2, 1);
         Assert.Throws<InvalidOperationException>(() => manager.RegisterCreatedResource<GpuBufferMetadata>(GpuResourceKind.Buffer, 7));
@@ -503,7 +503,7 @@ public sealed class GpuResourceMetadataRegistryTests
 
     #region Private
     /// <summary>Models the explicit pre-install owner handoff for deterministic initial-discovery tests.</summary>
-    private static GpuResourceMetadataEntry<GpuBufferMetadata>? DiscoverPreexistingBuffer(GpuResourceManager manager,
+    private static GpuResourceMetadataEntry<GpuBufferMetadata>? DiscoverPreexistingBuffer(RHIResourceManager manager,
         nint id, IGpuResourceMetadataReader<GpuBufferMetadata> reader)
     {
         if (manager.FindResource(GpuResourceKind.Buffer, id) is null) manager.RecordPreexistingBuffer(id);
@@ -520,11 +520,11 @@ public sealed class GpuResourceMetadataRegistryTests
     }
 
     /// <summary>Creates a context-scoped registry without loading or invoking native graphics.</summary>
-    private static GpuResourceManager CreateManager() => new(static () => (1, 1), static _ => true);
+    private static RHIResourceManager CreateManager() => new(static () => (1, 1), static _ => true);
 
     /// <summary>Ends the local strong-reference scope so collection tests measure registry retention.</summary>
     [MethodImpl(MethodImplOptions.NoInlining)]
-    private static WeakReference AssociateTemporary(GpuResourceManager manager, GpuResourceMetadataEntry<GpuBufferMetadata> entry)
+    private static WeakReference AssociateTemporary(RHIResourceManager manager, GpuResourceMetadataEntry<GpuBufferMetadata> entry)
     {
         var resource = new Resource<GpuBufferMetadata>(GpuResourceKind.Buffer, 7);
         manager.AssociateResource(entry, resource);

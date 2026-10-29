@@ -20,7 +20,7 @@ internal sealed partial class OpenGLBackend
         var owner = new GpuQuery(description.Kind);
         try
         {
-            if (!GpuResourceManager.CreateQuery(new(description.Kind), owner, out _).HasValue)
+            if (!RHIResourceManager.CreateQuery(new(description.Kind), owner, out _).HasValue)
             { owner.Dispose(); return new(null, "Query initialization failed."); }
             cache.EstablishQueryTarget(owner.QueryId, (int)QueryTargetFor(description.Kind));
             owner.SetDebugName(description.Label);

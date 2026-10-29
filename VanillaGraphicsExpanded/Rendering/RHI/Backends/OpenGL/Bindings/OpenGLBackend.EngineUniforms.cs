@@ -17,7 +17,7 @@ internal sealed partial class OpenGLBackend
         if (snapshot.Bytes.Length > Capabilities.MaxUniformBlockSize)
             throw new ArgumentException("Uniform snapshot exceeds the cached block-size limit.", nameof(snapshot));
         if (executionResources.Count != 0) throw new InvalidOperationException("Resource execution cannot recurse.");
-        if (!GpuUniformRingSystem.TryGetCurrent(out _)) return false;
+        if (!RHIUniformRingSystem.TryGetCurrent(out _)) return false;
         // Engine membership owns the numeric slot. Allocation, version commitment, abort
         // and captured CPU revision handling remain singular inside the backend publisher.
         try

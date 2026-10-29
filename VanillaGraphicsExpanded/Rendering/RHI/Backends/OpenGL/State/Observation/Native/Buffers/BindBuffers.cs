@@ -50,7 +50,7 @@ internal sealed unsafe partial class OpenGlStateCache
         {
             int id = names == null ? 0 : unchecked((int)names[i]);
             int slot = (int)first + i;
-            if (id != 0 && GpuResourceManagerSystem.CurrentManager?.FindObservedResource(GpuResourceKind.Buffer, id) is GpuResourceMetadataEntry<GpuBufferMetadata> { IsRealized: false, PendingChange: GpuMetadataChange.None }) continue;
+            if (id != 0 && RHIResourceManagerSystem.CurrentManager?.FindObservedResource(GpuResourceKind.Buffer, id) is GpuResourceMetadataEntry<GpuBufferMetadata> { IsRealized: false, PendingChange: GpuMetadataChange.None }) continue;
             nint offset = 0, size = 0;
             if (range && names != null)
             {

@@ -150,7 +150,7 @@ public sealed class DriverProgramCacheTests(HeadlessGLFixture fixture, ITestOutp
                 {
                     Assert.Equal(generation > 0, DriverProgramCache.LastLoadWasHit);
                     Assert.NotNull(pipeline!.ProgramLayout.BinaryInterface);
-                    Assert.True(GpuUniformRingSystem.TryGetCurrent(out var ring));
+                    Assert.True(RHIUniformRingSystem.TryGetCurrent(out var ring));
                     byte[] data = new byte[16];
                     System.Buffers.Binary.BinaryPrimitives.WriteUInt32LittleEndian(data, (uint)(100 + generation));
                     var allocation = ring.AllocateAndWrite(data);

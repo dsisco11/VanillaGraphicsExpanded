@@ -72,7 +72,7 @@ internal sealed partial class OpenGlStateCache
         int framebuffer = namedFramebuffer ?? GetCurrentFramebuffer(FramebufferTarget.DrawFramebuffer);
         bool realized = namedFramebuffer is null || framebuffer == 0 || framebufferDrawRouting.ContainsKey(framebuffer)
             || TryGetCachedCurrentFramebuffer(FramebufferTarget.DrawFramebuffer, out int selected) && selected == framebuffer
-            || GpuResourceManagerSystem.CurrentManager is { CanObserveNativeMetadata: true } manager
+            || RHIResourceManagerSystem.CurrentManager is { CanObserveNativeMetadata: true } manager
                 && manager.FindObservedResource(GpuResourceKind.Framebuffer, framebuffer) is { State: GpuResourceRegistrationState.Live };
         if (!realized || count != 0 && buffers == null) { InvalidateFramebufferDrawRouting(framebuffer); return; }
         var route = new ReadOnlySpan<DrawBuffersEnum>(buffers, count);

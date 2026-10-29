@@ -45,10 +45,10 @@ public sealed class GpuTextureLifetimeTests : RenderTestBase
     public void QueuedDeletionUpdatesCacheOnlyWhenDrained()
     {
         EnsureContextValid();
-        using var manager = GpuResourceManagerSystem.EnsureCurrentContext();
+        using var manager = RHIResourceManagerSystem.EnsureCurrentContext();
         try
         {
-            manager.OnRenderFrame(0, GpuResourceManager.Stage);
+            manager.OnRenderFrame(0, RHIResourceManager.Stage);
             using var target = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba32f, Width = System.Math.Max(1, 1), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
             using var retired = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba32f, Width = System.Math.Max(1, 1), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
             VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, retired, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)retired).Target)))]);
@@ -59,7 +59,7 @@ public sealed class GpuTextureLifetimeTests : RenderTestBase
             Assert.Null(workerError);
             Assert.True(GL.IsTexture(retiredId));
             Assert.Equal(retiredId, OpenGlStateCache.Current.GetBoundTexture(TextureTarget.Texture2D, 0));
-            manager.OnRenderFrame(0, GpuResourceManager.Stage);
+            manager.OnRenderFrame(0, RHIResourceManager.Stage);
             Assert.False(GL.IsTexture(retiredId));
             Assert.Equal(0, OpenGlStateCache.Current.GetBoundTexture(TextureTarget.Texture2D, 0));
             target.UploadDataImmediate(new float[] { 0, 0, 0, 1 });
@@ -67,7 +67,7 @@ public sealed class GpuTextureLifetimeTests : RenderTestBase
         }
         finally
         {
-            GpuResourceManagerSystem.Shutdown();
+            RHIResourceManagerSystem.Shutdown();
             TextureStreamingSystem.Dispose();
         }
     }

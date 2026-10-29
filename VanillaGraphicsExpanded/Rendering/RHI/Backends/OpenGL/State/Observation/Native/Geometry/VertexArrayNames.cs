@@ -24,7 +24,7 @@ internal sealed unsafe partial class OpenGlStateCache
     private static void ObserveVertexArrayNames(int count, uint* names, bool realized)
     {
         if (count <= 0 || names == null || !OpenGLObservationContext.TryGet(out _, out _, false)) return;
-        var manager = GpuResourceManagerSystem.CurrentManager!;
+        var manager = RHIResourceManagerSystem.CurrentManager!;
         for (int i = 0; i < count; i++)
         {
             int id = unchecked((int)names[i]);

@@ -2,7 +2,7 @@
 
 `RHICommandContext` is the graphics/compute execution boundary. Renderers choose work and ordering;
 immutable RHI pipeline descriptions supply intended state. The OpenGL backend validates and executes
-operations using one `OpenGlStateCache` and the existing `GpuResourceManager`.
+operations using one `OpenGlStateCache` and the existing `RHIResourceManager`.
 
 ## Shader ownership and boundary lifetime
 

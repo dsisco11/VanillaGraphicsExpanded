@@ -31,7 +31,7 @@ public sealed unsafe class GpuExecutableFactoryTests(HeadlessGLFixture fixture)
             shader = stageFactory((int)ShaderType.FragmentShader);
             program = programFactory();
             Assert.NotEqual(0, shader); Assert.NotEqual(0, program);
-            var manager = GpuResourceManagerSystem.CurrentManager!;
+            var manager = RHIResourceManagerSystem.CurrentManager!;
             var stage = Assert.IsType<GpuResourceMetadataEntry<GpuShaderMetadata>>(manager.FindResource(GpuResourceKind.Shader, shader));
             var executable = Assert.IsType<GpuResourceMetadataEntry<GpuProgramMetadata>>(manager.FindResource(GpuResourceKind.Program, program));
             Assert.True(stage.IsUsable); Assert.Equal(ShaderStage.Fragment, stage.Metadata.Type);
@@ -72,7 +72,7 @@ public sealed unsafe class GpuExecutableFactoryTests(HeadlessGLFixture fixture)
                         (int)ShaderType.FragmentShader, variant == 2 ? 0 : 1, variant == 2 ? 0 : (nint)(&source));
             }
             Assert.NotEqual(0, program);
-            var manager = GpuResourceManagerSystem.CurrentManager!;
+            var manager = RHIResourceManagerSystem.CurrentManager!;
             var original = Assert.IsType<GpuResourceMetadataEntry<GpuProgramMetadata>>(manager.FindResource(GpuResourceKind.Program, program));
             GL.GetProgram(program, GetProgramParameterName.LinkStatus, out int linked);
             if (variant != 2) Assert.Equal(variant == 0, linked != 0);

@@ -15,7 +15,7 @@ internal sealed partial class OpenGLBackend
         RequireContext();
         if (!request.Has(0) || !request.Has(1) || !request.Has(2)) throw new ArgumentException("Backing buffer, format and whole/range intent are required.");
         var buffer = request.Buffer.RequireResource();
-        _ = GpuResourceManager.RequireBufferReferenceMetadata(buffer);
+        _ = RHIResourceManager.RequireBufferReferenceMetadata(buffer);
         var initialization = new GpuBufferTextureInitialization { Buffer = (int)buffer.ResourceId,
             Format = request.Format, Mode = request.WholeBuffer ? GpuBufferTextureMode.Whole : GpuBufferTextureMode.Range };
         if (!request.WholeBuffer)
@@ -27,10 +27,10 @@ internal sealed partial class OpenGLBackend
         var owner = new GpuBufferTexture();
         try
         {
-            if (!GpuResourceManager.CreateBufferTexture(initialization, owner, out _, buffer).HasValue) return new(null, "Buffer texture initialization did not complete.");
-            _ = GpuResourceManager.RequireBufferReferenceMetadata(buffer);
-            GpuResourceManager.EstablishBufferTextureSource(owner, buffer);
-            _ = GpuResourceManager.RequireTextureReferenceMetadata(owner);
+            if (!RHIResourceManager.CreateBufferTexture(initialization, owner, out _, buffer).HasValue) return new(null, "Buffer texture initialization did not complete.");
+            _ = RHIResourceManager.RequireBufferReferenceMetadata(buffer);
+            RHIResourceManager.EstablishBufferTextureSource(owner, buffer);
+            _ = RHIResourceManager.RequireTextureReferenceMetadata(owner);
             owner.SetDebugName(request.Label);
             return new(owner, null);
         }

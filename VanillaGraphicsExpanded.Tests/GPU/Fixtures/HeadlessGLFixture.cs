@@ -38,7 +38,7 @@ public sealed class HeadlessGLFixture : IAsyncLifetime
     private bool _contextValid;
     private string? _initializationError;
     private int _bindingsLoadedThreadId = -1;
-    private GpuResourceManager? _resourceManager;
+    private RHIResourceManager? _resourceManager;
     private static readonly Lazy<HarmonyLib.Harmony> bindingHooks = new(() =>
     {
         var harmony = new HarmonyLib.Harmony("Tests.OpenTKBindingLoader");
@@ -126,7 +126,7 @@ public sealed class HeadlessGLFixture : IAsyncLifetime
         if (_resourceManager is not null) return;
 
         // Opt in per test lifetime, leaving manager lifecycle tests free to install their own manager.
-        var manager = GpuResourceManagerSystem.EnsureCurrentContext();
+        var manager = RHIResourceManagerSystem.EnsureCurrentContext();
         _resourceManager = manager;
     }
 
@@ -134,8 +134,8 @@ public sealed class HeadlessGLFixture : IAsyncLifetime
     public void UseContextLocalResources()
     {
         TestUniformRing.Dispose();
-        var current = GpuResourceManagerSystem.CurrentManager;
-        GpuResourceManagerSystem.Shutdown();
+        var current = RHIResourceManagerSystem.CurrentManager;
+        RHIResourceManagerSystem.Shutdown();
         current?.Dispose();
         if (!ReferenceEquals(current, _resourceManager)) _resourceManager?.Dispose();
         _resourceManager = null;
@@ -150,9 +150,9 @@ public sealed class HeadlessGLFixture : IAsyncLifetime
         // The fixture manager is intentionally unticked: disposal uses the current context without
         // registering an engine renderer or capturing a thread that xUnit may subsequently change.
         TestUniformRing.Dispose();
-        var current = GpuResourceManagerSystem.CurrentManager;
+        var current = RHIResourceManagerSystem.CurrentManager;
         current?.ResourceDisposals?.DrainPending();
-        GpuResourceManagerSystem.Shutdown();
+        RHIResourceManagerSystem.Shutdown();
         current?.Dispose();
         if (!ReferenceEquals(current, _resourceManager)) _resourceManager?.Dispose();
         _resourceManager = null;

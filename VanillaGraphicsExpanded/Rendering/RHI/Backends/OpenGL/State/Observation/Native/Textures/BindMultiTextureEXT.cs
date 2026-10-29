@@ -16,7 +16,7 @@ internal sealed partial class OpenGlStateCache
         if (!GpuSupport.HasCachedCapabilitiesForCurrentContext
             || (uint)unit >= (uint)GpuSupport.Graphics.MaxCombinedTextureImageUnits) return;
         int id = unchecked((int)name);
-        var entry = GpuResourceManagerSystem.CurrentManager!.RealizeObservedImage(GpuResourceKind.Texture, id, target, implicitCreation: false)
+        var entry = RHIResourceManagerSystem.CurrentManager!.RealizeObservedImage(GpuResourceKind.Texture, id, target, implicitCreation: false)
             as GpuResourceMetadataEntry<GpuTextureMetadata>;
         cache.ForgetImageBinding((TextureTarget)nativeTarget, unit);
         if (id == 0 || entry?.IsRealized == true && entry.Metadata.Target == target)

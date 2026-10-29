@@ -22,7 +22,7 @@ internal static class ShaderPreparedSubmission
     internal static void ValidateSampler(GpuPreparedBindings.Entry binding, GpuTextureRef texture, ref ShaderInputValidation history)
     {
         if (!binding.Active) return;
-        bool valid = GpuResourceManager.ValidateTextureReferenceInput(texture.Resource);
+        bool valid = RHIResourceManager.ValidateTextureReferenceInput(texture.Resource);
         Require(binding, valid);
         if (!valid) return;
         Pipeline.Passes.RenderPass.ValidateSampledTexture(texture);
@@ -40,7 +40,7 @@ internal static class ShaderPreparedSubmission
     internal static void ValidateImage(GpuPreparedBindings.Entry binding, RHIImageBinding image, ref ShaderInputValidation history)
     {
         if (!binding.Active) return;
-        bool valid = GpuResourceManager.ValidateTextureReferenceInput(image.Texture.Resource);
+        bool valid = RHIResourceManager.ValidateTextureReferenceInput(image.Texture.Resource);
         Require(binding, valid);
         if (!valid) return;
         var key = ShaderInputValidation.TextureKey(image.Texture!, image);
@@ -72,7 +72,7 @@ internal static class ShaderPreparedSubmission
     internal static void ValidateSampler(GpuPreparedBindings.Entry binding, GpuTextureRef texture)
     {
         if (!binding.Active) return;
-        bool valid = GpuResourceManager.ValidateTextureReferenceInput(texture.Resource);
+        bool valid = RHIResourceManager.ValidateTextureReferenceInput(texture.Resource);
         Require(binding, valid);
         if (valid) Pipeline.Passes.RenderPass.ValidateSampledTexture(texture);
         if (valid && (GpuPreparedBindings.CompatibleTextureTarget(binding.Type) != (int)texture.Target ||
@@ -85,7 +85,7 @@ internal static class ShaderPreparedSubmission
     internal static void ValidateImage(GpuPreparedBindings.Entry binding, RHIImageBinding image)
     {
         if (!binding.Active) return;
-        bool valid = GpuResourceManager.ValidateTextureReferenceInput(image.Texture.Resource);
+        bool valid = RHIResourceManager.ValidateTextureReferenceInput(image.Texture.Resource);
         Require(binding, valid);
         if (!valid) return;
         image.Texture.RequireMetadata();
@@ -117,7 +117,7 @@ internal static class ShaderPreparedSubmission
         Require(binding, buffer != null);
         if (binding.Active && buffer != null && buffer.SizeBytes < binding.MinimumSize)
             throw new InvalidOperationException($"CPU uniform block is too small for {binding.Contract.Name}.");
-        if (binding.Active && buffer != null && !GpuUniformRingSystem.TryGetCurrent(out _))
+        if (binding.Active && buffer != null && !RHIUniformRingSystem.TryGetCurrent(out _))
             throw new InvalidOperationException("An active CPU uniform block requires a uniform ring.");
     }
     /// <summary>Checks the current storage allocation.</summary>

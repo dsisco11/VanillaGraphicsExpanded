@@ -35,22 +35,22 @@ public sealed class EngineGraphicsGeometryTests(HeadlessGLFixture fixture) : Ren
             OpenTK.Graphics.OpenGL4.GL.VertexArrayElementBuffer(array.VertexArrayId, elements.BufferId);
             var layout = new RHIVertexLayout([]);
             var indices = new RHIIndexStream(new(elements, 0, 4));
-            var receipt = GpuResourceManager.AcquireEngineGeometryConfiguration(array, layout, [], indices);
-            Assert.True(GpuResourceManager.IsEngineGeometryConfigurationCurrent(receipt));
+            var receipt = RHIResourceManager.AcquireEngineGeometryConfiguration(array, layout, [], indices);
+            Assert.True(RHIResourceManager.IsEngineGeometryConfigurationCurrent(receipt));
             using (var unrelated = NativeResourceSetup.CreateVertexArray())
             {
                 OpenGlStateCache.ObserveVertexMetadata(unrelated.VertexArrayId, named: true, elementBinding: false);
-                Assert.True(GpuResourceManager.IsEngineGeometryConfigurationCurrent(receipt));
+                Assert.True(RHIResourceManager.IsEngineGeometryConfigurationCurrent(receipt));
             }
 
-            var manager = GpuResourceManagerSystem.CurrentManager!;
+            var manager = RHIResourceManagerSystem.CurrentManager!;
             var entry = Assert.IsType<GpuResourceMetadataEntry<GpuVertexArrayMetadata>>(manager.GetResourceRegistration(array));
             manager.PublishMetadata(entry, new GpuVertexArrayMetadata(), GpuMetadataChange.Metadata);
-            Assert.False(GpuResourceManager.IsEngineGeometryConfigurationCurrent(receipt));
-            receipt = GpuResourceManager.AcquireEngineGeometryConfiguration(array, layout, [], indices);
-            Assert.True(GpuResourceManager.IsEngineGeometryConfigurationCurrent(receipt));
+            Assert.False(RHIResourceManager.IsEngineGeometryConfigurationCurrent(receipt));
+            receipt = RHIResourceManager.AcquireEngineGeometryConfiguration(array, layout, [], indices);
+            Assert.True(RHIResourceManager.IsEngineGeometryConfigurationCurrent(receipt));
             array.Dispose();
-            Assert.False(GpuResourceManager.IsEngineGeometryConfigurationCurrent(receipt));
+            Assert.False(RHIResourceManager.IsEngineGeometryConfigurationCurrent(receipt));
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
         finally { fixture.CleanupGpuResources(); }
@@ -65,15 +65,15 @@ public sealed class EngineGraphicsGeometryTests(HeadlessGLFixture fixture) : Ren
         using var geometry = EngineFullscreenGeometry.Upload(native.Render.Object, native.Data);
         var packet = geometry.Inputs;
         var receipt = packet.ImportedArray!;
-        Assert.True(GpuResourceManager.IsEngineGeometryConfigurationCurrent(receipt));
+        Assert.True(RHIResourceManager.IsEngineGeometryConfigurationCurrent(receipt));
         using var replacement = RHICommandContext.Current.CreateIndexBuffer(new RHIBufferDescription
             { Role = BufferRole.Index, Mode = ResourceStorageMode.Mutable, Capacity = 12, Usage = BufferUsage.StaticDraw }).RequireResource();
         OpenGLVertexSelection.Bind(OpenGlStateCache.Current, native.Mesh.VaoId);
         OpenGLBufferBindings.BindBuffer(OpenGlStateCache.Current, BufferTarget.ElementArrayBuffer, replacement.BufferId);
-        Assert.False(GpuResourceManager.IsEngineGeometryConfigurationCurrent(receipt));
-        var updated = GpuResourceManager.AcquireEngineGeometryConfiguration(
+        Assert.False(RHIResourceManager.IsEngineGeometryConfigurationCurrent(receipt));
+        var updated = RHIResourceManager.AcquireEngineGeometryConfiguration(
             receipt.Array, packet.Layout, packet.Streams, packet.Indices!.Value);
-        Assert.True(GpuResourceManager.IsEngineGeometryConfigurationCurrent(updated));
+        Assert.True(RHIResourceManager.IsEngineGeometryConfigurationCurrent(updated));
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
 
@@ -91,7 +91,7 @@ public sealed class EngineGraphicsGeometryTests(HeadlessGLFixture fixture) : Ren
             new([new(TextureFormat.R32f)]), DynamicPipelineState.Viewport)).RequireResource();
         using var geometry = EngineFullscreenGeometry.Upload(native.Render.Object, native.Data);
         var certification = Assert.IsType<RHIGeometryImport>(geometry.Inputs.ImportedArray);
-        Assert.True(GpuResourceManager.IsEngineGeometryConfigurationCurrent(certification));
+        Assert.True(RHIResourceManager.IsEngineGeometryConfigurationCurrent(certification));
         using var source = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Width = 2, Height = 2, Format = TextureFormat.R32f, MipLevels = 1, Storage = ResourceStorageMode.Mutable, BaseLevel = 0, MaxLevel = 0, Filter = TextureFilterMode.Nearest, Label = null }, [new RHITextureInitialData(new(new(), 0, 0, 0, 2, 2), new RHIPixelEncoding(TextureFormatHelper.GetPixelFormat(TextureFormat.R32f), PixelComponentType.Float), System.Runtime.InteropServices.MemoryMarshal.AsBytes((new float[] { .2f, .4f, .6f, .8f }).AsSpan()).ToArray())]).RequireResource();
         using var target = CreateRenderTarget(1, 1, TextureFormat.R32f);
         using var incomingVao = NativeResourceSetup.CreateVertexArray(); using var incomingIndices = RHICommandContext.Current.CreateIndexBuffer(new RHIBufferDescription { Role = BufferRole.Index, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = null }).RequireResource();
@@ -120,7 +120,7 @@ public sealed class EngineGraphicsGeometryTests(HeadlessGLFixture fixture) : Ren
 #if DEBUG
             long queries = OpenGlStateCache.Current.BoundaryQueries;
 #endif
-            Assert.True(GpuResourceManager.IsEngineGeometryConfigurationCurrent(certification));
+            Assert.True(RHIResourceManager.IsEngineGeometryConfigurationCurrent(certification));
             commands.DrawIndexed(geometry.Inputs, new(0, 3));
 #if DEBUG
             Assert.Equal(queries, OpenGlStateCache.Current.BoundaryQueries);
@@ -150,7 +150,7 @@ public sealed class EngineGraphicsGeometryTests(HeadlessGLFixture fixture) : Ren
         Assert.Equal(priorVao, GL.GetInteger(GetPName.VertexArrayBinding));
         Assert.Equal(priorElements, GL.GetInteger(GetPName.ElementArrayBufferBinding));
         geometry.Dispose(); Assert.Equal(1, native.Deletes);
-        Assert.False(GpuResourceManager.IsEngineGeometryConfigurationCurrent(certification));
+        Assert.False(RHIResourceManager.IsEngineGeometryConfigurationCurrent(certification));
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
 
@@ -162,12 +162,12 @@ public sealed class EngineGraphicsGeometryTests(HeadlessGLFixture fixture) : Ren
     {
         EnsureContextValid();
         using var native = new NativeMesh();
-        var manager = GpuResourceManagerSystem.EnsureCurrentContext();
+        var manager = RHIResourceManagerSystem.EnsureCurrentContext();
         object replacement = new();
         EngineFullscreenGeometry? geometry = null;
         try
         {
-            manager.OnRenderFrame(0, GpuResourceManager.Stage);
+            manager.OnRenderFrame(0, RHIResourceManager.Stage);
             geometry = EngineFullscreenGeometry.Upload(native.Render.Object, native.Data);
             native.Render.Setup(render => render.DeleteMesh(native.Mesh)).Callback(() =>
             {
@@ -183,7 +183,7 @@ public sealed class EngineGraphicsGeometryTests(HeadlessGLFixture fixture) : Ren
             geometry.Dispose(); geometry.Dispose();
             Assert.Equal(0, native.Deletes);
             fixture.MakeCurrent();
-            manager.OnRenderFrame(0, GpuResourceManager.Stage);
+            manager.OnRenderFrame(0, RHIResourceManager.Stage);
             Assert.Equal(retired ? 0 : 1, native.Deletes);
             Assert.Equal(retired, GL.IsVertexArray(native.Mesh.VaoId));
             Assert.Equal(retired, GL.IsBuffer(native.Mesh.xyzVboId));
@@ -199,7 +199,7 @@ public sealed class EngineGraphicsGeometryTests(HeadlessGLFixture fixture) : Ren
             }
             geometry?.Dispose();
             DeleteNativeMesh(native.Mesh);
-            manager.Dispose(); GpuResourceManagerSystem.Shutdown();
+            manager.Dispose(); RHIResourceManagerSystem.Shutdown();
         }
     }
 

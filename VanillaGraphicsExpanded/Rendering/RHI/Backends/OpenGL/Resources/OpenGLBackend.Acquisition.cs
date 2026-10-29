@@ -7,7 +7,7 @@ internal sealed partial class OpenGLBackend
     public void AcquireBorrowedTexture(BorrowedTexture owner)
     {
         RequireContext();
-        owner.RequireOriginalContext(); GpuResourceManager.AcquireWrapperMetadata(owner, GpuTextureMetadataReader.Instance);
+        owner.RequireOriginalContext(); RHIResourceManager.AcquireWrapperMetadata(owner, GpuTextureMetadataReader.Instance);
     }
     /// <inheritdoc />
     public void AcquireAttachmentImage(GpuFramebufferAttachment image)
@@ -17,51 +17,51 @@ internal sealed partial class OpenGLBackend
             || image.AttachmentMode == GpuFramebufferAttachmentMode.Multiview && image.ViewCount > Capabilities.MaxMultiviewViews
             || (long)image.BaseView + image.ViewCount > Capabilities.MaxArrayTextureLayers))
             throw new System.ArgumentOutOfRangeException(nameof(image), "The image selection exceeds multiview capabilities.");
-        GpuResourceManager.AcquireImageMetadata(image);
+        RHIResourceManager.AcquireImageMetadata(image);
     }
     /// <inheritdoc />
     public GpuTextureMetadata AcquireExternalAttachmentTexture(int id)
     {
         RequireContext();
-        return GpuResourceManager.AcquireExternalImageTexture(id);
+        return RHIResourceManager.AcquireExternalImageTexture(id);
     }
     /// <inheritdoc />
     public GpuProgramMetadata AcquireProgramInterface(int id)
     {
         RequireContext();
-        return GpuResourceManager.AcquireProgramMetadata(id);
+        return RHIResourceManager.AcquireProgramMetadata(id);
     }
     /// <inheritdoc />
     public void AdoptProgramOwner(GpuProgramObject owner)
     {
         RequireContext();
-        owner.RequireOriginalContext(); GpuResourceManager.AcquireWrapperMetadata(owner, GpuProgramMetadataReader.Instance);
+        owner.RequireOriginalContext(); RHIResourceManager.AcquireWrapperMetadata(owner, GpuProgramMetadataReader.Instance);
     }
     /// <inheritdoc />
     public void AdoptShaderOwner(GpuShaderModule owner)
     {
         RequireContext();
-        owner.RequireOriginalContext(); GpuResourceManager.AcquireWrapperMetadata(owner, GpuShaderMetadataReader.Instance);
+        owner.RequireOriginalContext(); RHIResourceManager.AcquireWrapperMetadata(owner, GpuShaderMetadataReader.Instance);
     }
     /// <inheritdoc />
     public GpuFramebufferAttachment DiscoverFramebufferAttachment(GpuFramebuffer owner, FramebufferSlot slot)
     {
         RequireContext();
-        owner.RequireOriginalContext(); return GpuResourceManager.DiscoverFramebufferAttachment(owner, slot);
+        owner.RequireOriginalContext(); return RHIResourceManager.DiscoverFramebufferAttachment(owner, slot);
     }
     /// <inheritdoc />
     public void PublishImportedFramebuffer(GpuFramebuffer owner, bool publish, int? replacementId = null, int width = 0, int height = 0)
     {
         RequireContext();
         owner.RequireOriginalContext();
-        GpuResourceManager.PublishImportedFramebuffer(owner, publish, replacementId, width, height);
+        RHIResourceManager.PublishImportedFramebuffer(owner, publish, replacementId, width, height);
     }
     /// <inheritdoc />
     public void ResolveFramebufferAttachments(GpuFramebuffer owner, bool recover)
     {
         RequireContext();
         owner.RequireOriginalContext();
-        var images = GpuResourceManager.ResolveFramebufferAttachments(owner,
+        var images = RHIResourceManager.ResolveFramebufferAttachments(owner,
             new System.Collections.Generic.Dictionary<FramebufferSlot, GpuFramebufferAttachment>(owner.AttachmentImages), recover);
         owner.InstallAttachmentReferences(images, owner.PublishedMetadata.Attachments!);
     }
@@ -69,7 +69,7 @@ internal sealed partial class OpenGLBackend
     public void ObserveAttachmentOwner(GpuResource owner, GpuFramebufferAttachment image)
     {
         RequireContext();
-        GpuResourceManager.ObserveAttachmentOwner(owner, image);
+        RHIResourceManager.ObserveAttachmentOwner(owner, image);
     }
     #endregion
 }

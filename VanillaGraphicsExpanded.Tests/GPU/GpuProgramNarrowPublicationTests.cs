@@ -80,7 +80,7 @@ public sealed class GpuProgramNarrowPublicationTests(HeadlessGLFixture fixture)
         {
             using var owner = CreateProgram();
             var entry = Assert.IsType<GpuResourceMetadataEntry<GpuProgramMetadata>>(
-                GpuResourceManagerSystem.CurrentManager!.GetResourceRegistration(owner));
+                RHIResourceManagerSystem.CurrentManager!.GetResourceRegistration(owner));
             var previous = entry.Metadata;
             ulong revision = entry.MetadataRevision;
             int location = GL.GetUniformLocation(owner.ProgramId, "inputs[0]");
@@ -128,7 +128,7 @@ public sealed class GpuProgramNarrowPublicationTests(HeadlessGLFixture fixture)
     {
         fixture.EnsureContextValid();
         fixture.UseContextLocalResources();
-        Assert.Null(GpuResourceManagerSystem.CurrentManager);
+        Assert.Null(RHIResourceManagerSystem.CurrentManager);
         var context = RHICommandContext.Current;
         var input = RHIShaderInputs.ComputeDescription();
         using var first = context.CreateShader(new(input.Kind, input.Stages, input.Bindings, retrievableBinary: binary)).RequireResource();
@@ -155,7 +155,7 @@ public sealed class GpuProgramNarrowPublicationTests(HeadlessGLFixture fixture)
         {
             using var owner = NativeResourceSetup.CreateProgram();
             var entry = Assert.IsType<GpuResourceMetadataEntry<GpuProgramMetadata>>(
-                GpuResourceManagerSystem.CurrentManager!.GetResourceRegistration(owner));
+                RHIResourceManagerSystem.CurrentManager!.GetResourceRegistration(owner));
             executionBackend.SubmitProgramExecutable(owner);
             Assert.False(entry.MetadataAvailable);
             Assert.False(executionBackend.CompleteProgramLink(owner, out _));
@@ -178,7 +178,7 @@ public sealed class GpuProgramNarrowPublicationTests(HeadlessGLFixture fixture)
         try
         {
             using var owner = NativeResourceSetup.CreateProgram();
-            var manager = GpuResourceManagerSystem.CurrentManager!;
+            var manager = RHIResourceManagerSystem.CurrentManager!;
             var entry = Assert.IsType<GpuResourceMetadataEntry<GpuProgramMetadata>>(manager.GetResourceRegistration(owner));
             var reader = new RejectReader();
             int callbacks = 0;
@@ -218,7 +218,7 @@ public sealed class GpuProgramNarrowPublicationTests(HeadlessGLFixture fixture)
         {
             using var owner = CreateProgram();
             var entry = Assert.IsType<GpuResourceMetadataEntry<GpuProgramMetadata>>(
-                GpuResourceManagerSystem.CurrentManager!.GetResourceRegistration(owner));
+                RHIResourceManagerSystem.CurrentManager!.GetResourceRegistration(owner));
             var before = entry.Metadata;
             int location = GL.GetUniformLocation(owner.ProgramId, "inputs[0]");
             var reader = new RejectReader();
@@ -281,7 +281,7 @@ public sealed class GpuProgramNarrowPublicationTests(HeadlessGLFixture fixture)
             using var capability = new SeparateShaderObjectsCapabilityScope(direct);
             OpenGLProgramSelection.Select(OpenGlStateCache.Current, sentinel.ProgramId);
             var entry = Assert.IsType<GpuResourceMetadataEntry<GpuProgramMetadata>>(
-                GpuResourceManagerSystem.CurrentManager!.GetResourceRegistration(owner));
+                RHIResourceManagerSystem.CurrentManager!.GetResourceRegistration(owner));
             var before = entry.Metadata;
             var reader = new RejectReader();
             entry.Reader = reader;
@@ -327,7 +327,7 @@ public sealed class GpuProgramNarrowPublicationTests(HeadlessGLFixture fixture)
         {
             using var owner = CreateProgram();
             var entry = Assert.IsType<GpuResourceMetadataEntry<GpuProgramMetadata>>(
-                GpuResourceManagerSystem.CurrentManager!.GetResourceRegistration(owner));
+                RHIResourceManagerSystem.CurrentManager!.GetResourceRegistration(owner));
             var before = entry.Metadata;
             var kind = storage ? ProgramInterface.ShaderStorageBlock : ProgramInterface.UniformBlock;
             int index = GL.GetProgramResourceIndex(owner.ProgramId, kind, storage ? "Output" : "Parameters");
@@ -410,7 +410,7 @@ public sealed class GpuProgramDeferredContextTests(HeadlessGLFixture fixture)
             using var owner = NativeResourceSetup.CreateProgram();
             native = owner.ProgramId;
             executionBackend.SubmitProgramExecutable(owner);
-            var entry = GpuResourceManagerSystem.CurrentManager!.GetResourceRegistration(owner)!;
+            var entry = RHIResourceManagerSystem.CurrentManager!.GetResourceRegistration(owner)!;
             using var queries = new ExecutableDescriptorCapture();
             RenderContextRegistry.Retire(fixture);
             RenderContextRegistry.RegisterCurrent(fixture, static _ => true);

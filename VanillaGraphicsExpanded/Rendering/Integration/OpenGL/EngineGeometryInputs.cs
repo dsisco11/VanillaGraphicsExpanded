@@ -46,7 +46,7 @@ internal sealed class EngineGeometryInputs : IDisposable
             var indexStream = new RHIIndexStream(new(new GpuBufferRef(elements), 0, checked((nint)indices * sizeof(uint))));
             // The manager validates supplied geometry without scanning the engine VAO. The packet
             // retains the original revision and must be re-admitted after external mutation.
-            var certificate = GpuResourceManager.AcquireEngineGeometryConfiguration(array, layout, vertexStreams, indexStream);
+            var certificate = RHIResourceManager.AcquireEngineGeometryConfiguration(array, layout, vertexStreams, indexStream);
             Inputs = new(layout, vertexStreams, indexStream, certificate, borrow);
         }
         catch { Dispose(); throw; }
@@ -84,7 +84,7 @@ internal sealed class EngineGeometryInputs : IDisposable
         internal BufferRecipient(int name)
         {
             SetCreationIdentity(name, CaptureCreationContext(GpuResourceKind.Buffer));
-            try { GpuResourceManager.AcquireWrapperMetadata(this, reader); }
+            try { RHIResourceManager.AcquireWrapperMetadata(this, reader); }
             catch { Dispose(); throw; }
         }
         #endregion
@@ -114,7 +114,7 @@ internal sealed class EngineGeometryInputs : IDisposable
         internal ArrayRecipient(VAO mesh)
         {
             SetCreationIdentity(mesh.VaoId, CaptureCreationContext(GpuResourceKind.VertexArray));
-            try { GpuResourceManager.AcquireWrapperMetadata(this, new ArrayReader(mesh)); }
+            try { RHIResourceManager.AcquireWrapperMetadata(this, new ArrayReader(mesh)); }
             catch { Dispose(); throw; }
         }
         #endregion

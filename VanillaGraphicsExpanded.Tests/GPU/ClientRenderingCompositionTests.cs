@@ -61,14 +61,14 @@ public sealed class ClientRenderingCompositionTests(HeadlessGLFixture fixture) :
         api.SetupGet(x => x.Logger).Returns(assets.Api.Logger);
         var mods = new Mock<IModLoader>(); api.SetupGet(x => x.ModLoader).Returns(mods.Object);
         var root = new VanillaGraphicsExpandedModSystem(); var pbr = new PbrModSystem();
-        var managerSystem = new GpuResourceManagerModSystem();
+        var managerSystem = new RHIResourceManagerModSystem();
         mods.Setup(x => x.GetModSystem<VanillaGraphicsExpandedModSystem>(It.IsAny<bool>())).Returns(root);
         mods.Setup(x => x.GetModSystem<PbrModSystem>(It.IsAny<bool>())).Returns(pbr);
-        mods.Setup(x => x.GetModSystem<GpuResourceManagerModSystem>(It.IsAny<bool>())).Returns(managerSystem);
+        mods.Setup(x => x.GetModSystem<RHIResourceManagerModSystem>(It.IsAny<bool>())).Returns(managerSystem);
         var registry = GpuShaderProgramLibraries.Create(api.Object);
         var lifetime = ClientRenderingLifetime.Find(api.Object)!;
-        var manager = new GpuResourceManager(); GpuResourceManagerSystem.Initialize(manager);
-        manager.OnRenderFrame(0, GpuResourceManager.Stage);
+        var manager = new RHIResourceManager(); RHIResourceManagerSystem.Initialize(manager);
+        manager.OnRenderFrame(0, RHIResourceManager.Stage);
         Set(root, "capi", api.Object); Set(root, "renderingLifetime", lifetime);
         Set(managerSystem, "capi", api.Object); Set(managerSystem, "renderer", manager); Set(managerSystem, "rendererRegistered", true);
         managerSystem.AdoptByRenderingRoot();
@@ -102,7 +102,7 @@ public sealed class ClientRenderingCompositionTests(HeadlessGLFixture fixture) :
             managerSystem.Dispose(); root.Dispose(); pbr.Dispose();
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { lifetime.Shutdown(); manager.Dispose(); GpuResourceManagerSystem.Shutdown(); }
+        finally { lifetime.Shutdown(); manager.Dispose(); RHIResourceManagerSystem.Shutdown(); }
     }
     #endregion
 

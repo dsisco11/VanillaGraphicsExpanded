@@ -13,7 +13,7 @@ internal sealed unsafe partial class OpenGlStateCache
     internal static void ObserveCreateShader(int stage, int result)
     {
         if (result == 0 || !IsObservedShaderStage(stage) || !OpenGLObservationContext.TryGet(out _, out _, false)) return;
-        GpuResourceManagerSystem.CurrentManager!.ObserveExecutableCreation(GpuResourceKind.Shader,
+        RHIResourceManagerSystem.CurrentManager!.ObserveExecutableCreation(GpuResourceKind.Shader,
             unchecked((int)result), OpenGLShaderValues.Stage((ShaderType)stage));
     }
 
@@ -23,7 +23,7 @@ internal sealed unsafe partial class OpenGlStateCache
     internal static void ObserveCreateProgram(int result)
     {
         if (result == 0 || !OpenGLObservationContext.TryGet(out _, out _, false)) return;
-        GpuResourceManagerSystem.CurrentManager!.ObserveExecutableCreation(GpuResourceKind.Program, unchecked((int)result));
+        RHIResourceManagerSystem.CurrentManager!.ObserveExecutableCreation(GpuResourceKind.Program, unchecked((int)result));
     }
 
     /// <summary>Registers a combined factory's identity before completing its driver-produced executable output.</summary>
@@ -63,7 +63,7 @@ internal sealed unsafe partial class OpenGlStateCache
     private static void ObserveCombinedProgram(int result)
     {
         if (result == 0 || !OpenGLObservationContext.TryGet(out _, out _, false)) return;
-        var manager = GpuResourceManagerSystem.CurrentManager!;
+        var manager = RHIResourceManagerSystem.CurrentManager!;
         int id = unchecked((int)result);
         if (manager.FindResource(GpuResourceKind.Program, id) is not null) return;
         manager.ObserveExecutableCreation(GpuResourceKind.Program, id);
@@ -74,7 +74,7 @@ internal sealed unsafe partial class OpenGlStateCache
     private static void ObservePipelineNames(int count, uint* names, bool realized)
     {
         if (count <= 0 || names == null || !OpenGLObservationContext.TryGet(out var cache, out _, false)) return;
-        var manager = GpuResourceManagerSystem.CurrentManager!;
+        var manager = RHIResourceManagerSystem.CurrentManager!;
         for (int i = 0; i < count; i++)
         {
             int id = unchecked((int)names[i]);

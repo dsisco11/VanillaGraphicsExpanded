@@ -1938,3 +1938,63 @@ instrumented Release, benchmark or game launch was used. Second source review is
 completion review rechecked actual caller routes, linked authorities and the combined receipts. Management
 renaming remains in 8k; inherited integrated lighting, optional hardware/interop, package and user-run
 visual/runtime qualification remain in 9. No source staging, unstaging or commit was performed.
+
+## Management-service naming (8k)
+
+The rename preserves namespaces, dependency direction, manager publication, allocation identity,
+cleanup ordering, engine callback stages and all resource contracts. It changes no native operation.
+The before/after source map is:
+
+| Previous name | Current name / responsibility |
+| --- | --- |
+| GpuResourceManager | RHIResourceManager; the same canonical registry, publication operations and retirement service, including all partial files. |
+| GpuResourceManagerSystem | RHIResourceManagerSystem; the same active manager and originating disposal-service publication. |
+| GpuResourceDisposalQueue | RHIResourceDisposalQueue; the same managed-owner cleanup queue. |
+| GpuResourceManagerModSystem | RHIResourceManagerModSystem; the same engine host and ordered manager shutdown. |
+| GpuUniformRingSystem | RHIUniformRingSystem; the same render-thread allocator publication. |
+| GpuUniformRingFrameController | RHIUniformRingFrameController; the same frame epochs, fences and allocator retirement. |
+| GpuUniformRingModSystem | RHIUniformRingModSystem; the same engine registration owner. |
+| GpuUniformRingBeginRenderer / GpuUniformRingEndRenderer | RHIUniformRingBeginRenderer / RHIUniformRingEndRenderer; unchanged Before/Done stages and render order. |
+
+Production/test callers, reflection declarations, matching test names/files, composition and lifecycle
+hooks use the current names directly. The empty GpuUniformRingFrameRenderers.cs navigation stub is
+removed; the callback files own those responsibilities. There is no alias, forwarding service, duplicate
+registry or transitional API. Generated-code inputs/tooling contain no superseded service references.
+
+GpuBindingRegistry retains its name: it defines project shader ABI slots, not execution or runtime
+registration. GpuUniformRingBuffer and Allocation retain their storage/consumer contract. Resource wrappers,
+references, initialization, canonical metadata and identity/provenance records (GpuResourceRegistration,
+GpuResourceMetadataEntry, GpuResourceHandle and GpuInitialDiscovery) are unchanged. GpuSupport remains
+the existing native capability snapshot behind RHICapabilities; GpuSamplers remains shared owner policy.
+Neither is a renamed RHI management service.
+
+Earlier route inventories, commands and receipts in this document retain their original names and
+candidate evidence. Apply the name map above when navigating the current source; it does not rewrite
+historical test results. Active proposal/contracts, inventory/API coverage, parent-plan references,
+resource/binding documentation and cloud/state/interception descriptions use current service names.
+
+Source review against `3a036f0209e2c2246701fca3df16be62c1a36427` compared all 319 affected source files
+with the declared name substitutions. Production differences beyond those substitutions are XML comments
+and regions in three uniform-lifecycle files; native dispatch, allocation, registration, cleanup and
+callback order are unchanged. All 71 filename replacements are present and superseded source files are
+absent. Current engine-state documentation also now describes the installed native-table observation
+route rather than removed managed call-site rewriting.
+
+The newly selected deletion-queue integration fixture originally attempted to initialize another manager
+after native observation had already installed one. Its seven failing cases now explicitly shut down and
+dispose the prior test lifetime before initializing their deliberately fresh, unticked manager. The
+live-replacement guard, original-context sentinels, background queues and independent native-deletion
+assertions are retained. No production behavior was changed to accommodate the fixture.
+
+Verification: delegated canonical shader-enabled Debug and ordinary Release builds passed with zero
+errors (206/232 warnings). Each configuration passed 1,355 focused initialization, registration,
+disposal, context-lifetime, binding and inherited corrective cases plus 35 freshly built generator tests,
+with zero failures/skips. Exact commands, `focused-filter.txt`, `build-{debug,release}.log`,
+`focused-{debug,release}.log/.trx` and `generator-{debug,release}.log/.trx` are retained under
+`artifacts/rhi-phase8k/`. Initial Debug fixture failures remain diagnostic-only receipts, superseded
+by the closed candidate. `analyzer-identity.txt` verifies current production/test-copy equality in both
+configurations; compiler resolution and `opentk-identity.txt` confirm the same installed OpenTK identity
+recorded above. No shader bypass, JIT override, instrumented Release, benchmark or game launch was used.
+Second source review and independent completion audit passed, including final receipt reconciliation.
+Phase 9 integrated lighting, hardware/interop, package and user-run qualification remains open.
+No staging, unstaging or commit was performed.

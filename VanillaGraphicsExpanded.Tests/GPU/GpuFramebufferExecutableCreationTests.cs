@@ -51,14 +51,14 @@ public sealed class GpuFramebufferExecutableCreationTests(HeadlessGLFixture fixt
             if (renderbuffer)
             {
                 using var owner = RHICommandContext.Current.CreateRenderbuffer(new RHIRenderbufferDescription { Format = TextureFormat.Rgba8, Width = 4, Height = 4, Samples = 0, Label = null }).RequireResource();
-                using var operation = new GpuResourceManager.MetadataOperation<GpuRenderbufferMetadata>(owner, GpuMetadataChange.Storage);
-                Assert.Throws<InvalidOperationException>(() => GpuResourceManager.AcquireFramebufferRenderbuffer(owner.RenderbufferId));
+                using var operation = new RHIResourceManager.MetadataOperation<GpuRenderbufferMetadata>(owner, GpuMetadataChange.Storage);
+                Assert.Throws<InvalidOperationException>(() => RHIResourceManager.AcquireFramebufferRenderbuffer(owner.RenderbufferId));
             }
             else
             {
                 using var owner = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba8, Width = System.Math.Max(1, 4), Height = System.Math.Max(1, 4), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
-                using var operation = new GpuResourceManager.MetadataOperation<GpuTextureMetadata>(owner, GpuMetadataChange.Storage);
-                Assert.Throws<InvalidOperationException>(() => GpuResourceManager.AcquireFramebufferTexture(owner.TextureId, TextureDimension.Two));
+                using var operation = new RHIResourceManager.MetadataOperation<GpuTextureMetadata>(owner, GpuMetadataChange.Storage);
+                Assert.Throws<InvalidOperationException>(() => RHIResourceManager.AcquireFramebufferTexture(owner.TextureId, TextureDimension.Two));
             }
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
@@ -76,7 +76,7 @@ public sealed class GpuFramebufferExecutableCreationTests(HeadlessGLFixture fixt
             using var second = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba8, Width = System.Math.Max(1, 4), Height = System.Math.Max(1, 4), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
             using var framebuffer = DynamicGpuFramebuffer.CreateSingle(first)!;
             var entry = Assert.IsType<GpuResourceMetadataEntry<GpuFramebufferMetadata>>(
-                GpuResourceManagerSystem.CurrentManager!.GetResourceRegistration(framebuffer));
+                RHIResourceManagerSystem.CurrentManager!.GetResourceRegistration(framebuffer));
             var original = entry.Metadata.Attachments[FramebufferSlot.Color0];
             using var queries = new CreationDescriptorCapture();
 
@@ -123,13 +123,13 @@ public sealed class GpuFramebufferExecutableCreationTests(HeadlessGLFixture fixt
             };
             using var queries = new CreationDescriptorCapture();
             queries.Reset();
-            var created = GpuResourceManager.CreateFramebuffer(request, recipient, out _);
+            var created = RHIResourceManager.CreateFramebuffer(request, recipient, out _);
             Assert.NotNull(created);
             Assert.Equal(first.TextureId, created.Value.Attachments[FramebufferSlot.Color0].Id);
             Assert.Equal(0, queries.Reads);
             using var framebuffer = DynamicGpuFramebuffer.CreateEmpty();
             var entry = Assert.IsType<GpuResourceMetadataEntry<GpuFramebufferMetadata>>(
-                GpuResourceManagerSystem.CurrentManager!.GetResourceRegistration(framebuffer));
+                RHIResourceManagerSystem.CurrentManager!.GetResourceRegistration(framebuffer));
             framebuffer.SetAttachment(FramebufferSlot.Color0, firstImage);
             queries.Reset();
             framebuffer.SetAttachment(FramebufferSlot.Color1, secondImage);
@@ -161,9 +161,9 @@ public sealed class GpuFramebufferExecutableCreationTests(HeadlessGLFixture fixt
             using var framebuffer = new Recipient<GpuFramebufferMetadata>(GpuResourceKind.Framebuffer);
             using var shader = new Recipient<GpuShaderMetadata>(GpuResourceKind.Shader);
             using var program = new Recipient<GpuProgramMetadata>(GpuResourceKind.Program);
-            var frameData = GpuResourceManager.CreateFramebuffer(default, framebuffer, out var frameHandle);
-            var shaderData = GpuResourceManager.CreateShader(new GpuShaderInitialization { Stage = ShaderStage.Vertex }, shader, out var shaderHandle);
-            var programData = GpuResourceManager.CreateProgram(default, program, out var programHandle);
+            var frameData = RHIResourceManager.CreateFramebuffer(default, framebuffer, out var frameHandle);
+            var shaderData = RHIResourceManager.CreateShader(new GpuShaderInitialization { Stage = ShaderStage.Vertex }, shader, out var shaderHandle);
+            var programData = RHIResourceManager.CreateProgram(default, program, out var programHandle);
             Assert.Equal(0, queries.Reads);
             Assert.NotNull(frameData);
             Assert.Empty(frameData.Value.Attachments);
@@ -200,7 +200,7 @@ public sealed class GpuFramebufferExecutableCreationTests(HeadlessGLFixture fixt
         try
         {
             using var shader = new Recipient<GpuShaderMetadata>(GpuResourceKind.Shader);
-            Assert.Throws<ArgumentException>(() => GpuResourceManager.CreateShader(default, shader, out _));
+            Assert.Throws<ArgumentException>(() => RHIResourceManager.CreateShader(default, shader, out _));
             Assert.Equal((nint)0, shader.ResourceId);
             var omitted = new GpuFramebufferInitialization();
             Assert.False(omitted.HasDefaults);
@@ -210,14 +210,14 @@ public sealed class GpuFramebufferExecutableCreationTests(HeadlessGLFixture fixt
             // Attachmentless defaults are core baseline functionality. Invalid extents still reject before allocation.
             var invalid = new GpuFramebufferInitialization
                 { DefaultWidth = checked(RHICommandContext.Current.Capabilities.MaxFramebufferWidth + 1) };
-            Assert.Throws<ArgumentOutOfRangeException>(() => GpuResourceManager.CreateFramebuffer(invalid, framebuffer, out _));
+            Assert.Throws<ArgumentOutOfRangeException>(() => RHIResourceManager.CreateFramebuffer(invalid, framebuffer, out _));
             Assert.Equal((nint)0, framebuffer.ResourceId);
-            var metadata = GpuResourceManager.CreateFramebuffer(explicitDefaults, framebuffer, out _);
+            var metadata = RHIResourceManager.CreateFramebuffer(explicitDefaults, framebuffer, out _);
             Assert.NotNull(metadata);
             Assert.Equal(0, metadata.Value.DefaultSamples);
             Assert.False(metadata.Value.DefaultFixedSampleLocations);
             using var omittedFramebuffer = new Recipient<GpuFramebufferMetadata>(GpuResourceKind.Framebuffer);
-            Assert.NotNull(GpuResourceManager.CreateFramebuffer(omitted, omittedFramebuffer, out _));
+            Assert.NotNull(RHIResourceManager.CreateFramebuffer(omitted, omittedFramebuffer, out _));
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
         finally
@@ -241,27 +241,27 @@ public sealed class GpuFramebufferExecutableCreationTests(HeadlessGLFixture fixt
             if (family == 0)
             {
                 using var recipient = new FailedRecipient<GpuFramebufferMetadata>(GpuResourceKind.Framebuffer);
-                Assert.Throws<InvalidOperationException>(() => GpuResourceManager.CreateFramebuffer(default, recipient, out handle));
+                Assert.Throws<InvalidOperationException>(() => RHIResourceManager.CreateFramebuffer(default, recipient, out handle));
                 id = recipient.Attempted;
                 Assert.Equal((nint)0, recipient.ResourceId);
             }
             else if (family == 1)
             {
                 using var recipient = new FailedRecipient<GpuShaderMetadata>(GpuResourceKind.Shader);
-                Assert.Throws<InvalidOperationException>(() => GpuResourceManager.CreateShader(new GpuShaderInitialization { Stage = ShaderStage.Vertex }, recipient, out handle));
+                Assert.Throws<InvalidOperationException>(() => RHIResourceManager.CreateShader(new GpuShaderInitialization { Stage = ShaderStage.Vertex }, recipient, out handle));
                 id = recipient.Attempted;
                 Assert.Equal((nint)0, recipient.ResourceId);
             }
             else
             {
                 using var recipient = new FailedRecipient<GpuProgramMetadata>(GpuResourceKind.Program);
-                Assert.Throws<InvalidOperationException>(() => GpuResourceManager.CreateProgram(default, recipient, out handle));
+                Assert.Throws<InvalidOperationException>(() => RHIResourceManager.CreateProgram(default, recipient, out handle));
                 id = recipient.Attempted;
                 Assert.Equal((nint)0, recipient.ResourceId);
             }
             Assert.NotEqual(0, id);
             Assert.Equal(default, handle);
-            GpuResourceManagerSystem.CurrentManager?.OnRenderFrame(0, GpuResourceManager.Stage);
+            RHIResourceManagerSystem.CurrentManager?.OnRenderFrame(0, RHIResourceManager.Stage);
             Assert.False(family switch { 0 => GL.IsFramebuffer(id), 1 => GL.IsShader(id), _ => GL.IsProgram(id) });
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }

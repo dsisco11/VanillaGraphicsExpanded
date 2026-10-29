@@ -23,7 +23,7 @@ public sealed unsafe class GpuSemaphoreLifecycleTests(HeadlessGLFixture fixture)
         using var driver = new SemaphoreDriver();
         GL.Ext.ImportSemaphoreF(SemaphoreDriver.Name, ExternalHandleType.HandleTypeOpaqueFdExt, -1);
         Assert.Equal(1, driver.ImportCalls);
-        Assert.Null(GpuResourceManagerSystem.CurrentManager!.FindResource(GpuResourceKind.Semaphore, SemaphoreDriver.Name));
+        Assert.Null(RHIResourceManagerSystem.CurrentManager!.FindResource(GpuResourceKind.Semaphore, SemaphoreDriver.Name));
         Assert.Equal(0, driver.IdentityReads);
         fixture.CleanupGpuResources();
     }
@@ -35,7 +35,7 @@ public sealed unsafe class GpuSemaphoreLifecycleTests(HeadlessGLFixture fixture)
         fixture.EnsureContextValid(); fixture.InitializeResourceDisposal();
         using var driver = new SemaphoreDriver();
         var table = OpenGLBindingTable.For(typeof(GL));
-        var manager = GpuResourceManagerSystem.CurrentManager!;
+        var manager = RHIResourceManagerSystem.CurrentManager!;
         uint name = 0;
         var generate = (delegate* unmanaged[Stdcall]<int, uint*, void>)table.Read("glGenSemaphoresEXT");
         generate(1, &name);
@@ -79,13 +79,13 @@ public sealed unsafe class GpuSemaphoreLifecycleTests(HeadlessGLFixture fixture)
         {
             var context = new RHICommandContext(new OpenGLBackend(OpenGlStateCache.Current));
             using var driver = new SemaphoreDriver { ImportSucceeds = succeeds };
-            var manager = GpuResourceManagerSystem.CurrentManager!;
+            var manager = RHIResourceManagerSystem.CurrentManager!;
             var description = new RHISemaphoreDescription(new(ExternalHandleKind.OpaqueWin32, (nint)123,
                 ExternalHandleOwnership.RetainByCaller));
             if (succeeds)
             {
                 using var owner = context.CreateSemaphore(description).RequireResource();
-                var entry = GpuResourceManagerSystem.CurrentManager!.GetResourceRegistration(owner)!;
+                var entry = RHIResourceManagerSystem.CurrentManager!.GetResourceRegistration(owner)!;
                 Assert.True(entry.IsRealized); Assert.True(entry.IsUsable); Assert.Equal(1ul, entry.MetadataRevision);
                 Assert.Equal(1, driver.FactoryCalls); Assert.Equal(1, driver.ImportCalls); Assert.Equal(1, driver.IdentityReads);
                 owner.Dispose(); fixture.CleanupGpuResources();
@@ -116,7 +116,7 @@ public sealed unsafe class GpuSemaphoreLifecycleTests(HeadlessGLFixture fixture)
             var context = new RHICommandContext(new OpenGLBackend(OpenGlStateCache.Current));
             using var driver = new SemaphoreDriver();
             using var owner = context.CreateSemaphore(new()).RequireResource();
-            var manager = GpuResourceManagerSystem.CurrentManager!;
+            var manager = RHIResourceManagerSystem.CurrentManager!;
             var entry = manager.GetResourceRegistration(owner)!;
             Assert.False(entry.IsRealized); Assert.False(entry.IsUsable); Assert.True(owner.IsValid);
             Assert.Throws<InvalidOperationException>(() => context.WaitSemaphore(owner, [], []));

@@ -35,7 +35,7 @@ internal sealed partial class OpenGLBackend
         var owner = new GpuProgramObject();
         try
         {
-            if (!GpuResourceManager.CreateProgram(new(), owner, out _).HasValue)
+            if (!RHIResourceManager.CreateProgram(new(), owner, out _).HasValue)
                 throw new System.InvalidOperationException("Program allocation failed.");
             owner.SetDebugName(label);
             return owner;

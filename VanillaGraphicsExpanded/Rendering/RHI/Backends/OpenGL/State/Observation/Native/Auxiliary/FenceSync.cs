@@ -12,7 +12,7 @@ internal sealed partial class OpenGlStateCache
     {
         if (result == 0 || condition != (int)SyncCondition.SyncGpuCommandsComplete || flags != 0
             || !OpenGLObservationContext.TryGet(out _, out _, false)) return;
-        GpuResourceManagerSystem.CurrentManager!.ObserveSyncCreation(result);
+        RHIResourceManagerSystem.CurrentManager!.ObserveSyncCreation(result);
     }
     #endregion
 }

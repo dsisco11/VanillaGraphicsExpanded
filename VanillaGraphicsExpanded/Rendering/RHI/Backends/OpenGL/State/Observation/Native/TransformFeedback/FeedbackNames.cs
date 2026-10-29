@@ -18,7 +18,7 @@ internal sealed unsafe partial class OpenGlStateCache
     private static void ObserveFeedbackNames(int count, uint* names, bool realized)
     {
         if (count <= 0 || names == null || !OpenGLObservationContext.TryGet(out var cache, out _, false)) return;
-        var manager = GpuResourceManagerSystem.CurrentManager!;
+        var manager = RHIResourceManagerSystem.CurrentManager!;
         for (int index = 0; index < count; index++)
         {
             int id = unchecked((int)names[index]);

@@ -92,10 +92,10 @@ public sealed class GpuTextureDependencyRecoveryTests(HeadlessGLFixture fixture)
             using var source = RHICommandContext.Current.CreateDynamicTexture3D(new RHITextureDescription { Dimension = TextureDimension.TwoArray, Format = TextureFormat.Rgba8, Width = System.Math.Max(1, 4), Height = System.Math.Max(1, 4), Depth = System.Math.Max(1, 2), MipLevels = 1, Storage = (true ? ResourceStorageMode.Immutable : ResourceStorageMode.Mutable), Filter = TextureFilterMode.Linear, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
             using var view = RHICommandContext.Current.CreateTextureView(new RHITextureViewDescription { Source = source, Dimension = TextureDimension.TwoArray, Format = TextureFormat.Rgba8, BaseMip = 0, MipCount = 1, BaseLayer = 0, LayerCount = 1, Label = null }).RequireResource();
             // An incomplete operation cannot certify whether native storage commands executed before failure.
-            using (new GpuResourceManager.MetadataOperation<GpuTextureMetadata>(source, storage ? GpuMetadataChange.Storage : GpuMetadataChange.Metadata)) { }
+            using (new RHIResourceManager.MetadataOperation<GpuTextureMetadata>(source, storage ? GpuMetadataChange.Storage : GpuMetadataChange.Metadata)) { }
             Assert.False(view.IsValid);
             Assert.Throws<InvalidOperationException>(() => source.SetMipRange(0, 0));
-            GpuResourceManager.RecoverWrapperMetadata(source, new GpuTextureMetadataReader(TextureDimension.TwoArray));
+            RHIResourceManager.RecoverWrapperMetadata(source, new GpuTextureMetadataReader(TextureDimension.TwoArray));
             source.SetMipRange(0, 0);
             Assert.Equal(4, source.Width);
             Assert.Equal(!storage, view.IsValid);
@@ -112,7 +112,7 @@ public sealed class GpuTextureDependencyRecoveryTests(HeadlessGLFixture fixture)
         using var source = RHICommandContext.Current.CreateDynamicTexture3D(new RHITextureDescription { Dimension = TextureDimension.TwoArray, Format = TextureFormat.Rgba8, Width = System.Math.Max(1, 4), Height = System.Math.Max(1, 4), Depth = System.Math.Max(1, 2), MipLevels = 1, Storage = (true ? ResourceStorageMode.Immutable : ResourceStorageMode.Mutable), Filter = TextureFilterMode.Linear, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         using var view = RHICommandContext.Current.CreateTextureView(new RHITextureViewDescription { Source = source, Dimension = TextureDimension.TwoArray, Format = TextureFormat.Rgba8, BaseMip = 0, MipCount = 1, BaseLayer = 0, LayerCount = 1, Label = null }).RequireResource();
         var before = source.StorageImages;
-        using (var operation = new GpuResourceManager.MetadataOperation<GpuTextureMetadata>(source, GpuMetadataChange.Storage))
+        using (var operation = new RHIResourceManager.MetadataOperation<GpuTextureMetadata>(source, GpuMetadataChange.Storage))
         {
             Assert.True(new GpuTextureMetadataReader(source.TextureTarget).TryRead(source.TextureId, out var candidate));
             operation.Commit(candidate);
@@ -129,10 +129,10 @@ public sealed class GpuTextureDependencyRecoveryTests(HeadlessGLFixture fixture)
     {
         fixture.EnsureContextValid();
         fixture.UseContextLocalResources();
-        Assert.Null(GpuResourceManagerSystem.CurrentManager);
+        Assert.Null(RHIResourceManagerSystem.CurrentManager);
         if (!retiredManager) return;
         fixture.InitializeResourceDisposal();
-        GpuResourceManagerSystem.CurrentManager!.Dispose();
+        RHIResourceManagerSystem.CurrentManager!.Dispose();
     }
 
     /// <summary>Injects a reader failure without changing the source allocation.</summary>

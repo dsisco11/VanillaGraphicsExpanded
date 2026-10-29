@@ -126,7 +126,7 @@ public sealed class LiquidPoolTraversalTests(HeadlessGLFixture fixture) : Render
             // Shadow pass matrices and opaque dispatch cannot replace or upload the already shared frame again.
             Assert.True(VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindUniformSnapshot(GpuBindingRegistry.Ubo.Frame, sharedFrame.Capture()));
             var firstBinding = FrameBinding();
-            Assert.True(GpuUniformRingSystem.TryGetCurrent(out var ring));
+            Assert.True(RHIUniformRingSystem.TryGetCurrent(out var ring));
 #if DEBUG
             long uploads = ring.AllocationsWritten;
 #endif

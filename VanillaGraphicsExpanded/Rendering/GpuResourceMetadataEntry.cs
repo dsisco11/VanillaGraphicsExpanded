@@ -25,7 +25,7 @@ internal sealed class GpuResourceMetadataEntry<TMetadata> : GpuResourceRegistrat
     internal override int AssociationCount => recipients.Count;
 
     /// <summary>Creates an initially unavailable entry for a realized or reserved native name.</summary>
-    internal GpuResourceMetadataEntry(GpuResourceManager manager, GpuResourceKind kind, nint id,
+    internal GpuResourceMetadataEntry(RHIResourceManager manager, GpuResourceKind kind, nint id,
         IGpuResourceMetadataReader<TMetadata>? reader) : base(manager, kind, id)
     {
         Reader = reader;

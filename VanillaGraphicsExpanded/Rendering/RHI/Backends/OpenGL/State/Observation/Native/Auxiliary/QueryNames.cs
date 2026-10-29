@@ -11,7 +11,7 @@ internal sealed unsafe partial class OpenGlStateCache
     {
         if (count <= 0 || names == null || !OpenGLObservationContext.TryGet(out _, out _, false)) return;
         for (int i = 0; i < count; i++)
-            GpuResourceManagerSystem.CurrentManager!.ObserveQueryCreation(unchecked((int)names[i]), false);
+            RHIResourceManagerSystem.CurrentManager!.ObserveQueryCreation(unchecked((int)names[i]), false);
     }
 
     /// <summary>Establishes target-specific objects only for admitted native factory arguments.</summary>
@@ -22,7 +22,7 @@ internal sealed unsafe partial class OpenGlStateCache
         bool established = IsSupportedQueryTarget(target, true);
         bool uncertain = !GpuSupport.HasCachedCapabilitiesForCurrentContext && IsStatisticsQueryTarget(target);
         if (!established && !uncertain) return;
-        var manager = GpuResourceManagerSystem.CurrentManager!;
+        var manager = RHIResourceManagerSystem.CurrentManager!;
         for (int i = 0; i < count; i++)
         {
             int id = unchecked((int)names[i]);
@@ -40,7 +40,7 @@ internal sealed unsafe partial class OpenGlStateCache
     internal static void ObserveIsQuery(uint name, byte result)
     {
         if (result != 0 && OpenGLObservationContext.TryGet(out _, out _, false))
-            GpuResourceManagerSystem.CurrentManager!.RealizeObservedQuery(unchecked((int)name));
+            RHIResourceManagerSystem.CurrentManager!.RealizeObservedQuery(unchecked((int)name));
     }
     #endregion
 }

@@ -162,7 +162,7 @@ internal sealed class CloudNativeMapAdapter
     private bool IsProgramLinked()
     {
         var program = Program(owner);
-        return program is not null && GpuResourceManager.AcquireExternalFacts(GpuResourceKind.Program,
+        return program is not null && RHIResourceManager.AcquireExternalFacts(GpuResourceKind.Program,
             program.ProgramId, GpuProgramMetadataReader.Instance) is { ExecutableAvailable: true };
     }
 
@@ -179,7 +179,7 @@ internal sealed class CloudNativeMapAdapter
             var expected = id == storage.Map || id == storage.Color ? TextureFormat.Rgba32f : TextureFormat.Rgba16;
             if (image.Width != storage.Width || image.Height != storage.Width || image.Format != expected) return false;
         }
-        var framebuffer = GpuResourceManager.AcquireExternalFacts(GpuResourceKind.Framebuffer,
+        var framebuffer = RHIResourceManager.AcquireExternalFacts(GpuResourceKind.Framebuffer,
             storage.Framebuffer, GpuFramebufferMetadataReader.Instance);
         if (framebuffer is not { } facts || !facts.Attachments.TryGetValue(FramebufferSlot.Color0, out var map)
             || !facts.Attachments.TryGetValue(FramebufferSlot.Color1, out var color)

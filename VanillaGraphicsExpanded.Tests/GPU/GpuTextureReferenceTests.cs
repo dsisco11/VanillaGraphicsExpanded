@@ -69,7 +69,7 @@ public sealed class GpuTextureReferenceTests(HeadlessGLFixture fixture)
             Assert.False(viewReference.IsValid);
             Assert.False(view.IsValid);
             Assert.Throws<InvalidOperationException>(() => viewReference.TextureId);
-            Assert.False(GpuResourceManager.ValidateTextureReferenceInput(viewReference.Resource));
+            Assert.False(RHIResourceManager.ValidateTextureReferenceInput(viewReference.Resource));
         }
         finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
@@ -114,13 +114,13 @@ public sealed class GpuTextureReferenceTests(HeadlessGLFixture fixture)
             Assert.Equal(retained, owner);
             Assert.True(owner.TryGetMetadata(out var data));
             Assert.Contains(data.Levels, level => level.Level == 0 && level.Width == 8 && level.Height == 6);
-            GpuResourceManager.InvalidateWrapperMetadata(texture);
+            RHIResourceManager.InvalidateWrapperMetadata(texture);
             Assert.False(owner.TryGetMetadata(out _));
             Assert.False(alias.IsValid);
             Assert.False(texture.IsValid);
-            Assert.Throws<InvalidOperationException>(() => GpuResourceManager.ValidateTextureReferenceInput(owner.Resource));
-            Assert.Throws<InvalidOperationException>(() => GpuResourceManager.AcquireWrapperMetadata(texture, GpuTextureMetadataReader.Instance));
-            GpuResourceManager.RecoverWrapperMetadata(texture, GpuTextureMetadataReader.Instance);
+            Assert.Throws<InvalidOperationException>(() => RHIResourceManager.ValidateTextureReferenceInput(owner.Resource));
+            Assert.Throws<InvalidOperationException>(() => RHIResourceManager.AcquireWrapperMetadata(texture, GpuTextureMetadataReader.Instance));
+            RHIResourceManager.RecoverWrapperMetadata(texture, GpuTextureMetadataReader.Instance);
             Assert.True(owner.IsValid);
             Assert.True(alias.IsValid);
             borrowed.Dispose();

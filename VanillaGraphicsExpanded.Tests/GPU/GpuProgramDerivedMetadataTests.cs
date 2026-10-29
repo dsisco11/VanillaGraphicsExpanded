@@ -59,7 +59,7 @@ Assert.Equal(0,acquisition.Acquisitions);
         {
             using var program=CreateProgram(out int shader,true); VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Shader, shader));
             var layout=PrepareArrayLayout(program);
-            using var alias=new ProgramAlias(program.ProgramId); GpuResourceManager.AcquireWrapperMetadata(alias,GpuProgramMetadataReader.Instance);
+            using var alias=new ProgramAlias(program.ProgramId); RHIResourceManager.AcquireWrapperMetadata(alias,GpuProgramMetadataReader.Instance);
             int location=GL.GetUniformLocation(program.ProgramId,"inputs[0]");
             Assert.ThrowsAny<Exception>(()=>OpenGLProgramAssignments.SetUnit(program.ProgramId,location,5));
             Assert.True(program.NeedsNativePreparation); Assert.Throws<InvalidOperationException>(()=>layout.BinaryInterface);
@@ -100,7 +100,7 @@ Assert.Equal(0,acquisition.Acquisitions);
             using var program=CreateProgram(out int shader,true);
             try
             {
-                var layout=PrepareArrayLayout(program); var manager=GpuResourceManagerSystem.CurrentManager!;
+                var layout=PrepareArrayLayout(program); var manager=RHIResourceManagerSystem.CurrentManager!;
                 var entry=(GpuResourceMetadataEntry<GpuProgramMetadata>)manager.GetResourceRegistration(program)!;
                 var reader=entry.Reader; entry.Reader=new UnavailableProgramReader();
                 GL.LinkProgram(program.ProgramId);
@@ -124,7 +124,7 @@ Assert.Equal(0,acquisition.Acquisitions);
             GL.CompileShader(shader); native=GL.CreateProgram(); GL.AttachShader(native,shader); GL.LinkProgram(native);
             GL.GetProgram(native,GetProgramParameterName.LinkStatus,out int linked); Assert.Equal(1,linked);
             using var program=GpuProgramObject.Adopt(native); native=0;
-            var manager=GpuResourceManagerSystem.CurrentManager!; var entry=(GpuResourceMetadataEntry<GpuProgramMetadata>)manager.GetResourceRegistration(program)!;
+            var manager=RHIResourceManagerSystem.CurrentManager!; var entry=(GpuResourceMetadataEntry<GpuProgramMetadata>)manager.GetResourceRegistration(program)!;
             var contract=new GpuBindingContract(); contract.Images.Add("images",new GpuBindingContract.Binding(3,true,2)); contract.RegisterShaderStorageBlockBinding("Output",0);
             var layout=new GpuProgramLayout { BinaryInterface=new GpuProgramInterface(program.ProgramId,new[]{contract},metadata:entry.Metadata) }; layout.RegisterContract(contract); program.SetPreparedLayout(layout);
             var before=layout.BinaryInterface!.PreparedBindings; int location=GL.GetUniformLocation(program.ProgramId,"images[0]");
@@ -141,7 +141,7 @@ Assert.Equal(0,acquisition.Acquisitions);
     [Fact]
     public void ContextLocalTypedLinkRecoversMetadata()
     {
-        fixture.EnsureContextValid(); GpuResourceManagerSystem.Shutdown(); int shader=0;
+        fixture.EnsureContextValid(); RHIResourceManagerSystem.Shutdown(); int shader=0;
         try
         {
             using var program=CreateProgram(out shader,true);
@@ -166,7 +166,7 @@ Assert.Equal(0,acquisition.Acquisitions);
     private static GpuProgramLayout PrepareArrayLayout(GpuProgramObject program)
     {
         int location=GL.GetUniformLocation(program.ProgramId,"inputs[0]"); GL.ProgramUniform1(program.ProgramId,location,2,new[]{0,1});
-        var manager=GpuResourceManagerSystem.CurrentManager!; var entry=(GpuResourceMetadataEntry<GpuProgramMetadata>)manager.GetResourceRegistration(program)!;
+        var manager=RHIResourceManagerSystem.CurrentManager!; var entry=(GpuResourceMetadataEntry<GpuProgramMetadata>)manager.GetResourceRegistration(program)!;
         Assert.True(manager.RefreshMetadata(entry,GpuMetadataChange.Metadata));
         var contract=new GpuBindingContract(); contract.Samplers.Add("inputs",new GpuBindingContract.Binding(0,true,2)); contract.RegisterUniformBlockBinding("Parameters",0); contract.RegisterShaderStorageBlockBinding("Output",0);
         var layout=new GpuProgramLayout { BinaryInterface=new GpuProgramInterface(program.ProgramId,new[]{contract},metadata:entry.Metadata) };

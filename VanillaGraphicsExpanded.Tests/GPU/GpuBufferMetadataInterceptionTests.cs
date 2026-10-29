@@ -23,7 +23,7 @@ public sealed class GpuBufferMetadataInterceptionTests(HeadlessGLFixture fixture
         {
 
 
-            var manager = GpuResourceManagerSystem.CurrentManager!;
+            var manager = RHIResourceManagerSystem.CurrentManager!;
             Assert.False(GL.IsBuffer(reserved));
             BindReserved(reserved);
             Assert.True(GL.IsBuffer(reserved));
@@ -60,13 +60,13 @@ public sealed class GpuBufferMetadataInterceptionTests(HeadlessGLFixture fixture
             AllocateStorage(named, owner.BufferId);
             AcquireAfterExternal(owner);
             Assert.Equal(96, owner.SizeBytes);
-            Assert.True(GpuResourceManagerSystem.CurrentManager!.IsResourceMetadataAvailable(owner));
+            Assert.True(RHIResourceManagerSystem.CurrentManager!.IsResourceMetadataAvailable(owner));
             Assert.Equal(ErrorCode.NoError, GL.GetError());
             // Immutable storage cannot be replaced; a rejected command must preserve its measured facts and error.
             AllocateStorage(named, owner.BufferId);
             AcquireAfterExternal(owner);
             Assert.Equal(96, owner.SizeBytes);
-            Assert.True(GpuResourceManagerSystem.CurrentManager.IsResourceMetadataAvailable(owner));
+            Assert.True(RHIResourceManagerSystem.CurrentManager.IsResourceMetadataAvailable(owner));
             Assert.Equal(ErrorCode.InvalidOperation, GL.GetError());
         }
         finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
@@ -91,7 +91,7 @@ public sealed class GpuBufferMetadataInterceptionTests(HeadlessGLFixture fixture
 
             using var owner = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = null }).RequireResource();
             owner.Allocate(64);
-            var manager = GpuResourceManagerSystem.CurrentManager!;
+            var manager = RHIResourceManagerSystem.CurrentManager!;
             var entry = Assert.IsType<GpuResourceMetadataEntry<GpuBufferMetadata>>(manager.GetResourceRegistration(owner));
             using var alias = new BufferAlias(owner.BufferId);
             manager.AssociateResource(entry, alias);
@@ -132,7 +132,7 @@ public sealed class GpuBufferMetadataInterceptionTests(HeadlessGLFixture fixture
             raw = GL.GenBuffer();
             OpenGLBufferBindings.BindBuffer(OpenGlStateCache.Current, BufferTarget.ArrayBuffer, raw);
             Allocate(24);
-            Assert.Equal((nint)24, Assert.IsType<GpuResourceMetadataEntry<GpuBufferMetadata>>(GpuResourceManagerSystem.CurrentManager!.FindResource(GpuResourceKind.Buffer, raw)).Metadata.Capacity);
+            Assert.Equal((nint)24, Assert.IsType<GpuResourceMetadataEntry<GpuBufferMetadata>>(RHIResourceManagerSystem.CurrentManager!.FindResource(GpuResourceKind.Buffer, raw)).Metadata.Capacity);
             GL.GetBufferParameter(BufferTarget.ArrayBuffer, BufferParameterName.BufferSize, out int size);
             Assert.Equal(24, size);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
@@ -150,7 +150,7 @@ public sealed class GpuBufferMetadataInterceptionTests(HeadlessGLFixture fixture
     /// <summary>Models a consumer explicitly reusing maintained facts after an external command.</summary>
     private static void AcquireAfterExternal(GpuBufferObject owner)
     {
-        var manager = GpuResourceManagerSystem.CurrentManager!;
+        var manager = RHIResourceManagerSystem.CurrentManager!;
         Assert.True(manager.IsResourceMetadataAvailable(owner));
         Assert.NotNull(manager.AcquireResource(GpuResourceKind.Buffer, owner.BufferId, new GpuBufferMetadataReader()));
     }

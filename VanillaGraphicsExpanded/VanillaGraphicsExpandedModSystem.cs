@@ -55,7 +55,7 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem, ILiveConfigura
             && client.Render?.FrameBuffers is { } framebuffers
             && (Rendering.Integration.RenderContextRegistry.Current() != default
                 || Rendering.Integration.EngineRenderContext.TryRegisterCurrent()))
-            Rendering.Integration.EnginePreexistingImages.Record(GpuResourceManagerSystem.EnsureCurrentContext(), framebuffers);
+            Rendering.Integration.EnginePreexistingImages.Record(RHIResourceManagerSystem.EnsureCurrentContext(), framebuffers);
         OpenGLBindingInterception.Install();
         LiquidPoolInputBridgeHook.Install(harmony);
 
@@ -88,7 +88,7 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem, ILiveConfigura
         Rendering.Integration.EngineRenderContext.RegisterCurrent();
         var registry = GpuShaderProgramLibraries.Create(api);
         renderingLifetime = Rendering.Integration.ClientRenderingLifetime.Find(api);
-        capi.ModLoader.GetModSystem<GpuResourceManagerModSystem>()?.AdoptByRenderingRoot();
+        capi.ModLoader.GetModSystem<RHIResourceManagerModSystem>()?.AdoptByRenderingRoot();
         renderingLifetime!.Attach(DisposeRendering);
         // Establish HDR storage before any VGE system borrows the engine framebuffer images.
         PBR.SceneColor.SceneColorPipeline.InitializeStorage(api);
@@ -326,7 +326,7 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem, ILiveConfigura
 
             TryCleanup(() => gBufferManager?.Dispose(), cleanupFailures);
             gBufferManager = null;
-            TryCleanup(() => capi?.ModLoader.GetModSystem<GpuResourceManagerModSystem>()?.ShutdownRenderingResources(), cleanupFailures);
+            TryCleanup(() => capi?.ModLoader.GetModSystem<RHIResourceManagerModSystem>()?.ShutdownRenderingResources(), cleanupFailures);
 
         }
         finally

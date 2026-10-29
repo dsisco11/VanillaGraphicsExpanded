@@ -39,7 +39,7 @@ public sealed class ShaderBindingOperationTests(HeadlessGLFixture fixture, ITest
         long interfaceNames = pipeline.ProgramLayout.BinaryInterface.UniformNameResolutions;
 #endif
         var captured = shader.CaptureBindings();
-        Assert.True(GpuUniformRingSystem.TryGetCurrent(out var ring));
+        Assert.True(RHIUniformRingSystem.TryGetCurrent(out var ring));
 #if DEBUG
         long uploads = ring.AllocationsWritten, bytes = ring.BytesWritten;
         long imageChecks = cache.ImageCacheChecks;

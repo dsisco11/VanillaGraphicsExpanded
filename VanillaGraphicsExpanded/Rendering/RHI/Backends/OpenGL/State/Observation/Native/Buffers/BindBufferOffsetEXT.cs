@@ -30,7 +30,7 @@ internal sealed unsafe partial class OpenGlStateCache
         }
         if (activity.Active) return;
         int id = unchecked((int)name);
-        var manager = GpuResourceManagerSystem.CurrentManager!;
+        var manager = RHIResourceManagerSystem.CurrentManager!;
         var entry = manager.FindObservedResource(GpuResourceKind.Buffer, id) as GpuResourceMetadataEntry<GpuBufferMetadata>;
         nint size = 0;
         if (id != 0 && entry is { IsUsable: true })

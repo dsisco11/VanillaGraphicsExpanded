@@ -98,7 +98,7 @@ public sealed class SceneColorParticleSsaoTests(HeadlessGLFixture fixture) : Lum
         float[] originalPositions = scene.Position.ReadPixels();
 
         scene.Targets.Dispose();
-        GpuResourceManagerSystem.CaptureDisposalQueue().DrainPending();
+        RHIResourceManagerSystem.CaptureDisposalQueue().DrainPending();
 
         Assert.False(isolatedNormal.IsValid);
         Assert.False(isolatedPosition.IsValid);

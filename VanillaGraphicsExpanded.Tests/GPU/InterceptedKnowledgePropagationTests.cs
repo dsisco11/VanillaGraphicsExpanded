@@ -287,8 +287,8 @@ public sealed class InterceptedKnowledgePropagationTests(HeadlessGLFixture fixtu
         var cache = OpenGlStateCache.Current;
         using var pack = OpenGLPixelLayouts.PackScope(cache, new(8, RowLength: 17));
         using var ring = new GpuUniformRingBuffer(4096, 2, preferPersistent: false, coherent: false, debugName: "Tests.KnowledgeEpoch");
-        using var controller = new GpuUniformRingFrameController(ring);
-        var renderer = new GpuUniformRingBeginRenderer(controller);
+        using var controller = new RHIUniformRingFrameController(ring);
+        var renderer = new RHIUniformRingBeginRenderer(controller);
         try
         {
             renderer.OnRenderFrame(0, EnumRenderStage.Before);

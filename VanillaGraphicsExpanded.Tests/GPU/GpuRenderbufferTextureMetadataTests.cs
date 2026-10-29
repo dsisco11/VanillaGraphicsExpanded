@@ -31,10 +31,10 @@ public sealed class GpuRenderbufferTextureMetadataTests(HeadlessGLFixture fixtur
             GL.BindRenderbuffer(RenderbufferTarget.Renderbuffer,first); GL.RenderbufferStorage(RenderbufferTarget.Renderbuffer,RenderbufferStorage.Rgba8,4,4);
             GL.BindRenderbuffer(RenderbufferTarget.Renderbuffer,second); GL.RenderbufferStorage(RenderbufferTarget.Renderbuffer,RenderbufferStorage.Rgba8,8,8);
             GL.ActiveTexture(TextureUnit.Texture3); GL.BindTexture(Target,texture); GL.Ext.TextureRenderbuffer(texture,Target,first); Assert.Equal(ErrorCode.NoError,GL.GetError()); OpenGlStateCache.Current.InvalidateAll();
-            var manager=GpuResourceManagerSystem.CurrentManager!; var reader=new GpuTextureMetadataReader(TextureDimension.RenderbufferTexture);
+            var manager=RHIResourceManagerSystem.CurrentManager!; var reader=new GpuTextureMetadataReader(TextureDimension.RenderbufferTexture);
             var entry=manager.AcquireResource(GpuResourceKind.Texture,texture,reader)!; Assert.True(entry.IsUsable); Assert.Equal(first,entry.Metadata.Renderbuffer); Assert.Empty(entry.Metadata.Levels);
             Assert.True(manager.FindResource(GpuResourceKind.Renderbuffer,first)!.IsUsable);
-            using var alias=new TextureAlias(texture); GpuResourceManager.AcquireWrapperMetadata(alias,reader);
+            using var alias=new TextureAlias(texture); RHIResourceManager.AcquireWrapperMetadata(alias,reader);
             GL.ActiveTexture(TextureUnit.Texture5); OpenGlStateCache.Current.InvalidateAll(); ulong revision=entry.StorageRevision;
             Associate(multi,texture,second); Assert.Equal(ErrorCode.NoError,GL.GetError());
             Assert.Equal((int)TextureUnit.Texture5,GL.GetInteger(GetPName.ActiveTexture)); Assert.Equal(second,alias.Snapshot.Renderbuffer); Assert.True(entry.StorageRevision>revision); Assert.True(manager.IsResourceMetadataAvailable(alias));

@@ -17,14 +17,14 @@ internal sealed partial class OpenGlStateCache
     /// <summary>Records immutable native type without putting a descriptor mirror in the empty canonical schema.</summary>
     internal void EstablishQueryTarget(int id, int target)
     {
-        if (GpuResourceManagerSystem.CurrentManager?.FindObservedResource(GpuResourceKind.Query, id) is { } entry)
+        if (RHIResourceManagerSystem.CurrentManager?.FindObservedResource(GpuResourceKind.Query, id) is { } entry)
             queryTargets.TryAdd(entry, new(NormalizeQueryTarget(target)));
     }
 
     /// <summary>Realizes only the original generated name after target, index and activity checks.</summary>
     internal void ObserveQueryBegin(int target, uint index, int id)
     {
-        var manager = GpuResourceManagerSystem.CurrentManager;
+        var manager = RHIResourceManagerSystem.CurrentManager;
         if (manager?.FindObservedResource(GpuResourceKind.Query, id) is not { } entry) return;
         if (index != 0 && target != (int)QueryTarget.PrimitivesGenerated
             && target != (int)QueryTarget.TransformFeedbackPrimitivesWritten) return;
@@ -81,7 +81,7 @@ internal sealed partial class OpenGlStateCache
     internal void ObserveQueryTimestamp(int id, int target)
     {
         if (target != (int)QueryTarget.Timestamp) return;
-        var manager = GpuResourceManagerSystem.CurrentManager;
+        var manager = RHIResourceManagerSystem.CurrentManager;
         if (manager?.FindObservedResource(GpuResourceKind.Query, id) is not { } entry) return;
         if (!entry.IsRealized && entry is GpuResourceMetadataEntry<GpuQueryMetadata> { PendingChange: not GpuMetadataChange.None }) return;
         if (queryTargets.TryGetValue(entry, out var previous) && previous.Target != target) return;
@@ -95,7 +95,7 @@ internal sealed partial class OpenGlStateCache
     internal void ObserveQueryCondition(int id, int mode)
     {
         if (observedConditionalQuery is not null || !System.Enum.IsDefined((ConditionalRenderType)mode)) return;
-        if (GpuResourceManagerSystem.CurrentManager?.FindObservedResource(GpuResourceKind.Query, id) is not { IsRealized: true } entry
+        if (RHIResourceManagerSystem.CurrentManager?.FindObservedResource(GpuResourceKind.Query, id) is not { IsRealized: true } entry
             || HasActiveQuery(entry)) return;
         if (queryTargets.TryGetValue(entry, out var state) && state.Target != (int)QueryTarget.SamplesPassed
             && state.Target != (int)QueryTarget.AnySamplesPassed) return;
@@ -131,7 +131,7 @@ internal sealed partial class OpenGlStateCache
     internal bool HasQueryStartConflict(int target, int id)
     {
         if (observedActiveQueries.ContainsKey((QueryActivityTarget(target), 0))) return true;
-        var entry = GpuResourceManagerSystem.CurrentManager?.FindObservedResource(GpuResourceKind.Query, id);
+        var entry = RHIResourceManagerSystem.CurrentManager?.FindObservedResource(GpuResourceKind.Query, id);
         return entry is not null && (HasActiveQuery(entry) || ReferenceEquals(observedConditionalQuery, entry));
     }
     #endregion
@@ -140,14 +140,14 @@ internal sealed partial class OpenGlStateCache
     /// <summary>Certifies the result generation without making content changes canonical descriptor revisions.</summary>
     internal ulong QueryExecutionRevision(int id)
     {
-        return GpuResourceManagerSystem.CurrentManager?.FindObservedResource(GpuResourceKind.Query, id) is { } entry
+        return RHIResourceManagerSystem.CurrentManager?.FindObservedResource(GpuResourceKind.Query, id) is { } entry
             && queryTargets.TryGetValue(entry, out var state) ? state.Revision : 0;
     }
 
     /// <summary>Discards the deleted name's type while active intervals retain the original allocation until EndQuery.</summary>
     internal void ForgetQueryTarget(nint id)
     {
-        if (GpuResourceManagerSystem.CurrentManager?.FindResource(GpuResourceKind.Query, id) is { } entry)
+        if (RHIResourceManagerSystem.CurrentManager?.FindResource(GpuResourceKind.Query, id) is { } entry)
             queryTargets.Remove(entry);
     }
     #endregion

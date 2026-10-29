@@ -58,7 +58,7 @@ public sealed class GpuProgramCandidateMetadataTests(HeadlessGLFixture fixture)
             using var capture = new NativeShaderAllocationCapture();
             using var request = RHICommandContext.Current.BeginCreateShader(RHIShaderInputs.ComputeDescription());
             int id = capture.Program;
-            var manager = GpuResourceManagerSystem.CurrentManager!;
+            var manager = RHIResourceManagerSystem.CurrentManager!;
             var entry = capture.Registration;
             Assert.NotNull(entry);
             int[] stages = capture.Stages;
@@ -96,7 +96,7 @@ public sealed class GpuProgramCandidateMetadataTests(HeadlessGLFixture fixture)
             });
             worker.Start(); worker.Join();
             Assert.Null(failure);
-            GpuResourceManagerSystem.CurrentManager!.OnRenderFrame(0, GpuResourceManager.Stage);
+            RHIResourceManagerSystem.CurrentManager!.OnRenderFrame(0, RHIResourceManager.Stage);
             Assert.False(GL.IsProgram(id));
             Assert.All(stages, stage => Assert.False(GL.IsShader(stage)));
             Assert.Equal(ErrorCode.NoError, GL.GetError());

@@ -30,7 +30,7 @@ public sealed class UniformLifetimeMeasurementTests(HeadlessGLFixture fixture, I
         resolve.AtlasSize = new(256, 128);
         referenceResolve.SetBytes(resolve.Bytes);
         long publications = 0;
-        GpuUniformRingSystem.SetCurrent(ring);
+        RHIUniformRingSystem.SetCurrent(ring);
         try
         {
             for (int index = 0; index < 8; index++)
@@ -67,7 +67,7 @@ public sealed class UniformLifetimeMeasurementTests(HeadlessGLFixture fixture, I
                 $"transientResidentBytes={ring.PageCount * ring.PageSizeBytes}; transientFenceWaits={ring.FenceWaits}; retainedBlockingWaits=0; CPU/GPU/live timings unmeasured.");
 #endif
         }
-        finally { GpuUniformRingSystem.ClearCurrent(); }
+        finally { RHIUniformRingSystem.ClearCurrent(); }
     }
     #endregion
 }

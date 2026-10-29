@@ -101,7 +101,7 @@ overload inventory is maintained.
 | Native callbacks | Forward original arguments once, preserve native return values, contain observer failures and reconcile effects without throwing or vetoing dispatch. |
 | OpenGL backend | Execute managed RHI operations through the saved native route without duplicate interception. |
 | `OpenGlStateCache` | Retain the single executed-state authority, eligible suppression, operation exclusions and restoration knowledge. |
-| `GpuResourceManager` | Retain canonical metadata, associations, availability, dependencies and exactly-once publication. |
+| `RHIResourceManager` | Retain canonical metadata, associations, availability, dependencies and exactly-once publication. |
 
 Pointer handling and native conversion stay inside the OpenGL backend. Extract shared effect logic;
 do not invoke an exact adapter that issues another OpenTK call and recurses. Resource wrappers and

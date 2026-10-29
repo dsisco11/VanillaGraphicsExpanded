@@ -16,7 +16,7 @@ internal static class OpenGLTextureIntegration
         var owner = new GpuBufferTexture();
         try
         {
-            if (!GpuResourceManager.CreateBufferTexture(request, owner, out _).HasValue) return new(null, "External buffer view initialization did not complete.");
+            if (!RHIResourceManager.CreateBufferTexture(request, owner, out _).HasValue) return new(null, "External buffer view initialization did not complete.");
             owner.SetDebugName(label);
             return new(owner, null);
         }
@@ -119,7 +119,7 @@ internal static class OpenGLTextureIntegration
         var view = new GpuTextureView(sourceId);
         try
         {
-            if (!GpuResourceManager.CreateTextureView(request, view, out _, source).HasValue)
+            if (!RHIResourceManager.CreateTextureView(request, view, out _, source).HasValue)
                 throw new InvalidOperationException("Texture view creation failed.");
             view.SetDebugName(debugName);
             return view;

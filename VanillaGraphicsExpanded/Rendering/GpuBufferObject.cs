@@ -237,9 +237,9 @@ public abstract class GpuBufferObject : GpuResource<GpuBufferMetadata>, IDisposa
                 $"Byte count exceeds source array size ({maxByteCount} bytes for {data.Length}×{typeof(T).Name}).");
         }
 
-        if (GpuResourceManagerSystem.IsInitialized
-            && GpuResourceManagerSystem.IsRenderThreadKnown
-            && !GpuResourceManagerSystem.IsRenderThread)
+        if (RHIResourceManagerSystem.IsInitialized
+            && RHIResourceManagerSystem.IsRenderThreadKnown
+            && !RHIResourceManagerSystem.IsRenderThread)
         {
             EnqueueUpload(PendingUpload.ForBufferData(CopyToPooledBytes(data, byteCount), byteCount));
             return;
@@ -306,9 +306,9 @@ public abstract class GpuBufferObject : GpuResource<GpuBufferMetadata>, IDisposa
                 $"Byte count exceeds source span size ({maxByteCount} bytes for {data.Length}x{typeof(T).Name}).");
         }
 
-        if (GpuResourceManagerSystem.IsInitialized
-            && GpuResourceManagerSystem.IsRenderThreadKnown
-            && !GpuResourceManagerSystem.IsRenderThread)
+        if (RHIResourceManagerSystem.IsInitialized
+            && RHIResourceManagerSystem.IsRenderThreadKnown
+            && !RHIResourceManagerSystem.IsRenderThread)
         {
             EnqueueUpload(PendingUpload.ForBufferData(CopyToPooledBytes(data, byteCount), byteCount));
             return;
@@ -375,9 +375,9 @@ public abstract class GpuBufferObject : GpuResource<GpuBufferMetadata>, IDisposa
                 $"Byte count exceeds source array size ({maxByteCount} bytes for {data.Length}x{typeof(T).Name}).");
         }
 
-        if (GpuResourceManagerSystem.IsInitialized
-            && GpuResourceManagerSystem.IsRenderThreadKnown
-            && !GpuResourceManagerSystem.IsRenderThread)
+        if (RHIResourceManagerSystem.IsInitialized
+            && RHIResourceManagerSystem.IsRenderThreadKnown
+            && !RHIResourceManagerSystem.IsRenderThread)
         {
             EnqueueUpload(PendingUpload.ForUploadOrResize(CopyToPooledBytes(data, byteCount), byteCount, growExponentially));
             return;
@@ -476,9 +476,9 @@ public abstract class GpuBufferObject : GpuResource<GpuBufferMetadata>, IDisposa
                 $"Byte count exceeds source span size ({maxByteCount} bytes for {data.Length}x{typeof(T).Name}).");
         }
 
-        if (GpuResourceManagerSystem.IsInitialized
-            && GpuResourceManagerSystem.IsRenderThreadKnown
-            && !GpuResourceManagerSystem.IsRenderThread)
+        if (RHIResourceManagerSystem.IsInitialized
+            && RHIResourceManagerSystem.IsRenderThreadKnown
+            && !RHIResourceManagerSystem.IsRenderThread)
         {
             EnqueueUpload(PendingUpload.ForUploadOrResize(CopyToPooledBytes(data, byteCount), byteCount, growExponentially));
             return;
@@ -576,9 +576,9 @@ public abstract class GpuBufferObject : GpuResource<GpuBufferMetadata>, IDisposa
                 $"UploadSubData range [{dstOffsetBytes}, {dstOffsetBytes + byteCount}) exceeds allocated buffer size {sizeBytes}.");
         }
 
-        if (GpuResourceManagerSystem.IsInitialized
-            && GpuResourceManagerSystem.IsRenderThreadKnown
-            && !GpuResourceManagerSystem.IsRenderThread)
+        if (RHIResourceManagerSystem.IsInitialized
+            && RHIResourceManagerSystem.IsRenderThreadKnown
+            && !RHIResourceManagerSystem.IsRenderThread)
         {
             EnqueueUpload(PendingUpload.ForBufferSubData(CopyToPooledBytes(data, byteCount), dstOffsetBytes, byteCount));
             return;
@@ -683,9 +683,9 @@ public abstract class GpuBufferObject : GpuResource<GpuBufferMetadata>, IDisposa
                 $"UploadSubData range [{dstOffsetBytes}, {dstOffsetBytes + byteCount}) exceeds allocated buffer size {sizeBytes}.");
         }
 
-        if (GpuResourceManagerSystem.IsInitialized
-            && GpuResourceManagerSystem.IsRenderThreadKnown
-            && !GpuResourceManagerSystem.IsRenderThread)
+        if (RHIResourceManagerSystem.IsInitialized
+            && RHIResourceManagerSystem.IsRenderThreadKnown
+            && !RHIResourceManagerSystem.IsRenderThread)
         {
             EnqueueUpload(PendingUpload.ForBufferSubData(CopyToPooledBytes(data, byteCount), dstOffsetBytes, byteCount));
             return;
@@ -891,7 +891,7 @@ public abstract class GpuBufferObject : GpuResource<GpuBufferMetadata>, IDisposa
 
         if (!pendingUploads.IsEmpty && Interlocked.Exchange(ref uploadsQueued, 1) == 0)
         {
-            GpuResourceManagerSystem.EnqueueBufferUpload(this);
+            RHIResourceManagerSystem.EnqueueBufferUpload(this);
         }
     }
 
@@ -901,7 +901,7 @@ public abstract class GpuBufferObject : GpuResource<GpuBufferMetadata>, IDisposa
 
         if (Interlocked.Exchange(ref uploadsQueued, 1) == 0)
         {
-            GpuResourceManagerSystem.EnqueueBufferUpload(this);
+            RHIResourceManagerSystem.EnqueueBufferUpload(this);
         }
     }
 

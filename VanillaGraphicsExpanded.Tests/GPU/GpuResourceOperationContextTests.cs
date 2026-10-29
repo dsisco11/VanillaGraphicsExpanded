@@ -22,8 +22,8 @@ public sealed class GpuResourceOperationContextTests(HeadlessGLFixture fixture)
         fixture.UseContextLocalResources();
         var origin = RenderContextRegistry.Current();
         var current = origin;
-        using var manager = new GpuResourceManager(() => current, static _ => true);
-        GpuResourceManagerSystem.Initialize(manager);
+        using var manager = new RHIResourceManager(() => current, static _ => true);
+        RHIResourceManagerSystem.Initialize(manager);
         try
         {
             using var buffer = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = null }).RequireResource(); buffer.Allocate(16);
@@ -39,13 +39,13 @@ public sealed class GpuResourceOperationContextTests(HeadlessGLFixture fixture)
             ulong bufferRevision = bufferEntry.MetadataRevision, textureRevision = textureEntry.MetadataRevision;
             Action attempt = () =>
             {
-                Assert.Throws<InvalidOperationException>(() => { using var operation = new GpuResourceManager.MetadataOperation<GpuBufferMetadata>(buffer, GpuMetadataChange.Storage); });
-                Assert.Throws<InvalidOperationException>(() => GpuResourceManager.AcquireTextureCommandInput(texture));
+                Assert.Throws<InvalidOperationException>(() => { using var operation = new RHIResourceManager.MetadataOperation<GpuBufferMetadata>(buffer, GpuMetadataChange.Storage); });
+                Assert.Throws<InvalidOperationException>(() => RHIResourceManager.AcquireTextureCommandInput(texture));
                 Assert.Throws<InvalidOperationException>(() => new VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBackend(OpenGlStateCache.Current).SubmitProgramExecutable(program));
                 // These assertions cover managed admission. Native forwarding is tested with
                 // a real current context, rather than issuing OpenTK calls on this context-free worker.
-                Assert.Throws<InvalidOperationException>(() => GpuResourceManager.RequireProgramSnapshot(program));
-                Assert.Throws<InvalidOperationException>(() => GpuResourceManager.AcquireEngineGeometryConfiguration(vao, new([]), [], default));
+                Assert.Throws<InvalidOperationException>(() => RHIResourceManager.RequireProgramSnapshot(program));
+                Assert.Throws<InvalidOperationException>(() => RHIResourceManager.AcquireEngineGeometryConfiguration(vao, new([]), [], default));
             };
             if (worker)
             {
@@ -73,7 +73,7 @@ public sealed class GpuResourceOperationContextTests(HeadlessGLFixture fixture)
             Assert.Equal(4, texture.Width);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { current = origin; GpuResourceManagerSystem.Shutdown(); OpenGlStateCache.Current.InvalidateAll(); }
+        finally { current = origin; RHIResourceManagerSystem.Shutdown(); OpenGlStateCache.Current.InvalidateAll(); }
     }
     #endregion
 }

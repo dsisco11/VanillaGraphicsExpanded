@@ -29,7 +29,7 @@ public sealed class GpuManagerCreationFoundationTests(HeadlessGLFixture fixture)
             using var recipient = new Declaration<GpuBufferMetadata>(GpuResourceKind.Buffer);
             var request = MutableRequest();
             var state = new CreationState();
-            var result = GpuResourceManager.CreateResource<GpuBufferInitialization, GpuBufferMetadata, BufferCreation>(
+            var result = RHIResourceManager.CreateResource<GpuBufferInitialization, GpuBufferMetadata, BufferCreation>(
                 request, recipient, out var handle, new(state));
             Assert.True(result.HasValue);
             Assert.Equal((nint)state.Id, handle.Id);
@@ -37,10 +37,10 @@ public sealed class GpuManagerCreationFoundationTests(HeadlessGLFixture fixture)
             Assert.Equal(result.Value, recipient.Snapshot);
             Assert.True(recipient.IsValid);
             Assert.Equal(1, state.Initializations);
-            Assert.Equal(registered, GpuResourceManagerSystem.CurrentManager is not null);
+            Assert.Equal(registered, RHIResourceManagerSystem.CurrentManager is not null);
             if (registered)
             {
-                var manager = GpuResourceManagerSystem.CurrentManager!;
+                var manager = RHIResourceManagerSystem.CurrentManager!;
                 var entry = Assert.IsType<GpuResourceMetadataEntry<GpuBufferMetadata>>(manager.GetResourceRegistration(recipient));
                 Assert.Equal(result.Value, entry.Metadata);
                 Assert.True(manager.IsResourceMetadataAvailable(recipient));
@@ -73,7 +73,7 @@ public sealed class GpuManagerCreationFoundationTests(HeadlessGLFixture fixture)
             // through a public factory before the candidate under test is declared.
             using var dependency = new Declaration<GpuBufferMetadata>(GpuResourceKind.Buffer);
             var dependencyState = new CreationState();
-            Assert.NotNull(GpuResourceManager.CreateResource<GpuBufferInitialization, GpuBufferMetadata, BufferCreation>(
+            Assert.NotNull(RHIResourceManager.CreateResource<GpuBufferInitialization, GpuBufferMetadata, BufferCreation>(
                 new() { Mode = GpuBufferStorageMode.Mutable, Capacity = 16, Usage = BufferUsage.StaticDraw },
                 dependency, out _, new(dependencyState)));
             using var recipient = new Declaration<GpuBufferMetadata>(GpuResourceKind.Buffer);
@@ -82,20 +82,20 @@ public sealed class GpuManagerCreationFoundationTests(HeadlessGLFixture fixture)
             var request = MutableRequest();
             GpuResourceHandle handle = new(GpuResourceKind.Buffer, -1);
             if (failure == 0)
-                Assert.Null(GpuResourceManager.CreateResource<GpuBufferInitialization, GpuBufferMetadata, BufferCreation>(
+                Assert.Null(RHIResourceManager.CreateResource<GpuBufferInitialization, GpuBufferMetadata, BufferCreation>(
                     request, recipient, out handle, new(state)));
             else
                 Assert.Same(state.Exception, Assert.Throws<InvalidOperationException>(() =>
-                    GpuResourceManager.CreateResource<GpuBufferInitialization, GpuBufferMetadata, BufferCreation>(
+                    RHIResourceManager.CreateResource<GpuBufferInitialization, GpuBufferMetadata, BufferCreation>(
                         request, recipient, out handle, new(state))));
             Assert.Equal(default, handle);
             Assert.Equal((nint)0, recipient.ResourceId);
             Assert.False(recipient.IsValid);
-            Assert.Equal(registered, GpuResourceManagerSystem.CurrentManager is not null);
+            Assert.Equal(registered, RHIResourceManagerSystem.CurrentManager is not null);
             if (registered)
             {
-                var manager = GpuResourceManagerSystem.CurrentManager!;
-                manager.OnRenderFrame(0, GpuResourceManager.Stage);
+                var manager = RHIResourceManagerSystem.CurrentManager!;
+                manager.OnRenderFrame(0, RHIResourceManager.Stage);
                 Assert.Null(manager.FindResource(GpuResourceKind.Buffer, state.Id));
                 Assert.Null(manager.GetResourceRegistration(recipient));
             }
@@ -118,12 +118,12 @@ public sealed class GpuManagerCreationFoundationTests(HeadlessGLFixture fixture)
             var state = new CreationState { Failure = -1 };
             var omitted = new GpuBufferInitialization();
             Assert.Throws<ArgumentException>(() =>
-                GpuResourceManager.CreateResource<GpuBufferInitialization, GpuBufferMetadata, BufferCreation>(omitted, recipient, out _, new(state)));
+                RHIResourceManager.CreateResource<GpuBufferInitialization, GpuBufferMetadata, BufferCreation>(omitted, recipient, out _, new(state)));
             Assert.Equal(0, state.Initializations);
             var request = MutableRequest();
-            Assert.NotNull(GpuResourceManager.CreateResource<GpuBufferInitialization, GpuBufferMetadata, BufferCreation>(request, recipient, out _, new(state)));
+            Assert.NotNull(RHIResourceManager.CreateResource<GpuBufferInitialization, GpuBufferMetadata, BufferCreation>(request, recipient, out _, new(state)));
             Assert.Throws<InvalidOperationException>(() =>
-                GpuResourceManager.CreateResource<GpuBufferInitialization, GpuBufferMetadata, BufferCreation>(request, recipient, out _, new(state)));
+                RHIResourceManager.CreateResource<GpuBufferInitialization, GpuBufferMetadata, BufferCreation>(request, recipient, out _, new(state)));
             Assert.Equal(1, state.Initializations);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
@@ -138,7 +138,7 @@ public sealed class GpuManagerCreationFoundationTests(HeadlessGLFixture fixture)
         try
         {
             using var recipient = new Declaration<GpuProgramMetadata>(GpuResourceKind.Program);
-            var result = GpuResourceManager.CreateResource<GpuProgramInitialization, GpuProgramMetadata, ProgramCreation>(
+            var result = RHIResourceManager.CreateResource<GpuProgramInitialization, GpuProgramMetadata, ProgramCreation>(
                 default, recipient, out var handle);
             Assert.True(result.HasValue);
             Assert.NotEqual((nint)0, handle.Id);
@@ -160,12 +160,12 @@ public sealed class GpuManagerCreationFoundationTests(HeadlessGLFixture fixture)
         try
         {
             using var recipient = new Declaration<GpuSamplerMetadata>(GpuResourceKind.Sampler);
-            var result = GpuResourceManager.CreateResource<EmptyRequest, GpuSamplerMetadata, SamplerCreation>(default, recipient, out var handle);
+            var result = RHIResourceManager.CreateResource<EmptyRequest, GpuSamplerMetadata, SamplerCreation>(default, recipient, out var handle);
             Assert.True(result.HasValue);
             Assert.Equal(default(GpuSamplerMetadata), result.Value);
             Assert.Equal(handle.Id, recipient.ResourceId);
             Assert.True(GL.IsSampler(checked((int)handle.Id)));
-            Assert.True(GpuResourceManagerSystem.CurrentManager!.IsResourceMetadataAvailable(recipient));
+            Assert.True(RHIResourceManagerSystem.CurrentManager!.IsResourceMetadataAvailable(recipient));
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
         finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
@@ -183,7 +183,7 @@ public sealed class GpuManagerCreationFoundationTests(HeadlessGLFixture fixture)
             GpuResourceHandle handle = new(GpuResourceKind.Buffer, -1);
             var request = MutableRequest();
             Assert.Throws<InvalidOperationException>(() =>
-                GpuResourceManager.CreateResource<GpuBufferInitialization, GpuBufferMetadata, BufferCreation>(request, recipient, out handle, new(state)));
+                RHIResourceManager.CreateResource<GpuBufferInitialization, GpuBufferMetadata, BufferCreation>(request, recipient, out handle, new(state)));
             Assert.Equal(default, handle);
             Assert.Equal((nint)0, recipient.ResourceId);
             Assert.False(recipient.IsValid);
@@ -209,7 +209,7 @@ public sealed class GpuManagerCreationFoundationTests(HeadlessGLFixture fixture)
             using var recipient = new Declaration<GpuBufferMetadata>(GpuResourceKind.Buffer);
             var request = MutableRequest();
             var state = new CreationState { DuringValidation = () => request.Capacity = 64 };
-            var result = GpuResourceManager.CreateResource<GpuBufferInitialization, GpuBufferMetadata, BufferCreation>(
+            var result = RHIResourceManager.CreateResource<GpuBufferInitialization, GpuBufferMetadata, BufferCreation>(
                 in request, recipient, out _, new(state));
             Assert.Equal((nint)64, request.Capacity);
             Assert.Equal((nint)32, result!.Value.Capacity);
@@ -231,11 +231,11 @@ public sealed class GpuManagerCreationFoundationTests(HeadlessGLFixture fixture)
         {
             using var backing = RHICommandContext.Current.CreateRenderbuffer(new RHIRenderbufferDescription { Format = TextureFormat.Rgba8, Width = 4, Height = 4, Samples = 0, Label = null }).RequireResource();
             using var recipient = new Declaration<GpuFramebufferMetadata>(GpuResourceKind.Framebuffer);
-            var result = GpuResourceManager.CreateResource<EmptyRequest, GpuFramebufferMetadata, FramebufferCreation>(
+            var result = RHIResourceManager.CreateResource<EmptyRequest, GpuFramebufferMetadata, FramebufferCreation>(
                 default, recipient, out _, new(backing.RenderbufferId));
             Assert.True(result.HasValue);
             Assert.Equal(GpuFramebufferAttachmentMode.Ordinary, result.Value.Attachments[FramebufferSlot.Color0].Mode);
-            var manager = GpuResourceManagerSystem.CurrentManager!;
+            var manager = RHIResourceManagerSystem.CurrentManager!;
             var entry = Assert.IsType<GpuResourceMetadataEntry<GpuFramebufferMetadata>>(manager.GetResourceRegistration(recipient));
             Assert.Equal(entry.Metadata, result.Value);
             Assert.Equal(entry.Metadata, recipient.Snapshot);
@@ -257,16 +257,16 @@ public sealed class GpuManagerCreationFoundationTests(HeadlessGLFixture fixture)
         {
             using var owner = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = null }).RequireResource(); owner.Allocate(16);
             using var recipient = new Declaration<GpuBufferMetadata>(GpuResourceKind.Buffer);
-            var manager = GpuResourceManagerSystem.CurrentManager!;
+            var manager = RHIResourceManagerSystem.CurrentManager!;
             var original = manager.GetResourceRegistration(owner)!;
             var state = new CreationState { CollisionId = owner.BufferId, Failure = nullableFailure ? 0 : -1 };
             var request = MutableRequest();
             GpuResourceHandle handle = new(GpuResourceKind.Buffer, -1);
             if (nullableFailure)
-                Assert.Null(GpuResourceManager.CreateResource<GpuBufferInitialization, GpuBufferMetadata, BufferCreation>(request, recipient, out handle, new(state)));
+                Assert.Null(RHIResourceManager.CreateResource<GpuBufferInitialization, GpuBufferMetadata, BufferCreation>(request, recipient, out handle, new(state)));
             else
                 Assert.Throws<InvalidOperationException>(() =>
-                    GpuResourceManager.CreateResource<GpuBufferInitialization, GpuBufferMetadata, BufferCreation>(request, recipient, out handle, new(state)));
+                    RHIResourceManager.CreateResource<GpuBufferInitialization, GpuBufferMetadata, BufferCreation>(request, recipient, out handle, new(state)));
             Assert.Equal(default, handle);
             Assert.Equal((nint)0, recipient.ResourceId);
             Assert.Same(original, manager.GetResourceRegistration(owner));
@@ -293,17 +293,17 @@ public sealed class GpuManagerCreationFoundationTests(HeadlessGLFixture fixture)
             var request = MutableRequest();
             GpuResourceHandle handle = new(GpuResourceKind.Buffer, -1);
             Assert.Throws<InvalidOperationException>(() =>
-                GpuResourceManager.CreateResource<GpuBufferInitialization, GpuBufferMetadata, BufferCreation>(request, recipient, out handle, new(state)));
+                RHIResourceManager.CreateResource<GpuBufferInitialization, GpuBufferMetadata, BufferCreation>(request, recipient, out handle, new(state)));
             Assert.Equal(default, handle);
             Assert.Equal((nint)0, recipient.ResourceId);
             fixture.MakeCurrent();
-            var manager = GpuResourceManagerSystem.CurrentManager!;
+            var manager = RHIResourceManagerSystem.CurrentManager!;
             var pending = manager.FindResource(GpuResourceKind.Buffer, state.Id)!;
             Assert.NotNull(pending);
             Assert.Equal(GpuResourceRegistrationState.Retiring, pending.State);
             Assert.False(pending.MetadataAvailable);
             Assert.True(GL.IsBuffer(state.Id));
-            manager.OnRenderFrame(0, GpuResourceManager.Stage);
+            manager.OnRenderFrame(0, RHIResourceManager.Stage);
             Assert.False(GL.IsBuffer(state.Id));
             Assert.Equal(GpuResourceRegistrationState.Deleted, pending.State);
             Assert.Null(manager.FindResource(GpuResourceKind.Buffer, state.Id));

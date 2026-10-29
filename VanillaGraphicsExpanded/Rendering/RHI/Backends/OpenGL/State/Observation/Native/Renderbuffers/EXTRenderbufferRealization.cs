@@ -9,7 +9,7 @@ internal sealed unsafe partial class OpenGlStateCache
     internal static void ObserveExtRealizationGetNamedRenderbufferParameterivEXT(uint a0, int a1, int* a2)
     {
         if (!OpenGLObservationContext.TryGet(out _, out _, false)) return;
-        GpuResourceManagerSystem.CurrentManager!.RealizeObservedImage(GpuResourceKind.Renderbuffer, unchecked((int)a0), implicitCreation: true);
+        RHIResourceManagerSystem.CurrentManager!.RealizeObservedImage(GpuResourceKind.Renderbuffer, unchecked((int)a0), implicitCreation: true);
     }
     #endregion
 }

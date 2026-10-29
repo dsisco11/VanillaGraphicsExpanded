@@ -35,7 +35,7 @@ internal sealed partial class OpenGLBackend
         try
         {
             var initialization = LowerBufferDescription(request);
-            if (!GpuResourceManager.CreateBuffer(initialization, owner, initialData, out _).HasValue)
+            if (!RHIResourceManager.CreateBuffer(initialization, owner, initialData, out _).HasValue)
             {
                 owner.Dispose();
                 return new(null, "Native buffer initialization did not complete.");

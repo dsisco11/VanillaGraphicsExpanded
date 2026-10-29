@@ -19,7 +19,7 @@ internal sealed class EngineFullscreenGeometry : GraphicsGeometry
         new(1, 2, VertexComponentFormat.Float, VertexInterpretation.Floating, 1, 0, 8)]);
     private readonly IRenderAPI render;
     private readonly (nint Handle, long Generation) context;
-    private readonly GpuResourceManager? deletionManager;
+    private readonly RHIResourceManager? deletionManager;
     private readonly VAO mesh;
     private readonly EngineGeometryInputs inputs;
     private readonly int vao, positions, uv, elements, count;
@@ -39,7 +39,7 @@ internal sealed class EngineFullscreenGeometry : GraphicsGeometry
         RHICommandContext.RequirePreparationAdmission();
         var execution = RHICommandContext.Current;
         var context = GpuResource.CaptureCreationContext(GpuResourceKind.VertexArray);
-        var deletionManager = GpuResourceManagerSystem.CurrentManager;
+        var deletionManager = RHIResourceManagerSystem.CurrentManager;
         // Upload may bind arrays through the engine; existing scopes preserve the caller's bindings.
         MeshRef? uploaded = null;
         try
@@ -84,7 +84,7 @@ internal sealed class EngineFullscreenGeometry : GraphicsGeometry
     #region Private
     /// <summary>Admits original engine allocations from the supplied layout without scanning native attributes.</summary>
     private EngineFullscreenGeometry(IRenderAPI render, VAO mesh, int vertices, int count,
-        (nint Handle, long Generation) context, GpuResourceManager? deletionManager, RHICommandContext execution)
+        (nint Handle, long Generation) context, RHIResourceManager? deletionManager, RHICommandContext execution)
     {
         this.render = render; this.mesh = mesh; this.count = count;
         this.context = context; this.deletionManager = deletionManager;
@@ -98,7 +98,7 @@ internal sealed class EngineFullscreenGeometry : GraphicsGeometry
 
     /// <summary>Retires only the adapter's owned mesh, preserving engine cleanup on its originating context.</summary>
     private static void RetireMesh(IRenderAPI render, MeshRef mesh,
-        (nint Handle, long Generation) origin, GpuResourceManager? manager)
+        (nint Handle, long Generation) origin, RHIResourceManager? manager)
     {
         // The adapter owns terminal cleanup. Suppress the engine leak diagnostic when
         // ownership moves to deferred cleanup or the retired context reclaims its names.

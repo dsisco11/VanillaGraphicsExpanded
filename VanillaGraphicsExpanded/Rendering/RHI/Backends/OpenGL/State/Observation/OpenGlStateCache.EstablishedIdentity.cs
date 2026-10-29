@@ -8,7 +8,7 @@ internal sealed partial class OpenGlStateCache
     internal bool HasEstablishedNativeIdentity(GpuResourceKind kind, int id)
     {
         if (id == 0) return true;
-        var manager = GpuResourceManagerSystem.CurrentManager;
+        var manager = RHIResourceManagerSystem.CurrentManager;
         if (manager?.CanObserveNativeMetadata == true && manager.FindObservedResource(kind, id) is { IsRealized: true }) return true;
         // An executed selector proves realization until the single observed deletion path removes it.
         switch (kind)

@@ -10,7 +10,7 @@ internal sealed unsafe partial class OpenGlStateCache
     internal static void ObserveGenBuffers(int count, uint* names)
     {
         if (count <= 0 || names == null || !OpenGLObservationContext.TryGet(out _, out _, false)) return;
-        var manager = GpuResourceManagerSystem.CurrentManager!;
+        var manager = RHIResourceManagerSystem.CurrentManager!;
         for (int index = 0; index < count; index++)
             manager.ObserveBufferCreation(unchecked((int)names[index]), false);
     }

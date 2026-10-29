@@ -15,7 +15,7 @@ internal static class OpenGLRenderbufferIntegration
         wrapper.SetCreationIdentity(nativeName, GpuResource.CaptureCreationContext(GpuResourceKind.Renderbuffer));
         try
         {
-            GpuResourceManager.AcquireWrapperMetadata(wrapper, GpuRenderbufferMetadataReader.Instance);
+            RHIResourceManager.AcquireWrapperMetadata(wrapper, GpuRenderbufferMetadataReader.Instance);
             return wrapper;
         }
         catch { wrapper.Dispose(); throw; }

@@ -15,7 +15,7 @@ internal sealed partial class OpenGLBackend
         var owner = new GpuSemaphore(request.Import.HasValue);
         try
         {
-            if (!GpuResourceManager.CreateSemaphore(new(), owner, out _).HasValue)
+            if (!RHIResourceManager.CreateSemaphore(new(), owner, out _).HasValue)
             { owner.Dispose(); return new(null, "Semaphore creation failed."); }
             if (request.Import is { } imported) ImportSemaphore(owner, imported);
             RequireContext();
@@ -38,7 +38,7 @@ internal sealed partial class OpenGLBackend
         var owner = new GpuMemoryObject();
         try
         {
-            if (!GpuResourceManager.CreateMemoryObject(new(), owner, out _).HasValue)
+            if (!RHIResourceManager.CreateMemoryObject(new(), owner, out _).HasValue)
             { owner.Dispose(); return new(null, "Memory object creation failed."); }
             if (request.Dedicated is { } dedicated)
             {

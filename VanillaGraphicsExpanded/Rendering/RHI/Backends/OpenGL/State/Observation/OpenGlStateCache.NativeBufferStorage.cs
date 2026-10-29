@@ -11,7 +11,7 @@ internal sealed partial class OpenGlStateCache
     /// <summary>Retains a possibly successful realization until identity can be established.</summary>
     internal void MarkUncertainBufferRealization(int id)
     {
-        if (GpuResourceManagerSystem.CurrentManager?.FindObservedResource(GpuResourceKind.Buffer, id)
+        if (RHIResourceManagerSystem.CurrentManager?.FindObservedResource(GpuResourceKind.Buffer, id)
             is GpuResourceMetadataEntry<GpuBufferMetadata> { IsRealized: false } entry)
             entry.BeginRefresh(GpuMetadataChange.Metadata);
     }
@@ -19,7 +19,7 @@ internal sealed partial class OpenGlStateCache
     /// <summary>Realizes legal names through the original registry and establishes empty-object execution defaults.</summary>
     internal GpuResourceMetadataEntry<GpuBufferMetadata>? RealizeNativeBuffer(int id, bool mayCreate)
     {
-        var manager = GpuResourceManagerSystem.CurrentManager;
+        var manager = RHIResourceManagerSystem.CurrentManager;
         bool wasRealized = manager?.FindObservedResource(GpuResourceKind.Buffer, id)?.IsRealized == true;
         var entry = manager?.RealizeObservedBuffer(id, mayCreate);
         if (!wasRealized && entry is { IsUsable: true }) EstablishBufferUnmapped(id);
@@ -37,7 +37,7 @@ internal sealed partial class OpenGlStateCache
             : cache.TryGetCachedBoundBuffer((BufferTarget)selector, out int known) ? known : 0;
         if (id == 0) return;
         // EXT DSA initializes the default object even when its subsequent update is rejected.
-        var manager = GpuResourceManagerSystem.CurrentManager!;
+        var manager = RHIResourceManagerSystem.CurrentManager!;
         var entry = extCreation ? cache.RealizeNativeBuffer(id, true)
             : manager.FindObservedResource(GpuResourceKind.Buffer, id) as GpuResourceMetadataEntry<GpuBufferMetadata>;
         if (size < 0 || immutable && size == 0) return;

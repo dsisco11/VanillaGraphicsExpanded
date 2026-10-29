@@ -180,7 +180,7 @@ public sealed class ConfigurableRasterizerGpuTests(HeadlessGLFixture fixture, IT
     {
         private readonly int program, vao, framebuffer, color;
         private readonly PackedUniformBuffer inputs = new(16);
-        private readonly GpuUniformRingFrameController frame;
+        private readonly RHIUniformRingFrameController frame;
         private readonly GpuUniformRingBuffer? previousRing;
         public byte[] LastPixels { get; private set; } = [];
         /// <summary>Creates a 32-square target and vertex-ID geometry for compatibility raster checks.</summary>
@@ -199,7 +199,7 @@ public sealed class ConfigurableRasterizerGpuTests(HeadlessGLFixture fixture, IT
             GL.Viewport(0, 0, 32, 32); GL.Disable(EnableCap.DepthTest); GL.Disable(EnableCap.Blend); GL.Disable(EnableCap.CullFace);
             // This fixture also runs in an isolated compatibility context. Its publications
             // must retire on that context rather than borrowing the primary fixture's ring.
-            GpuUniformRingSystem.TryGetCurrent(out previousRing);
+            RHIUniformRingSystem.TryGetCurrent(out previousRing);
             frame = new(new GpuUniformRingBuffer(4096, 1));
             frame.BeginFrame();
         }
@@ -228,7 +228,7 @@ public sealed class ConfigurableRasterizerGpuTests(HeadlessGLFixture fixture, IT
             finally
             {
                 frame.Dispose();
-                if (previousRing != null) GpuUniformRingSystem.SetCurrent(previousRing);
+                if (previousRing != null) RHIUniformRingSystem.SetCurrent(previousRing);
                 GL.UseProgram(0); GL.DeleteProgram(program); GL.DeleteVertexArray(vao); GL.DeleteFramebuffer(framebuffer); GL.DeleteRenderbuffer(color);
             }
         }

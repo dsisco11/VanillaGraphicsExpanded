@@ -14,7 +14,7 @@ internal sealed unsafe partial class OpenGlStateCache
         {
             if (!OpenGLObservationContext.TryGet(out var selected, out _, false)) return;
             if (selected.TryGetFeedbackActivity(out var establishedActivity) && establishedActivity.Active) return;
-            if (GpuResourceManagerSystem.CurrentManager!.FindObservedResource(GpuResourceKind.Buffer, unchecked((int)name))
+            if (RHIResourceManagerSystem.CurrentManager!.FindObservedResource(GpuResourceKind.Buffer, unchecked((int)name))
                 is { IsRealized: false })
             {
                 if (GpuSupport.HasCachedCapabilitiesForCurrentContext

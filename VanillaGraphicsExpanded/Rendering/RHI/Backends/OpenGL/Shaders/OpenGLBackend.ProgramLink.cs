@@ -17,7 +17,7 @@ internal sealed partial class OpenGLBackend
     {
         RequireContext();
         ObjectDisposedException.ThrowIf(!program.IsValid, program);
-        GpuResourceManager.RequireWrapperMetadataAccess(program);
+        RHIResourceManager.RequireWrapperMetadataAccess(program);
         cache.RequireResourceOperationAvailable(GpuResourceKind.Program, program.ProgramId);
         if (program.ResourceManager?.GetResourceRegistration(program) is GpuResourceMetadataEntry<GpuProgramMetadata> entry
             && (entry.OperationInProgress || entry.CompletionInProgress))
@@ -31,10 +31,10 @@ internal sealed partial class OpenGLBackend
         if (tracked is not null) tracked.OperationInProgress = true;
         try
         {
-            GpuResourceManager.InvalidateWrapperMetadata(program, GpuMetadataChange.Metadata | GpuMetadataChange.Executable);
+            RHIResourceManager.InvalidateWrapperMetadata(program, GpuMetadataChange.Metadata | GpuMetadataChange.Executable);
             if (pending.Entry is null)
             {
-                GpuResourceManager.DiscardUntrackedMetadata(program);
+                RHIResourceManager.DiscardUntrackedMetadata(program);
                 program.OnNativeProgramMetadataChanged(GpuMetadataChange.Executable, false);
             }
             if (binary is null) OpenGLDriverCalls.LinkProgram(program.ProgramId);
@@ -70,7 +70,7 @@ internal sealed partial class OpenGLBackend
         try
         {
             const GpuMetadataChange change = GpuMetadataChange.Metadata | GpuMetadataChange.Executable;
-            using var operation = new GpuResourceManager.MetadataOperation<GpuProgramMetadata>(program, change);
+            using var operation = new RHIResourceManager.MetadataOperation<GpuProgramMetadata>(program, change);
             var reader = (pending.Entry as GpuResourceMetadataEntry<GpuProgramMetadata>)?.Reader ?? GpuProgramMetadataReader.Instance;
             if (!reader.TryRead(program.ProgramId, out var candidate))
                 throw new InvalidOperationException("Program metadata is unavailable after link completion.");

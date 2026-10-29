@@ -35,13 +35,13 @@ internal sealed partial class RenderPass
     {
         int name = texture.TextureId;
         var view = data.View;
-        int storage = GpuResourceManager.TextureStorageName(texture.Resource);
+        int storage = RHIResourceManager.TextureStorageName(texture.Resource);
         foreach (var pair in active!.description.Target.AttachmentImages)
         {
             var attached = pair.Value;
             if (attached.TextureId == 0) continue;
-            var attachedView = GpuResourceManager.TextureStorageSelection(attached.Resource ?? attached);
-            int attachedStorage = GpuResourceManager.TextureStorageName(attached.Resource ?? attached);
+            var attachedView = RHIResourceManager.TextureStorageSelection(attached.Resource ?? attached);
+            int attachedStorage = RHIResourceManager.TextureStorageName(attached.Resource ?? attached);
             bool sameObject = attached.TextureId == name;
             if (!sameObject && storage != attachedStorage) continue;
 

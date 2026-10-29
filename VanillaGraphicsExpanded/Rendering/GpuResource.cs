@@ -11,7 +11,7 @@ public abstract partial class GpuResource : IDisposable
     private int disposed;
     private int activePassReferences;
     private int lifetimeReferences;
-    private readonly GpuResourceManager? deletionManager = GpuResourceManagerSystem.CurrentManager;
+    private readonly RHIResourceManager? deletionManager = RHIResourceManagerSystem.CurrentManager;
     private (nint Handle, long Generation) nativeContext = Integration.RenderContextRegistry.Current();
     protected virtual (nint Handle, long Generation) NativeProgramContext => default;
 
@@ -19,7 +19,7 @@ public abstract partial class GpuResource : IDisposable
     internal GpuResourceKind Kind => ResourceKind;
 
     /// <summary>Gets the originating lifecycle service without storing any registry entry in the wrapper.</summary>
-    internal GpuResourceManager? ResourceManager => deletionManager ?? GpuResourceManagerSystem.CurrentManager;
+    internal RHIResourceManager? ResourceManager => deletionManager ?? RHIResourceManagerSystem.CurrentManager;
 
     /// <summary>Captures declaration-local guard counts when native association first becomes available.</summary>
     internal (int Pass, int Lifetime) UsageReferences => (Volatile.Read(ref activePassReferences), Volatile.Read(ref lifetimeReferences));
@@ -178,7 +178,7 @@ public abstract partial class GpuResource : IDisposable
 
     /// <summary>Retires a resource only in its originating namespace, independently of other resource owners.</summary>
     internal static void RetireResource(GpuResourceKind kind, nint id,
-        (nint Handle, long Generation) origin, GpuResourceManager? manager)
+        (nint Handle, long Generation) origin, RHIResourceManager? manager)
     {
         // Context-free CPU declarations retain the existing service policy. Native owners
         // abandon dead namespaces or defer to their captured manager while another context is current.
@@ -206,53 +206,53 @@ public abstract partial class GpuResource : IDisposable
     {
         // If the manager is initialized and we're not on the render thread, enqueue deletion.
         // Otherwise, do immediate deletion (legacy behavior).
-        if (GpuResourceManagerSystem.IsInitialized
-            && GpuResourceManagerSystem.IsRenderThreadKnown
-            && !GpuResourceManagerSystem.IsRenderThread)
+        if (RHIResourceManagerSystem.IsInitialized
+            && RHIResourceManagerSystem.IsRenderThreadKnown
+            && !RHIResourceManagerSystem.IsRenderThread)
         {
             switch (kind)
             {
                 case GpuResourceKind.Buffer:
-                    GpuResourceManagerSystem.EnqueueDeleteBuffer((int)id);
+                    RHIResourceManagerSystem.EnqueueDeleteBuffer((int)id);
                     return;
                 case GpuResourceKind.VertexArray:
-                    GpuResourceManagerSystem.EnqueueDeleteVertexArray((int)id);
+                    RHIResourceManagerSystem.EnqueueDeleteVertexArray((int)id);
                     return;
                 case GpuResourceKind.Texture:
-                    GpuResourceManagerSystem.EnqueueDeleteTexture((int)id);
+                    RHIResourceManagerSystem.EnqueueDeleteTexture((int)id);
                     return;
                 case GpuResourceKind.Framebuffer:
-                    GpuResourceManagerSystem.EnqueueDeleteFramebuffer((int)id);
+                    RHIResourceManagerSystem.EnqueueDeleteFramebuffer((int)id);
                     return;
                 case GpuResourceKind.Renderbuffer:
-                    GpuResourceManagerSystem.EnqueueDeleteRenderbuffer((int)id);
+                    RHIResourceManagerSystem.EnqueueDeleteRenderbuffer((int)id);
                     return;
                 case GpuResourceKind.Query:
-                    GpuResourceManagerSystem.EnqueueDeleteQuery((int)id);
+                    RHIResourceManagerSystem.EnqueueDeleteQuery((int)id);
                     return;
                 case GpuResourceKind.Program:
-                    GpuResourceManagerSystem.EnqueueDeleteProgram((int)id);
+                    RHIResourceManagerSystem.EnqueueDeleteProgram((int)id);
                     return;
                 case GpuResourceKind.TransformFeedback:
-                    GpuResourceManagerSystem.EnqueueDeleteTransformFeedback((int)id);
+                    RHIResourceManagerSystem.EnqueueDeleteTransformFeedback((int)id);
                     return;
                 case GpuResourceKind.Sampler:
-                    GpuResourceManagerSystem.EnqueueDeleteSampler((int)id);
+                    RHIResourceManagerSystem.EnqueueDeleteSampler((int)id);
                     return;
                 case GpuResourceKind.ProgramPipeline:
-                    GpuResourceManagerSystem.EnqueueDeleteProgramPipeline((int)id);
+                    RHIResourceManagerSystem.EnqueueDeleteProgramPipeline((int)id);
                     return;
                 case GpuResourceKind.Shader:
-                    GpuResourceManagerSystem.EnqueueDeleteShader((int)id);
+                    RHIResourceManagerSystem.EnqueueDeleteShader((int)id);
                     return;
                 case GpuResourceKind.Sync:
-                    GpuResourceManagerSystem.EnqueueDeleteSync((IntPtr)id);
+                    RHIResourceManagerSystem.EnqueueDeleteSync((IntPtr)id);
                     return;
                 case GpuResourceKind.Semaphore:
-                    GpuResourceManagerSystem.EnqueueDeleteSemaphore((int)id);
+                    RHIResourceManagerSystem.EnqueueDeleteSemaphore((int)id);
                     return;
                 case GpuResourceKind.MemoryObject:
-                    GpuResourceManagerSystem.EnqueueDeleteMemoryObject((int)id);
+                    RHIResourceManagerSystem.EnqueueDeleteMemoryObject((int)id);
                     return;
             }
         }

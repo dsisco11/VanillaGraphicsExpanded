@@ -23,7 +23,7 @@ public sealed class GpuResourceMetadataAcquisitionTests
     public void BufferAcquisitionReadsNativeFactsAndPreservesBindings()
     {
         fixture.EnsureContextValid();
-        using var manager = new GpuResourceManager();
+        using var manager = new RHIResourceManager();
         int buffer = GL.GenBuffer(), sentinel = GL.GenBuffer();
         int previous = GL.GetInteger(GetPName.ArrayBufferBinding);
         try
@@ -61,7 +61,7 @@ public sealed class GpuResourceMetadataAcquisitionTests
     public void ContextRetirementRemovesRegistrationWithoutDeletingNativeObjects()
     {
         fixture.EnsureContextValid();
-        using var manager = new GpuResourceManager();
+        using var manager = new RHIResourceManager();
         int buffer = GL.GenBuffer();
         object replacement = new();
         try
@@ -72,7 +72,7 @@ public sealed class GpuResourceMetadataAcquisitionTests
             Assert.Equal(GpuResourceRegistrationState.ContextRetired, entry.State);
             Assert.False(manager.IsRegistered(entry));
             Assert.Throws<ObjectDisposedException>(() => manager.RegisterCreatedResource<GpuBufferMetadata>(GpuResourceKind.Buffer, buffer));
-            using var nextManager = new GpuResourceManager();
+            using var nextManager = new RHIResourceManager();
             Assert.NotSame(entry, nextManager.RegisterCreatedResource<GpuBufferMetadata>(GpuResourceKind.Buffer, buffer));
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }

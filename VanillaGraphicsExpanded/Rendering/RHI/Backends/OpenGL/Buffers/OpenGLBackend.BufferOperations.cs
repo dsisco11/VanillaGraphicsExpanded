@@ -17,14 +17,14 @@ internal sealed partial class OpenGLBackend
         request.Validate();
         if (request.Mode == ResourceStorageMode.Realization) throw new ArgumentException("Storage replacement requires an allocation request.");
         if (initialData.Length > request.Capacity) throw new ArgumentException("Initial bytes exceed requested capacity.");
-        GpuResourceManager.RequireWrapperMetadataAccess(owner);
-        if (GpuResourceManager.RequireBufferReferenceMetadata(owner).ImmutableStorage)
+        RHIResourceManager.RequireWrapperMetadataAccess(owner);
+        if (RHIResourceManager.RequireBufferReferenceMetadata(owner).ImmutableStorage)
             throw new InvalidOperationException("Immutable buffer storage cannot be replaced in place.");
         owner.RequireMutableStorage();
         int nativeId = owner.BufferId;
         // The operation captures original identity and withdraws availability before dispatch.
         // Allocate first, then upload partial initial data, without reading beyond client memory.
-        using var operation = new GpuResourceManager.MetadataOperation<GpuBufferMetadata>(owner, GpuMetadataChange.Storage);
+        using var operation = new RHIResourceManager.MetadataOperation<GpuBufferMetadata>(owner, GpuMetadataChange.Storage);
         fixed (byte* bytes = initialData)
         {
             bool complete = initialData.Length == request.Capacity;
@@ -166,7 +166,7 @@ internal sealed partial class OpenGLBackend
 
     #region Private
     /// <summary>Copies partial initial content into any storage mode without requiring dynamic CPU updates.</summary>
-    private unsafe void InitializeBufferRange(int destination, nint offset, int byteCount, nint data, bool clientUpdates, GpuResourceManager.MetadataOperation<GpuBufferMetadata>? operation = null)
+    private unsafe void InitializeBufferRange(int destination, nint offset, int byteCount, nint data, bool clientUpdates, RHIResourceManager.MetadataOperation<GpuBufferMetadata>? operation = null)
     {
         RequireContext();
         operation?.RequireLive();
@@ -207,7 +207,7 @@ internal sealed partial class OpenGLBackend
     {
         RequireContext();
         var owner = buffer.RequireResource();
-        var data = GpuResourceManager.RequireBufferReferenceMetadata(owner);
+        var data = RHIResourceManager.RequireBufferReferenceMetadata(owner);
         if (offset < 0 || byteCount < 0 || offset > data.Capacity || byteCount > data.Capacity - offset)
             throw new ArgumentOutOfRangeException(nameof(byteCount), "Buffer range exceeds available storage.");
         return owner;

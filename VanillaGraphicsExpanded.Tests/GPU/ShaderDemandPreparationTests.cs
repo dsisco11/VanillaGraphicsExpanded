@@ -153,7 +153,7 @@ public sealed class ShaderDemandPreparationTests(HeadlessGLFixture fixture) : Re
         var settings = new ShaderSettings(GpuShaderContracts.Registry.FindProgram("tests/GpuUniformRingBufferIntegrationTests_1"));
         using var pipeline = ComputeShaderAsset.DeclareFromAssets(assets.Api, settings);
         using var texture = RHICommandContext.Current.CreateTexture3D(new RHITextureDescription { Dimension = TextureDimension.Three, Format = TextureFormat.Rgba32ui, Width = System.Math.Max(1, 1), Height = System.Math.Max(1, 1), Depth = System.Math.Max(1, 1), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
-        Assert.True(GpuUniformRingSystem.TryGetCurrent(out var ring));
+        Assert.True(RHIUniformRingSystem.TryGetCurrent(out var ring));
         byte[] data = new byte[16];
         System.Buffers.Binary.BinaryPrimitives.WriteUInt32LittleEndian(data, 123);
         var allocation = ring.AllocateAndWrite(data);

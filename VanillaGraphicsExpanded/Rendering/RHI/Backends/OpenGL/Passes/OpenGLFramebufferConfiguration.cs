@@ -23,7 +23,7 @@ internal static class OpenGLFramebufferConfiguration
     {
         OpenGLFramebufferSelection.Bind(OpenGlStateCache.Current, target, resource.FboId);
         if (resource.FboId != 0 && !resource.HasNativeMetadata)
-            GpuResourceManager.AcquireWrapperMetadata(resource, GpuFramebufferMetadataReader.Instance);
+            RHIResourceManager.AcquireWrapperMetadata(resource, GpuFramebufferMetadataReader.Instance);
     }
 
     /// <summary>Reattaches selected images as one coherent metadata publication.</summary>
@@ -83,7 +83,7 @@ internal static class OpenGLFramebufferConfiguration
     /// <summary>Owns an explicit framebuffer candidate and its original-identity transaction.</summary>
     internal sealed class FramebufferOperation : IDisposable
     {
-        private readonly GpuResourceManager.MetadataOperation<GpuFramebufferMetadata> operation;
+        private readonly RHIResourceManager.MetadataOperation<GpuFramebufferMetadata> operation;
         private GpuFramebufferMetadata candidate;
 
         #region Internal API
@@ -91,7 +91,7 @@ internal static class OpenGLFramebufferConfiguration
         internal FramebufferOperation(GpuFramebuffer resource)
         {
             if (!resource.HasNativeMetadata || resource.ResourceManager?.GetResourceRegistration(resource) is { MetadataAvailable: false })
-                GpuResourceManager.AcquireWrapperMetadata(resource, GpuFramebufferMetadataReader.Instance);
+                RHIResourceManager.AcquireWrapperMetadata(resource, GpuFramebufferMetadataReader.Instance);
             candidate = resource.MetadataSnapshot;
             operation = new(resource, GpuMetadataChange.Metadata);
         }

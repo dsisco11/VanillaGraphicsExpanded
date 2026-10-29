@@ -14,7 +14,7 @@ public readonly struct GpuSamplerRef : IEquatable<GpuSamplerRef>
     /// <summary>Reports manager-certified availability without recovery or native queries.</summary>
     public bool IsValid => TryGetMetadata(out _);
     /// <summary>Returns already published facts only.</summary>
-    public bool TryGetMetadata(out GpuSamplerMetadata data) => GpuResourceManager.TryGetSamplerReferenceMetadata(resource, out data);
+    public bool TryGetMetadata(out GpuSamplerMetadata data) => RHIResourceManager.TryGetSamplerReferenceMetadata(resource, out data);
     /// <summary>Compares managed identity independently of mutable native allocation.</summary>
     public bool Equals(GpuSamplerRef other) => ReferenceEquals(resource, other.resource);
     /// <inheritdoc />

@@ -24,7 +24,7 @@ public sealed unsafe class GpuMemoryObjectLifecycleTests(HeadlessGLFixture fixtu
         using var driver = new MemoryDriver();
         GL.Ext.ImportMemoryF(1900000000, 4096, ExternalHandleType.HandleTypeOpaqueFdExt, -1);
         Assert.Equal(1, driver.ImportCalls);
-        Assert.Null(GpuResourceManagerSystem.CurrentManager!.FindResource(GpuResourceKind.MemoryObject, 1900000000));
+        Assert.Null(RHIResourceManagerSystem.CurrentManager!.FindResource(GpuResourceKind.MemoryObject, 1900000000));
         fixture.CleanupGpuResources();
     }
 
@@ -35,7 +35,7 @@ public sealed unsafe class GpuMemoryObjectLifecycleTests(HeadlessGLFixture fixtu
         fixture.EnsureContextValid(); fixture.InitializeResourceDisposal();
         using var driver = new MemoryDriver();
         var table = OpenGLBindingTable.For(typeof(GL));
-        var manager = GpuResourceManagerSystem.CurrentManager!;
+        var manager = RHIResourceManagerSystem.CurrentManager!;
         uint name = 0;
         ((delegate* unmanaged[Stdcall]<int, uint*, void>)table.Read("glCreateMemoryObjectsEXT"))(1, &name);
         var entry = Assert.IsType<GpuResourceMetadataEntry<GpuMemoryObjectMetadata>>(manager.FindResource(GpuResourceKind.MemoryObject, (int)name));

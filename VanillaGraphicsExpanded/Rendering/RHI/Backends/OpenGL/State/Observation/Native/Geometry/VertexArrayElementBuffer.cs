@@ -14,7 +14,7 @@ internal sealed unsafe partial class OpenGlStateCache
         int @vaobj = unchecked((int)a0);
         int @buffer = unchecked((int)a1);
         if (!OpenGLObservationContext.TryGet(out _, out _, false)) return;
-        if (!Current.PrepareVertexObservation(vaobj, true, false, buffer != 0 && GpuResourceManagerSystem.CurrentManager?.FindObservedResource(GpuResourceKind.Buffer, buffer) is GpuResourceMetadataEntry<GpuBufferMetadata> { IsRealized: false, PendingChange: GpuMetadataChange.None })) return;
+        if (!Current.PrepareVertexObservation(vaobj, true, false, buffer != 0 && RHIResourceManagerSystem.CurrentManager?.FindObservedResource(GpuResourceKind.Buffer, buffer) is GpuResourceMetadataEntry<GpuBufferMetadata> { IsRealized: false, PendingChange: GpuMetadataChange.None })) return;
         OpenGlStateCache.ObserveVertexMetadata(unchecked((int)@vaobj), true, true);
         if (buffer == 0 || Current.HasEstablishedNativeIdentity(GpuResourceKind.Buffer, buffer))
             Current.EstablishVertexArrayElementKnowledge(vaobj, buffer);

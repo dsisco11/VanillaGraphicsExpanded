@@ -46,7 +46,7 @@ internal sealed partial class OpenGlStateCache
     {
         if (id == 0) return;
         CancelResourceOperation(GpuResourceKind.Buffer, id);
-        GpuResourceManagerSystem.CurrentManager?.ObserveDeletion(GpuResourceKind.Buffer, id);
+        RHIResourceManagerSystem.CurrentManager?.ObserveDeletion(GpuResourceKind.Buffer, id);
         ForgetDeletedBuffer(id);
     }
     #endregion

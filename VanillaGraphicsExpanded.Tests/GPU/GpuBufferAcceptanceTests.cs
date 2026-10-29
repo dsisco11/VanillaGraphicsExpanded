@@ -80,7 +80,7 @@ public sealed unsafe class GpuBufferAcceptanceTests(HeadlessGLFixture fixture)
             Assert.Equal(ErrorCode.InvalidValue, GL.GetError());
             Assert.True(cache.TryGetCachedIndexedBuffer(BufferRangeTarget.TransformFeedbackBuffer, 0, out int id, out _, out nint size));
             Assert.Equal(prior, id); Assert.Equal((nint)16, size);
-            var entry = GpuResourceManagerSystem.CurrentManager!.FindResource(GpuResourceKind.Buffer, reserved)!;
+            var entry = RHIResourceManagerSystem.CurrentManager!.FindResource(GpuResourceKind.Buffer, reserved)!;
             Assert.False(entry.IsRealized); Assert.False(entry.IsUsable);
         }
         finally { OpenGLFeedbackBindings.Bind(cache, 0); feedback.Dispose(); GL.DeleteBuffer(reserved); GL.DeleteBuffer(prior); fixture.CleanupGpuResources(); }
@@ -95,7 +95,7 @@ public sealed unsafe class GpuBufferAcceptanceTests(HeadlessGLFixture fixture)
         int id = GL.GenBuffer();
         try
         {
-            var entry = Assert.IsType<GpuResourceMetadataEntry<GpuBufferMetadata>>(GpuResourceManagerSystem.CurrentManager!.FindResource(GpuResourceKind.Buffer, id));
+            var entry = Assert.IsType<GpuResourceMetadataEntry<GpuBufferMetadata>>(RHIResourceManagerSystem.CurrentManager!.FindResource(GpuResourceKind.Buffer, id));
             OpenGLVertexSelection.Bind(OpenGlStateCache.Current, array.VertexArrayId);
             using var queries = new BufferDescriptorCapture();
             OpenGLBufferBindings.BindBuffer(OpenGlStateCache.Current, BufferTarget.ElementArrayBuffer, id);
@@ -120,7 +120,7 @@ public sealed unsafe class GpuBufferAcceptanceTests(HeadlessGLFixture fixture)
                 OpenGLBindingTable.For(typeof(GL)).Read("glVertexArrayBindVertexBufferEXT");
             call((uint)vao, 0, 1900000099, 0, 16);
             Assert.Equal(ErrorCode.InvalidOperation, GL.GetError());
-            var manager = GpuResourceManagerSystem.CurrentManager!;
+            var manager = RHIResourceManagerSystem.CurrentManager!;
             Assert.Null(manager.FindResource(GpuResourceKind.Buffer, 1900000099));
             call((uint)vao, 0, (uint)reserved, 0, -1);
             Assert.Equal(ErrorCode.InvalidValue, GL.GetError());
@@ -188,7 +188,7 @@ public sealed unsafe class GpuBufferAcceptanceTests(HeadlessGLFixture fixture)
             Assert.False(GpuSupport.HasCachedCapabilitiesForCurrentContext);
             GL.CreateVertexArrays(1, out vao); GL.BindVertexArray(vao);
             buffer = GL.GenBuffer();
-            var manager = GpuResourceManagerSystem.CurrentManager!;
+            var manager = RHIResourceManagerSystem.CurrentManager!;
             var entry = Assert.IsType<GpuResourceMetadataEntry<GpuBufferMetadata>>(manager.FindResource(GpuResourceKind.Buffer, buffer));
             if (rejected) GL.BindBuffer((BufferTarget)(-1), buffer);
             else GL.BindVertexBuffer(0, buffer, IntPtr.Zero, 16);

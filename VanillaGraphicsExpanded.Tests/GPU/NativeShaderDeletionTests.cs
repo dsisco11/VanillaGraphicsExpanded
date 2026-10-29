@@ -25,7 +25,7 @@ public sealed class NativeShaderDeletionTests(HeadlessGLFixture fixture)
         try
         {
             using var owner = new GpuShaderModule(shader, ShaderStage.Vertex);
-            var registration = GpuResourceManagerSystem.CurrentManager!.GetResourceRegistration(owner)!;
+            var registration = RHIResourceManagerSystem.CurrentManager!.GetResourceRegistration(owner)!;
             if (attached)
             {
                 program = GL.CreateProgram();

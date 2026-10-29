@@ -22,11 +22,11 @@ public sealed class GpuInitialTextureDependencyTests(HeadlessGLFixture fixture)
         {
             GL.BindBuffer(BufferTarget.TextureBuffer,buffer); GL.BufferData(BufferTarget.TextureBuffer,64,IntPtr.Zero,BufferUsageHint.DynamicDraw);
             GL.BindTexture(TextureTarget.TextureBuffer,texture); GL.TexBuffer(TextureBufferTarget.TextureBuffer,SizedInternalFormat.R32f,buffer);
-            var manager=GpuResourceManagerSystem.CurrentManager!;
+            var manager=RHIResourceManagerSystem.CurrentManager!;
             var reader=new KnownAssociationReader(buffer); var entry=manager.AcquireResource(GpuResourceKind.Texture,texture,reader)!;
             Assert.Equal(0, reader.Reads);
             Assert.True(entry.IsUsable); Assert.True(manager.FindResource(GpuResourceKind.Buffer,buffer)!.IsUsable);
-            using var alias=new Alias(texture); GpuResourceManager.AcquireWrapperMetadata(alias,reader); Assert.True(manager.IsResourceMetadataAvailable(alias));
+            using var alias=new Alias(texture); RHIResourceManager.AcquireWrapperMetadata(alias,reader); Assert.True(manager.IsResourceMetadataAvailable(alias));
             if (unavailableBacking)
             {
                 var backing = manager.AcquireResource(GpuResourceKind.Buffer,buffer,new GpuBufferMetadataReader())!;
@@ -52,7 +52,7 @@ public sealed class GpuInitialTextureDependencyTests(HeadlessGLFixture fixture)
         try
         {
             GL.BindTexture(TextureTarget.TextureBuffer,texture);
-            var manager=GpuResourceManagerSystem.CurrentManager!;
+            var manager=RHIResourceManagerSystem.CurrentManager!;
             var reader = new KnownAssociationReader(int.MaxValue);
             var entry = manager.AcquireResource(GpuResourceKind.Texture,texture,reader)!;
             Assert.Equal(0, reader.Reads);

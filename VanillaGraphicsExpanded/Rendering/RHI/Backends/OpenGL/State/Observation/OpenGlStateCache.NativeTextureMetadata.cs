@@ -45,7 +45,7 @@ internal sealed partial class OpenGlStateCache
             // An incomplete cube is rejected, and an undefined base or unchanged mip
             // descriptors have no represented effect. Resolve those cases before
             // disturbing an operation that owns the same original texture identity.
-            var candidate = GpuResourceManager.BuildGeneratedTextureMetadata(data);
+            var candidate = RHIResourceManager.BuildGeneratedTextureMetadata(data);
             if (!candidate.HasValue) return;
             cache.InterruptNativeResourceOperation(GpuResourceKind.Texture, (int)entry.Id);
             if (!InterruptNativeMetadataCompletion(entry, GpuMetadataChange.Storage))

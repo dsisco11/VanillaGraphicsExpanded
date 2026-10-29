@@ -9,7 +9,7 @@ internal static class TestUniformRing
 {
     private static GpuUniformRingBuffer? ring;
     private static (nint Handle, long Generation) context;
-    private static GpuResourceManager? manager;
+    private static RHIResourceManager? manager;
 
     #region Context lifetime
     /// <summary>Installs the allocator for setup helpers without invalidating allocations for not-yet-submitted draws.</summary>
@@ -17,7 +17,7 @@ internal static class TestUniformRing
     {
         DiscardRetiredContext();
         if (ring is null) BeginFrame();
-        else GpuUniformRingSystem.SetCurrent(ring);
+        else RHIUniformRingSystem.SetCurrent(ring);
     }
 
     /// <summary>Starts a controlled test frame and installs its allocator through the production render-thread API.</summary>
@@ -27,7 +27,7 @@ internal static class TestUniformRing
         // Explicit frame boundaries close the previous interval; nested setup uses EnsureFrame.
         // Retire all commands submitted so far before resetting the single page's write offset.
         // Clearing the allocator first prevents reuse if completion fails or times out.
-        GpuUniformRingSystem.ClearCurrent();
+        RHIUniformRingSystem.ClearCurrent();
         if (ring is not null) RetireSubmittedWork();
         ring ??= new GpuUniformRingBuffer(
             pageSizeBytes: 1 << 21,
@@ -36,16 +36,16 @@ internal static class TestUniformRing
             coherent: true,
             debugName: "Test.UboRing");
         context = RenderContextRegistry.Current();
-        manager = GpuResourceManagerSystem.CurrentManager;
+        manager = RHIResourceManagerSystem.CurrentManager;
         ring.BeginFrame(0);
-        GpuUniformRingSystem.SetCurrent(ring);
+        RHIUniformRingSystem.SetCurrent(ring);
     }
 
     /// <summary>Releases mapped storage before the owning headless GL context is destroyed.</summary>
     internal static void Dispose()
     {
         DiscardRetiredContext();
-        GpuUniformRingSystem.ClearCurrent();
+        RHIUniformRingSystem.ClearCurrent();
         if (ring is not null) RetireSubmittedWork();
         ring?.Dispose();
         ring = null;
@@ -58,13 +58,13 @@ internal static class TestUniformRing
     {
         if (ring is null) return;
         bool sameContext = context == RenderContextRegistry.Current();
-        if (sameContext && ReferenceEquals(manager, GpuResourceManagerSystem.CurrentManager)
+        if (sameContext && ReferenceEquals(manager, RHIResourceManagerSystem.CurrentManager)
             && manager?.IsMetadataRegistryRetired != true) return;
         if (!sameContext && RenderContextRegistry.IsAlive(context))
             throw new InvalidOperationException("The test uniform allocator belongs to a different live context.");
         // An old service's registrations cannot certify this allocator's buffers even when
         // tests reuse the same physical context. Release through their original owners.
-        GpuUniformRingSystem.ClearCurrent();
+        RHIUniformRingSystem.ClearCurrent();
         ring.Dispose();
         ring = null;
         context = default;

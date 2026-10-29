@@ -15,7 +15,7 @@ public sealed class GpuResourceAssociationStressTests
     {
         for (int lifetime = 1; lifetime <= 12; lifetime++)
         {
-            using var manager = new GpuResourceManager(() => (1, lifetime), static _ => true);
+            using var manager = new RHIResourceManager(() => (1, lifetime), static _ => true);
             var reader = new Reader();
             for (int cycle = 0; cycle < 32; cycle++)
             {
@@ -50,7 +50,7 @@ public sealed class GpuResourceAssociationStressTests
     #region Private
     /// <summary>Ends strong local references before collection without relying on JIT local lifetime decisions.</summary>
     [MethodImpl(MethodImplOptions.NoInlining)]
-    private static WeakReference[] AssociateBatch(GpuResourceManager manager, GpuResourceMetadataEntry<GpuBufferMetadata> entry)
+    private static WeakReference[] AssociateBatch(RHIResourceManager manager, GpuResourceMetadataEntry<GpuBufferMetadata> entry)
     {
         var values = new WeakReference[16];
         for (int index = 0; index < values.Length; index++)

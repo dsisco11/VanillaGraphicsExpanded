@@ -46,7 +46,7 @@ public sealed class GpuRemainingCreationTests(HeadlessGLFixture fixture, Xunit.I
                 Assert.True(resource.IsValid);
                 if (registered)
                 {
-                    var manager = GpuResourceManagerSystem.CurrentManager!;
+                    var manager = RHIResourceManagerSystem.CurrentManager!;
                     Assert.True(manager.IsResourceMetadataAvailable(resource));
                     Assert.Equal(1UL, manager.GetResourceRegistration(resource)!.MetadataRevision);
                 }
@@ -55,7 +55,7 @@ public sealed class GpuRemainingCreationTests(HeadlessGLFixture fixture, Xunit.I
             {
                 Assert.True(resource.IsValid);
                 if (registered) Assert.Equal(resource.Kind != GpuResourceKind.Semaphore,
-                    GpuResourceManagerSystem.CurrentManager!.IsResourceMetadataAvailable(resource));
+                    RHIResourceManagerSystem.CurrentManager!.IsResourceMetadataAvailable(resource));
             }
             Assert.Equal(previousVao.VertexArrayId, GL.GetInteger(GetPName.VertexArrayBinding));
             Assert.Equal(previousPipeline.PipelineId, GL.GetInteger(GetPName.ProgramPipelineBinding));
@@ -120,107 +120,107 @@ public sealed class GpuRemainingCreationTests(HeadlessGLFixture fixture, Xunit.I
             {
                 using var recipient = new FailedRecipient<GpuVertexArrayMetadata>(GpuResourceKind.VertexArray);
                 GpuResourceHandle handle = default;
-                var error = Assert.Throws<InvalidOperationException>(() => GpuResourceManager.CreateVertexArray(default, recipient, out handle));
+                var error = Assert.Throws<InvalidOperationException>(() => RHIResourceManager.CreateVertexArray(default, recipient, out handle));
                 Assert.Equal("Injected identity failure.", error.Message);
                 Assert.NotEqual((nint)0, recipient.Attempted);
                 Assert.Equal((nint)0, recipient.ResourceId);
                 Assert.Equal(default, handle);
-                Assert.Null(GpuResourceManagerSystem.CurrentManager?.GetResourceRegistration(recipient));
-                GpuResourceManagerSystem.CurrentManager?.OnRenderFrame(0, GpuResourceManager.Stage);
+                Assert.Null(RHIResourceManagerSystem.CurrentManager?.GetResourceRegistration(recipient));
+                RHIResourceManagerSystem.CurrentManager?.OnRenderFrame(0, RHIResourceManager.Stage);
                 Assert.Contains(("DeleteVertexArray", recipient.Attempted), DeletionObservation.Deleted);
             }
             
             {
                 using var recipient = new FailedRecipient<GpuProgramPipelineMetadata>(GpuResourceKind.ProgramPipeline);
                 GpuResourceHandle handle = default;
-                var error = Assert.Throws<InvalidOperationException>(() => GpuResourceManager.CreateProgramPipeline(default, recipient, out handle));
+                var error = Assert.Throws<InvalidOperationException>(() => RHIResourceManager.CreateProgramPipeline(default, recipient, out handle));
                 Assert.Equal("Injected identity failure.", error.Message);
                 Assert.NotEqual((nint)0, recipient.Attempted);
                 Assert.Equal((nint)0, recipient.ResourceId);
                 Assert.Equal(default, handle);
-                Assert.Null(GpuResourceManagerSystem.CurrentManager?.GetResourceRegistration(recipient));
-                GpuResourceManagerSystem.CurrentManager?.OnRenderFrame(0, GpuResourceManager.Stage);
+                Assert.Null(RHIResourceManagerSystem.CurrentManager?.GetResourceRegistration(recipient));
+                RHIResourceManagerSystem.CurrentManager?.OnRenderFrame(0, RHIResourceManager.Stage);
                 Assert.Contains(("DeleteProgramPipeline", recipient.Attempted), DeletionObservation.Deleted);
             }
             
             {
                 using var recipient = new FailedRecipient<GpuSamplerMetadata>(GpuResourceKind.Sampler);
                 GpuResourceHandle handle = default;
-                var error = Assert.Throws<InvalidOperationException>(() => GpuResourceManager.CreateSampler(default, recipient, out handle));
+                var error = Assert.Throws<InvalidOperationException>(() => RHIResourceManager.CreateSampler(default, recipient, out handle));
                 Assert.Equal("Injected identity failure.", error.Message);
                 Assert.NotEqual((nint)0, recipient.Attempted);
                 Assert.Equal((nint)0, recipient.ResourceId);
                 Assert.Equal(default, handle);
-                Assert.Null(GpuResourceManagerSystem.CurrentManager?.GetResourceRegistration(recipient));
-                GpuResourceManagerSystem.CurrentManager?.OnRenderFrame(0, GpuResourceManager.Stage);
+                Assert.Null(RHIResourceManagerSystem.CurrentManager?.GetResourceRegistration(recipient));
+                RHIResourceManagerSystem.CurrentManager?.OnRenderFrame(0, RHIResourceManager.Stage);
                 Assert.Contains(("DeleteSampler", recipient.Attempted), DeletionObservation.Deleted);
             }
             
             {
                 using var recipient = new FailedRecipient<GpuQueryMetadata>(GpuResourceKind.Query);
                 GpuResourceHandle handle = default;
-                var error = Assert.Throws<InvalidOperationException>(() => GpuResourceManager.CreateQuery(default, recipient, out handle));
+                var error = Assert.Throws<InvalidOperationException>(() => RHIResourceManager.CreateQuery(default, recipient, out handle));
                 Assert.Equal("Injected identity failure.", error.Message);
                 Assert.NotEqual((nint)0, recipient.Attempted);
                 Assert.Equal((nint)0, recipient.ResourceId);
                 Assert.Equal(default, handle);
-                Assert.Null(GpuResourceManagerSystem.CurrentManager?.GetResourceRegistration(recipient));
-                GpuResourceManagerSystem.CurrentManager?.OnRenderFrame(0, GpuResourceManager.Stage);
+                Assert.Null(RHIResourceManagerSystem.CurrentManager?.GetResourceRegistration(recipient));
+                RHIResourceManagerSystem.CurrentManager?.OnRenderFrame(0, RHIResourceManager.Stage);
                 Assert.Contains(("DeleteQuery", recipient.Attempted), DeletionObservation.Deleted);
             }
             
             {
                 using var recipient = new FailedRecipient<GpuSyncMetadata>(GpuResourceKind.Sync);
                 GpuResourceHandle handle = default;
-                var error = Assert.Throws<InvalidOperationException>(() => GpuResourceManager.CreateSync(default, recipient, out handle));
+                var error = Assert.Throws<InvalidOperationException>(() => RHIResourceManager.CreateSync(default, recipient, out handle));
                 Assert.Equal("Injected identity failure.", error.Message);
                 Assert.NotEqual((nint)0, recipient.Attempted);
                 Assert.Equal((nint)0, recipient.ResourceId);
                 Assert.Equal(default, handle);
-                Assert.Null(GpuResourceManagerSystem.CurrentManager?.GetResourceRegistration(recipient));
-                GpuResourceManagerSystem.CurrentManager?.OnRenderFrame(0, GpuResourceManager.Stage);
+                Assert.Null(RHIResourceManagerSystem.CurrentManager?.GetResourceRegistration(recipient));
+                RHIResourceManagerSystem.CurrentManager?.OnRenderFrame(0, RHIResourceManager.Stage);
                 Assert.Contains(("DeleteSync", recipient.Attempted), DeletionObservation.Deleted);
             }
             
             {
                 using var recipient = new FailedRecipient<GpuTransformFeedbackMetadata>(GpuResourceKind.TransformFeedback);
                 GpuResourceHandle handle = default;
-                var error = Assert.Throws<InvalidOperationException>(() => GpuResourceManager.CreateTransformFeedback(default, recipient, out handle));
+                var error = Assert.Throws<InvalidOperationException>(() => RHIResourceManager.CreateTransformFeedback(default, recipient, out handle));
                 Assert.Equal("Injected identity failure.", error.Message);
                 Assert.NotEqual((nint)0, recipient.Attempted);
                 Assert.Equal((nint)0, recipient.ResourceId);
                 Assert.Equal(default, handle);
-                Assert.Null(GpuResourceManagerSystem.CurrentManager?.GetResourceRegistration(recipient));
-                GpuResourceManagerSystem.CurrentManager?.OnRenderFrame(0, GpuResourceManager.Stage);
+                Assert.Null(RHIResourceManagerSystem.CurrentManager?.GetResourceRegistration(recipient));
+                RHIResourceManagerSystem.CurrentManager?.OnRenderFrame(0, RHIResourceManager.Stage);
                 Assert.Contains(("DeleteTransformFeedback", recipient.Attempted), DeletionObservation.Deleted);
             }
             if (RHICommandContext.Current.Capabilities.ExternalSemaphores)
             {
                 using var recipient = new FailedRecipient<GpuSemaphoreMetadata>(GpuResourceKind.Semaphore);
                 GpuResourceHandle handle = default;
-                var error = Assert.Throws<InvalidOperationException>(() => GpuResourceManager.CreateSemaphore(default, recipient, out handle));
+                var error = Assert.Throws<InvalidOperationException>(() => RHIResourceManager.CreateSemaphore(default, recipient, out handle));
                 Assert.Equal("Injected identity failure.", error.Message);
                 Assert.NotEqual((nint)0, recipient.Attempted);
                 Assert.Equal((nint)0, recipient.ResourceId);
                 Assert.Equal(default, handle);
-                Assert.Null(GpuResourceManagerSystem.CurrentManager?.GetResourceRegistration(recipient));
-                GpuResourceManagerSystem.CurrentManager?.OnRenderFrame(0, GpuResourceManager.Stage);
+                Assert.Null(RHIResourceManagerSystem.CurrentManager?.GetResourceRegistration(recipient));
+                RHIResourceManagerSystem.CurrentManager?.OnRenderFrame(0, RHIResourceManager.Stage);
                 Assert.Contains(("DeleteSemaphore", recipient.Attempted), DeletionObservation.Deleted);
             }
             if (RHICommandContext.Current.Capabilities.ExternalMemory)
             {
                 using var recipient = new FailedRecipient<GpuMemoryObjectMetadata>(GpuResourceKind.MemoryObject);
                 GpuResourceHandle handle = default;
-                var error = Assert.Throws<InvalidOperationException>(() => GpuResourceManager.CreateMemoryObject(default, recipient, out handle));
+                var error = Assert.Throws<InvalidOperationException>(() => RHIResourceManager.CreateMemoryObject(default, recipient, out handle));
                 Assert.Equal("Injected identity failure.", error.Message);
                 Assert.NotEqual((nint)0, recipient.Attempted);
                 Assert.Equal((nint)0, recipient.ResourceId);
                 Assert.Equal(default, handle);
-                Assert.Null(GpuResourceManagerSystem.CurrentManager?.GetResourceRegistration(recipient));
-                GpuResourceManagerSystem.CurrentManager?.OnRenderFrame(0, GpuResourceManager.Stage);
+                Assert.Null(RHIResourceManagerSystem.CurrentManager?.GetResourceRegistration(recipient));
+                RHIResourceManagerSystem.CurrentManager?.OnRenderFrame(0, RHIResourceManager.Stage);
                 Assert.Contains(("DeleteMemoryObject", recipient.Attempted), DeletionObservation.Deleted);
             }
-            GpuResourceManagerSystem.CurrentManager?.OnRenderFrame(0, GpuResourceManager.Stage);
+            RHIResourceManagerSystem.CurrentManager?.OnRenderFrame(0, RHIResourceManager.Stage);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
         finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }

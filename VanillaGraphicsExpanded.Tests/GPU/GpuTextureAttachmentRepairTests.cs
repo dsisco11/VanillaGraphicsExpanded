@@ -71,15 +71,15 @@ public sealed class GpuTextureAttachmentRepairTests(HeadlessGLFixture fixture)
         {
             using var source = RHICommandContext.Current.CreateDynamicTexture3D(new RHITextureDescription { Dimension = TextureDimension.TwoArray, Format = TextureFormat.Rgba8, Width = System.Math.Max(1, 4), Height = System.Math.Max(1, 4), Depth = System.Math.Max(1, 2), MipLevels = 1, Storage = (true ? ResourceStorageMode.Immutable : ResourceStorageMode.Mutable), Filter = TextureFilterMode.Linear, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
             using var view = RHICommandContext.Current.CreateTextureView(new RHITextureViewDescription { Source = source, Dimension = TextureDimension.TwoArray, Format = TextureFormat.Rgba8, BaseMip = 0, MipCount = 1, BaseLayer = 0, LayerCount = 1, Label = null }).RequireResource();
-            if (own) GpuResourceManager.InvalidateWrapperMetadata(view);
-            else using (new GpuResourceManager.MetadataOperation<GpuTextureMetadata>(source, storage ? GpuMetadataChange.Storage : GpuMetadataChange.Metadata)) { }
+            if (own) RHIResourceManager.InvalidateWrapperMetadata(view);
+            else using (new RHIResourceManager.MetadataOperation<GpuTextureMetadata>(source, storage ? GpuMetadataChange.Storage : GpuMetadataChange.Metadata)) { }
             Assert.False(view.IsValid);
             OpenGLImageBindings.BindTexture(OpenGlStateCache.Current, TextureTarget.Texture2DArray, 0, 0);
             Assert.Throws<InvalidOperationException>(() => RHICommandContext.Current.BindSampledTextures([new(0, view, Dimension: TextureDimension.TwoArray)]));
             Assert.Equal(0, GL.GetInteger(GetPName.TextureBinding2DArray));
             // Reacquiring view facts leaves its allocation intact; source storage publication retires dependencies.
-            if (own) GpuResourceManager.RecoverWrapperMetadata(view, new GpuTextureMetadataReader(TextureDimension.TwoArray));
-            else GpuResourceManager.RecoverWrapperMetadata(source, new GpuTextureMetadataReader(TextureDimension.TwoArray));
+            if (own) RHIResourceManager.RecoverWrapperMetadata(view, new GpuTextureMetadataReader(TextureDimension.TwoArray));
+            else RHIResourceManager.RecoverWrapperMetadata(source, new GpuTextureMetadataReader(TextureDimension.TwoArray));
             Assert.Equal(!storage, view.IsValid);
             if (storage)
                 Assert.Throws<InvalidOperationException>(() => RHICommandContext.Current.BindSampledTextures([new(0, view, Dimension: TextureDimension.TwoArray)]));

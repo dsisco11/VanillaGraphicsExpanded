@@ -32,7 +32,7 @@ public sealed class GpuVertexBufferBindingInterceptionTests(HeadlessGLFixture fi
             var cache=OpenGlStateCache.Current;
             OpenGLBufferBindings.BindBuffer(cache, target,first.BufferId);
             Assert.Equal(first.BufferId,cache.GetBoundBuffer(target));
-            var entry=GpuResourceManagerSystem.CurrentManager!.GetResourceRegistration(vao)!;
+            var entry=RHIResourceManagerSystem.CurrentManager!.GetResourceRegistration(vao)!;
             ulong revision=entry.MetadataRevision;
             BindNative(variant,target,second.BufferId);
             Assert.Equal(second.BufferId,cache.GetBoundBuffer(target));

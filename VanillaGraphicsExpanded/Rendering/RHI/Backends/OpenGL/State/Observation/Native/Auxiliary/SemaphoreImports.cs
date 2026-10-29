@@ -27,7 +27,7 @@ internal sealed partial class OpenGlStateCache
     private static void ObserveSemaphoreImport(uint semaphore)
     {
         if (semaphore == 0 || !OpenGLObservationContext.TryGet(out _, out _, false)) return;
-        if (GpuResourceManagerSystem.CurrentManager!.FindObservedResource(GpuResourceKind.Semaphore,
+        if (RHIResourceManagerSystem.CurrentManager!.FindObservedResource(GpuResourceKind.Semaphore,
             unchecked((int)semaphore)) is null)
             Debug.WriteLine("Semaphore import has no observed generation identity; the native input may be invalid.");
         // The schema is empty. Failure or repeated setup cannot replace an allocation;

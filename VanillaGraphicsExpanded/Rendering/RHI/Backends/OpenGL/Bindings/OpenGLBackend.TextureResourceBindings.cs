@@ -49,7 +49,7 @@ internal sealed partial class OpenGLBackend
             _ => throw new ArgumentOutOfRangeException(nameof(policy))
         };
         if (sampler is null) return 0;
-        _ = GpuResourceManager.RequireSamplerReferenceMetadata(sampler);
+        _ = RHIResourceManager.RequireSamplerReferenceMetadata(sampler);
         RetainExecutionResource(sampler);
         return sampler.SamplerId;
     }

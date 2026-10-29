@@ -41,16 +41,16 @@ internal sealed partial class OpenGLBackend
             {
                 case ShaderBindingKind.Sampler:
                     inputs.TrySampler(active.Identity, active.Element, out var sampler);
-                    if (!sampler.Texture.IsEmpty && !GpuResourceManager.ValidateTextureReferenceInput(sampler.Texture.Resource))
+                    if (!sampler.Texture.IsEmpty && !RHIResourceManager.ValidateTextureReferenceInput(sampler.Texture.Resource))
                         throw new InvalidOperationException("Captured sampler storage was retired or became unavailable.");
                     ShaderPreparedSubmission.ValidateSampler(binding, sampler.Texture, ref history);
                     if (!sampler.Sampler.IsEmpty)
-                        _ = GpuResourceManager.RequireSamplerReferenceMetadata(sampler.Sampler.RequireResource());
+                        _ = RHIResourceManager.RequireSamplerReferenceMetadata(sampler.Sampler.RequireResource());
                     break;
                 case ShaderBindingKind.Image:
                     inputs.TryImage(active.Identity, out var image);
                     var view = ResolveImageView(binding, image);
-                    if (!view.Texture.IsEmpty && !GpuResourceManager.ValidateTextureReferenceInput(view.Texture.Resource))
+                    if (!view.Texture.IsEmpty && !RHIResourceManager.ValidateTextureReferenceInput(view.Texture.Resource))
                         throw new InvalidOperationException("Captured image storage was retired or became unavailable.");
                     ShaderPreparedSubmission.ValidateImage(binding, view, ref history);
                     if (!view.Texture.IsEmpty) RenderPass.ValidateImageTexture(view);
@@ -83,7 +83,7 @@ internal sealed partial class OpenGLBackend
         snapshot.RequireUsable();
         if (snapshot.Bytes.Length < binding.MinimumSize)
             throw new ArgumentException("Captured uniform bytes are smaller than the prepared block.");
-        if (!GpuUniformRingSystem.TryGetCurrent(out var ring))
+        if (!RHIUniformRingSystem.TryGetCurrent(out var ring))
             throw new InvalidOperationException("Captured uniform publication requires an open allocation epoch.");
         ring.RequireOpenPublication();
     }
@@ -92,7 +92,7 @@ internal sealed partial class OpenGLBackend
     {
         if (input.Buffer.IsEmpty) { RequireInput(binding, false); return; }
         var resource = input.Buffer.RequireResource();
-        var data = GpuResourceManager.RequireBufferReferenceMetadata(resource);
+        var data = RHIResourceManager.RequireBufferReferenceMetadata(resource);
         nint length = input.Whole ? data.Capacity : input.Length;
         _ = RequireRange(input.Buffer, input.Offset, length);
         int alignment = binding.Contract.Kind switch

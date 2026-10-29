@@ -20,7 +20,7 @@ public readonly struct GpuTextureRef : IEquatable<GpuTextureRef>
     public TextureDimension Target => RequireMetadata().Target;
     /// <summary>Returns already-published usable facts without queries or recovery.</summary>
     public bool TryGetMetadata(out GpuTextureMetadata data) =>
-        GpuResourceManager.TryGetTextureReferenceMetadata(resource, out data);
+        RHIResourceManager.TryGetTextureReferenceMetadata(resource, out data);
     /// <summary>Compares retained managed objects independently of mutable native identity.</summary>
     public bool Equals(GpuTextureRef other) => ReferenceEquals(resource, other.resource);
     /// <inheritdoc />
@@ -39,7 +39,7 @@ public readonly struct GpuTextureRef : IEquatable<GpuTextureRef>
     /// <summary>Supplies the backing wrapper only to rendering implementation boundaries.</summary>
     internal GpuResource<GpuTextureMetadata>? Resource => resource;
     /// <summary>Requires usable published facts and the originating submission context.</summary>
-    internal GpuTextureMetadata RequireMetadata() => GpuResourceManager.RequireTextureReferenceMetadata(resource);
+    internal GpuTextureMetadata RequireMetadata() => RHIResourceManager.RequireTextureReferenceMetadata(resource);
     /// <summary>Selects an allocated view-relative image from published facts.</summary>
     internal GpuTextureLevelMetadata RequireImage(int level)
     {

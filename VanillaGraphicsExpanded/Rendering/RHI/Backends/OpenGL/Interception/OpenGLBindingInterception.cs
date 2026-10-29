@@ -32,7 +32,7 @@ internal static partial class OpenGLBindingInterception
         // Establish authority before exposing any creation callback. Startup without an engine
         // window is handled at the first registered observation, never by delayed discovery.
         if (Integration.RenderContextRegistry.Current() != default || Integration.EngineRenderContext.TryRegisterCurrent())
-            GpuResourceManagerSystem.EnsureCurrentContext().ActivateResourceObservation();
+            RHIResourceManagerSystem.EnsureCurrentContext().ActivateResourceObservation();
         lock (gate)
         {
             Volatile.Write(ref enabled, true);

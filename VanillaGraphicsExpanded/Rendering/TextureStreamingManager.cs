@@ -872,7 +872,7 @@ internal sealed class TextureStreamingManager : IDisposable
                 // a recyclable GL name. Retired owners cannot overwrite a replacement.
                 if (request.TextureOwner is { } owner && (!owner.IsValid || owner.TextureId != request.TextureId
                     || !ReferenceEquals(owner.UntrackedStorageIdentity, request.StorageIdentity)
-                    || GpuResourceManager.TextureStorageRevision(owner) != request.StorageRevision))
+                    || RHIResourceManager.TextureStorageRevision(owner) != request.StorageRevision))
                 {
                     cmd.OwnedBuffer?.Dispose();
                     // Retire a staged ring allocation through its existing fence queue
@@ -1991,7 +1991,7 @@ internal sealed class TextureStreamingManager : IDisposable
         var owner = request.TextureOwner;
         if (owner is not null && (!owner.IsValid || owner.TextureId != request.TextureId
             || !ReferenceEquals(owner.UntrackedStorageIdentity, request.StorageIdentity)
-            || GpuResourceManager.TextureStorageRevision(owner) != request.StorageRevision))
+            || RHIResourceManager.TextureStorageRevision(owner) != request.StorageRevision))
             throw new InvalidOperationException("The staged destination allocation has been replaced.");
         // Raw engine destinations are acquired explicitly only at their existing external boundary.
         // VGE-owned destinations use their retained reference and already published facts without readback.
@@ -2626,7 +2626,7 @@ internal readonly record struct TextureUploadRequest(
     /// <summary>Retains the destination storage selected when this queued upload was authored.</summary>
     internal object? StorageIdentity { get; init; } = TextureOwner?.UntrackedStorageIdentity;
     /// <summary>Retains the manager's storage revision so in-place replacement cannot receive stale pixels.</summary>
-    internal ulong StorageRevision { get; init; } = TextureOwner is null ? 0 : GpuResourceManager.TextureStorageRevision(TextureOwner);
+    internal ulong StorageRevision { get; init; } = TextureOwner is null ? 0 : RHIResourceManager.TextureStorageRevision(TextureOwner);
 }
 
 internal enum TextureUploadDataKind

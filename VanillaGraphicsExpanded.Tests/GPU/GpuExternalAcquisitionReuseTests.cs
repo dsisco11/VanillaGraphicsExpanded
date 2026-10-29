@@ -24,7 +24,7 @@ public sealed class GpuExternalAcquisitionReuseTests(HeadlessGLFixture fixture)
             using var capability = new DirectStateAccessCapabilityScope(dsa);
             using var buffer = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = null }).RequireResource(); buffer.Allocate(64);
             using var view = RHICommandContext.Current.CreateBufferTexture(new RHIBufferTextureDescription { Buffer = buffer, Format = TextureFormat.R32f, WholeBuffer = true, Label = null }).RequireResource();
-            var manager = GpuResourceManagerSystem.CurrentManager!;
+            var manager = RHIResourceManagerSystem.CurrentManager!;
             using var reads = new ImageDescriptorCapture();
             // The supplied association cannot certify an unavailable backing.
             Assert.IsType<GpuResourceMetadataEntry<GpuBufferMetadata>>(manager.FindResource(GpuResourceKind.Buffer, buffer.BufferId)).BeginRefresh(GpuMetadataChange.Storage);
@@ -65,8 +65,8 @@ public sealed class GpuExternalAcquisitionReuseTests(HeadlessGLFixture fixture)
             selectedRenderbuffer.ValidateSlot(FramebufferSlot.Color0);
             Assert.Equal(8, selectedView.Width);
             Assert.Equal(4, selectedRenderbuffer.Height);
-            GpuResourceManager.InvalidateWrapperMetadata(view);
-            GpuResourceManager.InvalidateWrapperMetadata(renderbuffer);
+            RHIResourceManager.InvalidateWrapperMetadata(view);
+            RHIResourceManager.InvalidateWrapperMetadata(renderbuffer);
             Assert.Throws<InvalidOperationException>(() => selectedView.ValidateSlot(FramebufferSlot.Color0));
             Assert.Throws<InvalidOperationException>(() => selectedRenderbuffer.ValidateSlot(FramebufferSlot.Color0));
             Assert.False(selectedView.IsValid);
@@ -89,7 +89,7 @@ public sealed class GpuExternalAcquisitionReuseTests(HeadlessGLFixture fixture)
             using var buffer = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = null }).RequireResource();
             buffer.Allocate(64);
             using var view = RHICommandContext.Current.CreateBufferTexture(new RHIBufferTextureDescription { Buffer = buffer, Format = TextureFormat.R32f, WholeBuffer = true, Label = null }).RequireResource();
-            var manager = GpuResourceManagerSystem.CurrentManager!;
+            var manager = RHIResourceManagerSystem.CurrentManager!;
             var textureEntry = Assert.IsType<GpuResourceMetadataEntry<GpuTextureMetadata>>(manager.GetResourceRegistration(texture));
             int textureReads = 0;
             textureEntry.Reader = new CallbackReader<GpuTextureMetadata>(GpuTextureMetadataReader.Instance, () => textureReads++);
@@ -139,7 +139,7 @@ public sealed class GpuExternalAcquisitionReuseTests(HeadlessGLFixture fixture)
             image.ValidateSlot(FramebufferSlot.Color0);
             Assert.Equal(8, borrowed.Width);
             Assert.Equal(4, image.Height);
-            var manager = GpuResourceManagerSystem.CurrentManager!;
+            var manager = RHIResourceManagerSystem.CurrentManager!;
             Assert.Same(manager.GetResourceRegistration(texture), manager.GetResourceRegistration(borrowed));
             Assert.Same(manager.GetResourceRegistration(texture), manager.GetResourceRegistration(image));
             Assert.Equal(ErrorCode.NoError, GL.GetError());
@@ -160,8 +160,8 @@ public sealed class GpuExternalAcquisitionReuseTests(HeadlessGLFixture fixture)
             using var first = GpuFramebufferAttachment.FromTextureId(native);
             using var second = GpuFramebufferAttachment.FromTextureId(native);
             Assert.Equal(first.Width, second.Width);
-            Assert.Same(GpuResourceManagerSystem.CurrentManager!.GetResourceRegistration(first),
-                GpuResourceManagerSystem.CurrentManager.GetResourceRegistration(second));
+            Assert.Same(RHIResourceManagerSystem.CurrentManager!.GetResourceRegistration(first),
+                RHIResourceManagerSystem.CurrentManager.GetResourceRegistration(second));
             using var borrowed = new BorrowedTexture(native);
             using (OpenGlStateCache.Current.BindTextureScope(TextureTarget.Texture2D, 0, native))
                 GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.Rgba8, 12, 6, 0, PixelFormat.Rgba, PixelType.UnsignedByte, IntPtr.Zero);
@@ -196,10 +196,10 @@ public sealed class GpuExternalAcquisitionReuseTests(HeadlessGLFixture fixture)
             Assert.Equal(8, image.Width);
             // Withdrawal deliberately leaves native storage intact. Projection must not silently
             // reacquire it and turn an interrupted owner's old allocation back into usable facts.
-            GpuResourceManager.InvalidateWrapperMetadata(texture, GpuMetadataChange.Storage);
+            RHIResourceManager.InvalidateWrapperMetadata(texture, GpuMetadataChange.Storage);
             Assert.Throws<InvalidOperationException>(() => image.ValidateSlot(FramebufferSlot.Color0));
             Assert.Equal(0, image.Width);
-            Assert.Throws<InvalidOperationException>(() => GpuResourceManager.RecoverWrapperMetadata(texture, new GpuTextureMetadataReader(TextureDimension.Two)));
+            Assert.Throws<InvalidOperationException>(() => RHIResourceManager.RecoverWrapperMetadata(texture, new GpuTextureMetadataReader(TextureDimension.Two)));
             // Explicit owner replacement supplies fresh facts; the withdrawn original stays unavailable.
             using var replacement = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription
             { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba8, Width = 8, Height = 4, MipLevels = 1,

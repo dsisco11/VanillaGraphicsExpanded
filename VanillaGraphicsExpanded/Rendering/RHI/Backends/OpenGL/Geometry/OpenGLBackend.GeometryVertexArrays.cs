@@ -100,7 +100,7 @@ internal sealed partial class OpenGLBackend
     /// <summary>Owns one cached VAO while weak packet membership leaves resource references under their original owners.</summary>
     private sealed class GeometryVertexArray
     {
-        private readonly GpuResourceDisposalQueue disposals = GpuResourceManagerSystem.CaptureDisposalQueue();
+        private readonly RHIResourceDisposalQueue disposals = RHIResourceManagerSystem.CaptureDisposalQueue();
         private readonly GpuResourceRegistration? registration;
         private readonly ulong revision, localEpoch;
         private readonly int[] streamNames;

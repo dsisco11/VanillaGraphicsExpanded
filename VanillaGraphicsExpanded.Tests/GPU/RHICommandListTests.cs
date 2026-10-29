@@ -267,10 +267,10 @@ public sealed class RHICommandListTests(HeadlessGLFixture fixture) : RenderTestB
         Start(); var context = RHICommandContext.Current; using var uniform = new PackedUniformBuffer(16);
         uniform.SetBytes(Enumerable.Repeat((byte)3, 16).ToArray());
         using var list = context.CreateCommandList(); list.BindUniformSnapshot(0, uniform.Capture()); list.Close();
-        Assert.True(GpuUniformRingSystem.TryGetCurrent(out var allocator));
-        GpuUniformRingSystem.ClearCurrent();
+        Assert.True(RHIUniformRingSystem.TryGetCurrent(out var allocator));
+        RHIUniformRingSystem.ClearCurrent();
         try { var result = context.Submit(list); Assert.Equal(CommandListState.Failed, result.State); Assert.True(uniform.IsDirty); }
-        finally { GpuUniformRingSystem.SetCurrent(allocator); }
+        finally { RHIUniformRingSystem.SetCurrent(allocator); }
     }
     /// <summary>Boundary rejection preserves a caller-owned active pass instead of treating it as list cleanup.</summary>
     [Fact]

@@ -26,7 +26,7 @@ internal sealed partial class OpenGLBackend
         var owner = new GpuTransformFeedback();
         try
         {
-            if (!GpuResourceManager.CreateTransformFeedback(new(), owner, out _).HasValue)
+            if (!RHIResourceManager.CreateTransformFeedback(new(), owner, out _).HasValue)
             { owner.Dispose(); return new(null, "Transform-feedback initialization failed."); }
             // Configure only the new private candidate; a failed setup never exposes a usable owner.
             foreach (var output in description.Outputs)

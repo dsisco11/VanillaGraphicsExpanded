@@ -10,7 +10,7 @@ internal sealed partial class OpenGLBackend
     public void AllocateRenderbufferOwner(GpuRenderbuffer owner, in GpuRenderbufferInitialization request)
     {
         RequireContext();
-        if (!GpuResourceManager.CreateRenderbuffer(request, owner, out _).HasValue)
+        if (!RHIResourceManager.CreateRenderbuffer(request, owner, out _).HasValue)
             throw new InvalidOperationException("Renderbuffer initialization failed.");
     }
     #endregion

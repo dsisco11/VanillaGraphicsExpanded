@@ -40,7 +40,7 @@ internal sealed unsafe partial class OpenGlStateCache
     private static void CompleteObservedProgram(uint program)
     {
         if (!OpenGLObservationContext.TryGet(out _, out _, false) || !GpuSupport.HasCachedCapabilitiesForCurrentContext) return;
-        var manager = GpuResourceManagerSystem.CurrentManager!;
+        var manager = RHIResourceManagerSystem.CurrentManager!;
         if (manager.FindObservedResource(GpuResourceKind.Program, unchecked((int)program))
             is not GpuResourceMetadataEntry<GpuProgramMetadata> entry
             || entry.IsUsable || entry.OperationInProgress || entry.CompletionInProgress || !entry.CompletionInterrupted

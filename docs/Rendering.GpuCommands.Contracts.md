@@ -50,7 +50,9 @@ Older DSA alternatives and measurement requirements in those documents do not ov
 | `RHICommand` | Immutable opcode and typed-payload location. Managed references live in list-owned tables; headers own no execution, metadata or deletion authority. |
 | `RHICommandList` | Exclusive list-local recording, copied/frozen arguments, intended context identity, closing, terminal state and reset. Native execution only through `RHICommandContext.Submit`. |
 | `OpenGlStateCache` | Existing executed knowledge, eligible suppression, selective restoration and effect forwarding. Rename only after native execution leaves `StateCache`; no old-name alias. |
-| `GpuResourceManager` | Existing associations, complete canonical snapshots, availability/revisions, dependency validation, operations and retirement. No new registry, handle generation field or tracking in `GpuResource<TMetadata>`. |
+| `RHIResourceManager` | Existing associations, complete canonical snapshots, availability/revisions, dependency validation, operations and retirement. No new registry, handle generation field or tracking in `GpuResource<TMetadata>`. |
+| `RHIResourceManagerSystem` / `RHIResourceDisposalQueue` | Publish the single manager and retain cleanup for its originating lifetime; no replacement execution or registry authority. |
+| `RHIUniformRingSystem` / `RHIUniformRingFrameController` | Expose the current `GpuUniformRingBuffer` allocator and coordinate publication epochs through the existing begin/end engine callbacks. Storage ownership and allocation records stay unchanged. |
 
 `IRHIBackend` methods mirror semantic operation inputs below, not OpenTK overload names. Its internal
 creation orchestration can accept unpublished typed recipients and explicit operation state. Native

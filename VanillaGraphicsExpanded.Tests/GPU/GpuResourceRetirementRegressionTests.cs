@@ -26,7 +26,7 @@ public sealed class GpuResourceRetirementRegressionTests(HeadlessGLFixture fixtu
             Assert.Throws<InvalidOperationException>(() => cache.RequireMutableFramebufferConfiguration(id));
             // Model confirmed external deletion arriving at the registry before deferred wrapper disposal.
             GL.DeleteFramebuffer(id);
-            GpuResourceManagerSystem.CurrentManager!.ObserveDeletion(GpuResourceKind.Framebuffer,id);
+            RHIResourceManagerSystem.CurrentManager!.ObserveDeletion(GpuResourceKind.Framebuffer,id);
             Assert.False(target.IsValid);
             cache.RequireMutableFramebufferConfiguration(id);
             Assert.False(cache.ValidateImmutableFramebufferRouting(id,[DrawBuffersEnum.ColorAttachment0]));
@@ -76,7 +76,7 @@ public sealed class GpuResourceRetirementRegressionTests(HeadlessGLFixture fixtu
         {
             using (OpenGlStateCache.Current.BindBufferScope(BufferTarget.ArrayBuffer, buffer))
                 GL.BufferData(BufferTarget.ArrayBuffer, 1024, IntPtr.Zero, BufferUsageHint.StaticDraw);
-            var manager = GpuResourceManagerSystem.CurrentManager!;
+            var manager = RHIResourceManagerSystem.CurrentManager!;
             var original = Assert.IsType<GpuResourceMetadataEntry<GpuBufferMetadata>>(manager.FindResource(GpuResourceKind.Buffer, buffer));
             if (associateBacking) Assert.Same(original, manager.AcquireResource(GpuResourceKind.Buffer, buffer, new GpuBufferMetadataReader()));
             using var view = VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLTextureIntegration.CreateBufferView(buffer, SizedInternalFormat.R32f, true, 0, 0, null).RequireResource();
@@ -115,7 +115,7 @@ public sealed class GpuResourceRetirementRegressionTests(HeadlessGLFixture fixtu
             GL.AttachShader(program, shader);
             attached = true;
             original = new GpuShaderModule(shader, ShaderStage.Vertex);
-            var manager = GpuResourceManagerSystem.CurrentManager!;
+            var manager = RHIResourceManagerSystem.CurrentManager!;
             var retired = manager.GetResourceRegistration(original)!;
             VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Shader, shader));
             Assert.Equal(GpuResourceRegistrationState.Deleted, retired.State);
@@ -159,7 +159,7 @@ public sealed class GpuResourceRetirementRegressionTests(HeadlessGLFixture fixtu
             original = GpuProgramObject.Adopt(program);
             GL.UseProgram(program);
             OpenGlStateCache.Current.InvalidateAll();
-            var manager = GpuResourceManagerSystem.CurrentManager!;
+            var manager = RHIResourceManagerSystem.CurrentManager!;
             var retired = manager.GetResourceRegistration(original)!;
             GL.DeleteProgram(program);
             Assert.True(GL.IsProgram(program));
@@ -214,7 +214,7 @@ public sealed class GpuResourceRetirementRegressionTests(HeadlessGLFixture fixtu
             GL.BindFramebuffer(FramebufferTarget.Framebuffer, framebuffer);
             if (renderbuffer) GL.FramebufferRenderbuffer(FramebufferTarget.Framebuffer, FramebufferAttachment.ColorAttachment0, RenderbufferTarget.Renderbuffer, backing);
             else GL.FramebufferTexture2D(FramebufferTarget.Framebuffer, FramebufferAttachment.ColorAttachment0, TextureTarget.Texture2D, backing, 0);
-            var manager = GpuResourceManagerSystem.CurrentManager!;
+            var manager = RHIResourceManagerSystem.CurrentManager!;
             var original = manager.FindResource(renderbuffer ? GpuResourceKind.Renderbuffer : GpuResourceKind.Texture, backing)!;
             var entry = manager.AcquireResource(GpuResourceKind.Framebuffer, framebuffer, GpuFramebufferMetadataReader.Instance)!;
             Assert.NotNull(entry);

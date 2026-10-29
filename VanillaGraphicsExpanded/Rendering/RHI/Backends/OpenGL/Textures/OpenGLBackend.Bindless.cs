@@ -17,7 +17,7 @@ internal sealed partial class OpenGLBackend
         else
         {
             var owner = sampler.RequireResource();
-            _ = GpuResourceManager.RequireSamplerReferenceMetadata(owner);
+            _ = RHIResourceManager.RequireSamplerReferenceMetadata(owner);
             handle = unchecked((ulong)GL.Arb.GetTextureSamplerHandle(texture.TextureId, checked((int)owner.ResourceId)));
         }
         RequireContext();

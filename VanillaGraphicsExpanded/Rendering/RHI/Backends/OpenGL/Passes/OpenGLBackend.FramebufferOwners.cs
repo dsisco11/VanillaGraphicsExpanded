@@ -9,7 +9,7 @@ internal sealed partial class OpenGLBackend
     public void AllocateFramebufferOwner(GpuFramebuffer owner, in GpuFramebufferInitialization request)
     {
         RequireContext();
-        if (!GpuResourceManager.CreateFramebuffer(request, owner, out _).HasValue)
+        if (!RHIResourceManager.CreateFramebuffer(request, owner, out _).HasValue)
             throw new System.InvalidOperationException("Framebuffer allocation failed.");
     }
     /// <inheritdoc />

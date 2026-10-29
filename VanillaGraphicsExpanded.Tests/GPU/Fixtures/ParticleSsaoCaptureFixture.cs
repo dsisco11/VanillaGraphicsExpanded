@@ -100,7 +100,7 @@ internal sealed class ParticleSsaoCaptureFixture : IDisposable
     {
         Targets?.Dispose();
         resources.Dispose();
-        GpuResourceManagerSystem.CaptureDisposalQueue().DrainPending();
+        RHIResourceManagerSystem.CaptureDisposalQueue().DrainPending();
     }
     #endregion
     #endregion

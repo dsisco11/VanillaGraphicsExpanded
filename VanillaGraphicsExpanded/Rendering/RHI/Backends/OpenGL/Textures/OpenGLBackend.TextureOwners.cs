@@ -18,7 +18,7 @@ internal sealed partial class OpenGLBackend
             InitializeTextureOwner(owner, description);
             // Allocation and filter policy are complete before dependents see replacement.
             // A missing image selection must not delete the successful owner allocation.
-            GpuResourceManager.PublishOwnerImages(owner, true, reportMissingImages: true);
+            RHIResourceManager.PublishOwnerImages(owner, true, reportMissingImages: true);
         }
         else AllocateTextureStorage(owner, description);
     }

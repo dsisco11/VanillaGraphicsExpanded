@@ -20,10 +20,10 @@ internal sealed partial class OpenGLBackend
         owner.RequireOriginalContext();
         owner.RequireMutableStorage();
         var initialization = LowerTexture(request).Resolve();
-        var previous = GpuResourceManager.AcquireTextureCommandInput(owner);
+        var previous = RHIResourceManager.AcquireTextureCommandInput(owner);
         if (previous.ImmutableStorage || previous.Target != initialization.Target)
             throw new InvalidOperationException("In-place allocation requires mutable storage of the established shape.");
-        using var operation = new GpuResourceManager.MetadataOperation<GpuTextureMetadata>(owner, GpuMetadataChange.Storage);
+        using var operation = new RHIResourceManager.MetadataOperation<GpuTextureMetadata>(owner, GpuMetadataChange.Storage);
         var candidate = DefineTextureImages(owner.TextureId, initialization, operation);
         var images = candidate.Levels.ToBuilder();
         foreach (var image in previous.Levels)
@@ -37,11 +37,11 @@ internal sealed partial class OpenGLBackend
     {
         RequireContext();
         owner.RequireOriginalContext();
-        var previous = GpuResourceManager.AcquireTextureCommandInput(owner);
+        var previous = RHIResourceManager.AcquireTextureCommandInput(owner);
         if (baseLevel < 0 || maxLevel < 0 || previous.Target == TextureDimension.Rectangle && baseLevel != 0
             || previous.Target is TextureDimension.TwoMultisample or TextureDimension.TwoMultisampleArray or TextureDimension.Buffer)
             throw new ArgumentOutOfRangeException(nameof(baseLevel));
-        using var operation = new GpuResourceManager.MetadataOperation<GpuTextureMetadata>(owner, GpuMetadataChange.Metadata);
+        using var operation = new RHIResourceManager.MetadataOperation<GpuTextureMetadata>(owner, GpuMetadataChange.Metadata);
         int id = owner.TextureId;
         OpenGLDriverCalls.TextureParameter(id, Native.TextureParameterName.TextureBaseLevel, baseLevel);
         CheckTextureStep(operation);
@@ -60,7 +60,7 @@ internal sealed partial class OpenGLBackend
         var initialization = LowerTexture(request).Resolve();
         try
         {
-            if (!GpuResourceManager.CreateTexture(initialization, owner, out _).HasValue)
+            if (!RHIResourceManager.CreateTexture(initialization, owner, out _).HasValue)
                 throw new InvalidOperationException("Texture initialization did not complete.");
             ApplyTextureFilterPolicy(owner, request);
             owner.SetDebugName(request.Label);
@@ -80,7 +80,7 @@ internal sealed partial class OpenGLBackend
                 }
                 catch { owner.SetCreationIdentity(0); }
             }
-            GpuResourceManager.PublishOwnerImages(owner, false);
+            RHIResourceManager.PublishOwnerImages(owner, false);
             throw;
         }
     }
@@ -89,12 +89,12 @@ internal sealed partial class OpenGLBackend
     #region Private
     /// <summary>Applies sampling fields as a standalone operation or an explicit step of storage replacement.</summary>
     private void ApplyTextureSampling(GpuTexture owner, in RHISamplerDescription description,
-        GpuResourceManager.MetadataOperation<GpuTextureMetadata>? operation = null)
+        RHIResourceManager.MetadataOperation<GpuTextureMetadata>? operation = null)
     {
         var request = description;
         RequireContext();
         owner.RequireOriginalContext();
-        if (operation is null) _ = GpuResourceManager.RequireTextureReferenceMetadata(owner);
+        if (operation is null) _ = RHIResourceManager.RequireTextureReferenceMetadata(owner);
         else operation.RequireParticipation(owner, GpuMetadataChange.Metadata);
         ValidateSampler(request);
         if (request.Has(5) || request.Has(6) || request.Has(7) || request.Has(8) || request.Has(9) || request.Has(10) || request.Has(11))
@@ -113,7 +113,7 @@ internal sealed partial class OpenGLBackend
     }
 
     /// <summary>Preserves wrapper filtering policy while keeping parameter execution inside the backend.</summary>
-    private void ApplyTextureFilterPolicy(GpuTexture owner, in RHITextureDescription request, GpuResourceManager.MetadataOperation<GpuTextureMetadata>? operation = null)
+    private void ApplyTextureFilterPolicy(GpuTexture owner, in RHITextureDescription request, RHIResourceManager.MetadataOperation<GpuTextureMetadata>? operation = null)
     {
         if (request.Dimension is TextureDimension.TwoMultisample or TextureDimension.TwoMultisampleArray) return;
         bool linear = request.Filter == TextureFilterMode.Linear;

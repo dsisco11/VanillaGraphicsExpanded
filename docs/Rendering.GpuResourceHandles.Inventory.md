@@ -94,7 +94,7 @@ an ordinary wrapper with native execution authority.
 
 `GpuResource.Dispose` checks retirement, clears the local ID, invokes hooks and schedules owned deletion.
 `Detach` performs the same existing guard check, clears local state and transfers the ID without deletion.
-`GpuResourceManager` queues kind/ID/context and retains the original registration when present. Both
+`RHIResourceManager` queues kind/ID/context and retains the original registration when present. Both
 immediate and queued deletion pass through the private RHI retirement contract to the owning backend
 for every represented kind. Drain rejects a registration
 replaced under the same numeric ID. Exact GL/Core, EXT and ARB deletion adapters preserve native signatures
@@ -107,7 +107,7 @@ Publication; `StaticGpuFramebuffer` frozen attachment references; `RenderPassTar
 reside in the manager entry with the existing checks and releases. Declaration-only state remains local
 until realization. Adapters do not duplicate those mutation guards.
 
-`GpuResourceManager` drains managed cleanup before native deletion, defers live foreign contexts and
+`RHIResourceManager` drains managed cleanup before native deletion, defers live foreign contexts and
 abandons dead contexts. `RenderContextRegistry` identifies handle plus registration generation and emits
 `Retiring`; absence of registration is not authority for persistent external tracking. Preserve the
 context-free declaration path and existing shutdown exception policy.
@@ -136,8 +136,8 @@ The controlling coverage matrix is [Rendering.GpuResourceHandles.ApiCoverage.md]
 
 These mechanics govern the implementation; the checklist records which contracts are implemented.
 
-The registry primitives live in `GpuResourceManager.Registry.cs`, typed publication in
-`GpuResourceManager.MetadataPublication.cs`, and image projection in `GpuResourceManager.ImageMetadata.cs`.
+The registry primitives live in `RHIResourceManager.Registry.cs`, typed publication in
+`RHIResourceManager.MetadataPublication.cs`, and image projection in `RHIResourceManager.ImageMetadata.cs`.
 `GpuResourceRegistration` owns identity/revisions/guards; `GpuResourceMetadataEntry<TMetadata>` owns
 canonical typed storage and weak recipients. `GpuResource<TMetadata>` supplies the assignment-only
 notification. Schemas and the native-reader boundary live under `Rendering/Metadata/`.
@@ -246,7 +246,7 @@ the backend realizes private VAOs without native layout discovery.
 `HandleMetadataChanged(TMetadata data)` assigns that complete private snapshot. Native metadata
 accessors are getter-only; the compiler rejects derived snapshot writes. The non-generic base retains native identity, disposal and ownership with no
 metadata members or notification contract. The generic base owns no tracking state, availability flags,
-revision copies or lifecycle notification handlers. `GpuResourceManager.WrapperAssociations.cs` owns
+revision copies or lifecycle notification handlers. `RHIResourceManager.WrapperAssociations.cs` owns
 association identity and exposes manager-side tracking, availability and retirement checks.
 Revisions stay on canonical entries. Metadata-dependent consumers validate through the manager;
 no registration or recipient back-reference is stored in a wrapper.

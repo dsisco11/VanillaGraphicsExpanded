@@ -18,12 +18,12 @@ internal sealed unsafe partial class OpenGlStateCache
         bool valid = target == RenderbufferTarget.Renderbuffer;
         if (valid && renderbuffer != 0)
         {
-            if (GpuResourceManagerSystem.CurrentManager?.FindObservedResource(GpuResourceKind.Renderbuffer, renderbuffer) is null)
+            if (RHIResourceManagerSystem.CurrentManager?.FindObservedResource(GpuResourceKind.Renderbuffer, renderbuffer) is null)
             {
                 cache.RenderbufferKnowledge = null;
                 return;
             }
-            GpuResourceManagerSystem.CurrentManager?.RealizeObservedImage(GpuResourceKind.Renderbuffer, renderbuffer);
+            RHIResourceManagerSystem.CurrentManager?.RealizeObservedImage(GpuResourceKind.Renderbuffer, renderbuffer);
         }
         bool established = valid && cache.HasEstablishedNativeIdentity(GpuResourceKind.Renderbuffer, renderbuffer);
         var origin = Integration.RenderContextRegistry.CaptureResourceContext();

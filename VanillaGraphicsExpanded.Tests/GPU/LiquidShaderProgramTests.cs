@@ -40,7 +40,7 @@ public sealed class LiquidShaderProgramTests(HeadlessGLFixture fixture, ITestOut
         using var shadowInputs1=AssignTextures(surface, texture, atmosphere, sharedCamera, sharedLights); using var shadowInputs2=AssignTextures(volume, texture, atmosphere, sharedCamera, sharedLights);
         surface.Origin = new(1, 2, 3); volume.Origin = new(4, 5, 6);
         using var ring = new GpuUniformRingBuffer(4 * 1024 * 1024, 2, false);
-        ring.BeginFrame(0); GpuUniformRingSystem.SetCurrent(ring);
+        ring.BeginFrame(0); RHIUniformRingSystem.SetCurrent(ring);
         using var surfacePipeline=CreateBindingPipeline(surface);
         using var volumePipeline=CreateBindingPipeline(volume);
         var commands=RHICommandContext.Current;
@@ -66,7 +66,7 @@ public sealed class LiquidShaderProgramTests(HeadlessGLFixture fixture, ITestOut
             commands.SetPipeline(surfacePipeline);commands.BindResources(surface.CaptureBindings());
             Assert.Equal(new float[]{1,2,3},ReadDraw(out _,out _).AsSpan(16,3).ToArray());
         }
-        finally { GpuUniformRingSystem.ClearCurrent(); GpuShaderProgramLibraries.Dispose(assets.Api); }
+        finally { RHIUniformRingSystem.ClearCurrent(); GpuShaderProgramLibraries.Dispose(assets.Api); }
     }
 
     /// <summary>Measures actual frame preparation with representative and maximum authored array counts.</summary>

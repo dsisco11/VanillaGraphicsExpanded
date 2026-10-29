@@ -38,7 +38,7 @@ internal sealed partial class OpenGLBackend
         var owner = new GpuFence();
         try
         {
-            if (!GpuResourceManager.CreateSync(new(), owner, out _).HasValue)
+            if (!RHIResourceManager.CreateSync(new(), owner, out _).HasValue)
                 throw new InvalidOperationException("Fence insertion failed.");
             return owner;
         }

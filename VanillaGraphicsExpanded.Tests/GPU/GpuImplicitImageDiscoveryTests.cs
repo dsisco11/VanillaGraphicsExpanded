@@ -27,7 +27,7 @@ public sealed unsafe class GpuImplicitImageDiscoveryTests(HeadlessGLFixture fixt
             GL.BindTexture(TextureTarget.Texture2D, texture);
             GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.Rgba8, 8, 4, 0, PixelFormat.Rgba, PixelType.UnsignedByte, nint.Zero);
         }
-        var manager = GpuResourceManagerSystem.EnsureCurrentContext();
+        var manager = RHIResourceManagerSystem.EnsureCurrentContext();
         OpenGLBindingInterception.Install();
         using var driver = new ImplicitImageDriver();
         try
@@ -67,7 +67,7 @@ public sealed unsafe class GpuImplicitImageDiscoveryTests(HeadlessGLFixture fixt
         try
         {
             SetParameter(coreRoot, texture, TextureTarget.Texture2D, TextureParameterName.TextureMaxLevel, 7);
-            var entry = GpuResourceManagerSystem.CurrentManager!.AcquireResource(GpuResourceKind.Texture, texture, GpuTextureMetadataReader.Instance);
+            var entry = RHIResourceManagerSystem.CurrentManager!.AcquireResource(GpuResourceKind.Texture, texture, GpuTextureMetadataReader.Instance);
             Assert.NotNull(entry);
             Assert.True(entry.IsUsable);
             Assert.Equal(7, entry.Metadata.MaxLevel);
@@ -84,7 +84,7 @@ public sealed unsafe class GpuImplicitImageDiscoveryTests(HeadlessGLFixture fixt
         PrepareUnobserved();
         GL.CreateTextures(TextureTarget.Texture2D, 1, out int texture);
         GL.TextureStorage2D(texture, 1, SizedInternalFormat.Rgba8, 8, 4);
-        var manager = GpuResourceManagerSystem.EnsureCurrentContext();
+        var manager = RHIResourceManagerSystem.EnsureCurrentContext();
         OpenGLBindingInterception.Install();
         using var driver = new ImplicitImageDriver();
         try
@@ -107,7 +107,7 @@ public sealed unsafe class GpuImplicitImageDiscoveryTests(HeadlessGLFixture fixt
     {
         PrepareUnobserved();
         int texture = GL.GenTexture();
-        var manager = GpuResourceManagerSystem.EnsureCurrentContext();
+        var manager = RHIResourceManagerSystem.EnsureCurrentContext();
         OpenGLBindingInterception.Install();
         using var driver = new ImplicitImageDriver();
         try
@@ -136,7 +136,7 @@ public sealed unsafe class GpuImplicitImageDiscoveryTests(HeadlessGLFixture fixt
         PrepareUnobserved();
         int framebuffer = GL.GenFramebuffer();
         int renderbuffer = GL.GenRenderbuffer();
-        var manager = GpuResourceManagerSystem.EnsureCurrentContext();
+        var manager = RHIResourceManagerSystem.EnsureCurrentContext();
         OpenGLBindingInterception.Install();
         using var driver = new ImplicitImageDriver();
         try
@@ -174,7 +174,7 @@ public sealed unsafe class GpuImplicitImageDiscoveryTests(HeadlessGLFixture fixt
     {
         PrepareUnobserved();
         int texture = GL.GenTexture();
-        var manager = GpuResourceManagerSystem.EnsureCurrentContext();
+        var manager = RHIResourceManagerSystem.EnsureCurrentContext();
         OpenGLBindingInterception.Install();
         using var driver = new ImplicitImageDriver();
         GL.CreateBuffers(1, out int buffer);
@@ -225,7 +225,7 @@ public sealed unsafe class GpuImplicitImageDiscoveryTests(HeadlessGLFixture fixt
         int texture = GL.GenTexture();
         GL.CreateBuffers(1, out int untracked);
         GL.NamedBufferData(untracked, 64, nint.Zero, BufferUsageHint.StaticDraw);
-        var manager = GpuResourceManagerSystem.EnsureCurrentContext();
+        var manager = RHIResourceManagerSystem.EnsureCurrentContext();
         OpenGLBindingInterception.Install();
         using var driver = new ImplicitImageDriver();
         GL.CreateBuffers(1, out int tracked);
@@ -259,7 +259,7 @@ public sealed unsafe class GpuImplicitImageDiscoveryTests(HeadlessGLFixture fixt
         try
         {
             var entry = Assert.IsType<GpuResourceMetadataEntry<GpuTextureMetadata>>(
-                GpuResourceManagerSystem.CurrentManager!.FindResource(GpuResourceKind.Texture, texture));
+                RHIResourceManagerSystem.CurrentManager!.FindResource(GpuResourceKind.Texture, texture));
             var before = entry.Metadata;
             ulong revision = entry.MetadataRevision;
             var call = (delegate* unmanaged[Stdcall]<uint, int, int, uint, void>)Table(false).Read("glTextureBufferEXT");
@@ -280,7 +280,7 @@ public sealed unsafe class GpuImplicitImageDiscoveryTests(HeadlessGLFixture fixt
         PrepareUnobserved();
         GL.CreateTextures(TextureTarget.Texture2D, 1, out int texture);
         GL.TextureStorage2D(texture, 1, SizedInternalFormat.Rgba8, 8, 4);
-        var manager = GpuResourceManagerSystem.EnsureCurrentContext();
+        var manager = RHIResourceManagerSystem.EnsureCurrentContext();
         OpenGLBindingInterception.Install();
         using var driver = new ImplicitImageDriver();
         GL.CreateBuffers(1, out int buffer);
@@ -305,8 +305,8 @@ public sealed unsafe class GpuImplicitImageDiscoveryTests(HeadlessGLFixture fixt
     {
         fixture.EnsureContextValid();
         OpenGLBindingInterception.Uninstall();
-        GpuResourceManagerSystem.CurrentManager?.Dispose();
-        GpuResourceManagerSystem.Shutdown();
+        RHIResourceManagerSystem.CurrentManager?.Dispose();
+        RHIResourceManagerSystem.Shutdown();
     }
 
     /// <summary>Selects the compiler-derived binding table for the requested OpenTK root.</summary>

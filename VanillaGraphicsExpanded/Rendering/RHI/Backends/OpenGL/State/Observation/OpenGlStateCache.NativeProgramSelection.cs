@@ -39,7 +39,7 @@ internal sealed partial class OpenGlStateCache
         bool stagesKnown = cache.currentProgramStagesKnown;
         bool accepted = false, rejected = false;
         bool linked = value == 0;
-        var manager = GpuResourceManagerSystem.CurrentManager;
+        var manager = RHIResourceManagerSystem.CurrentManager;
         if (selector == NativeProgramSelector.Pipeline && value != 0
             && manager?.FindObservedResource(GpuResourceKind.ProgramPipeline, value) is { IsRealized: false }
             && manager.RealizeObservedProgramPipeline(value)) cache.RecordPipelineCreated(value);

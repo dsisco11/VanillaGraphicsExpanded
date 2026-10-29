@@ -41,9 +41,9 @@ public sealed unsafe class GpuRenderbufferMetadataInterceptionTests(HeadlessGLFi
             firstFramebuffer.AttachmentsChanged += () => firstChanges++;
             secondFramebuffer.AttachmentsChanged += () => secondChanges++;
             using (OpenGlStateCache.Current.BindTextureScope(OpenGLImageValues.Target(((GpuTextureRef)texture).Target), 0, texture.TextureId))
-            using (var operation = new GpuResourceManager.MetadataOperation<GpuTextureMetadata>(texture, GpuMetadataChange.Storage))
+            using (var operation = new RHIResourceManager.MetadataOperation<GpuTextureMetadata>(texture, GpuMetadataChange.Storage))
                 new VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBackend(OpenGlStateCache.Current).DefineTextureImages(texture.TextureId, new GpuTextureInitialization { Target = TextureDimension.Two, AllocationMode = GpuTextureAllocationMode.Mutable, InternalFormat = TextureFormat.Rgba8, Width = 8, Height = 4, Levels = 1 }.Resolve(), operation);
-            var manager = GpuResourceManagerSystem.CurrentManager!;
+            var manager = RHIResourceManagerSystem.CurrentManager!;
             Assert.False(manager.IsResourceMetadataAvailable(first));
             Assert.False(manager.IsResourceMetadataAvailable(second));
             Assert.Equal(0, texture.Width);
@@ -51,7 +51,7 @@ public sealed unsafe class GpuRenderbufferMetadataInterceptionTests(HeadlessGLFi
             Assert.Equal(1, secondChanges);
             Assert.Throws<InvalidOperationException>(() => firstFramebuffer.Bind());
             Assert.Throws<InvalidOperationException>(() => secondFramebuffer.Bind());
-            GpuResourceManager.RecoverWrapperMetadata(texture, new GpuTextureMetadataReader(TextureDimension.Two));
+            RHIResourceManager.RecoverWrapperMetadata(texture, new GpuTextureMetadataReader(TextureDimension.Two));
             Assert.Equal(2, firstChanges);
             Assert.Equal(2, secondChanges);
             Assert.Equal(8, first.Width);
@@ -121,7 +121,7 @@ public sealed unsafe class GpuRenderbufferMetadataInterceptionTests(HeadlessGLFi
         try
         {
             using var owner = RHICommandContext.Current.CreateRenderbuffer(new RHIRenderbufferDescription { Format = TextureFormat.Rgba8, Width = 4, Height = 4, Samples = 0, Label = null }).RequireResource();
-            var entry = GpuResourceManagerSystem.CurrentManager!.GetResourceRegistration(owner)!;
+            var entry = RHIResourceManagerSystem.CurrentManager!.GetResourceRegistration(owner)!;
             ulong previous = entry.MetadataRevision;
             capturedAdvancedArguments = null;
             AllocateAdvanced(owner.RenderbufferId);
@@ -157,7 +157,7 @@ public sealed unsafe class GpuRenderbufferMetadataInterceptionTests(HeadlessGLFi
             using var framebuffer = DynamicGpuFramebuffer.Create([image])!;
             int notifications = 0;
             framebuffer.AttachmentsChanged += () => { notifications++; Assert.Equal(8, image.Width); };
-            var entry = GpuResourceManagerSystem.CurrentManager!.GetResourceRegistration(owner)!;
+            var entry = RHIResourceManagerSystem.CurrentManager!.GetResourceRegistration(owner)!;
             ulong revision = entry.MetadataRevision;
             GL.BindRenderbuffer(RenderbufferTarget.Renderbuffer, owner.RenderbufferId);
             OpenGlStateCache.Current.InvalidateAll();
@@ -217,7 +217,7 @@ public sealed unsafe class GpuRenderbufferMetadataInterceptionTests(HeadlessGLFi
             firstFramebuffer.AttachmentsChanged += () => firstChanges++;
             firstFramebuffer.AttachmentsChanged += () => throw new InvalidOperationException("Injected consumer failure.");
             secondFramebuffer.AttachmentsChanged += () => secondChanges++;
-            var manager = GpuResourceManagerSystem.CurrentManager!;
+            var manager = RHIResourceManagerSystem.CurrentManager!;
             var entry = Assert.IsType<GpuResourceMetadataEntry<GpuRenderbufferMetadata>>(manager.GetResourceRegistration(owner));
             var failingReader = new FailedReader(throws);
             entry.Reader = failingReader;

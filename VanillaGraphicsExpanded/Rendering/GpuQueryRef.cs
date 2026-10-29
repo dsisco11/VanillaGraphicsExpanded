@@ -9,7 +9,7 @@ public readonly struct GpuQueryRef
     /// <summary>Reports absence independently of retirement.</summary>
     public bool IsEmpty => resource is null;
     /// <summary>Reports current managed usability without native queries.</summary>
-    public bool IsValid => GpuResourceManager.IsAuxiliaryReferenceUsable(resource);
+    public bool IsValid => RHIResourceManager.IsAuxiliaryReferenceUsable(resource);
     #endregion
     #region Internal API
     /// <summary>Retains an existing owner without registering it.</summary>

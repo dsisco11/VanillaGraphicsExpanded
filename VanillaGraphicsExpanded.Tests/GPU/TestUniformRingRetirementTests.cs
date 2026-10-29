@@ -44,7 +44,7 @@ public sealed class TestUniformRingRetirementTests(HeadlessGLFixture fixture) : 
             byte[] bytes = new byte[16];
             for (int i = 0; i < outputs.Length; i++)
             {
-                Assert.True(GpuUniformRingSystem.TryGetCurrent(out var ring));
+                Assert.True(RHIUniformRingSystem.TryGetCurrent(out var ring));
                 BinaryPrimitives.WriteUInt32LittleEndian(bytes, (uint)(i + 101));
                 var allocation = ring.AllocateAndWrite(bytes);
                 Assert.True(allocation.IsValid);
@@ -77,7 +77,7 @@ public sealed class TestUniformRingRetirementTests(HeadlessGLFixture fixture) : 
                 else
                 {
                     TestUniformRing.Dispose();
-                    Assert.False(GpuUniformRingSystem.TryGetCurrent(out _));
+                    Assert.False(RHIUniformRingSystem.TryGetCurrent(out _));
                     TestUniformRing.BeginFrame();
                 }
             }

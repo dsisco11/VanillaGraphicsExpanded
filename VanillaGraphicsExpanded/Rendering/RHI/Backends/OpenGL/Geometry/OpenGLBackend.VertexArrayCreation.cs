@@ -27,7 +27,7 @@ internal sealed partial class OpenGLBackend
         var owner = new GpuVao();
         try
         {
-            if (!GpuResourceManager.CreateVertexArray(new(), owner, out _).HasValue)
+            if (!RHIResourceManager.CreateVertexArray(new(), owner, out _).HasValue)
                 throw new InvalidOperationException("Vertex-array creation failed.");
             owner.SetDebugName("RHI.Geometry");
             return owner;

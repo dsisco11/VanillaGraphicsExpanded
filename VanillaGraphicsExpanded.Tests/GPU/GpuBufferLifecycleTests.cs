@@ -23,7 +23,7 @@ public sealed class GpuBufferLifecycleTests(HeadlessGLFixture fixture)
     {
         fixture.EnsureContextValid(); fixture.InitializeResourceDisposal();
         using var queries = new BufferDescriptorCapture();
-        var manager = GpuResourceManagerSystem.CurrentManager!;
+        var manager = RHIResourceManagerSystem.CurrentManager!;
         int id = core ? OpenTK.Graphics.OpenGL4.GL.GenBuffer() : GL.GenBuffer();
         try
         {
@@ -57,7 +57,7 @@ public sealed class GpuBufferLifecycleTests(HeadlessGLFixture fixture)
         fixture.EnsureContextValid(); fixture.InitializeResourceDisposal();
         int id;
         if (core) OpenTK.Graphics.OpenGL4.GL.CreateBuffers(1, out id); else GL.CreateBuffers(1, out id);
-        var manager = GpuResourceManagerSystem.CurrentManager!;
+        var manager = RHIResourceManagerSystem.CurrentManager!;
         try
         {
             var entry = Assert.IsType<GpuResourceMetadataEntry<GpuBufferMetadata>>(manager.FindResource(GpuResourceKind.Buffer, id));
@@ -93,7 +93,7 @@ public sealed class GpuBufferLifecycleTests(HeadlessGLFixture fixture)
         {
             GL.Ext.NamedBufferData(id, -1, IntPtr.Zero, BufferUsageHint.StaticDraw);
             Assert.Equal(ErrorCode.InvalidValue, GL.GetError());
-            var entry = Assert.IsType<GpuResourceMetadataEntry<GpuBufferMetadata>>(GpuResourceManagerSystem.CurrentManager!.FindResource(GpuResourceKind.Buffer, id));
+            var entry = Assert.IsType<GpuResourceMetadataEntry<GpuBufferMetadata>>(RHIResourceManagerSystem.CurrentManager!.FindResource(GpuResourceKind.Buffer, id));
             Assert.True(entry.IsRealized); Assert.True(entry.IsUsable);
             Assert.Equal(new GpuBufferMetadata(0, BufferUsage.StaticDraw), entry.Metadata);
             Assert.Equal(1ul, entry.MetadataRevision); Assert.Equal(0ul, entry.StorageRevision);
@@ -112,7 +112,7 @@ public sealed class GpuBufferLifecycleTests(HeadlessGLFixture fixture)
         int id = GL.GenBuffer();
         try
         {
-            var manager = GpuResourceManagerSystem.CurrentManager!;
+            var manager = RHIResourceManagerSystem.CurrentManager!;
             var entry = Assert.IsType<GpuResourceMetadataEntry<GpuBufferMetadata>>(manager.FindResource(GpuResourceKind.Buffer, id));
             GL.BindVertexArray(vao);
             GL.BindVertexBuffers(0, 1, new[] { id }, new[] { IntPtr.Zero }, new[] { 16 });
@@ -138,7 +138,7 @@ public sealed class GpuBufferLifecycleTests(HeadlessGLFixture fixture)
         try
         {
             GL.NamedBufferData(id, 32, IntPtr.Zero, BufferUsageHint.DynamicDraw);
-            var entry = Assert.IsType<GpuResourceMetadataEntry<GpuBufferMetadata>>(GpuResourceManagerSystem.CurrentManager!.FindResource(GpuResourceKind.Buffer, id));
+            var entry = Assert.IsType<GpuResourceMetadataEntry<GpuBufferMetadata>>(RHIResourceManagerSystem.CurrentManager!.FindResource(GpuResourceKind.Buffer, id));
             ulong revision = entry.MetadataRevision;
             Assert.NotEqual(IntPtr.Zero, GL.MapNamedBufferRange(id, 0, 16, BufferAccessMask.MapWriteBit | BufferAccessMask.MapFlushExplicitBit));
             Assert.True(OpenGlStateCache.Current.TryGetBufferMapping(id, out bool mapped, out bool persistent) && mapped && !persistent);
@@ -161,7 +161,7 @@ public sealed class GpuBufferLifecycleTests(HeadlessGLFixture fixture)
     public void ReloadRetainsCreationAuthority()
     {
         fixture.EnsureContextValid(); fixture.InitializeResourceDisposal();
-        var manager = GpuResourceManagerSystem.CurrentManager!;
+        var manager = RHIResourceManagerSystem.CurrentManager!;
         GL.CreateBuffers(1, out int first);
         var original = manager.FindResource(GpuResourceKind.Buffer, first);
         try
@@ -171,7 +171,7 @@ public sealed class GpuBufferLifecycleTests(HeadlessGLFixture fixture)
             GL.CreateBuffers(1, out int second);
             try
             {
-                Assert.Same(manager, GpuResourceManagerSystem.CurrentManager);
+                Assert.Same(manager, RHIResourceManagerSystem.CurrentManager);
                 Assert.Same(original, manager.FindResource(GpuResourceKind.Buffer, first));
                 Assert.True(manager.FindResource(GpuResourceKind.Buffer, second)!.IsUsable);
             }
@@ -185,7 +185,7 @@ public sealed class GpuBufferLifecycleTests(HeadlessGLFixture fixture)
     public void RecreatedContextHasCreationAuthorityBeforeRhi()
     {
         fixture.EnsureContextValid(); fixture.InitializeResourceDisposal();
-        var old = GpuResourceManagerSystem.CurrentManager!;
+        var old = RHIResourceManagerSystem.CurrentManager!;
         GL.CreateBuffers(1, out int first);
         var original = old.FindResource(GpuResourceKind.Buffer, first)!;
         object replacement = new();
@@ -196,7 +196,7 @@ public sealed class GpuBufferLifecycleTests(HeadlessGLFixture fixture)
             GL.CreateBuffers(1, out int second);
             try
             {
-                var manager = GpuResourceManagerSystem.CurrentManager!;
+                var manager = RHIResourceManagerSystem.CurrentManager!;
                 Assert.NotSame(old, manager);
                 Assert.Equal(GpuResourceRegistrationState.ContextRetired, original.State);
                 Assert.True(manager.FindResource(GpuResourceKind.Buffer, second)!.IsUsable);
@@ -217,10 +217,10 @@ public sealed class GpuBufferLifecycleTests(HeadlessGLFixture fixture)
     {
         fixture.EnsureContextValid();
         OpenGLBindingInterception.Uninstall();
-        GpuResourceManagerSystem.CurrentManager?.Dispose(); GpuResourceManagerSystem.Shutdown();
+        RHIResourceManagerSystem.CurrentManager?.Dispose(); RHIResourceManagerSystem.Shutdown();
         GL.CreateBuffers(1, out int id);
         GL.NamedBufferData(id, 24, IntPtr.Zero, BufferUsageHint.StreamCopy);
-        var manager = GpuResourceManagerSystem.EnsureCurrentContext();
+        var manager = RHIResourceManagerSystem.EnsureCurrentContext();
         var original = manager.RecordPreexistingBuffer(id);
         OpenGLBindingInterception.Install();
         try
@@ -245,7 +245,7 @@ public sealed class GpuBufferLifecycleTests(HeadlessGLFixture fixture)
         OpenGLBindingInterception.Uninstall();
         GL.CreateBuffers(1, out int id);
         GL.NamedBufferData(id, 32, IntPtr.Zero, BufferUsageHint.DynamicDraw);
-        var manager = GpuResourceManagerSystem.EnsureCurrentContext();
+        var manager = RHIResourceManagerSystem.EnsureCurrentContext();
         var entry = manager.RecordPreexistingBuffer(id);
         OpenGLBindingInterception.Install();
         try
@@ -268,7 +268,7 @@ public sealed class GpuBufferLifecycleTests(HeadlessGLFixture fixture)
     {
         fixture.EnsureContextValid(); fixture.InitializeResourceDisposal();
         using var queries = new BufferDescriptorCapture();
-        var manager = GpuResourceManagerSystem.CurrentManager!;
+        var manager = RHIResourceManagerSystem.CurrentManager!;
         Assert.Null(manager.AcquireResource(GpuResourceKind.Buffer, int.MaxValue, new ForbiddenReader()));
         Assert.Null(manager.RecoverResource(GpuResourceKind.Buffer, int.MaxValue, new ForbiddenReader()));
         Assert.Throws<InvalidOperationException>(() => manager.RecordPreexistingBuffer(int.MaxValue));

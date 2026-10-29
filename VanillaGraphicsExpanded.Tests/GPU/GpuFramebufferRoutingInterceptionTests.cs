@@ -23,7 +23,7 @@ public sealed class GpuFramebufferRoutingInterceptionTests(HeadlessGLFixture fix
         var harmony = Patch(); GL.CreateFramebuffers(1,out int target); GL.CreateFramebuffers(1,out int sentinel);
         try
         {
-            var manager = GpuResourceManagerSystem.CurrentManager!;
+            var manager = RHIResourceManagerSystem.CurrentManager!;
             var entry = manager.AcquireResource(GpuResourceKind.Framebuffer,target,GpuFramebufferMetadataReader.Instance)!;
             ulong revision = entry.MetadataRevision;
             var cache=OpenGlStateCache.Current;
@@ -54,7 +54,7 @@ public sealed class GpuFramebufferRoutingInterceptionTests(HeadlessGLFixture fix
         var harmony=Patch(); GL.CreateFramebuffers(1,out int target); GL.CreateFramebuffers(1,out int sentinel);
         try
         {
-            var entry=GpuResourceManagerSystem.CurrentManager!.AcquireResource(GpuResourceKind.Framebuffer,target,GpuFramebufferMetadataReader.Instance)!;
+            var entry=RHIResourceManagerSystem.CurrentManager!.AcquireResource(GpuResourceKind.Framebuffer,target,GpuFramebufferMetadataReader.Instance)!;
             ulong revision=entry.MetadataRevision;
             OpenGLFramebufferSelection.Bind(OpenGlStateCache.Current, FramebufferTarget.ReadFramebuffer,target);
             OpenGLFramebufferSelection.Bind(OpenGlStateCache.Current, FramebufferTarget.DrawFramebuffer,sentinel);

@@ -20,12 +20,12 @@ internal sealed unsafe partial class OpenGlStateCache
         bool established = texture == 0;
         if (targetValid && texture != 0)
         {
-            var realization = GpuResourceManagerSystem.CurrentManager?.RealizeObservedImage(
+            var realization = RHIResourceManagerSystem.CurrentManager?.RealizeObservedImage(
                 GpuResourceKind.Texture, texture, OpenGLImageValues.Dimension(target), implicitCreation: false);
             established = realization is GpuResourceMetadataEntry<GpuTextureMetadata> { IsRealized: true } realized
                 && realized.Metadata.Target == OpenGLImageValues.Dimension(target);
             established |= cache.TryGetCachedBoundTexture(target, unit, out int prior) && prior == texture;
-            var manager = GpuResourceManagerSystem.CurrentManager;
+            var manager = RHIResourceManagerSystem.CurrentManager;
             if (!established && manager?.CanObserveNativeMetadata == true
                 && manager.FindObservedResource(GpuResourceKind.Texture, texture) is GpuResourceMetadataEntry<GpuTextureMetadata> { IsUsable: true } entry)
                 established = OpenGLImageValues.Dimension(target) == entry.Metadata.Target;

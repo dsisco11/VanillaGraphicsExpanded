@@ -37,11 +37,11 @@ internal sealed class CelestialGalaxyGeneration : IDisposable
         submitted = true;
         // Loading callbacks run outside the ordinary frame epoch. Borrow an active allocator
         // when available; otherwise use the existing controller with a private bounded load epoch.
-        GpuUniformRingFrameController? loadingFrame = null;
+        RHIUniformRingFrameController? loadingFrame = null;
         bool loadingFrameBegan = false;
         try
         {
-            if (!GpuUniformRingSystem.TryGetCurrent(out _))
+            if (!RHIUniformRingSystem.TryGetCurrent(out _))
             {
                 loadingFrame = new(new GpuUniformRingBuffer(pageSizeBytes: 2 * 1024 * 1024, pageCount: 1, debugName: "Celestial.LoadUniforms"));
                 loadingFrame.BeginFrame(); loadingFrameBegan = true;

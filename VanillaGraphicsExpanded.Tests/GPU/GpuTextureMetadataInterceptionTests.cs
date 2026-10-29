@@ -32,7 +32,7 @@ public sealed class GpuTextureMetadataInterceptionTests(HeadlessGLFixture fixtur
             using var framebuffer = DynamicGpuFramebuffer.Create([image])!;
             framebuffer.Bind();
             using var binding = OpenGlStateCache.Current.BindTextureScope(OpenGLImageValues.Target(((GpuTextureRef)texture).Target), 0, texture.TextureId);
-            var entry = GpuResourceManagerSystem.CurrentManager!.GetResourceRegistration(texture)!;
+            var entry = RHIResourceManagerSystem.CurrentManager!.GetResourceRegistration(texture)!;
             ulong revision = entry.MetadataRevision;
             DefineCopiedOrCompressed(compressed);
             Assert.Equal(compressed ? 4 : 6, texture.Width);
@@ -58,7 +58,7 @@ public sealed class GpuTextureMetadataInterceptionTests(HeadlessGLFixture fixtur
             using var texture = new BorrowedTexture(raw);
             using var view = RHICommandContext.Current.CreateTextureView(new RHITextureViewDescription { Source = texture, Dimension = TextureDimension.Two, Format = TextureFormat.Rgba8, BaseMip = 0, MipCount = 4, BaseLayer = 0, LayerCount = 1, Label = null }).RequireResource();
             using var binding = OpenGlStateCache.Current.BindTextureScope(OpenGLImageValues.Target(((GpuTextureRef)texture).Target), 0, texture.TextureId);
-            var entry = GpuResourceManagerSystem.CurrentManager!.GetResourceRegistration(texture)!;
+            var entry = RHIResourceManagerSystem.CurrentManager!.GetResourceRegistration(texture)!;
             ulong storage = entry.StorageRevision;
             GenerateLevels();
             Assert.Equal(storage, entry.StorageRevision);
@@ -87,7 +87,7 @@ public sealed class GpuTextureMetadataInterceptionTests(HeadlessGLFixture fixtur
             using var framebuffer = DynamicGpuFramebuffer.Create([image])!;
             int changed = 0;
             framebuffer.AttachmentsChanged += () => changed++;
-            var entry = GpuResourceManagerSystem.CurrentManager!.GetResourceRegistration(texture)!;
+            var entry = RHIResourceManagerSystem.CurrentManager!.GetResourceRegistration(texture)!;
             ulong revision = entry.MetadataRevision;
             GL.ActiveTexture(TextureUnit.Texture3);
             GL.BindTexture(TextureTarget.Texture2D, texture.TextureId);
@@ -118,7 +118,7 @@ public sealed class GpuTextureMetadataInterceptionTests(HeadlessGLFixture fixtur
         {
             using var texture = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba8, Width = System.Math.Max(1, 4), Height = System.Math.Max(1, 4), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
             using var binding = OpenGlStateCache.Current.BindTextureScope(OpenGLImageValues.Target(((GpuTextureRef)texture).Target), 0, texture.TextureId);
-            var entry = GpuResourceManagerSystem.CurrentManager!.GetResourceRegistration(texture)!;
+            var entry = RHIResourceManagerSystem.CurrentManager!.GetResourceRegistration(texture)!;
             ulong revision = entry.MetadataRevision;
             DefineSpecial(0);
             DefineSpecial(1);
@@ -145,7 +145,7 @@ public sealed class GpuTextureMetadataInterceptionTests(HeadlessGLFixture fixtur
             using var binding = OpenGlStateCache.Current.BindTextureScope(OpenGLImageValues.Target(((GpuTextureRef)texture).Target), 0, texture.TextureId);
             GL.TexImage2D(TextureTarget.Texture2D, 1, PixelInternalFormat.Rgba8, 4, 4, 0, PixelFormat.Rgba, PixelType.UnsignedByte, IntPtr.Zero);
             texture.SetMipRange(1, 3);
-            var entry = Assert.IsType<GpuResourceMetadataEntry<GpuTextureMetadata>>(GpuResourceManagerSystem.CurrentManager!.GetResourceRegistration(texture));
+            var entry = Assert.IsType<GpuResourceMetadataEntry<GpuTextureMetadata>>(RHIResourceManagerSystem.CurrentManager!.GetResourceRegistration(texture));
             ulong revision = entry.MetadataRevision;
             GenerateLevels();
             Assert.Equal(revision + 1, entry.MetadataRevision);
@@ -214,7 +214,7 @@ public sealed class GpuTextureMetadataInterceptionTests(HeadlessGLFixture fixtur
                 // An unchanged resolved sample count cannot certify which mutable
                 // allocation survived; recovery must be explicitly requested.
                 Assert.Equal(0, texture.Width);
-                GpuResourceManager.RecoverWrapperMetadata(texture, new GpuTextureMetadataReader(TextureDimension.TwoMultisample));
+                RHIResourceManager.RecoverWrapperMetadata(texture, new GpuTextureMetadataReader(TextureDimension.TwoMultisample));
             }
             Assert.Equal(8, texture.Width);
             Assert.Equal(OpenGLImageValues.Dimension(target), texture.TextureTarget);

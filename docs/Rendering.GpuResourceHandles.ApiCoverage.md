@@ -73,7 +73,7 @@ indirect effects; a missing spelling must be added, never inferred to be out of 
 additions require the same classification. The command list below records the current expansion.
 
 Implementation means an exact OpenGL backend route that executes the native command, identifies affected object
-registrations, and forwards the actual effect to GpuResourceManager to update or invalidate canonical metadata. Bound operations
+registrations, and forwards the actual effect to RHIResourceManager to update or invalidate canonical metadata. Bound operations
 resolve selectors; DSA uses explicit names; multi-texture operations use explicit units; multi-bind and
 multi-resource operations process all affected objects. Proxy texture targets alter proxy state, not a texture
 object, and must not notify a bound object. Preserve errors, partial success, and existing binding effects.
@@ -109,7 +109,7 @@ Shader, framebuffer and vertex families execute in their focused OpenGL backend 
 Manager transaction admission reaches the existing cache exclusion through the private RHI operation
 contract. Concrete cache guards never enter manager publication signatures; canonical commit,
 interruption and original-association retirement remain manager-owned.
-Every route is native command -> existing observation/publication services -> context's GpuResourceManager -> canonical
+Every route is native command -> existing observation/publication services -> context's RHIResourceManager -> canonical
 struct update -> typed wrapper snapshots -> existing dependent validation/publication. Read canonical
 facts once per change, not once per wrapper. Texture and renderbuffer changes also project selected
 GpuImageMetadata to associated framebuffer images. Each kind has one canonical struct even when several

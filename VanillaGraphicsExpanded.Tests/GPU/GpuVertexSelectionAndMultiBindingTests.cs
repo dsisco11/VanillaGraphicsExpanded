@@ -27,7 +27,7 @@ public sealed class GpuVertexSelectionAndMultiBindingTests(HeadlessGLFixture fix
         try
         {
             using var first=NativeResourceSetup.CreateVertexArray(); using var second=NativeResourceSetup.CreateVertexArray(); OpenGLVertexSelection.Bind(OpenGlStateCache.Current, first.VertexArrayId);
-            var manager=GpuResourceManagerSystem.CurrentManager!;
+            var manager=RHIResourceManagerSystem.CurrentManager!;
             var a=manager.GetResourceRegistration(first)!; var b=manager.GetResourceRegistration(second)!;
             ulong ar=a.MetadataRevision,br=b.MetadataRevision;
             Select(second.VertexArrayId,unsigned);
@@ -62,7 +62,7 @@ public sealed class GpuVertexSelectionAndMultiBindingTests(HeadlessGLFixture fix
             GL.VertexArrayVertexBuffer(vao.VertexArrayId,0,old.BufferId,0,16);
             GL.VertexArrayVertexBuffer(vao.VertexArrayId,1,old.BufferId,0,16);
             OpenGLVertexSelection.Bind(OpenGlStateCache.Current,(named?sentinel:vao).VertexArrayId);
-            var manager=GpuResourceManagerSystem.CurrentManager!; var entry=manager.GetResourceRegistration(vao)!; var other=manager.GetResourceRegistration(sentinel)!;
+            var manager=RHIResourceManagerSystem.CurrentManager!; var entry=manager.GetResourceRegistration(vao)!; var other=manager.GetResourceRegistration(sentinel)!;
             ulong revision=entry.MetadataRevision,storage=entry.StorageRevision,otherRevision=other.MetadataRevision;
             MultiBind(named,vao.VertexArrayId,new[]{next.BufferId,int.MaxValue});
             Assert.Equal(ErrorCode.InvalidOperation,GL.GetError());

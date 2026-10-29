@@ -39,7 +39,7 @@ internal readonly struct OpenGLTextureQueries
         if (!IsResource(id)) return false;
         int texture = unchecked((int)id);
         var target = knownTarget;
-        var initial = GpuResourceManagerSystem.CurrentManager?.FindResource(GpuResourceKind.Texture, id)
+        var initial = RHIResourceManagerSystem.CurrentManager?.FindResource(GpuResourceKind.Texture, id)
             as GpuResourceMetadataEntry<GpuTextureMetadata>;
         if (target == TextureTarget.TextureBuffer || initial is { IsUsable: false, MetadataRevision: 0,
             Metadata.Target: TextureDimension.Buffer })

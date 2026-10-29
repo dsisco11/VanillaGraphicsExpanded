@@ -28,7 +28,7 @@ public sealed class GpuExecutableLifecycleTests(HeadlessGLFixture fixture)
             shader = core ? OpenTK.Graphics.OpenGL4.GL.CreateShader(OpenTK.Graphics.OpenGL4.ShaderType.ComputeShader) : GL.CreateShader(ShaderType.ComputeShader);
             program = core ? OpenTK.Graphics.OpenGL4.GL.CreateProgram() : GL.CreateProgram();
             pipeline = core ? OpenTK.Graphics.OpenGL4.GL.GenProgramPipeline() : GL.GenProgramPipeline();
-            var manager = GpuResourceManagerSystem.CurrentManager!;
+            var manager = RHIResourceManagerSystem.CurrentManager!;
             var stage = Assert.IsType<GpuResourceMetadataEntry<GpuShaderMetadata>>(manager.FindResource(GpuResourceKind.Shader, shader));
             Assert.True(stage.IsUsable); Assert.Equal(ShaderStage.Compute, stage.Metadata.Type);
             var executable = Assert.IsType<GpuResourceMetadataEntry<GpuProgramMetadata>>(manager.FindResource(GpuResourceKind.Program, program));
@@ -72,7 +72,7 @@ public sealed class GpuExecutableLifecycleTests(HeadlessGLFixture fixture)
             GL.GetProgram(program, GetProgramParameterName.LinkStatus, out int linked);
             Assert.Equal(1, linked);
             int location = GL.GetUniformLocation(program, "inputs[0]");
-            var entry = Assert.IsType<GpuResourceMetadataEntry<GpuProgramMetadata>>(GpuResourceManagerSystem.CurrentManager!.FindResource(GpuResourceKind.Program, program));
+            var entry = Assert.IsType<GpuResourceMetadataEntry<GpuProgramMetadata>>(RHIResourceManagerSystem.CurrentManager!.FindResource(GpuResourceKind.Program, program));
             Assert.True(entry.IsUsable); Assert.True(entry.Metadata.ExecutableAvailable);
             using var reads = new ExecutableDescriptorCapture();
             ulong revision = entry.MetadataRevision;
@@ -103,7 +103,7 @@ public sealed class GpuExecutableLifecycleTests(HeadlessGLFixture fixture)
         int id = GL.GenProgramPipeline();
         try
         {
-            var manager = GpuResourceManagerSystem.CurrentManager!;
+            var manager = RHIResourceManagerSystem.CurrentManager!;
             var original = manager.FindResource(GpuResourceKind.ProgramPipeline, id)!;
             using var reads = new ExecutableDescriptorCapture();
             if (operation == 0) GL.UseProgramStages(id, 0, 0);
@@ -126,7 +126,7 @@ public sealed class GpuExecutableLifecycleTests(HeadlessGLFixture fixture)
         int id = GL.GenProgramPipeline();
         try
         {
-            var manager = GpuResourceManagerSystem.CurrentManager!;
+            var manager = RHIResourceManagerSystem.CurrentManager!;
             // Supply a deterministic program-factory receipt with the same number; the
             // driver allocators need not happen to reuse it during this test interval.
             if (manager.FindResource(GpuResourceKind.Program, id) is null)
@@ -150,7 +150,7 @@ public sealed class GpuExecutableLifecycleTests(HeadlessGLFixture fixture)
         {
             using var owner = NativeResourceSetup.CreateProgram();
             var backend = new OpenGLBackend(OpenGlStateCache.Current);
-            var entry = Assert.IsType<GpuResourceMetadataEntry<GpuProgramMetadata>>(GpuResourceManagerSystem.CurrentManager!.GetResourceRegistration(owner));
+            var entry = Assert.IsType<GpuResourceMetadataEntry<GpuProgramMetadata>>(RHIResourceManagerSystem.CurrentManager!.GetResourceRegistration(owner));
             backend.SubmitProgramExecutable(owner);
             ulong revision = entry.MetadataRevision;
             GL.GetProgram(owner.ProgramId, GetProgramParameterName.LinkStatus, out _);
@@ -182,7 +182,7 @@ public sealed class GpuExecutableLifecycleTests(HeadlessGLFixture fixture)
             }));
             capture.Install();
             WithoutCachedCapabilities(() => GL.LinkProgram(program));
-            var entry = Assert.IsType<GpuResourceMetadataEntry<GpuProgramMetadata>>(GpuResourceManagerSystem.CurrentManager!.FindResource(GpuResourceKind.Program, program));
+            var entry = Assert.IsType<GpuResourceMetadataEntry<GpuProgramMetadata>>(RHIResourceManagerSystem.CurrentManager!.FindResource(GpuResourceKind.Program, program));
             Assert.False(entry.IsUsable);
             var query = (delegate* unmanaged[Stdcall]<uint, int, float*, void>)OpenGLBindingTable.For(typeof(GL)).Read("glGetObjectParameterfvARB");
             float linked = -1;
@@ -204,7 +204,7 @@ public sealed class GpuExecutableLifecycleTests(HeadlessGLFixture fixture)
         {
             using var owner = NativeResourceSetup.CreateProgram();
             var backend = new OpenGLBackend(OpenGlStateCache.Current);
-            var entry = Assert.IsType<GpuResourceMetadataEntry<GpuProgramMetadata>>(GpuResourceManagerSystem.CurrentManager!.GetResourceRegistration(owner));
+            var entry = Assert.IsType<GpuResourceMetadataEntry<GpuProgramMetadata>>(RHIResourceManagerSystem.CurrentManager!.GetResourceRegistration(owner));
             backend.SubmitProgramExecutable(owner);
             ulong revision = entry.MetadataRevision;
             WithoutCachedCapabilities(() => GL.LinkProgram(owner.ProgramId));
@@ -237,7 +237,7 @@ public sealed class GpuExecutableLifecycleTests(HeadlessGLFixture fixture)
             GL.CompileShader(shader); GL.AttachShader(program, shader); GL.LinkProgram(program);
             GL.GetProgram(program, GetProgramParameterName.LinkStatus, out int linked); Assert.Equal(1, linked);
             int location = GL.GetUniformLocation(program, "inputTexture");
-            var entry = Assert.IsType<GpuResourceMetadataEntry<GpuProgramMetadata>>(GpuResourceManagerSystem.CurrentManager!.FindResource(GpuResourceKind.Program, program));
+            var entry = Assert.IsType<GpuResourceMetadataEntry<GpuProgramMetadata>>(RHIResourceManagerSystem.CurrentManager!.FindResource(GpuResourceKind.Program, program));
             Assert.True(entry.IsUsable);
             using var reads = new ExecutableDescriptorCapture();
             WithoutCachedCapabilities(() =>

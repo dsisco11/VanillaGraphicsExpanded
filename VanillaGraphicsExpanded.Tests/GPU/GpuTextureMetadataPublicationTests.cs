@@ -21,17 +21,17 @@ public sealed class GpuTextureMetadataPublicationTests(HeadlessGLFixture fixture
         fixture.InitializeResourceDisposal();
         try
         {
-            GpuResourceManagerSystem.CurrentManager!.Dispose();
-            Assert.True(GpuResourceManagerSystem.CurrentManager.IsDisposed);
+            RHIResourceManagerSystem.CurrentManager!.Dispose();
+            Assert.True(RHIResourceManagerSystem.CurrentManager.IsDisposed);
             using var source = RHICommandContext.Current.CreateDynamicTexture3D(new RHITextureDescription { Dimension = TextureDimension.TwoArray, Format = TextureFormat.Rgba32f, Width = System.Math.Max(1, 4), Height = System.Math.Max(1, 4), Depth = System.Math.Max(1, 4), MipLevels = 1, Storage = (true ? ResourceStorageMode.Immutable : ResourceStorageMode.Mutable), Filter = TextureFilterMode.Linear, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
-            Assert.NotNull(GpuResourceManagerSystem.CurrentManager.GetResourceRegistration(source));
+            Assert.NotNull(RHIResourceManagerSystem.CurrentManager.GetResourceRegistration(source));
             using var view = RHICommandContext.Current.CreateTextureView(new RHITextureViewDescription { Source = source, Dimension = TextureDimension.TwoArray, Format = TextureFormat.Rgba32f, BaseMip = 0, MipCount = 1, BaseLayer = 0, LayerCount = 1, Label = null }).RequireResource();
             source.SetMipRange(0, 0);
             Assert.True(view.IsValid);
-            Assert.True(GpuResourceManagerSystem.CurrentManager!.IsTextureViewSourceCurrent(view, source));
+            Assert.True(RHIResourceManagerSystem.CurrentManager!.IsTextureViewSourceCurrent(view, source));
             var beforeImages = source.StorageImages;
             Assert.True(source.Resize(8, 4, 4));
-            Assert.False(GpuResourceManagerSystem.CurrentManager!.IsTextureViewSourceCurrent(view, source));
+            Assert.False(RHIResourceManagerSystem.CurrentManager!.IsTextureViewSourceCurrent(view, source));
             Assert.Equal(8, source.StorageImages[0].Width);
             Assert.False(beforeImages == source.StorageImages);
             Assert.False(view.IsValid);
@@ -63,7 +63,7 @@ public sealed class GpuTextureMetadataPublicationTests(HeadlessGLFixture fixture
     {
         fixture.EnsureContextValid();
         fixture.UseContextLocalResources();
-        Assert.Null(GpuResourceManagerSystem.CurrentManager);
+        Assert.Null(RHIResourceManagerSystem.CurrentManager);
         using var source = RHICommandContext.Current.CreateDynamicTexture3D(new RHITextureDescription { Dimension = TextureDimension.TwoArray, Format = TextureFormat.Rgba32f, Width = System.Math.Max(1, 4), Height = System.Math.Max(1, 4), Depth = System.Math.Max(1, 4), MipLevels = 1, Storage = (true ? ResourceStorageMode.Immutable : ResourceStorageMode.Mutable), Filter = TextureFilterMode.Linear, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         using var view = RHICommandContext.Current.CreateTextureView(new RHITextureViewDescription { Source = source, Dimension = TextureDimension.TwoArray, Format = TextureFormat.Rgba32f, BaseMip = 0, MipCount = 1, BaseLayer = 0, LayerCount = 1, Label = null }).RequireResource();
         var before = source.StorageImages;
@@ -85,7 +85,7 @@ public sealed class GpuTextureMetadataPublicationTests(HeadlessGLFixture fixture
         try
         {
             using var source = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba8, Width = System.Math.Max(1, 4), Height = System.Math.Max(1, 4), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
-            var entry = Assert.IsType<GpuResourceMetadataEntry<GpuTextureMetadata>>(GpuResourceManagerSystem.CurrentManager!.GetResourceRegistration(source));
+            var entry = Assert.IsType<GpuResourceMetadataEntry<GpuTextureMetadata>>(RHIResourceManagerSystem.CurrentManager!.GetResourceRegistration(source));
             var original = entry.Reader;
             var failure = new FailedRead();
             try

@@ -37,7 +37,7 @@ internal sealed class CloudSimpleRenderer : IDisposable
     /// <summary>Acquires the dedicated executable before visible ownership can be transferred.</summary>
     internal bool Prepare()
     {
-        if (disposed || failed || AtmosphereModSystem.Lighting is null || !GpuUniformRingSystem.TryGetCurrent(out _)) return false;
+        if (disposed || failed || AtmosphereModSystem.Lighting is null || !RHIUniformRingSystem.TryGetCurrent(out _)) return false;
         program = GpuShaderProgramLibraries.Get<CloudSimpleProgram>(api, "cloud_simple");
         return program?.EnsureReady() == true;
     }

@@ -1,83 +1,69 @@
 # Engine state integration
 
-Supported engine OpenTK calls are replaced at managed call sites with compiler-checked adapters into
-the OpenGL RHI backend. `OpenGlStateCache` owns executed knowledge; `GpuResourceManager` owns canonical
-resource facts and lifetime. Neither is a second public rendering command context.
+Supported calls through the installed legacy and OpenGL4 binding tables reach generated native
+callbacks, independently of the calling assembly. `OpenGlStateCache` owns executed knowledge;
+`RHIResourceManager` owns canonical resource facts and lifetime. `RHICommandContext` is the managed
+rendering execution boundary.
 
-## Patch boundary
+## Native observation boundary
 
-[EngineStateSwitchingHook](../VanillaGraphicsExpanded/HarmonyPatches/EngineStateSwitchingHook.cs)
-discovers concrete methods and constructors in loaded built-in `VintagestoryLib`, `VSEssentials`,
-`VSSurvivalMod` and `VSCreativeMod` assemblies. It replaces only exact static call operands, preserving
-evaluated arguments, branch labels and exception blocks. OpenTK, VGE and third-party assemblies are not
-rewritten. Native calls inside backend forwarding therefore cannot recurse into interception.
+[OpenGLBindingInterception](../VanillaGraphicsExpanded/Rendering/RHI/Backends/OpenGL/Interception/OpenGLBindingInterception.cs)
+installs callbacks in already loaded tables and participates in subsequent binding loads. The generator
+reads the compiler-selected OpenTK reference to derive entrypoints, native signatures and saved-original
+managed dispatch methods. OpenTK performs its normal managed argument marshalling before native dispatch.
+Coverage therefore does not depend on static call-site rewriting, a caller scan, concrete generic
+instantiations or whether an engine method was compiled before installation.
 
-`EngineStateTargets` walks original IL and resolves only candidate native references. Built-in assemblies
-must already be loaded; there is no per-frame discovery or automatic third-party interception.
-`EngineGenericStateTargets` discovers concrete value-type method specifications, including calls through
-virtual base declarations. Harmony receives closed concrete methods only. Open definitions, unresolved
-forwarding and shared reference-type instantiations reject explicitly; reflection-created instantiations
-remain outside this static discovery boundary.
-
-`EngineStateCallMap` and `NativeAdapters/MetadataAdapterCatalog` match full managed return/parameter types,
-method names and generic constraints against ordinary compiled C# adapters. Closed generic adapters use
-the caller's type arguments. There is no generated adapter IL or command-name pattern dispatcher.
-Unsupported calls remain unchanged, including calls replaced by another transpiler.
-
-## Supported operations
-
-Only GL (named Core in adapter files), GL.Ext and GL.Arb owners participate. Other auxiliary owners,
-matrix stacks, display lists, attribute stacks, client defaults/legacy arrays, alpha testing, point
-smoothing, separate polygon face modes, stipple and automatic mip generation are excluded. Generic
-Enable/Disable preserves unsupported capability values unchanged without inventing cached metadata.
-See the [API coverage](Rendering.GpuResourceHandles.ApiCoverage.md) for the complete retained families,
-overloads and exclusions. Current engine call frequency does not narrow that support obligation.
+The same supported table calls from project code, the engine and other mods receive observation.
+Other native libraries and independently cached driver pointers are outside this boundary. The
+[API coverage](Rendering.GpuResourceHandles.ApiCoverage.md) defines supported GL/Core, EXT and ARB
+families, aliases and explicit auxiliary-owner/legacy exclusions. Current engine call frequency does
+not narrow those obligations.
 
 ## Execution and reconciliation
 
-Exact overloads execute once in focused `Rendering/RHI/Backends/OpenGL` external modules. They preserve
-original arguments, side effects and native error behavior. They do not enter command lists, suppress
-known-equal calls, clamp values or substitute managed validation for native rejection.
-Fixed-function adapters live in `State/External/EngineStateCalls`; resource/storage/executable/vertex
-and routing adapters live with their owning backend family. Managed operations use core OpenGL4 4.5
-implementations separately, sharing observation, metadata and knowledge services rather than an executor.
+Generated callbacks forward original native arguments exactly once and preserve return/output values
+and native errors. Cache-owned post-call methods under `State/Observation/Native` reconcile effects.
+They never suppress, cancel, retry, defer a failure into the caller or substitute managed validation
+for native rejection. Observer failures are contained and withdraw only affected uncertain facts.
 
-Fixed-state calls admit their precise field footprint and withdraw affected knowledge before native dispatch. Resource operations retain
-original associations and use existing observation/publication once, including interruption. Content
-updates never become storage metadata. Reserved generated names, proxy targets, exact unsigned/ref/
-pointer/generic overloads and per-object deletion outcomes retain their native semantics.
+Scalar state handlers declare compiler-checked domain withdrawal methods and optional acceptance
+classifiers. Proven rejection preserves known facts; accepted effects publish established values;
+uncertain outcomes withdraw affected knowledge. Context selection and originating-lifetime checks
+prevent publication into a replacement context. Native acceptance rules remain domain-owned.
 
-Bindings distinguish active texture selection, per-target texture slots, samplers, images and indexed
-buffer ranges. A native texture bind never queries or reselects the active unit. Unknown effects remain
-unknown for explicit/lazy recovery; registry membership does not extend interception coverage.
+Managed operations use core OpenGL4 4.5 implementations through generated `OpenGLDriverCalls`,
+bypassing callbacks while retaining their existing operation/publication owner. There is one cache
+and one manager registry, with no duplicate native execution or metadata authority.
 
-Deletion reconciles only affected associations and selectors. Program deletion preserves native deferred
-destruction of a selected executable; managed retirement retains its distinct unbinding contract. Queued
-retirement uses captured context and registration, never a reused numeric name. See [resource ownership](Rendering.GpuResources.md).
+Bindings distinguish active texture selection, per-target slots, samplers, images and indexed buffer
+ranges. Resource creation and configuration maintain original registrations, defaults and facts;
+content-only writes do not become storage metadata. Reserved names, proxies, native-width arguments
+and per-object deletion outcomes preserve their semantics. Recorded initial discovery and explicit
+original-entry recovery retain their bounded query contracts; missing covered tracking is a defect.
+See [resource ownership](Rendering.GpuResources.md).
 
-## Selective invalidation and restoration
+## Lifetime and selective restoration
 
-`OpenGlStateCache.Invalidate(EPipelineState)` changes knowledge only. Categories remain independent,
-with explicit dependencies for indexed blend values, VAO element bindings, feedback outputs and
-framebuffer routing. `None` is a no-op; undefined mask bits reject. Warm managed transitions can suppress
-known-equal effects, while exact engine calls always execute.
+Installation retains original pointers and callback delegates in `OpenGLNativeSlot`. Uninstall disables
+new observation and atomically restores only entries still pointing at this installation's callbacks.
+Previously fetched callbacks remain callable through retained originals; an observer already admitted
+may finish. Resource/cache destruction follows the existing rendering lifecycle rather than a callback
+entry/exit counter or blocking uninstall protocol.
 
-An RHI boundary declares all permitted pipelines and helper-state coverage before mutation. Existing
-selective capture/restoration preserves known native engine state, rejects undeclared changes and
-invalidates failed restoration fields. No arbitrary callback execution API belongs to the cache.
-See [boundary lifetime](Rendering.AuthoritativePipelineState.md#shader-ownership-and-boundary-lifetime).
+Actual context retirement and uncertain effects retain targeted knowledge withdrawal. Ordinary frame,
+resize and publication callbacks do not purge valid intercepted state. Managed known-equal transitions
+can suppress native work; intercepted external calls always execute.
 
-## Previously compiled render API callers
-
-`EngineRenderApiStatePatches` rebuilds declared methods/instance constructors in the engine IRenderAPI
-hierarchy and explicit existing menu/render caller types after native call replacements. This addresses
-platform operations inlined before mod startup. Reapplication rebuilds existing patches without
-duplicating the owner transpiler. Third-party implementations, abstract/open bodies, static initializers
-and unlisted higher callers remain excluded. No runtime call graph or per-frame scan is introduced.
+RHI boundaries declare permitted pipelines and helper-state coverage before mutation. Selective
+capture/restoration preserves engine state and original associations, rejects undeclared managed
+changes and withdraws failed restoration fields. See
+[boundary lifetime](Rendering.AuthoritativePipelineState.md#shader-ownership-and-boundary-lifetime).
 
 ## Verification boundary
 
-Exact-signature/IL and concrete-generic tests check rewriting. Headless tests execute representative
-adapters and verify native effects, errors, exactly-once dispatch, selector restoration and cache agreement.
-Global patch fixtures serialize and remove observers during cleanup. Installed-client rendering and
-warmed menu behavior require user-run evidence; server-only CI cannot qualify those client classes.
+Generator signature/compilation tests and native forwarding tests cover ABI, aliases, results and
+failure containment. Headless regressions verify native effects/errors, exactly-once dispatch, selectors,
+metadata publication, suppression, context replacement and uninstall. Global interception fixtures
+serialize installation and restore their owned table entries during cleanup. Installed-client rendering,
+package identity and live appearance require their separate qualification evidence.

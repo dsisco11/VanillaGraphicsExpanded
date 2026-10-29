@@ -62,7 +62,7 @@ internal sealed class LiquidRenderer : IRenderer
             || AtmosphereModSystem.Lighting is null
             || AtmosphereModSystem.AerialRadianceTextureId == 0
             || AtmosphereModSystem.AerialAttenuationTextureId == 0
-            || !GpuUniformRingSystem.TryGetCurrent(out _)) return false;
+            || !RHIUniformRingSystem.TryGetCurrent(out _)) return false;
         var program = GpuShaderProgramLibraries.Get<LiquidShaderProgram>(api, "pbr_liquid");
         if (program is null) return false;
         var waterSettings = ConfigModSystem.Config;

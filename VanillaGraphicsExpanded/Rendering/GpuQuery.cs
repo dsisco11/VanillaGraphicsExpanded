@@ -6,7 +6,7 @@ namespace VanillaGraphicsExpanded.Rendering;
 
 /// <summary>
 /// RAII wrapper around a target-specific query object created through the RHI.
-/// Deletion is deferred to <see cref="GpuResourceManager"/> when available.
+/// Deletion is deferred to <see cref="RHIResourceManager"/> when available.
 /// </summary>
 public sealed class GpuQuery : GpuResource<GpuQueryMetadata>, IDisposable
 {

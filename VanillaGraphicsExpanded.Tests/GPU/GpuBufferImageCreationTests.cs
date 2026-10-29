@@ -22,7 +22,7 @@ public sealed class GpuBufferImageCreationTests(HeadlessGLFixture fixture)
         {
             using var buffer = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = null }).RequireResource();
             buffer.Allocate(32);
-            var manager = GpuResourceManagerSystem.CurrentManager!;
+            var manager = RHIResourceManagerSystem.CurrentManager!;
             var entry = Assert.IsType<GpuResourceMetadataEntry<GpuBufferMetadata>>(manager.GetResourceRegistration(buffer));
             var reject = new RejectReader<GpuBufferMetadata>();
             entry.Reader = reject;
@@ -81,7 +81,7 @@ public sealed class GpuBufferImageCreationTests(HeadlessGLFixture fixture)
             {
                 using var recipient = new FailedRecipient<GpuRenderbufferMetadata>(GpuResourceKind.Renderbuffer);
                 var request = new GpuRenderbufferInitialization { Format = TextureFormat.Rgba8, Width = 4, Height = 4 };
-                Assert.Throws<InvalidOperationException>(() => GpuResourceManager.CreateRenderbuffer(request, recipient, out handle));
+                Assert.Throws<InvalidOperationException>(() => RHIResourceManager.CreateRenderbuffer(request, recipient, out handle));
                 native = recipient.Attempted;
                 Assert.Equal((nint)0, recipient.ResourceId);
             }
@@ -89,13 +89,13 @@ public sealed class GpuBufferImageCreationTests(HeadlessGLFixture fixture)
             {
                 using var recipient = new FailedRecipient<GpuBufferMetadata>(GpuResourceKind.Buffer);
                 var request = new GpuBufferInitialization { Mode = GpuBufferStorageMode.Mutable, Capacity = 64, Usage = BufferUsage.StaticDraw };
-                Assert.Throws<InvalidOperationException>(() => GpuResourceManager.CreateBuffer(request, recipient, out handle));
+                Assert.Throws<InvalidOperationException>(() => RHIResourceManager.CreateBuffer(request, recipient, out handle));
                 native = recipient.Attempted;
                 Assert.Equal((nint)0, recipient.ResourceId);
             }
             Assert.NotEqual(0, native);
             Assert.Equal(default, handle);
-            GpuResourceManagerSystem.CurrentManager?.OnRenderFrame(0, GpuResourceManager.Stage);
+            RHIResourceManagerSystem.CurrentManager?.OnRenderFrame(0, RHIResourceManager.Stage);
             Assert.False(renderbuffer ? GL.IsRenderbuffer(native) : GL.IsBuffer(native));
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
@@ -111,10 +111,10 @@ public sealed class GpuBufferImageCreationTests(HeadlessGLFixture fixture)
         {
             using var recipient = new Recipient<GpuBufferMetadata>(GpuResourceKind.Buffer);
             var request = new GpuBufferInitialization { Mode = GpuBufferStorageMode.Immutable, Capacity = 64 };
-            Assert.Throws<ArgumentException>(() => GpuResourceManager.CreateBuffer(request, recipient, out _));
+            Assert.Throws<ArgumentException>(() => RHIResourceManager.CreateBuffer(request, recipient, out _));
             Assert.Equal((nint)0, recipient.ResourceId);
             request.StorageFlags = 0;
-            var result = GpuResourceManager.CreateBuffer(request, recipient, out var handle);
+            var result = RHIResourceManager.CreateBuffer(request, recipient, out var handle);
             Assert.Equal(new GpuBufferMetadata(64, BufferUsage.DynamicDraw, true), result);
             using var binding = OpenGlStateCache.Current.BindBufferScope(BufferTarget.ArrayBuffer, (int)handle.Id);
             GL.GetBufferParameter(BufferTarget.ArrayBuffer, (BufferParameterName)All.BufferImmutableStorage, out int immutable);
@@ -141,7 +141,7 @@ public sealed class GpuBufferImageCreationTests(HeadlessGLFixture fixture)
             using var recipient = new Recipient<GpuBufferMetadata>(GpuResourceKind.Buffer);
             var request = new GpuBufferInitialization
                 { Mode = GpuBufferStorageMode.Mutable, Capacity = 48, Usage = BufferUsage.StreamDraw };
-            var result = GpuResourceManager.CreateBuffer(request, recipient, out var handle);
+            var result = RHIResourceManager.CreateBuffer(request, recipient, out var handle);
             Assert.Equal(new GpuBufferMetadata(48, BufferUsage.StreamDraw), result);
             Assert.Equal(result.Value, recipient.Snapshot);
             Assert.Equal(handle.Id, recipient.ResourceId);
@@ -149,7 +149,7 @@ public sealed class GpuBufferImageCreationTests(HeadlessGLFixture fixture)
             if (registered)
             {
                 var entry = Assert.IsType<GpuResourceMetadataEntry<GpuBufferMetadata>>(
-                    GpuResourceManagerSystem.CurrentManager!.GetResourceRegistration(recipient));
+                    RHIResourceManagerSystem.CurrentManager!.GetResourceRegistration(recipient));
                 Assert.Equal(result.Value, entry.Metadata);
                 Assert.Null(entry.Reader);
             }
@@ -170,11 +170,11 @@ public sealed class GpuBufferImageCreationTests(HeadlessGLFixture fixture)
         {
             using var recipient = new Recipient<GpuBufferMetadata>(GpuResourceKind.Buffer);
             var request = new GpuBufferInitialization { Mode = GpuBufferStorageMode.Mutable, Usage = BufferUsage.StaticDraw };
-            Assert.Throws<ArgumentException>(() => GpuResourceManager.CreateBuffer(request, recipient, out _));
+            Assert.Throws<ArgumentException>(() => RHIResourceManager.CreateBuffer(request, recipient, out _));
             Assert.Equal((nint)0, recipient.ResourceId);
             request.Capacity = 0;
             Assert.Equal(new GpuBufferMetadata(0, BufferUsage.StaticDraw),
-                GpuResourceManager.CreateBuffer(request, recipient, out _));
+                RHIResourceManager.CreateBuffer(request, recipient, out _));
             Assert.True(recipient.IsValid);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
@@ -190,7 +190,7 @@ public sealed class GpuBufferImageCreationTests(HeadlessGLFixture fixture)
         {
             using var owner = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = null }).RequireResource();
             owner.Allocate(32);
-            var manager = GpuResourceManagerSystem.CurrentManager!;
+            var manager = RHIResourceManagerSystem.CurrentManager!;
             var entry = Assert.IsType<GpuResourceMetadataEntry<GpuBufferMetadata>>(manager.GetResourceRegistration(owner));
             using var alias = new Recipient<GpuBufferMetadata>(GpuResourceKind.Buffer, owner.BufferId, false);
             manager.AssociateResource(entry, alias);
@@ -225,7 +225,7 @@ public sealed class GpuBufferImageCreationTests(HeadlessGLFixture fixture)
             using var binding = OpenGlStateCache.Current.BindRenderbufferScope(sentinel.RenderbufferId);
             using var recipient = new Recipient<GpuRenderbufferMetadata>(GpuResourceKind.Renderbuffer);
             var request = new GpuRenderbufferInitialization { Format = TextureFormat.Rgba8, Width = 8, Height = 4 };
-            var result = GpuResourceManager.CreateRenderbuffer(request, recipient, out var handle);
+            var result = RHIResourceManager.CreateRenderbuffer(request, recipient, out var handle);
             Assert.Equal(new GpuRenderbufferMetadata(8, 4, TextureFormat.Rgba8, 0), result);
             Assert.Equal(sentinel.RenderbufferId, GL.GetInteger(GetPName.RenderbufferBinding));
             Assert.Equal(result.Value, recipient.Snapshot);
@@ -233,7 +233,7 @@ public sealed class GpuBufferImageCreationTests(HeadlessGLFixture fixture)
             if (registered)
             {
                 var entry = Assert.IsType<GpuResourceMetadataEntry<GpuRenderbufferMetadata>>(
-                    GpuResourceManagerSystem.CurrentManager!.GetResourceRegistration(recipient));
+                    RHIResourceManagerSystem.CurrentManager!.GetResourceRegistration(recipient));
                 Assert.Null(entry.Reader);
                 Assert.Equal(result.Value, entry.Metadata);
             }
@@ -250,7 +250,7 @@ public sealed class GpuBufferImageCreationTests(HeadlessGLFixture fixture)
         try
         {
             using var owner = RHICommandContext.Current.CreateRenderbuffer(new RHIRenderbufferDescription { Format = TextureFormat.Rgba8, Width = 8, Height = 4, Samples = 0, Label = null }).RequireResource();
-            var manager = GpuResourceManagerSystem.CurrentManager!;
+            var manager = RHIResourceManagerSystem.CurrentManager!;
             var entry = Assert.IsType<GpuResourceMetadataEntry<GpuRenderbufferMetadata>>(manager.GetResourceRegistration(owner));
             using var alias = new Recipient<GpuRenderbufferMetadata>(GpuResourceKind.Renderbuffer, owner.RenderbufferId, false);
             manager.AssociateResource(entry, alias);

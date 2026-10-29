@@ -42,7 +42,7 @@ public sealed class ShaderInputSubmissionTests : RenderTestBase
         BitConverter.GetBytes(0.25f).CopyTo(bytes, 0);
         block.SetBytes(bytes);
         ring.BeginFrame(0);
-        GpuUniformRingSystem.SetCurrent(ring);
+        RHIUniformRingSystem.SetCurrent(ring);
         try
         {
             // Capturing a CPU version performs no allocation; the engine slot is explicit.
@@ -113,7 +113,7 @@ public sealed class ShaderInputSubmissionTests : RenderTestBase
 #endif
             Assert.Equal(0.75f, SubmittedDepthSigma());
             replacement.BeginFrame(0);
-            GpuUniformRingSystem.SetCurrent(replacement);
+            RHIUniformRingSystem.SetCurrent(replacement);
             Assert.True(VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindUniformSnapshot(14, block.Capture()));
 #if DEBUG
             Assert.Equal(1, replacement.AllocationsWritten);
@@ -128,7 +128,7 @@ public sealed class ShaderInputSubmissionTests : RenderTestBase
             replacement.Dispose();
             Assert.Throws<ObjectDisposedException>(() => VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindUniformSnapshot(14, block.Capture()));
         }
-        finally { GpuUniformRingSystem.ClearCurrent(); }
+        finally { RHIUniformRingSystem.ClearCurrent(); }
     }
     /// <summary>Generated validation leaves all bindings and CPU dirty work untouched until a missing required input is corrected.</summary>
     [Fact]
@@ -140,7 +140,7 @@ public sealed class ShaderInputSubmissionTests : RenderTestBase
         using var desired = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.R32f, Width = System.Math.Max(1, 1), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         using var ring = new GpuUniformRingBuffer(4096, 1, false);
         ring.BeginFrame(0);
-        GpuUniformRingSystem.SetCurrent(ring);
+        RHIUniformRingSystem.SetCurrent(ring);
         try
         {
             var shader = programs.Create<RasterDepthReductionShaderProgram>();
@@ -170,7 +170,7 @@ public sealed class ShaderInputSubmissionTests : RenderTestBase
             }
             RHICommandContext.Current.BindResources(shader.CaptureBindings());
         }
-        finally { GpuUniformRingSystem.ClearCurrent(); }
+        finally { RHIUniformRingSystem.ClearCurrent(); }
     }
     /// <summary>Each HZB draw publishes one source mip and retains resource edits until that draw.</summary>
     [Theory]
@@ -190,7 +190,7 @@ public sealed class ShaderInputSubmissionTests : RenderTestBase
         Assert.SkipWhen(persistent && !ring.UsesPersistentMapping, "Persistent uniform mapping is unavailable in this headless context.");
         Assert.Equal(persistent, ring.UsesPersistentMapping);
         ring.BeginFrame(0);
-        GpuUniformRingSystem.SetCurrent(ring);
+        RHIUniformRingSystem.SetCurrent(ring);
         try
         {
             var shader = programs.Create<RasterDepthReductionShaderProgram>();
@@ -217,7 +217,7 @@ public sealed class ShaderInputSubmissionTests : RenderTestBase
             }
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { GpuUniformRingSystem.ClearCurrent(); }
+        finally { RHIUniformRingSystem.ClearCurrent(); }
     }
 
     /// <summary>Explicit pipeline and capture selection restores the desired owner's textures and parameter bytes.</summary>
@@ -233,7 +233,7 @@ public sealed class ShaderInputSubmissionTests : RenderTestBase
         using var frameCamera = TestFrameCamera.CreateIdentity(1, 1);
         using var ring = new GpuUniformRingBuffer(4096, 1, false);
         ring.BeginFrame(0);
-        GpuUniformRingSystem.SetCurrent(ring);
+        RHIUniformRingSystem.SetCurrent(ring);
         try
         {
             var first = programs.Create<LumOnUpsampleShaderProgram>();
@@ -269,7 +269,7 @@ public sealed class ShaderInputSubmissionTests : RenderTestBase
             Assert.Equal(3, ring.AllocationsWritten);
 #endif
         }
-        finally { GpuUniformRingSystem.ClearCurrent(); }
+        finally { RHIUniformRingSystem.ClearCurrent(); }
     }
 
     /// <summary>Ordinary assignments retain partial edits and writes one parameter block at each use boundary.</summary>
@@ -290,7 +290,7 @@ public sealed class ShaderInputSubmissionTests : RenderTestBase
         Assert.SkipWhen(persistent && !ring.UsesPersistentMapping, "Persistent uniform mapping is unavailable in this headless context.");
         Assert.Equal(persistent, ring.UsesPersistentMapping);
         ring.BeginFrame(0);
-        GpuUniformRingSystem.SetCurrent(ring);
+        RHIUniformRingSystem.SetCurrent(ring);
         try
         {
             var shader = programs.Create<LumOnUpsampleShaderProgram>();
@@ -314,11 +314,11 @@ public sealed class ShaderInputSubmissionTests : RenderTestBase
 #endif
             Assert.Equal(priorTextures, BoundTextures());
             Assert.Null(ShaderProgramBase.CurrentShaderProgram);
-            GpuUniformRingSystem.ClearCurrent();
+            RHIUniformRingSystem.ClearCurrent();
             Assert.Throws<InvalidOperationException>(() => RHICommandContext.Current.BindResources(shader.CaptureBindings()));
             Assert.True(Parameters(shader).IsDirty);
             Assert.Null(ShaderProgramBase.CurrentShaderProgram);
-            GpuUniformRingSystem.SetCurrent(ring);
+            RHIUniformRingSystem.SetCurrent(ring);
             RHICommandContext.Current.BindResources(shader.CaptureBindings());
 #if DEBUG
             Assert.Equal(2, ring.AllocationsWritten);
@@ -344,7 +344,7 @@ public sealed class ShaderInputSubmissionTests : RenderTestBase
             Assert.Equal(0.75f, UboPacking.ReadFloat(Parameters(shader).Bytes, 0));
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { GpuUniformRingSystem.ClearCurrent(); }
+        finally { RHIUniformRingSystem.ClearCurrent(); }
     }
 
     /// <summary>The generated anchor submission publishes one retained CPU block after ordinary assignments.</summary>
@@ -359,7 +359,7 @@ public sealed class ShaderInputSubmissionTests : RenderTestBase
         using var frameCamera = TestFrameCamera.CreateIdentity(1, 1);
         using var ring = new GpuUniformRingBuffer(4096, 1, false);
         ring.BeginFrame(0);
-        GpuUniformRingSystem.SetCurrent(ring);
+        RHIUniformRingSystem.SetCurrent(ring);
         try
         {
             var shader = programs.Create<LumOnProbeAnchorShaderProgram>();
@@ -390,7 +390,7 @@ public sealed class ShaderInputSubmissionTests : RenderTestBase
             Assert.Equal(0.75f, SubmittedDepthSigma(48));
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { GpuUniformRingSystem.ClearCurrent(); }
+        finally { RHIUniformRingSystem.ClearCurrent(); }
     }
     /// <summary>Missing required resources fail use before any parameter allocation can be consumed.</summary>
     [Fact]
@@ -401,7 +401,7 @@ public sealed class ShaderInputSubmissionTests : RenderTestBase
         using var frameCamera = TestFrameCamera.CreateIdentity(1, 1);
         using var ring = new GpuUniformRingBuffer(4096, 1, false);
         ring.BeginFrame(0);
-        GpuUniformRingSystem.SetCurrent(ring);
+        RHIUniformRingSystem.SetCurrent(ring);
         try
         {
             var shader = programs.Create<LumOnUpsampleShaderProgram>();
@@ -414,7 +414,7 @@ public sealed class ShaderInputSubmissionTests : RenderTestBase
 #endif
             Assert.Null(ShaderProgramBase.CurrentShaderProgram);
         }
-        finally { GpuUniformRingSystem.ClearCurrent(); }
+        finally { RHIUniformRingSystem.ClearCurrent(); }
     }
 
     /// <summary>An optimized-out normal sampler and unused shared world-probe block need no prepared resource.</summary>
@@ -429,7 +429,7 @@ public sealed class ShaderInputSubmissionTests : RenderTestBase
         using var frameCamera = TestFrameCamera.CreateIdentity(1, 1);
         using var ring = new GpuUniformRingBuffer(4096, 1, false);
         ring.BeginFrame(0);
-        GpuUniformRingSystem.SetCurrent(ring);
+        RHIUniformRingSystem.SetCurrent(ring);
         try
         {
             var shader = programs.Create<LumOnUpsampleShaderProgram>(s =>
@@ -454,7 +454,7 @@ public sealed class ShaderInputSubmissionTests : RenderTestBase
             Assert.Equal(VgeFrameUniformBuffer.PackedSize, ring.BytesWritten);
 #endif
         }
-        finally { GpuUniformRingSystem.ClearCurrent(); }
+        finally { RHIUniformRingSystem.ClearCurrent(); }
     }
     #endregion
 

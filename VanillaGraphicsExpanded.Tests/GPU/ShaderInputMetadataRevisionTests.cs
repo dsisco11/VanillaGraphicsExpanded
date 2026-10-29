@@ -83,13 +83,13 @@ public sealed class ShaderInputMetadataRevisionTests(HeadlessGLFixture fixture)
             buffer.Allocate(64);
             var range = new GpuStorageBufferBinding(buffer, 0, 64);
             var previous = textureInput ? ShaderInputValidation.TextureKey(texture) : ShaderInputValidation.StorageKey(range);
-            if (textureInput) GpuResourceManager.InvalidateWrapperMetadata(texture);
-            else GpuResourceManager.InvalidateWrapperMetadata(buffer);
+            if (textureInput) RHIResourceManager.InvalidateWrapperMetadata(texture);
+            else RHIResourceManager.InvalidateWrapperMetadata(buffer);
             Assert.Throws<InvalidOperationException>(() => textureInput
                 ? ShaderInputValidation.TextureKey(texture) : ShaderInputValidation.StorageKey(range));
             if (textureInput)
-                GpuResourceManager.RecoverWrapperMetadata(texture, new GpuTextureMetadataReader(texture.TextureTarget));
-            else GpuResourceManager.RecoverWrapperMetadata(buffer, new GpuBufferMetadataReader());
+                RHIResourceManager.RecoverWrapperMetadata(texture, new GpuTextureMetadataReader(texture.TextureTarget));
+            else RHIResourceManager.RecoverWrapperMetadata(buffer, new GpuBufferMetadataReader());
             var current = textureInput ? ShaderInputValidation.TextureKey(texture) : ShaderInputValidation.StorageKey(range);
             Assert.NotEqual(previous.Revisions, current.Revisions);
             Assert.Equal(current, textureInput ? ShaderInputValidation.TextureKey(texture) : ShaderInputValidation.StorageKey(range));

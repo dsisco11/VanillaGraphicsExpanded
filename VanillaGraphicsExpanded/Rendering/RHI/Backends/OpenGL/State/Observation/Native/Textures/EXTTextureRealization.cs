@@ -10,7 +10,7 @@ internal sealed unsafe partial class OpenGlStateCache
     {
         if (!OpenGLObservationContext.TryGet(out _, out _, false)) return;
         if (!TryImageSelectorTarget(a1, out var target)) return;
-        GpuResourceManagerSystem.CurrentManager!.RealizeObservedImage(GpuResourceKind.Texture, unchecked((int)a0), target, implicitCreation: true);
+        RHIResourceManagerSystem.CurrentManager!.RealizeObservedImage(GpuResourceKind.Texture, unchecked((int)a0), target, implicitCreation: true);
     }
 
     /// <summary>Retains the creation effect of glCompressedTextureSubImage2DEXT without reading or changing its output.</summary>
@@ -19,7 +19,7 @@ internal sealed unsafe partial class OpenGlStateCache
     {
         if (!OpenGLObservationContext.TryGet(out _, out _, false)) return;
         if (!TryImageSelectorTarget(a1, out var target)) return;
-        GpuResourceManagerSystem.CurrentManager!.RealizeObservedImage(GpuResourceKind.Texture, unchecked((int)a0), target, implicitCreation: true);
+        RHIResourceManagerSystem.CurrentManager!.RealizeObservedImage(GpuResourceKind.Texture, unchecked((int)a0), target, implicitCreation: true);
     }
 
     /// <summary>Retains the creation effect of glCompressedTextureSubImage3DEXT without reading or changing its output.</summary>
@@ -28,7 +28,7 @@ internal sealed unsafe partial class OpenGlStateCache
     {
         if (!OpenGLObservationContext.TryGet(out _, out _, false)) return;
         if (!TryImageSelectorTarget(a1, out var target)) return;
-        GpuResourceManagerSystem.CurrentManager!.RealizeObservedImage(GpuResourceKind.Texture, unchecked((int)a0), target, implicitCreation: true);
+        RHIResourceManagerSystem.CurrentManager!.RealizeObservedImage(GpuResourceKind.Texture, unchecked((int)a0), target, implicitCreation: true);
     }
 
     /// <summary>Retains the creation effect of glCopyTextureSubImage1DEXT without reading or changing its output.</summary>
@@ -37,7 +37,7 @@ internal sealed unsafe partial class OpenGlStateCache
     {
         if (!OpenGLObservationContext.TryGet(out _, out _, false)) return;
         if (!TryImageSelectorTarget(a1, out var target)) return;
-        GpuResourceManagerSystem.CurrentManager!.RealizeObservedImage(GpuResourceKind.Texture, unchecked((int)a0), target, implicitCreation: true);
+        RHIResourceManagerSystem.CurrentManager!.RealizeObservedImage(GpuResourceKind.Texture, unchecked((int)a0), target, implicitCreation: true);
     }
 
     /// <summary>Retains the creation effect of glCopyTextureSubImage2DEXT without reading or changing its output.</summary>
@@ -46,7 +46,7 @@ internal sealed unsafe partial class OpenGlStateCache
     {
         if (!OpenGLObservationContext.TryGet(out _, out _, false)) return;
         if (!TryImageSelectorTarget(a1, out var target)) return;
-        GpuResourceManagerSystem.CurrentManager!.RealizeObservedImage(GpuResourceKind.Texture, unchecked((int)a0), target, implicitCreation: true);
+        RHIResourceManagerSystem.CurrentManager!.RealizeObservedImage(GpuResourceKind.Texture, unchecked((int)a0), target, implicitCreation: true);
     }
 
     /// <summary>Retains the creation effect of glCopyTextureSubImage3DEXT without reading or changing its output.</summary>
@@ -55,7 +55,7 @@ internal sealed unsafe partial class OpenGlStateCache
     {
         if (!OpenGLObservationContext.TryGet(out _, out _, false)) return;
         if (!TryImageSelectorTarget(a1, out var target)) return;
-        GpuResourceManagerSystem.CurrentManager!.RealizeObservedImage(GpuResourceKind.Texture, unchecked((int)a0), target, implicitCreation: true);
+        RHIResourceManagerSystem.CurrentManager!.RealizeObservedImage(GpuResourceKind.Texture, unchecked((int)a0), target, implicitCreation: true);
     }
 
     /// <summary>Retains the creation effect of glGetCompressedTextureImageEXT without reading or changing its output.</summary>
@@ -64,7 +64,7 @@ internal sealed unsafe partial class OpenGlStateCache
     {
         if (!OpenGLObservationContext.TryGet(out _, out _, false)) return;
         if (!TryImageSelectorTarget(a1, out var target)) return;
-        GpuResourceManagerSystem.CurrentManager!.RealizeObservedImage(GpuResourceKind.Texture, unchecked((int)a0), target, implicitCreation: true);
+        RHIResourceManagerSystem.CurrentManager!.RealizeObservedImage(GpuResourceKind.Texture, unchecked((int)a0), target, implicitCreation: true);
     }
 
     /// <summary>Retains the creation effect of glGetTextureImageEXT without reading or changing its output.</summary>
@@ -73,7 +73,7 @@ internal sealed unsafe partial class OpenGlStateCache
     {
         if (!OpenGLObservationContext.TryGet(out _, out _, false)) return;
         if (!TryImageSelectorTarget(a1, out var target)) return;
-        GpuResourceManagerSystem.CurrentManager!.RealizeObservedImage(GpuResourceKind.Texture, unchecked((int)a0), target, implicitCreation: true);
+        RHIResourceManagerSystem.CurrentManager!.RealizeObservedImage(GpuResourceKind.Texture, unchecked((int)a0), target, implicitCreation: true);
     }
 
     /// <summary>Retains the creation effect of glGetTextureLevelParameterfvEXT without reading or changing its output.</summary>
@@ -82,7 +82,7 @@ internal sealed unsafe partial class OpenGlStateCache
     {
         if (!OpenGLObservationContext.TryGet(out _, out _, false)) return;
         if (!TryImageSelectorTarget(a1, out var target)) return;
-        GpuResourceManagerSystem.CurrentManager!.RealizeObservedImage(GpuResourceKind.Texture, unchecked((int)a0), target, implicitCreation: true);
+        RHIResourceManagerSystem.CurrentManager!.RealizeObservedImage(GpuResourceKind.Texture, unchecked((int)a0), target, implicitCreation: true);
     }
 
     /// <summary>Retains the creation effect of glGetTextureLevelParameterivEXT without reading or changing its output.</summary>
@@ -91,7 +91,7 @@ internal sealed unsafe partial class OpenGlStateCache
     {
         if (!OpenGLObservationContext.TryGet(out _, out _, false)) return;
         if (!TryImageSelectorTarget(a1, out var target)) return;
-        GpuResourceManagerSystem.CurrentManager!.RealizeObservedImage(GpuResourceKind.Texture, unchecked((int)a0), target, implicitCreation: true);
+        RHIResourceManagerSystem.CurrentManager!.RealizeObservedImage(GpuResourceKind.Texture, unchecked((int)a0), target, implicitCreation: true);
     }
 
     /// <summary>Retains the creation effect of glGetTextureParameterIivEXT without reading or changing its output.</summary>
@@ -100,7 +100,7 @@ internal sealed unsafe partial class OpenGlStateCache
     {
         if (!OpenGLObservationContext.TryGet(out _, out _, false)) return;
         if (!TryImageSelectorTarget(a1, out var target)) return;
-        GpuResourceManagerSystem.CurrentManager!.RealizeObservedImage(GpuResourceKind.Texture, unchecked((int)a0), target, implicitCreation: true);
+        RHIResourceManagerSystem.CurrentManager!.RealizeObservedImage(GpuResourceKind.Texture, unchecked((int)a0), target, implicitCreation: true);
     }
 
     /// <summary>Retains the creation effect of glGetTextureParameterIuivEXT without reading or changing its output.</summary>
@@ -109,7 +109,7 @@ internal sealed unsafe partial class OpenGlStateCache
     {
         if (!OpenGLObservationContext.TryGet(out _, out _, false)) return;
         if (!TryImageSelectorTarget(a1, out var target)) return;
-        GpuResourceManagerSystem.CurrentManager!.RealizeObservedImage(GpuResourceKind.Texture, unchecked((int)a0), target, implicitCreation: true);
+        RHIResourceManagerSystem.CurrentManager!.RealizeObservedImage(GpuResourceKind.Texture, unchecked((int)a0), target, implicitCreation: true);
     }
 
     /// <summary>Retains the creation effect of glGetTextureParameterfvEXT without reading or changing its output.</summary>
@@ -118,7 +118,7 @@ internal sealed unsafe partial class OpenGlStateCache
     {
         if (!OpenGLObservationContext.TryGet(out _, out _, false)) return;
         if (!TryImageSelectorTarget(a1, out var target)) return;
-        GpuResourceManagerSystem.CurrentManager!.RealizeObservedImage(GpuResourceKind.Texture, unchecked((int)a0), target, implicitCreation: true);
+        RHIResourceManagerSystem.CurrentManager!.RealizeObservedImage(GpuResourceKind.Texture, unchecked((int)a0), target, implicitCreation: true);
     }
 
     /// <summary>Retains the creation effect of glGetTextureParameterivEXT without reading or changing its output.</summary>
@@ -127,7 +127,7 @@ internal sealed unsafe partial class OpenGlStateCache
     {
         if (!OpenGLObservationContext.TryGet(out _, out _, false)) return;
         if (!TryImageSelectorTarget(a1, out var target)) return;
-        GpuResourceManagerSystem.CurrentManager!.RealizeObservedImage(GpuResourceKind.Texture, unchecked((int)a0), target, implicitCreation: true);
+        RHIResourceManagerSystem.CurrentManager!.RealizeObservedImage(GpuResourceKind.Texture, unchecked((int)a0), target, implicitCreation: true);
     }
 
     /// <summary>Retains the creation effect of glTextureSubImage1DEXT without reading or changing its output.</summary>
@@ -136,7 +136,7 @@ internal sealed unsafe partial class OpenGlStateCache
     {
         if (!OpenGLObservationContext.TryGet(out _, out _, false)) return;
         if (!TryImageSelectorTarget(a1, out var target)) return;
-        GpuResourceManagerSystem.CurrentManager!.RealizeObservedImage(GpuResourceKind.Texture, unchecked((int)a0), target, implicitCreation: true);
+        RHIResourceManagerSystem.CurrentManager!.RealizeObservedImage(GpuResourceKind.Texture, unchecked((int)a0), target, implicitCreation: true);
     }
 
     /// <summary>Retains the creation effect of glTextureSubImage2DEXT without reading or changing its output.</summary>
@@ -145,7 +145,7 @@ internal sealed unsafe partial class OpenGlStateCache
     {
         if (!OpenGLObservationContext.TryGet(out _, out _, false)) return;
         if (!TryImageSelectorTarget(a1, out var target)) return;
-        GpuResourceManagerSystem.CurrentManager!.RealizeObservedImage(GpuResourceKind.Texture, unchecked((int)a0), target, implicitCreation: true);
+        RHIResourceManagerSystem.CurrentManager!.RealizeObservedImage(GpuResourceKind.Texture, unchecked((int)a0), target, implicitCreation: true);
     }
 
     /// <summary>Retains the creation effect of glTextureSubImage3DEXT without reading or changing its output.</summary>
@@ -154,7 +154,7 @@ internal sealed unsafe partial class OpenGlStateCache
     {
         if (!OpenGLObservationContext.TryGet(out _, out _, false)) return;
         if (!TryImageSelectorTarget(a1, out var target)) return;
-        GpuResourceManagerSystem.CurrentManager!.RealizeObservedImage(GpuResourceKind.Texture, unchecked((int)a0), target, implicitCreation: true);
+        RHIResourceManagerSystem.CurrentManager!.RealizeObservedImage(GpuResourceKind.Texture, unchecked((int)a0), target, implicitCreation: true);
     }
     #endregion
 }

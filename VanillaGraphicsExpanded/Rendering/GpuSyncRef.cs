@@ -10,7 +10,7 @@ public readonly struct GpuSyncRef
     /// <summary>Reports absence without native discovery.</summary>
     public bool IsEmpty => resource is null;
     /// <summary>Reports already established managed usability.</summary>
-    public bool IsValid => GpuResourceManager.IsAuxiliaryReferenceUsable(resource);
+    public bool IsValid => RHIResourceManager.IsAuxiliaryReferenceUsable(resource);
     #endregion
     #region Internal API
     /// <summary>Retains the existing owner without acquiring or querying it.</summary>

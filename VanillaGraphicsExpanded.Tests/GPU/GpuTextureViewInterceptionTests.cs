@@ -30,7 +30,7 @@ public sealed class GpuTextureViewInterceptionTests(HeadlessGLFixture fixture)
         {
             GL.TextureStorage3D(sourceId, 4, SizedInternalFormat.Rgba8, 8, 8, 4);
             using var source = new BorrowedTexture(sourceId);
-            var manager = GpuResourceManagerSystem.CurrentManager!;
+            var manager = RHIResourceManagerSystem.CurrentManager!;
             var sourceEntry = manager.GetResourceRegistration(source)!;
             ulong sourceRevision = sourceEntry.MetadataRevision, sourceStorage = sourceEntry.StorageRevision;
             var entry = manager.RegisterCreatedResource<GpuTextureMetadata>(GpuResourceKind.Texture, viewId);
@@ -93,7 +93,7 @@ public sealed class GpuTextureViewInterceptionTests(HeadlessGLFixture fixture)
             GL.TextureStorage3D(sourceId, 4, SizedInternalFormat.Rgba8, 8, 8, 4);
             using var source = new BorrowedTexture(sourceId);
             using var view = RHICommandContext.Current.CreateTextureView(new RHITextureViewDescription { Source = source, Dimension = TextureDimension.TwoArray, Format = TextureFormat.Rgba8, BaseMip = 0, MipCount = 1, BaseLayer = 0, LayerCount = 2, Label = null }).RequireResource();
-            var sourceEntry = GpuResourceManagerSystem.CurrentManager!.GetResourceRegistration(source)!;
+            var sourceEntry = RHIResourceManagerSystem.CurrentManager!.GetResourceRegistration(source)!;
             ulong sourceRevision = sourceEntry.MetadataRevision;
             DefineView(false, view.TextureId, source.TextureId);
             Assert.Equal(ErrorCode.InvalidOperation, GL.GetError());

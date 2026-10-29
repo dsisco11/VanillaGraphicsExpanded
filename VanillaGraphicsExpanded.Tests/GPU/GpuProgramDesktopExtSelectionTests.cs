@@ -29,7 +29,7 @@ public sealed partial class GpuProgramMetadataInterceptionTests
             using var b = CreateProgram(out int shaderB);
             VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Shader, shaderA));
             VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Shader, shaderB));
-            var manager = GpuResourceManagerSystem.CurrentManager!;
+            var manager = RHIResourceManagerSystem.CurrentManager!;
             var entryA = manager.GetResourceRegistration(a)!;
             var entryB = manager.GetResourceRegistration(b)!;
             OpenGLProgramSelection.Select(OpenGlStateCache.Current, a.ProgramId);

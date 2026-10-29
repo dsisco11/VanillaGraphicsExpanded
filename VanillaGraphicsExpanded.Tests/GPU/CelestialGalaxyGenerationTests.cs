@@ -21,17 +21,17 @@ public sealed class CelestialGalaxyGenerationTests(HeadlessGLFixture fixture, IT
     public void LoadingWithoutFrameAllocatorPublishesCompleteResources()
     {
         EnsureShaderTestAvailable();
-        Assert.True(GpuUniformRingSystem.TryGetCurrent(out var previous));
-        GpuUniformRingSystem.ClearCurrent();
+        Assert.True(RHIUniformRingSystem.TryGetCurrent(out var previous));
+        RHIUniformRingSystem.ClearCurrent();
         try
         {
             var source = CelestialSource.Create(new(3, 32, 4096, 7));
             using var result = Generate(source);
             Assert.Same(source, result.Source);
-            Assert.False(GpuUniformRingSystem.TryGetCurrent(out _));
+            Assert.False(RHIUniformRingSystem.TryGetCurrent(out _));
             Assert.All(Read(result.Galaxy, 0, 0), value => Assert.True(float.IsFinite(value) && value > 0));
         }
-        finally { GpuUniformRingSystem.SetCurrent(previous); }
+        finally { RHIUniformRingSystem.SetCurrent(previous); }
     }
 
     /// <summary>Exercises production load callbacks, unchanged frames, failed reload retention and world disposal.</summary>

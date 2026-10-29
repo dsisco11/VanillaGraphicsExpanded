@@ -54,7 +54,7 @@ internal sealed partial class OpenGLBackend
             RequireContext();
             return;
         }
-        using var operation = new GpuResourceManager.MetadataOperation<GpuTextureMetadata>(owner, GpuMetadataChange.Storage);
+        using var operation = new RHIResourceManager.MetadataOperation<GpuTextureMetadata>(owner, GpuMetadataChange.Storage);
         OpenGLDriverCalls.GenerateTextureMipmap((int)owner.ResourceId);
         RequireContext();
         operation.Commit(previous with { Levels = images });

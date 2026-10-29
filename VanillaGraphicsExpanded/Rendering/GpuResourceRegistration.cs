@@ -13,7 +13,7 @@ internal abstract class GpuResourceRegistration
 
     #region Internal API
     #region Registration lifecycle
-    internal GpuResourceManager Manager { get; }
+    internal RHIResourceManager Manager { get; }
     internal GpuResourceKind Kind { get; }
     internal nint Id { get; }
     internal GpuResourceHandle Handle => new(Kind, Id);
@@ -34,7 +34,7 @@ internal abstract class GpuResourceRegistration
     internal abstract int AssociationCount { get; }
 
     /// <summary>Captures the registry owner and native identity without granting native ownership.</summary>
-    internal GpuResourceRegistration(GpuResourceManager manager, GpuResourceKind kind, nint id)
+    internal GpuResourceRegistration(RHIResourceManager manager, GpuResourceKind kind, nint id)
     {
         Manager = manager;
         Kind = kind;

@@ -25,7 +25,7 @@ public sealed class GpuProgramUniformMetadataTests(HeadlessGLFixture fixture)
             using var program = CreateProgram();
             GL.UseProgram(program.ProgramId);
             Assert.True(GL.GetError() == ErrorCode.NoError, "UseProgram setup");
-            var entry = (GpuResourceMetadataEntry<GpuProgramMetadata>)GpuResourceManagerSystem.CurrentManager!.GetResourceRegistration(program)!;
+            var entry = (GpuResourceMetadataEntry<GpuProgramMetadata>)RHIResourceManagerSystem.CurrentManager!.GetResourceRegistration(program)!;
             var snapshot = entry.Metadata;
             var reader = new CountingReader(entry.Reader!);
             entry.Reader = reader;
@@ -34,7 +34,7 @@ public sealed class GpuProgramUniformMetadataTests(HeadlessGLFixture fixture)
             int sampler = GL.GetUniformLocation(program.ProgramId, "inputTexture");
             Assert.True(numeric >= 0 && unsigned >= 0 && sampler >= 0);
             ulong revision = entry.MetadataRevision;
-            using (var operation = new GpuResourceManager.MetadataOperation<GpuProgramMetadata>(program, GpuMetadataChange.Metadata))
+            using (var operation = new RHIResourceManager.MetadataOperation<GpuProgramMetadata>(program, GpuMetadataChange.Metadata))
             {
                 if (core)
                 {
@@ -80,7 +80,7 @@ public sealed class GpuProgramUniformMetadataTests(HeadlessGLFixture fixture)
             Assert.True(entry.IsUsable);
             GL.GetUniform(program.ProgramId, numeric, out int actual);
             Assert.Equal(8, actual);
-            using (var operation = new GpuResourceManager.MetadataOperation<GpuProgramMetadata>(program, GpuMetadataChange.Metadata))
+            using (var operation = new RHIResourceManager.MetadataOperation<GpuProgramMetadata>(program, GpuMetadataChange.Metadata))
             {
                 GL.Uniform1(sampler, 2);
                 Assert.Throws<InvalidOperationException>(() => operation.Commit(snapshot));
@@ -107,7 +107,7 @@ public sealed class GpuProgramUniformMetadataTests(HeadlessGLFixture fixture)
             OpenGLProgramPipelineSelection.Bind(OpenGlStateCache.Current, pipeline.PipelineId);
             OpenGLProgramSelection.Select(OpenGlStateCache.Current, sentinel.ProgramId);
             var entry = Assert.IsType<GpuResourceMetadataEntry<GpuProgramMetadata>>(
-                GpuResourceManagerSystem.CurrentManager!.GetResourceRegistration(program));
+                RHIResourceManagerSystem.CurrentManager!.GetResourceRegistration(program));
             int sampler = GL.GetUniformLocation(program.ProgramId, "inputTexture");
             int numeric = GL.GetUniformLocation(program.ProgramId, "numericValue");
             Assert.True(sampler >= 0 && numeric >= 0);
@@ -140,7 +140,7 @@ public sealed class GpuProgramUniformMetadataTests(HeadlessGLFixture fixture)
         try
         {
             using var program=CreateProgram(); using var capability=new SeparateShaderObjectsCapabilityScope(direct); int sampler=GL.GetUniformLocation(program.ProgramId,"inputTexture"),numeric=GL.GetUniformLocation(program.ProgramId,"numericValue");
-            var entry=(GpuResourceMetadataEntry<GpuProgramMetadata>)GpuResourceManagerSystem.CurrentManager!.GetResourceRegistration(program)!;
+            var entry=(GpuResourceMetadataEntry<GpuProgramMetadata>)RHIResourceManagerSystem.CurrentManager!.GetResourceRegistration(program)!;
             OpenGLProgramAssignments.SetUnit(program.ProgramId,sampler,3);
             var reader=new CountingReader(entry.Reader!); entry.Reader=reader;
             using var native = new BindingCallCapture();
@@ -164,7 +164,7 @@ public sealed class GpuProgramUniformMetadataTests(HeadlessGLFixture fixture)
         {
             using var program=CreateProgram(); using var sentinel=NativeResourceSetup.CreateProgramPipeline(); OpenGLProgramPipelineSelection.Bind(OpenGlStateCache.Current, sentinel.PipelineId); OpenGLProgramSelection.Select(OpenGlStateCache.Current, program.ProgramId);
             using var capabilities=new DirectStateAccessCapabilityScope(direct); using var target=NativeResourceSetup.CreateProgramPipeline();
-            var manager=GpuResourceManagerSystem.CurrentManager!; var entry=manager.GetResourceRegistration(target); Assert.NotNull(entry); Assert.True(GL.IsProgramPipeline(target.PipelineId));
+            var manager=RHIResourceManagerSystem.CurrentManager!; var entry=manager.GetResourceRegistration(target); Assert.NotNull(entry); Assert.True(GL.IsProgramPipeline(target.PipelineId));
             Assert.Equal(sentinel.PipelineId,GL.GetInteger(GetPName.ProgramPipelineBinding)); Assert.Equal(program.ProgramId,GL.GetInteger(GetPName.CurrentProgram));
             using var native = new BindingCallCapture();
             GL.UseProgramStages(target.PipelineId,ProgramStageMask.ComputeShaderBit,program.ProgramId); GL.ActiveShaderProgram(target.PipelineId,program.ProgramId);

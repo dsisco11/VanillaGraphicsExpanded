@@ -35,7 +35,7 @@ internal sealed partial class OpenGLBackend
                 if (!input.Sampler.IsEmpty)
                 {
                     var owner = input.Sampler.RequireResource();
-                    _ = GpuResourceManager.RequireSamplerReferenceMetadata(owner);
+                    _ = RHIResourceManager.RequireSamplerReferenceMetadata(owner);
                     RetainExecutionResource(owner);
                     sampler = checked((int)owner.ResourceId);
                 }

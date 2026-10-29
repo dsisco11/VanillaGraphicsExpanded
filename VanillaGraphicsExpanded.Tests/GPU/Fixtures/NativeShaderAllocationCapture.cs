@@ -68,7 +68,7 @@ internal sealed unsafe class NativeShaderAllocationCapture : IDisposable
     private static void RecordAssociation(int __0)
     {
         if (current is { } capture)
-            capture.Registration = GpuResourceManagerSystem.CurrentManager?.FindResource(GpuResourceKind.Program, __0);
+            capture.Registration = RHIResourceManagerSystem.CurrentManager?.FindResource(GpuResourceKind.Program, __0);
     }
     #endregion
 }

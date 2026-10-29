@@ -24,7 +24,7 @@ public sealed unsafe class GpuExternalTextureStorageTests(HeadlessGLFixture fixt
         try
         {
             var entry = Assert.IsType<GpuResourceMetadataEntry<GpuTextureMetadata>>(
-                GpuResourceManagerSystem.CurrentManager!.FindResource(GpuResourceKind.Texture, texture));
+                RHIResourceManagerSystem.CurrentManager!.FindResource(GpuResourceKind.Texture, texture));
             ulong initialRevision = entry.MetadataRevision;
             var storage = (delegate* unmanaged[Stdcall]<uint, int, int, int, int, uint, ulong, void>)table.Read("glTextureStorageMem2DEXT");
 

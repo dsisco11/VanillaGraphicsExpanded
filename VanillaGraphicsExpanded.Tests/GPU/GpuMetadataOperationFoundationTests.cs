@@ -22,13 +22,13 @@ public sealed class GpuMetadataOperationFoundationTests(HeadlessGLFixture fixtur
         {
             using var owner = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription
             { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 16, Usage = BufferUsage.StaticDraw }).RequireResource();
-            var manager = GpuResourceManagerSystem.CurrentManager!;
+            var manager = RHIResourceManagerSystem.CurrentManager!;
             var original = Assert.IsType<GpuResourceMetadataEntry<GpuBufferMetadata>>(manager.GetResourceRegistration(owner));
             ulong revision = original.MetadataRevision;
             manager.ReplaceWrapperResource(owner);
             try
             {
-                Assert.Throws<InvalidOperationException>(() => new GpuResourceManager.MetadataOperation<GpuBufferMetadata>(owner, GpuMetadataChange.Metadata));
+                Assert.Throws<InvalidOperationException>(() => new RHIResourceManager.MetadataOperation<GpuBufferMetadata>(owner, GpuMetadataChange.Metadata));
                 Assert.Null(manager.GetResourceRegistration(owner));
                 Assert.Same(original, manager.FindResource(GpuResourceKind.Buffer, owner.ResourceId));
                 Assert.Equal(revision, original.MetadataRevision);
@@ -54,11 +54,11 @@ public sealed class GpuMetadataOperationFoundationTests(HeadlessGLFixture fixtur
         {
             using var owner = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = null }).RequireResource(); owner.Allocate(16);
             using var alias = new Alias(owner.BufferId);
-            var manager = GpuResourceManagerSystem.CurrentManager;
+            var manager = RHIResourceManagerSystem.CurrentManager;
             var entry = manager?.GetResourceRegistration(owner) as GpuResourceMetadataEntry<GpuBufferMetadata>;
             if (entry is not null) manager!.AssociateResource(entry, alias);
             ulong revision = entry?.MetadataRevision ?? 0, storage = entry?.StorageRevision ?? 0;
-            using (var operation = new GpuResourceManager.MetadataOperation<GpuBufferMetadata>(owner, GpuMetadataChange.Storage))
+            using (var operation = new RHIResourceManager.MetadataOperation<GpuBufferMetadata>(owner, GpuMetadataChange.Storage))
             {
                 operation.RequireParticipation(owner, GpuMetadataChange.Metadata);
                 ResizeNative(owner, 64);
@@ -93,12 +93,12 @@ public sealed class GpuMetadataOperationFoundationTests(HeadlessGLFixture fixtur
         try
         {
             using var owner = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = null }).RequireResource(); owner.Allocate(16);
-            var manager = GpuResourceManagerSystem.CurrentManager;
+            var manager = RHIResourceManagerSystem.CurrentManager;
             var entry = manager?.GetResourceRegistration(owner) as GpuResourceMetadataEntry<GpuBufferMetadata>;
             var reader = new CountingReader();
             if (entry is not null) entry.Reader = reader;
             ulong storage = entry?.StorageRevision ?? 0;
-            using (var operation = new GpuResourceManager.MetadataOperation<GpuBufferMetadata>(owner, GpuMetadataChange.Metadata))
+            using (var operation = new RHIResourceManager.MetadataOperation<GpuBufferMetadata>(owner, GpuMetadataChange.Metadata))
             {
                 operation.RequireParticipation(owner, GpuMetadataChange.Storage);
                 ResizeNative(owner, 64);
@@ -106,7 +106,7 @@ public sealed class GpuMetadataOperationFoundationTests(HeadlessGLFixture fixtur
                 catch (InvalidOperationException) { operation.Interrupt(); }
                 Assert.Throws<InvalidOperationException>(() => owner.Allocate(128));
                 using var alias = new Alias(owner.BufferId);
-                Assert.Throws<InvalidOperationException>(() => new GpuResourceManager.MetadataOperation<GpuBufferMetadata>(alias, GpuMetadataChange.Metadata));
+                Assert.Throws<InvalidOperationException>(() => new RHIResourceManager.MetadataOperation<GpuBufferMetadata>(alias, GpuMetadataChange.Metadata));
                 Assert.True(new GpuBufferMetadataReader().TryRead(owner.BufferId, out var unchanged));
                 Assert.Equal((nint)64, unchanged.Capacity);
                 Assert.Throws<InvalidOperationException>(() => operation.Commit(new(64, BufferUsage.StaticDraw)));
@@ -114,7 +114,7 @@ public sealed class GpuMetadataOperationFoundationTests(HeadlessGLFixture fixtur
             Assert.Equal(0, reader.Reads);
             if (entry is not null) Assert.False(entry.MetadataAvailable);
             else Assert.Equal(0, owner.SizeBytes);
-            GpuResourceManager.RecoverWrapperMetadata(owner, reader);
+            RHIResourceManager.RecoverWrapperMetadata(owner, reader);
             Assert.Equal(1, reader.Reads);
             Assert.Equal(64, owner.SizeBytes);
             if (entry is not null) Assert.Equal(storage + 1, entry.StorageRevision);
@@ -137,9 +137,9 @@ public sealed class GpuMetadataOperationFoundationTests(HeadlessGLFixture fixtur
             using var owner = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = null }).RequireResource(); owner.Allocate(16);
             using var alias = new Alias(owner.BufferId);
             using var independent = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = null }).RequireResource(); independent.Allocate(8);
-            using (var operation = new GpuResourceManager.MetadataOperation<GpuBufferMetadata>(owner, GpuMetadataChange.Metadata))
+            using (var operation = new RHIResourceManager.MetadataOperation<GpuBufferMetadata>(owner, GpuMetadataChange.Metadata))
             {
-                Assert.Throws<InvalidOperationException>(() => new GpuResourceManager.MetadataOperation<GpuBufferMetadata>(alias, GpuMetadataChange.Storage));
+                Assert.Throws<InvalidOperationException>(() => new RHIResourceManager.MetadataOperation<GpuBufferMetadata>(alias, GpuMetadataChange.Storage));
                 Assert.Throws<InvalidOperationException>(() => owner.Allocate(128));
                 independent.Allocate(32);
                 Assert.Equal(32, independent.SizeBytes);
@@ -167,7 +167,7 @@ public sealed class GpuMetadataOperationFoundationTests(HeadlessGLFixture fixtur
             using var owner = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription
                 { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 16,
                     Usage = BufferUsage.StaticDraw }).RequireResource();
-            using (var operation = new GpuResourceManager.MetadataOperation<GpuBufferMetadata>(owner, GpuMetadataChange.Storage))
+            using (var operation = new RHIResourceManager.MetadataOperation<GpuBufferMetadata>(owner, GpuMetadataChange.Storage))
             {
                 using var binding = OpenGlStateCache.Current.BindBufferScope(BufferTarget.ArrayBuffer, owner.BufferId);
                 GL.BufferData(BufferTarget.ArrayBuffer, 64, IntPtr.Zero, BufferUsageHint.StaticDraw);
@@ -190,7 +190,7 @@ public sealed class GpuMetadataOperationFoundationTests(HeadlessGLFixture fixtur
         {
             using var owner = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = null }).RequireResource(); owner.Allocate(16);
             var reader = new CountingReader();
-            using (var operation = new GpuResourceManager.MetadataOperation<GpuBufferMetadata>(owner, GpuMetadataChange.Storage))
+            using (var operation = new RHIResourceManager.MetadataOperation<GpuBufferMetadata>(owner, GpuMetadataChange.Storage))
             {
                 ResizeNative(owner, 64);
                 Assert.True(reader.TryRead(owner.BufferId, out var candidate));
@@ -216,7 +216,7 @@ public sealed class GpuMetadataOperationFoundationTests(HeadlessGLFixture fixtur
         {
             using var owner = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = null }).RequireResource(); owner.Allocate(16);
             int id = owner.BufferId;
-            using (var operation = new GpuResourceManager.MetadataOperation<GpuBufferMetadata>(owner, GpuMetadataChange.Storage))
+            using (var operation = new RHIResourceManager.MetadataOperation<GpuBufferMetadata>(owner, GpuMetadataChange.Storage))
             {
                 RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Buffer, id));
                 Assert.Throws<InvalidOperationException>(() => operation.Commit(new(64, BufferUsage.StaticDraw)));
@@ -236,8 +236,8 @@ public sealed class GpuMetadataOperationFoundationTests(HeadlessGLFixture fixtur
         try
         {
             using var owner = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = null }).RequireResource(); owner.Allocate(16); id = owner.BufferId;
-            var manager = GpuResourceManagerSystem.CurrentManager!;
-            using (var operation = new GpuResourceManager.MetadataOperation<GpuBufferMetadata>(owner, GpuMetadataChange.Storage))
+            var manager = RHIResourceManagerSystem.CurrentManager!;
+            using (var operation = new RHIResourceManager.MetadataOperation<GpuBufferMetadata>(owner, GpuMetadataChange.Storage))
             {
                 manager.ObserveDeletion(GpuResourceKind.Buffer, id);
                 var next = manager.RegisterCreatedResource<GpuBufferMetadata>(GpuResourceKind.Buffer, id);
@@ -270,7 +270,7 @@ public sealed class GpuMetadataOperationFoundationTests(HeadlessGLFixture fixtur
         try
         {
             using var owner = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = null }).RequireResource(); owner.Allocate(16);
-            var manager = GpuResourceManagerSystem.CurrentManager!;
+            var manager = RHIResourceManagerSystem.CurrentManager!;
             var entry = Assert.IsType<GpuResourceMetadataEntry<GpuBufferMetadata>>(manager.GetResourceRegistration(owner));
             var original = new GpuBufferMetadataReader();
             ulong revision = entry.MetadataRevision;
@@ -278,7 +278,7 @@ public sealed class GpuMetadataOperationFoundationTests(HeadlessGLFixture fixtur
             {
                 if (command == 0) manager.PublishMetadata(entry, new(128, BufferUsage.DynamicDraw), GpuMetadataChange.Metadata);
                 else if (command == 1) manager.RefreshMetadata(entry, GpuMetadataChange.Metadata);
-                else using (new GpuResourceManager.MetadataOperation<GpuBufferMetadata>(owner, GpuMetadataChange.Metadata)) { }
+                else using (new RHIResourceManager.MetadataOperation<GpuBufferMetadata>(owner, GpuMetadataChange.Metadata)) { }
             }, catchFailure);
             entry.Reader = reader;
             ResizeNative(owner, 64);
@@ -305,9 +305,9 @@ public sealed class GpuMetadataOperationFoundationTests(HeadlessGLFixture fixtur
             using var source = RHICommandContext.Current.CreateDynamicTexture3D(new RHITextureDescription { Dimension = TextureDimension.TwoArray, Format = TextureFormat.Rgba8, Width = System.Math.Max(1, 4), Height = System.Math.Max(1, 4), Depth = System.Math.Max(1, 2), MipLevels = 1, Storage = (true ? ResourceStorageMode.Immutable : ResourceStorageMode.Mutable), Filter = TextureFilterMode.Linear, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
             using var view = RHICommandContext.Current.CreateTextureView(new RHITextureViewDescription { Source = source, Dimension = TextureDimension.TwoArray, Format = TextureFormat.Rgba8, BaseMip = 0, MipCount = 1, BaseLayer = 0, LayerCount = 2, Label = null }).RequireResource();
             var registration = Assert.IsType<GpuResourceMetadataEntry<GpuTextureMetadata>>(
-                GpuResourceManagerSystem.CurrentManager!.GetResourceRegistration(source));
+                RHIResourceManagerSystem.CurrentManager!.GetResourceRegistration(source));
             ulong revision = registration.StorageRevision;
-            using (var operation = new GpuResourceManager.MetadataOperation<GpuTextureMetadata>(source, GpuMetadataChange.Metadata))
+            using (var operation = new RHIResourceManager.MetadataOperation<GpuTextureMetadata>(source, GpuMetadataChange.Metadata))
             {
                 operation.RequireParticipation(source, GpuMetadataChange.Storage);
                 operation.Interrupt();
@@ -334,13 +334,13 @@ public sealed class GpuMetadataOperationFoundationTests(HeadlessGLFixture fixtur
             using var texture = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba8, Width = System.Math.Max(1, 4), Height = System.Math.Max(1, 4), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
             using var image = GpuFramebufferAttachment.FromTexture(texture);
             Assert.Equal(4, image.Width);
-            using (var operation = new GpuResourceManager.MetadataOperation<GpuTextureMetadata>(texture, GpuMetadataChange.Storage))
+            using (var operation = new RHIResourceManager.MetadataOperation<GpuTextureMetadata>(texture, GpuMetadataChange.Storage))
             {
-                Assert.Throws<InvalidOperationException>(() => GpuResourceManager.AcquireImageMetadata(image));
+                Assert.Throws<InvalidOperationException>(() => RHIResourceManager.AcquireImageMetadata(image));
                 Assert.Equal(0, image.Width);
             }
-            GpuResourceManager.RecoverWrapperMetadata(texture, new GpuTextureMetadataReader(texture.TextureTarget));
-            GpuResourceManager.AcquireImageMetadata(image);
+            RHIResourceManager.RecoverWrapperMetadata(texture, new GpuTextureMetadataReader(texture.TextureTarget));
+            RHIResourceManager.AcquireImageMetadata(image);
             Assert.Equal(4, image.Width);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
@@ -357,7 +357,7 @@ public sealed class GpuMetadataOperationFoundationTests(HeadlessGLFixture fixtur
             using var texture = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba8, Width = System.Math.Max(1, 4), Height = System.Math.Max(1, 4), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
             using var image = GpuFramebufferAttachment.FromTexture(texture);
             using var framebuffer = DynamicGpuFramebuffer.Create([image])!;
-            var manager = GpuResourceManagerSystem.CurrentManager!;
+            var manager = RHIResourceManagerSystem.CurrentManager!;
             var entry = Assert.IsType<GpuResourceMetadataEntry<GpuFramebufferMetadata>>(manager.GetResourceRegistration(framebuffer));
             var candidate = entry.Metadata;
             ulong revision = entry.MetadataRevision;
@@ -381,7 +381,7 @@ public sealed class GpuMetadataOperationFoundationTests(HeadlessGLFixture fixtur
         try
         {
             using var owner = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = null }).RequireResource(); owner.Allocate(16);
-            var manager = GpuResourceManagerSystem.CurrentManager!;
+            var manager = RHIResourceManagerSystem.CurrentManager!;
             var entry = Assert.IsType<GpuResourceMetadataEntry<GpuBufferMetadata>>(manager.GetResourceRegistration(owner));
             var native = new GpuBufferMetadataReader();
             ulong storage = entry.StorageRevision;

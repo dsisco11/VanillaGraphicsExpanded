@@ -21,7 +21,7 @@ internal sealed partial class OpenGlStateCache
     {
         if (!OpenGLObservationContext.TryGet(out var cache, out _, false)) return;
         if (!named && (FramebufferTarget)selector is not (FramebufferTarget.Framebuffer or FramebufferTarget.DrawFramebuffer or FramebufferTarget.ReadFramebuffer)) return;
-        var manager = GpuResourceManagerSystem.CurrentManager!;
+        var manager = RHIResourceManagerSystem.CurrentManager!;
         int id = named ? selector : cache.GetCurrentFramebuffer((FramebufferTarget)selector);
         if (extNamed) cache.RealizeFramebuffer(id, implicitCreation: true);
         var entry = manager.FindObservedResource(GpuResourceKind.Framebuffer, id) as GpuResourceMetadataEntry<GpuFramebufferMetadata>;

@@ -18,7 +18,7 @@ internal sealed unsafe partial class OpenGlStateCache
         bool valid = target is FramebufferTarget.Framebuffer or FramebufferTarget.ReadFramebuffer or FramebufferTarget.DrawFramebuffer;
         if (valid && framebuffer != 0)
         {
-            if (GpuResourceManagerSystem.CurrentManager?.FindObservedResource(GpuResourceKind.Framebuffer, framebuffer) is null)
+            if (RHIResourceManagerSystem.CurrentManager?.FindObservedResource(GpuResourceKind.Framebuffer, framebuffer) is null)
             {
                 cache.SetFramebufferSelectionKnowledge(target, null);
                 return;

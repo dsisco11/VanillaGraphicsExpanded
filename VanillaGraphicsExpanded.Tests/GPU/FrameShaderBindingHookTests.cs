@@ -106,7 +106,7 @@ public sealed class FrameShaderBindingHookTests(HeadlessGLFixture fixture) : Ren
                 var firstLights = Binding(GpuBindingRegistry.Ubo.Lights);
                 byte[] expectedLights = VgeLightsRenderer.Current.Bytes.ToArray();
                 Assert.Equal(expectedLights,ReadSnapshot(firstLights));
-                Assert.True(GpuUniformRingSystem.TryGetCurrent(out var ring));
+                Assert.True(RHIUniformRingSystem.TryGetCurrent(out var ring));
 #if DEBUG
                 long lightCopies = ring.AllocationsWritten;
 #endif

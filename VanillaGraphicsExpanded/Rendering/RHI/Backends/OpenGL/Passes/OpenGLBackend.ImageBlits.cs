@@ -112,10 +112,10 @@ internal sealed partial class OpenGLBackend
     {
         if (source.Resource.Kind != destination.Resource.Kind) return false;
         if (source.Resource.Kind == GpuResourceKind.Renderbuffer) return source.Name == destination.Name;
-        var from = GpuResourceManager.TextureStorageSelection(source.Resource);
-        var to = GpuResourceManager.TextureStorageSelection(destination.Resource);
-        nint fromStorage = GpuResourceManager.TextureStorageName(source.Resource);
-        nint toStorage = GpuResourceManager.TextureStorageName(destination.Resource);
+        var from = RHIResourceManager.TextureStorageSelection(source.Resource);
+        var to = RHIResourceManager.TextureStorageSelection(destination.Resource);
+        nint fromStorage = RHIResourceManager.TextureStorageName(source.Resource);
+        nint toStorage = RHIResourceManager.TextureStorageName(destination.Resource);
         return fromStorage == toStorage && source.Subresource.MipLevel + (from?.BaseLevel ?? 0)
                 == destination.Subresource.MipLevel + (to?.BaseLevel ?? 0)
             && source.Subresource.Layer + (from?.BaseLayer ?? 0) == destination.Subresource.Layer + (to?.BaseLayer ?? 0);

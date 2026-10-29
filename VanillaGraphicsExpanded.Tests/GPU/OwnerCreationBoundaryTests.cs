@@ -45,7 +45,7 @@ public sealed class OwnerCreationBoundaryTests(HeadlessGLFixture fixture)
             }));
             Assert.NotEqual(0, candidate);
             harmony.UnpatchAll(harmony.Id);
-            GpuResourceManagerSystem.CurrentManager!.OnRenderFrame(0, GpuResourceManager.Stage);
+            RHIResourceManagerSystem.CurrentManager!.OnRenderFrame(0, RHIResourceManager.Stage);
             Assert.False(family == 2 ? GL.IsRenderbuffer(candidate) : GL.IsFramebuffer(candidate));
             Assert.True(texture.IsValid);
             Assert.True(image.IsValid);
@@ -74,7 +74,7 @@ public sealed class OwnerCreationBoundaryTests(HeadlessGLFixture fixture)
                 else { using var owner = DynamicGpuFramebuffer.Create([image]); }
             }));
             harmony.UnpatchAll(harmony.Id);
-            GpuResourceManagerSystem.CurrentManager!.OnRenderFrame(0, GpuResourceManager.Stage);
+            RHIResourceManagerSystem.CurrentManager!.OnRenderFrame(0, RHIResourceManager.Stage);
             Assert.NotEqual(0, candidate);
             Assert.False(GL.IsFramebuffer(candidate));
             Assert.True(image.IsValid);
@@ -94,7 +94,7 @@ public sealed class OwnerCreationBoundaryTests(HeadlessGLFixture fixture)
         try
         {
             candidate = 0;
-            harmony.Patch(AccessTools.Method(typeof(GpuResourceManager), nameof(GpuResourceManager.AcquireImageMetadata)),
+            harmony.Patch(AccessTools.Method(typeof(RHIResourceManager), nameof(RHIResourceManager.AcquireImageMetadata)),
                 prefix: new HarmonyMethod(typeof(OwnerCreationBoundaryTests), nameof(FailProjection)));
             Assert.Same(failure, Assert.Throws<InvalidOperationException>(() =>
             {

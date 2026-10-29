@@ -56,7 +56,7 @@ submission rather than invented shader-type constraints.
 resource namespace. Resource entries receive deterministic indices ordered by kind and name;
 these indices are independent of GPU binding numbers.
 
-[GpuResourceManager](../VanillaGraphicsExpanded/Rendering/GpuResourceManager.Registry.cs) owns canonical
+[RHIResourceManager](../VanillaGraphicsExpanded/Rendering/RHIResourceManager.Registry.cs) owns canonical
 native program metadata and publishes snapshots after observed executable or interface changes.
 [GpuPreparedBindings](../VanillaGraphicsExpanded/Rendering/Spirv/GpuPreparedBindings.cs) consumes
 only a supplied complete snapshot, including sampler/image unit assignments, validates
@@ -114,7 +114,7 @@ Texture inputs use `GpuTextureRef` for owned textures, borrowers and native view
 conversions retain the managed object without exposing lifecycle operations to the shader contract.
 `GpuTextureBinding` combines that reference with explicit image access, mip, layer and format selection.
 Native-view selections are relative to the view; source offsets are used only for shared-storage checks.
-Resource usability belongs to `GpuResourceManager`, while shader compatibility and pass feedback checks
+Resource usability belongs to `RHIResourceManager`, while shader compatibility and pass feedback checks
 remain at submission. A reference follows intentional replacement by its owning wrapper, so equality
 alone never suppresses current-identity, availability or compatibility checks.
 

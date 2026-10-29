@@ -14,7 +14,7 @@ internal sealed partial class OpenGLBackend
         var snapshot = AcquireProgramInterface(program);
         if (!snapshot.ExecutableAvailable || snapshot.Resources.IsDefault || snapshot.TextureUnits.IsDefault)
             throw new InvalidOperationException("A complete executable snapshot is required for assignments.");
-        var manager = GpuResourceManagerSystem.CurrentManager;
+        var manager = RHIResourceManagerSystem.CurrentManager;
         var original = manager?.FindObservedResource(GpuResourceKind.Program, program);
         ulong expectedRevision = original?.MetadataRevision ?? 0;
         // Native callbacks may retire or replace an association. Never let subsequent edits target a reused name.

@@ -31,7 +31,7 @@ public sealed class ResourceAcquisitionBoundaryTests(HeadlessGLFixture fixture)
                 : ContextLocalTexture.Create(4, 4, TextureFormat.Rgba8);
             using var image = GpuFramebufferAttachment.FromTexture(owner);
             using var framebuffer = DynamicGpuFramebuffer.Create([image])!;
-            Assert.Equal(tracked, GpuResourceManagerSystem.CurrentManager is not null);
+            Assert.Equal(tracked, RHIResourceManagerSystem.CurrentManager is not null);
             int notifications = 0;
             framebuffer.AttachmentsChanged += () => notifications++;
             Assert.True(owner.Resize(8, 4));
@@ -39,7 +39,7 @@ public sealed class ResourceAcquisitionBoundaryTests(HeadlessGLFixture fixture)
             Assert.Equal(8, image.Width);
             image.ValidateSlot(FramebufferSlot.Color0);
             Assert.Equal(1, notifications);
-            Assert.Equal(tracked, GpuResourceManagerSystem.CurrentManager is not null);
+            Assert.Equal(tracked, RHIResourceManagerSystem.CurrentManager is not null);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
         finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
@@ -96,7 +96,7 @@ public sealed class ResourceAcquisitionBoundaryTests(HeadlessGLFixture fixture)
             using var reads = new ImageDescriptorCapture();
             int notifications = 0, projections = 0;
             imported.AttachmentsChanged += () => notifications++;
-            var manager = GpuResourceManagerSystem.CurrentManager!;
+            var manager = RHIResourceManagerSystem.CurrentManager!;
             var original = manager.GetResourceRegistration(imported)!;
             var failure = new InvalidOperationException("Injected image-composition failure.");
             duringProjection = () =>
@@ -108,7 +108,7 @@ public sealed class ResourceAcquisitionBoundaryTests(HeadlessGLFixture fixture)
                 if (fail) throw failure;
             };
             // Inject at the actual managed composition boundary, not an obsolete descriptor read.
-            harmony.Patch(AccessTools.Method(typeof(GpuResourceManager), nameof(GpuResourceManager.ResolveFramebufferAttachments)),
+            harmony.Patch(AccessTools.Method(typeof(RHIResourceManager), nameof(RHIResourceManager.ResolveFramebufferAttachments)),
                 prefix: new HarmonyMethod(typeof(ResourceAcquisitionBoundaryTests), nameof(ObserveProjection)));
             if (fail)
             {
@@ -123,7 +123,7 @@ public sealed class ResourceAcquisitionBoundaryTests(HeadlessGLFixture fixture)
             Assert.Same(original, manager.GetResourceRegistration(imported));
             duringProjection = null;
             harmony.UnpatchAll(harmony.Id);
-            if (fail) GpuResourceManager.RecoverWrapperMetadata(imported, GpuFramebufferMetadataReader.Instance);
+            if (fail) RHIResourceManager.RecoverWrapperMetadata(imported, GpuFramebufferMetadataReader.Instance);
             int recoveryReads = reads.Reads;
             imported.PublishRenderPassMetadata();
             Assert.True(imported.HasRenderPassMetadata);
@@ -144,16 +144,16 @@ public sealed class ResourceAcquisitionBoundaryTests(HeadlessGLFixture fixture)
         {
             using var owner = ContextLocalTexture.Create(4, 4, TextureFormat.Rgba8);
             using var image = GpuFramebufferAttachment.FromTexture(owner);
-            GpuResourceManager.InvalidateWrapperMetadata(owner);
+            RHIResourceManager.InvalidateWrapperMetadata(owner);
             Assert.Equal(0, image.Width);
             Assert.Throws<InvalidOperationException>(() => image.ValidateSlot(FramebufferSlot.Color0));
-            Assert.Throws<InvalidOperationException>(() => GpuResourceManager.RecoverWrapperMetadata(owner, GpuTextureMetadataReader.Instance));
+            Assert.Throws<InvalidOperationException>(() => RHIResourceManager.RecoverWrapperMetadata(owner, GpuTextureMetadataReader.Instance));
             Assert.Equal(0, image.Width);
             using var replacement = ContextLocalTexture.Create(4, 4, TextureFormat.Rgba8);
             using var replacementImage = GpuFramebufferAttachment.FromTexture(replacement);
             replacementImage.ValidateSlot(FramebufferSlot.Color0);
             Assert.Equal(4, replacementImage.Width);
-            Assert.Null(GpuResourceManagerSystem.CurrentManager);
+            Assert.Null(RHIResourceManagerSystem.CurrentManager);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
         finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }

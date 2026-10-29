@@ -16,7 +16,7 @@ internal sealed partial class OpenGlStateCache
         // Unknown EXT objects have no target certification yet. Retain validated input
         // facts on their existing entry; explicit discovery will verify the actual target.
         if (entry is null && extNamed)
-            entry = GpuResourceManagerSystem.CurrentManager?.FindObservedResource(GpuResourceKind.Texture, selector)
+            entry = RHIResourceManagerSystem.CurrentManager?.FindObservedResource(GpuResourceKind.Texture, selector)
                 is GpuResourceMetadataEntry<GpuTextureMetadata> { IsUsable: false, MetadataRevision: 0,
                     InitialDiscovery: GpuInitialDiscovery.ImplicitCreation } unknown ? unknown : null;
         if (entry?.IsRealized != true) return;

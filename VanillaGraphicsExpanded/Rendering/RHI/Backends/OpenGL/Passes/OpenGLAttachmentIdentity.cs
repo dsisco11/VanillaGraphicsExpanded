@@ -40,7 +40,7 @@ internal readonly record struct OpenGLAttachmentIdentity(GpuResource Resource, G
             var face = cube && !attachment.Layered ? CubeFace.PositiveX + attachment.Subresource.Layer : 0;
             if (cube && !attachment.Layered && (uint)attachment.Subresource.Layer >= 6)
                 throw new ArgumentOutOfRangeException(nameof(attachment));
-            image = GpuResourceManager.RequireTextureAttachmentMetadata(data,
+            image = RHIResourceManager.RequireTextureAttachmentMetadata(data,
                 new(attachment.Subresource.MipLevel, array ? attachment.Subresource.Layer : 0, face, attachment.Layered));
         }
         else

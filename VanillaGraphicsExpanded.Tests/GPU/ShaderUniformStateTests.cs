@@ -30,7 +30,7 @@ public sealed class ShaderUniformStateTests(HeadlessGLFixture fixture) : RenderT
         using var c = replacement!;
         using var output = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba32f, Width = System.Math.Max(1, 1), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         using var inputs = new UniformStateBuffer { Scalar = 7, Values = [2, 3], Vector = Vector3.Zero, Transform = Matrix4x4.Identity };
-        Assert.True(GpuUniformRingSystem.TryGetCurrent(out var ring));
+        Assert.True(RHIUniformRingSystem.TryGetCurrent(out var ring));
 #if DEBUG
         long allocations = ring.AllocationsWritten, bytes = ring.BytesWritten;
 #endif
@@ -61,7 +61,7 @@ public sealed class ShaderUniformStateTests(HeadlessGLFixture fixture) : RenderT
             out var pipeline, out string log), log);
         using var shader = new UniformStateComputeShader(pipeline!);
         using var output = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba32f, Width = System.Math.Max(1, 1), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
-        Assert.True(GpuUniformRingSystem.TryGetCurrent(out var ring));
+        Assert.True(RHIUniformRingSystem.TryGetCurrent(out var ring));
 #if DEBUG
         long allocations = ring.AllocationsWritten;
 #endif

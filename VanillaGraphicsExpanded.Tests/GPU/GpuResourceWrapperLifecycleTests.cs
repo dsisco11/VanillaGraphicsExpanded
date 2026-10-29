@@ -411,7 +411,7 @@ public sealed class GpuResourceWrapperLifecycleTests(HeadlessGLFixture fixture)
         Assert.False(borrower.IsValid);
         Assert.False(lifetime.Manager.IsResourceMetadataAvailable(borrower));
         Assert.True(GL.IsTexture(native));
-        lifetime.Manager.OnRenderFrame(0, GpuResourceManager.Stage);
+        lifetime.Manager.OnRenderFrame(0, RHIResourceManager.Stage);
         Assert.False(GL.IsTexture(native));
         Assert.Null(lifetime.Manager.FindResource(GpuResourceKind.Texture, native));
         Assert.Equal(GpuResourceRegistrationState.Deleted, original.State);
@@ -437,7 +437,7 @@ public sealed class GpuResourceWrapperLifecycleTests(HeadlessGLFixture fixture)
             // object under the same name. Stale queued deletion must leave that object untouched.
             lifetime.Manager.ObserveDeletion(GpuResourceKind.Texture, native);
             var replacement = lifetime.Manager.RegisterCreatedResource<GpuTextureMetadata>(GpuResourceKind.Texture, native);
-            lifetime.Manager.OnRenderFrame(0, GpuResourceManager.Stage);
+            lifetime.Manager.OnRenderFrame(0, RHIResourceManager.Stage);
             Assert.True(GL.IsTexture(native));
             Assert.Same(replacement, lifetime.Manager.FindResource(GpuResourceKind.Texture, native));
             Assert.False(borrower.IsValid);
@@ -460,7 +460,7 @@ public sealed class GpuResourceWrapperLifecycleTests(HeadlessGLFixture fixture)
         {
             RenderContextRegistry.Retire(fixture);
             RenderContextRegistry.RegisterCurrent(replacementContext, static _ => true);
-            lifetime.Manager.OnRenderFrame(0, GpuResourceManager.Stage);
+            lifetime.Manager.OnRenderFrame(0, RHIResourceManager.Stage);
             lifetime.Manager.Dispose();
             Assert.False(borrower.IsValid);
             Assert.True(GL.IsTexture(native));
@@ -634,16 +634,16 @@ public sealed class GpuResourceWrapperLifecycleTests(HeadlessGLFixture fixture)
     private sealed class ManagerLifetime : IDisposable
     {
         /// <summary>Installs a new context-scoped manager before wrappers capture their origin.</summary>
-        internal ManagerLifetime() { GpuResourceManagerSystem.Initialize(Manager); }
+        internal ManagerLifetime() { RHIResourceManagerSystem.Initialize(Manager); }
 
         /// <summary>Gets the manager whose registry and deferred work are under test.</summary>
-        internal GpuResourceManager Manager { get; } = new();
+        internal RHIResourceManager Manager { get; } = new();
 
         /// <summary>Drains native retirement in the original context and closes service admission.</summary>
         public void Dispose()
         {
             Manager.Dispose();
-            GpuResourceManagerSystem.Shutdown();
+            RHIResourceManagerSystem.Shutdown();
             GL.ActiveTexture(TextureUnit.Texture0);
             OpenGlStateCache.Current.InvalidateAll();
         }

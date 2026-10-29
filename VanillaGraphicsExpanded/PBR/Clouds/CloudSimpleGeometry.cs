@@ -72,7 +72,7 @@ internal sealed class CloudSimpleGeometry : GraphicsGeometry
     #region Private
     /// <summary>Detects retirement or native storage replacement without driver queries on ordinary draws.</summary>
     private static bool Matches(VAO mesh, StorageReceipt receipt) => !mesh.Disposed && mesh.Initialized
-        && GpuResourceManager.IsEngineGeometryConfigurationCurrent(receipt.Geometry.Inputs.ImportedArray!)
+        && RHIResourceManager.IsEngineGeometryConfigurationCurrent(receipt.Geometry.Inputs.ImportedArray!)
         && receipt.Geometry.Inputs.Streams.All(stream => stream.Range.Buffer.TryGetMetadata(out var data) && data.Capacity >= stream.Range.Offset + stream.Range.Length)
         && mesh.VaoId == receipt.Vao && mesh.vboIdIndex == receipt.Elements && mesh.xyzVboId == receipt.Positions
         && mesh.rgbaVboId == receipt.Colors && mesh.flagsVboId == receipt.Flags && mesh.customDataShortVboId == receipt.Instances;

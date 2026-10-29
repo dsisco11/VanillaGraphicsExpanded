@@ -178,7 +178,7 @@ internal sealed partial class OpenGlStateCache
     private static GpuResourceMetadataEntry<GpuTextureMetadata>? ResolveObservedTexture(int selector, int nativeTarget,
         int nativeUnit, bool named, bool explicitUnit, bool extNamed = false)
     {
-        var manager = GpuResourceManagerSystem.CurrentManager;
+        var manager = RHIResourceManagerSystem.CurrentManager;
         if (manager?.CanObserveNativeMetadata != true) return null;
         int target = nativeTarget;
         if (target >= (int)TextureTarget.TextureCubeMapPositiveX && target <= (int)TextureTarget.TextureCubeMapNegativeZ)

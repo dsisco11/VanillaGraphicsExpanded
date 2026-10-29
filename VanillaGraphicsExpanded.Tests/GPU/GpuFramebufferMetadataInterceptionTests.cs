@@ -31,7 +31,7 @@ public sealed class GpuFramebufferMetadataInterceptionTests(HeadlessGLFixture fi
             using var renderbuffer = RHICommandContext.Current.CreateRenderbuffer(new RHIRenderbufferDescription { Format = TextureFormat.Rgba8, Width = 8, Height = 4, Samples = 0, Label = null }).RequireResource();
             using var image = GpuFramebufferAttachment.FromTexture(first);
             using var framebuffer = DynamicGpuFramebuffer.Create([image])!;
-            var manager = GpuResourceManagerSystem.CurrentManager!;
+            var manager = RHIResourceManagerSystem.CurrentManager!;
             var entry = (GpuResourceMetadataEntry<GpuFramebufferMetadata>)manager.GetResourceRegistration(framebuffer)!;
             using var alias = new FramebufferAlias(framebuffer.FboId); manager.AssociateResource(entry, alias);
             ulong revision = framebuffer.AttachmentRevision;
@@ -80,7 +80,7 @@ public sealed class GpuFramebufferMetadataInterceptionTests(HeadlessGLFixture fi
                 Dimension = TextureDimension.TwoArray, Format = TextureFormat.Rgba8, Width = 2, Height = 2,
                 Depth = 2, MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest
             }).RequireResource();
-            var manager = GpuResourceManagerSystem.CurrentManager!;
+            var manager = RHIResourceManagerSystem.CurrentManager!;
             var entry = manager.AcquireResource(GpuResourceKind.Framebuffer, framebuffer, GpuFramebufferMetadataReader.Instance)!;
             using var alias = new FramebufferAlias(framebuffer);
             manager.AssociateResource(entry, alias);
@@ -110,7 +110,7 @@ public sealed class GpuFramebufferMetadataInterceptionTests(HeadlessGLFixture fi
         var harmony = Patch(); GL.CreateFramebuffers(1, out int target); GL.CreateFramebuffers(1, out int sentinel);
         try
         {
-            var manager = GpuResourceManagerSystem.CurrentManager!;
+            var manager = RHIResourceManagerSystem.CurrentManager!;
             var entry = manager.AcquireResource(GpuResourceKind.Framebuffer, target, GpuFramebufferMetadataReader.Instance)!;
             using var alias = new FramebufferAlias(target); manager.AssociateResource(entry, alias);
             OpenGLFramebufferSelection.Bind(OpenGlStateCache.Current, FramebufferTarget.DrawFramebuffer, target);
@@ -145,12 +145,12 @@ public sealed class GpuFramebufferMetadataInterceptionTests(HeadlessGLFixture fi
             { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba8, Width = 2, Height = 2, MipLevels = 1,
                 Storage = ResourceStorageMode.Mutable }).RequireResource();
             using var framebuffer = DynamicGpuFramebuffer.CreateEmpty("RejectedCandidate");
-            var manager = GpuResourceManagerSystem.CurrentManager!;
+            var manager = RHIResourceManagerSystem.CurrentManager!;
             var entry = (GpuResourceMetadataEntry<GpuFramebufferMetadata>)manager.GetResourceRegistration(framebuffer)!;
             var previous = entry.Metadata;
             ulong revision = entry.MetadataRevision;
             using var reads = new ImageDescriptorCapture();
-            using var operation = new GpuResourceManager.MetadataOperation<GpuFramebufferMetadata>(framebuffer, GpuMetadataChange.Metadata);
+            using var operation = new RHIResourceManager.MetadataOperation<GpuFramebufferMetadata>(framebuffer, GpuMetadataChange.Metadata);
             Assert.False(entry.IsUsable);
             if (modern)
             {
@@ -191,16 +191,16 @@ public sealed class GpuFramebufferMetadataInterceptionTests(HeadlessGLFixture fi
             { Dimension = rectangle ? TextureDimension.Rectangle : TextureDimension.Two, Format = TextureFormat.Rgba8,
                 Width = 2, Height = 2, MipLevels = 1, Storage = ResourceStorageMode.Mutable }).RequireResource();
             using var framebuffer = DynamicGpuFramebuffer.CreateEmpty("RejectedUnavailableSource");
-            var manager = GpuResourceManagerSystem.CurrentManager!;
+            var manager = RHIResourceManagerSystem.CurrentManager!;
             var source = (GpuResourceMetadataEntry<GpuTextureMetadata>)manager.GetResourceRegistration(texture)!;
             Assert.Equal(rectangle ? TextureDimension.Rectangle : TextureDimension.Two, source.Metadata.Target);
             var entry = (GpuResourceMetadataEntry<GpuFramebufferMetadata>)manager.GetResourceRegistration(framebuffer)!;
             var previous = entry.Metadata;
             ulong revision = entry.MetadataRevision;
-            GpuResourceManager.InvalidateWrapperMetadata(texture);
+            RHIResourceManager.InvalidateWrapperMetadata(texture);
             Assert.False(source.IsUsable);
             using var reads = new ImageDescriptorCapture();
-            using var operation = new GpuResourceManager.MetadataOperation<GpuFramebufferMetadata>(framebuffer, GpuMetadataChange.Metadata);
+            using var operation = new RHIResourceManager.MetadataOperation<GpuFramebufferMetadata>(framebuffer, GpuMetadataChange.Metadata);
             if (modern)
             {
                 OpenTK.Graphics.OpenGL4.GL.NamedFramebufferTextureLayer(framebuffer.FboId,
@@ -235,7 +235,7 @@ public sealed class GpuFramebufferMetadataInterceptionTests(HeadlessGLFixture fi
             using var texture = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba8, Width = System.Math.Max(1, 4), Height = System.Math.Max(1, 4), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
             using var image = GpuFramebufferAttachment.FromTexture(texture);
             using var framebuffer = DynamicGpuFramebuffer.Create([image])!;
-            var entry = (GpuResourceMetadataEntry<GpuFramebufferMetadata>)GpuResourceManagerSystem.CurrentManager!.GetResourceRegistration(framebuffer)!;
+            var entry = (GpuResourceMetadataEntry<GpuFramebufferMetadata>)RHIResourceManagerSystem.CurrentManager!.GetResourceRegistration(framebuffer)!;
             OpenGLFramebufferSelection.Bind(OpenGlStateCache.Current, FramebufferTarget.DrawFramebuffer, framebuffer.FboId);
             OpenGlStateCache.Current.InvalidateAll();
             using var capabilities = new DirectStateAccessCapabilityScope(direct);
@@ -246,7 +246,7 @@ public sealed class GpuFramebufferMetadataInterceptionTests(HeadlessGLFixture fi
             RejectAttachment(framebuffer.FboId, texture.TextureId);
             Assert.Equal(ErrorCode.InvalidValue, GL.GetError());
             Assert.Equal(expected, entry.Metadata.Attachments[FramebufferSlot.Color0]);
-            Assert.True(GpuResourceManagerSystem.CurrentManager!.IsResourceMetadataAvailable(framebuffer));
+            Assert.True(RHIResourceManagerSystem.CurrentManager!.IsResourceMetadataAvailable(framebuffer));
             framebuffer.Bind();
             Assert.Equal(texture.TextureId, framebuffer.GetColorTextureId(0));
             Assert.Equal(ErrorCode.NoError, GL.GetError());
@@ -284,7 +284,7 @@ public sealed class GpuFramebufferMetadataInterceptionTests(HeadlessGLFixture fi
         var harmony=Patch(); GL.CreateFramebuffers(1,out int framebuffer);
         try
         {
-            var entry=GpuResourceManagerSystem.CurrentManager!.AcquireResource(GpuResourceKind.Framebuffer,framebuffer,GpuFramebufferMetadataReader.Instance)!;
+            var entry=RHIResourceManagerSystem.CurrentManager!.AcquireResource(GpuResourceKind.Framebuffer,framebuffer,GpuFramebufferMetadataReader.Instance)!;
             ulong revision=entry.MetadataRevision;
             SetDefault(1,framebuffer,(FramebufferDefaultParameter)(-1),1);
             Assert.Equal(ErrorCode.InvalidEnum,GL.GetError());
@@ -302,8 +302,8 @@ public sealed class GpuFramebufferMetadataInterceptionTests(HeadlessGLFixture fi
         fixture.UseContextLocalResources();
         var origin=RenderContextRegistry.Current();
         var current=origin;
-        using var manager=new GpuResourceManager(() => current, static _ => true);
-        GpuResourceManagerSystem.Initialize(manager);
+        using var manager=new RHIResourceManager(() => current, static _ => true);
+        RHIResourceManagerSystem.Initialize(manager);
         try
         {
             using var texture=RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba8, Width = System.Math.Max(1, 4), Height = System.Math.Max(1, 4), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
@@ -323,7 +323,7 @@ public sealed class GpuFramebufferMetadataInterceptionTests(HeadlessGLFixture fi
             finally { current=origin; }
             Assert.Equal(ErrorCode.NoError,GL.GetError());
         }
-        finally { manager.Dispose(); GpuResourceManagerSystem.Shutdown(); OpenGlStateCache.Current.InvalidateAll(); }
+        finally { manager.Dispose(); RHIResourceManagerSystem.Shutdown(); OpenGlStateCache.Current.InvalidateAll(); }
     }
     #endregion
     #region Private

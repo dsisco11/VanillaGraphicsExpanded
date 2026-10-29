@@ -33,13 +33,13 @@ public sealed class ShaderPreparedMetadataValidationTests(HeadlessGLFixture fixt
             ShaderPreparedSubmission.ValidateSampler(sampler, (GpuTexture)texture);
             ShaderPreparedSubmission.ValidateSamplerArray(sampler, [texture, sentinel]);
             ShaderPreparedSubmission.ValidateImage(image, texture);
-            GpuResourceManager.InvalidateWrapperMetadata(texture);
+            RHIResourceManager.InvalidateWrapperMetadata(texture);
             Assert.Throws<InvalidOperationException>(() => ShaderPreparedSubmission.ValidateSampler(sampler, (GpuTexture)texture));
             Assert.Throws<InvalidOperationException>(() => ShaderPreparedSubmission.ValidateSamplerArray(sampler, [sentinel, texture]));
             Assert.Throws<InvalidOperationException>(() => ShaderPreparedSubmission.ValidateImage(image, texture));
             Assert.Equal(sentinel.TextureId, GL.GetInteger(GetPName.TextureBinding2D));
-            if (managed) GpuResourceManager.RecoverWrapperMetadata(texture, new GpuTextureMetadataReader(TextureDimension.Two));
-            else Assert.Throws<InvalidOperationException>(() => GpuResourceManager.RecoverWrapperMetadata(texture, new GpuTextureMetadataReader(TextureDimension.Two)));
+            if (managed) RHIResourceManager.RecoverWrapperMetadata(texture, new GpuTextureMetadataReader(TextureDimension.Two));
+            else Assert.Throws<InvalidOperationException>(() => RHIResourceManager.RecoverWrapperMetadata(texture, new GpuTextureMetadataReader(TextureDimension.Two)));
             // A local owner with withdrawn facts is replaced from supplied inputs, never rediscovered.
             using var replacement = managed ? null : RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription
             { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba32f, Width = 4, Height = 4, MipLevels = 1,
@@ -66,9 +66,9 @@ public sealed class ShaderPreparedMetadataValidationTests(HeadlessGLFixture fixt
             storage.Allocate(64);
             var binding = Entry(ShaderBindingKind.StorageBlock, default, [true]) with { MinimumSize = 32 };
             Validate(binding, storage, ranged);
-            GpuResourceManager.InvalidateWrapperMetadata(storage);
+            RHIResourceManager.InvalidateWrapperMetadata(storage);
             Assert.Throws<InvalidOperationException>(() => Validate(binding, storage, ranged));
-            GpuResourceManager.RecoverWrapperMetadata(storage, new GpuBufferMetadataReader());
+            RHIResourceManager.RecoverWrapperMetadata(storage, new GpuBufferMetadataReader());
             Validate(binding, storage, ranged);
             storage.Allocate(16);
             if (ranged) Assert.Throws<InvalidOperationException>(() => Validate(binding, storage, ranged));

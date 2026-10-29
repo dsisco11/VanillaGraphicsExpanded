@@ -14,7 +14,7 @@ internal sealed partial class OpenGLBackend
         var shader = description.Shader.RequireShader();
         if (shader.Description.Kind != ShaderKind.Compute)
             throw new ArgumentException("A compute pipeline requires a compute executable.", nameof(description));
-        if (GpuResourceManager.RequireProgramSnapshot(shader.Program).ComputeLocalSize is null)
+        if (RHIResourceManager.RequireProgramSnapshot(shader.Program).ComputeLocalSize is null)
             throw new InvalidOperationException("The compute executable has no published workgroup size.");
         return new(new RHIComputePipeline(this, description), null);
     }

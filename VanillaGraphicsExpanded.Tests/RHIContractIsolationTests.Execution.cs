@@ -121,8 +121,8 @@ public sealed partial class RHIContractIsolationTests
         if (IsNativeImplementation(type)) return false;
         if (type == typeof(ManagedGraphicsGeometry)) return true;
         for (var current = type; current is not null; current = current.DeclaringType)
-            if (typeof(GpuResource).IsAssignableFrom(current) || current == typeof(GpuResourceManager)
-                || current == typeof(GpuResourceDisposalQueue)) return true;
+            if (typeof(GpuResource).IsAssignableFrom(current) || current == typeof(RHIResourceManager)
+                || current == typeof(RHIResourceDisposalQueue)) return true;
         return false;
     }
 

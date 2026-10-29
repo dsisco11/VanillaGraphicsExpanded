@@ -8,7 +8,7 @@ namespace VanillaGraphicsExpanded.Rendering;
 /// <summary>
 /// RAII wrapper around an OpenGL texture-buffer view (<c>GL_TEXTURE_BUFFER</c>).
 /// A buffer view is a texture object that exposes a buffer object's data as texels for sampling in shaders.
-/// Deletion is deferred to <see cref="GpuResourceManager"/> when available.
+/// Deletion is deferred to <see cref="RHIResourceManager"/> when available.
 /// </summary>
 public class GpuBufferView : GpuResource<GpuTextureMetadata>, IDisposable
 {
@@ -59,7 +59,7 @@ public class GpuBufferView : GpuResource<GpuTextureMetadata>, IDisposable
     /// <summary>
     /// Reports a live texture association whose tracked backing metadata remains available.
     /// </summary>
-    public new bool IsValid => GpuResourceManager.TryGetTextureReferenceMetadata(this, out _);
+    public new bool IsValid => RHIResourceManager.TryGetTextureReferenceMetadata(this, out _);
 
     /// <summary>Creates a consumer-only value without transferring backing ownership.</summary>
     public static implicit operator GpuTextureRef(GpuBufferView? value) => new(value);

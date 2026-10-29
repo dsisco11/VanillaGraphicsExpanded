@@ -12,7 +12,7 @@ internal sealed partial class OpenGlStateCache
         cache.InterruptNativeResourceOperation(GpuResourceKind.VertexArray, vao);
         cache.InvalidateVertexConfiguration(vao);
         if (elementBinding) cache.elementArrayBufferByVao.Remove(vao);
-        var manager = GpuResourceManagerSystem.CurrentManager;
+        var manager = RHIResourceManagerSystem.CurrentManager;
         if (manager?.CanObserveNativeMetadata != true) return;
         var entry = manager.FindObservedResource(GpuResourceKind.VertexArray, vao)
             as GpuResourceMetadataEntry<GpuVertexArrayMetadata>;

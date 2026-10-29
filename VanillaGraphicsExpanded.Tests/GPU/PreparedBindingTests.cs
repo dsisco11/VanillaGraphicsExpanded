@@ -132,7 +132,7 @@ public sealed class PreparedBindingTests(HeadlessGLFixture fixture) : RenderTest
         contract.Samplers.Remove("terrainTex");
         contract.Samplers.Add("diagnostic-only-name", original);
         contract.Samplers.Add("inactive-required", new(31, true));
-        var snapshot = GpuResourceManager.AcquireProgramMetadata(shader.ProgramId);
+        var snapshot = RHIResourceManager.AcquireProgramMetadata(shader.ProgramId);
         using var acquisition = new ProgramAcquisitionCapture();
         acquisition.Calibrate(shader.ProgramId);
         var prepared = new GpuProgramInterface(shader.ProgramId, [contract], metadata: snapshot).PreparedBindings;

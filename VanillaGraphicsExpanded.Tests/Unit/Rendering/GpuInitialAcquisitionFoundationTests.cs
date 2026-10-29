@@ -11,7 +11,7 @@ public sealed class GpuInitialAcquisitionFoundationTests
     [Fact]
     public void MissingIdentityDoesNotAuthorizeDiscoveryOrRecovery()
     {
-        using var manager = new GpuResourceManager(static () => (1, 1), static _ => true);
+        using var manager = new RHIResourceManager(static () => (1, 1), static _ => true);
         var reader = new RecursiveReader(manager, false, 0);
         Assert.Null(manager.AcquireResource(GpuResourceKind.Buffer, 7, reader));
         Assert.Null(manager.RecoverResource(GpuResourceKind.Buffer, 7, reader));
@@ -29,7 +29,7 @@ public sealed class GpuInitialAcquisitionFoundationTests
     [InlineData(true, 2)]
     public void RecordedInitialReadRetainsOriginalIdentity(bool recover, int outcome)
     {
-        using var manager = new GpuResourceManager(static () => (1, 1), static _ => true);
+        using var manager = new RHIResourceManager(static () => (1, 1), static _ => true);
         var original = manager.RecordPreexistingBuffer(7);
         manager.ActivateResourceObservation();
         var reader = new RecursiveReader(manager, recover, outcome);
@@ -72,7 +72,7 @@ public sealed class GpuInitialAcquisitionFoundationTests
 
     #region Private
     /// <summary>Attempts same-ID discovery from its first native-read callback and supplies a controlled outcome.</summary>
-    private sealed class RecursiveReader(GpuResourceManager manager, bool recover, int outcome) : IGpuResourceMetadataReader<GpuBufferMetadata>
+    private sealed class RecursiveReader(RHIResourceManager manager, bool recover, int outcome) : IGpuResourceMetadataReader<GpuBufferMetadata>
     {
         internal int Reads;
         internal GpuResourceRegistration? ObservedEntry;

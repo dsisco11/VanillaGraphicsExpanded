@@ -25,7 +25,7 @@ public sealed class UniformLifetimeSharingTests(HeadlessGLFixture fixture) : Ren
         using var ring = new GpuUniformRingBuffer(65536, 3, mapped);
         using var block = new DirectWriteBlock();
         ring.BeginFrame(0);
-        GpuUniformRingSystem.SetCurrent(ring);
+        RHIUniformRingSystem.SetCurrent(ring);
         try
         {
             block.Write(3f);
@@ -41,7 +41,7 @@ public sealed class UniformLifetimeSharingTests(HeadlessGLFixture fixture) : Ren
 #endif
             ring.EndFrame();
         }
-        finally { GpuUniformRingSystem.ClearCurrent(); }
+        finally { RHIUniformRingSystem.ClearCurrent(); }
     }
 
     /// <summary>Ring exhaustion preserves the last publication and dirty work until the next frame can retry.</summary>
@@ -54,7 +54,7 @@ public sealed class UniformLifetimeSharingTests(HeadlessGLFixture fixture) : Ren
         using var ring = new GpuUniformRingBuffer(16, 3, mapped);
         using var block = new DirectWriteBlock();
         ring.BeginFrame(0);
-        GpuUniformRingSystem.SetCurrent(ring);
+        RHIUniformRingSystem.SetCurrent(ring);
         try
         {
             block.Write(3f);
@@ -73,7 +73,7 @@ public sealed class UniformLifetimeSharingTests(HeadlessGLFixture fixture) : Ren
             Assert.False(block.IsDirty);
             ring.EndFrame();
         }
-        finally { GpuUniformRingSystem.ClearCurrent(); }
+        finally { RHIUniformRingSystem.ClearCurrent(); }
     }
 
     /// <summary>Independent snapshots explicitly restore their retained ranges without copying CPU contents.</summary>
@@ -88,7 +88,7 @@ public sealed class UniformLifetimeSharingTests(HeadlessGLFixture fixture) : Ren
         inner.AtlasSize = new(128, 64);
         using var ring = new GpuUniformRingBuffer(65536, 3, false);
         ring.BeginFrame(0);
-        GpuUniformRingSystem.SetCurrent(ring);
+        RHIUniformRingSystem.SetCurrent(ring);
         try
         {
             var outerSnapshot = ResolveSnapshot(outer);
@@ -105,7 +105,7 @@ public sealed class UniformLifetimeSharingTests(HeadlessGLFixture fixture) : Ren
 #endif
             ring.EndFrame();
         }
-        finally { GpuUniformRingSystem.ClearCurrent(); }
+        finally { RHIUniformRingSystem.ClearCurrent(); }
     }
 
     /// <summary>The migrated resolve owner keeps its parameters on reload and releases retained storage on final disposal.</summary>
@@ -117,7 +117,7 @@ public sealed class UniformLifetimeSharingTests(HeadlessGLFixture fixture) : Ren
         var shader = programs.Create<LumOnWorldProbeClipmapResolveShaderProgram>();
         using var ring = new GpuUniformRingBuffer(65536, 3, false);
         ring.BeginFrame(0);
-        GpuUniformRingSystem.SetCurrent(ring);
+        RHIUniformRingSystem.SetCurrent(ring);
         try
         {
             shader.AtlasSize = new(64, 32);
@@ -140,7 +140,7 @@ public sealed class UniformLifetimeSharingTests(HeadlessGLFixture fixture) : Ren
             ring.PersistentStorage.Collect();
             Assert.Equal(0, ring.PersistentStorage.PendingBytes);
         }
-        finally { GpuUniformRingSystem.ClearCurrent(); }
+        finally { RHIUniformRingSystem.ClearCurrent(); }
     }
 
     /// <summary>An interrupted upload leaves dirty work pending and the previous complete range unchanged.</summary>
@@ -155,7 +155,7 @@ public sealed class UniformLifetimeSharingTests(HeadlessGLFixture fixture) : Ren
         using var ring = new GpuUniformRingBuffer(65536, 3, mapped);
         using var block = new PackedUniformBuffer(16, usage);
         ring.BeginFrame(0);
-        GpuUniformRingSystem.SetCurrent(ring);
+        RHIUniformRingSystem.SetCurrent(ring);
         try
         {
             byte[] bytes = new byte[16];
@@ -188,7 +188,7 @@ public sealed class UniformLifetimeSharingTests(HeadlessGLFixture fixture) : Ren
 #endif
             ring.EndFrame();
         }
-        finally { GpuUniformRingSystem.ClearCurrent(); }
+        finally { RHIUniformRingSystem.ClearCurrent(); }
     }
 
     /// <summary>Borrowing programs cannot retire shared publication; compatible reload and slot changes need no upload.</summary>
@@ -207,7 +207,7 @@ public sealed class UniformLifetimeSharingTests(HeadlessGLFixture fixture) : Ren
         block.SetBytes(bytes);
         using var ring = new GpuUniformRingBuffer(65536, 3, mapped);
         ring.BeginFrame(0);
-        GpuUniformRingSystem.SetCurrent(ring);
+        RHIUniformRingSystem.SetCurrent(ring);
         try
         {
             Assert.True(VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindUniformSnapshot(GpuBindingRegistry.Ubo.Object, block.Capture()));
@@ -239,7 +239,7 @@ public sealed class UniformLifetimeSharingTests(HeadlessGLFixture fixture) : Ren
 #endif
             ring.EndFrame();
         }
-        finally { GpuUniformRingSystem.ClearCurrent(); }
+        finally { RHIUniformRingSystem.ClearCurrent(); }
     }
     #endregion
 
