@@ -69,9 +69,7 @@ internal sealed partial class GpuResourceManager
             if (tracked.IsUsable) return tracked;
             if (tracked.OperationInProgress) return null;
             if (tracked.CompletionInProgress) return null;
-            // TODO(Rendering.MetadataLifecycle.todo, resource acquisition tasks): apply the
-            // recorded-discovery gate to the remaining kinds as each family is migrated.
-            if (UsesMaintainedLifecycle(kind))
+            // Only an explicitly recorded initial cause permits this one discovery.
             {
                 var discovery = tracked.InitialDiscovery;
                 if (discovery == GpuInitialDiscovery.None) return null;
@@ -84,26 +82,7 @@ internal sealed partial class GpuResourceManager
             tracked.Reader = reader;
             return RefreshMetadata(tracked, tracked.MetadataRevision == 0 ? GpuMetadataChange.None : GpuMetadataChange.Metadata) ? tracked : null;
         }
-        if (UsesMaintainedLifecycle(kind)) return null;
-        // TODO(Rendering.MetadataLifecycle.todo, remaining family acquisition tasks): remove
-        // provisional readback admission once each kind maintains its creation/configuration facts.
-        // Admit an unavailable provisional identity before reading so reentrant acquisition
-        // cannot recursively rediscover the same object. Failed reads remove only this entry.
-        var entry = RegisterCreatedResource(kind, id, reader);
-        bool acquired = false;
-        try
-        {
-            acquired = RefreshMetadata(entry, GpuMetadataChange.None);
-            return acquired ? entry : null;
-        }
-        finally
-        {
-            if (!acquired)
-            {
-                metadataRegistry.TryRemove(new System.Collections.Generic.KeyValuePair<GpuResourceHandle, GpuResourceRegistration>(key, entry));
-                entry.Invalidate(GpuResourceRegistrationState.Deleted);
-            }
-        }
+        return null;
     }
 
     /// <summary>Explicitly recovers external facts even when a previous canonical snapshot is available.</summary>
@@ -113,10 +92,7 @@ internal sealed partial class GpuResourceManager
         RequireMetadataContext();
         ValidateMetadataType<TMetadata>(kind, id);
         var entry = FindResource(kind, id) as GpuResourceMetadataEntry<TMetadata>;
-        // TODO(Rendering.MetadataLifecycle.todo, remaining family recovery tasks): require
-        // original registrations for every kind; remove discovery through this recovery fallback.
-        if (entry is null) return UsesMaintainedLifecycle(kind)
-            ? null : AcquireResource(kind, id, reader);
+        if (entry is null) return null;
         if (entry.State != GpuResourceRegistrationState.Live || entry.OperationInProgress || entry.CompletionInProgress) return null;
         if (kind == GpuResourceKind.Buffer && !entry.IsRealized && entry.InitialDiscovery == GpuInitialDiscovery.None) return null;
         entry.InitialDiscovery = GpuInitialDiscovery.None;
@@ -152,6 +128,19 @@ internal sealed partial class GpuResourceManager
         {
             if (!pipeline.IsRealized) return null;
             PublishMetadata(pipeline, new GpuProgramPipelineMetadata(), GpuMetadataChange.Metadata);
+            return entry;
+        }
+        if (kind is GpuResourceKind.VertexArray or GpuResourceKind.TransformFeedback or GpuResourceKind.Sampler)
+        {
+            if (!entry.IsRealized)
+            {
+                // A recorded EXT use may have referred to an older object; only an
+                // explicit recovery reader can establish that identity after discovery failed.
+                if ((entry.PendingChange & GpuMetadataChange.Metadata) == 0) return null;
+                entry.Reader = reader;
+                return RefreshMetadata(entry, GpuMetadataChange.Metadata) ? entry : null;
+            }
+            PublishMetadata(entry, default(TMetadata), GpuMetadataChange.Metadata);
             return entry;
         }
         entry.Reader = reader;
@@ -239,12 +228,6 @@ internal sealed partial class GpuResourceManager
 
     #region Private
     #region Context and registration validation
-    /// <summary>Identifies families whose covered creation facts cannot be replaced by implicit discovery.</summary>
-    private static bool UsesMaintainedLifecycle(GpuResourceKind kind) => kind is GpuResourceKind.Buffer
-        or GpuResourceKind.MemoryObject or GpuResourceKind.Query or GpuResourceKind.Sync or GpuResourceKind.Semaphore
-        or GpuResourceKind.Texture or GpuResourceKind.Renderbuffer or GpuResourceKind.Framebuffer
-        or GpuResourceKind.Shader or GpuResourceKind.Program or GpuResourceKind.ProgramPipeline;
-
     /// <summary>Ensures all ordinary registry operations and native reads stay on their originating context thread.</summary>
     private void RequireMetadataContext()
     {

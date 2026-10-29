@@ -111,29 +111,33 @@ public sealed class EngineLiquidPoolGeometryTests(HeadlessGLFixture fixture) : R
         }
     }
 
-    /// <summary>Signed upload-style attributes are rejected individually instead of silently replacing the pooled unsigned contract.</summary>
+    /// <summary>Native signed interpretation does not override the authored unsigned pool declaration.</summary>
     [Theory]
     [InlineData(3)]
     [InlineData(5)]
     [InlineData(6)]
-    public void SignedIntegerAttributeRejectsPublication(int location)
+    public void NativeIntegerInterpretationDoesNotOverrideDeclaration(int location)
     {
         EnsureContextValid(); using var storage = new LiquidPoolStorage();
         OpenGLVertexSelection.Bind(OpenGlStateCache.Current, storage.Mesh.VaoId);
         OpenGLBufferBindings.BindBuffer(OpenGlStateCache.Current, BufferTarget.ArrayBuffer, location == 3 ? storage.Mesh.flagsVboId : storage.Mesh.customDataIntVboId);
         GL.VertexAttribIPointer(location, 1, VertexAttribIntegerType.Int, location == 3 ? 4 : 8, (IntPtr)(location == 6 ? 4 : 0));
-        Assert.Throws<InvalidOperationException>(() => new EngineLiquidPoolGeometry(storage.Pool));
+        using var reads = new GeometryDescriptorCapture();
+        using var geometry = new EngineLiquidPoolGeometry(storage.Pool);
+        Assert.True(geometry.IsCurrent); Assert.Equal(0, reads.Reads);
     }
 
-    /// <summary>Interleaved custom integers require eight-byte stride rather than scalar tight packing.</summary>
+    /// <summary>Private realization uses authored eight-byte integer strides without scanning the engine array.</summary>
     [Fact]
-    public void InvalidCustomIntegerStrideRejectsPublication()
+    public void NativeIntegerStrideDoesNotOverrideDeclaration()
     {
         EnsureContextValid(); using var storage = new LiquidPoolStorage();
         OpenGLVertexSelection.Bind(OpenGlStateCache.Current, storage.Mesh.VaoId);
         OpenGLBufferBindings.BindBuffer(OpenGlStateCache.Current, BufferTarget.ArrayBuffer, storage.Mesh.customDataIntVboId);
         GL.VertexAttribIPointer(5, 1, VertexAttribIntegerType.UnsignedInt, 0, IntPtr.Zero);
-        Assert.Throws<InvalidOperationException>(() => new EngineLiquidPoolGeometry(storage.Pool));
+        using var reads = new GeometryDescriptorCapture();
+        using var geometry = new EngineLiquidPoolGeometry(storage.Pool);
+        Assert.True(geometry.IsCurrent); Assert.Equal(0, reads.Reads);
     }
     #endregion
 }

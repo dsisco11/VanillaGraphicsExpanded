@@ -21,6 +21,7 @@ internal sealed unsafe partial class OpenGlStateCache
         IntPtr @offset = unchecked((IntPtr)a7);
         if (!OpenGLObservationContext.TryGet(out _, out _, false)) return;
         Current.ObserveExtVertexBufferRealization(vaobj, buffer);
+        if (!Current.PrepareVertexObservation(vaobj, true, true, RejectVertexIndex(index) || RejectVertexFormat(size, (int)type, 0, normalized, 0) || Current.RejectVertexPointer(offset, stride, buffer))) return;
         OpenGlStateCache.ObserveVertexMetadata(unchecked((int)@vaobj), true, false);
     }
     #endregion

@@ -14,9 +14,23 @@ internal sealed partial class OpenGlStateCache
     internal bool RealizeExtVertexArray(int vao)
     {
         var manager = GpuResourceManagerSystem.CurrentManager;
-        if (vao == 0 || manager?.FindObservedResource(GpuResourceKind.VertexArray, vao)
-            is not GpuResourceMetadataEntry<GpuVertexArrayMetadata> entry) return false;
-        if (!entry.IsRealized) manager.PublishMetadata(entry, new GpuVertexArrayMetadata(), GpuMetadataChange.None);
+        if (vao == 0 || manager?.CanObserveNativeMetadata != true) return false;
+        var entry = manager.FindObservedResource(GpuResourceKind.VertexArray, vao) as GpuResourceMetadataEntry<GpuVertexArrayMetadata>;
+        if (entry is null)
+        {
+            // A supported EXT use may refer to an older generated name. Record this
+            // specific ambiguity for explicit adoption; never invent a default layout.
+            entry = manager.RegisterCreatedResource<GpuVertexArrayMetadata>(GpuResourceKind.VertexArray, vao);
+            entry.InitialDiscovery = GpuInitialDiscovery.ImplicitCreation;
+            entry.BeginRefresh(GpuMetadataChange.Metadata);
+            return false;
+        }
+        if (entry.InitialDiscovery != GpuInitialDiscovery.None || entry.PendingChange != GpuMetadataChange.None) return false;
+        if (!entry.IsRealized)
+        {
+            manager.PublishMetadata(entry, new GpuVertexArrayMetadata(), GpuMetadataChange.None);
+            EstablishVertexArrayElementKnowledge(vao, 0);
+        }
         return true;
     }
 

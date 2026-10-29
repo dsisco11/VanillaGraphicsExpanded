@@ -37,22 +37,22 @@ internal sealed partial class OpenGLBackend
             var guard = cache.EnterResourceOperation(new(GpuResourceKind.Sampler, id));
             try
             {
-            if (request.Has(0)) { GL.SamplerParameter(id, Native.SamplerParameterName.TextureMinFilter, MinFilter(request.MinFilter)); CheckSamplerStep(owner, id, guard); }
-            if (request.Has(1)) { GL.SamplerParameter(id, Native.SamplerParameterName.TextureMagFilter, MinFilter(request.MagFilter)); CheckSamplerStep(owner, id, guard); }
-            if (request.Has(2)) { GL.SamplerParameter(id, Native.SamplerParameterName.TextureWrapS, Address(request.AddressS)); CheckSamplerStep(owner, id, guard); }
-            if (request.Has(3)) { GL.SamplerParameter(id, Native.SamplerParameterName.TextureWrapT, Address(request.AddressT)); CheckSamplerStep(owner, id, guard); }
-            if (request.Has(4)) { GL.SamplerParameter(id, Native.SamplerParameterName.TextureWrapR, Address(request.AddressR)); CheckSamplerStep(owner, id, guard); }
-            if (request.Has(5)) { GL.SamplerParameter(id, Native.SamplerParameterName.TextureMinLod, request.MinLod); CheckSamplerStep(owner, id, guard); }
-            if (request.Has(6)) { GL.SamplerParameter(id, Native.SamplerParameterName.TextureMaxLod, request.MaxLod); CheckSamplerStep(owner, id, guard); }
-            if (request.Has(7)) { GL.SamplerParameter(id, Native.SamplerParameterName.TextureLodBias, request.LodBias); CheckSamplerStep(owner, id, guard); }
-            if (request.Has(8)) { GL.SamplerParameter(id, Native.SamplerParameterName.TextureCompareMode, request.Compare ? (int)Native.TextureCompareMode.CompareRefToTexture : (int)Native.TextureCompareMode.None); CheckSamplerStep(owner, id, guard); }
-            if (request.Has(9)) { GL.SamplerParameter(id, Native.SamplerParameterName.TextureCompareFunc, Comparison(request.Comparison)); CheckSamplerStep(owner, id, guard); }
+            if (request.Has(0)) { OpenGLDriverCalls.SamplerParameter(id, Native.SamplerParameterName.TextureMinFilter, MinFilter(request.MinFilter)); CheckSamplerStep(owner, id, guard); }
+            if (request.Has(1)) { OpenGLDriverCalls.SamplerParameter(id, Native.SamplerParameterName.TextureMagFilter, MinFilter(request.MagFilter)); CheckSamplerStep(owner, id, guard); }
+            if (request.Has(2)) { OpenGLDriverCalls.SamplerParameter(id, Native.SamplerParameterName.TextureWrapS, Address(request.AddressS)); CheckSamplerStep(owner, id, guard); }
+            if (request.Has(3)) { OpenGLDriverCalls.SamplerParameter(id, Native.SamplerParameterName.TextureWrapT, Address(request.AddressT)); CheckSamplerStep(owner, id, guard); }
+            if (request.Has(4)) { OpenGLDriverCalls.SamplerParameter(id, Native.SamplerParameterName.TextureWrapR, Address(request.AddressR)); CheckSamplerStep(owner, id, guard); }
+            if (request.Has(5)) { OpenGLDriverCalls.SamplerParameter(id, Native.SamplerParameterName.TextureMinLod, request.MinLod); CheckSamplerStep(owner, id, guard); }
+            if (request.Has(6)) { OpenGLDriverCalls.SamplerParameter(id, Native.SamplerParameterName.TextureMaxLod, request.MaxLod); CheckSamplerStep(owner, id, guard); }
+            if (request.Has(7)) { OpenGLDriverCalls.SamplerParameter(id, Native.SamplerParameterName.TextureLodBias, request.LodBias); CheckSamplerStep(owner, id, guard); }
+            if (request.Has(8)) { OpenGLDriverCalls.SamplerParameter(id, Native.SamplerParameterName.TextureCompareMode, request.Compare ? (int)Native.TextureCompareMode.CompareRefToTexture : (int)Native.TextureCompareMode.None); CheckSamplerStep(owner, id, guard); }
+            if (request.Has(9)) { OpenGLDriverCalls.SamplerParameter(id, Native.SamplerParameterName.TextureCompareFunc, Comparison(request.Comparison)); CheckSamplerStep(owner, id, guard); }
             if (request.Has(10))
             {
                 var value = request.BorderColor;
-                unsafe { float* values = stackalloc float[4] { value.X, value.Y, value.Z, value.W }; GL.SamplerParameter(id, Native.SamplerParameterName.TextureBorderColor, values); CheckSamplerStep(owner, id, guard); }
+                unsafe { float* values = stackalloc float[4] { value.X, value.Y, value.Z, value.W }; OpenGLDriverCalls.SamplerParameter(id, Native.SamplerParameterName.TextureBorderColor, values); CheckSamplerStep(owner, id, guard); }
             }
-            if (request.Has(11)) { GL.SamplerParameter(id, (Native.SamplerParameterName)Native.All.TextureMaxAnisotropyExt, request.Anisotropy); CheckSamplerStep(owner, id, guard); }
+            if (request.Has(11)) { OpenGLDriverCalls.SamplerParameter(id, (Native.SamplerParameterName)Native.All.TextureMaxAnisotropyExt, request.Anisotropy); CheckSamplerStep(owner, id, guard); }
         }
         finally { cache.ExitResourceOperation(guard); }
     }

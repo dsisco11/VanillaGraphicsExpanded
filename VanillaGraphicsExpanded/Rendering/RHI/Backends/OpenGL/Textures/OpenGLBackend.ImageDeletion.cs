@@ -42,7 +42,7 @@ internal static partial class OpenGLImageDeletionCalls
     internal static bool WasDeleted(GpuResourceKind kind, int id) => kind switch
     {
         GpuResourceKind.Texture => !GL.IsTexture(id), GpuResourceKind.Renderbuffer => !GL.IsRenderbuffer(id),
-        GpuResourceKind.Sampler => !GL.IsSampler(id), _ => throw new ArgumentOutOfRangeException(nameof(kind))
+        GpuResourceKind.Sampler => !OpenGLDriverCalls.IsSampler(id), _ => throw new ArgumentOutOfRangeException(nameof(kind))
     };
     #endregion
 }

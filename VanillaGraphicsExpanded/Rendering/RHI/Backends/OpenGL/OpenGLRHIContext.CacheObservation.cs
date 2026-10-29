@@ -14,8 +14,5 @@ internal static partial class OpenGLRHIContext
     /// <summary>Reads unknown native selector knowledge for the existing cache collaborator.</summary>
     internal static int ReadImageSelector(GetPName parameter)
     { _ = Current; return backend!.ReadImageSelector(parameter); }
-    /// <summary>Acquires unknown transform-feedback activity at an explicit engine boundary.</summary>
-    internal static bool ReadTransformFeedbackActive()
-    { _ = Current; return backend!.ReadTransformFeedbackActive(); }
     #endregion
 }

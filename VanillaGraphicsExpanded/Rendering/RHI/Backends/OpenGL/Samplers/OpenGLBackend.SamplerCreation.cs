@@ -11,7 +11,7 @@ internal sealed partial class OpenGLBackend
     {
         RequireContext();
         int name = 0;
-        try { GL.CreateSamplers(1, out name); }
+        try { OpenGLDriverCalls.CreateSamplers(1, out name); }
         finally { id = name; }
         RequireContext();
         return name == 0 ? null : new GpuSamplerMetadata();

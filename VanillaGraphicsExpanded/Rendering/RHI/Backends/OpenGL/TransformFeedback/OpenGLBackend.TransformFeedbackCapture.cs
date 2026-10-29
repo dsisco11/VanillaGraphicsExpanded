@@ -47,7 +47,7 @@ internal sealed partial class OpenGLBackend
                     var buffer = RequireRange(output.Range.Buffer, output.Range.Offset, output.Range.Length);
                     buffer.RetainPassReference(); retained.Add(buffer);
                     // Resolve owner-following inputs again at execution; never capture into a former allocation.
-                    GL.TransformFeedbackBufferRange(owner.TransformFeedbackId, output.Slot, (int)buffer.ResourceId,
+                    OpenGLDriverCalls.TransformFeedbackBufferRange(owner.TransformFeedbackId, output.Slot, (int)buffer.ResourceId,
                         output.Range.Offset, output.Range.Length);
                     RequireContext();
                 }

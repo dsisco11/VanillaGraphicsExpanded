@@ -38,8 +38,8 @@ internal partial interface IRHIResourceExecution
     /// <summary>Executes explicit manager-authorized acquisition without changing publication authority.</summary>
     bool ReadShaderMetadata(nint id, out GpuShaderMetadata metadata);
     #endregion
-    #region Geometry certification
-    /// <summary>Executes explicit manager-authorized acquisition without changing publication authority.</summary>
-    bool CertifyGeometryConfiguration(int array, RHIVertexLayout layout, IReadOnlyList<RHIVertexStream> streams, RHIIndexStream indices, bool indexSelectedAtDraw);
+    #region Geometry admission
+    /// <summary>Validates authored geometry/ranges without inspecting the external native layout.</summary>
+    void ValidateImportedGeometry(int array, RHIVertexLayout layout, IReadOnlyList<RHIVertexStream> streams, RHIIndexStream indices);
     #endregion
 }

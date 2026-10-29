@@ -13,8 +13,6 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GPU")]
 public sealed class RHIImageTests(HeadlessGLFixture fixture)
 {
-    private static int samplerCalls, candidateSampler;
-    private static readonly InvalidOperationException samplerFailure = new("Injected sampler configuration failure.");
 
     #region Public API
     /// <summary>Multisample copies retain their samples; client-pixel transfers remain unsupported for these images.</summary>
@@ -229,29 +227,34 @@ public sealed class RHIImageTests(HeadlessGLFixture fixture)
         finally { cache[(kind, target, format)] = support; Finish(); }
     }
 
-    /// <summary>A partially configured candidate is retired once and the original native exception propagates.</summary>
+    /// <summary>Native-boundary interruption retires only its partially configured candidate.</summary>
     [Fact]
-    public void SamplerConfigurationFailureRetiresOnlyCandidate()
+    public unsafe void SamplerConfigurationFailureRetiresOnlyCandidate()
     {
         Start();
-        var harmony = new HarmonyLib.Harmony("VGE.Tests.RHIImageSamplerFailure");
-        samplerCalls = 0; candidateSampler = 0;
-        var native = HarmonyLib.AccessTools.Method(typeof(GL), nameof(GL.SamplerParameter), [typeof(int), typeof(SamplerParameterName), typeof(int)]);
-        harmony.Patch(native, prefix: new HarmonyLib.HarmonyMethod(typeof(RHIImageTests), nameof(RejectSecondSamplerParameter)));
         try
         {
-            var failure = Assert.Throws<InvalidOperationException>(() => RHICommandContext.Current.CreateSampler(new RHISamplerDescription
+            using var survivor = RHICommandContext.Current.CreateSampler(new()).RequireResource();
+            using var native = new NativeDriverCapture();
+            nint original = native.Original("glSamplerParameteri");
+            int calls = 0, candidate = 0;
+            native.Add("glSamplerParameteri", new SamplerIntegerSetter((id, parameter, value) =>
+            {
+                ((delegate* unmanaged[Stdcall]<uint, int, int, void>)original)(id, parameter, value);
+                candidate = unchecked((int)id);
+                if (++calls == 2) native.Observe(() =>
+                    OpenGlStateCache.Current.InterruptNativeResourceOperation(GpuResourceKind.Sampler, candidate));
+            }));
+            native.Install();
+            Assert.Throws<InvalidOperationException>(() => RHICommandContext.Current.CreateSampler(new RHISamplerDescription
                 { MinFilter = SamplerFilter.Nearest, MagFilter = SamplerFilter.Linear, AddressS = SamplerAddressMode.ClampToEdge }));
-            Assert.Same(samplerFailure, failure);
-            Assert.Equal(2, samplerCalls);
-            Assert.NotEqual(0, candidateSampler);
+            Assert.Equal(2, calls); Assert.NotEqual(0, candidate);
             GpuResourceManagerSystem.CurrentManager!.OnRenderFrame(0, GpuResourceManager.Stage);
-            Assert.False(GL.IsSampler(candidateSampler));
+            Assert.False(GL.IsSampler(candidate)); Assert.True(GL.IsSampler(survivor.SamplerId));
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { harmony.UnpatchAll(harmony.Id); Finish(); }
+        finally { Finish(); }
     }
-
     /// <summary>Coverage sampling is rejected before allocation when unavailable and otherwise follows its named optional operation.</summary>
     [Fact]
     public void CoverageSamplingHonorsOptionalAdmission()
@@ -275,13 +278,9 @@ public sealed class RHIImageTests(HeadlessGLFixture fixture)
     #endregion
 
     #region Private
-    /// <summary>Interrupts the second setter before it can execute, preserving the first native effect.</summary>
-    private static void RejectSecondSamplerParameter(int __0)
-    {
-        candidateSampler = __0;
-        if (++samplerCalls == 2) throw samplerFailure;
-    }
-
+    /// <summary>Matches native integer sampler configuration without throwing across unmanaged dispatch.</summary>
+    [System.Runtime.InteropServices.UnmanagedFunctionPointer(System.Runtime.InteropServices.CallingConvention.StdCall)]
+    private delegate void SamplerIntegerSetter(uint name, int parameter, int value);
     /// <summary>Creates controlled dimensions, preserving array layers independently of mip geometry.</summary>
     private static RHITextureDescription Description(TextureDimension dimension, bool immutable)
     {

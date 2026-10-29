@@ -44,9 +44,9 @@ internal sealed class EngineGeometryInputs : IDisposable
             var elements = new BufferRecipient(mesh.vboIdIndex);
             recipients.Add(elements);
             var indexStream = new RHIIndexStream(new(new GpuBufferRef(elements), 0, checked((nint)indices * sizeof(uint))));
-            // The manager owns acquisition and its native reader. The resulting packet
+            // The manager validates supplied geometry without scanning the engine VAO. The packet
             // retains the original revision and must be re-admitted after external mutation.
-            var certificate = GpuResourceManager.AcquireEngineGeometryConfiguration(array, layout, vertexStreams, indexStream, indexSelectedAtDraw: true);
+            var certificate = GpuResourceManager.AcquireEngineGeometryConfiguration(array, layout, vertexStreams, indexStream);
             Inputs = new(layout, vertexStreams, indexStream, certificate, borrow);
         }
         catch { Dispose(); throw; }

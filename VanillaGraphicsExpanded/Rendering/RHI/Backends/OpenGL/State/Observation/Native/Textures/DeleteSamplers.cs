@@ -13,11 +13,11 @@ internal sealed unsafe partial class OpenGlStateCache
     {
         int count = unchecked((int)a0);
         int* ids = unchecked((int*)a1);
-        if (!OpenGLObservationContext.TryGet(out var cache, out _)) return;
+        if (!OpenGLObservationContext.TryGet(out var cache, out _, false)) return;
 
         if (count <= 0) return;
         foreach (var value in new ReadOnlySpan<int>(ids, count))
-            cache.CompleteResourceDeletion(GpuResourceKind.Sampler, unchecked((int)value), unchecked((int)value) == 0 || !GL.IsSampler(unchecked((int)value)));
+            cache.CompleteResourceDeletion(GpuResourceKind.Sampler, unchecked((int)value), unchecked((int)value) == 0 || !OpenGLDriverCalls.IsSampler(unchecked((int)value)));
     }
     #endregion
 }

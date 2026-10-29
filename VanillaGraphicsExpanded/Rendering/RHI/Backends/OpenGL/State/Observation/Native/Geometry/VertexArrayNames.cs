@@ -23,8 +23,6 @@ internal sealed unsafe partial class OpenGlStateCache
     /// <summary>Consumes factory outputs once; configuration certification remains with its existing owner.</summary>
     private static void ObserveVertexArrayNames(int count, uint* names, bool realized)
     {
-        // TODO(Rendering.MetadataLifecycle.todo, vertex-array lifecycle tasks): complete
-        // configuration maintenance and consumer closure; this prerequisite records identity only.
         if (count <= 0 || names == null || !OpenGLObservationContext.TryGet(out _, out _, false)) return;
         var manager = GpuResourceManagerSystem.CurrentManager!;
         for (int i = 0; i < count; i++)
@@ -32,7 +30,11 @@ internal sealed unsafe partial class OpenGlStateCache
             int id = unchecked((int)names[i]);
             if (id == 0 || manager.FindResource(GpuResourceKind.VertexArray, id) is not null) continue;
             var entry = manager.RegisterCreatedResource<GpuVertexArrayMetadata>(GpuResourceKind.VertexArray, id);
-            if (realized) manager.PublishMetadata(entry, new GpuVertexArrayMetadata(), GpuMetadataChange.None);
+            if (realized)
+            {
+                manager.PublishMetadata(entry, new GpuVertexArrayMetadata(), GpuMetadataChange.None);
+                Current.EstablishVertexArrayElementKnowledge(id, 0);
+            }
         }
     }
     #endregion

@@ -14,8 +14,11 @@ internal sealed unsafe partial class OpenGlStateCache
         int @array = unchecked((int)a0);
         if (!OpenGLObservationContext.TryGet(out _, out _, false)) return;
         if (GpuResourceManagerSystem.CurrentManager!.FindObservedResource(GpuResourceKind.VertexArray, array)
-            is GpuResourceMetadataEntry<GpuVertexArrayMetadata> { IsRealized: false } entry)
+            is GpuResourceMetadataEntry<GpuVertexArrayMetadata> { IsRealized: false, InitialDiscovery: GpuInitialDiscovery.None, PendingChange: GpuMetadataChange.None } entry)
+        {
             entry.Manager.PublishMetadata(entry, new GpuVertexArrayMetadata(), GpuMetadataChange.None);
+            Current.EstablishVertexArrayElementKnowledge(array, 0);
+        }
         OpenGlStateCache.ObserveVertexSelection(unchecked((int)@array));
     }
     #endregion

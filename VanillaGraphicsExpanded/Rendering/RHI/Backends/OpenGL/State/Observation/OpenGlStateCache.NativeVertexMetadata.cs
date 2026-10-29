@@ -16,9 +16,8 @@ internal sealed partial class OpenGlStateCache
         if (manager?.CanObserveNativeMetadata != true) return;
         var entry = manager.FindObservedResource(GpuResourceKind.VertexArray, vao)
             as GpuResourceMetadataEntry<GpuVertexArrayMetadata>;
-        if (entry is null || InterruptNativeMetadataCompletion(entry, GpuMetadataChange.Metadata)) return;
+        if (entry is not { IsRealized: true, IsUsable: true }) return;
         // There are no native fields to acquire. Publication itself owns dependent notification and reentry exclusion.
-        entry.BeginRefresh(GpuMetadataChange.Metadata);
         manager.PublishMetadata(entry, default(GpuVertexArrayMetadata), GpuMetadataChange.Metadata);
     }
     #endregion

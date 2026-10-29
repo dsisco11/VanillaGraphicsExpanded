@@ -19,6 +19,7 @@ public sealed class GpuResourceOperationContextTests(HeadlessGLFixture fixture)
     public void AvailableInputsStillRequireOwningContextAndThread(bool worker)
     {
         fixture.EnsureContextValid();
+        fixture.UseContextLocalResources();
         var origin = RenderContextRegistry.Current();
         var current = origin;
         using var manager = new GpuResourceManager(() => current, static _ => true);

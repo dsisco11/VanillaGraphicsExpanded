@@ -436,16 +436,23 @@ recorded publication; successful execution commits only the captured revision, p
 
 ## Imported geometry certification
 
-The manager authorizes cold external vertex-array configuration discovery through the RHI context.
-The backend performs native checks, while the completed receipt retains the original array association
-and metadata revision. Context-local receipts use the selected array's observed configuration revision,
-so unrelated array configuration does not expire their proof. An engine array with explicitly draw-time
-index selection may remain detached; after certifying its attributes and detached state, the backend
-realizes a private array from the declared streams and original index allocation. A different nonzero
-index attachment rejects certification. Native engine arrays are never repaired as a side effect.
-`IsEngineGeometryConfigurationCurrent` checks the receipt against current context/cache knowledge without
-native configuration reads. Engine adapters retain layout, ownership and borrow-expiry policy.
+The manager admits engine geometry from its original array/buffer identities and supplied layout,
+stream ranges and index declaration. Admission validates those declarations without scanning native
+attribute configuration or repairing the engine array. The backend creates a private VAO from the
+retained declaration when drawing. The import receipt retains original association, metadata revision,
+context and selected-array configuration epoch; external changes expire it without descriptor queries.
+Unrelated arrays do not expire the receipt. Borrow lifetime and engine layout policy remain with the
+integration adapter. No current external producer supplies a certificate permitting direct native-array
+reuse, so imports conservatively use private realization.
 
+Vertex arrays, transform-feedback objects and samplers keep empty canonical schemas. Their generated
+names remain reservations until specified use; core Create operations realize immediately. Sampler
+parameter/getter/IsSampler use initializes a known generated sampler without parameter discovery.
+Vertex configuration classifies supplied argument rejection before revising original certificates and
+retains established element-buffer associations. Feedback output changes revise their target object;
+selection and activity remain executed knowledge. External Begin/Resume can require a targeted active/
+paused outcome read because linked capture-output configuration is deliberately not mirrored. End/Pause
+reuse established history. Neither an empty schema nor an external wrapper authorizes descriptor reads.
 ## Binding knowledge and retirement
 
 `GpuTextureRef` is a readonly consumer value holding one private `GpuResource<GpuTextureMetadata>`
@@ -467,8 +474,7 @@ can be suppressed. Exact external calls preserve execution and native error beha
 object-local draw routes, pixel-store fields, represented fixed state and established bindings propagate
 from legal arguments. Generic/indexed buffer aliases and selected-VAO element bindings share the existing
 selector authority. Genuinely unknown identities and unspecified conversion outcomes retain targeted acquisition. Required selector-restoration scopes preserve separate read/draw framebuffer selections and original VAO
-element-buffer associations. Vertex helpers retain authored fields and resolve only required unknown
-facts through the manager; the canonical VAO schema contains no full layout mirror.
+element-buffer associations. Geometry retains authored fields and original configuration revisions; the canonical VAO schema contains no full layout mirror.
 Restoration scopes retain their original physical context lifetime. Disposing an old scope in another
 admitted context neither restores its numeric names there nor discards that context's known selectors.
 Context admission abandons the previous lifetime's scope-stack bookkeeping.

@@ -47,7 +47,7 @@ the nested binding owner. Observer presence is source evidence only, not effect 
 | `glCreateProgramPipelines` | `GL`, `GL4` | No creation/import observer declared |
 | `glCreateQueries` | `GL`, `GL4` | Implemented; see maintained synchronization routes below |
 | `glCreateRenderbuffers` | `GL`, `GL4` | Implemented; maintained image lifecycle |
-| `glCreateSamplers` | `GL`, `GL4` | No creation/import observer declared |
+| `glCreateSamplers` | `GL`, `GL4` | Implemented; maintained empty-schema routes below |
 | `glCreateShader` | `GL`, `GL4` | No creation/import observer declared |
 | `glCreateShaderObjectARB` | `GL+Arb` | No creation/import observer declared |
 | `glCreateShaderProgramEXT` | `GL+Ext`, `GL4+Ext` | No creation/import observer declared |
@@ -55,7 +55,7 @@ the nested binding owner. Observer presence is source evidence only, not effect 
 | `glCreateShaderProgramvEXT` | `GL+Ext`, `GL4+Ext` | No creation/import observer declared |
 | `glCreateSyncFromCLeventARB` | `GL+Arb`, `GL4+Arb` | Excluded from supported lifecycle scope; see resolved exclusions below |
 | `glCreateTextures` | `GL`, `GL4` | Implemented; maintained image lifecycle |
-| `glCreateTransformFeedbacks` | `GL`, `GL4` | No creation/import observer declared |
+| `glCreateTransformFeedbacks` | `GL`, `GL4` | Implemented; maintained empty-schema routes below |
 | `glCreateVertexArrays` | `GL`, `GL4` | Creation observer implemented; see maintained buffer routes below |
 | `glFenceSync` | `GL`, `GL4` | Implemented; see maintained synchronization routes below |
 | `glGenBuffers` | `GL`, `GL4` | Creation observer implemented; see maintained buffer routes below |
@@ -70,12 +70,12 @@ the nested binding owner. Observer presence is source evidence only, not effect 
 | `glGenQueriesARB` | `GL+Arb` | Implemented; see maintained synchronization routes below |
 | `glGenRenderbuffers` | `GL`, `GL4` | Implemented; maintained image lifecycle |
 | `glGenRenderbuffersEXT` | `GL+Ext` | Implemented; maintained image lifecycle |
-| `glGenSamplers` | `GL`, `GL4` | No creation/import observer declared |
+| `glGenSamplers` | `GL`, `GL4` | Implemented; maintained empty-schema routes below |
 | `glGenSemaphoresEXT` | `GL+Ext` | Implemented; see maintained synchronization routes below |
 | `glGenSymbolsEXT` | `GL+Ext` | Excluded legacy feature |
 | `glGenTextures` | `GL`, `GL4` | Implemented; maintained image lifecycle |
 | `glGenTexturesEXT` | `GL+Ext` | Implemented; maintained image lifecycle |
-| `glGenTransformFeedbacks` | `GL`, `GL4` | No creation/import observer declared |
+| `glGenTransformFeedbacks` | `GL`, `GL4` | Implemented; maintained empty-schema routes below |
 | `glGenVertexArrays` | `GL`, `GL4` | Creation observer implemented; see maintained buffer routes below |
 | `glGenVertexShadersEXT` | `GL+Ext` | Excluded legacy feature |
 | `glImportMemoryFdEXT` | `GL+Ext` | Implemented; see maintained buffer and memory-object routes below |
@@ -318,7 +318,7 @@ remain below RHI and are removed when no permitted caller remains.
 | RefreshTextureImages, RefreshGeneratedTextureMetadata (removed) | ImageDefinitions.cs derives supplied definitions and generated descendants; narrow unsized/sample outputs remain distinct. | 4 |
 | RefreshFramebufferField (removed) | Native framebuffer effects publish individual supplied descriptors/defaults; explicit original-entry recovery remains separate. | 4 |
 | AcquireProgramMetadata (ProgramAcquisition.cs), PublishProgramAssignment (ProgramFields.cs) | Available interface reuse or recorded pre-install discovery only; supplied signed array/block values patch the same snapshot with no getters. Reflected executable output remains explicit. | 5 |
-| AcquireEngineGeometryConfiguration, IsEngineGeometryConfigurationCurrent (GeometryAcquisition.cs) | Reuse a producer certificate and revision, or realize a private array from authored layout/retained streams. Unknown external VAO layout alone cannot justify routine query. See closure below. | 6 |
+| AcquireEngineGeometryConfiguration, IsEngineGeometryConfigurationCurrent (GeometryAcquisition.cs) | Retain the original receipt/revision and realize a private array from authored layout/retained streams; no current producer supplies a direct-array certificate. Unknown external VAO layout alone cannot justify routine query. See closure below. | 6 |
 | AssignImageMetadata, ProjectTextureImage, ProjectLayeredCubeImage, ProjectRenderbufferImage (ImageMetadata.cs); PublishOwnerImages (OwnerImages.cs) | Preserve query-free projection/notification, including intentional owner replacement. Resolve unavailable selections without recapturing. | 4 |
 | GpuBufferMetadataReader.TryRead → IRHIResourceExecution.TryReadBufferMetadata | Keep only proven initial adoption/explicit failed storage recovery; GpuBufferObject and geometry ordinary paths stop calling it. | 2 |
 | GpuTextureMetadataReader.TryRead → ReadExternalTexture; GpuTextureImageReader.TryRead → ReadExternalTextureImage | No covered target/image scans. Retain permitted initial or targeted recovery only. | 4 |
@@ -330,7 +330,7 @@ remain below RHI and are removed when no permitted caller remains.
 | OpenGlStateCache.TryObserveBufferAssociation, ReadBufferTextureParameter (NativeBufferTexture.cs) | Replace ordinary buffer/range association readback and implicit backing acquisition with supplied association and maintained capacity; only named initial/recovery causes may query. | 4 |
 | OpenGLBackend.ReadExecutableStageMetadata (ShaderStageQueries.cs) | Retain explicit linked-executable output for stage metadata; not an ordinary setter validation query. | 5 |
 | ReadExternalProgramUnit, ReadExternalProgramBlockBinding, RefreshProgramFields | Removed with normal assignment readback; explicit original-entry executable recovery retains the sole required reader boundary. | 5 |
-| OpenGLBackend.CertifyGeometryConfiguration, ReadGeometryInteger (Geometry/OpenGLBackend.GeometryAcquisition.cs) | No covered configuration scanning merely because canonical VAO metadata is empty; migrate original-array reuse decision as below. | 6 |
+| OpenGLBackend.ValidateImportedGeometry (Geometry/OpenGLBackend.GeometryAcquisition.cs) | Validates supplied streams/ranges and records original dependencies; native CertifyGeometryConfiguration/ReadGeometryInteger scan removed. No current producer supplies a direct-array certificate; imports use private realization. | 6 |
 | IRHIResourceExecution.IsExternalBuffer, IsExternalTexture, IsExternalRenderbuffer | Not ordinary metadata admission probes; internal image readers retain their explicit native identity checks. The unused generic reader IsResource member and shader/program RHI validity routes are removed. | 2/4/5 |
 | ReadFormatCapabilities (GpuSupport cache through RHI); ReadWindowSurface | Keep explicit capability/surface admission, outside resource descriptor acquisition and native callbacks. Surface zero has no creation interception. | 2 activation; 4 consumers |
 | RHICommandContext and OpenGLBackend AcquireBorrowedTexture, AcquireAttachmentImage, AcquireExternalAttachmentTexture, AcquireProgramInterface | Retain semantic boundary; propagate explicit acquisition cause to manager, never choose query policy from raw ID/missing entry. | 4/5 |
@@ -340,7 +340,7 @@ remain below RHI and are removed when no permitted caller remains.
 
 `GpuVertexBindingReader` and `GpuResourceManager.AcquireVertexBindingFacts`, named in older analysis,
 are absent from current source. Their historical entries are not extra implementations to retain.
-Current geometry discovery is `OpenGLBackend.CertifyGeometryConfiguration` and its helper above.
+Geometry admission now uses `OpenGLBackend.ValidateImportedGeometry` without native configuration reads.
 Likewise the old BeginNative*/Complete adapter transaction pairs are not migration targets; the current
 post-call Observe* methods and manager completion exclusion are the relevant code.
 `GpuVertexAttribBinding` itself is also absent; do not resurrect it to satisfy a historical inventory.
@@ -552,3 +552,54 @@ Optional ARB/desktop EXT factory and completion aliases use deterministic origin
 slots; this is delivery/effect evidence, not optional alias hardware qualification. External-producer
 hardware interop, installed-game startup, appearance and performance remain unqualified. Remaining
 geometry/feedback/sampler migration and combined parent qualification retain their separate checklist gates.
+## Maintained geometry, feedback and sampler routes
+
+GenVertexArrays/GenTransformFeedbacks/GenSamplers preserve reserved original identities. Core Create
+variants publish realized empty snapshots once. BindVertexArray and BindTransformFeedback realize tracked
+reservations; the latter preserves known active/unpaused rejection and uses only resulting selector recovery
+when incoming activity cannot establish acceptance. Specified EXT VAO uses/getters realize tracked generated
+names separately from configuration acceptance. An unknown EXT use records implicit-creation provenance
+and an unavailable pending effect; failed initial adoption consumes that cause. Later binds/EXT uses cannot
+publish guessed defaults or renew discovery. Only explicit original-entry recovery can resolve that failure.
+Sampler Bind/parameter/getter/IsSampler and multi-bind first use initialize known generated samplers;
+parameter values remain unrepresented. Getter observations preserve supplied outputs and observe first use without issuing additional reads.
+
+VertexAcceptance classifies indices, format/storage interpretation, stride/offsets, known zero-buffer core
+pointer rejection and per-element batch effects before ObserveVertexMetadata expires certificates. EXT
+initialization remains independent of invalid configuration arguments. Proven rejection preserves revisions
+and operation guards; accepted/uncertain changes invalidate affected helper knowledge. The existing per-array
+EBO cache retains guaranteed creation zero and established element assignments. Named/default-array behavior
+respects cached profile facts; no native attribute/layout mirror or capability discovery is added.
+
+ObserveFeedbackConfiguration advances only the original capture-object revision. Named buffer-base/range,
+bound indexed setup and supported EXT aliases share existing execution knowledge; multi-bind publishes once
+per affected object. Known active capture rejects output reconfiguration. Unknown activity withdraws affected
+indexed certification. Default capture object zero has executed slots but no canonical registration. Core
+range selection can exceed current buffer capacity; capture bounds remain the native execution rule.
+External Begin/Resume retain targeted active/paused outcome reads: linked varying/output configuration and
+resume executable compatibility are unrepresented, so history alone cannot prove acceptance. End/Pause reuse
+known activity. These result/selector reads are execution outcomes, not empty-schema descriptor discovery.
+
+AcquireEngineGeometryConfiguration validates authored layout/ranges via ValidateImportedGeometry and keeps
+original association/context/configuration revisions. IsEngineGeometryConfigurationCurrent checks that receipt
+without native reads. Backend GeometryVertexArrays realizes a private array from retained streams/indices;
+imports neither scan nor repair external VAOs. There is no current direct-array producer certificate, so the
+unused native-reuse choice and draw-time-index admission switch are removed. Engine adapters retain layout,
+content/borrow lifetime and ownership policy. GeometryDescriptorCapture observes former descriptor routes.
+
+Owned sampler/feedback factories and configuration, sampler batches, vertex configuration and deletion outcome
+reads use saved originals and one private publication owner. Missing/no-manager acquisition fallbacks are
+removed for all supported kinds; realized empty-schema recovery publishes identity facts without descriptor
+reads. Unknown EXT identity recovery retains its explicit source-proof reader instead of guessing realization.
+Exact symbol/owner/ABI and split alias source paths remain in Rendering.MetadataLifecycle.Bindings.tsv.
+Geometry/feedback/sampler qualification passed canonical shader-enabled Debug and ordinary Release
+builds with zero errors. Each configuration passed 999 combined lifecycle/geometry/RHI tests plus two
+explicit transform-feedback activity/output-read tests (1,001 total), and 35 generator tests; zero
+failures/skips. Second source review and independent completion audit found no unresolved required
+findings. Receipts are artifacts/metadata-lifecycle/phase6/ (build-debug-final.log,
+build-release-v10.log, phase6-v9-debug.trx, phase6-v10-release.trx, phase6-feedback-final-debug.trx,
+phase6-feedback-v10-release.trx, phase6-generator-v9-debug.trx and phase6-generator-v10-release.trx).
+combined-filter-final.txt records the complete reproducible selection. Optional EXT getter delivery
+includes deterministic native stand-ins; optional alias hardware execution, external-producer interop
+and installed-game rendering/performance are not qualified. Combined lifecycle and parent integration
+qualification remain separate open checklist gates. The temporary binding table remains for closeout.

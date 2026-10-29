@@ -32,7 +32,7 @@ internal sealed partial class OpenGLBackend
             foreach (var output in description.Outputs)
             {
                 var buffer = RequireRange(output.Range.Buffer, output.Range.Offset, output.Range.Length);
-                GL.TransformFeedbackBufferRange(owner.TransformFeedbackId, output.Slot, (int)buffer.ResourceId, output.Range.Offset, output.Range.Length);
+                OpenGLDriverCalls.TransformFeedbackBufferRange(owner.TransformFeedbackId, output.Slot, (int)buffer.ResourceId, output.Range.Offset, output.Range.Length);
                 RequireContext();
             }
             feedbackOutputs.Add(owner, description);
@@ -47,7 +47,7 @@ internal sealed partial class OpenGLBackend
     {
         RequireContext();
         int name = 0;
-        try { GL.CreateTransformFeedbacks(1, out name); }
+        try { OpenGLDriverCalls.CreateTransformFeedbacks(1, out name); }
         finally { id = name; }
         RequireContext();
         if (name != 0) cache.RecordFeedbackCreated(name);

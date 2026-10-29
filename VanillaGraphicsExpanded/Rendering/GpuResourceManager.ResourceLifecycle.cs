@@ -47,9 +47,8 @@ internal sealed partial class GpuResourceManager
     {
         if (resource.ResourceId == 0 || IsMetadataRegistryRetired || RenderContextRegistry.Current() == default) return;
         var entry = FindResource(resource.Kind, resource.ResourceId) as GpuResourceMetadataEntry<TMetadata>;
-        if (entry is null && UsesMaintainedLifecycle(resource.Kind))
+        if (entry is null)
             throw new InvalidOperationException("A wrapper declaration cannot manufacture a missing observed resource lifetime.");
-        entry ??= RegisterCreatedResource<TMetadata>(resource.Kind, resource.ResourceId);
         if (!ReferenceEquals(GetResourceRegistration(resource), entry)) AssociateResource(entry, resource);
     }
 

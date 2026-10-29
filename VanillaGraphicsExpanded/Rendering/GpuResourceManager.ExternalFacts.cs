@@ -9,9 +9,7 @@ internal sealed partial class GpuResourceManager
         if (id <= 0) return null;
         if (GpuResourceManagerSystem.CurrentManager is { IsMetadataRegistryRetired: false } manager)
             return manager.AcquireResource(kind, id, reader)?.Metadata;
-        if (UsesMaintainedLifecycle(kind)) return null;
-        RHI.RHICommandContext.Current.RequireContext();
-        return reader.TryRead(id, out var data) ? data : null;
+        return null;
     }
     #endregion
 }

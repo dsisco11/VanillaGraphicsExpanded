@@ -4,7 +4,7 @@ Maintained resource metadata lifecycle — implementation plan
 Source proposal: [Rendering.MetadataLifecycle.Proposal.md](Rendering.MetadataLifecycle.Proposal.md).
 Parent integration gate: [Rendering.GpuCommands.todo](Rendering.GpuCommands.todo), subphase 8i.
 Initial inventory: [Rendering.MetadataLifecycle.Inventory.md](Rendering.MetadataLifecycle.Inventory.md).
-Status: Phases 1–5 complete; Phases 6–7 remain pending.
+Status: Phases 1–6 complete; Phase 7 remains pending.
 
 Goal
   Maintain canonical resource facts from observed creation, guaranteed defaults and subsequent commands.
@@ -297,23 +297,36 @@ Phase 6: Maintain vertex-array, transform-feedback and sampler lifecycles
   Depends on Phases 2–5.
   Outcome: remaining empty-schema resource kinds have tracked identities and revisions without descriptor scans.
 
-  ☐ Migrate GpuVao/GpuVertexArrayMetadata, GpuTransformFeedback/GpuTransformFeedbackMetadata and
+  ☑ Migrate GpuVao/GpuVertexArrayMetadata, GpuTransformFeedback/GpuTransformFeedbackMetadata and
     GpuSampler/GpuSamplerMetadata through all retained generation/creation/realization/deletion aliases.
     Preserve resource-specific guaranteed defaults without treating all Gen* calls as equivalent.
-  ☐ Maintain represented configuration revisions and execution-owned vertex/element bindings, transform-
+  ☑ Maintain represented configuration revisions and execution-owned vertex/element bindings, transform-
     feedback activity and existing sampler knowledge. Cover bound/named/indexed/multi-bind effects where
     applicable. Keep all three canonical schemas empty; add no full VAO, transform-feedback or sampler mirror.
-  ☐ Migrate GpuVertexAttribBinding/geometry certification and other readers/consumers using existing authored
+  ☑ Migrate GpuVertexAttribBinding/geometry certification and other readers/consumers using existing authored
     descriptions, observed revision knowledge and original identities. Any retained configuration read must
     identify why available observed facts cannot establish the actual consumer requirement; an empty schema
     or an external wrapper alone is not justification. Pull missing producer effects into this unit.
-  ☐ Reconcile managed creation with native callbacks, operation cleanup, deletion dependencies and local tools.
+  ☑ Reconcile managed creation with native callbacks, operation cleanup, deletion dependencies and local tools.
     Remove obsolete acquisition/invalidation paths and unnecessary interruption guards. Qualify both roots,
     raw/RHI aliases, binding suppression, invalid configuration, activity transitions, name/context reuse and
     explicitly justified remaining reads. Update inventory and relevant permanent docs.
-  ☐ Completion: remaining kinds preserve empty canonical schemas and their existing execution owners;
+  ☑ Completion: remaining kinds preserve empty canonical schemas and their existing execution owners;
     complete creation/configuration/consumer routes have no hidden routine discovery fallback.
 
+  Verification: canonical shader-enabled Debug and ordinary Release builds passed with zero errors.
+    Each configuration passed 999/999 combined lifecycle/geometry/RHI regression tests and 2/2
+    supplemental transform-feedback activity/output-read tests (1,001 total), with zero failures/skips.
+    Generator tests passed 35/35 per configuration. Second source review and independent completion
+    audit passed with no unresolved required findings. Receipts: artifacts/metadata-lifecycle/phase6/
+    build-debug-final.log, build-release-v10.log, phase6-v9-debug.trx, phase6-v10-release.trx,
+    phase6-feedback-final-debug.trx, phase6-feedback-v10-release.trx, phase6-generator-v9-debug.trx
+    and phase6-generator-v10-release.trx. combined-filter-final.txt records the reproducible selection.
+    The Debug regression receipt remains valid across removal of an unused query API and comment-only
+    cleanup; the final Debug build and supplemental activity tests use the cleaned source.
+    Optional EXT getter aliases include deterministic native-boundary stand-ins. Optional alias hardware,
+    external-producer interop, installed-game startup, appearance and performance are not qualified.
+    Phase 7 and the parent 8i integration gate remain open. No staging or commit was performed.
 Phase 7: Qualify complete lifecycle coverage and reconcile architecture
   Depends on Phases 1–6; this is combined qualification, not deferred per-family migration or cleanup.
   Outcome: every covered resource lifecycle and remaining query is accounted for with verified consumer behavior.

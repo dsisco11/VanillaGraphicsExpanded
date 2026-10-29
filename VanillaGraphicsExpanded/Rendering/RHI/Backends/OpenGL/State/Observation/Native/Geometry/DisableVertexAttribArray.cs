@@ -15,7 +15,8 @@ internal sealed unsafe partial class OpenGlStateCache
     internal static void ObserveDisableVertexAttribArray(uint a0)
     {
         int @index = unchecked((int)a0);
-        if (!OpenGLObservationContext.TryGet(out _, out _)) return;
+        if (!OpenGLObservationContext.TryGet(out _, out _, false)) return;
+        if (!Current.PrepareVertexObservation(0, false, false, RejectVertexIndex(index))) return;
         OpenGlStateCache.ObserveVertexMetadata(0, false, false);
     }
     #endregion

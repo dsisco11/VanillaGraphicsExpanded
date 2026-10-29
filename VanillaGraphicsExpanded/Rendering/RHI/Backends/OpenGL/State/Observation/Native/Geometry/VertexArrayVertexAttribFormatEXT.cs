@@ -17,7 +17,8 @@ internal sealed unsafe partial class OpenGlStateCache
         ExtDirectStateAccess @type = unchecked((ExtDirectStateAccess)a3);
         bool @normalized = a4 != 0;
         int @relativeoffset = unchecked((int)a5);
-        if (!OpenGLObservationContext.TryGet(out _, out _)) return;
+        if (!OpenGLObservationContext.TryGet(out _, out _, false)) return;
+        if (!Current.PrepareVertexObservation(vaobj, true, true, RejectVertexIndex(attribindex) || RejectVertexFormat(size, (int)type, 0, normalized, relativeoffset))) return;
         OpenGlStateCache.ObserveVertexMetadata(unchecked((int)@vaobj), true, false);
     }
     #endregion

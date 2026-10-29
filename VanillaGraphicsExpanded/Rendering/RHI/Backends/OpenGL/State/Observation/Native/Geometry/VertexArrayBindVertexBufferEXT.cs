@@ -19,6 +19,7 @@ internal sealed unsafe partial class OpenGlStateCache
         if (!OpenGLObservationContext.TryGet(out _, out _, false)) return;
         Current.RealizeExtVertexArray(vaobj);
         Current.ObserveVertexBufferRealization(vaobj, true, a1, buffer, offset, stride);
+        if (!Current.PrepareVertexObservation(vaobj, true, true, RejectVertexIndex(bindingindex, true) || RejectVertexRange(offset, stride))) return;
         OpenGlStateCache.ObserveVertexMetadata(unchecked((int)@vaobj), true, false);
     }
     #endregion

@@ -15,7 +15,7 @@ internal sealed partial class GpuResourceManager
             manager.RequireOriginalWrapper(resource);
     }
 
-    /// <summary>Initializes an existing allocation through its canonical entry or a context-local native read.</summary>
+    /// <summary>Associates maintained canonical facts or consumes an explicitly recorded initial discovery cause.</summary>
     internal static void AcquireWrapperMetadata<T>(GpuResource<T> resource, IGpuResourceMetadataReader<T> reader) where T : struct
     {
         if (resource.ResourceManager is { } manager && manager.CanAcquireWrapperMetadata(resource))
@@ -39,26 +39,7 @@ internal sealed partial class GpuResourceManager
             return;
         }
         RHICommandContext.RequireResourceOperationAvailable(resource.Kind, resource.ResourceId);
-        if (UsesMaintainedLifecycle(resource.Kind))
-            throw new InvalidOperationException("Maintained resource metadata requires its originating manager or supplied initialization snapshot.");
-        // TODO(Rendering.MetadataLifecycle.todo, remaining family acquisition tasks): replace
-        // implicit tool discovery with supplied initialization or explicitly recorded pre-install discovery.
-        // Tools without an installed render service still receive facts from the same reader;
-        // this creates no parallel registry or persistent tracking claim.
-        T data;
-        try
-        {
-            if (!reader.TryRead(resource.ResourceId, out data))
-                throw new InvalidOperationException("Native resource metadata is unavailable.");
-        }
-        catch
-        {
-            DiscardUntrackedMetadata(resource);
-            PublishOwnerImages(resource, false);
-            throw;
-        }
-        resource.HandleMetadataChanged(data);
-        PublishOwnerImages(resource, true);
+        throw new InvalidOperationException("Maintained resource metadata requires its originating manager or supplied initialization snapshot.");
     }
 
     /// <summary>Explicitly withdraws external facts before reacquiring them; available lookup never forces this path.</summary>
@@ -91,16 +72,12 @@ internal sealed partial class GpuResourceManager
                 throw new InvalidOperationException("Metadata cannot be acquired during an unfinished update.");
             entry?.BeginRefresh(GpuMetadataChange.Metadata);
         }
-        if (UsesMaintainedLifecycle(resource.Kind))
         {
             var ownerManager = resource.ResourceManager ?? throw new InvalidOperationException("Recovery requires an existing original registration.");
             var recovered = ownerManager.RecoverResource(resource.Kind, resource.ResourceId, reader)
                 ?? throw new InvalidOperationException("Original resource recovery failed.");
             if (!recovered.ContainsRecipient(resource)) ownerManager.AssociateResource(recovered, resource);
         }
-        // TODO(Rendering.MetadataLifecycle.todo, remaining family recovery tasks): replace
-        // acquisition-based recovery with explicit recovery against the original registration.
-        else AcquireWrapperMetadata(resource, reader);
     }
 
     #endregion
@@ -135,9 +112,7 @@ internal sealed partial class GpuResourceManager
             return true;
         }
         // A retired service may still be installed while a replacement context creates objects.
-        // TODO(Rendering.MetadataLifecycle.todo, remaining family acquisition tasks): remove
-        // native-read fallback for new objects; retain rejection of terminal existing recipients.
-        // Such new objects use native reads, but existing recipients retain their terminal identity.
+        // New owners use supplied initialization snapshots; terminal existing recipients cannot reattach.
         if (GetResourceRegistration(resource) is not null)
             throw new ObjectDisposedException(nameof(GpuResourceManager));
         return false;

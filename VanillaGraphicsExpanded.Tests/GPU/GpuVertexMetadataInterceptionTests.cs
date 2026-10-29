@@ -67,7 +67,7 @@ public sealed class GpuVertexMetadataInterceptionTests(HeadlessGLFixture fixture
         }
         finally { harmony.UnpatchAll(harmony.Id); fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
-    /// <summary>A rejected command conservatively advances configuration revision while numeric attribute contents do not.</summary>
+    /// <summary>Proven rejected configuration and numeric attribute contents both preserve original configuration revisions.</summary>
     [Fact]
     public void RejectedConfigurationAndNumericValuesHaveDifferentEffects()
     {
@@ -78,7 +78,7 @@ public sealed class GpuVertexMetadataInterceptionTests(HeadlessGLFixture fixture
             var entry=GpuResourceManagerSystem.CurrentManager!.GetResourceRegistration(vao)!;
             ulong revision=entry.MetadataRevision;
             Mutate(12,vao.VertexArrayId,0);
-            Assert.Equal(ErrorCode.InvalidValue,GL.GetError()); Assert.Equal(revision+1,entry.MetadataRevision);
+            Assert.Equal(ErrorCode.InvalidValue,GL.GetError()); Assert.Equal(revision,entry.MetadataRevision);
             revision=entry.MetadataRevision;
             Mutate(13,vao.VertexArrayId,0);
             Assert.Equal(revision,entry.MetadataRevision);
@@ -110,7 +110,7 @@ public sealed class GpuVertexMetadataInterceptionTests(HeadlessGLFixture fixture
     [Fact]
     public void UntrackedConfigurationDoesNotCreateEntry()
     {
-        fixture.EnsureContextValid(); fixture.InitializeResourceDisposal(); var harmony=Patch(); GL.CreateVertexArrays(1,out int vao);
+        fixture.EnsureContextValid(); fixture.InitializeResourceDisposal(); var harmony=Patch(); OpenGLDriverCalls.CreateVertexArrays(1,out int vao);
         try
         {
             Mutate(7,vao,0);

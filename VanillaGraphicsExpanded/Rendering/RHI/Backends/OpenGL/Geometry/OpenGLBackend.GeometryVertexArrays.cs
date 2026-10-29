@@ -32,7 +32,6 @@ internal sealed partial class OpenGLBackend
         if (geometry.ImportedArray is { } imported)
         {
             imported.RequireCurrent(NativeOrigin, cache.GetVertexConfigurationRevision(checked((int)imported.Array.ResourceId)));
-            if (imported.CanUseNativeArray) return imported.Array;
         }
         if (geometryVertexArrays.TryGetValue(geometry, out var current))
         {

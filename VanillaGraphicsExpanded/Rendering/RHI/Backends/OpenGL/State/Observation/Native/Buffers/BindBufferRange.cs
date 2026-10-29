@@ -22,8 +22,10 @@ internal sealed unsafe partial class OpenGlStateCache
             || slot < 0 || offset < 0 || buffer != 0 && size <= 0
             || buffer != 0 && target == BufferRangeTarget.TransformFeedbackBuffer && (offset % 4 != 0 || size % 4 != 0)
             || buffer != 0 && target == BufferRangeTarget.AtomicCounterBuffer && offset % 4 != 0) return;
+        if (target == BufferRangeTarget.TransformFeedbackBuffer && cache.TryGetFeedbackActivity(out var establishedActivity) && establishedActivity.Active) return;
         if (!GpuSupport.HasCachedCapabilitiesForCurrentContext)
         {
+            if (target == BufferRangeTarget.TransformFeedbackBuffer) cache.ObserveFeedbackConfiguration(cache.currentTransformFeedback ?? 0);
             cache.MarkUncertainBufferRealization(buffer);
             cache.ForgetBufferBinding((BufferTarget)target, slot);
             return;
@@ -44,6 +46,8 @@ internal sealed unsafe partial class OpenGlStateCache
         // only an established object and the target's alignment/positive-size conditions.
         if (validSlot && validRange && !captureRejected) cache.ForgetBufferBinding((BufferTarget)target, slot);
 
+        if (validSlot && !captureRejected && target == BufferRangeTarget.TransformFeedbackBuffer && validRange)
+            cache.ObserveFeedbackConfiguration(cache.currentTransformFeedback ?? 0);
         if (established && cache.OwnsKnowledgeFor(origin) && Integration.RenderContextRegistry.IsCurrentResourceContext(origin))
             cache.EstablishIndexedBufferBinding(target, slot, buffer, buffer == 0 ? 0 : offset, buffer == 0 ? 0 : size, buffer != 0);
     }

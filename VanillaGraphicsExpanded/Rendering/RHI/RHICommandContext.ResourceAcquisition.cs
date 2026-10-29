@@ -40,9 +40,9 @@ public sealed partial class RHICommandContext
     /// <summary>Routes explicit acquisition through the context execution contract.</summary>
     internal bool ReadShaderMetadata(nint id, out GpuShaderMetadata metadata) => backend.ReadShaderMetadata(id, out metadata);
     #endregion
-    #region Geometry certification
-    /// <summary>Routes explicit acquisition through the context execution contract.</summary>
-    internal bool CertifyGeometryConfiguration(int array, RHIVertexLayout layout, IReadOnlyList<RHIVertexStream> streams, RHIIndexStream indices, bool indexSelectedAtDraw) => backend.CertifyGeometryConfiguration(array, layout, streams, indices, indexSelectedAtDraw);
+    #region Geometry admission
+    /// <summary>Validates supplied external geometry without native layout discovery.</summary>
+    internal void ValidateImportedGeometry(int array, RHIVertexLayout layout, IReadOnlyList<RHIVertexStream> streams, RHIIndexStream indices) => backend.ValidateImportedGeometry(array, layout, streams, indices);
     #endregion
     #endregion
 }

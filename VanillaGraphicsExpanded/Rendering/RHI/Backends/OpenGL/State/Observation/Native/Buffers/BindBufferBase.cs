@@ -17,8 +17,10 @@ internal sealed unsafe partial class OpenGlStateCache
         if (!OpenGLObservationContext.TryGet(out var cache, out _, false)) return;
         if (target is not (BufferRangeTarget.UniformBuffer or BufferRangeTarget.ShaderStorageBuffer
             or BufferRangeTarget.AtomicCounterBuffer or BufferRangeTarget.TransformFeedbackBuffer) || slot < 0) return;
+        if (target == BufferRangeTarget.TransformFeedbackBuffer && cache.TryGetFeedbackActivity(out var establishedActivity) && establishedActivity.Active) return;
         if (!GpuSupport.HasCachedCapabilitiesForCurrentContext)
         {
+            if (target == BufferRangeTarget.TransformFeedbackBuffer) cache.ObserveFeedbackConfiguration(cache.currentTransformFeedback ?? 0);
             cache.MarkUncertainBufferRealization(buffer);
             cache.ForgetBufferBinding((BufferTarget)target, slot);
             return;
@@ -35,6 +37,8 @@ internal sealed unsafe partial class OpenGlStateCache
             && cache.HasEstablishedNativeIdentity(GpuResourceKind.Buffer, buffer);
         if (validSlot && !captureRejected) cache.ForgetBufferBinding((BufferTarget)target, slot);
 
+        if (validSlot && !captureRejected && target == BufferRangeTarget.TransformFeedbackBuffer)
+            cache.ObserveFeedbackConfiguration(cache.currentTransformFeedback ?? 0);
         if (established && cache.OwnsKnowledgeFor(origin) && Integration.RenderContextRegistry.IsCurrentResourceContext(origin))
             cache.EstablishIndexedBufferBinding(target, slot, buffer, 0, 0, false);
     }

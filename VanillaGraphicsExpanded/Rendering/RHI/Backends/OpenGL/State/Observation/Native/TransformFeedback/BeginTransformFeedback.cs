@@ -7,6 +7,7 @@ internal sealed unsafe partial class OpenGlStateCache
     #region Internal API
     /// <summary>Updates existing cache and resource authority without issuing the intercepted operation.</summary>
     [InterceptOpenGL("glBeginTransformFeedback")]
+    [InterceptOpenGL("glBeginTransformFeedbackEXT")]
     internal static void ObserveBeginTransformFeedback(int a0)
     {
         OpenGlStateCache.ObserveFeedbackActivity(OpenGlStateCache.FeedbackActivityCommand.Begin, (OpenTK.Graphics.OpenGL.TransformFeedbackPrimitiveType)a0);

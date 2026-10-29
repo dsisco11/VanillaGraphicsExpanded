@@ -15,7 +15,7 @@ internal sealed unsafe partial class OpenGlStateCache
         int sampler = unchecked((int)a1);
         if (!OpenGLObservationContext.TryGet(out var cache, out _)) return;
         bool valid = unit >= 0 && unit < GpuSupport.MaxCombinedTextureImageUnits;
-        bool established = valid && cache.HasEstablishedNativeIdentity(GpuResourceKind.Sampler, sampler);
+        bool established = valid && (sampler == 0 || RealizeObservedSampler(sampler));
         var origin = Integration.RenderContextRegistry.CaptureResourceContext();
         if (valid) cache.SetSamplerKnowledge(unit, null);
 

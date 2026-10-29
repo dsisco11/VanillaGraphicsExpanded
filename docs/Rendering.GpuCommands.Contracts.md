@@ -96,14 +96,12 @@ is authoritative for registered images; weak owner/image relationships cover loc
 owner replacement and skip already-delivered entry recipients. Dependency notification failure does not
 convert a successfully committed replacement allocation into a failed candidate.
 
-Imported geometry certification acquires configuration through this contract and retains the original
-association/revision. A transient `RHIGeometryContext` supplies originating namespace and the selected
-array's observed configuration revision; the manager can check an existing receipt without querying or
-recertifying the native layout. Explicit engine draw-time index selection can certify a detached element
-binding; that packet uses a backend-owned array without modifying the original engine array. A nonzero
-index association must still match exactly.
-Integration adapters retain engine ownership/layout and borrowing policy, not native execution authority.
-
+Imported geometry admission validates supplied layout/streams and original allocation ranges through
+this contract without scanning external VAO attributes. The backend realizes a private array from those
+declarations. A transient `RHIGeometryContext` supplies originating namespace and selected-array revision;
+the manager checks an import receipt without querying or recertifying native layout. External configuration
+changes expire the original receipt. Integration adapters retain engine ownership/layout and borrowing
+policy, not native execution authority. No current external producer supplies a direct-array reuse certificate.
 Execution exclusion is separate from canonical publication. The manager's `MetadataOperation<T>`
 retains its original resource/entry, accumulated effects, availability and exactly-once commit policy.
 It holds only `IRHIResourceOperation`, a private RHI exclusion with original identity, interruption and

@@ -71,8 +71,9 @@ public sealed class EngineGraphicsGeometryTests(HeadlessGLFixture fixture) : Ren
         OpenGLVertexSelection.Bind(OpenGlStateCache.Current, native.Mesh.VaoId);
         OpenGLBufferBindings.BindBuffer(OpenGlStateCache.Current, BufferTarget.ElementArrayBuffer, replacement.BufferId);
         Assert.False(GpuResourceManager.IsEngineGeometryConfigurationCurrent(receipt));
-        Assert.Throws<InvalidOperationException>(() => GpuResourceManager.AcquireEngineGeometryConfiguration(
-            receipt.Array, packet.Layout, packet.Streams, packet.Indices!.Value));
+        var updated = GpuResourceManager.AcquireEngineGeometryConfiguration(
+            receipt.Array, packet.Layout, packet.Streams, packet.Indices!.Value);
+        Assert.True(GpuResourceManager.IsEngineGeometryConfigurationCurrent(updated));
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
 
@@ -202,15 +203,18 @@ public sealed class EngineGraphicsGeometryTests(HeadlessGLFixture fixture) : Ren
         }
     }
 
-    /// <summary>Native attribute mismatches are rejected before the adapter can publish and release the upload.</summary>
+    /// <summary>Authored geometry admission avoids scanning or repairing external attribute state.</summary>
     [Fact]
-    public void InvalidNativeLayoutDeletesRejectedUpload()
+    public void ExternalLayoutDoesNotOverrideAuthoredGeometry()
     {
         EnsureContextValid();
         using var native = new NativeMesh();
         OpenGLVertexSelection.Bind(OpenGlStateCache.Current, native.Mesh.VaoId); GL.DisableVertexAttribArray(1);
-        Assert.ThrowsAny<Exception>(() => EngineFullscreenGeometry.Upload(native.Render.Object, native.Data));
-        Assert.Equal(1, native.Deletes); Assert.Equal(0, native.Draws);
+        using var reads = new GeometryDescriptorCapture();
+        using var geometry = EngineFullscreenGeometry.Upload(native.Render.Object, native.Data);
+        Assert.Equal(0, reads.Reads); Assert.Equal(0, native.Deletes); Assert.Equal(0, native.Draws);
+        GL.GetVertexAttrib(1, VertexAttribParameter.ArrayEnabled, out int enabled);
+        Assert.Equal(0, enabled);
     }
 
     /// <summary>A partially failed engine upload restores the caller's actual vertex and array bindings.</summary>

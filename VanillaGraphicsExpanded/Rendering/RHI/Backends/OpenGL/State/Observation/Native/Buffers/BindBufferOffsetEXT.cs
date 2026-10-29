@@ -12,8 +12,10 @@ internal sealed unsafe partial class OpenGlStateCache
     {
         if (!OpenGLObservationContext.TryGet(out var cache, out _, false) || (BufferRangeTarget)target != BufferRangeTarget.TransformFeedbackBuffer
             || index > int.MaxValue || offset < 0 || name != 0 && offset % 4 != 0) return;
+        if (cache.TryGetFeedbackActivity(out var establishedActivity) && establishedActivity.Active) return;
         if (!GpuSupport.HasCachedCapabilitiesForCurrentContext)
         {
+            cache.ObserveFeedbackConfiguration(cache.currentTransformFeedback ?? 0);
             cache.MarkUncertainBufferRealization(unchecked((int)name));
             cache.ForgetBufferBinding((BufferTarget)target, (int)index);
             return;
@@ -21,6 +23,7 @@ internal sealed unsafe partial class OpenGlStateCache
         if (!OpenGLBufferBindingCalls.ValidIndexedSlot((BufferRangeTarget)target, (int)index)) return;
         if (!cache.TryGetFeedbackActivity(out var activity))
         {
+            cache.ObserveFeedbackConfiguration(cache.currentTransformFeedback ?? 0);
             cache.MarkUncertainBufferRealization(unchecked((int)name));
             cache.ForgetBufferBinding((BufferTarget)target, (int)index);
             return;
@@ -37,6 +40,7 @@ internal sealed unsafe partial class OpenGlStateCache
             size -= size % 4;
             if (size == 0) return;
         }
+        cache.ObserveFeedbackConfiguration(cache.currentTransformFeedback ?? 0);
         cache.ForgetBufferBinding((BufferTarget)target, (int)index);
         if (id == 0) cache.EstablishIndexedBufferBinding((BufferRangeTarget)target, (int)index, 0, 0, 0, false);
         else if (size > 0)

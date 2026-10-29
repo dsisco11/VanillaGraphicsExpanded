@@ -13,12 +13,14 @@ internal sealed unsafe partial class OpenGlStateCache
         if ((BufferRangeTarget)target == BufferRangeTarget.TransformFeedbackBuffer)
         {
             if (!OpenGLObservationContext.TryGet(out var selected, out _, false)) return;
+            if (selected.TryGetFeedbackActivity(out var establishedActivity) && establishedActivity.Active) return;
             if (GpuResourceManagerSystem.CurrentManager!.FindObservedResource(GpuResourceKind.Buffer, unchecked((int)name))
                 is { IsRealized: false })
             {
                 if (GpuSupport.HasCachedCapabilitiesForCurrentContext
                     && (!OpenGLBufferBindingCalls.ValidIndexedSlot((BufferRangeTarget)target, unchecked((int)index))
                         || selected.TryGetFeedbackActivity(out var capture) && capture.Active)) return;
+                selected.ObserveFeedbackConfiguration(selected.currentTransformFeedback ?? 0);
                 selected.MarkUncertainBufferRealization(unchecked((int)name));
                 selected.ForgetBufferBinding((BufferTarget)target, unchecked((int)index));
                 return;

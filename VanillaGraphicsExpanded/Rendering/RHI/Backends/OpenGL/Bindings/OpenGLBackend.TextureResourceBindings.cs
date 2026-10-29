@@ -117,7 +117,7 @@ internal sealed partial class OpenGLBackend
                 bindingNames[count++] = next.Sampler;
                 cache.SetSamplerKnowledge(next.Slot, null);
             }
-            fixed (int* names = bindingNames) GL.BindSamplers(first.Slot, count, names);
+            fixed (int* names = bindingNames) OpenGLDriverCalls.BindSamplers(first.Slot, count, names);
             RequireContext();
             cache.RecordSamplerBind();
             for (int item = 0; item < count; item++)

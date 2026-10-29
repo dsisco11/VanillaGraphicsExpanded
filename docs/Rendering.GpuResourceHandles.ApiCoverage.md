@@ -146,7 +146,8 @@ claim full native qualification merely because this machine lacks a capability.
 ## Explicit semantic dispositions
 
 Queries, pure content transfers/clears/draws, synchronization, and sampler parameters with no represented
-wrapper fields do not become metadata refreshes. Sparse page commitment changes residency rather than
+wrapper fields do not become metadata refreshes. Specified sampler first use still realizes a known
+generated reservation, without reading or mirroring parameter values. Sparse page commitment changes residency rather than
 allocation dimensions. Memory imports retain their existing object identity; semaphore generation reserves
 a name, and imported semaphore usability requires an established payload outcome. RHI import makes one
 targeted IsSemaphore check; external import observation does not probe or infer success from a handle.
@@ -382,16 +383,11 @@ Unrepresented parameters and invalid multisample mip parameters have no metadata
 
 ### V1 vertex configuration
 
-Native vertex-configuration observations advance the existing VAO metadata revision without
-introducing a layout mirror. `BindBuffer` has a conditional effect: element-array targets revise the
-current VAO; other targets only invalidate affected binding knowledge. Wrapper configuration uses
-the same backend observation path, using core named configuration on the admitted 4.5 context.
-`GpuVertexAttribBinding` retains its owning wrapper and checks the manager-owned revision. Named
-binding queries recover selected facts after changes; retained authored binding descriptions reject
-stale reuse. Helper commands update that helper value's revision, while independently retained copies
-remain subject to revalidation. Native selector, partial multi-bind and helper revalidation receipts are
-retained in `artifacts/gpu-resource-phase4/vertex-selection-focused.trx`,
-`vertex-buffer-bindings-focused.trx` and `vertex-helper-focused.trx`. API signature inspection establishes
-mapping coverage separately from the native operations exercised on available hardware.
-
+Native vertex-configuration observations classify supplied argument rejection before advancing the
+original VAO revision or withdrawing its helper certificates. Legal element assignments retain the
+existing per-array EBO knowledge. Configuration revisions do not introduce a native layout mirror.
+Geometry import validates authored streams and uses private backend VAOs instead of querying arbitrary
+external attributes. Retained receipts compare original identity/context/revision; no current consumer
+uses a native layout reader. Named/bound/indexed/multi-bind observations preserve rejected spans and
+expire affected certificates for accepted or uncertain represented changes.
 `glBindBuffer`, `glBindBufferARB`, `glBindVertexBuffer`, `glBindVertexBuffers`, `glDisableVertexArrayAttrib`, `glDisableVertexArrayAttribEXT`, `glDisableVertexAttribArray`, `glDisableVertexAttribArrayARB`, `glEnableVertexArrayAttrib`, `glEnableVertexArrayAttribEXT`, `glEnableVertexAttribArray`, `glEnableVertexAttribArrayARB`, `glVertexArrayAttribBinding`, `glVertexArrayAttribFormat`, `glVertexArrayAttribIFormat`, `glVertexArrayAttribLFormat`, `glVertexArrayBindingDivisor`, `glVertexArrayBindVertexBufferEXT`, `glVertexArrayElementBuffer`, `glVertexArrayVertexAttribBindingEXT`, `glVertexArrayVertexAttribDivisorEXT`, `glVertexArrayVertexAttribFormatEXT`, `glVertexArrayVertexAttribIFormatEXT`, `glVertexArrayVertexAttribIOffsetEXT`, `glVertexArrayVertexAttribLFormatEXT`, `glVertexArrayVertexAttribLOffsetEXT`, `glVertexArrayVertexAttribOffsetEXT`, `glVertexArrayVertexBindingDivisorEXT`, `glVertexArrayVertexBuffer`, `glVertexArrayVertexBuffers`, `glVertexAttribBinding`, `glVertexAttribDivisor`, `glVertexAttribDivisorARB`, `glVertexAttribFormat`, `glVertexAttribIFormat`, `glVertexAttribIPointer`, `glVertexAttribIPointerEXT`, `glVertexAttribLFormat`, `glVertexAttribLPointer`, `glVertexAttribLPointerEXT`, `glVertexAttribPointer`, `glVertexAttribPointerARB`, `glVertexBindingDivisor`.

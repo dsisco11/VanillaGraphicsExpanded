@@ -14,7 +14,8 @@ internal sealed unsafe partial class OpenGlStateCache
         int @vaobj = unchecked((int)a0);
         int @index = unchecked((int)a1);
         int @divisor = unchecked((int)a2);
-        if (!OpenGLObservationContext.TryGet(out _, out _)) return;
+        if (!OpenGLObservationContext.TryGet(out _, out _, false)) return;
+        if (!Current.PrepareVertexObservation(vaobj, true, true, RejectVertexIndex(index))) return;
         OpenGlStateCache.ObserveVertexMetadata(unchecked((int)@vaobj), true, false);
     }
     #endregion
