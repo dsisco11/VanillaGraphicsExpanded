@@ -93,11 +93,8 @@ public sealed class GpuControlledTexturePublicationTests(HeadlessGLFixture fixtu
     }
 
     /// <summary>Independent narrow recovery cannot publish while an explicit operation owns the texture.</summary>
-    [Theory]
-    [InlineData(0)]
-    [InlineData(1)]
-    [InlineData(2)]
-    public void NarrowRecoveryRejectsActiveOperation(int recovery)
+    [Fact]
+    public void ExplicitRecoveryRejectsActiveOperation()
     {
         fixture.EnsureContextValid(); fixture.InitializeResourceDisposal();
         try
@@ -107,12 +104,7 @@ public sealed class GpuControlledTexturePublicationTests(HeadlessGLFixture fixtu
             var entry = Assert.IsType<GpuResourceMetadataEntry<GpuTextureMetadata>>(manager.GetResourceRegistration(texture));
             ulong revision = entry.MetadataRevision;
             using var operation = new GpuResourceManager.MetadataOperation<GpuTextureMetadata>(texture, GpuMetadataChange.Metadata);
-            Assert.Throws<InvalidOperationException>(() =>
-            {
-                if (recovery == 0) manager.RefreshTextureParameter(entry, TextureMetadataField.BaseMip);
-                else if (recovery == 1) manager.RefreshTextureImages(entry, 0, 0, 0, false, true);
-                else manager.RefreshGeneratedTextureMetadata(entry, true);
-            });
+            Assert.Null(manager.RecoverResource(GpuResourceKind.Texture, texture.TextureId, GpuTextureMetadataReader.Instance));
             Assert.Equal(revision, entry.MetadataRevision);
             Assert.False(entry.MetadataAvailable);
             Assert.Equal(ErrorCode.NoError, GL.GetError());

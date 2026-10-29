@@ -23,7 +23,7 @@ public sealed class PersistentBorrowedTextureTests(HeadlessGLFixture fixture)
         try
         {
             GL.BindTexture(TextureTarget.Texture2D, id);
-            Assert.Throws<InvalidOperationException>(() => BorrowedTexture.GetOrReplace(ref selected, id));
+            Assert.Throws<ArgumentException>(() => BorrowedTexture.GetOrReplace(ref selected, id));
             Assert.Null(selected); Assert.True(GL.IsTexture(id));
             var entry = GpuResourceManagerSystem.CurrentManager!.FindResource(GpuResourceKind.Texture, id);
             Assert.True(entry is null || entry.AssociationCount == 0);
@@ -45,7 +45,9 @@ public sealed class PersistentBorrowedTextureTests(HeadlessGLFixture fixture)
             fixture.CleanupGpuResources();
             Assert.False(first.IsValid); Assert.True(GL.IsTexture(id));
             fixture.InitializeResourceDisposal();
-            Assert.NotSame(first, BorrowedTexture.GetOrReplace(ref selected, id));
+            // An observed identity from a retired manager cannot be rediscovered
+            // merely because its numeric name is still present in this fixture.
+            Assert.Throws<InvalidOperationException>(() => BorrowedTexture.GetOrReplace(ref selected, id));
         }
         finally { selected?.Dispose(); RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Texture, id)); fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
@@ -85,6 +87,8 @@ public sealed class PersistentBorrowedTextureTests(HeadlessGLFixture fixture)
             using var other = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba8, Width = System.Math.Max(1, 6), Height = System.Math.Max(1, 6), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
             var first = BorrowedTexture.GetOrReplace(ref selected, owner.TextureId);
             GpuResourceManager.InvalidateWrapperMetadata(owner, GpuMetadataChange.Storage);
+            Assert.Throws<InvalidOperationException>(() => BorrowedTexture.GetOrReplace(ref selected, owner.TextureId));
+            GpuResourceManager.RecoverWrapperMetadata(owner, new GpuTextureMetadataReader(TextureDimension.Two));
             Assert.Same(first, BorrowedTexture.GetOrReplace(ref selected, owner.TextureId));
             var second = BorrowedTexture.GetOrReplace(ref selected, other.TextureId);
             Assert.NotSame(first, second); Assert.False(first.IsValid);
@@ -112,7 +116,13 @@ public sealed class PersistentBorrowedTextureTests(HeadlessGLFixture fixture)
             Allocate(id, 4);
             var first = BorrowedTexture.GetOrReplace(ref selected, id);
             // Isolate same-name registry replacement from driver-specific free-name allocation policy.
-            if (reuseId) GpuResourceManagerSystem.CurrentManager!.ObserveDeletion(GpuResourceKind.Texture, id);
+            if (reuseId)
+            {
+                var manager = GpuResourceManagerSystem.CurrentManager!;
+                manager.ObserveDeletion(GpuResourceKind.Texture, id);
+                // Model the new generation receipt for this synthetic same-name reuse.
+                manager.ObserveImageCreation(GpuResourceKind.Texture, id, false);
+            }
             else { RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Texture, id)); id = GL.GenTexture(); }
             Assert.False(first.IsValid);
             Allocate(id, 8);

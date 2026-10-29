@@ -16,7 +16,7 @@ internal partial interface IRHIResourceExecution
     /// <summary>Admits AdoptShaderOwner through the original resource context and manager authority.</summary>
     void AdoptShaderOwner(GpuShaderModule owner);
     /// <summary>Admits DiscoverFramebufferAttachment through the original resource context and manager authority.</summary>
-    GpuFramebufferAttachment DiscoverFramebufferAttachment(GpuFramebuffer owner, FramebufferSlot slot, bool recover);
+    GpuFramebufferAttachment DiscoverFramebufferAttachment(GpuFramebuffer owner, FramebufferSlot slot);
     /// <summary>Admits PublishImportedFramebuffer through the original resource context and manager authority.</summary>
     void PublishImportedFramebuffer(GpuFramebuffer owner, bool publish, int? replacementId = null, int width = 0, int height = 0);
     /// <summary>Admits ResolveFramebufferAttachments through the original resource context and manager authority.</summary>

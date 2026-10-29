@@ -142,7 +142,7 @@ internal sealed partial class OpenGLBackend
             throw new InvalidOperationException("Persistent mapping requires immutable storage.");
         cache.RequireResourceOperationAvailable(GpuResourceKind.Buffer, owner.ResourceId);
         nint result = OpenGLDriverCalls.MapNamedBufferRange((int)owner.ResourceId, offset, byteCount, OpenGLBufferValues.Map(access));
-        if (result != 0) cache.RecordBufferMapped((int)owner.ResourceId);
+        if (result != 0) cache.RecordBufferMapped((int)owner.ResourceId, (access & BufferMapAccess.Persistent) != 0);
         return result;
     }
 

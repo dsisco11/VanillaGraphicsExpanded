@@ -266,7 +266,7 @@ public sealed class GpuMetadataOperationFoundationTests(HeadlessGLFixture fixtur
         finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
 
-    /// <summary>A failed explicitly participating local storage operation invalidates existing view certificates.</summary>
+    /// <summary>A failed explicitly participating storage operation makes its view unavailable.</summary>
     [Fact]
     public void LocalInterruptedStorageRetiresTextureViewCertificate()
     {
@@ -276,14 +276,17 @@ public sealed class GpuMetadataOperationFoundationTests(HeadlessGLFixture fixtur
         {
             using var source = RHICommandContext.Current.CreateDynamicTexture3D(new RHITextureDescription { Dimension = TextureDimension.TwoArray, Format = TextureFormat.Rgba8, Width = System.Math.Max(1, 4), Height = System.Math.Max(1, 4), Depth = System.Math.Max(1, 2), MipLevels = 1, Storage = (true ? ResourceStorageMode.Immutable : ResourceStorageMode.Mutable), Filter = TextureFilterMode.Linear, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
             using var view = RHICommandContext.Current.CreateTextureView(new RHITextureViewDescription { Source = source, Dimension = TextureDimension.TwoArray, Format = TextureFormat.Rgba8, BaseMip = 0, MipCount = 1, BaseLayer = 0, LayerCount = 2, Label = null }).RequireResource();
-            var certificate = source.UntrackedStorageIdentity;
+            var registration = Assert.IsType<GpuResourceMetadataEntry<GpuTextureMetadata>>(
+                GpuResourceManagerSystem.CurrentManager!.GetResourceRegistration(source));
+            ulong revision = registration.StorageRevision;
             using (var operation = new GpuResourceManager.MetadataOperation<GpuTextureMetadata>(source, GpuMetadataChange.Metadata))
             {
                 operation.RequireParticipation(source, GpuMetadataChange.Storage);
                 operation.Interrupt();
                 Assert.Throws<InvalidOperationException>(() => operation.Commit(default));
             }
-            Assert.NotSame(certificate, source.UntrackedStorageIdentity);
+            Assert.False(registration.IsUsable);
+            Assert.Equal(revision, registration.StorageRevision);
             Assert.False(view.IsValid);
             Assert.Equal(0, source.Width);
             Assert.True(GL.IsTexture(source.TextureId));

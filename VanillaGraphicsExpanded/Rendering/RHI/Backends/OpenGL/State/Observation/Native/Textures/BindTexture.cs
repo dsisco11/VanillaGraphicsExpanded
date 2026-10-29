@@ -9,17 +9,22 @@ internal sealed unsafe partial class OpenGlStateCache
     #region Internal API
     /// <summary>Updates existing cache and resource authority without issuing the intercepted operation.</summary>
     [InterceptOpenGL("glBindTexture")]
+    [InterceptOpenGL("glBindTextureEXT")]
     internal static void ObserveBindTexture(int a0, uint a1)
     {
         TextureTarget target = unchecked((TextureTarget)a0);
         int texture = unchecked((int)a1);
-        if (!OpenGLObservationContext.TryGet(out var cache, out _)) return;
+        if (!OpenGLObservationContext.TryGet(out var cache, out _, false)) return;
         bool targetValid = OpenGlStateCache.RepresentsTextureBinding(target);
         int unit = targetValid ? cache.GetActiveTextureUnit() : -1;
         bool established = texture == 0;
         if (targetValid && texture != 0)
         {
-            established = cache.TryGetCachedBoundTexture(target, unit, out int prior) && prior == texture;
+            var realization = GpuResourceManagerSystem.CurrentManager?.RealizeObservedImage(
+                GpuResourceKind.Texture, texture, OpenGLImageValues.Dimension(target), implicitCreation: false);
+            established = realization is GpuResourceMetadataEntry<GpuTextureMetadata> { IsRealized: true } realized
+                && realized.Metadata.Target == OpenGLImageValues.Dimension(target);
+            established |= cache.TryGetCachedBoundTexture(target, unit, out int prior) && prior == texture;
             var manager = GpuResourceManagerSystem.CurrentManager;
             if (!established && manager?.CanObserveNativeMetadata == true
                 && manager.FindObservedResource(GpuResourceKind.Texture, texture) is GpuResourceMetadataEntry<GpuTextureMetadata> { IsUsable: true } entry)

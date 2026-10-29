@@ -11,6 +11,18 @@ public static partial class GpuSupport
     private static readonly Dictionary<(GpuResourceKind Kind, TextureDimension Target, TextureFormat Format), InternalFormatCapabilities> formatCapabilities = new();
 
     #region Public API
+    /// <summary>Looks up admitted format facts without initiating native discovery from an observer.</summary>
+    internal static bool TryGetCachedFormatCapabilities(TextureDimension target, TextureFormat format,
+        out InternalFormatCapabilities capabilities, GpuResourceKind kind = GpuResourceKind.Texture)
+    {
+        lock (Sync)
+        {
+            capabilities = null!;
+            return HasCachedCapabilitiesForCurrentContext
+                && formatCapabilities.TryGetValue((kind, target, format), out capabilities!);
+        }
+    }
+
     /// <summary>Returns cached target-specific format support; uses the admitted backend for unknown entries.</summary>
     internal static InternalFormatCapabilities GetInternalFormatCapabilities(TextureDimension target, TextureFormat format, GpuResourceKind kind = GpuResourceKind.Texture)
     {

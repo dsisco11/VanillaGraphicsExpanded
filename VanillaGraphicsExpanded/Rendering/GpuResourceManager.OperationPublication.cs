@@ -21,6 +21,7 @@ internal sealed partial class GpuResourceManager
         GpuMetadataChange effects) where T : struct
     {
         entry.NotifyImageDependents(suppressErrors: true);
+        if (entry.Kind == GpuResourceKind.Texture) entry.Manager.SetTextureViewSourceAvailability(entry, false);
         try { entry.NotifyProgramDependents(effects, available: false); } catch { }
         try { entry.NotifyFramebufferDependents(origin); } catch { }
     }

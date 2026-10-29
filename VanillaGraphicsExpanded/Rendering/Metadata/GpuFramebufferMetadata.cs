@@ -12,7 +12,11 @@ public readonly record struct GpuFramebufferMetadata(
 public readonly record struct GpuFramebufferImageMetadata(
     GpuResourceKind Kind, nint Id, int MipLevel, int Layer, CubeFace CubeFace,
     bool Layered, int BaseView = 0, int ViewCount = 0,
-    GpuFramebufferAttachmentMode Mode = GpuFramebufferAttachmentMode.Unknown);
+    GpuFramebufferAttachmentMode Mode = GpuFramebufferAttachmentMode.Unknown)
+{
+    /// <summary>Retains the original backing identity when its numeric name is later reused.</summary>
+    internal GpuResourceRegistration? OriginalBacking { get; init; }
+}
 
 /// <summary>Distinguishes proven attachment command semantics from ambiguous native selection queries.</summary>
 public enum GpuFramebufferAttachmentMode { Unknown, Ordinary, Multiview }

@@ -9,12 +9,22 @@ internal sealed unsafe partial class OpenGlStateCache
     #region Internal API
     /// <summary>Updates existing cache and resource authority without issuing the intercepted operation.</summary>
     [InterceptOpenGL("glBindRenderbuffer")]
+    [InterceptOpenGL("glBindRenderbufferEXT")]
     internal static void ObserveBindRenderbuffer(int a0, uint a1)
     {
         RenderbufferTarget target = unchecked((RenderbufferTarget)a0);
         int renderbuffer = unchecked((int)a1);
-        if (!OpenGLObservationContext.TryGet(out var cache, out _)) return;
+        if (!OpenGLObservationContext.TryGet(out var cache, out _, false)) return;
         bool valid = target == RenderbufferTarget.Renderbuffer;
+        if (valid && renderbuffer != 0)
+        {
+            if (GpuResourceManagerSystem.CurrentManager?.FindObservedResource(GpuResourceKind.Renderbuffer, renderbuffer) is null)
+            {
+                cache.RenderbufferKnowledge = null;
+                return;
+            }
+            GpuResourceManagerSystem.CurrentManager?.RealizeObservedImage(GpuResourceKind.Renderbuffer, renderbuffer);
+        }
         bool established = valid && cache.HasEstablishedNativeIdentity(GpuResourceKind.Renderbuffer, renderbuffer);
         var origin = Integration.RenderContextRegistry.CaptureResourceContext();
         if (valid) cache.RenderbufferKnowledge = null;

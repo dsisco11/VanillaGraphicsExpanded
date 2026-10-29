@@ -14,8 +14,8 @@ internal sealed unsafe partial class OpenGlStateCache
         int @texture = unchecked((int)a0);
         TextureTarget @target = unchecked((TextureTarget)a1);
         int @renderbuffer = unchecked((int)a2);
-        if (!OpenGLObservationContext.TryGet(out _, out _)) return;
-        OpenGlStateCache.ObserveTextureMetadata(unchecked((int)@texture), unchecked((int)@target), -1, true, false, OpenGlStateCache.TextureMetadataEffect.RenderbufferAssociation, unchecked((int)@renderbuffer));
+        if (!OpenGLObservationContext.TryGet(out _, out _, false)) return;
+        OpenGlStateCache.ObserveTextureMetadata(unchecked((int)@texture), unchecked((int)@target), -1, true, false, OpenGlStateCache.TextureMetadataEffect.RenderbufferAssociation, unchecked((int)@renderbuffer), extNamed: true);
     }
     #endregion
 }

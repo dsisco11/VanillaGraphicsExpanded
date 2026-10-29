@@ -1,45 +1,30 @@
 using VanillaGraphicsExpanded.Rendering.RHI;
-using System.Collections.Generic;
-using System.Runtime.CompilerServices;
 
 namespace VanillaGraphicsExpanded.Rendering;
 
 /// <summary>Combines native attachment facts with proven command semantics where GL has no mode query.</summary>
 internal sealed partial class GpuResourceManager
 {
-    // These are pending observation arguments, consumed by the next canonical read.
-    // Original entry keys prevent queued observations from attaching to a reused name.
-    private readonly ConditionalWeakTable<GpuResourceRegistration, Dictionary<FramebufferSlot, FramebufferAttachmentCommand>> framebufferCommands = new();
-
-    #region Internal API
-    /// <summary>Retains a completed command for the next canonical read, including deferred attachment groups.</summary>
-    internal void RecordFramebufferAttachmentCommand(GpuResourceMetadataEntry<GpuFramebufferMetadata> entry,
-        FramebufferAttachmentCommand command)
-    {
-        RequireMetadataContext();
-        RequireLiveEntry(entry);
-        var commands = framebufferCommands.GetValue(entry, static _ => new());
-        if (command.Slot == FramebufferSlot.DepthStencil)
-        {
-            commands[FramebufferSlot.Depth] = command;
-            commands[FramebufferSlot.Stencil] = command;
-        }
-        else commands[command.Slot] = command;
-    }
-    #endregion
-
     #region Private
     /// <summary>Preserves compatible prior evidence and certifies only matching, admitted attachment commands.</summary>
     private T ReconcileFramebufferAttachmentModes<T>(GpuResourceMetadataEntry<T> entry, T candidate) where T : struct
     {
         if (candidate is not GpuFramebufferMetadata actual || actual.Attachments is null) return candidate;
         var previous = entry.Metadata is GpuFramebufferMetadata old ? old.Attachments : null;
-        framebufferCommands.TryGetValue(entry, out var commands);
         var attachments = actual.Attachments.ToBuilder();
         foreach (var pair in actual.Attachments)
         {
             var image = pair.Value;
-            var mode = image.Mode != GpuFramebufferAttachmentMode.Unknown ? image.Mode : RHI.RHICommandContext.Current.Capabilities.Multiview
+            if (image.OriginalBacking is null)
+            {
+                // A descriptor read cannot distinguish an old retained object from
+                // a replacement that happens to reuse the same numeric name.
+                var original = previous is not null && previous.TryGetValue(pair.Key, out var priorIdentity)
+                    && priorIdentity.Kind == image.Kind && priorIdentity.Id == image.Id
+                    ? priorIdentity.OriginalBacking : FindObservedResource(image.Kind, image.Id);
+                image = image with { OriginalBacking = original };
+            }
+            var mode = image.Mode != GpuFramebufferAttachmentMode.Unknown ? image.Mode : (!GpuSupport.HasCachedCapabilitiesForCurrentContext || GpuSupport.Graphics.SupportsOvrMultiview)
                 ? GpuFramebufferAttachmentMode.Unknown : GpuFramebufferAttachmentMode.Ordinary;
             if (image.Kind != GpuResourceKind.Texture || FindResource(image.Kind, image.Id)
                 is GpuResourceMetadataEntry<GpuTextureMetadata> backing
@@ -48,14 +33,8 @@ internal sealed partial class GpuResourceManager
             bool unchanged = previous is not null && previous.TryGetValue(pair.Key, out var prior)
                 && (prior with { Mode = GpuFramebufferAttachmentMode.Unknown }) == (image with { Mode = GpuFramebufferAttachmentMode.Unknown });
             if (unchanged && image.Mode == GpuFramebufferAttachmentMode.Unknown) mode = previous![pair.Key].Mode;
-            if (commands is not null && commands.TryGetValue(pair.Key, out var command))
-            {
-                if (command.Eligible && command.Matches(image)) mode = command.Mode;
-                else if (!command.Rejected || !unchanged) mode = GpuFramebufferAttachmentMode.Unknown;
-            }
             attachments[pair.Key] = image with { Mode = mode };
         }
-        framebufferCommands.Remove(entry);
         return (T)(object)(actual with { Attachments = attachments.ToImmutable() });
     }
     #endregion

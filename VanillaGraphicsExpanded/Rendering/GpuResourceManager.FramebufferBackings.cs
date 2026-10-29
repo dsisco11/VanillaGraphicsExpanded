@@ -7,37 +7,31 @@ namespace VanillaGraphicsExpanded.Rendering;
 internal sealed partial class GpuResourceManager
 {
     #region Internal API
-    /// <summary>Uses available covered texture facts unless the external owner explicitly requests recovery.</summary>
-    internal static GpuTextureMetadata AcquireFramebufferTexture(int id, TextureDimension target, bool recover)
+    /// <summary>Uses the available canonical texture facts for an attachment.</summary>
+    internal static GpuTextureMetadata AcquireFramebufferTexture(int id, TextureDimension target)
     {
         RHICommandContext.RequireResourceOperationAvailable(GpuResourceKind.Texture, id);
         var manager = GpuResourceManagerSystem.CurrentManager;
         if (manager?.CanObserveNativeMetadata == true)
         {
             var reader = new GpuTextureMetadataReader(target);
-            var entry = recover ? manager.RecoverResource(GpuResourceKind.Texture, id, reader)
-                : manager.AcquireResource(GpuResourceKind.Texture, id, reader);
+            var entry = manager.AcquireResource(GpuResourceKind.Texture, id, reader);
             return entry?.Metadata ?? throw new InvalidOperationException("Framebuffer texture metadata is unavailable.");
         }
-        if (!new GpuTextureMetadataReader(target).TryRead(id, out var result))
-            throw new InvalidOperationException("Framebuffer texture metadata is unavailable.");
-        return result;
+        throw new InvalidOperationException("Framebuffer texture requires maintained backing facts.");
     }
 
     /// <summary>Uses one renderbuffer snapshot for every image selection in a framebuffer discovery.</summary>
-    internal static GpuRenderbufferMetadata AcquireFramebufferRenderbuffer(int id, bool recover)
+    internal static GpuRenderbufferMetadata AcquireFramebufferRenderbuffer(int id)
     {
         RHICommandContext.RequireResourceOperationAvailable(GpuResourceKind.Renderbuffer, id);
         var manager = GpuResourceManagerSystem.CurrentManager;
         if (manager?.CanObserveNativeMetadata == true)
         {
-            var entry = recover ? manager.RecoverResource(GpuResourceKind.Renderbuffer, id, GpuRenderbufferMetadataReader.Instance)
-                : manager.AcquireResource(GpuResourceKind.Renderbuffer, id, GpuRenderbufferMetadataReader.Instance);
+            var entry = manager.AcquireResource(GpuResourceKind.Renderbuffer, id, GpuRenderbufferMetadataReader.Instance);
             return entry?.Metadata ?? throw new InvalidOperationException("Framebuffer renderbuffer metadata is unavailable.");
         }
-        if (!GpuRenderbufferMetadataReader.Instance.TryRead(id, out var result))
-            throw new InvalidOperationException("Framebuffer renderbuffer metadata is unavailable.");
-        return result;
+        throw new InvalidOperationException("Framebuffer renderbuffer requires maintained backing facts.");
     }
     #endregion
 }

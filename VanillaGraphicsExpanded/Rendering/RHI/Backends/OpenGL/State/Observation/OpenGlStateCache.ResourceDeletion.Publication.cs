@@ -14,12 +14,14 @@ internal sealed partial class OpenGlStateCache
     }
 
     /// <summary>Retires only proven deleted names; exact adapters may supply an outcome from their original native loader.</summary>
-    internal void CompleteResourceDeletion(GpuResourceKind kind, nint nativeId, bool? observedDeletion = null)
+    internal void CompleteResourceDeletion(GpuResourceKind kind, nint nativeId, bool? observedDeletion = null, bool external = false)
     {
         if (nativeId == 0 || !(observedDeletion ?? WasResourceDeleted(kind, nativeId))) return;
         CancelResourceOperation(kind, nativeId);
         if (kind == GpuResourceKind.Query) ForgetQueryTarget(nativeId);
-        GpuResourceManagerSystem.CurrentManager?.ObserveDeletion(kind, nativeId);
+        int? readFramebuffer = TryGetCachedCurrentFramebuffer(FramebufferTarget.ReadFramebuffer, out int read) ? read : null;
+        int? drawFramebuffer = TryGetCachedCurrentFramebuffer(FramebufferTarget.DrawFramebuffer, out int draw) ? draw : null;
+        GpuResourceManagerSystem.CurrentManager?.ObserveDeletion(kind, nativeId, readFramebuffer, drawFramebuffer, external);
         int id = unchecked((int)nativeId);
         RHI.Backends.OpenGL.OpenGLRHIContext.NotifyResourceDeleted(this, kind, id);
         // Reconcile only the bindings whose native command has an implicit unbinding effect.
@@ -51,6 +53,7 @@ internal sealed partial class OpenGlStateCache
                 break;
             case GpuResourceKind.Framebuffer:
                 InvalidateFramebufferDrawRouting(id);
+                framebufferReadRouting.Remove(id);
                 RecordBoundaryRetirement(EPipelineState.FramebufferBindings, id);
                 if (currentReadFramebuffer == id) currentReadFramebuffer = 0;
                 if (currentDrawFramebuffer == id) currentDrawFramebuffer = 0;

@@ -34,8 +34,7 @@ public sealed class GpuTextureAttachmentRepairTests(HeadlessGLFixture fixture)
             framebuffer.SetAttachment(FramebufferSlot.Color0, invalid);
             framebuffer.SetAttachment(FramebufferSlot.Color1, invalid);
             framebuffer.SetAttachment(FramebufferSlot.Color2, valid);
-            if (managed) Assert.True(source.Resize(8, 4, 1));
-            else Assert.Throws<AggregateException>(() => source.Resize(8, 4, 1));
+            Assert.True(source.Resize(8, 4, 1));
             Assert.Throws<InvalidOperationException>(() => framebuffer.Bind());
             OpenGLFramebufferSelection.Bind(OpenGlStateCache.Current, FramebufferTarget.ReadFramebuffer, read.FboId);
             OpenGLFramebufferSelection.Bind(OpenGlStateCache.Current, FramebufferTarget.DrawFramebuffer, draw.FboId);
@@ -76,13 +75,15 @@ public sealed class GpuTextureAttachmentRepairTests(HeadlessGLFixture fixture)
             else using (new GpuResourceManager.MetadataOperation<GpuTextureMetadata>(source, storage ? GpuMetadataChange.Storage : GpuMetadataChange.Metadata)) { }
             Assert.False(view.IsValid);
             OpenGLImageBindings.BindTexture(OpenGlStateCache.Current, TextureTarget.Texture2DArray, 0, 0);
-            VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, view, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)view).Target)))]);
+            Assert.Throws<InvalidOperationException>(() => RHICommandContext.Current.BindSampledTextures([new(0, view, Dimension: TextureDimension.TwoArray)]));
             Assert.Equal(0, GL.GetInteger(GetPName.TextureBinding2DArray));
             // Reacquiring view facts leaves its allocation intact; source storage publication retires dependencies.
-            if (own) GpuResourceManager.ObserveWrapperMetadata(view, new GpuTextureMetadataReader(TextureDimension.TwoArray), GpuMetadataChange.Metadata);
-            else source.SetMipRange(0, 0);
+            if (own) GpuResourceManager.RecoverWrapperMetadata(view, new GpuTextureMetadataReader(TextureDimension.TwoArray));
+            else GpuResourceManager.RecoverWrapperMetadata(source, new GpuTextureMetadataReader(TextureDimension.TwoArray));
             Assert.Equal(!storage, view.IsValid);
-            VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, view, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)view).Target)))]);
+            if (storage)
+                Assert.Throws<InvalidOperationException>(() => RHICommandContext.Current.BindSampledTextures([new(0, view, Dimension: TextureDimension.TwoArray)]));
+            else RHICommandContext.Current.BindSampledTextures([new(0, view, Dimension: TextureDimension.TwoArray)]);
             Assert.Equal(storage ? 0 : view.TextureId, GL.GetInteger(GetPName.TextureBinding2DArray));
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }

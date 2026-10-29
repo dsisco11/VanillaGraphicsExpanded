@@ -141,13 +141,13 @@ public sealed class GpuBufferLifecycleTests(HeadlessGLFixture fixture)
             var entry = Assert.IsType<GpuResourceMetadataEntry<GpuBufferMetadata>>(GpuResourceManagerSystem.CurrentManager!.FindResource(GpuResourceKind.Buffer, id));
             ulong revision = entry.MetadataRevision;
             Assert.NotEqual(IntPtr.Zero, GL.MapNamedBufferRange(id, 0, 16, BufferAccessMask.MapWriteBit | BufferAccessMask.MapFlushExplicitBit));
-            Assert.True(OpenGlStateCache.Current.TryGetBufferMapping(id, out bool mapped) && mapped);
+            Assert.True(OpenGlStateCache.Current.TryGetBufferMapping(id, out bool mapped, out bool persistent) && mapped && !persistent);
             GL.FlushMappedNamedBufferRange(id, -1, 8);
             Assert.Equal(ErrorCode.InvalidValue, GL.GetError());
-            Assert.True(OpenGlStateCache.Current.TryGetBufferMapping(id, out mapped) && mapped);
+            Assert.True(OpenGlStateCache.Current.TryGetBufferMapping(id, out mapped, out persistent) && mapped && !persistent);
             GL.FlushMappedNamedBufferRange(id, 0, 8);
             Assert.True(GL.UnmapNamedBuffer(id));
-            Assert.True(OpenGlStateCache.Current.TryGetBufferMapping(id, out mapped) && !mapped);
+            Assert.True(OpenGlStateCache.Current.TryGetBufferMapping(id, out mapped, out persistent) && !mapped && !persistent);
             Assert.Equal(revision, entry.MetadataRevision);
             Assert.Equal(IntPtr.Zero, GL.MapNamedBufferRange(id, -1, 16, BufferAccessMask.MapWriteBit));
             Assert.Equal(ErrorCode.InvalidValue, GL.GetError());

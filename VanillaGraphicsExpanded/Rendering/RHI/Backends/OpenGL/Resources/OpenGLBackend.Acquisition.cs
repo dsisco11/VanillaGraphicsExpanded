@@ -44,10 +44,10 @@ internal sealed partial class OpenGLBackend
         owner.RequireOriginalContext(); GpuResourceManager.AcquireWrapperMetadata(owner, GpuShaderMetadataReader.Instance);
     }
     /// <inheritdoc />
-    public GpuFramebufferAttachment DiscoverFramebufferAttachment(GpuFramebuffer owner, FramebufferSlot slot, bool recover)
+    public GpuFramebufferAttachment DiscoverFramebufferAttachment(GpuFramebuffer owner, FramebufferSlot slot)
     {
         RequireContext();
-        owner.RequireOriginalContext(); return GpuResourceManager.DiscoverFramebufferAttachment(owner, slot, recover);
+        owner.RequireOriginalContext(); return GpuResourceManager.DiscoverFramebufferAttachment(owner, slot);
     }
     /// <inheritdoc />
     public void PublishImportedFramebuffer(GpuFramebuffer owner, bool publish, int? replacementId = null, int width = 0, int height = 0)

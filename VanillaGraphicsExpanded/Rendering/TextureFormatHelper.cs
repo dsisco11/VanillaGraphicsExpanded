@@ -15,6 +15,11 @@ public static class TextureFormatHelper
     {
         return internalFormat switch
         {
+            TextureFormat.CompressedR11Eac or TextureFormat.CompressedSignedR11Eac => PixelChannelLayout.Red,
+            TextureFormat.CompressedRg11Eac or TextureFormat.CompressedSignedRg11Eac => PixelChannelLayout.Rg,
+            TextureFormat.CompressedRgb8Etc2 or TextureFormat.CompressedSrgb8Etc2
+                or TextureFormat.CompressedRgb8PunchthroughAlpha1Etc2 or TextureFormat.CompressedSrgb8PunchthroughAlpha1Etc2 => PixelChannelLayout.Rgb,
+            TextureFormat.CompressedRgba8Etc2Eac or TextureFormat.CompressedSrgb8Alpha8Etc2Eac => PixelChannelLayout.Rgba,
             TextureFormat.R8i or TextureFormat.R16i or TextureFormat.R32i or TextureFormat.R8ui or TextureFormat.R16ui or TextureFormat.R32ui => PixelChannelLayout.RedInteger,
             TextureFormat.Rg8i or TextureFormat.Rg16i or TextureFormat.Rg32i or TextureFormat.Rg8ui or TextureFormat.Rg16ui or TextureFormat.Rg32ui => PixelChannelLayout.RgInteger,
             TextureFormat.Rgb8i or TextureFormat.Rgb16i or TextureFormat.Rgb32i or TextureFormat.Rgb8ui or TextureFormat.Rgb16ui or TextureFormat.Rgb32ui => PixelChannelLayout.RgbInteger,

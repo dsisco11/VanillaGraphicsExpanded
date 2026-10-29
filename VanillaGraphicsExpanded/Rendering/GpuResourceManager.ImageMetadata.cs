@@ -55,7 +55,11 @@ internal sealed partial class GpuResourceManager
             GpuResourceMetadataEntry<GpuRenderbufferMetadata> renderbuffer => ProjectRenderbufferImage(renderbuffer.Metadata, selection),
             _ => null
         };
-        if (!candidate.HasValue) return false;
+        if (!candidate.HasValue)
+        {
+            image.HandleMetadataChanged(default);
+            return false;
+        }
         image.HandleMetadataChanged(candidate.Value);
         return true;
     }

@@ -13,7 +13,7 @@ internal sealed unsafe partial class OpenGlStateCache
         int id = cache.ResolveObservedBuffer(unchecked((int)selector), false, false);
         // FALSE can mean corruption after a valid unmap, or rejection of an unmapped object.
         // Both leave an established unmapped object unmapped; unknown history stays unknown.
-        if (id != 0 && (result != 0 || cache.bufferMappings.ContainsKey(id))) cache.bufferMappings[id] = false;
+        if (id != 0 && (result != 0 || cache.bufferMappings.ContainsKey(id))) cache.EstablishBufferUnmapped(id);
     }
     #endregion
 }

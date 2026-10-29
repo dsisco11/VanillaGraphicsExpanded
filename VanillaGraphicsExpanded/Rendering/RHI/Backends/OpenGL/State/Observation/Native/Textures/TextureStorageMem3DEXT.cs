@@ -19,8 +19,8 @@ internal sealed unsafe partial class OpenGlStateCache
         int @depth = unchecked((int)a5);
         int @memory = unchecked((int)a6);
         long @offset = unchecked((long)a7);
-        if (!OpenGLObservationContext.TryGet(out _, out _)) return;
-        OpenGlStateCache.ObserveTextureMetadata(unchecked((int)@texture), 0, -1, true, false, OpenGlStateCache.TextureMetadataEffect.Storage, 0);
+        if (!OpenGLObservationContext.TryGet(out _, out _, false)) return;
+        OpenGlStateCache.ObserveTextureDefinition(unchecked((int)@texture), 0, -1, true, false, 0, unchecked((int)@internalFormat), unchecked((int)@width), unchecked((int)@height), unchecked((int)@depth), unchecked((int)@levels), true, 0, 0, 3, false, unchecked((int)@memory), externalMemory: true, memoryOffset: unchecked((ulong)@offset));
     }
     #endregion
 }

@@ -18,11 +18,11 @@ public sealed class GpuFramebufferExecutableCreationTests(HeadlessGLFixture fixt
     private static readonly HashSet<FramebufferAttachment> queriedSlots = new();
 
     #region Public API
-    /// <summary>Explicit external recovery refreshes image storage even when the framebuffer's selected ID and mip are unchanged.</summary>
+    /// <summary>Maintained backing facts refresh an unchanged attachment selection without rediscovery.</summary>
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void ForcedDiscoveryRefreshesUnchangedAttachmentBacking(bool registered)
+    public void MaintainedFactsRefreshUnchangedAttachmentBacking(bool registered)
     {
         fixture.EnsureContextValid();
         if (registered) fixture.InitializeResourceDisposal();
@@ -34,7 +34,7 @@ public sealed class GpuFramebufferExecutableCreationTests(HeadlessGLFixture fixt
             Assert.Equal(4, before.Width);
             using (OpenGlStateCache.Current.BindTextureScope(TextureTarget.Texture2D, 0, texture.TextureId))
                 GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.Rgba8, 8, 6, 0, PixelFormat.Rgba, PixelType.UnsignedByte, IntPtr.Zero);
-            var recovered = GpuFramebufferAttachmentDiscovery.Read(framebuffer, FramebufferSlot.Color0, forceNative: true);
+            var recovered = GpuFramebufferAttachmentDiscovery.Read(framebuffer, FramebufferSlot.Color0);
             Assert.Equal(texture.TextureId, recovered.TextureId);
             Assert.Equal(8, recovered.Width);
             Assert.Equal(6, recovered.Height);
@@ -43,34 +43,33 @@ public sealed class GpuFramebufferExecutableCreationTests(HeadlessGLFixture fixt
         finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
 
-    /// <summary>Local backing discovery cannot publish a partial texture or renderbuffer while its explicit mutation is unfinished.</summary>
+    /// <summary>Backing acquisition rejects a texture or renderbuffer while its explicit mutation is unfinished.</summary>
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void LocalBackingAcquisitionRejectsUnfinishedOperation(bool renderbuffer)
+    public void BackingAcquisitionRejectsUnfinishedOperation(bool renderbuffer)
     {
-        fixture.EnsureContextValid();
-        Assert.Null(GpuResourceManagerSystem.CurrentManager);
+        fixture.EnsureContextValid(); fixture.InitializeResourceDisposal();
         try
         {
             if (renderbuffer)
             {
                 using var owner = RHICommandContext.Current.CreateRenderbuffer(new RHIRenderbufferDescription { Format = TextureFormat.Rgba8, Width = 4, Height = 4, Samples = 0, Label = null }).RequireResource();
                 using var operation = new GpuResourceManager.MetadataOperation<GpuRenderbufferMetadata>(owner, GpuMetadataChange.Storage);
-                Assert.Throws<InvalidOperationException>(() => GpuResourceManager.AcquireFramebufferRenderbuffer(owner.RenderbufferId, true));
+                Assert.Throws<InvalidOperationException>(() => GpuResourceManager.AcquireFramebufferRenderbuffer(owner.RenderbufferId));
             }
             else
             {
                 using var owner = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba8, Width = System.Math.Max(1, 4), Height = System.Math.Max(1, 4), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
                 using var operation = new GpuResourceManager.MetadataOperation<GpuTextureMetadata>(owner, GpuMetadataChange.Storage);
-                Assert.Throws<InvalidOperationException>(() => GpuResourceManager.AcquireFramebufferTexture(owner.TextureId, TextureDimension.Two, true));
+                Assert.Throws<InvalidOperationException>(() => GpuResourceManager.AcquireFramebufferTexture(owner.TextureId, TextureDimension.Two));
             }
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { OpenGlStateCache.Current.InvalidateAll(); }
+        finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
 
-    /// <summary>External narrow edits query only the selected slot or default and retain every unrelated descriptor.</summary>
+    /// <summary>External edits publish supplied fields and retain unrelated descriptors without readback.</summary>
     [Fact]
     public void ExternalFramebufferEditsReadOnlyAffectedFields()
     {
@@ -85,10 +84,12 @@ public sealed class GpuFramebufferExecutableCreationTests(HeadlessGLFixture fixt
                 GpuResourceManagerSystem.CurrentManager!.GetResourceRegistration(framebuffer));
             var original = entry.Metadata.Attachments[FramebufferSlot.Color0];
             PatchQueries(harmony);
+            using var reads = new ImageDescriptorCapture();
             queries = 0; queriedSlots.Clear();
             GL.NamedFramebufferTexture(framebuffer.FboId, FramebufferAttachment.ColorAttachment1, second.TextureId, 0);
-            Assert.True(queries > 0);
-            Assert.Equal(FramebufferAttachment.ColorAttachment1, Assert.Single(queriedSlots));
+            Assert.Equal(0, queries);
+            Assert.Empty(queriedSlots);
+            Assert.Equal(0, reads.Reads);
             Assert.Equal(original, entry.Metadata.Attachments[FramebufferSlot.Color0]);
             Assert.Equal(second.TextureId, entry.Metadata.Attachments[FramebufferSlot.Color1].Id);
             if (GpuSupport.Graphics.SupportsFramebufferNoAttachments)
@@ -96,8 +97,9 @@ public sealed class GpuFramebufferExecutableCreationTests(HeadlessGLFixture fixt
                 var attachments = entry.Metadata.Attachments;
                 queries = 0; queriedSlots.Clear();
                 GL.NamedFramebufferParameter(framebuffer.FboId, FramebufferDefaultParameter.FramebufferDefaultWidth, 17);
-                Assert.Equal(1, queries);
+                Assert.Equal(0, queries);
                 Assert.Empty(queriedSlots);
+                Assert.Equal(0, reads.Reads);
                 Assert.Equal(17, entry.Metadata.DefaultWidth);
                 Assert.Same(attachments, entry.Metadata.Attachments);
             }
@@ -176,7 +178,7 @@ public sealed class GpuFramebufferExecutableCreationTests(HeadlessGLFixture fixt
             Assert.Empty(frameData.Value.Attachments);
             Assert.Equal(0, frameData.Value.DefaultWidth);
             Assert.Equal(0, frameData.Value.DefaultSamples);
-            Assert.False(frameData.Value.DefaultFixedSampleLocations);
+            Assert.True(frameData.Value.DefaultFixedSampleLocations);
             Assert.Equal(new GpuShaderMetadata(ShaderStage.Vertex), shaderData);
             Assert.NotNull(programData);
             Assert.False(programData.Value.ExecutableAvailable);

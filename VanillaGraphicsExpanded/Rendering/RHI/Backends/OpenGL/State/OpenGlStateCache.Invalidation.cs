@@ -63,6 +63,7 @@ internal sealed partial class OpenGlStateCache
         // explicit routing category; ordinary binding uncertainty preserves those facts.
         if (states.HasFlag(EPipelineState.FramebufferRouting))
             framebufferDrawRouting.Clear();
+            framebufferReadRouting.Clear();
         if (states.HasFlag(EPipelineState.RenderbufferBinding)) currentRenderbuffer = null;
         if (states.HasFlag(EPipelineState.TransformFeedback))
         {

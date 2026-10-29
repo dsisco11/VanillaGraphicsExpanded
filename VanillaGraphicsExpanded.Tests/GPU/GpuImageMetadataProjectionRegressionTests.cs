@@ -42,7 +42,7 @@ public sealed class GpuImageMetadataProjectionRegressionTests(HeadlessGLFixture 
         finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
 
-    /// <summary>Explicit raw-image acquisition refreshes changed native dimensions through the canonical manager entry.</summary>
+    /// <summary>Raw-image association uses observed dimensions through the canonical manager entry.</summary>
     [Fact]
     public void ExternalImageAttachmentRefreshesCanonicalSnapshot()
     {
@@ -54,16 +54,15 @@ public sealed class GpuImageMetadataProjectionRegressionTests(HeadlessGLFixture 
             using var sentinel = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba8, Width = System.Math.Max(1, 2), Height = System.Math.Max(1, 2), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
             using (OpenGlStateCache.Current.BindTextureScope(OpenGLImageValues.Target(((GpuTextureRef)texture).Target), 0, texture.TextureId))
                 GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.Rgba8, 12, 6, 0, PixelFormat.Rgba, PixelType.UnsignedByte, IntPtr.Zero);
-            // This direct external mutation bypasses command publication, so its owner must
-            // explicitly withdraw the old covered snapshot before requesting recovery.
-            GpuResourceManager.InvalidateWrapperMetadata(texture, GpuMetadataChange.Storage);
             using var binding = OpenGlStateCache.Current.BindTextureScope(OpenGLImageValues.Target(((GpuTextureRef)sentinel).Target), 0, sentinel.TextureId);
+            using var reads = new ImageDescriptorCapture();
             using var image = GpuFramebufferAttachment.FromTextureId(texture.TextureId);
             var manager = GpuResourceManagerSystem.CurrentManager!;
             Assert.Same(manager.GetResourceRegistration(texture), manager.GetResourceRegistration(image));
             Assert.Equal(12, image.Width);
             Assert.Equal(6, image.Height);
             Assert.Equal(12, texture.Width);
+            Assert.Equal(0, reads.Reads);
             Assert.Equal(sentinel.TextureId, GL.GetInteger(GetPName.TextureBinding2D));
             Assert.Throws<ArgumentOutOfRangeException>(() => GpuFramebufferAttachment.FromTextureId(texture.TextureId, mipLevel: 31));
             Assert.Equal(ErrorCode.NoError, GL.GetError());

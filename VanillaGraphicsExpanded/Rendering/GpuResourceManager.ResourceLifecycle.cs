@@ -46,7 +46,10 @@ internal sealed partial class GpuResourceManager
     internal void RegisterWrapperDeclaration<TMetadata>(GpuResource<TMetadata> resource) where TMetadata : struct
     {
         if (resource.ResourceId == 0 || IsMetadataRegistryRetired || RenderContextRegistry.Current() == default) return;
-        var entry = RegisterCreatedResource<TMetadata>(resource.Kind, resource.ResourceId);
+        var entry = FindResource(resource.Kind, resource.ResourceId) as GpuResourceMetadataEntry<TMetadata>;
+        if (entry is null && UsesMaintainedLifecycle(resource.Kind))
+            throw new InvalidOperationException("A wrapper declaration cannot manufacture a missing observed resource lifetime.");
+        entry ??= RegisterCreatedResource<TMetadata>(resource.Kind, resource.ResourceId);
         if (!ReferenceEquals(GetResourceRegistration(resource), entry)) AssociateResource(entry, resource);
     }
 

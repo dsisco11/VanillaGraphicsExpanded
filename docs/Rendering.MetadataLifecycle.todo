@@ -4,7 +4,7 @@ Maintained resource metadata lifecycle — implementation plan
 Source proposal: [Rendering.MetadataLifecycle.Proposal.md](Rendering.MetadataLifecycle.Proposal.md).
 Parent integration gate: [Rendering.GpuCommands.todo](Rendering.GpuCommands.todo), subphase 8i.
 Initial inventory: [Rendering.MetadataLifecycle.Inventory.md](Rendering.MetadataLifecycle.Inventory.md).
-Status: Phases 1–3 complete; Phases 4–7 remain pending.
+Status: Phases 1–4 complete; Phases 5–7 remain pending.
 
 Goal
   Maintain canonical resource facts from observed creation, guaranteed defaults and subsequent commands.
@@ -46,13 +46,18 @@ Mandatory contract — applies to every implementation phase
     Established request/default/derived facts update the same canonical entry. Uncertainty withdraws affected
     certification without fabricating success. No universal GetError drain, Is-object probing, verification
     read, retry or silent-allocation-failure detector. Use cached capabilities in native observations.
-  - Borrowing/adoption of covered objects is query-free association. Initial discovery requires a resource
-    predating hook installation. Missing tracking or absence of a manager alone is not a discovery reason;
-    local RHI initialization uses its supplied snapshot. Imports have no blanket query exemption.
+  - Borrowing/adoption of covered objects is query-free association. Initial discovery requires recorded
+    pre-install provenance or an unknown identity encountered through a supported EXT named implicit-creation
+    operation. Record the latter cause without assuming defaults or querying in callbacks; allow one initial
+    read at explicit adoption, then require explicit recovery after failure. Ordinary binds/missing tracking
+    or absence of a manager alone grant no discovery; local RHI initialization uses its supplied snapshot.
+    Imports have no blanket query exemption.
   - Preserve explicit shader/compiler output, unsized-format resolution, cached sample resolution with the
     approved one-time fallback, documented targeted recovery and kind-specific deletion-outcome reads.
     Any additional import read must name the missing fact, why intercepted setup cannot supply it and its
-    consumer. No imported-descriptor exception is established by this plan. Semaphore import has one
+    consumer. External-memory-backed textures have one approved immutable-storage flag read after a
+    known-mutable allocation attempt; dimensions, format and levels remain supplied by the command.
+    Semaphore import has one
     approved targeted IsSemaphore lifecycle outcome check at the RHI boundary for wait/signal admission;
     external import observers do not probe. Unimported owned reservations are disposable, not consumable.
   - Context identity remains manager-owned and context-affine; equal names in different contexts do not
@@ -199,40 +204,57 @@ Phase 4: Migrate image storage, views and framebuffer consumers together
   Outcome: texture/renderbuffer creation and configuration supply aliases, views and framebuffer images
     from maintained canonical facts, including imported-memory-backed storage.
 
-  ☐ Add all inventoried texture/renderbuffer/framebuffer creation and realization observations. Establish
+  ☑ Add all inventoried texture/renderbuffer/framebuffer creation and realization observations. Establish
     target and kind-specific defaults only when realized. Preserve zero/default framebuffer surface
     semantics, empty image allocations, reserved names and extension realization behavior.
-  ☐ Migrate GpuTexture and its owned subclasses, BorrowedTexture, GpuTextureView, GpuBufferTexture and
+    Record unknown EXT named realization identities as awaiting one explicit discovery, without guessed
+    defaults, callback readback or repeated automatic retries. Tracked reservations still realize query-free;
+    discovery resolves the actual texture target independently of a rejected command's target.
+    Retain validated buffer-texture association mode/ranges and original backing privately until target
+    discovery; never infer whole-buffer mode or narrow native-width ranges from integer getters.
+    Engine menu textures outside framebuffer references need provenance only for actual managed adoption;
+    ordinary unknown bindings cannot manufacture descriptors or authorize discovery.
+  ☑ Migrate GpuTexture and its owned subclasses, BorrowedTexture, GpuTextureView, GpuBufferTexture and
     GpuBufferView using GpuTextureMetadata. Forward dimensions, formats, levels/layers/faces, storage mode
     and represented parameters from every relevant named/bound/explicit-unit/extension command.
     Replace ObserveTextureStorage2D/3D and equivalent argument-discarding paths; cover mutable definitions,
     immutable storage, compressed definitions, external-memory storage and base/max-level changes.
-  ☐ Derive immutable mip geometry and mutable mip-generation effects from known base images. Preserve
+      For external-memory storage, read only the immutable-storage flag once when a known-mutable
+      texture's opaque imported payload prevents establishing whether the allocation succeeded.
+  ☑ Derive immutable mip geometry and mutable mip-generation effects from known base images. Preserve
     array/cube/3D shape semantics and unallocated images. Subimage writes and immutable mip regeneration
     preserve descriptor/storage revisions when they only change contents. Preserve prior facts on proven
     rejection; targeted uncertainty cannot become an unconditional full-image scan.
-  ☐ Migrate GpuRenderbuffer/GpuRenderbufferMetadata and renderbuffer-backed texture associations. Maintain
+  ☑ Migrate GpuRenderbuffer/GpuRenderbufferMetadata and renderbuffer-backed texture associations. Maintain
     extent/format from commands; resolve unsized image formats only where necessary. Use cached target/format
     sample capabilities and the approved single sample-count fallback for renderbuffers and multisample
     textures. Never read unrelated descriptor fields to resolve these outputs.
-  ☐ Preserve distinct texture-view registrations, source allocation/storage dependencies and view-relative
+  ☑ Preserve distinct texture-view registrations, source allocation/storage dependencies and view-relative
     image geometry. Maintain buffer-view offsets/ranges/whole-buffer convention and renderbuffer associations
     from observed setup. Source replacement never silently retargets borrowers/views. Deletion and storage
     changes invalidate the appropriate existing dependencies without a second metadata mirror.
-  ☐ Migrate GpuFramebuffer, DynamicGpuFramebuffer, StaticGpuFramebuffer and GpuFramebufferAttachment using
+  ☑ Migrate GpuFramebuffer, DynamicGpuFramebuffer, StaticGpuFramebuffer and GpuFramebufferAttachment using
     GpuFramebufferMetadata and projected GpuImageMetadata. Apply individual attachment/subresource and
     attachmentless-default changes, preserve attachment modes and split read/draw selectors, and keep
     routing in the existing cache. Project images from known backing entries without native rediscovery.
-  ☐ Migrate texture/image/framebuffer acquisition, parameter/image refresh, generation, adoption, owner-image
+  ☑ Migrate texture/image/framebuffer acquisition, parameter/image refresh, generation, adoption, owner-image
     delivery and backing-dependency consumers together. Covered borrowing and reference/attachment validation
-    perform no queries. Preserve explicit pre-install discovery and documented targeted recovery; remove
+    perform no queries. Preserve explicit pre-install discovery, recorded EXT implicit-creation discovery
+    at initial adoption and documented targeted recovery; remove
     superseded descriptor scans and interrupt/refresh machinery without leaving compatibility routes.
-  ☐ Qualify the complete creation → storage → view/attachment → consumption → replacement/deletion paths
+  ☑ Qualify the complete creation → storage → view/attachment → consumption → replacement/deletion paths
     through both GL roots and RHI. Test partial cubes, level/layer selection, content-only effects, aliases,
     backing reuse, invalid commands, uncertain outcomes and imported memory. Reject unexpected descriptor
     reads and separately assert the narrow format/sample reads. Reconcile image/attachment docs and inventory.
-  ☐ Completion: all image family callers and dependencies use maintained facts; source identity and complete
+  ☑ Completion: all image family callers and dependencies use maintained facts; source identity and complete
     snapshot availability remain correct, with no deferred image-consumer migration or blanket import queries.
+
+  Verification: canonical shader-enabled Debug and ordinary Release builds passed. Each configuration
+    passed 698/698 combined GPU/engine/lifecycle tests and 35/35 generator tests, with zero failures/skips.
+    Second source review and independent completion audit passed. Receipts: artifacts/metadata-lifecycle/phase4,
+    build-*-mips-v5.log, phase4-mips-v5-*.trx and phase4-generator-v5-*.trx.
+    Optional EXT/import paths include deterministic native stand-ins; external-producer hardware interop,
+    installed-game startup, appearance and performance are not qualified. Phases 5–7 and parent 8i remain open.
 
 Phase 5: Maintain shader, executable and pipeline metadata
   Depends on Phases 2–4.
@@ -324,8 +346,9 @@ Final acceptance
   ☐ Every source-proposal requirement maps to implemented behavior and appropriate evidence.
   ☐ All seven phases and inherited family completion requirements are satisfied, including original
     identities, reserved realization, complete snapshots, dependency retirement and context ownership.
-  ☐ Covered borrowing/adoption is query-free; pre-install discovery and each remaining output/recovery read
-    have explicit provenance and consumer justification. No blanket import/local-tool exception remains.
+  ☐ Covered borrowing/adoption is query-free; pre-install discovery, recorded EXT implicit-creation initial
+    discovery and each remaining output/recovery read have explicit provenance and consumer justification.
+    No blanket import/local-tool exception remains.
   ☐ No superseded readback/invalidation route, temporary shim, duplicate cache/registry or backend leak
     survives in a completed family. Documentation and the parent integration gate agree with actual evidence.
 

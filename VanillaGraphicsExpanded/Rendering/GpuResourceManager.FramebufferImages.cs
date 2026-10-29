@@ -22,6 +22,9 @@ internal sealed partial class GpuResourceManager
         foreach (var pair in descriptors)
         {
             var data = pair.Value;
+            if (owner.ResourceManager is { IsMetadataRegistryRetired: false } manager
+                && (data.OriginalBacking is null || !manager.IsRegistered(data.OriginalBacking)))
+                throw new System.InvalidOperationException("The framebuffer's original image backing is unavailable.");
             if (resolved.TryGetValue(data, out var shared))
             {
                 candidate[pair.Key] = shared;
@@ -48,7 +51,7 @@ internal sealed partial class GpuResourceManager
                     // Reuse one complete backing snapshot across distinct layers/faces of the same image.
                     var storageTarget = data.CubeFace != 0 ? TextureDimension.Cube
                         : backing is GpuResourceMetadataEntry<GpuTextureMetadata> known ? known.Metadata.Target : 0;
-                    textureFacts = AcquireFramebufferTexture(checked((int)data.Id), storageTarget, recover);
+                    textureFacts = AcquireFramebufferTexture(checked((int)data.Id), storageTarget);
                     textures.Add(data.Id, textureFacts);
                 }
                 acquiredTexture = textureFacts;
@@ -58,7 +61,7 @@ internal sealed partial class GpuResourceManager
             {
                 if (!renderbuffers.TryGetValue(data.Id, out var renderbufferFacts))
                 {
-                    renderbufferFacts = AcquireFramebufferRenderbuffer(checked((int)data.Id), recover);
+                    renderbufferFacts = AcquireFramebufferRenderbuffer(checked((int)data.Id));
                     renderbuffers.Add(data.Id, renderbufferFacts);
                 }
                 acquiredRenderbuffer = renderbufferFacts;

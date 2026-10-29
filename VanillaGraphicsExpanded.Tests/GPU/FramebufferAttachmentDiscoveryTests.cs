@@ -70,7 +70,7 @@ public sealed class FramebufferAttachmentDiscoveryTests(HeadlessGLFixture fixtur
     {
         EnsureContextValid();
         if (!GpuSupport.Graphics.SupportsOvrMultiview) return;
-        Assert.Null(GpuResourceManagerSystem.CurrentManager);
+        fixture.InitializeResourceDisposal();
         using var texture = RHICommandContext.Current.CreateDynamicTexture3D(new RHITextureDescription { Dimension = TextureDimension.TwoArray, Format = TextureFormat.Rgba32f, Width = System.Math.Max(1, 2), Height = System.Math.Max(1, 2), Depth = System.Math.Max(1, 2), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Linear, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         using var image = GpuFramebufferAttachment.FromTexture(texture, layer: layer);
         using var source = DynamicGpuFramebuffer.Create([image]);

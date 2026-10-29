@@ -209,6 +209,13 @@ public sealed class GpuTextureMetadataInterceptionTests(HeadlessGLFixture fixtur
             harmony = new Harmony("Tests.NativeObservation." + Guid.NewGuid());
             OpenGlStateCache.Current.InvalidateAll();
             DefineTarget(variant, 8);
+            if (variant == 2 && !((GpuTextureRef)texture).IsValid)
+            {
+                // An unchanged resolved sample count cannot certify which mutable
+                // allocation survived; recovery must be explicitly requested.
+                Assert.Equal(0, texture.Width);
+                GpuResourceManager.RecoverWrapperMetadata(texture, new GpuTextureMetadataReader(TextureDimension.TwoMultisample));
+            }
             Assert.Equal(8, texture.Width);
             Assert.Equal(OpenGLImageValues.Dimension(target), texture.TextureTarget);
             Assert.Equal(ErrorCode.NoError, GL.GetError());

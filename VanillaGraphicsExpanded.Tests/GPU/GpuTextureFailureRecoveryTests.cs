@@ -49,7 +49,7 @@ public sealed class GpuTextureFailureRecoveryTests(HeadlessGLFixture fixture)
     public void ContextLocalMipRangeBypassesFailedReader(bool throws)
     {
         fixture.EnsureContextValid();
-        Assert.Null(GpuResourceManagerSystem.CurrentManager);
+        fixture.InitializeResourceDisposal();
         using var texture = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba8, Width = System.Math.Max(1, 4), Height = System.Math.Max(1, 4), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         using var faults = new NativeReadFailure { Enabled = true, Throw = throws };
         texture.SetMipRange(0, 0);
@@ -66,17 +66,18 @@ public sealed class GpuTextureFailureRecoveryTests(HeadlessGLFixture fixture)
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
 
-    /// <summary>An interrupted group discards its old local descriptor and does not prevent the next refresh.</summary>
+    /// <summary>An interrupted operation hides its old descriptor until explicit recovery succeeds.</summary>
     [Fact]
     public void InterruptedContextLocalGroupWithdrawsSnapshotAndRecovers()
     {
         fixture.EnsureContextValid();
-        Assert.Null(GpuResourceManagerSystem.CurrentManager);
+        fixture.InitializeResourceDisposal();
         using var texture = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba8, Width = System.Math.Max(1, 4), Height = System.Math.Max(1, 4), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         using (new GpuResourceManager.MetadataOperation<GpuTextureMetadata>(texture, GpuMetadataChange.Metadata)) { }
         Assert.Equal(0, texture.Width);
         Assert.False(((GpuTextureRef)texture).IsValid);
         Assert.ThrowsAny<InvalidOperationException>(() => RHICommandContext.Current.BindSampledTextures([new(0, texture)]));
+        GpuResourceManager.RecoverWrapperMetadata(texture, new GpuTextureMetadataReader(TextureDimension.Two));
         texture.SetMipRange(0, 0);
         Assert.Equal(4, texture.Width);
         Assert.True(((GpuTextureRef)texture).IsValid);
@@ -91,7 +92,7 @@ public sealed class GpuTextureFailureRecoveryTests(HeadlessGLFixture fixture)
     public void LocalImageReadFailureClearsProjectionAndRecovers(bool throws)
     {
         fixture.EnsureContextValid();
-        Assert.Null(GpuResourceManagerSystem.CurrentManager);
+        fixture.InitializeResourceDisposal();
         using var texture = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba8, Width = System.Math.Max(1, 4), Height = System.Math.Max(1, 4), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         using var image = GpuFramebufferAttachment.FromTexture(texture);
         using var framebuffer = DynamicGpuFramebuffer.CreateEmpty();
@@ -113,7 +114,7 @@ public sealed class GpuTextureFailureRecoveryTests(HeadlessGLFixture fixture)
     public void MissingLocalImageSelectionClearsProjectionAndRecovers()
     {
         fixture.EnsureContextValid();
-        Assert.Null(GpuResourceManagerSystem.CurrentManager);
+        fixture.InitializeResourceDisposal();
         using var texture = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba8, Width = System.Math.Max(1, 4), Height = System.Math.Max(1, 4), MipLevels = 2, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (2) - 1, Label = null }).RequireResource();
         using var image = GpuFramebufferAttachment.FromTexture(texture, mipLevel: 1);
         using var framebuffer = DynamicGpuFramebuffer.CreateEmpty();

@@ -39,6 +39,23 @@ internal readonly struct OpenGLTextureQueries
         if (!IsResource(id)) return false;
         int texture = unchecked((int)id);
         var target = knownTarget;
+        var initial = GpuResourceManagerSystem.CurrentManager?.FindResource(GpuResourceKind.Texture, id)
+            as GpuResourceMetadataEntry<GpuTextureMetadata>;
+        if (target == TextureTarget.TextureBuffer || initial is { IsUsable: false, MetadataRevision: 0,
+            Metadata.Target: TextureDimension.Buffer })
+        {
+            // Buffer textures are not valid targets of GetTextureParameter. A nonzero
+            // buffer-level association verifies this target without speculative binds.
+            // Detached or unobserved associations cannot certify a consumable buffer view.
+            if (initial is not { IsUsable: false, MetadataRevision: 0,
+                Metadata: { Target: TextureDimension.Buffer, Buffer: { BufferId: not 0 } association } supplied }) return false;
+            int actualBuffer = 0;
+            GL.GetTextureLevelParameter(texture, 0, (Native.GetTextureParameter)All.TextureBufferDataStoreBinding, out actualBuffer);
+            backend.RequireContext();
+            if (unchecked((uint)actualBuffer) != unchecked((uint)association.BufferId)) return false;
+            metadata = supplied;
+            return true;
+        }
         if (target == 0)
         {
             // Core named discovery identifies unknown external shape without speculative binds.
@@ -105,7 +122,6 @@ internal readonly struct OpenGLTextureQueries
             }
 
         }
-        if (levels.Count == 0) return false;
         int baseLevel = ReadParameter(texture, GetTextureParameter.TextureBaseLevel);
         int maxLevel = ReadParameter(texture, GetTextureParameter.TextureMaxLevel);
         if (immutable < 0 || immutableLevels < 0 || baseLevel < 0 || maxLevel < 0) return false;

@@ -39,7 +39,7 @@ public sealed class GpuRenderbufferMetadataInterceptionTests(HeadlessGLFixture f
             var manager = GpuResourceManagerSystem.CurrentManager!;
             Assert.False(manager.IsResourceMetadataAvailable(first));
             Assert.False(manager.IsResourceMetadataAvailable(second));
-            Assert.Equal(4, texture.Width);
+            Assert.Equal(0, texture.Width);
             Assert.Equal(1, firstChanges);
             Assert.Equal(1, secondChanges);
             Assert.Throws<InvalidOperationException>(() => firstFramebuffer.Bind());
@@ -182,11 +182,11 @@ public sealed class GpuRenderbufferMetadataInterceptionTests(HeadlessGLFixture f
         finally { harmony.UnpatchAll(harmony.Id); fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
 
-    /// <summary>Reader failure invalidates every image consumer and recovery republishes actual native dimensions.</summary>
+    /// <summary>Supplied storage facts reach all consumers without invoking a failing metadata reader.</summary>
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void FailedReadWithdrawsAllImagesAndRecovers(bool throws)
+    public void NativeStorageBypassesUnavailableReader(bool throws)
     {
         fixture.EnsureContextValid();
         fixture.InitializeResourceDisposal();
@@ -204,18 +204,14 @@ public sealed class GpuRenderbufferMetadataInterceptionTests(HeadlessGLFixture f
             secondFramebuffer.AttachmentsChanged += () => secondChanges++;
             var manager = GpuResourceManagerSystem.CurrentManager!;
             var entry = Assert.IsType<GpuResourceMetadataEntry<GpuRenderbufferMetadata>>(manager.GetResourceRegistration(owner));
-            entry.Reader = new FailedReader(throws);
+            var failingReader = new FailedReader(throws);
+            entry.Reader = failingReader;
             Allocate(1, owner.RenderbufferId, 8);
-            Assert.False(manager.IsResourceMetadataAvailable(first));
-            Assert.False(manager.IsResourceMetadataAvailable(second));
+            Assert.Equal(0, failingReader.Reads);
+            Assert.True(manager.IsResourceMetadataAvailable(first));
+            Assert.True(manager.IsResourceMetadataAvailable(second));
             Assert.Equal(1, firstChanges);
             Assert.Equal(1, secondChanges);
-            Assert.Throws<InvalidOperationException>(() => firstFramebuffer.Bind());
-            Assert.Throws<InvalidOperationException>(() => secondFramebuffer.Bind());
-            entry.Reader = GpuRenderbufferMetadataReader.Instance;
-            Allocate(1, owner.RenderbufferId, 8);
-            Assert.Equal(2, firstChanges);
-            Assert.Equal(2, secondChanges);
             Assert.Equal(8, first.Width);
             Assert.Equal(8, second.Width);
             firstFramebuffer.Bind();
@@ -304,11 +300,13 @@ public sealed class GpuRenderbufferMetadataInterceptionTests(HeadlessGLFixture f
     /// <summary>Injects an unavailable native metadata read without changing actual driver allocation behavior.</summary>
     private sealed class FailedReader(bool throws) : IGpuResourceMetadataReader<GpuRenderbufferMetadata>
     {
+        internal int Reads { get; private set; }
         /// <inheritdoc />
         public bool IsResource(nint id) => GpuRenderbufferMetadataReader.Instance.IsResource(id);
         /// <inheritdoc />
         public bool TryRead(nint id, out GpuRenderbufferMetadata metadata)
         {
+            Reads++;
             metadata = default;
             if (throws) throw new InvalidOperationException("Injected renderbuffer read failure.");
             return false;

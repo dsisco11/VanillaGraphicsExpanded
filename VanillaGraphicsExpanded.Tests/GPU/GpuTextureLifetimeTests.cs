@@ -45,8 +45,7 @@ public sealed class GpuTextureLifetimeTests : RenderTestBase
     public void QueuedDeletionUpdatesCacheOnlyWhenDrained()
     {
         EnsureContextValid();
-        using var manager = new GpuResourceManager();
-        GpuResourceManagerSystem.Initialize(manager);
+        using var manager = GpuResourceManagerSystem.EnsureCurrentContext();
         try
         {
             manager.OnRenderFrame(0, GpuResourceManager.Stage);

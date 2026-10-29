@@ -36,7 +36,7 @@ internal sealed partial class OpenGlStateCache
     /// <summary>Stores only a backend-owned completed route, padding unspecified outputs with None.</summary>
     internal void RememberFramebufferDrawRouting(int framebuffer,ReadOnlySpan<DrawBuffersEnum> route)
     {
-        var stored=new DrawBuffersEnum[GpuSupport.Graphics.MaxDrawBuffers];
+        var stored=new DrawBuffersEnum[Math.Max(route.Length, GpuSupport.HasCachedCapabilitiesForCurrentContext ? GpuSupport.Graphics.MaxDrawBuffers : 0)];
         route.CopyTo(stored);framebufferDrawRouting[framebuffer]=stored;
     }
     /// <summary>Withdraws routing for a retired name or an uncertain routing outcome without native calls.</summary>

@@ -5,6 +5,22 @@ namespace VanillaGraphicsExpanded.Rendering;
 /// <summary>Propagates observed backing-buffer availability and storage revisions to texture associations.</summary>
 internal sealed partial class GpuResourceManager
 {
+    #region Internal API
+    /// <summary>Retains a validated EXT buffer association and its original backing until target discovery.</summary>
+    internal void RetainInitialBufferTextureRequest(GpuResourceMetadataEntry<GpuTextureMetadata> texture,
+        GpuTextureBufferMetadata association, GpuResourceRegistration? backing)
+    {
+        RequireMetadataContext();
+        RequireLiveEntry(texture);
+        // Buffer textures have no image mip/sampler state in the canonical schema.
+        // The validated association supplies every remaining field once native target
+        // discovery confirms that this name actually denotes a buffer texture.
+        texture.RetainInitialCandidate(new(RHI.TextureDimension.Buffer,
+            System.Collections.Immutable.ImmutableArray<GpuTextureLevelMetadata>.Empty, false, 0, 0, 0, association));
+        if (backing is not null) RecordTextureBacking(texture, backing);
+    }
+    #endregion
+
     #region Private
     /// <summary>Acquires the actual backing dependency of a published texture without requiring a buffer wrapper.</summary>
     private void AcquireBufferTextureBacking<TMetadata>(GpuResourceRegistration texture, TMetadata candidate,
@@ -14,7 +30,7 @@ internal sealed partial class GpuResourceManager
         // A concrete texture association makes this an observed dependency, not a speculative
         // registration of arbitrary native objects. Existing usable entries need no readback.
         RequireOriginalTextureBacking(texture, GpuResourceKind.Buffer, association.BufferId, renewAssociation);
-        var backing = AcquireResource(GpuResourceKind.Buffer, association.BufferId, new GpuBufferMetadataReader());
+        var backing = LookupAvailableResource<GpuBufferMetadata>(GpuResourceKind.Buffer, association.BufferId);
         if (backing is null)
             throw new InvalidOperationException("Buffer texture backing metadata is unavailable.");
         RecordTextureBacking(texture, backing);

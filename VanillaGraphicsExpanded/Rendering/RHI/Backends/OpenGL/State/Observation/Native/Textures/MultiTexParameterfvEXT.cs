@@ -15,7 +15,7 @@ internal sealed unsafe partial class OpenGlStateCache
         TextureTarget @target = unchecked((TextureTarget)a1);
         TextureParameterName @pname = unchecked((TextureParameterName)a2);
         float* @params = unchecked((float*)a3);
-        if (!OpenGLObservationContext.TryGet(out _, out _)) return;
+        if (!OpenGLObservationContext.TryGet(out _, out _, false)) return;
         OpenGlStateCache.ObserveTextureMetadata(0, unchecked((int)@target), unchecked((int)@texunit), false, true, OpenGlStateCache.TextureMetadataEffect.Parameter, unchecked((int)@pname), parameterValue: @pname is TextureParameterName.TextureBaseLevel or TextureParameterName.TextureMaxLevel ? (@params != null ? OpenGLTexturesCalls.ConvertTextureParameter(@params[0]) : (int?)null) : (int?)null);
     }
     #endregion

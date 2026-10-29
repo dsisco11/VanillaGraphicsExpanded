@@ -37,7 +37,7 @@ internal sealed partial class GpuResourceManager
             else if (GpuResourceManagerSystem.CurrentManager is { } manager && manager.CanObserveNativeMetadata)
                 backing = manager.AcquireResource(GpuResourceKind.Texture, initialization.Source, GpuTextureMetadataReader.Instance)?.Metadata
                     ?? throw new InvalidOperationException("Texture view source metadata is unavailable.");
-            else if (!GpuTextureMetadataReader.Instance.TryRead(initialization.Source, out backing))
+            else
                 throw new InvalidOperationException("Texture view source metadata is unavailable.");
             return execution.InitializeTextureView(initialization, backing, out id);
         }

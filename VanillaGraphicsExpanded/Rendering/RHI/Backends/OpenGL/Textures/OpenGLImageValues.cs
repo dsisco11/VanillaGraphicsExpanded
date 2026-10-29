@@ -11,6 +11,16 @@ internal static class OpenGLImageValues
     /// <summary>Maps represented storage formats explicitly, without token-compatible semantic values.</summary>
     internal static PixelInternalFormat Format(TextureFormat value) => value switch
     {
+        TextureFormat.CompressedR11Eac => (PixelInternalFormat)All.CompressedR11Eac,
+        TextureFormat.CompressedSignedR11Eac => (PixelInternalFormat)All.CompressedSignedR11Eac,
+        TextureFormat.CompressedRg11Eac => (PixelInternalFormat)All.CompressedRg11Eac,
+        TextureFormat.CompressedSignedRg11Eac => (PixelInternalFormat)All.CompressedSignedRg11Eac,
+        TextureFormat.CompressedRgb8Etc2 => (PixelInternalFormat)All.CompressedRgb8Etc2,
+        TextureFormat.CompressedSrgb8Etc2 => (PixelInternalFormat)All.CompressedSrgb8Etc2,
+        TextureFormat.CompressedRgb8PunchthroughAlpha1Etc2 => (PixelInternalFormat)All.CompressedRgb8PunchthroughAlpha1Etc2,
+        TextureFormat.CompressedSrgb8PunchthroughAlpha1Etc2 => (PixelInternalFormat)All.CompressedSrgb8PunchthroughAlpha1Etc2,
+        TextureFormat.CompressedRgba8Etc2Eac => (PixelInternalFormat)All.CompressedRgba8Etc2Eac,
+        TextureFormat.CompressedSrgb8Alpha8Etc2Eac => (PixelInternalFormat)All.CompressedSrgb8Alpha8Etc2Eac,
         TextureFormat.CompressedRed => (PixelInternalFormat)All.CompressedRed,
         TextureFormat.CompressedRedRgtc1 => (PixelInternalFormat)All.CompressedRedRgtc1,
         TextureFormat.CompressedRg => (PixelInternalFormat)All.CompressedRg,
@@ -105,6 +115,16 @@ internal static class OpenGLImageValues
     /// <summary>Maps existing native wrapper policy into the semantic description domain.</summary>
     internal static TextureFormat Format(PixelInternalFormat value) => value switch
     {
+        (PixelInternalFormat)All.CompressedR11Eac => TextureFormat.CompressedR11Eac,
+        (PixelInternalFormat)All.CompressedSignedR11Eac => TextureFormat.CompressedSignedR11Eac,
+        (PixelInternalFormat)All.CompressedRg11Eac => TextureFormat.CompressedRg11Eac,
+        (PixelInternalFormat)All.CompressedSignedRg11Eac => TextureFormat.CompressedSignedRg11Eac,
+        (PixelInternalFormat)All.CompressedRgb8Etc2 => TextureFormat.CompressedRgb8Etc2,
+        (PixelInternalFormat)All.CompressedSrgb8Etc2 => TextureFormat.CompressedSrgb8Etc2,
+        (PixelInternalFormat)All.CompressedRgb8PunchthroughAlpha1Etc2 => TextureFormat.CompressedRgb8PunchthroughAlpha1Etc2,
+        (PixelInternalFormat)All.CompressedSrgb8PunchthroughAlpha1Etc2 => TextureFormat.CompressedSrgb8PunchthroughAlpha1Etc2,
+        (PixelInternalFormat)All.CompressedRgba8Etc2Eac => TextureFormat.CompressedRgba8Etc2Eac,
+        (PixelInternalFormat)All.CompressedSrgb8Alpha8Etc2Eac => TextureFormat.CompressedSrgb8Alpha8Etc2Eac,
         (PixelInternalFormat)All.CompressedRed => TextureFormat.CompressedRed,
         (PixelInternalFormat)All.CompressedRedRgtc1 => TextureFormat.CompressedRedRgtc1,
         (PixelInternalFormat)All.CompressedRg => TextureFormat.CompressedRg,

@@ -14,7 +14,7 @@ internal sealed unsafe partial class OpenGlStateCache
         int @texture = unchecked((int)a0);
         IntPtr @image = unchecked((IntPtr)a1);
         int* @attrib_list = unchecked((int*)a2);
-        if (!OpenGLObservationContext.TryGet(out _, out _)) return;
+        if (image == IntPtr.Zero || !OpenGLObservationContext.TryGet(out _, out _, false)) return;
         OpenGlStateCache.ObserveTextureMetadata(unchecked((int)@texture), 0, -1, true, false, OpenGlStateCache.TextureMetadataEffect.Storage, 0);
     }
     #endregion

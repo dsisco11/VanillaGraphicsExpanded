@@ -27,7 +27,7 @@ internal sealed partial class GpuResourceManager
         // The integration handoff proves an existing object, not an unused generated name.
         // Retain that fact even if its one initial descriptor discovery fails.
         entry.Realize();
-        entry.InitialDiscoveryPending = true;
+        entry.InitialDiscovery = GpuInitialDiscovery.Preexisting;
         return entry;
     }
 
@@ -51,7 +51,7 @@ internal sealed partial class GpuResourceManager
         {
             // A prior limit-dependent command may have realized and configured this name.
             // A later accepted bind proves identity, but cannot restore lost default facts.
-            if (entry.InitialDiscoveryPending || (entry.PendingChange & GpuMetadataChange.Storage) != 0) entry.Realize();
+            if (entry.InitialDiscovery != GpuInitialDiscovery.None || (entry.PendingChange & GpuMetadataChange.Storage) != 0) entry.Realize();
             else PublishMetadata(entry, new(0, RHI.BufferUsage.StaticDraw), GpuMetadataChange.None);
         }
         return entry;

@@ -33,7 +33,7 @@ public sealed class GpuFramebufferMultiviewInterceptionTests(HeadlessGLFixture f
         }
         finally { RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Texture, texture)); fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
-    /// <summary>Unobserved initial attachment mode may expose native range facts but cannot invent replay semantics.</summary>
+    /// <summary>An unobserved auxiliary-namespace command cannot fabricate maintained attachment facts.</summary>
     [Fact]
     public void UnknownExternalModeRejectsReplay()
     {
@@ -44,9 +44,8 @@ public sealed class GpuFramebufferMultiviewInterceptionTests(HeadlessGLFixture f
             using var array=new BorrowedTexture(texture);
             GL.Ovr.NamedFramebufferTextureMultiview(framebuffer,FramebufferAttachment.ColorAttachment0,texture,0,1,2);
             using var imported=DynamicGpuFramebuffer.Wrap(framebuffer); imported.PublishRenderPassMetadata();
-            var image=imported.GetAttachment(FramebufferSlot.Color0)!; Assert.Equal(2,image.ImageDepth); Assert.Equal(GpuFramebufferAttachmentMode.Unknown,image.AttachmentMode);
-            using var ordinary=GpuFramebufferAttachment.FromTexture(array,layer:0); using var target=DynamicGpuFramebuffer.Create([ordinary])!;
-            Assert.Throws<NotSupportedException>(()=>image.AttachTo(target,FramebufferSlot.Color0)); Assert.Equal(ErrorCode.NoError,GL.GetError());
+            Assert.Null(imported.GetAttachment(FramebufferSlot.Color0));
+            Assert.Equal(ErrorCode.NoError,GL.GetError());
         }
         finally { VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Framebuffer, framebuffer)); RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Texture, texture)); fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }

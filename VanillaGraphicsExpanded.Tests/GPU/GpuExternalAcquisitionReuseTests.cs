@@ -1,7 +1,6 @@
 using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
-using HarmonyLib;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 
@@ -12,53 +11,36 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GPU")]
 public sealed class GpuExternalAcquisitionReuseTests(HeadlessGLFixture fixture)
 {
-    private static Action? associationRead;
     #region Public API
-    /// <summary>Association certification keeps the original operation guarded while native result queries execute.</summary>
+    /// <summary>An association with unavailable backing withdraws until a later supplied association succeeds.</summary>
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void AssociationResultReadRejectsRecoveryAndReentry(bool dsa)
+    public void AssociationWithUnavailableBackingRequiresExplicitRecovery(bool dsa)
     {
         fixture.EnsureContextValid(); fixture.InitializeResourceDisposal();
-        var harmony = new Harmony("Tests.AssociationReadGuard." + Guid.NewGuid());
         try
         {
             using var capability = new DirectStateAccessCapabilityScope(dsa);
             using var buffer = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = null }).RequireResource(); buffer.Allocate(64);
             using var view = RHICommandContext.Current.CreateBufferTexture(new RHIBufferTextureDescription { Buffer = buffer, Format = TextureFormat.R32f, WholeBuffer = true, Label = null }).RequireResource();
             var manager = GpuResourceManagerSystem.CurrentManager!;
-            int observed = 0;
-            foreach (var method in typeof(OpenTK.Graphics.OpenGL4.GL).GetMethods().Where(method => method.Name is "GetTextureLevelParameter" or "GetTexLevelParameter"))
-                harmony.Patch(method, prefix: new HarmonyMethod(typeof(GpuExternalAcquisitionReuseTests), nameof(ObserveAssociationRead)));
-            associationRead = () =>
-            {
-                observed++;
-                Assert.Null(manager.AcquireResource(GpuResourceKind.Texture, view.TextureId, GpuTextureMetadataReader.Instance));
-                Assert.False(manager.IsResourceMetadataAvailable(view));
-            };
-            // Withdraw backing facts to force association certification through a real result query.
+            using var reads = new ImageDescriptorCapture();
+            // The supplied association cannot certify an unavailable backing.
             Assert.IsType<GpuResourceMetadataEntry<GpuBufferMetadata>>(manager.FindResource(GpuResourceKind.Buffer, buffer.BufferId)).BeginRefresh(GpuMetadataChange.Storage);
             OpenGlStateCache.ObserveBufferTexture(view.TextureId, (int)TextureTarget.TextureBuffer, 0,
                 true, false, buffer.BufferId, (int)SizedInternalFormat.R32f, 0, 0, true);
-            associationRead = null;
-            Assert.True(observed > 0);
+            Assert.False(manager.IsResourceMetadataAvailable(view));
+            Assert.NotNull(manager.RecoverResource(GpuResourceKind.Buffer, buffer.BufferId, new GpuBufferMetadataReader()));
+            OpenGlStateCache.ObserveBufferTexture(view.TextureId, (int)TextureTarget.TextureBuffer, 0,
+                true, false, buffer.BufferId, (int)SizedInternalFormat.R32f, 0, 0, true);
             Assert.True(manager.IsResourceMetadataAvailable(view));
             Assert.Equal(buffer.BufferId, view.BufferId);
-            Assert.IsType<GpuResourceMetadataEntry<GpuBufferMetadata>>(manager.FindResource(GpuResourceKind.Buffer, buffer.BufferId)).BeginRefresh(GpuMetadataChange.Storage);
-            associationRead = () =>
-            {
-                associationRead = null;
-                OpenGlStateCache.ObserveBufferTexture(view.TextureId, (int)TextureTarget.TextureBuffer, 0,
-                    true, false, buffer.BufferId, (int)SizedInternalFormat.R32f, 0, 0, true);
-            };
-            Assert.Throws<InvalidOperationException>(() => OpenGlStateCache.ObserveBufferTexture(view.TextureId,
-                (int)TextureTarget.TextureBuffer, 0, true, false, buffer.BufferId, (int)SizedInternalFormat.R32f, 0, 0, true));
-            Assert.False(manager.IsResourceMetadataAvailable(view));
+            Assert.Equal(0, reads.Reads);
             Assert.False(Assert.IsType<GpuResourceMetadataEntry<GpuTextureMetadata>>(manager.GetResourceRegistration(view)).OperationInProgress);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { associationRead = null; harmony.UnpatchAll(harmony.Id); fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
+        finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
 
     /// <summary>Local view and renderbuffer owners supply image projections that reject withdrawn metadata.</summary>
@@ -94,7 +76,7 @@ public sealed class GpuExternalAcquisitionReuseTests(HeadlessGLFixture fixture)
         finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
 
-    /// <summary>Observation reads reject partial acquisition and nested mutations; controlled failures release their execution guards.</summary>
+    /// <summary>Image observations publish supplied facts without acquisition; controlled failures release their execution guards.</summary>
     [Fact]
     public void NativeObserversBlockPartialAcquisitionAndReentry()
     {
@@ -110,34 +92,20 @@ public sealed class GpuExternalAcquisitionReuseTests(HeadlessGLFixture fixture)
             var manager = GpuResourceManagerSystem.CurrentManager!;
             var textureEntry = Assert.IsType<GpuResourceMetadataEntry<GpuTextureMetadata>>(manager.GetResourceRegistration(texture));
             int textureReads = 0;
-            textureEntry.Reader = new CallbackReader<GpuTextureMetadata>(GpuTextureMetadataReader.Instance, () =>
-            {
-                textureReads++;
-                Assert.Null(manager.AcquireResource(GpuResourceKind.Texture, texture.TextureId, GpuTextureMetadataReader.Instance));
-                Assert.False(manager.IsResourceMetadataAvailable(texture));
-                // A nested native observation withdraws the outer candidate instead of escaping into dispatch.
-                OpenGlStateCache.ObserveTextureMetadata(texture.TextureId, (int)TextureTarget.Texture2D, 0,
-                    true, false, OpenGlStateCache.TextureMetadataEffect.Storage, 0);
-            });
-            Assert.Throws<InvalidOperationException>(() => OpenGlStateCache.ObserveTextureMetadata(texture.TextureId,
-                (int)TextureTarget.Texture2D, 0, true, false, OpenGlStateCache.TextureMetadataEffect.Storage, 0));
-            Assert.Equal(1, textureReads);
-            Assert.False(textureEntry.OperationInProgress);
-            Assert.False(textureEntry.CompletionInProgress);
-            Assert.False(manager.IsResourceMetadataAvailable(texture));
+            textureEntry.Reader = new CallbackReader<GpuTextureMetadata>(GpuTextureMetadataReader.Instance, () => textureReads++);
+            OpenGlStateCache.ObserveTextureDefinition(texture.TextureId, (int)TextureTarget.Texture2D, 0,
+                true, false, 0, (int)PixelInternalFormat.Rgba8, 16, 8, 1, 1, false, 0, 0, 2);
+            Assert.Equal(0, textureReads);
+            Assert.True(manager.IsResourceMetadataAvailable(texture));
+            Assert.Equal(16, textureEntry.Metadata.Levels[0].Width);
 
             var renderbufferEntry = Assert.IsType<GpuResourceMetadataEntry<GpuRenderbufferMetadata>>(manager.GetResourceRegistration(renderbuffer));
             int renderbufferReads = 0;
-            renderbufferEntry.Reader = new CallbackReader<GpuRenderbufferMetadata>(GpuRenderbufferMetadataReader.Instance, () =>
-            {
-                renderbufferReads++;
-                Assert.Null(manager.AcquireResource(GpuResourceKind.Renderbuffer, renderbuffer.RenderbufferId, GpuRenderbufferMetadataReader.Instance));
-                OpenGlStateCache.ObserveRenderbufferStorage(renderbuffer.RenderbufferId, true);
-            });
-            Assert.Throws<InvalidOperationException>(() => OpenGlStateCache.ObserveRenderbufferStorage(renderbuffer.RenderbufferId, true));
-            Assert.Equal(1, renderbufferReads);
-            Assert.False(renderbufferEntry.OperationInProgress);
-            Assert.False(renderbufferEntry.CompletionInProgress);
+            renderbufferEntry.Reader = new CallbackReader<GpuRenderbufferMetadata>(GpuRenderbufferMetadataReader.Instance, () => renderbufferReads++);
+            OpenGlStateCache.ObserveRenderbufferStorage(renderbuffer.RenderbufferId, true, (int)RenderbufferStorage.Rgba8, 16, 8, 0);
+            Assert.Equal(0, renderbufferReads);
+            Assert.True(renderbufferEntry.IsUsable);
+            Assert.Equal(16, renderbufferEntry.Metadata.Width);
 
             var vertexEntry = Assert.IsType<GpuResourceMetadataEntry<GpuVertexArrayMetadata>>(manager.GetResourceRegistration(vao));
             Assert.Throws<ApplicationException>(() => OpenGLVertexConfiguration.Execute(OpenGlStateCache.Current, vao.VertexArrayId, false, () =>
@@ -197,13 +165,14 @@ public sealed class GpuExternalAcquisitionReuseTests(HeadlessGLFixture fixture)
             using var borrowed = new BorrowedTexture(native);
             using (OpenGlStateCache.Current.BindTextureScope(TextureTarget.Texture2D, 0, native))
                 GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.Rgba8, 12, 6, 0, PixelFormat.Rgba, PixelType.UnsignedByte, IntPtr.Zero);
-            GpuResourceManager.InvalidateWrapperMetadata(borrowed, GpuMetadataChange.Storage);
+            using var reads = new ImageDescriptorCapture();
             using var recovered = GpuFramebufferAttachment.FromTextureId(native);
             Assert.Equal(12, recovered.Width);
             Assert.Equal(6, first.Height);
             using var stable = GpuFramebufferAttachment.FromTextureId(native);
             Assert.Equal(recovered.Width, stable.Width);
             Assert.Equal(recovered.Height, stable.Height);
+            Assert.Equal(0, reads.Reads);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
         finally { RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Texture, native)); fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
@@ -254,7 +223,5 @@ public sealed class GpuExternalAcquisitionReuseTests(HeadlessGLFixture fixture)
         #endregion
     }
 
-    /// <summary>Exercises a reentrant consumer at the native association-query boundary.</summary>
-    private static void ObserveAssociationRead() => associationRead?.Invoke();
     #endregion
 }

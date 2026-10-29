@@ -20,8 +20,8 @@ internal sealed unsafe partial class OpenGlStateCache
         int @border = unchecked((int)a5);
         int @imageSize = unchecked((int)a6);
         IntPtr @data = unchecked((IntPtr)a7);
-        if (!OpenGLObservationContext.TryGet(out _, out _)) return;
-        OpenGlStateCache.ObserveTextureMetadata(0, unchecked((int)@target), -1, false, false, OpenGlStateCache.TextureMetadataEffect.Storage, 0, unchecked((int)@level));
+        if (!OpenGLObservationContext.TryGet(out _, out _, false)) return;
+        OpenGlStateCache.ObserveTextureDefinition(0, unchecked((int)@target), -1, false, false, unchecked((int)@level), unchecked((int)@internalformat), unchecked((int)@width), unchecked((int)@height), 1, 1, false, unchecked((int)@border), 0, 2, false, 0, compressedSize: unchecked((int)@imageSize), pixels: @data);
     }
     #endregion
 }

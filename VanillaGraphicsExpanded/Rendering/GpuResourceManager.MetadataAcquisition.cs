@@ -21,8 +21,6 @@ internal sealed partial class GpuResourceManager
         if (resource.ResourceManager is { } manager && manager.CanAcquireWrapperMetadata(resource))
         {
             manager.RequireOriginalWrapper(resource);
-            // TODO(Rendering.MetadataLifecycle.todo, image acquisition task): replace this
-            // borrower reader-selection path with maintained target-specific texture facts.
             // A generic image wrapper cannot represent a buffer texture. Reject before replacing
             // the shared target-specific reader or withdrawing a valid buffer-view snapshot.
             if (resource is GpuTexture && manager.FindResource(resource.Kind, resource.ResourceId)

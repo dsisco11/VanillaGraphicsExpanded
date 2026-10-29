@@ -44,7 +44,8 @@ VertexAttrib* operations on GL/ARB/EXT retain their supported routes; ATI generi
 AlphaFunc and line/polygon stipple have no OpenGlStateCache mappings or PSO fields. Enable/Disable still
 forward unsupported capability values unchanged without caching them. Line/polygon smoothing,
 programmable point origin/size, clip control, depth and blend state remain supported.
-Subimage/copy-subimage/compressed-subimage commands are content-only and have no metadata adapters.
+Subimage/copy-subimage/compressed-subimage commands preserve descriptors. Eligible EXT named variants
+still observe their object-realization effect without reading or changing native outputs.
 Ordinary numeric uniform writes, including core/EXT unsigned scalar/vector and named variants, do not
 represent sampler/image assignments and have no metadata effect. Only signed unit setters and relevant
 opaque-handle setters retain observation. Irrelevant locations are classified before metadata interruption.
@@ -130,7 +131,7 @@ The metadata revision used to invalidate stale assumptions is registration bookk
 | T4 | All texture parameter setters, bound/DSA/multi-texture and integer/float/vector forms | Classify pname effect. Refresh represented facts if affected; retain owner-only policy distinctions. Track represented base/max levels. Do not invent wrapper metadata for unrepresented parameters. | Parameter-family coverage and pname-dependent effects; base/max-level cases; unchanged storage does not spuriously replace identity. |
 | B1 | BufferData, BufferStorage, named variants, external/memory-backed storage | Maintain supplied/default capacity, usage, immutable mode and flags; preserve mapping ownership and authored EBO interpretation. | Bound/DSA capacity changes, zero size, immutable rejection, all overload forms and external-memory capability cases. |
 | R1 | RenderbufferStorage, named storage, multisample/coverage aliases | Refresh actual dimensions, format and sample values, propagate to dependent attachments. | Bound/DSA allocation, rounded sample counts, rejection and alias refresh. |
-| F1 | Framebuffer texture/renderbuffer attachment, face/layer variants, default-parameter and draw/read-routing variants | Refresh attachment identity/subresource and derived target metadata; preserve ownership. Route represented draw-buffer facts through the existing routing cache; read routing remains an unrepresented native selector. Classify default-FBO parameters separately from window-system surface publication. | All attachment forms, detach via zero, split read/draw targets, partial configurations and affected publication revisions. |
+| F1 | Framebuffer texture/renderbuffer attachment, face/layer variants, default-parameter and draw/read-routing variants | Maintain supplied attachment identity/subresource and projected image metadata; preserve ownership. Read/draw routing belongs to the existing execution cache rather than canonical resource metadata. Classify default-FBO parameters separately from window-system surface publication. | All attachment forms, detach via zero, split read/draw targets, partial configurations and affected publication revisions. |
 | V1 | Vertex attribute pointer/format/binding/divisor/enables, vertex-buffer multi-bind, element-buffer binding | Revise represented VAO configuration and stale helper assumptions. Resolve current VAO and latched buffer dependencies. Fixed-function client arrays are excluded; generic shader attributes remain supported. | Bound/DSA, multi-bind partial failure, generic/integer/double formats, enablement/divisor, EBO association, stale helper use and unrelated VAOs. |
 | P1 | Link/binary installation, shader-program creation, interface block bindings, sampler/image unit assignments and link-input configuration | Invalidate reflected executable layout on actual relink/binary/interface changes; use existing preparation flow. Uniform1i/1iv and ProgramUniform1i/1iv affect retained native unit facts only at sampler/image locations. Bindless-handle assignment at those locations makes the unsupported unit representation unavailable. Ordinary numeric uniforms remain content. Attach/detach/bind-location/transform-feedback declarations affect the next link rather than inventing an immediate new executable. | Successful/failed relink, binary replacement, block/unit-binding changes, sampler/image array locations, ordinary numeric writes excluded, bindless unavailability, deferred link-input effects, prepared submission revalidation. |
 | L1 | Deletion of every represented kind, all aliases and array/ref/pointer forms | Retire the captured registration; preserve deferred native destruction and resource-specific unbinding. ARB generic object deletion resolves shader/program kind. Propagate affected attachment/VAO metadata. | Each kind, lists and duplicate/zero names, queued old identity, same-name replacement, aliases and retained native references. |
@@ -194,10 +195,11 @@ storage; observation must not consume the pending GL error or publish the reques
 
 ### F1 framebuffer attachments
 
-Attachment/default observations recover the affected slot/default after
-original native dispatch, preserving known unaffected descriptors. Initial unknown FBOs retain full discovery.
-Managed attachment operations publish command-established selections without descriptor queries. Named attachment
-queries use core named addressing; required bound queries preserve separate read/draw bindings.
+Attachment/default observations publish supplied slot/default changes after original native dispatch,
+preserving known unaffected descriptors and backing identities without descriptor queries. Explicit
+initial discovery requires recorded pre-install or EXT implicit-creation provenance; recovery remains
+separate. Managed attachment operations likewise publish supplied selections. Authorized named
+attachment queries use core addressing and preserve separate read/draw bindings.
 [ARB_framebuffer_no_attachments](https://registry.khronos.org/OpenGL/extensions/ARB/ARB_framebuffer_no_attachments.txt)
 controls default-parameter query availability, and
 [OVR_multiview](https://registry.khronos.org/OpenGL/extensions/OVR/OVR_multiview.txt)
@@ -210,10 +212,11 @@ selections instead retain their supplied ordinary or multiview mode and range.
 Known array allocation and legal slot/layer/level certify ordinary intercepted whole-array/layer
 commands and publish their supplied descriptor without verification readback. A layer outside allocated
 depth but inside the native selection limit remains a legal descriptor; image availability/completeness
-is validated separately. Ambiguous or initially unknown facts retain targeted acquisition. Managed
+is validated separately. Ambiguous facts remain unavailable for explicit recovery. Managed
 multiview operations retain their supplied mode, so they remain distinct even when native queries coincide.
-Proven rejection preserves the prior descriptor without renewing retired backing identity. Manager-owned transient command evidence is consumed by canonical
-publication, including explicitly composed managed attachment updates; no second framebuffer registry is created.
+Proven rejection preserves the prior descriptor without renewing retired backing identity. The manager
+publishes observed mode and original backing with the descriptor, including explicitly composed managed
+attachment updates; no second framebuffer registry is created.
 Direct VGE multiview operations retain selected range projection and named or bound OVR replay.
 External GL.Ovr calls are not intercepted; later mutations through them cannot keep registered snapshots current.
 Initial external acquisition cannot establish an unqueryable mode; its range can be inspected, but
@@ -221,8 +224,8 @@ ambiguous array helpers reject reattachment until a supported explicit selection
 External draw-route observations publish legal object-local routes for established identities from exact
 arguments, preserving unrelated mappings and known state after defined rejection. Window routes use
 cached double-buffer/stereo facts. Unknown named objects, unavailable initial surface facts and
-interrupted dispatch retain targeted acquisition. Read routing has no cached
-mirror. Read/draw routes cannot be queried through named framebuffer parameter queries
+uncertain outcomes withdraw affected routing knowledge. Read routing is retained alongside draw routing
+in the existing execution cache. Read/draw routes cannot be queried through named framebuffer parameter queries
 ([ARB_direct_state_access, issue 41](https://registry.khronos.org/OpenGL/extensions/ARB/ARB_direct_state_access.txt));
 initial or genuinely uncertain capture avoids adding binds to named routing commands. Native range/replay and regression receipts
 are retained in `artifacts/gpu-resource-phase4/multiview-mode-repair-focused.trx` and
@@ -304,8 +307,8 @@ Named storage requires an initialized object; managed creation uses core CreateR
 Exact external generated names retain their native reserved-name and bound-realization semantics. Controlled sample requests use
 cached supported-count normalization; only the proposal's fallback requires allocation-time sample readback.
 The EXT coverage-sample overload remains supported even though the feature has vendor origins.
-External unknown storage acquires RENDERBUFFER_SAMPLES; controlled storage uses its resolved supported
-count or the narrowly justified fallback result. No unconditional descriptor readback is required.
+Observed and controlled storage use cached sample counts or the narrowly justified single sample-count
+fallback. Uncertain outcomes leave affected facts unavailable; they do not trigger descriptor scans.
 
 `glNamedRenderbufferStorage`, `glNamedRenderbufferStorageEXT`, `glNamedRenderbufferStorageMultisample`, `glNamedRenderbufferStorageMultisampleCoverageEXT`, `glNamedRenderbufferStorageMultisampleEXT`, `glRenderbufferStorage`, `glRenderbufferStorageEXT`, `glRenderbufferStorageMultisample`, `glRenderbufferStorageMultisampleEXT`.
 
@@ -314,17 +317,19 @@ count or the narrowly justified fallback result. No unconditional descriptor rea
 Controlled allocation derives complete images from validated initialization inputs.
 Multisample allocation uses cached target/format counts or the approved one-time sample-count-only
 fallback when those capabilities are unavailable. Other dimensions and format remain input-derived.
-Exact external overloads execute in the image backend modules; a known single-image definition recovers only its affected level/face.
-Whole-storage/import commands and unavailable original descriptors retain external acquisition.
-Interrupted native calls leave snapshots unavailable without performing completion queries.
+Exact external overloads execute once, followed by argument-driven image observation. Definitions update
+their supplied level/face; immutable storage derives its complete mip geometry. Opaque external-memory
+allocation has the approved single immutable-storage flag read, without unrelated descriptor reads.
+Other uncertain outcomes remain unavailable. Explicit initial discovery and recovery are separate operations.
 
 `glCompressedMultiTexImage1DEXT`, `glCompressedMultiTexImage2DEXT`, `glCompressedMultiTexImage3DEXT`, `glCompressedTexImage1D`, `glCompressedTexImage1DARB`, `glCompressedTexImage2D`, `glCompressedTexImage2DARB`, `glCompressedTexImage3D`, `glCompressedTexImage3DARB`, `glCompressedTextureImage1DEXT`, `glCompressedTextureImage2DEXT`, `glCompressedTextureImage3DEXT`, `glCopyMultiTexImage1DEXT`, `glCopyMultiTexImage2DEXT`, `glCopyTexImage1D`, `glCopyTexImage1DEXT`, `glCopyTexImage2D`, `glCopyTexImage2DEXT`, `glCopyTextureImage1DEXT`, `glCopyTextureImage2DEXT`, `glEGLImageTargetTexStorageEXT`, `glEGLImageTargetTextureStorageEXT`, `glMultiTexImage1DEXT`, `glMultiTexImage2DEXT`, `glMultiTexImage3DEXT`, `glTexImage1D`, `glTexImage2D`, `glTexImage2DMultisample`, `glTexImage3D`, `glTexImage3DEXT`, `glTexImage3DMultisample`, `glTexStorage1D`, `glTexStorage1DEXT`, `glTexStorage2D`, `glTexStorage2DEXT`, `glTexStorage2DMultisample`, `glTexStorage3D`, `glTexStorage3DEXT`, `glTexStorage3DMultisample`, `glTexStorageMem1DEXT`, `glTexStorageMem2DEXT`, `glTexStorageMem2DMultisampleEXT`, `glTexStorageMem3DEXT`, `glTexStorageMem3DMultisampleEXT`, `glTextureImage1DEXT`, `glTextureImage2DEXT`, `glTextureImage3DEXT`, `glTextureStorage1D`, `glTextureStorage1DEXT`, `glTextureStorage2D`, `glTextureStorage2DEXT`, `glTextureStorage2DMultisample`, `glTextureStorage2DMultisampleEXT`, `glTextureStorage3D`, `glTextureStorage3DEXT`, `glTextureStorage3DMultisample`, `glTextureStorage3DMultisampleEXT`, `glTextureStorageMem1DEXT`, `glTextureStorageMem2DEXT`, `glTextureStorageMem2DMultisampleEXT`, `glTextureStorageMem3DEXT`, `glTextureStorageMem3DMultisampleEXT`.
 
 ### T2 mip generation
 
-Immutable generation has no descriptor work. Known mutable storage checks only descendants of its
-selected base through the generated maximum level; existing image descriptors determine that range.
-Unchanged descriptors preserve storage revisions and view certificates. Unknown storage uses recovery.
+Immutable generation has no descriptor work. Known mutable storage derives descendants from its
+complete selected base through the generated maximum level. Candidate construction precedes operation
+interruption, so known rejected cubes, undefined bases and unchanged descriptors preserve existing
+certificates. Unknown storage uses explicit recovery.
 
 `glGenerateMipmap`, `glGenerateMipmapEXT`, `glGenerateMultiTexMipmapEXT`, `glGenerateTextureMipmap`, `glGenerateTextureMipmapEXT`.
 
@@ -334,13 +339,12 @@ Unchanged descriptors preserve storage revisions and view certificates. Unknown 
 and [OpenGL 4.6 section 8.9](https://registry.khronos.org/OpenGL/specs/gl/glspec46.core.pdf)
 define native association/range queries and rejected-command behavior. Preserve the managed
 whole-buffer convention without inferring it solely from a range equal to the backing buffer size.
-Range acquisition must account for the native-width descriptor and the narrower texture query
-results; truncated or rounded query values cannot certify requested offsets or sizes.
 The association observer preserves native-width command arguments. Established destination/backing
 identity, represented capacity, legal format and cached offset alignment can prove an allocation-free
-association without queries. Otherwise it acquires the resulting backing/format and cross-checks only
-exactly representable offsets/sizes through native range queries. Uncertain observations leave metadata
-unavailable without changing native dispatch or errors. Whole-buffer mode follows the accepted command, because
+association without queries. Unknown EXT identities retain validated association facts and the original
+backing privately until explicit discovery verifies a matching nonzero native buffer association. No
+narrow integer query reconstructs offsets, size or range mode. Uncertain or unobserved associations
+remain unavailable; later uncertainty discards unpublished association facts. Whole-buffer mode follows the accepted command, because
 queries cannot distinguish whole-buffer binding from an explicit range of the same initial size.
 OpenGL 4.6 section 8.18 defines view-relative selection and the source-derived immutable level count.
 External view discovery reads the exposed view level count before enumerating images; controlled
@@ -369,8 +373,9 @@ tracked backing. No resource key gains an incarnation or generation field.
 
 ### T4 texture parameters
 
-Controlled base/max changes publish the supplied value. External setters read only the changed
-represented parameter when other facts are available; they never rescan known image storage.
+Controlled and observed base/max changes publish supplied converted values when established; setters
+do not read represented parameters back or rescan known image storage. Uncertain conversions withdraw
+the affected certification for explicit recovery.
 Unrepresented parameters and invalid multisample mip parameters have no metadata observation work.
 
 `glMultiTexParameterfEXT`, `glMultiTexParameterfvEXT`, `glMultiTexParameteriEXT`, `glMultiTexParameterIivEXT`, `glMultiTexParameterIuivEXT`, `glMultiTexParameterivEXT`, `glTexParameterf`, `glTexParameterfv`, `glTexParameteri`, `glTexParameterIiv`, `glTexParameterIivEXT`, `glTexParameterIuiv`, `glTexParameterIuivEXT`, `glTexParameteriv`, `glTextureParameterf`, `glTextureParameterfEXT`, `glTextureParameterfv`, `glTextureParameterfvEXT`, `glTextureParameteri`, `glTextureParameteriEXT`, `glTextureParameterIiv`, `glTextureParameterIivEXT`, `glTextureParameterIuiv`, `glTextureParameterIuivEXT`, `glTextureParameteriv`, `glTextureParameterivEXT`.

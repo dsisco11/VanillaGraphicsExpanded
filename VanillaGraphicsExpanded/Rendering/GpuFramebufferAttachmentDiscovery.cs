@@ -8,9 +8,9 @@ internal static class GpuFramebufferAttachmentDiscovery
 {
     #region Public API
     /// <summary>Borrows a current attachment, preserving exact cube-face and individual-layer selection.</summary>
-    public static GpuFramebufferAttachment Read(GpuFramebuffer framebuffer, FramebufferSlot slot, bool forceNative = false)
+    public static GpuFramebufferAttachment Read(GpuFramebuffer framebuffer, FramebufferSlot slot)
     {
-        var known = forceNative ? null : framebuffer.GetAttachment(slot);
+        var known = framebuffer.GetAttachment(slot);
         if (known is not null)
         {
             known.ValidateSlot(slot);
@@ -18,7 +18,7 @@ internal static class GpuFramebufferAttachmentDiscovery
         }
         if (framebuffer.IsDisposed || framebuffer.FboId == 0)
             throw new InvalidOperationException("An external FBO image is required.");
-        var discovered = framebuffer.DiscoverAttachment(slot, forceNative);
+        var discovered = framebuffer.DiscoverAttachment(slot);
         return discovered;
     }
     #endregion

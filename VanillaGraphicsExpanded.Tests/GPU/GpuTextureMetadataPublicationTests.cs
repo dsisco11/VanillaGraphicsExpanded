@@ -13,9 +13,9 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 public sealed class GpuTextureMetadataPublicationTests(HeadlessGLFixture fixture)
 {
     #region Public API
-    /// <summary>A retired installed manager does not suppress context-local allocation dependency checks.</summary>
+    /// <summary>A retired manager is replaced before allocation, retaining view dependency checks.</summary>
     [Fact]
-    public void RetiredManagerLeavesContextLocalDependencyValidationActive()
+    public void RetiredManagerIsReplacedBeforeTextureCreation()
     {
         fixture.EnsureContextValid();
         fixture.InitializeResourceDisposal();
@@ -24,14 +24,14 @@ public sealed class GpuTextureMetadataPublicationTests(HeadlessGLFixture fixture
             GpuResourceManagerSystem.CurrentManager!.Dispose();
             Assert.True(GpuResourceManagerSystem.CurrentManager.IsDisposed);
             using var source = RHICommandContext.Current.CreateDynamicTexture3D(new RHITextureDescription { Dimension = TextureDimension.TwoArray, Format = TextureFormat.Rgba32f, Width = System.Math.Max(1, 4), Height = System.Math.Max(1, 4), Depth = System.Math.Max(1, 4), MipLevels = 1, Storage = (true ? ResourceStorageMode.Immutable : ResourceStorageMode.Mutable), Filter = TextureFilterMode.Linear, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
-            Assert.Null(GpuResourceManagerSystem.CurrentManager.GetResourceRegistration(source));
+            Assert.NotNull(GpuResourceManagerSystem.CurrentManager.GetResourceRegistration(source));
             using var view = RHICommandContext.Current.CreateTextureView(new RHITextureViewDescription { Source = source, Dimension = TextureDimension.TwoArray, Format = TextureFormat.Rgba32f, BaseMip = 0, MipCount = 1, BaseLayer = 0, LayerCount = 1, Label = null }).RequireResource();
             source.SetMipRange(0, 0);
             Assert.True(view.IsValid);
-            Assert.Null(GpuResourceManagerSystem.CurrentManager!.IsTextureViewSourceCurrent(view, source));
+            Assert.True(GpuResourceManagerSystem.CurrentManager!.IsTextureViewSourceCurrent(view, source));
             var beforeImages = source.StorageImages;
             Assert.True(source.Resize(8, 4, 4));
-            Assert.Null(GpuResourceManagerSystem.CurrentManager!.IsTextureViewSourceCurrent(view, source));
+            Assert.False(GpuResourceManagerSystem.CurrentManager!.IsTextureViewSourceCurrent(view, source));
             Assert.Equal(8, source.StorageImages[0].Width);
             Assert.False(beforeImages == source.StorageImages);
             Assert.False(view.IsValid);
@@ -62,6 +62,7 @@ public sealed class GpuTextureMetadataPublicationTests(HeadlessGLFixture fixture
     public void ContextLocalViewTracksAllocationRatherThanSnapshot(bool retire)
     {
         fixture.EnsureContextValid();
+        fixture.UseContextLocalResources();
         Assert.Null(GpuResourceManagerSystem.CurrentManager);
         using var source = RHICommandContext.Current.CreateDynamicTexture3D(new RHITextureDescription { Dimension = TextureDimension.TwoArray, Format = TextureFormat.Rgba32f, Width = System.Math.Max(1, 4), Height = System.Math.Max(1, 4), Depth = System.Math.Max(1, 4), MipLevels = 1, Storage = (true ? ResourceStorageMode.Immutable : ResourceStorageMode.Mutable), Filter = TextureFilterMode.Linear, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         using var view = RHICommandContext.Current.CreateTextureView(new RHITextureViewDescription { Source = source, Dimension = TextureDimension.TwoArray, Format = TextureFormat.Rgba32f, BaseMip = 0, MipCount = 1, BaseLayer = 0, LayerCount = 1, Label = null }).RequireResource();

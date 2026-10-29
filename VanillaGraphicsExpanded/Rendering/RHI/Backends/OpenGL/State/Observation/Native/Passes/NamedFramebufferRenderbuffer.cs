@@ -9,15 +9,25 @@ internal sealed unsafe partial class OpenGlStateCache
     #region Internal API
     /// <summary>Updates existing cache and resource authority without issuing the intercepted operation.</summary>
     [InterceptOpenGL("glNamedFramebufferRenderbuffer")]
-    [InterceptOpenGL("glNamedFramebufferRenderbufferEXT")]
     internal static void ObserveNamedFramebufferRenderbuffer(uint a0, int a1, int a2, uint a3)
     {
         int @framebuffer = unchecked((int)a0);
         FramebufferAttachment @attachment = unchecked((FramebufferAttachment)a1);
         RenderbufferTarget @renderbuffertarget = unchecked((RenderbufferTarget)a2);
         int @renderbuffer = unchecked((int)a3);
-        if (!OpenGLObservationContext.TryGet(out _, out _)) return;
-        ObserveFramebufferMutation(unchecked((int)@framebuffer), true, unchecked((int)@attachment), 0, 0, -1, 3);
+        if (!OpenGLObservationContext.TryGet(out _, out _, false)) return;
+        ObserveFramebufferMutation(unchecked((int)@framebuffer), true, unchecked((int)@attachment), 0, 0, -1, 2, renderbuffer: unchecked((int)@renderbuffer), imageTarget: unchecked((int)@renderbuffertarget));
+    }
+    /// <summary>Preserves EXT framebuffer realization before its attachment effect.</summary>
+    [InterceptOpenGL("glNamedFramebufferRenderbufferEXT")]
+    internal static void ObserveNamedFramebufferRenderbufferEXT(uint a0, int a1, int a2, uint a3)
+    {
+        int @framebuffer = unchecked((int)a0);
+        FramebufferAttachment @attachment = unchecked((FramebufferAttachment)a1);
+        RenderbufferTarget @renderbuffertarget = unchecked((RenderbufferTarget)a2);
+        int @renderbuffer = unchecked((int)a3);
+        if (!OpenGLObservationContext.TryGet(out _, out _, false)) return;
+        ObserveFramebufferMutation(unchecked((int)@framebuffer), true, unchecked((int)@attachment), 0, 0, -1, 2, renderbuffer: unchecked((int)@renderbuffer), imageTarget: unchecked((int)@renderbuffertarget), extNamed: true);
     }
     #endregion
 }

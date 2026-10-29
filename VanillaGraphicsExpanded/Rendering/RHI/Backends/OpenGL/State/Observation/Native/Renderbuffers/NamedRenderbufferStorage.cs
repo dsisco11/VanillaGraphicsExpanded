@@ -15,8 +15,8 @@ internal sealed unsafe partial class OpenGlStateCache
         RenderbufferStorage @internalformat = unchecked((RenderbufferStorage)a1);
         int @width = unchecked((int)a2);
         int @height = unchecked((int)a3);
-        if (!OpenGLObservationContext.TryGet(out _, out _)) return;
-        OpenGlStateCache.ObserveRenderbufferStorage(unchecked((int)@renderbuffer), true);
+        if (!OpenGLObservationContext.TryGet(out _, out _, false)) return;
+        OpenGlStateCache.ObserveRenderbufferStorage(unchecked((int)@renderbuffer), true, unchecked((int)@internalformat), unchecked((int)@width), unchecked((int)@height), 0, false, false);
     }
     #endregion
 }

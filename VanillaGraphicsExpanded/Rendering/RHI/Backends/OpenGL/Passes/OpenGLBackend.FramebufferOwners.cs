@@ -63,6 +63,7 @@ internal sealed partial class OpenGLBackend
         if (read) OpenGLDriverCalls.NamedFramebufferReadBuffer(owner.FboId,
             OpenTK.Graphics.OpenGL4.ReadBufferMode.ColorAttachment0 + attachment);
         RequireContext();
+        if (read) cache.RememberFramebufferReadRouting(owner.FboId, ReadBufferMode.ColorAttachment0 + attachment);
     }
     #endregion
 }

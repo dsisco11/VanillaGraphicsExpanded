@@ -108,12 +108,17 @@ normally supply the represented dimensions, format and other allocation facts.
 Permitted acquisition has an explicit cause:
 
 1. Explicit initial discovery of an object created before hook installation, whose earlier setup was
-   therefore not observed. Acquire only its required unknown facts at adoption; later available consumers
-   reuse them. If hooks are installed before all relevant creation, this exception is unnecessary.
-2. A specifically documented import case identifying the exact required fact, why neither intercepted
-   import nor later storage/configuration commands can supply it, and the concrete consumer requiring
-   it. No such case has been established for this redesign. There is no blanket imported-object query
-   exception; an import handle or a missing registration alone is insufficient justification.
+   therefore not observed. An unknown identity first encountered through a supported EXT named operation
+   with implicit-creation semantics also permits one discovery: that operation may have initialized an
+   unused name or accessed an older object. Record this distinct cause on the existing registration,
+   without publishing defaults or querying in the observer. Acquire the required facts only on explicit
+   adoption; later available consumers reuse them. Failed discovery consumes the initial attempt and
+   requires explicit recovery. Existing tracked reservations still realize from defaults without queries.
+2. For external-memory texture storage, read `GL_TEXTURE_IMMUTABLE_FORMAT` once after the storage call
+   when the texture was known mutable beforehand. The imported payload's acceptance cannot be established
+   from the void command or opaque handle; borrowing, shader binding and framebuffer attachment consumers
+   require an established allocation. The flag confirms the transition, while dimensions, format and levels
+   come from the command. This is not a blanket imported-object descriptor query exception.
 3. Driver-produced compilation/link results and executable reflection. Reflect after executable change,
    not after an ordinary unit/block assignment.
 4. Resolved unsized image formats, and actual sample counts when cached target/format capabilities cannot
@@ -135,8 +140,12 @@ on the original reservation. Query/wait results and semaphore payloads remain ou
 A missing registration or discarded command argument for a resource created under active interception
 is a tracking defect, not an implicit acquisition request. Ordinary binding, validation, reference
 conversion and snapshot access must neither hide that defect nor scan descriptors. Repair the producer.
+The narrow EXT exception requires observation of an actual supported named realization boundary;
+an arbitrary unknown ID, ordinary binding or caller-supplied label cannot grant discovery. It does not
+assert whether the object predates installation or whether the requested update succeeded. Texture
+discovery identifies the actual target independently of the intercepted command's potentially rejected target.
 Adoption APIs must distinguish query-free association with maintained facts, explicit pre-installation
-discovery and recovery of an existing unavailable identity. Neither wrapper construction nor a caller's
+discovery, recorded EXT implicit-creation discovery and recovery of an existing unavailable identity. Neither wrapper construction nor a caller's
 choice to call an object external or imported changes its metadata provenance.
 
 ## Migration and evidence

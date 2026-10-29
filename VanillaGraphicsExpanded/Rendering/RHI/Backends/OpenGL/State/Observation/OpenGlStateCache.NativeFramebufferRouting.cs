@@ -17,10 +17,18 @@ internal sealed partial class OpenGlStateCache
 
     /// <summary>Observes equivalent named multi-output commands using their explicit framebuffer.</summary>
     [InterceptOpenGL("glNamedFramebufferDrawBuffers")]
-    [InterceptOpenGL("glFramebufferDrawBuffersEXT")]
     internal static unsafe void ObserveNamedDrawBuffers(uint framebuffer, int count, int* buffers)
         {
         if (OpenGLObservationContext.TryGet(out var cache, out _)) cache.ObserveDrawRouting(unchecked((int)framebuffer), count, buffers, false);
+    }
+
+    /// <summary>Observes EXT routing after its named framebuffer realization.</summary>
+    [InterceptOpenGL("glFramebufferDrawBuffersEXT")]
+    internal static unsafe void ObserveExtNamedDrawBuffers(uint framebuffer, int count, int* buffers)
+    {
+        if (!OpenGLObservationContext.TryGet(out var cache, out _)) return;
+        cache.RealizeFramebuffer(unchecked((int)framebuffer), implicitCreation: true);
+        cache.ObserveDrawRouting(unchecked((int)framebuffer), count, buffers, false);
     }
 
     /// <summary>Preserves the distinct grouped window-buffer semantics of a scalar command.</summary>
@@ -32,10 +40,18 @@ internal sealed partial class OpenGlStateCache
 
     /// <summary>Observes equivalent named scalar commands without querying native state.</summary>
     [InterceptOpenGL("glNamedFramebufferDrawBuffer")]
-    [InterceptOpenGL("glFramebufferDrawBufferEXT")]
     internal static unsafe void ObserveNamedDrawBuffer(uint framebuffer, int buffer)
         {
         if (OpenGLObservationContext.TryGet(out var cache, out _)) cache.ObserveDrawRouting(unchecked((int)framebuffer), 1, &buffer, true);
+    }
+
+    /// <summary>Observes EXT scalar routing after its named framebuffer realization.</summary>
+    [InterceptOpenGL("glFramebufferDrawBufferEXT")]
+    internal static unsafe void ObserveExtNamedDrawBuffer(uint framebuffer, int buffer)
+    {
+        if (!OpenGLObservationContext.TryGet(out var cache, out _)) return;
+        cache.RealizeFramebuffer(unchecked((int)framebuffer), implicitCreation: true);
+        cache.ObserveDrawRouting(unchecked((int)framebuffer), 1, &buffer, true);
     }
     #endregion
 
@@ -43,6 +59,13 @@ internal sealed partial class OpenGlStateCache
     /// <summary>Leaves known rejected inputs unchanged and publishes only established routing effects.</summary>
     private unsafe void ObserveDrawRouting(int? namedFramebuffer, int count, int* buffers, bool single)
     {
+        if (!GpuSupport.HasCachedCapabilitiesForCurrentContext)
+        {
+            if (namedFramebuffer.HasValue) InvalidateFramebufferDrawRouting(namedFramebuffer.Value);
+            else if (TryGetCachedCurrentFramebuffer(FramebufferTarget.DrawFramebuffer, out int current))
+                InvalidateFramebufferDrawRouting(current);
+            return;
+        }
         var limits = GpuSupport.Graphics;
         // Invalid counts are rejected by GL; never dereference their argument pointer.
         if (count < 0 || count > limits.MaxDrawBuffers) return;

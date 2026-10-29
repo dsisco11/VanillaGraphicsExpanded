@@ -182,4 +182,24 @@ public enum TextureFormat
     Srgb8Alpha8,
     /// <summary>Selects StencilIndex8 storage.</summary>
     StencilIndex8,
+    /// <summary>Selects single-channel EAC storage.</summary>
+    CompressedR11Eac,
+    /// <summary>Selects signed single-channel EAC storage.</summary>
+    CompressedSignedR11Eac,
+    /// <summary>Selects two-channel EAC storage.</summary>
+    CompressedRg11Eac,
+    /// <summary>Selects signed two-channel EAC storage.</summary>
+    CompressedSignedRg11Eac,
+    /// <summary>Selects RGB ETC2 storage.</summary>
+    CompressedRgb8Etc2,
+    /// <summary>Selects sRGB ETC2 storage.</summary>
+    CompressedSrgb8Etc2,
+    /// <summary>Selects RGB ETC2 storage with one-bit alpha.</summary>
+    CompressedRgb8PunchthroughAlpha1Etc2,
+    /// <summary>Selects sRGB ETC2 storage with one-bit alpha.</summary>
+    CompressedSrgb8PunchthroughAlpha1Etc2,
+    /// <summary>Selects RGBA ETC2/EAC storage.</summary>
+    CompressedRgba8Etc2Eac,
+    /// <summary>Selects sRGB alpha ETC2/EAC storage.</summary>
+    CompressedSrgb8Alpha8Etc2Eac,
 }

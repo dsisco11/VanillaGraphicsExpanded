@@ -24,8 +24,8 @@ internal struct GpuFramebufferInitialization
     public int DefaultLayers { readonly get => layers; set { layers = value; assigned |= 8; } }
     /// <summary>Specifies the attachmentless sample count, otherwise zero.</summary>
     public int DefaultSamples { readonly get => samples; set { samples = value; assigned |= 16; } }
-    /// <summary>Specifies attachmentless fixed sample locations, otherwise false.</summary>
-    public bool DefaultFixedSampleLocations { readonly get => fixedSamples; set { fixedSamples = value; assigned |= 32; } }
+    /// <summary>Specifies attachmentless fixed sample locations, otherwise retaining the guaranteed true default.</summary>
+    public bool DefaultFixedSampleLocations { readonly get => (assigned & 32) == 0 || fixedSamples; set { fixedSamples = value; assigned |= 32; } }
     #endregion
 
     #region Internal API

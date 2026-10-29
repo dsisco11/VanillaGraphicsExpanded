@@ -17,8 +17,10 @@ internal sealed unsafe partial class OpenGlStateCache
         int @texture = unchecked((int)a3);
         int @level = unchecked((int)a4);
         int @zoffset = unchecked((int)a5);
-        if (!OpenGLObservationContext.TryGet(out _, out _)) return;
-        ObserveFramebufferMutation(unchecked((int)@framebuffer), true, unchecked((int)@attachment), unchecked((int)@texture), unchecked((int)@level), -1, 3);
+        if (!OpenGLObservationContext.TryGet(out var cache, out _, false)) return;
+        cache.RealizeFramebuffer(@framebuffer, implicitCreation: true);
+        if (@textarget != TextureTarget.Texture3D) return;
+        ObserveFramebufferMutation(unchecked((int)@framebuffer), true, unchecked((int)@attachment), unchecked((int)@texture), unchecked((int)@level), unchecked((int)@zoffset), 1, imageTarget: unchecked((int)@textarget), extNamed: true);
     }
     #endregion
 }

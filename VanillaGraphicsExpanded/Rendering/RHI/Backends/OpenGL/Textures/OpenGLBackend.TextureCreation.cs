@@ -17,6 +17,9 @@ internal sealed partial class OpenGLBackend
         var initialization = LowerTexture(request);
         var resolved = initialization.Resolve();
         ValidateTextureInitialData(resolved, initialData);
+        // The owner must capture its context's live manager before construction;
+        // otherwise later recovery can attach it to a retired or missing lifetime.
+        GpuResourceManagerSystem.EnsureCurrentContext();
         GpuTexture owner = typeof(T) == typeof(DynamicTexture2D) ? new DynamicTexture2D()
             : typeof(T) == typeof(DynamicTexture3D) ? new DynamicTexture3D()
             : typeof(T) == typeof(DynamicTextureCube) ? new DynamicTextureCube()

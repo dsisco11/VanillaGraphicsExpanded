@@ -3,7 +3,7 @@
 `GpuResourceManager` owns canonical metadata for the originating rendering context. Its concurrent
 registry uses `GpuResourceHandle`, a resource-kind/native-width-ID value, as the key. Each entry holds
 one typed metadata snapshot, availability and revisions, shared usage guards, and weak wrapper recipients.
-Buffer registrations distinguish reserved names from realized objects independently of availability and
+Resource registrations distinguish reserved names from realized objects independently of availability and
 terminal retirement. Gen reserves; legal realization publishes capacity zero, StaticDraw usage, mutable
 mode and no storage flags on the original entry. Registration grants no native ownership. Metadata operations and native queries run on the context thread;
 concurrent containers support identity lookup and recipient removal across threads.
@@ -72,13 +72,22 @@ reuse their canonical entries. Converting a reference, reading a published snaps
 attachment slot never acquire or recover facts. Imported images with supplied canonical metadata use
 the same RHI entry but project through the manager without native admission. Tracked images associate
 only with available original canonical facts; supplied snapshots cannot recover or override an unavailable
-entry. Unknown image facts still require explicit admitted acquisition.
+entry. Missing covered creation entries are tracking defects. Initial discovery requires either an identity
+explicitly recorded before observation activation or the narrow EXT named implicit-creation cause described
+below. Failed discovery and other unavailable original facts require explicit recovery.
+For external-memory-backed texture allocation, a known-mutable texture receives one immutable-storage
+flag read to establish whether the opaque imported payload was accepted. Allocation dimensions, format
+and levels still come from the intercepted command.
 
-Imported framebuffer publication holds one metadata operation while discovering descriptors and resolving
-backing images. The manager preserves face, layer, view range and observed attachment-mode evidence;
+Imported framebuffer publication composes maintained descriptors and backing images under one metadata
+operation. It does not discover a known framebuffer or reread its backing storage. The manager preserves face, layer, view range and observed attachment-mode evidence;
 the framebuffer owns its retained image composition. Identity replacement, availability withdrawal and
 failure notification belong to that explicit transaction. A completed publication emits one owner event;
 a failed publication withdraws old metadata and retained composition while preserving borrowed storage.
+Each maintained attachment descriptor retains its original backing registration, so a recycled native
+name cannot silently select a different texture or renderbuffer. When a bound framebuffer's backing is
+deleted, its automatically detached slots are removed from the descriptor; an unbound framebuffer retains
+its original selection and image projection requires that original backing to remain available.
 
 Canonical entry recipients deliver registered image projections and dependent notifications. A
 manager-owned weak owner/image relationship covers context-local owners and intentional owner replacement;
@@ -135,6 +144,49 @@ or fresh native admission. Disposing the exclusion releases its originating cach
 publishes metadata or performs recovery. Registered generations isolate operations; admitted local tools
 also distinguish physical contexts. Owner context checks run before availability withdrawal and again
 before participating dispatch/commit. Physical discovery is confined to `RenderContextRegistry`.
+
+## Maintained image facts
+
+Native texture, renderbuffer and framebuffer generation reserves original identities. Typed creation and
+legal realization establish explicit native defaults. Texture targets are fixed at realization; image
+collections start empty. Renderbuffers start with zero extent/samples and Rgba format; framebuffers
+start with no attachments, zero attachmentless extent/samples and fixed sample locations enabled.
+Framebuffer zero remains the window surface. Backend factories use saved originals and publish through
+the private manager handoff once, without external callback registration.
+
+Image definitions retain supplied dimensions, sized formats and storage mode. Immutable mips and mutable
+mip generation derive per-level geometry; array layers remain constant while 3D depth shrinks. Content
+updates and regeneration of existing immutable images do not renew descriptor/storage revisions. Base/max
+setters publish converted inputs. Native observers use cached capabilities without discovering missing
+format capabilities. Narrow allocation outcomes include an unsized resolved format, the approved
+sample-count fallback, and the immutable-storage flag for an opaque external-memory allocation. The
+last case does not authorize a descriptor scan.
+
+Native views own separate registrations and retain original source/storage dependencies regardless of
+which wrapper later borrows them. Cumulative view ranges supply feedback/overlap coordinates, while
+binding coordinates remain relative to the view. Source replacement, withdrawal and retirement do not
+retarget old views. Buffer and renderbuffer texture associations resolve available original backing
+entries without publication-triggered acquisition; whole-buffer mode retains its size-zero convention.
+
+Framebuffer observations publish individual attachment/subresource/default changes, including cube faces,
+layers and packed depth/stencil slots. Read and draw routes stay in the existing execution cache.
+Image projection and covered borrowing consume these maintained descriptors without native rediscovery.
+Explicit pre-install discovery and original-entry recovery remain separate operations.
+Before interception starts, the engine integration records framebuffer and texture identities exposed by
+the client's framebuffer references. Other pre-existing objects require their own established provenance;
+an unrecorded texture name does not acquire an empty descriptor merely because it is bound.
+An unknown identity encountered through a supported EXT named implicit-creation operation is recorded
+as unavailable with a distinct initial-discovery cause. The observer neither guesses fresh defaults nor
+queries descriptors. Explicit adoption may discover its required metadata once, identifying the actual
+texture target rather than trusting the EXT command's target. Later consumers reuse the canonical result;
+failed discovery requires explicit recovery and is not rearmed by repeated EXT calls. Tracked generated
+reservations continue to realize and update from supplied facts without descriptor reads.
+For an unknown EXT buffer texture, a validated association request retains its range mode, native-width
+offset/size and original backing in that same unavailable entry. Initial discovery verifies a matching
+nonzero native buffer association, establishing that the object is a buffer texture before publishing these facts.
+Detached or unproven associations remain unavailable. It does not infer whole-buffer mode from a queried
+range or narrow native-width values through integer getters; an unobserved association remains unavailable.
+A later uncertain association discards those unpublished facts so discovery cannot certify an earlier backing.
 
 ## Shader executable ownership
 

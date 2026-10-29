@@ -1,12 +1,8 @@
-using System.Runtime.CompilerServices;
-
 namespace VanillaGraphicsExpanded.Rendering;
 
 /// <summary>Retains managed immutable-view dependencies without putting registry entry references on wrappers.</summary>
 internal sealed partial class GpuResourceManager
 {
-    private readonly ConditionalWeakTable<GpuTextureView, GpuResourceRegistration> textureViewSources = new();
-
     #region Internal API
     /// <summary>Resolves managed view chains to their original storage name for existing feedback checks.</summary>
     internal static int TextureViewStorageName(GpuTextureView view)
@@ -25,14 +21,17 @@ internal sealed partial class GpuResourceManager
     /// <summary>Captures the source's original native allocation when a managed immutable view is constructed.</summary>
     internal void RecordTextureViewSource(GpuTextureView view, GpuResource<GpuTextureMetadata> source)
     {
-        if (GetResourceRegistration(source) is { } original) textureViewSources.Add(view, original);
+        if (GetResourceRegistration(source) is { } original)
+        {
+            if (GetResourceRegistration(view) is { } registration) RecordNativeTextureView(registration, original);
+        }
     }
 
     /// <summary>Requires the original source association and its available snapshot, or defers to untracked local validation.</summary>
     internal bool? IsTextureViewSourceCurrent(GpuTextureView view, GpuResource<GpuTextureMetadata> source)
     {
-        if (!textureViewSources.TryGetValue(view, out var original)) return null;
-        return ReferenceEquals(original, GetResourceRegistration(source)) && IsResourceMetadataAvailable(source);
+        if (GetResourceRegistration(view) is not { } entry || !textureBackingIdentities.TryGetValue(entry, out var dependency)) return null;
+        return ReferenceEquals(dependency.Source, GetResourceRegistration(source)) && IsResourceMetadataAvailable(source);
     }
     #endregion
 }

@@ -13,6 +13,7 @@ internal sealed partial class OpenGLBackend
         var request = description;
         RequireContext();
         var initialization = LowerRenderbuffer(request);
+        GpuResourceManagerSystem.EnsureCurrentContext();
         var owner = new GpuRenderbuffer(0, true, request.Label);
         try
         {

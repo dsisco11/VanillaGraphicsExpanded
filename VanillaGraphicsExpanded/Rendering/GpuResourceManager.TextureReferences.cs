@@ -59,8 +59,9 @@ internal sealed partial class GpuResourceManager
             || TextureStorageRevision(source) != view.SourceGeneration) return false;
         // The association comparison intentionally ignores availability: callers must reject
         // missing facts, whereas an optional input with retired storage can clear its slot.
-        if (resource.ResourceManager is { } manager && manager.textureViewSources.TryGetValue(view, out var original))
-            return ReferenceEquals(original, manager.GetResourceRegistration(source));
+        if (resource.ResourceManager is { } manager && manager.GetResourceRegistration(view) is { } entry
+            && manager.textureBackingIdentities.TryGetValue(entry, out var dependency))
+            return ReferenceEquals(dependency.Source, manager.GetResourceRegistration(source));
         return ReferenceEquals(TextureStorageIdentity(source), view.SourceStorageIdentity);
     }
     #endregion

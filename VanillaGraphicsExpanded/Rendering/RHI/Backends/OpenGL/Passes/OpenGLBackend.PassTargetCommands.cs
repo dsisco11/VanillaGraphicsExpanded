@@ -21,6 +21,8 @@ internal sealed partial class OpenGLBackend
         int first = Array.FindIndex(route, value => value != Legacy.DrawBuffersEnum.None);
         OpenGLDriverCalls.NamedFramebufferReadBuffer(target.FboId, first < 0 ? ReadBufferMode.None : (ReadBufferMode)route[first]);
         RequireContext();
+        cache.RememberFramebufferDrawRouting(target.FboId, route);
+        cache.RememberFramebufferReadRouting(target.FboId, first < 0 ? Legacy.ReadBufferMode.None : (Legacy.ReadBufferMode)route[first]);
         var status = GL.CheckNamedFramebufferStatus(target.FboId, FramebufferTarget.Framebuffer);
         RequireContext();
         if (status != FramebufferStatus.FramebufferComplete)

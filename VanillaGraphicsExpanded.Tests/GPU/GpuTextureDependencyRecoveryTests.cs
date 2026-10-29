@@ -31,8 +31,7 @@ public sealed class GpuTextureDependencyRecoveryTests(HeadlessGLFixture fixture)
             second.SetAttachment(FramebufferSlot.Color0, valid);
             ulong invalidRevision = first.AttachmentRevision;
             ulong validRevision = second.AttachmentRevision;
-            var error = Assert.Throws<AggregateException>(() => source.Resize(8, 4, 1));
-            Assert.IsType<InvalidOperationException>(Assert.Single(error.InnerExceptions));
+            Assert.True(source.Resize(8, 4, 1));
             Assert.Equal(8, source.Width);
             Assert.Equal(8, valid.Width);
             Assert.Equal(0, invalid.Width);
@@ -95,6 +94,8 @@ public sealed class GpuTextureDependencyRecoveryTests(HeadlessGLFixture fixture)
             // An incomplete operation cannot certify whether native storage commands executed before failure.
             using (new GpuResourceManager.MetadataOperation<GpuTextureMetadata>(source, storage ? GpuMetadataChange.Storage : GpuMetadataChange.Metadata)) { }
             Assert.False(view.IsValid);
+            Assert.Throws<InvalidOperationException>(() => source.SetMipRange(0, 0));
+            GpuResourceManager.RecoverWrapperMetadata(source, new GpuTextureMetadataReader(TextureDimension.TwoArray));
             source.SetMipRange(0, 0);
             Assert.Equal(4, source.Width);
             Assert.Equal(!storage, view.IsValid);
@@ -127,6 +128,7 @@ public sealed class GpuTextureDependencyRecoveryTests(HeadlessGLFixture fixture)
     private void PrepareContext(bool retiredManager)
     {
         fixture.EnsureContextValid();
+        fixture.UseContextLocalResources();
         Assert.Null(GpuResourceManagerSystem.CurrentManager);
         if (!retiredManager) return;
         fixture.InitializeResourceDisposal();

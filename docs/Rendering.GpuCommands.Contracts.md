@@ -88,8 +88,8 @@ Retirement reaches one backend kind dispatcher only after existing owner/queue o
 association admission. Candidate cleanup uses the same route, preserving original errors and identities.
 
 Private import operations also admit borrowed textures, executable adoption, interface acquisition and
-selected framebuffer images. Imported framebuffer recovery keeps its operation guard until descriptor
-and backing-image resolution finishes. Image validation reads supplied facts only. Supplied imported-image projection enters the private RHI
+selected framebuffer images. Imported framebuffer publication keeps its operation guard through maintained descriptor/backing-image
+composition; it does not rediscover a known framebuffer. Image validation reads supplied facts only. Supplied imported-image projection enters the private RHI
 gate without native admission, associates available canonical facts or projects supplied local facts,
 and never acquires or recovers a tracked backing. Unknown-fact acquisition retains native admission. Manager entry delivery
 is authoritative for registered images; weak owner/image relationships cover local tools and intentional

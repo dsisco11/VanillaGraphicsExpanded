@@ -14,6 +14,9 @@ public abstract partial class GpuTexture
     {
         get
         {
+            // A retained snapshot is not an available image after an interrupted
+            // operation or retirement, even though its last values remain stored.
+            if (ResourceManager?.GetResourceRegistration(this) is { IsUsable: false }) return default;
             if (!metadata.Levels.IsDefault)
                 foreach (var image in metadata.Levels)
                     if (image.Level == 0) return image;

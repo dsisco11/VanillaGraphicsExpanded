@@ -13,7 +13,7 @@ internal sealed partial class GpuResourceManager
     {
         if (candidate is not GpuTextureMetadata { Renderbuffer: not 0 } texture) return;
         RequireOriginalTextureBacking(entry, GpuResourceKind.Renderbuffer, texture.Renderbuffer, renewAssociation);
-        var backing = AcquireResource(GpuResourceKind.Renderbuffer, texture.Renderbuffer, GpuRenderbufferMetadataReader.Instance);
+        var backing = LookupAvailableResource<GpuRenderbufferMetadata>(GpuResourceKind.Renderbuffer, texture.Renderbuffer);
         if (backing is null)
             throw new InvalidOperationException("Renderbuffer texture backing metadata is unavailable.");
         RecordTextureBacking(entry, backing);

@@ -34,15 +34,14 @@ internal sealed partial class RenderPass
     private static void ValidateTextureRange(GpuTextureRef texture, GpuTextureMetadata data, int level, int? layer)
     {
         int name = texture.TextureId;
-        var view = texture.Resource as GpuTextureView;
-        int storage = view is null ? name : GpuResourceManager.TextureViewStorageName(view);
+        var view = data.View;
+        int storage = GpuResourceManager.TextureStorageName(texture.Resource);
         foreach (var pair in active!.description.Target.AttachmentImages)
         {
             var attached = pair.Value;
             if (attached.TextureId == 0) continue;
-            var attachedView = attached.Resource as GpuTextureView;
-            int attachedStorage = attachedView is null ? attached.TextureId
-                : GpuResourceManager.TextureViewStorageName(attachedView);
+            var attachedView = GpuResourceManager.TextureStorageSelection(attached.Resource ?? attached);
+            int attachedStorage = GpuResourceManager.TextureStorageName(attached.Resource ?? attached);
             bool sameObject = attached.TextureId == name;
             if (!sameObject && storage != attachedStorage) continue;
 

@@ -119,7 +119,8 @@ public sealed class GpuTextureReferenceTests(HeadlessGLFixture fixture)
             Assert.False(alias.IsValid);
             Assert.False(texture.IsValid);
             Assert.Throws<InvalidOperationException>(() => GpuResourceManager.ValidateTextureReferenceInput(owner.Resource));
-            GpuResourceManager.AcquireWrapperMetadata(texture, GpuTextureMetadataReader.Instance);
+            Assert.Throws<InvalidOperationException>(() => GpuResourceManager.AcquireWrapperMetadata(texture, GpuTextureMetadataReader.Instance));
+            GpuResourceManager.RecoverWrapperMetadata(texture, GpuTextureMetadataReader.Instance);
             Assert.True(owner.IsValid);
             Assert.True(alias.IsValid);
             borrowed.Dispose();

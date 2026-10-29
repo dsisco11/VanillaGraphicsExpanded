@@ -34,6 +34,8 @@ internal sealed partial class GpuResourceManager
         {
             entry.BeginRefresh(change);
             entry.NotifyProgramDependents(change, available: false);
+            entry.NotifyImageDependents(suppressErrors: true);
+            if (entry.Kind == GpuResourceKind.Texture) entry.Manager.SetTextureViewSourceAvailability(entry, false);
         }
         else
         {

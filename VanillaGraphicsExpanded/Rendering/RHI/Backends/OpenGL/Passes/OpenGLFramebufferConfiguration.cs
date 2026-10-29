@@ -15,6 +15,7 @@ internal static class OpenGLFramebufferConfiguration
         OpenGLFramebufferRouting.Restore(OpenGlStateCache.Current, resource.FboId, route);
         OpenGLDriverCalls.NamedFramebufferReadBuffer(resource.FboId, (OpenTK.Graphics.OpenGL4.ReadBufferMode)read);
         resource.RequireOriginalContext();
+        OpenGlStateCache.Current.RememberFramebufferReadRouting(resource.FboId, read);
     }
 
     /// <summary>Binds a realized framebuffer, acquiring only unknown external descriptors.</summary>

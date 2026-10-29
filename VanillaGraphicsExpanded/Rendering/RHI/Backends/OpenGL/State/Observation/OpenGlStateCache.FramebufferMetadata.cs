@@ -16,7 +16,8 @@ internal sealed partial class OpenGlStateCache
         if (image is null) return candidate with { Attachments = selections.Remove(slot) };
         var descriptor = new GpuFramebufferImageMetadata(image.Kind, image.ResourceId, image.MipLevel,
             image.Layer ?? 0, image.CubeFace ?? 0, image.MetadataImageSelection.Layered,
-            image.BaseView, image.ViewCount, image.AttachmentMode);
+            image.BaseView, image.ViewCount, image.AttachmentMode)
+            { OriginalBacking = image.ResourceManager?.GetResourceRegistration(image) };
         return candidate with { Attachments = selections.SetItem(slot, descriptor) };
     }
     #endregion

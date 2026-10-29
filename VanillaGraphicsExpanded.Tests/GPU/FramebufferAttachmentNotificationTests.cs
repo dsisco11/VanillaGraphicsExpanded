@@ -49,7 +49,12 @@ public sealed class FramebufferAttachmentNotificationTests(HeadlessGLFixture fix
         depth.Dispose();
         Assert.False(depth.Resize(5, 5));
         Assert.False(framebuffer.Resize(5, 5));
-        Assert.Equal(1, notifications);
+        // Deleting the currently attached renderbuffer detaches it in OpenGL and
+        // produces a separate framebuffer configuration notification.
+        GL.GetFramebufferAttachmentParameter(FramebufferTarget.Framebuffer, FramebufferAttachment.DepthAttachment,
+            FramebufferParameterName.FramebufferAttachmentObjectName, out int attachment);
+        Assert.Equal(0, attachment);
+        Assert.Equal(2, notifications);
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
 
@@ -73,7 +78,7 @@ public sealed class FramebufferAttachmentNotificationTests(HeadlessGLFixture fix
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
 
-    /// <summary>Ordinary copies retain configured images, and an explicit equal-size engine rebuild refreshes them.</summary>
+    /// <summary>Observed attachment changes notify borrowers before an explicit wrapped refresh.</summary>
     [Fact]
     public void WrappedRefreshReconfiguresOnlyAfterNotification()
     {
@@ -92,15 +97,15 @@ public sealed class FramebufferAttachmentNotificationTests(HeadlessGLFixture fix
         RHICommandContext.Current.BlitImages(copy);
         Assert.All(destination[0].ReadPixels(), value => Assert.Equal(3f, value));
 
-        // Engine-side mutation deliberately bypasses the wrapper. If Blit queries or
-        // reattaches each frame, this copy would incorrectly observe the new image.
+        // The observer reports the change; an already prepared copy still retains
+        // its original image selection until the caller rebuilds its description.
         source.Attach(replacement);
         RHICommandContext.Current.BlitImages(copy);
-        Assert.Equal(0, notifications);
+        Assert.Equal(1, notifications);
         Assert.All(destination[0].ReadPixels(), value => Assert.Equal(3f, value));
         wrapped.RefreshWrappedFramebuffer(source.FboId, 2, 2);
         copy=FramebufferTestSetup.DescribeCopy(source, destination);
-        Assert.Equal(1, notifications);
+        Assert.Equal(2, notifications);
         RHICommandContext.Current.BlitImages(copy);
         Assert.All(destination[0].ReadPixels(), value => Assert.Equal(9f, value));
         Assert.True(GL.IsTexture(first.TextureId));

@@ -10,7 +10,7 @@ internal sealed unsafe partial class OpenGlStateCache
     {
         if (!OpenGLObservationContext.TryGet(out var cache, out _, false)) return;
         int id = cache.ResolveObservedBuffer(unchecked((int)selector), true, false);
-        if (id != 0 && result != 0) cache.bufferMappings[id] = true;
+        if (id != 0 && result != 0) cache.RecordBufferMapped(id);
     }
     #endregion
 }

@@ -13,7 +13,7 @@ internal sealed partial class OpenGLBackend
     {
         RequireContext();
         int name = 0;
-        try { GL.CreateTextures(Native.TextureTarget.TextureBuffer, 1, out name); }
+        try { OpenGLDriverCalls.CreateTextures(Native.TextureTarget.TextureBuffer, 1, out name); }
         finally { id = name; }
         RequireContext();
         if (name == 0) return null;
@@ -33,7 +33,7 @@ internal sealed partial class OpenGLBackend
         // TextureView explicitly requires an unused generated name; CreateTextures would realize
         // it prematurely. This is its native creation contract, not a capability fallback.
         int name = 0;
-        try { GL.GenTextures(1, out name); }
+        try { OpenGLDriverCalls.GenTextures(1, out name); }
         finally { id = name; }
         RequireContext();
         if (name == 0) return null;

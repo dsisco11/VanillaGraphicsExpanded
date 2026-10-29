@@ -15,7 +15,7 @@ internal sealed partial class OpenGLBackend
     {
         RequireContext();
         int name = 0;
-        try { GL.CreateTextures((Native.TextureTarget)OpenGLImageValues.Target(request.Target), 1, out name); }
+        try { OpenGLDriverCalls.CreateTextures((Native.TextureTarget)OpenGLImageValues.Target(request.Target), 1, out name); }
         finally { id = name; }
         RequireContext();
         if (name == 0) return null;

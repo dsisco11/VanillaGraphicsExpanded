@@ -73,8 +73,13 @@ internal sealed partial class GpuResourceManager
             // recorded-discovery gate to the remaining kinds as each family is migrated.
             if (UsesMaintainedLifecycle(kind))
             {
-                if (!tracked.InitialDiscoveryPending) return null;
-                tracked.InitialDiscoveryPending = false;
+                var discovery = tracked.InitialDiscovery;
+                if (discovery == GpuInitialDiscovery.None) return null;
+                tracked.InitialDiscovery = GpuInitialDiscovery.None;
+                // A rejected EXT call may have supplied the wrong target for an older
+                // texture. Initial discovery must identify its actual target independently.
+                if (discovery == GpuInitialDiscovery.ImplicitCreation && reader is GpuTextureMetadataReader)
+                    reader = (IGpuResourceMetadataReader<TMetadata>)(object)GpuTextureMetadataReader.Instance;
             }
             tracked.Reader = reader;
             return RefreshMetadata(tracked, tracked.MetadataRevision == 0 ? GpuMetadataChange.None : GpuMetadataChange.Metadata) ? tracked : null;
@@ -113,8 +118,10 @@ internal sealed partial class GpuResourceManager
         if (entry is null) return UsesMaintainedLifecycle(kind)
             ? null : AcquireResource(kind, id, reader);
         if (entry.State != GpuResourceRegistrationState.Live || entry.OperationInProgress || entry.CompletionInProgress) return null;
-        if (kind == GpuResourceKind.Buffer && !entry.IsRealized && !entry.InitialDiscoveryPending) return null;
-        entry.InitialDiscoveryPending = false;
+        if (kind == GpuResourceKind.Buffer && !entry.IsRealized && entry.InitialDiscovery == GpuInitialDiscovery.None) return null;
+        entry.InitialDiscovery = GpuInitialDiscovery.None;
+        if (entry.MetadataRevision == 0 && reader is GpuTextureMetadataReader)
+            reader = (IGpuResourceMetadataReader<TMetadata>)(object)GpuTextureMetadataReader.Instance;
         if (entry is GpuResourceMetadataEntry<GpuMemoryObjectMetadata> memory)
         {
             if (!memory.IsRealized) return null;
@@ -195,16 +202,24 @@ internal sealed partial class GpuResourceManager
     }
 
     /// <summary>Removes a deleted name and invalidates its aliases before that name can be registered again.</summary>
-    internal void ObserveDeletion(GpuResourceKind kind, nint id)
+    internal void ObserveDeletion(GpuResourceKind kind, nint id, int? readFramebuffer = null, int? drawFramebuffer = null,
+        bool external = false)
     {
         if (id == 0 || context != currentMetadataContext()) return;
         RHICommandContext.CancelResourceOperation(kind, id);
+        GpuResourceRegistration? deleted = null;
         if (metadataRegistry.TryRemove(new(kind, id), out var entry))
         {
+            deleted = entry;
+            if (external && entry is GpuResourceMetadataEntry<GpuTextureMetadata> texture)
+                texture.ClearImageRecipientSnapshots();
+            else if (external && entry is GpuResourceMetadataEntry<GpuRenderbufferMetadata> renderbuffer)
+                renderbuffer.ClearImageRecipientSnapshots();
             entry.Invalidate(GpuResourceRegistrationState.Deleted);
+            if (kind == GpuResourceKind.Texture) WithdrawChangedTextureViews(entry);
         }
         // A tracked dependent can refer to an externally owned, unregistered backing name.
-        InvalidateDeletionDependencies(kind, id);
+        InvalidateDeletionDependencies(kind, id, deleted, readFramebuffer, drawFramebuffer, external);
     }
 
     /// <summary>Checks captured registration identity for deferred work without reacquiring a reused numeric name.</summary>
@@ -220,7 +235,8 @@ internal sealed partial class GpuResourceManager
     #region Context and registration validation
     /// <summary>Identifies families whose covered creation facts cannot be replaced by implicit discovery.</summary>
     private static bool UsesMaintainedLifecycle(GpuResourceKind kind) => kind is GpuResourceKind.Buffer
-        or GpuResourceKind.MemoryObject or GpuResourceKind.Query or GpuResourceKind.Sync or GpuResourceKind.Semaphore;
+        or GpuResourceKind.MemoryObject or GpuResourceKind.Query or GpuResourceKind.Sync or GpuResourceKind.Semaphore
+        or GpuResourceKind.Texture or GpuResourceKind.Renderbuffer or GpuResourceKind.Framebuffer;
 
     /// <summary>Ensures all ordinary registry operations and native reads stay on their originating context thread.</summary>
     private void RequireMetadataContext()

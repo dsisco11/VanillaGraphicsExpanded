@@ -6,13 +6,12 @@ internal sealed partial class GpuResourceManager
 {
     #region Internal API
     /// <summary>Discovers one image from reusable canonical descriptors without independently scanning native slots.</summary>
-    internal static GpuFramebufferAttachment DiscoverFramebufferAttachment(GpuFramebuffer owner, FramebufferSlot slot, bool recover)
+    internal static GpuFramebufferAttachment DiscoverFramebufferAttachment(GpuFramebuffer owner, FramebufferSlot slot)
     {
         try
         {
-            if (recover) RecoverWrapperMetadata(owner, GpuFramebufferMetadataReader.Instance);
-            else if (!owner.HasNativeMetadata) AcquireWrapperMetadata(owner, GpuFramebufferMetadataReader.Instance);
-            owner.ReconcileAttachmentMetadata(true, recover);
+            if (!owner.HasNativeMetadata) AcquireWrapperMetadata(owner, GpuFramebufferMetadataReader.Instance);
+            owner.ReconcileAttachmentMetadata(true, false);
         }
         catch { InvalidateWrapperMetadata(owner); throw; }
         foreach (var pair in owner.AttachmentImages) if (pair.Key == slot) return pair.Value;
@@ -35,22 +34,25 @@ internal sealed partial class GpuResourceManager
             owner.ResourceManager?.RegisterWrapperDeclaration(owner);
             if (publish)
             {
-                // Keep this framebuffer unavailable while its complete descriptor/backing set
-                // is resolved. Individual reads cannot expose an intermediate usable target.
+                // Association consumes canonical descriptors; only a recorded pre-install
+                // identity can perform initial discovery before this publication transaction.
+                var manager = owner.ResourceManager;
+                var tracked = manager?.AcquireResource(GpuResourceKind.Framebuffer, owner.ResourceId, GpuFramebufferMetadataReader.Instance)
+                    ?? throw new InvalidOperationException("Maintained framebuffer metadata is unavailable.");
+                var candidate = tracked.Metadata;
                 using var operation = new MetadataOperation<GpuFramebufferMetadata>(owner, GpuMetadataChange.Metadata);
-                if (!GpuFramebufferMetadataReader.Instance.TryRead(owner.ResourceId, out var candidate))
-                    throw new InvalidOperationException("Framebuffer metadata is unavailable.");
                 operation.RequireLive();
                 if (owner.ResourceManager?.GetResourceRegistration(owner) is GpuResourceMetadataEntry<GpuFramebufferMetadata> entry)
                     candidate = entry.Manager.ReconcileFramebufferAttachmentModes(entry, candidate);
                 var images = ResolveFramebufferAttachments(owner,
-                    new System.Collections.Generic.Dictionary<FramebufferSlot, GpuFramebufferAttachment>(owner.AttachmentImages), true, candidate);
+                    new System.Collections.Generic.Dictionary<FramebufferSlot, GpuFramebufferAttachment>(owner.AttachmentImages), false, candidate);
                 operation.RequireLive();
                 operation.Commit(candidate);
                 owner.InstallAttachmentReferences(images, owner.PublishedMetadata.Attachments!);
                 available = true;
             }
-            else InvalidateWrapperMetadata(owner);
+            // A borrower can defer pass composition without withdrawing the shared
+            // framebuffer entry that its existing owner and other aliases still use.
             succeeded = true;
         }
         catch { InvalidateWrapperMetadata(owner); throw; }

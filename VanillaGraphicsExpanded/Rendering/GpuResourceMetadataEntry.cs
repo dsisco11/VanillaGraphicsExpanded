@@ -81,12 +81,58 @@ internal sealed class GpuResourceMetadataEntry<TMetadata> : GpuResourceRegistrat
                 framebuffer.OnNativeConfigurationChanged();
     }
 
+    /// <summary>Reports an externally deleted backing without cancelling pending owner reattachment.</summary>
+    internal void NotifyFramebufferBackingRetired()
+    {
+        foreach (var recipient in recipients.ToArray())
+            if (TryGetRecipient(recipient.Key, out var resource) && resource is GpuFramebuffer framebuffer)
+                framebuffer.OnObservedBackingRetired();
+    }
+
+    /// <summary>Clears image snapshots before an external deletion retires their subscriptions.</summary>
+    internal void ClearImageRecipientSnapshots()
+    {
+        foreach (var recipient in recipients.ToArray())
+            if (TryGetRecipient(recipient.Key, out var resource) && resource is GpuFramebufferAttachment image)
+                image.HandleMetadataChanged(default);
+    }
+
+    /// <summary>Withdraws or restores dependent image projections when a view source changes availability.</summary>
+    internal void SetImageRecipientAvailability(bool available)
+    {
+        foreach (var recipient in recipients.ToArray())
+        {
+            if (!TryGetRecipient(recipient.Key, out var resource) || resource is not GpuFramebufferAttachment image
+                || recipient.Value == available) continue;
+            bool assigned = available && Manager.AssignImageMetadata(this, image);
+            if (!available) image.HandleMetadataChanged(default);
+            recipients.TryUpdate(recipient.Key, assigned, recipient.Value);
+            try { image.NotifyDependents(); } catch { }
+        }
+    }
+
     /// <summary>Marks canonical metadata unavailable before reading a replacement candidate.</summary>
     internal void BeginRefresh(GpuMetadataChange change)
     {
         pendingChange |= change;
         MetadataAvailable = false;
         PruneAssociations();
+    }
+
+    /// <summary>Retains supplied initial facts privately while an unknown EXT identity still needs discovery.</summary>
+    internal void RetainInitialCandidate(TMetadata candidate)
+    {
+        if (IsUsable || MetadataRevision != 0 || InitialDiscovery != GpuInitialDiscovery.ImplicitCreation)
+            throw new InvalidOperationException("Only an unresolved initial EXT identity can retain supplied facts.");
+        Metadata = candidate;
+    }
+
+    /// <summary>Discards unpublished supplied facts after a later potentially accepted effect makes them uncertain.</summary>
+    internal void DiscardInitialCandidate()
+    {
+        if (!IsUsable && MetadataRevision == 0)
+            Metadata = Metadata is GpuTextureMetadata texture
+                ? (TMetadata)(object)(texture with { Buffer = null }) : default;
     }
 
     /// <summary>Assigns recipient snapshots before publishing canonical availability and revisions.</summary>
@@ -96,7 +142,7 @@ internal sealed class GpuResourceMetadataEntry<TMetadata> : GpuResourceRegistrat
         MetadataAvailable = false;
         Metadata = candidate;
         Realize();
-        InitialDiscoveryPending = false;
+        InitialDiscovery = GpuInitialDiscovery.None;
         List<Exception>? failures = null;
         foreach (var recipient in recipients.ToArray())
         {
@@ -141,7 +187,11 @@ internal sealed class GpuResourceMetadataEntry<TMetadata> : GpuResourceRegistrat
         foreach (var recipient in recipients.ToArray())
         {
             if (!TryGetRecipient(recipient.Key, out var resource) || resource is not GpuFramebufferAttachment image) continue;
-            try { image.NotifyDependents(); }
+            try
+            {
+                if (!IsUsable) image.HandleMetadataChanged(default);
+                image.NotifyDependents();
+            }
             catch (Exception error) { (failures ??= new()).Add(error); }
         }
         // A reader/publication exception remains the primary failure. All callbacks still run.

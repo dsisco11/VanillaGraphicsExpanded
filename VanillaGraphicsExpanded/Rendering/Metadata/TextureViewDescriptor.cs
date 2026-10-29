@@ -10,7 +10,8 @@ internal static class TextureViewDescriptor
 {
     #region Internal API
     /// <summary>Rejects incompatible selections and produces descriptors relative to the new view.</summary>
-    internal static GpuTextureMetadata Create(in GpuTextureViewInitialization request, GpuTextureMetadata source)
+    internal static GpuTextureMetadata Create(in GpuTextureViewInitialization request, GpuTextureMetadata source,
+        RHICapabilities? capabilities = null)
     {
         if (!source.ImmutableStorage || source.Levels.IsDefaultOrEmpty || !TargetsCompatible(source.Target, request.Target))
             throw new ArgumentException("Texture view requires compatible immutable source storage.");
@@ -41,7 +42,7 @@ internal static class TextureViewDescriptor
                 : request.Target == TextureDimension.OneArray ? request.LayerCount : image.Height;
             int depth = request.Target == TextureDimension.Three ? image.Depth
                 : array && request.Target != TextureDimension.OneArray ? request.LayerCount : 1;
-            var caps = RHI.RHICommandContext.Current.Capabilities;
+            var caps = capabilities ?? RHI.RHICommandContext.Current.Capabilities;
             int limit = cube || request.Target == TextureDimension.CubeArray ? caps.MaxCubeMapTextureSize
                 : request.Target == TextureDimension.Rectangle ? caps.MaxRectangleTextureSize
                 : request.Target == TextureDimension.Three ? caps.Max3DTextureSize : caps.MaxTextureSize;

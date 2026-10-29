@@ -46,8 +46,8 @@ public sealed class EngineGenericStateTests(HeadlessGLFixture fixture)
             // Separate concrete callers retain both static MethodSpecs and genuine virtual dispatch.
             capturedPayload = null; UploadInt(a, 17); var firstPayload = Assert.IsType<byte[]>(capturedPayload);
             capturedPayload = null; UploadPair(b, new Pair { A = 23, B = 29 }); var secondPayload = Assert.IsType<byte[]>(capturedPayload);
-            Assert.False(manager.IsResourceMetadataAvailable(first));
-            Assert.False(manager.IsResourceMetadataAvailable(second));
+            Assert.True(manager.IsResourceMetadataAvailable(first));
+            Assert.True(manager.IsResourceMetadataAvailable(second));
             Assert.Same(firstEntry, manager.AcquireResource(GpuResourceKind.Buffer, first.BufferId, new GpuBufferMetadataReader()));
             Assert.Same(secondEntry, manager.AcquireResource(GpuResourceKind.Buffer, second.BufferId, new GpuBufferMetadataReader()));
             var initialOne = new int[1]; var initialTwo = new int[2];

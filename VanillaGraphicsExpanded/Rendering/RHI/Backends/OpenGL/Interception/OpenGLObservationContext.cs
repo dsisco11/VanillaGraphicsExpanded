@@ -14,6 +14,10 @@ internal static class OpenGLObservationContext
         if (Integration.RenderContextRegistry.Current().Generation == 0
             && !Integration.EngineRenderContext.TryRegisterCurrent()) return false;
         origin = Integration.RenderContextRegistry.CaptureResourceContext();
+        // A live manager belonging to a different context cannot observe this
+        // call; leave it untouched rather than disrupting native dispatch.
+        var existing = GpuResourceManagerSystem.CurrentManager;
+        if (existing is not null && !existing.IsMetadataRegistryRetired && !existing.CanObserveNativeMetadata) return false;
         GpuResourceManagerSystem.EnsureCurrentContext().ActivateResourceObservation();
         cache.SelectRHIContext(origin.Handle, origin);
         return !requireCapabilities || GpuSupport.HasCachedCapabilitiesForCurrentContext;

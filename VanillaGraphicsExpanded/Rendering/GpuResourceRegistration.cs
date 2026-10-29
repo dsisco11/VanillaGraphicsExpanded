@@ -28,8 +28,8 @@ internal abstract class GpuResourceRegistration
     internal ulong StorageRevision { get; set; }
     /// <summary>Distinguishes a generated name from an object with established native defaults.</summary>
     internal bool IsRealized { get; private set; }
-    /// <summary>Authorizes one initial discovery recorded before resource observation begins.</summary>
-    internal bool InitialDiscoveryPending { get; set; }
+    /// <summary>Authorizes one explicit initial discovery for its recorded lifecycle cause.</summary>
+    internal GpuInitialDiscovery InitialDiscovery { get; set; }
     internal bool IsUsable => !Manager.IsMetadataRegistryRetired && State == GpuResourceRegistrationState.Live && MetadataAvailable;
     internal abstract int AssociationCount { get; }
 

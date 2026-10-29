@@ -12,6 +12,13 @@ public abstract partial class GpuFramebuffer
     /// <summary>Withdraws cached helper results without rewriting a newly observed native configuration.</summary>
     internal void OnNativeConfigurationChanged()
     {
+        if (resizing)
+        {
+            // An owning resize publishes its complete attachment change once at
+            // the end; retain its pending managed reattachment meanwhile.
+            reconciledAttachmentDescriptors = null;
+            return;
+        }
         // Pending managed reattachment cannot overwrite the native configuration just
         // observed. Reconcile lazily so incomplete but legal intermediate configurations
         // remain representable until a consumer requires usable attachment images.
@@ -19,10 +26,17 @@ public abstract partial class GpuFramebuffer
         reconciledAttachmentDescriptors = null;
         PublishAttachmentsChanged();
     }
-    /// <summary>Resolves a requested external image from one reusable canonical framebuffer discovery.</summary>
-    internal GpuFramebufferAttachment DiscoverAttachment(FramebufferSlot slot, bool forceNative)
+
+    /// <summary>Reports loss of an observed backing while retaining any pending owner reattachment.</summary>
+    internal void OnObservedBackingRetired()
     {
-        return RHI.RHICommandContext.Current.DiscoverFramebufferAttachment(this, slot, forceNative);
+        reconciledAttachmentDescriptors = null;
+        if (!resizing) PublishAttachmentsChanged();
+    }
+    /// <summary>Resolves a requested external image from one reusable canonical framebuffer discovery.</summary>
+    internal GpuFramebufferAttachment DiscoverAttachment(FramebufferSlot slot)
+    {
+        return RHI.RHICommandContext.Current.DiscoverFramebufferAttachment(this, slot);
     }
     /// <summary>Reconciles retained image references with canonical descriptors without creating another native owner.</summary>
     internal void ReconcileAttachmentMetadata(bool allowUnpublishedExternal = false, bool recoverBackings = false)

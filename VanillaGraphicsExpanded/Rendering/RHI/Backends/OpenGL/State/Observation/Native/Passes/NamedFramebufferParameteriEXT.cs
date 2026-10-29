@@ -14,9 +14,9 @@ internal sealed unsafe partial class OpenGlStateCache
         int @framebuffer = unchecked((int)a0);
         ExtDirectStateAccess @pname = unchecked((ExtDirectStateAccess)a1);
         int @param = unchecked((int)a2);
-        if (!OpenGLObservationContext.TryGet(out _, out _)) return;
+        if (!OpenGLObservationContext.TryGet(out _, out _, false)) return;
         if (unchecked((int)@pname) is >= (int)FramebufferDefaultParameter.FramebufferDefaultWidth and <= (int)FramebufferDefaultParameter.FramebufferDefaultFixedSampleLocations)
-            ObserveFramebufferMutation(unchecked((int)@framebuffer), true, parameter: (FramebufferDefaultParameter)unchecked((int)@pname));
+            ObserveFramebufferMutation(unchecked((int)@framebuffer), true, parameter: (FramebufferDefaultParameter)unchecked((int)@pname), value: unchecked((int)@param), extNamed: true);
     }
     #endregion
 }

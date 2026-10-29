@@ -22,9 +22,7 @@ internal sealed partial class GpuResourceManager
             return manager.AcquireResource(GpuResourceKind.Texture, id, reader)?.Metadata
                 ?? throw new InvalidOperationException("Native texture image metadata is unavailable.");
         }
-        if (!GpuTextureMetadataReader.Instance.TryRead(id, out var data))
-            throw new InvalidOperationException("Native texture image metadata is unavailable.");
-        return data;
+        throw new InvalidOperationException("Image borrowing requires maintained facts or explicit pre-install discovery.");
     }
 
     /// <summary>Refreshes an image association after explicit owner replacement without letting imported IDs adopt reused objects.</summary>
@@ -41,6 +39,11 @@ internal sealed partial class GpuResourceManager
             {
                 // Existing images receive publication through their original association. A
                 // failure notification must not silently reacquire and revive withdrawn facts.
+                if (!manager.IsResourceMetadataAvailable(image))
+                {
+                    image.HandleMetadataChanged(default);
+                    throw new InvalidOperationException("The selected framebuffer image metadata is unavailable.");
+                }
                 return;
             }
             // A raw alias does not itself invalidate covered canonical facts. Acquisition
@@ -72,14 +75,12 @@ internal sealed partial class GpuResourceManager
         if (image.Kind == GpuResourceKind.Renderbuffer)
         {
             if (acquiredRenderbuffer is { } supplied) projected = ProjectRenderbufferImage(supplied, image.MetadataImageSelection);
-            else if (GpuRenderbufferMetadataReader.Instance.TryRead(image.ResourceId, out var renderbuffer))
-                projected = ProjectRenderbufferImage(renderbuffer, image.MetadataImageSelection);
+
         }
         else if (image.Kind == GpuResourceKind.Texture)
         {
             if (acquiredTexture is { } texture) projected = ProjectTextureImage(texture, image.MetadataImageSelection);
-            else if (new GpuTextureMetadataReader(image.ImageTarget).TryRead(image.ResourceId, out texture))
-                projected = ProjectTextureImage(texture, image.MetadataImageSelection);
+
         }
         if (!projected.HasValue)
             throw new InvalidOperationException("The selected framebuffer image metadata is unavailable.");

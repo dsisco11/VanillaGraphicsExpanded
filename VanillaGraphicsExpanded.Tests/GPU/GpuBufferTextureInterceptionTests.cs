@@ -144,7 +144,7 @@ public sealed class GpuBufferTextureInterceptionTests(HeadlessGLFixture fixture)
         finally { harmony.UnpatchAll(harmony.Id); fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
 
-    /// <summary>Untracked commands forward wide ranges unchanged without metadata queries or speculative registration.</summary>
+    /// <summary>Wide native arguments forward unchanged and rejected associations preserve tracked metadata.</summary>
     [Fact]
     public void UntrackedWideForwardingDoesNotObserveOrNarrow()
     {
@@ -160,6 +160,10 @@ public sealed class GpuBufferTextureInterceptionTests(HeadlessGLFixture fixture)
             reads = 0;
             Associate(1, texture, backing.BufferId, SizedInternalFormat.R32f, 0, 0);
             Assert.Equal(0, reads);
+            var entry = Assert.IsType<GpuResourceMetadataEntry<GpuTextureMetadata>>(
+                GpuResourceManagerSystem.CurrentManager!.FindResource(GpuResourceKind.Texture, texture));
+            var original = entry.Metadata;
+            ulong revision = entry.MetadataRevision;
             harmony.Patch(AccessTools.Method(typeof(GL), nameof(GL.TextureBufferRange), [typeof(int), typeof(SizedInternalFormat), typeof(int), typeof(IntPtr), typeof(IntPtr)]),
                 prefix: new HarmonyMethod(typeof(GpuBufferTextureInterceptionTests), nameof(CaptureWide)));
             reads = 0;
@@ -167,7 +171,9 @@ public sealed class GpuBufferTextureInterceptionTests(HeadlessGLFixture fixture)
             Associate(8, texture, 123, SizedInternalFormat.R32f, offset, size);
             Assert.Equal(offset, capturedOffset); Assert.Equal(size, capturedSize);
             Assert.Equal(0, reads);
-            Assert.Null(GpuResourceManagerSystem.CurrentManager!.FindResource(GpuResourceKind.Texture, texture));
+            Assert.Same(entry, GpuResourceManagerSystem.CurrentManager!.FindResource(GpuResourceKind.Texture, texture));
+            Assert.Equal(original, entry.Metadata);
+            Assert.Equal(revision, entry.MetadataRevision);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
         finally { harmony.UnpatchAll(harmony.Id); RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Texture, texture)); fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }

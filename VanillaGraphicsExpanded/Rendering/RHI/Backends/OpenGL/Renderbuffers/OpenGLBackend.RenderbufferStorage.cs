@@ -38,7 +38,7 @@ internal sealed partial class OpenGLBackend
     {
         RequireContext();
         int name = 0;
-        try { GL.CreateRenderbuffers(1, out name); }
+        try { OpenGLDriverCalls.CreateRenderbuffers(1, out name); }
         finally { id = name; }
         RequireContext();
         if (name == 0) return null;

@@ -207,6 +207,7 @@ public sealed class GpuFramebufferMetadataInterceptionTests(HeadlessGLFixture fi
     public void ObservationInDifferentContextCannotNotifyHelpers()
     {
         fixture.EnsureContextValid();
+        fixture.UseContextLocalResources();
         var origin=RenderContextRegistry.Current();
         var current=origin;
         using var manager=new GpuResourceManager(() => current, static _ => true);

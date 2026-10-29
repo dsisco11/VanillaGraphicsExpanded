@@ -16,10 +16,9 @@ internal sealed partial class GpuResourceManager
             manager.RequireOriginalWrapper(texture);
             var entry = manager.GetResourceRegistration(texture) as GpuResourceMetadataEntry<GpuTextureMetadata>;
             if (entry is not null && manager.IsResourceMetadataAvailable(texture)) return entry.Metadata;
-            AcquireWrapperMetadata(texture, new GpuTextureMetadataReader(texture.TextureTarget));
+            throw new InvalidOperationException("Texture command requires available original metadata.");
         }
-        else if (texture.StorageImages.IsDefaultOrEmpty)
-            AcquireWrapperMetadata(texture, new GpuTextureMetadataReader(texture.TextureTarget));
+
         if (texture.StorageImages.IsDefaultOrEmpty)
             throw new InvalidOperationException("Texture command input metadata is unavailable.");
         return texture.MetadataSnapshot;

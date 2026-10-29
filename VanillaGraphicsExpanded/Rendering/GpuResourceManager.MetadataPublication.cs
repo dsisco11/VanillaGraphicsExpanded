@@ -34,6 +34,9 @@ internal sealed partial class GpuResourceManager
             change = entry.Publish(candidate, change);
             PublishBufferTextureDependencies(entry, previousStorage);
             PublishRenderbufferTextureDependencies(entry, previousStorage);
+            if (entry.Kind == GpuResourceKind.Texture && entry.StorageRevision != previousStorage)
+                WithdrawChangedTextureViews(entry);
+            else if (entry.Kind == GpuResourceKind.Texture) SetTextureViewSourceAvailability(entry, true);
             finished = true;
             return true;
         }
@@ -78,6 +81,9 @@ internal sealed partial class GpuResourceManager
             change = entry.Publish(candidate, change);
             PublishBufferTextureDependencies(entry, previousStorage);
             PublishRenderbufferTextureDependencies(entry, previousStorage);
+            if (entry.Kind == GpuResourceKind.Texture && entry.StorageRevision != previousStorage)
+                WithdrawChangedTextureViews(entry);
+            else if (entry.Kind == GpuResourceKind.Texture) SetTextureViewSourceAvailability(entry, true);
             finished = true;
         }
         finally

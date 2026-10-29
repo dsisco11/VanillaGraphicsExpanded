@@ -51,6 +51,11 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem, ILiveConfigura
         harmony = new HarmonyLib.Harmony(Constants.ModId);
         PBR.Tessellation.TerrainTessellationPrograms.Log = message => api.Logger.Warning(message);
         harmony.PatchAll();
+        if (!OpenGLBindingInterception.ObservationEnabled && api is ICoreClientAPI client
+            && client.Render?.FrameBuffers is { } framebuffers
+            && (Rendering.Integration.RenderContextRegistry.Current() != default
+                || Rendering.Integration.EngineRenderContext.TryRegisterCurrent()))
+            Rendering.Integration.EnginePreexistingImages.Record(GpuResourceManagerSystem.EnsureCurrentContext(), framebuffers);
         OpenGLBindingInterception.Install();
         LiquidPoolInputBridgeHook.Install(harmony);
 

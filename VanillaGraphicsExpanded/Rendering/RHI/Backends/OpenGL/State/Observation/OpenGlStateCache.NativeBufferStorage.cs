@@ -22,7 +22,7 @@ internal sealed partial class OpenGlStateCache
         var manager = GpuResourceManagerSystem.CurrentManager;
         bool wasRealized = manager?.FindObservedResource(GpuResourceKind.Buffer, id)?.IsRealized == true;
         var entry = manager?.RealizeObservedBuffer(id, mayCreate);
-        if (!wasRealized && entry is { IsUsable: true }) bufferMappings[id] = false;
+        if (!wasRealized && entry is { IsUsable: true }) EstablishBufferUnmapped(id);
         return entry;
     }
 
@@ -80,7 +80,7 @@ internal sealed partial class OpenGlStateCache
         var candidate = new GpuBufferMetadata(size, immutable ? BufferUsage.DynamicDraw
             : OpenGLBufferValues.Usage((BufferUsageHint)usage), immutable,
             immutable ? OpenGLBufferValues.Storage(nativeFlags) : 0);
-        cache.bufferMappings[id] = false;
+        cache.EstablishBufferUnmapped(id);
         manager.PublishMetadata(entry, candidate, GpuMetadataChange.Storage);
     }
 

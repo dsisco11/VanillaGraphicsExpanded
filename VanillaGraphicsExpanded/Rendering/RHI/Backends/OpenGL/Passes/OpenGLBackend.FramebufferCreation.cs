@@ -12,12 +12,12 @@ internal sealed partial class OpenGLBackend
     public GpuFramebufferMetadata? CreateFramebuffer(in GpuFramebufferInitialization request, out nint id)
     {
         RequireContext();
-        GL.CreateFramebuffers(1, out int name);
+        OpenGLDriverCalls.CreateFramebuffers(1, out int name);
         id = name;
         RequireContext();
         if (name == 0) return null;
         // A newly realized object starts with output zero selecting its first color attachment.
-        cache.RememberFramebufferDrawRouting(name, [OpenTK.Graphics.OpenGL.DrawBuffersEnum.ColorAttachment0]);
+        cache.RememberFramebufferDefaults(name);
         if (request.HasDefaults)
         {
             OpenGLDriverCalls.NamedFramebufferParameter(name, FramebufferDefaultParameter.FramebufferDefaultWidth, request.DefaultWidth);

@@ -21,7 +21,7 @@ public sealed partial class RHICommandContext
     /// <summary>Routes explicit AdoptShaderOwner without exposing native execution to resource wrappers.</summary>
     internal void AdoptShaderOwner(GpuShaderModule owner) => backend.AdoptShaderOwner(owner);
     /// <summary>Routes explicit DiscoverFramebufferAttachment without exposing native execution to resource wrappers.</summary>
-    internal GpuFramebufferAttachment DiscoverFramebufferAttachment(GpuFramebuffer owner, FramebufferSlot slot, bool recover) => backend.DiscoverFramebufferAttachment(owner, slot, recover);
+    internal GpuFramebufferAttachment DiscoverFramebufferAttachment(GpuFramebuffer owner, FramebufferSlot slot) => backend.DiscoverFramebufferAttachment(owner, slot);
     /// <summary>Routes explicit PublishImportedFramebuffer without exposing native execution to resource wrappers.</summary>
     internal void PublishImportedFramebuffer(GpuFramebuffer owner, bool publish, int? replacementId = null, int width = 0, int height = 0) => backend.PublishImportedFramebuffer(owner, publish, replacementId, width, height);
     /// <summary>Routes explicit ResolveFramebufferAttachments without exposing native execution to resource wrappers.</summary>

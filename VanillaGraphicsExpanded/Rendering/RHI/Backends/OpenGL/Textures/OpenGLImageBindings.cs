@@ -31,6 +31,10 @@ internal static class OpenGLImageBindings
         OpenGLDriverCalls.BindTexture((Native.TextureTarget)target, texture);
         cache.RecordTextureBind();
         backend.RequireContext();
+        // A backend selector can realize an externally generated reservation. Private
+        // creation candidates have no registration until their single factory handoff.
+        if (texture != 0 && GpuResourceManagerSystem.CurrentManager is { } manager)
+            manager.RealizeObservedImage(GpuResourceKind.Texture, texture, OpenGLImageValues.Dimension(target), false);
         if (unit is int selected) cache.ImageBindings(selected)[target] = texture;
     }
     /// <summary>Selects the requested unit and suppresses only an established equal target binding.</summary>
@@ -85,6 +89,7 @@ internal static class OpenGLImageBindings
         cache.RenderbufferKnowledge = null;
         OpenGLDriverCalls.BindRenderbuffer(Native.RenderbufferTarget.Renderbuffer, renderbuffer);
         backend.RequireContext();
+        GpuResourceManagerSystem.CurrentManager?.RealizeObservedImage(GpuResourceKind.Renderbuffer, renderbuffer, implicitCreation: false);
         cache.RenderbufferKnowledge = renderbuffer;
     }
     /// <summary>Clears renderbuffer selection through the same boundary admission.</summary>

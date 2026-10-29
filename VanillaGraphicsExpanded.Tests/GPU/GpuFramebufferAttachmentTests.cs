@@ -285,11 +285,11 @@ public sealed class GpuFramebufferAttachmentTests(HeadlessGLFixture fixture) : R
     /// <summary>Provides an isolated disposal context so test order cannot reuse a closed queue.</summary>
     private sealed class ManagerLifetime : IDisposable
     {
-        private readonly GpuResourceManager manager = new();
-        /// <summary>Installs a new context lifetime and establishes its render thread.</summary>
+        private readonly GpuResourceManager manager;
+        /// <summary>Uses the observed context's manager and establishes its render thread.</summary>
         public ManagerLifetime()
         {
-            GpuResourceManagerSystem.Initialize(manager);
+            manager = GpuResourceManagerSystem.EnsureCurrentContext();
             manager.OnRenderFrame(0, GpuResourceManager.Stage);
         }
         /// <summary>Drains and closes the test context before releasing its manager.</summary>

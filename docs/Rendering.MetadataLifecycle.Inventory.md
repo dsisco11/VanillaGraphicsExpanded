@@ -40,13 +40,13 @@ the nested binding owner. Observer presence is source evidence only, not effect 
 | Native symbol | Binding owners | Current observation / disposition |
 | --- | --- | --- |
 | `glCreateBuffers` | `GL`, `GL4` | Creation observer implemented; see maintained buffer routes below |
-| `glCreateFramebuffers` | `GL`, `GL4` | No creation/import observer declared |
+| `glCreateFramebuffers` | `GL`, `GL4` | Implemented; maintained image lifecycle |
 | `glCreateMemoryObjectsEXT` | `GL+Ext` | Creation observer implemented; see maintained buffer routes below |
 | `glCreateProgram` | `GL`, `GL4` | No creation/import observer declared |
 | `glCreateProgramObjectARB` | `GL+Arb` | No creation/import observer declared |
 | `glCreateProgramPipelines` | `GL`, `GL4` | No creation/import observer declared |
 | `glCreateQueries` | `GL`, `GL4` | Implemented; see maintained synchronization routes below |
-| `glCreateRenderbuffers` | `GL`, `GL4` | No creation/import observer declared |
+| `glCreateRenderbuffers` | `GL`, `GL4` | Implemented; maintained image lifecycle |
 | `glCreateSamplers` | `GL`, `GL4` | No creation/import observer declared |
 | `glCreateShader` | `GL`, `GL4` | No creation/import observer declared |
 | `glCreateShaderObjectARB` | `GL+Arb` | No creation/import observer declared |
@@ -54,27 +54,27 @@ the nested binding owner. Observer presence is source evidence only, not effect 
 | `glCreateShaderProgramv` | `GL`, `GL4` | No creation/import observer declared |
 | `glCreateShaderProgramvEXT` | `GL+Ext`, `GL4+Ext` | No creation/import observer declared |
 | `glCreateSyncFromCLeventARB` | `GL+Arb`, `GL4+Arb` | Excluded from supported lifecycle scope; see resolved exclusions below |
-| `glCreateTextures` | `GL`, `GL4` | No creation/import observer declared |
+| `glCreateTextures` | `GL`, `GL4` | Implemented; maintained image lifecycle |
 | `glCreateTransformFeedbacks` | `GL`, `GL4` | No creation/import observer declared |
 | `glCreateVertexArrays` | `GL`, `GL4` | Creation observer implemented; see maintained buffer routes below |
 | `glFenceSync` | `GL`, `GL4` | Implemented; see maintained synchronization routes below |
 | `glGenBuffers` | `GL`, `GL4` | Creation observer implemented; see maintained buffer routes below |
 | `glGenBuffersARB` | `GL+Arb` | Creation observer implemented; see maintained buffer routes below |
-| `glGenFramebuffers` | `GL`, `GL4` | No creation/import observer declared |
-| `glGenFramebuffersEXT` | `GL+Ext` | No creation/import observer declared |
+| `glGenFramebuffers` | `GL`, `GL4` | Implemented; maintained image lifecycle |
+| `glGenFramebuffersEXT` | `GL+Ext` | Implemented; maintained image lifecycle |
 | `glGenLists` | `GL` | Excluded legacy feature |
 | `glGenProgramPipelines` | `GL`, `GL4` | No creation/import observer declared |
 | `glGenProgramPipelinesEXT` | `GL+Ext`, `GL4+Ext` | No creation/import observer declared |
 | `glGenProgramsARB` | `GL+Arb` | Excluded legacy feature |
 | `glGenQueries` | `GL`, `GL4` | Implemented; see maintained synchronization routes below |
 | `glGenQueriesARB` | `GL+Arb` | Implemented; see maintained synchronization routes below |
-| `glGenRenderbuffers` | `GL`, `GL4` | No creation/import observer declared |
-| `glGenRenderbuffersEXT` | `GL+Ext` | No creation/import observer declared |
+| `glGenRenderbuffers` | `GL`, `GL4` | Implemented; maintained image lifecycle |
+| `glGenRenderbuffersEXT` | `GL+Ext` | Implemented; maintained image lifecycle |
 | `glGenSamplers` | `GL`, `GL4` | No creation/import observer declared |
 | `glGenSemaphoresEXT` | `GL+Ext` | Implemented; see maintained synchronization routes below |
 | `glGenSymbolsEXT` | `GL+Ext` | Excluded legacy feature |
-| `glGenTextures` | `GL`, `GL4` | No creation/import observer declared |
-| `glGenTexturesEXT` | `GL+Ext` | No creation/import observer declared |
+| `glGenTextures` | `GL`, `GL4` | Implemented; maintained image lifecycle |
+| `glGenTexturesEXT` | `GL+Ext` | Implemented; maintained image lifecycle |
 | `glGenTransformFeedbacks` | `GL`, `GL4` | No creation/import observer declared |
 | `glGenVertexArrays` | `GL`, `GL4` | Creation observer implemented; see maintained buffer routes below |
 | `glGenVertexShadersEXT` | `GL+Ext` | Excluded legacy feature |
@@ -148,7 +148,21 @@ initial discovery once, and retain original association/deletion semantics. A ca
 label or unrestricted `allowQuery` flag is insufficient. If an owner cannot establish this provenance,
 fail managed adoption as a tracking/provenance defect rather than guess. This creates no general second
 identity registry: the evidence belongs to that explicit integration handoff and then the canonical entry.
+The current engine handoff records framebuffer and texture identities exposed through client framebuffer
+references. Installed-engine menu textures also exist before activation but are not enumerated by that
+public API; they need a separately established owner handoff if a managed consumer adopts them.
 Objects created after activation need no adoption receipt: creation already established their entry.
+Supported EXT named operations with implicit-creation semantics are a separate initial-discovery cause.
+When such a boundary first encounters an unknown image identity, retain an unavailable entry in the same
+registry, without defaults or callback descriptor reads. One explicit adoption may discover its required
+facts and verify its native object. This does not label it pre-install or prove the requested update succeeded.
+Consume the permission before reading, including on failure; subsequent EXT calls cannot rearm it.
+Known generated reservations use their guaranteed defaults and need no discovery. Ordinary unknown binds
+and missing covered creation entries remain defects rather than discovery permission.
+For unknown EXT buffer textures, retain validated association facts privately in the existing entry and
+capture the original backing registration. Discover the actual target before using those inputs; do not
+infer range/whole-buffer mode or narrow native-width offsets through integer getters. No observed valid
+association means those facts remain unavailable. Dependent publication still verifies the original backing.
 Recovery instead names an existing unavailable original entry, the failed effect and required missing
 fact; it cannot manufacture an entry for a missing covered object or renew a retired backing identity.
 Local tools use their supplied RHI initialization snapshot; absence of a global manager is not provenance.
@@ -185,15 +199,17 @@ per-command rules. Zero/default binding objects do not get ordinary manager regi
 | Sampler / 6 | GenSamplers reserves names; first BindSampler, SamplerParameter*, GetSamplerParameter* or IsSampler establishes default state. CreateSamplers realizes immediately. Multi-bind follows its specified equivalent per-element bind behavior. | Empty canonical struct on realization; existing sampler policy is not a native parameter mirror. Observe realization even on getters/IsSampler without issuing an extra query. |
 
 Realization must occur before applying that command's configuration effect, once on the original entry.
-Generated names and unallocated objects are not interchangeable. Bind-created desktop names permitted by
-the native specification must be admitted even without a preceding observed Gen call; commands that
-require a generated/existing name must not gain this exception. For core DSA invalid names, preserve
-rejection instead of creating an entry. EXT object-creation rules are evaluated by actual command,
-target and profile; do not apply one suffix-based rule to every EXT method.
+Generated names and unallocated objects are not interchangeable. Apply each family's native realization
+rules to proven original identities; commands requiring generated/existing names do not establish fresh
+defaults for an arbitrary missing registration. Unknown ordinary image binds leave affected selector
+knowledge uncertain without granting discovery. Unknown image identities at supported EXT named
+implicit-creation boundaries use the distinct one-time explicit discovery rule above. EXT rules are
+evaluated by actual command, target and profile, never by suffix alone.
 
 EXT DSA specifically initializes eligible unused named objects before subsequent command error checks.
-Thus a rejected storage/parameter update may still have realized a default object: publish the creation
-effect while preserving its unchanged defaults, rather than classifying the entire call as no-op.
+Thus a rejected storage/parameter update may still have realized an object. A tracked reservation can
+publish its guaranteed defaults while preserving them on rejection of the update. An unknown image
+identity instead remains unavailable pending explicit discovery, without guessing that it started empty.
 The binding table includes named EXT content and query operations for this reason (named buffer
 subdata/map/unmap/getters/copy, texture subimages/getters, framebuffer status/getters and vertex-array
 getters). Their content/query result is not a new descriptor, but their realization is observable.
@@ -235,12 +251,12 @@ Entry state, revisions and availability are manager bookkeeping, never queried n
 | --- | --- | --- |
 | GpuBufferMetadata Capacity, Usage, ImmutableStorage, StorageFlags / 2 | D above; I allocation size/usage/access, V storage mode. Require legal target/size/flags, live realized identity, immutable replacement/mapping restrictions from established execution facts. | GpuBufferObject capacity, RHI ranges, buffer views, engine geometry. No ordinary reads; pre-install or explicit failed-effect recovery only. |
 | GpuTextureMetadata Target / 4 | I typed creation/first valid realization, immutable thereafter. | BorrowedTexture, sampled/image validation; no target discovery for covered objects. |
-| Levels: Level, Face, Width, Height, Depth, Format, Samples, Allocated / 4 | I image definitions; V immutable mip extents (array layers do not shrink, 3D depth does), cube faces and view-relative geometry; D no allocated levels. Format I when sized, O only unsized resolution. Samples V cached supported counts or approved one-time O fallback. Require legal dimensions/level/format/target, cached limits, mutable/immutable rules and source completeness for generation. | Texture owners, GpuImageMetadata projections, framebuffer/pass compatibility and feedback checks. Subimage/copy-subimage/clear preserve descriptors. CopyTexImage defines storage and is not content-only. |
-| ImmutableStorage, ImmutableLevels, BaseLevel, MaxLevel / 4 | D defaults above; I/V storage and view creation; I valid parameter conversions/clamps. Mutable mip generation derives descendants from known complete base, bounded by max/geometry. | View validation, mip selection and projections. Replace parameter/image readback with known facts; uncertain conversion withdraws affected certification. |
+| Levels: Level, Face, Width, Height, Depth, Format, Samples, Allocated / 4 | I image definitions; V immutable mip extents (array layers do not shrink, 3D depth does), cube faces and view-relative geometry; D no allocated levels. Format I when sized, O only unsized resolution. Samples V cached supported counts or approved one-time O fallback. Require legal dimensions/level/format/target, cached limits, mutable/immutable rules, pixel-unpack buffer bounds and source completeness for generation. | Texture owners, GpuImageMetadata projections, framebuffer/pass compatibility and feedback checks. Subimage/copy-subimage/clear preserve descriptors. CopyTexImage defines storage and is not content-only. |
+| ImmutableStorage, ImmutableLevels, BaseLevel, MaxLevel / 4 | D defaults above; I/V storage and view creation; I valid parameter conversions/clamps. External-memory storage reads the immutable flag once after a known-mutable allocation attempt to establish opaque payload acceptance. Mutable mip generation derives descendants from known complete base, bounded by max/geometry. | View validation, mip selection and projections. Replace ordinary parameter/image readback with known facts; uncertain conversion withdraws affected certification. |
 | Buffer: BufferId, Format, Offset, Size, WholeBuffer / 4 (buffer prerequisite 2) | I association command, V whole-buffer convention (Size=0 sentinel), I explicit native-width range. Require original live backing, legal format and cached alignment/capacity. | GpuBufferView/GpuBufferTexture and sampled validation. No range getter can establish whole-buffer intent or reconnect a deleted backing. |
 | View: BaseLevel, LevelCount, BaseLayer, LayerCount; Renderbuffer / 4 | I view/range/association command, V clamped legal source ranges and image geometry. Retain source registration/storage dependency separately. | GpuTextureView, source certificates and renderbuffer texture consumers. Source name is not queryable from a native texture view; never invent it. |
 | GpuRenderbufferMetadata Width, Height, Format, Samples / 4 | D empty storage; I size/format; V/O sample rule above. Require legal format, nonnegative bounds, cached extent/sample support. | Attachments and renderbuffer-backed texture projections; retain only narrow output reads. |
-| GpuFramebufferMetadata Attachments; image Kind, Id, MipLevel, Layer, CubeFace, Layered, BaseView, ViewCount, Mode / 4 | D empty; I attachment arguments and selection mode, V packed depth/stencil dual slots. Require valid target/slot/mip/layer and original backing facts. Zero detaches; default-FBO commands do not create entries. | GpuFramebuffer retained composition, RenderPassTargets, attachment validation. Preserve known command mode; queries cannot manufacture ambiguous multiview evidence. |
+| GpuFramebufferMetadata Attachments; image Kind, Id, MipLevel, Layer, CubeFace, Layered, BaseView, ViewCount, Mode and original backing registration / 4 | D empty; I attachment arguments and selection mode, V packed depth/stencil dual slots. Require valid target/slot/mip/layer and original backing facts. Zero detaches; default-FBO commands do not create entries. | GpuFramebuffer retained composition, RenderPassTargets, attachment validation. Preserve known command mode and original backing identity; queries cannot manufacture ambiguous multiview evidence. |
 | DefaultWidth, DefaultHeight, DefaultLayers, DefaultSamples, DefaultFixedSampleLocations / 4 | D above; I valid framebuffer parameters, cached maxima. | Attachmentless pass targets; no full/default-field read after known setter. |
 | GpuImageMetadata Width, Height, Depth, Format, Samples / 4 | V selected backing snapshot and GpuImageSelection Level/Layer/Face/Layered/BaseView/ViewCount (wrapper-local I). | GpuFramebufferAttachment; no independent registration or image query at validation. |
 | GpuShaderMetadata Type / 5 | I factory stage, reject unsupported stage by cached capability. | Shader owner and linking; read only proven pre-install shader type. |
@@ -273,7 +289,7 @@ overwrite a registration. Native output arrays are consumed synchronously, never
 | --- | --- | --- |
 | 2 | Valid buffer allocation supplies storage; immutable reallocation/invalid size preserves prior facts; missing mapped-state/capability evidence withdraws affected storage without querying automatically. Memory import preserves identity. | Proven pre-install buffer; explicit named failed-effect recovery; deletion outcomes. None for empty memory descriptors or import handles. |
 | 3 | Valid query realization/fence result establishes realization; semaphore Gen reserves identity; invalid target/count/null fence does not. Unknown import acceptance does not invent payload state. | Query results, waits, deletion outcome, one targeted IsSemaphore outcome at the RHI import boundary for wait/signal admission. External imports do not probe. No descriptor scan. |
-| 4 | Valid allocation/attachment/range updates supplied facts; invalid mip/immutable replacement/backing bounds preserves prior facts; unknown optional external-image storage cannot fabricate descriptors. | Unsized resolved format; one-time samples if cached resolution unavailable; proven pre-install discovery; specific failed field recovery; deletion. EGL-image storage has no approved new import-query exemption: unsupported unknown descriptors stay unavailable unless an actual consumer proves a needed exception. |
+| 4 | Valid allocation/attachment/range updates supplied facts; invalid mip/immutable replacement/backing bounds preserves prior facts; unknown optional external-image storage cannot fabricate descriptors. | Unsized resolved format; one-time samples if cached resolution unavailable; proven pre-install discovery; one explicit discovery for an unknown image observed through a supported EXT named implicit-creation operation; specific failed field recovery; deletion. EGL-image storage has no approved new import-query exemption: unsupported unknown descriptors stay unavailable unless an actual consumer proves a needed exception. |
 | 5 | Valid unit/block assignment patches known interface; ignored/numeric writes do nothing; link submission withdraws installed executable certification pending output; bindless representation remains unsupported. | Compile/link status/log/reflection, binary acceptance/output; pre-install stage/program; narrow failed assignment recovery; deferred deletion outcomes. |
 | 6 | Valid configuration advances original certificates; invalid indices/strides preserve them; uncertain VAO changes invalidate only affected certificate. | Pre-install certification only when actually reusing that original VAO; otherwise use authored private realization below. Explicit feedback result read only if recorded history cannot establish active/paused outcome needed by execution. No sampler descriptor reads. |
 
@@ -286,7 +302,7 @@ remain below RHI and are removed when no permitted caller remains.
 
 | Named methods / current source | Final disposition and consumer | Owner |
 | --- | --- | --- |
-| GpuResourceManager.AcquireResource, RecoverResource (Registry.cs) | Separate available association from proven pre-install discovery and original-entry recovery; remove missing-entry/unavailable automatic read. Used by all following acquisitions. | 2; caller closure 2–6 |
+| GpuResourceManager.AcquireResource, RecoverResource (Registry.cs) | Separate available association from proven pre-install discovery, recorded EXT named implicit-creation initial discovery and original-entry recovery; remove arbitrary missing-entry/unavailable automatic read. Used by all following acquisitions. | 2; caller closure 2–6 |
 | AcquireWrapperMetadata, RecoverWrapperMetadata, CanAcquireWrapperMetadata (MetadataAcquisition.cs) | Same provenance gate, no no-manager fallback. Keep original-wrapper/context checks and supplied local handoff. | 2; families 2–6 |
 | RefreshMetadata, PublishMetadata, PublishMetadataCore (MetadataPublication.cs) | Refresh only explicit allowed read cause; supplied publication never acquires backing implicitly. Retain one complete publication and original-identity checks. | 2 foundation; 4 backing closure |
 | ObserveWrapperMetadata (MetadataObservation.cs) | Retain executable output completion only where needed; remove generic mutation readback usages. | 5; image callers 4 |
@@ -298,9 +314,9 @@ remain below RHI and are removed when no permitted caller remains.
 | AcquireFramebufferTexture, AcquireFramebufferRenderbuffer (FramebufferBackings.cs) | Replace recover bool's blanket read permission with explicit provenance/cause; reuse one backing snapshot. | 4 |
 | DiscoverFramebufferAttachment (FramebufferImport.cs), ResolveFramebufferAttachments (FramebufferImages.cs) | Consume maintained attachment/backing facts, preserve original composition/ownership; explicit initial adoption resolves unknown descriptors once. | 4 |
 | AcquireTextureCommandInput (TextureCommandInputs.cs) | Require available maintained/supplied snapshot; remove automatic read before owned mutation. | 4 |
-| RefreshTextureParameter (TextureParameters.cs) | Remove ordinary setter readback; supplied converted base/max updates. Targeted recovery only named missing field. | 4 |
-| RefreshTextureImages (TextureImages.cs), RefreshGeneratedTextureMetadata (TextureGeneration.cs) | Replace definition/generation reads with supplied/derived images; keep narrow unsized/sample result services distinct. | 4 |
-| RefreshFramebufferField (FramebufferFields.cs) | Replace normal slot/default read with supplied field publication; retain explicit initial/failed-field recovery only. | 4 |
+| RefreshTextureParameter (removed) | Replaced by supplied converted base/max publication; no normal setter readback. | 4 |
+| RefreshTextureImages, RefreshGeneratedTextureMetadata (removed) | ImageDefinitions.cs derives supplied definitions and generated descendants; narrow unsized/sample outputs remain distinct. | 4 |
+| RefreshFramebufferField (removed) | Native framebuffer effects publish individual supplied descriptors/defaults; explicit original-entry recovery remains separate. | 4 |
 | AcquireProgramMetadata (ProgramAcquisition.cs), RefreshProgramFields (ProgramFields.cs) | Maintained interface reuse; signed array setters pass each value instead of querying. Reflected executable output remains explicit. | 5 |
 | AcquireEngineGeometryConfiguration, IsEngineGeometryConfigurationCurrent (GeometryAcquisition.cs) | Reuse a producer certificate and revision, or realize a private array from authored layout/retained streams. Unknown external VAO layout alone cannot justify routine query. See closure below. | 6 |
 | AssignImageMetadata, ProjectTextureImage, ProjectLayeredCubeImage, ProjectRenderbufferImage (ImageMetadata.cs); PublishOwnerImages (OwnerImages.cs) | Preserve query-free projection/notification, including intentional owner replacement. Resolve unavailable selections without recapturing. | 4 |

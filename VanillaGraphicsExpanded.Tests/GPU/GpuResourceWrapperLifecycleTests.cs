@@ -19,17 +19,17 @@ public sealed class GpuResourceWrapperLifecycleTests(HeadlessGLFixture fixture)
 {
     #region Public API
     #region Ownership and alias guards
-    /// <summary>Constructing a borrower recovers explicitly invalidated external storage and all existing aliases.</summary>
+    /// <summary>Borrowers share externally updated texture facts without descriptor discovery.</summary>
     [Fact]
     public void BorrowerConstructionRefreshesExternallyReallocatedTextureAliases()
     {
         using var lifetime = StartManager();
+        using var reads = new ImageDescriptorCapture();
         using var owner = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba8, Width = System.Math.Max(1, 8), Height = System.Math.Max(1, 4), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         using var first = new BorrowedTexture(owner.TextureId);
         using (OpenGlStateCache.Current.BindTextureScope(TextureTarget.Texture2D, 0, owner.TextureId))
             GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.Rgba16f, 12, 6, 0,
                 PixelFormat.Rgba, PixelType.Float, IntPtr.Zero);
-        GpuResourceManager.InvalidateWrapperMetadata(owner, GpuMetadataChange.Storage);
         using var second = new BorrowedTexture(owner.TextureId);
         Assert.Equal(12, first.Width);
         Assert.Equal(6, first.Height);
@@ -37,19 +37,20 @@ public sealed class GpuResourceWrapperLifecycleTests(HeadlessGLFixture fixture)
         Assert.Equal(first.Width, second.Width);
         Assert.Equal(second.Width, owner.Width);
         Assert.Same(lifetime.Manager.GetResourceRegistration(first), lifetime.Manager.GetResourceRegistration(second));
+        Assert.Equal(0, reads.Reads);
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
 
-    /// <summary>Wrapping a renderbuffer recovers explicitly invalidated storage for its existing aliases.</summary>
+    /// <summary>Renderbuffer borrowers share externally updated storage without descriptor discovery.</summary>
     [Fact]
     public void RenderbufferWrapRefreshesExternallyReallocatedAliases()
     {
         using var lifetime = StartManager();
+        using var reads = new ImageDescriptorCapture();
         using var owner = RHICommandContext.Current.CreateRenderbuffer(new RHIRenderbufferDescription { Format = TextureFormat.Rgba8, Width = 8, Height = 4, Samples = 0, Label = null }).RequireResource();
         using var first = VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLRenderbufferIntegration.Borrow(owner.RenderbufferId);
         using (OpenGlStateCache.Current.BindRenderbufferScope(owner.RenderbufferId))
             GL.RenderbufferStorage(RenderbufferTarget.Renderbuffer, RenderbufferStorage.Rgba16f, 12, 6);
-        GpuResourceManager.InvalidateWrapperMetadata(owner, GpuMetadataChange.Storage);
         using var second = VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLRenderbufferIntegration.Borrow(owner.RenderbufferId);
         Assert.Equal(12, first.Width);
         Assert.Equal(6, first.Height);
@@ -57,6 +58,7 @@ public sealed class GpuResourceWrapperLifecycleTests(HeadlessGLFixture fixture)
         Assert.Equal(first.Width, second.Width);
         Assert.Equal(second.Width, owner.Width);
         Assert.Same(lifetime.Manager.GetResourceRegistration(first), lifetime.Manager.GetResourceRegistration(second));
+        Assert.Equal(0, reads.Reads);
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
 
@@ -78,7 +80,7 @@ public sealed class GpuResourceWrapperLifecycleTests(HeadlessGLFixture fixture)
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
 
-    /// <summary>Replacing an attached owner leaves old descriptors unavailable until the new native image is attached.</summary>
+    /// <summary>Replacing an attached owner preserves its old identity until the new image is attached.</summary>
     [Fact]
     public void ResizedOwnerDefersFramebufferDescriptorUntilBind()
     {
@@ -91,7 +93,8 @@ public sealed class GpuResourceWrapperLifecycleTests(HeadlessGLFixture fixture)
         var original = entry.Metadata.Attachments[FramebufferSlot.Color0];
         Assert.True(texture.Resize(8, 4, 2));
         Assert.Equal(original, entry.Metadata.Attachments[FramebufferSlot.Color0]);
-        Assert.False(entry.MetadataAvailable);
+        Assert.True(entry.MetadataAvailable);
+        Assert.Null(lifetime.Manager.ProjectFramebufferDescriptor(original));
         framebuffer.Bind();
         Assert.Equal(texture.TextureId, entry.Metadata.Attachments[FramebufferSlot.Color0].Id);
         Assert.True(entry.MetadataAvailable);
@@ -117,7 +120,11 @@ public sealed class GpuResourceWrapperLifecycleTests(HeadlessGLFixture fixture)
         try
         {
             // The same-name case isolates identity replacement from the driver's free-name policy.
-            if (reuseId) lifetime.Manager.ObserveDeletion(GpuResourceKind.Framebuffer, original);
+            if (reuseId)
+            {
+                lifetime.Manager.ObserveDeletion(GpuResourceKind.Framebuffer, original);
+                lifetime.Manager.ObserveImageCreation(GpuResourceKind.Framebuffer, original, true);
+            }
             else
             {
                 VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Framebuffer, original));
@@ -129,7 +136,7 @@ public sealed class GpuResourceWrapperLifecycleTests(HeadlessGLFixture fixture)
             Assert.False(oldAlias.IsValid);
             Assert.NotSame(old, lifetime.Manager.GetResourceRegistration(external));
             Assert.Same(old, lifetime.Manager.GetResourceRegistration(oldAlias));
-            Assert.False(lifetime.Manager.IsResourceMetadataAvailable(external));
+            Assert.True(lifetime.Manager.IsResourceMetadataAvailable(external));
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
         finally { VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Framebuffer, replacement)); }
@@ -150,7 +157,7 @@ public sealed class GpuResourceWrapperLifecycleTests(HeadlessGLFixture fixture)
             OpenGLFramebufferSelection.Bind(OpenGlStateCache.Current, FramebufferTarget.Framebuffer, framebuffer);
             GL.FramebufferTextureLayer(FramebufferTarget.Framebuffer, FramebufferAttachment.ColorAttachment0, texture, 0, 0);
             using var external = DynamicGpuFramebuffer.Wrap(framebuffer, width: 8, height: 1);
-            using var image = GpuFramebufferAttachmentDiscovery.Read(external, FramebufferSlot.Color0, forceNative: true);
+            using var image = GpuFramebufferAttachmentDiscovery.Read(external, FramebufferSlot.Color0);
             Assert.Equal(0, image.Layer);
             Assert.Equal(8, image.Width);
             Assert.Equal(1, image.Height);

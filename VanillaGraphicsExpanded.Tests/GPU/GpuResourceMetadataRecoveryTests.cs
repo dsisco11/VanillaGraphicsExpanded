@@ -175,7 +175,7 @@ public sealed class GpuResourceMetadataRecoveryTests(HeadlessGLFixture fixture)
                 // Abandon the operation after a real accepted image replacement.
             }
             Assert.False(entry.MetadataAvailable);
-            Assert.Equal(8, texture.Width);
+            Assert.Equal(0, texture.Width);
             Assert.Same(entry, manager.RecoverResource(GpuResourceKind.Texture, texture.TextureId,
                 GpuTextureMetadataReader.Instance));
             Assert.Equal(12, texture.Width);
