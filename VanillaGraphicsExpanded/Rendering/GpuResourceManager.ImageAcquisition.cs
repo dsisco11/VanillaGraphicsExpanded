@@ -47,7 +47,7 @@ internal sealed partial class GpuResourceManager
                 return;
             }
             // A raw alias does not itself invalidate covered canonical facts. Acquisition
-            // reuses available entries and recovers only missing or explicitly withdrawn state.
+            // reuses available entries or consumes an already recorded initial-discovery cause.
             GpuResourceRegistration? entry = image.Kind == GpuResourceKind.Renderbuffer
                 ? manager.AcquireResource(image.Kind, image.ResourceId, GpuRenderbufferMetadataReader.Instance)
                 : manager.AcquireResource(image.Kind, image.ResourceId, new GpuTextureMetadataReader(image.ImageTarget));
@@ -59,11 +59,11 @@ internal sealed partial class GpuResourceManager
         GpuRenderbufferMetadata? acquiredRenderbuffer = null;
         // Context-local tools have no persistent registry. The manager still owns projection
         // and snapshot assignment, so wrappers never synthesize dimensions or sample counts.
-        // Withdraw the old projection before any read that can fail or reject this selection.
+        // Withdraw the old projection before checking the retained supplied snapshot.
         DiscardUntrackedMetadata(image);
         if (image.Resource is null) RHICommandContext.RequireResourceOperationAvailable(image.Kind, image.ResourceId);
         // Typed local owners already hold command-established facts. Raw local IDs have no
-        // such owner or registry guarantee and retain explicit native discovery.
+        // such owner or registry guarantee and cannot authorize native discovery.
         if (image.Resource is { } owner)
         {
             if (!owner.IsValid) throw new InvalidOperationException("The selected image owner has retired.");

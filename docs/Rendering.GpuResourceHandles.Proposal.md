@@ -8,6 +8,9 @@ The approved command-publication refinement (`3f307365:docs/Rendering.CommandPub
 creation and query policy: controlled inputs/defaults/derivations are authoritative under existing
 failure handling; external unknown facts and specifically justified outputs are acquired. No universal
 post-command verification or duplicate requested/actual metadata cache is required.
+The implemented [maintained lifecycle contract](Rendering.MetadataLifecycle.Proposal.md) further narrows
+discovery to recorded pre-installation or supported EXT implicit-creation provenance and explicit
+original-entry recovery. Missing covered tracking and context-local tools grant no query permission.
 
 ## Intent
 
@@ -68,8 +71,8 @@ Existing resource abstractions inherit this base directly or through their exist
 Native metadata properties are getter-only accessors. Derived wrappers cannot edit the snapshot.
 Requested dimensions, formats and allocation hints remain command arguments or separate declaration policy.
 The RHI backend executes metadata-changing commands and forwards established results through OpenGlStateCache to the manager; wrappers
-do not capture, construct or publish replacement metadata. Initial acquisition is manager-owned, including
-context-local tools without an installed registry. The generic base handles snapshot assignment;
+do not capture, construct or publish replacement metadata. Authorized discovery is manager-owned;
+context-local tools receive supplied initialization snapshots without native rediscovery. The generic base handles snapshot assignment;
 the non-generic base has no metadata responsibilities. The manager owns registration validity,
 availability, revisions and subscription membership. Metadata-dependent validation asks the manager
 about the wrapper's original association; neither base stores that association or runs a tracking state machine.
@@ -87,7 +90,7 @@ or renderbuffers. Collections inside snapshots are immutable after publication. 
 interface facts separate from authored preparation policy. Types without retained native metadata use
 an empty per-kind struct. Default framebuffer zero uses existing surface publication, not a registry entry.
 
-External acquisition validates kind and captures initial metadata once. Existing entries supply subsequent
+Authorized initial discovery validates kind and captures metadata once. Existing entries supply subsequent
 snapshots without repeated queries. Created names may register before storage initialization, with metadata
 unavailable until established. CPU declarations register only upon native realization. Unsupported external
 mutation/deletion paths retain conservative handling; registration alone cannot promise continuing validity.

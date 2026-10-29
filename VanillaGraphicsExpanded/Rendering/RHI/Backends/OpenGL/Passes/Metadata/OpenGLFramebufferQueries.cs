@@ -39,48 +39,6 @@ internal readonly struct OpenGLFramebufferQueries(OpenGLBackend backend)
     }
     #endregion
 
-    #region Internal API
-    /// <summary>Recovers only one affected slot or one attachmentless field of an otherwise known descriptor.</summary>
-    internal bool TryReadAffected(nint id, GpuFramebufferMetadata previous, FramebufferSlot? slot,
-        FramebufferMetadataField? parameter, out GpuFramebufferMetadata candidate)
-    {
-        backend.RequireContext();
-        candidate = previous;
-        if (slot.HasValue)
-        {
-            var attachments = previous.Attachments.ToBuilder();
-            if (slot == FramebufferSlot.DepthStencil)
-            {
-                attachments.Remove(FramebufferSlot.Depth);
-                attachments.Remove(FramebufferSlot.Stencil);
-                if (!ReadAttachment(id, FramebufferSlot.Depth, attachments)
-                    || !ReadAttachment(id, FramebufferSlot.Stencil, attachments)) return false;
-            }
-            else
-            {
-                attachments.Remove(slot.Value);
-                if (!ReadAttachment(id, slot.Value, attachments)) return false;
-            }
-            candidate = previous with { Attachments = attachments.ToImmutable() };
-        }
-        else if (parameter.HasValue)
-        {
-            int value = ReadDefault(id, parameter.Value);
-            if (value < 0) return false;
-            candidate = parameter.Value switch
-            {
-                FramebufferMetadataField.Width => previous with { DefaultWidth = value },
-                FramebufferMetadataField.Height => previous with { DefaultHeight = value },
-                FramebufferMetadataField.Layers => previous with { DefaultLayers = value },
-                FramebufferMetadataField.Samples => previous with { DefaultSamples = value },
-                FramebufferMetadataField.FixedSampleLocations => previous with { DefaultFixedSampleLocations = value != 0 },
-                _ => previous
-            };
-        }
-        return true;
-    }
-    #endregion
-
     #region Private
     /// <summary>Reads one selected image without resolving a deleted retained name as a new allocation.</summary>
     private bool ReadAttachment(nint id, FramebufferSlot slot,

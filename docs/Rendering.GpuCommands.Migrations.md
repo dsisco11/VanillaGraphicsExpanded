@@ -134,7 +134,7 @@ residency contract and must be removed there together with the final optional op
   refs and explicit ranges. Retain mutable definitions where requested, with backend-owned bound restoration.
 - **Manager/readers/retirement:** `Gpu*Initialization` for texture/renderbuffer/buffer-texture/view/sampler;
   `GpuTextureMetadata`, `GpuRenderbufferMetadata`, `GpuSamplerMetadata` and image projection;
-  `GpuTextureMetadataReader`, `GpuTextureImageReader`, `GpuTextureFormatReader`,
+  `GpuTextureMetadataReader`, `GpuTextureFormatReader` (the unused single-image reader is removed),
   `GpuRenderbufferMetadataReader`, `GpuRenderbufferTextureMetadataReader`; manager image acquisition,
   selected-image projection, texture generation/backing identity/view-source and dependency partials.
   Move T1–T4/R1/image I1 exact adapters and texture/renderbuffer/sampler L1 together.

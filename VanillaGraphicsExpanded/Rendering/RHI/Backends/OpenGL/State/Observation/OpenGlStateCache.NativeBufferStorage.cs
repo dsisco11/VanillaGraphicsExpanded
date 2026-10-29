@@ -31,8 +31,10 @@ internal sealed partial class OpenGlStateCache
         int usage, int flags, bool immutable, bool unresolvedImport = false)
     {
         if (!OpenGLObservationContext.TryGet(out var cache, out _, requireCapabilities: false)) return;
-        if (!named && !cache.IsBufferTargetSupported((BufferTarget)selector)) return;
-        int id = named ? selector : cache.GetBoundBuffer((BufferTarget)selector);
+        bool? targetAccepted = named ? true : cache.ClassifyBufferTarget((BufferTarget)selector);
+        if (targetAccepted == false) return;
+        int id = named ? selector : targetAccepted == true ? cache.GetBoundBuffer((BufferTarget)selector)
+            : cache.TryGetCachedBoundBuffer((BufferTarget)selector, out int known) ? known : 0;
         if (id == 0) return;
         // EXT DSA initializes the default object even when its subsequent update is rejected.
         var manager = GpuResourceManagerSystem.CurrentManager!;
@@ -72,7 +74,7 @@ internal sealed partial class OpenGlStateCache
         if (InterruptNativeMetadataCompletion(entry, GpuMetadataChange.Storage)) return;
         // A withdrawn prior snapshot cannot prove mutability. Imported allocation acceptance
         // also depends on payload facts that the empty memory schema does not certify.
-        if (!entry.IsUsable || unresolvedImport || sparse && !capabilitiesKnown)
+        if (!entry.IsUsable || targetAccepted is null || unresolvedImport || sparse && !capabilitiesKnown)
         {
             entry.BeginRefresh(GpuMetadataChange.Storage);
             return;
@@ -84,13 +86,14 @@ internal sealed partial class OpenGlStateCache
         manager.PublishMetadata(entry, candidate, GpuMetadataChange.Storage);
     }
 
-    /// <summary>Uses cached optional-target support without issuing capability reads from a callback.</summary>
-    internal bool IsBufferTargetSupported(BufferTarget target)
+    /// <summary>Returns supported, proven unsupported or unknown optional-target acceptance without capability reads.</summary>
+    internal bool? ClassifyBufferTarget(BufferTarget target)
     {
         if (!Enum.IsDefined(target)) return false;
-        return target != BufferTarget.ParameterBuffer || GpuSupport.HasCachedCapabilitiesForCurrentContext
-            && (GpuSupport.Graphics.ApiVersion is { Major: > 4 } or { Major: 4, Minor: >= 6 }
-                || GpuSupport.Supports("GL_ARB_indirect_parameters"));
+        if (target != BufferTarget.ParameterBuffer) return true;
+        if (!GpuSupport.HasCachedCapabilitiesForCurrentContext) return null;
+        return GpuSupport.Graphics.ApiVersion is { Major: > 4 } or { Major: 4, Minor: >= 6 }
+            || GpuSupport.Supports("GL_ARB_indirect_parameters");
     }
     #endregion
 }

@@ -1,4 +1,4 @@
-using HarmonyLib;
+using System.Runtime.InteropServices;
 using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
@@ -23,7 +23,7 @@ public sealed class ComputeInputSubmissionTests(HeadlessGLFixture fixture) : Ren
         EnsureContextValid();
         using var assets = new BinaryShaderApiFixture();
         using var texture = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba32ui, Width = System.Math.Max(1, 1), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
-        using var usage = RHICommandContext.Current.CreateTexture3D(new RHITextureDescription { Dimension = TextureDimension.TwoArray, Format = TextureFormat.R32ui, Width = System.Math.Max(1, 1), Height = System.Math.Max(1, 1), Depth = System.Math.Max(1, 1), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Linear, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
+        using var usage = RHICommandContext.Current.CreateTexture3D(new RHITextureDescription { Dimension = TextureDimension.TwoArray, Format = TextureFormat.R32ui, Width = System.Math.Max(1, 1), Height = System.Math.Max(1, 1), Depth = System.Math.Max(1, 1), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         using var counter = new ComponentAtomicCounters(23, 3);
         Assert.True(LumonSceneFeedbackMarkPagesComputeShader.TryCreate(assets.Api, out var loaded, out string log), log);
         using var shader = loaded!;
@@ -41,13 +41,13 @@ public sealed class ComputeInputSubmissionTests(HeadlessGLFixture fixture) : Ren
 
     /// <summary>Native compute execution guards the original owner and rejects recursive dispatch before effects.</summary>
     [Fact]
-    public void ExecutingComputeRejectsRetirementAndReentry()
+    public unsafe void ExecutingComputeRejectsRetirementAndReentry()
     {
         EnsureContextValid();
         using var programs = new ComponentShaderPrograms();
         using var assets = new BinaryShaderApiFixture();
         using var texture = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba32ui, Width = System.Math.Max(1, 1), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
-        using var usage = RHICommandContext.Current.CreateTexture3D(new RHITextureDescription { Dimension = TextureDimension.TwoArray, Format = TextureFormat.R32ui, Width = System.Math.Max(1, 1), Height = System.Math.Max(1, 1), Depth = System.Math.Max(1, 1), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Linear, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
+        using var usage = RHICommandContext.Current.CreateTexture3D(new RHITextureDescription { Dimension = TextureDimension.TwoArray, Format = TextureFormat.R32ui, Width = System.Math.Max(1, 1), Height = System.Math.Max(1, 1), Depth = System.Math.Max(1, 1), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         using var counters = new ComponentAtomicCounters(0, 3);
         Assert.True(LumonSceneFeedbackMarkPagesComputeShader.TryCreate(assets.Api, out var loaded, out string log), log);
         using var outer = loaded!;
@@ -55,23 +55,24 @@ public sealed class ComputeInputSubmissionTests(HeadlessGLFixture fixture) : Ren
         outer.BindPageUsageStampImage(usage);
         outer.BindDebugCounters(counters.Buffer);
         var commands=RHICommandContext.Current;
-        var harmony=new Harmony("Tests.ComputeOwnerDuringDispatch");
-        bool observed=false;
-        DuringDispatch=()=>
+        using var native = new NativeDriverCapture();
+        nint original = native.Original("glDispatchCompute");
+        int observed = 0;
+        native.Add("glDispatchCompute", new DispatchCompute((x, y, z) =>
         {
-            observed=true;
-            Assert.Throws<InvalidOperationException>(outer.Dispose);
-            Assert.Throws<InvalidOperationException>(()=>commands.Dispatch(new(0)));
-        };
-        try
-        {
-            harmony.Patch(((Action<int,int,int>)OpenTK.Graphics.OpenGL4.GL.DispatchCompute).Method,
-                prefix:new HarmonyMethod(typeof(ComputeInputSubmissionTests),nameof(ObserveDispatch)));
-            using var boundary=commands.EnterBoundary(new("Tests.ComputeOwner",true,compute:[outer.Pipeline]));
-            boundary.Run(()=>{commands.SetPipeline(outer.Pipeline);commands.BindResources(outer.CaptureBindings());commands.Dispatch(new(0));});
-            Assert.True(observed);Assert.True(outer.IsValid);
-        }
-        finally{DuringDispatch=null;harmony.UnpatchAll(harmony.Id);}
+            native.Observe(() =>
+            {
+                observed++;
+                Assert.Throws<InvalidOperationException>(outer.Dispose);
+                Assert.Throws<InvalidOperationException>(() => commands.Dispatch(new(0)));
+            });
+            ((delegate* unmanaged[Stdcall]<uint, uint, uint, void>)original)(x, y, z);
+        }));
+        native.Install();
+        using var boundary=commands.EnterBoundary(new("Tests.ComputeOwner",true,compute:[outer.Pipeline]));
+        boundary.Run(()=>{commands.SetPipeline(outer.Pipeline);commands.BindResources(outer.CaptureBindings());commands.Dispatch(new(0));});
+        native.RequireSuccessfulObservation();
+        Assert.Equal(1, observed); Assert.True(outer.IsValid);
     }
 
     /// <summary>Explicit captured compute sets restore their retained inputs without resetting counters; boundary exit restores the native caller.</summary>
@@ -83,7 +84,7 @@ public sealed class ComputeInputSubmissionTests(HeadlessGLFixture fixture) : Ren
         using var assets = new BinaryShaderApiFixture();
         using var firstTexture = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba32ui, Width = System.Math.Max(1, 1), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         using var secondTexture = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba32ui, Width = System.Math.Max(1, 1), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
-        using var usage = RHICommandContext.Current.CreateTexture3D(new RHITextureDescription { Dimension = TextureDimension.TwoArray, Format = TextureFormat.R32ui, Width = System.Math.Max(1, 1), Height = System.Math.Max(1, 1), Depth = System.Math.Max(1, 1), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Linear, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
+        using var usage = RHICommandContext.Current.CreateTexture3D(new RHITextureDescription { Dimension = TextureDimension.TwoArray, Format = TextureFormat.R32ui, Width = System.Math.Max(1, 1), Height = System.Math.Max(1, 1), Depth = System.Math.Max(1, 1), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         using var firstCounters = new ComponentAtomicCounters(17, 3);
         using var secondCounters = new ComponentAtomicCounters(29, 3);
         Assert.True(LumonSceneFeedbackMarkPagesComputeShader.TryCreate(assets.Api, out var firstOwner, out string firstLog), firstLog);
@@ -155,9 +156,9 @@ public sealed class ComputeInputSubmissionTests(HeadlessGLFixture fixture) : Ren
     #endregion
 
     #region Private
-    private static Action? DuringDispatch;
-    /// <summary>Runs lifetime assertions while the original native dispatch still holds its resource guards.</summary>
-    private static void ObserveDispatch()=>DuringDispatch?.Invoke();
+    /// <summary>Matches the native direct-dispatch ABI for guarded execution observation.</summary>
+    [UnmanagedFunctionPointer(CallingConvention.StdCall)]
+    private delegate void DispatchCompute(uint x, uint y, uint z);
 
     /// <summary>Observes executable and indexed bindings independently of the state cache.</summary>
     private static void AssertBound(int program, int texture, int counters)

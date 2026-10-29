@@ -195,8 +195,9 @@ public sealed class RHIImageTests(HeadlessGLFixture fixture)
 
     /// <summary>The approved one-value fallback operates only when cached per-format sample choices are absent.</summary>
     [Theory]
-    [InlineData(false)] [InlineData(true)]
-    public void MissingSampleChoicesReadOnlyAllocationSamples(bool renderbuffer)
+    [InlineData(false, false)] [InlineData(true, false)]
+    [InlineData(false, true)] [InlineData(true, true)]
+    public void SampleChoicesAvoidReadbackExceptOneValueFallback(bool renderbuffer, bool cached)
     {
         Start();
         var target = renderbuffer ? TextureDimension.Two : TextureDimension.TwoMultisample;
@@ -205,12 +206,16 @@ public sealed class RHIImageTests(HeadlessGLFixture fixture)
         var support = GpuSupport.GetInternalFormatCapabilities(target, format, kind);
         var field = HarmonyLib.AccessTools.Field(typeof(GpuSupport), "formatCapabilities");
         var cache = (System.Collections.Generic.Dictionary<(GpuResourceKind, TextureDimension, TextureFormat), InternalFormatCapabilities>)field.GetValue(null)!;
-        cache[(kind, target, format)] = support with { SampleCounts = System.Collections.Immutable.ImmutableArray<int>.Empty };
+        Assert.False(support.SampleCounts.IsDefaultOrEmpty);
+        if (!cached) cache[(kind, target, format)] = support with { SampleCounts = System.Collections.Immutable.ImmutableArray<int>.Empty };
         try
         {
+            using var capture = new ImageDescriptorCapture();
             if (renderbuffer)
             {
                 using var owner = RHICommandContext.Current.CreateRenderbuffer(new RHIRenderbufferDescription { Width = 4, Height = 4, Format = TextureFormat.Rgba8, Samples = 3 }).RequireResource();
+                Assert.Equal(cached ? 0 : 1, capture.SampleReads);
+                Assert.Equal(capture.SampleReads, capture.Reads);
                 GL.GetNamedRenderbufferParameter(owner.RenderbufferId, RenderbufferParameterName.RenderbufferSamples, out int native);
                 Assert.True(native >= 3);
                 Assert.Equal(native, owner.Samples);
@@ -218,6 +223,8 @@ public sealed class RHIImageTests(HeadlessGLFixture fixture)
             else
             {
                 using var owner = RHICommandContext.Current.CreateTexture(Description(TextureDimension.TwoMultisample, true)).RequireResource();
+                Assert.Equal(cached ? 0 : 1, capture.SampleReads);
+                Assert.Equal(capture.SampleReads, capture.Reads);
                 GL.GetTextureLevelParameter(owner.TextureId, 0, GetTextureParameter.TextureSamples, out int native);
                 Assert.True(native >= 3);
                 Assert.Equal(native, ((GpuTextureRef)owner).RequireImage(0).Samples);

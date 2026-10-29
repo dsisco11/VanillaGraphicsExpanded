@@ -1,13 +1,10 @@
-using VanillaGraphicsExpanded.Rendering.RHI;
-using System;
-
 namespace VanillaGraphicsExpanded.Rendering;
 
 /// <summary>Publishes backend command results to canonical entries and their synchronized wrapper snapshots.</summary>
 internal sealed partial class GpuResourceManager
 {
     #region Internal API
-    /// <summary>Discards uncertified local facts while retaining the established texture target for native recovery.</summary>
+    /// <summary>Discards uncertified local facts while retaining the immutable texture target.</summary>
     internal static void DiscardUntrackedMetadata<T>(GpuResource<T> resource,
         GpuMetadataChange change = GpuMetadataChange.Metadata) where T : struct
     {
@@ -42,49 +39,6 @@ internal sealed partial class GpuResourceManager
             DiscardUntrackedMetadata(resource, change);
             PublishOwnerImages(resource, false);
         }
-    }
-
-    /// <summary>Explicitly recovers complete native facts after existing commands; established results use operation-owned publication.</summary>
-    internal static void ObserveWrapperMetadata<T>(GpuResource<T> resource, IGpuResourceMetadataReader<T> reader,
-        GpuMetadataChange change) where T : struct
-    {
-        if (resource.ResourceManager is { } manager && manager.CanAcquireWrapperMetadata(resource))
-        {
-            manager.RequireOriginalWrapper(resource);
-            var entry = manager.RegisterCreatedResource(resource.Kind, resource.ResourceId, reader);
-            if (!ReferenceEquals(manager.GetResourceRegistration(resource), entry)) manager.AssociateResource(entry, resource);
-            try
-            {
-                if (!manager.RefreshMetadata(entry, change))
-                    throw new InvalidOperationException("Native resource metadata is unavailable after the command.");
-            }
-            finally
-            {
-                // The initiating framebuffer helper owns its pending image references and
-                // completion event. Other wrappers must discard their previous configuration.
-                entry.NotifyFramebufferDependents(resource);
-            }
-            return;
-        }
-        RHICommandContext.RequireResourceOperationAvailable(resource.Kind, resource.ResourceId);
-        T data;
-        try
-        {
-            if (!reader.TryRead(resource.ResourceId, out data))
-                throw new InvalidOperationException("Native resource metadata is unavailable after the command.");
-        }
-        catch
-        {
-            DiscardUntrackedMetadata(resource, change);
-            PublishOwnerImages(resource, false);
-            throw;
-        }
-        // Storage identity is independent of snapshot availability. Metadata-only recovery
-        // cannot invalidate views, while even equal-sized storage updates retire their certificate.
-        if ((change & GpuMetadataChange.Storage) != 0 && resource is GpuTexture texture)
-            texture.UntrackedStorageIdentity = new();
-        resource.HandleMetadataChanged(data);
-        PublishOwnerImages(resource, true);
     }
 
     #endregion

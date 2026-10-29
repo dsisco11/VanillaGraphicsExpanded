@@ -8,7 +8,7 @@ internal sealed unsafe partial class OpenGlStateCache
     [InterceptOpenGL("glMapBufferRange")]
     internal static void ObserveMapBufferRange(int selector, nint offset, nint length, int access, nint result)
     {
-        if (!OpenGLObservationContext.TryGet(out var cache, out _, false)) return;
+        if (result == 0 || !OpenGLObservationContext.TryGet(out var cache, out _, false)) return;
         int id = cache.ResolveObservedBuffer(unchecked((int)selector), false, false);
         if (id != 0 && result != 0) cache.RecordBufferMapped(id, (access & (int)OpenTK.Graphics.OpenGL.BufferAccessMask.MapPersistentBit) != 0);
     }

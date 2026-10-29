@@ -26,11 +26,26 @@ internal sealed partial class OpenGlStateCache
         if (extNamed) cache.RealizeFramebuffer(id, implicitCreation: true);
         var entry = manager.FindObservedResource(GpuResourceKind.Framebuffer, id) as GpuResourceMetadataEntry<GpuFramebufferMetadata>;
         if (entry?.IsRealized != true) return;
-        // An ambiguous EXT object has identity but no complete attachment map yet.
-        if (!entry.IsUsable) { WithdrawFramebufferDefinition(cache, entry); return; }
+        // Scalar rejection is independent of snapshot availability. A managed operation
+        // withdraws its candidate while executing; invalid external calls must not interrupt it.
+        if (parameter.HasValue)
+        {
+            if (parameter.Value is not (FramebufferDefaultParameter.FramebufferDefaultWidth
+                or FramebufferDefaultParameter.FramebufferDefaultHeight or FramebufferDefaultParameter.FramebufferDefaultLayers
+                or FramebufferDefaultParameter.FramebufferDefaultSamples or FramebufferDefaultParameter.FramebufferDefaultFixedSampleLocations)) return;
+            if (parameter != FramebufferDefaultParameter.FramebufferDefaultFixedSampleLocations && value < 0) return;
+        }
+        else
+        {
+            bool attachmentToken = slot is (int)FramebufferAttachment.DepthAttachment or (int)FramebufferAttachment.StencilAttachment
+                or (int)FramebufferAttachment.DepthStencilAttachment
+                || slot >= (int)FramebufferAttachment.ColorAttachment0 && slot <= (int)FramebufferAttachment.ColorAttachment31;
+            if (!attachmentToken || level < 0 || family == 1 && layer < 0
+                || family == 2 && imageTarget != (int)RenderbufferTarget.Renderbuffer) return;
+        }
         if (!GpuSupport.HasCachedCapabilitiesForCurrentContext) { WithdrawFramebufferDefinition(cache, entry); return; }
         var limits = GpuSupport.Graphics;
-        var candidate = entry.Metadata;
+        // Captured limits can prove rejection even while the previous descriptor is withdrawn.
         if (parameter.HasValue)
         {
             int max = parameter.Value switch
@@ -39,11 +54,15 @@ internal sealed partial class OpenGlStateCache
                 FramebufferDefaultParameter.FramebufferDefaultHeight => limits.MaxFramebufferHeight,
                 FramebufferDefaultParameter.FramebufferDefaultLayers => limits.MaxFramebufferLayers,
                 FramebufferDefaultParameter.FramebufferDefaultSamples => limits.MaxFramebufferSamples,
-                FramebufferDefaultParameter.FramebufferDefaultFixedSampleLocations => int.MaxValue,
-                _ => -1
+                _ => int.MaxValue
             };
-            if (parameter != FramebufferDefaultParameter.FramebufferDefaultFixedSampleLocations && (value < 0 || value > max)
-                || max < 0 || !limits.SupportsFramebufferNoAttachments) return;
+            if (!limits.SupportsFramebufferNoAttachments || value > max) return;
+        }
+        else if (slot >= (int)FramebufferAttachment.ColorAttachment0 && slot <= (int)FramebufferAttachment.ColorAttachment31
+            && (long)slot - (int)FramebufferAttachment.ColorAttachment0 >= limits.MaxColorAttachments) return;
+        var candidate = entry.Metadata;
+        if (parameter.HasValue)
+        {
             candidate = parameter.Value switch
             {
                 FramebufferDefaultParameter.FramebufferDefaultWidth => candidate with { DefaultWidth = value },
@@ -55,19 +74,13 @@ internal sealed partial class OpenGlStateCache
         }
         else
         {
-            bool validSlot = slot is (int)FramebufferAttachment.DepthAttachment or (int)FramebufferAttachment.StencilAttachment
-                or (int)FramebufferAttachment.DepthStencilAttachment
-                || slot >= (int)FramebufferAttachment.ColorAttachment0 && (long)slot - (int)FramebufferAttachment.ColorAttachment0 < limits.MaxColorAttachments;
-            if (!validSlot || level < 0 || family == 1 && layer < 0) return;
             bool rb = family == 2;
-            if (rb && imageTarget != (int)RenderbufferTarget.Renderbuffer) return;
             int backingId = rb ? renderbuffer : texture;
             var source = manager.FindObservedResource(rb ? GpuResourceKind.Renderbuffer : GpuResourceKind.Texture, backingId);
             if (backingId != 0 && source?.IsRealized != true) return;
-            if (backingId != 0 && source?.IsUsable != true) { WithdrawFramebufferDefinition(cache, entry); return; }
             CubeFace face = CubeFace.None;
             bool layered = false;
-            if (!rb && backingId != 0 && source is GpuResourceMetadataEntry<GpuTextureMetadata> image)
+            if (!rb && backingId != 0 && source is GpuResourceMetadataEntry<GpuTextureMetadata> { MetadataRevision: > 0 } image)
             {
                 var target = image.Metadata.Target;
                 if (target is TextureDimension.Buffer or TextureDimension.RenderbufferTexture) return;
@@ -93,9 +106,15 @@ internal sealed partial class OpenGlStateCache
                     face = CubeFace.PositiveX + layer;
                 }
             }
+            // A published target is fixed for the object's lifetime even while storage facts
+            // are withdrawn. Use it above only to prove rejection; unresolved storage still
+            // cannot become a new attachment descriptor or interrupt a rejected request.
+            if (backingId != 0 && source?.IsUsable != true) { WithdrawFramebufferDefinition(cache, entry); return; }
             var descriptor = new GpuFramebufferImageMetadata(rb ? GpuResourceKind.Renderbuffer : GpuResourceKind.Texture,
                 backingId, rb ? 0 : level, face == CubeFace.None ? Math.Max(0, layer) : 0, face, layered, Mode: GpuFramebufferAttachmentMode.Ordinary)
                 { OriginalBacking = source };
+            // Only after rejection classification may an unresolved descriptor interrupt its owner.
+            if (!entry.IsUsable) { WithdrawFramebufferDefinition(cache, entry); return; }
             var attachments = candidate.Attachments;
             FramebufferSlot selected = OpenGLResourceValues.FromNative((FramebufferAttachment)slot);
             if (selected == FramebufferSlot.DepthStencil)

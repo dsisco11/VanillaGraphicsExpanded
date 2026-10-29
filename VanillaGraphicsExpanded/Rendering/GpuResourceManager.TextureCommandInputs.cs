@@ -7,7 +7,7 @@ namespace VanillaGraphicsExpanded.Rendering;
 internal sealed partial class GpuResourceManager
 {
     #region Internal API
-    /// <summary>Uses published storage when available and explicitly recovers only missing input facts.</summary>
+    /// <summary>Requires command-established storage facts without initiating discovery or recovery.</summary>
     internal static GpuTextureMetadata AcquireTextureCommandInput(GpuTexture texture)
     {
         RHICommandContext.RequireResourceOperationAvailable(texture.Kind, texture.ResourceId);

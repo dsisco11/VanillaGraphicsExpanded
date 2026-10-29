@@ -185,10 +185,11 @@ public sealed class GpuExternalAcquisitionReuseTests(HeadlessGLFixture fixture)
     public void LocalOwnerProjectionRejectsWithdrawnFacts(bool dsa)
     {
         fixture.EnsureContextValid();
+        fixture.UseContextLocalResources();
         try
         {
             using var capability = new DirectStateAccessCapabilityScope(dsa);
-            using var texture = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba8, Width = System.Math.Max(1, 8), Height = System.Math.Max(1, 4), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
+            using var texture = ContextLocalTexture.Create(8, 4, TextureFormat.Rgba8);
             using var image = GpuFramebufferAttachment.FromTexture(texture);
             image.ValidateSlot(FramebufferSlot.Color0);
             image.ValidateSlot(FramebufferSlot.Color0);
@@ -198,9 +199,15 @@ public sealed class GpuExternalAcquisitionReuseTests(HeadlessGLFixture fixture)
             GpuResourceManager.InvalidateWrapperMetadata(texture, GpuMetadataChange.Storage);
             Assert.Throws<InvalidOperationException>(() => image.ValidateSlot(FramebufferSlot.Color0));
             Assert.Equal(0, image.Width);
-            GpuResourceManager.ObserveWrapperMetadata(texture, new GpuTextureMetadataReader(TextureDimension.Two), GpuMetadataChange.Metadata);
-            image.ValidateSlot(FramebufferSlot.Color0);
-            Assert.Equal(8, image.Width);
+            Assert.Throws<InvalidOperationException>(() => GpuResourceManager.RecoverWrapperMetadata(texture, new GpuTextureMetadataReader(TextureDimension.Two)));
+            // Explicit owner replacement supplies fresh facts; the withdrawn original stays unavailable.
+            using var replacement = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription
+            { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba8, Width = 8, Height = 4, MipLevels = 1,
+                Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = 0 }).RequireResource();
+            using var replacementImage = GpuFramebufferAttachment.FromTexture(replacement);
+            replacementImage.ValidateSlot(FramebufferSlot.Color0);
+            Assert.Equal(8, replacementImage.Width);
+            Assert.Throws<InvalidOperationException>(() => image.ValidateSlot(FramebufferSlot.Color0));
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
         finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }

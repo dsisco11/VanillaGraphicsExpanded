@@ -2,8 +2,7 @@ using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
 using System.Runtime.CompilerServices;
-using HarmonyLib;
-using VanillaGraphicsExpanded.HarmonyPatches;
+using System.Runtime.InteropServices;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 using VanillaGraphicsExpanded.Tests.GPU.Helpers;
@@ -15,32 +14,36 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GPU")]
 public sealed class CommandBindingKnowledgeTests(HeadlessGLFixture fixture)
 {
-    [ThreadStatic] private static int? intermediateVao;
-
     #region Public API
     #region Selector execution
     /// <summary>Completion replaces a selector value rediscovered reentrantly with the certified final native selection.</summary>
     [Fact]
-    public void InterceptedSelectionReplacesReentrantIntermediateKnowledge()
+    public unsafe void InterceptedSelectionReplacesReentrantIntermediateKnowledge()
     {
         fixture.EnsureContextValid(); fixture.InitializeResourceDisposal();
-        var harmony = new Harmony("Tests.CommandBindingReentrantSelector");
 
         try
         {
             using var before = NativeResourceSetup.CreateVertexArray(); using var after = NativeResourceSetup.CreateVertexArray();
             OpenGLVertexSelection.Bind(OpenGlStateCache.Current, before.VertexArrayId);
-            harmony.Patch(((Action<int>)GL.BindVertexArray).Method,
-                prefix: new HarmonyMethod(typeof(CommandBindingKnowledgeTests), nameof(ReadIntermediateVao)));
-            intermediateVao = null;
+            int? intermediateVao = null;
+            using var native = new NativeDriverCapture();
+            nint original = native.Original("glBindVertexArray");
+            native.Add("glBindVertexArray", new BindArray(array =>
+            {
+                native.Observe(() => intermediateVao = OpenGlStateCache.Current.GetCurrentVao());
+                ((delegate* unmanaged[Stdcall]<uint, void>)original)(array);
+            }));
+            native.Install();
             SelectExternal(after.VertexArrayId, 0, 0);
+            native.RequireSuccessfulObservation();
             Assert.Equal(before.VertexArrayId, intermediateVao);
             Assert.True(OpenGlStateCache.Current.TryGetCachedCurrentVao(out int selected));
             Assert.Equal(after.VertexArrayId, selected);
             Assert.Equal(after.VertexArrayId, OpenGlStateCache.Current.GetCurrentVao());
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { harmony.UnpatchAll(harmony.Id); intermediateVao = null; fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
+        finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
 
     /// <summary>Mapped signed selectors dispatch every external request and recover actual selection after rejection.</summary>
@@ -48,7 +51,6 @@ public sealed class CommandBindingKnowledgeTests(HeadlessGLFixture fixture)
     public void InterceptedSelectorsDispatchEqualRequestsAndRecoverRejectedNames()
     {
         fixture.EnsureContextValid(); fixture.InitializeResourceDisposal();
-        var harmony = new Harmony("Tests.CommandBindingExternalSelectors");
 
         try
         {
@@ -77,7 +79,7 @@ public sealed class CommandBindingKnowledgeTests(HeadlessGLFixture fixture)
             Assert.Equal(0, cache.GetCurrentProgram());
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { harmony.UnpatchAll(harmony.Id); fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
+        finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
 
     /// <summary>Managed selector changes retain their submitted identities and equal requests issue no calls.</summary>
@@ -274,10 +276,11 @@ public sealed class CommandBindingKnowledgeTests(HeadlessGLFixture fixture)
     #endregion
 
     #region Private
-    /// <summary>Models a reentrant consumer querying selection immediately before the original native operation.</summary>
-    private static void ReadIntermediateVao() => intermediateVao = OpenGlStateCache.Current.GetCurrentVao();
+    /// <summary>Matches the native array-selection ABI for contained selector observation.</summary>
+    [UnmanagedFunctionPointer(CallingConvention.StdCall)]
+    private delegate void BindArray(uint array);
 
-    /// <summary>Keeps concrete signed native selector overloads visible to the production call-site transpiler.</summary>
+    /// <summary>Executes signed OpenTK selectors through the production native interception boundary.</summary>
     [MethodImpl(MethodImplOptions.NoInlining)]
     private static void SelectExternal(int vao, int pipeline, int readFramebuffer)
     {

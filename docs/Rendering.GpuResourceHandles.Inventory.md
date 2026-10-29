@@ -14,7 +14,7 @@ RHI command contract retains the same exclusion boundary.
 
 The approved command-publication contracts (`3f307365:docs/Rendering.CommandPublication.Proposal.md`) govern the
 implementation. Controlled initialization/mutations use inputs, defaults and derived values, not
-full reader refresh. Native readers remain for external acquisition/recovery and listed output
+full reader refresh. The maintained lifecycle design narrows readers to recorded initial discovery, explicit original-entry recovery and listed output
 exceptions. The source inventories below describe current responsibility boundaries. Ownership,
 original associations, context safety, dependency semantics and notification
 ordering remain required. No universal command-success detector or parallel requested/actual cache is added.
@@ -116,7 +116,7 @@ Graphics pipelines retain opaque backend realization data; only the OpenGL imple
 relevance and restoration coverage. Fixed objects use a backend-neutral originating-context contract.
 Pending shader requests expose outcomes while their backend operation owns native candidates. Engine
 geometry adapters reuse manager certification; context-local freshness belongs to the selected array,
-not unrelated VAO edits. Explicit draw-time index selection can retain a detached engine array and use
+not unrelated VAO edits. Authored stream and index declarations retain the engine allocation and use
 a private backend realization without editing engine-owned configuration.
 
 ## Metadata command matrix
@@ -142,7 +142,8 @@ The registry primitives live in `GpuResourceManager.Registry.cs`, typed publicat
 canonical typed storage and weak recipients. `GpuResource<TMetadata>` supplies the assignment-only
 notification. Schemas and the native-reader boundary live under `Rendering/Metadata/`.
 Acquisition accepts a manager-executed typed reader that validates native kind and complete facts.
-Per-kind readers acquire unknown external descriptors and justified outputs; controlled creation and
+Per-kind readers acquire descriptors only with recorded initial-discovery provenance or explicit
+original-entry recovery, plus justified outputs; controlled creation and
 updates publish established facts. Common wrappers use the registry; persistent cloud/depth consumer
 retention uses these common associations. The current responsibility boundary is described in
 [GPU resource metadata and lifetime](Rendering.GpuResources.md).
@@ -210,7 +211,7 @@ BCL concurrent dictionaries provide synchronized operations, not completely lock
 Internal operation contracts:
 
 - `RegisterCreatedResource(kind, id)` registers a created/reserved name without inventing storage.
-- `AcquireResource(kind, id)` reuses existing canonical metadata or validates/captures an external object.
+- `AcquireResource(kind, id)` reuses maintained canonical metadata or consumes recorded pre-installation/EXT implicit-creation discovery once.
   `LookupAvailableResource` never reads; `RecoverResource` explicitly replaces external facts.
   Wrapper acquisition follows the same split through `AcquireWrapperMetadata` and
   `RecoverWrapperMetadata`; there is no optional forced-refresh switch.
@@ -221,8 +222,8 @@ Internal operation contracts:
   maintain weak associations and prune expired references. Image associations include local selection.
 - `RefreshMetadata(entry, change)` explicitly acquires/recovers unavailable native facts. Controlled
   publication constructs a complete candidate from command facts without calling that reader. Both
-  commit through the manager and deliver typed snapshots; wrappers do not query. Untracked commands
-  still execute normally without eagerly populating a speculative registry of every native object.
+  commit through the manager and deliver typed snapshots; wrappers do not query. Native factories and
+  specified realization establish identities before consumption; missing covered tracking grants no read permission.
 - `RetireResource(entry)` / `ObserveDeletion(kind, id)` integrate scheduled owner retirement and observed
   native deletion, invalidate associations and cancel obsolete queued work.
 
@@ -250,8 +251,9 @@ association identity and exposes manager-side tracking, availability and retirem
 Revisions stay on canonical entries. Metadata-dependent consumers validate through the manager;
 no registration or recipient back-reference is stored in a wrapper.
 The owning backend or remaining OpenGlStateCache operation owns native mutation execution and sends observed results to manager publication. Wrappers
-never construct metadata candidates or call mutation refresh/publication themselves. Initial native
-acquisition and selected-image projection also belong to the manager, including tools without a registry.
+never construct metadata candidates or call mutation refresh/publication themselves. Explicit proven initial
+discovery and selected-image projection belong to the manager. Local tools use supplied RHI initialization
+snapshots without raw-ID discovery.
 Requested buffer usage is separate allocation policy; requested texture dimensions/format/mips are
 command arguments until dispatch; the manager then publishes them under the controlled-input policy.
 Manager publication coordinates dependent observers outside the generic assignment.
@@ -266,15 +268,15 @@ fixed stage before compilation; programs use GpuProgramInitialization to publish
 Compilation and linking retain their existing result checks. Deferred links retain original owner,
 registration and context until exactly-once completion; submission guards prohibit reentrant discovery.
 Known unit/block changes preserve unrelated interface facts: managed assignments publish supplied values,
-while exact external commands read only affected values. Unsupported bindless assignments remain withdrawn.
+while exact external commands likewise publish supplied values without getters. Unsupported bindless assignments remain withdrawn.
 
 Program installation transfers the candidate association and executable snapshot without repeating interface
 reflection. Driver-binary cache loading retains the candidate wrapper through managed RHI execution,
 so both registered and context-local candidates receive the linked snapshot before preparation or transfer.
 Binary installation acquires the executable result once; cache acceptance reuses its link outcome.
-Context-local legacy authored assignments recover only their affected mutable fields before
-transfer; compiled preparation consumes the supplied snapshot directly. Unregistered
-or offline paths remain conservative until a live manager exists; a thread-local OpenGlStateCache does not
+Context-local authored assignments patch their supplied interface snapshot before
+transfer; compiled preparation consumes that snapshot directly. Context-local initialization and executable
+completion supply facts without a registry; a thread-local OpenGlStateCache does not
 confer persistent tracking. A fresh registered context lifetime requires a fresh manager/registry;
 never retarget an existing manager. Preserve existing RenderContextRegistry checks at the manager
 boundary, not in resource keys. Subscribe once per manager to context retirement, unsubscribe on shutdown.
@@ -311,9 +313,11 @@ Context-local tools without a registration discard uncertified snapshots after a
 interrupted explicit operation. Empty descriptors represent unavailable facts, not native zero-sized storage.
 The manager retains only the established texture target for explicit native refresh (for example,
 SetMipRange); image binding rejects an empty image snapshot. Local framebuffer image validation projects
-the typed owner's current snapshot without native reads; raw local names retain native discovery.
-Discarded owner facts require explicit owner recovery before image use; failed
-reads or absent selections cannot retain a previous projection. Registered resources retain canonical availability and recovery.
+the typed owner's current snapshot without native reads; raw local names grant no discovery.
+Withdrawn registered facts require explicit original-entry recovery before image use; absent selections
+cannot retain a previous projection. A local texture owner with discarded facts must be replaced from
+supplied initialization rather than rediscovered. Explicit failed local-buffer storage recovery retains
+its documented original-context contract.
 Managed texture views require available manager snapshots for both their own registration and their
 original source dependency before use. Metadata-only recovery restores usability; storage revision
 changes continue to reject views certified against the previous allocation.
@@ -392,45 +396,27 @@ adapter catalog remains. See the [native interception design](Rendering.OpenTKBi
 and [API matrix](Rendering.GpuResourceHandles.ApiCoverage.md) for supported boundaries and verification.
 Texture image definitions and mip generation resolve bound targets, explicit names and EXT texture
 units through OpenGlStateCache. Cube faces resolve their cube object; proxy targets never select an object.
-External texture-view creation observes the destination's registered identity and reads its native level/layer
-selection; it does not publish a storage mutation to the source texture's registration.
-Image acquisition limits view-relative mip queries to that exposed level count, independently of the
-source allocation's immutable level count.
-Buffer/image post-call observations use the existing focused cache and manager services.
-Texture parameter overloads acquire only the changed represented base/max field when the remaining
-snapshot is known. Single-image definitions acquire only the selected level/face; complete storage
-definitions and unknown external objects retain descriptor acquisition. Subimage, copy-subimage and
-compressed-subimage writes change contents only and have no metadata adapters. Explicit mip
-generation remains observed.
-Mip generation on immutable storage is content-only. Mutable generation compares only potentially
-generated descendant images when the original snapshot is available, retaining other images and
-parameters, and advances storage revisions for changed allocation. Image dependents are notified for
-that change or recovery from unavailable metadata; regenerating existing levels preserves storage certificates.
-Untracked commands execute without creating registry entries. External buffer storage withdraws
-existing facts through `InvalidateNativeBufferStorage`; explicit acquisition on demand recovers
-capacity/usage and commits the pending storage effect. Post-call interruption prevents an overlapping acquisition from certifying a stale candidate;
-observation retains withdrawal without querying. Other image results recover affected facts,
-including rejected allocations, while preserving native errors and binding effects.
+External texture-view creation derives view-relative geometry and retains the original source/storage
+dependency. It neither rereads view ranges nor revises source storage. Image definitions, base/max-level
+setters and buffer storage publish supplied/default/derived facts after rejection classification.
+Immutable mip generation is content-only; mutable generation derives descendant geometry from the known
+base. Subimage writes preserve descriptors, while eligible EXT named uses still observe realization.
+Unknown EXT implicit creation records one discovery cause without callback queries or guessed defaults.
+Ordinary missing entries cannot trigger a compensating scan. Uncertainty withdraws affected certification;
+only explicit original-entry recovery resolves an unavailable result. Output reads are limited to resolved
+unsized formats, the approved sample fallback and the external-memory immutable-storage flag.
 Manager publication invalidates associated framebuffer-image dependents after snapshot assignment or
 refresh failure. Local image tools and native-name replacement retain their wrapper observer route.
 Buffer texture availability includes its tracked backing buffer's metadata availability. Successful
 backing storage publication advances associated texture storage revisions while retaining their
 whole-buffer convention or explicit range. A texture withdrawn for another reason is not recovered
 by a backing resize; deletion continues to withdraw its association before native-name reuse.
-Publishing a buffer texture acquires its concrete backing dependency in the same registry, including
-when the caller supplied a raw buffer ID. This adds neither a buffer wrapper nor native ownership;
-an existing usable backing entry requires no further native acquisition.
-Buffer-texture association observations preserve bound, named and explicit-unit selection across core,
-ARB and EXT calls. Native backing/format queries and range admission facts certify the result;
-rejected commands preserve the previous certified descriptor. Whole-buffer mode comes from the
-accepted command, not equality with an explicit full-range attachment. Range arguments retain
-pointer width at the native observation boundary and in semantic resource ranges.
-Framebuffer attachment/default observations select the original registration and recover only the affected
-slot or default when the remaining descriptor is available. Unknown descriptors use initial discovery.
-Controlled attachment composition publishes supplied selections once, without verification followed by
-a full scan. External pass discovery reuses its canonical descriptor for transactional image reconciliation.
-Readers use named attachment queries with DSA,
-preserve split read/draw bindings on fallback, and gate attachmentless/multiview queries by capability.
+Publishing a buffer texture resolves its available original backing registration without acquiring it.
+Observed association mode/ranges remain native-width supplied inputs; whole-buffer intent is never inferred
+from a queried size. Missing or unavailable backings cannot be repaired during publication.
+Framebuffer observations apply supplied attachment/default changes and project maintained backing facts.
+Explicit recorded initial discovery uses named attachment queries, preserving the required selectors for
+cube faces or optional associations. Ordinary composition and validation do not reread descriptors.
 Native configuration notifications invalidate retained helper/completeness state; managed helper
 updates notify aliases while preserving the initiating helper's image ownership and completion event.
 Named and pointer routing observations propagate legal object-local arguments for established identities
@@ -463,10 +449,10 @@ primary-depth borrower and replaces it when selection or original allocation val
 consumer teardown releases managed recipients without deleting native storage. Allocation hooks retain
 content-certificate responsibility; common OpenGlStateCache deletion owns native lifetime observation.
 Available registered snapshots require no repeated descriptor acquisition. Context-local tools without
-a manager retain conservative acquisition, while pre-installation or unrepresented facts retain explicit acquisition. Ordinary third-party calls
+a manager use supplied initialization snapshots; pre-installation discovery requires recorded provenance and unavailable original facts require explicit recovery. Ordinary third-party calls
 through supported native tables use the same mutation/deletion observations.
 
-Raw IDs without original allocation associations retain explicit acquisition; this is distinct from
+Raw IDs without original allocation associations cannot authorize discovery; this is distinct from
 caller coverage and cannot substitute numeric equality for an original lifetime. Coverage is derived
 from API families and native slot declarations, rather than a static engine caller inventory.
 

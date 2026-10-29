@@ -1,6 +1,5 @@
 using System;
 using System.Runtime.InteropServices;
-using HarmonyLib;
 using OpenTK.Graphics.OpenGL4;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.RHI;
@@ -17,7 +16,6 @@ public sealed class RHIAuxiliaryTests(HeadlessGLFixture fixture, Xunit.ITestOutp
     private static WaitSyncStatus injectedWait;
     private static int waitCalls;
     private static int unmapCalls;
-    private static Action? onBegin;
     #region Public API
     /// <summary>Native callbacks cannot end or replace a query before its begin transition is committed.</summary>
     [Fact]
@@ -137,7 +135,7 @@ public sealed class RHIAuxiliaryTests(HeadlessGLFixture fixture, Xunit.ITestOutp
             GL.CreateVertexArrays(1, out vao); GL.BindVertexArray(vao); GL.UseProgram(program);
             GL.Enable(EnableCap.RasterizerDiscard);
             int previous = GL.GetInteger(GetPName.TransformFeedbackBinding);
-            using var beginObservation = new BeginObservation(nameof(GL.BeginTransformFeedback), [typeof(TransformFeedbackPrimitiveType)], () =>
+            using var beginObservation = new BeginObservation(() =>
             {
                 Assert.Throws<InvalidOperationException>(() => context.EndTransformFeedback());
                 Assert.Throws<InvalidOperationException>(() => context.BeginTransformFeedback(capture, CapturePrimitive.Points));
@@ -153,6 +151,7 @@ public sealed class RHIAuxiliaryTests(HeadlessGLFixture fixture, Xunit.ITestOutp
                 context.ResumeTransformFeedback();
                 GL.DrawArrays(PrimitiveType.Points, 0, 1);
             }
+            Assert.Equal(1, beginObservation.Calls);
             Assert.Equal(previous, GL.GetInteger(GetPName.TransformFeedbackBinding));
             context.Barrier(new(ResourceAccess.BufferUpdate));
             using var result = context.EnqueueReadback(new RHIReadbackDescription(new RHIBufferRange(output, 0, 8)));
@@ -288,23 +287,28 @@ public sealed class RHIAuxiliaryTests(HeadlessGLFixture fixture, Xunit.ITestOutp
     }
 
     /// <summary>Exercises reentry from a real native begin call without adding production callback machinery.</summary>
-    private sealed class BeginObservation : IDisposable
+    private sealed unsafe class BeginObservation : IDisposable
     {
-        private readonly Harmony harmony = new("Tests.RHIAuxiliaryBegin." + Guid.NewGuid());
+        private readonly NativeDriverCapture native = new();
+        /// <summary>Counts actual begin dispatch independently of managed wrapper selection.</summary>
+        internal int Calls { get; private set; }
+        /// <summary>Matches transform-feedback begin primitive selection.</summary>
+        [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate void Begin(int primitive);
         #region Public API
         /// <summary>Installs a test callback after the selected native begin operation.</summary>
-        public BeginObservation(string name, Type[] arguments, Action callback)
+        public BeginObservation(Action callback)
         {
-            onBegin = callback;
-            harmony.Patch(AccessTools.Method(typeof(GL), name, arguments),
-                postfix: new HarmonyMethod(typeof(BeginObservation), nameof(Observe)));
+            var original = (delegate* unmanaged[Stdcall]<int, void>)native.Original("glBeginTransformFeedback");
+            native.Add("glBeginTransformFeedback", new Begin(primitive =>
+            {
+                original(primitive);
+                Calls++;
+                native.Observe(callback);
+            }));
+            native.Install();
         }
         /// <summary>Releases only this fixture's interception and captured references.</summary>
-        public void Dispose() { harmony.UnpatchAll(harmony.Id); onBegin = null; }
-        #endregion
-        #region Private
-        /// <summary>Attempts a nested execution transition while the outer native call is completing.</summary>
-        private static void Observe() => onBegin!();
+        public void Dispose() => native.Dispose();
         #endregion
     }
     /// <summary>Injects corruption after a real native unmap, preserving actual cleanup and deterministic failure evidence.</summary>
@@ -340,21 +344,19 @@ public sealed class RHIAuxiliaryTests(HeadlessGLFixture fixture, Xunit.ITestOutp
     /// <summary>Substitutes only native wait outcomes to prove deterministic pending/failure transitions.</summary>
     private sealed class WaitObservation : IDisposable
     {
-        private readonly Harmony harmony = new("Tests.RHICompletionWait." + Guid.NewGuid());
+        private readonly NativeDriverCapture native = new();
+        /// <summary>Matches the native pointer-width fence wait and unsigned timeout ABI.</summary>
+        [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate int Wait(nint sync, uint flags, ulong timeout);
         #region Public API
         /// <summary>Installs observation without adding a production instrumentation path.</summary>
         public WaitObservation()
         {
             waitCalls = 0;
-            harmony.Patch(AccessTools.Method(typeof(GL), nameof(GL.ClientWaitSync), [typeof(IntPtr), typeof(ClientWaitSyncFlags), typeof(long)]),
-                prefix: new HarmonyMethod(typeof(WaitObservation), nameof(Wait)));
+            native.Add("glClientWaitSync", new Wait((_, _, _) => { waitCalls++; return (int)injectedWait; }));
+            native.Install();
         }
         /// <summary>Removes every test-owned hook.</summary>
-        public void Dispose() => harmony.UnpatchAll(harmony.Id);
-        #endregion
-        #region Private
-        /// <summary>Returns the selected deterministic outcome without executing a native wait.</summary>
-        private static bool Wait(ref WaitSyncStatus __result) { waitCalls++; __result = injectedWait; return false; }
+        public void Dispose() => native.Dispose();
         #endregion
     }
     #endregion

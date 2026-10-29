@@ -1,57 +1,60 @@
-using HarmonyLib;
+using System.Runtime.InteropServices;
 using OpenTK.Graphics.OpenGL;
-using GL4 = OpenTK.Graphics.OpenGL4.GL;
 using VanillaGraphicsExpanded.Rendering;
 
 namespace VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 
-/// <summary>Counts routing validation work independently of native calls for immutable pass qualification.</summary>
-internal sealed class FramebufferRoutingWorkCapture : IDisposable
+/// <summary>Counts actual native routing work through external and saved-original backend dispatch.</summary>
+internal sealed unsafe class FramebufferRoutingWorkCapture : IDisposable
 {
-    [ThreadStatic] private static FramebufferRoutingWorkCapture? active;
-    private readonly Harmony harmony = new("Tests.FramebufferRoutingWorkCapture");
+    private readonly NativeDriverCapture native = new();
+
+    /// <summary>Matches a single bound routing selection.</summary>
+    [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate void Selection(int mode);
+    /// <summary>Matches a single named routing selection.</summary>
+    [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate void NamedSelection(uint name, int mode);
+    /// <summary>Matches multiple bound routing selections.</summary>
+    [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate void Selections(int count, int* modes);
+    /// <summary>Matches multiple named routing selections.</summary>
+    [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate void NamedSelections(uint name, int count, int* modes);
+    /// <summary>Matches integer state output.</summary>
+    [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate void IntegerOutput(int parameter, int* value);
+    /// <summary>Matches a bound framebuffer completeness result.</summary>
+    [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate int Status(int target);
+    /// <summary>Matches a named framebuffer completeness result.</summary>
+    [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate int NamedStatus(uint name, int target);
+
+    #region Internal API
     internal int DynamicApplications, Captures, CompletenessChecks;
-    #region Public API
-    /// <summary>Installs observers after framebuffer and pass declaration construction have finished.</summary>
+
+    /// <summary>Decorates the final native slots after pass declarations have been constructed.</summary>
     internal FramebufferRoutingWorkCapture()
     {
-        if (active is not null) throw new InvalidOperationException("Routing work capture already active.");
-        active = this;
-        try
+        var single = (delegate* unmanaged[Stdcall]<int, void>)native.Original("glDrawBuffer");
+        native.Add("glDrawBuffer", new Selection(mode => { single(mode); DynamicApplications++; }));
+        var named = (delegate* unmanaged[Stdcall]<uint, int, void>)native.Original("glNamedFramebufferDrawBuffer");
+        native.Add("glNamedFramebufferDrawBuffer", new NamedSelection((name, mode) => { named(name, mode); DynamicApplications++; }));
+        var multiple = (delegate* unmanaged[Stdcall]<int, int*, void>)native.Original("glDrawBuffers");
+        native.Add("glDrawBuffers", new Selections((count, modes) => { multiple(count, modes); DynamicApplications++; }));
+        var namedMultiple = (delegate* unmanaged[Stdcall]<uint, int, int*, void>)native.Original("glNamedFramebufferDrawBuffers");
+        native.Add("glNamedFramebufferDrawBuffers", new NamedSelections((name, count, modes) => { namedMultiple(name, count, modes); DynamicApplications++; }));
+        var get = (delegate* unmanaged[Stdcall]<int, int*, void>)native.Original("glGetIntegerv");
+        int maxDrawBuffers = GpuSupport.Graphics.MaxDrawBuffers;
+        native.Add("glGetIntegerv", new IntegerOutput((parameter, value) =>
         {
-            // Observe the final backend's native work, including its OpenGL4 entry points.
-            Patch(typeof(GL4),nameof(GL4.NamedFramebufferDrawBuffers),[typeof(int),typeof(int),typeof(OpenTK.Graphics.OpenGL4.DrawBuffersEnum[])],nameof(Dynamic));
-            Patch(typeof(GL4),nameof(GL4.NamedFramebufferDrawBuffer),[typeof(int),typeof(OpenTK.Graphics.OpenGL4.DrawBufferMode)],nameof(Dynamic));
-            Patch(typeof(GL4),nameof(GL4.DrawBuffers),[typeof(int),typeof(OpenTK.Graphics.OpenGL4.DrawBuffersEnum[])],nameof(Dynamic));
-            Patch(typeof(GL4),nameof(GL4.DrawBuffer),[typeof(OpenTK.Graphics.OpenGL4.DrawBufferMode)],nameof(Dynamic));
-            Patch(typeof(GL4),nameof(GL4.GetInteger),[typeof(OpenTK.Graphics.OpenGL4.GetPName),typeof(int).MakeByRefType()],nameof(Capture));
-            Patch(typeof(GL4),nameof(GL4.CheckNamedFramebufferStatus),[typeof(int),typeof(OpenTK.Graphics.OpenGL4.FramebufferTarget)],nameof(Completeness));
-            Patch(typeof(GL),nameof(GL.CheckFramebufferStatus),[typeof(FramebufferTarget)],nameof(Completeness));
-            Patch(typeof(GL4),nameof(GL4.CheckFramebufferStatus),[typeof(OpenTK.Graphics.OpenGL4.FramebufferTarget)],nameof(Completeness));
-        }
-        catch { Dispose(); throw; }
-    }
-    /// <summary>Removes only this fixture's observers after normal or exceptional completion.</summary>
-    public void Dispose()
-    {
-        harmony.UnpatchAll(harmony.Id);
-        active = null;
+            get(parameter, value);
+            if (parameter >= (int)GetPName.DrawBuffer0 && parameter < (int)GetPName.DrawBuffer0 + maxDrawBuffers) Captures++;
+        }));
+        var status = (delegate* unmanaged[Stdcall]<int, int>)native.Original("glCheckFramebufferStatus");
+        native.Add("glCheckFramebufferStatus", new Status(target => { int result = status(target); CompletenessChecks++; return result; }));
+        var namedStatus = (delegate* unmanaged[Stdcall]<uint, int, int>)native.Original("glCheckNamedFramebufferStatus");
+        native.Add("glCheckNamedFramebufferStatus", new NamedStatus((name, target) => { int result = namedStatus(name, target); CompletenessChecks++; return result; }));
+        native.Install();
     }
     #endregion
-    #region Private
-    /// <summary>Observes an exact native overload without depending on retired execution owners.</summary>
-    private void Patch(Type owner,string method,Type[] arguments,string observer)
-        => harmony.Patch(AccessTools.Method(owner,method,arguments) ?? throw new MissingMethodException(owner.FullName,method),
-            prefix:new HarmonyMethod(AccessTools.Method(typeof(FramebufferRoutingWorkCapture),observer)));
-    /// <summary>Counts actual native routing writes.</summary>
-    private static void Dynamic() { if (active is not null) active.DynamicApplications++; }
-    /// <summary>Counts live dynamic routing snapshot requests.</summary>
-    private static void Capture(OpenTK.Graphics.OpenGL4.GetPName __0)
-    {
-        if (active is not null && __0 >= OpenTK.Graphics.OpenGL4.GetPName.DrawBuffer0 &&
-            __0 < OpenTK.Graphics.OpenGL4.GetPName.DrawBuffer0 + GpuSupport.Graphics.MaxDrawBuffers) active.Captures++;
-    }
-    /// <summary>Counts actual native completeness checks rather than managed no-op dispatch.</summary>
-    private static void Completeness() { if (active is not null) active.CompletenessChecks++; }
+
+    #region Public API
+    /// <summary>Restores ordinary native dispatch after the measured interval.</summary>
+    public void Dispose() => native.Dispose();
     #endregion
 }

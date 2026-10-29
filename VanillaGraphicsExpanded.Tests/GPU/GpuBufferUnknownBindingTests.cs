@@ -1,6 +1,6 @@
 using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
-using HarmonyLib;
+using System.Runtime.InteropServices;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
@@ -112,13 +112,12 @@ public sealed class GpuBufferUnknownBindingTests(HeadlessGLFixture fixture)
             OpenGlStateCache.Current.InvalidateAll();
         }
     }
-    /// <summary>A native named mapping exception still restores the unknown copy-write selection.</summary>
+    /// <summary>A failed native named mapping preserves the unknown copy-write selection.</summary>
     [Fact]
-    public void MappingExceptionRestoresUnknownSelection()
+    public void FailedNativeMappingPreservesUnknownSelection()
     {
         fixture.MakeCurrent();
         fixture.InitializeResourceDisposal();
-        var harmony = new Harmony("Tests.BufferMapUnwind");
         try
         {
             using var sentinel = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = null }).RequireResource();
@@ -126,15 +125,17 @@ public sealed class GpuBufferUnknownBindingTests(HeadlessGLFixture fixture)
             target.Allocate(16);
             GL.BindBuffer(BufferTarget.CopyWriteBuffer, sentinel.BufferId);
             OpenGlStateCache.Current.InvalidateAll();
-            harmony.Patch(((Func<int, IntPtr, IntPtr, OpenTK.Graphics.OpenGL4.BufferAccessMask, IntPtr>)OpenTK.Graphics.OpenGL4.GL.MapNamedBufferRange).Method,
-                prefix: new HarmonyMethod(typeof(GpuBufferUnknownBindingTests), nameof(RejectMapping)));
+            using var native = new NativeDriverCapture();
+            int calls = 0;
+            native.Add("glMapNamedBufferRange", new MapRange((_, _, _, _) => { calls++; return 0; }));
+            native.Install();
             Assert.Throws<InvalidOperationException>(() => target.MapRange<int>(0, 4, BufferMapAccess.Read));
-            Assert.Equal(sentinel.BufferId, GL.GetInteger((GetPName)BufferTarget.CopyWriteBuffer));
+            Assert.Equal(1, calls);
+            Assert.Equal(sentinel.BufferId, GL.GetInteger((GetPName)All.CopyWriteBufferBinding));
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
         finally
         {
-            harmony.UnpatchAll(harmony.Id);
             fixture.CleanupGpuResources();
             OpenGlStateCache.Current.InvalidateAll();
         }
@@ -142,7 +143,8 @@ public sealed class GpuBufferUnknownBindingTests(HeadlessGLFixture fixture)
     #endregion
 
     #region Private
-    /// <summary>Rejects the native mapping invocation to exercise scope cleanup without changing GPU state.</summary>
-    private static void RejectMapping() => throw new InvalidOperationException("Injected mapping failure.");
+    /// <summary>Matches the native mapping result ABI for a deterministic null outcome.</summary>
+    [UnmanagedFunctionPointer(CallingConvention.StdCall)]
+    private delegate nint MapRange(uint buffer, nint offset, nint length, uint access);
     #endregion
 }

@@ -26,7 +26,15 @@ internal sealed partial class OpenGlStateCache
     /// <summary>Resolves only the selector required by a mapping command and handles EXT realization.</summary>
     internal int ResolveObservedBuffer(int selector, bool named, bool extCreation)
     {
-        if (!named && !IsBufferTargetSupported((BufferTarget)selector)) return 0;
+        bool? targetAccepted = named ? true : ClassifyBufferTarget((BufferTarget)selector);
+        if (targetAccepted == false) return 0;
+        if (targetAccepted is null)
+        {
+            // A FALSE unmap can be target rejection, while a valid unmap may report corruption.
+            // Do not query an optional selector whose availability has not been captured.
+            if (TryGetCachedBoundBuffer((BufferTarget)selector, out int known)) bufferMappings.Remove(known);
+            return 0;
+        }
         int id = named ? selector : GetBoundBuffer((BufferTarget)selector);
         if (extCreation) RealizeNativeBuffer(id, true);
         return id;

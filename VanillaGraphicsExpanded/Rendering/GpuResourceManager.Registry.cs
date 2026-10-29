@@ -50,7 +50,7 @@ internal sealed partial class GpuResourceManager
         return entry;
     }
 
-    /// <summary>Reuses available canonical facts; acquires or recovers only missing facts.</summary>
+    /// <summary>Reuses maintained facts or consumes an explicitly recorded initial-discovery cause once.</summary>
     internal GpuResourceMetadataEntry<TMetadata>? AcquireResource<TMetadata>(GpuResourceKind kind, nint id,
         IGpuResourceMetadataReader<TMetadata> reader) where TMetadata : struct
     {

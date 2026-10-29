@@ -1,6 +1,7 @@
 using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using HarmonyLib;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.HarmonyPatches;
@@ -12,9 +13,12 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 /// <summary>Checks represented texture parameters.</summary>
 [Collection("GPU")]
 [Trait("Category", "GPU")]
-public sealed class GpuTextureParameterInterceptionTests(HeadlessGLFixture fixture)
+public sealed unsafe class GpuTextureParameterInterceptionTests(HeadlessGLFixture fixture)
 {
     private static int observations;
+    /// <summary>Matches the integer selector query ABI.</summary>
+    [UnmanagedFunctionPointer(CallingConvention.StdCall)]
+    private delegate void IntegerQuery(int parameter, int* value);
     #region Public API
     /// <summary>Unsupported target dimensions are rejected before metadata queries can reinterpret an unrelated valid object.</summary>
     [Fact]
@@ -78,13 +82,20 @@ public sealed class GpuTextureParameterInterceptionTests(HeadlessGLFixture fixtu
             OpenGlStateCache.Current.InvalidateAll();
             var entry = Assert.IsType<GpuResourceMetadataEntry<GpuTextureMetadata>>(GpuResourceManagerSystem.CurrentManager!.GetResourceRegistration(texture));
             ulong revision = entry.MetadataRevision;
-            var counter = new HarmonyMethod(typeof(GpuTextureParameterInterceptionTests), nameof(CountObservation));
-            harmony.Patch(AccessTools.Method(typeof(GL), nameof(GL.GetInteger), [typeof(GetPName)]), prefix: counter);
-            harmony.Patch(AccessTools.Method(typeof(GL), nameof(GL.GetInteger), [typeof(GetPName), typeof(int).MakeByRefType()]), prefix: counter);
+            using var descriptors = new ImageDescriptorCapture(native =>
+            {
+                var original = (delegate* unmanaged[Stdcall]<int, int*, void>)native.Original("glGetIntegerv");
+                native.Add("glGetIntegerv", new IntegerQuery((parameter, value) =>
+                {
+                    original(parameter, value);
+                    observations++;
+                }));
+            });
             entry.Reader = new CountingReader();
             observations = 0;
             UploadContents(0);
             Assert.Equal(0, observations);
+            Assert.Equal(0, descriptors.Reads);
             Assert.Equal(revision, entry.MetadataRevision);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
@@ -130,8 +141,6 @@ public sealed class GpuTextureParameterInterceptionTests(HeadlessGLFixture fixtu
         GL.TexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMinFilter, (int)TextureMinFilter.Nearest);
     }
 
-    /// <summary>Counts metadata reads and binding recovery without suppressing native behavior.</summary>
-    private static void CountObservation() { observations++; }
 
     /// <summary>Counts canonical metadata acquisition without patching complex managed exception regions.</summary>
     private sealed class CountingReader : IGpuResourceMetadataReader<GpuTextureMetadata>

@@ -131,6 +131,98 @@ public sealed class GpuFramebufferMetadataInterceptionTests(HeadlessGLFixture fi
         }
         finally { harmony.UnpatchAll(harmony.Id); VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Framebuffer, target)); VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Framebuffer, sentinel)); fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
+    /// <summary>Provably rejected native mutations preserve an operation's withdrawn candidate and original error.</summary>
+    [Theory]
+    [InlineData(false, 0)] [InlineData(true, 0)]
+    [InlineData(false, 1)] [InlineData(true, 1)]
+    [InlineData(false, 2)] [InlineData(true, 2)]
+    public void RejectedMutationDoesNotInterruptUnavailableCandidate(bool modern, int request)
+    {
+        fixture.EnsureContextValid(); fixture.InitializeResourceDisposal();
+        try
+        {
+            using var texture = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription
+            { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba8, Width = 2, Height = 2, MipLevels = 1,
+                Storage = ResourceStorageMode.Mutable }).RequireResource();
+            using var framebuffer = DynamicGpuFramebuffer.CreateEmpty("RejectedCandidate");
+            var manager = GpuResourceManagerSystem.CurrentManager!;
+            var entry = (GpuResourceMetadataEntry<GpuFramebufferMetadata>)manager.GetResourceRegistration(framebuffer)!;
+            var previous = entry.Metadata;
+            ulong revision = entry.MetadataRevision;
+            using var reads = new ImageDescriptorCapture();
+            using var operation = new GpuResourceManager.MetadataOperation<GpuFramebufferMetadata>(framebuffer, GpuMetadataChange.Metadata);
+            Assert.False(entry.IsUsable);
+            if (modern)
+            {
+                if (request == 2) OpenTK.Graphics.OpenGL4.GL.NamedFramebufferTexture(framebuffer.FboId,
+                    OpenTK.Graphics.OpenGL4.FramebufferAttachment.ColorAttachment0, texture.TextureId, -1);
+                else OpenTK.Graphics.OpenGL4.GL.NamedFramebufferParameter(framebuffer.FboId, request == 0
+                    ? OpenTK.Graphics.OpenGL4.FramebufferDefaultParameter.FramebufferDefaultWidth
+                    : (OpenTK.Graphics.OpenGL4.FramebufferDefaultParameter)(-1), request == 0 ? -1 : 1);
+            }
+            else
+            {
+                if (request == 2) GL.NamedFramebufferTexture(framebuffer.FboId, FramebufferAttachment.ColorAttachment0, texture.TextureId, -1);
+                else GL.NamedFramebufferParameter(framebuffer.FboId, request == 0
+                    ? FramebufferDefaultParameter.FramebufferDefaultWidth : (FramebufferDefaultParameter)(-1), request == 0 ? -1 : 1);
+            }
+            Assert.Equal(request == 1 ? ErrorCode.InvalidEnum : ErrorCode.InvalidValue, GL.GetError());
+            operation.RequireLive();
+            Assert.False(entry.CompletionInterrupted);
+            Assert.Equal(revision, entry.MetadataRevision);
+            operation.Commit(previous);
+            Assert.True(entry.IsUsable);
+            Assert.Equal(0, reads.Reads);
+            Assert.Equal(ErrorCode.NoError, GL.GetError());
+        }
+        finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
+    }
+
+    /// <summary>A withdrawn source retains its fixed target for rejection checks without certifying its storage.</summary>
+    [Theory]
+    [InlineData(false, false)] [InlineData(true, false)]
+    [InlineData(false, true)] [InlineData(true, true)]
+    public void RejectedUnavailableSourcePreservesFramebufferCandidate(bool modern, bool rectangle)
+    {
+        fixture.EnsureContextValid(); fixture.InitializeResourceDisposal();
+        try
+        {
+            using var texture = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription
+            { Dimension = rectangle ? TextureDimension.Rectangle : TextureDimension.Two, Format = TextureFormat.Rgba8,
+                Width = 2, Height = 2, MipLevels = 1, Storage = ResourceStorageMode.Mutable }).RequireResource();
+            using var framebuffer = DynamicGpuFramebuffer.CreateEmpty("RejectedUnavailableSource");
+            var manager = GpuResourceManagerSystem.CurrentManager!;
+            var source = (GpuResourceMetadataEntry<GpuTextureMetadata>)manager.GetResourceRegistration(texture)!;
+            Assert.Equal(rectangle ? TextureDimension.Rectangle : TextureDimension.Two, source.Metadata.Target);
+            var entry = (GpuResourceMetadataEntry<GpuFramebufferMetadata>)manager.GetResourceRegistration(framebuffer)!;
+            var previous = entry.Metadata;
+            ulong revision = entry.MetadataRevision;
+            GpuResourceManager.InvalidateWrapperMetadata(texture);
+            Assert.False(source.IsUsable);
+            using var reads = new ImageDescriptorCapture();
+            using var operation = new GpuResourceManager.MetadataOperation<GpuFramebufferMetadata>(framebuffer, GpuMetadataChange.Metadata);
+            if (modern)
+            {
+                OpenTK.Graphics.OpenGL4.GL.NamedFramebufferTextureLayer(framebuffer.FboId,
+                    OpenTK.Graphics.OpenGL4.FramebufferAttachment.ColorAttachment0, texture.TextureId, 0, 0);
+            }
+            else
+            {
+                GL.NamedFramebufferTextureLayer(framebuffer.FboId, FramebufferAttachment.ColorAttachment0, texture.TextureId, 0, 0);
+            }
+            Assert.Equal(ErrorCode.InvalidOperation, GL.GetError());
+            operation.RequireLive();
+            Assert.False(entry.CompletionInterrupted);
+            Assert.Equal(revision, entry.MetadataRevision);
+            operation.Commit(previous);
+            Assert.True(entry.IsUsable);
+            Assert.False(source.IsUsable);
+            Assert.Equal(0, reads.Reads);
+            Assert.Equal(ErrorCode.NoError, GL.GetError());
+        }
+        finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
+    }
+
     /// <summary>Unknown binding recovery preserves a pending error, and rejected image selection retains the real attachment.</summary>
     [Theory]
     [InlineData(false)] [InlineData(true)]

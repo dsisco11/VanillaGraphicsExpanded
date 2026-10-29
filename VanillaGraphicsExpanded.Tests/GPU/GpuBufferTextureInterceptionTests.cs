@@ -1,6 +1,7 @@
 using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using HarmonyLib;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.HarmonyPatches;
@@ -12,10 +13,12 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 /// <summary>Exercises exact native buffer texture association dispatch and canonical range certification.</summary>
 [Collection("GPU")]
 [Trait("Category", "GPU")]
-public sealed class GpuBufferTextureInterceptionTests(HeadlessGLFixture fixture)
+public sealed unsafe class GpuBufferTextureInterceptionTests(HeadlessGLFixture fixture)
 {
-    private static int reads;
     private static nint capturedOffset, capturedSize;
+    /// <summary>Matches the native-width named texture-buffer range ABI.</summary>
+    [UnmanagedFunctionPointer(CallingConvention.StdCall)]
+    private delegate void TextureRangeCall(uint texture, int format, uint buffer, nint offset, nint size);
     #region Public API
     /// <summary>Supported addressing forms update aliases and preserve explicit whole-versus-range policy.</summary>
     [Theory]
@@ -129,16 +132,12 @@ public sealed class GpuBufferTextureInterceptionTests(HeadlessGLFixture fixture)
             { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 128, Usage = BufferUsage.DynamicDraw }).RequireResource();
             using var view = RHICommandContext.Current.CreateBufferTexture(new RHIBufferTextureDescription
             { Buffer = first, Format = TextureFormat.R32f, WholeBuffer = true }).RequireResource();
-            // Observe the actual backend query owner, not only the legacy fixture's GL class.
-            harmony.Patch(AccessTools.Method(typeof(OpenTK.Graphics.OpenGL4.GL), nameof(GL.GetTextureLevelParameter),
-                [typeof(int), typeof(int), typeof(OpenTK.Graphics.OpenGL4.GetTextureParameter), typeof(int).MakeByRefType()]),
-                prefix: new HarmonyMethod(typeof(GpuBufferTextureInterceptionTests), nameof(CountRead)));
-            reads = 0;
+            using var descriptors = new ImageDescriptorCapture();
             Associate(8, view.TextureId, second.BufferId, SizedInternalFormat.R32ui, 0, 64);
             Assert.Equal(second.BufferId, view.BufferId);
             Assert.Equal(TextureFormat.R32ui, view.Format);
             Assert.Equal(64, view.SizeBytes);
-            Assert.Equal(0, reads);
+            Assert.Equal(0, descriptors.Reads);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
         finally { harmony.UnpatchAll(harmony.Id); fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
@@ -146,35 +145,39 @@ public sealed class GpuBufferTextureInterceptionTests(HeadlessGLFixture fixture)
 
     /// <summary>Wide native arguments forward unchanged and rejected associations preserve tracked metadata.</summary>
     [Fact]
-    public void UntrackedWideForwardingDoesNotObserveOrNarrow()
+    public void RejectedWideForwardingDoesNotQueryOrNarrow()
     {
         fixture.EnsureContextValid(); fixture.InitializeResourceDisposal();
         var harmony = Patch();
         GL.CreateTextures(TextureTarget.TextureBuffer, 1, out int texture);
         try
         {
-            harmony.Patch(AccessTools.Method(typeof(GL), nameof(GL.GetTextureLevelParameter), [typeof(int), typeof(int), typeof(GetTextureParameter), typeof(int).MakeByRefType()]),
-                prefix: new HarmonyMethod(typeof(GpuBufferTextureInterceptionTests), nameof(CountRead)));
             using var backing = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = null }).RequireResource();
             backing.Allocate(64);
-            reads = 0;
+            using var descriptors = new ImageDescriptorCapture(native =>
+            {
+                var originalRange = (delegate* unmanaged[Stdcall]<uint, int, uint, nint, nint, void>)native.Original("glTextureBufferRange");
+                native.Add("glTextureBufferRange", new TextureRangeCall((name, format, buffer, offset, size) =>
+                {
+                    capturedOffset = offset;
+                    capturedSize = size;
+                    originalRange(name, format, buffer, offset, size);
+                }));
+            });
             Associate(1, texture, backing.BufferId, SizedInternalFormat.R32f, 0, 0);
-            Assert.Equal(0, reads);
+            Assert.Equal(0, descriptors.Reads);
             var entry = Assert.IsType<GpuResourceMetadataEntry<GpuTextureMetadata>>(
                 GpuResourceManagerSystem.CurrentManager!.FindResource(GpuResourceKind.Texture, texture));
             var original = entry.Metadata;
             ulong revision = entry.MetadataRevision;
-            harmony.Patch(AccessTools.Method(typeof(GL), nameof(GL.TextureBufferRange), [typeof(int), typeof(SizedInternalFormat), typeof(int), typeof(IntPtr), typeof(IntPtr)]),
-                prefix: new HarmonyMethod(typeof(GpuBufferTextureInterceptionTests), nameof(CaptureWide)));
-            reads = 0;
             nint offset = (nint)int.MaxValue + 4097, size = (nint)int.MaxValue + 8193;
-            Associate(8, texture, 123, SizedInternalFormat.R32f, offset, size);
+            Associate(8, texture, backing.BufferId, SizedInternalFormat.R32f, offset, size);
             Assert.Equal(offset, capturedOffset); Assert.Equal(size, capturedSize);
-            Assert.Equal(0, reads);
+            Assert.Equal(0, descriptors.Reads);
             Assert.Same(entry, GpuResourceManagerSystem.CurrentManager!.FindResource(GpuResourceKind.Texture, texture));
             Assert.Equal(original, entry.Metadata);
             Assert.Equal(revision, entry.MetadataRevision);
-            Assert.Equal(ErrorCode.NoError, GL.GetError());
+            Assert.Equal(ErrorCode.InvalidValue, GL.GetError());
         }
         finally { harmony.UnpatchAll(harmony.Id); RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Texture, texture)); fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
@@ -233,10 +236,6 @@ public sealed class GpuBufferTextureInterceptionTests(HeadlessGLFixture fixture)
     private static void InvalidTarget(int texture, int buffer, TextureTarget target) => GL.Ext.TextureBuffer(texture, target, SizedInternalFormat.R32f, buffer);
     /// <summary>Injects a dispatch failure before any native association command executes.</summary>
     private static void ThrowBeforeDispatch() => throw new ApplicationException("native boundary failure");
-    /// <summary>Counts native metadata readback on the untracked forwarding path.</summary>
-    private static void CountRead() => reads++;
-    /// <summary>Captures a native-width boundary without submitting an unsupported allocation to the GPU.</summary>
-    private static bool CaptureWide(IntPtr __3, IntPtr __4) { capturedOffset = __3; capturedSize = __4; return false; }
     /// <summary>Receives canonical association metadata without taking ownership.</summary>
     private sealed class TextureAlias(int id) : GpuResource<GpuTextureMetadata>
     {

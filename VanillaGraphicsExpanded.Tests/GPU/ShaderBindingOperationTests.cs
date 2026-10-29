@@ -59,7 +59,8 @@ public sealed class ShaderBindingOperationTests(HeadlessGLFixture fixture, ITest
 #if DEBUG
         Assert.Equal(uploads, ring.AllocationsWritten);
         Assert.Equal(bytes, ring.BytesWritten);
-        Assert.Equal(imageChecks + repeats, cache.ImageCacheChecks);
+        // BindResources publishes immediately, and dispatch revalidates the retained set at execution.
+        Assert.Equal(imageChecks + repeats * 2, cache.ImageCacheChecks);
         Assert.Equal(imageBinds, cache.ResourceSlotBindCount);
         Assert.Equal(reflection, acquisition.Reads);
         Assert.Equal(names, pipeline.ProgramLayout.UniformNameResolutions);
@@ -68,7 +69,7 @@ public sealed class ShaderBindingOperationTests(HeadlessGLFixture fixture, ITest
         RHICommandContext.Current.Barrier(new(ResourceAccess.Framebuffer));
         Assert.Equal(new float[] { 7, 5, 0, 0 }, result.ReadPixels());
 #if DEBUG
-        output.WriteLine($"Generated owner: {repeats * 3} assignment attempts/skips; 0 revision changes; preparation reflection queries {reflection}; steady-state reflection/name resolutions 0; {repeats} submissions/image cache checks; entry resolutions 1; compatibility checks 1; numeric GL uploads 0; repeated block copies/allocations 0; repeated image or UBO range binds 0.");
+        output.WriteLine($"Generated owner: {repeats * 3} assignment attempts/skips; 0 revision changes; preparation reflection queries {reflection}; steady-state reflection/name resolutions 0; {repeats} submissions with two image cache checks each; entry resolutions 1; compatibility checks 1; numeric GL uploads 0; repeated block copies/allocations 0; repeated image or UBO range binds 0.");
 #endif
 
         using var arrays = Load("prepared_binding", PreparedBindingComputeShader.Contract);
@@ -103,7 +104,8 @@ public sealed class ShaderBindingOperationTests(HeadlessGLFixture fixture, ITest
         Assert.Equal(samplers, cache.SamplerBindCount);
         Assert.Equal(imageBinds, cache.ResourceSlotBindCount);
         Assert.Equal(textureChecks + repeats * 2, cache.TextureCacheChecks);
-        Assert.Equal(samplerChecks + repeats * 2, cache.SamplerCacheChecks);
+        // Core sampler batching compares direct SamplerKnowledge; it does not enter scalar-bind instrumentation.
+        Assert.Equal(samplerChecks, cache.SamplerCacheChecks);
         Assert.Equal(imageChecks + repeats, cache.ImageCacheChecks);
         Assert.Equal(reflection, acquisition.Reads);
         Assert.Equal(names, arrays.ProgramLayout.UniformNameResolutions);
@@ -114,7 +116,7 @@ public sealed class ShaderBindingOperationTests(HeadlessGLFixture fixture, ITest
         RHICommandContext.Current.Barrier(new(ResourceAccess.Image | ResourceAccess.Framebuffer));
         Assert.Equal(new float[] { 11, 22, 33, 44 }, result.ReadPixels());
 #if DEBUG
-        output.WriteLine($"Managed array: preparation reflection queries {reflection}; {repeats} full-set validations/publications; {repeats * 2} texture cache checks; {repeats * 2} sampler cache checks; {repeats} image cache checks; steady-state reflection/name resolutions 0; texture/sampler/image binds 0.");
+        output.WriteLine($"Managed array: preparation reflection queries {reflection}; {repeats} full-set validations/publications; {repeats * 2} texture cache checks; sampler comparisons use the uninstrumented batch path; {repeats} image cache checks; steady-state reflection/name resolutions 0; texture/sampler/image binds 0.");
 #endif
 
         using var buffer = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = null }).RequireResource();

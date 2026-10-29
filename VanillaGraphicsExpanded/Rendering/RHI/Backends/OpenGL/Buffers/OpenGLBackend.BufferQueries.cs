@@ -8,16 +8,7 @@ namespace VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 /// <summary>Executes native reads only when the manager explicitly acquires unknown external facts.</summary>
 internal sealed partial class OpenGLBackend
 {
-    #region Internal API
-    /// <summary>Checks an unknown external object's existence at the explicit acquisition boundary.</summary>
-    public bool IsExternalBuffer(nint id)
-    {
-        RequireContext();
-        bool live = id != 0 && id >= int.MinValue && id <= uint.MaxValue && GL.IsBuffer(unchecked((int)id));
-        RequireContext();
-        return live;
-    }
-
+    #region Public API
     /// <summary>Acquires storage using named queries, preserving all surrounding selectors and native errors.</summary>
     public unsafe bool TryReadBufferMetadata(nint id, out GpuBufferMetadata metadata)
     {
@@ -38,5 +29,17 @@ internal sealed partial class OpenGLBackend
         metadata = new((nint)capacity, OpenGLBufferValues.Usage((Legacy.BufferUsageHint)usage), immutable != 0, OpenGLBufferValues.Storage((Native.BufferStorageFlags)flags));
         return true;
     }
+    #endregion
+
+    #region Private
+    /// <summary>Checks an unknown external object's existence at the explicit acquisition boundary.</summary>
+    private bool IsExternalBuffer(nint id)
+    {
+        RequireContext();
+        bool live = id != 0 && id >= int.MinValue && id <= uint.MaxValue && GL.IsBuffer(unchecked((int)id));
+        RequireContext();
+        return live;
+    }
+
     #endregion
 }

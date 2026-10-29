@@ -58,7 +58,7 @@ internal sealed partial class GpuResourceManager
             {
                 manager.RequireOriginalWrapper(resource);
                 entry = manager.GetResourceRegistration(resource) as GpuResourceMetadataEntry<T>
-                    ?? manager.RegisterCreatedResource<T>(resource.Kind, resource.ResourceId);
+                    ?? throw new InvalidOperationException("Resource operations require the original observed wrapper association.");
                 manager.RequireLiveEntry(entry);
                 if (entry.CompletionInProgress)
                 {

@@ -98,6 +98,11 @@ public sealed class InterceptedKnowledgePropagationTests(HeadlessGLFixture fixtu
         OpenGLFramebufferRouting.SetDrawBuffers(cache, 2, [DrawBuffersEnum.None, DrawBuffersEnum.ColorAttachment1]);
         Assert.Equal(0, work.Captures);
         Assert.Equal(0, work.DynamicApplications);
+        // Calibrate the oracle through external dispatch, then force a managed saved-original write.
+        GL.DrawBuffers(2, [DrawBuffersEnum.ColorAttachment0, DrawBuffersEnum.None]);
+        Assert.Equal(1, work.DynamicApplications);
+        OpenGLFramebufferRouting.SetDrawBuffers(cache, 2, [DrawBuffersEnum.None, DrawBuffersEnum.ColorAttachment1]);
+        Assert.Equal(2, work.DynamicApplications);
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
 

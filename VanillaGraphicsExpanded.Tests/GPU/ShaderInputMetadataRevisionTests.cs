@@ -27,8 +27,9 @@ public sealed class ShaderInputMetadataRevisionTests(HeadlessGLFixture fixture)
             var validation = new ShaderInputValidation();
             validation.Commit(default, previous);
             Assert.True(validation.Matches(default, ShaderInputValidation.TextureKey(texture)));
-            GpuResourceManager.ObserveWrapperMetadata(texture, new GpuTextureMetadataReader(texture.TextureTarget),
-                storage ? GpuMetadataChange.Storage : GpuMetadataChange.Metadata);
+            var manager = texture.ResourceManager!;
+            var entry = (GpuResourceMetadataEntry<GpuTextureMetadata>)manager.GetResourceRegistration(texture)!;
+            manager.PublishMetadata(entry, entry.Metadata, storage ? GpuMetadataChange.Storage : GpuMetadataChange.Metadata);
             var current = ShaderInputValidation.TextureKey(texture);
             Assert.Equal(previous.Width, current.Width);
             Assert.Equal(previous.Format, current.Format);
@@ -54,7 +55,9 @@ public sealed class ShaderInputMetadataRevisionTests(HeadlessGLFixture fixture)
             var validation = new ShaderInputValidation();
             validation.Commit(default, previous);
             Assert.True(validation.Matches(default, ShaderInputValidation.StorageKey(range)));
-            GpuResourceManager.ObserveWrapperMetadata(buffer, new GpuBufferMetadataReader(), GpuMetadataChange.Metadata);
+            var manager = buffer.ResourceManager!;
+            var entry = (GpuResourceMetadataEntry<GpuBufferMetadata>)manager.GetResourceRegistration(buffer)!;
+            manager.PublishMetadata(entry, entry.Metadata, GpuMetadataChange.Metadata);
             var current = ShaderInputValidation.StorageKey(range);
             Assert.Equal(previous.Capacity, current.Capacity);
             Assert.Equal(previous.Size, current.Size);
@@ -85,8 +88,8 @@ public sealed class ShaderInputMetadataRevisionTests(HeadlessGLFixture fixture)
             Assert.Throws<InvalidOperationException>(() => textureInput
                 ? ShaderInputValidation.TextureKey(texture) : ShaderInputValidation.StorageKey(range));
             if (textureInput)
-                GpuResourceManager.ObserveWrapperMetadata(texture, new GpuTextureMetadataReader(texture.TextureTarget), GpuMetadataChange.Metadata);
-            else GpuResourceManager.ObserveWrapperMetadata(buffer, new GpuBufferMetadataReader(), GpuMetadataChange.Metadata);
+                GpuResourceManager.RecoverWrapperMetadata(texture, new GpuTextureMetadataReader(texture.TextureTarget));
+            else GpuResourceManager.RecoverWrapperMetadata(buffer, new GpuBufferMetadataReader());
             var current = textureInput ? ShaderInputValidation.TextureKey(texture) : ShaderInputValidation.StorageKey(range);
             Assert.NotEqual(previous.Revisions, current.Revisions);
             Assert.Equal(current, textureInput ? ShaderInputValidation.TextureKey(texture) : ShaderInputValidation.StorageKey(range));

@@ -1,6 +1,7 @@
 using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using HarmonyLib;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.HarmonyPatches;
@@ -12,10 +13,16 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 /// <summary>Checks external renderbuffer allocation and manager-owned image dependency publication.</summary>
 [Collection("GPU")]
 [Trait("Category", "GPU")]
-public sealed class GpuRenderbufferMetadataInterceptionTests(HeadlessGLFixture fixture)
+public sealed unsafe class GpuRenderbufferMetadataInterceptionTests(HeadlessGLFixture fixture)
 {
     private static int[]? capturedAdvancedArguments;
     private static int renderbufferBinds;
+    /// <summary>Matches the renderbuffer selector ABI.</summary>
+    [UnmanagedFunctionPointer(CallingConvention.StdCall)]
+    private delegate void BindRenderbufferCall(int target, uint name);
+    /// <summary>Matches the optional named coverage allocation ABI.</summary>
+    [UnmanagedFunctionPointer(CallingConvention.StdCall)]
+    private delegate void CoverageStorageCall(uint name, int coverage, int samples, int format, int width, int height);
     #region Public API
     /// <summary>An interrupted texture storage operation withdraws all selected images and notifies their consumers before recovery.</summary>
     [Fact]
@@ -44,7 +51,7 @@ public sealed class GpuRenderbufferMetadataInterceptionTests(HeadlessGLFixture f
             Assert.Equal(1, secondChanges);
             Assert.Throws<InvalidOperationException>(() => firstFramebuffer.Bind());
             Assert.Throws<InvalidOperationException>(() => secondFramebuffer.Bind());
-            GpuResourceManager.ObserveWrapperMetadata(texture, new GpuTextureMetadataReader(TextureDimension.Two), GpuMetadataChange.Storage);
+            GpuResourceManager.RecoverWrapperMetadata(texture, new GpuTextureMetadataReader(TextureDimension.Two));
             Assert.Equal(2, firstChanges);
             Assert.Equal(2, secondChanges);
             Assert.Equal(8, first.Width);
@@ -62,14 +69,19 @@ public sealed class GpuRenderbufferMetadataInterceptionTests(HeadlessGLFixture f
     {
         fixture.EnsureContextValid();
         fixture.InitializeResourceDisposal();
-        var harmony = new Harmony("VGE.Tests.RenderbufferMetadata.Addressing");
+        using var native = new NativeDriverCapture();
+        var originalBind = (delegate* unmanaged[Stdcall]<int, uint, void>)native.Original("glBindRenderbuffer");
+        native.Add("glBindRenderbuffer", new BindRenderbufferCall((target, name) =>
+        {
+            originalBind(target, name);
+            renderbufferBinds++;
+        }));
+        native.Install();
         int sentinel = GL.GenRenderbuffer();
         GL.BindRenderbuffer(RenderbufferTarget.Renderbuffer, sentinel);
         OpenGlStateCache.Current.InvalidateAll();
         try
         {
-            harmony.Patch(AccessTools.Method(typeof(GL), nameof(GL.BindRenderbuffer), [typeof(RenderbufferTarget), typeof(int)]),
-                prefix: new HarmonyMethod(typeof(GpuRenderbufferMetadataInterceptionTests), nameof(CountRenderbufferBind)));
             renderbufferBinds = 0;
             using var owner = RHICommandContext.Current.CreateRenderbuffer(new RHIRenderbufferDescription { Format = TextureFormat.Rgba8, Width = 4, Height = 4, Samples = 4, Label = null }).RequireResource();
             using var alias = VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLRenderbufferIntegration.Borrow(owner.RenderbufferId);
@@ -84,7 +96,6 @@ public sealed class GpuRenderbufferMetadataInterceptionTests(HeadlessGLFixture f
         }
         finally
         {
-            harmony.UnpatchAll(harmony.Id);
             RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Renderbuffer, sentinel));
             fixture.CleanupGpuResources();
             OpenGlStateCache.Current.InvalidateAll();
@@ -97,26 +108,30 @@ public sealed class GpuRenderbufferMetadataInterceptionTests(HeadlessGLFixture f
     {
         fixture.EnsureContextValid();
         fixture.InitializeResourceDisposal();
-        var harmony = new Harmony("VGE.Tests.RenderbufferMetadata.AdvancedDispatch");
+        using var native = new NativeDriverCapture();
+        var original = (delegate* unmanaged[Stdcall]<uint, int, int, int, int, void>)native.Original("glNamedRenderbufferStorageMultisample");
+        native.Add("glNamedRenderbufferStorageMultisampleCoverageEXT", new CoverageStorageCall((name, coverage, samples, format, width, height) =>
+        {
+            capturedAdvancedArguments = [unchecked((int)name), coverage, samples, format, width, height];
+            // The stand-in supplies ordinary native multisample storage; production observation
+            // still runs through the optional entrypoint and its actual post-call ABI.
+            original(name, samples, format, width, height);
+        }));
+        native.Install();
         try
         {
-            Type nativeOwner = typeof(GL.Ext);
-            string nativeName = "NamedRenderbufferStorageMultisampleCoverage";
-            var native = AccessTools.Method(nativeOwner, nativeName, [typeof(int), typeof(int), typeof(int), typeof(InternalFormat), typeof(int), typeof(int)]);
-            harmony.Patch(native, prefix: new HarmonyMethod(typeof(GpuRenderbufferMetadataInterceptionTests), nameof(SubstituteAdvancedStorage)));
-
             using var owner = RHICommandContext.Current.CreateRenderbuffer(new RHIRenderbufferDescription { Format = TextureFormat.Rgba8, Width = 4, Height = 4, Samples = 0, Label = null }).RequireResource();
             var entry = GpuResourceManagerSystem.CurrentManager!.GetResourceRegistration(owner)!;
             ulong previous = entry.MetadataRevision;
             capturedAdvancedArguments = null;
             AllocateAdvanced(owner.RenderbufferId);
-            Assert.Equal(new[] { owner.RenderbufferId, 8, 4, (int)InternalFormat.Rgba8, 12, 6 }, capturedAdvancedArguments);
+            Assert.Equal(new[] { owner.RenderbufferId, 4, 4, (int)InternalFormat.Rgba8, 12, 6 }, capturedAdvancedArguments);
             Assert.Equal(12, owner.Width);
             Assert.Equal(6, owner.Height);
             Assert.Equal(previous + 1, entry.MetadataRevision);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { harmony.UnpatchAll(harmony.Id); capturedAdvancedArguments = null; fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
+        finally { capturedAdvancedArguments = null; fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
 
     /// <summary>Bound and explicit core/EXT mutations publish aliases and selected images before notifying consumers once.</summary>
@@ -254,22 +269,12 @@ public sealed class GpuRenderbufferMetadataInterceptionTests(HeadlessGLFixture f
     #endregion
 
     #region Private
-    /// <summary>Counts actual native bind dispatch without altering its arguments or behavior.</summary>
-    private static void CountRenderbufferBind() { renderbufferBinds++; }
 
     /// <summary>Exercises exact extension signatures while their unavailable hardware implementation is substituted.</summary>
     [MethodImpl(MethodImplOptions.NoInlining)]
     private static void AllocateAdvanced(int id)
     {
-        GL.Ext.NamedRenderbufferStorageMultisampleCoverage(id, 8, 4, InternalFormat.Rgba8, 12, 6);
-    }
-
-    /// <summary>Captures every extension argument and allocates ordinary storage solely to test metadata observation.</summary>
-    private static bool SubstituteAdvancedStorage(int __0, int __1, int __2, InternalFormat __3, int __4, int __5)
-    {
-        capturedAdvancedArguments = [__0, __1, __2, (int)__3, __4, __5];
-        GL.NamedRenderbufferStorage(__0, RenderbufferStorage.Rgba8, __4, __5);
-        return false;
+        GL.Ext.NamedRenderbufferStorageMultisampleCoverage(id, 4, 4, InternalFormat.Rgba8, 12, 6);
     }
 
     /// <summary>Installs the production engine transpiler on this fixture's native call boundary.</summary>

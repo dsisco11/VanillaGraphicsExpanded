@@ -28,8 +28,8 @@ internal sealed partial class GpuResourceManager
             {
                 if (texture.Metadata.Target == RHI.TextureDimension.Buffer)
                     throw new NotSupportedException("Use GpuBufferView for buffer textures.");
-                // The canonical entry already knows the immutable object target. Preserve that
-                // fact when an external borrower conservatively refreshes through an older API.
+                // The canonical entry already knows the immutable object target. Preserve it
+                // when an explicitly recorded discovery cause selects a reader.
                 if (reader is GpuTextureMetadataReader && texture.Metadata.Target != 0)
                     reader = (IGpuResourceMetadataReader<T>)(object)new GpuTextureMetadataReader(texture.Metadata.Target);
             }

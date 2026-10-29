@@ -45,12 +45,14 @@ public sealed class PreparedBindingTests(HeadlessGLFixture fixture) : RenderTest
         {
             var failure = Assert.Throws<InvalidOperationException>(() => new GpuProgramInterface(shader.ProgramId, [LiquidShaderProgram.Contract.Bindings]));
             Assert.Contains("Ambiguous linked UniformBlock binding 15", failure.Message);
-            Assert.Same(installed, shader.ProgramLayout.BinaryInterface);
+            Assert.True(shader.ProgramLayout.NeedsNativePreparation);
+            Assert.Throws<InvalidOperationException>(() => shader.ProgramLayout.BinaryInterface);
         }
         // Restore the executable's original resource map even if inspection fails.
         finally { GL.UniformBlockBinding(shader.ProgramId, draw, 14); }
         Assert.NotNull(new GpuProgramInterface(shader.ProgramId, [LiquidShaderProgram.Contract.Bindings]));
-        Assert.Same(installed, shader.ProgramLayout.BinaryInterface);
+        Assert.False(shader.ProgramLayout.NeedsNativePreparation);
+        Assert.NotSame(installed, shader.ProgramLayout.BinaryInterface);
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
 

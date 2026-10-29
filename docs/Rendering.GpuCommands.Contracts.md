@@ -81,8 +81,10 @@ are private owner services. The manager receives the admitted context explicitly
 an OpenGL backend. Typed context methods invoke the contract; no service-locator property or second
 dispatch registry is exposed. Public factories are not called again from private initialization.
 
-Manager-owned readers decide when unknown facts need acquisition. Backend query implementations execute
-those reads, including narrow executable-field and framebuffer-field recovery. Published snapshot access
+Manager-owned readers admit discovery only for recorded pre-installation or supported EXT implicit-creation
+provenance, and explicit recovery of an unavailable original entry. Missing covered entries and context-local
+tools do not grant discovery. Backend query implementations execute those authorized reads and explicit
+driver-produced outputs. Published snapshot access
 never calls these services. Cached limits come from `RHICapabilities`; there is no separate discovery path.
 Retirement reaches one backend kind dispatcher only after existing owner/queue original-context and
 association admission. Candidate cleanup uses the same route, preserving original errors and identities.
@@ -163,8 +165,9 @@ through original-context retirement; borrowed backing allocations survive. Inten
 commits ready storage under existing replacement rules; it does not promise rollback after old retirement.
 
 Borrow/adopt/recover native names belong to the OpenGL integration boundary. They accept explicit native
-identity and ownership intent there, reuse covered available facts and acquire only unknown external
-facts. They are not portable factories or automatic recovery on every command.
+identity and ownership intent there and reuse covered available facts. Discovery requires recorded
+pre-installation or supported EXT implicit-creation provenance; failed discovery requires explicit
+original-entry recovery. They are not portable factories or automatic recovery on every command.
 
 ## Descriptor and enum inputs
 

@@ -4,7 +4,7 @@ Maintained resource metadata lifecycle — implementation plan
 Source proposal: [Rendering.MetadataLifecycle.Proposal.md](Rendering.MetadataLifecycle.Proposal.md).
 Parent integration gate: [Rendering.GpuCommands.todo](Rendering.GpuCommands.todo), subphase 8i.
 Initial inventory: [Rendering.MetadataLifecycle.Inventory.md](Rendering.MetadataLifecycle.Inventory.md).
-Status: Phases 1–6 complete; Phase 7 remains pending.
+Status: All seven phases and final acceptance complete; parent integration gate 8i is qualified.
 
 Goal
   Maintain canonical resource facts from observed creation, guaranteed defaults and subsequent commands.
@@ -110,8 +110,8 @@ Phase 1: Complete lifecycle coverage and migration dependencies
     unresolved coverage/semantic questions are resolved before the affected family begins implementation.
 
   Verification: fresh compiler-reference PE probe and source reconciliation recorded in the lifecycle
-    inventory and Rendering.MetadataLifecycle.Bindings.tsv (430 unique symbols, exact owner/ABI/overload
-    matches). Second review and independent stage audit passed for inventory/design coverage. Runtime
+    inventory and the temporary binding table (430 unique symbols, exact owner/ABI/overload
+    matches; the temporary table is removed at closeout). Second review and independent stage audit passed for inventory/design coverage. Runtime
     implementation and native qualification remain with Phases 2–7; no production changes in Phase 1.
 
 Phase 2: Establish registration lifecycle with memory objects and buffers
@@ -331,48 +331,69 @@ Phase 7: Qualify complete lifecycle coverage and reconcile architecture
   Depends on Phases 1–6; this is combined qualification, not deferred per-family migration or cleanup.
   Outcome: every covered resource lifecycle and remaining query is accounted for with verified consumer behavior.
 
-  ☐ Reconcile every factory/configuration/deletion/realization inventory row with actual generated callbacks,
+  ☑ Reconcile every factory/configuration/deletion/realization inventory row with actual generated callbacks,
     backend saved-original execution and manager/cache effects. Check arguments and data flow, not only
     attribute/symbol presence. Resolve omissions in their owning family before declaring combined completion.
-  ☐ Resolve all migration TODO comments referencing Rendering.MetadataLifecycle.todo, removing each
+  ☑ Resolve all migration TODO comments referencing Rendering.MetadataLifecycle.todo, removing each
     comment only after its named family replacement is implemented and verified.
-  ☐ Revisit every named reader/acquisition/recovery and interruption method from Phase 1. Confirm its final
+  ☑ Revisit every named reader/acquisition/recovery and interruption method from Phase 1. Confirm its final
     removal or narrowly justified consumer route, including startup/reload, initial adoption and local tools.
     Verify absent entries under covered creation are diagnosed as tracking defects without descriptor recovery.
     Validate optional import exceptions individually; no unexplained read may inherit a general exemption.
-  ☐ Run delegated canonical shader-enabled Debug and ordinary Release builds and combined focused lifecycle
+  ☑ Run delegated canonical shader-enabled Debug and ordinary Release builds and combined focused lifecycle
     tests. Cover raw OpenTK/engine-style and RHI creation, reserved realization, aliases/views/dependencies,
     imported setup, failed commands, pre-install adoption, explicit recovery, context recreation and name reuse.
     Confirm once-only dispatch/registration/publication and unchanged native errors/outputs, suppression and
     zero unexpected descriptor reads. Update obsolete managed interception fixtures to the native boundary.
-  ☐ Verify each retained output-read exception with its own test: compiler/linker/interface results,
+  ☑ Verify each retained output-read exception with its own test: compiler/linker/interface results,
     unsized format resolution, cached versus fallback sample counts, documented recovery and deletion outcomes.
     Keep unsupported hardware execution and inherited unrelated suite failures explicit; focused checks do
     not establish package identity, live appearance or integrated rendering acceptance.
-  ☐ Reconcile the source proposal, RHI contracts, lifecycle inventory, resource inventory/API coverage,
+  ☑ Reconcile the source proposal, RHI contracts, lifecycle inventory, resource inventory/API coverage,
     acquisition analysis and permanent resource/shader-binding docs with implemented ownership and query rules.
     Record concise qualification receipts in the existing planning companions; do not create an extra audit report.
-  ☐ Remove temporary migration documents after reconciling their coverage with the implemented system and
+  ☑ Remove temporary migration documents after reconciling their coverage with the implemented system and
     automated checks, explicitly including docs/Rendering.MetadataLifecycle.Bindings.tsv. Review other
     temporary inventories and planning evidence for removal; preserve any still-needed architectural
     decisions in the appropriate permanent documentation. Update all affected links and references,
     including this plan and Rendering.MetadataLifecycle.Inventory.md, so no active contract depends on
     a deleted artifact. Do not retain a parallel manually maintained binding specification.
-  ☐ Perform second source review and independent completion audit against every proposal requirement and
+  ☑ Perform second source review and independent completion audit against every proposal requirement and
     linked contract. Resolve required discrepancies before checking completion or the parent 8i gate.
     Parent RHI 8j/8k and integrated/package/user qualification in Phase 9 remain separate and unchecked.
-  ☐ Completion: the full supported creation/configuration lifecycle maintains canonical facts; ordinary
+  ☑ Completion: the full supported creation/configuration lifecycle maintains canonical facts; ordinary
     consumers perform no discovery, remaining reads have explicit evidence, and no migration shim or second
     authority remains. Hardware limitations are recorded without being represented as executed coverage.
 
+  Verification: second source review and independent completion audit passed with no unresolved required findings.
+    Canonical shader-enabled Debug and ordinary Release final builds passed with zero errors.
+    Each configuration qualified 1,099 distinct focused cases and 35 generator cases, zero failures/skips.
+    Distinct totals combine still-valid broad receipts with final affected/new-case and shader-deletion
+    supplements, deduplicated by exact TRX test name. Receipts: artifacts/metadata-lifecycle/phase7/
+    build-*-qualified.log, phase7-final-v6-debug.trx, phase7-final-release.trx,
+    phase7-qualified-supplemental-*.trx, phase7-shader-deletion-*.trx and phase7-generator-*.trx.
+    combined-filter-final.txt records the complete selection; resolved-references.json and the live hash
+    identify the unchanged compiler-selected OpenTK assembly. All 440 selected owner/ABI dispositions
+    were reconciled independently; native callback effect paths and saved-original publication were reviewed.
+    Unused readback/validity facades and the generic mutation fallback are removed. Operation admission
+    rejects missing original association; framebuffer rejection precedes withdrawal, and optional-target
+    uncertainty uses no callback capability/selector reads. Obsolete managed-only query/dispatch oracles
+    now observe actual native routes. No lifecycle migration TODO remains.
+    docs/Rendering.MetadataLifecycle.Bindings.tsv is removed after reconciliation; no active link or build
+    input depends on it. The semantic inventory and architectural decisions remain in the existing
+    companions; local compiler probes/TRX files are qualification artifacts, not a second binding authority.
+    Optional aliases/imports include deterministic native stand-ins. Optional hardware execution,
+    cross-API producer interop, installed-game startup, appearance/performance and the parent's inherited
+    full-lighting mismatch remain outside this focused qualification. Parent 8j/8k and Phase 9 remain open.
+
 Final acceptance
-  ☐ Every source-proposal requirement maps to implemented behavior and appropriate evidence.
-  ☐ All seven phases and inherited family completion requirements are satisfied, including original
+  ☑ Every source-proposal requirement maps to implemented behavior and appropriate evidence.
+  ☑ All seven phases and inherited family completion requirements are satisfied, including original
     identities, reserved realization, complete snapshots, dependency retirement and context ownership.
-  ☐ Covered borrowing/adoption is query-free; pre-install discovery, recorded EXT implicit-creation initial
+  ☑ Covered borrowing/adoption is query-free; pre-install discovery, recorded EXT implicit-creation initial
     discovery and each remaining output/recovery read have explicit provenance and consumer justification.
     No blanket import/local-tool exception remains.
-  ☐ No superseded readback/invalidation route, temporary shim, duplicate cache/registry or backend leak
+  ☑ No superseded readback/invalidation route, temporary shim, duplicate cache/registry or backend leak
     survives in a completed family. Documentation and the parent integration gate agree with actual evidence.
 
 Open evidence and scope checks

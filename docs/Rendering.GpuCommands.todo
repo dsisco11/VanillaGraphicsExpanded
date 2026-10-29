@@ -3,8 +3,8 @@ RHI commands and command lists — implementation plan
 
 Source proposal: [Rendering.GpuCommands.Proposal.md](Rendering.GpuCommands.Proposal.md).
 Parent design task: Rendering.GpuResourceHandles.todo, Phase 8.
-Status: Phases 1–7 have recorded qualification receipts. Corrective subphases 8a–8h and 8h.1 are qualified.
-Subphase 8i redesigns creation interception and maintained lifecycle metadata. Combined qualification follows
+Status: Phases 1–7 have recorded qualification receipts. Corrective subphases 8a–8i and 8h.1 are qualified.
+The maintained metadata lifecycle is complete. Broader corrective qualification follows
 in 8j, with management naming in 8k. Phase 9 integrated/package/user qualification remains
 open, including the explicitly recorded full-lighting numerical mismatch.
 
@@ -1187,18 +1187,26 @@ Phase 8i: Implement the maintained metadata lifecycle plan
     them without discovery, and every remaining query has an explicit cause and concrete consumer.
   Detailed execution tasks live solely in the dedicated plan; this section is the parent integration gate.
 
-  ☐ Complete all seven phases and final acceptance of Rendering.MetadataLifecycle.todo, including its
+  ☑ Complete all seven phases and final acceptance of Rendering.MetadataLifecycle.todo, including its
     complete family migrations, original identity/dependency handling, narrow query policy and no-shim rules.
     Proposal approval and creation of the dedicated plan do not establish implementation completion.
-  ☐ Verify combined lifecycle evidence for raw OpenTK and RHI-owned resources, reserved realization,
+  ☑ Verify combined lifecycle evidence for raw OpenTK and RHI-owned resources, reserved realization,
     aliases/views, imports, invalid commands, name/context reuse, pre-install adoption and legitimate
     driver-produced outputs. Covered borrowing is query-free; no blanket import or no-manager exemption.
-  ☐ Reconcile lifecycle results with RHI contracts, resource inventory/API coverage, acquisition analysis
+  ☑ Reconcile lifecycle results with RHI contracts, resource inventory/API coverage, acquisition analysis
     and permanent ownership/binding documentation. Retain explicit hardware and integrated qualification gaps.
-  ☐ Complete second review and independent completion audit against the approved design and dedicated plan
+  ☑ Complete second review and independent completion audit against the approved design and dedicated plan
     before closing this parent gate. Later 8j/8k and Phase 9 work remain independently required.
-  ☐ Completion: the dedicated plan is fully qualified; no missing creation/configuration observation is
+  ☑ Completion: the dedicated plan is fully qualified; no missing creation/configuration observation is
     disguised as normal acquisition, and no temporary shim or second metadata authority remains.
+
+  Verification: all seven lifecycle phases and final acceptance are complete. Second source review and
+    independent completion audit passed. Canonical shader-enabled Debug and ordinary Release builds
+    passed; each configuration qualified 1,099 distinct focused lifecycle/consumer cases plus 35 generator
+    cases, zero failures/skips. Exact receipts and source/read-exception reconciliation are recorded in
+    Rendering.MetadataLifecycle.todo and Rendering.MetadataLifecycle.Inventory.md; native stand-ins,
+    optional hardware/interop, rectangle-mip driver reporting and integrated/package/visual limits remain
+    explicit. Subphases 8j/8k and Phase 9 remain independently open. No staging or commit by the agent.
 
 Phase 8j: Qualify corrective closure and reconcile documentation
   Depends on 8a–8i, including 8h.1.

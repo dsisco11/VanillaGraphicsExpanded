@@ -9,7 +9,7 @@ variant and every managed overload has the implementation and verification oblig
 The approved command-publication policy (`3f307365:docs/Rendering.CommandPublication.Proposal.md`)
 controls how the families below publish metadata. Here, "refresh" means make canonical facts current;
 it does not mandate native readback after controlled commands. Controlled inputs/defaults/derivations
-are authoritative under existing failure handling. Unknown external effects use acquisition/recovery;
+are authoritative under existing failure handling. The [maintained lifecycle policy](Rendering.MetadataLifecycle.Proposal.md) permits recorded pre-installation/EXT implicit-creation discovery and explicit original-entry recovery only. Missing covered tracking or a local tool cannot authorize scans;
 required driver-output reads are individually justified in that proposal. Existing scope, native-error,
 per-object outcome and lifecycle obligations remain. No broader command-success verification is added.
 
@@ -118,7 +118,7 @@ per-wrapper query handler or generation-based resource key is introduced.
 
 All enumerated API families/variants within the explicit exclusions remain in scope. Moving fields to canonical structs
 does not narrow API coverage. Empty per-kind structs and owner-only fields retain the explicit semantic
-dispositions below. Initial fixed shader type acquisition requires no new mutable shader-storage family.
+dispositions below. Fixed shader stages come from factory inputs; authorized initial discovery/recovery retains its concrete reader without a mutable shader-storage family.
 The metadata revision used to invalidate stale assumptions is registration bookkeeping, not GPU contents.
 
 ## Families, implementation and verification

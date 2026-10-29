@@ -1,7 +1,7 @@
 using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.Pipeline.Descriptions;
 using System;
-using HarmonyLib;
+using System.Runtime.InteropServices;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
@@ -56,30 +56,35 @@ public sealed class RHIComputePipelineTests(HeadlessGLFixture fixture)
     }
     /// <summary>Native callbacks cannot retire executing objects, and retired selections reject work before dispatch.</summary>
     [Fact]
-    public void DispatchProtectsShaderAndPipelineUntilNativeReturn()
+    public unsafe void DispatchProtectsShaderAndPipelineUntilNativeReturn()
     {
         fixture.EnsureContextValid(); fixture.InitializeResourceDisposal();
-        var harmony = new Harmony($"rhi-compute-lifetime-{Guid.NewGuid()}");
         try
         {
             var context = RHICommandContext.Current;
             using var shader = context.CreateShader(RHIShaderInputs.EmptyComputeDescription()).RequireResource();
             using var pipeline = context.CreateComputePipeline(new(shader)).RequireResource();
             int calls = 0;
-            DispatchObservation.Callback = () =>
+            using var native = new NativeDriverCapture();
+            nint original = native.Original("glDispatchCompute");
+            native.Add("glDispatchCompute", new DispatchCompute((x, y, z) =>
             {
-                calls++;
-                Assert.Throws<InvalidOperationException>(shader.Dispose);
-                Assert.Throws<InvalidOperationException>(pipeline.Dispose);
-                Assert.Throws<InvalidOperationException>(() => context.Dispatch(new(0)));
-                Assert.Throws<InvalidOperationException>(() => context.SetPipeline(pipeline));
-            };
-            harmony.Patch(AccessTools.Method(typeof(OpenTK.Graphics.OpenGL4.GL), "DispatchCompute", [typeof(int), typeof(int), typeof(int)]),
-                prefix: new HarmonyMethod(typeof(DispatchObservation), nameof(DispatchObservation.BeforeDispatch)));
+                native.Observe(() =>
+                {
+                    calls++;
+                    Assert.Throws<InvalidOperationException>(shader.Dispose);
+                    Assert.Throws<InvalidOperationException>(pipeline.Dispose);
+                    Assert.Throws<InvalidOperationException>(() => context.Dispatch(new(0)));
+                    Assert.Throws<InvalidOperationException>(() => context.SetPipeline(pipeline));
+                });
+                ((delegate* unmanaged[Stdcall]<uint, uint, uint, void>)original)(x, y, z);
+            }));
+            native.Install();
             context.SetPipeline(pipeline);
             context.BindResources(new(shader));
             // Zero workgroups exercise dispatch callbacks without running a shader whose resources are unbound.
             context.Dispatch(new(0));
+            native.RequireSuccessfulObservation();
             Assert.Equal(1, calls);
             pipeline.Dispose();
             Assert.Throws<ObjectDisposedException>(() => context.Dispatch(new(0)));
@@ -88,8 +93,6 @@ public sealed class RHIComputePipelineTests(HeadlessGLFixture fixture)
         }
         finally
         {
-            DispatchObservation.Callback = null;
-            harmony.UnpatchAll(harmony.Id);
             fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll();
         }
     }
@@ -162,12 +165,8 @@ public sealed class RHIComputePipelineTests(HeadlessGLFixture fixture)
     #endregion
 
     #region Private
-    /// <summary>Observes the exact managed backend entry point while keeping native dispatch intact.</summary>
-    private static class DispatchObservation
-    {
-        internal static Action? Callback;
-        /// <summary>Runs the test callback before native dispatch returns to the guarded submission.</summary>
-        internal static void BeforeDispatch() => Callback?.Invoke();
-    }
+    /// <summary>Preserves the native workgroup-count ABI during guarded lifetime assertions.</summary>
+    [UnmanagedFunctionPointer(CallingConvention.StdCall)]
+    private delegate void DispatchCompute(uint x, uint y, uint z);
     #endregion
 }

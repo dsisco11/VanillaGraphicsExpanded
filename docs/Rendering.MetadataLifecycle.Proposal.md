@@ -6,7 +6,7 @@ Completion feeds subphase 8i of [the RHI implementation plan](Rendering.GpuComma
 [RHI proposal](Rendering.GpuCommands.Proposal.md),
 [ownership contracts](Rendering.GpuCommands.Contracts.md) and
 [native interception design](Rendering.OpenTKBindingInterception.Proposal.md).
-It does not claim that creation interception or the lifecycle below is implemented.
+The lifecycle is implemented; combined qualification and its limits are recorded in the dedicated plan.
 
 ## One authority, maintained from creation
 
@@ -73,7 +73,7 @@ OpenGL guarantees, established explicitly rather than inferred from C# `default`
 | `GpuShaderModule` | `GpuShaderMetadata` | Fixed shader stage from creation. Compilation status/logs remain driver-produced outputs, not invented metadata fields. |
 | `GpuProgramObject`, `GpuProgramLayout` | `GpuProgramMetadata` | Fresh unlinked defaults; executable/interface results after link or binary installation; represented unit/block assignments patched from their commands. Link-input declarations affect the next executable, not the installed interface. Numeric uniforms do not refresh metadata. |
 | `GpuProgramPipeline` | `GpuProgramPipelineMetadata` | Identity/default realization and configuration revisions; stage selection remains with existing execution knowledge. No new stage-layout mirror. |
-| `GpuVao` | `GpuVertexArrayMetadata` | Identity/default realization and configuration revisions. Existing cache/helper certification owns element/vertex binding knowledge; no full canonical VAO layout mirror. |
+| `GpuVao` | `GpuVertexArrayMetadata` | Identity/default realization and configuration revisions. Existing executed knowledge owns element bindings; authored geometry and original revision receipts drive private VAO realization without layout scans or a canonical layout mirror. |
 | `GpuTransformFeedback` | `GpuTransformFeedbackMetadata` | Identity/default realization and relevant configuration revisions; binding/activity remains executed knowledge. |
 | `GpuSampler` | `GpuSamplerMetadata` | Identity/default realization. Keep the empty canonical schema; sampler policy and any existing parameter knowledge retain their owners. No new parameter mirror solely for interception. |
 | `GpuQuery`, `GpuFence`, `GpuSemaphore`, `GpuMemoryObject` | `GpuQueryMetadata`, `GpuSyncMetadata`, `GpuSemaphoreMetadata`, `GpuMemoryObjectMetadata` | Kind-specific creation/import identities and lifetime. Keep empty schemas; query/wait results and imported payloads do not become descriptor scans. |

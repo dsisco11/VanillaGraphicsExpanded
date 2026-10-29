@@ -64,8 +64,10 @@ inactive required entries remain legal. No sampler/image uniform writes repair a
 Preparation has no native program-ID parameter, native query path or manager acquisition fallback.
 Unavailable snapshots, uninitialized collections and missing required typed fields or unit assignments
 reject preparation. `GpuProgramInterface` requests canonical facts through the private RHI acquisition boundary when its caller
-has no snapshot; the admitted backend invokes manager acquisition. Graphics and compute candidates supply
-their existing owner snapshots directly.
+has no snapshot; the admitted backend invokes manager acquisition. That operation reuses maintained facts;
+descriptor discovery requires a recorded pre-installation or supported EXT implicit-creation cause, and
+unavailable original facts require explicit recovery. Missing tracking and local tools never grant read
+permission. Graphics and compute candidates supply their existing owner snapshots directly.
 Unit/block changes publish their supplied scalar/array values against the existing canonical interface,
 without uniform getters or full reflection. Ignored locations, numeric uniforms and proven rejected
 assignments preserve revisions and active certificates. Unavailable executable facts remain unavailable;

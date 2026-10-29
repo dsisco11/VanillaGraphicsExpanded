@@ -13,11 +13,16 @@ select `G:/Vintagestory/Lib/OpenTK.Graphics.dll`, version 4.9.4.0, MVID
 `5B57957CA9E4C5F7BFB7EC495B991E6B88CFAC52863A19E405492AB8C33CB1D2`.
 The project references `$(VINTAGE_STORY)/Lib/OpenTK.Graphics.dll`; `resolved-references.json` records
 the evaluated reference. The fresh probe recovered 1,981 symbols and 9,693 nongeneric calli overloads.
-`artifacts/metadata-lifecycle/bindings.json` retains per-overload owner, slot and managed/native signatures. The durable
-[binding table](Rendering.MetadataLifecycle.Bindings.tsv) records 440 selected factory, realization,
-configuration, output and excluded-candidate symbols with exact owners, ABI, migration phase and current
-observer source. Selection combines the API family matrix, current native observers and factory/implicit
-realization rules below; current observer presence does not limit required coverage.
+The compiler-derived generator is the binding signature authority: `OpenTKSignatures` decodes native
+slots and `calli` signatures from the actual compiler PE reference; `InterceptionGenerator` rejects
+unknown symbols, duplicate observers and ABI mismatches, then emits the callback catalog.
+Handwritten `InterceptOpenGL` attributes select represented effects; generated `OpenGLDriverCalls`
+overloads select saved-original execution from consumed managed overloads. No manually maintained
+signature/binding table is required. Source closeout reconciles 440 selected lifecycle/configuration,
+output and excluded candidates against those declarations and the explicit no-hook decisions below;
+there are 437 active native observer symbols, including non-lifecycle execution state.
+The local PE probe and `artifacts/metadata-lifecycle/bindings.json` are reproducible qualification
+artifacts, not build inputs or a second binding specification.
 
 All selected ABIs use StdCall in this assembly. `int`/`uint` are 32-bit, `byte` is GLboolean,
 `nint`/pointers are native-width, and `long`/`ulong` are 64-bit. Counted name factories write `uint*`;
@@ -42,17 +47,17 @@ the nested binding owner. Observer presence is source evidence only, not effect 
 | `glCreateBuffers` | `GL`, `GL4` | Creation observer implemented; see maintained buffer routes below |
 | `glCreateFramebuffers` | `GL`, `GL4` | Implemented; maintained image lifecycle |
 | `glCreateMemoryObjectsEXT` | `GL+Ext` | Creation observer implemented; see maintained buffer routes below |
-| `glCreateProgram` | `GL`, `GL4` | No creation/import observer declared |
-| `glCreateProgramObjectARB` | `GL+Arb` | No creation/import observer declared |
-| `glCreateProgramPipelines` | `GL`, `GL4` | No creation/import observer declared |
+| `glCreateProgram` | `GL`, `GL4` | Implemented; maintained executable/pipeline lifecycle |
+| `glCreateProgramObjectARB` | `GL+Arb` | Implemented; maintained executable/pipeline lifecycle |
+| `glCreateProgramPipelines` | `GL`, `GL4` | Implemented; maintained executable/pipeline lifecycle |
 | `glCreateQueries` | `GL`, `GL4` | Implemented; see maintained synchronization routes below |
 | `glCreateRenderbuffers` | `GL`, `GL4` | Implemented; maintained image lifecycle |
 | `glCreateSamplers` | `GL`, `GL4` | Implemented; maintained empty-schema routes below |
-| `glCreateShader` | `GL`, `GL4` | No creation/import observer declared |
-| `glCreateShaderObjectARB` | `GL+Arb` | No creation/import observer declared |
-| `glCreateShaderProgramEXT` | `GL+Ext`, `GL4+Ext` | No creation/import observer declared |
-| `glCreateShaderProgramv` | `GL`, `GL4` | No creation/import observer declared |
-| `glCreateShaderProgramvEXT` | `GL+Ext`, `GL4+Ext` | No creation/import observer declared |
+| `glCreateShader` | `GL`, `GL4` | Implemented; maintained executable/pipeline lifecycle |
+| `glCreateShaderObjectARB` | `GL+Arb` | Implemented; maintained executable/pipeline lifecycle |
+| `glCreateShaderProgramEXT` | `GL+Ext`, `GL4+Ext` | Implemented; maintained executable/pipeline lifecycle |
+| `glCreateShaderProgramv` | `GL`, `GL4` | Implemented; maintained executable/pipeline lifecycle |
+| `glCreateShaderProgramvEXT` | `GL+Ext`, `GL4+Ext` | Excluded ES-only separate-shader-object API |
 | `glCreateSyncFromCLeventARB` | `GL+Arb`, `GL4+Arb` | Excluded from supported lifecycle scope; see resolved exclusions below |
 | `glCreateTextures` | `GL`, `GL4` | Implemented; maintained image lifecycle |
 | `glCreateTransformFeedbacks` | `GL`, `GL4` | Implemented; maintained empty-schema routes below |
@@ -63,8 +68,8 @@ the nested binding owner. Observer presence is source evidence only, not effect 
 | `glGenFramebuffers` | `GL`, `GL4` | Implemented; maintained image lifecycle |
 | `glGenFramebuffersEXT` | `GL+Ext` | Implemented; maintained image lifecycle |
 | `glGenLists` | `GL` | Excluded legacy feature |
-| `glGenProgramPipelines` | `GL`, `GL4` | No creation/import observer declared |
-| `glGenProgramPipelinesEXT` | `GL+Ext`, `GL4+Ext` | No creation/import observer declared |
+| `glGenProgramPipelines` | `GL`, `GL4` | Implemented; maintained executable/pipeline lifecycle |
+| `glGenProgramPipelinesEXT` | `GL+Ext`, `GL4+Ext` | Excluded ES-only separate-shader-object API |
 | `glGenProgramsARB` | `GL+Arb` | Excluded legacy feature |
 | `glGenQueries` | `GL`, `GL4` | Implemented; see maintained synchronization routes below |
 | `glGenQueriesARB` | `GL+Arb` | Implemented; see maintained synchronization routes below |
@@ -94,14 +99,14 @@ the nested binding owner. Observer presence is source evidence only, not effect 
 | `glDeleteBuffersARB` | `GL+Arb` | Observer present; inspect per-name outcomes |
 | `glDeleteFramebuffers` | `GL`, `GL4` | Observer present; inspect per-name outcomes |
 | `glDeleteFramebuffersEXT` | `GL+Ext` | Observer present; inspect per-name outcomes |
-| `glDeleteLists` | `GL` | No observer declared; reconcile feature scope before adding |
+| `glDeleteLists` | `GL` | Excluded; see explicit feature dispositions below |
 | `glDeleteMemoryObjectsEXT` | `GL+Ext` | Observer present; inspect per-name outcomes |
-| `glDeleteNamedStringARB` | `GL+Arb`, `GL4+Arb` | No observer declared; reconcile feature scope before adding |
+| `glDeleteNamedStringARB` | `GL+Arb`, `GL4+Arb` | Excluded; see explicit feature dispositions below |
 | `glDeleteObjectARB` | `GL+Arb` | Observer present; inspect per-name outcomes |
 | `glDeleteProgram` | `GL`, `GL4` | Observer present; inspect per-name outcomes |
 | `glDeleteProgramPipelines` | `GL`, `GL4` | Observer present; inspect per-name outcomes |
-| `glDeleteProgramPipelinesEXT` | `GL+Ext`, `GL4+Ext` | No observer declared; reconcile feature scope before adding |
-| `glDeleteProgramsARB` | `GL+Arb` | No observer declared; reconcile feature scope before adding |
+| `glDeleteProgramPipelinesEXT` | `GL+Ext`, `GL4+Ext` | Excluded; see explicit feature dispositions below |
+| `glDeleteProgramsARB` | `GL+Arb` | Excluded; see explicit feature dispositions below |
 | `glDeleteQueries` | `GL`, `GL4` | Observer present; inspect per-name outcomes |
 | `glDeleteQueriesARB` | `GL+Arb` | Observer present; inspect per-name outcomes |
 | `glDeleteRenderbuffers` | `GL`, `GL4` | Observer present; inspect per-name outcomes |
@@ -114,14 +119,14 @@ the nested binding owner. Observer presence is source evidence only, not effect 
 | `glDeleteTexturesEXT` | `GL+Ext` | Observer present; inspect per-name outcomes |
 | `glDeleteTransformFeedbacks` | `GL`, `GL4` | Observer present; inspect per-name outcomes |
 | `glDeleteVertexArrays` | `GL`, `GL4` | Observer present; inspect per-name outcomes |
-| `glDeleteVertexShaderEXT` | `GL+Ext` | No observer declared; reconcile feature scope before adding |
+| `glDeleteVertexShaderEXT` | `GL+Ext` | Excluded; see explicit feature dispositions below |
 
 ## Lifecycle migration decisions
 
 The design dispositions below identify the full migration scope. Owning phase numbers refer to
 `Rendering.MetadataLifecycle.todo`; the maintained buffer/memory routes below identify implemented
-changes. Factory rows above and the binding table distinguish installed observers from pending coverage.
-The binding table supplies exact signatures for the family decisions below.
+changes. Factory rows above identify supported observers and excluded APIs. The compiler-derived generator
+checks exact signatures for selected native observers and consumed saved-original overloads.
 
 ### Activation and adoption provenance (Phase 2)
 
@@ -210,7 +215,7 @@ EXT DSA specifically initializes eligible unused named objects before subsequent
 Thus a rejected storage/parameter update may still have realized an object. A tracked reservation can
 publish its guaranteed defaults while preserving them on rejection of the update. An unknown image
 identity instead remains unavailable pending explicit discovery, without guessing that it started empty.
-The binding table includes named EXT content and query operations for this reason (named buffer
+Native observers include named EXT content and query operations for this reason (named buffer
 subdata/map/unmap/getters/copy, texture subimages/getters, framebuffer status/getters and vertex-array
 getters). Their content/query result is not a new descriptor, but their realization is observable.
 EXT generic vertex-array offset operations can also realize a nonzero backing buffer: Phase 2 must
@@ -240,6 +245,21 @@ The same ES-only disposition applies to UseProgramStagesEXT. The distinct
 [ES](https://registry.khronos.org/OpenGL/extensions/EXT/EXT_separate_shader_objects.gles.txt)
 specifications establish this distinction. BindTextureUnitParameterEXT is excluded EXT vertex-shader
 state, not modern texture binding.
+
+### Operations intentionally requiring no lifecycle observer
+
+The following supported calls have no canonical creation/configuration effect. Omitting a callback is
+intentional; their native execution remains OpenTK-owned. These differ from excluded API families.
+
+| Native operations | Why no lifecycle callback is required |
+| --- | --- |
+| `glAttachShader`, `glDetachShader`, `glAttachObjectARB`, `glDetachObjectARB` | Attachments are inputs to the next link. Installed executable metadata changes only at link/binary completion; shader deletion-pending behavior uses its retained native deletion outcome. No attachment mirror is maintained. |
+| `glBindAttribLocation`, `glBindAttribLocationARB`, `glBindFragDataLocation`, `glBindFragDataLocationEXT`, `glBindFragDataLocationIndexed` | Set next-link declarations. The installed interface stays unchanged until executable completion reflects its actual outputs. |
+| `glProgramParameteri`, `glProgramParameteriARB`, `glProgramParameteriEXT`, `glTransformFeedbackVaryings`, `glTransformFeedbackVaryingsEXT` | Set next-link/binary-cache policy inputs. They neither install an executable nor change represented active assignments. Transform-feedback Begin/Resume outcome reads cover unrepresented varying/output compatibility. |
+| `glShaderSource`, `glShaderSourceARB`, `glShaderBinary`, `glCompileShader`, `glCompileShaderARB`, `glSpecializeShader`, `glSpecializeShaderARB` | Fixed shader stage is unchanged. Source/binary/compilation results remain explicit compiler outputs; program installation still completes at link. |
+| `glFlushMappedBufferRange`, `glFlushMappedNamedBufferRange` | Flush mapped contents without ending mapping, changing storage or initializing an unused core named buffer. The EXT named variant has a separate realization observer. |
+| `glBufferPageCommitmentARB`, `glNamedBufferPageCommitmentARB`, `glNamedBufferPageCommitmentEXT`, `glTexPageCommitmentARB`, `glTexturePageCommitmentEXT` | Sparse residency changes neither represented descriptors nor allocation identity. No residency mirror is introduced. |
+| `glSemaphoreParameterui64vEXT`, `glWaitSemaphoreEXT`, `glSignalSemaphoreEXT` | Parameter/payload and synchronization effects do not add canonical fields or establish import success. Native import and explicit positive outcome observations maintain lifecycle admission separately. |
 
 ### Field provenance, acceptance and consumers
 
@@ -291,7 +311,7 @@ overwrite a registration. Native output arrays are consumed synchronously, never
 | 3 | Valid query realization/fence result establishes realization; semaphore Gen reserves identity; invalid target/count/null fence does not. Unknown import acceptance does not invent payload state. | Query results, waits, deletion outcome, one targeted IsSemaphore outcome at the RHI import boundary for wait/signal admission. External imports do not probe. No descriptor scan. |
 | 4 | Valid allocation/attachment/range updates supplied facts; invalid mip/immutable replacement/backing bounds preserves prior facts; unknown optional external-image storage cannot fabricate descriptors. | Unsized resolved format; one-time samples if cached resolution unavailable; proven pre-install discovery; one explicit discovery for an unknown image observed through a supported EXT named implicit-creation operation; specific failed field recovery; deletion. EGL-image storage has no approved new import-query exemption: unsupported unknown descriptors stay unavailable unless an actual consumer proves a needed exception. |
 | 5 | Valid unit/block assignment patches known interface; ignored/numeric writes do nothing; link submission withdraws installed executable certification pending output; bindless representation remains unsupported. | Compile/link status/log/reflection, binary acceptance/output; pre-install stage/program; narrow failed assignment recovery; deferred deletion outcomes. |
-| 6 | Valid configuration advances original certificates; invalid indices/strides preserve them; uncertain VAO changes invalidate only affected certificate. | Pre-install certification only when actually reusing that original VAO; otherwise use authored private realization below. Explicit feedback result read only if recorded history cannot establish active/paused outcome needed by execution. No sampler descriptor reads. |
+| 6 | Valid configuration advances original certificates; invalid indices/strides preserve them; uncertain VAO changes invalidate only affected certificate. | Authored imports use private realization without a native layout scan. Explicit feedback result read only if recorded history cannot establish active/paused outcome needed by execution. No sampler descriptor reads. |
 
 ### Reader and consumer migration ledger
 
@@ -305,7 +325,7 @@ remain below RHI and are removed when no permitted caller remains.
 | GpuResourceManager.AcquireResource, RecoverResource (Registry.cs) | Separate available association from proven pre-install discovery, recorded EXT named implicit-creation initial discovery and original-entry recovery; remove arbitrary missing-entry/unavailable automatic read. Used by all following acquisitions. | 2; caller closure 2–6 |
 | AcquireWrapperMetadata, RecoverWrapperMetadata, CanAcquireWrapperMetadata (MetadataAcquisition.cs) | Same provenance gate, no no-manager fallback. Keep original-wrapper/context checks and supplied local handoff. | 2; families 2–6 |
 | RefreshMetadata, PublishMetadata, PublishMetadataCore (MetadataPublication.cs) | Refresh only explicit allowed read cause; supplied publication never acquires backing implicitly. Retain one complete publication and original-identity checks. | 2 foundation; 4 backing closure |
-| ObserveWrapperMetadata (MetadataObservation.cs) | Retain executable output completion only where needed; remove generic mutation readback usages. | 5; image callers 4 |
+| ObserveWrapperMetadata (MetadataObservation.cs) | Removed: executable completion has its dedicated output owner; no generic mutation readback or missing-entry/local-tool fallback remains. | 5; image callers 4 |
 | AcquireExternalFacts (ExternalFacts.cs) | Shared provenance gate in 2; actual callers CloudNativeMapAdapter.TryCaptureExecutable and framebuffer capture consume maintained program/framebuffer facts in 5/4. No absence-of-manager exemption. | 2 gate; 4/5 callers |
 | AcquireBufferMetadata (BufferAcquisition.cs) | No current production caller; remove unused entry rather than retaining a generic query escape. EngineGeometryInputs.BufferRecipient uses AcquireWrapperMetadata directly. | 2 |
 | AcquireBufferTextureInput (BufferTextureCreation.cs), AcquireBufferTextureBacking (BufferTextureDependencies.cs) | Resolve original maintained buffer and capacity; no publication-triggered missing backing discovery. Supplied local source stays supported. | 2 dependency input; 4 association |
@@ -321,17 +341,17 @@ remain below RHI and are removed when no permitted caller remains.
 | AcquireEngineGeometryConfiguration, IsEngineGeometryConfigurationCurrent (GeometryAcquisition.cs) | Retain the original receipt/revision and realize a private array from authored layout/retained streams; no current producer supplies a direct-array certificate. Unknown external VAO layout alone cannot justify routine query. See closure below. | 6 |
 | AssignImageMetadata, ProjectTextureImage, ProjectLayeredCubeImage, ProjectRenderbufferImage (ImageMetadata.cs); PublishOwnerImages (OwnerImages.cs) | Preserve query-free projection/notification, including intentional owner replacement. Resolve unavailable selections without recapturing. | 4 |
 | GpuBufferMetadataReader.TryRead → IRHIResourceExecution.TryReadBufferMetadata | Keep only proven initial adoption/explicit failed storage recovery; GpuBufferObject and geometry ordinary paths stop calling it. | 2 |
-| GpuTextureMetadataReader.TryRead → ReadExternalTexture; GpuTextureImageReader.TryRead → ReadExternalTextureImage | No covered target/image scans. Retain permitted initial or targeted recovery only. | 4 |
+| GpuTextureMetadataReader.TryRead → ReadExternalTexture; former GpuTextureImageReader.TryRead → ReadExternalTextureImage | Keep the full reader only for recorded initial discovery/explicit recovery. Unused single-image reader and RHI facade removed; actual image queries remain private components of authorized full discovery. | 4 |
 | GpuRenderbufferMetadataReader.TryRead → ReadExternalRenderbuffer; GpuRenderbufferTextureMetadataReader.TryRead → ReadExternalRenderbufferTexture | Same explicit causes; association arguments establish backings ordinarily. | 4 |
-| GpuFramebufferMetadataReader.TryRead → ReadFramebufferMetadata; ReadFramebufferField | Initial adoption or named unresolved field only. Ordinary imported framebuffer publication consumes maintained descriptors. | 4 |
+| GpuFramebufferMetadataReader.TryRead → ReadFramebufferMetadata; ReadFramebufferField | Full reader remains for recorded initial adoption/explicit recovery. Unused ReadFramebufferField/TryReadAffected chain removed. Ordinary imported framebuffer publication consumes maintained descriptors. | 4 |
 | GpuShaderMetadataReader.TryRead → ReadShaderMetadata | Initial adoption stage only; covered factory stage is input. | 5 |
 | GpuProgramMetadataReader.TryRead → ReadProgramMetadata | Keep driver executable/reflection completion and justified pre-install adoption; remove assignment-triggered full reflection. | 5 |
-| ReadExternalTextureParameter, ReadExternalTextureLevelParameter | Remove ordinary parameter/storage dispatch to these; preserve narrow resolved-format/sample output and exact recovery field where applicable. | 4 |
+| ReadExternalTextureParameter, ReadExternalTextureLevelParameter | Unused generic read facades and selector enum removed. Narrow resolved-format/sample outputs use their concrete allocation outcome paths, not these escape APIs. | 4 |
 | OpenGlStateCache.TryObserveBufferAssociation, ReadBufferTextureParameter (NativeBufferTexture.cs) | Replace ordinary buffer/range association readback and implicit backing acquisition with supplied association and maintained capacity; only named initial/recovery causes may query. | 4 |
 | OpenGLBackend.ReadExecutableStageMetadata (ShaderStageQueries.cs) | Retain explicit linked-executable output for stage metadata; not an ordinary setter validation query. | 5 |
 | ReadExternalProgramUnit, ReadExternalProgramBlockBinding, RefreshProgramFields | Removed with normal assignment readback; explicit original-entry executable recovery retains the sole required reader boundary. | 5 |
 | OpenGLBackend.ValidateImportedGeometry (Geometry/OpenGLBackend.GeometryAcquisition.cs) | Validates supplied streams/ranges and records original dependencies; native CertifyGeometryConfiguration/ReadGeometryInteger scan removed. No current producer supplies a direct-array certificate; imports use private realization. | 6 |
-| IRHIResourceExecution.IsExternalBuffer, IsExternalTexture, IsExternalRenderbuffer | Not ordinary metadata admission probes; internal image readers retain their explicit native identity checks. The unused generic reader IsResource member and shader/program RHI validity routes are removed. | 2/4/5 |
+| IRHIResourceExecution.IsExternalBuffer, IsExternalTexture, IsExternalRenderbuffer | Unused public RHI validity chains removed, including IsExternalFramebuffer. Concrete authorized backend readers retain their private identity checks (IsExternalBuffer is private). The generic reader IsResource member and shader/program RHI validity routes are removed. | 2/4/5 |
 | ReadFormatCapabilities (GpuSupport cache through RHI); ReadWindowSurface | Keep explicit capability/surface admission, outside resource descriptor acquisition and native callbacks. Surface zero has no creation interception. | 2 activation; 4 consumers |
 | RHICommandContext and OpenGLBackend AcquireBorrowedTexture, AcquireAttachmentImage, AcquireExternalAttachmentTexture, AcquireProgramInterface | Retain semantic boundary; propagate explicit acquisition cause to manager, never choose query policy from raw ID/missing entry. | 4/5 |
 | RefreshFramebufferAttachments, GpuFramebuffer.RefreshWrappedFramebuffer, PublishRenderPassMetadata | Wrapper/integration composition from maintained facts; refresh spelling cannot authorize full rediscovery. | 4 |
@@ -366,7 +386,7 @@ All Observe* handlers classify relevance/rejection before InterruptResourceOpera
 | 3 sync/query/semaphore | Existing wait/query tickets and imported handle ownership; no CL/X11 API expansion. Memory prerequisites already complete in 2. |
 | 4 textures/renderbuffers/framebuffers | Storage observers, base/max conversion, mip derivation, all original backing/view certificates, attachment projection/composition, cloud/depth borrowers, local tools and pass consumers. Buffer storage notifications must invalidate affected image dependencies without querying them. |
 | 5 executable/pipeline | Deferred completion, binary installation, unit/block updates, authored binding preparation, fixed RHI shader/PSO references and engine adoption. Assignments cannot revive withdrawn executable generations. |
-| 6 geometry/feedback/sampler | Engine mesh imports and authored streams, helper certificates, selected VAO/EBO dependencies and feedback activity. For an uncertified external array, build the existing private VAO from supplied layout/streams instead of querying to prove reuse; reuse the original only when a producer certificate already establishes its configuration. This avoids both a full VAO mirror and routine discovery. Pre-install original-array reuse may explicitly certify once. |
+| 6 geometry/feedback/sampler | Engine mesh imports and authored streams, helper certificates, selected VAO/EBO dependencies and feedback activity. Build the private VAO from supplied layout/streams instead of querying to prove native-array reuse. No current producer supplies a direct-array certificate. Original association/revision receipts still expire on observed configuration changes. |
 
 No dependency pushes consumer cleanup to Phase 7. Phase 7 verifies the completed units together.
 
@@ -414,6 +434,13 @@ allocation instead retains a pending storage effect and suppresses guessed empty
 recovery of that original identity may resolve the result. No second lifecycle registry or field-level
 mask is introduced, and ordinary association never triggers a compensating read.
 
+Optional parameter-buffer acceptance is three-way: cached support, cached rejection or unknown support.
+When capabilities are absent, observations never discover them or query an optionally invalid selector.
+An uncertain bind clears that selector and withdraws storage/mapping certification for only the previous
+and supplied original buffers: a later storage command cannot otherwise be attributed after selection
+became unknown. An uncertain storage/mapping call uses an existing cached identity only and withdraws
+its affected facts; known scalar rejection still preserves them. No possible-binding registry is added.
+
 Native range classification preserves rejected zero-name negative offsets and transform-feedback size
 alignment before realization/publication. EXT offset binding derives a rounded fixed range from known
 capacity. EXT Base binding retains the generic selector but leaves indexed sizing mode unknown where
@@ -427,8 +454,8 @@ Core single vertex-buffer bindings can realize generated buffers (core 4.5 secti
 multi-bind and named element-buffer assignment. Their array-name prerequisites are included with buffer
 migration: Gen/Create/BindVertexArray retain identity/default facts only; full geometry certification,
 configuration classification and consumer migration remain with the geometry unit. EXT generic offset
-commands retain their separate initial-default effects. The binding table assigns these prerequisites
-to 2 explicitly rather than leaving a completed buffer dependent on unobserved array creation.
+commands retain their separate initial-default effects. Their observations include buffer realization
+and array identity defaults; complete geometry certification is described below.
 
 Memory-object creation publishes `GpuMemoryObjectMetadata` once. FD, Win32-handle, Win32-name import
 and parameter observations preserve that original empty schema without certifying opaque payloads or
@@ -444,8 +471,8 @@ calls. Their existing manager handoff publishes once. Temporary initial-content 
 owned buffer handoff, not an unregistered private buffer. Native callback exceptions remain contained.
 The driver generator handles pinned `out` outputs and GLboolean-to-managed-bool results.
 
-The exact observer paths for these routes are in Rendering.MetadataLifecycle.Bindings.tsv. Families not
-yet migrated retain their ledger dispositions above; this does not claim their queries are removed.
+Observer files live beneath `State/Observation/Native` in the OpenGL backend. The method-level
+reader ledger above records the retained query causes and removed routes.
 
 ## Maintained synchronization routes
 
@@ -483,7 +510,7 @@ Owned query/fence factories and semaphore generation/import/deletion use saved o
 manager handoff. Kind-specific deletion outcomes remain separate from acquisition, including reservation
 release, active query name retirement, pointer-width sync deletion and name reuse. Existing memory-object
 identities and buffer dependencies are unchanged; semaphores provide no storage allocation descriptor.
-The binding table records the exact factory, realization, explicit-result and import ABIs/owners.
+The generator checks factory, realization, explicit-result and import ABIs against eligible OpenTK owners.
 External-producer imports require separate hardware qualification; deterministic stand-ins exercise the
 real loader/generated callback boundary, not operating-system payload acceptance.
 
@@ -591,7 +618,8 @@ Owned sampler/feedback factories and configuration, sampler batches, vertex conf
 reads use saved originals and one private publication owner. Missing/no-manager acquisition fallbacks are
 removed for all supported kinds; realized empty-schema recovery publishes identity facts without descriptor
 reads. Unknown EXT identity recovery retains its explicit source-proof reader instead of guessing realization.
-Exact symbol/owner/ABI and split alias source paths remain in Rendering.MetadataLifecycle.Bindings.tsv.
+Exact symbol/owner/ABI checks derive from OpenTK and native observation declarations; split alias
+source files preserve differing core and EXT initialization semantics.
 Geometry/feedback/sampler qualification passed canonical shader-enabled Debug and ordinary Release
 builds with zero errors. Each configuration passed 999 combined lifecycle/geometry/RHI tests plus two
 explicit transform-feedback activity/output-read tests (1,001 total), and 35 generator tests; zero
@@ -601,5 +629,45 @@ build-release-v10.log, phase6-v9-debug.trx, phase6-v10-release.trx, phase6-feedb
 phase6-feedback-v10-release.trx, phase6-generator-v9-debug.trx and phase6-generator-v10-release.trx).
 combined-filter-final.txt records the complete reproducible selection. Optional EXT getter delivery
 includes deterministic native stand-ins; optional alias hardware execution, external-producer interop
-and installed-game rendering/performance are not qualified. Combined lifecycle and parent integration
-qualification remain separate open checklist gates. The temporary binding table remains for closeout.
+and installed-game rendering/performance are not qualified. Combined lifecycle qualification is recorded below.
+
+## Combined lifecycle qualification
+
+Second source review and independent completion audit passed with no unresolved required findings.
+
+Canonical shader-enabled Debug and ordinary Release builds passed with zero errors. Each configuration
+qualified 1,099 distinct focused cases plus 35 generator cases with zero failures/skips. The distinct
+union retains unchanged broad cases and replaces affected cases with final supplemental evidence;
+this is not a claim that one monolithic run or the entire repository suite passed.
+Receipts: `artifacts/metadata-lifecycle/phase7/build-*-qualified.log`,
+`phase7-final-v6-debug.trx`, `phase7-final-release.trx`, `phase7-qualified-supplemental-*.trx`,
+`phase7-shader-deletion-*.trx`, `phase7-generator-*.trx` and `combined-filter-final.txt` in that directory.
+The evaluated compiler reference and live hash still match the OpenTK identity above. Independent source
+reconciliation covered all 440 selected symbol/owner/ABI dispositions, actual effect argument flow and
+saved-original managed execution. Generated compiler-derived checks remain the signature authority.
+
+| Retained read cause | Explicit consumer/outcome tests |
+| --- | --- |
+| Compiler/link/interface output | `GpuExecutableFactoryTests.CombinedFactoriesCompleteOnlyDriverProducedExecutables`; `GpuProgramCandidateMetadataTests.SubmissionDefersQueriesAndPreparationReusesSnapshot` |
+| Unsized format / raw sample fallback | `GpuImageLifecycleTests.AllocationOutputReadsDoNotScanOtherDescriptors` |
+| Cached versus fallback samples | `RHIImageTests.SampleChoicesAvoidReadbackExceptOneValueFallback`: zero versus one native descriptor read before independent value oracle |
+| Imported texture immutable flag / semaphore realization | `GpuExternalTextureStorageTests.ImportedStorageChecksOnlyImmutableOutcome`; `GpuSemaphoreLifecycleTests.ManagedImportPublishesOnlyConfirmedOriginalPayload` |
+| Recorded initial discovery / explicit recovery | `GpuBufferLifecycleTests.ExplicitPreinstallDiscoveryIsConsumedOnce`; `GpuResourceMetadataRecoveryTests.IncompleteStorageOperationPreservesStorageRevisionOnRecovery` |
+| Kind-specific deletion / deferred shader destruction | `EngineEarlyDeletionTests` native outcome cases; `NativeShaderDeletionTests.ArbDeletionRetiresOriginalShaderKind` |
+| Feedback execution outcome | `OpenTKFeedbackObservationTests.ExternalActivityPreservesAcceptedAndRejectedTransitions` |
+
+Unused generic mutation readback, single-image/parameter/field query facades and unused public validity
+routes are removed. Missing operation associations reject before entry creation. Framebuffer rejection
+classifies scalar/limit/fixed-target facts before withdrawing an unavailable candidate. Optional-target
+uncertainty and its two-candidate attribution are described above; ten native cases preserve unrelated
+knowledge without capability/selector reads. Native fixture counters see external and saved-original
+routes; controlled outcome substitutions remain explicitly separate from hardware execution.
+
+During qualification this driver returned no error for a nonzero rectangle mip on generic named
+framebuffer attachment despite the core specification's unsupported-level rule. Fixed-target rejection
+classification follows the specification; the portable unavailable-source regression uses invalid layer
+attachment for both 2D and rectangle targets. This probe does not qualify rectangle-mip error reporting.
+Optional aliases/imports include deterministic native stand-ins. Optional hardware paths, cross-API
+producer interop, installed-game startup, visual/performance acceptance and the inherited parent
+full-lighting numerical mismatch are not qualified here. Broader RHI correction closure, naming and
+integrated/package/user qualification retain their independent gates.

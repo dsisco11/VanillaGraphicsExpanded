@@ -201,7 +201,7 @@ public sealed class StaticGpuFramebufferTests(HeadlessGLFixture fixture, ITestOu
         Assert.Throws<InvalidOperationException>(() => FramebufferTestSetup.DescribeAttachments(target, [new(AttachmentIndex: -1)]));
         RenderPassTestBoundary.Run(commands => { commands.BeginRenderPass(pass); commands.EndRenderPass(); });
         OpenGlStateCache.Current.Invalidate(EPipelineState.FramebufferRouting);
-        using (var work = new FramebufferRoutingWorkCapture()) using (var calls = new GraphicsTransitionCapture())
+        using (var work = new FramebufferRoutingWorkCapture())
         {
             if (standalone)
             {
@@ -227,8 +227,7 @@ public sealed class StaticGpuFramebufferTests(HeadlessGLFixture fixture, ITestOu
             Assert.Equal(0, work.DynamicApplications);
             Assert.Equal(0, work.Captures);
             Assert.Equal(0, work.CompletenessChecks);
-            Assert.DoesNotContain(calls.Calls, call => call.StartsWith("Routing"));
-            output.WriteLine("STATIC_FRAMEBUFFER_WORK=" + System.Text.Json.JsonSerializer.Serialize(new { standalone, work.DynamicApplications, work.Captures,  work.CompletenessChecks, calls = calls.Calls }));
+            output.WriteLine("STATIC_FRAMEBUFFER_WORK=" + System.Text.Json.JsonSerializer.Serialize(new { standalone, work.DynamicApplications, work.Captures,  work.CompletenessChecks }));
         }
         Assert.Equal(incoming.FboId, GL.GetInteger(GetPName.DrawFramebufferBinding));
         Assert.Equal(.25f, texture.ReadPixels()[0]);

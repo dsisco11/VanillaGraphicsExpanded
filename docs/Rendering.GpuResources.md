@@ -4,8 +4,9 @@
 registry uses `GpuResourceHandle`, a resource-kind/native-width-ID value, as the key. Each entry holds
 one typed metadata snapshot, availability and revisions, shared usage guards, and weak wrapper recipients.
 Resource registrations distinguish reserved names from realized objects independently of availability and
-terminal retirement. Gen reserves; legal realization publishes capacity zero, StaticDraw usage, mutable
-mode and no storage flags on the original entry. Registration grants no native ownership. Metadata operations and native queries run on the context thread;
+terminal retirement. For buffers, Gen reserves; legal realization publishes capacity zero, StaticDraw usage,
+mutable mode and no storage flags on the original entry. Other kinds retain their specific factory and
+realization semantics. Registration grants no native ownership. Metadata operations and native queries run on the context thread;
 concurrent containers support identity lookup and recipient removal across threads.
 Tracked command inputs, operation admission, deferred link submission and executable transfer validate
 the originating context and thread before dispatch or metadata withdrawal. Reusing an available snapshot
@@ -106,7 +107,8 @@ internal execution contract. Controlled operations publish inputs,
 guaranteed defaults and derived facts. Existing failure handling remains authoritative: reported failure
 does not publish success, and interruption withdraws affected knowledge. No universal post-command query,
 error drain or separate requested/actual metadata cache is used. Available covered aliases reuse canonical
-facts; external unknown state and explicit recovery use manager-owned readers.
+facts; only recorded pre-installation or supported EXT implicit-creation discovery and explicit
+original-entry recovery use manager-owned readers.
 
 Driver-produced shader compilation/link results and interfaces retain their completion checks. Allocation
 uses cached target/format sample capabilities, with a single sample-count read when those capabilities
@@ -453,6 +455,7 @@ retains established element-buffer associations. Feedback output changes revise 
 selection and activity remain executed knowledge. External Begin/Resume can require a targeted active/
 paused outcome read because linked capture-output configuration is deliberately not mirrored. End/Pause
 reuse established history. Neither an empty schema nor an external wrapper authorizes descriptor reads.
+
 ## Binding knowledge and retirement
 
 `GpuTextureRef` is a readonly consumer value holding one private `GpuResource<GpuTextureMetadata>`
@@ -473,7 +476,9 @@ tracks selectors, image parameters, buffer ranges and framebuffer routing. Contr
 can be suppressed. Exact external calls preserve execution and native error behavior. Established
 object-local draw routes, pixel-store fields, represented fixed state and established bindings propagate
 from legal arguments. Generic/indexed buffer aliases and selected-VAO element bindings share the existing
-selector authority. Genuinely unknown identities and unspecified conversion outcomes retain targeted acquisition. Required selector-restoration scopes preserve separate read/draw framebuffer selections and original VAO
+selector authority. Unknown execution selectors retain targeted restoration reads; missing covered resource
+entries never authorize descriptor discovery. Unspecified conversion outcomes withdraw affected certification.
+Required selector-restoration scopes preserve separate read/draw framebuffer selections and original VAO
 element-buffer associations. Geometry retains authored fields and original configuration revisions; the canonical VAO schema contains no full layout mirror.
 Restoration scopes retain their original physical context lifetime. Disposing an old scope in another
 admitted context neither restores its numeric names there nor discards that context's known selectors.

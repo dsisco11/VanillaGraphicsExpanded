@@ -145,7 +145,6 @@ public sealed class StaticTargetMigrationTests(HeadlessGLFixture fixture, ITestO
         // Cold realization establishes the reusable native targets before repeated-work observation.
         RenderPassTestBoundary.Run(commands => { foreach (var pass in passes) { commands.BeginRenderPass(pass); commands.EndRenderPass(); } });
         using var work = new FramebufferRoutingWorkCapture();
-        using var native = new GraphicsTransitionCapture();
         using var declarations = new StaticPassDeclarationCapture();
         {
     var commands=RHICommandContext.Current;
@@ -163,7 +162,6 @@ public sealed class StaticTargetMigrationTests(HeadlessGLFixture fixture, ITestO
         Assert.Equal(0, work.DynamicApplications);
         Assert.Equal(0, work.Captures);
         Assert.Equal(0, work.CompletenessChecks);
-        Assert.DoesNotContain(native.Calls, call => call.StartsWith("Routing"));
         output.WriteLine("STATIC_TARGET_MIGRATION=" + System.Text.Json.JsonSerializer.Serialize(new
         {
             targets = passes.Length,
@@ -172,7 +170,6 @@ public sealed class StaticTargetMigrationTests(HeadlessGLFixture fixture, ITestO
             work.Captures,
             
             work.CompletenessChecks,
-            calls = native.Calls
         }));
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }

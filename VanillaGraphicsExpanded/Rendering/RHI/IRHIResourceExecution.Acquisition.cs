@@ -8,23 +8,11 @@ internal partial interface IRHIResourceExecution
 {
     #region Buffer and image acquisition
     /// <summary>Executes explicit manager-authorized acquisition without changing publication authority.</summary>
-    bool IsExternalBuffer(nint id);
-    /// <summary>Executes explicit manager-authorized acquisition without changing publication authority.</summary>
     bool TryReadBufferMetadata(nint id, out GpuBufferMetadata metadata);
-    /// <summary>Executes explicit manager-authorized acquisition without changing publication authority.</summary>
-    bool IsExternalTexture(nint id);
     /// <summary>Executes explicit manager-authorized acquisition without changing publication authority.</summary>
     bool ReadExternalTexture(nint id, TextureDimension target, out GpuTextureMetadata metadata);
     /// <summary>Executes explicit manager-authorized acquisition without changing publication authority.</summary>
-    bool ReadExternalTextureImage(int id, TextureDimension target, CubeFace face, int level, out GpuTextureLevelMetadata image);
-    /// <summary>Executes explicit manager-authorized acquisition without changing publication authority.</summary>
-    bool IsExternalRenderbuffer(nint id);
-    /// <summary>Executes explicit manager-authorized acquisition without changing publication authority.</summary>
     bool ReadExternalRenderbuffer(nint id, out GpuRenderbufferMetadata metadata);
-    /// <summary>Executes explicit manager-authorized acquisition without changing publication authority.</summary>
-    int ReadExternalTextureParameter(int texture, TextureMetadataField parameter);
-    /// <summary>Executes explicit manager-authorized acquisition without changing publication authority.</summary>
-    int ReadExternalTextureLevelParameter(int texture, int level, TextureMetadataField parameter);
     /// <summary>Executes explicit manager-authorized acquisition without changing publication authority.</summary>
     bool ReadExternalRenderbufferTexture(int texture, out GpuTextureMetadata metadata);
     #endregion

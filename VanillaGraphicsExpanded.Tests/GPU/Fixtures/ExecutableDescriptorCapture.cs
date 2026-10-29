@@ -14,6 +14,9 @@ internal sealed unsafe class ExecutableDescriptorCapture : IDisposable
     /// <summary>Matches program interface enumeration ABI.</summary>
     [UnmanagedFunctionPointer(CallingConvention.StdCall)]
     private delegate void InterfaceOutput(uint name, int kind, int parameter, int* value);
+    /// <summary>Matches a native object-existence result.</summary>
+    [UnmanagedFunctionPointer(CallingConvention.StdCall)]
+    private delegate byte ObjectExists(uint name);
 
     #region Internal API
     /// <summary>Counts fixed-stage discovery queries.</summary>
@@ -24,6 +27,8 @@ internal sealed unsafe class ExecutableDescriptorCapture : IDisposable
     internal int UnitReads { get; private set; }
     /// <summary>Counts program status and completion outputs separately from interface discovery.</summary>
     internal int ProgramReads { get; private set; }
+    /// <summary>Counts explicit program-lifetime checks, separately from executable outputs.</summary>
+    internal int ValidityReads { get; private set; }
 
     /// <summary>Decorates actual native output calls while preserving their values and error behavior.</summary>
     internal ExecutableDescriptorCapture()
@@ -34,6 +39,13 @@ internal sealed unsafe class ExecutableDescriptorCapture : IDisposable
         {
             program(name, parameter, value);
             ProgramReads++;
+        }));
+        var exists = (delegate* unmanaged[Stdcall]<uint, byte>)native.Original("glIsProgram");
+        native.Add("glIsProgram", new ObjectExists(name =>
+        {
+            byte result = exists(name);
+            ValidityReads++;
+            return result;
         }));
         native.Add("glGetShaderiv", new IntegerOutput((name, parameter, value) =>
         {

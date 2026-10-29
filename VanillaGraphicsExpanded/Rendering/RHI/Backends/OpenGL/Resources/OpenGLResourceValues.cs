@@ -72,17 +72,6 @@ internal static class OpenGLResourceValues
         ProgramBlockKind.Storage => ProgramInterface.ShaderStorageBlock,
         _ => throw new ArgumentOutOfRangeException(nameof(value)),
     };
-    /// <summary>Lowers a logical TextureMetadataField selector to its native representation.</summary>
-    internal static GetTextureParameter Native(TextureMetadataField value) => value switch
-    {
-        TextureMetadataField.BaseMip => GetTextureParameter.TextureBaseLevel,
-        TextureMetadataField.MaxMip => GetTextureParameter.TextureMaxLevel,
-        TextureMetadataField.BufferObject => (GetTextureParameter)All.TextureBufferDataStoreBinding,
-        TextureMetadataField.InternalFormat => GetTextureParameter.TextureInternalFormat,
-        TextureMetadataField.BufferOffset => (GetTextureParameter)All.TextureBufferOffset,
-        TextureMetadataField.BufferSize => (GetTextureParameter)All.TextureBufferSize,
-        _ => throw new ArgumentOutOfRangeException(nameof(value)),
-    };
     /// <summary>Translates a native FramebufferAttachment at the explicit integration boundary.</summary>
     internal static FramebufferSlot FromNative(FramebufferAttachment value) => value switch
     {
@@ -146,17 +135,6 @@ internal static class OpenGLResourceValues
     {
         ProgramInterface.UniformBlock => ProgramBlockKind.Uniform,
         ProgramInterface.ShaderStorageBlock => ProgramBlockKind.Storage,
-        _ => throw new ArgumentOutOfRangeException(nameof(value)),
-    };
-    /// <summary>Translates a native GetTextureParameter at the explicit integration boundary.</summary>
-    internal static TextureMetadataField FromNative(GetTextureParameter value) => value switch
-    {
-        GetTextureParameter.TextureBaseLevel => TextureMetadataField.BaseMip,
-        GetTextureParameter.TextureMaxLevel => TextureMetadataField.MaxMip,
-        (GetTextureParameter)All.TextureBufferDataStoreBinding => TextureMetadataField.BufferObject,
-        GetTextureParameter.TextureInternalFormat => TextureMetadataField.InternalFormat,
-        (GetTextureParameter)All.TextureBufferOffset => TextureMetadataField.BufferOffset,
-        (GetTextureParameter)All.TextureBufferSize => TextureMetadataField.BufferSize,
         _ => throw new ArgumentOutOfRangeException(nameof(value)),
     };
     #endregion

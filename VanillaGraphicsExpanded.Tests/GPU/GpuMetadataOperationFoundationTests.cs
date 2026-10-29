@@ -13,6 +13,34 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 public sealed class GpuMetadataOperationFoundationTests(HeadlessGLFixture fixture)
 {
     #region Public API
+    /// <summary>A missing original association is a tracking defect, not permission to register or rediscover an operation target.</summary>
+    [Fact]
+    public void MissingAssociationCannotManufactureOperationIdentity()
+    {
+        fixture.EnsureContextValid(); fixture.InitializeResourceDisposal();
+        try
+        {
+            using var owner = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription
+            { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 16, Usage = BufferUsage.StaticDraw }).RequireResource();
+            var manager = GpuResourceManagerSystem.CurrentManager!;
+            var original = Assert.IsType<GpuResourceMetadataEntry<GpuBufferMetadata>>(manager.GetResourceRegistration(owner));
+            ulong revision = original.MetadataRevision;
+            manager.ReplaceWrapperResource(owner);
+            try
+            {
+                Assert.Throws<InvalidOperationException>(() => new GpuResourceManager.MetadataOperation<GpuBufferMetadata>(owner, GpuMetadataChange.Metadata));
+                Assert.Null(manager.GetResourceRegistration(owner));
+                Assert.Same(original, manager.FindResource(GpuResourceKind.Buffer, owner.ResourceId));
+                Assert.Equal(revision, original.MetadataRevision);
+                Assert.True(original.IsUsable);
+                Assert.False(original.OperationInProgress);
+            }
+            finally { manager.AssociateResource(original, owner); }
+            Assert.Equal(ErrorCode.NoError, GL.GetError());
+        }
+        finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
+    }
+
     /// <summary>Explicit participation publishes once and registered aliases receive the same canonical result.</summary>
     [Theory]
     [InlineData(false)]

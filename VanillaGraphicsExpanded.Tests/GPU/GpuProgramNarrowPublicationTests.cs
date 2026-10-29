@@ -2,7 +2,6 @@ using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Tests.GPU.Helpers;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using VanillaGraphicsExpanded.Rendering.ShaderCompilation;
-using HarmonyLib;
 using OpenTK.Graphics.OpenGL;
 using System.Runtime.CompilerServices;
 using VanillaGraphicsExpanded.HarmonyPatches;
@@ -18,8 +17,6 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GPU")]
 public sealed class GpuProgramNarrowPublicationTests(HeadlessGLFixture fixture)
 {
-    private static int interfaceQueries, unitQueries, assignmentCalls;
-    private static Action? duringLink;
 
     #region Public API
     /// <summary>External layout application reuses canonical facts; subsequent layout reads never query native state.</summary>
@@ -76,10 +73,9 @@ public sealed class GpuProgramNarrowPublicationTests(HeadlessGLFixture fixture)
     [InlineData(0)]
     [InlineData(1)]
     [InlineData(2)]
-    public void InvalidControlledAssignmentsPreserveMetadata(int family)
+    public unsafe void InvalidControlledAssignmentsPreserveMetadata(int family)
     {
         fixture.EnsureContextValid(); fixture.InitializeResourceDisposal();
-        var harmony = new Harmony("Tests.InvalidProgramAssignments." + Guid.NewGuid());
         try
         {
             using var owner = CreateProgram();
@@ -91,11 +87,18 @@ public sealed class GpuProgramNarrowPublicationTests(HeadlessGLFixture fixture)
             int index = family == 0 ? 0 : GL.GetProgramResourceIndex(owner.ProgramId,
                 family == 1 ? ProgramInterface.UniformBlock : ProgramInterface.ShaderStorageBlock,
                 family == 1 ? "Parameters" : "Output");
-            var prefix = new HarmonyMethod(typeof(GpuProgramNarrowPublicationTests), nameof(CountAssignment));
-            harmony.Patch(AccessTools.Method(typeof(GL), nameof(GL.ProgramUniform1), [typeof(int), typeof(int), typeof(int)]), prefix: prefix);
-            harmony.Patch(AccessTools.Method(typeof(GL), nameof(GL.UniformBlockBinding), [typeof(int), typeof(int), typeof(int)]), prefix: prefix);
-            harmony.Patch(AccessTools.Method(typeof(GL), nameof(GL.ShaderStorageBlockBinding), [typeof(int), typeof(int), typeof(int)]), prefix: prefix);
-            assignmentCalls = 0;
+            using var native = new NativeDriverCapture();
+            int assignmentCalls = 0;
+            foreach (string symbol in new[] { "glProgramUniform1i", "glUniformBlockBinding", "glShaderStorageBlockBinding" })
+            {
+                var original = (delegate* unmanaged[Stdcall]<uint, int, int, void>)native.Original(symbol);
+                native.Add(symbol, new NativeAssignment((program, block, value) =>
+                {
+                    original(program, block, value);
+                    assignmentCalls++;
+                }));
+            }
+            native.Install();
             int limit = family switch
             {
                 0 => GpuSupport.Graphics.MaxCombinedTextureImageUnits,
@@ -114,7 +117,7 @@ public sealed class GpuProgramNarrowPublicationTests(HeadlessGLFixture fixture)
             Assert.True(entry.MetadataAvailable);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { harmony.UnpatchAll(harmony.Id); fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
+        finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
 
     /// <summary>Context-local shader and PSO owners reuse their canonical interface without another native resource transfer.</summary>
@@ -172,7 +175,6 @@ public sealed class GpuProgramNarrowPublicationTests(HeadlessGLFixture fixture)
     {
         fixture.EnsureContextValid(); fixture.InitializeResourceDisposal();
         var executionBackend = new VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBackend(OpenGlStateCache.Current);
-        var harmony = new Harmony("Tests.ProgramSubmissionReentry." + Guid.NewGuid());
         try
         {
             using var owner = NativeResourceSetup.CreateProgram();
@@ -180,7 +182,7 @@ public sealed class GpuProgramNarrowPublicationTests(HeadlessGLFixture fixture)
             var entry = Assert.IsType<GpuResourceMetadataEntry<GpuProgramMetadata>>(manager.GetResourceRegistration(owner));
             var reader = new RejectReader();
             int callbacks = 0;
-            duringLink = () =>
+            Action duringLink = () =>
             {
                 callbacks++;
                 Assert.Null(manager.AcquireResource(GpuResourceKind.Program, owner.ProgramId, reader));
@@ -190,11 +192,12 @@ public sealed class GpuProgramNarrowPublicationTests(HeadlessGLFixture fixture)
             nint original = native.Original("glLinkProgram");
             native.Add("glLinkProgram", new NativeLink(program =>
             {
-                native.Observe(ObserveLink);
+                native.Observe(duringLink);
                 ((delegate* unmanaged[Stdcall]<uint, void>)original)(program);
             }));
             native.Install();
             executionBackend.SubmitProgramExecutable(owner);
+            native.RequireSuccessfulObservation();
             Assert.Equal(1, callbacks);
             Assert.Equal(0, reader.Calls);
             Assert.False(entry.MetadataAvailable);
@@ -202,7 +205,6 @@ public sealed class GpuProgramNarrowPublicationTests(HeadlessGLFixture fixture)
         }
         finally
         {
-            duringLink = null; harmony.UnpatchAll(harmony.Id);
             fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll();
         }
     }
@@ -212,7 +214,6 @@ public sealed class GpuProgramNarrowPublicationTests(HeadlessGLFixture fixture)
     public void ExternalUnitUpdatePublishesSuppliedValue()
     {
         fixture.EnsureContextValid(); fixture.InitializeResourceDisposal();
-        var harmony = new Harmony("Tests.ExternalNarrowProgramUnit." + Guid.NewGuid());
         try
         {
             using var owner = CreateProgram();
@@ -223,17 +224,16 @@ public sealed class GpuProgramNarrowPublicationTests(HeadlessGLFixture fixture)
             var reader = new RejectReader();
             entry.Reader = reader;
 
-            PatchQueries(harmony);
-            interfaceQueries = unitQueries = 0;
+            using var queries = new ExecutableDescriptorCapture();
             SetExternalUnit(owner.ProgramId, location, 4);
             Assert.Equal(0, reader.Calls);
-            Assert.Equal(0, interfaceQueries);
-            Assert.Equal(0, unitQueries);
+            Assert.Equal(0, queries.InterfaceReads);
+            Assert.Equal(0, queries.UnitReads);
             Assert.Equal(before.Resources, entry.Metadata.Resources);
             Assert.Contains(entry.Metadata.TextureUnits, item => item.Location == location && item.Unit == 4);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { harmony.UnpatchAll(harmony.Id); fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
+        finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
 
     /// <summary>Deferred completion consumes the latest submission once and performs no status queries on repeated completion.</summary>
@@ -245,7 +245,6 @@ public sealed class GpuProgramNarrowPublicationTests(HeadlessGLFixture fixture)
         fixture.EnsureContextValid();
         var executionBackend = new VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBackend(OpenGlStateCache.Current);
         if (registered) fixture.InitializeResourceDisposal();
-        var harmony = new Harmony("Tests.DeferredProgramOnce." + Guid.NewGuid());
         int shader = GL.CreateShader(ShaderType.ComputeShader);
         try
         {
@@ -256,16 +255,14 @@ public sealed class GpuProgramNarrowPublicationTests(HeadlessGLFixture fixture)
             executionBackend.SubmitProgramExecutable(owner);
             executionBackend.SubmitProgramExecutable(owner);
             Assert.True(executionBackend.CompleteProgramLink(owner, out string log), log);
-            harmony.Patch(AccessTools.Method(typeof(GL), nameof(GL.GetProgram), [typeof(int), typeof(GetProgramParameterName), typeof(int).MakeByRefType()]),
-                prefix: new HarmonyMethod(typeof(GpuProgramNarrowPublicationTests), nameof(CountInterface)));
-            interfaceQueries = 0;
+            using var queries = new ExecutableDescriptorCapture();
             Assert.False(executionBackend.CompleteProgramLink(owner, out _));
-            Assert.Equal(0, interfaceQueries);
+            Assert.Equal(0, queries.ProgramReads);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
         finally
         {
-            harmony.UnpatchAll(harmony.Id); VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Shader, shader));
+            VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Shader, shader));
             fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll();
         }
     }
@@ -277,7 +274,6 @@ public sealed class GpuProgramNarrowPublicationTests(HeadlessGLFixture fixture)
     public void ControlledUnitUpdateDoesNotRediscoverExecutable(bool direct)
     {
         fixture.EnsureContextValid(); fixture.InitializeResourceDisposal();
-        var harmony = new Harmony("Tests.NarrowProgramUnit." + Guid.NewGuid());
         try
         {
             using var owner = CreateProgram();
@@ -292,13 +288,12 @@ public sealed class GpuProgramNarrowPublicationTests(HeadlessGLFixture fixture)
             int location = GL.GetUniformLocation(owner.ProgramId, "inputs[0]");
             int otherLocation = GL.GetUniformLocation(owner.ProgramId, "inputs[1]");
             Assert.True(location >= 0 && otherLocation >= 0);
-            PatchQueries(harmony);
-            interfaceQueries = unitQueries = 0;
+            using var queries = new ExecutableDescriptorCapture();
             ulong revision = entry.MetadataRevision;
             OpenGLProgramAssignments.SetUnit(owner.ProgramId, location, 3);
             Assert.Equal(0, reader.Calls);
-            Assert.Equal(0, interfaceQueries);
-            Assert.Equal(0, unitQueries);
+            Assert.Equal(0, queries.InterfaceReads);
+            Assert.Equal(0, queries.UnitReads);
             Assert.Equal(revision + 1, entry.MetadataRevision);
             Assert.Equal(before.Resources, entry.Metadata.Resources);
             Assert.Contains(entry.Metadata.TextureUnits, item => item.Location == location && item.Unit == 3);
@@ -307,16 +302,16 @@ public sealed class GpuProgramNarrowPublicationTests(HeadlessGLFixture fixture)
             revision = entry.MetadataRevision;
             OpenGLProgramAssignments.SetUnit(owner.ProgramId, location, 3);
             Assert.Equal(revision, entry.MetadataRevision);
-            Assert.Equal(0, unitQueries);
+            Assert.Equal(0, queries.UnitReads);
             Assert.Equal(sentinel.ProgramId, GL.GetInteger(GetPName.CurrentProgram));
             OpenTK.Graphics.OpenGL4.GL.GetUniform(owner.ProgramId, location, out int native);
             Assert.Equal(3, native);
-            Assert.Equal(1, unitQueries);
+            Assert.Equal(1, queries.UnitReads);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
         finally
         {
-            harmony.UnpatchAll(harmony.Id); OpenGLProgramSelection.Select(OpenGlStateCache.Current, 0);
+            OpenGLProgramSelection.Select(OpenGlStateCache.Current, 0);
             fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll();
         }
     }
@@ -328,7 +323,6 @@ public sealed class GpuProgramNarrowPublicationTests(HeadlessGLFixture fixture)
     public void ControlledBlockUpdateDoesNotReflectInterface(bool storage)
     {
         fixture.EnsureContextValid(); fixture.InitializeResourceDisposal();
-        var harmony = new Harmony("Tests.NarrowProgramBlock." + Guid.NewGuid());
         try
         {
             using var owner = CreateProgram();
@@ -340,13 +334,12 @@ public sealed class GpuProgramNarrowPublicationTests(HeadlessGLFixture fixture)
             Assert.True(index >= 0);
             var reader = new RejectReader();
             entry.Reader = reader;
-            PatchQueries(harmony);
-            interfaceQueries = unitQueries = 0;
+            using var queries = new ExecutableDescriptorCapture();
             if (storage) OpenGLProgramAssignments.ShaderStorageBlockBinding(owner.ProgramId, index, 3);
             else OpenGLProgramAssignments.UniformBlockBinding(owner.ProgramId, index, 3);
             Assert.Equal(0, reader.Calls);
-            Assert.Equal(0, interfaceQueries);
-            Assert.Equal(0, unitQueries);
+            Assert.Equal(0, queries.InterfaceReads);
+            Assert.Equal(0, queries.UnitReads);
             Assert.Equal(before.TextureUnits, entry.Metadata.TextureUnits);
             var changed = entry.Metadata.Resources.Single(item => item.Interface == (kind == ProgramInterface.UniformBlock ? ProgramResourceKind.UniformBlock : ProgramResourceKind.ShaderStorageBlock) && item.Index == index);
             Assert.Equal(3, changed.BufferBinding);
@@ -354,20 +347,17 @@ public sealed class GpuProgramNarrowPublicationTests(HeadlessGLFixture fixture)
                 item => Assert.Contains(item, entry.Metadata.Resources));
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { harmony.UnpatchAll(harmony.Id); fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
+        finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
     #endregion
 
     #region Private
-    /// <summary>Counts native setters to prove managed validation happens before driver dispatch.</summary>
-    private static void CountAssignment() => assignmentCalls++;
-
     /// <summary>Matches native executable link submission.</summary>
     [System.Runtime.InteropServices.UnmanagedFunctionPointer(System.Runtime.InteropServices.CallingConvention.StdCall)]
     private delegate void NativeLink(uint program);
-    /// <summary>Runs a deliberately reentrant query attempt during actual native link dispatch.</summary>
-    private static void ObserveLink() => duringLink?.Invoke();
-
+    /// <summary>Preserves the three 32-bit arguments of represented assignment commands.</summary>
+    [System.Runtime.InteropServices.UnmanagedFunctionPointer(System.Runtime.InteropServices.CallingConvention.StdCall)]
+    private delegate void NativeAssignment(uint program, int index, int value);
     /// <summary>Retains a concrete native call site for the production compiler-checked adapter map.</summary>
     [MethodImpl(MethodImplOptions.NoInlining)]
     private static void SetExternalUnit(int program, int location, int unit) => GL.ProgramUniform1(program, location, unit);
@@ -392,26 +382,10 @@ public sealed class GpuProgramNarrowPublicationTests(HeadlessGLFixture fixture)
         finally { VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Shader, shader)); }
     }
 
-    /// <summary>Observes interface enumeration and integer unit reads at their exact native signatures.</summary>
-    private static void PatchQueries(Harmony harmony)
-    {
-        harmony.Patch(AccessTools.Method(typeof(GL), nameof(GL.GetProgramInterface), [typeof(int), typeof(ProgramInterface), typeof(ProgramInterfaceParameter), typeof(int).MakeByRefType()]),
-            prefix: new HarmonyMethod(typeof(GpuProgramNarrowPublicationTests), nameof(CountInterface)));
-        harmony.Patch(AccessTools.Method(typeof(OpenTK.Graphics.OpenGL4.GL), nameof(GL.GetUniform), [typeof(int), typeof(int), typeof(int).MakeByRefType()]),
-            prefix: new HarmonyMethod(typeof(GpuProgramNarrowPublicationTests), nameof(CountUnit)));
-    }
-
-    /// <summary>Counts interface enumeration without replacing native results.</summary>
-    private static void CountInterface() => interfaceQueries++;
-    /// <summary>Counts integer uniform reads without replacing native results.</summary>
-    private static void CountUnit() => unitQueries++;
-
     /// <summary>Rejects full executable recovery while a narrow command has all unrelated canonical facts.</summary>
     private sealed class RejectReader : IGpuResourceMetadataReader<GpuProgramMetadata>
     {
         internal int Calls;
-        /// <inheritdoc />
-        public bool IsResource(nint id) { Calls++; throw new InvalidOperationException("Unexpected program validity recovery."); }
         /// <inheritdoc />
         public bool TryRead(nint id, out GpuProgramMetadata metadata) { Calls++; throw new InvalidOperationException("Unexpected full program reflection."); }
     }
@@ -423,8 +397,6 @@ public sealed class GpuProgramNarrowPublicationTests(HeadlessGLFixture fixture)
 [Trait("Category", "GPU")]
 public sealed class GpuProgramDeferredContextTests(HeadlessGLFixture fixture)
 {
-    private static int queries;
-
     #region Public API
     /// <summary>Completion after context retirement refuses driver access and cannot publish into a replacement context.</summary>
     [Fact]
@@ -432,7 +404,6 @@ public sealed class GpuProgramDeferredContextTests(HeadlessGLFixture fixture)
     {
         fixture.EnsureContextValid(); fixture.InitializeResourceDisposal();
         var executionBackend = new VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBackend(OpenGlStateCache.Current);
-        var harmony = new Harmony("Tests.DeferredProgramContext." + Guid.NewGuid());
         int native = 0;
         try
         {
@@ -440,21 +411,16 @@ public sealed class GpuProgramDeferredContextTests(HeadlessGLFixture fixture)
             native = owner.ProgramId;
             executionBackend.SubmitProgramExecutable(owner);
             var entry = GpuResourceManagerSystem.CurrentManager!.GetResourceRegistration(owner)!;
+            using var queries = new ExecutableDescriptorCapture();
             RenderContextRegistry.Retire(fixture);
             RenderContextRegistry.RegisterCurrent(fixture, static _ => true);
-            harmony.Patch(AccessTools.Method(typeof(GL), nameof(GL.GetProgram), [typeof(int), typeof(GetProgramParameterName), typeof(int).MakeByRefType()]),
-                prefix: new HarmonyMethod(typeof(GpuProgramDeferredContextTests), nameof(CountQuery)));
-            harmony.Patch(AccessTools.Method(typeof(OpenTK.Graphics.OpenGL4.GL), nameof(GL.GetProgram), [typeof(int), typeof(OpenTK.Graphics.OpenGL4.GetProgramParameterName), typeof(int).MakeByRefType()]),
-                prefix: new HarmonyMethod(typeof(GpuProgramDeferredContextTests), nameof(CountQuery)));
-            queries = 0;
             Assert.Throws<InvalidOperationException>(() => executionBackend.CompleteProgramLink(owner, out _));
-            Assert.Equal(0, queries);
+            Assert.Equal(0, queries.ProgramReads);
             Assert.Equal(GpuResourceRegistrationState.ContextRetired, entry.State);
             Assert.False(entry.MetadataAvailable);
         }
         finally
         {
-            harmony.UnpatchAll(harmony.Id);
             RenderContextRegistry.RegisterCurrent(fixture, static _ => true);
             if (native != 0 && GL.IsProgram(native)) VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Program, native));
             fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll();
@@ -462,8 +428,4 @@ public sealed class GpuProgramDeferredContextTests(HeadlessGLFixture fixture)
     }
     #endregion
 
-    #region Private
-    /// <summary>Counts status access to establish that stale completion never queries a native name.</summary>
-    private static void CountQuery() => queries++;
-    #endregion
 }

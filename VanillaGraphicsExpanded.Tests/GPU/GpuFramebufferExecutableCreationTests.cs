@@ -1,9 +1,7 @@
 using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
-using HarmonyLib;
 using OpenTK.Graphics.OpenGL;
 using System.Collections.Immutable;
-using System.Reflection;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 
@@ -14,8 +12,6 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GPU")]
 public sealed class GpuFramebufferExecutableCreationTests(HeadlessGLFixture fixture)
 {
-    private static int queries;
-    private static readonly HashSet<FramebufferAttachment> queriedSlots = new();
 
     #region Public API
     /// <summary>Maintained backing facts refresh an unchanged attachment selection without rediscovery.</summary>
@@ -74,7 +70,6 @@ public sealed class GpuFramebufferExecutableCreationTests(HeadlessGLFixture fixt
     public void ExternalFramebufferEditsReadOnlyAffectedFields()
     {
         fixture.EnsureContextValid(); fixture.InitializeResourceDisposal();
-        var harmony = new Harmony("Tests.ExternalFramebufferFields." + Guid.NewGuid());
         try
         {
             using var first = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba8, Width = System.Math.Max(1, 4), Height = System.Math.Max(1, 4), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
@@ -83,29 +78,27 @@ public sealed class GpuFramebufferExecutableCreationTests(HeadlessGLFixture fixt
             var entry = Assert.IsType<GpuResourceMetadataEntry<GpuFramebufferMetadata>>(
                 GpuResourceManagerSystem.CurrentManager!.GetResourceRegistration(framebuffer));
             var original = entry.Metadata.Attachments[FramebufferSlot.Color0];
-            PatchQueries(harmony);
-            using var reads = new ImageDescriptorCapture();
-            queries = 0; queriedSlots.Clear();
+            using var queries = new CreationDescriptorCapture();
+
+            queries.Reset();
             GL.NamedFramebufferTexture(framebuffer.FboId, FramebufferAttachment.ColorAttachment1, second.TextureId, 0);
-            Assert.Equal(0, queries);
-            Assert.Empty(queriedSlots);
-            Assert.Equal(0, reads.Reads);
+            Assert.Equal(0, queries.Reads);
+            Assert.Empty(queries.QueriedSlots);
             Assert.Equal(original, entry.Metadata.Attachments[FramebufferSlot.Color0]);
             Assert.Equal(second.TextureId, entry.Metadata.Attachments[FramebufferSlot.Color1].Id);
             if (GpuSupport.Graphics.SupportsFramebufferNoAttachments)
             {
                 var attachments = entry.Metadata.Attachments;
-                queries = 0; queriedSlots.Clear();
+                queries.Reset();
                 GL.NamedFramebufferParameter(framebuffer.FboId, FramebufferDefaultParameter.FramebufferDefaultWidth, 17);
-                Assert.Equal(0, queries);
-                Assert.Empty(queriedSlots);
-                Assert.Equal(0, reads.Reads);
-                Assert.Equal(17, entry.Metadata.DefaultWidth);
+                Assert.Equal(0, queries.Reads);
+                Assert.Empty(queries.QueriedSlots);
+                    Assert.Equal(17, entry.Metadata.DefaultWidth);
                 Assert.Same(attachments, entry.Metadata.Attachments);
             }
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { harmony.UnpatchAll(harmony.Id); fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
+        finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
 
     /// <summary>Initial selections and later controlled replacement publish complete slots without scanning unrelated attachments.</summary>
@@ -115,7 +108,6 @@ public sealed class GpuFramebufferExecutableCreationTests(HeadlessGLFixture fixt
     public void KnownAttachmentsPublishWithoutDescriptorQueries(bool direct)
     {
         fixture.EnsureContextValid(); fixture.InitializeResourceDisposal();
-        var harmony = new Harmony("Tests.KnownFramebufferAttachment." + Guid.NewGuid());
         try
         {
             using var capabilities = new DirectStateAccessCapabilityScope(direct);
@@ -129,24 +121,24 @@ public sealed class GpuFramebufferExecutableCreationTests(HeadlessGLFixture fixt
                 Attachments = ImmutableDictionary<FramebufferSlot, GpuFramebufferAttachment>.Empty
                     .Add(FramebufferSlot.Color0, firstImage)
             };
-            PatchQueries(harmony);
-            queries = 0;
+            using var queries = new CreationDescriptorCapture();
+            queries.Reset();
             var created = GpuResourceManager.CreateFramebuffer(request, recipient, out _);
             Assert.NotNull(created);
             Assert.Equal(first.TextureId, created.Value.Attachments[FramebufferSlot.Color0].Id);
-            Assert.Equal(0, queries);
+            Assert.Equal(0, queries.Reads);
             using var framebuffer = DynamicGpuFramebuffer.CreateEmpty();
             var entry = Assert.IsType<GpuResourceMetadataEntry<GpuFramebufferMetadata>>(
                 GpuResourceManagerSystem.CurrentManager!.GetResourceRegistration(framebuffer));
             framebuffer.SetAttachment(FramebufferSlot.Color0, firstImage);
-            queries = 0;
+            queries.Reset();
             framebuffer.SetAttachment(FramebufferSlot.Color1, secondImage);
-            Assert.Equal(0, queries);
+            Assert.Equal(0, queries.Reads);
             Assert.Equal(first.TextureId, entry.Metadata.Attachments[FramebufferSlot.Color0].Id);
             Assert.Equal(second.TextureId, entry.Metadata.Attachments[FramebufferSlot.Color1].Id);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { harmony.UnpatchAll(harmony.Id); fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
+        finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
 
     /// <summary>Fresh empty descriptors and fixed shader stages reach registered and local recipients without queries.</summary>
@@ -159,21 +151,20 @@ public sealed class GpuFramebufferExecutableCreationTests(HeadlessGLFixture fixt
     {
         fixture.EnsureContextValid();
         if (registered) fixture.InitializeResourceDisposal();
-        var harmony = new Harmony("Tests.FramebufferExecutableCreation." + Guid.NewGuid());
         try
         {
             using var capabilities = new DirectStateAccessCapabilityScope(direct);
             using var sentinel = DynamicGpuFramebuffer.CreateEmpty();
             using var scope = OpenGlStateCache.Current.BindFramebufferScope(FramebufferTarget.Framebuffer, sentinel.FboId);
-            PatchQueries(harmony);
-            queries = 0;
+            using var queries = new CreationDescriptorCapture();
+            queries.Reset();
             using var framebuffer = new Recipient<GpuFramebufferMetadata>(GpuResourceKind.Framebuffer);
             using var shader = new Recipient<GpuShaderMetadata>(GpuResourceKind.Shader);
             using var program = new Recipient<GpuProgramMetadata>(GpuResourceKind.Program);
             var frameData = GpuResourceManager.CreateFramebuffer(default, framebuffer, out var frameHandle);
             var shaderData = GpuResourceManager.CreateShader(new GpuShaderInitialization { Stage = ShaderStage.Vertex }, shader, out var shaderHandle);
             var programData = GpuResourceManager.CreateProgram(default, program, out var programHandle);
-            Assert.Equal(0, queries);
+            Assert.Equal(0, queries.Reads);
             Assert.NotNull(frameData);
             Assert.Empty(frameData.Value.Attachments);
             Assert.Equal(0, frameData.Value.DefaultWidth);
@@ -194,11 +185,11 @@ public sealed class GpuFramebufferExecutableCreationTests(HeadlessGLFixture fixt
             Assert.Equal(sentinel.FboId, GL.GetInteger(GetPName.ReadFramebufferBinding));
             // Calibrate the concrete intercepted entry point after the measured interval.
             OpenTK.Graphics.OpenGL4.GL.GetShader((int)shaderHandle.Id, OpenTK.Graphics.OpenGL4.ShaderParameter.ShaderType, out int nativeStage);
-            Assert.Equal(1, queries);
+            Assert.Equal(1, queries.Reads);
             Assert.Equal((int)ShaderType.VertexShader, nativeStage);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { harmony.UnpatchAll(harmony.Id); fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
+        finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
 
     /// <summary>Omitted stage fails before allocation and explicit zero/false defaults remain distinct from omission.</summary>
@@ -279,30 +270,6 @@ public sealed class GpuFramebufferExecutableCreationTests(HeadlessGLFixture fixt
     #endregion
 
     #region Private
-    /// <summary>Counts exact integer descriptor overloads used by the corresponding native readers.</summary>
-    private static void PatchQueries(Harmony harmony)
-    {
-        var prefix = new HarmonyMethod(typeof(GpuFramebufferExecutableCreationTests), nameof(CountQuery));
-        harmony.Patch(AccessTools.Method(typeof(OpenTK.Graphics.OpenGL4.GL), nameof(GL.GetShader), [typeof(int), typeof(OpenTK.Graphics.OpenGL4.ShaderParameter), typeof(int).MakeByRefType()]), prefix: prefix);
-        harmony.Patch(AccessTools.Method(typeof(OpenTK.Graphics.OpenGL4.GL), nameof(GL.GetProgram), [typeof(int), typeof(OpenTK.Graphics.OpenGL4.GetProgramParameterName), typeof(int).MakeByRefType()]), prefix: prefix);
-        harmony.Patch(AccessTools.Method(typeof(OpenTK.Graphics.OpenGL4.GL), nameof(GL.GetProgramInterface), [typeof(int), typeof(OpenTK.Graphics.OpenGL4.ProgramInterface), typeof(OpenTK.Graphics.OpenGL4.ProgramInterfaceParameter), typeof(int).MakeByRefType()]), prefix: prefix);
-        harmony.Patch(AccessTools.Method(typeof(OpenTK.Graphics.OpenGL4.GL), nameof(GL.GetFramebufferAttachmentParameter), [typeof(OpenTK.Graphics.OpenGL4.FramebufferTarget), typeof(OpenTK.Graphics.OpenGL4.FramebufferAttachment), typeof(OpenTK.Graphics.OpenGL4.FramebufferParameterName), typeof(int).MakeByRefType()]), prefix: prefix);
-        harmony.Patch(AccessTools.Method(typeof(OpenTK.Graphics.OpenGL4.GL), nameof(GL.GetNamedFramebufferAttachmentParameter), [typeof(int), typeof(OpenTK.Graphics.OpenGL4.FramebufferAttachment), typeof(OpenTK.Graphics.OpenGL4.FramebufferParameterName), typeof(int).MakeByRefType()]), prefix: prefix);
-        harmony.Patch(AccessTools.Method(typeof(OpenTK.Graphics.OpenGL4.GL), nameof(GL.GetFramebufferParameter), [typeof(OpenTK.Graphics.OpenGL4.FramebufferTarget), typeof(OpenTK.Graphics.OpenGL4.FramebufferDefaultParameter), typeof(int).MakeByRefType()]), prefix: prefix);
-        harmony.Patch(AccessTools.Method(typeof(OpenTK.Graphics.OpenGL4.GL), nameof(GL.GetNamedFramebufferParameter), [typeof(int), typeof(OpenTK.Graphics.OpenGL4.FramebufferDefaultParameter), typeof(int).MakeByRefType()]), prefix: prefix);
-        harmony.Patch(AccessTools.Method(typeof(OpenTK.Graphics.OpenGL4.GL), nameof(GL.IsShader), [typeof(int)]), prefix: prefix);
-        harmony.Patch(AccessTools.Method(typeof(OpenTK.Graphics.OpenGL4.GL), nameof(GL.IsProgram), [typeof(int)]), prefix: prefix);
-        harmony.Patch(AccessTools.Method(typeof(OpenTK.Graphics.OpenGL4.GL), nameof(GL.IsFramebuffer), [typeof(int)]), prefix: prefix);
-    }
-
-    /// <summary>Records a descriptor query without changing its native behavior.</summary>
-    private static void CountQuery(MethodBase __originalMethod, object[] __args)
-    {
-        queries++;
-        if (__originalMethod.Name.Contains("AttachmentParameter", StringComparison.Ordinal))
-            queriedSlots.Add((FramebufferAttachment)Convert.ToInt32(__args[1]));
-    }
-
     /// <summary>Receives the initial canonical snapshot through the real manager association boundary.</summary>
     private sealed class Recipient<T>(GpuResourceKind kind) : GpuResource<T> where T : struct
     {

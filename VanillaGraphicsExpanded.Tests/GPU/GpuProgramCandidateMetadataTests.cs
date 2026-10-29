@@ -2,7 +2,6 @@ using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System;
 using System.Linq;
 using System.Threading;
-using HarmonyLib;
 using OpenTK.Graphics.OpenGL4;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.RHI;
@@ -16,45 +15,37 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GPU")]
 public sealed class GpuProgramCandidateMetadataTests(HeadlessGLFixture fixture)
 {
-    private static int statusQueries, validityQueries, interfaceQueries;
     #region Public API
     /// <summary>Pending creation defers native interface reads and ready preparation reuses the canonical executable snapshot.</summary>
     [Fact]
     public void SubmissionDefersQueriesAndPreparationReusesSnapshot()
     {
         Start();
-        var harmony = new Harmony("VGE.Tests.RHIProgramCandidateQueries");
         try
         {
             var description = RHIShaderInputs.ComputeDescription();
-            harmony.Patch(AccessTools.Method(typeof(GL), nameof(GL.GetProgram), [typeof(int), typeof(GetProgramParameterName), typeof(int).MakeByRefType()]),
-                prefix: new HarmonyMethod(typeof(GpuProgramCandidateMetadataTests), nameof(CountStatus)));
-            harmony.Patch(AccessTools.Method(typeof(GL), nameof(GL.IsProgram), [typeof(int)]),
-                prefix: new HarmonyMethod(typeof(GpuProgramCandidateMetadataTests), nameof(CountValidity)));
-            harmony.Patch(AccessTools.Method(typeof(GL), nameof(GL.GetProgramInterface), [typeof(int), typeof(ProgramInterface), typeof(ProgramInterfaceParameter), typeof(int).MakeByRefType()]),
-                prefix: new HarmonyMethod(typeof(GpuProgramCandidateMetadataTests), nameof(CountInterface)));
             using var native = new ExecutableDescriptorCapture();
             using var request = RHICommandContext.Current.BeginCreateShader(description);
             if (GpuSupport.Graphics.SupportsArbParallelShaderCompile || GpuSupport.Graphics.SupportsKhrParallelShaderCompile)
             {
                 Assert.Equal(0, native.ProgramReads);
-                Assert.Equal(0, interfaceQueries);
+                Assert.Equal(0, native.InterfaceReads);
             }
             Complete(request);
             using var shader = request.Result.RequireResource();
             Assert.True(native.ProgramReads > 0);
-            Assert.True(interfaceQueries > 0);
+            Assert.True(native.InterfaceReads > 0);
             int completedReads = native.ProgramReads;
-            validityQueries = interfaceQueries = 0;
+            int completedInterfaces = native.InterfaceReads, completedValidity = native.ValidityReads;
             shader.RequireUsable();
             var prepared = new GpuProgramInterface(shader.Program.ProgramId, [description.Bindings], metadata: shader.Program.MetadataSnapshot);
             Assert.Equal(shader.Interface.PreparedBindings.Entries.Count, prepared.PreparedBindings.Entries.Count);
             Assert.Equal(completedReads, native.ProgramReads);
-            Assert.Equal(0, validityQueries);
-            Assert.Equal(0, interfaceQueries);
+            Assert.Equal(completedValidity, native.ValidityReads);
+            Assert.Equal(completedInterfaces, native.InterfaceReads);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { harmony.UnpatchAll(harmony.Id); Finish(); }
+        finally { Finish(); }
     }
 
     /// <summary>Ready transfer retains its original program registration and releases all temporary stages.</summary>
@@ -129,11 +120,5 @@ public sealed class GpuProgramCandidateMetadataTests(HeadlessGLFixture fixture)
     private void Start() { fixture.EnsureContextValid(); fixture.InitializeResourceDisposal(); OpenGlStateCache.Current.InvalidateAll(); }
     /// <summary>Retires all original fixture resources and clears selector knowledge.</summary>
     private void Finish() { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
-    /// <summary>Counts exact native program status reads.</summary>
-    private static void CountStatus() => statusQueries++;
-    /// <summary>Counts exact native validity checks.</summary>
-    private static void CountValidity() => validityQueries++;
-    /// <summary>Counts exact native interface enumerations.</summary>
-    private static void CountInterface() => interfaceQueries++;
     #endregion
 }
