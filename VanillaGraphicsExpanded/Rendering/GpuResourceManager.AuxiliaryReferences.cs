@@ -11,6 +11,8 @@ internal sealed partial class GpuResourceManager
         RequireWrapperMetadataAccess(resource);
         resource.RequireOriginalContext();
         if (!resource.IsValid) return false;
+        if (resource is GpuSemaphore { ImportRequested: false }
+            && resource.ResourceManager?.GetResourceRegistration(resource) is null) return false;
         return resource.ResourceManager is not { } manager || !manager.CanAcquireWrapperMetadata(resource)
             || manager.IsResourceMetadataAvailable(resource);
     }

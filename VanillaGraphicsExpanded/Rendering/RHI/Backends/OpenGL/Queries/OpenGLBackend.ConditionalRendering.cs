@@ -7,6 +7,7 @@ namespace VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 internal sealed partial class OpenGLBackend
 {
     private GpuQuery? conditionalQuery;
+    private ulong conditionalRevision;
     #region Public API
     /// <inheritdoc />
     public void BeginConditionalRender(GpuQueryRef query, ConditionalRenderPolicy mode)
@@ -17,7 +18,7 @@ internal sealed partial class OpenGLBackend
         try
         {
             var owner = RequireQuery(query);
-            if (conditionalQuery is not null || owner.QueryKind is not (QueryKind.SamplesPassed or QueryKind.AnySamplesPassed or QueryKind.AnySamplesPassedConservative)
+            if (conditionalQuery is not null || cache.HasQueryCondition || owner.QueryKind is not (QueryKind.SamplesPassed or QueryKind.AnySamplesPassed or QueryKind.AnySamplesPassedConservative)
                 || !queryExecutions.GetOrCreateValue(owner).Issued)
                 throw new InvalidOperationException("Conditional rendering requires an issued occlusion query and no active condition.");
             var nativeMode = mode switch
@@ -33,7 +34,14 @@ internal sealed partial class OpenGLBackend
                 _ => throw new ArgumentOutOfRangeException(nameof(mode))
             };
             owner.RetainPassReference();
-            try { GL.BeginConditionalRender(owner.QueryId, nativeMode); RequireContext(); conditionalQuery = owner; }
+            try
+            {
+                OpenGLDriverCalls.BeginConditionalRender(owner.QueryId, nativeMode);
+                RequireContext();
+                cache.ObserveQueryCondition(owner.QueryId, (int)nativeMode);
+                conditionalRevision = cache.QueryConditionRevision;
+                conditionalQuery = owner;
+            }
             catch { owner.ReleasePassReference(); throw; }
         }
         finally { queryTransition = false; }
@@ -55,7 +63,12 @@ internal sealed partial class OpenGLBackend
             }
             RequireContext();
             var owner = conditionalQuery ?? throw new InvalidOperationException("Conditional rendering is not active.");
-            try { GL.EndConditionalRender(); RequireContext(); }
+            try
+            {
+                if (!cache.IsQueryConditionCurrent(owner, conditionalRevision))
+                    throw new InvalidOperationException("The original conditional interval was ended or replaced externally.");
+                OpenGLDriverCalls.EndConditionalRender(); RequireContext(); cache.EndQueryCondition();
+            }
             finally { conditionalQuery = null; owner.ReleasePassReference(); }
         }
         finally { queryTransition = false; }

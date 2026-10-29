@@ -87,6 +87,7 @@ public static partial class GpuSupport
             SupportsArbProgramInterfaceQuery = supportsArbProgramInterfaceQuery,
             SupportsArbGlSpirv = supportsArbGlSpirv,
             SupportsExtSemaphore = supportsExtSemaphore,
+            SupportsExtSemaphoreWin32 = GlExtensions.Supports("GL_EXT_semaphore_win32"),
             SupportsExtSemaphoreFd = supportsExtSemaphoreFd,
             SupportsExtMemoryObject = supportsExtMemoryObject,
             SupportsExtMemoryObjectFd = supportsExtMemoryObjectFd

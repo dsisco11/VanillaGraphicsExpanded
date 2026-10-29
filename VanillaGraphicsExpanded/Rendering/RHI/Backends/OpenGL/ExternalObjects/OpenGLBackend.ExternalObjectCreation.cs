@@ -12,7 +12,7 @@ internal sealed partial class OpenGLBackend
         if (!Capabilities.ExternalSemaphores) throw new NotSupportedException("External semaphores are unavailable.");
         var request = description;
         if (request.Import is { } handle) ValidateExternalHandle(handle, false);
-        var owner = new GpuSemaphore();
+        var owner = new GpuSemaphore(request.Import.HasValue);
         try
         {
             if (!GpuResourceManager.CreateSemaphore(new(), owner, out _).HasValue)
@@ -59,9 +59,9 @@ internal sealed partial class OpenGLBackend
     {
         RequireContext();
         if (!Capabilities.ExternalSemaphores) throw new NotSupportedException("External semaphores are unavailable.");
-        // TODO(Rendering.MetadataLifecycle.todo, semaphore private handoff task): use saved-original
-        // creation alongside the semaphore observers so managed creation publishes only once.
-        id = GL.Ext.GenSemaphore();
+        int name = 0;
+        try { OpenGLDriverCalls.Ext.GenSemaphores(1, out name); }
+        finally { id = name; }
         RequireContext();
         return id == 0 ? null : new GpuSemaphoreMetadata();
     }
@@ -93,13 +93,17 @@ internal sealed partial class OpenGLBackend
     /// <summary>Imports once without closing caller-owned Win32 handles or retrying failed dispatch.</summary>
     private void ImportSemaphore(GpuSemaphore owner, RHIExternalHandle handle)
     {
-        // TODO(Rendering.MetadataLifecycle.todo, semaphore import task): move these imports
-        // to saved-original dispatch when their post-call lifecycle observers are installed.
         if (handle.Kind == ExternalHandleKind.OpaqueFileDescriptor)
-            GL.Ext.ImportSemaphoreF(owner.SemaphoreId, ExternalHandleType.HandleTypeOpaqueFdExt, (int)handle.Value);
-        else GL.Ext.ImportSemaphoreWin32Handle(owner.SemaphoreId, handle.Kind == ExternalHandleKind.OpaqueWin32
+            OpenGLDriverCalls.Ext.ImportSemaphoreF(owner.SemaphoreId, ExternalHandleType.HandleTypeOpaqueFdExt, (int)handle.Value);
+        else OpenGLDriverCalls.Ext.ImportSemaphoreWin32Handle(owner.SemaphoreId, handle.Kind == ExternalHandleKind.OpaqueWin32
             ? ExternalHandleType.HandleTypeOpaqueWin32Ext : ExternalHandleType.HandleTypeOpaqueWin32KmtExt, handle.Value);
         RequireContext();
+        // This targeted lifecycle outcome is necessary because an opaque external handle
+        // and a void return cannot certify a payload for subsequent wait/signal use.
+        if (!OpenGLDriverCalls.Ext.IsSemaphore(owner.SemaphoreId))
+            throw new InvalidOperationException("Semaphore payload import did not establish a usable object.");
+        RequireContext();
+        owner.ResourceManager?.ObserveSemaphoreRealization(owner.ResourceId);
     }
     /// <summary>Imports the explicit memory size once under the selected ownership contract.</summary>
     private void ImportMemory(GpuMemoryObject owner, ulong size, RHIExternalHandle handle)

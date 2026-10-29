@@ -140,6 +140,9 @@ through the manager on use; equality alone cannot establish current validity or 
 
 Every `Create*` result abbreviated to an owner `T` in this table means `RHICreationResult<T>`,
 not a second bare-owner/exception-only creation pattern. Fence insertion retains its distinct sync contract.
+Semaphore generation returns an owned reservation that is disposable but not consumable by wait/signal.
+Import realization uses one approved targeted lifecycle outcome check before imported success is exposed;
+neither empty metadata nor a nonzero handle is proof of an imported payload.
 
 `GpuImageMetadata` remains the manager's selected attachment projection, not another registered kind or
 public factory result. Empty metadata schemas remain empty; no full VAO, sampler or transform-feedback

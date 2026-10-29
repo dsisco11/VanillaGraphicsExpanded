@@ -77,6 +77,8 @@ public static partial class GpuSupport
             DoubleAttributes = IsAtLeast(capabilities.ApiVersion, 4, 1) || GlExtensions.Supports("GL_ARB_vertex_attrib_64bit"),
             DepthClamp = IsAtLeast(capabilities.ApiVersion, 3, 2) || GlExtensions.Supports("GL_ARB_depth_clamp"),
             MaxVertexBindings = bindings ? SafeGetInt(GetPName.MaxVertexAttribBindings) : maxVertexAttributes,
+            MaxVertexStreams = IsAtLeast(capabilities.ApiVersion, 4, 0) ? SafeGetInt(GetPName.MaxVertexStreams) : 1,
+            PipelineStatisticsQueries = IsAtLeast(capabilities.ApiVersion, 4, 6) || GlExtensions.Supports("GL_ARB_pipeline_statistics_query"),
             MaxVertexRelativeOffset = bindings ? SafeGetInt(GetPName.MaxVertexAttribRelativeOffset) : int.MaxValue,
             MaxVertexStride = IsAtLeast(capabilities.ApiVersion, 4, 4) ? SafeGetInt((GetPName)All.MaxVertexAttribStride) : int.MaxValue,
             MaxSampleMaskWords = IsAtLeast(capabilities.ApiVersion, 3, 2) ? SafeGetInt(GetPName.MaxSampleMaskWords) : 0,

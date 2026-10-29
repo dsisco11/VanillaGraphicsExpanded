@@ -16,7 +16,9 @@ public sealed class GpuSemaphore : GpuResource<GpuSemaphoreMetadata>
     #endregion
     #region Internal API
     /// <summary>Declares an unpublished owner for private manager handoff.</summary>
-    internal GpuSemaphore() { }
+    internal GpuSemaphore(bool importRequested = false) { ImportRequested = importRequested; }
+    /// <summary>Retains immutable creation intent for context-local owners without a registry.</summary>
+    internal bool ImportRequested { get; }
     #endregion
     #region Private
     /// <inheritdoc />

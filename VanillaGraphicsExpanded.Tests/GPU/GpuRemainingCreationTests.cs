@@ -54,7 +54,8 @@ public sealed class GpuRemainingCreationTests(HeadlessGLFixture fixture, Xunit.I
             foreach (var resource in new GpuResource?[] { semaphore, memory }.OfType<GpuResource>())
             {
                 Assert.True(resource.IsValid);
-                if (registered) Assert.True(GpuResourceManagerSystem.CurrentManager!.IsResourceMetadataAvailable(resource));
+                if (registered) Assert.Equal(resource.Kind != GpuResourceKind.Semaphore,
+                    GpuResourceManagerSystem.CurrentManager!.IsResourceMetadataAvailable(resource));
             }
             Assert.Equal(previousVao.VertexArrayId, GL.GetInteger(GetPName.VertexArrayBinding));
             Assert.Equal(previousPipeline.PipelineId, GL.GetInteger(GetPName.ProgramPipelineBinding));
@@ -112,6 +113,7 @@ public sealed class GpuRemainingCreationTests(HeadlessGLFixture fixture, Xunit.I
     {
         fixture.EnsureContextValid();
         if (registered) fixture.InitializeResourceDisposal();
+        _ = RHICommandContext.Current;
         using var deletion = new DeletionObservation();
         try
         {

@@ -28,12 +28,13 @@ public sealed class RHIAuxiliaryTests(HeadlessGLFixture fixture, Xunit.ITestOutp
         {
             var context = RHICommandContext.Current;
             using var query = context.CreateQuery(new(QueryKind.SamplesPassed)).RequireResource();
-            using var observation = new BeginObservation(nameof(GL.BeginQuery), [typeof(QueryTarget), typeof(int)], () =>
+            using var observation = new QueryBeginObservation(() =>
             {
                 Assert.Throws<InvalidOperationException>(() => context.EndQuery(query));
                 Assert.Throws<InvalidOperationException>(() => context.BeginQuery(query));
             });
             context.BeginQuery(query);
+            Assert.Equal(1, observation.Calls);
             context.EndQuery(query);
             Assert.Equal(CompletionStatus.Ready, context.RequestQueryResult(query).Wait());
             Assert.Equal(ErrorCode.NoError, GL.GetError());
@@ -259,6 +260,33 @@ public sealed class RHIAuxiliaryTests(HeadlessGLFixture fixture, Xunit.ITestOutp
     #endregion
 
     #region Private
+    /// <summary>Observes saved-original query dispatch instead of patching the managed wrapper it bypasses.</summary>
+    private sealed unsafe class QueryBeginObservation : IDisposable
+    {
+        private readonly NativeDriverCapture native = new();
+        internal int Calls { get; private set; }
+        #region Public API
+        /// <summary>Decorates the real driver begin while containing test assertions at the unmanaged boundary.</summary>
+        public QueryBeginObservation(Action callback)
+        {
+            nint original = native.Original("glBeginQuery");
+            native.Add("glBeginQuery", new Begin((target, id) =>
+            {
+                ((delegate* unmanaged[Stdcall]<int, uint, void>)original)(target, id);
+                Calls++;
+                native.Observe(callback);
+            }));
+            native.Install();
+        }
+        /// <summary>Restores ordinary binding loading and reports any captured assertion failure.</summary>
+        public void Dispose() => native.Dispose();
+        #endregion
+        #region Private
+        /// <summary>Matches the native begin-query ABI.</summary>
+        [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate void Begin(int target, uint id);
+        #endregion
+    }
+
     /// <summary>Exercises reentry from a real native begin call without adding production callback machinery.</summary>
     private sealed class BeginObservation : IDisposable
     {
@@ -280,23 +308,29 @@ public sealed class RHIAuxiliaryTests(HeadlessGLFixture fixture, Xunit.ITestOutp
         #endregion
     }
     /// <summary>Injects corruption after a real native unmap, preserving actual cleanup and deterministic failure evidence.</summary>
-    private sealed class UnmapObservation : IDisposable
+    private sealed unsafe class UnmapObservation : IDisposable
     {
-        private readonly Harmony harmony = new("Tests.RHIReadbackCorruption." + Guid.NewGuid());
+        private readonly NativeDriverCapture native = new();
         #region Public API
         /// <summary>Observes the core named unmap without a production diagnostic switch.</summary>
         public UnmapObservation()
         {
             unmapCalls = 0;
-            harmony.Patch(AccessTools.Method(typeof(GL), nameof(GL.UnmapNamedBuffer), [typeof(int)]),
-                postfix: new HarmonyMethod(typeof(UnmapObservation), nameof(Corrupt)));
+            nint original = native.Original("glUnmapNamedBuffer");
+            native.Add("glUnmapNamedBuffer", new Unmap(id =>
+            {
+                _ = ((delegate* unmanaged[Stdcall]<uint, byte>)original)(id);
+                unmapCalls++;
+                return 0;
+            }));
+            native.Install();
         }
         /// <summary>Removes only the fixture-owned interception.</summary>
-        public void Dispose() => harmony.UnpatchAll(harmony.Id);
+        public void Dispose() => native.Dispose();
         #endregion
         #region Private
         /// <summary>Reports native corruption after the real mapping has been released.</summary>
-        private static void Corrupt(ref bool __result) { unmapCalls++; __result = false; }
+        [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate byte Unmap(uint id);
         #endregion
     }
     /// <summary>Starts the native execution and resource-retirement interval.</summary>

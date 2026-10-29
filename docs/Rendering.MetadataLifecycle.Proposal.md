@@ -124,6 +124,14 @@ Permitted acquisition has an explicit cause:
 6. Kind-specific deletion outcomes already required to distinguish name retirement from deferred native
    object destruction. These are lifecycle checks, not descriptor acquisition.
 
+Semaphore generation is a name reservation, not an imported payload. An unimported RHI owner may be
+disposed but cannot wait or signal. The managed import boundary performs one targeted `IsSemaphore`
+outcome read before returning an imported usable resource: the missing fact is whether the void import
+established a semaphore, and the consumers are wait/signal admission. This is an explicitly approved
+lifecycle check, not imported descriptor discovery. External import observers issue no probe and do not
+infer success from a handle; a caller's explicit positive `IsSemaphore` result can establish realization
+on the original reservation. Query/wait results and semaphore payloads remain outside the empty schemas.
+
 A missing registration or discarded command argument for a resource created under active interception
 is a tracking defect, not an implicit acquisition request. Ordinary binding, validation, reference
 conversion and snapshot access must neither hide that defect nor scan descriptors. Repair the producer.

@@ -16,6 +16,18 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 public sealed unsafe class GpuMemoryObjectLifecycleTests(HeadlessGLFixture fixture)
 {
     #region Public API
+    /// <summary>Invalid untracked memory imports remain nonfatal native calls without speculative registration.</summary>
+    [Fact]
+    public void UntrackedMemoryImportDoesNotTriggerFatalDiagnostics()
+    {
+        fixture.EnsureContextValid(); fixture.InitializeResourceDisposal();
+        using var driver = new MemoryDriver();
+        GL.Ext.ImportMemoryF(1900000000, 4096, ExternalHandleType.HandleTypeOpaqueFdExt, -1);
+        Assert.Equal(1, driver.ImportCalls);
+        Assert.Null(GpuResourceManagerSystem.CurrentManager!.FindResource(GpuResourceKind.MemoryObject, 1900000000));
+        fixture.CleanupGpuResources();
+    }
+
     /// <summary>Generated callbacks preserve output widths, imports, stale arrays and original retirement identity.</summary>
     [Fact]
     public void NativeMemorySetupPreservesOriginalEmptySnapshot()

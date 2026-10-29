@@ -26,6 +26,8 @@ feedback, semaphores, memory objects, framebuffers, vertex arrays and executable
 initialization receives the admitted context explicitly and dispatches through `IRHIResourceExecution`,
 without retrieving the concrete backend or reentering a public factory. A nullable metadata result reports detected failure;
 identity and a complete initial snapshot are handed to the wrapper only after successful initialization.
+Semaphore generation instead hands off an owned reservation: its empty snapshot becomes available only
+after payload realization is established, and wait/signal reject an unimported reservation.
 Partial allocation cleanup preserves the original exception and the originating deletion context.
 
 Owned framebuffer declarations and attachment-owned renderbuffers request allocation through private
@@ -282,6 +284,15 @@ Cancelled. These are request states, not canonical metadata or another resource 
 reads preserve external query-buffer binding and retrieve unsigned 64-bit values. Conditional rendering
 consumes issued occlusion queries without CPU result readback.
 
+Raw query generation reserves the original name; legal begin/indexed-begin/counter operations and named
+creation establish its empty metadata without discovery. Core and ARB aliases share that registration.
+The cache owns target/activity and issued-result revisions, separately from empty canonical descriptors.
+An external reissue invalidates a managed result ticket without revising descriptor metadata. Missing
+cached optional support or stream limits leave uncertain realization unavailable; they do not authorize
+target/status discovery. Explicit positive caller `IsQuery` results can establish an observed reservation.
+Fences register their nonzero pointer-width result once; creation does not read signal status. Covered
+query/fence/semaphore association and empty-schema recovery never invoke a descriptor reader.
+
 Readback descriptions select a buffer interval or view-relative image region and explicit pixel pitches.
 The request privately owns staging plus its completion fence. Mapping requires readiness and is exclusive;
 its scoped read-only bytes remain tied to the original context. Synchronous callers use
@@ -300,6 +311,15 @@ imports transfer their descriptor to GL, while Win32 handles remain caller-owned
 package exposes these optional entry points only through GL.Ext, confined to backend modules. No payload
 state is invented in canonical metadata. Native external-producer import qualification remains separate
 from object creation and capability-rejection tests.
+
+Semaphore generation retains a reserved name on the same manager entry. An unimported owner can be
+disposed, but cannot wait or signal. Opaque native imports preserve identity without claiming success
+or querying payloads. The RHI import boundary makes one targeted `IsSemaphore` outcome check before
+publishing the empty realized snapshot; failed import cleans the candidate against its original identity.
+An explicit external positive `IsSemaphore` result also establishes realization. FD ownership transfers
+only on native success; Win32 handles/names remain caller-owned. Repeated setup does not create another
+registration or descriptor revision. Managed factories/imports/deletion use saved originals so external
+observation and private publication cannot run twice.
 
 Sparse buffer allocation uses explicit sparse storage intent and cached page alignment. It rejects
 mapping and initial bytes before commitment; commitment changes residency, not allocation metadata.

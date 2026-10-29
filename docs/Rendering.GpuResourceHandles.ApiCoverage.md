@@ -146,7 +146,11 @@ claim full native qualification merely because this machine lacks a capability.
 
 Queries, pure content transfers/clears/draws, synchronization, and sampler parameters with no represented
 wrapper fields do not become metadata refreshes. Sparse page commitment changes residency rather than
-allocation dimensions. ImportMemory/ImportSemaphore establish objects used by later storage commands;
+allocation dimensions. Memory imports retain their existing object identity; semaphore generation reserves
+a name, and imported semaphore usability requires an established payload outcome. RHI import makes one
+targeted IsSemaphore check; external import observation does not probe or infer success from a handle.
+Query factories/realization and FenceSync maintain the original empty-schema lifetime without descriptor
+reads. Query/wait results remain explicit outputs. These identities support later storage/synchronization commands;
 there is no represented import descriptor to refresh today. Vertex current-value setters affect context
 values rather than VAO array layouts. Buffer/texture selection alone changes binding knowledge; element
 buffer and vertex-buffer association are the exceptions handled by V1. Creation registers identity;

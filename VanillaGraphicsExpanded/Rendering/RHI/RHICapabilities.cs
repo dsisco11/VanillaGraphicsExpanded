@@ -99,9 +99,9 @@ public sealed class RHICapabilities
         this.source = source;
         IndirectDrawCount = source.ApiVersion is { } version && version >= new System.Version(4, 6)
             || GpuSupport.Supports("GL_ARB_indirect_parameters");
-        PipelineStatistics = GpuSupport.Supports("GL_ARB_pipeline_statistics_query");
+        PipelineStatistics = source.PipelineStatisticsQueries;
         ExternalMemoryWin32 = GpuSupport.Supports("GL_EXT_memory_object_win32");
-        ExternalSemaphoresWin32 = GpuSupport.Supports("GL_EXT_semaphore_win32");
+        ExternalSemaphoresWin32 = source.SupportsExtSemaphoreWin32;
         TextureAnisotropy = GpuSupport.Supports("GL_EXT_texture_filter_anisotropic") || GpuSupport.Supports("GL_ARB_texture_filter_anisotropic");
         CoverageSampling = GpuSupport.Supports("GL_NV_framebuffer_multisample_coverage") && GpuSupport.Supports("GL_EXT_direct_state_access");
         S3tcTextures = GpuSupport.Supports("GL_EXT_texture_compression_s3tc");

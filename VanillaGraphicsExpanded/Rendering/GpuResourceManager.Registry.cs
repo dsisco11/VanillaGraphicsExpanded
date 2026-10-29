@@ -71,7 +71,7 @@ internal sealed partial class GpuResourceManager
             if (tracked.CompletionInProgress) return null;
             // TODO(Rendering.MetadataLifecycle.todo, resource acquisition tasks): apply the
             // recorded-discovery gate to the remaining kinds as each family is migrated.
-            if (kind is GpuResourceKind.Buffer or GpuResourceKind.MemoryObject)
+            if (UsesMaintainedLifecycle(kind))
             {
                 if (!tracked.InitialDiscoveryPending) return null;
                 tracked.InitialDiscoveryPending = false;
@@ -79,7 +79,7 @@ internal sealed partial class GpuResourceManager
             tracked.Reader = reader;
             return RefreshMetadata(tracked, tracked.MetadataRevision == 0 ? GpuMetadataChange.None : GpuMetadataChange.Metadata) ? tracked : null;
         }
-        if (kind is GpuResourceKind.Buffer or GpuResourceKind.MemoryObject) return null;
+        if (UsesMaintainedLifecycle(kind)) return null;
         // TODO(Rendering.MetadataLifecycle.todo, remaining family acquisition tasks): remove
         // provisional readback admission once each kind maintains its creation/configuration facts.
         // Admit an unavailable provisional identity before reading so reentrant acquisition
@@ -110,7 +110,7 @@ internal sealed partial class GpuResourceManager
         var entry = FindResource(kind, id) as GpuResourceMetadataEntry<TMetadata>;
         // TODO(Rendering.MetadataLifecycle.todo, remaining family recovery tasks): require
         // original registrations for every kind; remove discovery through this recovery fallback.
-        if (entry is null) return kind is GpuResourceKind.Buffer or GpuResourceKind.MemoryObject
+        if (entry is null) return UsesMaintainedLifecycle(kind)
             ? null : AcquireResource(kind, id, reader);
         if (entry.State != GpuResourceRegistrationState.Live || entry.OperationInProgress || entry.CompletionInProgress) return null;
         if (kind == GpuResourceKind.Buffer && !entry.IsRealized && !entry.InitialDiscoveryPending) return null;
@@ -119,6 +119,26 @@ internal sealed partial class GpuResourceManager
         {
             if (!memory.IsRealized) return null;
             PublishMetadata(memory, new GpuMemoryObjectMetadata(), GpuMetadataChange.Metadata);
+            return entry;
+        }
+        // Empty schemas recover their established original lifetime without a descriptor reader.
+        // A reservation cannot use recovery to manufacture realization or import success.
+        if (entry is GpuResourceMetadataEntry<GpuQueryMetadata> query)
+        {
+            if (!query.IsRealized) return null;
+            PublishMetadata(query, new GpuQueryMetadata(), GpuMetadataChange.Metadata);
+            return entry;
+        }
+        if (entry is GpuResourceMetadataEntry<GpuSyncMetadata> sync)
+        {
+            if (!sync.IsRealized) return null;
+            PublishMetadata(sync, new GpuSyncMetadata(), GpuMetadataChange.Metadata);
+            return entry;
+        }
+        if (entry is GpuResourceMetadataEntry<GpuSemaphoreMetadata> semaphore)
+        {
+            if (!semaphore.IsRealized) return null;
+            PublishMetadata(semaphore, new GpuSemaphoreMetadata(), GpuMetadataChange.Metadata);
             return entry;
         }
         entry.Reader = reader;
@@ -198,6 +218,10 @@ internal sealed partial class GpuResourceManager
 
     #region Private
     #region Context and registration validation
+    /// <summary>Identifies families whose covered creation facts cannot be replaced by implicit discovery.</summary>
+    private static bool UsesMaintainedLifecycle(GpuResourceKind kind) => kind is GpuResourceKind.Buffer
+        or GpuResourceKind.MemoryObject or GpuResourceKind.Query or GpuResourceKind.Sync or GpuResourceKind.Semaphore;
+
     /// <summary>Ensures all ordinary registry operations and native reads stay on their originating context thread.</summary>
     private void RequireMetadataContext()
     {

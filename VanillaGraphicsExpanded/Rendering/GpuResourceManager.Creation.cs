@@ -49,7 +49,10 @@ internal sealed partial class GpuResourceManager
                 entry = manager.RegisterCreatedResource<TMetadata>(creation.Kind, id);
                 // Publish before associating the still-unpublished wrapper. No dependent callbacks
                 // can run on it during construction, and association delivers the snapshot once.
-                manager.PublishMetadata(entry, candidate.Value, GpuMetadataChange.None);
+                // Semaphore generation allocates a name only. Its import outcome establishes
+                // realization later; the owner can still dispose an unimported reservation.
+                if (creation.Kind != GpuResourceKind.Semaphore)
+                    manager.PublishMetadata(entry, candidate.Value, GpuMetadataChange.None);
                 candidate = entry.Metadata;
             }
             recipient.SetCreationIdentity(id, nativeOrigin);
@@ -61,7 +64,7 @@ internal sealed partial class GpuResourceManager
                 manager.AssociateResource(entry!, recipient);
                 manager.RequireMetadataContext();
                 manager.RequireLiveEntry(entry!);
-                if (!manager.IsResourceMetadataAvailable(recipient))
+                if (creation.Kind != GpuResourceKind.Semaphore && !manager.IsResourceMetadataAvailable(recipient))
                     throw new InvalidOperationException("Initial metadata delivery did not complete.");
             }
             else recipient.HandleMetadataChanged(candidate.Value);

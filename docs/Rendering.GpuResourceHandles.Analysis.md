@@ -30,6 +30,11 @@ routes in [the lifecycle inventory](Rendering.MetadataLifecycle.Inventory.md#mai
 Ordinary buffer association no longer discovers or automatically recovers descriptors. The historical
 rows below remain migration input for the other families; they do not authorize buffer query fallbacks.
 
+Query, fence and semaphore lifecycle behavior is likewise superseded by the maintained synchronization
+routes in the lifecycle inventory. Their schemas remain empty; only query/wait outputs, the approved
+targeted semaphore-import lifecycle check and deletion outcomes remain native reads. Missing covered
+identities cannot authorize discovery or automatic recovery.
+
 ### Shared scenario rules
 
 These rules apply to every row, including the reader and observer rows:

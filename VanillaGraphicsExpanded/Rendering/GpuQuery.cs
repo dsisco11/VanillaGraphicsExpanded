@@ -5,7 +5,7 @@ using System;
 namespace VanillaGraphicsExpanded.Rendering;
 
 /// <summary>
-/// RAII wrapper around an OpenGL query object created by <c>glGenQueries</c>.
+/// RAII wrapper around a target-specific query object created through the RHI.
 /// Deletion is deferred to <see cref="GpuResourceManager"/> when available.
 /// </summary>
 public sealed class GpuQuery : GpuResource<GpuQueryMetadata>, IDisposable

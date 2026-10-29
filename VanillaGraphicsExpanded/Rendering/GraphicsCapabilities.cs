@@ -41,6 +41,12 @@ public sealed record GraphicsCapabilities
     public int MaxVertexAttributes { get; init; }
     /// <summary>Number of vertex-buffer binding slots; falls back to the attribute count without separate attribute bindings.</summary>
     public int MaxVertexBindings { get; init; }
+    /// <summary>Maximum indexed primitive-query streams, captured during context admission.</summary>
+    public int MaxVertexStreams { get; init; }
+    /// <summary>Whether optional pipeline-statistics query targets are supported.</summary>
+    public bool PipelineStatisticsQueries { get; init; }
+    /// <summary>Whether semaphore handles or names can be imported from Win32.</summary>
+    public bool SupportsExtSemaphoreWin32 { get; init; }
     /// <summary>Maximum vertex binding stride in bytes; int.MaxValue when the stride limit query is unavailable.</summary>
     public int MaxVertexStride { get; init; }
     /// <summary>Maximum attribute offset relative to a vertex-buffer binding, in bytes; int.MaxValue without separate attribute bindings.</summary>

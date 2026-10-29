@@ -4,7 +4,7 @@ Maintained resource metadata lifecycle — implementation plan
 Source proposal: [Rendering.MetadataLifecycle.Proposal.md](Rendering.MetadataLifecycle.Proposal.md).
 Parent integration gate: [Rendering.GpuCommands.todo](Rendering.GpuCommands.todo), subphase 8i.
 Initial inventory: [Rendering.MetadataLifecycle.Inventory.md](Rendering.MetadataLifecycle.Inventory.md).
-Status: Phases 1–2 complete; Phases 3–7 remain pending.
+Status: Phases 1–3 complete; Phases 4–7 remain pending.
 
 Goal
   Maintain canonical resource facts from observed creation, guaranteed defaults and subsequent commands.
@@ -52,7 +52,9 @@ Mandatory contract — applies to every implementation phase
   - Preserve explicit shader/compiler output, unsized-format resolution, cached sample resolution with the
     approved one-time fallback, documented targeted recovery and kind-specific deletion-outcome reads.
     Any additional import read must name the missing fact, why intercepted setup cannot supply it and its
-    consumer. No such import exception is established by this plan.
+    consumer. No imported-descriptor exception is established by this plan. Semaphore import has one
+    approved targeted IsSemaphore lifecycle outcome check at the RHI boundary for wait/signal admission;
+    external import observers do not probe. Unimported owned reservations are disposable, not consumable.
   - Context identity remains manager-owned and context-affine; equal names in different contexts do not
     imply shared identity. Keep reserved/realized status separate from availability and terminal retirement.
     Do not claim shared-context execution or extend ownership through reference retention.
@@ -164,22 +166,33 @@ Phase 3: Maintain semaphore, query and synchronization identities
   Depends on Phase 2's exercised registration lifecycle.
   Outcome: the remaining synchronization/import identities are maintained through their full lifecycles.
 
-  ☐ Migrate GpuQuery/GpuQueryMetadata and GpuFence/GpuSyncMetadata through all retained generation,
+  ☑ Migrate GpuQuery/GpuQueryMetadata and GpuFence/GpuSyncMetadata through all retained generation,
     target-specific creation, fence creation and supported sync-import routes resolved in Phase 1.
     Preserve pointer-width sync results and kind-specific delayed realization; query/wait results remain
     explicit driver outputs rather than canonical descriptor fields.
-  ☐ Migrate GpuSemaphore/GpuSemaphoreMetadata through EXT generation/import and deletion. Retain its empty
+  ☑ Migrate GpuSemaphore/GpuSemaphoreMetadata through EXT generation/import and deletion. Retain its empty
     schema, capability requirements, native handle ownership, import lifetime and original-context cleanup.
     Do not infer import success solely from a handle or introduce descriptor queries because it is imported.
-  ☐ Update RHI creation/import operations, native observers, acquisition/retirement consumers and tests in
+  ☑ Update RHI creation/import operations, native observers, acquisition/retirement consumers and tests in
     the same unit. Registration/default publication occurs once for both native and RHI paths; imports
     update their actual represented lifecycle effects without manufacturing a second allocation identity.
     Preserve resource facts supplied to later memory-backed storage operations.
-  ☐ Remove obsolete identity/discovery paths, retaining legitimate query/wait and deletion-outcome reads.
+  ☑ Remove obsolete identity/discovery paths, retaining legitimate query/wait and deletion-outcome reads.
     Qualify native return/output preservation, failed imports, borrowed external handles, repeated setup,
     name reuse and context loss. Record unavailable native capabilities separately from deterministic tests.
-  ☐ Completion: synchronization and semaphore consumers use established original lifetimes;
+  ☑ Completion: synchronization and semaphore consumers use established original lifetimes;
     empty metadata remains empty and every retained query has a specific non-descriptor purpose or justification.
+
+  Verification: canonical shader-enabled Debug and ordinary Release builds passed; the combined focused
+    lifecycle suite passed 231/231 in each configuration with zero skips. Generator tests passed 35/35
+    per configuration. Second source review and independent stage audit passed after resolving query
+    activity uncertainty, external interval ownership, canonical reference admission and nonfatal import
+    diagnostics. Receipts: artifacts/metadata-lifecycle/phase3/phase3-*-closed.trx, *-closed.log and
+    generator Debug/Release receipts in that directory. The binding inventory now includes 435 symbols.
+    Actual query/fence and supported empty semaphore/memory creation/disposal routes were exercised;
+    external-producer FD/Win32 imports use deterministic native-boundary stand-ins and are not hardware
+    interop qualification. Installed-game startup, appearance and performance remain unqualified.
+    Phases 4–7 and the parent 8i integration gate remain open.
 
 Phase 4: Migrate image storage, views and framebuffer consumers together
   Depends on Phases 2–3.

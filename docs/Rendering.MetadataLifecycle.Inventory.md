@@ -13,8 +13,8 @@ select `G:/Vintagestory/Lib/OpenTK.Graphics.dll`, version 4.9.4.0, MVID
 `5B57957CA9E4C5F7BFB7EC495B991E6B88CFAC52863A19E405492AB8C33CB1D2`.
 The project references `$(VINTAGE_STORY)/Lib/OpenTK.Graphics.dll`; `resolved-references.json` records
 the evaluated reference. The fresh probe recovered 1,981 symbols and 9,693 nongeneric calli overloads.
-`bindings.json` retains per-overload owner, slot and managed/native signatures. The durable
-[binding table](Rendering.MetadataLifecycle.Bindings.tsv) records 430 selected factory, realization,
+`artifacts/metadata-lifecycle/bindings.json` retains per-overload owner, slot and managed/native signatures. The durable
+[binding table](Rendering.MetadataLifecycle.Bindings.tsv) records 435 selected factory, realization,
 configuration, output and excluded-candidate symbols with exact owners, ABI, migration phase and current
 observer source. Selection combines the API family matrix, current native observers and factory/implicit
 realization rules below; current observer presence does not limit required coverage.
@@ -45,7 +45,7 @@ the nested binding owner. Observer presence is source evidence only, not effect 
 | `glCreateProgram` | `GL`, `GL4` | No creation/import observer declared |
 | `glCreateProgramObjectARB` | `GL+Arb` | No creation/import observer declared |
 | `glCreateProgramPipelines` | `GL`, `GL4` | No creation/import observer declared |
-| `glCreateQueries` | `GL`, `GL4` | No creation/import observer declared |
+| `glCreateQueries` | `GL`, `GL4` | Implemented; see maintained synchronization routes below |
 | `glCreateRenderbuffers` | `GL`, `GL4` | No creation/import observer declared |
 | `glCreateSamplers` | `GL`, `GL4` | No creation/import observer declared |
 | `glCreateShader` | `GL`, `GL4` | No creation/import observer declared |
@@ -57,7 +57,7 @@ the nested binding owner. Observer presence is source evidence only, not effect 
 | `glCreateTextures` | `GL`, `GL4` | No creation/import observer declared |
 | `glCreateTransformFeedbacks` | `GL`, `GL4` | No creation/import observer declared |
 | `glCreateVertexArrays` | `GL`, `GL4` | Creation observer implemented; see maintained buffer routes below |
-| `glFenceSync` | `GL`, `GL4` | No creation/import observer declared |
+| `glFenceSync` | `GL`, `GL4` | Implemented; see maintained synchronization routes below |
 | `glGenBuffers` | `GL`, `GL4` | Creation observer implemented; see maintained buffer routes below |
 | `glGenBuffersARB` | `GL+Arb` | Creation observer implemented; see maintained buffer routes below |
 | `glGenFramebuffers` | `GL`, `GL4` | No creation/import observer declared |
@@ -66,24 +66,24 @@ the nested binding owner. Observer presence is source evidence only, not effect 
 | `glGenProgramPipelines` | `GL`, `GL4` | No creation/import observer declared |
 | `glGenProgramPipelinesEXT` | `GL+Ext`, `GL4+Ext` | No creation/import observer declared |
 | `glGenProgramsARB` | `GL+Arb` | Excluded legacy feature |
-| `glGenQueries` | `GL`, `GL4` | No creation/import observer declared |
-| `glGenQueriesARB` | `GL+Arb` | No creation/import observer declared |
+| `glGenQueries` | `GL`, `GL4` | Implemented; see maintained synchronization routes below |
+| `glGenQueriesARB` | `GL+Arb` | Implemented; see maintained synchronization routes below |
 | `glGenRenderbuffers` | `GL`, `GL4` | No creation/import observer declared |
 | `glGenRenderbuffersEXT` | `GL+Ext` | No creation/import observer declared |
 | `glGenSamplers` | `GL`, `GL4` | No creation/import observer declared |
-| `glGenSemaphoresEXT` | `GL+Ext` | No creation/import observer declared |
+| `glGenSemaphoresEXT` | `GL+Ext` | Implemented; see maintained synchronization routes below |
 | `glGenSymbolsEXT` | `GL+Ext` | Excluded legacy feature |
 | `glGenTextures` | `GL`, `GL4` | No creation/import observer declared |
 | `glGenTexturesEXT` | `GL+Ext` | No creation/import observer declared |
 | `glGenTransformFeedbacks` | `GL`, `GL4` | No creation/import observer declared |
 | `glGenVertexArrays` | `GL`, `GL4` | Creation observer implemented; see maintained buffer routes below |
 | `glGenVertexShadersEXT` | `GL+Ext` | Excluded legacy feature |
-| `glImportMemoryFdEXT` | `GL+Ext` | No creation/import observer declared |
-| `glImportMemoryWin32HandleEXT` | `GL+Ext` | No creation/import observer declared |
-| `glImportMemoryWin32NameEXT` | `GL+Ext` | No creation/import observer declared |
-| `glImportSemaphoreFdEXT` | `GL+Ext` | No creation/import observer declared |
-| `glImportSemaphoreWin32HandleEXT` | `GL+Ext` | No creation/import observer declared |
-| `glImportSemaphoreWin32NameEXT` | `GL+Ext` | No creation/import observer declared |
+| `glImportMemoryFdEXT` | `GL+Ext` | Implemented; see maintained buffer and memory-object routes below |
+| `glImportMemoryWin32HandleEXT` | `GL+Ext` | Implemented; see maintained buffer and memory-object routes below |
+| `glImportMemoryWin32NameEXT` | `GL+Ext` | Implemented; see maintained buffer and memory-object routes below |
+| `glImportSemaphoreFdEXT` | `GL+Ext` | Implemented; see maintained synchronization routes below |
+| `glImportSemaphoreWin32HandleEXT` | `GL+Ext` | Implemented; see maintained synchronization routes below |
+| `glImportSemaphoreWin32NameEXT` | `GL+Ext` | Implemented; see maintained synchronization routes below |
 | `glImportSyncEXT` | `GL+Ext` | Excluded from supported lifecycle scope; see resolved exclusions below |
 
 ## Deletion candidates
@@ -272,7 +272,7 @@ overwrite a registration. Native output arrays are consumed synchronously, never
 | Phase | Established / rejected / uncertain examples | Remaining legitimate reads |
 | --- | --- | --- |
 | 2 | Valid buffer allocation supplies storage; immutable reallocation/invalid size preserves prior facts; missing mapped-state/capability evidence withdraws affected storage without querying automatically. Memory import preserves identity. | Proven pre-install buffer; explicit named failed-effect recovery; deletion outcomes. None for empty memory descriptors or import handles. |
-| 3 | Valid query realization/fence result/semaphore factory establishes identity; invalid target/count/null fence does not. Unknown import acceptance does not invent payload state. | Query results, waits, deletion outcome, targeted activity output where required by its actual execution consumer. No descriptor scan. |
+| 3 | Valid query realization/fence result establishes realization; semaphore Gen reserves identity; invalid target/count/null fence does not. Unknown import acceptance does not invent payload state. | Query results, waits, deletion outcome, one targeted IsSemaphore outcome at the RHI import boundary for wait/signal admission. External imports do not probe. No descriptor scan. |
 | 4 | Valid allocation/attachment/range updates supplied facts; invalid mip/immutable replacement/backing bounds preserves prior facts; unknown optional external-image storage cannot fabricate descriptors. | Unsized resolved format; one-time samples if cached resolution unavailable; proven pre-install discovery; specific failed field recovery; deletion. EGL-image storage has no approved new import-query exemption: unsupported unknown descriptors stay unavailable unless an actual consumer proves a needed exception. |
 | 5 | Valid unit/block assignment patches known interface; ignored/numeric writes do nothing; link submission withdraws installed executable certification pending output; bindless representation remains unsupported. | Compile/link status/log/reflection, binary acceptance/output; pre-install stage/program; narrow failed assignment recovery; deferred deletion outcomes. |
 | 6 | Valid configuration advances original certificates; invalid indices/strides preserve them; uncertain VAO changes invalidate only affected certificate. | Pre-install certification only when actually reusing that original VAO; otherwise use authored private realization below. Explicit feedback result read only if recorded history cannot establish active/paused outcome needed by execution. No sampler descriptor reads. |
@@ -431,6 +431,46 @@ The driver generator handles pinned `out` outputs and GLboolean-to-managed-bool 
 The exact observer paths for these routes are in Rendering.MetadataLifecycle.Bindings.tsv. Families not
 yet migrated retain their ledger dispositions above; this does not claim their queries are removed.
 
+## Maintained synchronization routes
+
+Query generation in both roots and the ARB alias reserves the original identity. Core target-specific
+creation, legal BeginQuery/ARB/BeginQueryIndexed and QueryCounter publish empty GpuQueryMetadata once.
+EndQuery/ARB/EndQueryIndexed and conditional-render intervals maintain execution activity, not canonical
+descriptors. Boolean occlusion types remain interchangeable while all occlusion targets share one active
+slot. Target conflicts, invalid counts/indices and stale live factory outputs preserve the original entry.
+Optional statistics and stream limits use admission-time cached capabilities. Uncertain realization stays
+unavailable; a caller's positive IsQuery/ARB result can establish the empty snapshot without adding a
+probe. No query target/activity/result mirror is added to canonical metadata.
+
+OpenGlStateCache.QueryLifecycle owns target and issued-result knowledge using weak original-registration
+keys. Active intervals retain their original entry until end even after name deletion. Context selection
+clears execution facts. Result tickets compare their captured issued generation, so external reissue
+cannot supply a different result through an old ticket. Result changes do not revise descriptors.
+
+FenceSync observes its nonzero native-width return, established condition and zero flags, and publishes
+GpuSyncMetadata once without status discovery. CL-event and X11 sync imports remain excluded as resolved
+above. Query, fence and semaphore association rejects missing covered entries and unavailable reservations
+without invoking readers; empty-schema recovery requires an already realized original registration.
+There is no pre-install descriptor consumer for these empty schemas, and no unused discovery API is added.
+
+GenSemaphoresEXT reserves names without claiming a payload. The private handoff returns an owned
+disposable reservation with unavailable metadata. Native FD/Win32 handle/name imports preserve identity
+but cannot establish payload success from opaque inputs or void returns. They issue no queries. An
+explicit caller IsSemaphoreEXT result can establish realization. The RHI import boundary performs one
+approved IsSemaphore outcome check: the required fact is import realization for wait/signal admission.
+It publishes the empty schema once on positive outcome; failed import cleans only its original candidate.
+Unimported owners cannot wait or signal. Local owners retain immutable import intent and the same factory
+outcome check before exposure, without a second registry or payload descriptor. FD transfer occurs only
+on native success; Win32 handles/names remain caller-owned and observers never close them.
+
+Owned query/fence factories and semaphore generation/import/deletion use saved originals and one private
+manager handoff. Kind-specific deletion outcomes remain separate from acquisition, including reservation
+release, active query name retirement, pointer-width sync deletion and name reuse. Existing memory-object
+identities and buffer dependencies are unchanged; semaphores provide no storage allocation descriptor.
+The binding table records the exact factory, realization, explicit-result and import ABIs/owners.
+External-producer imports require separate hardware qualification; deterministic stand-ins exercise the
+real loader/generated callback boundary, not operating-system payload acceptance.
+
 ## Evidence boundary
 
 The compiler-reference probe, source reconciliation and independent planning audit establish migration
@@ -444,3 +484,12 @@ Receipts are in `artifacts/metadata-lifecycle/phase2/` (`*adoption-final*` and g
 receipts). Optional EXT slots absent on the test driver use deterministic native-boundary stand-ins;
 these establish callback/effect delivery, not hardware EXT execution. Installed-game startup, appearance
 and performance are not qualified. Remaining families retain their explicit pending migration scopes.
+
+Synchronization lifecycle and combined prerequisite qualification passed canonical shader-enabled Debug
+and ordinary Release builds, 231/231 focused tests per configuration with zero skips, and the unchanged
+generator suite passed 35/35 per configuration. Second source review and independent completion audit
+passed. Closed receipts are in artifacts/metadata-lifecycle/phase3/ (phase3-*-closed.trx and *-closed.log;
+generator Debug/Release receipts). Actual query/fence and supported empty semaphore/memory
+creation/disposal routes were exercised. External-producer FD/Win32 import effects use deterministic
+native-boundary stand-ins; real cross-API payload imports, installed-game rendering and performance
+are not qualified. Image, executable and remaining empty-schema families keep their later migration scopes.

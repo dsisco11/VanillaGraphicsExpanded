@@ -35,7 +35,8 @@ internal sealed unsafe partial class OpenGlStateCache
     {
         if (memory == 0 || !OpenGLObservationContext.TryGet(out _, out _, false)) return;
         var entry = GpuResourceManagerSystem.CurrentManager!.FindObservedResource(GpuResourceKind.MemoryObject, unchecked((int)memory));
-        Debug.Assert(entry is { IsRealized: true }, "Memory setup has no observed creation identity.");
+        if (entry is not { IsRealized: true })
+            Debug.WriteLine("Memory setup has no observed creation identity; the native input may be invalid.");
         // Failed and repeated imports do not replace the name or alter the empty metadata.
         // No payload-success or ownership assertion can be inferred from a handle argument.
     }

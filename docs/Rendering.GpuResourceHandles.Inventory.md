@@ -54,7 +54,8 @@ Queries declare their category in GpuQueryInitialization and use core CreateQuer
 uses core CreateTransformFeedbacks. Fences and optional external memory/semaphore objects also execute
 through the RHI backend with the same private manager handoff. Their canonical schemas stay empty,
 without creation-time descriptor or status queries. Exact external generated names retain their distinct
-unrealized semantics; managed named creation is realized. Fence handles remain native-width.
+unrealized semantics; managed named creation is realized. Semaphore generation is a reservation even
+for managed owners; confirmed import supplies its realized empty snapshot. Fence handles remain native-width.
 Semaphore/memory-object capability checks precede allocation; imports, handle ownership, waits,
 sampling policy and configuration remain separate wrapper operations.
 
@@ -71,12 +72,12 @@ sampling policy and configuration remain separate wrapper operations.
 | VertexArray | Private backend `CreateGeometryVertexArray` | Wrapper retains ID/debug name, not a complete attribute mirror. `GpuVertexAttribBinding` is a value configuration helper holding VAO/index/buffer/offset/stride/divisor. Preserve authored geometry descriptions; make stale helper reuse detectable by owning-wrapper identity and manager-owned revision, or resolve current facts before fallback use. No invented global VAO layout cache. |
 | Program | Private backend `CreateProgramOwner` / external `Adopt` | The backend creates and completes the native owner; `RHIShader` retains that owner and its immutable prepared interface. `ShaderCompilation/ComputeShaderAsset` owns asset policy and a compatible RHI shader/compute PSO set without native re-registration. `Shaders/GpuProgram` and `GpuComputeProgram` retain feature settings/inputs above these objects. External executable changes invalidate fixed RHI references. |
 | Shader | `GpuShaderModule` | Adopt/compile/load shader, fixed shader type and authored binding contract. Shader compilation data is not a mutable storage descriptor; program link preparation remains responsible for reflected interfaces. Fixed shader type becomes canonical metadata; no mutable storage refresh. |
-| Query | `GpuQuery` | Core named target-specific creation; results are queried on demand. No retained mutable resource metadata. |
-| Sync | `GpuFence` | FenceSync creates pointer-shaped native identity; signal/wait result is queried, not cached storage metadata. |
+| Query | `GpuQuery` | Core named target-specific creation and raw Gen/Begin/Counter aliases maintain original identity. Empty schema; target/activity and result generations belong to execution knowledge. Results are explicit outputs. |
+| Sync | `GpuFence` | Observed FenceSync maintains pointer-shaped identity without status discovery; signal/wait results remain explicit outputs. |
 | TransformFeedback | `GpuTransformFeedback` | Core named object; no retained binding/configuration snapshot in wrapper. OpenGlStateCache binding state remains separate. |
 | Sampler | `GpuSampler` | Generated name; setters do not retain a complete parameter snapshot. No mutable wrapper metadata to refresh. |
 | ProgramPipeline | `GpuProgramPipeline` private recipient | Core named initialization through the private manager/RHI handoff; stage/program calls and validation query native state, no retained stage mirror or general wrapper allocation factory. |
-| Semaphore / MemoryObject | `GpuSemaphore`, `GpuMemoryObject` | EXT creation/import, capability gated. No represented mutable metadata; importing handles does not change ownership semantics. |
+| Semaphore / MemoryObject | `GpuSemaphore`, `GpuMemoryObject` | Capability-gated EXT creation/import with empty schemas. Memory creation realizes immediately; semaphore Gen reserves, and confirmed import realizes the same identity. The RHI semaphore import makes one targeted lifecycle outcome read; native import observers do not probe. Handle ownership remains unchanged. |
 
 The `new IsValid` properties in concrete wrappers must also consume shared validity; changing only the
 base property would leave bypasses. Debug labels and authored policies remain wrapper-local.

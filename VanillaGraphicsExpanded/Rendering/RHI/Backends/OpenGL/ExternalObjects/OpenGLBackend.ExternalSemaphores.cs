@@ -29,7 +29,10 @@ internal sealed partial class OpenGLBackend
         RequireContext();
         if (!Capabilities.ExternalSemaphores) throw new NotSupportedException("External semaphores are unavailable.");
         var owner = reference.RequireResource(); owner.RequireOriginalContext();
-        if (!owner.IsValid) throw new InvalidOperationException("The semaphore has retired.");
+        if (!reference.IsValid) throw new InvalidOperationException("The original semaphore is unavailable.");
+        var registration = owner.ResourceManager?.GetResourceRegistration(owner);
+        if (registration is not null ? !registration.IsUsable : !owner.ImportRequested)
+            throw new InvalidOperationException("A semaphore payload must be imported before wait or signal.");
         cache.RequireResourceOperationAvailable(GpuResourceKind.Semaphore, owner.ResourceId);
         return owner;
     }

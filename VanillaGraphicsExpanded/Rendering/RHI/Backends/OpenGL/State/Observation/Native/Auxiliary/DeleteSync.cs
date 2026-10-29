@@ -12,7 +12,7 @@ internal sealed unsafe partial class OpenGlStateCache
     internal static void ObserveDeleteSync(nint a0)
     {
         IntPtr id = unchecked((IntPtr)a0);
-        if (!OpenGLObservationContext.TryGet(out var cache, out _)) return;
+        if (!OpenGLObservationContext.TryGet(out var cache, out _, false)) return;
 
         cache.CompleteResourceDeletion(GpuResourceKind.Sync, (nint)id, OpenGLAuxiliaryDeletionCalls.WasDeletedExternal(GpuResourceKind.Sync, (nint)id));
     }

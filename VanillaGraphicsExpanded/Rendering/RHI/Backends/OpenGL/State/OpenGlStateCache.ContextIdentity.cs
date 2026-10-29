@@ -21,6 +21,9 @@ internal sealed partial class OpenGlStateCache
         InvalidateAll();
         feedbackActivity.Clear();
         bufferMappings.Clear();
+        queryTargets.Clear();
+        observedActiveQueries.Clear();
+        observedConditionalQuery = null;
         pipelineUniformPrograms.Clear();
         // Scope tokens retain their own restoration values. Abandon the old namespace's
         // stack frames here so stale tokens need not mutate a newly admitted stack.

@@ -18,6 +18,7 @@ internal sealed partial class OpenGlStateCache
     {
         if (nativeId == 0 || !(observedDeletion ?? WasResourceDeleted(kind, nativeId))) return;
         CancelResourceOperation(kind, nativeId);
+        if (kind == GpuResourceKind.Query) ForgetQueryTarget(nativeId);
         GpuResourceManagerSystem.CurrentManager?.ObserveDeletion(kind, nativeId);
         int id = unchecked((int)nativeId);
         RHI.Backends.OpenGL.OpenGLRHIContext.NotifyResourceDeleted(this, kind, id);

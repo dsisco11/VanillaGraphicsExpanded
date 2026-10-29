@@ -170,6 +170,9 @@ Unspecified regions remain unspecified; creating storage does not establish appl
 
 A successful result means the resource is usable for subsequent correctly ordered commands and its
 canonical metadata is available. It does not mean initial upload work has completed on the GPU.
+An unimported semaphore result owns a reservation only: disposal is legal, while wait/signal require
+confirmed imported realization. The import boundary makes the approved single lifecycle outcome check;
+it does not discover descriptors or infer payload success from the handle argument.
 Ordinary client-memory upload consumption and GPU staging reuse have distinct lifetimes; staging owners
 retain their memory until explicit completion permits reuse. Do not insert an unconditional GPU wait or
 fence into every creation. No writable staging-initializer API is required without a demonstrated need.

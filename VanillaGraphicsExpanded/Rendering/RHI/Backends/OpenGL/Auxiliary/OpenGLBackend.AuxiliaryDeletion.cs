@@ -34,7 +34,7 @@ internal sealed partial class OpenGLBackend
     internal void DeleteSemaphore(int id)
     {
         RequireContext();
-        ExtGL.Ext.DeleteSemaphore(id);
+        OpenGLDriverCalls.Ext.DeleteSemaphore(id);
         RequireContext();
         cache.CompleteResourceDeletion(GpuResourceKind.Semaphore, id);
     }

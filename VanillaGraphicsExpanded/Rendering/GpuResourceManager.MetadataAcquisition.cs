@@ -41,7 +41,7 @@ internal sealed partial class GpuResourceManager
             return;
         }
         RHICommandContext.RequireResourceOperationAvailable(resource.Kind, resource.ResourceId);
-        if (resource.Kind is GpuResourceKind.Buffer or GpuResourceKind.MemoryObject)
+        if (UsesMaintainedLifecycle(resource.Kind))
             throw new InvalidOperationException("Maintained resource metadata requires its originating manager or supplied initialization snapshot.");
         // TODO(Rendering.MetadataLifecycle.todo, remaining family acquisition tasks): replace
         // implicit tool discovery with supplied initialization or explicitly recorded pre-install discovery.
@@ -93,7 +93,7 @@ internal sealed partial class GpuResourceManager
                 throw new InvalidOperationException("Metadata cannot be acquired during an unfinished update.");
             entry?.BeginRefresh(GpuMetadataChange.Metadata);
         }
-        if (resource.Kind is GpuResourceKind.Buffer or GpuResourceKind.MemoryObject)
+        if (UsesMaintainedLifecycle(resource.Kind))
         {
             var ownerManager = resource.ResourceManager ?? throw new InvalidOperationException("Recovery requires an existing original registration.");
             var recovered = ownerManager.RecoverResource(resource.Kind, resource.ResourceId, reader)

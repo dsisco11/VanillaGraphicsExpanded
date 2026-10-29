@@ -22,6 +22,7 @@ internal sealed partial class OpenGLBackend
         {
             if (!GpuResourceManager.CreateQuery(new(description.Kind), owner, out _).HasValue)
             { owner.Dispose(); return new(null, "Query initialization failed."); }
+            cache.EstablishQueryTarget(owner.QueryId, (int)QueryTargetFor(description.Kind));
             owner.SetDebugName(description.Label);
             return new(owner, null);
         }
@@ -36,7 +37,8 @@ internal sealed partial class OpenGLBackend
         try
         {
             var owner = RequireQuery(query);
-            if (owner.QueryKind == QueryKind.Timestamp || activeQueries.ContainsKey(owner.QueryKind))
+            if (owner.QueryKind == QueryKind.Timestamp || activeQueries.ContainsKey(owner.QueryKind)
+                || cache.HasQueryStartConflict((int)QueryTargetFor(owner.QueryKind), owner.QueryId))
                 throw new InvalidOperationException("The query category is already active or is timestamp-only.");
             var state = queryExecutions.GetOrCreateValue(owner);
             state.Issued = false;
@@ -44,8 +46,10 @@ internal sealed partial class OpenGLBackend
             owner.RetainPassReference();
             try
             {
-                GL.BeginQuery(QueryTargetFor(owner.QueryKind), owner.QueryId);
+                OpenGLDriverCalls.BeginQuery(QueryTargetFor(owner.QueryKind), owner.QueryId);
                 RequireContext();
+                cache.ObserveQueryBegin((int)QueryTargetFor(owner.QueryKind), 0, owner.QueryId);
+                state.NativeRevision = cache.QueryExecutionRevision(owner.QueryId);
                 activeQueries.Add(owner.QueryKind, owner);
             }
             catch { owner.ReleasePassReference(); throw; }
@@ -70,14 +74,20 @@ internal sealed partial class OpenGLBackend
                 retired.ReleasePassReference();
                 return;
             }
-            var owner = RequireQuery(query);
+            RequireContext();
+            var owner = query.RequireResource();
+            owner.RequireOriginalContext();
             if (!activeQueries.TryGetValue(owner.QueryKind, out var active) || !ReferenceEquals(owner, active))
                 throw new InvalidOperationException("The matching query is not active.");
             try
             {
-                GL.EndQuery(QueryTargetFor(owner.QueryKind));
+                if (!cache.IsQueryIntervalCurrent(owner, (int)QueryTargetFor(owner.QueryKind),
+                    queryExecutions.GetOrCreateValue(owner).NativeRevision))
+                    throw new InvalidOperationException("The original query interval was ended or replaced externally.");
+                OpenGLDriverCalls.EndQuery(QueryTargetFor(owner.QueryKind));
                 RequireContext();
-                queryExecutions.GetOrCreateValue(owner).Issued = true;
+                cache.ObserveQueryEnd((int)QueryTargetFor(owner.QueryKind), 0);
+                queryExecutions.GetOrCreateValue(owner).Issued = owner.IsValid;
             }
             finally { activeQueries.Remove(owner.QueryKind); owner.ReleasePassReference(); }
         }
@@ -96,8 +106,10 @@ internal sealed partial class OpenGLBackend
             var state = queryExecutions.GetOrCreateValue(owner);
             state.Issued = false;
             state.Revision++;
-            GL.QueryCounter(owner.QueryId, QueryCounterTarget.Timestamp);
+            OpenGLDriverCalls.QueryCounter(owner.QueryId, QueryCounterTarget.Timestamp);
             RequireContext();
+            cache.ObserveQueryTimestamp(owner.QueryId, (int)QueryCounterTarget.Timestamp);
+            state.NativeRevision = cache.QueryExecutionRevision(owner.QueryId);
             state.Issued = true;
         }
         finally { queryTransition = false; }
@@ -118,7 +130,7 @@ internal sealed partial class OpenGLBackend
         RequireContext();
         RequireQueryKind(kind);
         int name = 0;
-        try { GL.CreateQueries(QueryTargetFor(kind), 1, out name); }
+        try { OpenGLDriverCalls.CreateQueries(QueryTargetFor(kind), 1, out name); }
         finally { id = name; }
         RequireContext();
         return name == 0 ? null : new GpuQueryMetadata();
@@ -131,9 +143,10 @@ internal sealed partial class OpenGLBackend
         queryTransition = true;
         try
         {
-    RequireQuery(owner);
+            RequireQuery(owner);
             var state = queryExecutions.GetOrCreateValue(owner);
-            if (!state.Issued || state.Revision != revision) throw new InvalidOperationException("The query request was superseded.");
+            if (!state.Issued || state.Revision != revision || state.NativeRevision != cache.QueryExecutionRevision(owner.QueryId))
+                throw new InvalidOperationException("The query request was superseded.");
             var target = OpenTK.Graphics.OpenGL.BufferTarget.QueryBuffer;
             if (!cache.TryGetCachedBoundBuffer(target, out int previous))
             {
@@ -152,10 +165,14 @@ internal sealed partial class OpenGLBackend
                     RequireContext();
                     if (available == 0) return false;
                     RequireQuery(owner);
-                    if (state.Revision != revision) throw new InvalidOperationException("The query request was superseded during observation.");
+                    if (state.Revision != revision || state.NativeRevision != cache.QueryExecutionRevision(owner.QueryId))
+                        throw new InvalidOperationException("The query request was superseded during observation.");
                 }
                 GL.GetQueryObject(unchecked((uint)owner.QueryId), GetQueryObjectParam.QueryResult, out result);
                 RequireContext();
+                RequireQuery(owner);
+                if (state.Revision != revision || state.NativeRevision != cache.QueryExecutionRevision(owner.QueryId))
+                    throw new InvalidOperationException("The query request was superseded during result retrieval.");
                 return true;
             }
             catch (Exception error) { failure = error; throw; }
@@ -180,7 +197,7 @@ internal sealed partial class OpenGLBackend
         RequireContext();
         var owner = reference.RequireResource();
         owner.RequireOriginalContext();
-        if (!owner.IsValid) throw new InvalidOperationException("The original query has retired.");
+        if (!reference.IsValid) throw new InvalidOperationException("The original query is unavailable.");
         cache.RequireResourceOperationAvailable(GpuResourceKind.Query, owner.ResourceId);
         return owner;
     }
@@ -218,6 +235,7 @@ internal sealed partial class OpenGLBackend
     private sealed class QueryExecution
     {
         internal long Revision;
+        internal ulong NativeRevision;
         internal bool Issued;
         /// <summary>Initializes an unissued query state.</summary>
         public QueryExecution() { }

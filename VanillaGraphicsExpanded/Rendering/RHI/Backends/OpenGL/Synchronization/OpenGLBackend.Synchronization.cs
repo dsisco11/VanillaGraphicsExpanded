@@ -78,7 +78,7 @@ internal sealed partial class OpenGLBackend
     public GpuSyncMetadata? InitializeSync(out nint id)
     {
         RequireContext();
-        id = GL.FenceSync(SyncCondition.SyncGpuCommandsComplete, WaitSyncFlags.None);
+        id = OpenGLDriverCalls.FenceSync(SyncCondition.SyncGpuCommandsComplete, WaitSyncFlags.None);
         RequireContext();
         return id == 0 ? null : new GpuSyncMetadata();
     }
@@ -91,7 +91,7 @@ internal sealed partial class OpenGLBackend
         RequireContext();
         var owner = fence.RequireResource();
         owner.RequireOriginalContext();
-        if (!owner.IsValid) throw new InvalidOperationException("The original fence has retired.");
+        if (!fence.IsValid) throw new InvalidOperationException("The original fence is unavailable.");
         cache.RequireResourceOperationAvailable(GpuResourceKind.Sync, owner.ResourceId);
         return owner;
     }
