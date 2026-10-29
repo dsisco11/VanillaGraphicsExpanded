@@ -16,18 +16,27 @@ internal sealed unsafe partial class OpenGlStateCache
         int buffer = unchecked((int)a2);
         nint offset = unchecked((nint)a3);
         nint size = unchecked((nint)a4);
-        if (!OpenGLObservationContext.TryGet(out var cache, out _)) return;
+        if (!OpenGLObservationContext.TryGet(out var cache, out _, false)) return;
+        if (target is not (BufferRangeTarget.UniformBuffer or BufferRangeTarget.ShaderStorageBuffer
+            or BufferRangeTarget.AtomicCounterBuffer or BufferRangeTarget.TransformFeedbackBuffer)
+            || slot < 0 || offset < 0 || buffer != 0 && size <= 0
+            || buffer != 0 && target == BufferRangeTarget.TransformFeedbackBuffer && (offset % 4 != 0 || size % 4 != 0)
+            || buffer != 0 && target == BufferRangeTarget.AtomicCounterBuffer && offset % 4 != 0) return;
+        if (!GpuSupport.HasCachedCapabilitiesForCurrentContext)
+        {
+            cache.MarkUncertainBufferRealization(buffer);
+            cache.ForgetBufferBinding((BufferTarget)target, slot);
+            return;
+        }
         var origin = Integration.RenderContextRegistry.CaptureResourceContext();
         bool validSlot = OpenGLBufferBindingCalls.ValidIndexedSlot(target, slot);
-        int alignment = target switch
-        {
-            BufferRangeTarget.UniformBuffer => GpuSupport.Graphics.UniformBufferOffsetAlignment,
-            BufferRangeTarget.ShaderStorageBuffer => GpuSupport.Graphics.ShaderStorageBufferOffsetAlignment,
-            _ => 4
-        };
-        bool validRange = buffer == 0 || offset >= 0 && size > 0 && alignment > 0 && offset % alignment == 0;
+        bool validRange = OpenGLBufferBindingCalls.ValidIndexedRange(target, buffer, offset, size);
         bool captureKnown = cache.TryGetFeedbackActivity(out var capture);
         bool captureRejected = target == BufferRangeTarget.TransformFeedbackBuffer && captureKnown && capture.Active;
+        if (validSlot && validRange && target == BufferRangeTarget.TransformFeedbackBuffer && !captureKnown)
+            cache.MarkUncertainBufferRealization(buffer);
+        if (validSlot && validRange && !captureRejected && (target != BufferRangeTarget.TransformFeedbackBuffer || captureKnown))
+            cache.RealizeNativeBuffer(buffer, GpuSupport.HasCachedCapabilitiesForCurrentContext && !GpuSupport.Graphics.CoreProfile);
         bool established = validSlot && validRange && (target != BufferRangeTarget.TransformFeedbackBuffer || captureKnown && !capture.Active)
             && cache.HasEstablishedNativeIdentity(GpuResourceKind.Buffer, buffer);
         // These native selectors permit ranges extending beyond the current data store.

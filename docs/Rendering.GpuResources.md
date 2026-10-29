@@ -3,7 +3,9 @@
 `GpuResourceManager` owns canonical metadata for the originating rendering context. Its concurrent
 registry uses `GpuResourceHandle`, a resource-kind/native-width-ID value, as the key. Each entry holds
 one typed metadata snapshot, availability and revisions, shared usage guards, and weak wrapper recipients.
-Registration grants no native ownership. Metadata operations and native queries run on the context thread;
+Buffer registrations distinguish reserved names from realized objects independently of availability and
+terminal retirement. Gen reserves; legal realization publishes capacity zero, StaticDraw usage, mutable
+mode and no storage flags on the original entry. Registration grants no native ownership. Metadata operations and native queries run on the context thread;
 concurrent containers support identity lookup and recipient removal across threads.
 Tracked command inputs, operation admission, deferred link submission and executable transfer validate
 the originating context and thread before dispatch or metadata withdrawal. Reusing an available snapshot
@@ -100,7 +102,17 @@ uses cached target/format sample capabilities, with a single sample-count read w
 cannot supply the result. Unsized image formats may require a resolved-format read. These exceptions do
 not authorize full descriptor scans after controlled allocation. Native readers use core named queries; cube-face descriptors retain their required bound selection
 and restoration; optional renderbuffer-backed association queries retain their required selectors.
-Buffer readers use core named queries, and are invoked only for explicit unknown external acquisition or recovery.
+Buffer readers use core named queries only for a pre-install identity recorded before observation
+activation, consumed once, or explicit recovery of an existing unavailable original allocation. Missing
+covered entries and reserved names do not authorize discovery. Buffer allocation observations publish
+supplied storage facts after classifying rejection; content updates preserve descriptor revisions. Uncertain initialization uses the existing pending entry
+effect; a later definite bind cannot fabricate empty defaults after an intervening potentially accepted
+allocation. Explicit recovery remains separate from ordinary association.
+Memory objects retain their empty schema across imports; opaque payload validity is not inferred from
+an import handle. An unresolved imported-buffer storage outcome stays unavailable without a query.
+The one manager is established before observation and later attaches renderer events to that same
+service. Reload retains its identities; context retirement establishes a replacement service. Context-local
+RHI initialization retains supplied snapshots without a no-manager discovery fallback.
 
 An operation captures its original identity, withdraws affected availability, constructs a complete result
 and commits once. Participating internal steps receive the operation explicitly. Unrelated same-resource

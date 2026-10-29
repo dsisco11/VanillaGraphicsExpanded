@@ -10,14 +10,19 @@ internal sealed partial class OpenGlStateCache
     /// <summary>Reconciles generic and element-buffer effects together after a completed native binding command.</summary>
     internal static void ObserveBufferBinding(BufferTarget target, int buffer)
     {
-        if (!OpenGLObservationContext.TryGet(out var cache, out _)) return;
-        bool targetValid = Enum.IsDefined(target) && (target != BufferTarget.ParameterBuffer
-            || GpuSupport.Graphics.ApiVersion is { Major: > 4 } or { Major: 4, Minor: >= 6 }
-            || GpuSupport.Supports("GL_ARB_indirect_parameters"));
-        bool established = targetValid && cache.HasEstablishedNativeIdentity(GpuResourceKind.Buffer, buffer);
+        if (!OpenGLObservationContext.TryGet(out var cache, out _, false)) return;
+        bool targetValid = cache.IsBufferTargetSupported(target);
+        if (!targetValid && target == BufferTarget.ParameterBuffer && !GpuSupport.HasCachedCapabilitiesForCurrentContext)
+            cache.MarkUncertainBufferRealization(buffer);
         bool elements = target == BufferTarget.ElementArrayBuffer;
         int vao = elements ? cache.GetCurrentVao() : 0;
-        if (elements && vao == 0 && GpuSupport.Graphics.CoreProfile) established = false;
+        if (!targetValid) return;
+        if (elements && vao == 0 && (!GpuSupport.HasCachedCapabilitiesForCurrentContext || GpuSupport.Graphics.CoreProfile))
+        {
+            if (!GpuSupport.HasCachedCapabilitiesForCurrentContext) cache.MarkUncertainBufferRealization(buffer);
+            return;
+        }
+        bool established = buffer == 0 || cache.RealizeNativeBuffer(buffer, GpuSupport.HasCachedCapabilitiesForCurrentContext && !GpuSupport.Graphics.CoreProfile) is { IsRealized: true };
         bool sameElement = elements && cache.elementArrayBufferByVao.TryGetValue(vao, out int previous) && previous == buffer;
         var origin = Integration.RenderContextRegistry.CaptureResourceContext();
         if (targetValid) cache.bufferBindingByTarget.Remove(target);

@@ -11,7 +11,7 @@ internal sealed partial class OpenGLBackend
     public GpuVertexArrayMetadata? CreateVertexArray(out nint id)
     {
         RequireContext();
-        GL.CreateVertexArrays(1, out int name);
+        OpenGLDriverCalls.CreateVertexArrays(1, out int name);
         id = name;
         RequireContext();
         return name == 0 ? null : new GpuVertexArrayMetadata();

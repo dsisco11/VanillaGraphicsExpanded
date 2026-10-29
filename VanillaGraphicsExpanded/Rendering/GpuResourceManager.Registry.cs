@@ -69,9 +69,19 @@ internal sealed partial class GpuResourceManager
             if (tracked.IsUsable) return tracked;
             if (tracked.OperationInProgress) return null;
             if (tracked.CompletionInProgress) return null;
+            // TODO(Rendering.MetadataLifecycle.todo, resource acquisition tasks): apply the
+            // recorded-discovery gate to the remaining kinds as each family is migrated.
+            if (kind is GpuResourceKind.Buffer or GpuResourceKind.MemoryObject)
+            {
+                if (!tracked.InitialDiscoveryPending) return null;
+                tracked.InitialDiscoveryPending = false;
+            }
             tracked.Reader = reader;
             return RefreshMetadata(tracked, tracked.MetadataRevision == 0 ? GpuMetadataChange.None : GpuMetadataChange.Metadata) ? tracked : null;
         }
+        if (kind is GpuResourceKind.Buffer or GpuResourceKind.MemoryObject) return null;
+        // TODO(Rendering.MetadataLifecycle.todo, remaining family acquisition tasks): remove
+        // provisional readback admission once each kind maintains its creation/configuration facts.
         // Admit an unavailable provisional identity before reading so reentrant acquisition
         // cannot recursively rediscover the same object. Failed reads remove only this entry.
         var entry = RegisterCreatedResource(kind, id, reader);
@@ -98,8 +108,19 @@ internal sealed partial class GpuResourceManager
         RequireMetadataContext();
         ValidateMetadataType<TMetadata>(kind, id);
         var entry = FindResource(kind, id) as GpuResourceMetadataEntry<TMetadata>;
-        if (entry is null) return AcquireResource(kind, id, reader);
+        // TODO(Rendering.MetadataLifecycle.todo, remaining family recovery tasks): require
+        // original registrations for every kind; remove discovery through this recovery fallback.
+        if (entry is null) return kind is GpuResourceKind.Buffer or GpuResourceKind.MemoryObject
+            ? null : AcquireResource(kind, id, reader);
         if (entry.State != GpuResourceRegistrationState.Live || entry.OperationInProgress || entry.CompletionInProgress) return null;
+        if (kind == GpuResourceKind.Buffer && !entry.IsRealized && !entry.InitialDiscoveryPending) return null;
+        entry.InitialDiscoveryPending = false;
+        if (entry is GpuResourceMetadataEntry<GpuMemoryObjectMetadata> memory)
+        {
+            if (!memory.IsRealized) return null;
+            PublishMetadata(memory, new GpuMemoryObjectMetadata(), GpuMetadataChange.Metadata);
+            return entry;
+        }
         entry.Reader = reader;
         return RefreshMetadata(entry, GpuMetadataChange.Metadata) ? entry : null;
     }

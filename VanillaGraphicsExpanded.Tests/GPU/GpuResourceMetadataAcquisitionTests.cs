@@ -33,6 +33,7 @@ public sealed class GpuResourceMetadataAcquisitionTests
             GL.BindBuffer(BufferTarget.ArrayBuffer, buffer);
             GL.BufferData(BufferTarget.ArrayBuffer, 128, IntPtr.Zero, BufferUsageHint.DynamicDraw);
             GL.BindBuffer(BufferTarget.ArrayBuffer, sentinel);
+            manager.RecordPreexistingBuffer(buffer);
             var entry = manager.AcquireResource(GpuResourceKind.Buffer, buffer, reader)!;
             Assert.NotNull(entry);
             Assert.Equal(new GpuBufferMetadata(128, BufferUsage.DynamicDraw), entry.Metadata);

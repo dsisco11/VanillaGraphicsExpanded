@@ -12,7 +12,10 @@ internal sealed unsafe partial class OpenGlStateCache
     internal static void ObserveBindVertexArray(uint a0)
     {
         int @array = unchecked((int)a0);
-        if (!OpenGLObservationContext.TryGet(out _, out _)) return;
+        if (!OpenGLObservationContext.TryGet(out _, out _, false)) return;
+        if (GpuResourceManagerSystem.CurrentManager!.FindObservedResource(GpuResourceKind.VertexArray, array)
+            is GpuResourceMetadataEntry<GpuVertexArrayMetadata> { IsRealized: false } entry)
+            entry.Manager.PublishMetadata(entry, new GpuVertexArrayMetadata(), GpuMetadataChange.None);
         OpenGlStateCache.ObserveVertexSelection(unchecked((int)@array));
     }
     #endregion

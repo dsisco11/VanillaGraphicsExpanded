@@ -13,9 +13,9 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 public sealed class GpuBufferImageCreationTests(HeadlessGLFixture fixture)
 {
     #region Public API
-    /// <summary>Completed external storage remains unavailable until a later explicit acquisition reads the result.</summary>
+    /// <summary>Completed external storage publishes supplied facts without descriptor recovery.</summary>
     [Fact]
-    public void ExternalBufferStorageDefersAcquisitionUntilAfterDispatch()
+    public void ExternalBufferStoragePublishesWithoutAcquisition()
     {
         fixture.EnsureContextValid(); fixture.InitializeResourceDisposal();
         try
@@ -28,7 +28,7 @@ public sealed class GpuBufferImageCreationTests(HeadlessGLFixture fixture)
             entry.Reader = reject;
             GL.NamedBufferData(buffer.BufferId, 64, IntPtr.Zero, BufferUsageHint.StreamDraw);
             Assert.Equal(0, reject.Calls);
-            Assert.False(entry.MetadataAvailable);
+            Assert.True(entry.MetadataAvailable);
             Assert.NotNull(manager.AcquireResource(GpuResourceKind.Buffer, buffer.BufferId, new GpuBufferMetadataReader()));
             Assert.Equal(64, buffer.SizeBytes);
             Assert.Equal(BufferUsage.StreamDraw, buffer.Usage);

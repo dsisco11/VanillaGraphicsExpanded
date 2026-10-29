@@ -24,6 +24,7 @@ internal sealed partial class OpenGlStateCache
     {
         RecordBoundaryRetirement(EPipelineState.BufferBindings, buffer);
         if (buffer == 0) return;
+        bufferMappings.Remove(buffer);
         InvalidateVertexConfigurationsForBuffer(buffer);
         foreach (var key in indexedBufferBindings.Where(pair => pair.Value.Buffer == buffer).Select(pair => pair.Key).ToArray())
             indexedBufferBindings.Remove(key);

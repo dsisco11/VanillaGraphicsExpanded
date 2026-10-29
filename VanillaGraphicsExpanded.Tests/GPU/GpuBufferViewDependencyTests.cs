@@ -54,7 +54,7 @@ public sealed class GpuBufferViewDependencyTests(HeadlessGLFixture fixture)
         finally { harmony.UnpatchAll(harmony.Id); fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
 
-    /// <summary>A failed backing read withdraws dependent aliases, and native recovery restores their certificates.</summary>
+    /// <summary>Explicit failed-effect recovery withdraws dependent aliases until that same original buffer is recovered.</summary>
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -78,7 +78,9 @@ public sealed class GpuBufferViewDependencyTests(HeadlessGLFixture fixture)
             VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageSlotBindings.BindImageTexture(OpenGlStateCache.Current, 0, sentinel.TextureId, 0, false, 0, TextureAccess.ReadOnly, (SizedInternalFormat)OpenGLImageValues.Format(((GpuTextureRef)sentinel).RequireMetadata().Buffer!.Value.Format));
             var original = entry.Reader ?? new GpuBufferMetadataReader();
             entry.Reader = new UnavailableReader();
-            Assert.Throws<InvalidOperationException>(() => Resize(buffer, 128, true));
+            Resize(buffer, 128, true);
+            Assert.True(manager.IsResourceMetadataAvailable(view));
+            Assert.Null(manager.RecoverResource(GpuResourceKind.Buffer, buffer.BufferId, entry.Reader));
             Assert.False(manager.IsResourceMetadataAvailable(view));
             Assert.False(view.IsValid);
             Assert.False(manager.IsResourceMetadataAvailable(alias));
@@ -182,23 +184,23 @@ public sealed class GpuBufferViewDependencyTests(HeadlessGLFixture fixture)
         {
             GL.NamedBufferData(buffer, (IntPtr)64, IntPtr.Zero, BufferUsageHint.DynamicDraw);
             var manager = GpuResourceManagerSystem.CurrentManager!;
-            Assert.Null(manager.FindResource(GpuResourceKind.Buffer, buffer));
+            Assert.True(manager.FindResource(GpuResourceKind.Buffer, buffer)!.IsUsable);
             using var view = VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLTextureIntegration.CreateBufferView(buffer, SizedInternalFormat.R32f, true, 0, 0, null).RequireResource();
             var backing = Assert.IsType<GpuResourceMetadataEntry<GpuBufferMetadata>>(manager.FindResource(GpuResourceKind.Buffer, buffer));
             Assert.Equal(0, backing.AssociationCount);
             Assert.True(backing.IsUsable);
             var viewEntry = manager.GetResourceRegistration(view)!;
             ulong revision = viewEntry.StorageRevision;
-            var reader = new CountingReader(backing.Reader!);
+            var reader = new CountingReader(backing.Reader ?? new GpuBufferMetadataReader());
             backing.Reader = reader;
             VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, view, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)view).Target)))]);
             VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageSlotBindings.BindImageTexture(OpenGlStateCache.Current, 0, view.TextureId, 0, false, 0, TextureAccess.ReadOnly, (SizedInternalFormat)OpenGLImageValues.Format(((GpuTextureRef)view).RequireMetadata().Buffer!.Value.Format));
             Assert.Equal(0, reader.Reads);
             AllocateNative(buffer, 128);
             Assert.Equal(0, reader.Reads);
-            Assert.False(view.IsValid);
+            Assert.True(view.IsValid);
             Assert.NotNull(manager.AcquireResource(GpuResourceKind.Buffer, buffer, reader));
-            Assert.Equal(1, reader.Reads);
+            Assert.Equal(0, reader.Reads);
             Assert.True(viewEntry.StorageRevision > revision);
             Assert.True(view.IsValid);
             Assert.Equal(0, view.SizeBytes);
@@ -217,14 +219,14 @@ public sealed class GpuBufferViewDependencyTests(HeadlessGLFixture fixture)
         ? RHICommandContext.Current.CreateBufferTexture(new RHIBufferTextureDescription { Buffer = buffer, Format = TextureFormat.R32f, WholeBuffer = false, Offset = 0, Length = 64, Label = null }).RequireResource()
         : RHICommandContext.Current.CreateBufferTexture(new RHIBufferTextureDescription { Buffer = buffer, Format = TextureFormat.R32f, WholeBuffer = true, Label = null }).RequireResource();
 
-    /// <summary>Selects the owning allocation API or the production-transpiled native allocation boundary.</summary>
+    /// <summary>Selects the owning allocation API or the native interception boundary.</summary>
     private static void Resize(GpuShaderStorageBuffer buffer, int bytes, bool native)
     {
         if (native)
         {
             AllocateNative(buffer.BufferId, bytes);
             var manager = GpuResourceManagerSystem.CurrentManager!;
-            Assert.False(manager.IsResourceMetadataAvailable(buffer));
+            Assert.True(manager.IsResourceMetadataAvailable(buffer));
             var entry = (GpuResourceMetadataEntry<GpuBufferMetadata>)manager.GetResourceRegistration(buffer)!;
             if (manager.AcquireResource(GpuResourceKind.Buffer, buffer.BufferId, entry.Reader ?? new GpuBufferMetadataReader()) is null)
                 throw new InvalidOperationException("Explicit backing acquisition failed.");
@@ -232,7 +234,7 @@ public sealed class GpuBufferViewDependencyTests(HeadlessGLFixture fixture)
         else buffer.Allocate(bytes);
     }
 
-    /// <summary>Forwards real named buffer storage through the exact production call-site adapter.</summary>
+    /// <summary>Forwards real named buffer storage through the exact native callback.</summary>
     [MethodImpl(MethodImplOptions.NoInlining)]
     private static void AllocateNative(int buffer, int bytes) => GL.NamedBufferData(buffer, (IntPtr)bytes, IntPtr.Zero, BufferUsageHint.DynamicDraw);
 

@@ -13,8 +13,7 @@ internal static class DriverCallEmitter
     internal static string Emit(DriverCall call, NativeSignature native, bool singularAddress)
     {
         var method = call.Method;
-        if (method.IsGenericMethod || method.Parameters.Any(parameter => parameter.Type.TypeKind == TypeKind.TypeParameter)
-            || method.Parameters.Any(parameter => parameter.RefKind == RefKind.Out))
+        if (method.IsGenericMethod || method.Parameters.Any(parameter => parameter.Type.TypeKind == TypeKind.TypeParameter))
             throw new FormatException("Unsupported driver marshalling shape: " + method.ToDisplayString());
         bool singular = method.Parameters.Length == 1 && native.Parameters.Length == 2 && singularAddress;
         if (!singular && method.Parameters.Length != native.Parameters.Length)
@@ -24,9 +23,13 @@ internal static class DriverCallEmitter
         if (call.Family.Length != 0) source.AppendLine($"    /// <summary>Dispatches supported {call.Family} entrypoints.</summary>\n    internal static partial class {call.Family}\n    {{\n        #region Internal API");
         source.AppendLine($"    /// <summary>Calls {native.Name} through its original pointer without external observation.</summary>");
         string parameters = string.Join(", ", method.Parameters.Select((parameter, index) =>
-            (parameter.RefKind == RefKind.Ref ? "ref " : parameter.RefKind == RefKind.In ? "in " : "")
+            (parameter.RefKind == RefKind.Ref ? "ref " : parameter.RefKind == RefKind.In ? "in " : parameter.RefKind == RefKind.Out ? "out " : "")
             + parameter.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) + " a" + index));
         source.AppendLine($"    internal static {method.ReturnType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)} {method.Name}({parameters})\n    {{");
+        // Initialize managed out storage before pinning it; the native pointer keeps OpenTK's
+        // element width while the caller receives the same definite-assignment contract.
+        foreach (var parameter in method.Parameters.Where(parameter => parameter.RefKind == RefKind.Out))
+            source.AppendLine($"        a{parameter.Ordinal} = default;");
         var arguments = new string[native.Parameters.Length];
         if (singular)
         {
@@ -55,7 +58,8 @@ internal static class DriverCallEmitter
         }
         string table = method.ContainingNamespace.ToDisplayString() == "OpenTK.Graphics.OpenGL4" ? "Core" : "Legacy";
         string abi = string.Join(", ", native.Parameters.Concat(new[] { native.Result }));
-        source.AppendLine($"        {(method.ReturnsVoid ? "" : "return ")}((delegate* unmanaged[Stdcall]<{abi}>)OpenGLBindingInterception.Original({table}.Read(\"{native.Name}\")))({string.Join(", ", arguments)});");
+        string resultConversion = method.ReturnType.SpecialType == SpecialType.System_Boolean ? " != 0" : "";
+        source.AppendLine($"        {(method.ReturnsVoid ? "" : "return ")}((delegate* unmanaged[Stdcall]<{abi}>)OpenGLBindingInterception.Original({table}.Read(\"{native.Name}\")))({string.Join(", ", arguments)}){resultConversion};");
         source.AppendLine("    }");
         if (call.Family.Length != 0) source.AppendLine("        #endregion\n    }");
         source.AppendLine("    #endregion\n}");

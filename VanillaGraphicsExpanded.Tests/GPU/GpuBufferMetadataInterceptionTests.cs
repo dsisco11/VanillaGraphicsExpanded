@@ -1,26 +1,23 @@
 using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Runtime.CompilerServices;
-using HarmonyLib;
 using OpenTK.Graphics.OpenGL;
-using VanillaGraphicsExpanded.HarmonyPatches;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 
 namespace VanillaGraphicsExpanded.Tests.GPU;
 
-/// <summary>Executes real engine-call rewriting across buffer allocation addressing and managed upload signatures.</summary>
+/// <summary>Executes native interception across buffer allocation addressing and managed upload signatures.</summary>
 [Collection("GPU")]
 [Trait("Category", "GPU")]
 public sealed class GpuBufferMetadataInterceptionTests(HeadlessGLFixture fixture)
 {
     #region Public API
-    /// <summary>Generated names acquire a complete reader on their first redirected allocation.</summary>
+    /// <summary>Generated names acquire a complete reader on their first observed allocation.</summary>
     [Fact]
     public void FirstBoundAllocationPublishesReservedName()
     {
         fixture.EnsureContextValid(); fixture.InitializeResourceDisposal();
-        var harmony = new Harmony("VGE.Tests.BufferMetadata.FirstAllocation");
         int reserved = GL.GenBuffer();
         try
         {
@@ -35,23 +32,16 @@ public sealed class GpuBufferMetadataInterceptionTests(HeadlessGLFixture fixture
             using var alias = new BufferAlias(reserved);
             manager.AssociateResource(entry, alias);
             Assert.Equal((nint)48, alias.Capacity);
-            Assert.NotNull(entry.Reader);
+            // Association may attach a recovery reader, but it must never invoke it here.
+            Assert.Equal(2ul, entry.MetadataRevision);
             Assert.True(manager.IsResourceMetadataAvailable(alias));
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
         finally
         {
-            harmony.UnpatchAll(harmony.Id);
             GL.DeleteBuffer(reserved);
             fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll();
         }
-    }
-
-    /// <summary>Method specification discovery identifies a caller containing only a closed generic native operation.</summary>
-    [Fact]
-    public void GenericOnlyCallerIsDiscovered()
-    {
-        var target = AccessTools.Method(typeof(GpuBufferMetadataInterceptionTests), nameof(GenericUpload));
     }
 
     /// <summary>Immutable storage commands publish actual size through bound and explicit-object addressing.</summary>
@@ -62,7 +52,6 @@ public sealed class GpuBufferMetadataInterceptionTests(HeadlessGLFixture fixture
     {
         fixture.EnsureContextValid();
         fixture.InitializeResourceDisposal();
-        var harmony = new Harmony($"VGE.Tests.BufferMetadata.Immutable.{named}");
         try
         {
 
@@ -80,10 +69,10 @@ public sealed class GpuBufferMetadataInterceptionTests(HeadlessGLFixture fixture
             Assert.True(GpuResourceManagerSystem.CurrentManager.IsResourceMetadataAvailable(owner));
             Assert.Equal(ErrorCode.InvalidOperation, GL.GetError());
         }
-        finally { harmony.UnpatchAll(harmony.Id); fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
+        finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
 
-    /// <summary>Each rewritten overload publishes actual allocation facts to every alias exactly once.</summary>
+    /// <summary>Each native overload publishes actual allocation facts to every alias exactly once.</summary>
     [Theory]
     [InlineData(0)]
     [InlineData(1)]
@@ -97,10 +86,8 @@ public sealed class GpuBufferMetadataInterceptionTests(HeadlessGLFixture fixture
     {
         fixture.EnsureContextValid();
         fixture.InitializeResourceDisposal();
-        var harmony = new Harmony($"VGE.Tests.BufferMetadata.{variant}");
         try
         {
-            var caller = AccessTools.Method(typeof(GpuBufferMetadataInterceptionTests), nameof(Upload));
 
             using var owner = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = null }).RequireResource();
             owner.Allocate(64);
@@ -108,7 +95,7 @@ public sealed class GpuBufferMetadataInterceptionTests(HeadlessGLFixture fixture
             var entry = Assert.IsType<GpuResourceMetadataEntry<GpuBufferMetadata>>(manager.GetResourceRegistration(owner));
             using var alias = new BufferAlias(owner.BufferId);
             manager.AssociateResource(entry, alias);
-            // Force target resolution through native unknown-state recovery instead of cached selection.
+            // Native selection observation retains the exact allocation without descriptor discovery.
             GL.BindBuffer(BufferTarget.ArrayBuffer, owner.BufferId);
             OpenGlStateCache.Current.InvalidateAll();
             ulong revision = entry.MetadataRevision, storage = entry.StorageRevision;
@@ -122,16 +109,15 @@ public sealed class GpuBufferMetadataInterceptionTests(HeadlessGLFixture fixture
             Assert.Equal(owner.BufferId, GL.GetInteger(GetPName.ArrayBufferBinding));
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { harmony.UnpatchAll(harmony.Id); fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
+        finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
 
-    /// <summary>Rejected allocation retains proven capacity and its native error, while raw objects remain unregistered.</summary>
+    /// <summary>Rejected allocation retains proven capacity and its native error, while raw objects maintain their facts.</summary>
     [Fact]
     public void RejectedAndUntrackedCallsPreserveContracts()
     {
         fixture.EnsureContextValid();
         fixture.InitializeResourceDisposal();
-        var harmony = new Harmony("VGE.Tests.BufferMetadata.Rejected");
         int raw = 0;
         try
         {
@@ -146,14 +132,13 @@ public sealed class GpuBufferMetadataInterceptionTests(HeadlessGLFixture fixture
             raw = GL.GenBuffer();
             OpenGLBufferBindings.BindBuffer(OpenGlStateCache.Current, BufferTarget.ArrayBuffer, raw);
             Allocate(24);
-            Assert.Null(GpuResourceManagerSystem.CurrentManager!.FindResource(GpuResourceKind.Buffer, raw));
+            Assert.Equal((nint)24, Assert.IsType<GpuResourceMetadataEntry<GpuBufferMetadata>>(GpuResourceManagerSystem.CurrentManager!.FindResource(GpuResourceKind.Buffer, raw)).Metadata.Capacity);
             GL.GetBufferParameter(BufferTarget.ArrayBuffer, BufferParameterName.BufferSize, out int size);
             Assert.Equal(24, size);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
         finally
         {
-            harmony.UnpatchAll(harmony.Id);
             if (raw != 0) RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Buffer, raw));
             fixture.CleanupGpuResources();
             OpenGlStateCache.Current.InvalidateAll();
@@ -162,11 +147,11 @@ public sealed class GpuBufferMetadataInterceptionTests(HeadlessGLFixture fixture
     #endregion
 
     #region Private
-    /// <summary>Models a consumer explicitly acquiring the allocation withdrawn by an external command.</summary>
+    /// <summary>Models a consumer explicitly reusing maintained facts after an external command.</summary>
     private static void AcquireAfterExternal(GpuBufferObject owner)
     {
         var manager = GpuResourceManagerSystem.CurrentManager!;
-        Assert.False(manager.IsResourceMetadataAvailable(owner));
+        Assert.True(manager.IsResourceMetadataAvailable(owner));
         Assert.NotNull(manager.AcquireResource(GpuResourceKind.Buffer, owner.BufferId, new GpuBufferMetadataReader()));
     }
 
@@ -182,7 +167,7 @@ public sealed class GpuBufferMetadataInterceptionTests(HeadlessGLFixture fixture
         else GL.BufferStorage(BufferTarget.ArrayBuffer, 96, IntPtr.Zero, BufferStorageFlags.DynamicStorageBit);
     }
 
-    /// <summary>Provides distinct closed managed signatures for the real Harmony call-site adapter.</summary>
+    /// <summary>Provides distinct closed managed signatures for the native boundary.</summary>
     [MethodImpl(MethodImplOptions.NoInlining)]
     private static void Upload(int variant, int id)
     {

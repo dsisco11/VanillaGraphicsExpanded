@@ -1,0 +1,51 @@
+using OpenTK.Graphics.OpenGL;
+
+namespace VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
+
+/// <summary>Maintains per-element indexed selectors without multi-bind realization or generic-binding side effects.</summary>
+internal sealed unsafe partial class OpenGlStateCache
+{
+    #region Internal API
+    /// <summary>Observes existing-object base bindings, preserving rejected elements.</summary>
+    [InterceptOpenGL("glBindBuffersBase")]
+    internal static void ObserveBindBuffersBase(int target, uint first, int count, uint* names)
+    {
+        ObserveBufferMultiBind((BufferRangeTarget)target, first, count, names, null, null, false);
+    }
+
+    /// <summary>Observes native-width ranges independently for each accepted existing object.</summary>
+    [InterceptOpenGL("glBindBuffersRange")]
+    internal static void ObserveBindBuffersRange(int target, uint first, int count, uint* names, nint* offsets, nint* sizes)
+    {
+        ObserveBufferMultiBind((BufferRangeTarget)target, first, count, names, offsets, sizes, true);
+    }
+    #endregion
+
+    #region Private
+    /// <summary>Classifies the entire destination span first and then reconciles element-local outcomes.</summary>
+    private static void ObserveBufferMultiBind(BufferRangeTarget target, uint first, int count, uint* names,
+        nint* offsets, nint* sizes, bool range)
+    {
+        if (!OpenGLObservationContext.TryGet(out var cache, out _) || count < 0 || first > int.MaxValue
+            || (ulong)first + (uint)count > int.MaxValue) return;
+        if (count == 0 || !OpenGLBufferBindingCalls.ValidIndexedSlot(target, (int)first)
+            || !OpenGLBufferBindingCalls.ValidIndexedSlot(target, (int)first + count - 1)) return;
+        if (target == BufferRangeTarget.TransformFeedbackBuffer
+            && (!cache.TryGetFeedbackActivity(out var activity) || activity.Active)) return;
+        for (int i = 0; i < count; i++)
+        {
+            int id = names == null ? 0 : unchecked((int)names[i]);
+            int slot = (int)first + i;
+            if (id != 0 && !cache.HasEstablishedNativeIdentity(GpuResourceKind.Buffer, id)) continue;
+            nint offset = 0, size = 0;
+            if (range && names != null)
+            {
+                if (offsets == null || sizes == null) { cache.indexedBufferBindings.Remove((target, slot)); continue; }
+                offset = offsets[i]; size = sizes[i];
+                if (!OpenGLBufferBindingCalls.ValidIndexedRange(target, id, offset, size, multi: true)) continue;
+            }
+            cache.indexedBufferBindings[(target, slot)] = new(id, id == 0 ? 0 : offset, id == 0 ? 0 : size, range && id != 0);
+        }
+    }
+    #endregion
+}

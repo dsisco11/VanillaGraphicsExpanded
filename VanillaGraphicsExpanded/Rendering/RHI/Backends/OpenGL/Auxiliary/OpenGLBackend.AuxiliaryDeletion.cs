@@ -42,7 +42,7 @@ internal sealed partial class OpenGLBackend
     internal void DeleteMemoryObject(int id)
     {
         RequireContext();
-        ExtGL.Ext.DeleteMemoryObject(id);
+        OpenGLDriverCalls.Ext.DeleteMemoryObject(id);
         RequireContext();
         cache.CompleteResourceDeletion(GpuResourceKind.MemoryObject, id);
     }

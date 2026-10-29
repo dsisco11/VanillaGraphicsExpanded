@@ -25,6 +25,11 @@ overloads; grouped caller descriptions below do not narrow their scope. Query co
 counts describe calls along the specified successful branch, not GPU synchronization or timing.
 Native probe receipts are recorded separately. No runtime behavior is changed by this analysis.
 
+The buffer and memory-object reader/observer findings are superseded by the implemented maintained-fact
+routes in [the lifecycle inventory](Rendering.MetadataLifecycle.Inventory.md#maintained-buffer-and-memory-object-routes).
+Ordinary buffer association no longer discovers or automatically recovers descriptors. The historical
+rows below remain migration input for the other families; they do not authorize buffer query fallbacks.
+
 ### Shared scenario rules
 
 These rules apply to every row, including the reader and observer rows:

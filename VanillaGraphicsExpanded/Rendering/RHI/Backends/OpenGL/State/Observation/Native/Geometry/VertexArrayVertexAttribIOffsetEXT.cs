@@ -18,7 +18,8 @@ internal sealed unsafe partial class OpenGlStateCache
         VertexAttribEnum @type = unchecked((VertexAttribEnum)a4);
         int @stride = unchecked((int)a5);
         IntPtr @offset = unchecked((IntPtr)a6);
-        if (!OpenGLObservationContext.TryGet(out _, out _)) return;
+        if (!OpenGLObservationContext.TryGet(out _, out _, false)) return;
+        Current.ObserveExtVertexBufferRealization(vaobj, buffer);
         OpenGlStateCache.ObserveVertexMetadata(unchecked((int)@vaobj), true, false);
     }
     #endregion

@@ -8,6 +8,24 @@ internal static class GpuResourceManagerSystem
 {
     private static GpuResourceManager? manager;
     internal static GpuResourceManager? CurrentManager => Volatile.Read(ref manager);
+    /// <summary>Notifies renderer composition when a retired context receives a replacement service.</summary>
+    internal static event Action<GpuResourceManager>? ManagerChanged;
+
+    /// <summary>Publishes the single service before native observation, without backend or capability admission.</summary>
+    internal static GpuResourceManager EnsureCurrentContext()
+    {
+        if (Integration.RenderContextRegistry.Current() == default)
+            throw new InvalidOperationException("Resource observation requires a registered context.");
+        var current = CurrentManager;
+        if (current is { CanObserveNativeMetadata: true }) return current;
+        if (current is not null && !current.IsMetadataRegistryRetired)
+            throw new InvalidOperationException("The live resource manager belongs to another context.");
+        if (current is not null) { Shutdown(); current.Dispose(); }
+        current = new GpuResourceManager();
+        Initialize(current);
+        ManagerChanged?.Invoke(current);
+        return current;
+    }
     private static GpuResourceDisposalQueue resourceDisposals = new();
 
     /// <summary>Captures the disposal service for the resource's original context lifetime.</summary>

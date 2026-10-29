@@ -19,6 +19,7 @@ public sealed class GpuResourceAssociationStressTests
             var reader = new Reader();
             for (int cycle = 0; cycle < 32; cycle++)
             {
+                if (manager.FindResource(GpuResourceKind.Buffer, 7) is null) manager.RecordPreexistingBuffer(7);
                 var entry = manager.AcquireResource(GpuResourceKind.Buffer, 7, reader)!;
                 var abandoned = AssociateBatch(manager, entry);
                 for (int attempt = 0; attempt < 5 && abandoned.Any(value => value.IsAlive); attempt++)
@@ -32,6 +33,7 @@ public sealed class GpuResourceAssociationStressTests
                 manager.UnregisterResource(entry, alias);
                 Assert.Equal(0, entry.AssociationCount);
                 manager.ObserveDeletion(GpuResourceKind.Buffer, 7);
+                manager.ObserveBufferCreation(7, true);
                 var replacement = manager.AcquireResource(GpuResourceKind.Buffer, 7, reader)!;
                 Assert.NotSame(entry, replacement);
                 Assert.Throws<InvalidOperationException>(() => manager.PublishMetadata(entry, default, GpuMetadataChange.Metadata));

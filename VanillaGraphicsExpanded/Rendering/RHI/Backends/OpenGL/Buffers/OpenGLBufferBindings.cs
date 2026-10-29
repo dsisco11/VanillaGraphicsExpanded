@@ -24,11 +24,13 @@ internal static class OpenGLBufferBindings
                 OpenGLDriverCalls.BindBuffer(native, buffer);
                 context.RequireContext();
             }, elementBuffer: buffer);
+            cache.RealizeNativeBuffer(buffer, false);
             return;
         }
         cache.ForgetBufferBinding(target);
         OpenGLDriverCalls.BindBuffer(native, buffer);
         context.RequireContext();
+        cache.RealizeNativeBuffer(buffer, false);
         cache.EstablishBufferBinding(target, buffer);
     }
 
@@ -42,6 +44,7 @@ internal static class OpenGLBufferBindings
         cache.ForgetBufferBinding((Legacy.BufferTarget)target, slot);
         OpenGLDriverCalls.BindBufferBase(native, slot, buffer);
         context.RequireContext();
+        cache.RealizeNativeBuffer(buffer, false);
         cache.EstablishIndexedBufferBinding(target, slot, buffer, 0, 0, false);
     }
 
@@ -55,6 +58,7 @@ internal static class OpenGLBufferBindings
         cache.ForgetBufferBinding((Legacy.BufferTarget)target, slot);
         OpenGLDriverCalls.BindBufferRange(native, slot, buffer, offset, size);
         context.RequireContext();
+        cache.RealizeNativeBuffer(buffer, false);
         cache.EstablishIndexedBufferBinding(target, slot, buffer, offset, size, true);
     }
     #endregion

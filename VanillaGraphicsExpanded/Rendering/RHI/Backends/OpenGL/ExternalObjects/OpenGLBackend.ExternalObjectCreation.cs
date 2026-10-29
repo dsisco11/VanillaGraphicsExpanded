@@ -43,7 +43,7 @@ internal sealed partial class OpenGLBackend
             if (request.Dedicated is { } dedicated)
             {
                 int value = dedicated ? 1 : 0;
-                GL.Ext.MemoryObjectParameter(owner.MemoryObjectId, MemoryObjectParameterName.DedicatedMemoryObjectExt, ref value);
+                OpenGLDriverCalls.Ext.MemoryObjectParameter(owner.MemoryObjectId, MemoryObjectParameterName.DedicatedMemoryObjectExt, ref value);
                 RequireContext();
             }
             if (request.Import is { } imported) ImportMemory(owner, request.Size, imported);
@@ -59,6 +59,8 @@ internal sealed partial class OpenGLBackend
     {
         RequireContext();
         if (!Capabilities.ExternalSemaphores) throw new NotSupportedException("External semaphores are unavailable.");
+        // TODO(Rendering.MetadataLifecycle.todo, semaphore private handoff task): use saved-original
+        // creation alongside the semaphore observers so managed creation publishes only once.
         id = GL.Ext.GenSemaphore();
         RequireContext();
         return id == 0 ? null : new GpuSemaphoreMetadata();
@@ -69,7 +71,7 @@ internal sealed partial class OpenGLBackend
         RequireContext();
         if (!Capabilities.ExternalMemory) throw new NotSupportedException("External memory is unavailable.");
         int name = 0;
-        try { GL.Ext.CreateMemoryObjects(1, out name); }
+        try { OpenGLDriverCalls.Ext.CreateMemoryObjects(1, out name); }
         finally { id = name; }
         RequireContext();
         return name == 0 ? null : new GpuMemoryObjectMetadata();
@@ -91,6 +93,8 @@ internal sealed partial class OpenGLBackend
     /// <summary>Imports once without closing caller-owned Win32 handles or retrying failed dispatch.</summary>
     private void ImportSemaphore(GpuSemaphore owner, RHIExternalHandle handle)
     {
+        // TODO(Rendering.MetadataLifecycle.todo, semaphore import task): move these imports
+        // to saved-original dispatch when their post-call lifecycle observers are installed.
         if (handle.Kind == ExternalHandleKind.OpaqueFileDescriptor)
             GL.Ext.ImportSemaphoreF(owner.SemaphoreId, ExternalHandleType.HandleTypeOpaqueFdExt, (int)handle.Value);
         else GL.Ext.ImportSemaphoreWin32Handle(owner.SemaphoreId, handle.Kind == ExternalHandleKind.OpaqueWin32
@@ -101,8 +105,8 @@ internal sealed partial class OpenGLBackend
     private void ImportMemory(GpuMemoryObject owner, ulong size, RHIExternalHandle handle)
     {
         if (handle.Kind == ExternalHandleKind.OpaqueFileDescriptor)
-            GL.Ext.ImportMemoryF(owner.MemoryObjectId, (long)size, ExternalHandleType.HandleTypeOpaqueFdExt, (int)handle.Value);
-        else GL.Ext.ImportMemoryWin32Handle(owner.MemoryObjectId, (long)size, handle.Kind == ExternalHandleKind.OpaqueWin32
+            OpenGLDriverCalls.Ext.ImportMemoryF(owner.MemoryObjectId, (long)size, ExternalHandleType.HandleTypeOpaqueFdExt, (int)handle.Value);
+        else OpenGLDriverCalls.Ext.ImportMemoryWin32Handle(owner.MemoryObjectId, (long)size, handle.Kind == ExternalHandleKind.OpaqueWin32
             ? ExternalHandleType.HandleTypeOpaqueWin32Ext : ExternalHandleType.HandleTypeOpaqueWin32KmtExt, handle.Value);
         RequireContext();
     }

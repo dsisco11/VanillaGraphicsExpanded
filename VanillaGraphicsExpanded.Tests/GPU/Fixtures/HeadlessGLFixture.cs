@@ -126,22 +126,35 @@ public sealed class HeadlessGLFixture : IAsyncLifetime
         if (_resourceManager is not null) return;
 
         // Opt in per test lifetime, leaving manager lifecycle tests free to install their own manager.
-        var manager = new GpuResourceManager();
-        GpuResourceManagerSystem.Initialize(manager);
+        var manager = GpuResourceManagerSystem.EnsureCurrentContext();
         _resourceManager = manager;
+    }
+
+    /// <summary>Tests context-local RHI initialization without an installed manager or fabricated discovery permission.</summary>
+    public void UseContextLocalResources()
+    {
+        TestUniformRing.Dispose();
+        var current = GpuResourceManagerSystem.CurrentManager;
+        GpuResourceManagerSystem.Shutdown();
+        current?.Dispose();
+        if (!ReferenceEquals(current, _resourceManager)) _resourceManager?.Dispose();
+        _resourceManager = null;
     }
 
     /// <summary>Drains queued resources on this context and retires the fixture-owned disposal lifetime.</summary>
     public void CleanupGpuResources()
     {
-        if (!_contextValid || _resourceManager is null) return;
+        if (!_contextValid) return;
         EnsureContextValid();
 
         // The fixture manager is intentionally unticked: disposal uses the current context without
         // registering an engine renderer or capturing a thread that xUnit may subsequently change.
-        _resourceManager.ResourceDisposals?.DrainPending();
+        TestUniformRing.Dispose();
+        var current = GpuResourceManagerSystem.CurrentManager;
+        current?.ResourceDisposals?.DrainPending();
         GpuResourceManagerSystem.Shutdown();
-        _resourceManager.Dispose();
+        current?.Dispose();
+        if (!ReferenceEquals(current, _resourceManager)) _resourceManager?.Dispose();
         _resourceManager = null;
     }
 

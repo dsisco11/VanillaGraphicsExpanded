@@ -7,6 +7,48 @@ namespace OpenGLInterceptionGenerator.Tests;
 public sealed class DriverForwardingTests
 {
     #region Public API
+    /// <summary>Factory output pinning and GLboolean conversion preserve the selected managed contracts.</summary>
+    [Fact]
+    public void FactoryOutputsAndBooleanResultsReachSavedOriginals()
+    {
+        var result = GeneratorCompilation.Run("""
+            internal static partial class OpenGLBindingInterception
+            {
+                internal static nint Original(nint pointer) => pointer;
+            }
+            internal sealed class DriverTable
+            {
+                internal nint Read(string name) => name == "glCreateBuffers" ? DriverTest.Create : DriverTest.Unmap;
+            }
+            internal static unsafe partial class OpenGLDriverCalls
+            {
+                private static readonly DriverTable Core = new();
+                private static readonly DriverTable Legacy = Core;
+            }
+            public static unsafe class DriverTest
+            {
+                internal static nint Create => (nint)(delegate* unmanaged[Stdcall]<int,uint*,void>)&Make;
+                internal static nint Unmap => (nint)(delegate* unmanaged[Stdcall]<uint,byte>)&Finish;
+                [UnmanagedCallersOnly(CallConvs = new[] { typeof(System.Runtime.CompilerServices.CallConvStdcall) })]
+                private static void Make(int count, uint* output) { *output = count == 1 ? uint.MaxValue : 0; }
+                [UnmanagedCallersOnly(CallConvs = new[] { typeof(System.Runtime.CompilerServices.CallConvStdcall) })]
+                private static byte Finish(uint id) => id == uint.MaxValue ? (byte)1 : (byte)0;
+                public static bool Run()
+                {
+                    OpenGLDriverCalls.CreateBuffers(1, out int id);
+                    return id == -1 && OpenGLDriverCalls.UnmapNamedBuffer((uint)id) && !OpenGLDriverCalls.UnmapNamedBuffer(0u);
+                }
+            }
+            """, "glCreateBuffers|void|int,uint*\nglUnmapNamedBuffer|byte|uint");
+        Assert.Empty(result.Diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error));
+        using var stream = new MemoryStream();
+        var emitted = result.Compilation.Emit(stream);
+        Assert.True(emitted.Success, string.Join("\n", emitted.Diagnostics));
+        var assembly = Assembly.Load(stream.ToArray());
+        Assert.Equal(true, assembly.GetType("VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.DriverTest")!
+            .GetMethod("Run")!.Invoke(null, null));
+    }
+
     /// <summary>Resolves overloaded methods independently and bypasses installed observation callbacks.</summary>
     [Fact]
     public void ExactOverloadsReachTheirOriginalDriver()

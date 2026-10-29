@@ -142,16 +142,19 @@ public sealed class RHIBufferTests(HeadlessGLFixture fixture)
     public void MappingFailureNeverRetriesBoundMapping()
     {
         fixture.EnsureContextValid(); fixture.InitializeResourceDisposal();
-        var harmony = new Harmony("Tests.RHIBuffer.MappingFailure");
         try
         {
             using var buffer = RHICommandContext.Current.CreateBuffer(Description(16)).RequireResource();
-            harmony.Patch(((Func<int, nint, nint, OpenTK.Graphics.OpenGL4.BufferAccessMask, nint>)CoreGL.MapNamedBufferRange).Method,
-                prefix: new HarmonyMethod(typeof(RHIBufferTests), nameof(RejectMapping)));
+            using var native = new NativeDriverCapture();
+            int namedCalls = 0, boundCalls = 0;
+            native.Add("glMapNamedBufferRange", new MapNamedCall((id, offset, length, access) => { namedCalls++; return 0; }));
+            native.Add("glMapBufferRange", new MapBoundCall((target, offset, length, access) => { boundCalls++; return 0; }));
+            native.Install();
             Assert.Throws<InvalidOperationException>(() => buffer.MapRange<int>(0, 4, BufferMapAccess.Read));
+            Assert.Equal(1, namedCalls); Assert.Equal(0, boundCalls);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { harmony.UnpatchAll(harmony.Id); fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
+        finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
 
     #endregion
@@ -301,8 +304,13 @@ public sealed class RHIBufferTests(HeadlessGLFixture fixture)
     private static RHIBufferDescription Description(nint capacity) => new()
     { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = capacity, Usage = BufferUsage.DynamicDraw };
 
-    /// <summary>Fails before mapping any bytes to verify exception propagation.</summary>
-    private static void RejectMapping() => throw new InvalidOperationException("Injected named mapping failure.");
+    /// <summary>Matches the named mapping result ABI for native failure qualification.</summary>
+    [UnmanagedFunctionPointer(CallingConvention.StdCall)]
+    private delegate nint MapNamedCall(uint id, nint offset, nint length, int access);
+
+    /// <summary>Matches the bound mapping ABI to detect forbidden fallback dispatch.</summary>
+    [UnmanagedFunctionPointer(CallingConvention.StdCall)]
+    private delegate nint MapBoundCall(int target, nint offset, nint length, int access);
 
     /// <summary>Matches native creation output without relying on managed wrapper detours.</summary>
     [UnmanagedFunctionPointer(CallingConvention.StdCall)]

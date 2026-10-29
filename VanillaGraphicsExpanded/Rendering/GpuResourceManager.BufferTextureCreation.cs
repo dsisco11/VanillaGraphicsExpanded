@@ -12,16 +12,14 @@ internal sealed partial class GpuResourceManager
         GpuResource<GpuTextureMetadata> recipient, out GpuResourceHandle handle, GpuResource<GpuBufferMetadata>? source = null)
         => CreateResource<GpuBufferTextureInitialization, GpuTextureMetadata, BufferTextureCreation>(initialization, recipient, out handle, new(source));
 
-    /// <summary>Reuses canonical backing capacity, reading only previously unknown external buffers.</summary>
+    /// <summary>Requires maintained backing capacity or an explicitly recorded pre-install identity.</summary>
     internal static GpuBufferMetadata AcquireBufferTextureInput(int buffer)
     {
         RHICommandContext.RequireResourceOperationAvailable(GpuResourceKind.Buffer, buffer);
         if (GpuResourceManagerSystem.CurrentManager is { } manager && manager.CanObserveNativeMetadata)
             return manager.AcquireResource(GpuResourceKind.Buffer, buffer, new GpuBufferMetadataReader())?.Metadata
                 ?? throw new InvalidOperationException("Buffer texture backing is unavailable.");
-        if (!new GpuBufferMetadataReader().TryRead(buffer, out var metadata))
-            throw new InvalidOperationException("Buffer texture backing is unavailable.");
-        return metadata;
+        throw new InvalidOperationException("Buffer texture creation requires maintained backing facts or a supplied source snapshot.");
     }
     #endregion
 

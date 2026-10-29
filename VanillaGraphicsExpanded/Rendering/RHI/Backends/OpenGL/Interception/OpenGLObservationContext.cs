@@ -14,6 +14,7 @@ internal static class OpenGLObservationContext
         if (Integration.RenderContextRegistry.Current().Generation == 0
             && !Integration.EngineRenderContext.TryRegisterCurrent()) return false;
         origin = Integration.RenderContextRegistry.CaptureResourceContext();
+        GpuResourceManagerSystem.EnsureCurrentContext().ActivateResourceObservation();
         cache.SelectRHIContext(origin.Handle, origin);
         return !requireCapabilities || GpuSupport.HasCachedCapabilitiesForCurrentContext;
     }

@@ -9,7 +9,7 @@ internal sealed partial class OpenGlStateCache
     {
         if (id == 0) return true;
         var manager = GpuResourceManagerSystem.CurrentManager;
-        if (manager?.CanObserveNativeMetadata == true && manager.FindObservedResource(kind, id) is { IsUsable: true }) return true;
+        if (manager?.CanObserveNativeMetadata == true && manager.FindObservedResource(kind, id) is { IsRealized: true }) return true;
         // An executed selector proves realization until the single observed deletion path removes it.
         switch (kind)
         {

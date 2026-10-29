@@ -26,6 +26,10 @@ internal abstract class GpuResourceRegistration
     }
     internal ulong MetadataRevision { get; set; }
     internal ulong StorageRevision { get; set; }
+    /// <summary>Distinguishes a generated name from an object with established native defaults.</summary>
+    internal bool IsRealized { get; private set; }
+    /// <summary>Authorizes one initial discovery recorded before resource observation begins.</summary>
+    internal bool InitialDiscoveryPending { get; set; }
     internal bool IsUsable => !Manager.IsMetadataRegistryRetired && State == GpuResourceRegistrationState.Live && MetadataAvailable;
     internal abstract int AssociationCount { get; }
 
@@ -36,6 +40,9 @@ internal abstract class GpuResourceRegistration
         Kind = kind;
         Id = id;
     }
+
+    /// <summary>Realizes the original registration without renewing its allocation identity.</summary>
+    internal void Realize() => IsRealized = true;
 
     /// <summary>Marks the canonical entry retiring before owning retirement is queued.</summary>
     internal bool TryRetire()

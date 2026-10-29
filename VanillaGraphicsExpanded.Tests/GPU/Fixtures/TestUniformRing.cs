@@ -9,6 +9,7 @@ internal static class TestUniformRing
 {
     private static GpuUniformRingBuffer? ring;
     private static (nint Handle, long Generation) context;
+    private static GpuResourceManager? manager;
 
     #region Context lifetime
     /// <summary>Installs the allocator for setup helpers without invalidating allocations for not-yet-submitted draws.</summary>
@@ -35,6 +36,7 @@ internal static class TestUniformRing
             coherent: true,
             debugName: "Test.UboRing");
         context = RenderContextRegistry.Current();
+        manager = GpuResourceManagerSystem.CurrentManager;
         ring.BeginFrame(0);
         GpuUniformRingSystem.SetCurrent(ring);
     }
@@ -48,20 +50,25 @@ internal static class TestUniformRing
         ring?.Dispose();
         ring = null;
         context = default;
+        manager = null;
     }
 
-    /// <summary>Prevents logical context-retirement tests from donating old mapped pages to later fixtures.</summary>
+    /// <summary>Prevents retired context or service lifetimes from donating mapped pages to later tests.</summary>
     private static void DiscardRetiredContext()
     {
-        if (ring is null || context == RenderContextRegistry.Current()) return;
-        if (RenderContextRegistry.IsAlive(context))
+        if (ring is null) return;
+        bool sameContext = context == RenderContextRegistry.Current();
+        if (sameContext && ReferenceEquals(manager, GpuResourceManagerSystem.CurrentManager)
+            && manager?.IsMetadataRegistryRetired != true) return;
+        if (!sameContext && RenderContextRegistry.IsAlive(context))
             throw new InvalidOperationException("The test uniform allocator belongs to a different live context.");
-        // Its original namespace has retired. Resource disposal abandons dead names rather
-        // than executing a fence wait or deletion in the replacement context.
+        // An old service's registrations cannot certify this allocator's buffers even when
+        // tests reuse the same physical context. Release through their original owners.
         GpuUniformRingSystem.ClearCurrent();
         ring.Dispose();
         ring = null;
         context = default;
+        manager = null;
     }
 
     /// <summary>Flushes and bounds completion of previous consumers before page reuse or mapped-storage disposal.</summary>

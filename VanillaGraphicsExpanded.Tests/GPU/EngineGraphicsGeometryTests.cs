@@ -161,8 +161,7 @@ public sealed class EngineGraphicsGeometryTests(HeadlessGLFixture fixture) : Ren
     {
         EnsureContextValid();
         using var native = new NativeMesh();
-        var manager = new GpuResourceManager();
-        GpuResourceManagerSystem.Initialize(manager);
+        var manager = GpuResourceManagerSystem.EnsureCurrentContext();
         object replacement = new();
         EngineFullscreenGeometry? geometry = null;
         try

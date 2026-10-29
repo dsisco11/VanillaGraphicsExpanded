@@ -86,7 +86,7 @@ has no managed consumer. `OpenGLPassTarget` is a private framebuffer realization
 configuration lease and nonowned image projections. Private geometry-array creation completes an
 unpublished `GpuVao` through the manager before cache membership. Engine geometry import recipients
 remain nonowning members of the explicit OpenGL integration boundary: their empty-array reader uses
-engine realization proof, while unknown buffer facts use the manager's RHI-backed reader. None supplies
+engine realization proof, while buffers reuse maintained manager facts or explicitly recorded pre-install discovery. None supplies
 an ordinary wrapper with native execution authority.
 
 ## Lifecycle and existing enforcement

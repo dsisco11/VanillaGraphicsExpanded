@@ -4,7 +4,7 @@ Maintained resource metadata lifecycle — implementation plan
 Source proposal: [Rendering.MetadataLifecycle.Proposal.md](Rendering.MetadataLifecycle.Proposal.md).
 Parent integration gate: [Rendering.GpuCommands.todo](Rendering.GpuCommands.todo), subphase 8i.
 Initial inventory: [Rendering.MetadataLifecycle.Inventory.md](Rendering.MetadataLifecycle.Inventory.md).
-Status: Phase 1 inventory/design reconciliation complete; implementation and qualification remain unchecked.
+Status: Phases 1–2 complete; Phases 3–7 remain pending.
 
 Goal
   Maintain canonical resource facts from observed creation, guaranteed defaults and subsequent commands.
@@ -112,44 +112,53 @@ Phase 2: Establish registration lifecycle with memory objects and buffers
   Outcome: raw OpenTK and RHI buffers maintain canonical storage facts without routine readback,
     including the memory-object lifetimes required by external-memory buffer storage.
 
-  ☐ Extend GpuResourceRegistration/GpuResourceMetadataEntry and GpuResourceManager registry/publication
+  ☑ Extend GpuResourceRegistration/GpuResourceMetadataEntry and GpuResourceManager registry/publication
     services with reserved-versus-realized identity while retaining complete-snapshot availability,
     original registration identity, revisions and terminal retirement. Exercise the final API with buffers
     in this unit; add no unused generic lifecycle scaffolding for later families.
-  ☐ Implement or verify the manager/context/hook activation ordering defined in Phase 1. Ensure the existing
+  ☑ Implement or verify the manager/context/hook activation ordering defined in Phase 1. Ensure the existing
     manager can receive covered creation observations before the first explicit RHI operation, after context
     recreation and after binding reload. Preserve original-context ownership and native always-forward
     behavior; missing readiness must not silently lose creation facts or trigger later descriptor discovery.
     Add lifecycle tests that exercise those three entry conditions through the native interception boundary,
     asserting original-identity registration/default publication once and no compensating descriptor reads.
-  ☐ Implement generated post-call buffer creation observers for all inventoried Gen/Create aliases and
-    subsequent realization operations. Consume returned arrays synchronously with exact native widths.
+  ☑ Implement generated post-call buffer creation observers for all inventoried Gen/Create aliases and
+    subsequent realization operations. Include the array Gen/Create/Bind identity prerequisites for
+    BindVertexBuffer/VertexArrayVertexBuffer and EXT generic offset buffer realization; full VAO
+    configuration certification remains in Phase 6. Consume returned arrays synchronously with exact native widths.
     Reject zero/detected failed results and invalid counts; do not replace an existing allocation from
     stale output values. Preserve original-context admission and initialization defaults.
-  ☐ Migrate the prerequisite GpuMemoryObject/GpuMemoryObjectMetadata family completely: EXT creation,
+  ☑ Migrate the prerequisite GpuMemoryObject/GpuMemoryObjectMetadata family completely: EXT creation,
     import, RHI handoff, native observations, consumers and deletion. Preserve empty metadata, native handle
     ownership, capability checks and original-context cleanup. Import establishes only its represented facts;
     no descriptor query follows merely from receiving a handle. Qualify failed imports, repeated setup and
     deletion/name reuse before buffer storage relies on those identities. Include all platform aliases in scope.
-  ☐ Migrate GpuBufferObject, GpuVbo, GpuEbo, GpuUniformBuffer, GpuShaderStorageBuffer, GpuAtomicCounterBuffer,
+  ☑ Migrate GpuBufferObject, GpuVbo, GpuEbo, GpuUniformBuffer, GpuShaderStorageBuffer, GpuAtomicCounterBuffer,
     GpuIndirectBuffer, GpuPixelPackBuffer and GpuPixelUnpackBuffer through GpuBufferMetadata.
     Replace ObserveBufferStorage blanket withdrawal with supplied capacity/usage/storage-mode/flag effects
     for established commands. Cover mutable/immutable, named/bound and supported extension allocation forms.
     Mapping/activity stays execution-owned; role/content extent stays wrapper policy. Content uploads do
     not publish capacity or renew storage identity.
-  ☐ Migrate GpuResourceManager.BufferAcquisition, relevant AcquireResource/AcquireWrapperMetadata callers,
+  ☑ Migrate GpuResourceManager.BufferAcquisition, relevant AcquireResource/AcquireWrapperMetadata callers,
     buffer readers and engine geometry consumers to query-free maintained facts or explicit justified adoption.
     Introduce final provenance checks in existing acquisition services and migrate affected callers directly.
     Preserve buffer-texture original dependencies, whole-buffer range semantics and retirement notifications;
     bring any required dependent caller changes into this unit without claiming the image family is complete.
-  ☐ Integrate buffer creation with the RHI private handoff and saved-original bypass: one registration and
+  ☑ Integrate buffer creation with the RHI private handoff and saved-original bypass: one registration and
     publication, failed candidate cleanup against original identity, no external callback duplication.
     Remove obsolete buffer readback/invalidation paths and unnecessary completion machinery.
-  ☐ Run inherited family qualification, including pre-install adoption, tracked raw alias reuse, generated
+  ☑ Run inherited family qualification, including pre-install adoption, tracked raw alias reuse, generated
     names before binding, rejected immutable mutation, storage replacement, stale output/name reuse and
     no-manager supplied initialization. Reconcile buffer documentation and inventory dispositions.
-  ☐ Completion: buffer lifecycle, dependencies and consumer closure use the final maintained-fact route;
+  ☑ Completion: buffer lifecycle, dependencies and consumer closure use the final maintained-fact route;
     no automatic descriptor recovery disguises missing buffer interception.
+
+  Verification: canonical shader-enabled Debug and ordinary Release builds passed; the focused suite
+    passed 173/173 in each configuration with zero skips. Generator tests passed 35/35 per configuration.
+    Second review and independent stage audit passed after linked-document reconciliation. Receipts:
+    artifacts/metadata-lifecycle/phase2/*adoption-final* and generator Debug/Release receipts in that directory.
+    Optional EXT slots unavailable on the test driver use deterministic callback-boundary stand-ins;
+    hardware EXT execution, installed-game startup, appearance and performance are not qualified.
 
 Phase 3: Maintain semaphore, query and synchronization identities
   Depends on Phase 2's exercised registration lifecycle.
@@ -267,6 +276,8 @@ Phase 7: Qualify complete lifecycle coverage and reconcile architecture
   ☐ Reconcile every factory/configuration/deletion/realization inventory row with actual generated callbacks,
     backend saved-original execution and manager/cache effects. Check arguments and data flow, not only
     attribute/symbol presence. Resolve omissions in their owning family before declaring combined completion.
+  ☐ Resolve all migration TODO comments referencing Rendering.MetadataLifecycle.todo, removing each
+    comment only after its named family replacement is implemented and verified.
   ☐ Revisit every named reader/acquisition/recovery and interruption method from Phase 1. Confirm its final
     removal or narrowly justified consumer route, including startup/reload, initial adoption and local tools.
     Verify absent entries under covered creation are diagnosed as tracking defects without descriptor recovery.

@@ -95,6 +95,8 @@ internal sealed class GpuResourceMetadataEntry<TMetadata> : GpuResourceRegistrat
         change |= pendingChange;
         MetadataAvailable = false;
         Metadata = candidate;
+        Realize();
+        InitialDiscoveryPending = false;
         List<Exception>? failures = null;
         foreach (var recipient in recipients.ToArray())
         {

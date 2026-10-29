@@ -43,6 +43,7 @@ internal sealed partial class OpenGLBackend
         RequireContext();
         var usage = request.Mode == ResourceStorageMode.Immutable
             ? BufferUsage.DynamicDraw : request.Usage;
+        cache.EstablishBufferUnmapped(nativeId);
         operation.Commit(new(request.Capacity, usage, request.Mode == ResourceStorageMode.Immutable,
             request.Mode == ResourceStorageMode.Immutable ? LowerBufferDescription(request).StorageFlags : 0));
     }
@@ -95,10 +96,11 @@ internal sealed partial class OpenGLBackend
         if (byteCount < 0 || offset < 0 || offset > initialization.Capacity || byteCount > initialization.Capacity-offset
             || byteCount != 0 && data == 0) throw new ArgumentException("Invalid initial buffer data.");
         id = 0;
-        GL.CreateBuffers(1, out int name);
+        OpenGLDriverCalls.CreateBuffers(1, out int name);
         id = name;
         RequireContext();
         if (name == 0) return null;
+        cache.EstablishBufferUnmapped(name);
         if (initialization.Mode == GpuBufferStorageMode.Realization)
             return new(0, BufferUsage.StaticDraw);
         bool complete = offset == 0 && byteCount == initialization.Capacity;
@@ -139,7 +141,9 @@ internal sealed partial class OpenGLBackend
         else if ((access & (BufferMapAccess.Persistent | BufferMapAccess.Coherent)) != 0)
             throw new InvalidOperationException("Persistent mapping requires immutable storage.");
         cache.RequireResourceOperationAvailable(GpuResourceKind.Buffer, owner.ResourceId);
-        return GL.MapNamedBufferRange((int)owner.ResourceId, offset, byteCount, OpenGLBufferValues.Map(access));
+        nint result = OpenGLDriverCalls.MapNamedBufferRange((int)owner.ResourceId, offset, byteCount, OpenGLBufferValues.Map(access));
+        if (result != 0) cache.RecordBufferMapped((int)owner.ResourceId);
+        return result;
     }
 
     /// <summary>Flushes the original mapped owner under current identity checks.</summary>
@@ -153,14 +157,16 @@ internal sealed partial class OpenGLBackend
     public bool UnmapBuffer(GpuBufferRef buffer)
     {
         var owner = RequireRange(buffer, 0, 0);
-        return GL.UnmapNamedBuffer((int)owner.ResourceId);
+        bool result = OpenGLDriverCalls.UnmapNamedBuffer((int)owner.ResourceId);
+        cache.RecordBufferUnmapped((int)owner.ResourceId, result);
+        return result;
     }
 
     #endregion
 
     #region Private
     /// <summary>Copies partial initial content into any storage mode without requiring dynamic CPU updates.</summary>
-    private void InitializeBufferRange(int destination, nint offset, int byteCount, nint data, bool clientUpdates, GpuResourceManager.MetadataOperation<GpuBufferMetadata>? operation = null)
+    private unsafe void InitializeBufferRange(int destination, nint offset, int byteCount, nint data, bool clientUpdates, GpuResourceManager.MetadataOperation<GpuBufferMetadata>? operation = null)
     {
         RequireContext();
         operation?.RequireLive();
@@ -171,29 +177,29 @@ internal sealed partial class OpenGLBackend
             operation?.RequireLive();
             return;
         }
-        var cleanupOrigin = origin == default ? (nativeContext, 0L) : origin;
-        var manager = GpuResourceManagerSystem.CurrentManager;
-        int staging = 0;
+        GpuBufferObject? staging = null;
         bool completed = false;
         try
         {
-            GL.CreateBuffers(1, out staging);
+            // Staging follows the same private manager handoff as every other owned buffer.
+            // Its full initial range avoids recursively allocating another staging buffer.
+            staging = CreateBuffer(new RHIBufferDescription
+            {
+                Role = BufferRole.CopySource, Mode = ResourceStorageMode.Mutable,
+                Capacity = byteCount, Usage = BufferUsage.StreamDraw
+            }, new RHIBufferInitialData(new ReadOnlySpan<byte>((void*)data, byteCount))).RequireResource();
             RequireContext();
             operation?.RequireLive();
-            if (staging == 0) throw new InvalidOperationException("Initial-content staging creation failed.");
-            OpenGLDriverCalls.NamedBufferData(staging, byteCount, data, Native.BufferUsageHint.StreamDraw);
-            RequireContext();
-            operation?.RequireLive();
-            GL.CopyNamedBufferSubData(staging, destination, 0, offset, byteCount);
+            GL.CopyNamedBufferSubData(staging.BufferId, destination, 0, offset, byteCount);
             RequireContext();
             operation?.RequireLive();
             completed = true;
         }
         finally
         {
-            // Native deferred destruction retains already consumed staging until the copy completes.
-            // A cleanup error must not replace the original initialization failure.
-            if (staging != 0) { try { GpuResource.RetireResource(GpuResourceKind.Buffer, staging, cleanupOrigin, manager); } catch when (!completed) { } }
+            // Native deferred destruction retains consumed staging through copy completion.
+            // Cleanup cannot replace the original candidate failure.
+            try { staging?.Dispose(); } catch when (!completed) { }
         }
     }
     /// <summary>Checks known bounds and original usability without querying or recovering metadata.</summary>

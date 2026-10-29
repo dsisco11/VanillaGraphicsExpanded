@@ -18,7 +18,7 @@ public sealed class GpuResourceMetadataRegistryTests
     {
         using var manager = CreateManager();
         var reader = new BufferReader();
-        var entry = manager.AcquireResource(GpuResourceKind.Buffer, 7, reader)!;
+        var entry = DiscoverPreexistingBuffer(manager, 7, reader)!;
         Assert.Equal(1, reader.ValidityChecks);
         Assert.Same(entry, manager.AcquireResource(GpuResourceKind.Buffer, 7, reader));
         Assert.Equal(1, reader.ValidityChecks);
@@ -29,7 +29,7 @@ public sealed class GpuResourceMetadataRegistryTests
         Assert.Equal(3, reader.ValidityChecks);
         Assert.False(entry.MetadataAvailable);
         Assert.Null(manager.AcquireResource(GpuResourceKind.Buffer, 8, reader));
-        Assert.Equal(4, reader.ValidityChecks);
+        Assert.Equal(3, reader.ValidityChecks);
         Assert.Null(manager.FindResource(GpuResourceKind.Buffer, 8));
     }
 
@@ -39,7 +39,7 @@ public sealed class GpuResourceMetadataRegistryTests
     {
         using var manager = CreateManager();
         var reader = new BufferReader { Candidate = new(24, BufferUsage.DynamicDraw) };
-        var entry = manager.AcquireResource(GpuResourceKind.Buffer, 7, reader)!;
+        var entry = DiscoverPreexistingBuffer(manager, 7, reader)!;
         Assert.Same(entry, manager.AcquireResource(GpuResourceKind.Buffer, 7, reader));
         using var first = new Resource<GpuBufferMetadata>(GpuResourceKind.Buffer, 7);
         using var second = new Resource<GpuBufferMetadata>(GpuResourceKind.Buffer, 7);
@@ -62,7 +62,7 @@ public sealed class GpuResourceMetadataRegistryTests
         Assert.Same(entry, manager.GetResourceRegistration(second));
     }
 
-    /// <summary>Reserved names remain unavailable until a reader proves realization and complete metadata.</summary>
+    /// <summary>Reserved names stay unavailable until observed realization supplies native defaults.</summary>
     [Fact]
     public void CreatedNamesDoNotInventStorageAndCanLaterBeAcquired()
     {
@@ -73,9 +73,9 @@ public sealed class GpuResourceMetadataRegistryTests
         Assert.False(manager.IsResourceMetadataAvailable(resource));
         var reader = new BufferReader { Exists = false };
         Assert.Null(manager.AcquireResource(GpuResourceKind.Buffer, 7, reader));
-        Assert.Equal(1, reader.Reads);
-        Assert.Equal(1, reader.ValidityChecks);
-        reader.Exists = true;
+        Assert.Equal(0, reader.Reads);
+        Assert.Equal(0, reader.ValidityChecks);
+        manager.RealizeObservedBuffer(7, false);
         Assert.Same(entry, manager.AcquireResource(GpuResourceKind.Buffer, 7, reader));
         Assert.True(manager.IsResourceMetadataAvailable(resource));
     }
@@ -88,7 +88,7 @@ public sealed class GpuResourceMetadataRegistryTests
     {
         using var manager = CreateManager();
         var reader = new BufferReader();
-        var entry = manager.AcquireResource(GpuResourceKind.Buffer, 7, reader)!;
+        var entry = DiscoverPreexistingBuffer(manager, 7, reader)!;
         using var resource = new Resource<GpuBufferMetadata>(GpuResourceKind.Buffer, 7);
         manager.AssociateResource(entry, resource);
         reader.Readable = false; reader.Throws = throws;
@@ -111,11 +111,11 @@ public sealed class GpuResourceMetadataRegistryTests
     {
         using var manager = CreateManager();
         var reader = new BufferReader();
-        var old = manager.AcquireResource(GpuResourceKind.Buffer, 7, reader)!;
+        var old = DiscoverPreexistingBuffer(manager, 7, reader)!;
         using var alias = new Resource<GpuBufferMetadata>(GpuResourceKind.Buffer, 7);
         manager.AssociateResource(old, alias);
         manager.ObserveDeletion(GpuResourceKind.Buffer, 7);
-        var replacement = manager.AcquireResource(GpuResourceKind.Buffer, 7, reader)!;
+        var replacement = DiscoverPreexistingBuffer(manager, 7, reader)!;
         Assert.NotSame(old, replacement);
         Assert.False(manager.IsRegistered(old));
         Assert.True(manager.IsRegistered(replacement));
@@ -152,7 +152,7 @@ public sealed class GpuResourceMetadataRegistryTests
     public void WeakAssociationsArePrunedWithoutDiscardingMetadata()
     {
         using var manager = CreateManager();
-        var entry = manager.AcquireResource(GpuResourceKind.Buffer, 7, new BufferReader())!;
+        var entry = DiscoverPreexistingBuffer(manager, 7, new BufferReader())!;
         var weak = AssociateTemporary(manager, entry);
         for (int attempt = 0; attempt < 5 && weak.IsAlive; attempt++) { GC.Collect(); GC.WaitForPendingFinalizers(); }
         Assert.False(weak.IsAlive);
@@ -217,7 +217,7 @@ public sealed class GpuResourceMetadataRegistryTests
     {
         using var manager = CreateManager();
         var reader = new BufferReader();
-        var entry = manager.AcquireResource(GpuResourceKind.Buffer, 7, reader)!;
+        var entry = DiscoverPreexistingBuffer(manager, 7, reader)!;
         using var alias = new Resource<GpuBufferMetadata>(GpuResourceKind.Buffer, 7);
         manager.AssociateResource(entry, alias);
         reader.OnRead = () =>
@@ -242,7 +242,7 @@ public sealed class GpuResourceMetadataRegistryTests
     {
         using var manager = CreateManager();
         var reader = new BufferReader();
-        var entry = manager.AcquireResource(GpuResourceKind.Buffer, 7, reader)!;
+        var entry = DiscoverPreexistingBuffer(manager, 7, reader)!;
         manager.PublishMetadata(entry, reader.Candidate, GpuMetadataChange.Storage);
         manager.PublishMetadata(entry, reader.Candidate, GpuMetadataChange.Storage);
         Assert.Equal(3ul, entry.MetadataRevision);
@@ -319,7 +319,7 @@ public sealed class GpuResourceMetadataRegistryTests
     public void TypedNotificationDoesNotAlterCanonicalStateOrRevision()
     {
         using var manager = CreateManager();
-        var entry = manager.AcquireResource(GpuResourceKind.Buffer, 7, new BufferReader())!;
+        var entry = DiscoverPreexistingBuffer(manager, 7, new BufferReader())!;
         using var resource = new Resource<GpuBufferMetadata>(GpuResourceKind.Buffer, 7);
         manager.AssociateResource(entry, resource);
         var canonical = entry.Metadata;
@@ -338,11 +338,11 @@ public sealed class GpuResourceMetadataRegistryTests
     {
         using var manager = CreateManager();
         var reader = new BufferReader();
-        var entry = manager.AcquireResource(GpuResourceKind.Buffer, 7, reader)!;
+        var entry = DiscoverPreexistingBuffer(manager, 7, reader)!;
         reader.Readable = false;
         Assert.False(manager.RefreshMetadata(entry, GpuMetadataChange.Storage));
         reader.Readable = true;
-        Assert.Same(entry, manager.AcquireResource(GpuResourceKind.Buffer, 7, reader));
+        Assert.Same(entry, manager.RecoverResource(GpuResourceKind.Buffer, 7, reader));
         Assert.Equal(2ul, entry.MetadataRevision);
         Assert.Equal(1ul, entry.StorageRevision);
     }
@@ -352,7 +352,7 @@ public sealed class GpuResourceMetadataRegistryTests
     public void UnregisteredLiveResourceCanReceiveAnotherInitialSnapshot()
     {
         using var manager = CreateManager();
-        var entry = manager.AcquireResource(GpuResourceKind.Buffer, 7, new BufferReader())!;
+        var entry = DiscoverPreexistingBuffer(manager, 7, new BufferReader())!;
         using var alias = new Resource<GpuBufferMetadata>(GpuResourceKind.Buffer, 7);
         manager.AssociateResource(entry, alias);
         manager.UnregisterResource(entry, alias);
@@ -372,11 +372,11 @@ public sealed class GpuResourceMetadataRegistryTests
     {
         using var manager = CreateManager();
         var reader = new BufferReader();
-        var oldEntry = manager.AcquireResource(GpuResourceKind.Buffer, 7, reader)!;
+        var oldEntry = DiscoverPreexistingBuffer(manager, 7, reader)!;
         using var oldAlias = new Resource<GpuBufferMetadata>(GpuResourceKind.Buffer, 7);
         manager.AssociateResource(oldEntry, oldAlias);
         manager.ObserveDeletion(GpuResourceKind.Buffer, 7);
-        var replacement = manager.AcquireResource(GpuResourceKind.Buffer, 7, reader)!;
+        var replacement = DiscoverPreexistingBuffer(manager, 7, reader)!;
         using var newAlias = new Resource<GpuBufferMetadata>(GpuResourceKind.Buffer, 7);
         manager.AssociateResource(replacement, newAlias);
         manager.UnregisterResource(oldEntry, oldAlias);
@@ -398,7 +398,7 @@ public sealed class GpuResourceMetadataRegistryTests
     public void WorkerRetirementPreservesOriginalRegistrationUntilDeletion()
     {
         using var manager = CreateManager();
-        var entry = manager.AcquireResource(GpuResourceKind.Buffer, 7, new BufferReader())!;
+        var entry = DiscoverPreexistingBuffer(manager, 7, new BufferReader())!;
         using var alias = new Resource<GpuBufferMetadata>(GpuResourceKind.Buffer, 7);
         manager.AssociateResource(entry, alias);
         bool retired = false;
@@ -420,7 +420,7 @@ public sealed class GpuResourceMetadataRegistryTests
     public void ConcurrentLookupsAndUnregisterPreserveCanonicalEntry()
     {
         using var manager = CreateManager();
-        var entry = manager.AcquireResource(GpuResourceKind.Buffer, 7, new BufferReader())!;
+        var entry = DiscoverPreexistingBuffer(manager, 7, new BufferReader())!;
         var resources = Enumerable.Range(0, 64).Select(_ => new Resource<GpuBufferMetadata>(GpuResourceKind.Buffer, 7)).ToArray();
         foreach (var resource in resources) manager.AssociateResource(entry, resource);
         Parallel.For(0, 256, index =>
@@ -443,7 +443,7 @@ public sealed class GpuResourceMetadataRegistryTests
     public void ConcurrentRemovalDuringPublicationPreservesSurvivingAlias()
     {
         using var manager = CreateManager();
-        var entry = manager.AcquireResource(GpuResourceKind.Buffer, 7, new BufferReader())!;
+        var entry = DiscoverPreexistingBuffer(manager, 7, new BufferReader())!;
         using var survivor = new Resource<GpuBufferMetadata>(GpuResourceKind.Buffer, 7);
         manager.AssociateResource(entry, survivor);
         var resources = Enumerable.Range(0, 128).Select(_ => new Resource<GpuBufferMetadata>(GpuResourceKind.Buffer, 7)).ToArray();
@@ -502,6 +502,14 @@ public sealed class GpuResourceMetadataRegistryTests
     #endregion
 
     #region Private
+    /// <summary>Models the explicit pre-install owner handoff for deterministic initial-discovery tests.</summary>
+    private static GpuResourceMetadataEntry<GpuBufferMetadata>? DiscoverPreexistingBuffer(GpuResourceManager manager,
+        nint id, IGpuResourceMetadataReader<GpuBufferMetadata> reader)
+    {
+        if (manager.FindResource(GpuResourceKind.Buffer, id) is null) manager.RecordPreexistingBuffer(id);
+        return manager.AcquireResource(GpuResourceKind.Buffer, id, reader);
+    }
+
     /// <summary>Supplies initial fixture image facts without discovering a nonexistent native object.</summary>
     private static GpuTextureMetadata ProjectionSeed(TextureDimension target,int level)
     {

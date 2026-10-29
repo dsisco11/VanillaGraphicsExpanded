@@ -3,7 +3,7 @@
 Planning input for [the approved lifecycle design](Rendering.MetadataLifecycle.Proposal.md) and
 [its dedicated implementation plan](Rendering.MetadataLifecycle.todo), which feeds subphase 8i of
 [the RHI implementation plan](Rendering.GpuCommands.todo). This maps lifecycle/configuration coverage
-and migration dispositions. It is not runtime implementation qualification.
+and migration dispositions. Runtime qualification is reported separately from source coverage.
 
 ## Source and limits
 
@@ -39,9 +39,9 @@ the nested binding owner. Observer presence is source evidence only, not effect 
 
 | Native symbol | Binding owners | Current observation / disposition |
 | --- | --- | --- |
-| `glCreateBuffers` | `GL`, `GL4` | No creation/import observer declared |
+| `glCreateBuffers` | `GL`, `GL4` | Creation observer implemented; see maintained buffer routes below |
 | `glCreateFramebuffers` | `GL`, `GL4` | No creation/import observer declared |
-| `glCreateMemoryObjectsEXT` | `GL+Ext` | No creation/import observer declared |
+| `glCreateMemoryObjectsEXT` | `GL+Ext` | Creation observer implemented; see maintained buffer routes below |
 | `glCreateProgram` | `GL`, `GL4` | No creation/import observer declared |
 | `glCreateProgramObjectARB` | `GL+Arb` | No creation/import observer declared |
 | `glCreateProgramPipelines` | `GL`, `GL4` | No creation/import observer declared |
@@ -56,10 +56,10 @@ the nested binding owner. Observer presence is source evidence only, not effect 
 | `glCreateSyncFromCLeventARB` | `GL+Arb`, `GL4+Arb` | Excluded from supported lifecycle scope; see resolved exclusions below |
 | `glCreateTextures` | `GL`, `GL4` | No creation/import observer declared |
 | `glCreateTransformFeedbacks` | `GL`, `GL4` | No creation/import observer declared |
-| `glCreateVertexArrays` | `GL`, `GL4` | No creation/import observer declared |
+| `glCreateVertexArrays` | `GL`, `GL4` | Creation observer implemented; see maintained buffer routes below |
 | `glFenceSync` | `GL`, `GL4` | No creation/import observer declared |
-| `glGenBuffers` | `GL`, `GL4` | No creation/import observer declared |
-| `glGenBuffersARB` | `GL+Arb` | No creation/import observer declared |
+| `glGenBuffers` | `GL`, `GL4` | Creation observer implemented; see maintained buffer routes below |
+| `glGenBuffersARB` | `GL+Arb` | Creation observer implemented; see maintained buffer routes below |
 | `glGenFramebuffers` | `GL`, `GL4` | No creation/import observer declared |
 | `glGenFramebuffersEXT` | `GL+Ext` | No creation/import observer declared |
 | `glGenLists` | `GL` | Excluded legacy feature |
@@ -76,7 +76,7 @@ the nested binding owner. Observer presence is source evidence only, not effect 
 | `glGenTextures` | `GL`, `GL4` | No creation/import observer declared |
 | `glGenTexturesEXT` | `GL+Ext` | No creation/import observer declared |
 | `glGenTransformFeedbacks` | `GL`, `GL4` | No creation/import observer declared |
-| `glGenVertexArrays` | `GL`, `GL4` | No creation/import observer declared |
+| `glGenVertexArrays` | `GL`, `GL4` | Creation observer implemented; see maintained buffer routes below |
 | `glGenVertexShadersEXT` | `GL+Ext` | Excluded legacy feature |
 | `glImportMemoryFdEXT` | `GL+Ext` | No creation/import observer declared |
 | `glImportMemoryWin32HandleEXT` | `GL+Ext` | No creation/import observer declared |
@@ -118,16 +118,17 @@ the nested binding owner. Observer presence is source evidence only, not effect 
 
 ## Lifecycle migration decisions
 
-The sections below are the Phase 1 design dispositions, not implemented behavior. Owning phase numbers
-refer to `Rendering.MetadataLifecycle.todo`. Factory rows above describe the pre-migration observer baseline.
+The design dispositions below identify the full migration scope. Owning phase numbers refer to
+`Rendering.MetadataLifecycle.todo`; the maintained buffer/memory routes below identify implemented
+changes. Factory rows above and the binding table distinguish installed observers from pending coverage.
 The binding table supplies exact signatures for the family decisions below.
 
 ### Activation and adoption provenance (Phase 2)
 
-`VanillaGraphicsExpandedModSystem.Start` installs table hooks; `GpuResourceManagerModSystem.StartClientSide`
-currently publishes the manager later. `OpenGLObservationContext.TryGet` can register an engine context
-without making a manager available. `FindObservedResource` intentionally ignores absent entries today.
-These are producer gaps to close, not reasons to permit acquisition after covered creation.
+`VanillaGraphicsExpandedModSystem.Start` installs table hooks. The installation/context observation
+boundary establishes the manager before delivery; `GpuResourceManagerModSystem.StartClientSide` attaches
+the renderer to that same service. `FindObservedResource` is lookup-only; creation observers establish
+covered identities. Missing buffer entries cannot authorize acquisition after covered creation.
 
 Use the existing context registration/service composition boundary to publish its one manager before
 enabling resource observation for that context. Do not wait for the first RHI command or renderer tick.
@@ -353,8 +354,93 @@ All Observe* handlers classify relevance/rejection before InterruptResourceOpera
 
 No dependency pushes consumer cleanup to Phase 7. Phase 7 verifies the completed units together.
 
+## Maintained buffer and memory-object routes
+
+`GpuResourceRegistration.IsRealized` is independent of availability and terminal retirement. Generated
+buffer names remain reserved, and core creation or a legal realization publishes explicit empty-buffer
+defaults on the same entry. Native output arrays are consumed during the generated post-call callback;
+zero, invalid counts and already-live returned names cannot replace an allocation.
+
+`GpuResourceManagerSystem.EnsureCurrentContext` establishes the existing manager before observation;
+`OpenGLBindingInterception.Install` and `OpenGLObservationContext` activate it without backend or
+capability admission. The renderer attaches to that service instead of creating another manager.
+Context recreation retires the original service and attaches its replacement; binding reload retains
+registrations. Local RHI tools without an installed manager retain their supplied initialization snapshots.
+A missing service or registry entry cannot authorize buffer descriptor discovery. An owned context-local
+buffer whose explicit storage operation failed can request recovery against its captured creation context
+while no service is installed; its unavailable supplied snapshot, original owner and explicit recovery
+method establish that cause. This neither adopts a raw ID nor creates a registration. Ordinary local
+initialization and available-snapshot access do not invoke this path.
+
+`RecordPreexistingBuffer` records integration-owned identity before activation, in the canonical entry.
+`AcquireResource` consumes this initial-discovery cause once; ordinary covered association only reuses
+available facts. `RecoverResource` requires an existing original entry and is explicit failed-effect
+recovery. Reserved covered names cannot invoke recovery to manufacture realization. There is no
+separate pre-install name registry. The unused `AcquireBufferMetadata` entry is removed.
+`AcquireBufferTextureInput`, backing publication and engine geometry recipients use this same gate;
+raw backing names and whole-buffer range intent never trigger compensating descriptor reads.
+
+Buffer allocation observers pass size, usage, storage mode and flags into
+`OpenGlStateCache.ObserveBufferStorage`. Proven invalid requests and immutable replacement leave facts
+and operation exclusions intact. Established requests publish once and renew storage dependencies;
+content writes do not publish capacity. EXT named content/get/map/unmap/flush operations observe their
+specified implicit initialization without changing established descriptors. Core named operations and
+multi-bind require existing objects. Mapping results remain in the cache's executed mapping knowledge;
+null map results establish no mapping, unmap termination does not revise storage, and flushing does not
+end mapping. Mutable replacement discards a previous mapping as specified by core 4.5 section 6.2.
+Sparse commitment and core flush commands have no represented metadata or realization effect.
+
+Limit-dependent realization without captured capabilities, and vertex updates that may initialize a
+reserved buffer before rejecting their scalar arguments, retain initialization uncertainty in the same
+entry's existing pending metadata effect. Known usable descriptors are preserved. A subsequent legal
+bind can publish guaranteed empty defaults if no storage definition intervened; a potentially accepted
+allocation instead retains a pending storage effect and suppresses guessed empty defaults. Only explicit
+recovery of that original identity may resolve the result. No second lifecycle registry or field-level
+mask is introduced, and ordinary association never triggers a compensating read.
+
+Native range classification preserves rejected zero-name negative offsets and transform-feedback size
+alignment before realization/publication. EXT offset binding derives a rounded fixed range from known
+capacity. EXT Base binding retains the generic selector but leaves indexed sizing mode unknown where
+its historical versus promoted semantics do not establish a portable restoration representation;
+it does not silently claim core whole-buffer sizing. Missing optional driver slots are not invoked by
+qualification: deterministic native-boundary stand-ins qualify callback/effect delivery, with actual
+native EXT execution recorded separately as unavailable on this test driver.
+
+
+Core single vertex-buffer bindings can realize generated buffers (core 4.5 section 10.3.2), unlike
+multi-bind and named element-buffer assignment. Their array-name prerequisites are included with buffer
+migration: Gen/Create/BindVertexArray retain identity/default facts only; full geometry certification,
+configuration classification and consumer migration remain with the geometry unit. EXT generic offset
+commands retain their separate initial-default effects. The binding table assigns these prerequisites
+to 2 explicitly rather than leaving a completed buffer dependent on unobserved array creation.
+
+Memory-object creation publishes `GpuMemoryObjectMetadata` once. FD, Win32-handle, Win32-name import
+and parameter observations preserve that original empty schema without certifying opaque payloads or
+closing caller-owned handles. Invalid/repeated import cannot create another allocation identity.
+Memory-backed/external buffer storage still depends on facts that the opaque payload does not certify
+(size/alignment/platform resource validity): proven rejection is preserved; an unresolved effect withdraws
+buffer certification without querying it or manufacturing import success. There is no descriptor query
+exception for imported resources and no new payload mirror. Existing explicit recovery remains a
+consumer decision about an unavailable original buffer, not automatic acquisition at its next use.
+
+Owned buffer/memory/array factories, memory setup and buffer mapping/deletion use generated saved-original
+calls. Their existing manager handoff publishes once. Temporary initial-content staging uses that same
+owned buffer handoff, not an unregistered private buffer. Native callback exceptions remain contained.
+The driver generator handles pinned `out` outputs and GLboolean-to-managed-bool results.
+
+The exact observer paths for these routes are in Rendering.MetadataLifecycle.Bindings.tsv. Families not
+yet migrated retain their ledger dispositions above; this does not claim their queries are removed.
+
 ## Evidence boundary
 
 The compiler-reference probe, source reconciliation and independent planning audit establish migration
 coverage only. Each owning family must qualify its implementation, exact forwarding, defaults,
 name reuse, failures and context lifecycle before its own completion markers change.
+
+Buffer and memory-object implementation qualification passed canonical shader-enabled Debug and ordinary
+Release builds, 173/173 focused tests per configuration with zero skips, and 35/35 generator tests per
+configuration. Second review and independent completion audit found no unresolved current-scope issues.
+Receipts are in `artifacts/metadata-lifecycle/phase2/` (`*adoption-final*` and generator Debug/Release
+receipts). Optional EXT slots absent on the test driver use deterministic native-boundary stand-ins;
+these establish callback/effect delivery, not hardware EXT execution. Installed-game startup, appearance
+and performance are not qualified. Remaining families retain their explicit pending migration scopes.

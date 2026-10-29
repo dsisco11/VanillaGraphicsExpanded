@@ -24,12 +24,18 @@ public sealed class GpuInitialTextureDependencyTests(HeadlessGLFixture fixture)
             GL.BindTexture(TextureTarget.TextureBuffer,texture); GL.TexBuffer(TextureBufferTarget.TextureBuffer,SizedInternalFormat.R32f,buffer);
             var manager=GpuResourceManagerSystem.CurrentManager!;
             if(unavailableBacking) { var old=manager.AcquireResource(GpuResourceKind.Buffer,buffer,new GpuBufferMetadataReader())!; old.BeginRefresh(GpuMetadataChange.Storage); Assert.False(old.IsUsable); }
+            if (unavailableBacking)
+            {
+                Assert.Throws<InvalidOperationException>(() => manager.AcquireResource(GpuResourceKind.Texture, texture, new KnownAssociationReader(buffer)));
+                Assert.Null(manager.AcquireResource(GpuResourceKind.Buffer, buffer, new GpuBufferMetadataReader()));
+                Assert.NotNull(manager.RecoverResource(GpuResourceKind.Buffer, buffer, new GpuBufferMetadataReader()));
+            }
             var reader=new KnownAssociationReader(buffer); var entry=manager.AcquireResource(GpuResourceKind.Texture,texture,reader)!;
             Assert.True(entry.IsUsable); Assert.True(manager.FindResource(GpuResourceKind.Buffer,buffer)!.IsUsable);
             using var alias=new Alias(texture); GpuResourceManager.AcquireWrapperMetadata(alias,reader); Assert.True(manager.IsResourceMetadataAvailable(alias));
             ulong revision=entry.StorageRevision;
             GL.NamedBufferData(buffer,128,IntPtr.Zero,BufferUsageHint.DynamicDraw);
-            Assert.False(manager.IsResourceMetadataAvailable(alias));
+            Assert.True(manager.IsResourceMetadataAvailable(alias));
             Assert.NotNull(manager.AcquireResource(GpuResourceKind.Buffer,buffer,new GpuBufferMetadataReader()));
             Assert.True(entry.StorageRevision>revision); Assert.True(manager.IsResourceMetadataAvailable(alias)); Assert.Equal(ErrorCode.NoError,GL.GetError());
         }

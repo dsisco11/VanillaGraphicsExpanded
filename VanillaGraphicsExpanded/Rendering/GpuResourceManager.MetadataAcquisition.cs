@@ -21,6 +21,8 @@ internal sealed partial class GpuResourceManager
         if (resource.ResourceManager is { } manager && manager.CanAcquireWrapperMetadata(resource))
         {
             manager.RequireOriginalWrapper(resource);
+            // TODO(Rendering.MetadataLifecycle.todo, image acquisition task): replace this
+            // borrower reader-selection path with maintained target-specific texture facts.
             // A generic image wrapper cannot represent a buffer texture. Reject before replacing
             // the shared target-specific reader or withdrawing a valid buffer-view snapshot.
             if (resource is GpuTexture && manager.FindResource(resource.Kind, resource.ResourceId)
@@ -39,6 +41,10 @@ internal sealed partial class GpuResourceManager
             return;
         }
         RHICommandContext.RequireResourceOperationAvailable(resource.Kind, resource.ResourceId);
+        if (resource.Kind is GpuResourceKind.Buffer or GpuResourceKind.MemoryObject)
+            throw new InvalidOperationException("Maintained resource metadata requires its originating manager or supplied initialization snapshot.");
+        // TODO(Rendering.MetadataLifecycle.todo, remaining family acquisition tasks): replace
+        // implicit tool discovery with supplied initialization or explicitly recorded pre-install discovery.
         // Tools without an installed render service still receive facts from the same reader;
         // this creates no parallel registry or persistent tracking claim.
         T data;
@@ -60,6 +66,21 @@ internal sealed partial class GpuResourceManager
     /// <summary>Explicitly withdraws external facts before reacquiring them; available lookup never forces this path.</summary>
     internal static void RecoverWrapperMetadata<T>(GpuResource<T> resource, IGpuResourceMetadataReader<T> reader) where T : struct
     {
+        // A context-local owned buffer can explicitly recover a failed storage operation
+        // against its captured creation context. This is not raw-ID adoption, and available
+        // supplied snapshots never need this read. Once a service is active, missing entries
+        // remain tracking defects rather than permission to promote an unknown identity.
+        if (resource.ResourceManager is null && resource is GpuBufferObject local
+            && local.PublishedMetadata.Usage == RHI.BufferUsage.Undefined)
+        {
+            resource.RequireOriginalContext();
+            ObjectDisposedException.ThrowIf(resource.IsDisposed, resource);
+            RHICommandContext.RequireResourceOperationAvailable(resource.Kind, resource.ResourceId);
+            if (!reader.TryRead(resource.ResourceId, out var recovered))
+                throw new InvalidOperationException("Explicit context-local storage recovery failed.");
+            resource.HandleMetadataChanged(recovered);
+            return;
+        }
         if (resource.ResourceManager is { } manager && manager.CanAcquireWrapperMetadata(resource))
         {
             manager.RequireOriginalWrapper(resource);
@@ -72,7 +93,16 @@ internal sealed partial class GpuResourceManager
                 throw new InvalidOperationException("Metadata cannot be acquired during an unfinished update.");
             entry?.BeginRefresh(GpuMetadataChange.Metadata);
         }
-        AcquireWrapperMetadata(resource, reader);
+        if (resource.Kind is GpuResourceKind.Buffer or GpuResourceKind.MemoryObject)
+        {
+            var ownerManager = resource.ResourceManager ?? throw new InvalidOperationException("Recovery requires an existing original registration.");
+            var recovered = ownerManager.RecoverResource(resource.Kind, resource.ResourceId, reader)
+                ?? throw new InvalidOperationException("Original resource recovery failed.");
+            if (!recovered.ContainsRecipient(resource)) ownerManager.AssociateResource(recovered, resource);
+        }
+        // TODO(Rendering.MetadataLifecycle.todo, remaining family recovery tasks): replace
+        // acquisition-based recovery with explicit recovery against the original registration.
+        else AcquireWrapperMetadata(resource, reader);
     }
 
     #endregion
@@ -107,6 +137,8 @@ internal sealed partial class GpuResourceManager
             return true;
         }
         // A retired service may still be installed while a replacement context creates objects.
+        // TODO(Rendering.MetadataLifecycle.todo, remaining family acquisition tasks): remove
+        // native-read fallback for new objects; retain rejection of terminal existing recipients.
         // Such new objects use native reads, but existing recipients retain their terminal identity.
         if (GetResourceRegistration(resource) is not null)
             throw new ObjectDisposedException(nameof(GpuResourceManager));

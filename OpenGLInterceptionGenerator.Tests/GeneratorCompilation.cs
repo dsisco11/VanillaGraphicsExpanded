@@ -81,6 +81,10 @@ internal static class GeneratorCompilation
         });
         string convenience = rows[0][0] == "glDeleteBuffers"
             ? "public static void DeleteOne(uint id) { ((delegate* unmanaged[Stdcall]<int,uint*,void>)EntryPoints[0])(1, &id); }" : "";
+        if (rows[0][0] == "glCreateBuffers")
+            convenience += "public static void CreateBuffers(int count, out int id) { id = 0; fixed (int* value = &id) ((delegate* unmanaged[Stdcall]<int,uint*,void>)EntryPoints[0])(count, (uint*)value); }";
+        if (rows.Length > 1 && rows[1][0] == "glUnmapNamedBuffer")
+            convenience += "public static bool UnmapNamedBuffer(uint id) { return ((delegate* unmanaged[Stdcall]<uint,byte>)EntryPoints[1])(id) != 0; }";
         return $"public static unsafe class GL {{ private static readonly nint[] EntryPoints = new nint[{rows.Length}]; private static readonly string[] EntryPointNames = new[] {{ {names} }}; {string.Join("\n", methods)} {convenience} }}";
     }
     #endregion

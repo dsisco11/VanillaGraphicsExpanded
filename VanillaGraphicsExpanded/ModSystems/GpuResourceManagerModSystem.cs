@@ -27,16 +27,13 @@ public sealed class GpuResourceManagerModSystem : ModSystem
         capi = api;
         Rendering.Integration.EngineRenderContext.RegisterCurrent();
 
-        renderer ??= new GpuResourceManager();
-        GpuResourceManagerSystem.Initialize(renderer);
-
-        api.Event.RegisterRenderer(renderer, GpuResourceManager.Stage, "vge_gpu_resource_manager");
-        rendererRegistered = true;
+        GpuResourceManagerSystem.ManagerChanged += AttachRenderer;
+        AttachRenderer(GpuResourceManagerSystem.EnsureCurrentContext());
 
         api.Logger.Notification(
             "[VGE] GpuResourceManager registered ({0} @ {1})",
             GpuResourceManager.Stage,
-            renderer.RenderOrder);
+            renderer!.RenderOrder);
     }
 
     /// <summary>Allows standalone cleanup; root-owned managers await the root's ordered shutdown.</summary>
@@ -56,6 +53,7 @@ public sealed class GpuResourceManagerModSystem : ModSystem
     {
         if (disposed) return;
         disposed = true;
+        GpuResourceManagerSystem.ManagerChanged -= AttachRenderer;
         base.Dispose();
         var failures = new System.Collections.Generic.List<System.Exception>();
         if (capi != null && rendererRegistered && renderer is not null)
@@ -77,6 +75,17 @@ public sealed class GpuResourceManagerModSystem : ModSystem
     private static void TryCleanup(System.Action cleanup, System.Collections.Generic.List<System.Exception> failures)
     {
         try { cleanup(); } catch (System.Exception error) { failures.Add(error); }
+    }
+
+    /// <summary>Attaches rendering events to the same service already receiving creation observations.</summary>
+    private void AttachRenderer(GpuResourceManager current)
+    {
+        if (ReferenceEquals(renderer, current) || capi is null || disposed) return;
+        if (rendererRegistered && renderer is not null)
+            capi.Event.UnregisterRenderer(renderer, GpuResourceManager.Stage);
+        renderer = current;
+        capi.Event.RegisterRenderer(current, GpuResourceManager.Stage, "vge_gpu_resource_manager");
+        rendererRegistered = true;
     }
     #endregion
 }

@@ -14,11 +14,23 @@ internal sealed unsafe partial class OpenGlStateCache
         BufferRangeTarget target = unchecked((BufferRangeTarget)a0);
         int slot = unchecked((int)a1);
         int buffer = unchecked((int)a2);
-        if (!OpenGLObservationContext.TryGet(out var cache, out _)) return;
+        if (!OpenGLObservationContext.TryGet(out var cache, out _, false)) return;
+        if (target is not (BufferRangeTarget.UniformBuffer or BufferRangeTarget.ShaderStorageBuffer
+            or BufferRangeTarget.AtomicCounterBuffer or BufferRangeTarget.TransformFeedbackBuffer) || slot < 0) return;
+        if (!GpuSupport.HasCachedCapabilitiesForCurrentContext)
+        {
+            cache.MarkUncertainBufferRealization(buffer);
+            cache.ForgetBufferBinding((BufferTarget)target, slot);
+            return;
+        }
         var origin = Integration.RenderContextRegistry.CaptureResourceContext();
         bool validSlot = OpenGLBufferBindingCalls.ValidIndexedSlot(target, slot);
         bool captureKnown = cache.TryGetFeedbackActivity(out var capture);
         bool captureRejected = target == BufferRangeTarget.TransformFeedbackBuffer && captureKnown && capture.Active;
+        if (validSlot && target == BufferRangeTarget.TransformFeedbackBuffer && !captureKnown)
+            cache.MarkUncertainBufferRealization(buffer);
+        if (validSlot && !captureRejected && (target != BufferRangeTarget.TransformFeedbackBuffer || captureKnown))
+            cache.RealizeNativeBuffer(buffer, GpuSupport.HasCachedCapabilitiesForCurrentContext && !GpuSupport.Graphics.CoreProfile);
         bool established = validSlot && (target != BufferRangeTarget.TransformFeedbackBuffer || captureKnown && !capture.Active)
             && cache.HasEstablishedNativeIdentity(GpuResourceKind.Buffer, buffer);
         if (validSlot && !captureRejected) cache.ForgetBufferBinding((BufferTarget)target, slot);

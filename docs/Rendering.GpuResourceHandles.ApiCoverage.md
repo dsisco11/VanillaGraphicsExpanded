@@ -128,7 +128,7 @@ The metadata revision used to invalidate stale assumptions is registration bookk
 | T2 | GenerateMipmap, GenerateTextureMipmap, GenerateMultiTexMipmap and aliases | Refresh the generated mip range; preserve base/max-level semantics. | Missing levels become allocated; same registration/revision change; base level other than zero; failed/incomplete cube generation. |
 | T3 | Texture buffer whole/range attachment, texture views and renderbuffer-backed textures | Refresh source association, format, range and selected levels/layers; a view has its own native identity. Preserve whole-buffer sentinel conventions and backing dependencies. | Change backing/range; delete or resize backing; view source identity versus view identity; reject invalid ranges without assumed success. |
 | T4 | All texture parameter setters, bound/DSA/multi-texture and integer/float/vector forms | Classify pname effect. Refresh represented facts if affected; retain owner-only policy distinctions. Track represented base/max levels. Do not invent wrapper metadata for unrepresented parameters. | Parameter-family coverage and pname-dependent effects; base/max-level cases; unchanged storage does not spuriously replace identity. |
-| B1 | BufferData, BufferStorage, named variants, external/memory-backed storage | Refresh actual capacity/usage and represented storage facts; preserve mapping ownership and authored EBO interpretation. | Bound/DSA capacity changes, zero size, immutable rejection, all overload forms and external-memory capability cases. |
+| B1 | BufferData, BufferStorage, named variants, external/memory-backed storage | Maintain supplied/default capacity, usage, immutable mode and flags; preserve mapping ownership and authored EBO interpretation. | Bound/DSA capacity changes, zero size, immutable rejection, all overload forms and external-memory capability cases. |
 | R1 | RenderbufferStorage, named storage, multisample/coverage aliases | Refresh actual dimensions, format and sample values, propagate to dependent attachments. | Bound/DSA allocation, rounded sample counts, rejection and alias refresh. |
 | F1 | Framebuffer texture/renderbuffer attachment, face/layer variants, default-parameter and draw/read-routing variants | Refresh attachment identity/subresource and derived target metadata; preserve ownership. Route represented draw-buffer facts through the existing routing cache; read routing remains an unrepresented native selector. Classify default-FBO parameters separately from window-system surface publication. | All attachment forms, detach via zero, split read/draw targets, partial configurations and affected publication revisions. |
 | V1 | Vertex attribute pointer/format/binding/divisor/enables, vertex-buffer multi-bind, element-buffer binding | Revise represented VAO configuration and stale helper assumptions. Resolve current VAO and latched buffer dependencies. Fixed-function client arrays are excluded; generic shader attributes remain supported. | Bound/DSA, multi-bind partial failure, generic/integer/double formats, enablement/divisor, EBO association, stale helper use and unrelated VAOs. |
@@ -167,12 +167,17 @@ Individual extension definitions in the registry control capability/ABI/behavior
 
 ### B1 buffer storage
 
-Controlled storage publishes capacity/usage directly. After original native dispatch, external storage
-observation withdraws the selected existing snapshot and retains a pending storage effect. It performs
-no completion read; explicit manager acquisition at use recovers capacity/usage and propagates dependent
-texture revisions, including equal-sized replacement. Post-call interruption prevents an overlapping
-managed operation/acquisition from certifying a stale candidate. No preparation hook or observation
-receipt spans the native call. Interrupted candidates remain unavailable.
+Controlled and observed buffer storage publish supplied capacity, usage, immutable mode and flags through
+the same manager authority. External creation retains reservation versus realization; later aliases reuse
+maintained facts without a descriptor read. Proven rejection preserves prior metadata and native errors.
+Uncertain effects withdraw certification without automatic discovery. Only explicit pre-install provenance
+or recovery of an existing unavailable identity permits a buffer reader. Content writes and mapping do
+not revise descriptors; storage replacement renews original backing dependencies. Mapping is executed
+cache knowledge. Uncertain early realization cannot reset a later allocation to guessed empty defaults. EXT offset
+binding retains its derived fixed range; ambiguous EXT Base sizing leaves that indexed selector unknown.
+Native output arrays are consumed synchronously, and managed factories bypass external
+callbacks to preserve their private once-only publication. See the buffer/memory lifecycle routes in
+[the lifecycle inventory](Rendering.MetadataLifecycle.Inventory.md#maintained-buffer-and-memory-object-routes).
 
 `glBufferData`, `glBufferDataARB`, `glBufferStorage`, `glBufferStorageExternalEXT`, `glBufferStorageMemEXT`, `glNamedBufferData`, `glNamedBufferDataEXT`, `glNamedBufferStorage`, `glNamedBufferStorageEXT`, `glNamedBufferStorageExternalEXT`, `glNamedBufferStorageMemEXT`.
 
