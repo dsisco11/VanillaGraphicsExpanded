@@ -7,8 +7,6 @@ internal sealed class GpuFramebufferMetadataReader : IGpuResourceMetadataReader<
 
     #region Public API
     /// <inheritdoc />
-    public bool IsResource(nint id) => RHI.RHICommandContext.Current.IsFramebufferResource(id);
-    /// <inheritdoc />
     public bool TryRead(nint id, out GpuFramebufferMetadata metadata)
         => RHI.RHICommandContext.Current.ReadFramebufferMetadata(id, out metadata);
     #endregion

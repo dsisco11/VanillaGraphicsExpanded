@@ -124,6 +124,7 @@ public sealed class GpuProgramNarrowPublicationTests(HeadlessGLFixture fixture)
     public void LocalComputeRealizationReusesCanonicalInterface(bool binary)
     {
         fixture.EnsureContextValid();
+        fixture.UseContextLocalResources();
         Assert.Null(GpuResourceManagerSystem.CurrentManager);
         var context = RHICommandContext.Current;
         var input = RHIShaderInputs.ComputeDescription();
@@ -206,9 +207,9 @@ public sealed class GpuProgramNarrowPublicationTests(HeadlessGLFixture fixture)
         }
     }
 
-    /// <summary>Exact external unit calls read only the affected unit while preserving the already reflected executable.</summary>
+    /// <summary>Exact external unit calls publish supplied values without querying the already reflected executable.</summary>
     [Fact]
-    public void ExternalUnitUpdateReadsOnlyItsResult()
+    public void ExternalUnitUpdatePublishesSuppliedValue()
     {
         fixture.EnsureContextValid(); fixture.InitializeResourceDisposal();
         var harmony = new Harmony("Tests.ExternalNarrowProgramUnit." + Guid.NewGuid());
@@ -227,7 +228,7 @@ public sealed class GpuProgramNarrowPublicationTests(HeadlessGLFixture fixture)
             SetExternalUnit(owner.ProgramId, location, 4);
             Assert.Equal(0, reader.Calls);
             Assert.Equal(0, interfaceQueries);
-            Assert.Equal(1, unitQueries);
+            Assert.Equal(0, unitQueries);
             Assert.Equal(before.Resources, entry.Metadata.Resources);
             Assert.Contains(entry.Metadata.TextureUnits, item => item.Location == location && item.Unit == 4);
             Assert.Equal(ErrorCode.NoError, GL.GetError());

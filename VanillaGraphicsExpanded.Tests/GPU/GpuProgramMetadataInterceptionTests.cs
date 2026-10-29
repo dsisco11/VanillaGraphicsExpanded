@@ -124,7 +124,7 @@ public sealed partial class GpuProgramMetadataInterceptionTests(HeadlessGLFixtur
     [Fact]
     public void UntrackedLinkDoesNotCreateRegistration()
     {
-        fixture.EnsureContextValid(); fixture.InitializeResourceDisposal(); var harmony=Patch(nameof(Link)); int program=GL.CreateProgram();
+        fixture.EnsureContextValid(); fixture.InitializeResourceDisposal(); var harmony=Patch(nameof(Link)); int program=OpenGLDriverCalls.CreateProgram();
         try
         {
             Link(program);
@@ -137,7 +137,7 @@ public sealed partial class GpuProgramMetadataInterceptionTests(HeadlessGLFixtur
     [Fact]
     public void ForeignContextPreventsObservation()
     {
-        fixture.EnsureContextValid(); var origin=VanillaGraphicsExpanded.Rendering.Integration.RenderContextRegistry.Current(); var current=origin;
+        fixture.EnsureContextValid(); fixture.UseContextLocalResources(); var origin=VanillaGraphicsExpanded.Rendering.Integration.RenderContextRegistry.Current(); var current=origin;
         using var manager=new GpuResourceManager(()=>current,static _=>true); GpuResourceManagerSystem.Initialize(manager);
         try
         {

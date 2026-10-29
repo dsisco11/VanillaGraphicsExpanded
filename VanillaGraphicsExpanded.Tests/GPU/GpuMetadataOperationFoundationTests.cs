@@ -389,8 +389,6 @@ public sealed class GpuMetadataOperationFoundationTests(HeadlessGLFixture fixtur
     {
         internal int Reads;
         /// <inheritdoc />
-        public bool IsResource(nint id) => new GpuBufferMetadataReader().IsResource(id);
-        /// <inheritdoc />
         public bool TryRead(nint id, out GpuBufferMetadata metadata)
         {
             Reads++;
@@ -404,8 +402,6 @@ public sealed class GpuMetadataOperationFoundationTests(HeadlessGLFixture fixtur
     {
         internal int Reads;
         internal Exception? InnerFailure;
-        /// <inheritdoc />
-        public bool IsResource(nint id) => native.IsResource(id);
         /// <inheritdoc />
         public bool TryRead(nint id, out GpuBufferMetadata metadata)
         {

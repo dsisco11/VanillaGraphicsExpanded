@@ -14,8 +14,8 @@ internal sealed unsafe partial class OpenGlStateCache
         int @program = unchecked((int)a0);
         int @storageBlockIndex = unchecked((int)a1);
         int @storageBlockBinding = unchecked((int)a2);
-        if (!OpenGLObservationContext.TryGet(out _, out _)) return;
-        OpenGlStateCache.ObserveProgramMetadata(unchecked((int)@program), true, false, -1, 1, false, false, ProgramInterface.ShaderStorageBlock, unchecked((int)@storageBlockIndex));
+        if (!OpenGLObservationContext.TryGet(out _, out _, false)) return;
+        OpenGlStateCache.ObserveProgramMetadata(unchecked((int)@program), true, false, -1, 1, false, false, ProgramInterface.ShaderStorageBlock, unchecked((int)@storageBlockIndex), supplied: @storageBlockBinding);
     }
     #endregion
 }

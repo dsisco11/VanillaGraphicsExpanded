@@ -150,7 +150,7 @@ public sealed class GpuProgramUniformMetadataTests(HeadlessGLFixture fixture)
             Assert.Equal(0,NativeCalls()); Assert.Equal(0,reader.Reads); Assert.Equal(revision,entry.MetadataRevision);
             OpenGLProgramAssignments.SetUnit(program.ProgramId,numeric,3); Assert.Equal(1,NativeCalls()); Assert.Equal(0,reader.Reads); Assert.Equal(revision,entry.MetadataRevision);
             entry.BeginRefresh(GpuMetadataChange.Metadata); OpenGLProgramAssignments.SetUnit(program.ProgramId,sampler,3);
-            Assert.Equal(2,NativeCalls()); Assert.Equal(1,reader.Reads); Assert.True(entry.IsUsable); Assert.True(entry.MetadataRevision>revision); Assert.Equal(ErrorCode.NoError,GL.GetError());
+            Assert.Equal(2,NativeCalls()); Assert.Equal(0,reader.Reads); Assert.False(entry.IsUsable); Assert.Equal(revision,entry.MetadataRevision); Assert.Equal(ErrorCode.NoError,GL.GetError());
         }
         finally { harmony.UnpatchAll(harmony.Id); OpenGLProgramSelection.Select(OpenGlStateCache.Current, 0); fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
@@ -181,8 +181,6 @@ public sealed class GpuProgramUniformMetadataTests(HeadlessGLFixture fixture)
     private sealed class CountingReader(IGpuResourceMetadataReader<GpuProgramMetadata> inner):IGpuResourceMetadataReader<GpuProgramMetadata>
     {
         internal int Reads;
-        /// <inheritdoc />
-        public bool IsResource(nint id)=>inner.IsResource(id);
         /// <inheritdoc />
         public bool TryRead(nint id,out GpuProgramMetadata metadata) { Reads++; return inner.TryRead(id,out metadata); }
     }

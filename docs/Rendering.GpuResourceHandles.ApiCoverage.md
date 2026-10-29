@@ -245,7 +245,7 @@ are retained in `artifacts/gpu-resource-phase4/multiview-mode-repair-focused.trx
 
 Exact OpenTK link, program-binary, interface-block and signed integer unit setters use common
 OpenGlStateCache execution. Available unit/block snapshots update only affected values; managed assignments
-publish supplied values and external assignments use narrow getters. Link/binary results retain executable
+publish supplied values, including pinned array elements, without assignment readback. Link/binary results retain executable
 reflection at completion. Unit setters classify represented sampler/image locations before reading
 metadata; ordinary numeric uniforms do not refresh it. Bound setters resolve the active program,
 including the active program of a selected pipeline. Selector-only commands retain binding knowledge
@@ -266,8 +266,8 @@ Observed bindless assignments at represented locations withdraw unit metadata fo
 registration. Ordinary readback cannot establish whether a value represents a unit or an opaque handle:
 [ARB_bindless_texture](https://registry.khronos.org/OpenGL/extensions/ARB/ARB_bindless_texture.txt)
 specifies conversion of the most recently assigned value. Replacing the native program through its
-owner's preparation workflow establishes a fresh supported unit representation. Subsequent reads or
-link attempts on that same allocation do not clear this conservative withdrawal. Actual ARB bound/named
+owner's preparation workflow or a completed replacement executable establishes a fresh supported unit representation.
+Ordinary assignments and recovery reads cannot clear this conservative withdrawal. Actual ARB bound/named
 sampler and image handle assignments are covered by the retained native tests; these assign/read handles
 without claiming resident-handle sampling or rendering qualification.
 

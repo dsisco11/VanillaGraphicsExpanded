@@ -6,14 +6,6 @@ namespace VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 internal sealed partial class OpenGLBackend
 {
     #region Internal API
-    /// <summary>Discovers only an explicitly unknown external shader name.</summary>
-    public bool IsShaderResource(nint id)
-    {
-        RequireContext();
-        bool valid = id != 0 && id >= int.MinValue && id <= uint.MaxValue && GL.IsShader(unchecked((int)id));
-        RequireContext();
-        return valid;
-    }
     /// <summary>Reads fixed stage facts without repeating a validity query on an established native identity.</summary>
     public bool ReadShaderMetadata(nint id, out GpuShaderMetadata metadata)
     {

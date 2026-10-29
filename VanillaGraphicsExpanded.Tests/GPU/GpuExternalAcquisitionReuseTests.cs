@@ -213,8 +213,6 @@ public sealed class GpuExternalAcquisitionReuseTests(HeadlessGLFixture fixture)
     {
         #region Public API
         /// <inheritdoc />
-        public bool IsResource(nint id) => inner.IsResource(id);
-        /// <inheritdoc />
         public bool TryRead(nint id, out T metadata)
         {
             callback();

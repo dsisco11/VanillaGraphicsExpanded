@@ -21,7 +21,7 @@ public sealed class ShaderPreparedMetadataValidationTests(HeadlessGLFixture fixt
     public void TextureInputsRejectUnavailableMetadata(bool managed)
     {
         fixture.EnsureContextValid();
-        if (managed) fixture.InitializeResourceDisposal();
+        if (managed) fixture.InitializeResourceDisposal(); else fixture.UseContextLocalResources();
         try
         {
             using var texture = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba32f, Width = System.Math.Max(1, 4), Height = System.Math.Max(1, 4), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
@@ -33,8 +33,7 @@ public sealed class ShaderPreparedMetadataValidationTests(HeadlessGLFixture fixt
             ShaderPreparedSubmission.ValidateSampler(sampler, (GpuTexture)texture);
             ShaderPreparedSubmission.ValidateSamplerArray(sampler, [texture, sentinel]);
             ShaderPreparedSubmission.ValidateImage(image, texture);
-            if (managed) GpuResourceManager.InvalidateWrapperMetadata(texture);
-            else GpuResourceManager.DiscardUntrackedMetadata(texture);
+            GpuResourceManager.InvalidateWrapperMetadata(texture);
             Assert.Throws<InvalidOperationException>(() => ShaderPreparedSubmission.ValidateSampler(sampler, (GpuTexture)texture));
             Assert.Throws<InvalidOperationException>(() => ShaderPreparedSubmission.ValidateSamplerArray(sampler, [sentinel, texture]));
             Assert.Throws<InvalidOperationException>(() => ShaderPreparedSubmission.ValidateImage(image, texture));

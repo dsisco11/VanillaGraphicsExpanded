@@ -13,6 +13,7 @@ internal sealed partial class GpuResourceManager
         RequireMetadataContext();
         RequireLiveEntry(entry);
         if (entry.OperationInProgress) throw new System.InvalidOperationException("An operation owns this resource result.");
+        bool interruptedExecutable = entry.Kind == GpuResourceKind.Program && entry.CompletionInterrupted;
         BeginMetadataCompletion(entry, change);
         entry.BeginRefresh(change);
         change |= entry.PendingChange;
@@ -43,6 +44,7 @@ internal sealed partial class GpuResourceManager
         finally
         {
             entry.CompletionInProgress = false;
+            if (!finished && interruptedExecutable) entry.CompletionInterrupted = true;
             try { entry.NotifyImageDependents(suppressErrors: !finished); }
             finally { entry.NotifyProgramDependents(change, finished); }
         }
@@ -63,6 +65,7 @@ internal sealed partial class GpuResourceManager
         RequireLiveEntry(entry);
         if (entry.OperationInProgress && operation is null) throw new System.InvalidOperationException("An operation owns this resource result.");
         RHICommandContext.RequireResourceOperationAvailable(entry.Kind, entry.Id, operation);
+        bool interruptedExecutable = entry.Kind == GpuResourceKind.Program && entry.CompletionInterrupted;
         BeginMetadataCompletion(entry, change);
         entry.BeginRefresh(change);
         change |= entry.PendingChange;
@@ -89,6 +92,7 @@ internal sealed partial class GpuResourceManager
         finally
         {
             entry.CompletionInProgress = false;
+            if (!finished && interruptedExecutable) entry.CompletionInterrupted = true;
             try { entry.NotifyImageDependents(suppressErrors: !finished); }
             finally { entry.NotifyProgramDependents(change, finished); }
         }

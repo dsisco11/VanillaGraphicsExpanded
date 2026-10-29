@@ -66,12 +66,24 @@ Unavailable snapshots, uninitialized collections and missing required typed fiel
 reject preparation. `GpuProgramInterface` requests canonical facts through the private RHI acquisition boundary when its caller
 has no snapshot; the admitted backend invokes manager acquisition. Graphics and compute candidates supply
 their existing owner snapshots directly.
+Unit/block changes publish their supplied scalar/array values against the existing canonical interface,
+without uniform getters or full reflection. Ignored locations, numeric uniforms and proven rejected
+assignments preserve revisions and active certificates. Unavailable executable facts remain unavailable;
+an assignment cannot authorize recovery or revive a withdrawn executable generation.
 Unit/block changes revalidate prepared resource tables through the existing revision machinery;
 relinking or binary installation withdraws executable preparation until the owner validates its replacement.
 Cached driver executables retain their candidate owner during installation; the manager delivers the
 linked snapshot before graphics/compute preparation, including tools without an installed registry.
 Ordinary numeric uniform writes do not refresh resource metadata. Managed ordinary uniforms use core named ProgramUniform operations on the admitted OpenGL 4.5 context.
 Exact engine overloads retain their original native semantics at the external boundary.
+
+Native shader factories establish fixed stages; program factories publish complete fresh unlinked
+defaults without reflection. Combined shader-program factories still require link output. External
+parallel linking leaves the original entry unavailable while pending; an explicit native link-status or
+positive completion-status result completes its driver-produced interface. Managed pending candidates
+use saved-original status reads and their own single completion publication. Pipeline Gen reserves its
+identity; Bind, UseProgramStages, ActiveShaderProgram, validation and explicit parameter getters realize
+that reservation where specified. Its canonical schema remains empty; selectors stay execution-owned.
 
 [GpuProgramInterface](../VanillaGraphicsExpanded/Rendering/Spirv/GpuProgramInterface.cs) owns this
 table and retains the existing ordinary-uniform and diagnostic adapters. Graphics and compute

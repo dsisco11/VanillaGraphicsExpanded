@@ -792,8 +792,6 @@ public sealed unsafe class GpuImageLifecycleTests(HeadlessGLFixture fixture)
         private readonly GpuTextureMetadataReader reader = new(TextureDimension.Two);
         internal int Reads { get; private set; }
         /// <inheritdoc />
-        public bool IsResource(nint id) => reader.IsResource(id);
-        /// <inheritdoc />
         public bool TryRead(nint id, out GpuTextureMetadata metadata)
         {
             Reads++;

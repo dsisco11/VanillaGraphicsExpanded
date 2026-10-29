@@ -40,7 +40,7 @@ internal sealed partial class OpenGLBackend
                 var property = NativeCapabilities.SupportsArbParallelShaderCompile
                     ? (GetProgramParameterName)ArbParallelShaderCompile.CompletionStatusArb
                     : (GetProgramParameterName)KhrParallelShaderCompile.CompletionStatusKhr;
-                GL.GetProgram(program.ProgramId, property, out int completed);
+                OpenGLDriverCalls.GetProgram(program.ProgramId, property, out int completed);
                 RequireContext();
                 if (completed == 0) return CompletionStatus.Pending;
             }

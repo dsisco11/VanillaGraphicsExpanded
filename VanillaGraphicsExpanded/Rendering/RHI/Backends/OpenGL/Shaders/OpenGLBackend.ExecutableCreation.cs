@@ -11,7 +11,7 @@ internal sealed partial class OpenGLBackend
     public GpuShaderMetadata? InitializeShader(in GpuShaderInitialization initialization, out nint id)
     {
         RequireContext();
-        id = GL.CreateShader(NativeShaderStage(initialization.Stage));
+        id = OpenGLDriverCalls.CreateShader(NativeShaderStage(initialization.Stage));
         RequireContext();
         return id == 0 ? null : new GpuShaderMetadata(initialization.Stage);
     }
@@ -20,7 +20,7 @@ internal sealed partial class OpenGLBackend
     public GpuProgramMetadata? InitializeProgram(out nint id)
     {
         RequireContext();
-        id = GL.CreateProgram();
+        id = OpenGLDriverCalls.CreateProgram();
         RequireContext();
         return id == 0 ? null : new GpuProgramMetadata(false,
             ImmutableArray<GpuProgramResourceMetadata>.Empty, ImmutableArray<GpuProgramTextureUnitMetadata>.Empty);

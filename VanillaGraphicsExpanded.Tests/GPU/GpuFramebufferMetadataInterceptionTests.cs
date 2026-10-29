@@ -284,8 +284,6 @@ public sealed class GpuFramebufferMetadataInterceptionTests(HeadlessGLFixture fi
     {
         internal int Reads;
         /// <inheritdoc />
-        public bool IsResource(nint id) => inner.IsResource(id);
-        /// <inheritdoc />
         public bool TryRead(nint id,out GpuFramebufferMetadata value) { Reads++; return inner.TryRead(id,out value); }
     }
     /// <summary>Receives canonical framebuffer facts independently of an owning helper.</summary>

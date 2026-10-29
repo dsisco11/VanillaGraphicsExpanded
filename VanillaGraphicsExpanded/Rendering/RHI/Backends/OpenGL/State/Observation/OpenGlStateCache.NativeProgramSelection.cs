@@ -31,7 +31,7 @@ internal sealed partial class OpenGlStateCache
     internal static void ObserveProgramSelection(NativeProgramSelector selector,
         int value, int pipeline = 0, int stage = 0)
     {
-        if (!OpenGLObservationContext.TryGet(out var cache, out _)) return;
+        if (!OpenGLObservationContext.TryGet(out var cache, out _, false)) return;
         int? previous = selector == NativeProgramSelector.Pipeline ? cache.currentProgramPipeline
             : selector == NativeProgramSelector.PipelineUniform
                 ? cache.pipelineUniformPrograms.TryGetValue(pipeline, out int active) ? active : null
@@ -40,7 +40,14 @@ internal sealed partial class OpenGlStateCache
         bool accepted = false, rejected = false;
         bool linked = value == 0;
         var manager = GpuResourceManagerSystem.CurrentManager;
-        if (value != 0 && manager?.CanObserveNativeMetadata == true
+        if (selector == NativeProgramSelector.Pipeline && value != 0
+            && manager?.FindObservedResource(GpuResourceKind.ProgramPipeline, value) is { IsRealized: false }
+            && manager.RealizeObservedProgramPipeline(value)) cache.RecordPipelineCreated(value);
+        if (selector == NativeProgramSelector.PipelineUniform && pipeline != 0
+            && manager?.FindObservedResource(GpuResourceKind.ProgramPipeline, pipeline) is { IsRealized: false }
+            && manager.RealizeObservedProgramPipeline(pipeline))
+        { cache.RecordPipelineCreated(pipeline); previous = 0; }
+        if (selector != NativeProgramSelector.Pipeline && value != 0 && manager?.CanObserveNativeMetadata == true
             && manager.FindObservedResource(GpuResourceKind.Program, value) is GpuResourceMetadataEntry<GpuProgramMetadata> { IsUsable: true } program)
         { linked = program.Metadata.ExecutableAvailable; rejected = !linked; }
         if (selector == NativeProgramSelector.Pipeline)

@@ -33,22 +33,23 @@ public sealed class GpuProgramCandidateMetadataTests(HeadlessGLFixture fixture)
                 prefix: new HarmonyMethod(typeof(GpuProgramCandidateMetadataTests), nameof(CountValidity)));
             harmony.Patch(AccessTools.Method(typeof(GL), nameof(GL.GetProgramInterface), [typeof(int), typeof(ProgramInterface), typeof(ProgramInterfaceParameter), typeof(int).MakeByRefType()]),
                 prefix: new HarmonyMethod(typeof(GpuProgramCandidateMetadataTests), nameof(CountInterface)));
-            statusQueries = validityQueries = interfaceQueries = 0;
+            using var native = new ExecutableDescriptorCapture();
             using var request = RHICommandContext.Current.BeginCreateShader(description);
             if (GpuSupport.Graphics.SupportsArbParallelShaderCompile || GpuSupport.Graphics.SupportsKhrParallelShaderCompile)
             {
-                Assert.Equal(0, statusQueries);
+                Assert.Equal(0, native.ProgramReads);
                 Assert.Equal(0, interfaceQueries);
             }
             Complete(request);
             using var shader = request.Result.RequireResource();
-            Assert.True(statusQueries > 0);
+            Assert.True(native.ProgramReads > 0);
             Assert.True(interfaceQueries > 0);
-            statusQueries = validityQueries = interfaceQueries = 0;
+            int completedReads = native.ProgramReads;
+            validityQueries = interfaceQueries = 0;
             shader.RequireUsable();
             var prepared = new GpuProgramInterface(shader.Program.ProgramId, [description.Bindings], metadata: shader.Program.MetadataSnapshot);
             Assert.Equal(shader.Interface.PreparedBindings.Entries.Count, prepared.PreparedBindings.Entries.Count);
-            Assert.Equal(0, statusQueries);
+            Assert.Equal(completedReads, native.ProgramReads);
             Assert.Equal(0, validityQueries);
             Assert.Equal(0, interfaceQueries);
             Assert.Equal(ErrorCode.NoError, GL.GetError());

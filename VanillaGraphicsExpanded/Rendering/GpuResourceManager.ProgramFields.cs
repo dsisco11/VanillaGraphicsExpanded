@@ -1,68 +1,46 @@
 using System;
-using System.Collections.Immutable;
 using VanillaGraphicsExpanded.Rendering.RHI;
 
 namespace VanillaGraphicsExpanded.Rendering;
 
-/// <summary>Constructs narrow executable-interface updates without reflecting unrelated resources.</summary>
+/// <summary>Publishes supplied executable assignments without rereading or reflecting the interface.</summary>
 internal sealed partial class GpuResourceManager
 {
     #region Internal API
-    /// <summary>Updates represented unit locations or a block binding while preserving the remaining interface.</summary>
-    internal bool RefreshProgramFields(GpuResourceMetadataEntry<GpuProgramMetadata> entry, GpuProgramMetadata previous,
-        bool unit, int location, int count, RHI.ProgramBlockKind block, int index, int? supplied)
+    /// <summary>Patches represented locations from a validated call against the previously available executable.</summary>
+    internal bool PublishProgramAssignment(GpuResourceMetadataEntry<GpuProgramMetadata> entry, GpuProgramMetadata previous,
+        bool unit, int location, ReadOnlySpan<int> values, ProgramBlockKind block, int index)
     {
         RequireMetadataContext();
         RequireLiveEntry(entry);
-        if (!CanReadProgramUnitMetadata(entry)) return false;
-        BeginMetadataCompletion(entry, GpuMetadataChange.Metadata);
-        bool finished = false;
-        try
+        if (!CanReadProgramUnitMetadata(entry) || !previous.ExecutableAvailable
+            || previous.Resources.IsDefault || previous.TextureUnits.IsDefault) return false;
+        var candidate = previous;
+        if (unit)
         {
-            var candidate = previous;
-            if (unit)
+            var units = previous.TextureUnits.ToBuilder();
+            for (int i = 0; i < units.Count; i++)
             {
-                var units = previous.TextureUnits.ToBuilder();
-                for (int i = 0; i < units.Count; i++)
-                {
-                    var current = units[i];
-                    if (current.Location < location || (long)current.Location - location >= count) continue;
-                    int value;
-                    if (supplied.HasValue) value = supplied.Value;
-                    else value = RHI.RHICommandContext.Current.ReadExternalProgramUnit((int)entry.Id, current.Location);
-                    units[i] = current with { Unit = value };
-                }
-                candidate = candidate with { TextureUnits = units.ToImmutable() };
+                long offset = (long)units[i].Location - location;
+                if (offset >= 0 && offset < values.Length)
+                    units[i] = units[i] with { Unit = values[(int)offset] };
             }
-            else
-            {
-                var resources = previous.Resources.ToBuilder();
-                for (int i = 0; i < resources.Count; i++)
-                {
-                    var resource = resources[i];
-                    if (resource.Interface != (block == RHI.ProgramBlockKind.Uniform ? ProgramResourceKind.UniformBlock : ProgramResourceKind.ShaderStorageBlock) || resource.Index != index) continue;
-                    int value;
-                    if (supplied.HasValue) value = supplied.Value;
-                    else
-                    {
-                        if (!RHI.RHICommandContext.Current.ReadExternalProgramBlockBinding((int)entry.Id, block, index, out value)) return false;
-                    }
-                    resources[i] = resource with { BufferBinding = value };
-                }
-                candidate = candidate with { Resources = resources.ToImmutable() };
-            }
-            RequireMetadataContext();
-            RequireLiveEntry(entry);
-            RequireUninterruptedCompletion(entry);
-            entry.Publish(candidate, GpuMetadataChange.Metadata | entry.PendingChange);
-            finished = true;
-            return true;
+            candidate = candidate with { TextureUnits = units.ToImmutable() };
         }
-        finally
+        else
         {
-            entry.CompletionInProgress = false;
-            entry.NotifyProgramDependents(GpuMetadataChange.Metadata, finished);
+            var resources = previous.Resources.ToBuilder();
+            for (int i = 0; i < resources.Count; i++)
+                if (resources[i].Interface == (block == ProgramBlockKind.Uniform ? ProgramResourceKind.UniformBlock : ProgramResourceKind.ShaderStorageBlock)
+                    && resources[i].Index == index)
+                    resources[i] = resources[i] with { BufferBinding = values[0] };
+            candidate = candidate with { Resources = resources.ToImmutable() };
         }
+        // Assignment arithmetic has no callback boundary. Commit before notifying dependent
+        // preparation; publication failure cannot roll back the already executed native change.
+        entry.Publish(candidate, GpuMetadataChange.Metadata | entry.PendingChange);
+        entry.NotifyProgramDependents(GpuMetadataChange.Metadata, true);
+        return true;
     }
     #endregion
 }

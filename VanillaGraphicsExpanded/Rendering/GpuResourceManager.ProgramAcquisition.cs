@@ -18,9 +18,7 @@ internal sealed partial class GpuResourceManager
                 throw new InvalidOperationException("A linked program is required for preparation.");
             return entry.Metadata;
         }
-        if (!GpuProgramMetadataReader.Instance.TryRead(program, out var metadata) || !metadata.ExecutableAvailable)
-            throw new InvalidOperationException("Native executable facts are unavailable for preparation.");
-        return metadata;
+        throw new InvalidOperationException("Program preparation requires maintained metadata or a supplied executable snapshot.");
     }
     #endregion
 }

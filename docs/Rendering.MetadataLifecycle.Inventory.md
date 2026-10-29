@@ -14,7 +14,7 @@ select `G:/Vintagestory/Lib/OpenTK.Graphics.dll`, version 4.9.4.0, MVID
 The project references `$(VINTAGE_STORY)/Lib/OpenTK.Graphics.dll`; `resolved-references.json` records
 the evaluated reference. The fresh probe recovered 1,981 symbols and 9,693 nongeneric calli overloads.
 `artifacts/metadata-lifecycle/bindings.json` retains per-overload owner, slot and managed/native signatures. The durable
-[binding table](Rendering.MetadataLifecycle.Bindings.tsv) records 435 selected factory, realization,
+[binding table](Rendering.MetadataLifecycle.Bindings.tsv) records 440 selected factory, realization,
 configuration, output and excluded-candidate symbols with exact owners, ABI, migration phase and current
 observer source. Selection combines the API family matrix, current native observers and factory/implicit
 realization rules below; current observer presence does not limit required coverage.
@@ -193,7 +193,7 @@ per-command rules. Zero/default binding objects do not get ordinary manager regi
 | Framebuffer / 4 | GenFramebuffers/core/EXT reserve; BindFramebuffer/core/EXT or EXT named creation-capable operations realize; CreateFramebuffers realizes. | Empty attachment map, default width/height/layers/samples 0, fixed-sample-locations true. Draw routing is ColorAttachment0, read selection ColorAttachment0, with other draw slots None; routing is execution-owned. Default framebuffer is a surface. |
 | Shader / 5 | CreateShader/CreateShaderObjectARB immediately realize the returned stage-specific identity. | GpuShaderMetadata.Type is supplied stage. Compilation status/log/source remain explicit compiler inputs/outputs, not new canonical fields. |
 | Program / 5 | CreateProgram/CreateProgramObjectARB immediately realize; combined shader-program factories also attempt compilation/linking. | Fresh ordinary program: ExecutableAvailable false, empty Resources/TextureUnits, null geometry/tessellation/local-size outputs. Combined factories require executable completion; a returned name alone cannot publish a linked interface. |
-| ProgramPipeline / 5 | GenProgramPipelines reserves; BindProgramPipeline and UseProgramStages create as specified; CreateProgramPipelines realizes. | Empty canonical struct. Stage/active-program selections remain existing execution facts, initially no programs. |
+| ProgramPipeline / 5 | GenProgramPipelines reserves; BindProgramPipeline, UseProgramStages, ActiveShaderProgram, ValidateProgramPipeline and GetProgramPipelineiv realize as specified; CreateProgramPipelines realizes. | Empty canonical struct. Stage/active-program selections remain existing execution facts, initially no programs. |
 | VertexArray / 6 | GenVertexArrays reserves; BindVertexArray realizes; CreateVertexArrays realizes. EXT named generic-attribute commands use their specified creation rules. | Empty canonical struct. Execution defaults include no element/vertex buffers, attributes disabled, zero offsets/divisors, default attribute formats and attribute-to-binding assignments. Preserve the distinction between separate-binding stride defaults and legacy pointer stride interpretation. |
 | TransformFeedback / 6 | GenTransformFeedbacks reserves; BindTransformFeedback realizes; CreateTransformFeedbacks realizes. | Empty canonical struct; no indexed buffer bindings, inactive and unpaused execution state. |
 | Sampler / 6 | GenSamplers reserves names; first BindSampler, SamplerParameter*, GetSamplerParameter* or IsSampler establishes default state. CreateSamplers realizes immediately. Multi-bind follows its specified equivalent per-element bind behavior. | Empty canonical struct on realization; existing sampler policy is not a native parameter mirror. Observe realization even on getters/IsSampler without issuing an extra query. |
@@ -317,7 +317,7 @@ remain below RHI and are removed when no permitted caller remains.
 | RefreshTextureParameter (removed) | Replaced by supplied converted base/max publication; no normal setter readback. | 4 |
 | RefreshTextureImages, RefreshGeneratedTextureMetadata (removed) | ImageDefinitions.cs derives supplied definitions and generated descendants; narrow unsized/sample outputs remain distinct. | 4 |
 | RefreshFramebufferField (removed) | Native framebuffer effects publish individual supplied descriptors/defaults; explicit original-entry recovery remains separate. | 4 |
-| AcquireProgramMetadata (ProgramAcquisition.cs), RefreshProgramFields (ProgramFields.cs) | Maintained interface reuse; signed array setters pass each value instead of querying. Reflected executable output remains explicit. | 5 |
+| AcquireProgramMetadata (ProgramAcquisition.cs), PublishProgramAssignment (ProgramFields.cs) | Available interface reuse or recorded pre-install discovery only; supplied signed array/block values patch the same snapshot with no getters. Reflected executable output remains explicit. | 5 |
 | AcquireEngineGeometryConfiguration, IsEngineGeometryConfigurationCurrent (GeometryAcquisition.cs) | Reuse a producer certificate and revision, or realize a private array from authored layout/retained streams. Unknown external VAO layout alone cannot justify routine query. See closure below. | 6 |
 | AssignImageMetadata, ProjectTextureImage, ProjectLayeredCubeImage, ProjectRenderbufferImage (ImageMetadata.cs); PublishOwnerImages (OwnerImages.cs) | Preserve query-free projection/notification, including intentional owner replacement. Resolve unavailable selections without recapturing. | 4 |
 | GpuBufferMetadataReader.TryRead → IRHIResourceExecution.TryReadBufferMetadata | Keep only proven initial adoption/explicit failed storage recovery; GpuBufferObject and geometry ordinary paths stop calling it. | 2 |
@@ -329,9 +329,9 @@ remain below RHI and are removed when no permitted caller remains.
 | ReadExternalTextureParameter, ReadExternalTextureLevelParameter | Remove ordinary parameter/storage dispatch to these; preserve narrow resolved-format/sample output and exact recovery field where applicable. | 4 |
 | OpenGlStateCache.TryObserveBufferAssociation, ReadBufferTextureParameter (NativeBufferTexture.cs) | Replace ordinary buffer/range association readback and implicit backing acquisition with supplied association and maintained capacity; only named initial/recovery causes may query. | 4 |
 | OpenGLBackend.ReadExecutableStageMetadata (ShaderStageQueries.cs) | Retain explicit linked-executable output for stage metadata; not an ordinary setter validation query. | 5 |
-| ReadExternalProgramUnit, ReadExternalProgramBlockBinding | Remove normal assignment readback; retain only explicit unresolved field recovery. | 5 |
+| ReadExternalProgramUnit, ReadExternalProgramBlockBinding, RefreshProgramFields | Removed with normal assignment readback; explicit original-entry executable recovery retains the sole required reader boundary. | 5 |
 | OpenGLBackend.CertifyGeometryConfiguration, ReadGeometryInteger (Geometry/OpenGLBackend.GeometryAcquisition.cs) | No covered configuration scanning merely because canonical VAO metadata is empty; migrate original-array reuse decision as below. | 6 |
-| IRHIResourceExecution.IsExternalBuffer, IsExternalTexture, IsExternalRenderbuffer, IsProgramResource, IsShaderResource | Not ordinary metadata admission probes. Keep only a demonstrated permitted initial-discovery/deletion purpose or remove unused methods with caller. | 2/4/5 |
+| IRHIResourceExecution.IsExternalBuffer, IsExternalTexture, IsExternalRenderbuffer | Not ordinary metadata admission probes; internal image readers retain their explicit native identity checks. The unused generic reader IsResource member and shader/program RHI validity routes are removed. | 2/4/5 |
 | ReadFormatCapabilities (GpuSupport cache through RHI); ReadWindowSurface | Keep explicit capability/surface admission, outside resource descriptor acquisition and native callbacks. Surface zero has no creation interception. | 2 activation; 4 consumers |
 | RHICommandContext and OpenGLBackend AcquireBorrowedTexture, AcquireAttachmentImage, AcquireExternalAttachmentTexture, AcquireProgramInterface | Retain semantic boundary; propagate explicit acquisition cause to manager, never choose query policy from raw ID/missing entry. | 4/5 |
 | RefreshFramebufferAttachments, GpuFramebuffer.RefreshWrappedFramebuffer, PublishRenderPassMetadata | Wrapper/integration composition from maintained facts; refresh spelling cannot authorize full rediscovery. | 4 |
@@ -509,3 +509,46 @@ generator Debug/Release receipts). Actual query/fence and supported empty semaph
 creation/disposal routes were exercised. External-producer FD/Win32 import effects use deterministic
 native-boundary stand-ins; real cross-API payload imports, installed-game rendering and performance
 are not qualified. Image, executable and remaining empty-schema families keep their later migration scopes.
+
+## Maintained executable and pipeline routes
+
+Native CreateShader/CreateShaderObjectARB establish fixed input stages; CreateProgram/CreateProgramObjectARB
+publish complete fresh unlinked defaults. Combined core and desktop EXT shader-program factories retain
+returned identities, including failed compilation, and complete only from driver output. Pipeline Gen
+reserves names; Create, Bind, UseProgramStages, ActiveShaderProgram, ValidateProgramPipeline and explicit
+GetProgramPipelineiv initialize specified default state. Zero/invalid factory outputs and already-live
+names never replace an allocation. Pipeline selectors remain with OpenGlStateCache; canonical metadata
+stays empty. Configuring another pipeline preserves monolithic full-program selection and suppression.
+
+Signed scalar/array unit setters and block-binding commands pass supplied values into
+GpuResourceManager.PublishProgramAssignment. Classification precedes interruption: numeric uniforms,
+ignored locations, proven invalid counts/indices/limits and inactive array tails preserve existing facts.
+An active array extent of one remains an array when reflection names its first element. Represented
+uncertainty withdraws certification; missing cached limits cannot silently retain old assignments or
+initialize capabilities in an observer. Neither unavailable snapshots nor opaque bindless assignments
+are repaired by ordinary setters. Narrow unit/block getters and their RHI forwarding methods are removed.
+
+External link/binary output completion and managed pending creation have separate publication ownership.
+Managed status/creation calls use saved originals and the private handoff. Native parallel linking can
+remain pending; explicit core completion or core/ARB integer/float link-status output completes only the externally interrupted entry.
+The existing interruption flag rejects a superseded managed candidate before any output read, even when
+external completion failed without advancing a revision. No new pending registry or generation mirror
+is introduced. Fixed RHI shader/pipeline references still reject external executable replacement.
+
+AcquireProgramMetadata, wrapper/native adoption and cloud/prepared consumers reuse maintained snapshots.
+RecordPreexistingExecutable permits one explicit initial attempt before observation; a failed attempt is
+consumed. No concrete managed pre-install executable consumer currently requires engine enumeration.
+Adding such a consumer requires its owner's explicit provenance handoff; raw IDs, missing tracking and
+context-local tools cannot authorize discovery. Local shader candidates supply their own snapshots.
+Shader stage getters remain only at that explicit discovery/recovery boundary; compiler/linker status,
+logs and executable reflection remain driver-produced output reads. Obsolete per-reader validity probes
+are removed from the shared reader interface rather than retained as unused shader/program query APIs.
+Executable/pipeline qualification passed canonical shader-enabled Debug and ordinary Release builds
+with zero errors, 822/822 combined lifecycle/engine/shader/RHI tests per configuration and 35/35 unchanged
+generator tests per configuration, with zero failures/skips. Second review and independent completion
+audit found no unresolved required issues. Receipts are artifacts/metadata-lifecycle/phase5/
+(build-*-combined-v6.log, phase5-combined-v6-*.trx and phase5-generator-v4-*.trx).
+Optional ARB/desktop EXT factory and completion aliases use deterministic original-core-backed native
+slots; this is delivery/effect evidence, not optional alias hardware qualification. External-producer
+hardware interop, installed-game startup, appearance and performance remain unqualified. Remaining
+geometry/feedback/sampler migration and combined parent qualification retain their separate checklist gates.

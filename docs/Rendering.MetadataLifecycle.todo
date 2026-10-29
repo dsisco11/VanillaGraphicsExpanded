@@ -4,7 +4,7 @@ Maintained resource metadata lifecycle — implementation plan
 Source proposal: [Rendering.MetadataLifecycle.Proposal.md](Rendering.MetadataLifecycle.Proposal.md).
 Parent integration gate: [Rendering.GpuCommands.todo](Rendering.GpuCommands.todo), subphase 8i.
 Initial inventory: [Rendering.MetadataLifecycle.Inventory.md](Rendering.MetadataLifecycle.Inventory.md).
-Status: Phases 1–4 complete; Phases 5–7 remain pending.
+Status: Phases 1–5 complete; Phases 6–7 remain pending.
 
 Goal
   Maintain canonical resource facts from observed creation, guaranteed defaults and subsequent commands.
@@ -254,34 +254,44 @@ Phase 4: Migrate image storage, views and framebuffer consumers together
     Second source review and independent completion audit passed. Receipts: artifacts/metadata-lifecycle/phase4,
     build-*-mips-v5.log, phase4-mips-v5-*.trx and phase4-generator-v5-*.trx.
     Optional EXT/import paths include deterministic native stand-ins; external-producer hardware interop,
-    installed-game startup, appearance and performance are not qualified. Phases 5–7 and parent 8i remain open.
+    installed-game startup, appearance and performance are not qualified. Subsequent family and parent integration qualification is recorded separately below.
 
 Phase 5: Maintain shader, executable and pipeline metadata
   Depends on Phases 2–4.
   Outcome: native executable identity and ordinary interface assignments use maintained facts while
     compiler/linker-produced results retain explicit completion reads.
 
-  ☐ Add creation observations for GpuShaderModule/GpuShaderMetadata, GpuProgramObject and GpuProgramLayout/
+  ☑ Add creation observations for GpuShaderModule/GpuShaderMetadata, GpuProgramObject and GpuProgramLayout/
     GpuProgramMetadata, and GpuProgramPipeline/GpuProgramPipelineMetadata. Cover shader/program factories,
     combined shader-program creation, pipeline Gen/Create realization and supported aliases from the inventory.
     Establish fixed stage and fresh unlinked defaults from inputs; do not reflect a newly empty program.
-  ☐ Integrate existing immediate/deferred compilation, linking and binary installation with original-entry
+  ☑ Integrate existing immediate/deferred compilation, linking and binary installation with original-entry
     identity and explicit result/interface completion. Do not assume return of a program name proves a linked
     executable. Preserve installed-generation invalidation, failed candidate cleanup and fixed shader refs.
-  ☐ Patch represented sampler/image-unit and block assignments from established calls against existing
+  ☑ Patch represented sampler/image-unit and block assignments from established calls against existing
     canonical interface facts. Numeric uniforms and ignored locations remain content/no-op observations.
     Link-input declarations affect the next executable; ordinary assignments never trigger full reflection.
     Preserve unsupported/uncertain represented assignments without inventing complete usable metadata.
-  ☐ Keep pipeline stage/selection knowledge with its existing execution owner and the canonical pipeline
+  ☑ Keep pipeline stage/selection knowledge with its existing execution owner and the canonical pipeline
     schema empty. Migrate native program adoption, GpuProgramInterface, GpuPreparedBindings and shader/PSO
     consumers to supplied snapshots or explicit driver-output completion. Remove obsolete acquisition and
     refresh routes; retain only production-required interruption guards and relevance-first ordering.
-  ☐ Qualify raw and RHI creation, successful/failed/deferred link, binary replacement, unit/block updates,
+  ☑ Qualify raw and RHI creation, successful/failed/deferred link, binary replacement, unit/block updates,
     irrelevant uniforms, pipeline aliases, deletion-pending objects and name reuse. Assert no stage discovery
     after known creation, no full reflection after assignments and legitimate executable reads at completion.
     Reconcile shader/prepared-binding contracts and lifecycle inventory.
-  ☐ Completion: maintained executable facts and explicit driver outputs have distinct final routes;
+  ☑ Completion: maintained executable facts and explicit driver outputs have distinct final routes;
     no preparation fallback, duplicate publication or stage-layout mirror remains.
+
+  Verification: canonical shader-enabled Debug and ordinary Release builds passed with zero errors.
+    Each configuration passed 822/822 combined lifecycle/engine/shader/RHI regression tests with zero
+    failures/skips. The unchanged generator suite passed 35/35 per configuration. Second source review
+    and independent completion audit passed with no unresolved findings. Receipts:
+    artifacts/metadata-lifecycle/phase5/build-*-combined-v6.log, phase5-combined-v6-*.trx and
+    phase5-generator-v4-*.trx; combined-filter-v5.txt records the qualified test selection.
+    Optional ARB/desktop EXT factory and completion aliases include deterministic original-core-backed
+    native stand-ins. Optional alias hardware execution, external-producer hardware interop, installed-game
+    startup, appearance and performance are not qualified. Phases 6–7 and parent 8i remain open.
 
 Phase 6: Maintain vertex-array, transform-feedback and sampler lifecycles
   Depends on Phases 2–5.

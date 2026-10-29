@@ -11,9 +11,5 @@ internal partial interface IRHIResourceExecution
     /// <summary>Acquires explicitly requested facts in the original context without publishing metadata.</summary>
     bool ReadFramebufferField(nint id, GpuFramebufferMetadata previous, FramebufferSlot? slot, FramebufferMetadataField? parameter, out GpuFramebufferMetadata metadata);
     /// <summary>Acquires explicitly requested facts in the original context without publishing metadata.</summary>
-    int ReadExternalProgramUnit(int program, int location);
-    /// <summary>Acquires explicitly requested facts in the original context without publishing metadata.</summary>
-    bool ReadExternalProgramBlockBinding(int program, ProgramBlockKind block, int index, out int value);
-    /// <summary>Acquires explicitly requested facts in the original context without publishing metadata.</summary>
     RHIGeometryContext CaptureGeometryContext(int array);
 }

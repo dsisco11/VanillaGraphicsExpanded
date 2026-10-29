@@ -190,6 +190,21 @@ A later uncertain association discards those unpublished facts so discovery cann
 
 ## Shader executable ownership
 
+Native CreateShader/Core/ARB results publish the supplied fixed stage without querying it. Fresh
+programs publish a complete empty unlinked interface. Pipeline Gen retains an unavailable reservation,
+while Create and specified binding/configuration/validation/getter boundaries realize its empty schema.
+Already-live factory outputs never replace the original allocation. Native creation and owned RHI
+creation have separate once-only publication paths; backend factories use saved-original dispatch.
+
+Linking, combined shader-program creation and binary installation obtain explicit driver-produced
+executable/interface output. External parallel linking may remain unavailable until a caller obtains
+link-status or positive completion output; managed pending requests retain their own original identity
+and completion boundary. Unit/block assignments patch supplied values without reflection or getters.
+Numeric/ignored writes and proven rejected assignments preserve existing facts. Unavailable snapshots
+are never repaired by assignments or preparation; adopted covered programs reuse maintained facts.
+Initial discovery requires recorded pre-install provenance. Context-local shader candidates supply their
+initial and completed snapshots; absence of a manager does not authorize raw-ID reflection.
+
 Shader asset selection, digest validation, permutations and binary-cache policy live in
 `ShaderCompilation`. Frozen `RHIShaderDescription` inputs specify stage code, entry points,
 specializations and authored bindings. The backend creates stages/programs through the manager, links

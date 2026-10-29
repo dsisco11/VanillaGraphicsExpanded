@@ -34,11 +34,7 @@ internal partial interface IRHIResourceExecution
     #endregion
     #region Executable acquisition
     /// <summary>Executes explicit manager-authorized acquisition without changing publication authority.</summary>
-    bool IsProgramResource(nint id);
-    /// <summary>Executes explicit manager-authorized acquisition without changing publication authority.</summary>
     bool ReadProgramMetadata(nint id, out GpuProgramMetadata metadata);
-    /// <summary>Executes explicit manager-authorized acquisition without changing publication authority.</summary>
-    bool IsShaderResource(nint id);
     /// <summary>Executes explicit manager-authorized acquisition without changing publication authority.</summary>
     bool ReadShaderMetadata(nint id, out GpuShaderMetadata metadata);
     #endregion

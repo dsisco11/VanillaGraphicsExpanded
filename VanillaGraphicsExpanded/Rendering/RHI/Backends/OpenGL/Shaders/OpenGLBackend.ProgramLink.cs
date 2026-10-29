@@ -22,6 +22,7 @@ internal sealed partial class OpenGLBackend
         if (program.ResourceManager?.GetResourceRegistration(program) is GpuResourceMetadataEntry<GpuProgramMetadata> entry
             && (entry.OperationInProgress || entry.CompletionInProgress))
             throw new InvalidOperationException("A program operation is already in progress.");
+        if (program.ResourceManager?.GetResourceRegistration(program) is GpuResourceMetadataEntry<GpuProgramMetadata> original) original.CompletionInterrupted = false;
         var pending = new PendingProgramLink(program);
         pendingProgramLinks.Remove(program);
         pendingProgramLinks.Add(program, pending);
@@ -77,6 +78,7 @@ internal sealed partial class OpenGLBackend
                 candidate = ReadExecutableStageMetadata(program, candidate, stages);
             if (!candidate.ExecutableAvailable) infoLog = GL.GetProgramInfoLog(program.ProgramId) ?? string.Empty;
             if (!IsPendingProgramCurrent(program, pending)) return false;
+            if (pending.Entry is { } original) original.Manager.ResetProgramUnitRepresentation(original);
             operation.Commit(candidate);
             if (pending.Entry is null) program.OnNativeProgramMetadataChanged(change, true);
             return candidate.ExecutableAvailable;
@@ -115,6 +117,7 @@ internal sealed partial class OpenGLBackend
             && (context == default || RenderContextRegistry.IsAlive(context))
             && (Entry is null ? program.ResourceManager?.GetResourceRegistration(program) is null
                 : Entry.Manager.IsRegistered(Entry) && Entry.State == GpuResourceRegistrationState.Live && Entry.MetadataRevision == revision
+                    && Entry is GpuResourceMetadataEntry<GpuProgramMetadata> { CompletionInterrupted: false }
                     && ReferenceEquals(program.ResourceManager?.GetResourceRegistration(program), Entry));
         #endregion
     }

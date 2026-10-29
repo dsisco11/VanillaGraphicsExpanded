@@ -10,7 +10,7 @@ internal sealed partial class OpenGLBackend
     public GpuProgramPipelineMetadata? InitializeProgramPipeline(out nint id)
     {
         RequireContext();
-        GL.CreateProgramPipelines(1, out int name);
+        OpenGLDriverCalls.CreateProgramPipelines(1, out int name);
         if (name != 0) cache.RecordPipelineCreated(name);
         id = name;
         RequireContext();

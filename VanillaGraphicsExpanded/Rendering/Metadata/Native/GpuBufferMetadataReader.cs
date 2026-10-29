@@ -7,8 +7,6 @@ namespace VanillaGraphicsExpanded.Rendering;
 internal sealed class GpuBufferMetadataReader : IGpuResourceMetadataReader<GpuBufferMetadata>
 {
     #region Public API
-    /// <inheritdoc />
-    public bool IsResource(nint id) => RHI.RHICommandContext.Current.IsExternalBuffer(id);
 
     /// <inheritdoc />
     public bool TryRead(nint id, out GpuBufferMetadata metadata) => RHI.RHICommandContext.Current.TryReadBufferMetadata(id, out metadata);

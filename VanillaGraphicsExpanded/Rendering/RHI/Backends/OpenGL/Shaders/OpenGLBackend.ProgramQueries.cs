@@ -11,14 +11,6 @@ internal sealed partial class OpenGLBackend
 {
 
     #region Internal API
-    /// <summary>Discovers an explicit unknown external program name in the admitted context.</summary>
-    public bool IsProgramResource(nint id)
-    {
-        RequireContext();
-        bool valid = id != 0 && id >= int.MinValue && id <= uint.MaxValue && GL.IsProgram(unchecked((int)id));
-        RequireContext();
-        return valid;
-    }
 
     /// <summary>Reads canonical executable output facts once for manager-owned acquisition or publication.</summary>
     public bool ReadProgramMetadata(nint id, out GpuProgramMetadata metadata)
@@ -30,10 +22,10 @@ internal sealed partial class OpenGLBackend
         // Descriptor queries establish availability directly; tracked refresh needs no
         // separate glIsProgram query and leaves the caller's pending errors untouched.
         int deleting = -1, linked = -1;
-        GL.GetProgram(program, Native.GetProgramParameterName.DeleteStatus, out deleting);
+        OpenGLDriverCalls.GetProgram(program, Native.GetProgramParameterName.DeleteStatus, out deleting);
         RequireContext();
         if (deleting != 0) return false;
-        GL.GetProgram(program, Native.GetProgramParameterName.LinkStatus, out linked);
+        OpenGLDriverCalls.GetProgram(program, Native.GetProgramParameterName.LinkStatus, out linked);
         RequireContext();
         if (linked < 0) return false;
         if (linked == 0)

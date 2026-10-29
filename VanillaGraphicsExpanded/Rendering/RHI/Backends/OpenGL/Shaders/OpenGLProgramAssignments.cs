@@ -59,6 +59,7 @@ internal static class OpenGLProgramAssignments
                     ? ProgramResourceKind.UniformBlock : ProgramResourceKind.ShaderStorageBlock)) { represented = true; break; }
             if (!represented) entry = null;
         }
+        if (!known) entry = null;
         if (entry is not null) { entry.OperationInProgress = true; entry.BeginRefresh(GpuMetadataChange.Metadata); }
         try
         {
@@ -71,9 +72,7 @@ internal static class OpenGLProgramAssignments
             entry.OperationInProgress = false;
             if (!manager!.IsRegistered(entry) || entry.State != GpuResourceRegistrationState.Live)
                 throw new InvalidOperationException("Program assignment identity was retired.");
-            bool success = known
-                ? manager.RefreshProgramFields(entry, previous, unit, location, 1, block, index, supplied)
-                : manager.RefreshMetadata(entry, GpuMetadataChange.Metadata);
+            bool success = manager.PublishProgramAssignment(entry, previous, unit, location, [supplied], block, index);
             if (!success) throw new InvalidOperationException("Program assignment metadata is unavailable.");
         }
         finally { if (entry is not null) entry.OperationInProgress = false; }

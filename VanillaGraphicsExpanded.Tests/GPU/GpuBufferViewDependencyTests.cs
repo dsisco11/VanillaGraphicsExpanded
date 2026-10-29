@@ -260,8 +260,6 @@ public sealed class GpuBufferViewDependencyTests(HeadlessGLFixture fixture)
     {
         internal int Reads;
         /// <inheritdoc />
-        public bool IsResource(nint id) => inner.IsResource(id);
-        /// <inheritdoc />
         public bool TryRead(nint id, out GpuBufferMetadata data) { Reads++; return inner.TryRead(id, out data); }
     }
     /// <summary>Receives the same texture association snapshot without owning the native object.</summary>

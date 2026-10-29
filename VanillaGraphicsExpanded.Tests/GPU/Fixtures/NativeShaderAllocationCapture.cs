@@ -29,10 +29,19 @@ internal sealed unsafe class NativeShaderAllocationCapture : IDisposable
         current = this;
         try
         {
-            harmony.Patch(AccessTools.Method(typeof(GL), nameof(GL.CreateProgram), Type.EmptyTypes),
-                postfix: new HarmonyMethod(typeof(NativeShaderAllocationCapture), nameof(RecordProgram)));
-            harmony.Patch(AccessTools.Method(typeof(GL), nameof(GL.CreateShader), [typeof(ShaderType)]),
-                postfix: new HarmonyMethod(typeof(NativeShaderAllocationCapture), nameof(RecordStage)));
+            nint createProgram = native.Original("glCreateProgram"), createShader = native.Original("glCreateShader");
+            native.Add("glCreateProgram", new ProgramFactory(() =>
+            {
+                int result = ((delegate* unmanaged[Stdcall]<int>)createProgram)();
+                native.Observe(() => programs.Add(result));
+                return result;
+            }));
+            native.Add("glCreateShader", new ShaderFactory(stage =>
+            {
+                int result = ((delegate* unmanaged[Stdcall]<int, int>)createShader)(stage);
+                native.Observe(() => stages.Add(result));
+                return result;
+            }));
             nint link = native.Original("glLinkProgram");
             native.Add("glLinkProgram", new Link(program =>
             {
@@ -51,10 +60,10 @@ internal sealed unsafe class NativeShaderAllocationCapture : IDisposable
     #region Private
     /// <summary>Preserves the native program-link ABI.</summary>
     [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate void Link(uint program);
-    /// <summary>Captures the returned program name without altering native execution.</summary>
-    private static void RecordProgram(int __result) => current?.programs.Add(__result);
-    /// <summary>Captures temporary stages before their native ownership transfers or retires.</summary>
-    private static void RecordStage(int __result) => current?.stages.Add(__result);
+    /// <summary>Preserves the native program allocation result ABI.</summary>
+    [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate int ProgramFactory();
+    /// <summary>Preserves the native shader stage and allocation result ABI.</summary>
+    [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate int ShaderFactory(int stage);
     /// <summary>Captures the published original manager entry before deferred executable submission.</summary>
     private static void RecordAssociation(int __0)
     {

@@ -36,11 +36,7 @@ public sealed partial class RHICommandContext
     #endregion
     #region Executable acquisition
     /// <summary>Routes explicit acquisition through the context execution contract.</summary>
-    internal bool IsProgramResource(nint id) => backend.IsProgramResource(id);
-    /// <summary>Routes explicit acquisition through the context execution contract.</summary>
     internal bool ReadProgramMetadata(nint id, out GpuProgramMetadata metadata) => backend.ReadProgramMetadata(id, out metadata);
-    /// <summary>Routes explicit acquisition through the context execution contract.</summary>
-    internal bool IsShaderResource(nint id) => backend.IsShaderResource(id);
     /// <summary>Routes explicit acquisition through the context execution contract.</summary>
     internal bool ReadShaderMetadata(nint id, out GpuShaderMetadata metadata) => backend.ReadShaderMetadata(id, out metadata);
     #endregion

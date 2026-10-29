@@ -302,8 +302,6 @@ public sealed class GpuRenderbufferMetadataInterceptionTests(HeadlessGLFixture f
     {
         internal int Reads { get; private set; }
         /// <inheritdoc />
-        public bool IsResource(nint id) => GpuRenderbufferMetadataReader.Instance.IsResource(id);
-        /// <inheritdoc />
         public bool TryRead(nint id, out GpuRenderbufferMetadata metadata)
         {
             Reads++;

@@ -137,8 +137,6 @@ public sealed class GpuTextureParameterInterceptionTests(HeadlessGLFixture fixtu
     private sealed class CountingReader : IGpuResourceMetadataReader<GpuTextureMetadata>
     {
         /// <inheritdoc />
-        public bool IsResource(nint id) => GpuTextureMetadataReader.Instance.IsResource(id);
-        /// <inheritdoc />
         public bool TryRead(nint id, out GpuTextureMetadata metadata)
         {
             observations++;

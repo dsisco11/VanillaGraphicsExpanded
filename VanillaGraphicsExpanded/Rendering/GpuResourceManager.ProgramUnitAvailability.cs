@@ -44,6 +44,8 @@ internal sealed partial class GpuResourceManager
         RequireLiveEntry(entry);
         unsupportedProgramUnits.GetValue(entry, static _ => new object());
     }
+    /// <summary>Clears unsupported unit history only for a replacement executable output.</summary>
+    internal void ResetProgramUnitRepresentation(GpuResourceRegistration entry) => unsupportedProgramUnits.Remove(entry);
     #endregion
 
     #region Private

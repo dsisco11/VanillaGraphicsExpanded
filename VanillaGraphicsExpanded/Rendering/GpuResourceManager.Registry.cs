@@ -148,6 +148,12 @@ internal sealed partial class GpuResourceManager
             PublishMetadata(semaphore, new GpuSemaphoreMetadata(), GpuMetadataChange.Metadata);
             return entry;
         }
+        if (entry is GpuResourceMetadataEntry<GpuProgramPipelineMetadata> pipeline)
+        {
+            if (!pipeline.IsRealized) return null;
+            PublishMetadata(pipeline, new GpuProgramPipelineMetadata(), GpuMetadataChange.Metadata);
+            return entry;
+        }
         entry.Reader = reader;
         return RefreshMetadata(entry, GpuMetadataChange.Metadata) ? entry : null;
     }
@@ -236,7 +242,8 @@ internal sealed partial class GpuResourceManager
     /// <summary>Identifies families whose covered creation facts cannot be replaced by implicit discovery.</summary>
     private static bool UsesMaintainedLifecycle(GpuResourceKind kind) => kind is GpuResourceKind.Buffer
         or GpuResourceKind.MemoryObject or GpuResourceKind.Query or GpuResourceKind.Sync or GpuResourceKind.Semaphore
-        or GpuResourceKind.Texture or GpuResourceKind.Renderbuffer or GpuResourceKind.Framebuffer;
+        or GpuResourceKind.Texture or GpuResourceKind.Renderbuffer or GpuResourceKind.Framebuffer
+        or GpuResourceKind.Shader or GpuResourceKind.Program or GpuResourceKind.ProgramPipeline;
 
     /// <summary>Ensures all ordinary registry operations and native reads stay on their originating context thread.</summary>
     private void RequireMetadataContext()

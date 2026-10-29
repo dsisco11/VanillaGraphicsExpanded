@@ -4,86 +4,97 @@ using VanillaGraphicsExpanded.Rendering.RHI;
 
 namespace VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 
-/// <summary>Forwards observed program changes to the existing canonical registration and its aliases.</summary>
+/// <summary>Classifies native executable changes and applies supplied interface assignments.</summary>
 internal sealed partial class OpenGlStateCache
 {
     #region Internal API
-    /// <summary>Reconciles a completed native mutation and releases metadata bookkeeping on every exit.</summary>
+    /// <summary>Preserves irrelevant/rejected writes and publishes established changes on their original entry.</summary>
     internal static void ObserveProgramMetadata(int program, bool named, bool unit, int location, int count,
-        bool executable = false, bool unsupportedUnits = false, ProgramInterface block = 0, int blockIndex = -1, int? supplied = null)
+        bool executable = false, bool unsupportedUnits = false, ProgramInterface block = 0, int blockIndex = -1,
+        int? supplied = null, ReadOnlySpan<int> values = default)
     {
         var manager = GpuResourceManagerSystem.CurrentManager;
-        if (manager?.CanObserveNativeMetadata != true) return;
-        if (unit && (location < 0 || count <= 0)) return;
+        if (manager?.CanObserveNativeMetadata != true || unit && (location < 0 || count <= 0)) return;
         if (!named)
         {
+            // Reuse established selectors; only an uncertain selector needs targeted state
+            // recovery. This never authorizes executable or interface discovery.
             program = Current.GetCurrentProgram();
-            // Uniform commands use the active program of a bound pipeline when UseProgram is zero.
-            if (program == 0)
-            {
-                int pipeline = Current.GetCurrentProgramPipeline();
-                if (pipeline != 0) program = Current.GetPipelineUniformProgram(pipeline);
-            }
+            if (program == 0 && Current.GetCurrentProgramPipeline() is { } pipeline && pipeline != 0)
+                program = Current.GetPipelineUniformProgram(pipeline);
         }
-        var entry = manager.FindObservedResource(GpuResourceKind.Program, program)
-            as GpuResourceMetadataEntry<GpuProgramMetadata>;
-        if (entry is null) return;
+        if (manager.FindObservedResource(GpuResourceKind.Program, program)
+            is not GpuResourceMetadataEntry<GpuProgramMetadata> entry) return;
+        if (executable)
+        {
+            var feedback = OpenGLFeedbackBindings.GetExternalActivity(Current);
+            if (feedback.Active && !feedback.Paused && Current.currentProgram == program) return;
+        }
+        var previous = entry.Metadata;
         bool known = entry.IsUsable;
-        if (unit)
+        if (!executable)
         {
-            // An interface not yet acquired cannot prove that a location is numeric. Keep
-            // its completion exclusion effective until established selectors can classify it.
-            bool represented = entry.Metadata.Resources.IsDefault && entry.Metadata.TextureUnits.IsDefault;
-            if (!entry.Metadata.TextureUnits.IsDefault)
-                foreach (var binding in entry.Metadata.TextureUnits)
-                    // A vector write starts at one uniform's location, never at an unrelated
-                    // numeric uniform merely because count extends across another location.
-                    if (binding.Location == location)
-                    {
-                        represented = true;
-                        break;
-                    }
-            if (!represented && entry.Metadata.TextureUnits.IsDefault && !entry.Metadata.Resources.IsDefault)
-                foreach (var resource in entry.Metadata.Resources)
-                    if (resource.Interface == ProgramResourceKind.Uniform && resource.Location is { } first
-                        && location >= first && (long)location - first < (resource.ArraySize ?? 1)
-                        && (resource.Type is not { } type || GpuProgramLayout.IsSamplerType(type) || GpuProgramLayout.IsImageType(type)))
-                    {
-                        represented = true;
-                        break;
-                    }
-            if (!represented) return;
-        }
-        if (block != 0 && !entry.Metadata.Resources.IsDefault)
-        {
-            bool represented = false;
-            foreach (var resource in entry.Metadata.Resources)
-                if (resource.Interface == OpenGLShaderValues.Resource((OpenTK.Graphics.OpenGL4.ProgramInterface)block) && resource.Index == blockIndex) { represented = true; break; }
-            if (!represented) return;
+            if (!previous.ExecutableAvailable || previous.Resources.IsDefault || previous.TextureUnits.IsDefault) return;
+            if (unit)
+            {
+                GpuProgramResourceMetadata? selected = null;
+                foreach (var resource in previous.Resources)
+                    if (resource.Interface == ProgramResourceKind.Uniform && resource.Location is { } first && first >= 0
+                        && location >= first && (long)location - first < (resource.ArraySize ?? 1))
+                    { selected = resource; break; }
+                if (selected is not { Type: { } type, Location: { } start } uniform
+                    || !GpuProgramLayout.IsSamplerType(type) && !GpuProgramLayout.IsImageType(type)) return;
+                if (count > 1 && uniform.ArraySize == 1 && uniform.Name?.EndsWith("[0]", StringComparison.Ordinal) != true) return;
+                int changed = Math.Min(count, (uniform.ArraySize ?? 1) - (location - start));
+                if (!unsupportedUnits && !supplied.HasValue && values.Length < changed) return;
+                if (!unsupportedUnits && GpuSupport.HasCachedCapabilitiesForCurrentContext)
+                {
+                    int limit = GpuProgramLayout.IsImageType(type) ? GpuSupport.Graphics.MaxImageUnits : GpuSupport.Graphics.MaxCombinedTextureImageUnits;
+                    for (int i = 0; i < changed; i++)
+                        if ((uint)(supplied ?? values[i]) >= (uint)limit) return;
+                }
+                count = changed;
+            }
+            else if (block != 0)
+            {
+                bool represented = false;
+                foreach (var resource in previous.Resources)
+                    if (resource.Interface == (block == ProgramInterface.UniformBlock ? ProgramResourceKind.UniformBlock : ProgramResourceKind.ShaderStorageBlock)
+                        && resource.Index == blockIndex) { represented = true; break; }
+                if (!represented || !supplied.HasValue) return;
+                if (GpuSupport.HasCachedCapabilitiesForCurrentContext && (uint)supplied.Value >= (uint)(block == ProgramInterface.UniformBlock
+                    ? GpuSupport.Graphics.MaxUniformBufferBindings : GpuSupport.Graphics.MaxShaderStorageBufferBindings)) return;
+            }
+            else return;
         }
         Current.InterruptNativeResourceOperation(GpuResourceKind.Program, program);
         var change = GpuMetadataChange.Metadata | (executable ? GpuMetadataChange.Executable : GpuMetadataChange.None);
         if (InterruptNativeMetadataCompletion(entry, change)) return;
-        entry.Reader ??= GpuProgramMetadataReader.Instance;
-        if (unsupportedUnits) manager.WithdrawUnsupportedProgramUnits(entry);
-        var previous = entry.Metadata;
-        entry.CompletionInterrupted = false;
-        entry.OperationInProgress = true;
+        if (executable) entry.CompletionInterrupted = true;
         entry.BeginRefresh(change);
-        try
+        entry.NotifyProgramDependents(change, false);
+        if (executable)
         {
-            entry.NotifyProgramDependents(change, available: false);
-            if (entry.CompletionInterrupted)
-                throw new InvalidOperationException("Program observation was interrupted by a nested mutation.");
-            entry.OperationInProgress = false;
-            if (unsupportedUnits || !entry.Manager.CanObserveNativeMetadata
-                || !entry.Manager.IsRegistered(entry) || entry.State != GpuResourceRegistrationState.Live) return;
-            bool success = known && (unit || block != 0)
-                ? entry.Manager.RefreshProgramFields(entry, previous, unit, location, count, block == ProgramInterface.UniformBlock ? ProgramBlockKind.Uniform : ProgramBlockKind.Storage, blockIndex, supplied)
-                : entry.Manager.RefreshMetadata(entry, GpuMetadataChange.Metadata);
-            if (!success) throw new InvalidOperationException("Native program metadata is unavailable after mutation.");
+            manager.ResetProgramUnitRepresentation(entry);
+            entry.Reader ??= GpuProgramMetadataReader.Instance;
+            // Early engine compilation can precede admission. Withdraw the executable now;
+            // explicit completion after admission may obtain outputs without discovery here.
+            if (!GpuSupport.HasCachedCapabilitiesForCurrentContext) return;
+            // Parallel linking may still be pending after native return. Its nonblocking
+            // output flag is distinct from interface discovery and ordinary assignments.
+            if (GpuSupport.Graphics.SupportsArbParallelShaderCompile || GpuSupport.Graphics.SupportsKhrParallelShaderCompile)
+            {
+                OpenGLDriverCalls.GetProgram(program, (GetProgramParameterName)ArbParallelShaderCompile.CompletionStatusArb, out int complete);
+                if (complete == 0) return;
+            }
+            manager.RefreshMetadata(entry, change);
         }
-        finally { if (entry is not null) entry.OperationInProgress = false; }
+        else if (unsupportedUnits) manager.WithdrawUnsupportedProgramUnits(entry);
+        else if (known && GpuSupport.HasCachedCapabilitiesForCurrentContext)
+            manager.PublishProgramAssignment(entry, previous, unit, location,
+                supplied.HasValue ? [supplied.Value] : values[..count],
+                block == ProgramInterface.UniformBlock ? ProgramBlockKind.Uniform : ProgramBlockKind.Storage, blockIndex);
+        // An unavailable executable stays unavailable. Assignments are never implicit recovery.
     }
     #endregion
 }
