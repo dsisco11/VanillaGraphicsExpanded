@@ -1,10 +1,10 @@
 # RHI implementation contracts
 
 Planning companion to [the approved proposal](Rendering.GpuCommands.Proposal.md) and
-[implementation plan](Rendering.GpuCommands.todo). These are the final implementation targets,
-not claims that the runtime types already exist. The [migration map](Rendering.GpuCommands.Migrations.md)
-assigns existing entry points and their dependency closure to replacements. No production interface,
-throwing placeholder or old-executor forwarding facade is introduced merely to declare this contract.
+[implementation plan](Rendering.GpuCommands.todo). These define the implemented execution and ownership
+boundaries. The [migration map](Rendering.GpuCommands.Migrations.md) records replacement routes and
+their qualification limits. No throwing placeholder, old-executor forwarding facade or duplicate owner
+is part of this contract.
 
 ## Authority and ownership
 
@@ -244,6 +244,18 @@ Restricted engine shader/stage integration exposes named operations and never re
 context and owner-authorized operations dispatch through `IRHIBackend`; there is no context backend
 escape property. Stable pinned upload memory is consumed immediately, and staged uploads carry a typed
 buffer reference rather than rediscovering an allocation by numeric ID.
+
+`RHICommandContext.Composition` alone selects concrete execution and CPU-only exclusion authority.
+`RHIShaderBinary.NativeFormat` is an internal opaque executable-cache token: the backend validates/encodes
+it, while `DriverProgramCache` persists it unchanged with its bytes. It is not a public format selector
+or a shader/PSO policy input. `RHIExternalHandle` instead declares semantic platform-handle kind and
+ownership explicitly; retaining it never closes or duplicates the operating-system handle.
+
+Portable payload isolation includes nested fields/properties, container arguments and inherited storage,
+not just method signatures. Runtime restoration has a separate ownership boundary: `RHIBoundaryScope`
+privately retains the existing `EngineBoundaryScope`, whose cache/snapshot state belongs to execution.
+That implementation token is neither a portable pass description nor a public context parameter/result.
+It is not permission to put native fields in descriptions, initialization or canonical snapshots.
 
 PSO equality covers all behavior fields and exact shader generation, excludes labels, framebuffer identity,
 ordinary values and current resource instances. Renderer owners reuse realizations; no global PSO cache

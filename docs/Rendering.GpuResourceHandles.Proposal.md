@@ -8,7 +8,7 @@ The approved command-publication refinement (`3f307365:docs/Rendering.CommandPub
 creation and query policy: controlled inputs/defaults/derivations are authoritative under existing
 failure handling; external unknown facts and specifically justified outputs are acquired. No universal
 post-command verification or duplicate requested/actual metadata cache is required.
-The implemented [maintained lifecycle contract](Rendering.MetadataLifecycle.Proposal.md) further narrows
+The implemented [resource lifecycle contract](Rendering.GpuResources.md#command-results-and-queries) further narrows
 discovery to recorded pre-installation or supported EXT implicit-creation provenance and explicit
 original-entry recovery. Missing covered tracking and context-local tools grant no query permission.
 

@@ -1858,3 +1858,83 @@ and the focused native suite passed 666/666 in each configuration, with zero ski
 results and exact commands are retained under artifacts/withdraw-methods/. Source review confirmed that
 all 29 declarations use domain withdrawal methods, obsolete attribute fields and generator category
 mapping are removed, and original dispatch/context/recovery semantics are retained. No staging or commit.
+
+## Corrective dependency closure (8j)
+
+Authority: the approved RHI proposal and contracts (ownership, internal execution, semantic descriptors,
+shader/PSO generations, outcomes and migration), resource/binding contracts and the corrective tasks
+8a–8i including 8h.1. Their original task/source/receipt tables above remain the before-route inventory.
+The completed lifecycle design, plan and inventory are retained at
+`e013054f:docs/Rendering.MetadataLifecycle.{Proposal.md,todo,Inventory.md}`; current lifecycle/query
+contracts live in Rendering.GpuResources.md and the resource inventory/API matrix. The removed live
+planning documents are not build inputs or active linked prerequisites.
+
+The combined caller review checks the complete routes below, including named helper/partial occurrences,
+not merely namespaces or public signatures. RHI methods admit execution; the same manager commits
+canonical facts; the same cache owns execution knowledge. Direct published-fact/lifetime collaboration
+with the manager remains intentional and never becomes another execution or acquisition owner.
+
+| Findings / before route | Final admitted route and dependency closure |
+| --- | --- |
+| GpuFramebuffer.SetAttachmentCore, RemoveAttachmentCore, ResizeCore, Bind; StaticGpuFramebuffer configurationOwner/RegisterImmutableFramebuffer/ReleaseConfiguration/OnContextRetiring | Owner policy calls RHI RequireMutableFramebufferOwner, attachment/configuration/select operations and SealFramebufferConfiguration. The backend's existing configuration lease owns immutable admission and context retirement; backing guards remain owner policy. |
+| GpuFramebuffer.OnBeforeDelete, OnDetached, PublishRenderPassMetadata, RefreshWrappedFramebuffer; screen resize and uniform frame lifecycle | Explicit RHI import/retirement owns actual effects. Publication/detach/resize/frame advancement retain valid routing/bindings; native deletion and context identity are the single retirement/reset authorities. Uniform epochs/callback order remain with their original controllers. |
+| GpuFramebuffer owning construction, GpuFramebufferAttachment.CreateRenderbufferStorage; GpuVao/GpuProgramObject/GpuProgramPipeline alternative factories | Owner-bearing RHI allocation invokes private backend/manager handoff. Backend geometry/shader realization declares private unpublished recipients; the unused pipeline wrapper factory is gone. No public recipient, provisional identity or recursive public factory is exposed. |
+| BorrowedTexture construction/GetOrReplace; attachment construction/NotifyChanged/ValidateSlot; framebuffer DiscoverAttachment/ReconcileAttachmentMetadata/PublishRenderPassMetadata/RefreshWrappedFramebuffer | Private RHI import services admit native work and invoke manager acquisition/projection. Covered facts reuse original entries; initialization supplies local snapshots. Recorded discovery and explicit recovery remain separate. Composition/selection/ownership stay in wrappers, while ordinary validation never repairs metadata. |
+| GpuFramebufferAttachmentObservers and allocation NotifyChanged calls; owner/image weak relationships | Canonical entry publication delivers registered projections once. Existing manager OwnerImages covers local/replacement recipients and skips already-delivered entries; one failed dependent does not retire a committed owner or starve others. |
+| BufferUsageHint/BufferStorageFlags, ShaderType and ProgramInterface/ProgramProperty bags; GpuPreparedBindings/graphics reflection consumers and ShaderResourceType native ordinal matching | Semantic BufferUsage/StorageAccess, ShaderStage, ProgramResourceKind, nullable ShaderValueType/typed fields and ShaderStageMask cross initialization/snapshots/refs/preparation. Only backend codecs interpret GL values; authored shader types have no native token identity. |
+| GpuFramebufferAttachment validation; GpuUniformRingBuffer, GpuBindingRegistry, prepared limits; GpuSupport format-cache keys and GpuTextureInitialization.Resolve | Semantic RHICapabilities or explicit immutable limits supply acceptance. The existing capability authority performs discovery outside callbacks; backend initialization resolves cached formats/samples. No owner-side codec, second cache or hidden validation query is added. |
+| GpuProgramLayout location/name/block lookup, Apply*Contract, TryBuild*, RebuildCache and capability/ErrorScope branches; native program/shader adoption and GpuProgramInterface fallback | Supplied snapshots drive ordinary layout/preparation. Explicit native assignment/adoption enters private RHI operations with manager provenance/output completion. Numeric/unrepresented uniforms do not reflect. Fixed RHI shader/PSO generations never retarget after executable replacement. |
+| Wrapper SetDebugName, EngineShader/Framebuffer/MeshDebugLabels, GlDebug native implementation and ShaderPatchRecovery.GetErrorsString | Owner labels use RHI diagnostics; raw engine identities remain in restricted native diagnostic integration. Native labels/groups/notifications are DEBUG-only and best-effort; explicit failed-compile diagnostics do not become universal error drains or validity probes. |
+| MetadataOperation/MetadataPublication and callers' concrete cache guards; GpuResource GLFW context fallback; EngineBoundaryResources footprint | Private IRHIResourceOperation/Execution retains the same cache exclusion and original identity; manager owns metadata commit. RenderContextRegistry owns physical discovery. Native boundary footprints stay under backend admission/capture/restoration. |
+| GpuTextureRef/GpuBufferRef/auxiliary refs; queued upload, TextureStreamingManager, GpuSamplers and shader reload helpers; OpenGLPassTarget/private geometry recipients | Published facts, allocation policy, content certificates, context retirement and original associations stay with existing owners. Execution crosses RHI; backend pass/geometry recipients are constructed only by their owning realization services. Consumer values add no mutation, disposal, registration or discovery authority. |
+| BeginFrame/PurgeCache, resize/startup/detach resets and broad recapture chains | Removed. Covered native observations propagate established fields; context changes, actual retirement and targeted uncertainty retain their existing authority. No semantic method simply forwards a routine purge. |
+| Caller rewriting/adapters, handwritten native callback/bypass inventories, begin/end observation receipts and attribute knowledge categories | Generated native callbacks and OpenGLDriverCalls derive exact ABI/slots from compiler-selected OpenTK. Handwritten cache-owned post-call effects classify before withdrawal, use domain Withdraw methods, preserve native outputs/errors, and never veto/retry. Saved-original managed work has its own single publication owner. |
+| Missing creation/default facts, generic ObserveWrapperMetadata and unused query/validity facades | Native factory/realization/configuration observations maintain original canonical entries. Missing covered identities are tracking defects; only recorded initial discovery or explicit original-entry recovery reads descriptors. Compiler/interface, format/sample/import flag and deletion outputs retain their named tests and narrow purposes. |
+| Additional ManagedGraphicsGeometry.Create, EngineFullscreenGeometry.Upload, EngineLiquidPoolGeometry and ClientRenderingLifetime preparation guards | Replaced direct cache admission with existing RHI RequirePreparationAdmission. EngineGeometryInputs uses that same gate. Restricted engine upload/deletion callbacks remain explicit native-owner integration, not portable draw execution. |
+| Failed EngineFullscreenGeometry upload finally/ForgetEngineMeshUpload; unused ObserveEngineMeshDraw; deferred mesh cleanup | Removed manual selector purges/heuristics and their unused cache partial. The backend's upload scopes and interception retain restored knowledge; the regression asserts zero recovery queries/equal binds after failure. Deferred original-context cleanup uses the admitted native deletion bridge. |
+
+### Intentional private boundaries and regression scope
+
+RHICommandContext.Composition selects concrete execution and CPU-only exclusion authority; normal
+context methods retain only IRHIBackend dispatch. RHIShaderBinary.NativeFormat is internal opaque
+executable-cache data: DriverProgramCache persists it unchanged, and backend creation/binary installation
+interpret it. Public shader/PSO descriptions contain no native format selector. Platform handles instead
+carry semantic handle kind/ownership at the import boundary; native object-name adoption stays private.
+
+RHIBoundaryScope privately retains the existing EngineBoundaryScope restoration owner. That runtime
+owner is not a serialized command/initialization/snapshot payload and cannot escape as a public context
+parameter/result. EngineContext/RenderContextRegistry and client retirement hooks retain actual context
+identity/abandonment duties. Engine fullscreen/liquid/particle adapters own engine membership, authored
+streams and content certificates; native selector scopes and rendering execution remain backend-owned.
+Native profiling and explicit engine diagnostics retain their narrow implementation contracts. These are
+caller/ownership classifications, not exemptions based on a directory name or internal visibility.
+
+RHIContractIsolationTests now traverses nested project-owned instance fields/properties, generic
+containers and inherited storage from context/private-execution inputs/results plus all canonical and
+initialization schemas. Negative fixtures prove hidden field/property/key/base leaks are detected.
+Typed reflection checks reject property-bag/type-token regression. Scoped IL checks reject owner/manager
+native execution and non-composition RHI backend selection; exact local getter tokens in the compiled
+PE verify opaque binary consumers without loading unrelated engine/UI dependencies. The existing
+SemanticResourceSchemaTests independently exercises explicit usage/storage/shader codecs and supplied
+preparation. Native behavior/ownership tests cover the declared boundaries beyond reflection inspection.
+
+Verification: delegated canonical shader-enabled Debug and ordinary Release builds passed with zero
+errors (225/232 warnings). Each configuration passed 1,297 combined lifecycle, ownership, semantic-schema,
+admission, failure/recovery, dependency, label, suppression, local-context, retirement and immediate/recorded
+cases, plus 35 generator cases, with zero failures/skips. Exact commands and selection are retained in
+`artifacts/rhi-phase8j/commands.txt` and `combined-filter.txt`; final receipts are
+`build-{debug,release}-closed.log`, `combined-{debug,release}-closed.log/.trx` and
+`generator-current-{debug,release}.log/.trx` in that directory. Fresh generator-test builds verified that
+their copied analyzer assemblies match the corresponding production analyzer SHA256; earlier no-build
+generator receipts are diagnostic only. Exact commands and hashes are retained in `commands.txt`.
+Initial failing receipts remain explicitly superseded:
+stale fixture factories/readback/retirement assumptions were corrected without weakening native-output
+oracles; the opaque binary check now reads compiled IL without resolving unrelated UI signatures.
+
+Compiler reference resolution selected `G:/Vintagestory/Lib/OpenTK.Graphics.dll`, SHA256
+`5B57957CA9E4C5F7BFB7EC495B991E6B88CFAC52863A19E405492AB8C33CB1D2`;
+`resolved-references.json` and `opentk-identity.txt` retain that identity. No shader bypass, JIT override,
+instrumented Release, benchmark or game launch was used. Second source review is complete; independent
+completion review rechecked actual caller routes, linked authorities and the combined receipts. Management
+renaming remains in 8k; inherited integrated lighting, optional hardware/interop, package and user-run
+visual/runtime qualification remain in 9. No source staging, unstaging or commit was performed.

@@ -11,7 +11,7 @@ using Vintagestory.Client.NoObf;
 
 namespace VanillaGraphicsExpanded.Rendering.Pipeline;
 
-/// <summary>Owns an ordinary engine-uploaded position/UV mesh with a verified native fullscreen representation.</summary>
+/// <summary>Owns an engine-uploaded position/UV mesh and supplies its authored fullscreen stream contract.</summary>
 internal sealed class EngineFullscreenGeometry : GraphicsGeometry
 {
     internal static RHIVertexLayout Layout { get; } = new([
@@ -26,7 +26,7 @@ internal sealed class EngineFullscreenGeometry : GraphicsGeometry
     private bool disposed;
 
     #region Public API
-    /// <summary>Uploads only the owned fullscreen stream contract and verifies native metadata before publication.</summary>
+    /// <summary>Uploads owned fullscreen streams and admits their original allocations before publication.</summary>
     internal static EngineFullscreenGeometry Upload(IRenderAPI render, MeshData data)
     {
         ArgumentNullException.ThrowIfNull(render);
@@ -36,19 +36,17 @@ internal sealed class EngineFullscreenGeometry : GraphicsGeometry
             || data.Uv.Length < data.VerticesCount * 2L || data.Indices.Length < data.IndicesCount
             || data.Indices.Take(data.IndicesCount).Any(i => i < 0 || i >= data.VerticesCount))
             throw new ArgumentException("Expected indexed position/UV geometry without a color stream.", nameof(data));
-        OpenGlStateCache.Current.RequireOutsideEngineBoundary();
+        RHICommandContext.RequirePreparationAdmission();
         var execution = RHICommandContext.Current;
         var context = GpuResource.CaptureCreationContext(GpuResourceKind.VertexArray);
         var deletionManager = GpuResourceManagerSystem.CurrentManager;
         // Upload may bind arrays through the engine; existing scopes preserve the caller's bindings.
         MeshRef? uploaded = null;
-        bool certified = false;
         try
         {
             uploaded = OpenGLRHIContext.UploadEngineMesh(render, data);
             if (uploaded is not VAO native) throw new InvalidOperationException("Unsupported engine mesh representation.");
             var geometry = new EngineFullscreenGeometry(render, native, data.VerticesCount, data.IndicesCount, context, deletionManager, execution);
-            certified = true;
             return geometry;
         }
         catch (Exception failure)
@@ -56,12 +54,6 @@ internal sealed class EngineFullscreenGeometry : GraphicsGeometry
             try { if (uploaded is not null) RetireMesh(render, uploaded, context, deletionManager); }
             catch (Exception cleanup) { throw new AggregateException(failure, cleanup); }
             throw;
-        }
-        finally
-        {
-            // Successful acquisition already established the uploaded array's selector facts. Preserve them;
-            // forgetting those facts here would make a known-equal bind invalidate its own certificate.
-            if (!certified) OpenGlStateCache.Current.ForgetEngineMeshUpload((uploaded as VAO)?.VaoId);
         }
     }
 
@@ -90,7 +82,7 @@ internal sealed class EngineFullscreenGeometry : GraphicsGeometry
     #endregion
 
     #region Private
-    /// <summary>Checks the installed VAO once; native queries never occur on its draw path.</summary>
+    /// <summary>Admits original engine allocations from the supplied layout without scanning native attributes.</summary>
     private EngineFullscreenGeometry(IRenderAPI render, VAO mesh, int vertices, int count,
         (nint Handle, long Generation) context, GpuResourceManager? deletionManager, RHICommandContext execution)
     {
@@ -117,7 +109,7 @@ internal sealed class EngineFullscreenGeometry : GraphicsGeometry
             return;
         }
         if (Integration.RenderContextRegistry.IsAlive(origin))
-            manager?.EnqueueContextCleanup(() => render.DeleteMesh(mesh), origin);
+            manager?.EnqueueContextCleanup(() => OpenGLRHIContext.DeleteEngineMesh(render, mesh), origin);
     }
 
     /// <summary>Rejects pooled or extended streams instead of assigning them fullscreen semantics.</summary>

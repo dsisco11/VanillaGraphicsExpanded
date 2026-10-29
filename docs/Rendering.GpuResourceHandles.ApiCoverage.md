@@ -9,7 +9,7 @@ variant and every managed overload has the implementation and verification oblig
 The approved command-publication policy (`3f307365:docs/Rendering.CommandPublication.Proposal.md`)
 controls how the families below publish metadata. Here, "refresh" means make canonical facts current;
 it does not mandate native readback after controlled commands. Controlled inputs/defaults/derivations
-are authoritative under existing failure handling. The [maintained lifecycle policy](Rendering.MetadataLifecycle.Proposal.md) permits recorded pre-installation/EXT implicit-creation discovery and explicit original-entry recovery only. Missing covered tracking or a local tool cannot authorize scans;
+are authoritative under existing failure handling. The [maintained lifecycle policy](Rendering.GpuResources.md#command-results-and-queries) permits recorded pre-installation/EXT implicit-creation discovery and explicit original-entry recovery only. Missing covered tracking or a local tool cannot authorize scans;
 required driver-output reads are individually justified in that proposal. Existing scope, native-error,
 per-object outcome and lifecycle obligations remain. No broader command-success verification is added.
 
@@ -183,7 +183,7 @@ cache knowledge. Uncertain early realization cannot reset a later allocation to 
 binding retains its derived fixed range; ambiguous EXT Base sizing leaves that indexed selector unknown.
 Native output arrays are consumed synchronously, and managed factories bypass external
 callbacks to preserve their private once-only publication. See the buffer/memory lifecycle routes in
-[the lifecycle inventory](Rendering.MetadataLifecycle.Inventory.md#maintained-buffer-and-memory-object-routes).
+[the resource lifecycle contract](Rendering.GpuResources.md#command-results-and-queries).
 
 `glBufferData`, `glBufferDataARB`, `glBufferStorage`, `glBufferStorageExternalEXT`, `glBufferStorageMemEXT`, `glNamedBufferData`, `glNamedBufferDataEXT`, `glNamedBufferStorage`, `glNamedBufferStorageEXT`, `glNamedBufferStorageExternalEXT`, `glNamedBufferStorageMemEXT`.
 

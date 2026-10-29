@@ -185,8 +185,10 @@ External adoption is separate from creation. Explicit borrow operations acquire 
 establish existing non-owning wrappers without taking native deletion authority. Any ownership-taking
 adoption must explicitly accept transfer under existing ownership rules; neither a bare native ID nor
 ordinary borrowing implies transfer. Keep native-ID adoption at the OpenGL integration boundary rather
-than adding native IDs to portable creation descriptions. Covered aliases reuse manager metadata;
-unknown external facts retain explicit acquisition and coverage limitations.
+than adding native IDs to portable creation descriptions. Covered aliases reuse manager metadata.
+Initial discovery requires recorded pre-installation or supported EXT implicit-creation provenance;
+failed discovery requires explicit original-entry recovery. Missing tracking or local tools never grant
+permission to reconstruct descriptors.
 
 Replacement creates a new allocation and commits it through the existing owning wrapper's replacement
 contract only when ready. `GpuTextureRef` follows intentional owner replacement as already specified;
@@ -495,7 +497,7 @@ semantics; acquiring external resources must not pretend those names are already
 
 Managed metadata acquisition likewise uses named core queries where equivalent. Remove older-context
 reader switches and their bound-query implementations in the same family replacement. Keep discovery
-for unknown external state and binding-based queries only where the required fact has no equivalent
+only with recorded initial provenance or explicit original-entry recovery, and binding-based queries only where the required fact has no equivalent
 named query. OpenGL 4.5 availability does not turn mutable storage into immutable storage, make content
 immutable, or make unknown external facts query-free.
 
@@ -505,8 +507,8 @@ Use the approved [OpenTK binding-interception design](Rendering.OpenTKBindingInt
 for external GL observation. Replace selected native dispatch entries in both installed OpenTK binding
 tables, independent of caller assembly. Coverage includes supported GL/Core, Ext and Arb operations;
 retain legacy/auxiliary-owner exclusions and exclude independently cached driver pointers or other
-binding libraries. Current built-in caller rewriting is the incomplete route being replaced, not a
-permanent integration requirement. Routine purges cannot substitute for missing interception.
+binding libraries. Generated native callbacks replace built-in caller rewriting; broader engine hooks
+retain their separate semantic integration responsibilities. Routine purges cannot substitute for missing interception.
 
 An external operation reaches its original driver function exactly once with unchanged arguments,
 return values, output buffers and native error behavior. It is never suppressed as known-equal,

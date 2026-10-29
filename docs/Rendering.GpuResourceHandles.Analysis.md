@@ -26,14 +26,16 @@ counts describe calls along the specified successful branch, not GPU synchroniza
 Native probe receipts are recorded separately. No runtime behavior is changed by this analysis.
 
 The buffer and memory-object reader/observer findings are superseded by the implemented maintained-fact
-routes in [the lifecycle inventory](Rendering.MetadataLifecycle.Inventory.md#maintained-buffer-and-memory-object-routes).
+routes in [the resource contract](Rendering.GpuResources.md#command-results-and-queries).
 Ordinary buffer association no longer discovers or automatically recovers descriptors. The historical
-rows below record the superseded baseline; the lifecycle inventory governs final routes for every family.
+rows below record the superseded baseline; the current resource contract governs final routes for every family.
 
-Image, executable, geometry, feedback and sampler behavior is also governed by the maintained lifecycle inventory. No historical missing-entry or no-manager fallback below authorizes current discovery.
+Image, executable, geometry, feedback and sampler behavior is also governed by the current resource contract.
+The completed lifecycle inventory is retained at `e013054f:docs/Rendering.MetadataLifecycle.Inventory.md`.
+No historical missing-entry or no-manager fallback below authorizes current discovery.
 
 Query, fence and semaphore lifecycle behavior is likewise superseded by the maintained synchronization
-routes in the lifecycle inventory. Their schemas remain empty; only query/wait outputs, the approved
+routes in the resource contract. Their schemas remain empty; only query/wait outputs, the approved
 targeted semaphore-import lifecycle check and deletion outcomes remain native reads. Missing covered
 identities cannot authorize discovery or automatic recovery.
 

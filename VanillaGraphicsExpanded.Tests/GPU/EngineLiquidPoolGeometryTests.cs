@@ -183,7 +183,6 @@ internal sealed class LiquidPoolStorage : IDisposable
         Mesh.xyzVboId = streams[0].BufferId; Mesh.uvVboId = streams[1].BufferId; Mesh.rgbaVboId = streams[2].BufferId;
         Mesh.flagsVboId = streams[3].BufferId; Mesh.customDataFloatVboId = streams[4].BufferId; Mesh.customDataIntVboId = streams[5].BufferId;
         if (detachedIndices) OpenTK.Graphics.OpenGL4.GL.VertexArrayElementBuffer(vao.VertexArrayId, 0);
-        OpenGlStateCache.Current.ForgetEngineMeshUpload(vao.VertexArrayId);
         Pool = (MeshDataPool)RuntimeHelpers.GetUninitializedObject(typeof(MeshDataPool));
         Pool.VerticesPoolSize = 3; Pool.IndicesPoolSize = 3; Pool.indicesGroupsCount = 1;
         Pool.indicesStartsByte = [0, 0]; Pool.indicesSizes = [3];

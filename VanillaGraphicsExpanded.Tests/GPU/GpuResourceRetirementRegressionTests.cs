@@ -63,11 +63,11 @@ public sealed class GpuResourceRetirementRegressionTests(HeadlessGLFixture fixtu
         finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
 
-    /// <summary>Backing-name deletion invalidates dependent metadata with or without a backing registration.</summary>
+    /// <summary>Observed backing deletion withdraws dependent usability before or after explicit managed association.</summary>
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void BackingDeletionInvalidatesDependentMetadata(bool registerBacking)
+    public void BackingDeletionInvalidatesDependentMetadata(bool associateBacking)
     {
         fixture.EnsureContextValid();
         fixture.InitializeResourceDisposal();
@@ -77,15 +77,17 @@ public sealed class GpuResourceRetirementRegressionTests(HeadlessGLFixture fixtu
             using (OpenGlStateCache.Current.BindBufferScope(BufferTarget.ArrayBuffer, buffer))
                 GL.BufferData(BufferTarget.ArrayBuffer, 1024, IntPtr.Zero, BufferUsageHint.StaticDraw);
             var manager = GpuResourceManagerSystem.CurrentManager!;
-            if (registerBacking) Assert.NotNull(manager.AcquireResource(GpuResourceKind.Buffer, buffer, new GpuBufferMetadataReader()));
-            else Assert.Null(manager.FindResource(GpuResourceKind.Buffer, buffer));
+            var original = Assert.IsType<GpuResourceMetadataEntry<GpuBufferMetadata>>(manager.FindResource(GpuResourceKind.Buffer, buffer));
+            if (associateBacking) Assert.Same(original, manager.AcquireResource(GpuResourceKind.Buffer, buffer, new GpuBufferMetadataReader()));
             using var view = VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLTextureIntegration.CreateBufferView(buffer, SizedInternalFormat.R32f, true, 0, 0, null).RequireResource();
             var entry = Assert.IsType<GpuResourceMetadataEntry<GpuTextureMetadata>>(manager.GetResourceRegistration(view));
             Assert.True(entry.MetadataAvailable);
             RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Buffer, buffer));
             Assert.False(GL.IsBuffer(buffer));
             Assert.Null(manager.FindResource(GpuResourceKind.Buffer, buffer));
+            Assert.Equal(GpuResourceRegistrationState.Deleted, original.State);
             Assert.False(entry.MetadataAvailable);
+            Assert.False(view.IsValid);
             Assert.Equal(buffer, view.BufferId);
             GL.GetTextureLevelParameter(view.TextureId, 0, (GetTextureParameter)All.TextureBufferDataStoreBindingExt, out int actualBuffer);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
@@ -184,13 +186,13 @@ public sealed class GpuResourceRetirementRegressionTests(HeadlessGLFixture fixtu
         }
     }
 
-    /// <summary>Framebuffer descriptors lose availability after backing-name retirement, regardless of backing registration.</summary>
+    /// <summary>Deletion detaches bound images while unbound descriptors retain their retired original backing identity.</summary>
     [Theory]
     [InlineData(false, false)]
     [InlineData(false, true)]
     [InlineData(true, false)]
     [InlineData(true, true)]
-    public void FramebufferBackingDeletionInvalidatesDescriptors(bool renderbuffer, bool registered)
+    public void FramebufferBackingDeletionPreservesBoundAndRetainedSemantics(bool renderbuffer, bool boundAtDeletion)
     {
         fixture.EnsureContextValid();
         fixture.InitializeResourceDisposal();
@@ -198,7 +200,7 @@ public sealed class GpuResourceRetirementRegressionTests(HeadlessGLFixture fixtu
         int framebuffer = GL.GenFramebuffer();
         try
         {
-            // Raw setup intentionally leaves the backing outside the manager in half of the cases.
+            // Raw factories and setup are maintained before a wrapper requests their facts.
             if (renderbuffer)
             {
                 GL.BindRenderbuffer(RenderbufferTarget.Renderbuffer, backing);
@@ -212,19 +214,33 @@ public sealed class GpuResourceRetirementRegressionTests(HeadlessGLFixture fixtu
             GL.BindFramebuffer(FramebufferTarget.Framebuffer, framebuffer);
             if (renderbuffer) GL.FramebufferRenderbuffer(FramebufferTarget.Framebuffer, FramebufferAttachment.ColorAttachment0, RenderbufferTarget.Renderbuffer, backing);
             else GL.FramebufferTexture2D(FramebufferTarget.Framebuffer, FramebufferAttachment.ColorAttachment0, TextureTarget.Texture2D, backing, 0);
-            OpenGlStateCache.Current.InvalidateAll();
             var manager = GpuResourceManagerSystem.CurrentManager!;
-            if (registered)
-            {
-                if (renderbuffer) Assert.NotNull(manager.AcquireResource(GpuResourceKind.Renderbuffer, backing, GpuRenderbufferMetadataReader.Instance));
-                else Assert.NotNull(manager.AcquireResource(GpuResourceKind.Texture, backing, GpuTextureMetadataReader.Instance));
-            }
+            var original = manager.FindResource(renderbuffer ? GpuResourceKind.Renderbuffer : GpuResourceKind.Texture, backing)!;
             var entry = manager.AcquireResource(GpuResourceKind.Framebuffer, framebuffer, GpuFramebufferMetadataReader.Instance)!;
             Assert.NotNull(entry);
             Assert.True(entry.MetadataAvailable);
+            Assert.Same(original, entry.Metadata.Attachments[FramebufferSlot.Color0].OriginalBacking);
+            using var borrower = DynamicGpuFramebuffer.Wrap(framebuffer, width: 4, height: 4);
+            borrower.PublishRenderPassMetadata();
+            var selectedImage = Assert.IsType<GpuFramebufferAttachment>(borrower.GetAttachment(FramebufferSlot.Color0));
+            if (!boundAtDeletion) GL.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
             if (renderbuffer) RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Renderbuffer, backing));
             else RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Texture, backing));
-            Assert.False(entry.MetadataAvailable);
+            Assert.Equal(GpuResourceRegistrationState.Deleted, original.State);
+            Assert.False(manager.IsResourceMetadataAvailable(selectedImage));
+            // Bound framebuffer deletion detaches its images. An unbound framebuffer retains
+            // the old object, represented by its retired original registration rather than a name lookup.
+            Assert.True(entry.MetadataAvailable);
+            if (boundAtDeletion)
+            {
+                Assert.Empty(entry.Metadata.Attachments);
+                Assert.Null(borrower.GetAttachment(FramebufferSlot.Color0));
+            }
+            else
+            {
+                Assert.Same(original, entry.Metadata.Attachments[FramebufferSlot.Color0].OriginalBacking);
+                Assert.ThrowsAny<InvalidOperationException>(() => selectedImage.ValidateSlot(FramebufferSlot.Color0));
+            }
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
         finally

@@ -1,4 +1,3 @@
-using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.Integration.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
@@ -36,10 +35,10 @@ internal sealed class EngineLiquidPoolGeometry : GraphicsGeometry
     private bool disposed;
 
     #region Public API
-    /// <summary>Checks native stream metadata once before any submission boundary; engine storage remains borrowed.</summary>
+    /// <summary>Admits the producer's layout and original allocations before submission; engine storage remains borrowed.</summary>
     internal EngineLiquidPoolGeometry(MeshDataPool pool)
     {
-        OpenGlStateCache.Current.RequireOutsideEngineBoundary();
+        RHICommandContext.RequirePreparationAdmission();
         this.pool = pool;
         mesh = ReadMesh(pool) as VAO ?? throw new NotSupportedException("Unsupported liquid pool mesh.");
         vao = mesh.VaoId; elements = mesh.vboIdIndex;

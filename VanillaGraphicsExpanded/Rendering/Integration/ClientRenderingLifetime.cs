@@ -73,7 +73,7 @@ internal sealed class ClientRenderingLifetime
     {
         var owner = active;
         if (owner is null || owner.closed) return;
-        OpenGlStateCache.Current.RequireOutsideEngineBoundary();
+        RHI.RHICommandContext.RequirePreparationAdmission();
         if (owner.context != default && owner.context != RenderContextRegistry.Current())
             throw new InvalidOperationException("Native shader reload requires the client rendering context.");
         foreach (var participant in owner.compute) participant.Validate();
@@ -108,7 +108,7 @@ internal sealed class ClientRenderingLifetime
     internal void Shutdown()
     {
         if (closed) return;
-        OpenGlStateCache.Current.RequireOutsideEngineBoundary();
+        RHI.RHICommandContext.RequirePreparationAdmission();
         registry.RequireRetirementBoundary();
         foreach (var participant in compute) participant.Validate();
         closed = true;

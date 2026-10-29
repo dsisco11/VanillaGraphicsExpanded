@@ -6,23 +6,20 @@ using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 
 namespace VanillaGraphicsExpanded.Tests.GPU;
 
-/// <summary>Exercises capability-selected bound metadata acquisition on the available native context.</summary>
+/// <summary>Checks named metadata reads and required cube-face discovery without disturbing surrounding selectors.</summary>
 [Collection("GPU")]
 [Trait("Category", "GPU")]
 public sealed class GpuMetadataBoundAcquisitionTests(HeadlessGLFixture fixture)
 {
     #region Public API
-    /// <summary>Bound buffer, texture, and framebuffer queries preserve sentinel bindings and publish native facts.</summary>
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void MetadataAcquisitionPreservesBindings(bool dsa)
+    /// <summary>Named buffer, texture and framebuffer queries preserve independent sentinel bindings.</summary>
+    [Fact]
+    public void MetadataAcquisitionPreservesBindings()
     {
         fixture.EnsureContextValid();
         fixture.InitializeResourceDisposal();
         try
         {
-            using var capabilities = new DirectStateAccessCapabilityScope(dsa);
             using var buffer = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = null }).RequireResource();
             using var sentinelBuffer = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = null }).RequireResource();
             buffer.Allocate(96);
@@ -49,33 +46,24 @@ public sealed class GpuMetadataBoundAcquisitionTests(HeadlessGLFixture fixture)
         finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
 
-    /// <summary>Both public buffer-texture factories preserve whole/range descriptors through named and bound setup.</summary>
+    /// <summary>The single buffer-texture factory preserves explicit whole/range intent without temporary binding.</summary>
     [Theory]
-    [InlineData(false, false, false)]
-    [InlineData(false, false, true)]
-    [InlineData(false, true, false)]
-    [InlineData(false, true, true)]
-    [InlineData(true, false, false)]
-    [InlineData(true, false, true)]
-    [InlineData(true, true, false)]
-    [InlineData(true, true, true)]
-    public void BufferTextureFactoriesPreserveDescriptors(bool dsa, bool preferredType, bool ranged)
+    [InlineData(false)]
+    [InlineData(true)]
+    public void BufferTextureFactoryPreservesDescriptors(bool ranged)
     {
         fixture.EnsureContextValid();
         fixture.InitializeResourceDisposal();
         try
         {
-            using var capabilities = new DirectStateAccessCapabilityScope(dsa);
             using var buffer = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = null }).RequireResource();
             int offset = Math.Max(1, GpuSupport.Graphics.TextureBufferOffsetAlignment);
             buffer.Allocate(offset + 512);
             using var sentinel = RHICommandContext.Current.CreateBufferTexture(new RHIBufferTextureDescription { Buffer = buffer, Format = TextureFormat.R32f, WholeBuffer = true, Label = null }).RequireResource();
             using var sentinelBinding = OpenGlStateCache.Current.BindTextureScope(TextureTarget.TextureBuffer, 0, sentinel.TextureId);
-            using GpuBufferView view = preferredType
-                ? ranged ? RHICommandContext.Current.CreateBufferTexture(new RHIBufferTextureDescription { Buffer = buffer, Format = TextureFormat.R32f, WholeBuffer = false, Offset = offset, Length = 256, Label = null }).RequireResource()
-                    : RHICommandContext.Current.CreateBufferTexture(new RHIBufferTextureDescription { Buffer = buffer, Format = TextureFormat.R32f, WholeBuffer = true, Label = null }).RequireResource()
-                : ranged ? RHICommandContext.Current.CreateBufferTexture(new RHIBufferTextureDescription { Buffer = buffer, Format = TextureFormat.R32f, WholeBuffer = false, Offset = offset, Length = 256, Label = null }).RequireResource()
-                    : RHICommandContext.Current.CreateBufferTexture(new RHIBufferTextureDescription { Buffer = buffer, Format = TextureFormat.R32f, WholeBuffer = true, Label = null }).RequireResource();
+            using GpuBufferView view = ranged
+                ? RHICommandContext.Current.CreateBufferTexture(new RHIBufferTextureDescription { Buffer = buffer, Format = TextureFormat.R32f, WholeBuffer = false, Offset = offset, Length = 256, Label = null }).RequireResource()
+                : RHICommandContext.Current.CreateBufferTexture(new RHIBufferTextureDescription { Buffer = buffer, Format = TextureFormat.R32f, WholeBuffer = true, Label = null }).RequireResource();
             Assert.Equal(buffer.BufferId, view.BufferId);
             Assert.Equal((nint)(ranged ? offset : 0), view.OffsetBytes);
             Assert.Equal((nint)(ranged ? 256 : 0), view.SizeBytes);
@@ -84,6 +72,40 @@ public sealed class GpuMetadataBoundAcquisitionTests(HeadlessGLFixture fixture)
             var entry = GpuResourceManagerSystem.CurrentManager!.GetResourceRegistration(view)!;
             Assert.True(entry.MetadataAvailable);
             Assert.Equal((ulong)1, entry.MetadataRevision);
+            Assert.Equal(ErrorCode.NoError, GL.GetError());
+        }
+        finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
+    }
+
+    /// <summary>Cube-face discovery uses its required bound selection and restores the incoming unit and cube binding.</summary>
+    [Fact]
+    public void CubeFaceDiscoveryPreservesSelectedUnitAndCubeBinding()
+    {
+        fixture.EnsureContextValid();
+        fixture.InitializeResourceDisposal();
+        try
+        {
+            var context = RHICommandContext.Current;
+            using var cube = context.CreateTextureCube(new RHITextureDescription
+            { Dimension = TextureDimension.Cube, Format = TextureFormat.Rgba8, Width = 4, Height = 4,
+                MipLevels = 2, Storage = ResourceStorageMode.Immutable }).RequireResource();
+            using var sentinel = context.CreateTextureCube(new RHITextureDescription
+            { Dimension = TextureDimension.Cube, Format = TextureFormat.Rgba8, Width = 2, Height = 2,
+                MipLevels = 1, Storage = ResourceStorageMode.Immutable }).RequireResource();
+            using var selection = OpenGlStateCache.Current.BindTextureScope(TextureTarget.TextureCubeMap, 3, sentinel.TextureId);
+            GL.ActiveTexture(TextureUnit.Texture3);
+
+            Assert.True(new GpuTextureMetadataReader(TextureDimension.Cube).TryRead(cube.TextureId, out var snapshot));
+            Assert.Equal(TextureDimension.Cube, snapshot.Target);
+            Assert.Equal(12, snapshot.Levels.Count(image => image.Allocated));
+            Assert.All(snapshot.Levels.Where(image => image.Allocated), image =>
+            {
+                Assert.NotEqual(CubeFace.None, image.Face);
+                Assert.Equal(image.Level == 0 ? 4 : 2, image.Width);
+                Assert.Equal(image.Width, image.Height);
+            });
+            Assert.Equal((int)TextureUnit.Texture3, GL.GetInteger(GetPName.ActiveTexture));
+            Assert.Equal(sentinel.TextureId, GL.GetInteger(GetPName.TextureBindingCubeMap));
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
         finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }

@@ -1,4 +1,3 @@
-using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -26,7 +25,7 @@ internal sealed class ManagedGraphicsGeometry : GraphicsGeometry
         ArgumentNullException.ThrowIfNull(layout);
         ArgumentNullException.ThrowIfNull(streams);
         ArgumentNullException.ThrowIfNull(indices);
-        OpenGlStateCache.Current.RequireOutsideEngineBoundary();
+        RHICommandContext.RequirePreparationAdmission();
         if (!Enum.IsDefined(topology)) throw new ArgumentOutOfRangeException(nameof(topology));
         if (!streams.Select(stream => stream.Binding).Order().SequenceEqual(layout.Attributes.Select(attribute => attribute.Binding).Distinct().Order())
             || streams.Any(stream => stream.Data is null))

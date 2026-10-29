@@ -3,9 +3,9 @@ RHI commands and command lists — implementation plan
 
 Source proposal: [Rendering.GpuCommands.Proposal.md](Rendering.GpuCommands.Proposal.md).
 Parent design task: Rendering.GpuResourceHandles.todo, Phase 8.
-Status: Phases 1–7 have recorded qualification receipts. Corrective subphases 8a–8i and 8h.1 are qualified.
-The maintained metadata lifecycle is complete. Broader corrective qualification follows
-in 8j, with management naming in 8k. Phase 9 integrated/package/user qualification remains
+Status: Phases 1–7 have recorded qualification receipts. Corrective subphases 8a–8j and 8h.1 are qualified.
+The maintained metadata lifecycle and combined corrective qualification are complete.
+Management naming remains in 8k. Phase 9 integrated/package/user qualification remains
 open, including the explicitly recorded full-lighting numerical mismatch.
 
 Goal
@@ -1180,9 +1180,11 @@ Phase 8h.1: Correct effect classification and simplify native observation delive
 
 Phase 8i: Implement the maintained metadata lifecycle plan
   Depends on 8h's native dispatch boundary and 8h.1's corrected effect delivery.
-  Approved design: [Rendering.MetadataLifecycle.Proposal.md](Rendering.MetadataLifecycle.Proposal.md).
-  Implementation authority: [Rendering.MetadataLifecycle.todo](Rendering.MetadataLifecycle.todo).
-  Coverage companion: [Rendering.MetadataLifecycle.Inventory.md](Rendering.MetadataLifecycle.Inventory.md).
+  Approved design: `e013054f:docs/Rendering.MetadataLifecycle.Proposal.md`.
+  Completed implementation authority: `e013054f:docs/Rendering.MetadataLifecycle.todo`.
+  Retained coverage/evidence: `e013054f:docs/Rendering.MetadataLifecycle.Inventory.md`.
+  These completed lifecycle documents are archived in Git. Current ownership/query contracts live in
+    Rendering.GpuResources.md, Rendering.ShaderBindingState.md and the resource inventory/API coverage.
   Outcome: covered creation/default/configuration calls maintain canonical facts; ordinary consumers reuse
     them without discovery, and every remaining query has an explicit cause and concrete consumer.
   Detailed execution tasks live solely in the dedicated plan; this section is the parent integration gate.
@@ -1204,39 +1206,45 @@ Phase 8i: Implement the maintained metadata lifecycle plan
     independent completion audit passed. Canonical shader-enabled Debug and ordinary Release builds
     passed; each configuration qualified 1,099 distinct focused lifecycle/consumer cases plus 35 generator
     cases, zero failures/skips. Exact receipts and source/read-exception reconciliation are recorded in
-    Rendering.MetadataLifecycle.todo and Rendering.MetadataLifecycle.Inventory.md; native stand-ins,
+    the archived lifecycle plan/inventory at e013054f; native stand-ins,
     optional hardware/interop, rectangle-mip driver reporting and integrated/package/visual limits remain
     explicit. Subphases 8j/8k and Phase 9 remain independently open. No staging or commit by the agent.
 
 Phase 8j: Qualify corrective closure and reconcile documentation
   Depends on 8a–8i, including 8h.1.
 
-  ☐ Record before/after routes for every named audit finding and any additional helper-chain occurrence.
+  ☑ Record before/after routes for every named audit finding and any additional helper-chain occurrence.
     Review actual dependency direction as well as native execution location; demonstrate one admitted
     RHI entry route and existing manager/cache authority for each affected operation family.
-  ☐ Expand RHIContractIsolationTests beyond direct method signatures and the image/framebuffer schema
+  ☑ Expand RHIContractIsolationTests beyond direct method signatures and the image/framebuffer schema
     list: inspect reachable project-owned payload fields/properties in RHICommandContext and
     IRHIResourceExecution contracts, including buffer, shader, program/reflection and initialization
     schemas. Detect nested OpenTK types, native reflection property bags and native-token interpretation
     above the backend; cover semantic enum conversion/codec boundaries with focused checks and caller review.
     Avoid treating a clean signature scan as proof that transitive payloads or consumers are backend-neutral.
-  ☐ Explicitly qualify intentional boundaries: RHICommandContext.Composition selects the concrete backend
+  ☑ Explicitly qualify intentional boundaries: RHICommandContext.Composition selects the concrete backend
     only at its thin composition root; RHIShaderBinary.NativeFormat remains a private opaque executable-cache
     payload with cache policy above the backend. Native adoption identities/platform external handles and
     backend/interception adapters remain confined to their explicit integration contracts. Verify none leaks
     native selectors/types into portable consumer APIs; add no redundant facade or duplicate owner to hide them.
-  ☐ Run delegated Debug/Release builds and focused behavior regressions on the combined candidate for
+  ☑ Run delegated Debug/Release builds and focused behavior regressions on the combined candidate for
     admission, creation failure, acquisition/recovery, dependency publication, labels, suppression,
     context-local tools, retirement and immediate/recorded equivalence. Keep inherited failures explicit;
     integrated lighting/package/user acceptance stays in Phase 9, with no repeated benchmark requirement.
-  ☐ Complete second review and independent stage-completion audit against the proposal, contracts,
+  ☑ Complete second review and independent stage-completion audit against the proposal, contracts,
     every named correction and mandatory migration receipts. Resolve gaps before claiming closure;
     reflection inventories or namespace-only searches do not substitute for caller/dependency review.
-  ☐ Reconcile proposal/contracts, migration receipts, inventory/coverage, parent-plan cross-references,
+  ☑ Reconcile proposal/contracts, migration receipts, inventory/coverage, parent-plan cross-references,
     Rendering.GpuResources.md and Rendering.ShaderBindingState.md with final ownership and actual routes.
     Permanent documentation describes implemented behavior; historical receipts retain their limitations.
-  ☐ Completion: all correction units and their caller dependencies satisfy the final RHI boundary with
+  ☑ Completion: all correction units and their caller dependencies satisfy the final RHI boundary with
     retained manager lifetimes, no alternate owner-side execution/acquisition route and no temporary shim.
+
+  Qualification: second source review and independent completion audit passed. Canonical shader-enabled
+    Debug and ordinary Release builds passed; each qualified 1,297 combined cases plus 35 current generator
+    cases with zero failures/skips. Final route mapping, analyzer identity and exact receipts are recorded in
+    Rendering.GpuCommands.Migrations.md, Corrective dependency closure (8j), and artifacts/rhi-phase8j/.
+    Management naming (8k) and integrated/package/user acceptance (9) remain open. No staging or commit.
 
 Phase 8k: Align resource-management service names with RHI ownership
   Depends on 8j; final corrective subphase before integrated qualification.

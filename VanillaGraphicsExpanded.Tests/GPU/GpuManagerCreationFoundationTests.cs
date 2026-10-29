@@ -2,6 +2,7 @@ using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Collections.Immutable;
 using OpenTK.Graphics.OpenGL;
+using Native = OpenTK.Graphics.OpenGL4;
 using GLFW = OpenTK.Windowing.GraphicsLibraryFramework.GLFW;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Integration;
@@ -9,7 +10,7 @@ using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 
 namespace VanillaGraphicsExpanded.Tests.GPU;
 
-/// <summary>Verifies common creation orchestration without migrating resource-family owning APIs.</summary>
+/// <summary>Verifies private creation handoff, candidate cleanup and original-context publication.</summary>
 [Collection("GPU")]
 [Trait("Category", "GPU")]
 public sealed class GpuManagerCreationFoundationTests(HeadlessGLFixture fixture)
@@ -22,7 +23,7 @@ public sealed class GpuManagerCreationFoundationTests(HeadlessGLFixture fixture)
     public void CreationCommitsIdentityAndSnapshot(bool registered)
     {
         fixture.EnsureContextValid();
-        if (registered) fixture.InitializeResourceDisposal();
+        if (registered) fixture.InitializeResourceDisposal(); else fixture.UseContextLocalResources();
         try
         {
             using var recipient = new Declaration<GpuBufferMetadata>(GpuResourceKind.Buffer);
@@ -36,6 +37,7 @@ public sealed class GpuManagerCreationFoundationTests(HeadlessGLFixture fixture)
             Assert.Equal(result.Value, recipient.Snapshot);
             Assert.True(recipient.IsValid);
             Assert.Equal(1, state.Initializations);
+            Assert.Equal(registered, GpuResourceManagerSystem.CurrentManager is not null);
             if (registered)
             {
                 var manager = GpuResourceManagerSystem.CurrentManager!;
@@ -64,11 +66,16 @@ public sealed class GpuManagerCreationFoundationTests(HeadlessGLFixture fixture)
     public void FailedCreationClearsIdentityAndCleansNewObject(bool registered, int failure)
     {
         fixture.EnsureContextValid();
-        if (registered) fixture.InitializeResourceDisposal();
+        if (registered) fixture.InitializeResourceDisposal(); else fixture.UseContextLocalResources();
         try
         {
-            using var dependency = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = null }).RequireResource();
-            dependency.Allocate(16);
+            // Use the same private handoff so the local case does not install a manager
+            // through a public factory before the candidate under test is declared.
+            using var dependency = new Declaration<GpuBufferMetadata>(GpuResourceKind.Buffer);
+            var dependencyState = new CreationState();
+            Assert.NotNull(GpuResourceManager.CreateResource<GpuBufferInitialization, GpuBufferMetadata, BufferCreation>(
+                new() { Mode = GpuBufferStorageMode.Mutable, Capacity = 16, Usage = BufferUsage.StaticDraw },
+                dependency, out _, new(dependencyState)));
             using var recipient = new Declaration<GpuBufferMetadata>(GpuResourceKind.Buffer);
             var state = new CreationState { Failure = failure };
             if (failure == 2) recipient.InstallationFailure = state.Exception;
@@ -84,6 +91,7 @@ public sealed class GpuManagerCreationFoundationTests(HeadlessGLFixture fixture)
             Assert.Equal(default, handle);
             Assert.Equal((nint)0, recipient.ResourceId);
             Assert.False(recipient.IsValid);
+            Assert.Equal(registered, GpuResourceManagerSystem.CurrentManager is not null);
             if (registered)
             {
                 var manager = GpuResourceManagerSystem.CurrentManager!;
@@ -93,7 +101,7 @@ public sealed class GpuManagerCreationFoundationTests(HeadlessGLFixture fixture)
             }
             Assert.False(GL.IsBuffer(state.Id));
             Assert.True(dependency.IsValid);
-            Assert.True(GL.IsBuffer(dependency.BufferId));
+            Assert.True(GL.IsBuffer(checked((int)dependency.ResourceId)));
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
         finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
@@ -338,12 +346,14 @@ public sealed class GpuManagerCreationFoundationTests(HeadlessGLFixture fixture)
         /// <inheritdoc />
         public GpuBufferMetadata? Initialize(VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext execution, in GpuBufferInitialization initialization, out nint id)
         {
-            id = state.Id = state.CollisionId != 0 ? state.CollisionId : GL.GenBuffer();
+            if (state.CollisionId != 0) state.Id = state.CollisionId;
+            else OpenGLDriverCalls.CreateBuffers(1, out state.Id);
+            id = state.Id;
             state.Initializations++;
             if (state.CollisionId != 0)
                 return state.Failure == 0 ? null : new(initialization.Capacity, initialization.Usage);
-            using var binding = OpenGlStateCache.Current.BindBufferScope(BufferTarget.ArrayBuffer, state.Id);
-            GL.BufferData(BufferTarget.ArrayBuffer, initialization.Capacity, IntPtr.Zero, (BufferUsageHint)OpenGLBufferValues.Usage(initialization.Usage));
+            OpenGLDriverCalls.NamedBufferData(state.Id, initialization.Capacity, IntPtr.Zero,
+                OpenGLBufferValues.Usage(initialization.Usage));
             state.AfterInitialize?.Invoke();
             if (state.Failure == 1) throw state.Exception;
             return state.Failure == 0 ? null : new(initialization.Capacity, initialization.Usage);
@@ -360,7 +370,7 @@ public sealed class GpuManagerCreationFoundationTests(HeadlessGLFixture fixture)
         /// <inheritdoc />
         public GpuProgramMetadata? Initialize(VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext execution, in GpuProgramInitialization initialization, out nint id)
         {
-            id = GL.CreateProgram();
+            id = OpenGLDriverCalls.CreateProgram();
             return new(false, ImmutableArray<GpuProgramResourceMetadata>.Empty, ImmutableArray<GpuProgramTextureUnitMetadata>.Empty);
         }
     }
@@ -378,7 +388,8 @@ public sealed class GpuManagerCreationFoundationTests(HeadlessGLFixture fixture)
         /// <inheritdoc />
         public GpuSamplerMetadata? Initialize(VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext execution, in EmptyRequest initialization, out nint id)
         {
-            id = GL.GenSampler();
+            OpenGLDriverCalls.CreateSamplers(1, out int sampler);
+            id = sampler;
             return default(GpuSamplerMetadata);
         }
     }
@@ -393,12 +404,13 @@ public sealed class GpuManagerCreationFoundationTests(HeadlessGLFixture fixture)
         /// <inheritdoc />
         public GpuFramebufferMetadata? Initialize(VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext execution, in EmptyRequest initialization, out nint id)
         {
-            id = GL.GenFramebuffer();
-            using var binding = OpenGlStateCache.Current.BindFramebufferScope(FramebufferTarget.Framebuffer, checked((int)id));
-            GL.FramebufferRenderbuffer(FramebufferTarget.Framebuffer, FramebufferAttachment.ColorAttachment0, RenderbufferTarget.Renderbuffer, renderbuffer);
+            OpenGLDriverCalls.CreateFramebuffers(1, out int framebuffer);
+            id = framebuffer;
+            OpenGLDriverCalls.NamedFramebufferRenderbuffer(framebuffer, Native.FramebufferAttachment.ColorAttachment0,
+                Native.RenderbufferTarget.Renderbuffer, renderbuffer);
             var images = ImmutableDictionary<FramebufferSlot, GpuFramebufferImageMetadata>.Empty.Add(
                 FramebufferSlot.Color0, new(GpuResourceKind.Renderbuffer, renderbuffer, 0, 0, 0, false));
-            return new(images, 0, 0, 0, 0, false);
+            return new(images, 0, 0, 0, 0, true);
         }
     }
 

@@ -7,7 +7,7 @@ using VanillaGraphicsExpanded.Rendering.RHI;
 namespace VanillaGraphicsExpanded.Tests;
 
 /// <summary>Protects semantic context and private execution signatures from native binding type leakage.</summary>
-public sealed class RHIContractIsolationTests
+public sealed partial class RHIContractIsolationTests
 {
     private static readonly IReadOnlyDictionary<ushort, OpCode> OpcodesByValue = typeof(OpCodes)
         .GetFields(BindingFlags.Public | BindingFlags.Static).Where(field => field.FieldType == typeof(OpCode))
@@ -95,7 +95,23 @@ public sealed class RHIContractIsolationTests
     /// <summary>Reads operand tokens directly so generic definitions need no dynamic-method import or execution.</summary>
     private static IEnumerable<MemberInfo> ReadReferencedMembers(MethodBase method)
     {
-        var bytes = method.GetMethodBody()!.GetILAsByteArray()!;
+        foreach (int token in ReadMemberTokens(method))
+        {
+            // Resolve only callers whose execution boundary is under inspection. Other checks
+            // compare local tokens directly, without loading unrelated engine dependencies.
+            var member = method.Module.ResolveMember(token, method.DeclaringType?.GetGenericArguments(),
+                method.IsGenericMethod ? method.GetGenericArguments() : null);
+            if (member is not null) yield return member;
+        }
+    }
+
+    /// <summary>Reads metadata operands without resolving unrelated external method signatures.</summary>
+    private static IEnumerable<int> ReadMemberTokens(MethodBase method)
+        => ReadMemberTokens(method.GetMethodBody()!.GetILAsByteArray()!);
+
+    /// <summary>Decodes member tokens from either a reflected body or compiler-emitted PE bytes.</summary>
+    private static IEnumerable<int> ReadMemberTokens(byte[] bytes)
+    {
         for (int offset = 0; offset < bytes.Length;)
         {
             ushort code = bytes[offset++];
@@ -103,10 +119,7 @@ public sealed class RHIContractIsolationTests
             var operand = OpcodesByValue[code].OperandType;
             if (operand is OperandType.InlineMethod or OperandType.InlineField or OperandType.InlineTok or OperandType.InlineType)
             {
-                // Supply the definition's generic context when resolving constructed member references.
-                var member = method.Module.ResolveMember(BitConverter.ToInt32(bytes, offset),
-                    method.DeclaringType?.GetGenericArguments(), method.IsGenericMethod ? method.GetGenericArguments() : null);
-                if (member is not null) yield return member;
+                yield return BitConverter.ToInt32(bytes, offset);
             }
             offset += operand switch
             {

@@ -229,7 +229,18 @@ public sealed class EngineGraphicsGeometryTests(HeadlessGLFixture fixture) : Ren
             GL.BindVertexArray(native.Mesh.VaoId); GL.BindBuffer(BufferTarget.ArrayBuffer, native.Mesh.xyzVboId);
             throw new ArithmeticException("Fixture upload failure.");
         });
+        using var calls = new BindingCallCapture();
         Assert.Throws<ArithmeticException>(() => EngineFullscreenGeometry.Upload(native.Render.Object, native.Data));
+        calls.Reset();
+        // The backend's restoration already establishes these selectors. Failure must not
+        // discard their knowledge and force another query or an equal native bind.
+        Assert.Equal(previous.VertexArrayId, OpenGlStateCache.Current.GetCurrentVao());
+        Assert.Equal(buffer.BufferId, OpenGlStateCache.Current.GetBoundBuffer(BufferTarget.ArrayBuffer));
+        OpenGLVertexSelection.Bind(OpenGlStateCache.Current, previous.VertexArrayId);
+        OpenGLBufferBindings.BindBuffer(OpenGlStateCache.Current, BufferTarget.ArrayBuffer, buffer.BufferId);
+        Assert.Equal(0, calls.Calls(nameof(GL.GetInteger)));
+        Assert.Equal(0, calls.Calls(nameof(GL.BindVertexArray)));
+        Assert.Equal(0, calls.Calls(nameof(GL.BindBuffer)));
         Assert.Equal(previous.VertexArrayId, GL.GetInteger(GetPName.VertexArrayBinding));
         Assert.Equal(buffer.BufferId, GL.GetInteger(GetPName.ArrayBufferBinding));
         Assert.Equal(0, native.Deletes);

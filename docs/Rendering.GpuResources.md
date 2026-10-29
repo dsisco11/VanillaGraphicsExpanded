@@ -298,9 +298,11 @@ No alternate execution path is retried after failure.
 
 `GpuBufferRef` privately retains the typed resource and exposes only published metadata and managed
 identity. It grants no lifecycle or storage-replacement authority. Backend use validates original context
-and manager association before examining binding suppression. Exact engine buffer overloads execute in
-`Rendering/RHI/Backends/OpenGL/Buffers/External`, preserving original arguments and native errors; they
-withdraw uncertain metadata/bindings rather than applying managed omission or suppression rules.
+and manager association before examining binding suppression. Generated native callbacks forward external
+buffer calls exactly once, preserving original arguments and native errors. Cache-owned post-call effects in
+`Rendering/RHI/Backends/OpenGL/State/Observation/Native/Buffers` maintain established facts or withdraw
+uncertain knowledge; they never apply managed omission or suppression rules. Managed backend execution
+uses saved-original driver calls and publishes through its existing operation owner.
 
 Context-local buffers retain physical context identity without registering a second lifetime system.
 Local tools must dispose their owners before destroying that context; foreign-context disposal rejects
@@ -516,6 +518,19 @@ executed knowledge, independent known-field masks, original-context selection, b
 operation guards and selective restoration. Its Bindings, FixedFunction, Observation and Boundaries
 modules separate those responsibilities. It has no resource registry, native allocation API or arbitrary
 callback execution API. Manager operation services consult guards without issuing native work.
+
+Ordinary owners and managed geometry enter through `RHICommandContext`. Registration, published fact
+access, dependencies and queued lifetime handling remain with the existing manager; that collaboration
+is not native execution. Geometry preparation and client reload/shutdown use the context's preparation
+gate without constructing a backend or querying native state.
+
+Engine fullscreen geometry is an explicit native-owner adapter: it owns the engine mesh, validates its
+declared streams and supplies `RHIGeometryInputs`. Its restricted upload/deletion callbacks admit the
+original context through backend integration, including deferred mesh cleanup. They expose no native
+draw executor to renderers. Upload selector scopes restore known state on failure as well as success;
+the adapter performs no post-upload purge. Engine liquid geometry borrows engine storage through the
+same authored-input contract. Actual context retirement abandons the existing restoration owner before
+client cleanup; it neither restores into a replacement context nor creates another state cache.
 
 Admitted managed fixed-state transitions use the stateless `OpenGLStateEffects` modules to issue core
 4.5 native effects. These modules hold no knowledge, suppression, metadata or alternative dispatch path.
