@@ -14,7 +14,7 @@ interception/effect propagation is a correctness bug, not justification for rout
 Initially unknown facts, actual context identity changes and uncertain outcomes retain their existing
 acquisition/invalidation rules. This is the final contract, not current coverage qualification.
 
-The approved [binding-interception proposal](Rendering.OpenTKBindingInterception.Proposal.md) controls
+The approved binding-interception proposal (`92c5f18b:docs/Rendering.OpenTKBindingInterception.Proposal.md`) controls
 the native-route replacement. External callbacks always forward original native dispatch once and
 preserve arguments, return/output values and native errors. They never suppress, veto, cancel, retry,
 throw into the caller or defer an observer exception to it. Adapt old managed observation guards into

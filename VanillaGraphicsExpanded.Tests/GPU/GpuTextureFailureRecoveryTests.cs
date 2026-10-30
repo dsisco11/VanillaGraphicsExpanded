@@ -28,6 +28,12 @@ public sealed class GpuTextureFailureRecoveryTests(HeadlessGLFixture fixture)
             using GpuTexture texture = layered
                 ? RHICommandContext.Current.CreateDynamicTexture3D(new RHITextureDescription { Dimension = TextureDimension.TwoArray, Format = TextureFormat.Rgba8, Width = System.Math.Max(1, 4), Height = System.Math.Max(1, 4), Depth = System.Math.Max(1, 2), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Linear, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource()
                 : new ReplacementTexture();
+            using var borrower = managed ? new BorrowedTexture(texture.TextureId) : null;
+            using var image = layered ? GpuFramebufferAttachment.FromTexture(texture, layer: 0)
+                : GpuFramebufferAttachment.FromTexture(texture);
+            using var framebuffer = DynamicGpuFramebuffer.Create([image])!;
+            var observations = new List<(int Width, bool Available)>();
+            framebuffer.AttachmentsChanged += () => observations.Add((image.Width, ((GpuTextureRef)texture).IsValid));
             using var faults = new NativeReadFailure();
             faults.Enabled = true;
             if (texture is DynamicTexture3D array) array.Resize(8, 4, 2);
@@ -37,6 +43,74 @@ public sealed class GpuTextureFailureRecoveryTests(HeadlessGLFixture fixture)
             Assert.True(texture.IsValid);
             Assert.Equal(8, texture.Width);
             Assert.True(GL.IsTexture(texture.TextureId));
+            Assert.Equal((8, true), Assert.Single(observations));
+            if (borrower is not null) Assert.False(((GpuTextureRef)borrower).IsValid);
+            Assert.Equal(ErrorCode.NoError, GL.GetError());
+        }
+        finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
+    }
+
+    /// <summary>Failed replacement retires the original lifetime and reports unavailable images once.</summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void FailedReplacementWithdrawsOriginalImages(bool layered)
+    {
+        fixture.EnsureContextValid(); fixture.InitializeResourceDisposal();
+        var harmony = new Harmony("Tests.TextureReplacementCompletion");
+        try
+        {
+            using GpuTexture texture = layered
+                ? RHICommandContext.Current.CreateDynamicTexture3D(new RHITextureDescription
+                    { Dimension = TextureDimension.TwoArray, Format = TextureFormat.Rgba8, Width = 4, Height = 4,
+                        Depth = 2, MipLevels = 1, Storage = ResourceStorageMode.Mutable }).RequireResource()
+                : new ReplacementTexture();
+            using var borrower = new BorrowedTexture(texture.TextureId);
+            using var image = layered ? GpuFramebufferAttachment.FromTexture(texture, layer: 0)
+                : GpuFramebufferAttachment.FromTexture(texture);
+            using var framebuffer = DynamicGpuFramebuffer.Create([image])!;
+            var observations = new List<(int Width, bool Available)>();
+            framebuffer.AttachmentsChanged += () => observations.Add((image.Width, ((GpuTextureRef)texture).IsValid));
+            harmony.Patch(AccessTools.Method(typeof(OpenGLBackend), nameof(OpenGLBackend.InitializeTextureOwner)),
+                prefix: new HarmonyMethod(typeof(GpuTextureFailureRecoveryTests), nameof(RejectReplacementInitialization)));
+            Assert.Throws<ApplicationException>(() =>
+            {
+                if (texture is DynamicTexture3D array) array.Resize(8, 4, 2);
+                else ((ReplacementTexture)texture).Replace();
+            });
+            Assert.Equal((nint)0, texture.ResourceId);
+            Assert.False(((GpuTextureRef)borrower).IsValid);
+            Assert.Equal((0, false), Assert.Single(observations));
+            Assert.Equal(ErrorCode.NoError, GL.GetError());
+        }
+        finally { harmony.UnpatchAll(harmony.Id); fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
+    }
+
+    /// <summary>In-place storage callbacks retain exclusion until notification completes.</summary>
+    [Fact]
+    public void InPlaceResizeRejectsMutationFromItsCompletionCallback()
+    {
+        fixture.EnsureContextValid(); fixture.InitializeResourceDisposal();
+        try
+        {
+            using var texture = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription
+                { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba8, Width = 4, Height = 4,
+                    MipLevels = 1, Storage = ResourceStorageMode.Mutable }).RequireResource();
+            using var image = GpuFramebufferAttachment.FromTexture(texture);
+            using var framebuffer = DynamicGpuFramebuffer.Create([image])!;
+            int notifications = 0;
+            Exception? reentry = null;
+            framebuffer.AttachmentsChanged += () =>
+            {
+                // Attempt only once so a broken guard produces a bounded, observable failure.
+                if (++notifications == 1) reentry = Record.Exception(() => { texture.Resize(6, 4); });
+            };
+            Assert.True(texture.Resize(8, 4));
+            Assert.IsType<InvalidOperationException>(reentry);
+            Assert.Equal(1, notifications);
+            Assert.Equal(8, texture.Width);
+            Assert.Equal(8, image.Width);
+            Assert.True(((GpuTextureRef)texture).IsValid);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
         finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
@@ -134,6 +208,9 @@ public sealed class GpuTextureFailureRecoveryTests(HeadlessGLFixture fixture)
     #endregion
 
     #region Private
+    /// <summary>Rejects candidate initialization after old storage retirement without altering native dispatch.</summary>
+    private static void RejectReplacementInitialization() => throw new ApplicationException("Injected replacement initialization failure.");
+
     /// <summary>Exposes the owning replacement operation used by specialized two-dimensional textures.</summary>
     private sealed class ReplacementTexture : DynamicTexture2D
     {

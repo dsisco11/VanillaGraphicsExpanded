@@ -510,7 +510,7 @@ immutable, or make unknown external facts query-free.
 
 ## Engine integration and migration boundaries
 
-Use the approved [OpenTK binding-interception design](Rendering.OpenTKBindingInterception.Proposal.md)
+Use the approved OpenTK binding-interception design (`92c5f18b:docs/Rendering.OpenTKBindingInterception.Proposal.md`)
 for external GL observation. Replace selected native dispatch entries in both installed OpenTK binding
 tables, independent of caller assembly. Coverage includes supported GL/Core, Ext and Arb operations;
 retain legacy/auxiliary-owner exclusions and exclude independently cached driver pointers or other

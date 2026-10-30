@@ -32,13 +32,16 @@ public sealed class GpuVertexWrapperMetadataTests(HeadlessGLFixture fixture)
             Assert.Equal(sentinel.VertexArrayId,GL.GetInteger(GetPName.VertexArrayBinding));
             var entry=RHIResourceManagerSystem.CurrentManager!.GetResourceRegistration(vao)!;
             ulong revision=entry.MetadataRevision,storage=entry.StorageRevision;
+            var cache=OpenGlStateCache.Current;
+            ulong configuration=cache.GetVertexConfigurationRevision(vao.VertexArrayId);
             GL.VertexArrayVertexBuffer(vao.VertexArrayId,2,buffer.BufferId,(IntPtr)16,16);
             GL.VertexArrayBindingDivisor(vao.VertexArrayId,2,3);
             GL.VertexArrayAttribFormat(vao.VertexArrayId,0,2,VertexAttribType.Float,false,4);
             GL.VertexArrayAttribBinding(vao.VertexArrayId,0,2);
             GL.EnableVertexArrayAttrib(vao.VertexArrayId,0);
             OpenTK.Graphics.OpenGL4.GL.VertexArrayElementBuffer(vao.VertexArrayId, buffer.BufferId);
-            Assert.True(entry.MetadataRevision>revision); Assert.Equal(storage,entry.StorageRevision);
+            Assert.Equal(revision,entry.MetadataRevision); Assert.Equal(storage,entry.StorageRevision);
+            Assert.True(cache.GetVertexConfigurationRevision(vao.VertexArrayId)>configuration);
             if(direct)
             {
                 Assert.Equal(sentinel.VertexArrayId,GL.GetInteger(GetPName.VertexArrayBinding));
@@ -68,17 +71,21 @@ public sealed class GpuVertexWrapperMetadataTests(HeadlessGLFixture fixture)
             var cache=OpenGlStateCache.Current;
             var entry=RHIResourceManagerSystem.CurrentManager!.GetResourceRegistration(vao)!;
             ulong before=entry.MetadataRevision;
-            OpenGLBufferBindings.BindBuffer(cache, BufferTarget.ElementArrayBuffer,buffer.BufferId);
-            Assert.Equal(before+1,entry.MetadataRevision);
-            Assert.Equal(buffer.BufferId,cache.GetBoundBuffer(BufferTarget.ElementArrayBuffer));
-            before=entry.MetadataRevision;
+            ulong configuration=cache.GetVertexConfigurationRevision(vao.VertexArrayId);
             OpenGLBufferBindings.BindBuffer(cache, BufferTarget.ElementArrayBuffer,buffer.BufferId);
             Assert.Equal(before,entry.MetadataRevision);
+            Assert.True(cache.GetVertexConfigurationRevision(vao.VertexArrayId)>configuration);
+            Assert.Equal(buffer.BufferId,cache.GetBoundBuffer(BufferTarget.ElementArrayBuffer));
+            configuration=cache.GetVertexConfigurationRevision(vao.VertexArrayId);
+            OpenGLBufferBindings.BindBuffer(cache, BufferTarget.ElementArrayBuffer,buffer.BufferId);
+            Assert.Equal(before,entry.MetadataRevision);
+            Assert.Equal(configuration,cache.GetVertexConfigurationRevision(vao.VertexArrayId));
             BindExternalElement(int.MaxValue);
             Assert.Equal(ErrorCode.InvalidOperation,GL.GetError());
             // Native error reporting does not replace observation of the actual binding.
             Assert.Equal(GL.GetInteger(GetPName.ElementArrayBufferBinding), cache.GetBoundBuffer(BufferTarget.ElementArrayBuffer));
-            Assert.Equal(before+1,entry.MetadataRevision);
+            Assert.Equal(before,entry.MetadataRevision);
+            Assert.True(cache.GetVertexConfigurationRevision(vao.VertexArrayId)>configuration);
             // A pending unrelated error must also survive a successful binding change and later cache recovery.
             GL.Enable((EnableCap)(-1));
             OpenGLBufferBindings.BindBuffer(cache, BufferTarget.ElementArrayBuffer,0);

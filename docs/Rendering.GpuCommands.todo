@@ -960,7 +960,7 @@ Phase 8g: Remove legacy state purges and preserve established state knowledge
 
 Phase 8h: Replace caller rewriting with native OpenTK binding interception
   Depends on 8g.
-  Authority: [Rendering.OpenTKBindingInterception.Proposal.md](Rendering.OpenTKBindingInterception.Proposal.md),
+  Authority: `92c5f18b:docs/Rendering.OpenTKBindingInterception.Proposal.md`,
     the approved RHI proposal/contracts, and retained resource/binding/publication authority.
   Outcome: supported OpenTK native dispatch reaches one observational interception authority independent
     of caller assembly; backend-owned dispatch and manager/cache publication remain singular.
@@ -1101,7 +1101,7 @@ Phase 8h: Replace caller rewriting with native OpenTK binding interception
 
 Phase 8h.1: Correct effect classification and simplify native observation delivery
   Depends on 8h's implemented native dispatch boundary; precedes 8i's metadata lifecycle redesign.
-  Authority: [Rendering.OpenTKBindingInterception.Proposal.md](Rendering.OpenTKBindingInterception.Proposal.md),
+  Authority: `92c5f18b:docs/Rendering.OpenTKBindingInterception.Proposal.md`,
     [Rendering.GpuCommands.Contracts.md](Rendering.GpuCommands.Contracts.md), existing cache/manager
     publication authority and [Rendering.GpuResourceHandles.ApiCoverage.md](Rendering.GpuResourceHandles.ApiCoverage.md).
   Outcome: small handwritten effect handlers use shared generated delivery/recovery plumbing; only
@@ -1321,9 +1321,9 @@ Phase 9.1: Establish the commit boundary for existing qualification work
 
 Phase 9.2: Design and implement consistent resource-change publication
   Depends on 9.1. Outcome: one coherent snapshot and change-notification contract across resource families.
-  Approved design: Rendering.ResourceChangePublication.Proposal.md.
-  Dedicated implementation plan: Rendering.ResourceChangePublication.todo. Execute its complete migration
-    and qualification before closing this parent gate; 9.3 and Phase 10 retain their separate scope.
+  Approved design: `92c5f18b:docs/Rendering.ResourceChangePublication.Proposal.md`.
+  Completed implementation plan: `92c5f18b:docs/Rendering.ResourceChangePublication.todo`.
+    Its migration and focused qualification close this parent gate; 9.3 and Phase 10 retain their separate scope.
 
   ☑ Inventory snapshot assignment, metadata/storage revisions, availability withdrawal/recovery and
     consumer notifications for every registered resource family. Trace owned operations, intercepted
@@ -1405,8 +1405,59 @@ Phase 9.3: Finish outstanding diagnosis and integrated qualification
   ☐ Completion: all required correctness/package receipts and user-run acceptance are recorded;
     remaining unsupported hardware evidence is disclosed, and no unapproved architecture deviation remains.
 
-  Qualification in progress: all completion markers remain unchecked. Source/evidence traceability,
-    archived candidates and detailed receipts are in the historical map archived under Retained migration evidence, section
+  Current qualification: all completion markers remain unchecked. The candidate is HEAD
+    021ee355 plus the reviewed working-tree corrections, preserved with source/input hashes in
+    artifacts/rhi-phase93/final/. Texture-object replacement now completes old retirement, new
+    allocation and owner-image reassociation through one RHI operation and existing completion batch.
+    In-place operations retain their original exclusion through callbacks. Updated tests distinguish
+    canonical equality from backend VAO epochs, recovery from explicit owner events, and allocated
+    targets from published lighting. Numerical oracles, tolerances and the worker's three-second guard
+    are unchanged; its failure path now records scheduling context.
+    Current canonical Debug/ordinary Release builds pass with zero errors. Each refreshed targeted
+    run passes 711/711, no failures/skips, with zero source/input drift, including the new callback guard,
+    replacement success/failure, lighting lifetime and worker cases. The earlier Debug full selection
+    completed 8,423 passed, 19 failed, nine skipped; its failed receipt remains retained. The later
+    pre-final Debug focus passed 863/863 but recorded the subsequent guard-condition source change;
+    reuse is limited to unchanged numerical behavior, not final whole-runtime qualification.
+    All six tool runs passed (35 interception-generator, 157 shader-contract and 256 shader-build cases
+    per configuration); unchanged tool dependencies are verified in final/tool-reuse-identity.json.
+    Current DEBUG-counter IL checks pass without an instrumented Release.
+    The independent clear probe passes nine observations on the tested Release runtime, using raw
+    native and RHI reads of eight bytes each, original clear values/extent, sentinel bounds and restored
+    pixel-pack state. Receipt: artifacts/rhi-phase93/clear-probe-receipt.json. The workaround is absent;
+    current clear/readback behavior is verified, while the historical instrumentation-sensitive cause
+    remains unestablished. A passing recheck is not a driver-defect diagnosis.
+    Final ordinary Release correctness selection: 8,488 total, 8,467 passed, one failed and twenty
+    skipped, with zero source/input drift. The 22 named measurement-workload exclusions and retained
+    correctness mapping are in artifacts/rhi-phase93/final-correctness-exclusions.json; skips remain
+    unqualified, not passing evidence. All original fourteen and prior thirty-five regression cases
+    match uniquely and pass. All nineteen pre-fix failures map uniquely to passing current cases,
+    including the two explicitly renamed equal-assignment tests. Exact per-case results, skips,
+    failures and mappings are retained in final/release-complete.trx, release-summary.json,
+    release-exact-regression-mapping.json and prior19-reconciliation.json.
+    The sole current failure is the unchanged CPU-only
+    ChunkProcessingServicePhase2Tests.Enqueue_Newer_Version_Supersedes_Older_Queued_Immediately_Without_Snapshot:
+    its one-second blocker-start deadline expired before the supersession assertions ran. The
+    post-timeout counters do not establish signal timing, starvation or a production/RHI defect.
+    This remains an unresolved full-suite evidence gap. No deadline, pool setting or assertion was
+    changed, and no isolated rerun was performed after the user requested avoiding unnecessary repeats.
+    Canonical Release packaging completed successfully. The tested runtime, build output, publish,
+    package directory and ZIP DLLs all match SHA256
+    977B4F932085C874481FF0DE895D4B1E2C70A52DE2BCF46B098629A5DA4EF77E.
+    All 761 SPIR-V files and the digest manifest match the tested assets, producer, package and ZIP;
+    exact path sets match and no test entries are included. Package:
+    Releases/vanillagraphicsexpanded_999.99.9.zip, SHA256
+    706B8B70FE82B36A733B187528795205C6EF2147325807BE4B5B1413E163CA02.
+    Receipts: artifacts/rhi-phase93/package-identity.json, canonical-package-release.log and
+    final/package-source-and-shader-proof.json. Post-package tracked source drift remains zero.
+    The final independent audit retains the unresolved worker-start failure, historical clear-cause
+    uncertainty and user-run visual/runtime acceptance. The latter remains pending at the user's
+    request; no installed-game qualification is claimed. Phase 9.3 and its completion markers remain
+    open rather than waiving failed or unexecuted requirements. Phase 10 remains unstarted.
+    No staging, commits or game launch occurred; no further test/build process is queued.
+
+  Historical qualification (earlier candidates only): source/evidence traceability, archived candidates
+    and detailed receipts are in the historical map archived under Retained migration evidence, section
     Integrated qualification (9). The approved E/pi correction passes 108 affected cases in both
     configurations; physical-irradiance debug assertions and tolerances are unchanged.
     The immutable batch27 full ordinary Release run and batch28 full Debug run each completed with

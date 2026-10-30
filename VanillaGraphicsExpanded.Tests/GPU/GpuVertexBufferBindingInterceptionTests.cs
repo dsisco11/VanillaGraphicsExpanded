@@ -14,7 +14,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 public sealed class GpuVertexBufferBindingInterceptionTests(HeadlessGLFixture fixture)
 {
     #region Public API
-    /// <summary>Only element binding advances VAO revision; every native overload withdraws stale buffer cache knowledge.</summary>
+    /// <summary>Only element binding advances the backend configuration epoch; the empty canonical VAO snapshot stays equal.</summary>
     [Theory]
     [InlineData(0,false)] [InlineData(1,false)] [InlineData(2,false)]
     [InlineData(0,true)] [InlineData(1,true)] [InlineData(2,true)]
@@ -34,15 +34,20 @@ public sealed class GpuVertexBufferBindingInterceptionTests(HeadlessGLFixture fi
             Assert.Equal(first.BufferId,cache.GetBoundBuffer(target));
             var entry=RHIResourceManagerSystem.CurrentManager!.GetResourceRegistration(vao)!;
             ulong revision=entry.MetadataRevision;
+            ulong configuration=cache.GetVertexConfigurationRevision(vao.VertexArrayId);
             BindNative(variant,target,second.BufferId);
             Assert.Equal(second.BufferId,cache.GetBoundBuffer(target));
-            Assert.Equal(revision+(element?1UL:0UL),entry.MetadataRevision);
-            revision=entry.MetadataRevision;
+            Assert.Equal(revision,entry.MetadataRevision);
+            if(element) Assert.True(cache.GetVertexConfigurationRevision(vao.VertexArrayId)>configuration);
+            else Assert.Equal(configuration,cache.GetVertexConfigurationRevision(vao.VertexArrayId));
+            configuration=cache.GetVertexConfigurationRevision(vao.VertexArrayId);
             BindNative(variant,target,int.MaxValue);
             Assert.Equal(ErrorCode.InvalidOperation,GL.GetError());
             // Recover the driver-reported binding even when the rejected command changes observable state.
             Assert.Equal(GL.GetInteger(element ? GetPName.ElementArrayBufferBinding : GetPName.ArrayBufferBinding), cache.GetBoundBuffer(target));
-            Assert.Equal(revision+(element?1UL:0UL),entry.MetadataRevision);
+            Assert.Equal(revision,entry.MetadataRevision);
+            if(element) Assert.True(cache.GetVertexConfigurationRevision(vao.VertexArrayId)>configuration);
+            else Assert.Equal(configuration,cache.GetVertexConfigurationRevision(vao.VertexArrayId));
             Assert.Equal(ErrorCode.NoError,GL.GetError());
         }
         finally { harmony.UnpatchAll(harmony.Id); fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }

@@ -77,10 +77,9 @@ public abstract partial class GpuTexture : GpuResource<GpuTextureMetadata>, IDis
     {
         RequireMutableStorage();
         Validate2DAllocation(target, width, height, mipLevels);
-        DeleteTextureIfAllocated();
         // The admitted allocation owns candidate cleanup and distinguishes dependent
         // notification failure from failure to establish the replacement allocation.
-        Allocate2DStorage(target, format, width, height, mipLevels);
+        Allocate2DStorage(target, format, width, height, mipLevels, replaceExisting: true);
     }
 
     /// <summary>Changes existing storage and receives its resulting snapshot through manager publication.</summary>
@@ -89,7 +88,7 @@ public abstract partial class GpuTexture : GpuResource<GpuTextureMetadata>, IDis
         RequireMutableStorage();
         if (!base.IsValid) throw new InvalidOperationException("Cannot reallocate retired texture storage.");
         Validate2DAllocation(textureTarget, width, height, mipLevels);
-        Allocate2DStorage(textureTarget, internalFormat, width, height, mipLevels);
+        Allocate2DStorage(textureTarget, internalFormat, width, height, mipLevels, replaceExisting: false);
     }
 
     /// <summary>Replaces layered storage while retaining requested dimensions only as command arguments.</summary>
@@ -99,21 +98,10 @@ public abstract partial class GpuTexture : GpuResource<GpuTextureMetadata>, IDis
         RequireMutableStorage();
         if (target is not (TextureDimension.Three or TextureDimension.TwoArray))
             throw new InvalidOperationException($"Layered allocation is not supported for {target}.");
-        DeleteTextureIfAllocated();
         var request = new GpuTextureInitialization { Target = target, InternalFormat = format,
             Width = width, Height = height, Depth = depth, Levels = 1, BaseLevel = 0, MaxLevel = 0,
             AllocationMode = immutableStorage ? GpuTextureAllocationMode.Immutable : GpuTextureAllocationMode.Mutable };
-        RHICommandContext.Current.AllocateTextureOwner(this, request, filterMode, debugName);
-    }
-
-    /// <summary>Withdraws the previous owning association before deleting its native name.</summary>
-    private void DeleteTextureIfAllocated()
-    {
-        if (textureId == 0) return;
-        RequireRetirement();
-        ResourceManager?.ReplaceWrapperResource(this);
-        RHICommandContext.Current.RetireResource(new(GpuResourceKind.Texture, textureId));
-        textureId = 0;
+        RHICommandContext.Current.AllocateTextureOwner(this, request, filterMode, debugName, replaceExisting: true);
     }
     #endregion
 

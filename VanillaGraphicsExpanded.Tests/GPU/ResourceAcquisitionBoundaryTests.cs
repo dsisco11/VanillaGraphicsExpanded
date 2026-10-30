@@ -123,11 +123,16 @@ public sealed class ResourceAcquisitionBoundaryTests(HeadlessGLFixture fixture)
             Assert.Same(original, manager.GetResourceRegistration(imported));
             duringProjection = null;
             harmony.UnpatchAll(harmony.Id);
-            if (fail) RHIResourceManager.RecoverWrapperMetadata(imported, GpuFramebufferMetadataReader.Instance);
+            if (fail)
+            {
+                RHIResourceManager.RecoverWrapperMetadata(imported, GpuFramebufferMetadataReader.Instance);
+                // Recovery publishes availability; explicit owner publication remains a separate event.
+                Assert.Equal(2, notifications);
+            }
             int recoveryReads = reads.Reads;
             imported.PublishRenderPassMetadata();
             Assert.True(imported.HasRenderPassMetadata);
-            Assert.Equal(2, notifications);
+            Assert.Equal(fail ? 3 : 2, notifications);
             Assert.Equal(recoveryReads, reads.Reads);
             Assert.True(owner.IsValid);
             Assert.Equal(ErrorCode.NoError, GL.GetError());

@@ -70,12 +70,22 @@ public sealed class SurfaceFallbackWorkerTests
     public async Task CancelRetainsAdmissionUntilTerrainReturns()
     {
         using var entered=new ManualResetEventSlim();using var release=new ManualResetEventSlim();
-        var scene=new Scene{BeforeTrace=()=>{entered.Set();release.Wait(TestContext.Current.CancellationToken);}};
+        long enteredAt=0;
+        var scene=new Scene{BeforeTrace=()=>{Volatile.Write(ref enteredAt,Stopwatch.GetTimestamp());entered.Set();release.Wait(TestContext.Current.CancellationToken);}};
         using var worker=new SurfaceFallbackWorker(_=>scene);worker.BeginFrame(0);
+        long submittedAt=Stopwatch.GetTimestamp();
         Assert.True(worker.TrySubmit([Request()]));
         try
         {
-            Assert.True(await WaitUntilAsync(()=>entered.IsSet,TimeSpan.FromSeconds(3)));
+            bool started=await WaitUntilAsync(()=>entered.IsSet,TimeSpan.FromSeconds(3));
+            if(!started)
+            {
+                // Observe only after the unchanged guard fails; a late worker cannot make it pass.
+                long observedEntry=Volatile.Read(ref enteredAt);
+                Assert.Fail($"Surface fallback entry deadline expired: entered={entered.IsSet}, "
+                    + $"entryAfterSubmitMs={(observedEntry==0?-1:Stopwatch.GetElapsedTime(submittedAt,observedEntry).TotalMilliseconds)}, "
+                    + $"poolThreads={ThreadPool.ThreadCount}, poolPending={ThreadPool.PendingWorkItemCount}.");
+            }
             worker.Cancel();Assert.True(worker.Busy);Assert.False(worker.TrySubmit([Request()]));Assert.False(worker.TryRead(out _));
         }
         finally { release.Set(); }

@@ -104,7 +104,7 @@ public sealed class SurfaceLightingConsumerRuntimeTests : RenderTestBase
         EnsureContextValid();
         using var runtime=new SurfaceLightingConsumerRuntimeFixture(sh9);
         runtime.Cache.Config.WorldProbeClipmap.EnableGpuTracing=gpu;
-        runtime.RunUntil(()=>runtime.Cache.TryGetLighting(out _) && runtime.Screen.IndirectFullTex!=null
+        runtime.RunUntil(()=>runtime.Cache.TryGetLighting(out _) && runtime.Screen.HasPublishedIndirect
             && SurfaceLightingConsumerRuntimeFixture.Energy(runtime.FinalPixels())>.001f
             && runtime.WorldBuffers.Resources!=null && SurfaceLightingConsumerRuntimeFixture.Energy(runtime.WorldPixels())>.001f);
         if(gpu)Assert.Equal(0,runtime.World.WorkerReads);else Assert.True(runtime.World.WorkerReads>0);
@@ -125,7 +125,7 @@ public sealed class SurfaceLightingConsumerRuntimeTests : RenderTestBase
             // Exercise a hard storage lifetime; automatic stale-light refresh is a separate scheduling contract.
             runtime.Cache.RequestAtlasRecreation();
             runtime.Frame();
-            runtime.RunUntil(()=>runtime.Cache.TryGetLighting(out _) && runtime.WorldConfidence>=.25f &&
+            runtime.RunUntil(()=>runtime.Cache.TryGetLighting(out _) && runtime.Screen.HasPublishedIndirect && runtime.WorldConfidence>=.25f &&
                 (light!=0 ? SurfaceLightingConsumerRuntimeFixture.Energy(runtime.FinalPixels())>.001f : SurfaceLightingConsumerRuntimeFixture.Energy(runtime.FinalPixels())<=.0001f) &&
                 (light!=0 ? SurfaceLightingConsumerRuntimeFixture.Energy(runtime.WorldPixels())>.001f : SurfaceLightingConsumerRuntimeFixture.Energy(runtime.WorldPixels())<=.0001f));
         }
@@ -136,7 +136,9 @@ public sealed class SurfaceLightingConsumerRuntimeTests : RenderTestBase
         runtime.WorldBuffers.RequestRecreate("controlled lifetime transition");
         runtime.Screen.RequestRecreateBuffers("controlled lifetime transition");
         runtime.Frame();
-        runtime.RunUntil(()=>runtime.Cache.TryGetLighting(out _) && !ReferenceEquals(oldAtlas,runtime.Cache.IrradianceAtlas())
+        // Reallocation deliberately skips rendering; allocated storage is not produced lighting.
+        Assert.False(runtime.Screen.HasPublishedIndirect);
+        runtime.RunUntil(()=>runtime.Cache.TryGetLighting(out _) && runtime.Screen.HasPublishedIndirect && !ReferenceEquals(oldAtlas,runtime.Cache.IrradianceAtlas())
             && SurfaceLightingConsumerRuntimeFixture.Energy(runtime.FinalPixels())>.001f
             && SurfaceLightingConsumerRuntimeFixture.Energy(runtime.WorldPixels())>.001f);
         Assert.NotSame(oldWorld,runtime.WorldBuffers.Resources);
@@ -145,7 +147,7 @@ public sealed class SurfaceLightingConsumerRuntimeTests : RenderTestBase
         Assert.InRange(SurfaceLightingConsumerRuntimeFixture.Energy(runtime.Screen.ScreenProbeAtlasHistoryTex!.ReadPixels()),0,.0001f);
         Assert.InRange(SurfaceLightingConsumerRuntimeFixture.Energy(runtime.WorldPixels()),0,.0001f);
         Assert.InRange(SurfaceLightingConsumerRuntimeFixture.Energy(runtime.FinalPixels()),0,.0001f);
-        runtime.RunUntil(()=>runtime.Cache.TryGetLighting(out _) && SurfaceLightingConsumerRuntimeFixture.Energy(runtime.FinalPixels())>.001f
+        runtime.RunUntil(()=>runtime.Cache.TryGetLighting(out _) && runtime.Screen.HasPublishedIndirect && SurfaceLightingConsumerRuntimeFixture.Energy(runtime.FinalPixels())>.001f
             && SurfaceLightingConsumerRuntimeFixture.Energy(runtime.WorldPixels())>.001f);
         var done=runtime.Cache.Events.Registrations.Where(r=>r.Stage==EnumRenderStage.Done).OrderBy(r=>r.Renderer.RenderOrder).Select(r=>r.Name).ToArray();
         Assert.True(Array.IndexOf(done,"vge_lumonscene_feedback")<Array.IndexOf(done,"vge_lumonscene_relight"));

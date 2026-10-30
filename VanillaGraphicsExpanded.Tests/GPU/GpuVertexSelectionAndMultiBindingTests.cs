@@ -30,14 +30,20 @@ public sealed class GpuVertexSelectionAndMultiBindingTests(HeadlessGLFixture fix
             var manager=RHIResourceManagerSystem.CurrentManager!;
             var a=manager.GetResourceRegistration(first)!; var b=manager.GetResourceRegistration(second)!;
             ulong ar=a.MetadataRevision,br=b.MetadataRevision;
+            var cache=OpenGlStateCache.Current;
+            ulong ac=cache.GetVertexConfigurationRevision(first.VertexArrayId),bc=cache.GetVertexConfigurationRevision(second.VertexArrayId);
             Select(second.VertexArrayId,unsigned);
             Assert.Equal(second.VertexArrayId,OpenGlStateCache.Current.GetCurrentVao());
             Assert.Equal(ar,a.MetadataRevision); Assert.Equal(br,b.MetadataRevision);
+            Assert.Equal(ac,cache.GetVertexConfigurationRevision(first.VertexArrayId));
+            Assert.Equal(bc,cache.GetVertexConfigurationRevision(second.VertexArrayId));
             Select(int.MaxValue,unsigned);
             Assert.Equal(ErrorCode.InvalidOperation,GL.GetError());
             GL.EnableVertexAttribArray(0);
             Assert.Equal(second.VertexArrayId,OpenGlStateCache.Current.GetCurrentVao());
-            Assert.Equal(ar,a.MetadataRevision); Assert.Equal(br+1,b.MetadataRevision);
+            Assert.Equal(ar,a.MetadataRevision); Assert.Equal(br,b.MetadataRevision);
+            Assert.Equal(ac,cache.GetVertexConfigurationRevision(first.VertexArrayId));
+            Assert.True(cache.GetVertexConfigurationRevision(second.VertexArrayId)>bc);
             GL.GetVertexAttrib(0,VertexAttribParameter.ArrayEnabled,out int enabled); Assert.Equal(1,enabled);
             GL.Enable((EnableCap)int.MaxValue); Select(first.VertexArrayId,unsigned);
             Assert.Equal(ErrorCode.InvalidEnum,GL.GetError());
@@ -64,12 +70,16 @@ public sealed class GpuVertexSelectionAndMultiBindingTests(HeadlessGLFixture fix
             OpenGLVertexSelection.Bind(OpenGlStateCache.Current,(named?sentinel:vao).VertexArrayId);
             var manager=RHIResourceManagerSystem.CurrentManager!; var entry=manager.GetResourceRegistration(vao)!; var other=manager.GetResourceRegistration(sentinel)!;
             ulong revision=entry.MetadataRevision,storage=entry.StorageRevision,otherRevision=other.MetadataRevision;
+            var cache=OpenGlStateCache.Current;
+            ulong configuration=cache.GetVertexConfigurationRevision(vao.VertexArrayId),otherConfiguration=cache.GetVertexConfigurationRevision(sentinel.VertexArrayId);
             MultiBind(named,vao.VertexArrayId,new[]{next.BufferId,int.MaxValue});
             Assert.Equal(ErrorCode.InvalidOperation,GL.GetError());
             GL.GetVertexArrayIndexed(vao.VertexArrayId,0,(VertexArrayIndexedParameter)All.VertexBindingBuffer,out int first);
             GL.GetVertexArrayIndexed(vao.VertexArrayId,1,(VertexArrayIndexedParameter)All.VertexBindingBuffer,out int second);
             Assert.Equal(next.BufferId,first); Assert.Equal(old.BufferId,second);
-            Assert.Equal(revision+1,entry.MetadataRevision); Assert.Equal(storage,entry.StorageRevision); Assert.Equal(otherRevision,other.MetadataRevision);
+            Assert.Equal(revision,entry.MetadataRevision); Assert.Equal(storage,entry.StorageRevision); Assert.Equal(otherRevision,other.MetadataRevision);
+            Assert.True(cache.GetVertexConfigurationRevision(vao.VertexArrayId)>configuration);
+            Assert.Equal(otherConfiguration,cache.GetVertexConfigurationRevision(sentinel.VertexArrayId));
             Assert.Equal((named?sentinel:vao).VertexArrayId,GL.GetInteger(GetPName.VertexArrayBinding)); Assert.Equal(ErrorCode.NoError,GL.GetError());
         }
         finally { harmony.UnpatchAll(harmony.Id); fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }

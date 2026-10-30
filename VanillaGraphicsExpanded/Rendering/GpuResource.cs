@@ -159,7 +159,7 @@ public abstract partial class GpuResource : IDisposable
 
     #region Protected API
     /// <summary>Preserves native names needed by deferred restoration independently of active image mutation guards.</summary>
-    protected void RequireRetirement()
+    protected internal void RequireRetirement()
     {
         if (OwnsResource) ResourceManager?.RequireResourceRetirement(this);
         if (Volatile.Read(ref activePassReferences) != 0)

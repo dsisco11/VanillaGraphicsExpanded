@@ -98,8 +98,8 @@ is outside the supported tables; excluded auxiliary owners retain their explicit
 The [canonical schema mapping](Rendering.GpuResourceHandles.Inventory.md#canonical-metadata-schemas-and-field-migration)
 is the field-level destination for this matrix. T1–T4 target GpuTextureMetadata (including buffer/view
 associations); B1 targets GpuBufferMetadata; R1 targets GpuRenderbufferMetadata; F1 targets framebuffer
-attachment/default metadata while routing remains in OpenGlStateCache. V1 invalidates VAO entry revision and
-helper assumptions; it does not introduce a full layout mirror. P1 refreshes native program facts and
+attachment/default metadata while routing remains in OpenGlStateCache. V1 advances the backend VAO configuration epoch and invalidates helper assumptions; the empty canonical
+VAO snapshot and its metadata revision remain unchanged. It does not introduce a full layout mirror. P1 refreshes native program facts and
 invalidates derived preparation. L1 retires entries/aliases and reconciles affected dependencies. I1
 applies those same destinations only where their execution has a represented metadata effect.
 
@@ -384,7 +384,7 @@ Unrepresented parameters and invalid multisample mip parameters have no metadata
 ### V1 vertex configuration
 
 Native vertex-configuration observations classify supplied argument rejection before advancing the
-original VAO revision or withdrawing its helper certificates. Legal element assignments retain the
+original backend VAO configuration epoch or withdrawing its helper certificates. Legal element assignments retain the
 existing per-array EBO knowledge. Configuration revisions do not introduce a native layout mirror.
 Geometry import validates authored streams and uses private backend VAOs instead of querying arbitrary
 external attributes. Retained receipts compare original identity/context/revision; no current consumer

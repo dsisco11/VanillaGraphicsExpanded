@@ -3,8 +3,8 @@ namespace VanillaGraphicsExpanded.Rendering.RHI;
 public sealed partial class RHICommandContext
 {
     #region Internal API
-    /// <summary>Executes an existing owner's legal-input initialization record.</summary>
-    internal void AllocateTextureOwner(GpuTexture owner, in GpuTextureInitialization request, TextureFilterMode filter, string? label) =>
-        backend.AllocateTextureOwner(owner, request, filter, label);
+    /// <summary>Executes owner storage policy, completing object replacement before notifying dependents.</summary>
+    internal void AllocateTextureOwner(GpuTexture owner, in GpuTextureInitialization request, TextureFilterMode filter, string? label, bool replaceExisting = false) =>
+        backend.AllocateTextureOwner(owner, request, filter, label, replaceExisting);
     #endregion
 }

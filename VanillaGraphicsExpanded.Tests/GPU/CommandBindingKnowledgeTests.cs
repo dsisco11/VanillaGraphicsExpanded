@@ -216,10 +216,12 @@ public sealed class CommandBindingKnowledgeTests(HeadlessGLFixture fixture)
             OpenGLBufferBindings.BindBuffer(cache, BufferTarget.ElementArrayBuffer, buffer.BufferId);
             var entry = RHIResourceManagerSystem.CurrentManager!.GetResourceRegistration(vao)!;
             ulong revision = entry.MetadataRevision;
+            ulong configuration = cache.GetVertexConfigurationRevision(vao.VertexArrayId);
             using var capture = new BindingCallCapture();
             GL.EnableVertexAttribArray(0);
             OpenGLBufferBindings.BindBuffer(cache, BufferTarget.ElementArrayBuffer, buffer.BufferId);
-            Assert.Equal(revision + 1, entry.MetadataRevision);
+            Assert.Equal(revision, entry.MetadataRevision);
+            Assert.True(cache.GetVertexConfigurationRevision(vao.VertexArrayId) > configuration);
             Assert.Equal(0, capture.Calls(nameof(GL.GetInteger)));
             Assert.Equal(0, capture.Calls(nameof(GL.BindBuffer)));
             Assert.Equal(buffer.BufferId, cache.GetBoundBuffer(BufferTarget.ElementArrayBuffer));

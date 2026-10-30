@@ -76,7 +76,7 @@ public sealed class GpuProgramUniformMetadataTests(HeadlessGLFixture fixture)
                 Assert.False(entry.CompletionInterrupted);
                 operation.Commit(snapshot);
             }
-            Assert.Equal(revision + 1, entry.MetadataRevision);
+            Assert.Equal(revision, entry.MetadataRevision);
             Assert.True(entry.IsUsable);
             GL.GetUniform(program.ProgramId, numeric, out int actual);
             Assert.Equal(8, actual);

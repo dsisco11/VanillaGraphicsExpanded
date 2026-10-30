@@ -28,22 +28,26 @@ public sealed partial class GpuProgramMetadataInterceptionTests
         }
         finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
-    /// <summary>Valid canonical refresh replaces prepared table identity without performing independent reflection.</summary>
+    /// <summary>An equal canonical sampler assignment preserves prepared identity and revisions without reflection.</summary>
     [Fact]
-    public void CanonicalRefreshRebuildsPreparedArrayWithoutReflection()
+    public void EqualSamplerAssignmentPreservesPreparedArrayWithoutReflection()
     {
         fixture.EnsureContextValid(); fixture.InitializeResourceDisposal();
         try
         {
             using var program=CreateProgram(out int shader,true); VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Shader, shader));
             var layout=PrepareArrayLayout(program); var before=layout.BinaryInterface!.PreparedBindings;
+            var entry=RHIResourceManagerSystem.CurrentManager!.GetResourceRegistration(program)!;
+            ulong revision=entry.MetadataRevision;
             int location=GL.GetUniformLocation(program.ProgramId,"inputs[0]");
             using var acquisition = new Fixtures.ProgramAcquisitionCapture();
             var nativeRefresh=Patch(nameof(SetUnits));
             try { SetUnits(3,program.ProgramId,location,0); } finally { nativeRefresh.UnpatchAll(nativeRefresh.Id); }
             var after=layout.BinaryInterface!.PreparedBindings;
-            Assert.NotSame(before,after);
-Assert.Equal(0,acquisition.Acquisitions);
+            Assert.Same(before,after);
+            Assert.Equal(revision,entry.MetadataRevision);
+            GL.GetUniform(program.ProgramId,location,out int unit); Assert.Equal(0,unit);
+            Assert.Equal(0,acquisition.Acquisitions);
             Assert.False(program.NeedsNativePreparation);
             var binding=after.Resolve(GpuBindingEntry.Identity(ShaderBindingKind.Sampler,"inputs")); Assert.True(binding.Active); Assert.Equal(2,binding.Contract.Binding.ArrayLength);
             Assert.Equal(ErrorCode.NoError,GL.GetError());
@@ -113,9 +117,9 @@ Assert.Equal(0,acquisition.Acquisitions);
         }
         finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
-    /// <summary>Image arrays rebuild from canonical unit assignments without additional native reflection.</summary>
+    /// <summary>An equal canonical image assignment retains prepared identity and revisions without reflection.</summary>
     [Fact]
-    public void CanonicalImageArrayRefreshUsesPublishedUnits()
+    public void EqualImageAssignmentPreservesPublishedUnits()
     {
         fixture.EnsureContextValid(); fixture.InitializeResourceDisposal(); int shader=GL.CreateShader(ShaderType.ComputeShader),native=0;
         try
@@ -128,11 +132,14 @@ Assert.Equal(0,acquisition.Acquisitions);
             var contract=new GpuBindingContract(); contract.Images.Add("images",new GpuBindingContract.Binding(3,true,2)); contract.RegisterShaderStorageBlockBinding("Output",0);
             var layout=new GpuProgramLayout { BinaryInterface=new GpuProgramInterface(program.ProgramId,new[]{contract},metadata:entry.Metadata) }; layout.RegisterContract(contract); program.SetPreparedLayout(layout);
             var before=layout.BinaryInterface!.PreparedBindings; int location=GL.GetUniformLocation(program.ProgramId,"images[0]");
+            ulong revision=entry.MetadataRevision;
             using var acquisition = new Fixtures.ProgramAcquisitionCapture();
             var nativeRefresh=Patch(nameof(SetUnits));
             try { SetUnits(3,program.ProgramId,location+1,4); } finally { nativeRefresh.UnpatchAll(nativeRefresh.Id); }
-            Assert.NotSame(before,layout.BinaryInterface!.PreparedBindings);
-Assert.Equal(0,acquisition.Acquisitions);
+            Assert.Same(before,layout.BinaryInterface!.PreparedBindings);
+            Assert.Equal(revision,entry.MetadataRevision);
+            GL.GetUniform(program.ProgramId,location+1,out int unit); Assert.Equal(4,unit);
+            Assert.Equal(0,acquisition.Acquisitions);
             Assert.True(layout.BinaryInterface.PreparedBindings.Resolve(GpuBindingEntry.Identity(ShaderBindingKind.Image,"images")).Active); Assert.Equal(ErrorCode.NoError,GL.GetError());
         }
         finally { VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Shader, shader)); if(native!=0) VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Program, native)); fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }

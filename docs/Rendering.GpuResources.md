@@ -110,6 +110,10 @@ all affected images before callbacks and skips recipients already served by thei
 A failed projection does not prevent attempts for other valid recipients. Local completion uses the
 existing manager-written snapshot/effect evidence, without granting it tracked usability authority.
 
+Tracked texture-object replacement executes old retirement, new initialization and image reassociation
+through one private owner-bearing RHI operation and completion batch. Original borrowers/views remain
+tied to the old allocation; owner-following images are projected before consumer delivery.
+
 Framebuffer attachment helpers and program preparation react through the same callback. Explicit
 framebuffer resize/rebuild/import events remain owner completions even for identical selections.
 The initiating owner is excluded from duplicate metadata-driven completion, while aliases still
