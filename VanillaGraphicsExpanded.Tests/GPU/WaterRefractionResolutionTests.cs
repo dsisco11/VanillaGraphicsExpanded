@@ -69,7 +69,19 @@ public sealed class WaterRefractionResolutionTests(HeadlessGLFixture fixture) : 
         Assert.True(scene.Published);
         Assert.Same(halfColor, scene.Color); Assert.Same(halfDepth, scene.Depth);
         Assert.Equal(8, scene.Color!.ReadPixels()[0]);
-        Assert.Throws<InvalidOperationException>(() => composite.Resize(7, 5));
+        var context = RHICommandContext.Current;
+        using (var boundary = context.EnterBoundary(new("Tests.Water.ReductionSource", true,
+            operations: BoundaryOperations.RenderPasses)))
+            boundary.Run(() =>
+            {
+                context.BeginRenderPass(halfTarget!);
+                try { Assert.Throws<InvalidOperationException>(() => composite.Resize(7, 5)); }
+                finally { context.EndRenderPass(); }
+            });
+        // Plain retained intentions do not keep an idle source storage-locked.
+        composite.Resize(7, 5);
+        scene.BeginFrame(true, composite, 2);
+        Assert.False(halfColor.IsValid); Assert.False(halfDepth!.IsValid);
         scene.BeginFrame(true, replacement, 2);
         Assert.False(halfColor.IsValid);
         Assert.False(halfDepth!.IsValid);

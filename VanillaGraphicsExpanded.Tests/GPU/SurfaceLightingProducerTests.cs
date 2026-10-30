@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Tests.GPU.Helpers;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.PBR;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
@@ -20,7 +21,7 @@ public sealed class SurfaceLightingProducerTests : RenderTestBase
         EnsureContextValid();
         using var room = new SurfaceLightingEnclosureFixture(.25f);
         room.Seed();
-        float rho = 64f / 255;
+        float rho = GgxHemisphereReference.CapturedDiffuse(.25f);
         AssertClose(32 * LightingStorage.PersistentScale, room.ReadStored(room.Snapshot.DirectIrradiance)[0]);
         AssertClose(32 * rho / MathF.PI * LightingStorage.PersistentScale,
             room.ReadStored(room.Snapshot.OutgoingRadiance)[0]);
@@ -73,7 +74,7 @@ public sealed class SurfaceLightingProducerTests : RenderTestBase
         EnsureContextValid();
         using var room=new SurfaceLightingEnclosureFixture(albedo);
         room.Seed();
-        float rho=MathF.Round(albedo*255)/255;
+        float rho=GgxHemisphereReference.CapturedDiffuse(albedo);
         AssertClose(32,room.Read(room.Snapshot.DirectIrradiance)[0]);
         AssertClose(32*rho/MathF.PI,room.Read(room.Snapshot.OutgoingRadiance)[0]);
         Assert.Equal(1,room.Read(room.Snapshot.OutgoingRadiance)[3]);
@@ -106,7 +107,7 @@ public sealed class SurfaceLightingProducerTests : RenderTestBase
         EnsureContextValid();
         using var room=new SurfaceLightingEnclosureFixture(.25f);
         room.Seed();
-        float rho=64f/255f, expected=32*rho/MathF.PI;
+        float rho=GgxHemisphereReference.CapturedDiffuse(.25f), expected=32*rho/MathF.PI;
         for(int bounce=0;bounce<6;bounce++)
         {
             room.Bounce();

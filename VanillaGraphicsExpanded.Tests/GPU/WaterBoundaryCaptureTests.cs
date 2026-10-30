@@ -6,6 +6,7 @@ using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.PBR.Liquids;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Shaders;
+using VanillaGraphicsExpanded.Rendering.Pipeline.Descriptions;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 
 namespace VanillaGraphicsExpanded.Tests.GPU;
@@ -98,37 +99,34 @@ public sealed class WaterBoundaryCaptureTests(HeadlessGLFixture fixture, ITestOu
         using var frameCamera = TestFrameCamera.CreateFromProjection(Flatten(projection), 1, 1, near, far);
         program.FrameInputs = frameCamera;
         program.ModelViewMatrix = Flatten(Matrix4x4.Identity);
-        var state = OpenGlStateCache.Current;
-        using var fixedFunction = LegacyFixedFunctionReference.Capture(state);
-        using var framebuffer = state.BindFramebufferScope(FramebufferTarget.Framebuffer, target.FboId);
-        FramebufferTestSetup.BindForEngineRendering(target);
-
-        state.Apply(new GlPipelineDesc(defaultMask: GlPipelineStateMask.From(GlPipelineStateId.DepthTestEnable)
-            .With(GlPipelineStateId.CullFaceEnable).With(GlPipelineStateId.ScissorTestEnable).With(GlPipelineStateId.ColorMask),
-            nonDefaultMask: GlPipelineStateMask.From(GlPipelineStateId.BlendEnable).With(GlPipelineStateId.BlendFunc),
-            blendFunc: new(BlendingFactorSrc.One, BlendingFactorDest.One, BlendingFactorSrc.One, BlendingFactorDest.One)));
+        var commands = RHICommandContext.Current;
         FramebufferTestSetup.ClearAttachments(target, 0, 0, 0, 0);
-        using var vao = NativeResourceSetup.CreateVertexArray("Test.WaterCapture");
-        using var vertices = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = "Test.WaterCapture.Vertices" }).RequireResource();
-        using var flags = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = "Test.WaterCapture.Flags" }).RequireResource();
-        using var binding = OpenGlStateCache.Current.BindVertexArrayScope(vao.VertexArrayId);
-        using var indices = RHICommandContext.Current.CreateIndexBuffer(new RHIBufferDescription { Role = BufferRole.Index, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = "Test.WaterCapture.Indices" }).RequireResource();
+        using var vertices = commands.CreateVertexBuffer(new() { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable,
+            Capacity = 264, Usage = BufferUsage.StaticDraw, Label = "Test.WaterCapture.Vertices" }).RequireResource();
+        using var flags = commands.CreateVertexBuffer(new() { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable,
+            Capacity = 72, Usage = BufferUsage.StaticDraw, Label = "Test.WaterCapture.Flags" }).RequireResource();
+        using var indices = commands.CreateIndexBuffer(new() { Role = BufferRole.Index, Mode = ResourceStorageMode.Mutable,
+            Capacity = 24, Usage = BufferUsage.StaticDraw, Label = "Test.WaterCapture.Indices" }).RequireResource();
         indices.UploadIndices(new uint[] { 0, 1, 2, 3, 4, 5 });
-        using (OpenGlStateCache.Current.BindBufferScope(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBufferValues.Target(vertices.Role), vertices.BufferId))
-        {
-            vertices.UploadData(new float[6 * 11]);
-            using (OpenGlStateCache.Current.BindVertexArrayScope(vao.VertexArrayId)) GL.VertexAttribPointer(0, 3, VertexAttribPointerType.Float, false, 44, 0);
-            using (OpenGlStateCache.Current.BindVertexArrayScope(vao.VertexArrayId)) GL.VertexAttribPointer(1, 2, VertexAttribPointerType.Float, false, 44, 12);
-            using (OpenGlStateCache.Current.BindVertexArrayScope(vao.VertexArrayId)) GL.VertexAttribPointer(2, 4, VertexAttribPointerType.Float, false, 44, 20);
-            using (OpenGlStateCache.Current.BindVertexArrayScope(vao.VertexArrayId)) GL.VertexAttribPointer(4, 2, VertexAttribPointerType.Float, false, 44, 36);
-        }
-        using (OpenGlStateCache.Current.BindBufferScope(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBufferValues.Target(flags.Role), flags.BufferId))
-        {
-            flags.UploadData(new int[18]);
-            using (OpenGlStateCache.Current.BindVertexArrayScope(vao.VertexArrayId)) GL.VertexAttribIPointer(3, 1, VertexAttribIntegerType.Int, 12, 0);
-            using (OpenGlStateCache.Current.BindVertexArrayScope(vao.VertexArrayId)) GL.VertexAttribIPointer(5, 1, VertexAttribIntegerType.Int, 12, 4);
-            using (OpenGlStateCache.Current.BindVertexArrayScope(vao.VertexArrayId)) GL.VertexAttribIPointer(6, 1, VertexAttribIntegerType.Int, 12, 8);
-        }
+        var layout = new RHIVertexLayout([
+            new(0, 3, VertexComponentFormat.Float, VertexInterpretation.Floating, 0, 0, 44),
+            new(1, 2, VertexComponentFormat.Float, VertexInterpretation.Floating, 0, 12, 44),
+            new(2, 4, VertexComponentFormat.Float, VertexInterpretation.Floating, 0, 20, 44),
+            new(4, 2, VertexComponentFormat.Float, VertexInterpretation.Floating, 0, 36, 44),
+            new(3, 1, VertexComponentFormat.UnsignedInt, VertexInterpretation.Integer, 1, 0, 12),
+            new(5, 1, VertexComponentFormat.UnsignedInt, VertexInterpretation.Integer, 1, 4, 12),
+            new(6, 1, VertexComponentFormat.UnsignedInt, VertexInterpretation.Integer, 1, 8, 12)]);
+        using var geometryLifetime = new RHIGeometryBorrow();
+        var geometry = new RHIGeometryInputs(layout,
+            [new(0, new(vertices, 0, 264), 44), new(1, new(flags, 0, 72), 12)],
+            new(new(indices, 0, 24), IndexFormat.UnsignedInt), 0, geometryLifetime);
+        var blend = new ColorBlendDesc { Enabled = true, SourceRgb = BlendFactor.One,
+            DestinationRgb = BlendFactor.One, SourceAlpha = BlendFactor.One, DestinationAlpha = BlendFactor.One };
+        using var pipeline = commands.CreateGraphicsPipeline(new(program.Shader, layout,
+            commands.DescribeRenderTargets(FramebufferTestSetup.DescribeAttachments(target,
+                [new(AttachmentIndex: 0), new(AttachmentIndex: 1)])),
+            DynamicPipelineState.Viewport, blending: [blend, blend])).RequireResource();
+        GpuFramebuffer destination = target;
         bool measuring = false;
         if (scenario is not (4 or 5)) DrawBoundary(2, true);
         DrawBoundary(scenario is 4 or 5 ? 3 : 4, false);
@@ -177,7 +175,7 @@ public sealed class WaterBoundaryCaptureTests(HeadlessGLFixture fixture, ITestOu
 
             using var measuredCamera = TestFrameCamera.CreateFromProjection(Flatten(projection), size, size, near, far);
             program.FrameInputs = measuredCamera;
-            FramebufferTestSetup.BindForEngineRendering(measuredTarget); measuring = true;
+            destination = measuredTarget; measuring = true;
             float[]? isotropicPixels = null, anisotropicPixels = null;
             foreach (string workload in phaseMeasurement ? new[] { "isotropic", "anisotropic", "checker" } : new[] { "clear", "scattering", "checker" })
             {
@@ -188,12 +186,7 @@ public sealed class WaterBoundaryCaptureTests(HeadlessGLFixture fixture, ITestOu
                     DrawBoundary(2, true);
                     FramebufferTestSetup.ClearAttachments(measuredTarget, 0, 0, 0, 0);
                     using var elapsed = GpuTimerQuery.Create();
-                    using var shader = ShaderBindingTestPipeline.Create(program);
-        RHICommandContext.Current.SetPipeline(shader);
-        RHICommandContext.Current.BindResources(program.CaptureBindings());
-                    elapsed.Begin();
-                    for (int draw = 0; draw < 16; draw++) GL.DrawElements(PrimitiveType.Triangles, indices.IndexCount, DrawElementsType.UnsignedInt, IntPtr.Zero);
-                    elapsed.End();
+                    SubmitBoundary(16, elapsed);
                     double milliseconds = elapsed.GetResultNanoseconds() / 1e6;
                     if (sample >= 0) output.WriteLine($"boundary-cost binary={Path.GetFileName(measuredBinary)} workload={workload} sample={sample} gpuMs={milliseconds:R} viewport=512x512 draws=16 shadows=active");
                 }
@@ -231,7 +224,6 @@ public sealed class WaterBoundaryCaptureTests(HeadlessGLFixture fixture, ITestOu
                             System.Runtime.InteropServices.MemoryMarshal.AsBytes(values.AsSpan()).ToArray());
                     }
                 }
-                FramebufferTestSetup.BindForEngineRendering(measuredTarget);
             }
         }
 
@@ -256,12 +248,29 @@ public sealed class WaterBoundaryCaptureTests(HeadlessGLFixture fixture, ITestOu
                 data[offset + 8] = 1;
                 packed[vertex * 3] = (7 << 22) | (entry ? 0 : 1 << 21);
             }
-            using (OpenGlStateCache.Current.BindBufferScope(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBufferValues.Target(vertices.Role), vertices.BufferId)) vertices.UploadData(data);
-            using (OpenGlStateCache.Current.BindBufferScope(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBufferValues.Target(flags.Role), flags.BufferId)) flags.UploadData(packed);
-            using var shader = ShaderBindingTestPipeline.Create(program);
-        RHICommandContext.Current.SetPipeline(shader);
-        RHICommandContext.Current.BindResources(program.CaptureBindings());
-            GL.DrawElements(PrimitiveType.Triangles, indices.IndexCount, DrawElementsType.UnsignedInt, IntPtr.Zero);
+            vertices.UploadData(data);
+            flags.UploadData(packed);
+            SubmitBoundary();
+        }
+
+        /// <summary>Submits complete indexed inputs and additive attachment intent through the production RHI.</summary>
+        void SubmitBoundary(int drawCount = 1, GpuTimerQuery? elapsed = null)
+        {
+            var pass = FramebufferTestSetup.DescribeAttachments(destination,
+                [new(AttachmentIndex: 0), new(AttachmentIndex: 1)]);
+            using var boundary = commands.EnterBoundary(new("Tests.WaterBoundary", true,
+                graphics: [pipeline], operations: BoundaryOperations.RenderPasses));
+            boundary.Run(() =>
+            {
+                commands.BeginRenderPass(pass);
+                commands.SetPipeline(pipeline);
+                commands.SetDynamicState(new() { Viewport = commands.PassViewport });
+                commands.BindResources(program.CaptureBindings());
+                elapsed?.Begin();
+                for (int draw = 0; draw < drawCount; draw++) commands.DrawIndexed(geometry, new(0, 6));
+                elapsed?.End();
+                commands.EndRenderPass();
+            });
         }
     }
     #endregion

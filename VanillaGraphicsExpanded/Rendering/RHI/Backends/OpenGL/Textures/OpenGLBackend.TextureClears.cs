@@ -18,10 +18,11 @@ internal sealed partial class OpenGLBackend
         if (value.Length != encoding.BytesPerPixel) throw new ArgumentException("Clear requires one encoded pixel value.");
         cache.RequireResourceOperationAvailable(GpuResourceKind.Texture, owner.ResourceId);
         bool array = metadata.Target == TextureDimension.OneArray;
+        var channels = OpenGLPixelValues.Channels(encoding.Channels);
         fixed (byte* bytes = value)
             GL.ClearTexSubImage((int)owner.ResourceId, region.Subresource.MipLevel, region.X, array ? region.Z + region.Subresource.Layer : region.Y,
                 array ? 0 : region.Z + region.Subresource.Layer, region.Width, array ? region.Depth : region.Height, array ? 1 : region.Depth,
-                OpenGLPixelValues.Channels(encoding.Channels), OpenGLPixelValues.Type(encoding.Type), (nint)bytes);
+                channels, OpenGLPixelValues.Type(encoding.Type), (nint)bytes);
         RequireContext();
     }
     #endregion

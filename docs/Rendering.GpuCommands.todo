@@ -5,8 +5,10 @@ Source proposal: [Rendering.GpuCommands.Proposal.md](Rendering.GpuCommands.Propo
 Parent design task: Rendering.GpuResourceHandles.todo, Phase 8.
 Status: Phases 1–7 have recorded qualification receipts. Corrective subphases 8a–8k and 8h.1 are qualified.
 The maintained metadata lifecycle and combined corrective qualification are complete.
-Management naming is complete. Phase 9 integrated/package/user qualification remains
-open, including the explicitly recorded full-lighting numerical mismatch.
+Management naming is complete. Phase 9 remains open: 9.1 establishes the existing-work commit boundary,
+9.2 designs and implements consistent resource-change publication, and 9.3 completes remaining
+diagnosis, integrated qualification, package evidence and user-run acceptance.
+Final Phase 10 audits and streamlines GPU integration tests and their fixtures.
 
 Goal
   Implement the approved semantic RHI boundary, immediate execution and optional single-use recorded
@@ -1299,6 +1301,63 @@ Phase 9: Qualify integrated behavior and release artifacts
   Depends on Phase 8, including subphases 8a–8k and 8h.1.
   Outcome: correctness, package identity and outstanding live evidence are explicit.
 
+Phase 9.1: Establish the commit boundary for existing qualification work
+  Depends on Phase 8. Covers work already performed for Phase 9, not final integrated acceptance.
+  Outcome: the existing changes form an explicitly reviewed commit-sized boundary with truthful evidence.
+
+  ✔ Inventory the current staged, unstaged and new files; separate existing Phase 9 work from unrelated @done(26-10-29 17:30)
+    user changes without altering the index. Include approved fixture/oracle corrections, worker-test
+    handling, shoreline continuation and shader-build diagnostic fixes, with their existing receipts.
+  ✔ Record the current boundary after removing the unproven RG-to-RGBA clear workaround and the added @done(26-10-29 17:30)
+    framebuffer-only change-detection paths. Preserve diagnostic regressions and failed evidence;
+    passing earlier candidate receipts do not qualify this changed source. Explicitly hand unresolved
+    texture-clear diagnosis to 9.3 and publication/notification redesign to 9.2.
+  ✔ Review the boundary and reconcile its source/evidence inventory and known failures with @done(26-10-29 17:30)
+    Rendering.GpuCommands.Migrations.md. Distinguish completed edits from qualified runtime behavior;
+    retain missing historical evidence and interrupted runs as such.
+  ✔ Completion: the existing-work boundary is reviewable and its deferred work is explicitly assigned. @done(26-10-29 17:30)
+    This is a commit boundary, not authorization to stage or commit. Only do either when explicitly
+    instructed by the user; preserve all existing staged changes. Final acceptance remains open.
+
+Phase 9.2: Design and implement consistent resource-change publication
+  Depends on 9.1. Outcome: one coherent snapshot and change-notification contract across resource families.
+
+  ☐ Inventory snapshot assignment, metadata/storage revisions, availability withdrawal/recovery and
+    consumer notifications for every registered resource family. Trace owned operations, intercepted
+    native mutations, explicit discovery/refresh, aliases/views, failure, retirement and name reuse.
+    Include framebuffer attachment helpers, image/view dependencies and shader/program preparation;
+    identify duplicate delivery, missed changes and notifications caused solely by republication.
+  ☐ Write a concise proposal defining snapshot delivery versus meaningful resource changes, notification
+    ownership/order and resource-specific change classification. Define structural collection equality,
+    backing identity, same-description storage replacement, executable replacement, unavailable/recovered
+    metadata, content-only updates and identical republishes. Preserve requested-value command suppression;
+    do not add native queries merely to detect changes. Obtain user approval before implementation.
+  ☐ Implement the approved publication contract and migrate all affected producers and consumers together.
+    Centralize change classification at the appropriate publication boundary; eliminate ad hoc
+    framebuffer-only snapshot fields/comparisons and duplicate consumer notification routes. Preserve
+    original identities, originating contexts, explicit owner events and failure/retirement semantics.
+    Do not introduce compatibility shims, parallel event systems or deferred caller migrations.
+  ☐ Add focused behavioral coverage for unchanged republishes, separately built equivalent collections,
+    actual configuration changes, same-description storage/executable replacement, aliases/views,
+    reentrant consumers, failure/recovery, deletion and reused names. Verify complete snapshot delivery,
+    correct notification ordering and no duplicate/missed consumer updates across resource families.
+  ☐ Reconcile architecture documentation and linked contracts with the implemented design. Complete
+    delegated focused validation and independent review; record exact evidence and remaining limitations.
+  ☐ Completion: the approved system covers every resource family and affected consumer, superseded
+    paths are removed, and focused correctness evidence is recorded. Integrated acceptance belongs to 9.3.
+
+Phase 9.3: Finish outstanding diagnosis and integrated qualification
+  Depends on 9.1 and 9.2. Earlier receipts below describe their archived candidates only.
+  Outcome: the final combined source has current correctness/package evidence and explicit live acceptance.
+
+  ☐ Resolve the undecorated texture-clear discrepancy with the RG-to-RGBA workaround absent. Isolate
+    wrapper versus semantic entry points while holding native format, target and ordering constant;
+    independently verify readback and investigate value lifetime/native dispatch without assuming a
+    driver defect. Preserve original numerical assertions and report instrumentation-sensitive evidence
+    as such. Any production correction requires an established explanation and focused regressions.
+  ☐ Reconcile all remaining Phase 9 findings after 9.1 and 9.2; preserve approved numerical-oracle and
+    shoreline decisions. The stopped candidate35 Debug run is incomplete, and its queued Release/package
+    work supplies no final receipt. Refresh source/binary/shader identities before final qualification.
   ☐ Run delegated focused and integrated regressions on an immutable candidate, covering all family receipts,
     original-context retirement, aliases/views, local tools, context loss, rejected commands, exactly-once
     external calls and immediate/recorded equivalence. Keep hardware coverage gaps explicit.
@@ -1306,9 +1365,12 @@ Phase 9: Qualify integrated behavior and release artifacts
     ShaderTextureTargetTests must verify semantic conversion rather than native enum numeric equality;
     AmbientOcclusionCompositeTests must supply the complete retained resource table required by the RHI.
     Preserve their independent output assertions; these baseline failures are not waived by focused
-    native-interception qualification. Reconcile all 477 baseline-proven failures in
-    artifacts/phase8h/closure5-head-comparison.json, including mock setup, complete shader resource
-    tables and vertex/target declarations. Diagnose the fourteen full-sequence unmatched observations
+    native-interception qualification. Qualify the current complete suite with per-case outcomes,
+    including mock setup, complete shader resource tables and vertex/target declarations. The user
+    approved replacing exact reconciliation of the unavailable historical 477-case artifact
+    artifacts/phase8h/closure5-head-comparison.json with current full-suite evidence; record its absence
+    explicitly, without claiming its original rows were recovered or waiving current failures.
+    Diagnose the fourteen full-sequence unmatched observations
     (exposure, particle capture/handback, installed depth, sampler/worker cleanup and local exposure)
     with equivalent workload ordering; they pass the final 662-case combined selection but that does
     not certify their earlier full-suite sequence or attribute its cause. Preserve numerical oracles
@@ -1326,13 +1388,113 @@ Phase 9: Qualify integrated behavior and release artifacts
   ☐ Provide a user-run visual/runtime checklist for graphics, compute, cloud/depth content ordering,
     resize, shader reload and teardown. Record actual user evidence separately from headless tests;
     leave live appearance/runtime-behavior acceptance unchecked until supplied.
+    The prepared checklist is in Rendering.GpuCommands.Migrations.md, User-run visual and runtime checklist.
   ☐ Reconcile every proposal requirement with implementation and evidence; resolve deviations or obtain
     explicit scope approval rather than declaring unimplemented requirements complete.
   ☐ Completion: all required correctness/package receipts and user-run acceptance are recorded;
     remaining unsupported hardware evidence is disclosed, and no unapproved architecture deviation remains.
 
+  Qualification in progress: all completion markers remain unchecked. Source/evidence traceability,
+    archived candidates and detailed receipts are in Rendering.GpuCommands.Migrations.md,
+    Integrated qualification (9). The approved E/pi correction passes 108 affected cases in both
+    configurations; physical-irradiance debug assertions and tolerances are unchanged.
+    The immutable batch27 full ordinary Release run and batch28 full Debug run each completed with
+    8,389 passed, 35 failed and eight skipped. All 35 failures match exactly by case and message.
+    The earlier batch27 Debug run additionally failed SurfaceFallbackWorkerTests' original
+    three-second completion guard. Its test-only wait now yields asynchronously using the same
+    predicates, three-second deadlines and 50ms negative window; cancellation entry failure also
+    releases its terrain barrier. Fresh Debug/Release unit selections each pass 1,133/1,133 with zero
+    skips, including all twenty Surface Cache worker cases. Those twenty cases also pass in the fresh
+    full Debug run, including the previously failing case. The original failed receipt remains retained;
+    its timeout cause is not established. No new full-run failures appeared after the harness correction.
+    Production worker scheduling, deadlines and worker assertions are unchanged.
+    The native routing fault fixture/control, all fifteen clear regressions, original cloud outputs,
+    Debug profiler checks and all fourteen recovered sequence-sensitive cases pass in full ordering.
+    The original 477-case historical mapping remains unavailable; its exact-row requirement was
+    explicitly replaced by current full-suite per-case qualification. The earlier worker
+    deadline cases pass in both full runs; neither their earlier cause nor the new timeout cause is
+    established. In the earlier full27/28 receipts, cache-recreation cases failed their initial
+    physical-lighting assertion before recreation; those receipts did not qualify later lifecycle
+    assertions. The subsequent affected validation below now exercises those assertions successfully.
+    Earlier candidate27 canonical Release package tooling passed. Runtime, tested copy, publish, package and ZIP DLL hashes
+    match; all 761 SPIR-V binaries plus the digest manifest match with no unexpected shader/test entries.
+    Exact identities and backup/preflight evidence are in package-identity-batch27.json and
+    batch27-pipeline-closeout.json under artifacts/rhi-phase9/. This is a candidate receipt, not final
+    acceptance or installed-game qualification. That package predates the shoreline shader correction;
+    final package refresh is required even though the managed runtime hashes remain unchanged.
+    Focused behavioral allocation, binding-suppression and metadata-reuse checks, shader/generator tool
+    receipts and DEBUG-only counter evidence remain recorded in the migration document. No benchmarks
+    or instrumented Release are required. Unsupported hardware evidence remains explicit.
+    The user approved independent GGX/material-energy and water oracle corrections with unchanged
+    authored inputs and tolerances. Those test-only corrections pass 249/249 affected cases in each
+    configuration, with zero skips/failures. All 34 earlier numerical failures match uniquely and pass
+    in both selections. The user also approved seeding capped history from a completed representable
+    sample; its three exact RGB repeats retain weight 1024 and pass in both configurations. The twelve
+    runtime scenarios and six PBR lifetime cases now complete successfully in both selections.
+    Product/package hashes remained unchanged for that oracle-only candidate; exact receipts are
+    artifacts/rhi-phase9/batch30-*.
+    The user approved bounded quality-zero shoreline continuation inside validated submerged
+    coverage. Expanded candidate34 focus passes 472/472 in each configuration, zero failures/skips;
+    all 35 earlier failures match uniquely and pass, including all 24 shallow-water cases. The existing
+    0.01 continuity limit, foreground rejection and read budgets remain intact. ShaderBuildTool passes
+    256/256 in each configuration, including publication lock/cancellation handling; four deterministic
+    MSBuild controls qualify the informational retry wording without suppressing genuine errors.
+    Archive/path-set/deletion proof and exact receipts are artifacts/rhi-phase9/batch34-*.
+    Current complete
+    per-case suite evidence, user-run visual/runtime acceptance and final independent
+    completion audit remain open. Complete-suite qualification of this final source is pending. Any later runtime/shader change requires
+    refreshed package identity. No staging or commits are authorized by these partial receipts.
+
+Phase 10: Streamline GPU integration tests and eliminate unnecessary test work
+  Depends on Phase 9, including 9.1–9.3. Outcome: clearly classified, focused tests retain useful
+    correctness coverage with less repeated setup, disk access, GPU work and CPU readback.
+
+  ☐ Inventory GPU cases and shared fixtures by behavior, setup/teardown, shader/program preparation,
+    filesystem access, draws/dispatches, synchronization and readback size. Use existing receipts and
+    source inspection to prioritize expensive families; do not rerun the complete suite merely to
+    rediscover its duration. Keep an explicit map from existing coverage to retained/replacement tests.
+  ☐ Classify real context/driver/shader execution as GPU integration tests, with end-to-end runtime
+    scenarios identified separately and CPU-only logic retained as unit tests. Update names, traits,
+    filters, runner instructions and documentation consistently so routine unit-test runs do not
+    implicitly execute the GPU integration suite. Rename files/directories/projects where useful;
+    do not apply a blanket rename to tests that are genuinely CPU-only unit tests.
+  ☐ Audit direct and transitive disk I/O in test bodies, fixtures and helpers, including repeated shader
+    source/binary loads, cache persistence, temporary directories and file existence/enumeration checks.
+    Replace test-authored runtime filesystem dependencies with mocked/in-memory sources and controlled
+    data. Load required prebuilt GPU assets once and reuse immutable bytes rather than repeatedly
+    touching disk per case. Distinguish compiler/build inputs and runner receipts from test-body I/O;
+    identify any tests whose explicit subject is physical filesystem behavior for user review rather
+    than silently dropping that coverage or pretending a mock verifies the real filesystem.
+  ☐ Evaluate every family for redundant, obsolete, implementation-mirroring or pointless tests and
+    excessive parameter matrices. Remove cases only when their unique behavior is absent or retained
+    elsewhere; document the coverage mapping. Replace exhaustive GPU enumeration with CPU contract
+    checks plus representative GPU integration cases where that preserves the tested guarantees.
+  ☐ Evaluate consolidation of useful tests sharing costly setup, shader preparation or equivalent
+    workloads. Merge coherent cases or share immutable fixture resources where isolation permits;
+    retain identifiable per-scenario failures and deterministic reset/cleanup. Do not merge unrelated
+    behaviors into order-dependent mega-tests or reuse mutable state across cases without ownership.
+  ☐ Audit assertion and synchronization practices. Remove even modest-sized image readbacks followed
+    by CPU pixel-buffer scans. Use the smallest controlled render targets and selected texels needed
+    to prove the behavior, or independent GPU-side validation producing a compact result/counter.
+    Retain independent expected values, tolerances and useful spatial/negative coverage; do not validate
+    an implementation by repeating the same algorithm or replace correctness checks with draw counts.
+    When validating a readback API itself, use minimal known payloads. Remove unnecessary waits, flushes,
+    repeated setup and diagnostic queries, while preserving real completion/lifetime requirements.
+  ☐ Review native capture hooks, reflection-based fixture internals and fault injection for unnecessary
+    machinery, hidden state mutation, swallowed failures and instrumentation-dependent observations.
+    Keep only mechanisms needed for meaningful assertions; preserve explicit restoration and cleanup.
+  ☐ Implement the reviewed cleanup in coherent families, updating all callers and obsolete helpers
+    together. No compatibility shims or weakened assertions to obtain faster passing runs. Reconcile
+    test documentation and commands, then run delegated focused checks and a final complete suite on
+    the resulting source. Compare retained behavioral coverage and report available runner durations;
+    no benchmark framework, repeated timing study or numerical speedup threshold is required.
+  ☐ Completion: real GPU tests are correctly named/classified; avoidable runtime disk I/O, redundant
+    coverage and bulk pixel-readback assertions are removed; retained tests are isolated and diagnostic;
+    coverage mapping, independent review and current correctness receipts are recorded. Any unresolved
+    filesystem-specific coverage decision remains explicit and requires user agreement before closure.
+
 Final acceptance
-  ☐ All nine phases, their subphases and mandatory migration receipts are satisfied; later cleanup never substitutes for
+  ☐ All ten phases, their subphases and mandatory migration receipts are satisfied; later cleanup never substitutes for
     removing superseded APIs within their owning migration unit.
   ☐ Final APIs are backend-neutral, managed OpenGL execution requires 4.5, and every native operation has
     one execution owner with existing manager metadata/lifetime authority and preserved cache behavior.
@@ -1360,3 +1522,4 @@ Proposal coverage map
   Native dispatch, publication, exact integration and no-shim migration: mandatory receipts, Phases 2–8.
   Representative outcomes, efficient-execution checks, package and user-run qualification: Phase 9, supported
     by focused verification and current-state documentation in every owning migration unit.
+  GPU integration-test classification, I/O isolation, coverage consolidation and compact assertions: Phase 10.

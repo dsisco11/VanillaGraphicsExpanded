@@ -66,6 +66,7 @@ public sealed class SceneColorParticleIntegrationTests(HeadlessGLFixture fixture
         using var primary = DynamicGpuFramebuffer.Create([material, glow], depth);
         using var other = CreateRenderTarget(2, 2, TextureFormat.Rgba32f);
         using var capture = new SceneColorParticleTargets(primary);
+        using var equations = new NativeParticleBlendEquations();
         FramebufferTestSetup.BindForEngineRendering(primary);
         GL.Disable(EnableCap.ScissorTest);
         GL.DepthMask(true);
@@ -98,6 +99,8 @@ public sealed class SceneColorParticleIntegrationTests(HeadlessGLFixture fixture
             Assert.Equal(primary.FboId, GL.GetInteger(GetPName.DrawFramebufferBinding));
             Assert.Equal(other.FboId, GL.GetInteger(GetPName.ReadFramebufferBinding));
             Assert.False(GL.IsEnabled(EnableCap.ScissorTest));
+            Assert.Equal((int)BlendEquationMode.FuncAdd, Indexed(GetPName.BlendEquationRgb, 0));
+            Assert.Equal((int)BlendEquationMode.FuncAdd, Indexed(GetPName.BlendEquationAlpha, 0));
             Assert.True(GL.IsEnabled(IndexedEnableCap.Blend, 0));
             Assert.True(GL.IsEnabled(IndexedEnableCap.Blend, 1));
             Assert.Equal((int)BlendingFactorSrc.SrcAlpha, Indexed(GetPName.BlendSrcRgb, 0));

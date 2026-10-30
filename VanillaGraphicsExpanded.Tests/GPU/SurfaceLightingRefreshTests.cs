@@ -1,4 +1,5 @@
 using VanillaGraphicsExpanded.LumOn.Scene;
+using VanillaGraphicsExpanded.PBR;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 
 namespace VanillaGraphicsExpanded.Tests.GPU;
@@ -89,7 +90,12 @@ public sealed class SurfaceLightingRefreshTests(HeadlessGLFixture fixture) : Ren
         Assert.True(before>.1f);
         long capture=runtime.Feedback.GetCaptureRevision(page);
         Assert.True(runtime.TryGetLighting(out var original));
-        runtime.TransformVoxel=(x,y,z,voxel)=>x>=0 ? voxel with {LegacyLight=0} : voxel;
+        // Remove the authored light from both published encodings, not only its legacy level word.
+        runtime.TransformVoxel=(x,y,z,voxel)=>x>=0 ? voxel with
+        {
+            LegacyLight=LumonSceneOccupancyPacking.Pack(0,0,0,LumonSceneOccupancyPacking.UnpackMaterialPaletteIndex(voxel.LegacyLight)),
+            NormalizedLight=0
+        } : voxel;
         var edited=VanillaGraphicsExpanded.Voxels.ChunkProcessing.ChunkKey.FromChunkCoords(0,1,0);
         foreach(var source in runtime.Sources.Where(source=>!source.Disposed)) source.MarkDirty(edited);
         runtime.RunUntil(()=>IndirectBrightness(runtime,page)<before*.9f,maximumFrames:256);
@@ -235,7 +241,7 @@ public sealed class SurfaceLightingRefreshTests(HeadlessGLFixture fixture) : Ren
         return maximum;
     }
 
-    /// <summary>Checks exact initialized direct values independently of retained indirect history.</summary>
+    /// <summary>Checks physical direct irradiance after decoding persistent RGB, retaining unscaled validity.</summary>
     private static bool HasDirect(SurfaceCacheRuntimeFixture runtime,uint page,float expected,float validity=1)
     {
         if(!runtime.TryGetLighting(out var current)) return false;
@@ -244,7 +250,7 @@ public sealed class SurfaceLightingRefreshTests(HeadlessGLFixture fixture) : Ren
         {
             if(direct.Span[index+3]!=validity) return false;
             for(int channel=0;channel<3;channel++)
-                if(Math.Abs(direct.Span[index+channel]-expected)>.01f) return false;
+                if(Math.Abs(direct.Span[index+channel]/LightingStorage.PersistentScale-expected)>.01f) return false;
         }
         return true;
     }

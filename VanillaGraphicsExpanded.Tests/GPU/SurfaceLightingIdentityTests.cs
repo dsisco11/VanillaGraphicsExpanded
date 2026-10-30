@@ -1,4 +1,5 @@
 using VanillaGraphicsExpanded.Rendering.RHI;
+using VanillaGraphicsExpanded.PBR;
 using System.Text.RegularExpressions;
 using VanillaGraphicsExpanded.LumOn.Scene;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
@@ -108,7 +109,8 @@ public sealed class SurfaceLightingIdentityTests(HeadlessGLFixture fixture) : Re
         using var removed=SurfaceLightingPageReadback.Read(recovered.OutgoingRadiance,recovered,pages[0].Key);
         for(int index=0;index<removed.Length;index++) Assert.Equal((index&3)==3?1:0,removed.Span[index]);
         using var retained=SurfaceLightingPageReadback.Read(recovered.DirectIrradiance,recovered,pages[1].Key);
-        for(int index=0;index<retained.Length;index+=4) Assert.Equal(32,retained.Span[index]);
+        // The producer retains C-encoded RGB; this assertion compares physical irradiance.
+        for(int index=0;index<retained.Length;index+=4) Assert.Equal(32,LightingStorage.DecodePersistent(retained.Span[index]));
         Assert.Equal(captures+1,CaptureAttempts(runtime));
     }
     #endregion

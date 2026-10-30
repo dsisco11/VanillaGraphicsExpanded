@@ -1,4 +1,5 @@
 using VanillaGraphicsExpanded.Rendering.Shaders;
+using VanillaGraphicsExpanded.PBR;
 using System.Numerics;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.LumOn;
@@ -80,7 +81,13 @@ public abstract class DirectWorldProbeVisibilityTestBase : LumOnShaderFunctional
             }
             terrain.Depth.UploadDataImmediate(depth);
             terrainAttachments.Surface.UploadDataImmediate(normals, 0, 0, 0, guideSize, guideSize, 1);
-            world.ProbeRadianceAtlas.UploadDataImmediate(atlas.Radiance);
+            // Scenarios author physical radiance. Encode only RGB at the persistent upload
+            // boundary, preserving the caller's reusable atlas and signed distance metadata.
+            var storedRadiance = (float[])atlas.Radiance.Clone();
+            for (int offset = 0; offset < storedRadiance.Length; offset += 4)
+                for (int channel = 0; channel < 3; channel++)
+                    storedRadiance[offset + channel] = LightingStorage.EncodePersistent(storedRadiance[offset + channel]);
+            world.ProbeRadianceAtlas.UploadDataImmediate(storedRadiance);
             world.ProbeVis0.UploadDataImmediate(atlas.Visibility);
             world.ProbeMeta0.UploadDataImmediate(atlas.Metadata);
             if (screen != null)

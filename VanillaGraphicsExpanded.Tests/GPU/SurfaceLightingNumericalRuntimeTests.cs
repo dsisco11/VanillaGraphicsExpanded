@@ -1,5 +1,5 @@
 using System.Numerics;
-using VanillaGraphicsExpanded.PBR.Materials.Energy;
+using VanillaGraphicsExpanded.Tests.GPU.Helpers;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 
@@ -38,10 +38,8 @@ public sealed class SurfaceLightingNumericalRuntimeTests : RenderTestBase
         double coefficient=calibration.AccessorBlockReferenceLux>0?calibration.AccessorBlockReferenceLux:calibration.BlockReferenceLux;
         double amplitude=Math.Max(raw-floor,0);
         double lux=coefficient*Math.Pow(amplitude,4)/(Math.Pow(amplitude,3)+.064);
-        var diffuse=MicrofacetEnergyTable.Shared.DiffuseAlbedo(new(.5f,0,0,
-            scene.SourceAlbedo??new(scene.Reflectance),new(.04f)));
-        // The actual compact cache material is unsigned-byte diffuse transport, not raw albedo.
-        for(int channel=0;channel<3;channel++)diffuse[channel]=(int)(Math.Clamp(diffuse[channel],0,1)*255+.5f)/255f;
+        // Integrate the independent diffuse budget before the compact material's unsigned-byte conversion.
+        var diffuse=GgxHemisphereReference.CapturedDiffuse(scene.SourceAlbedo??new(scene.Reflectance));
         return diffuse*(float)(lux/Math.PI);
     }
 

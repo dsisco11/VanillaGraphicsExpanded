@@ -98,7 +98,10 @@ public sealed class AmbientOcclusionCompositeTests(HeadlessGLFixture fixture) : 
     using var scope0=commands.EnterBoundary(new("Tests.AmbientComposition",true,graphics:System.Linq.Enumerable.Select<RHIGraphicsPipeline,RHIGraphicsPipelineRef>([pipeline],value=>value),operations:BoundaryOperations.RenderPasses));
     scope0.Run(()=>{
                 commands.BeginRenderPass(passDescription);commands.SetPipeline(pipeline);
-                commands.SetDynamicState(new(){Viewport=commands.PassViewport});commands.Draw(geometry.Inputs,new(0,3));commands.EndRenderPass();
+                commands.SetDynamicState(new(){Viewport=commands.PassViewport});
+                // Publish the complete retained inputs before every draw, including changed AO controls.
+                commands.BindResources(shader.CaptureBindings());
+                commands.Draw(geometry.Inputs,new(0,3));commands.EndRenderPass();
             });
 }
             return target[0].ReadPixels();

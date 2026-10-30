@@ -41,6 +41,9 @@ internal sealed partial class OpenGLBackend
         if (baseLevel < 0 || maxLevel < 0 || previous.Target == TextureDimension.Rectangle && baseLevel != 0
             || previous.Target is TextureDimension.TwoMultisample or TextureDimension.TwoMultisampleArray or TextureDimension.Buffer)
             throw new ArgumentOutOfRangeException(nameof(baseLevel));
+        // Available canonical values already represent this request. Preserve dependent image
+        // revisions instead of publishing a fictitious change during repeated owner setup.
+        if (previous.BaseLevel == baseLevel && previous.MaxLevel == maxLevel) return;
         using var operation = new RHIResourceManager.MetadataOperation<GpuTextureMetadata>(owner, GpuMetadataChange.Metadata);
         int id = owner.TextureId;
         OpenGLDriverCalls.TextureParameter(id, Native.TextureParameterName.TextureBaseLevel, baseLevel);

@@ -1,26 +1,31 @@
-using HarmonyLib;
 using OpenTK;
 using OpenTK.Graphics.OpenGL;
 using System.Runtime.InteropServices;
-using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using GLFWBindingsContext = OpenTK.Windowing.GraphicsLibraryFramework.GLFWBindingsContext;
 
 namespace VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 
-/// <summary>Counts driver submissions from both OpenTK and backend-owned original-pointer dispatch.</summary>
+/// <summary>Counts original driver submissions and can simulate one attributed native routing error.</summary>
 internal sealed unsafe class GraphicsTransitionCapture : IBindingsContext, IDisposable
 {
     [ThreadStatic] private static GraphicsTransitionCapture? active;
     private static readonly List<Delegate> roots = [];
-    private readonly Harmony harmony = new("Tests.GraphicsTransitionCapture");
     private readonly GLFWBindingsContext driver = new();
     private readonly Dictionary<string, nint> pointers = [];
     internal readonly List<string> Calls = [];
-    /// <summary>Selects a managed restoration failure without throwing across an unmanaged callback.</summary>
+    /// <summary>Selects a target whose second named routing submission reports a simulated native error.</summary>
     internal int FailNamedFramebuffer = -1;
     private int failureTargetCalls;
+    private bool pendingRoutingError;
 
     #region Public API
+    /// <summary>Counts actual selected-target submissions, distinguishing authored routing from restoration.</summary>
+    internal int SelectedTargetRoutingCalls => failureTargetCalls;
+    /// <summary>Counts simulated error statuses actually delivered to managed error attribution.</summary>
+    internal int InjectedRoutingErrors { get; private set; }
+    /// <summary>Counts genuine native errors independently of the simulated status.</summary>
+    internal int DriverErrorCount { get; private set; }
+
     /// <summary>Decorates real driver addresses before production interception installs its callbacks.</summary>
     internal GraphicsTransitionCapture()
     {
@@ -55,17 +60,36 @@ internal sealed unsafe class GraphicsTransitionCapture : IBindingsContext, IDisp
             nint named = driver.GetProcAddress("glNamedFramebufferDrawBuffer");
             Add("glNamedFramebufferDrawBuffer", new Named((id, buffer) =>
             {
-                RecordNamed(id, ((DrawBufferMode)buffer).ToString());
                 ((delegate* unmanaged[Stdcall]<uint, int, void>)named)(id, buffer);
+                RecordNamed(id, ((DrawBufferMode)buffer).ToString());
             }));
             nint nameds = driver.GetProcAddress("glNamedFramebufferDrawBuffers");
             Add("glNamedFramebufferDrawBuffers", new Nameds((id, count, buffers) =>
             {
-                RecordNamed(id, Route(count, buffers));
                 ((delegate* unmanaged[Stdcall]<uint, int, int*, void>)nameds)(id, count, buffers);
+                RecordNamed(id, Route(count, buffers));
             }));
-            harmony.Patch(AccessTools.Method(typeof(OpenGLFramebufferRouting), "Restore"),
-                prefix: new HarmonyMethod(typeof(GraphicsTransitionCapture), nameof(BeforeRestore)));
+            nint errors = driver.GetProcAddress("glGetError");
+            Add("glGetError", new ErrorQuery(() =>
+            {
+                uint error = ((delegate* unmanaged[Stdcall]<uint>)errors)();
+                // Preserve every real error and forward the real query once. Only a clean
+                // status may carry our single simulated failure after actual restoration.
+                bool observing = ReferenceEquals(active, this);
+                if (error != (uint)ErrorCode.NoError)
+                {
+                    if (observing) DriverErrorCount++;
+                    return error;
+                }
+                if (observing && pendingRoutingError)
+                {
+                    pendingRoutingError = false;
+                    FailNamedFramebuffer = -1;
+                    InjectedRoutingErrors++;
+                    return (uint)ErrorCode.InvalidOperation;
+                }
+                return error;
+            }));
             GL.LoadBindings(this);
             OpenTK.Graphics.OpenGL4.GL.LoadBindings(this);
         }
@@ -75,13 +99,13 @@ internal sealed unsafe class GraphicsTransitionCapture : IBindingsContext, IDisp
     /// <inheritdoc />
     public nint GetProcAddress(string name) => pointers.TryGetValue(name, out var pointer) ? pointer : driver.GetProcAddress(name);
 
-    /// <summary>Restores ordinary driver loading and removes only this fixture's managed failure injection.</summary>
+    /// <summary>Disables simulated errors before restoring driver loading; retained callbacks cannot inject errors.</summary>
     public void Dispose()
     {
+        pendingRoutingError = false;
+        active = null;
         GL.LoadBindings(driver);
         OpenTK.Graphics.OpenGL4.GL.LoadBindings(driver);
-        harmony.UnpatchAll(harmony.Id);
-        active = null;
     }
     #endregion
 
@@ -101,23 +125,19 @@ internal sealed unsafe class GraphicsTransitionCapture : IBindingsContext, IDisp
         return string.Join(',', result);
     }
 
-    /// <summary>Records named submissions independently from selected framebuffer state.</summary>
+    /// <summary>Records named submissions and arms an error only after the selected target's restoration submission.</summary>
     private void RecordNamed(uint id, string route)
     {
         Calls.Add($"RoutingNamed:{id}:{route}");
-        if (FailNamedFramebuffer == (int)id) failureTargetCalls++;
-    }
-
-    /// <summary>Injects cleanup failure in managed code after the target's first authored submission.</summary>
-    private static void BeforeRestore(int framebuffer)
-    {
-        if (active is { } capture && capture.FailNamedFramebuffer == framebuffer && capture.failureTargetCalls > 0)
+        if (ReferenceEquals(active, this) && FailNamedFramebuffer == (int)id)
         {
-            capture.FailNamedFramebuffer = -1;
-            throw new InvalidOperationException("Injected named restoration failure.");
+            failureTargetCalls++;
+            if (failureTargetCalls == 2) pendingRoutingError = true;
         }
     }
 
+    /// <summary>Matches the GLenum result ABI of a native error-status query.</summary>
+    [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate uint ErrorQuery();
     /// <summary>Matches framebuffer selection ABI.</summary>
     [UnmanagedFunctionPointer(CallingConvention.StdCall)] private delegate void Bind(int target, uint id);
     /// <summary>Matches program selection ABI.</summary>

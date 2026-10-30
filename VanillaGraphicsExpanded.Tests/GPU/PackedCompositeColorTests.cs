@@ -64,7 +64,7 @@ public sealed class PackedCompositeColorTests(HeadlessGLFixture fixture) : LumOn
     using var scope69=commands.EnterBoundary(new("Tests.PackedComposite",true,graphics:System.Linq.Enumerable.Select<RHIGraphicsPipeline,RHIGraphicsPipelineRef>([pipeline],value=>value),operations:BoundaryOperations.RenderPasses));
     scope69.Run(()=>{
             commands.BeginRenderPass(passDescription);commands.SetPipeline(pipeline);
-            commands.SetDynamicState(new(){Viewport=commands.PassViewport});commands.Draw(geometry.Inputs,new(0,3));commands.EndRenderPass();
+            commands.SetDynamicState(new(){Viewport=commands.PassViewport});commands.BindResources(shader.CaptureBindings());commands.Draw(geometry.Inputs,new(0,3));commands.EndRenderPass();
         });
 }
         // Check each channel against its own mantissa precision; blue has one fewer bit.
@@ -90,7 +90,7 @@ public sealed class PackedCompositeColorTests(HeadlessGLFixture fixture) : LumOn
     var commands=RHICommandContext.Current;
     using var scope70=commands.EnterBoundary(new("Tests.PackedCompositeHandoff",true,graphics:System.Linq.Enumerable.Select<RHIGraphicsPipeline,RHIGraphicsPipelineRef>([handoffPipeline],value=>value),operations:BoundaryOperations.RenderPasses));
     scope70.Run(()=>{
-            commands.BeginRenderPass(handoffDescription);commands.SetPipeline(handoffPipeline);
+            commands.BeginRenderPass(handoffDescription);commands.SetPipeline(handoffPipeline);commands.BindResources(resolve.CaptureBindings());
             commands.SetDynamicState(new(){Viewport=commands.PassViewport});commands.Draw(geometry.Inputs,new(0,3));commands.EndRenderPass();
         });
 }

@@ -66,7 +66,7 @@ public sealed class OwnerCreationBoundaryTests(HeadlessGLFixture fixture)
         {
             using var image = new GpuFramebufferAttachment(4, 4, TextureFormat.Rgba8);
             candidate = 0;
-            harmony.Patch(AccessTools.Method(typeof(OpenGLBackend), nameof(OpenGLBackend.ConfigureFramebufferAttachment)),
+            harmony.Patch(AccessTools.Method(typeof(OpenGLFramebufferConfiguration), nameof(OpenGLFramebufferConfiguration.FramebufferTexture)),
                 postfix: new HarmonyMethod(typeof(OwnerCreationBoundaryTests), nameof(FailAfterAttachment)));
             Assert.Same(failure, Assert.Throws<InvalidOperationException>(() =>
             {
@@ -114,7 +114,7 @@ public sealed class OwnerCreationBoundaryTests(HeadlessGLFixture fixture)
     /// <summary>Captures an allocated candidate before manager publication and injects a truthful failure.</summary>
     private static void FailAfterAllocation(nint id) { candidate = checked((int)id); throw failure; }
     /// <summary>Injects a configuration interruption after the backend has committed the selected attachment.</summary>
-    private static void FailAfterAttachment(GpuFramebuffer owner) { candidate = owner.FboId; throw failure; }
+    private static void FailAfterAttachment(GpuFramebuffer __0) { candidate = __0.FboId; throw failure; }
     /// <summary>Rejects projection after storage creation, before attachment ownership can be returned.</summary>
     private static void FailProjection(GpuFramebufferAttachment image) { candidate = image.RenderbufferId; throw failure; }
     #endregion

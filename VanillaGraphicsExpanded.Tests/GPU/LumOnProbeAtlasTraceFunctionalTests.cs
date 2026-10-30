@@ -1,6 +1,7 @@
 using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using VanillaGraphicsExpanded.LumOn;
+using VanillaGraphicsExpanded.PBR;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Numerics;
@@ -315,7 +316,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
         // Create output atlas buffer
         using var outputAtlas = TestFramework.CreateTestGBuffer(
             AtlasWidth, AtlasHeight,
-            TextureFormat.Rgba16f);
+            TextureFormat.Rgba16f, TextureFormat.Rg32f);
 
         // Compile and setup shader - use realistic perspective matrices
         var programId = CompileOctahedralTraceShader(texelsPerFrame: 64);
@@ -410,7 +411,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
 
         using var outputAtlas = TestFramework.CreateTestGBuffer(
             AtlasWidth, AtlasHeight,
-            TextureFormat.Rgba16f);
+            TextureFormat.Rgba16f, TextureFormat.Rg32f);
 
         // Use realistic perspective matrices for proper depth/ray calculations
         var programId = CompileOctahedralTraceShader(texelsPerFrame: 64, skyMissWeight: skyWeight);
@@ -456,6 +457,10 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
                 var (x, y) = GetAtlasCoord(probeX, probeY, 4, 4);
                 var (r, g, b, _) = ReadAtlasTexel(atlasData, x, y);
 
+                // Compare physical radiance after decoding persistent RGB; hit-distance alpha is independent.
+                r /= LightingStorage.PersistentScale;
+                g /= LightingStorage.PersistentScale;
+                b /= LightingStorage.PersistentScale;
                 // DESIRED: Each channel should be approximately ambient * skyFactor * skyWeight
                 // Allow 50% tolerance for direction-dependent sky gradient
                 float tolerance = 0.5f;
@@ -506,7 +511,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
 
         using var outputAtlas = TestFramework.CreateTestGBuffer(
             AtlasWidth, AtlasHeight,
-            TextureFormat.Rgba16f);
+            TextureFormat.Rgba16f, TextureFormat.Rg32f);
 
         // Use realistic perspective matrices for proper depth/ray calculations
         var programId = CompileOctahedralTraceShader(texelsPerFrame: 64);
@@ -592,7 +597,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
 
         using var outputAtlas = TestFramework.CreateTestGBuffer(
             AtlasWidth, AtlasHeight,
-            TextureFormat.Rgba16f);
+            TextureFormat.Rgba16f, TextureFormat.Rg32f);
 
         // Use realistic perspective matrices for proper depth/ray calculations
         var programId = CompileOctahedralTraceShader(texelsPerFrame: 8);
@@ -687,7 +692,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
 
         using var outputAtlas = TestFramework.CreateTestGBuffer(
             AtlasWidth, AtlasHeight,
-            TextureFormat.Rgba16f);
+            TextureFormat.Rgba16f, TextureFormat.Rg32f);
 
         // Use realistic perspective matrices for proper depth/ray calculations
         var programId = CompileOctahedralTraceShader(texelsPerFrame: 8);
@@ -791,7 +796,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
 
         using var outputAtlas = TestFramework.CreateTestGBuffer(
             AtlasWidth, AtlasHeight,
-            TextureFormat.Rgba16f);
+            TextureFormat.Rgba16f, TextureFormat.Rg32f);
 
         var programId = CompileOctahedralTraceShader(texelsPerFrame: 8);
 
@@ -875,7 +880,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
 
             using var outputAtlas = TestFramework.CreateTestGBuffer(
                 AtlasWidth, AtlasHeight,
-                TextureFormat.Rgba16f);
+                TextureFormat.Rgba16f, TextureFormat.Rg32f);
 
             var programId = CompileOctahedralTraceShader(raySteps: 4, texelsPerFrame: 64);
 
@@ -912,7 +917,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
 
             using var outputAtlas = TestFramework.CreateTestGBuffer(
                 AtlasWidth, AtlasHeight,
-                TextureFormat.Rgba16f);
+                TextureFormat.Rgba16f, TextureFormat.Rg32f);
 
             var programId = CompileOctahedralTraceShader(raySteps: 32, texelsPerFrame: 64);
 
@@ -1213,7 +1218,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
 
             using var outputAtlas = TestFramework.CreateTestGBuffer(
                 AtlasWidth, AtlasHeight,
-                TextureFormat.Rgba16f);
+                TextureFormat.Rgba16f, TextureFormat.Rg32f);
 
             var programId = CompileOctahedralTraceShader(texelsPerFrame: 64);
 
@@ -1258,7 +1263,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
 
             using var outputAtlas = TestFramework.CreateTestGBuffer(
                 AtlasWidth, AtlasHeight,
-                TextureFormat.Rgba16f);
+                TextureFormat.Rgba16f, TextureFormat.Rg32f);
 
             var programId = CompileOctahedralTraceShader(texelsPerFrame: 64);
 
@@ -1336,7 +1341,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
 
             using var outputAtlas = TestFramework.CreateTestGBuffer(
                 AtlasWidth, AtlasHeight,
-                TextureFormat.Rgba16f);
+                TextureFormat.Rgba16f, TextureFormat.Rg32f);
 
             var programId = CompileOctahedralTraceShader(texelsPerFrame: 8);
 
@@ -1380,7 +1385,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
 
             using var outputAtlas = TestFramework.CreateTestGBuffer(
                 AtlasWidth, AtlasHeight,
-                TextureFormat.Rgba16f);
+                TextureFormat.Rgba16f, TextureFormat.Rg32f);
 
             var programId = CompileOctahedralTraceShader(texelsPerFrame: 8);
 
@@ -1456,7 +1461,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
 
             using var outputAtlas = TestFramework.CreateTestGBuffer(
                 AtlasWidth, AtlasHeight,
-                TextureFormat.Rgba16f);
+                TextureFormat.Rgba16f, TextureFormat.Rg32f);
 
             var programId = CompileOctahedralTraceShader(texelsPerFrame: 8);
 
@@ -1501,7 +1506,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
 
             using var outputAtlas = TestFramework.CreateTestGBuffer(
                 AtlasWidth, AtlasHeight,
-                TextureFormat.Rgba16f);
+                TextureFormat.Rgba16f, TextureFormat.Rg32f);
 
             var programId = CompileOctahedralTraceShader(texelsPerFrame: 8);
 
@@ -1581,7 +1586,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
 
             using var outputAtlas = TestFramework.CreateTestGBuffer(
                 AtlasWidth, AtlasHeight,
-                TextureFormat.Rgba16f);
+                TextureFormat.Rgba16f, TextureFormat.Rg32f);
 
             var programId = CompileOctahedralTraceShader(texelsPerFrame: 8);
 
@@ -1618,7 +1623,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
 
             using var outputAtlas = TestFramework.CreateTestGBuffer(
                 AtlasWidth, AtlasHeight,
-                TextureFormat.Rgba16f);
+                TextureFormat.Rgba16f, TextureFormat.Rg32f);
 
             var programId = CompileOctahedralTraceShader(texelsPerFrame: 8);
 
@@ -1698,7 +1703,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
 
             using var outputAtlas = TestFramework.CreateTestGBuffer(
                 AtlasWidth, AtlasHeight,
-                TextureFormat.Rgba16f);
+                TextureFormat.Rgba16f, TextureFormat.Rg32f);
 
             var programId = CompileOctahedralTraceShader(texelsPerFrame: 8);
 
@@ -1741,7 +1746,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
 
             using var outputAtlas = TestFramework.CreateTestGBuffer(
                 AtlasWidth, AtlasHeight,
-                TextureFormat.Rgba16f);
+                TextureFormat.Rgba16f, TextureFormat.Rg32f);
 
             var programId = CompileOctahedralTraceShader(texelsPerFrame: 32);
 
@@ -1813,7 +1818,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
 
         using var outputAtlas = TestFramework.CreateTestGBuffer(
             AtlasWidth, AtlasHeight,
-            TextureFormat.Rgba16f);
+            TextureFormat.Rgba16f, TextureFormat.Rg32f);
 
         var programId = CompileOctahedralTraceShader();
 
@@ -1900,7 +1905,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
 
             using var outputAtlas = TestFramework.CreateTestGBuffer(
                 AtlasWidth, AtlasHeight,
-                TextureFormat.Rgba16f);
+                TextureFormat.Rgba16f, TextureFormat.Rg32f);
 
             var programId = CompileOctahedralTraceShader();
 
@@ -1941,7 +1946,7 @@ public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
 
             using var outputAtlas = TestFramework.CreateTestGBuffer(
                 AtlasWidth, AtlasHeight,
-                TextureFormat.Rgba16f);
+                TextureFormat.Rgba16f, TextureFormat.Rg32f);
 
             var programId = CompileOctahedralTraceShader();
 

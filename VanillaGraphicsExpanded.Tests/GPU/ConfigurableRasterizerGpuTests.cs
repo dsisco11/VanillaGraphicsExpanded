@@ -117,6 +117,7 @@ public sealed class ConfigurableRasterizerGpuTests(HeadlessGLFixture fixture, IT
     public void ClipDepthPoliciesChangePixels()
     {
         using var context = new CompatibilityContext(fixture, output);
+        using var shaderLifetime = stateShaders;
         using var draw = new RasterDraw();
         var cache = OpenGlStateCache.Current;
         cache.InvalidateAll();
@@ -155,23 +156,39 @@ public sealed class ConfigurableRasterizerGpuTests(HeadlessGLFixture fixture, IT
         public CompatibilityContext(HeadlessGLFixture fixture, ITestOutputHelper output)
         {
             this.fixture = fixture; fixture.MakeCurrent();
+            GpuSamplers.Dispose();
+            fixture.CleanupGpuResources();
             GLFW.DefaultWindowHints();
             GLFW.WindowHint(WindowHintInt.ContextVersionMajor, 4); GLFW.WindowHint(WindowHintInt.ContextVersionMinor, 5);
             GLFW.WindowHint(WindowHintOpenGlProfile.OpenGlProfile, OpenGlProfile.Compat);
             GLFW.WindowHint(WindowHintBool.Visible, false);
             window = GLFW.CreateWindow(32, 32, "Raster compatibility test", null, null);
-            Assert.SkipWhen(window == null, "Compatibility GL 4.3 context unavailable.");
+            Assert.SkipWhen(window == null, "Compatibility GL 4.5 context unavailable.");
             GLFW.MakeContextCurrent(window); GL.LoadBindings(new GLFWBindingsContext());
+            OpenTK.Graphics.OpenGL4.GL.LoadBindings(new GLFWBindingsContext());
             RenderContextRegistry.RegisterCurrent(this, owner => ((CompatibilityContext)owner).window != null);
-            GpuSupport.EnsureCurrentContext(); OpenGlStateCache.Current.InvalidateAll();
+            RHIResourceManagerSystem.EnsureCurrentContext();
+            GpuSupport.EnsureCurrentContext();
             Assert.False(GpuSupport.Graphics.CoreProfile);
             output.WriteLine($"Raster compatibility: {GL.GetString(StringName.Version)}; {GL.GetString(StringName.Renderer)}; ClipControl={GpuSupport.Graphics.ClipControl}");
         }
         /// <summary>Retires only this fixture lifetime and makes the original fixture current.</summary>
         public void Dispose()
         {
-            RenderContextRegistry.Retire(this); GLFW.DestroyWindow(window); window = null;
-            fixture.MakeCurrent(); GpuSupport.EnsureCurrentContext(); OpenGlStateCache.Current.InvalidateAll();
+            try
+            {
+                TestUniformRing.Dispose(); GpuSamplers.Dispose();
+                var manager = RHIResourceManagerSystem.CurrentManager;
+                manager?.ResourceDisposals?.DrainPending();
+                RHIResourceManagerSystem.Shutdown(); manager?.Dispose();
+            }
+            finally
+            {
+                RenderContextRegistry.Retire(this); GLFW.DestroyWindow(window); window = null;
+                fixture.MakeCurrent(); GL.LoadBindings(new GLFWBindingsContext());
+                OpenTK.Graphics.OpenGL4.GL.LoadBindings(new GLFWBindingsContext());
+                fixture.InitializeResourceDisposal();
+            }
         }
     }
 

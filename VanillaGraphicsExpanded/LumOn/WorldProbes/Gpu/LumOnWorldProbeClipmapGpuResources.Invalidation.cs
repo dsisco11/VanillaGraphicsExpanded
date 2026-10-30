@@ -21,8 +21,10 @@ internal sealed partial class LumOnWorldProbeClipmapGpuResources
     /// <summary>Number of unique physical slots awaiting invalidation.</summary>
     internal int PendingInvalidationCount => clearAllHistory ? queuedHistorySlots.Length : historySlots.Count;
 
+#if DEBUG
     /// <summary>Number of submitted clear dispatches, including initialization and full resets.</summary>
     internal long InvalidationDispatchCount { get; private set; }
+#endif
 
     #region History invalidation
 
@@ -89,7 +91,9 @@ internal sealed partial class LumOnWorldProbeClipmapGpuResources
         dispatchBoundary.Run(()=>historyClear.Dispatch(groupsX, (count + groupsX - 1) / groupsX, 1));
         RHICommandContext.Current.Barrier(new(ResourceAccess.Image | ResourceAccess.TextureFetch |
             ResourceAccess.Framebuffer | ResourceAccess.TextureUpdate));
+#if DEBUG
         InvalidationDispatchCount++;
+#endif
         foreach (int slot in historySlots) queuedHistorySlots[slot] = false;
         historySlots.Clear();
         clearAllHistory = false;

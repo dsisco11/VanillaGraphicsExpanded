@@ -263,7 +263,7 @@ public sealed class ColorGradingLutTests(HeadlessGLFixture fixture, ITestOutputH
     using var scope25=commands.EnterBoundary(new("Tests.GradingGalaxy",true,graphics:System.Linq.Enumerable.Select<RHIGraphicsPipeline,RHIGraphicsPipelineRef>([pipeline],value=>value),operations:BoundaryOperations.RenderPasses));
     scope25.Run(()=>{
                 commands.BeginRenderPass(pass); commands.SetPipeline(pipeline); commands.SetDynamicState(new(){Viewport=commands.PassViewport});
-                commands.Draw(geometry.Inputs,new(0,3)); commands.EndRenderPass();
+                commands.BindResources(shader.CaptureBindings()); commands.Draw(geometry.Inputs,new(0,3)); commands.EndRenderPass();
             });
 }
             float[] data = color.ReadPixels();

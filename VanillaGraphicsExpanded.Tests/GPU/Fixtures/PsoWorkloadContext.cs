@@ -19,24 +19,36 @@ internal sealed unsafe class PsoWorkloadContext : IDisposable
     {
         this.fixture = fixture; fixture.MakeCurrent();
         // Shared test allocators and sampler names belong to their current, unshared context.
-        TestUniformRing.Dispose(); GpuSamplers.Dispose();
+        GpuSamplers.Dispose(); fixture.CleanupGpuResources();
         GLFW.DefaultWindowHints(); GLFW.WindowHint(WindowHintInt.ContextVersionMajor, 4);
         GLFW.WindowHint(WindowHintInt.ContextVersionMinor, 5); GLFW.WindowHint(WindowHintOpenGlProfile.OpenGlProfile, OpenGlProfile.Compat);
         GLFW.WindowHint(WindowHintBool.Visible, false); GLFW.WindowHint(WindowHintBool.OpenGLForwardCompat, false);
         window = GLFW.CreateWindow(32, 32, "PSO workload contracts", null, null);
         Assert.True(window != null);
         GLFW.MakeContextCurrent(window); GL.LoadBindings(new GLFWBindingsContext());
+        OpenTK.Graphics.OpenGL4.GL.LoadBindings(new GLFWBindingsContext());
         RenderContextRegistry.RegisterCurrent(this, owner => ((PsoWorkloadContext)owner).window != null);
-        GpuSupport.EnsureCurrentContext(); OpenGlStateCache.Current.InvalidateAll();
+        RHIResourceManagerSystem.EnsureCurrentContext(); GpuSupport.EnsureCurrentContext();
         TestUniformRing.BeginFrame();
     }
 
     /// <summary>Retires the isolated native context before returning to the collection fixture.</summary>
     public void Dispose()
     {
-        TestUniformRing.Dispose(); GpuSamplers.Dispose();
-        RenderContextRegistry.Retire(this); GLFW.DestroyWindow(window); window = null;
-        fixture.MakeCurrent(); GpuSupport.EnsureCurrentContext(); OpenGlStateCache.Current.InvalidateAll();
+        try
+        {
+            TestUniformRing.Dispose(); GpuSamplers.Dispose();
+            var manager = RHIResourceManagerSystem.CurrentManager;
+            manager?.ResourceDisposals?.DrainPending();
+            RHIResourceManagerSystem.Shutdown(); manager?.Dispose();
+        }
+        finally
+        {
+            RenderContextRegistry.Retire(this); GLFW.DestroyWindow(window); window = null;
+            fixture.MakeCurrent(); GL.LoadBindings(new GLFWBindingsContext());
+            OpenTK.Graphics.OpenGL4.GL.LoadBindings(new GLFWBindingsContext());
+            fixture.InitializeResourceDisposal();
+        }
     }
     #endregion
 }

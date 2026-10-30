@@ -6,6 +6,7 @@ using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.PBR.Materials;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Pipeline;
+using VanillaGraphicsExpanded.Rendering.ShaderCompilation;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 using Vintagestory.API.Client;
 
@@ -55,7 +56,7 @@ public sealed class MaterialAtlasBakeSubmissionTests(HeadlessGLFixture fixture) 
             AssertPixels(ReadDestination(), (_, _) => [.5f, .5f, 1f, .5f]);
             float[] sentinel = [.125f, .25f, .75f, .125f];
             destination.UploadDataImmediate(Enumerable.Range(0, edge * edge).SelectMany(_ => sentinel).ToArray());
-            // Reject a real cold executable load after the candidate owner allocated its resources.
+            // Reject a real cold executable load before the prepared owner allocates scratch images.
             var candidates = new List<PbrHeightBakeShaderProgram>();
             GpuFramebuffer? failedScratch = null;
             bool injected = false;
@@ -79,8 +80,7 @@ public sealed class MaterialAtlasBakeSubmissionTests(HeadlessGLFixture fixture) 
             Assert.True(injected);
             Assert.NotEmpty(candidates);
             Assert.All(candidates, candidate => Assert.True(candidate.IsRetired));
-            Assert.NotNull(failedScratch);
-            Assert.True(failedScratch.IsDisposed);
+            Assert.Null(failedScratch);
             const BindingFlags initializationFields = BindingFlags.Static | BindingFlags.NonPublic;
             var atlasOwner = typeof(MaterialAtlasNormalDepthGpuBuilder);
             Assert.False((bool)atlasOwner.GetField("initialized", initializationFields)!.GetValue(null)!);
@@ -110,8 +110,23 @@ public sealed class MaterialAtlasBakeSubmissionTests(HeadlessGLFixture fixture) 
             Assert.Contains(heights, value => value is > .01f and < .99f);
             using (var hostile = new HostileFullscreenState())
             {
-                // The invalid sampler fails after pass entry; optional bake catches the error only after restoration.
-                Assert.False(MaterialAtlasNormalDepthGpuBuilder.BakePerRect(assets.Api, default(GpuTextureRef),
+                // An absent input is rejected before admission without touching caller state.
+                Assert.Throws<ArgumentOutOfRangeException>(() => MaterialAtlasNormalDepthGpuBuilder.BakePerRect(
+                    assets.Api, default(GpuTextureRef), destination, edge, edge, origin, origin, size, size, 1, 1));
+                hostile.AssertRestored(); AssertBindings();
+            }
+            var expiredOwner = RHICommandContext.Current.CreateDynamicTexture2D(new()
+            {
+                Dimension = TextureDimension.Two, Format = TextureFormat.Rgba16f, Width = edge, Height = edge,
+                MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest
+            }).RequireResource();
+            GpuTextureRef expired = expiredOwner;
+            expiredOwner.Dispose();
+            Assert.False(expired.IsEmpty); Assert.False(expired.IsValid);
+            using (var hostile = new HostileFullscreenState())
+            {
+                // A retained but retired sampler reaches the bake boundary and fails binding validation.
+                Assert.False(MaterialAtlasNormalDepthGpuBuilder.BakePerRect(assets.Api, expired,
                     destination, edge, edge, origin, origin, size, size, 1, 1));
                 hostile.AssertRestored(); AssertBindings();
             }
@@ -177,7 +192,7 @@ public sealed class MaterialAtlasBakeSubmissionTests(HeadlessGLFixture fixture) 
         /// <summary>Releases borrowed pipelines before test-created programs, intermediates and geometry.</summary>
         public void Dispose()
         {
-            var pipelines = (Dictionary<PbrHeightBakeShaderProgram, RHIGraphicsPipeline>)Owner.GetField("Pipelines", Flags)!.GetValue(null)!;
+            var pipelines = (Dictionary<PbrHeightBakeShaderProgram, GraphicsPipelineAsset>)Owner.GetField("Pipelines", Flags)!.GetValue(null)!;
             foreach (var pipeline in pipelines.Values) pipeline.Dispose(); pipelines.Clear();
             foreach (var field in Owner.GetFields(Flags).Where(field => !field.IsInitOnly && !field.IsLiteral))
             {

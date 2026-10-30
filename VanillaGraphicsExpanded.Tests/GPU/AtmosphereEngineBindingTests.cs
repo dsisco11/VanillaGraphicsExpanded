@@ -65,9 +65,9 @@ public sealed class AtmosphereEngineBindingTests(HeadlessGLFixture fixture) : Re
             ("vge_atmosphereAerialAttenuation", 12)
         })
         {
-            Assert.True(program.HasUniform(name), name);
             int location = GL.GetUniformLocation(program.ProgramId, name);
-            Assert.True(location >= 0, name);
+            Assert.True(location >= 0, $"Native linked interface omitted {name}; engine table contains it: {program.HasUniform(name)}.");
+            Assert.True(program.HasUniform(name), $"Native location {location} exists for {name}, but the engine table omitted it.");
             GL.GetUniform(program.ProgramId, location, out int unit);
             Assert.Equal(expected, unit);
         }

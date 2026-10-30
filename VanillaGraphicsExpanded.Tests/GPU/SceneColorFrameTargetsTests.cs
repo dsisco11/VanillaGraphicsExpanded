@@ -95,11 +95,12 @@ public sealed class SceneColorFrameTargetsTests(HeadlessGLFixture fixture) : Ren
             // FboId-only metadata, preserving the actual driver allocation behavior.
             GL.BindFramebuffer(FramebufferTarget.Framebuffer, low.FboId);
             AccessTools.Method(typeof(ClientPlatformWindows), "setupAttachment").Invoke(platform,
-                [low, 128 / 4, 128 / 4, 0, PixelFormat.Rgba, format]);
+                [low, 128 / 4, 128 / 4, 0, PixelFormat.Rgba, OpenGLImageValues.Format(format)]);
+            using var selectedImage = OpenGlStateCache.Current.BindTextureScope(TextureTarget.Texture2D, 0, low.ColorTextureIds[0]);
             GL.GetTexLevelParameter(TextureTarget.Texture2D, 0, GetTextureParameter.TextureWidth, out int width);
             GL.GetTexLevelParameter(TextureTarget.Texture2D, 0, GetTextureParameter.TextureHeight, out int height);
             GL.GetTexLevelParameter(TextureTarget.Texture2D, 0, GetTextureParameter.TextureInternalFormat, out int actualFormat);
-            Assert.Equal((32, 32, (int)format), (width, height, actualFormat));
+            Assert.Equal((32, 32, format), (width, height, OpenGLImageValues.Format((PixelInternalFormat)actualFormat)));
             Assert.Equal((0, 0), (low.Width, low.Height));
             Assert.Equal(FramebufferErrorCode.FramebufferComplete, GL.CheckFramebufferStatus(FramebufferTarget.Framebuffer));
             frames[(int)EnumFrameBuffer.BlurVerticalLowRes] = low;

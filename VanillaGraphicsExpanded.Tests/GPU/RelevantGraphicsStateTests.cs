@@ -30,6 +30,7 @@ public sealed class RelevantGraphicsStateTests(HeadlessGLFixture fixture) : IDis
     public void PolygonModesActivateOffsetAndLinePayloads()
     {
         using var context = new WideLineContext(fixture);
+        using var shaderLifetime = stateShaders;
         var cache = OpenGlStateCache.Current; OpenGLProgramSelection.Select(cache, 0);
         var fill = Description(raster: new() { LineWidth = 2,
             OffsetLine = true, DepthBiasFactor = 2, DepthBiasUnits = 3 });
@@ -77,6 +78,7 @@ public sealed class RelevantGraphicsStateTests(HeadlessGLFixture fixture) : IDis
     public void UnknownOutputPrimitiveAppliesConservativeNativeGroups(bool tessellation)
     {
         using var context = new WideLineContext(fixture);
+        using var shaderLifetime = stateShaders;
         var cache = OpenGlStateCache.Current; OpenGLProgramSelection.Select(cache, 0);
         var stages = new List<ShaderStageContract> { new("unknown.vsh", "unknown.vsh", ShaderStageKind.Vertex, new()),
             new("unknown.fsh", "unknown.fsh", ShaderStageKind.Fragment, new()) };
@@ -120,6 +122,7 @@ public sealed class RelevantGraphicsStateTests(HeadlessGLFixture fixture) : IDis
     public void TriangleLineTriangleRestoresOriginalWidth(bool fail)
     {
         using var context = new WideLineContext(fixture);
+        using var shaderLifetime = stateShaders;
         var cache = OpenGlStateCache.Current;
         OpenGLProgramSelection.Select(cache, 0);
         var triangle = Description(raster: new() { LineWidth = 2 });
@@ -330,6 +333,7 @@ public sealed class RelevantGraphicsStateTests(HeadlessGLFixture fixture) : IDis
         public WideLineContext(HeadlessGLFixture fixture)
         {
             this.fixture = fixture; fixture.MakeCurrent();
+            GpuSamplers.Dispose(); fixture.CleanupGpuResources();
             // Forward-compatible core contexts reject non-unit widths even when the driver reports a wider range.
             GLFW.DefaultWindowHints(); GLFW.WindowHint(WindowHintInt.ContextVersionMajor, 4);
             GLFW.WindowHint(WindowHintInt.ContextVersionMinor, 5); GLFW.WindowHint(WindowHintOpenGlProfile.OpenGlProfile, OpenGlProfile.Compat);
@@ -337,15 +341,28 @@ public sealed class RelevantGraphicsStateTests(HeadlessGLFixture fixture) : IDis
             window = GLFW.CreateWindow(8, 8, "Relevant width test", null, null);
             Assert.True(window != null, "The required compatibility raster context could not be created.");
             GLFW.MakeContextCurrent(window); GL.LoadBindings(new GLFWBindingsContext());
+            OpenTK.Graphics.OpenGL4.GL.LoadBindings(new GLFWBindingsContext());
             RenderContextRegistry.RegisterCurrent(this, owner => ((WideLineContext)owner).window != null);
-            GpuSupport.EnsureCurrentContext(); OpenGlStateCache.Current.InvalidateAll();
+            RHIResourceManagerSystem.EnsureCurrentContext(); GpuSupport.EnsureCurrentContext();
         }
 
         /// <summary>Retires this context before restoring the shared fixture and its state owner.</summary>
         public void Dispose()
         {
-            RenderContextRegistry.Retire(this); GLFW.DestroyWindow(window); window = null;
-            fixture.MakeCurrent(); GpuSupport.EnsureCurrentContext(); OpenGlStateCache.Current.InvalidateAll();
+            try
+            {
+                TestUniformRing.Dispose(); GpuSamplers.Dispose();
+                var manager = RHIResourceManagerSystem.CurrentManager;
+                manager?.ResourceDisposals?.DrainPending();
+                RHIResourceManagerSystem.Shutdown(); manager?.Dispose();
+            }
+            finally
+            {
+                RenderContextRegistry.Retire(this); GLFW.DestroyWindow(window); window = null;
+                fixture.MakeCurrent(); GL.LoadBindings(new GLFWBindingsContext());
+                OpenTK.Graphics.OpenGL4.GL.LoadBindings(new GLFWBindingsContext());
+                fixture.InitializeResourceDisposal();
+            }
         }
         #endregion
     }

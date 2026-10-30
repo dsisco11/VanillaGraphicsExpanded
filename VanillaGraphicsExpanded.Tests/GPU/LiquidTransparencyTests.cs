@@ -6,6 +6,7 @@ using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.PBR.Liquids;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Shaders;
+using VanillaGraphicsExpanded.Rendering.Pipeline.Descriptions;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 
 namespace VanillaGraphicsExpanded.Tests.GPU;
@@ -61,8 +62,10 @@ public sealed class LiquidTransparencyTests(HeadlessGLFixture fixture) : RenderT
         program.TerrainTexture = terrain;
         program.MaterialParamsTexture = material;
         program.DepthTexture = depth;
-        program.ShadowMapNear = depth;
-        program.ShadowMapFar = depth;
+        using var shadow = new DepthTexture(1, 1, TextureFormat.DepthComponent32f);
+        shadow.UploadDataImmediate([1f]);
+        program.ShadowMapNear = shadow;
+        program.ShadowMapFar = shadow;
         program.AerialRadianceTexture = aerial;
         program.AerialAttenuationTexture = aerial;
         program.ShadowRanges = Vector4.Zero;
@@ -80,48 +83,17 @@ public sealed class LiquidTransparencyTests(HeadlessGLFixture fixture) : RenderT
         using var sharedLights = new VgeLightsUniformBuffer();
         program.LightsInputs = sharedLights;
         program.FrameInputs = frameCamera;
-        var state = OpenGlStateCache.Current;
-        using var fixedFunction = LegacyFixedFunctionReference.Capture(state);
-        using var framebufferBinding = state.BindFramebufferScope(FramebufferTarget.Framebuffer, target.FboId);
-        using var vao = NativeResourceSetup.CreateVertexArray("Test.LiquidBuckets.Vao");
-        using var vertices = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = "Test.LiquidBuckets.Vertices" }).RequireResource();
-        using var flags = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = "Test.LiquidBuckets.Flags" }).RequireResource();
-        using var indices = RHICommandContext.Current.CreateIndexBuffer(new RHIBufferDescription { Role = BufferRole.Index, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = "Test.LiquidBuckets.Indices" }).RequireResource();
-        using var vertexBinding = OpenGlStateCache.Current.BindVertexArrayScope(vao.VertexArrayId);
-        // Supply every input through vertex buffers instead of mutable global constant attributes.
-        using (OpenGlStateCache.Current.BindBufferScope(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBufferValues.Target(vertices.Role), vertices.BufferId))
-        {
-            vertices.UploadData(new float[] {
+        using var mesh = new LiquidMeshFixture(new float[] {
                 -10,-1,-1, .5f,.5f, 0,0,0,1, 0,0,
                  10,-1,-1, .5f,.5f, 0,0,0,1, 0,0,
                  10,-1,-20,.5f,.5f, 0,0,0,1, 0,0,
-                -10,-1,-20,.5f,.5f, 0,0,0,1, 0,0 });
-            using (OpenGlStateCache.Current.BindVertexArrayScope(vao.VertexArrayId)) GL.VertexAttribPointer(0, 3, VertexAttribPointerType.Float, false, 44, 0);
-            using (OpenGlStateCache.Current.BindVertexArrayScope(vao.VertexArrayId)) GL.VertexAttribPointer(1, 2, VertexAttribPointerType.Float, false, 44, 12);
-            using (OpenGlStateCache.Current.BindVertexArrayScope(vao.VertexArrayId)) GL.VertexAttribPointer(2, 4, VertexAttribPointerType.Float, false, 44, 20);
-            using (OpenGlStateCache.Current.BindVertexArrayScope(vao.VertexArrayId)) GL.VertexAttribPointer(4, 2, VertexAttribPointerType.Float, false, 44, 36);
-        }
-        using (OpenGlStateCache.Current.BindBufferScope(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBufferValues.Target(flags.Role), flags.BufferId))
-        {
-            flags.UploadData(new int[12]);
-            using (OpenGlStateCache.Current.BindVertexArrayScope(vao.VertexArrayId)) GL.VertexAttribIPointer(3, 1, VertexAttribIntegerType.Int, 12, 0);
-            using (OpenGlStateCache.Current.BindVertexArrayScope(vao.VertexArrayId)) GL.VertexAttribIPointer(5, 1, VertexAttribIntegerType.Int, 12, 4);
-            using (OpenGlStateCache.Current.BindVertexArrayScope(vao.VertexArrayId)) GL.VertexAttribIPointer(6, 1, VertexAttribIntegerType.Int, 12, 8);
-        }
-        indices.UploadIndices(new uint[] { 0, 1, 2, 0, 2, 3 });
-        state.Apply(new GlPipelineDesc(
-            defaultMask: GlPipelineStateMask.From(GlPipelineStateId.DepthTestEnable)
-                .With(GlPipelineStateId.CullFaceEnable).With(GlPipelineStateId.BlendEnable)
-                .With(GlPipelineStateId.ScissorTestEnable).With(GlPipelineStateId.ColorMask),
-            nonDefaultMask: default,
-            name: "Test.LiquidBuckets"));
+                -10,-1,-20,.5f,.5f, 0,0,0,1, 0,0 }, new int[12], [0, 1, 2, 0, 2, 3]);
         Assert.True(target.CheckStatus(out var error), error);
         var view = Matrix4x4.CreateRotationX(19f * MathF.PI / 180);
         program.ModelViewMatrix = Flatten(view);
 
         var receiver = Vector4.Transform(new Vector4(0, -1, -5, 1), view * projection);
         int x = (int)((receiver.X / receiver.W * .5f + .5f) * size), y = (int)((receiver.Y / receiver.W * .5f + .5f) * size);
-        try
         {
             float[][] reference = Draw(false, opacity);
             float alpha = 1 - reference[1][0];
@@ -169,15 +141,6 @@ public sealed class LiquidTransparencyTests(HeadlessGLFixture fixture) : RenderT
             }
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally
-        {
-            // Reset every indexed factor before the legacy scope restores global state.
-            state.Apply(new GlPipelineDesc(
-                defaultMask: GlPipelineStateMask.From(GlPipelineStateId.BlendEnable).With(GlPipelineStateId.BlendFuncIndexed),
-                nonDefaultMask: default,
-                blendFuncIndexed: Enumerable.Range(0, 6).Select(i => new GlBlendFuncIndexed((byte)i, GlBlendFunc.Default)).ToArray(),
-                name: "Test.LiquidBuckets.Reset"));
-        }
 
         /// <summary>Clears revealage to one and accumulation to zero, then renders layers using captured blending.</summary>
         float[][] Draw(bool blend, params float[] opacities)
@@ -185,25 +148,36 @@ public sealed class LiquidTransparencyTests(HeadlessGLFixture fixture) : RenderT
             for (int i = 0; i < 6; i++)
                 target[i].UploadDataImmediate(Enumerable.Repeat(i < 2 ? 1f : 0f,
                     size * size * (i == 0 ? 3 : i == 1 ? 1 : 4)).ToArray());
-            var additive = new GlBlendFunc(BlendingFactorSrc.One, BlendingFactorDest.One, BlendingFactorSrc.One, BlendingFactorDest.One);
+            var additive = new ColorBlendDesc { Enabled = blend, SourceRgb = BlendFactor.One,
+                DestinationRgb = BlendFactor.One, SourceAlpha = BlendFactor.One, DestinationAlpha = BlendFactor.One };
             // DstColor in the captured alpha equation selects destination alpha as well.
-            var multiply = new GlBlendFunc(BlendingFactorSrc.DstColor, BlendingFactorDest.Zero, BlendingFactorSrc.DstAlpha, BlendingFactorDest.Zero);
-            var glow = new GlBlendFunc(BlendingFactorSrc.SrcAlpha, BlendingFactorDest.OneMinusSrcAlpha, BlendingFactorSrc.SrcAlpha, BlendingFactorDest.OneMinusSrcAlpha);
-            state.Apply(new GlPipelineDesc(
-                defaultMask: blend ? default : GlPipelineStateMask.From(GlPipelineStateId.BlendEnable),
-                nonDefaultMask: blend ? GlPipelineStateMask.From(GlPipelineStateId.BlendEnable).With(GlPipelineStateId.BlendFuncIndexed) : default,
-                blendFuncIndexed: blend ? [new(0, multiply), new(1, multiply), new(2, glow), new(3, additive), new(4, additive), new(5, additive)] : null,
-                name: "Test.LiquidBuckets"));
-            FramebufferTestSetup.BindForEngineRendering(target);
-            foreach (float layer in opacities)
+            var multiply = new ColorBlendDesc { Enabled = blend, SourceRgb = BlendFactor.DestinationColor,
+                DestinationRgb = BlendFactor.Zero, SourceAlpha = BlendFactor.DestinationAlpha, DestinationAlpha = BlendFactor.Zero };
+            var glow = new ColorBlendDesc { Enabled = blend, SourceRgb = BlendFactor.SourceAlpha,
+                DestinationRgb = BlendFactor.OneMinusSourceAlpha, SourceAlpha = BlendFactor.SourceAlpha,
+                DestinationAlpha = BlendFactor.OneMinusSourceAlpha };
+            var commands = RHICommandContext.Current;
+            var pass = FramebufferTestSetup.DescribeAttachments(target,
+                Enumerable.Range(0, 6).Select(index => new RHIColorAttachment(AttachmentIndex: index)));
+            using var pipeline = commands.CreateGraphicsPipeline(new(program.Shader, LiquidMeshFixture.Layout,
+                commands.DescribeRenderTargets(pass), DynamicPipelineState.Viewport,
+                blending: [multiply, multiply, glow, additive, additive, additive])).RequireResource();
+            using var boundary = commands.EnterBoundary(new("Tests.LiquidBuckets", true,
+                graphics: [pipeline], operations: BoundaryOperations.RenderPasses));
+            boundary.Run(() =>
             {
-                // Distinct tints make the order test exercise color mixing rather than duplicate layers.
-                terrain.UploadDataImmediate(layer == .35f ? new float[] { .3f, .6f, .9f, 1 } : new float[] { 1, 1, 1, 1 });
-                program.ForcedTransparency = 1 - layer;
-                using var active=ShaderBindingTestPipeline.Create(program);
-        RHICommandContext.Current.SetPipeline(active);RHICommandContext.Current.BindResources(program.CaptureBindings());
-                GL.DrawElements(PrimitiveType.Triangles, indices.IndexCount, DrawElementsType.UnsignedInt, IntPtr.Zero);
-            }
+                commands.BeginRenderPass(pass); commands.SetPipeline(pipeline);
+                commands.SetDynamicState(new() { Viewport = commands.PassViewport });
+                foreach (float layer in opacities)
+                {
+                    // Distinct tints make the order test exercise color mixing rather than duplicate layers.
+                    terrain.UploadDataImmediate(layer == .35f ? new float[] { .3f, .6f, .9f, 1 } : new float[] { 1, 1, 1, 1 });
+                    program.ForcedTransparency = 1 - layer;
+                    commands.BindResources(program.CaptureBindings());
+                    commands.DrawIndexed(mesh.Inputs, new(0, mesh.IndexCount));
+                }
+                commands.EndRenderPass();
+            });
             return Enumerable.Range(0, 6).Select(i => target[i].ReadPixelsRegion(x, y, 1, 1)).ToArray();
         }
     }

@@ -127,7 +127,7 @@ public sealed class CloudSimpleDrawTests(HeadlessGLFixture fixture) : LumOnShade
         Assert.NotEqual(ordinary.RevealPixels,Draw(1,0,0,undulation:1).RevealPixels);
     }
 
-    /// <summary>The geometry adapter rejects unsupported native streams and excess instance ranges without deleting the mesh.</summary>
+    /// <summary>Observed native edits expire existing declarations without transferring engine mesh ownership.</summary>
     [Fact]
     public void InvalidNativeRepresentationCannotBeAdmitted()
     {
@@ -136,15 +136,21 @@ public sealed class CloudSimpleDrawTests(HeadlessGLFixture fixture) : LumOnShade
         using(var borrowed=new CloudSimpleGeometry(native.Mesh,1)) { }
         Assert.Throws<ArgumentOutOfRangeException>(()=>new CloudSimpleGeometry(native.Mesh,0));
         Assert.Throws<ArgumentOutOfRangeException>(()=>new CloudSimpleGeometry(native.Mesh,2));
-        // A new managed identity has no previous receipt, so a malformed divisor is checked at acquisition.
+        // Admission uses the declared layout; subsequent intercepted edits expire that exact configuration.
         using var malformed=new NativeCloud(5,.1f,0,short.MaxValue,.1f,0,0);
+        using var previousDivisor = new CloudSimpleGeometry(malformed.Mesh,1);
         OpenGLVertexSelection.Bind(OpenGlStateCache.Current, malformed.Mesh.VaoId); GL.VertexAttribDivisor(4,0);
-        Assert.Throws<InvalidOperationException>(()=>new CloudSimpleGeometry(malformed.Mesh,1));
+        Assert.Throws<InvalidOperationException>(()=>previousDivisor.Inputs);
+        using var declaredDivisor = new CloudSimpleGeometry(malformed.Mesh,1);
+        Assert.NotEmpty(declaredDivisor.Inputs.Streams);
         using var packed=new NativeCloud(5,.1f,0,short.MaxValue,.1f,0,0);
+        using var previousPacking = new CloudSimpleGeometry(packed.Mesh,1);
         OpenGLVertexSelection.Bind(OpenGlStateCache.Current, packed.Mesh.VaoId);
         OpenGLBufferBindings.BindBuffer(OpenGlStateCache.Current, BufferTarget.ArrayBuffer,packed.Mesh.customDataShortVboId);
         GL.VertexAttribPointer(3,2,VertexAttribPointerType.Short,true,0,IntPtr.Zero);
-        Assert.Throws<InvalidOperationException>(()=>new CloudSimpleGeometry(packed.Mesh,1));
+        Assert.Throws<InvalidOperationException>(()=>previousPacking.Inputs);
+        using var declaredPacking = new CloudSimpleGeometry(packed.Mesh,1);
+        Assert.NotEmpty(declaredPacking.Inputs.Streams);
         Assert.False(native.Mesh.Disposed); Assert.True(GL.IsBuffer(native.Mesh.customDataShortVboId));
     }
     #endregion

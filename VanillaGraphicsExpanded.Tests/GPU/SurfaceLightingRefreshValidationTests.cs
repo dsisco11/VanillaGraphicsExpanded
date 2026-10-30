@@ -20,7 +20,10 @@ public sealed class SurfaceLightingRefreshValidationTests(HeadlessGLFixture fixt
         runtime.TransformVoxel=(x,y,z,voxel)=>voxel with
         {
             Geometry=x==32 && missing ? 0u : (x&31)==0 ? 2u|(runtime.MaterialId<<2) : 1u,
-            LegacyLight=x>=32 ? 0u : voxel.LegacyLight
+            LegacyLight=x>=32
+                ? LumonSceneOccupancyPacking.Pack(0,0,0,LumonSceneOccupancyPacking.UnpackMaterialPaletteIndex(voxel.LegacyLight))
+                : voxel.LegacyLight,
+            NormalizedLight=x>=32 ? 0u : voxel.NormalizedLight
         };
         runtime.PrimeGeometry(); runtime.RunUntil(runtime.AllRequestedLightingReady);
         Assert.True(runtime.Feedback.TryGetNearDispatchState(out _,out _,out var initialPages,out _));
@@ -72,7 +75,12 @@ public sealed class SurfaceLightingRefreshValidationTests(HeadlessGLFixture fixt
             Assert.True(bright>.1f);
             long capture=runtime.Feedback.GetCaptureRevision(page);
             Assert.True(runtime.TryGetLighting(out var original));
-            runtime.TransformVoxel=(x,y,z,voxel)=>x>=0 ? voxel with { LegacyLight=0 } : voxel;
+            // The edited source withdraws the same light from both GPU publication encodings.
+            runtime.TransformVoxel=(x,y,z,voxel)=>x>=0 ? voxel with
+            {
+                LegacyLight=LumonSceneOccupancyPacking.Pack(0,0,0,LumonSceneOccupancyPacking.UnpackMaterialPaletteIndex(voxel.LegacyLight)),
+                NormalizedLight=0
+            } : voxel;
             foreach(var source in runtime.Sources.Where(source=>!source.Disposed))
                 source.MarkDirty(ChunkKey.FromChunkCoords(0,1,0));
             for(int frame=0;frame<512;frame++)
@@ -93,7 +101,11 @@ public sealed class SurfaceLightingRefreshValidationTests(HeadlessGLFixture fixt
         using var reference=new SurfaceCacheRuntimeFixture(spatial:new SpatialLightingScene { Reflectance=.25f });
         reference.Config.LumOn.LumonScene.RelightSeedPagesPerFrame = reference.Config.LumOn.LumonScene.RelightDirectPagesPerFrame = reference.Config.LumOn.LumonScene.RelightIndirectPagesPerFrame = 4;
         reference.Config.LumOn.LumonScene.RelightRaysPerTexel=16;
-        reference.TransformVoxel=(x,y,z,voxel)=>x>=0 ? voxel with { LegacyLight=0 } : voxel;
+        reference.TransformVoxel=(x,y,z,voxel)=>x>=0 ? voxel with
+        {
+            LegacyLight=LumonSceneOccupancyPacking.Pack(0,0,0,LumonSceneOccupancyPacking.UnpackMaterialPaletteIndex(voxel.LegacyLight)),
+            NormalizedLight=0
+        } : voxel;
         reference.PrimeGeometry(); reference.RunUntil(reference.AllRequestedLightingReady);
         for(int frame=0;frame<512;frame++) reference.Frame();
         Assert.True(reference.Feedback.TryGetNearDispatchState(out _,out _,out var mapping,out _));

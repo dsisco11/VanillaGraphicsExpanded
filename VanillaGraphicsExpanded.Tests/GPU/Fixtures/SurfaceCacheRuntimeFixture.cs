@@ -20,6 +20,7 @@ internal sealed partial class SurfaceCacheRuntimeFixture : IDisposable
     private readonly BinaryShaderApiFixture assets = new();
     private readonly ScopedPbrMaterialFixture material = new();
     private readonly ShaderTestFramework drawing = new();
+    private readonly GpuFramebuffer presentation;
     private readonly WorldPartitionModSystem partitions = new();
     private readonly LumOnDebugRenderer? debug;
     private LumonSceneRelightUpdateRenderer relight = null!;
@@ -120,6 +121,7 @@ internal sealed partial class SurfaceCacheRuntimeFixture : IDisposable
         this.spatial=spatial; edge=spatial==null?2:4;
         this.productionOwned=productionOwned; this.enclosure=enclosure; this.exposedWall=exposedWall;
         Terrain = new(edge,edge);
+        presentation = drawing.CreateTestGBuffer(edge, edge, TextureFormat.Rgba16f);
         feedbackPatches = enclosure
             ? Enumerable.Range(0,6).SelectMany(axis => Enumerable.Range(0,4).Select(tile =>
                 1u + 6u * (uint)((axis%2==0?0:7)*64 + (tile/2)*8 + tile%2) + (uint)axis)).ToArray()
@@ -207,7 +209,16 @@ internal sealed partial class SurfaceCacheRuntimeFixture : IDisposable
     {
         TestUniformRing.BeginFrame();
         cameraWorld?.RefreshCamera();
+        FramebufferTestSetup.BindForEngineRendering(Terrain.Output);
         Events.Render(EnumRenderStage.Before);
+        if (!productionOwned)
+        {
+            // This controlled transport source authors a 32-lux full field, independently of
+            // the installed engine's torch fit. Keep the real camera and frame publication.
+            float fullAmplitude = 1 - 10f / 255;
+            VgeFrameRenderer.Current.SetLightingCalibration(new(32f * (MathF.Pow(fullAmplitude, 3) + .064f)
+                / MathF.Pow(fullAmplitude, 4), 10f / 255, TerrainSkyFloor: 0, AccessorSkyFloor: 0));
+        }
         Events.Render(EnumRenderStage.Opaque);
         if(spatial!=null)
         {
@@ -227,8 +238,14 @@ internal sealed partial class SurfaceCacheRuntimeFixture : IDisposable
             Terrain.UploadFeedback(Buffers,pixels);
         }
         Events.Render(EnumRenderStage.Done);
-        FramebufferTestSetup.BindForEngineRendering(Terrain.Output);
-        Events.Render(EnumRenderStage.AfterBlit);
+        // Model presentation separately from the G-buffer images sampled by debug overlays.
+        var commands = RHICommandContext.Current;
+        using (var boundary = commands.EnterBoundary(new("Tests.SurfaceCache.Present", true,
+            operations: BoundaryOperations.RenderPasses)))
+            boundary.Run(() => commands.BlitImages(FramebufferTestSetup.DescribeCopy(Terrain.Output, presentation)));
+        FramebufferTestSetup.BindForEngineRendering(presentation);
+        using (var submissions = new NativeIndexedDrawCapture(() => Draws++))
+            Events.Render(EnumRenderStage.AfterBlit);
         Frames++;
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
@@ -329,14 +346,14 @@ internal sealed partial class SurfaceCacheRuntimeFixture : IDisposable
     /// <summary>Reads the rendered viewer output without inspecting shader internals.</summary>
     public float[] ReadPixels()
     {
-        FramebufferTestSetup.BindForEngineRendering(Terrain.Output);
+        FramebufferTestSetup.BindForEngineRendering(presentation);
         float[] result = new float[edge*edge*4];
         GL.ReadPixels(0, 0, edge, edge, PixelFormat.Rgba, PixelType.Float, result);
         return result;
     }
 
     /// <summary>Implements the engine mesh draw using a real fullscreen GPU triangle.</summary>
-    private void Draw() { Draws++; drawing.RenderQuad(GL.GetInteger(GetPName.CurrentProgram)); }
+    private void Draw() { drawing.RenderQuad(GL.GetInteger(GetPName.CurrentProgram)); }
     #endregion
 
     #region Teardown
@@ -351,7 +368,7 @@ internal sealed partial class SurfaceCacheRuntimeFixture : IDisposable
             LumOnDebugShaderProgramFamily.Dispose(Api);
             VanillaGraphicsExpanded.Rendering.Shaders.GpuShaderProgramLibraries.Dispose(Api);
         }
-        Buffers.Dispose(); Terrain.Dispose(); drawing.Dispose(); assets.Dispose(); material.Dispose();
+        Buffers.Dispose(); presentation.Dispose(); Terrain.Dispose(); drawing.Dispose(); assets.Dispose(); material.Dispose();
     }
 
     #endregion

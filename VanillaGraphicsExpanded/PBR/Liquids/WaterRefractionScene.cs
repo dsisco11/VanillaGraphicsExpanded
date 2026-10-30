@@ -116,7 +116,7 @@ internal sealed class WaterRefractionScene : IDisposable
                 SourceDepth = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.R32f, Width = System.Math.Max(1, width), Height = System.Math.Max(1, height), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "WaterRefraction.Depth" }).RequireResource();
                 compositeInput=compositeColor;
                 target = new([
-                    compositeColor is null ? new() : new RHIColorAttachment(Image:RHIAttachment.FromTexture(compositeColor)),
+                    compositeColor is null ? new RHIColorAttachment(DiscardOutput:true) : new RHIColorAttachment(Image:RHIAttachment.FromTexture(compositeColor)),
                     new(Image:RHIAttachment.FromTexture(SourceColor)),new(Image:RHIAttachment.FromTexture(SourceDepth))],
                     label:compositeColor is null ? "WaterRefraction.Capture" : "WaterRefraction.Publication");
             }

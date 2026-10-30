@@ -44,7 +44,7 @@ public sealed class LiquidBlendPolicyTests(HeadlessGLFixture fixture) : RenderTe
             var clear = ColorClearValue.Float(.2f, .4f, .6f, .8f);
             commands.BeginRenderPass(FramebufferTestSetup.DescribeAttachments(target, [new(AttachmentIndex:0, Load:AttachmentLoad.Clear, Clear: clear), new(AttachmentIndex:1)]));
             commands.SetPipeline(pipeline); commands.SetDynamicState(new() { Viewport = commands.PassViewport });
-            commands.Draw(geometry.Inputs, new(0, 3));
+            commands.BindResources(shader.CaptureBindings()); commands.Draw(geometry.Inputs, new(0, 3));
         });
 }
         var actual = target[0].ReadPixels(); var expected = new[] { red, green, blue, alpha };

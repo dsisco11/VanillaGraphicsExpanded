@@ -100,7 +100,9 @@ public sealed class PbrCompositeHdrTests : LumOnShaderFunctionalTestBase
         using var normal = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba16f, new[] { .5f, 1f, .5f, explicitPosition ? -1f : 1f });
         using var position = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba16f, new[] { 0f, 0f, 1000f, 1f });
         using var environment = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba16f, new[] {0f,0f,0f,skyVisibility});
-        using var output = TestFramework.CreateTestGBuffer(1, 1, TextureFormat.Rgba16f);
+        // Declare every output of the retained composite executable, even when only scene color is inspected.
+        using var output = TestFramework.CreateTestGBuffer(1, 1,
+            TextureFormat.Rgba16f, TextureFormat.Rgba16f, TextureFormat.R32f);
         using var atmosphereOwner = new AtmosphereModSystem();
         float[] scatter = atmosphere ? [.2f,.3f,.4f,1f] : [0f,0f,0f,1f];
         float[] loss = atmosphere ? [.5f,.6f,.7f,1f] : [0f,0f,0f,1f];

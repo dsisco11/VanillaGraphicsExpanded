@@ -1,4 +1,5 @@
 using OpenTK.Graphics.OpenGL;
+using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 
 namespace VanillaGraphicsExpanded.Tests.GPU;
@@ -70,7 +71,7 @@ public sealed class NearFieldResourceReuseTests : NearFieldShaderTestBase
                 worldResources: world, resources: first,
                 consume: traced => Assert.Same(output, traced));
             Assert.Same(screen, first.EnsureScreen(4, 4, 2));
-            Assert.Same(radiance, screen.ScreenProbeAtlasTraceTex);
+            Assert.Equal(radiance, (GpuTextureRef)screen.ScreenProbeAtlasTraceTex);
             Assert.Same(history, screen.ScreenProbeAtlasHistoryTex);
             Assert.Same(depth, first.Scene.Engine.Depth);
             Assert.True(radiance.IsValid);

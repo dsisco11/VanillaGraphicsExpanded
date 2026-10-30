@@ -61,8 +61,12 @@ internal static class TestShaderPrograms
     private static ShaderStageContract Fixture(string name, string suffix, ShaderStageKind kind)
     {
         var bindings = new GpuBindingContract();
-        if (name == "temporal-debug") bindings.RegisterShaderStorageBlockBinding("Result", 0);
-        string? block = name switch { "temporal-debug" => "TemporalDebugInputs", "rasterizer" => "RasterizerInputs", "particle-draw" => "ParticleDrawInputs", "terrain-capture-opaque" or "terrain-capture-topsoil" => "TerrainCaptureInputs", "normal-input" or "foliage-transmission" or "liquid-interface" => "TestInputs", _ => null };
+        if (name == "temporal-debug")
+        {
+            bindings.RegisterShaderStorageBlockBinding("Result", 0);
+            bindings.RegisterUniformBlockBinding("VgeFrameUBO", 12);
+        }
+        string? block = name switch { "rasterizer" => "RasterizerInputs", "particle-draw" => "ParticleDrawInputs", "terrain-capture-opaque" or "terrain-capture-topsoil" => "TerrainCaptureInputs", "normal-input" or "foliage-transmission" or "liquid-interface" => "TestInputs", _ => null };
         if (block != null) bindings.RegisterUniformBlockBinding(block, 28);
         if (name == "sampler-handoff") bindings.RegisterSamplerUnit("ordinaryTexture", 5);
         return new("tests/" + name + "." + suffix, "tests/" + name + "." + suffix, kind, bindings);

@@ -193,7 +193,8 @@ public sealed class EngineStateSwitchingGpuTests(HeadlessGLFixture fixture) : Re
 #endif
             Assert.True(cache.TryGetCachedActiveTextureUnit(out int unit));
             Assert.Equal(3, unit);
-            Assert.False(cache.TryGetCachedBoundTexture(TextureTarget.Texture2D, 3, out _));
+            Assert.True(cache.TryGetCachedBoundTexture(TextureTarget.Texture2D, 3, out int observedTexture));
+            Assert.Equal(texture, observedTexture);
             Assert.Equal(texture, cache.GetBoundTexture(TextureTarget.Texture2D, 3));
             Assert.Equal(texture, GL.GetInteger(GetPName.TextureBinding2D));
             Assert.Equal(sampler, cache.GetBoundSampler(3));
@@ -241,7 +242,8 @@ public sealed class EngineStateSwitchingGpuTests(HeadlessGLFixture fixture) : Re
             Assert.Equal(3, activeUnit);
             Assert.True(cache.TryGetCachedBoundTexture(TextureTarget.Texture2D, 1, out int unchanged));
             Assert.Equal(previousTexture, unchanged);
-            Assert.False(cache.TryGetCachedBoundTexture(TextureTarget.Texture2D, 3, out _));
+            Assert.True(cache.TryGetCachedBoundTexture(TextureTarget.Texture2D, 3, out int observedTexture));
+            Assert.Equal(nextTexture, observedTexture);
             Assert.True(cache.TryGetCachedBoundTexture(TextureTarget.TextureCubeMap, 3, out int cachedCube));
             Assert.Equal(cubeTexture, cachedCube);
             Assert.Equal((int)TextureUnit.Texture3, GL.GetInteger(GetPName.ActiveTexture));

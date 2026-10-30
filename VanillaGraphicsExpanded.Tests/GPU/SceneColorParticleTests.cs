@@ -23,6 +23,7 @@ public sealed class SceneColorParticleTests(HeadlessGLFixture fixture) : LumOnSh
     public void CaptureAndResolveSeparateMaterialDepthAndParticleRadiance(int scenario, TextureFormat depthFormat)
     {
         EnsureShaderTestAvailable();
+        using var equations = new NativeParticleBlendEquations();
         EstablishScissor(false);
         using var material = new GpuFramebufferAttachment(2, 2, TextureFormat.Rgba32f);
         using var glow = new GpuFramebufferAttachment(2, 2, TextureFormat.Rgba32f);

@@ -129,7 +129,8 @@ public sealed class CameraExposureDisplayTests(HeadlessGLFixture fixture):LumOnS
         using var draw=new PostprocessDraw();
         var settings=new CameraExposureSettings().Snapshot();
         meter.SceneRadiance=source;meter.Capture(settings,true);
-        meter.Histogram=targets.Histogram; meter.Dispatch(36);
+        // Adaptation consumes every histogram group; execute the complete production workload.
+        meter.Histogram=targets.Histogram; meter.Dispatch(CameraExposureTargets.HistogramGroupCount);
         GL.MemoryBarrier(MemoryBarrierFlags.ShaderStorageBarrierBit);
         uint count=ExposureTestStorage.Read<uint>(targets.Histogram).Where((_,i)=>i%2==0).Aggregate(0u,(a,v)=>a+v);
         using var adaptationCamera = TestFrameCamera.CreateIdentity(1, 1);

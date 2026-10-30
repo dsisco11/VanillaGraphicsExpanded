@@ -162,6 +162,12 @@ public sealed class ShaderDemandPreparationTests(HeadlessGLFixture fixture) : Re
         Assert.Empty(assets.Reads);
         Assert.True(pipeline.EnsureReady(), pipeline.PreparationLog);
         RHICommandContext.Current.SetPipeline(pipeline.Pipeline);
+        // Preparation establishes the interface; execution consumes an explicit retained resource set.
+        RHICommandContext.Current.BindResources(new(pipeline.Shader,
+            images: [new RHIImageInput(GpuBindingEntry.Identity(ShaderBindingKind.Image, "outImg"),
+                new RHIImageBinding(texture, ImageAccess.WriteOnly, Layered: true, Format: TextureFormat.Rgba32ui))],
+            buffers: [new(GpuBindingEntry.Identity(ShaderBindingKind.UniformBlock, "TestParams"),
+                BufferRole.Uniform, allocation.Buffer, allocation.OffsetBytes, allocation.SizeBytes, Whole: false)]));
         RHICommandContext.Current.Dispatch(new(1));
         GL.MemoryBarrier(MemoryBarrierFlags.TextureUpdateBarrierBit | MemoryBarrierFlags.ShaderImageAccessBarrierBit);
         uint[] actual = new uint[4];

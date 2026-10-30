@@ -22,8 +22,6 @@ internal sealed class AmbientOcclusionSceneFixture : IDisposable
     private readonly DepthHierarchyComputeShader compute;
     private readonly DepthHierarchyPass hierarchy=new();
     private readonly DynamicTexture2D normal,material,environment;
-    private readonly float[] materialData;
-    private readonly float originalRoughness;
     private readonly float availability;
 
     #region Public API
@@ -45,7 +43,7 @@ internal sealed class AmbientOcclusionSceneFixture : IDisposable
         float receiverDistance=3,float verticalFov=90,float edgeFraction=.5f,float roughness=.5f,float metallic=0,float availability=.5f,
         float occluderTransmission=0,float receiverTransmission=0)
     {
-        this.framework=framework;Width=width;Height=height;originalRoughness=roughness;this.availability=availability;
+        this.framework=framework;Width=width;Height=height;this.availability=availability;
         horizon=programs.Create<PostSsaoShaderProgram>();filter=programs.Create<AmbientOcclusionFilterShaderProgram>();compute=programs.CreateDepthHierarchy();
         maskShader=programs.Create<MinimumChildMaskShaderProgram>();
         float aspect=(float)width/height,tanHalf=MathF.Tan(verticalFov*MathF.PI/360);
@@ -55,7 +53,7 @@ internal sealed class AmbientOcclusionSceneFixture : IDisposable
         float[] view=[1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1];
         Camera=TestFrameCamera.Create(inverse,view,width,height,near,far);
         float[] depths=new float[width*height],normals=new float[width*height*4],colors=new float[width*height*4],positions=new float[width*height*4];
-        materialData=new float[width*height*4];
+        var materialData=new float[width*height*4];
         int edge=(int)(width*edgeFraction);
         // Intersect authored view rays with z planes, the corner at x=.5 or a ground plane,
         // then project the real point into hardware depth. Ground rays above the horizon are sky.
@@ -169,13 +167,6 @@ internal sealed class AmbientOcclusionSceneFixture : IDisposable
     internal void SetEnvironment(bool enabled)
     {
         Surface.UploadDataImmediate(EnvironmentData(enabled?availability:0),0,0,2,Width,Height,1);
-    }
-
-    /// <summary>Removes only the composite specular lobe for an independent diffuse contribution measurement.</summary>
-    internal void SetCompositeRoughness(bool diffuseOnly)
-    {
-        for(int i=0;i<Width*Height;i++)materialData[i*4]=diffuseOnly?1:originalRoughness;
-        Surface.UploadDataImmediate(materialData,0,0,1,Width,Height,1);
     }
 
     #endregion

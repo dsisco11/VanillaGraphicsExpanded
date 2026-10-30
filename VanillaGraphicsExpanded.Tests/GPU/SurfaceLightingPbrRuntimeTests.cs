@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Tests.GPU.Helpers;
 using System.Numerics;
 using VanillaGraphicsExpanded.PBR.Materials.Energy;
 using VanillaGraphicsExpanded.PBR;
@@ -153,7 +154,9 @@ public sealed class SurfaceLightingPbrRuntimeTests : RenderTestBase
         var view = Vector3.Normalize(scene.Position - scene.VisiblePoints[index]);
         float cosine = Math.Clamp(Vector3.Dot(normal, view), 0, 1);
         Vector3 f0=Vector3.Lerp(new(.04f),material.Albedo,material.Metallic);
-        Vector3 reflectance=MicrofacetEnergyTable.Reflectance(MicrofacetEnergyTable.Shared.Sample(material.Roughness,cosine),f0);
+        Vector3 reflectance=new((float)GgxHemisphereReference.Reflection(material.Roughness,cosine,f0.X),
+            (float)GgxHemisphereReference.Reflection(material.Roughness,cosine,f0.Y),
+            (float)GgxHemisphereReference.Reflection(material.Roughness,cosine,f0.Z));
         // The directionless environment estimate is incident E/pi; rough materials retain their integrated specular energy.
         return incident * (material.Albedo*(1-material.Metallic)*(Vector3.One-reflectance)+reflectance);
     }

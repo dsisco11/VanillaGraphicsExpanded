@@ -9,7 +9,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 public sealed class InstalledShaderFixtureTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
     #region Public API
-    /// <summary>Only a successfully linked installed GLSL program publishes the live scene convention capability.</summary>
+    /// <summary>Patched particle programs expose the scene convention; the superseded native final program stays unmodified.</summary>
     [Theory]
     [InlineData("particlescube", 0)]
     [InlineData("particlescube", 1)]
@@ -18,9 +18,10 @@ public sealed class InstalledShaderFixtureTests(HeadlessGLFixture fixture) : Ren
     {
         EnsureContextValid();
         using var shader = new InstalledShaderFixture(name, ssao);
-        Assert.True(shader.Engine.HasUniform("vge_sceneLinear"));
-        Assert.True(ShaderCapabilities.Has(shader.Engine, ShaderCapability.SceneColorConvention));
-        Assert.True(shader.Layout.GetUniformLocation(shader.Engine.ProgramId, "vge_sceneLinear") >= 0);
+        bool consumesSceneConvention = name != "final";
+        Assert.Equal(consumesSceneConvention, shader.Engine.HasUniform("vge_sceneLinear"));
+        Assert.Equal(consumesSceneConvention, ShaderCapabilities.Has(shader.Engine, ShaderCapability.SceneColorConvention));
+        Assert.Equal(consumesSceneConvention, shader.Layout.GetUniformLocation(shader.Engine.ProgramId, "vge_sceneLinear") >= 0);
     }
     #endregion
 }

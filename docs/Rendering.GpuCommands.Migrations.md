@@ -1998,3 +1998,674 @@ recorded above. No shader bypass, JIT override, instrumented Release, benchmark 
 Second source review and independent completion audit passed, including final receipt reconciliation.
 Phase 9 integrated lighting, hardware/interop, package and user-run qualification remains open.
 No staging, unstaging or commit was performed.
+
+## Integrated qualification (9)
+
+The candidate starts at `016121e9936a789267d473d2be5d5906287423fb`. Qualification is in progress;
+this section does not close the implementation plan or establish installed-game acceptance.
+
+| Work | Controlling requirements | Evidence and remaining obligations |
+| --- | --- | --- |
+| Integrated rendering and fixtures | Plan Phase 9; Proposal representative outcomes, shader/PSO and recording contracts; Contracts submission/failure; resource and prepared-binding contracts | Fresh canonical Debug build passed. The initial diagnostic run was interrupted before completion; its partial failure inventory is not a full-suite receipt. Corrected candidate runs are recorded under `artifacts/rhi-phase9/`. |
+| Creation, aliases and retirement | Resource contract initialization/query/retirement; inventory canonical identities and dependencies; archived publication and texture-reference contracts | Retain existing independent output, original-context, name-reuse and native dispatch assertions in the combined candidate. Hardware substitutes remain distinct from actual optional native execution. |
+| Storage and diagnostics | Proposal recording/storage and optional diagnostics; Contracts list lifecycle/storage | Second source review confirms direct immediate backend dispatch without command storage, reused typed payload pages/byte arrays and DEBUG-only diagnostic counters. Result tickets retain their separate completion ownership. Existing suppression and query-reuse tests remain required in fresh runs. |
+| Package and user evidence | Plan Phase 9; Proposal qualification boundary; canonical `build.ps1` and Cake `Build -> CompileSpirVShaders -> Package` | Compare tested/published/package/ZIP runtime and canonical shader identities. User-run results below remain separate; no agent game launch or benchmark is authorized. |
+
+The fixture corrections submit complete captured resource tables before draws/dispatch, declare all
+active MRT outputs, and project binding-only PSO layouts from supplied executable inputs instead of
+assuming fullscreen inputs. Integer image fixtures request nearest filtering. Root shutdown adopts the
+single installed manager. The exposure fixture dispatches all histogram groups consumed by reduction;
+context-abandonment checks use the existing boundary token. Stage-loading tests validate canonical
+compiled assets rather than requiring fixture sources in the production source directory.
+
+`ShaderTextureTargetTests` checks semantic reflected dimensions rather than native numeric equality.
+The full-lighting arithmetic fixture retains its independent direct-input sum and `0.002` tolerance:
+only composite color destinations use RGBA32F, avoiding an additional half-float conversion whose
+spacing can exceed that tolerance. Direct-lighting inputs and refraction formats remain unchanged.
+This arithmetic test does not qualify production packed-color precision; its existing dedicated tests
+retain their own formats and independent output assertions. Production shaders/algorithms are unchanged.
+
+Additional controlled-input corrections follow the current physical contracts in
+`LumOn.SurfaceCache.LightingContract.md` (lighting terms/units), `PBR.LightingModes.md`
+(standalone/shared response), and `PBR.MaterialColorAndDisplay.md` (microfacet energy model).
+World-probe scenario RGB is encoded into a cloned persistent upload at C=1/16 while distance alpha
+and caller arrays remain unchanged. Near-field scenarios convert requested physical emission to the
+material coefficient using the existing 32-nit calibration. AO contribution capture uses matched
+zero visibility and independent diffuse/specular controls to isolate the original material's lobes;
+changing roughness is no longer used as a false proxy for removing specular. Existing physical and
+visibility assertions, formulas and tolerances are retained. Camera mock corrections reuse the existing
+native-world fixture. Draw helpers explicitly complete desired shader selections before creating fixed
+pipelines, so option edits cannot submit the old executable interface. These are fixture corrections,
+not a change to production lighting or RHI acceptance policy.
+The historical `artifacts/phase8h/closure5-head-comparison.json` is absent from this checkout.
+Its previously recorded 477 inherited failures and fourteen unmatched sequence observations cannot
+be reconciled case-by-case from the historical summary alone. Fresh full-suite results must identify
+current failures; neither missing historical artifacts nor isolated passes waive integrated failures.
+
+The corrected targeted Debug selection executed 108 cases: 70 passed, 38 failed, none skipped
+(`artifacts/rhi-phase9/bulk2-affected-debug.trx`). The AO contribution, near-field physical emission,
+state-cache binding and full-lighting arithmetic checks passed. Thirty-two world-probe gather assertions
+still expect irradiance E while the current `lumon_worldprobe_gather.glsl` explicitly publishes E/pi;
+unit incident radiance now produces 1 after the corrected persistent upload, against the old pi oracle.
+The physical-irradiance debug checks passed. The user subsequently approved correcting only gather
+assertions to independently compute E/pi, retaining debug E/tonemapping assertions and all existing
+tolerances. Fresh execution is required; earlier failures remain diagnostic evidence, not a waiver.
+The other six failures were a mechanical capture-fixture stub signature, corrected before Release
+compilation; fresh verification is still required. Interrupted earlier broad runs are diagnostic logs,
+not completed suite receipts and not proof of full-sequence closure.
+
+The approved quantity correction passed fresh execution: `approved-affected-debug.trx` qualified
+108/108 with zero skips. The same 108 cases passed within `approved-combined-release.trx`;
+the complete combined selection passed 1,461/1,463 with zero skips. Its two residual owner-configuration
+failure-injection cases did not observe a Harmony postfix on a small forwarding method; the actual
+managed attachment command is the appropriate stable injection boundary. The corrected managed-owner
+postfix passed in Debug and optimized Release, preserving the original exception, deleted candidate
+and live borrowed-image assertions (`nativefix-summary.json`).
+
+The broad Debug run aborted in native `GL.DrawElements`: 7,540 passed, 96 failed and eight skipped
+before the crash. An isolated water-capture run reproduced it. Named index upload had never associated
+an element buffer with the fixture VAO. The fixture now submits explicit retained vertex/index ranges,
+the actual unsigned packed-input layout, both additive output attachments and a real graphics PSO
+through RHI `DrawIndexed`; its optical/source/count equations and `0.0005` tolerance are unchanged.
+Its optional diagnostic branch uses the same submission route and was not executed as qualification.
+
+`handback-summary.json` records 113/119 passing in each configuration, with no skips or native crash.
+All eleven water cases, managed owner failures, explicit solar/terrain bindings, geometry declaration
+expiry, compatibility-context handback, camera publication/origin and local-exposure sampler isolation
+passed together. The six residual debug-view failures require the fixture's matching frame/calibration
+publication. Compatibility fixtures retire services and test-owned shaders on their original context
+before switching; they load both OpenTK binding tables and restore the primary service afterward.
+The optional-G-buffer debug-view null dereference is corrected: the geometry-only diagnostic supplies
+no depth input, as required by `LumOn.WorldProbeLighting.ReproductionTests.md`, Near-field geometry
+viewer, and `LumOn.TraceSceneGeometryContract.md`, Consumer inventory. Other modes retain their existing
+G-buffer prerequisites. The actual renderer-created shaders still require matching physical publication;
+that validation is not relaxed. The broader suite and original fourteen observations remain unqualified.
+
+The next immutable candidate (`fixtures3-summary.json`) passed 146/152 in Debug and 1,601/1,609 in
+the enlarged ordinary Release selection, with no skips or native crash. Native framebuffer-format
+encoding/selected-image queries and complete HZB/temporal MRT declarations passed. Debug-view physical
+publication now passes its identity guard; six failures instead count the obsolete engine rendering
+callback, which backend-owned indexed submission intentionally bypasses. Replace that fixture spy with
+the existing exact-ABI native capture while retaining pixel and mode-switch assertions. Two Release
+PSO trace markers also require investigation after warm-up; narrower receipts do not waive them.
+
+The following candidate (`fixtures5-summary.json`) passed 156/158 Debug cases and 1,613/1,615
+ordinary Release cases, with zero skips or native crashes. All six full scene-runtime tests now pass
+reload image/mask/UBO retirement and external-resource survival assertions: both light-shaft occlusion
+and ambient occlusion reload through their existing PSO-before-images retirement owners, as required
+by `PBR.Postprocessing.md`, Resources, settings and limits, and the ambient-visibility sidecar lifetime.
+The PSO fixture observes actual direct/indexed native dispatch and reads existing execution/restoration
+markers solely to classify the trace; native state queries still independently check active blend
+factors and exact handback. This introduces no production instrumentation or JIT override.
+
+The two residual world-probe diagnostic failures identify a fixture feedback hazard: its AfterBlit
+destination was the same primary framebuffer holding sampled G-buffer images. The fixture now uses
+a separate presentation destination after Before/Opaque callbacks, retaining native draw counts,
+original pixel values/tolerances and all mode-switch assertions. This last input correction requires
+fresh execution; no feedback guard was relaxed. Other broad-suite failures still require reconciliation
+before the next full-sequence run, and the final package and user-run acceptance remain outstanding.
+
+`fixtures6d-summary.json` records 200/204 Debug and 1,657/1,661 Release cases passing, with two
+failures and two pre-existing skips per configuration. The presentation target, complete indexed liquid
+draws, actual shadow-depth inputs, texture-reference equality and physical persistent-RGB decoding pass.
+The two fixture descriptions are corrected for fresh verification: triangulation capture modes have
+one RGBA8 output, and failed atlas executable preparation must allocate no scratch framebuffer. Candidate
+retirement, destination pixels, numerical tolerances and successful retry assertions remain intact.
+The skipped legacy atlas-trace hit-distance falloff and indirect-tint fixtures explicitly lack reliable
+controlled geometry; this receipt does not qualify those observations.
+
+The original zero-notification assertion in `LumOnBufferOwnershipTests` is retained. Source review
+traced repeated identical setup to unconditional framebuffer-dependent publication, not a legitimate
+image change or a routing event. Canonical snapshot assignment is preserved, but managed composition
+and native observations now compare complete selection/default facts and original backing identities
+before invalidating dependents. Actual changes, recovery, retirement and explicit external refresh
+retain their notifications. New native/managed publication tests cover unchanged revisions, changed
+images and forced explicit publication. The subsequent `fixtures7b-summary.json` records 562/568
+Debug and 1,987/1,993 mixed Release cases passing, with four failures and the same two existing skips.
+Framebuffer mutation/recovery/deletion, temporal and selected inventory checks passed; freshly rebuilt
+shader-build tool tests passed 256/256 in each configuration.
+
+The remaining repeated surface notifications came from reapplying an already-known mip range.
+`SetMipRange` now retains context, ownership, availability and argument validation before suppressing
+an identical request; actual changes retain image-dependent publication. The publication fixture
+explicitly initializes its tested 0/0 range. Atlas failure coverage distinguishes an empty input rejected
+before admission from a retired nonempty reference rejected during the bake boundary, retaining hostile
+state restoration, unchanged output and successful retry checks.
+
+Native particle fixtures now provide and restore their intended Add/Add equations for outputs 0/1;
+the capture scope continues preserving caller equations. Native final-program capability assertions
+follow the owned final path's deliberate exclusion of native final shader patches. No particle pixel
+oracle or tolerance changed. `batch8b-focused-{debug,release}.trx` each passed 55/55 cases with zero
+skips after canonical shader-enabled builds. Earlier batch8 setup failures remain diagnostic receipts.
+The subsequent broad Debug diagnostic completed without a crash: 8,152 passed, 253 failed and nine
+skipped (`batch8b-broad-debug-summary.json`). Its sources, original HEAD, runtime/PDB files and 1,889
+input/runtime asset hashes are preserved in `batch8b-source-snapshot.zip` and its identity receipts.
+After archiving the known-failing candidate, C# corrections proceeded while its immutable binaries
+finished; source-inspection observations after that point are diagnostic only. The completed run
+does not qualify the newer worktree. All final package identities require regeneration.
+
+The next bulk correction uses canonical program metadata during atmosphere registration; supplies the
+installed mesh's no-glow generic input; measures actual sky restoration scopes rather than singleton
+context identity; retires fixture upload services before their original manager; and gives controlled
+runtime hosts an explicit native-settings service. Water fixtures supply matching physical-light
+publications, complete shader outputs and retained RHI indexed geometry. Capture output zero is
+explicitly discarded, and storage-mutation tests distinguish active pass protection from idle retained
+intentions. Existing numerical inputs, comparisons and tolerances remain unchanged. Delegated
+Debug/Release validation is pending for this candidate.
+
+The standalone GGX expectations and legacy material-energy assertions remain unchanged pending human
+agreement. Source review links the material differences to the approved hemispherical interface-energy
+reserve before diffuse transport; an independent expected-value integration is required before changing
+those oracles. Producer progress and dark/convergence observations still require separate diagnosis.
+These focused and diagnostic receipts do not qualify the full integration.
+
+Fresh tool suites passed in both configurations: OpenGL interception generator 35, shader-contract
+generator 157, and shader-build tool 256 cases per configuration (448 total each), zero failures/skips.
+The earlier canonical Release package completed. That candidate's runtime build, test copy, publish, package and ZIP all have
+SHA256 `3097D51609C7A1C59BFBF92525277ADE4EC143292C63B967641D29CD101384EC`;
+all 761 packaged/ZIP shader variants match the canonical producer. ZIP SHA256 is
+`D68FC02BBD4299B60AF71F376A44B8DB981E6936A7374523A9D1B8960367ED9C`.
+Exact package results are in `artifacts/rhi-phase9/package-identity.json` and its log.
+These receipts establish artifact identity for that earlier candidate, not installed-game or visual
+acceptance. The subsequent debug-view runtime correction supersedes its runtime identity; rebuild and
+reverify the final package before acceptance.
+The later batch10b candidate passed shader-enabled Debug and ordinary Release builds. Its focused
+Debug selection passed 28/38, with zero skips; mixed Release passed 2,012/2,026, with two existing
+probe-atlas hit-geometry skips. Source, both configurations' DLL/PDB files and runtime inputs were
+archived without drift (`batch10b-summary.json`, source ZIP SHA256
+`8389F92291C47AFEB85F5AE05B7A76F3E644B26AEABF4C724635CA11E749CED2`).
+
+Batch11 replaces the remaining managed draw spies with actual native indexed submission observation.
+The water capture rejection fixture now supplies a real undersized frame-lighting buffer, asserts the
+minimum-extent validator's exact `ArgumentException`, verifies that no native draw occurred and restores
+every original override in `finally`. Publication, hostile-state restoration and recovery assertions
+remain intact. Water flow inputs author one nit of emission, and the scattering point source authors
+10,000 candela through isotropic lumens rather than passing that number as an engine-scaled payload.
+The original numerical expectations and tolerances are unchanged. These input corrections follow
+`PBR.MaterialColorAndDisplay.md` and the physical source definitions in `LightingCalibration`.
+
+Both batch11 builds passed. Its focused Debug selection passed 119/135 with zero skips; the consumer,
+temporal and capture-state cases pass. Remaining failures include four surface-refresh cases, two
+particle observation cases, a wait test reading unpublished filtered history and nine water cases.
+The archived candidate is `batch11-source-snapshot.zip`, SHA256
+`884CBFF6C0DD12923A850205BE01332EB3E4433B9DE0864FDD803D9C6955848B`;
+`batch11-debug-cases.json` retains exact case-level outcomes. Mixed Release completed with 2,105 passed,
+sixteen failed and two existing skips. Source-only thaw permits subsequent corrections without qualifying them from
+that older binary run; no final integrated or package claim follows from these partial results.
+
+The next source corrections preserve those numerical assertions: particle draw observation starts
+after native link setup finishes reloading core bindings; the wait fixture first requires real indirect
+publication before scanning intermediate images; per-frame final-output validation likewise observes
+only published output. All five settled-boundary finite checks and explicit NaN injection remain.
+`RuntimeWaterReceiver` supplies physical storage matching its own alternate-view camera identity.
+The non-production surface-cache fixture explicitly fits its authored full block field to 32 lux,
+matching the existing enclosure fixture and leaving production-owned calibration unchanged. The fog
+fixture authors its unit-reference radiance as inverse-sRGB(decode(original RGB)/32) through the
+documented compatibility input; its original expected RGB and tolerance remain unchanged. These
+fixture corrections have a separate source review and require fresh compiled verification.
+
+Fresh batch12 Debug verifies that correction set: 129/135 passed with zero skips. Particle publication,
+all four direct refresh checks, wait-boundary finite/NaN validation, consumer/temporal/capture-state
+cases, alternate-view receiver publication and the unit-reference fog case pass. The remaining six
+failures are the unchanged fixed-world water interface-energy assertions; their smooth Fresnel factor
+differs from the documented GGX transmission model (`PBR.Liquids.md`, shared material response).
+Changing that factor is awaiting explicit approval, independently of the earlier E/pi approval.
+The archived source ZIP SHA256 is
+`3B012422D9CBCE7E1E36572D0D1D4CD9EDB39444C5C36CC76C4C5DED2AFEB7CE`;
+the matching mixed Release run passed 2,115/2,123, with the same six failures and two existing skips.
+Post-run checks found no drift across 3,692 compiled runtime/input files. Subsequent counter guards
+and failure-only shallow-water replay are a separate candidate.
+
+The diagnostic-counter gate also identified `LumOnWorldProbeClipmapGpuResources.InvalidationDispatchCount`,
+whose only consumers are two test classes. Its declaration and increment are now `DEBUG`-only, as are
+those tests' counter snapshots/assertions. Operational `PendingInvalidationCount`, queue behavior and
+all Release pixel, readiness, clearing and lifecycle assertions are retained. This subsequent source
+candidate requires Debug/ordinary Release compilation, focused effects checks and confirmation that
+the property/backing field are absent from the Release assembly.
+
+Batch13 verifies that counter correction: both shader-enabled builds pass, and all thirteen clearing,
+queue/readiness and partial-world-probe cases pass in both configurations with zero skips. Cecil
+inspection confirms one counter property/backing field and two accessors in Debug, and none in
+ordinary Release (`batch13-counter-metadata.json`). The separate Debug shallow-water sweep passes
+21/24; replay of each failing adjacent pair shows triangle reconstruction switching to weighted
+sampling despite smooth UV motion and smooth direct filtering. Its original numerical assertions
+remain unchanged. All 104 source and 3,692 compiled-input identities remained stable.
+
+That replay justifies a bounded production correction under the integrated regression task's
+runtime-defect obligation. Task traceability is `Phase 9 integrated regressions` ->
+`PBR.WaterRefraction.md`, Background resolution and bilateral receivers / UV distortion -> actual
+coverage, foreground rejection, coherent RGB/position and bounded work. The archived governing UV
+tasks were also consulted at `e918f189^:docs/PBR.WaterRefraction.todo`; shared units/output/OIT
+constraints remain in `PBR.WaterMedium.md`, `PBR.Liquids.md`, `PBR.LiquidRenderer.Proposal.md`,
+`PBR.SharedDisplay.md`, `PBR.OutputDithering.md` and `PBR.MaterialColorAndDisplay.md`.
+Pixel-normal selection now tries the existing adjacent-patch correction only for reduced backgrounds
+when its initial source triangle lacks coverage. It preserves ray/UV lookup limits and adds at most
+three missing-neighbor depth reads, with original foreground/layer checks and no extrapolation.
+The coherent-input shallow fixture additionally checks the two-lookup/fifteen-depth/four-color source bounds.
+This changes no interface-energy model, expected value or numerical tolerance. Source review and
+fresh shader/build/GPU verification are required before accepting the correction.
+
+Batch14 builds pass both configurations. Its focused Debug selection passes 221/222 with zero skips:
+pixel-normal 14/14, filter 31/31, budget 32/32, diagnostic 72/72, reduction 6/6, UV 43/43 and shallow
+continuity 23/24. The two non-shoreline reconstruction jumps are fixed. The half-resolution shoreline
+case still jumps by `0.0371108055` against the unchanged `0.01` limit; its failed sample records thirteen
+depth reads and weighted fallback after the adjacent attempt. Do not infer permission to accept a
+foreground neighbor from this failure. Release GPU/tool checks and packaging are held. Source and
+compiled inputs remained unchanged throughout the run (`batch14-debug-summary.json`); source ZIP
+SHA256 `4889B61C49A6F1C7BBC60A96F21A57D4500919E9C03D3BBA11E0D72900C5C358`.
+A full Debug diagnostic against that same candidate is running to expose remaining failures and
+full-sequence observations while the shoreline and numerical-reference decisions are unresolved.
+
+The remaining shoreline replay lies just outside represented submerged coverage. The last eligible
+source corner projects to `u = 64.5/128`; the needed neighboring reduced texel retains a source at
+`u = 66.5/128` that is above the water interface. Rejecting that neighbor is correct. Weighted fallback
+moves back toward the covered quad's center and causes the observed jump. A proposed quality-zero
+alternative would clamp to the nearest point inside validated coverage before associated triangle
+interpolation. This would change edge continuation, so implementation awaits an explicit decision.
+Do not loosen foreground eligibility, extrapolate unsupported coverage or relax the `0.01` assertion.
+
+The full Debug diagnostic additionally exposed `GpuProfilerConfigurationTests.ScopeMeasuresOnlyInDebug`
+collecting zero samples from an empty scope. Source review identifies an independent valid-zero defect:
+the Debug profiler rejected equal completed timestamps even after ticket readiness and origin/revision
+checks. Subsequent C# source accepts zero-duration samples and retains rejection of reversed/nonfinite
+durations. A native-result fixture forwards actual reads once, retains original timestamp pairs and
+can supply deterministic equal/reversed completed values without replacing availability. The original
+sample-count assertion remains unchanged; new cases require two distinct completed queries and verify
+zero-duration statistics or rejection, plus Release measurement unavailability. This is correctness
+validation with no performance threshold. Source review passes; compilation/fresh execution must wait
+for the immutable broad run to finish. The original empty-scope failure's exact returned pair was not
+retained, so that specific attribution still requires fresh evidence.
+
+The immutable broad Debug run then completed without a crash: 8,367 passed, 38 failed and nine
+skipped out of 8,414. All 3,692 compiled inputs retained their archived hashes. The named full-lighting
+integration case passes; exposure display/shader, particle capture/handback, installed depth,
+sampler and worker families also pass in full ordering. Exact individual outcomes are retained in
+`batch14-broad-debug-summary.json`, `batch14-named-family-outcomes.json` and
+`batch14-earlier-sequence-outcomes.json`. This is current Debug sequence evidence, not a reconstruction
+of the missing historical 477-case artifact or final Release qualification. The nine skips are fixture,
+obsolete-path or explicit opt-in gaps, not reported hardware failures.
+
+Follow-up source-only corrections preserve the expected values and tolerances. Identity observation
+decodes persistent RGB before its physical-32 assertion. The world-probe restoration predicate now
+selects a neutral floor from the same accessor/fallback decoder as its coefficient. The controlled
+runtime lighting publication authors its declared 32-lux full block field before freezing storage;
+it changes only the two block coefficients/floors and preserves the real owner's already captured
+point calibration and all sky fields. Actual frame and generation publication remain authoritative.
+Source review checked that ordering and the affected host's temporal consumers. Production engine
+calibration is unchanged. These C# changes and the profiler correction require a fresh compiled
+candidate; old Debug results cannot qualify them. Legacy material response and water interface-energy
+oracles, and the shoreline continuation policy, remain pending explicit decisions.
+
+Batch15 compiles both configurations and passes 62/66 focused cases each, with zero skips. The four
+failures are the unchanged display/source material-energy expectations. Profiler configuration passes
+4/4 each: deterministic equal/reversed completed queries take two reads in Debug, and no reads or
+measurement state in Release. The ordinary captured Debug pair is positive; it does not recover the
+discarded pair from the earlier failing full run. Identity decoding and world-probe restoration pass.
+The current counter-member inspection again confirms Debug presence and ordinary Release absence.
+ShaderBuildTool passes 256/256 per configuration. All 111 source and 3,692 compiled-input hashes
+remain stable (`batch15-summary.json`, `batch15-counter-metadata.json`).
+
+The subsequent full ordinary Release diagnostic completes without a crash: 8,368 passed, 39 failed
+and nine skipped out of 8,416. All 3,692 compiled inputs retain their captured hashes. Named exposure,
+particle, installed-depth, sampler and full-lighting checks, and the named original-sequence worker
+checks, pass in full ordering; exact
+results are in `batch15-broad-release-summary.json`. This is failed broad correctness evidence, not
+final qualification. In addition to the known material/water/shoreline requirements, it exposes two
+worker-progress deadlines, a missing routing fault injection and a cloud direct-channel result of
+zero where the unchanged test expects `.25/.75`.
+
+The next source-only fixture changes keep the original deadlines and output oracles. Routing injection
+targets the EH-owning managed routing operation rather than an inlinable forwarding method. Cloud
+failure diagnostics retain the original filtered result before separately reading exact source and
+destination texels, avoiding a new prepublication wait. Worker diagnostics report pending/credit/pool
+state after the unchanged startup/progress guard fails; those samples alone establish no causal
+starvation or product defect. No production cloud algorithm, eligibility rule or worker scheduling
+policy changes. Independent second review passes.
+
+Batch16 executes the same warmed sixty-case union in both configurations: Debug passes 60/60;
+ordinary Release passes 59/60. The managed routing fault seam now observes the intended failure and
+retains its cleanup assertions. The worker classes pass this selection, which does not resolve their
+earlier full-sequence deadlines. Cloud publication still fails. Failure-only exact readbacks show that
+the source RG16f direct-light texture already contains the wrong values; publication is not yet shown
+to be their origin (`batch16-summary.json`).
+
+Batch17 captures the actual native texture-clear inputs while forwarding every call once. Debug
+passes 60/60 and Release 59/60. Both configurations receive the intended full 16x66x16 extent and
+RG/Float values (0.25,0.75), but Release subsequently reads zero from both source and destination.
+The capture reloads binding tables and changes stack/timing behavior; its evidence localizes inputs,
+not a transparent proof of unchanged execution. Original output assertions remain intact.
+
+The next standalone checks compare complete half-float volume contents through the wrapper and
+semantic entry points. Release batch18 passes 64/66: RG16f wrapper clearing fails independently of
+publication, while semantic RG16f clearing and both R16f/RGBA16f paths pass. Batch19 adds stack-backed
+semantic values and passes 67/69: semantic RG16f clears pass with both heap and stack storage;
+the wrapper and cloud cases still fail. A failure-only repeated wrapper clear, performed after saving
+the original sample and exact readbacks, also produces wrong source data. This rules out treating
+cloud publication as a necessary reproducer, but neither a driver/compiler defect nor a production
+fix is established. Per-case ordering/state remains relevant when comparing separate theory cases.
+All nine standalone checks preserve exact, half-representable constants; cloud assertions and worker
+deadlines are unchanged. Independent second review found no must-fix diagnostic/test issue. Batch18
+and batch19 rebuild ordinary Release only; no fresh Debug qualification is claimed for these additions.
+All captured source and compiled-input hashes remain unchanged within each execution. Exact cases,
+clear inputs and readbacks are retained in `batch17-summary.json`, `batch18-summary.json` and
+`batch19-summary.json`. These are diagnostic receipts, not integrated or package acceptance.
+
+Batch20 controls object and native-state ordering within one test: alternating semantic clears with
+wrapper and direct `ClearImmediate` calls on the same live RG16f object retains every readback before
+asserting. All three semantic steps pass, while all four wrapper/direct-wrapper steps fail despite
+distinct half-exact input pairs. Release passes 67/70 overall; exact bytes and mismatches remain in
+`batch20-alternating-failure.txt`. This strengthens the entry-point distinction without proving its
+underlying cause. A subsequent allocation-free named-value representation candidate passes Debug
+70/70 and Release 68/70; the original standalone and cloud cases still fail. That production candidate
+was reverted, rather than retained as an unproven fix. `batch21-summary.json` describes only that
+rejected candidate; current binaries must be rebuilt before further current-source qualification.
+The original clear implementation and every numerical oracle remain intact. Diagnostic tests remain
+available for continuing the investigation; there is no cloud or integrated completion claim.
+
+Batch22 verifies the driver allocation format and copies client bytes before and after native clear
+dispatch. Both are correct; the additional descriptor query changes reproduction, so its passing
+decorated path cannot qualify the original path. A whole-image clear specialization also fails the
+short-lived full and partial payload checks in batch23. It was removed, including its admission change;
+the separately reviewed heterogeneous mutable cube-face edge is therefore not introduced.
+
+The retained correction is confined to native clear-value lowering: RG/Float inputs expand to the
+equivalent RGBA/Float texel with blue zero and alpha one, preserving both supplied float components.
+OpenGL core sections 8.4.4.4 and 8.21 define those defaults and clear conversion. There is no new
+query, wait, heap allocation, lifetime owner or metadata publication. Independent source review passes.
+Batch24 passes 110/110 checks in both Debug and ordinary Release, including the original cloud outputs,
+undecorated wrapper clears, same-object alternation, short-lived full/partial-region payloads and all
+34 RHI image cases. No compiler/driver root-cause attribution is claimed from these results.
+
+Temporary native capture, descriptor probes and cloud readback/re-clear diagnostics have now been
+removed; the original cloud test is restored exactly. Permanent clear regressions retain all numerical
+checks. New 32-bit format cases use non-half-representable float inputs to detect precision loss;
+the half-float case retains exactly representable values. This cleaned candidate requires fresh
+verification; `batch24-summary.json` qualifies only its archived predecessor. All final phase markers
+remain unchecked.
+
+The cleaned candidate passes fresh batch25 verification: canonical shader-enabled Debug and ordinary
+Release builds have zero errors, and the expanded cloud/image/texture/view/recording/readback selection
+passes 348/348 in each with identical case sets and zero skips. This includes all fifteen permanent
+clear cases and the original, undecorated cloud publication test. The additional ordinary Release
+unit selection passes 195/195, including the supersession worker case and all fourteen CPU-fallback
+cases. This is broader unit evidence, not a substitute for the earlier full-suite ordering or a cause
+for its deadline failures. The current `InvalidationDispatchCount` assembly-member gate passes:
+Debug retains the property/field/accessors and ordinary Release has none. All 116 captured source and
+3,692 compiled-input hashes remain unchanged during execution (`batch25-summary.json`,
+`batch25-counter-metadata.json`). There is no new full-suite, final package or live-runtime receipt.
+
+Independent source review and affected-requirement audit confirm exact clear regions, float precision,
+component defaults, unchanged caller ownership and allocation/query behavior. No temporary native
+capture or failure-only cloud readback/re-clear remains. The missing historical comparison artifact,
+material/water oracle decisions, shoreline policy, fully passing integrated sequence, final package
+identity and actual user-run acceptance continue to block phase completion.
+
+The same frozen candidate subsequently completes the full ordinary Release selection without a crash:
+8,431 total, comprising 8,387 passed, 36 failed and eight skipped. Source and compiled-input hashes
+remain unchanged. The original cloud publication test, all fifteen clear cases and both earlier worker
+deadline cases pass in this full order. All 36 failures also occurred in the prior full Release run;
+there are no new failure cases. The eight current skips have no hardware cause. The former ninth skip,
+`ProfilerEventSourceTests.BeginScope_EmitsStartAndStop_WhenEnabled`, now passes; its previous listener
+observation skip is not a hardware qualification. Exact records are in `batch25-broad-release-summary.json`,
+`batch25-broad-release-comparison15.json` and `batch25-broad-release-skip-transition15.json`.
+This verifies those worker cases at this revision without assigning a cause to their earlier deadlines.
+
+Recorded tool results recover the original 23 candidate-only case identities and the specifically
+classified five transaction-fixture plus four obsolete-assumption cases. The remaining fourteen
+sequence-sensitive names, messages and recorded stack lines are therefore recoverable without using
+family-level substitutes. `historical-recovery-original14.json` and its provenance retain exact source
+call identifiers, timestamps and lines. `historical-recovery-current25.json` matches all fourteen by
+identical full name and theory parameters to fourteen unique passing cases in the terminal full run;
+there are no missing, renamed, duplicated, failed or skipped matches. This is current full-sequence
+evidence for that exact set, not a retrospective causal explanation or recovery of the 477 inherited
+case rows. The full historical baseline mapping still requires recovery or an explicit scope decision.
+
+The remaining routing-fixture failure is its missing injected exception; the full run does not establish
+whether managed patching, observation or another condition caused that miss. Its replacement removes
+the Harmony failure patch. The fixture forwards actual named submissions, then reports one simulated
+`InvalidOperation` through a clean native error query after the selected target's second submission.
+Existing managed error attribution must throw outside the unmanaged callback, while every real error
+is returned unchanged. Tests require two actual submissions, one delivered simulated status, no real
+driver error in the cleanup scenario, and unchanged independent owner/lifetime cleanup. A separate
+negative control checks that a real `InvalidValue` is returned before the pending simulated status.
+This exercises handling of simulated native status after valid routing; it does not claim driver rejection.
+The fixture-only changes require fresh review and compiled/full-order qualification.
+
+Batch26 compiles both configurations with zero errors and passes the expanded selection 349/349 in
+each, with no skips and identical case sets. The cleanup case observes two actual selected-target
+submissions, exactly one delivered simulated error and zero real driver errors; independent owner
+restoration and released-image checks remain unchanged. The negative control preserves a genuine
+`InvalidValue` before delivering the pending simulated `InvalidOperation`, followed by `NoError`.
+Source review confirms the no-argument unsigned error-query ABI, real-call forwarding on every path,
+post-dispatch arming, preservation of real errors and deactivation before native-table restoration.
+There is no Harmony fault patch or unmanaged exception injection. Retained callbacks cannot inject
+errors after disposal; this fixture does not promise that its older capture paths stop recording calls.
+All 117 captured source and 3,692 compiled-input hashes remain unchanged during execution
+(`batch26-summary.json`). These focused results do not replace full-order qualification of the
+previously sequence-sensitive injection case.
+
+Independent numerical preparation is retained only in ignored `oracle-preparation.js` and
+`oracle-preparation-results.json`. General-view double-precision light-hemisphere quadrature converges
+independently of the production sampler/table, agrees with refined normal-view Simpson integration,
+and predicts the cache's projected diffuse reserve without copying GPU output. Local lookup/storage
+analysis distinguishes the ideal model, raw asset approximation and conditional precision assumptions.
+Fixtures inherit shading quality, so an approved oracle migration must make that input explicit.
+No expected values, inputs or tolerances have changed. User decisions on material/water expectations
+and shoreline policy remain pending; analytical preparation is not approval or acceptance.
+
+The independent `audit-stage-completion` review concludes that the phase is not complete. Reusable
+typed recording pages and direct immediate dispatch satisfy the reviewed storage model, and the
+Release diagnostic-counter gate has current assembly evidence. Failed broad correctness, unresolved
+quantity/shoreline decisions, exact historical 477-case mapping, final package identity and actual
+user-run acceptance remain required. The missing historical mapping needs recovery or an explicit
+replacement/removal decision; fresh narrow selections cannot silently waive it.
+
+### Current full-run and package reconciliation
+
+The immutable batch27 candidate completed full ordinary Release with **8,389 passed, 35 failed,
+8 skipped** and full Debug with **8,387 passed, 36 failed, 9 skipped** (8,432 cases each).
+The 35 common failed cases have identical messages. Debug additionally failed
+`SurfaceFallbackWorkerTests.CompletionPreservesExplicitTraceOutcomes(outcome: 1, complete: True)`
+at its unchanged three-second worker-completion wait. Full-run summaries, exact failure/message
+comparisons and original-fourteen maps are retained under `artifacts/rhi-phase9/batch27-*` and
+`historical-recovery-current27-*.json`. All fourteen recovered cases pass uniquely in each run.
+Both routing injection/control cases, the original cloud outputs and all fifteen clear regressions
+pass. Neither run establishes why the earlier synchronous worker wait expired.
+
+Both `RecreatedDarkCacheRejectsRetainedFinalLighting` variants fail their initial
+`CompleteConsumers` physical-lighting assertion, before atlas recreation: expected 2.5564654,
+decoded 2.3964844. Debug and Release messages match. This is not a readiness timeout; later
+recreation/restoration assertions were not reached and remain unqualified.
+
+Canonical `./build.ps1 --configuration=Release --spirv=true` passed. Before cleanup, the generated
+workspace `Releases` directory was checked for path/link safety and its 1,131 existing files were
+backed up with matching hashes. Runtime, full-run tested copy, publish, packaged directory and ZIP
+all contain DLL SHA256 `6960E7024A3F7CCC873B653FC210F6EA050FF0EEE801434E068A5FE35A8BEF21`.
+All 761 SPIR-V binaries and the digest manifest match their producer; no extra/missing shaders
+or test artifacts were packaged. The optimized Release metadata retains no inspected diagnostic
+counter. ZIP SHA256 is `A7B01A70C1138FEA5BE341AAC05F4DED8551D12C9F0955BBB5BC700D889CDE5E`.
+Exact receipts: `package-identity-batch27.json`, `package27-cleanup-safety-backup.json`,
+`canonical-package-release-batch27.log` and `batch27-pipeline-closeout.json` under
+`artifacts/rhi-phase9/`. Source/input comparisons show zero drift during both full runs and packaging.
+These receipts qualify this candidate package only; installed-game and final acceptance remain open.
+
+After those runs and packaging completed, the Surface Cache worker test harness was changed to
+asynchronous polling. The original predicates, three-second deadlines, 50ms negative observation,
+submission counts and output assertions remain. One monotonic deadline is checked before accepting
+progress after every yield; no late drain, retry, production scheduling or global pool tuning is added.
+The cancellation test releases its blocking terrain gate even if the entry assertion fails.
+Failure-only pool/busy diagnostics preserve the failed guard without claiming a timeout cause.
+
+Traceability: phase 9 integration/fixture qualification ->
+`LumOn.SurfaceCache.GeometryFallback.md`, Backend and completion contract / Bounded ownership and work;
+`LumOn.SurfaceCache.TraversalBudget.md`, Explicit finite segment;
+`LumOn.SurfaceCache.HitLightingRetries.md`, Work and storage bounds; and
+`LumOn.SurfaceCache.UpdateBudgets.md`, Selection and bounds -> immutable bounded completion,
+frame-credit/cancellation ownership and retained results remain unchanged. Fresh focused validation
+and independent source review were required for this test-only correction. An isolated pass will not
+waive the failed full-order receipt. Production package identity remains the batch27 product identity;
+the changed test assembly must be tracked separately. The other numerical/policy decisions and
+unavailable historical baseline mapping remain unresolved; no completion markers are checked.
+
+Second source review and the independent affected-requirement audit pass the harness change.
+Batch28 canonical Debug/Release builds each passed with zero errors. The full unit namespace passed
+**1,133/1,133 in each configuration**, zero failures/skips and identical case sets: Surface Cache
+worker 20/20, World Probe CPU fallback 14/14 and the previously observed chunk-worker case 1/1.
+Release runtime identity remains the verified package27 identity; Debug runtime identity likewise
+matches its full-run archive. The changed test binaries and 118-source/3,692-input archive have
+separate batch28 receipts and zero pre/post drift. Full27 and package27 receipts remain intact.
+The earlier failed full-order receipt remains retained; broader integration, numerical/policy decisions,
+historical-baseline reconciliation and user-run acceptance remain open. Exact commands, per-case
+worker outcomes, identities and counts are in `artifacts/rhi-phase9/batch28-*`.
+
+The subsequent immutable full Debug28 run completed **8,389 passed, 35 failed, 8 skipped**
+(8,432 total), without a crash. All 35 remaining cases and their messages match full Release27 exactly;
+no new failure appeared. All twenty Surface Cache worker cases pass, including the previously failed
+outcome-1 completion; the fourteen World Probe CPU worker cases and chunk-worker case also pass.
+The exact original fourteen sequence-sensitive cases each match one passing result. The skip count
+fell from nine to eight because `VgeProfilingCountersTests.Provider_Emits_ChunkProcessing_Counters_WhenEnabled`
+passed instead of taking its existing EventListener-not-observed skip; no skip was added or removed
+from source. Thus the corrected worker harness has current full-order evidence, while its earlier
+timeout cause remains unproven. The 35 numerical/policy failures remain failures, not waived results.
+
+All 118 source files and 3,692 inputs match the archive before/after execution; runtime and package
+ZIP hashes remain unchanged. Exact proof is in `batch28-broad-debug-final-reconciliation.json`,
+the original `batch28-broad-debug.trx` and `historical-recovery-current28-debug.json` under
+`artifacts/rhi-phase9/`. Historical27 and current28 maps identify their respective original TRX runs;
+the original raw receipts remain intact. No additional Release, build or package rerun was needed
+for this test-only correction. The stage remains incomplete pending the numerical/policy decisions,
+the unavailable 477-case historical mapping and user-run visual/runtime acceptance.
+
+### Approved independent GGX oracle correction
+
+The user approved updating the legacy material-energy and water-refraction expectations while
+retaining authored inputs and numerical tolerances. `GgxHemisphereReference` integrates the
+height-correlated Smith GGX model over light directions with double Gaussian quadrature, independently
+of production importance samples, lookup assets and GPU observations. It applies the documented
+compensation after integrating E/Ef. Its projected-view average supplies the source diffuse budget
+before RGBA8 quantization; directional reflectance supplies receiver response and water transmission.
+The normal-view reference now uses a log-slope change of variables to resolve minimum roughness.
+
+Traceability: phase 9 retained numerical-oracle requirements and this explicit exception ->
+`PBR.MaterialColorAndDisplay.md`, Microfacet energy model; `PBR.LightingModes.md`, Shared material
+response; `PBR.Liquids.md`, Material and optics; `LumOn.SurfaceCache.LightingContract.md`, Lighting
+terms and units -> independent W/R, complementary diffuse/transmission budgets and quantization.
+Source color, emitter calibration, roughness, material inputs, ray/Snell geometry, confidence,
+display conversion, tolerances and lifetime assertions remain at their existing values.
+The old full-run failures remain diagnostic receipts; fresh affected validation is recorded below.
+
+The user separately approved correcting `CappedHistoryPreservesConstantIrradiance` to seed from
+one completed, representable sample. It keeps weight 1024 and exact RGB equality, checked across
+three repeated identical-lighting updates. The absolute incoming GGX value remains constrained by
+the separate enclosure tests. Its old RGB-32 seed differed from its current incoming reflection
+and therefore did not represent the constant-illumination property being tested.
+The shoreline policy, unavailable historical baseline and user-run acceptance remain open.
+
+Canonical Debug and ordinary Release builds passed with zero errors. The final combined seventeen-class
+selection passed **249/249 in each configuration**, zero failures/skips and matching case sets.
+Every one of the 34 previously failed numerical cases has exactly one passing full-name/theory-input
+match in each run; the unchanged shoreline case was excluded from this selection, not waived.
+The twelve runtime scenarios and six PBR lifetime cases complete, including assertions previously
+blocked by the early material mismatch. Capped history completes all three exact RGB/1024-alpha
+checks. The selection also includes 95 water cases, 23 energy-table cases and direct/shadow regressions.
+
+The 131-source/3,692-input archive has zero pre/post drift. Product Debug/Release runtime hashes and
+the verified package ZIP hash remain unchanged. Receipts are `batch30-results-summary.json`,
+`batch30-prior34-exact-mapping.json`, `batch30-postrun-identity.json` and both original TRX/logs under
+`artifacts/rhi-phase9/`. No full-suite rerun or new package was needed for this affected test-only
+qualification. A new complete integration receipt and final stage acceptance remain open with the
+shoreline policy, historical mapping and user-run evidence. No runtime/shader change, tolerance
+widening, source-light change, staging or commit accompanies these oracle corrections.
+Second source review and the independent affected-requirement completion audit passed against
+these original receipts and controlling material/lighting contracts. The approved oracle/history
+correction is satisfied; this does not mark the broader stage or user-run acceptance complete.
+
+### Approved bounded shoreline continuation
+
+The user approved quality-zero continuation at the nearest point inside already validated submerged
+coverage. The reduced-background selector first retains its existing source/adjacent triangle attempts,
+then finds the nearest projected point within its eligible source triangles and reuses the existing
+associated geometry/RGB interpolation. No foreground verification neighbor becomes a receiver,
+and no source triangle is extrapolated. Degenerate, missing or invalid color/geometry remains rejected.
+The new geometry arithmetic adds no depth/neighbor reads; existing two-lookup/fifteen-depth/four-color
+coherent-source budgets and the unchanged 0.01 moving-continuity oracle remain controlling.
+The shallow sweep additionally asserts that quality-zero selected positions stay behind the interface.
+
+Traceability: phase 9 actual-runtime-defect resolution -> `PBR.WaterRefraction.md`, Background
+resolution and bilateral receivers / UV distortion, plus the separately approved bounded-continuation
+decision -> source eligibility, coherent position/RGB, bounded work and unchanged optical/display
+contracts. Earlier linked liquid/medium/display/dither/material contracts remain unchanged.
+Shader-enabled builds, focused water/receiver/budget tests and independent source review are required.
+The first shader compile exposed the liquid `origin` macro colliding with a local segment variable;
+renaming that variable to `edgeOrigin` fixes expansion without altering the geometry calculation.
+A later Release build exposed MSBuild misclassifying an informational `Windows error 5` rename-retry
+line even though publication completed and the tool returned zero. Retry reporting now uses
+`Windows status` while exhausted retries and genuine `SPIRV` failures retain their normal failure path.
+Canonical builds and the local shader-tool qualification must cover this diagnostic correction.
+The earlier candidate31 full run was intentionally interrupted after this new approval; its partial
+2,422 passing/5 skipped cases are diagnostic only, never a completed full-suite receipt. Only its owned
+test processes were stopped; the unrelated VanillaBuildingExpanded testhost was untouched.
+
+Candidate34 canonical shader-enabled Debug and ordinary Release builds passed with zero errors.
+The expanded GPU selection passed **472/472 in each configuration**, zero failures/skips. Exact
+full-name/theory-input matching confirms all 35 former failures pass uniquely in each run; all
+24 shallow-water sweeps complete their unchanged continuity/association/budget assertions and the
+additional submerged-position check. The full ShaderBuildTool suite passed **256/256 in each**,
+including real transient-lock success, persistent failure, cancellation and publication recovery.
+The MSBuild probe reproduces the old informational false failure, accepts the new wording, and
+still rejects a genuine SPIRV002 diagnostic and nonzero child exit; all four controls match expectations.
+
+The 132-source archive and 3,692 compiled binary/dependency/asset inputs have zero drift. Current
+changed/untracked code paths exactly match the archived source set, the index remains empty, and
+the deletion of `VanillaGraphicsExpanded.Tests/GPU/Fixtures/NativeDrawObserver.cs` is recorded for
+reconstruction against HEAD `016121e9936a789267d473d2be5d5906287423fb`. Test copies match the
+refreshed production/test shader receipts (762/843 files including each manifest, per configuration).
+Managed runtime hashes remain unchanged, but the earlier package27 shader payload is stale and
+must be refreshed after current complete-suite qualification.
+
+Exact receipts under `artifacts/rhi-phase9/`: `batch34-results-summary.json`, both original TRX/logs,
+`batch34-prior35-exact-mapping.json`, `batch34-debug-shallow24.json`,
+`batch34-publication-tool-case-outcomes.json`, `batch34-exec-classification-probe.json`,
+`batch34-shader-receipt-output-proof.json` and
+`batch34-postrun-identity-and-source-reconstruction.json`. Source reviews pass the supported-coverage
+geometry and informational-log correction. Current complete-suite receipts, refreshed package identity,
+documentation closeout, final stage audit and actual user-run acceptance remain required.
+Second source review and the independent affected-requirement audit passed against the original
+focused/tool/probe receipts, source-reconstruction supplement and controlling contracts. This qualifies
+the approved corrections while leaving the complete-suite, package and live-acceptance gates open.
+
+### Approved current-suite qualification scope
+
+The user approved replacing the exact-row reconciliation requirement for the unavailable historical
+477-case artifact with current full-suite, per-case qualification. Its absence remains explicit:
+`artifacts/phase8h/closure5-head-comparison.json` was not recovered, and the original 477 rows are
+not claimed reconstructed or retrospectively reconciled. This approval does not waive any current
+failure or authorize labeling an unmatched current failure inherited. Final current-candidate full
+suite outcomes, immutable source/product identities and explicit coverage gaps remain required.
+The recovered original fourteen sequence-sensitive regressions remain individually required and
+must each match one current passing case. User-run visual/runtime acceptance remains separate.
+
+### User-run visual and runtime checklist
+
+Use the exact Release package identified by the final package receipt, and record its runtime DLL hash,
+game version, GPU/driver, tested settings and result for each item. No timing measurement is required.
+Do not mark an item accepted from headless tests or from an older installed DLL.
+
+- [ ] Enter a world and exercise normal terrain, entities, sky, liquids and postprocessing; check for
+  missing outputs, corrupt geometry, binding errors and incorrect lighting.
+- [ ] With lowest refraction quality and half-resolution backgrounds, move the camera along a shallow
+  shoreline; check for abrupt color steps or foreground geometry leaking into the water response.
+- [ ] Exercise configured compute consumers (atmosphere, exposure, depth hierarchy and enabled lighting
+  work); check that their dependent rendering receives current results.
+- [ ] Exercise the configured cloud mode and terrain/liquid occlusion, including enable/disable and
+  movement; check that cloud/depth content is current and no stale frame is sampled.
+- [ ] Resize the window and change render resolution; check target replacement, aspect ratio and continued
+  drawing, including cloud/depth and postprocessing consumers.
+- [ ] Reload shaders and change shader-dependent settings; check that the new compatible set appears,
+  dependent passes continue and failures are reported without corrupting the installed set.
+- [ ] Leave/reenter a world, then shut down normally; check for stale resources, disposal/context errors,
+  crashes and callbacks that outlive their owner.
+
+User evidence: pending. Record observed failures as failures with logs and reproduction steps; optional
+hardware/import cases not executed remain explicitly unqualified. This checklist is preparation for
+acceptance, not an acceptance result.

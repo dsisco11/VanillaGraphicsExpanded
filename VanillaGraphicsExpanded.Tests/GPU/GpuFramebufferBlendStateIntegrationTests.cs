@@ -70,7 +70,7 @@ public sealed class GpuFramebufferBlendStateIntegrationTests(HeadlessGLFixture f
                 commands.BeginRenderPass(FramebufferTestSetup.DescribeAttachments(framebuffer, [new(AttachmentIndex:0, Load:AttachmentLoad.Clear, Clear: clear), new(AttachmentIndex:1, Load:AttachmentLoad.Clear, Clear: clear)]));
                 commands.SetPipeline(pipeline);
                 commands.SetDynamicState(new() { Viewport = commands.PassViewport });
-                commands.Draw(geometry.Inputs, new(0, 3));
+                commands.BindResources(shader.CaptureBindings()); commands.Draw(geometry.Inputs, new(0, 3));
                 commands.EndRenderPass();
             });
 }

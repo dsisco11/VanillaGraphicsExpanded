@@ -56,7 +56,6 @@ public sealed class SceneColorParticlePublicationTests(HeadlessGLFixture fixture
         var events = new RuntimeRenderEvents();
         float[] identity = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
         int resolveDraws = 0;
-        using var nativeDraws = new NativeDrawObserver(() => resolveDraws++);
         var render = RuntimeEngineServices.Render(2, frames, () => identity, () => identity,
             () => drawing.RenderGeometry());
         var renderMock = Mock.Get(render);
@@ -102,6 +101,9 @@ public sealed class SceneColorParticlePublicationTests(HeadlessGLFixture fixture
         using var linked = GpuProgramObject.Adopt(TerrainShaderTestFixture.Link(vertex, fragment));
         var cube = new LinkedCube { ProgramId = linked.ProgramId };
         cube.Populate();
+        // Native fixture linking admits a temporary backend and reloads core bindings.
+        // Observe the resulting dispatch table after that setup has completed.
+        using var nativeDraws = new NativeIndexedDrawCapture(() => resolveDraws++);
         try
         {
             ShaderPrograms.Particlescube = null;

@@ -61,6 +61,8 @@ public sealed class PbrInstalledDepthTests(HeadlessGLFixture fixture) : RenderTe
         GL.VertexAttrib2(1, .5f, .5f); GL.VertexAttrib4(2, 1f, 1f, 1f, 1f);
         // Engine vertex flags encode positive Y magnitude in bits 18..20.
         GL.VertexAttribI1(3, 7 << 18);
+        // SSAO variants consume this generic input; no partial-glow tint is authored here.
+        GL.VertexAttrib1(4, 0f);
         float[] identity = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
         foreach (string name in new[] { "modelMatrix", "viewMatrix", "projectionMatrix" })
             ShaderTestFramework.SetUniformMatrix4(layout.GetUniformLocation(program.ProgramId, name), identity);

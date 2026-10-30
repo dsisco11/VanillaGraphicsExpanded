@@ -114,7 +114,10 @@ public sealed class SurfaceLightingWorldProbeTransportTests : SurfaceLightingHit
     {
         var calibration = VanillaGraphicsExpanded.Rendering.VgeFrameRenderer.CurrentLightingCalibration;
         float raw = MathF.Round(expected / 32f * 255) / 255;
-        float decoded = Math.Max(0, raw - calibration.AccessorBlockNeutralFloor);
+        // Select the coefficient and neutral floor from the same active decoder.
+        float floor = calibration.AccessorBlockReferenceLux > 0
+            ? calibration.AccessorBlockNeutralFloor : calibration.BlockNeutralFloor;
+        float decoded = Math.Max(0, raw - floor);
         float reference = calibration.AccessorBlockReferenceLux > 0
             ? calibration.AccessorBlockReferenceLux : calibration.BlockReferenceLux;
         float storedExpected = MathF.Pow(decoded, 4) / (MathF.Pow(decoded, 3) + .064f)

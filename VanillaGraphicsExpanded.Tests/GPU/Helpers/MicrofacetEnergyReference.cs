@@ -10,21 +10,20 @@ internal static class MicrofacetEnergyReference
         const int intervals = 65536;
         double r = Math.Clamp(roughness, .04, 1), a2 = Math.Pow(r, 4);
         double sum = 0, fresnelSum = 0;
-        // At normal view the azimuth integral is exactly 2*pi. Integrating light cosine,
-        // rather than sampling half vectors, gives a separate numerical reference.
+        // At normal view the azimuth integral is exactly 2*pi. Use u=(1-nl)/(1+nl)
+        // and s=log(1+u/a2) to resolve the narrow normal lobe even at minimum roughness.
+        double upper=Math.Log(1+1/a2);
         for (int index = 0; index <= intervals; index++)
         {
-            double nl = (double)index / intervals;
-            double h2 = (1 + nl) * .5;
-            double denominator = (1 - h2) + a2 * h2;
-            double distribution = a2 / (Math.PI * denominator * denominator);
+            double s=upper*index/intervals,u=a2*(Math.Exp(s)-1);
+            double nl=(1-u)/(1+u),h2=1/(1+u);
             double visibility = .5 / (nl + Math.Sqrt(a2 + (1 - a2) * nl * nl));
-            double projected = distribution * visibility * nl * 2 * Math.PI;
+            double projected = 4*visibility*nl*Math.Exp(-s);
             double weight = index is 0 or intervals ? 1 : index % 2 == 0 ? 2 : 4;
             sum += weight * projected;
             fresnelSum += weight * projected * Math.Pow(1 - Math.Sqrt(h2), 5);
         }
-        return (sum / (3 * intervals), fresnelSum / (3 * intervals));
+        return (sum*upper / (3 * intervals), fresnelSum*upper / (3 * intervals));
     }
 
     /// <summary>Calculates the compensated normal-view lobe scale and its integrated reflection budget.</summary>

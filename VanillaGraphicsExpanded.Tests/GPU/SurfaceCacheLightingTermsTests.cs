@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Tests.GPU.Helpers;
 using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.LumOn.Scene;
@@ -37,8 +38,8 @@ public sealed class SurfaceCacheLightingTermsTests : RenderTestBase
         float[] pixels = fixture.Page.ReadLighting();
         for (int i = 0; i < pixels.Length; i += 4)
         {
-            // L = 32*reflectance/pi at each wall; E = pi*L for cosine-weighted sampling.
-            float expected = 32f * MathF.Round(reflectance * 255f) / 255f;
+            // L = 32*capturedDiffuse/pi at each wall; E = pi*L for cosine-weighted sampling.
+            float expected = 32f * GgxHemisphereReference.CapturedDiffuse(reflectance);
             for (int channel = 0; channel < 3; channel++) Assert.InRange(pixels[i + channel], expected - .1f, expected + .1f);
             Assert.Equal(1f, pixels[i + 3]);
         }
@@ -79,15 +80,27 @@ public sealed class SurfaceCacheLightingTermsTests : RenderTestBase
         EnsureContextValid();
         using var fixture = new DynamicSurfaceLightingFixture(32);
         Assert.True(fixture.Page.Capture(fixture.Geometry.Scene));
-        float[] history = Enumerable.Range(0, 64).SelectMany(_ => new float[] { 32, 32, 32, 1024 }).ToArray();
+        Assert.True(fixture.Page.Relight(fixture.Geometry.Scene));
+        float[] expected = fixture.Page.ReadLighting();
+        float[] history = (float[])expected.Clone();
+        // Seed the same representable incoming sample at a saturated weight. Absolute GGX
+        // normalization is checked separately; this test isolates exact temporal stability.
+        for(int i=0;i<history.Length;i+=4)
+        {
+            Assert.Equal(1f,expected[i+3]);
+            history[i+3]=1024;
+        }
         using (OpenGlStateCache.Current.BindTextureScope(TextureTarget.Texture2DArray, 0, fixture.Page.IrradianceAtlas.TextureId))
             GL.TexSubImage3D(TextureTarget.Texture2DArray, 0, 0, 0, 0, 8, 8, 1, PixelFormat.Rgba, PixelType.Float, history);
-        Assert.True(fixture.Page.Relight(fixture.Geometry.Scene));
-        float[] result = fixture.Page.ReadLighting();
-        for (int i = 0; i < result.Length; i += 4)
+        for(int repeat=0;repeat<3;repeat++)
         {
-            for (int channel = 0; channel < 3; channel++) Assert.Equal(32f, result[i + channel]);
-            Assert.Equal(1024f, result[i + 3]);
+            Assert.True(fixture.Page.Relight(fixture.Geometry.Scene));
+            float[] result = fixture.Page.ReadLighting();
+            for (int i = 0; i < result.Length; i += 4)
+            {
+                for (int channel = 0; channel < 3; channel++) Assert.Equal(expected[i+channel], result[i + channel]);
+                Assert.Equal(1024f, result[i + 3]);
+            }
         }
     }
     #endregion

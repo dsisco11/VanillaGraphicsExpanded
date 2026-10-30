@@ -35,7 +35,9 @@ internal sealed class ProductionSkyDrawScene : IDisposable
     private readonly RHIRenderPassDescription pass;
     private readonly SkyDrawTestPass[] passes;
     private readonly List<string> events = [];
-    internal readonly HashSet<RHICommandContext> Contexts = [];
+    private static readonly System.Reflection.FieldInfo ActiveBoundary = typeof(RHICommandContext).GetField(
+        "activeBoundary", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!;
+    internal readonly HashSet<RHIBoundaryScope> Boundaries = [];
     internal readonly List<string> Draws = [];
     internal readonly List<float[][]> PrefixImages = [];
     internal bool ReadPrefixes;
@@ -142,7 +144,7 @@ internal sealed class ProductionSkyDrawScene : IDisposable
     {
         foreach (var image in outputs) image.UploadDataImmediate(new float[Size * Size * 4]);
         Draws.Clear();
-        Contexts.Clear();
+        Boundaries.Clear();
         PrefixImages.Clear();
         native.Initialize();
     }
@@ -202,7 +204,8 @@ internal sealed class ProductionSkyDrawScene : IDisposable
     /// <summary>Preserves five distinct program input slices and the production galaxy/star pass and blending order.</summary>
     private void Draw(RHICommandContext commands, int passIndex)
     {
-        Contexts.Add(commands);
+        // The command context is a singleton; actual restoration scopes distinguish separate entries.
+        Boundaries.Add(Assert.IsType<RHIBoundaryScope>(ActiveBoundary.GetValue(commands)));
         commands.BeginRenderPass(pass);
         int start = passIndex == 0 ? 0 : passIndex + 1;
         int end = passIndex == 0 ? 2 : start + 1;

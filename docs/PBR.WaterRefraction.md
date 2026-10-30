@@ -293,18 +293,32 @@ and ownership behavior; live appearance and GPU timings remain unmeasured.
 
 ## UV distortion
 
-Quality `0` uses `liquids/pixel_normal_refraction.glsl`: UE-style pixel-normal offset.
+Quality `0` uses `liquids/pixel_normal_refraction.glsl`: pixel-normal offset.
 It compares the unperturbed mesh normal with the continuous wave normal in view space,
 both oriented toward the eye. Matching normals produce no offset, including oblique flat
 water. The UV offset is their XY difference multiplied by the projection focal scales,
 a resolution-independent strength of `0.02`, and axial receiver separation ramped from
-zero to full strength over `0.3` metres. This strength is VGE calibration, not UE's
-resolution-dependent distortion constant. Increasing depth beyond that ramp does not
+zero to full strength over `0.3` metres. This strength is calibrated in metre-based coordinates.
+Increasing depth beyond that ramp does not
 increase displacement. Candidate UVs use the existing 0.55-texel safe edge clamp and
 bilateral eligibility checks; unavailable candidates retain the validated seed.
 Snell direction remains available for scattering and total internal reflection, but does
 not select the background UV. Absorption and scattering retain the selected receiver's
 approximate water path. Full and half background resolution remain supported.
+
+For half-resolution backgrounds, a failed source-triangle reconstruction tries the shared
+adjacent-patch coverage correction before weighted sampling. It reuses represented corners
+and checks at most three missing neighbors for actual coverage, submerged eligibility and
+layer compatibility; it never extrapolates a triangle or admits foreground data. The sampler
+then continues a still-uncovered quality-zero sample at the nearest projected point inside
+the validated submerged source triangles. It reconstructs position and RGB together with
+the existing triangle interpolation and precision/color checks. Foreground verification
+neighbors cannot supply coverage or radiance. Degenerate or unavailable triangles retain
+the existing fallback. This bounded continuation adds no depth or neighbor reads.
+The sampler
+retains at most two UV lookups and fifteen depth reads; coherent published inputs require at
+most four selected-color reads, with no iterative ray evaluations. Malformed color data can
+cause partial reads before reconstruction fails closed. Full-resolution selection is unchanged.
 
 `LiquidRenderer` selects persisted quality before shader preparation. The default remains
 `3`; `refraction_selection.glsl` maps `1`, `2`, `3` to geometric x2/x4/x8 budgets.

@@ -96,7 +96,7 @@ public sealed class MoonDiskDrawTests(HeadlessGLFixture fixture) : LumOnShaderFu
     scope63.Run(()=>{
             commands.BeginRenderPass(pass); commands.SetPipeline(pipeline);
             commands.SetDynamicState(new() { Viewport = commands.PassViewport });
-            commands.Draw(geometry.Inputs, new(0,3)); commands.EndRenderPass();
+            commands.BindResources(shader.CaptureBindings()); commands.Draw(geometry.Inputs, new(0,3)); commands.EndRenderPass();
         });
 }
         Assert.Equal(framebuffer, GL.GetInteger(GetPName.DrawFramebufferBinding));

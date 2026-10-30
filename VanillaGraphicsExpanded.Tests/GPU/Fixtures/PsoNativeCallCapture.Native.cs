@@ -49,16 +49,49 @@ internal sealed unsafe partial class PsoNativeCallCapture
         CaptureInteger("glProvokingVertex", "ProvokingVertex");
         CaptureDoublePair("glDepthRange", "DepthRange");
         CaptureIndexedDoublePair("glDepthRangeIndexed", "DepthRange");
+        CaptureArrayDraw();
+        CaptureIndexedDraw();
         native.Install();
     }
 
     /// <summary>Records after dispatch, containing instrumentation failures at the managed fixture boundary.</summary>
     private void Record(string name, params object[] arguments)
-        => native.Observe(() => Events.Add(segment + ":" + name + "("
+        => native.Observe(() => Events.Add(Segment() + ":" + name + "("
             + string.Join(",", arguments.Select(value => Convert.ToString(value, CultureInfo.InvariantCulture))) + ")"));
     #endregion
 
     #region ABI callback installation
+    /// <summary>Matches the direct instanced array draw ABI used by the RHI backend.</summary>
+    [UnmanagedFunctionPointer(CallingConvention.StdCall)]
+    private delegate void ArrayDrawCall(int mode, int first, int count, int instances, uint baseInstance);
+
+    /// <summary>Forwards each array draw once and checks its actual native blend state before RHI cleanup.</summary>
+    private void CaptureArrayDraw()
+    {
+        nint original = native.Original("glDrawArraysInstancedBaseInstance");
+        native.Add("glDrawArraysInstancedBaseInstance", new ArrayDrawCall((mode, first, count, instances, baseInstance) =>
+        {
+            ((delegate* unmanaged[Stdcall]<int, int, int, int, uint, void>)original)(mode, first, count, instances, baseInstance);
+            native.Observe(DrawCompleted);
+        }));
+    }
+
+    /// <summary>Matches the indexed instanced draw ABI used by retained engine geometry.</summary>
+    [UnmanagedFunctionPointer(CallingConvention.StdCall)]
+    private delegate void IndexedDrawCall(int mode, int count, int type, nint offset, int instances, int baseVertex, uint baseInstance);
+
+    /// <summary>Checks indexed submissions at the same native boundary as direct submissions.</summary>
+    private void CaptureIndexedDraw()
+    {
+        nint original = native.Original("glDrawElementsInstancedBaseVertexBaseInstance");
+        native.Add("glDrawElementsInstancedBaseVertexBaseInstance", new IndexedDrawCall((mode, count, type, offset, instances, baseVertex, baseInstance) =>
+        {
+            ((delegate* unmanaged[Stdcall]<int, int, int, nint, int, int, uint, void>)original)
+                (mode, count, type, offset, instances, baseVertex, baseInstance);
+            native.Observe(DrawCompleted);
+        }));
+    }
+
     /// <summary>Matches the Integer native state-call ABI.</summary>
     [UnmanagedFunctionPointer(CallingConvention.StdCall)]
     private delegate void IntegerCall(int a0);

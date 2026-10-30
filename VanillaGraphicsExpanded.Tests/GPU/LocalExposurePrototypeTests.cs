@@ -273,6 +273,10 @@ public sealed class LocalExposurePrototypeTests(HeadlessGLFixture fixture, ITest
             using var sourceScope = OpenGlStateCache.Current.BindTextureScope(TextureTarget.Texture2D, 0, input.TextureId);
             using var baseScope = OpenGlStateCache.Current.BindTextureScope(TextureTarget.Texture2D, 1, baseImage?.TextureId ?? input.TextureId);
             using var gradeScope = OpenGlStateCache.Current.BindTextureScope(TextureTarget.Texture3D, 2, grading?.TextureId ?? 0);
+            // These raw GLSL fixtures use each texture's authored filter, independently of inherited sampler objects.
+            using var sourceSampler = OpenGlStateCache.Current.BindSamplerScope(0, 0);
+            using var baseSampler = OpenGlStateCache.Current.BindSamplerScope(1, 0);
+            using var gradeSampler = OpenGlStateCache.Current.BindSamplerScope(2, 0);
             OpenGLProgramSelection.Select(OpenGlStateCache.Current, program);
             GL.Uniform1(GL.GetUniformLocation(program, "sourceImage"), 0); GL.Uniform1(GL.GetUniformLocation(program, "baseImage"), 1);
             GL.Uniform1(GL.GetUniformLocation(program, "gradingLookup"), 2);

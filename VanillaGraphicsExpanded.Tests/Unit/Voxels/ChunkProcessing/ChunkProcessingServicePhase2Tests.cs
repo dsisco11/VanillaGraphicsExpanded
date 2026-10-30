@@ -7,8 +7,10 @@ using VanillaGraphicsExpanded.Voxels.ChunkProcessing;
 
 namespace VanillaGraphicsExpanded.Tests.Unit;
 
+/// <summary>Checks queued-version supersession while the sole snapshot worker is deliberately occupied.</summary>
 public sealed class ChunkProcessingServicePhase2Tests
 {
+    /// <summary>Rejects the older queued version before it can acquire a snapshot, then completes the newer one.</summary>
     [Fact]
     [Trait("Category", "Unit")]
     public async Task Enqueue_Newer_Version_Supersedes_Older_Queued_Immediately_Without_Snapshot()
@@ -43,7 +45,15 @@ public sealed class ChunkProcessingServicePhase2Tests
         var blockerProcessor = new TestStringProcessor(id: "BlockerProc");
         Task<ChunkWorkResult<string>> blockerTask = service.RequestAsync(blockerKey, 1, blockerProcessor, ct: testCt);
 
-        await blockerSnapshotStarted.Task.WaitAsync(TimeSpan.FromSeconds(1), testCt);
+        try { await blockerSnapshotStarted.Task.WaitAsync(TimeSpan.FromSeconds(1), testCt); }
+        catch (TimeoutException error)
+        {
+            // Preserve the startup deadline and report scheduling state only after it fails.
+            ThreadPool.GetAvailableThreads(out int availableWorkers, out int availableIo);
+            throw new TimeoutException($"Blocker snapshot startup deadline expired: request={blockerTask.Status}, "
+                + $"snapshotCalls={snapshotSource.GetCallCount(blockerKey, 1)}, poolThreads={ThreadPool.ThreadCount}, "
+                + $"poolPending={ThreadPool.PendingWorkItemCount}, availableWorkers={availableWorkers}, availableIo={availableIo}.", error);
+        }
 
         var processor = new TestStringProcessor(id: "TestProc");
 

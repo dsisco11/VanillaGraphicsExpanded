@@ -54,7 +54,9 @@ public abstract class NearFieldShaderTestBase : LumOnShaderFunctionalTestBase
         var gbuffer = resources.Scene.Terrain;
         // External world resources are borrowed, with no redundant fallback atlas allocation.
         var worldInputs = worldResources ?? resources.EnsureWorldProbes(cacheResolution, 1, 16);
-        gbuffer.Surface.UploadDataImmediate(CreateUniformColorData(4,4,0,0,screenEmission,0), 0, 0, 1, 4, 4, 1);
+        // The scenario supplies physical nits; the material channel stores a normalized coefficient.
+        gbuffer.Surface.UploadDataImmediate(CreateUniformColorData(4,4,0,0,
+            screenEmission / LightingCalibration.EmissionReferenceNits,0), 0, 0, 1, 4, 4, 1);
         var anchors = buffers.ProbeAnchors!;
         anchors.UploadDataImmediate(CreateUniformColorData(anchors.Width, anchors.Height, anchorPosition?.X ?? anchorX, anchorPosition?.Y ?? 0, anchorPosition?.Z ?? -5, 1), 0, 0, 0, anchors.Width, anchors.Height, 1);
         anchors.UploadDataImmediate(CreateUniformColorData(anchors.Width, anchors.Height, .5f, .5f, 1, 0), 0, 0, 1, anchors.Width, anchors.Height, 1);

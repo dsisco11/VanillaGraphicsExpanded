@@ -6,6 +6,7 @@ using VanillaGraphicsExpanded.Rendering.Integration;
 using VanillaGraphicsExpanded.Rendering.Pipeline;
 using VanillaGraphicsExpanded.Rendering.Pipeline.Passes;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
+using Native = OpenTK.Graphics.OpenGL4;
 
 namespace VanillaGraphicsExpanded.Tests.GPU;
 
@@ -86,8 +87,60 @@ public sealed class FramebufferRoutingDsaTests(HeadlessGLFixture fixture,ITestOu
         OpenGLProgramSelection.Select(OpenGlStateCache.Current,0);
         using var scene=new RoutingScene();scene.Initialize();
 
-        using(var capture=new GraphicsTransitionCapture()){capture.FailNamedFramebuffer=scene.FirstFramebuffer;var failure=Assert.ThrowsAny<Exception>(()=>scene.Render(false));Assert.Contains("Injected named restoration failure",failure.ToString());}
+        using(var capture=new GraphicsTransitionCapture())
+        {
+            capture.FailNamedFramebuffer=scene.FirstFramebuffer;
+            Exception failure;
+            try { failure=Assert.ThrowsAny<Exception>(()=>scene.Render(false)); }
+            catch
+            {
+                // Keep the original expected-failure assertion and retain actual dispatch
+                // evidence when attribution is missing; observations run after rendering.
+                output.WriteLine(System.Text.Json.JsonSerializer.Serialize(new
+                {
+                    target=scene.FirstFramebuffer,capture.SelectedTargetRoutingCalls,
+                    capture.InjectedRoutingErrors,capture.DriverErrorCount,calls=capture.Calls
+                }));
+                throw;
+            }
+            Assert.Equal(2,capture.SelectedTargetRoutingCalls);
+            Assert.Equal(1,capture.InjectedRoutingErrors);
+            Assert.Equal(0,capture.DriverErrorCount);
+            Assert.Contains("After Framebuffer routing publication",failure.ToString());
+            Assert.Contains(nameof(ErrorCode.InvalidOperation),failure.ToString());
+        }
         scene.AssertRestored(includeFirst:false);scene.AssertReleased();Assert.Equal(ErrorCode.NoError,GL.GetError());
+    }
+
+    /// <summary>The simulated restoration error cannot hide a genuine driver error or cancel named dispatch.</summary>
+    [Fact]
+    public void NativeErrorInjectionPreservesRealErrorsAndDispatch()
+    {
+        EnsureContextValid();
+        using var scene=new RoutingScene();scene.Initialize();
+        using(var capture=new GraphicsTransitionCapture())
+        {
+            capture.FailNamedFramebuffer=scene.FirstFramebuffer;
+            try
+            {
+                Native.GL.NamedFramebufferDrawBuffer(scene.FirstFramebuffer,Native.DrawBufferMode.ColorAttachment0);
+                Native.GL.NamedFramebufferDrawBuffers(scene.FirstFramebuffer,3,
+                    [Native.DrawBuffersEnum.None,Native.DrawBuffersEnum.ColorAttachment1,Native.DrawBuffersEnum.ColorAttachment0]);
+                GL.LineWidth(-1f); // A real InvalidValue must precede the pending simulated error.
+                Assert.Equal(ErrorCode.InvalidValue,GL.GetError());
+                Assert.Equal(ErrorCode.InvalidOperation,GL.GetError());
+                Assert.Equal(ErrorCode.NoError,GL.GetError());
+                Assert.Equal(2,capture.SelectedTargetRoutingCalls);
+                Assert.Equal(1,capture.InjectedRoutingErrors);
+                Assert.Equal(1,capture.DriverErrorCount);
+            }
+            finally
+            {
+                // Contain this negative test's intentional error state even if an assertion fails.
+                for(int pending=0;pending<4&&GL.GetError()!=ErrorCode.NoError;pending++){}
+            }
+        }
+        scene.AssertRestored();scene.AssertReleased();Assert.Equal(ErrorCode.NoError,GL.GetError());
     }
     #endregion
     #endregion

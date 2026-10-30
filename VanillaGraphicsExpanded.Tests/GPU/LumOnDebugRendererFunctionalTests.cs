@@ -1,4 +1,5 @@
 using VanillaGraphicsExpanded.Rendering.RHI;
+using System.Runtime.InteropServices;
 using Moq;
 using VanillaGraphicsExpanded.DebugView;
 using OpenTK.Graphics.OpenGL;
@@ -48,7 +49,7 @@ public sealed class LumOnDebugRendererFunctionalTests : LumOnShaderFunctionalTes
         => RenderViews(true, false, selectedFailure: true);
 
     /// <summary>Runs actual callback frames against controlled GPU resources and optional world-probe placement.</summary>
-    private void RenderViews(bool lightingResources, bool publishedGeometry, bool? worldProbeRuntime = null, bool selectedFailure = false)
+    private unsafe void RenderViews(bool lightingResources, bool publishedGeometry, bool? worldProbeRuntime = null, bool selectedFailure = false)
     {
         EnsureShaderTestAvailable();
         using var engine = new EngineShaderPlatformScope();
@@ -58,16 +59,15 @@ public sealed class LumOnDebugRendererFunctionalTests : LumOnShaderFunctionalTes
             if (path.Contains("lumon_debug_view_near_field_geometry", StringComparison.Ordinal)) assets.Overrides[path] = new byte[20];
         };
         using var terrain = new EngineTerrainBuffers(2, 2);
-        using var drawing = new ShaderTestFramework();
+        using var presentation = TestFramework.CreateTestGBuffer(2, 2, TextureFormat.Rgba16f);
         var events = new RuntimeRenderEvents();
         var config = new VgeConfig();
         config.LumOn.Enabled = true;
         config.LumOn.DebugMode = LumOnDebugMode.NearFieldGeometry;
         config.WorldProbeClipmap.ClipmapResolution = 4;
         config.WorldProbeClipmap.ClipmapLevels = 1;
-        var world = new Mock<IClientWorldAccessor>();
-        world.SetupGet(value => value.Player).Returns(RuntimeEngineServices.CameraPlayer(() => new LumOnCameraState(0, 0, 0, 0, 0, 0, 0)));
-        world.SetupGet(value => value.ElapsedMilliseconds).Returns(0L);
+        var world = new RuntimeCameraWorld(RuntimeEngineServices.CameraPlayer(
+            () => new LumOnCameraState(0, 0, 0, 0, 0, 0, 0)));
         float[] view = [1,0,0,0, 0,1,0,0, 0,0,1,0, -.5f,-.5f,0,1];
         float[] inverseProjection = LumOnTestInputFactory.CreateRealisticInverseProjection();
         inverseProjection[0] *= .01f; inverseProjection[5] *= .01f;
@@ -76,13 +76,21 @@ public sealed class LumOnDebugRendererFunctionalTests : LumOnShaderFunctionalTes
         var framebuffers = Enumerable.Repeat<FrameBufferRef>(null!, Enum.GetValues<EnumFrameBuffer>().Max(v => (int)v) + 1).ToList();
         framebuffers[(int)EnumFrameBuffer.Primary] = terrain.Primary;
         int draws = 0;
+        using var submissions = new NativeDriverCapture();
+        nint originalDraw = submissions.Original("glDrawElementsInstancedBaseVertexBaseInstance");
+        submissions.Add("glDrawElementsInstancedBaseVertexBaseInstance", new IndexedSubmission(
+            (mode, count, type, offset, instances, baseVertex, baseInstance) =>
+            {
+                // Count real submissions after forwarding, including backend-owned dispatch through saved pointers.
+                ((delegate* unmanaged[Stdcall]<int, int, int, nint, int, int, uint, void>)originalDraw)
+                    (mode, count, type, offset, instances, baseVertex, baseInstance);
+                submissions.Observe(() => draws++);
+            }));
+        submissions.Install();
         var shaderApi = new Mock<IShaderAPI>(MockBehavior.Strict);
-        var render = RuntimeEngineServices.Render(2, framebuffers, () => view, () => projection, () =>
-        {
-            draws++;
-            drawing.RenderGeometry();
-        });
-        var api = RuntimeEngineServices.Client(assets.Api, events.Api, world.Object, render, shaderApi.Object);
+        var render = RuntimeEngineServices.Render(2, framebuffers, () => view, () => projection,
+            () => throw new InvalidOperationException("Diagnostic rendering must submit through the RHI."));
+        var api = RuntimeEngineServices.Client(assets.Api, events.Api, world.World, render, shaderApi.Object);
         using var frameCamera = new VgeFrameRenderer(api);
         using var buffers = new LumOnBufferManager(api, config);
         buffers.EnsureBuffers(2, 2);
@@ -110,6 +118,8 @@ public sealed class LumOnDebugRendererFunctionalTests : LumOnShaderFunctionalTes
         if (publishedGeometry) renderer.SetNearFieldSceneProvider(new GeometryProvider(geometry.Scene.Backend));
         VanillaGraphicsExpanded.Rendering.Shaders.GpuShaderProgramLibraries.Create(api);
         LumOnDebugShaderProgramFamily.Register(api);
+        using var frameLighting = new TestFrameLightingPublication();
+        foreach (var program in LumOnDebugShaderProgramFamily.GetAll()) program.FrameLightingInputs = frameLighting.Buffer;
         var probeView = VgeBuiltInDebugViews.ProbesDebugViewState.Instance;
         bool previousHeatmap = probeView.GetImportanceSurfaceHeatmapEnabled();
         probeView.SetImportanceSurfaceHeatmapEnabled(true);
@@ -123,6 +133,10 @@ public sealed class LumOnDebugRendererFunctionalTests : LumOnShaderFunctionalTes
                 FramebufferTestSetup.BindForEngineRendering(terrain.Output);
                 events.Render(EnumRenderStage.Before);
                 events.Render(EnumRenderStage.Opaque);
+                frameLighting.Capture(frame: VgeFrameRenderer.Current.FrameIndex,
+                    calibration: VgeFrameRenderer.Current.CalibrationGeneration);
+                // AfterBlit presents independently of the primary G-buffer images sampled by diagnostics.
+                FramebufferTestSetup.BindForEngineRendering(presentation);
                 events.Render(EnumRenderStage.AfterBlit);
             }
             if (selectedFailure)
@@ -168,8 +182,11 @@ public sealed class LumOnDebugRendererFunctionalTests : LumOnShaderFunctionalTes
                         TestUniformRing.BeginFrame();
                         FramebufferTestSetup.BindForEngineRendering(terrain.Output);
                         events.Render(EnumRenderStage.Before);
-                events.Render(EnumRenderStage.Opaque);
-                events.Render(EnumRenderStage.AfterBlit);
+                        events.Render(EnumRenderStage.Opaque);
+                        frameLighting.Capture(frame: VgeFrameRenderer.Current.FrameIndex,
+                            calibration: VgeFrameRenderer.Current.CalibrationGeneration);
+                        FramebufferTestSetup.BindForEngineRendering(presentation);
+                        events.Render(EnumRenderStage.AfterBlit);
                     }
                     Assert.True(draws >= before + 2, $"{mode} produced {draws - before} draws across eight callbacks.\n{string.Join("\n", assets.Logs)}");
                     Assert.Empty(events.MainThreadTasks);
@@ -186,6 +203,10 @@ public sealed class LumOnDebugRendererFunctionalTests : LumOnShaderFunctionalTes
     #endregion
 
     #region Controlled geometry
+    /// <summary>Represents the exact native indexed-draw ABI observed by this fixture.</summary>
+    [UnmanagedFunctionPointer(CallingConvention.StdCall)]
+    private delegate void IndexedSubmission(int mode, int count, int type, nint offset, int instances, int baseVertex, uint baseInstance);
+
     /// <summary>Exposes the actual published geometry to the production callback.</summary>
     private sealed class GeometryProvider(TraceGeometryGpuScene scene) : ITraceGeometrySceneProvider
     {

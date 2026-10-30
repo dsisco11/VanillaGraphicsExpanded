@@ -41,8 +41,8 @@ public sealed class WaterRefractionCaptureStateTests(HeadlessGLFixture fixture) 
         var framebuffers = Enumerable.Repeat<FrameBufferRef>(null!, Enum.GetValues<EnumFrameBuffer>().Max(v => (int)v) + 1).ToList();
         framebuffers[(int)EnumFrameBuffer.Primary] = terrain.Primary;
         float[] identity = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
-        int draws = 0; bool failDraw = false; Action? duringDraw = null;
-        using var nativeDraws = new NativeDrawObserver(() => { if (failDraw) throw new InvalidOperationException("Injected native draw failure"); draws++; duringDraw?.Invoke(); });
+        int draws = 0; Action? duringDraw = null;
+        using var nativeDraws = new NativeIndexedDrawCapture(() => { draws++; duringDraw?.Invoke(); });
         var render = RuntimeEngineServices.Render(1, framebuffers, () => identity, () => identity,
             () => drawing.RenderGeometry());
         var api = RuntimeRenderEvents.Adapt<ICoreClientAPI>((method, args) => method.Name switch
@@ -234,22 +234,41 @@ public sealed class WaterRefractionCaptureStateTests(HeadlessGLFixture fixture) 
             OpenGLFramebufferSelection.Bind(OpenGlStateCache.Current, FramebufferTarget.DrawFramebuffer, callerTarget.FboId);
             OpenGLFramebufferSelection.Bind(OpenGlStateCache.Current, FramebufferTarget.ReadFramebuffer, readTarget.FboId);
             OpenGlStateCache.Current.ApplyDynamic(new VanillaGraphicsExpanded.Rendering.Pipeline.State.DynamicDrawState { X = 1, Y = 1, Width = 1, Height = 1 });
-            using (var hostile = new HostileFullscreenState())
+            // Exercise a real owned-input rejection while leaving native dispatch observational.
+            using (var undersized = RHICommandContext.Current.CreateShaderStorageBuffer(new()
             {
-                failDraw = true;
-                var captureFailure = Assert.Throws<System.Reflection.TargetInvocationException>(() =>
-                    HarmonyLib.AccessTools.Method(typeof(VanillaGraphicsExpanded.PBR.Liquids.WaterRefractionCapture), "Capture").Invoke(capture, null));
-                Assert.IsType<InvalidOperationException>(captureFailure.InnerException);
-                Assert.False(composite.PreOverlayScene.Published);
-                AssertCallbackState();
-                Assert.Throws<InvalidOperationException>(() => direct.OnRenderFrame(.016f, EnumRenderStage.Opaque));
-                AssertCallbackState();
-                Assert.Throws<InvalidOperationException>(() => composite.OnRenderFrame(.016f, EnumRenderStage.Opaque));
-                Assert.False(composite.RefractionScene.Published);
-                AssertCallbackState();
-                hostile.AssertRestored();
+                Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 4,
+                Usage = BufferUsage.DynamicDraw, Label = "Tests.UndersizedFrameLighting"
+            }).RequireResource())
+            {
+                var publications = GpuShaderProgramLibraries.GetAll(api)
+                    .Select(program => (Program: program, Property: program.GetType().GetProperty("FrameLightingInputs",
+                        System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)))
+                    .Where(value => value.Property is not null)
+                    .Select(value => (value.Program, Property: value.Property!, Previous: value.Property!.GetValue(value.Program))).ToArray();
+                int beforeInvalidInput = draws;
+                try
+                {
+                    foreach (var publication in publications) publication.Property.SetValue(publication.Program, undersized);
+                    using var hostile = new HostileFullscreenState();
+                    var captureFailure = Assert.Throws<System.Reflection.TargetInvocationException>(() =>
+                        HarmonyLib.AccessTools.Method(typeof(VanillaGraphicsExpanded.PBR.Liquids.WaterRefractionCapture), "Capture").Invoke(capture, null));
+                    Assert.IsType<ArgumentException>(captureFailure.InnerException);
+                    Assert.False(composite.PreOverlayScene.Published);
+                    AssertCallbackState();
+                    Assert.Throws<ArgumentException>(() => direct.OnRenderFrame(.016f, EnumRenderStage.Opaque));
+                    AssertCallbackState();
+                    Assert.Throws<ArgumentException>(() => composite.OnRenderFrame(.016f, EnumRenderStage.Opaque));
+                    Assert.False(composite.RefractionScene.Published);
+                    AssertCallbackState();
+                    Assert.Equal(beforeInvalidInput, draws);
+                    hostile.AssertRestored();
+                }
+                finally
+                {
+                    foreach (var publication in publications) publication.Property.SetValue(publication.Program, publication.Previous);
+                }
             }
-            failDraw = false;
             AssertStableFrames();
 
             // A live empty pool is authoritative even after a previous wet frame.

@@ -13,6 +13,7 @@ internal sealed class RuntimeWaterReceiver : IDisposable
 {
     private readonly RuntimeLightingPrograms programs = new();
     private readonly VgeFrameUniformBuffer frameCamera;
+    private readonly TestFrameLightingPublication frameLighting = new();
     private readonly VgeLightsUniformBuffer lights = new();
     private readonly ShaderTestFramework drawing = new();
     private readonly EngineTerrainBuffers terrain;
@@ -46,6 +47,9 @@ internal sealed class RuntimeWaterReceiver : IDisposable
         GpuShaderProgramLibraries.Get<PBRCompositeShaderProgram>(api, "pbr_composite")!.FrameInputs = frameCamera;
         GpuShaderProgramLibraries.Get<PBRCompositeShaderProgram>(api, PBRCompositeShaderProgram.PreOverlayPassName)!.FrameInputs = frameCamera;
         GpuShaderProgramLibraries.Get<PBRDirectLightingShaderProgram>(api, "pbr_direct_lighting")!.LightsInputs = lights;
+        // The isolated receiver owns the same alternate-view identity as its physical storage.
+        frameLighting.Capture(frame: frameCamera.FrameIndex, calibration: frameCamera.CalibrationGeneration);
+        foreach (var program in GpuShaderProgramLibraries.GetAll(api)) frameLighting.Attach(program);
         var config = new VanillaGraphicsExpanded.LumOn.VgeConfig();
         config.LumOn.Enabled = false;
         gbuffer = new GBufferManager(api);
@@ -84,7 +88,7 @@ internal sealed class RuntimeWaterReceiver : IDisposable
     public void Dispose()
     {
         capture.Dispose(); composite.Dispose(); direct.Dispose(); directBuffers.Dispose();
-        gbuffer.Dispose(); terrain.Dispose(); drawing.Dispose(); programs.Dispose(); frameCamera.Dispose(); lights.Dispose();
+        gbuffer.Dispose(); terrain.Dispose(); drawing.Dispose(); programs.Dispose(); frameCamera.Dispose(); lights.Dispose(); frameLighting.Dispose();
     }
     #endregion
 }

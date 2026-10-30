@@ -34,7 +34,7 @@ public sealed class SurfaceLightingConsumerTests : NearFieldShaderTestBase
         foreach(var hit in Query(room,hits))
         {
             Assert.Equal(1,hit.Result.W);
-            Assert.InRange(hit.Result.X,32*(64f/255)/MathF.PI-.01f,32*(64f/255)/MathF.PI+.01f);
+            Assert.InRange(hit.Result.X,32*GgxHemisphereReference.CapturedDiffuse(.25f)/MathF.PI-.01f,32*GgxHemisphereReference.CapturedDiffuse(.25f)/MathF.PI+.01f);
         }
         Assert.Equal(ErrorCode.NoError,GL.GetError());
     }
@@ -116,7 +116,7 @@ public sealed class SurfaceLightingConsumerTests : NearFieldShaderTestBase
             if((Flags(lit.Meta[i+1])&1u)==0)continue;
             hits++;
             Assert.Equal(1,lit.Meta[i]);
-            Assert.InRange(lit.Radiance[i*2],32*MathF.Round(albedo*255)/255/MathF.PI-.02f,32*MathF.Round(albedo*255)/255/MathF.PI+.02f);
+            Assert.InRange(lit.Radiance[i*2],32*GgxHemisphereReference.CapturedDiffuse(albedo)/MathF.PI-.02f,32*GgxHemisphereReference.CapturedDiffuse(albedo)/MathF.PI+.02f);
         }
         Assert.True(hits>32);
         room.WithholdPages();
@@ -180,7 +180,7 @@ public sealed class SurfaceLightingConsumerTests : NearFieldShaderTestBase
         Assert.True(resolved.Success);Assert.Equal(64,index);
         for(int i=0;i<64;i++)
         {
-            Assert.InRange(resolved.AtlasSamples[i].RadianceRgb.X,2.54f,2.58f);
+            float expected=32*GgxHemisphereReference.CapturedDiffuse(.25f)/MathF.PI; Assert.InRange(resolved.AtlasSamples[i].RadianceRgb.X,expected-.02f,expected+.02f);
             Assert.Equal(traced.AtlasSamples[i].AlphaEncodedDistSigned,resolved.AtlasSamples[i].AlphaEncodedDistSigned);
         }
         room.WithholdPages();answers=Query(room,descriptors);index=0;

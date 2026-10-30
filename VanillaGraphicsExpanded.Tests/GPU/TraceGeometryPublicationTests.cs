@@ -56,7 +56,7 @@ public sealed class TraceGeometryPublicationTests : RenderTestBase
         using (OpenGlStateCache.Current.BindTextureScope(TextureTarget.Texture2D, 0, scene.Materials.TextureId))
             GL.GetTexImage(TextureTarget.Texture2D, 0, PixelFormat.Rgba, PixelType.UnsignedByte, colors);
         Assert.Equal(expected.Colors.ToArray(), colors);
-        if (hitReady) Assert.Equal(255, colors[id * 48]);
+        if (hitReady) Assert.Equal((byte)MathF.Round(GgxHemisphereReference.CapturedDiffuse(1)*255), colors[id * 48]);
         uint[] surfaces = new uint[65536 * 4];
         using (OpenGlStateCache.Current.BindTextureScope(TextureTarget.Texture2D, 0, scene.Surfaces.TextureId))
             GL.GetTexImage(TextureTarget.Texture2D, 0, PixelFormat.RgbaInteger, PixelType.UnsignedInt, surfaces);

@@ -34,7 +34,7 @@ public sealed class ProductionSkyDrawTests(HeadlessGLFixture fixture, ITestOutpu
             renderer.OnRenderFrame(.125f, EnumRenderStage.Opaque);
             Assert.Equal(new[] { "CelestialDrawPass", "MoonDrawPass", "SunDrawPass", "AtmosphereSkyPass" }, preparation.Calls);
         }
-        Assert.Single(scene.Contexts);
+        Assert.Single(scene.Boundaries);
         Assert.Equal(new[] { "CelestialGalaxyProgram", "CelestialStarProgram", "MoonProgram", "SunProgram", "AtmosphereSkyShaderProgram" }, scene.Draws);
         scene.AssertRestored();
         var actual = scene.Read();
@@ -74,7 +74,7 @@ public sealed class ProductionSkyDrawTests(HeadlessGLFixture fixture, ITestOutpu
 #if DEBUG
         long standaloneFixed = OpenGlStateCache.Current.FixedFunctionCalls - start;
 #endif
-        Assert.Equal(4, scene.Contexts.Count);
+        Assert.Equal(4, scene.Boundaries.Count);
         scene.AssertRestored();
         float[][] expected = scene.Read();
         scene.Initialize();
@@ -90,7 +90,7 @@ public sealed class ProductionSkyDrawTests(HeadlessGLFixture fixture, ITestOutpu
 #if DEBUG
         long sharedFixed = OpenGlStateCache.Current.FixedFunctionCalls - start;
 #endif
-        Assert.Single(scene.Contexts);
+        Assert.Single(scene.Boundaries);
         scene.AssertRestored();
         Assert.Equal(new[] { "CelestialGalaxyProgram", "CelestialStarProgram", "MoonProgram", "SunProgram", "AtmosphereSkyShaderProgram" }, scene.Draws);
         float[][] actual = scene.Read();

@@ -42,10 +42,21 @@ internal sealed class RuntimeLightingFramePublication : IRenderer
     /// <summary>Publication is independent of terrain range.</summary>
     public int RenderRange=>int.MaxValue;
 
-    /// <summary>Submits actual camera freeze with the completed light summary and explicitly bounded fixture sources.</summary>
+    /// <summary>Authors the controlled block field before camera freeze, retaining the completed point-light summary.</summary>
     public void OnRenderFrame(float deltaTime,EnumRenderStage stage)
     {
         if(disposed||stage!=EnumRenderStage.Opaque)return;
+        // These transport scenes author a 32-lux full block field. The arbitrary mock engine
+        // tables otherwise fit a different full-field intensity. Preserve their point/sky
+        // calibration, including the point-light payload already captured by the real owner.
+        float floor=10f/255, amplitude=1-floor;
+        float reference=32f*(MathF.Pow(amplitude,3)+.064f)/MathF.Pow(amplitude,4);
+        var calibration=VgeFrameRenderer.CurrentLightingCalibration with
+        {
+            BlockReferenceLux=reference, BlockNeutralFloor=floor,
+            AccessorBlockReferenceLux=reference, AccessorBlockNeutralFloor=floor
+        };
+        VgeFrameRenderer.Current.SetLightingCalibration(calibration);
         var atmosphere=AtmosphereModSystem.Lighting;
         double solar=Peak(atmosphere?.DirectIrradiance??Vector3.Zero);
         double environment=Peak(atmosphere?.Environment??Vector3.Zero);

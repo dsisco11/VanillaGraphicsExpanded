@@ -703,7 +703,9 @@ public sealed partial class LumOnDebugRenderer : IRenderer, IDisposable
 
 
         // Bind textures
-        shader.PrimaryDepth = PBR.SceneColor.SceneColorParticleCapture.ReceiverDepth(capi, gBufferManager!.PrimaryDepthTexture);
+        // Geometry diagnostics consume the uploaded voxel scene without requiring screen-depth storage.
+        shader.PrimaryDepth = gBufferManager is null ? default
+            : PBR.SceneColor.SceneColorParticleCapture.ReceiverDepth(capi, gBufferManager.PrimaryDepthTexture);
         // Use VGE's G-buffer normal (ColorAttachment4) which contains world-space normals
         // encoded to [0,1] via the shader patching system
         shader.GBufferSurface = gBufferManager?.SurfaceTexture;

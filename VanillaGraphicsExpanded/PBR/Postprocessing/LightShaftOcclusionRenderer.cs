@@ -76,7 +76,7 @@ internal sealed class LightShaftOcclusionRenderer : IRenderer
     {
         published=false; draw?.Dispose(); draw=null; shafts.Dispose(); resources.Dispose(); resources=new(); depth=null;
     }
-    /// <summary>Invalidates screen and executable state on shader reload.</summary>
-    private bool Reload() { published=false; return true; }
+    /// <summary>Retires executable references before their image storage on shader reload.</summary>
+    private bool Reload() { Retire(); return true; }
     #endregion
 }

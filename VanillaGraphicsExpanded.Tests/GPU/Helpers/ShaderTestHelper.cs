@@ -149,21 +149,14 @@ public sealed class ShaderTestHelper : IDisposable
     }
 
     /// <summary>
-    /// Compiles a shader from a file with optional compile-time defines injected.
-    /// Defines are inserted immediately after the first <c>#version</c> directive
-    /// in the fully-processed source.
+    /// Loads the canonical precompiled stage selected by its declared identity and specialization values.
+    /// Source diagnostics use their separate AST-processing entry points.
     /// </summary>
     public ShaderCompileResult CompileShader(
         string filename,
         ShaderType type,
         IReadOnlyDictionary<string, string?>? defines)
     {
-        var filePath = Path.Combine(_shaderBasePath, filename);
-        if (!File.Exists(filePath))
-        {
-            return ShaderCompileResult.Failure($"Shader file not found: {filePath}");
-        }
-
         try
         {
             string binaryRoot = Path.Combine(AppContext.BaseDirectory, "assets", "shaders");

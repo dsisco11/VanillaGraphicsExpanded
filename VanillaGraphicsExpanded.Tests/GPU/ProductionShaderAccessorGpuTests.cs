@@ -42,7 +42,7 @@ public sealed class ProductionShaderAccessorGpuTests : RenderTestBase
         try
         {
             Assert.False(program.EnsureReady());
-            Assert.Contains("originating native context generation", program.PreparationFailure!.Message);
+            Assert.Contains("original RHI context", program.PreparationFailure!.Message);
             Assert.Equal(installed, program.ProgramId);
             Assert.Equal(revision, program.ExecutableRevision);
             Assert.True(GL.IsProgram(installed));

@@ -209,7 +209,7 @@ public sealed class WaterReceiverFilterTests(HeadlessGLFixture fixture) : LumOnS
         using var frameCamera = TestFrameCamera.CreateFromProjection(projection, fullSize, fullSize);
         program.FrameInputs = frameCamera;
         inputs.Color = color; inputs.Depth = depth;
-        using var target = CreateMRTRenderTarget(1,1,TextureFormat.Rgba32f,TextureFormat.Rgba32f);
+        using var target = CreateMRTRenderTarget(1,1,TextureFormat.Rgba32f,TextureFormat.Rgba32f,TextureFormat.Rgba32f);
         TestFramework.RenderQuadTo(program, target);
         var position = target[0].ReadPixels(); var sampled = target[1].ReadPixels();
         Assert.Equal(1,position[3]); Assert.Equal(1,sampled[3]);
@@ -264,7 +264,7 @@ public sealed class WaterReceiverFilterTests(HeadlessGLFixture fixture) : LumOnS
         inputs.SampleUv = new((origin+.75f)/size);
         inputs.Surface = new(0,0,-2); inputs.Normal = Vector3.UnitZ;
         inputs.Color = color; inputs.Depth = depth;
-        using var target = CreateMRTRenderTarget(1,1,TextureFormat.Rgba32f,TextureFormat.Rgba32f);
+        using var target = CreateMRTRenderTarget(1,1,TextureFormat.Rgba32f,TextureFormat.Rgba32f,TextureFormat.Rgba32f);
         TestFramework.RenderQuadTo(program,target);
         // Four queried corners are geometrically coplanar even though the two
         // plateaus are disconnected. Outside neighbors disprove the invented slope.

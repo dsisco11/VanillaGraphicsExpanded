@@ -9,11 +9,11 @@ internal sealed partial class SurfaceLightingConsumerRuntimeFixture
 
     /// <summary>Preserves full nonempty/finite validation previously hidden in eager assertion-message interpolation.</summary>
     private WaitOutputEnergies ObserveRequiredWaitOutputs() => new(
-        Energy(FinalPixels()),
-        Energy(WorldPixels()),
-        Energy(Screen.ScreenProbeAtlasHistoryTex!.ReadPixels()),
-        Energy(Screen.ScreenProbeAtlasFilteredTex!.ReadPixels()),
-        Energy(Screen.IndirectHalfTex!.ReadPixels()));
+        Energy(FinalPixels(), "final indirect output"),
+        Energy(WorldPixels(), "world radiance atlas"),
+        Energy(Screen.ScreenProbeAtlasHistoryTex!.ReadPixels(), "screen trace history"),
+        Energy(Screen.ScreenProbeAtlasFilteredTex!.ReadPixels(), "screen filtered history"),
+        Energy(Screen.IndirectHalfTex!.ReadPixels(), "half-resolution gather"));
 
     /// <summary>Collects optional GPU diagnostics only after settling fails, reusing required output observations.</summary>
     private string DescribeWaitFailure(int maximumFrames, WaitOutputEnergies observations)

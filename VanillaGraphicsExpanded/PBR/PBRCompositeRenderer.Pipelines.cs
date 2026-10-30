@@ -18,7 +18,7 @@ public sealed partial class PBRCompositeRenderer
 {
     private static readonly RenderTargetSignature CompositeTargets = new([new(TextureFormat.R11fG11fB10f), new(null, true), new(null, true)]);
     private static readonly RenderTargetSignature ReceiverTargets = new([new(TextureFormat.R11fG11fB10f), new(TextureFormat.Rgba16f), new(TextureFormat.R32f)]);
-    private static readonly RenderTargetSignature CaptureTargets = new([new(null), new(TextureFormat.Rgba16f), new(TextureFormat.R32f)]);
+    private static readonly RenderTargetSignature CaptureTargets = new([new(null, true), new(TextureFormat.Rgba16f), new(TextureFormat.R32f)]);
     private static readonly RenderTargetSignature ReductionTargets = new([new(TextureFormat.Rgba16f), new(TextureFormat.Rgba32f)]);
     private GraphicsPipelineAsset? compositePipeline, receiverPipeline, capturePipeline, displayPipeline, reductionPipeline;
 

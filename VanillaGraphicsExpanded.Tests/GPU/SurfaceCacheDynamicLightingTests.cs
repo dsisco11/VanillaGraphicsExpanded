@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Tests.GPU.Helpers;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.LumOn.Scene;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
@@ -24,7 +25,7 @@ public sealed class SurfaceCacheDynamicLightingTests : RenderTestBase
         Assert.True(initialized);
         Assert.True(fixture.Page.Capture(scene));
         for (int update = 0; update < 4; update++) Assert.True(fixture.Page.Relight(scene));
-        AssertLighting(fixture.Page.ReadLighting(), 32, 4);
+        AssertLighting(fixture.Page.ReadLighting(), 32*GgxHemisphereReference.CapturedDiffuse(1), 4);
 
         // Source publication and history synchronization are deliberately separate: invalid
         // geometry cannot manufacture successful dark samples while replacement data is pending.
@@ -39,13 +40,13 @@ public sealed class SurfaceCacheDynamicLightingTests : RenderTestBase
             Assert.True(fixture.History.TrySynchronize(scene, fixture.Page.IrradianceAtlas, out bool invalidated));
             Assert.False(invalidated);
             Assert.Equal(history, fixture.History.Revision);
-            AssertLighting(fixture.Page.ReadLighting(), 32, 4);
+            AssertLighting(fixture.Page.ReadLighting(), 32*GgxHemisphereReference.CapturedDiffuse(1), 4);
             Assert.False(fixture.Page.Relight(scene));
-            AssertLighting(fixture.Page.ReadLighting(), 32, 4);
+            AssertLighting(fixture.Page.ReadLighting(), 32*GgxHemisphereReference.CapturedDiffuse(1), 4);
 
             fixture.Geometry.Publish();
             Assert.True(fixture.History.TrySynchronize(scene, fixture.Page.IrradianceAtlas, out _));
-            AssertLighting(fixture.Page.ReadLighting(), 32, 4);
+            AssertLighting(fixture.Page.ReadLighting(), 32*GgxHemisphereReference.CapturedDiffuse(1), 4);
             Assert.Equal(history, fixture.History.Revision);
         }
         Assert.Equal(ErrorCode.NoError, GL.GetError());

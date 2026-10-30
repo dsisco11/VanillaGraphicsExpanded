@@ -1,6 +1,6 @@
 using VanillaGraphicsExpanded.Rendering.RHI;
 using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
-using HarmonyLib;
+using System.Reflection;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Pipeline;
@@ -12,48 +12,68 @@ namespace VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 /// <summary>Records native state effects separately from setup, draw application and engine restoration.</summary>
 internal sealed partial class PsoNativeCallCapture : IDisposable
 {
-    [ThreadStatic] private static PsoNativeCallCapture? active;
-    private readonly Harmony harmony = new("Tests.PsoNativeCallCapture");
-    private string segment = "setup";
+    private static readonly FieldInfo selectedGraphics = typeof(RHICommandContext).GetField("selectedGraphicsPipeline", BindingFlags.Instance | BindingFlags.NonPublic)
+        ?? throw new MissingFieldException(typeof(RHICommandContext).FullName, "selectedGraphicsPipeline");
+    private static readonly FieldInfo pipelineLifetime = typeof(RHIGraphicsPipeline).GetField("lifetime", BindingFlags.Instance | BindingFlags.NonPublic)
+        ?? throw new MissingFieldException(typeof(RHIGraphicsPipeline).FullName, "lifetime");
+    private static readonly FieldInfo referencedPipeline = typeof(RHIGraphicsPipelineRef).GetField("pipeline", BindingFlags.Instance | BindingFlags.NonPublic)
+        ?? throw new MissingFieldException(typeof(RHIGraphicsPipelineRef).FullName, "pipeline");
+    private readonly RHICommandContext context = RHICommandContext.Current;
+    private readonly OpenGlStateCache cache = OpenGlStateCache.Current;
+    private RHIGraphicsPipeline? markedPipeline;
     internal readonly List<string> Events = [];
 
     #region Public API
-    /// <summary>Installs typed native observers and managed operation markers before workload execution.</summary>
+    /// <summary>Installs native observers without depending on JIT-sensitive managed method patching.</summary>
     internal PsoNativeCallCapture()
     {
-        active = this;
-        // Observe the typed draw because optimized state helpers may already be inlined.
-        var apply = AccessTools.Method(typeof(OpenGLBackend), "Draw");
-        harmony.Patch(apply, prefix: new HarmonyMethod(AccessTools.Method(typeof(PsoNativeCallCapture), nameof(Application))),
-            postfix: new HarmonyMethod(AccessTools.Method(typeof(PsoNativeCallCapture), nameof(DrawCompleted))));
-        harmony.Patch(AccessTools.Method(typeof(OpenGlStateCache), "RestoreBoundaryState"),
-            prefix: new HarmonyMethod(AccessTools.Method(typeof(PsoNativeCallCapture), nameof(Restoration))),
-            postfix: new HarmonyMethod(AccessTools.Method(typeof(PsoNativeCallCapture), nameof(Setup))));
         InstallNativeObservers();
     }
 
     /// <summary>Retires observers before any inspection or fixture cleanup.</summary>
     public void Dispose()
     {
-        try { harmony.UnpatchAll(harmony.Id); }
-        finally { active = null; native.Dispose(); }
+        native.Dispose();
     }
     #endregion
 
     #region Private
-    /// <summary>Labels the complete typed draw, excluding fixture preparation and pass loads.</summary>
-    private static void Application(RHIGraphicsPipelineRef reference)
+    /// <summary>Reads existing execution ownership solely for fixture trace classification, without adding a production hook.</summary>
+    private RHIGraphicsPipeline? ExecutingPipeline()
     {
-        if (active is not { } capture) return;
-        var pipeline=reference.RequirePipeline().Description;
-        capture.segment = "application";
-        capture.Events.Add("draw:" + string.Join(",", pipeline.Blending.Select((blend, slot) =>
-            pipeline.Targets.Colors[slot].Format is null ? "hole" : blend.Enabled ? "blend" : "replace")));
+        // Idle selections can reference a retired owner. Inspect only its execution marker;
+        // observation must not invoke the reference's validation or native resource admission.
+        var pipeline = (RHIGraphicsPipeline?)referencedPipeline.GetValue(selectedGraphics.GetValue(context)!);
+        if (pipeline is null) return null;
+        // BeginSubmission owns value one through native dispatch and cleanup; zero is idle and two retired.
+        return (int)pipelineLifetime.GetValue(pipeline)! == 1 ? pipeline : null;
     }
-    /// <summary>Verifies actual active blend factors before boundary handback, independent of inlined GL wrappers.</summary>
-    private static void DrawCompleted(RHIGraphicsPipelineRef reference)
+
+    /// <summary>Associates subsequent native effects with the exact selected immutable blend contract.</summary>
+    private void MarkApplication(RHIGraphicsPipeline pipeline)
     {
-        if(active is {} capture && reference.RequirePipeline() is {} pipeline && pipeline.Description.Blending.Any(blend=>blend.Enabled))
+        if (ReferenceEquals(markedPipeline, pipeline)) return;
+        markedPipeline = pipeline;
+        var description = pipeline.Description;
+        Events.Add("draw:" + string.Join(",", description.Blending.Select((blend, slot) =>
+            description.Targets.Colors[slot].Format is null ? "hole" : blend.Enabled ? "blend" : "replace")));
+    }
+
+    /// <summary>Labels native effects from current execution facts while excluding pass loads and boundary restoration.</summary>
+    private string Segment()
+    {
+        if (cache.RestoringBoundary) { markedPipeline = null; return "restoration"; }
+        if (ExecutingPipeline() is { } pipeline) { MarkApplication(pipeline); return "application"; }
+        markedPipeline = null;
+        return "setup";
+    }
+
+    /// <summary>Checks real blend state at each native draw rather than relying on a managed postfix surviving warm-up.</summary>
+    private void DrawCompleted()
+    {
+        var pipeline = ExecutingPipeline() ?? throw new InvalidOperationException("A captured RHI draw has no executing pipeline.");
+        MarkApplication(pipeline);
+        if (pipeline.Description.Blending.Any(blend=>blend.Enabled))
         {
             // Check native values independently of the emitted-call log.
             var state=System.Text.Json.JsonSerializer.Deserialize<Dictionary<string,string>>(PsoNativeStateFingerprint.Read())!;
@@ -66,13 +86,9 @@ internal sealed partial class PsoNativeCallCapture : IDisposable
                 Assert.Equal(((int)OpenGLBlendValues.SourceFactor(blend.SourceAlpha)).ToString(),state["BlendSrcAlpha:"+slot]);
                 Assert.Equal(((int)OpenGLBlendValues.DestinationFactor(blend.DestinationAlpha)).ToString(),state["BlendDstAlpha:"+slot]);
             }
-            capture.Events.Add("validated:active-blend-factors");
+            Events.Add("validated:active-blend-factors");
         }
-        Setup();
+        markedPipeline = null;
     }
-    /// <summary>Labels work outside fixed-state application, including pass loads.</summary>
-    private static void Setup() { if (active is { } capture) capture.segment = "setup"; }
-    /// <summary>Labels boundary handback independently of draw setters.</summary>
-    private static void Restoration() { if (active is { } capture) capture.segment = "restoration"; }
     #endregion
 }

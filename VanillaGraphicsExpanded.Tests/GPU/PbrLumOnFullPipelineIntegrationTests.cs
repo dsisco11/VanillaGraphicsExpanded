@@ -103,10 +103,12 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
 
         using var targets = new PbrLumOnPipelineTargets();
         // The composite executable exports color and both refraction outputs, even when only color is inspected.
+        // Isolate composite arithmetic: half-float output spacing can exceed the independent sum's
+        // tolerance. Direct-lighting inputs retain their original storage and quantization.
         using var baselineComposite = TestFramework.CreateTestGBuffer(ScreenWidth, ScreenHeight,
-            TextureFormat.Rgba16f, TextureFormat.Rgba16f, TextureFormat.R32f);
+            TextureFormat.Rgba32f, TextureFormat.Rgba16f, TextureFormat.R32f);
         using var injectedComposite = TestFramework.CreateTestGBuffer(ScreenWidth, ScreenHeight,
-            TextureFormat.Rgba16f, TextureFormat.Rgba16f, TextureFormat.R32f);
+            TextureFormat.Rgba32f, TextureFormat.Rgba16f, TextureFormat.R32f);
 
         {
             var pbrDirectProg = Programs.Create<PBRDirectLightingShaderProgram>();

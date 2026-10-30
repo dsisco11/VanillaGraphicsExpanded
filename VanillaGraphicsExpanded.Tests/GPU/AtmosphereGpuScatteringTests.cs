@@ -40,6 +40,7 @@ public sealed class AtmosphereGpuScatteringTests(HeadlessGLFixture fixture) : Re
         using var assets = new BinaryShaderApiFixture();
         Assert.True(ComputeShaderAsset.TryCreateFromAssets(assets.Api, new ShaderSettings(AtmosphereComputePrograms.Scattering), out var program, out string log), log);
         using var ownedProgram = program!;
+        using var scattering = new AtmosphereComputePrograms(ownedProgram);
         using var parameters = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = null }).RequireResource();
         parameters.EnsureCapacity(64, growExponentially: false);
         using var source = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = null }).RequireResource();
@@ -52,11 +53,12 @@ public sealed class AtmosphereGpuScatteringTests(HeadlessGLFixture fixture) : Re
             Vector4[] inputs = [new(0, 1, 0, .001f), new(2.4f, groundAlbedo, 32, 24),
                 new(budget.Width, budget.Height, budget.DirectionSamples, budget.RaySamples), new(budget.LightSamples, cell, 0, AtmosphereModel.SolarAmplitude)];
             parameters.UploadSubData<Vector4>(inputs, 0, 64);
-            parameters.BindBase(0); source.BindBase(1);
+            scattering.AtmosphereParameters = parameters;
+            scattering.AtmosphereScattering = source;
             try
             {
-                RHICommandContext.Current.SetPipeline(ownedProgram.Pipeline);
-        RHICommandContext.Current.Dispatch(new(1));
+                // Submit the actual typed resource table with the executable, not ambient raw slots.
+                scattering.Dispatch(1);
                 RHICommandContext.Current.Barrier(new(ResourceAccess.BufferUpdate));
                 using var fence = RHICommandContext.Current.InsertFence();
                 Assert.Contains(RHICommandContext.Current.WaitCpu(fence, TimeSpan.FromSeconds(5)), new[] { CompletionStatus.Ready, CompletionStatus.Ready });

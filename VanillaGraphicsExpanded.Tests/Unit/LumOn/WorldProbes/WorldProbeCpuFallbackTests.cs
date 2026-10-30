@@ -149,7 +149,20 @@ public sealed class WorldProbeCpuFallbackTests
         Enumerable.Repeat(new WorldProbeTraceAnswerGpu{Outcome=fallback?0:1,Reason=fallback?1:0},count).ToImmutableArray());
     /// <summary>Waits only in the test harness for one immutable completion.</summary>
     private static WorldProbeCpuFallbackResult Read(WorldProbeCpuFallbackService service)
-    { WorldProbeCpuFallbackResult result=default;Assert.True(SpinWait.SpinUntil(()=>service.TryDequeue(out result),TimeSpan.FromSeconds(3)));return result; }
+    {
+        WorldProbeCpuFallbackResult result=default;
+        bool completed=SpinWait.SpinUntil(()=>service.TryDequeue(out result),TimeSpan.FromSeconds(3));
+        if(!completed)
+        {
+            // The original progress deadline remains the oracle; diagnostics distinguish
+            // queued worker scheduling from exhausted frame credit without retrying work.
+            ThreadPool.GetAvailableThreads(out int availableWorkers,out int availableIo);
+            Assert.True(completed,$"CPU fallback progress deadline expired: outstanding={service.HasOutstandingWork}, "
+                + $"waitingForCredit={service.RequiresFrameCredit}, poolThreads={ThreadPool.ThreadCount}, "
+                + $"poolPending={ThreadPool.PendingWorkItemCount}, availableWorkers={availableWorkers}, availableIo={availableIo}.");
+        }
+        return result;
+    }
     /// <summary>Records exact ray inputs while permitting controlled outcomes and cancellation barriers.</summary>
     private sealed class Scene:IWorldProbeTraceScene
     {

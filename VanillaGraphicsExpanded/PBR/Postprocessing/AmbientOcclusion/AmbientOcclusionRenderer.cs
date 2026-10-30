@@ -79,7 +79,7 @@ internal sealed class AmbientOcclusionRenderer : IRenderer
     private void SetEnabled(bool value) { if(enabled==value) return; enabled=value; if(!enabled) Retire(); }
     /// <summary>Retires executable references before target and external texture borrowers.</summary>
     private void Retire() {published=false;draw?.Dispose();draw=null;pass.Dispose();resources.Dispose();resources=new();depth=null;}
-    /// <summary>Withdraws outputs when executable generations change.</summary>
-    private bool Reload() {published=false;return true;}
+    /// <summary>Retires executable references before the owned mask sidecar on shader reload.</summary>
+    private bool Reload() {Retire();return true;}
     #endregion
 }

@@ -250,7 +250,7 @@ public sealed class WaterRefractionBudgetTests(HeadlessGLFixture fixture, ITestO
         inputs.Scenario = 12; inputs.Budget = 2; inputs.Surface = surface; inputs.Normal = normal;
         inputs.Color = color; inputs.Depth = depth;
         using var target = CreateMRTRenderTarget(1,1,TextureFormat.Rgba32f,TextureFormat.Rgba32f,
-            TextureFormat.Rgba32f,TextureFormat.Rgba32f,TextureFormat.Rgba32f,TextureFormat.Rgba32f);
+            TextureFormat.Rgba32f,TextureFormat.Rgba32f,TextureFormat.Rgba32f,TextureFormat.Rgba32f,TextureFormat.Rgba32f);
         TestFramework.RenderQuadTo(program,target);
         float[] decision = target[0].ReadPixels();
         Assert.Equal(irregular ? 2 : 1,decision[2]);
@@ -284,7 +284,7 @@ public sealed class WaterRefractionBudgetTests(HeadlessGLFixture fixture, ITestO
         inputs.Normal = tir ? Vector3.Normalize(new Vector3(.9f,0,.3f)) : Vector3.UnitZ;
         inputs.Color = color; inputs.Depth = depth;
         using var target = CreateMRTRenderTarget(1,1,TextureFormat.Rgba32f,TextureFormat.Rgba32f,
-            TextureFormat.Rgba32f,TextureFormat.Rgba32f);
+            TextureFormat.Rgba32f,TextureFormat.Rgba32f,TextureFormat.Rgba32f,TextureFormat.Rgba32f,TextureFormat.Rgba32f);
         TestFramework.RenderQuadTo(program,target);
         var decision = target[0].ReadPixels(); var selected = target[3].ReadPixels();
         Assert.Equal(0,decision[0]); Assert.Equal(0,selected[0]);
@@ -412,7 +412,7 @@ public sealed class WaterRefractionBudgetTests(HeadlessGLFixture fixture, ITestO
         inputs.Normal = Vector3.Normalize(new Vector3(-.4f,0,1));
         inputs.Color = halfColor ?? color; inputs.Depth = halfDepth ?? depth;
         using var target = CreateMRTRenderTarget(1,1,TextureFormat.Rgba32f,TextureFormat.Rgba32f,
-            TextureFormat.Rgba32f,TextureFormat.Rgba32f,TextureFormat.Rgba32f,TextureFormat.Rgba32f);
+            TextureFormat.Rgba32f,TextureFormat.Rgba32f,TextureFormat.Rgba32f,TextureFormat.Rgba32f,TextureFormat.Rgba32f);
         foreach (string scene in new[] { "floor", "thin", "gap", "discontinuity" })
         {
             FillScene(color,depth,scene);

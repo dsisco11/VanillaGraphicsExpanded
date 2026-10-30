@@ -63,6 +63,7 @@ public sealed class WaterRefractionLifecycleTests(HeadlessGLFixture fixture) : R
         using var expanded = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba16f, Width = System.Math.Max(1, 4), Height = System.Math.Max(1, 2), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         var config = new VanillaGraphicsExpanded.LumOn.VgeConfig();
         config.LumOn.Enabled = lumon;
+        config.WaterRefractionEnabled = false;
         Assert.Null(source.BeginFrame(config.WaterRefractionEnabled, composite));
         Assert.Null(source.Color);
         Assert.Null(source.Depth);
@@ -88,12 +89,24 @@ public sealed class WaterRefractionLifecycleTests(HeadlessGLFixture fixture) : R
             Assert.Same(target, source.BeginFrame(true, composite));
             Assert.False(source.Published);
             var beforeResize = source.Color;
-            // Borrowed immutable configuration forbids changing storage in place.
-            // A complete replacement withdraws its old borrowers before publication.
-            Assert.Throws<InvalidOperationException>(() => composite.Resize(4, 2));
+            // An active pass protects its image; retaining plain intentions does not lock storage between frames.
+            var context = RHICommandContext.Current;
+            using (var boundary = context.EnterBoundary(new("Tests.Water.ActiveSource", true,
+                operations: BoundaryOperations.RenderPasses)))
+                boundary.Run(() =>
+                {
+                    context.BeginRenderPass(target);
+                    try { Assert.Throws<InvalidOperationException>(() => composite.Resize(4, 2)); }
+                    finally { context.EndRenderPass(); }
+                });
+            composite.Resize(4, 2);
+            source.BeginFrame(true, composite);
+            Assert.False(beforeResize!.IsValid);
+            Assert.Equal(4, source.Color!.Width);
             source.BeginFrame(true, expanded);
             Assert.False(beforeResize!.IsValid);
             Assert.Equal(4, source.Color!.Width);
+            composite.Resize(2, 2);
             source.BeginFrame(true, composite);
             var oldColor = source.Color;
             var oldDepth = source.Depth;

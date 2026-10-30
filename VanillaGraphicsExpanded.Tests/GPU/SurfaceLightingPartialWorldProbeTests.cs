@@ -103,11 +103,15 @@ public sealed class SurfaceLightingPartialWorldProbeTests(HeadlessGLFixture fixt
         var resources=runtime.WorldBuffers.Resources!;
         FramebufferTestSetup.ClearPass(resources.RadiancePass,1);
         resources.QueueClearLocalBox(0,new(),new(),new(3,3,3));
+#if DEBUG
         long dispatches=resources.InvalidationDispatchCount;
+#endif
         runtime.WorldAccessorAvailable=false;
         runtime.Frame();
         Assert.Equal(0,resources.PendingInvalidationCount);
+#if DEBUG
         Assert.Equal(dispatches+1,resources.InvalidationDispatchCount);
+#endif
         Assert.All(runtime.WorldPixels(),value=>Assert.Equal(0,value));
     }
 

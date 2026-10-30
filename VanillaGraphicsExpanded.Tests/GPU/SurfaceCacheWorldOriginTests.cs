@@ -29,16 +29,15 @@ public sealed class SurfaceCacheWorldOriginTests(HeadlessGLFixture fixture) : Re
         LumOnCameraState camera = new(origin, origin, origin, origin, origin, origin, 0);
         float[] matrix = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
         float[] projection = matrix.ToArray();
-        var world = new Mock<IClientWorldAccessor>();
-        world.SetupGet(value => value.Player).Returns(RuntimeEngineServices.CameraPlayer(() => camera));
-        world.SetupGet(value => value.ElapsedMilliseconds).Returns(0L);
+        var world = new RuntimeCameraWorld(RuntimeEngineServices.CameraPlayer(() => camera));
         var render = RuntimeEngineServices.Render(4, [], () => matrix, () => projection, () => { });
-        var api = RuntimeEngineServices.Client(assets.Api, events.Api, world.Object, render, assets.Api.Shader);
+        var api = RuntimeEngineServices.Client(assets.Api, events.Api, world.World, render, assets.Api.Shader);
         using var publisher = new VgeFrameRenderer(api);
         // Keep the terrain origin fixed while entity position and view translation change.
         foreach (float bob in new[] { -.3f, 0f, .4f })
         {
             camera = camera with { PositionX = origin + bob, PositionY = origin - 1.6 + bob, PositionZ = origin - bob };
+            world.RefreshCamera();
             matrix[12] = bob * 2; matrix[13] = -1.4f + bob; matrix[14] = -bob;
             events.Render(EnumRenderStage.Before);
             events.Render(EnumRenderStage.Opaque);

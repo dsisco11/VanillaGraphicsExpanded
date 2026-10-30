@@ -79,7 +79,8 @@ public sealed class LumOnWorldProbeWallVisibilityFunctionalTests : DirectWorldPr
             : irradiance;
         int rejected = 0;
         int accepted = 0;
-        float expectedLighting = consumer >= 0 ? MathF.PI / (1 + MathF.PI) : MathF.PI;
+        // Viewers tone-map physical E; the lighting consumer gathers E/pi.
+        float expectedLighting = consumer >= 0 ? MathF.PI / (1 + MathF.PI) : 1f;
         for (int pixel = 0; pixel < GridSize * GridSize; pixel++)
         {
             int i = pixel * 4;

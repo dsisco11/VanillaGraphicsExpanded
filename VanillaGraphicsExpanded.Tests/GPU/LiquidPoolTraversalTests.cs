@@ -35,14 +35,13 @@ public sealed class LiquidPoolTraversalTests(HeadlessGLFixture fixture) : Render
         using var storage = new LiquidPoolStorage();
         using var programs = new ComponentShaderPrograms();
         using var camera = TestFrameCamera.CreateIdentity(1, 1);
-        var cameraWorld = new Mock<IClientWorldAccessor>();
-        cameraWorld.SetupGet(value => value.Player).Returns(RuntimeEngineServices.CameraPlayer(() => new VanillaGraphicsExpanded.LumOn.LumOnCameraState(0, 0, 0, 0, 0, 0, 0)));
-        cameraWorld.SetupGet(value => value.ElapsedMilliseconds).Returns(0L);
+        var cameraWorld = new RuntimeCameraWorld(RuntimeEngineServices.CameraPlayer(
+            () => new VanillaGraphicsExpanded.LumOn.LumOnCameraState(0, 0, 0, 0, 0, 0, 0)));
         float[] worldView = Mat4f.Create(); worldView[12] = 3;
         float[] worldProjection = Mat4f.Create(); worldProjection[0] = 2;
         var cameraRender = RuntimeEngineServices.Render(1, [], () => worldView, () => worldProjection, () => { });
         var cameraApi = RuntimeEngineServices.Client(programs.Api, new Mock<IClientEventAPI>().Object,
-            cameraWorld.Object, cameraRender, programs.Api.Shader);
+            cameraWorld.World, cameraRender, programs.Api.Shader);
         using var publisher = new VgeFrameRenderer(cameraApi);
         publisher.BeginFrame();
         Assert.Throws<InvalidOperationException>(() => VgeFrameRenderer.Current);
@@ -50,6 +49,8 @@ public sealed class LiquidPoolTraversalTests(HeadlessGLFixture fixture) : Render
         var sharedFrame = VgeFrameRenderer.Current;
         byte[] publishedBytes = sharedFrame.Bytes.ToArray();
         using var lights = new VgeLightsUniformBuffer();
+        using var shadow = new DepthTexture(1, 1, TextureFormat.DepthComponent32f);
+        shadow.UploadDataImmediate([1f]);
         using var texture = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba32f, Width = System.Math.Max(1, 1), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         using var volume = RHICommandContext.Current.CreateDynamicTexture3D(new RHITextureDescription { Dimension = TextureDimension.Three, Format = TextureFormat.Rgba32f, Width = System.Math.Max(1, 1), Height = System.Math.Max(1, 1), Depth = System.Math.Max(1, 1), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Linear, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         GpuProgram program;
@@ -58,7 +59,7 @@ public sealed class LiquidPoolTraversalTests(HeadlessGLFixture fixture) : Render
         {
             owner.FrameInputs = camera; owner.LightsInputs = lights;
             owner.TerrainTexture = texture; owner.DepthTexture = texture;
-            owner.MaterialParamsTexture = texture; owner.ShadowMapNear = texture; owner.ShadowMapFar = texture;
+            owner.MaterialParamsTexture = texture; owner.ShadowMapNear = shadow; owner.ShadowMapFar = shadow;
             owner.AerialRadianceTexture = volume; owner.AerialAttenuationTexture = volume;
         });
         float[] identity = [1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1];

@@ -1585,7 +1585,7 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
 
         using var outputAtlas = TestFramework.CreateTestGBuffer(
             AtlasWidth, AtlasHeight,
-            TextureFormat.Rgba16f);
+            TextureFormat.Rgba16f, TextureFormat.Rg32f);
 
         var programId = CompileOctahedralTemporalShader();
 
@@ -1657,7 +1657,7 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
 
         using var outputAtlas = TestFramework.CreateTestGBuffer(
             AtlasWidth, AtlasHeight,
-            TextureFormat.Rgba16f);
+            TextureFormat.Rgba16f, TextureFormat.Rg32f);
 
         var programId = CompileOctahedralTemporalShader();
 
@@ -1713,7 +1713,7 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
 
         using var outputAtlas = TestFramework.CreateTestGBuffer(
             AtlasWidth, AtlasHeight,
-            TextureFormat.Rgba16f);
+            TextureFormat.Rgba16f, TextureFormat.Rg32f);
 
         var programId = CompileOctahedralTemporalShader();
 
@@ -1780,7 +1780,7 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
 
             using var outputAtlas = TestFramework.CreateTestGBuffer(
                 AtlasWidth, AtlasHeight,
-                TextureFormat.Rgba16f);
+                TextureFormat.Rgba16f, TextureFormat.Rg32f);
 
             var programId = CompileOctahedralTemporalShader();
 
@@ -1814,7 +1814,7 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
 
             using var outputAtlas = TestFramework.CreateTestGBuffer(
                 AtlasWidth, AtlasHeight,
-                TextureFormat.Rgba16f);
+                TextureFormat.Rgba16f, TextureFormat.Rg32f);
 
             var programId = CompileOctahedralTemporalShader();
 

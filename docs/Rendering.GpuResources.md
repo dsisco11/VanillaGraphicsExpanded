@@ -91,6 +91,10 @@ operation. It does not discover a known framebuffer or reread its backing storag
 the framebuffer owns its retained image composition. Identity replacement, availability withdrawal and
 failure notification belong to that explicit transaction. A completed publication emits one owner event;
 a failed publication withdraws old metadata and retained composition while preserving borrowed storage.
+Repeated known attachment definitions retain dependent revisions when all image selections, original
+backing registrations and attachmentless defaults are unchanged. Actual changes, unavailability and
+recovery still invalidate dependents. Explicit imported framebuffer publication remains an owner event
+even when the selected images are identical, so resize/rebuild publication is not lost.
 Each maintained attachment descriptor retains its original backing registration, so a recycled native
 name cannot silently select a different texture or renderbuffer. When a bound framebuffer's backing is
 deleted, its automatically detached slots are removed from the descriptor; an unbound framebuffer retains
@@ -169,6 +173,11 @@ setters publish converted inputs. Native observers use cached capabilities witho
 format capabilities. Narrow allocation outcomes include an unsized resolved format, the approved
 sample-count fallback, and the immutable-storage flag for an opaque external-memory allocation. The
 last case does not authorize a descriptor scan.
+
+OpenGL clear execution expands an RG floating-point input texel to RGBA with blue zero and alpha one
+before native dispatch. Red and green retain their original float precision. This backend encoding
+preserves the RHI value and exact clear region without retaining caller memory, allocating a heap
+object, querying allocation facts or waiting for completion. Content clears do not publish storage facts.
 
 Native views own separate registrations and retain original source/storage dependencies regardless of
 which wrapper later borrows them. Cumulative view ranges supply feedback/overlap coordinates, while

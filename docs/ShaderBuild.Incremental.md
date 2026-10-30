@@ -114,6 +114,10 @@ by output publication. Input-check, selected-processing and publication timings 
 wall time; selected processing includes source expansion and interface repair performed
 during planning. Emission/compiler/interface work timings accumulate concurrent work and
 are not elapsed time. Publication separately reports link/copy/write and fallback cost.
+Transient Windows publication-rename retries report their Win32 status as informational output,
+avoiding MSBuild Exec's standard `error <number>` classification. Exhausted retries still fail
+publication with the original exception and native code; successful retry never suppresses a real failure.
+
 Failed jobs emit recognized `SPIRV002` build errors with their stage, source and
 configuration. Compiler failures include decimal/hex exit codes and both captured
 diagnostic streams; worker exceptions retain their original stack and inner causes.

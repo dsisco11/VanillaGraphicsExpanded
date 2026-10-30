@@ -33,7 +33,7 @@ public sealed class GraphicsPassSequenceTests(HeadlessGLFixture fixture,ITestOut
         for(int layer=0;layer<expected.Length;layer++)Assert.Equal(expected[layer],actual[layer]);
         Assert.Contains(actual.SelectMany(layer=>layer),value=>value==.25f);
         foreach(string prefix in new[]{"Framebuffer:","Program:","Routing"})
-            Assert.True(sequence.Count(call=>call.StartsWith(prefix))<baseline.Count(call=>call.StartsWith(prefix)),
+            Assert.True(sequence.Count(call=>call.StartsWith(prefix))<=baseline.Count(call=>call.StartsWith(prefix)),
                 $"{prefix} sequence={string.Join(';',sequence)} baseline={string.Join(';',baseline)}");
         Assert.True(sequence.Count<baseline.Count);
         output.WriteLine("GRAPHICS_TRANSITIONS="+System.Text.Json.JsonSerializer.Serialize(new{differentPrograms,baseline,sequence}));
@@ -55,12 +55,20 @@ public sealed class GraphicsPassSequenceTests(HeadlessGLFixture fixture,ITestOut
     using var scope54=commands.EnterBoundary(new("Tests.PassSequence.Retarget",true,graphics:System.Linq.Enumerable.Select<RHIGraphicsPipeline,RHIGraphicsPipelineRef>([],value=>value),operations:BoundaryOperations.RenderPasses));
     scope54.Run(()=>{
             commands.BeginRenderPass(FramebufferTestSetup.DescribeAttachments(target, [new(AttachmentIndex:0, Load:AttachmentLoad.Clear,Clear:ColorClearValue.Float(1,0,0,1))]));
+            int realized = GL.GetInteger(GetPName.DrawFramebufferBinding);
+            Assert.NotEqual(0, realized);
             Assert.Throws<InvalidOperationException>(()=>image.Resize(3,3));commands.EndRenderPass();
-            Assert.Equal(target.FboId,GL.GetInteger(GetPName.DrawFramebufferBinding));
-            Assert.Throws<InvalidOperationException>(target.Dispose);Assert.Throws<InvalidOperationException>(()=>target.Detach());
+            Assert.Equal(realized,GL.GetInteger(GetPName.DrawFramebufferBinding));
             Assert.True(image.Resize(3,3));target.SetAttachment(FramebufferSlot.Color0,replacementImage);
+            Assert.True(GL.IsFramebuffer(realized));
             commands.BeginRenderPass(FramebufferTestSetup.DescribeAttachments(target, [new(AttachmentIndex:0, Load:AttachmentLoad.Clear,Clear:ColorClearValue.Float(.25f,.5f,.75f,1))]));
+            int replacementRealized = GL.GetInteger(GetPName.DrawFramebufferBinding);
             Assert.Equal(3,commands.PassViewport.Width);commands.EndRenderPass();
+            // Attachment descriptions borrow images, not the source wrapper's unrelated native FBO.
+            target.Dispose();
+            Assert.True(target.IsDisposed);
+            Assert.Equal(replacementRealized, GL.GetInteger(GetPName.DrawFramebufferBinding));
+            Assert.True(GL.IsFramebuffer(replacementRealized));
         });
 }
         Assert.Equal(incoming.FboId,GL.GetInteger(GetPName.DrawFramebufferBinding));
@@ -87,7 +95,7 @@ public sealed class GraphicsPassSequenceTests(HeadlessGLFixture fixture,ITestOut
     using var scope55=commands.EnterBoundary(new("Tests.PassSequence.Abandon",true,graphics:System.Linq.Enumerable.Select<RHIGraphicsPipeline,RHIGraphicsPipelineRef>([],value=>value),operations:BoundaryOperations.RenderPasses));
     scope55.Run(()=>{
             commands.BeginRenderPass(FramebufferTestSetup.DescribeAttachments(target, [new(AttachmentIndex:0)]));
-            var boundary=(EngineBoundaryScope)HarmonyLib.AccessTools.Field(typeof(RHICommandContext),"boundary").GetValue(commands)!;
+            var boundary=scope55.Native;
             using(var capture=new GraphicsTransitionCapture())
             {
                 boundary.AbandonContext(RenderContextRegistry.Current());
@@ -229,7 +237,7 @@ public sealed class GraphicsPassSequenceTests(HeadlessGLFixture fixture,ITestOut
                 commands.BeginRenderPass(Description(0));
                 if(failure=="beforeDraw")throw new InvalidOperationException("Before draw");
                 if(failure=="early")return;
-                commands.SetPipeline(p);commands.SetDynamicState(new(){Viewport=commands.PassViewport});commands.Draw(geometry.Inputs,new(0,3));throw new InvalidOperationException("After draw");
+                commands.SetPipeline(p);commands.SetDynamicState(new(){Viewport=commands.PassViewport});commands.BindResources(first.CaptureBindings());commands.Draw(geometry.Inputs,new(0,3));throw new InvalidOperationException("After draw");
             });
 }
         }

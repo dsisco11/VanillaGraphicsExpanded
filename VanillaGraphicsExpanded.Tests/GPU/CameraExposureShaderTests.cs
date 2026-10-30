@@ -41,9 +41,9 @@ public sealed class CameraExposureShaderTests(HeadlessGLFixture fixture) : LumOn
         Assert.Contains("Incompatible texture target",error.Message);
         Assert.Equal(ErrorCode.NoError,GL.GetError());
     }
-    /// <summary>Compute interruptions restore all borrowed storage slots and leave publication unchanged when admission fails.</summary>
+    /// <summary>Compute dispatch restores storage and a known selected executable without publishing the write target.</summary>
     [Fact]
-    public void ComputeBoundaryRestoresStorageAndRejectsUnknownProgram()
+    public void ComputeBoundaryRestoresStorageAndKnownProgram()
     {
         EnsureShaderTestAvailable();
         var meter=Programs.CreateCompute(CameraHistogramShaderProgram.Create);
@@ -66,7 +66,7 @@ public sealed class CameraExposureShaderTests(HeadlessGLFixture fixture) : LumOn
             }
             AssertClose(0,ExposureTestStorage.Read<float>(targets.WriteTarget)[0]);
             OpenGLProgramSelection.Select(OpenGlStateCache.Current, meter.ProgramId);
-            Assert.False(CameraExposureDispatch.TryRun(meter,adapt));
+            Assert.True(CameraExposureDispatch.TryRun(meter,adapt));
             Assert.Equal(published,targets.Exposure.BufferId);
             Assert.Equal(meter.ProgramId,GL.GetInteger(GetPName.CurrentProgram));
         }

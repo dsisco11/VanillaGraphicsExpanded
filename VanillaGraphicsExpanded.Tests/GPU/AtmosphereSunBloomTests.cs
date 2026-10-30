@@ -53,7 +53,7 @@ public sealed class AtmosphereSunBloomTests(HeadlessGLFixture fixture) : LumOnSh
     using var scope9=commands.EnterBoundary(new("Tests.SolarBloomSource",true,graphics:System.Linq.Enumerable.Select<RHIGraphicsPipeline,RHIGraphicsPipelineRef>([solarPipeline],value=>value),operations:BoundaryOperations.RenderPasses));
     scope9.Run(()=>{
                 commands.BeginRenderPass(pass);commands.SetPipeline(solarPipeline);commands.SetDynamicState(new(){Viewport=commands.PassViewport});
-                commands.Draw(geometry.Inputs,new(0,6));commands.EndRenderPass();
+                commands.BindResources(sun.CaptureBindings()); commands.Draw(geometry.Inputs,new(0,6));commands.EndRenderPass();
             });
 }
             float[] solar=color.ReadPixels();
@@ -112,7 +112,7 @@ public sealed class AtmosphereSunBloomTests(HeadlessGLFixture fixture) : LumOnSh
             commands.BeginRenderPass(pass);
             commands.SetPipeline(pipeline);
             commands.SetDynamicState(new() { Viewport = commands.PassViewport });
-            commands.Draw(geometry.Inputs, new(0, 6));
+            commands.BindResources(sun.CaptureBindings()); commands.Draw(geometry.Inputs, new(0, 6));
             commands.EndRenderPass();
         });
 }

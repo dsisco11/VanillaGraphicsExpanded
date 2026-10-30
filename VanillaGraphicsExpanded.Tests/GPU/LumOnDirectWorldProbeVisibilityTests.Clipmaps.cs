@@ -41,6 +41,8 @@ public sealed partial class LumOnDirectWorldProbeVisibilityTests
         if (scenario == 3) Array.Clear(atlas.Metadata, 0, atlas.ScalarWidth * atlas.Resolution * 2);
         float previousRed = float.PositiveInfinity;
         float previousGreen = -1;
+        // Undoing debug tone mapping yields E=pi; gather channels already contain E/pi=1.
+        float expectedTotal = consumer >= 0 ? MathF.PI : 1f;
         // Cross the fine interior, overlap band, and outer boundary.
         foreach (float x in new[] { 0f, 2f, 4f, 6f, 11.75f, 12.25f })
         {
@@ -57,25 +59,25 @@ public sealed partial class LumOnDirectWorldProbeVisibilityTests
                 red /= 1 - red;
                 green /= 1 - green;
             }
-            Assert.InRange(red + green, MathF.PI - 0.025f, MathF.PI + 0.025f);
+            Assert.InRange(red + green, expectedTotal - 0.025f, expectedTotal + 0.025f);
             Assert.Equal(0, pixels[2]);
             if (scenario == 2)
             {
-                Assert.InRange(red, MathF.PI - 0.025f, MathF.PI + 0.025f);
+                Assert.InRange(red, expectedTotal - 0.025f, expectedTotal + 0.025f);
                 Assert.Equal(0, green);
                 continue;
             }
             if (scenario == 3)
             {
                 Assert.Equal(0, red);
-                Assert.InRange(green, MathF.PI - 0.025f, MathF.PI + 0.025f);
+                Assert.InRange(green, expectedTotal - 0.025f, expectedTotal + 0.025f);
                 continue;
             }
             Assert.True(red <= previousRed + 0.025f);
             Assert.True(green >= previousGreen - 0.025f);
-            if (x == 0) Assert.InRange(red, MathF.PI - 0.025f, MathF.PI + 0.025f);
+            if (x == 0) Assert.InRange(red, expectedTotal - 0.025f, expectedTotal + 0.025f);
             if (x == 4) Assert.True(red > 0.2f && green > 0.2f);
-            if (x > 12) Assert.InRange(green, MathF.PI - 0.025f, MathF.PI + 0.025f);
+            if (x > 12) Assert.InRange(green, expectedTotal - 0.025f, expectedTotal + 0.025f);
             previousRed = red;
             previousGreen = green;
         }

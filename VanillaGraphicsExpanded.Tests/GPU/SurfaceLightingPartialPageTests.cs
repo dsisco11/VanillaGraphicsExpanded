@@ -114,8 +114,8 @@ public sealed class SurfaceLightingPartialPageTests(HeadlessGLFixture fixture) :
             for(int index=0;index<outgoing.Length;index+=4)
             {
                 Assert.Equal(1,outgoing[index+3]);
-                Assert.True(outgoing[index]>=direct[index]/MathF.PI-.01f,"An unresolved bounce erased initialized direct lighting.");
-                if(indirect[index]>.001f && outgoing[index]>direct[index]/MathF.PI+.001f) publishedBounce=true;
+                Assert.True(outgoing[index]>=direct[index]*GgxHemisphereReference.CapturedDiffuse(1)/MathF.PI-.01f,"An unresolved bounce erased initialized direct lighting.");
+                if(indirect[index]>.001f && outgoing[index]>direct[index]*GgxHemisphereReference.CapturedDiffuse(1)/MathF.PI+.001f) publishedBounce=true;
             }
         }
         ((LumonSceneRelightUpdateRenderer)runtime.LightingProvider).TryGetSelfCheckLine(out string diagnostics);

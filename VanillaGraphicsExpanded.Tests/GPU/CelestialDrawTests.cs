@@ -262,7 +262,7 @@ public sealed class CelestialDrawTests(HeadlessGLFixture fixture) : LumOnShaderF
     using var scope23=commands.EnterBoundary(new("Tests.CelestialDraw",true,graphics:System.Linq.Enumerable.Select<RHIGraphicsPipeline,RHIGraphicsPipelineRef>([pipeline],value=>value),operations:BoundaryOperations.RenderPasses));
     scope23.Run(()=>{
             commands.BeginRenderPass(pass);commands.SetPipeline(pipeline);commands.SetDynamicState(new(){Viewport=commands.PassViewport});
-            commands.Draw(geometry.Inputs,new(0,layout==CelestialDrawPass.FullscreenLayout?3:6,InstanceCount:count));commands.EndRenderPass();
+            commands.BindResources(shader.CaptureBindings()); commands.Draw(geometry.Inputs,new(0,layout==CelestialDrawPass.FullscreenLayout?3:6,InstanceCount:count));commands.EndRenderPass();
         });
 }
         Assert.Equal(priorFramebuffer,GL.GetInteger(GetPName.DrawFramebufferBinding));

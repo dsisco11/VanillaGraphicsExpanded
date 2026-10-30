@@ -19,9 +19,13 @@ public sealed class WorldProbeDirectionalHistoryTests(HeadlessGLFixture fixture)
         using var assets=new BinaryShaderApiFixture();
         using var resources=new LumOnWorldProbeClipmapGpuResources(assets.Api,41,1,1);
         Fill(resources);
+#if DEBUG
         long dispatches=resources.InvalidationDispatchCount;
+#endif
         resources.ClearAll();
+#if DEBUG
         Assert.Equal(dispatches+1,resources.InvalidationDispatchCount);
+#endif
         Assert.All(resources.ProbeRadianceAtlas.ReadPixels(),value=>Assert.Equal(0,value));
         Assert.All(resources.ProbeVis0.ReadPixels(),value=>Assert.Equal(0,value));
         Assert.All(resources.ProbeDist0.ReadPixels(),value=>Assert.Equal(0,value));
@@ -47,23 +51,31 @@ public sealed class WorldProbeDirectionalHistoryTests(HeadlessGLFixture fixture)
         EnsureContextValid();
         using var assets=new BinaryShaderApiFixture();
         using var resources=new LumOnWorldProbeClipmapGpuResources(assets.Api,4,2,4);
+#if DEBUG
         long initialDispatches=resources.InvalidationDispatchCount;
+#endif
         Assert.Equal(0,resources.PendingInvalidationCount);
         Fill(resources);
         resources.QueueClearLocalBox(0,new(),new(),new(2,1,1));
         Assert.Equal(12,resources.PendingInvalidationCount);
+#if DEBUG
         Assert.Equal(initialDispatches,resources.InvalidationDispatchCount);
+#endif
         resources.QueueClearLocalBox(0,new(),new(1,0,0),new(3,1,1));
         resources.QueueClearLocalBox(0,new(),new(),new(2,1,1));
         Assert.Equal(16,resources.PendingInvalidationCount);
         Assert.All(resources.ProbeRadianceAtlas.ReadPixels(),value=>Assert.Equal(1,value));
         resources.FlushHistoryInvalidation();
+#if DEBUG
         Assert.Equal(initialDispatches+1,resources.InvalidationDispatchCount);
+#endif
         Assert.Equal(0,resources.PendingInvalidationCount);
         Assert.Equal(16<<4,resources.ProbeRadianceAtlas.ReadPixels().Where((_,i)=>(i&3)==3).Count(value=>value==0));
         Fill(resources);
         resources.FlushHistoryInvalidation();
+#if DEBUG
         Assert.Equal(initialDispatches+1,resources.InvalidationDispatchCount);
+#endif
         Assert.All(resources.ProbeRadianceAtlas.ReadPixels(),value=>Assert.Equal(1,value));
         Assert.All(resources.ProbeMeta0.ReadPixels(),value=>Assert.Equal(1,value));
         // Full reset must be immediate and independent of fixed-function write restrictions.
@@ -74,7 +86,9 @@ public sealed class WorldProbeDirectionalHistoryTests(HeadlessGLFixture fixture)
         Assert.All(resources.ProbeMeta0.ReadPixels(),value=>Assert.Equal(0,value));
         Assert.All(resources.ProbeVis0.ReadPixels(),value=>Assert.Equal(0,value));
         Assert.All(resources.ProbeDist0.ReadPixels(),value=>Assert.Equal(0,value));
+#if DEBUG
         Assert.Equal(initialDispatches+2,resources.InvalidationDispatchCount);
+#endif
         Assert.Equal(0,resources.PendingInvalidationCount);
         Assert.Equal(ErrorCode.NoError,GL.GetError());
     }

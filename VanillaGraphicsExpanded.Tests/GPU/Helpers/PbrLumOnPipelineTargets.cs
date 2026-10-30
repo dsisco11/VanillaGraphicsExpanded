@@ -113,11 +113,12 @@ internal sealed class PbrLumOnPipelineTargets : IDisposable
                 depth: null,
                 debugName: "Test.IndirectFullPass"));
 
-            // Final composite output
+            // Full-precision color isolates arithmetic from destination quantization in the
+            // independent direct-sum oracle; refraction storage retains its declared formats.
             Composite = _resources.Own(DynamicGpuFramebuffer.Create(
                 new[]
                 {
-                    _resources.Own(new GpuFramebufferAttachment(screenW, screenH, TextureFormat.Rgba16f, debugName: "Test.Composite")),
+                    _resources.Own(new GpuFramebufferAttachment(screenW, screenH, TextureFormat.Rgba32f, debugName: "Test.Composite")),
                     _resources.Own(new GpuFramebufferAttachment(screenW, screenH, TextureFormat.Rgba16f, debugName: "Test.CompositeRefraction")),
                     _resources.Own(new GpuFramebufferAttachment(screenW, screenH, TextureFormat.R32f, debugName: "Test.CompositeRefractionDepth")),
                 },

@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Tests.GPU.Helpers;
 using System.Numerics;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 using Vintagestory.Client.NoObf;
@@ -31,7 +32,7 @@ public sealed class SurfaceLightingDisplayBoundaryTests : RenderTestBase
             SurfaceLightingNumericalRuntimeTests.SeedAndFreeze(runtime);
             for (int frame = 0; frame < 24; frame++) runtime.Frame();
             var reference = runtime.SceneLinearPixels();
-            var incident = scene.SourceAlbedo.Value * (32 / MathF.PI);
+            var incident = GgxHemisphereReference.CapturedDiffuse(scene.SourceAlbedo.Value) * (32 / MathF.PI);
             SurfaceLightingNumericalRuntimeTests.AssertPixels(reference,
                 (x, y) => SurfaceLightingPbrRuntimeTests.DiffuseResponse(scene, x, y, receiver, incident), .08f, "scene-linear HDR");
             Assert.True(reference.Where((_, i) => i % 4 != 3).Max() > 2);

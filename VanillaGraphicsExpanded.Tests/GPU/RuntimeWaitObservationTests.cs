@@ -18,7 +18,8 @@ public sealed class RuntimeWaitObservationTests : RenderTestBase
     {
         EnsureContextValid();
         using var runtime = new SurfaceLightingConsumerRuntimeFixture(false);
-        runtime.Frame();
+        // Allocation deliberately skips submission; validate outputs only after their producer publishes.
+        runtime.RunUntil(() => runtime.Screen.HasPublishedIndirect);
         int calls = 0;
         runtime.RunUntil(() => { calls++; return true; }, maximumFrames: 0);
         Assert.Equal(1, calls);

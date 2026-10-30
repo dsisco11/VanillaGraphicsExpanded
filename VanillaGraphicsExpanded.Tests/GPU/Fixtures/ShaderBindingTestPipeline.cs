@@ -29,7 +29,27 @@ internal static class ShaderBindingTestPipeline
             };
             for (int element = 0; element < output.ArraySize; element++) colors[output.Location + element] = new(format);
         }
-        return RHICommandContext.Current.CreateGraphicsPipeline(new(program.Shader, EngineFullscreenGeometry.Layout,
+        // Binding-only checks still require a valid complete PSO. Project the already supplied
+        // interface, rather than assuming every executable accepts the fullscreen vertex layout.
+        var attributes = new System.Collections.Generic.List<RHIVertexAttribute>();
+        foreach (var input in graphics.Inputs)
+        {
+            var shape = ShaderInterfaceShape.From(input.Type);
+            var storage = shape.Interpretation switch
+            {
+                VertexInterpretation.Double => VertexComponentFormat.Double,
+                VertexInterpretation.Integer => shape.Unsigned ? VertexComponentFormat.UnsignedInt : VertexComponentFormat.SignedInt,
+                _ => VertexComponentFormat.Float
+            };
+            for (int element = 0; element < input.ArraySize; element++)
+            for (int column = 0; column < shape.Columns; column++)
+            {
+                int location = input.Location + element * shape.Columns + column;
+                attributes.Add(new(location, shape.Components, storage, shape.Interpretation,
+                    location, 0, shape.Components * (storage == VertexComponentFormat.Double ? 8 : 4)));
+            }
+        }
+        return RHICommandContext.Current.CreateGraphicsPipeline(new(program.Shader, new(attributes),
             new(colors), DynamicPipelineState.Viewport)).RequireResource();
     }
     #endregion

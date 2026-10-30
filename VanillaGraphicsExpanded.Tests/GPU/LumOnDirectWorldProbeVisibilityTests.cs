@@ -102,10 +102,12 @@ public sealed partial class LumOnDirectWorldProbeVisibilityTests : DirectWorldPr
         return atlas;
     }
 
-    /// <summary>Checks actual irradiance and selected confidence, accounting for debug tone mapping.</summary>
+    /// <summary>Checks irradiance debug views, Lambertian gather E/pi and selected confidence.</summary>
     private static void AssertLighting(float[] result, int consumer, bool lit)
     {
-        float expected = !lit ? 0 : consumer == 33 ? 1 : consumer >= 0 ? MathF.PI / (1 + MathF.PI) : MathF.PI;
+        // Unit incident radiance integrates to E=pi. Debug views display E; gather
+        // publishes E/pi for the receiver's diffuse response, independently of storage scale.
+        float expected = !lit ? 0 : consumer == 33 ? 1 : consumer >= 0 ? MathF.PI / (1 + MathF.PI) : 1f;
         for (int i = 0; i < result.Length; i += 4)
         {
             for (int c = 0; c < 3; c++) Assert.InRange(result[i + c], expected - 0.004f, expected + 0.004f);

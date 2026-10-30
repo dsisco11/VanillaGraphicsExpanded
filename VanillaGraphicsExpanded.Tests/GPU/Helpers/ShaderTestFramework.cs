@@ -248,6 +248,9 @@ public sealed class ShaderTestFramework : IDisposable
     /// <summary>Submits fixed shader inputs directly to supplied final attachment intentions.</summary>
     public void RenderQuadTo(GpuProgram program,RHIRenderPassDescription pass,Action? afterDraw=null)
     {
+        // Complete the desired variant before freezing a pipeline from its exact executable.
+        // Option edits may change the active MRT interface as well as shader behavior.
+        if (!program.EnsureReady()) throw new InvalidOperationException("The fixture shader could not prepare its requested executable.");
         EnsureQuadInitialized();
         var commands=RHICommandContext.Current;
         using var pipeline=commands.CreateGraphicsPipeline(new(program.Shader,QuadLayout,commands.DescribeRenderTargets(pass),DynamicPipelineState.Viewport)).RequireResource();

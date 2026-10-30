@@ -133,6 +133,8 @@ public sealed class HeadlessGLFixture : IAsyncLifetime
     /// <summary>Tests context-local RHI initialization without an installed manager or fabricated discovery permission.</summary>
     public void UseContextLocalResources()
     {
+        // Upload buffers and fences must retire while their original deletion service is available.
+        TextureStreamingSystem.Dispose();
         TestUniformRing.Dispose();
         var current = RHIResourceManagerSystem.CurrentManager;
         RHIResourceManagerSystem.Shutdown();
@@ -149,6 +151,7 @@ public sealed class HeadlessGLFixture : IAsyncLifetime
 
         // The fixture manager is intentionally unticked: disposal uses the current context without
         // registering an engine renderer or capturing a thread that xUnit may subsequently change.
+        TextureStreamingSystem.Dispose();
         TestUniformRing.Dispose();
         var current = RHIResourceManagerSystem.CurrentManager;
         current?.ResourceDisposals?.DrainPending();

@@ -132,9 +132,15 @@ internal sealed partial class SurfaceLightingConsumerRuntimeFixture : IDisposabl
             raster?.Normal ?? Enumerable.Range(0,edge*edge).SelectMany(_=>new[]{.5f,.5f,1f,0f}).ToArray(),
             materials, colors);
         host.CameraWorld.RefreshCamera();
-        Cache.Frame();
-        if(Screen.IndirectFullTex!=null) Energy(FinalPixels());
-        if(WorldBuffers.Resources!=null) Energy(WorldPixels());
+        using (var submissions = new NativeIndexedDrawCapture(() =>
+        {
+            int program = GL.GetInteger(GetPName.CurrentProgram);
+            Assert.NotEqual(0, program);
+            DrawnPrograms.Add(program);
+        })) Cache.Frame();
+        // Storage allocation precedes the first submitted frame; only published indirect output is readable.
+        if(Screen.HasPublishedIndirect) Energy(FinalPixels(), "final indirect output");
+        if(WorldBuffers.Resources!=null) Energy(WorldPixels(), "world radiance atlas");
         Assert.Equal(ErrorCode.NoError,GL.GetError());
     }
 
@@ -190,12 +196,13 @@ internal sealed partial class SurfaceLightingConsumerRuntimeFixture : IDisposabl
     public float WorldConfidence => WorldBuffers.Resources?.ProbeMeta0.ReadPixels().Where((_, index) => (index & 3) == 0).Max() ?? 0;
 
     /// <summary>Checks every RGB channel and returns the peak finite energy at an observable boundary.</summary>
-    public static float Energy(float[] pixels)
+    public static float Energy(float[] pixels, string? observation = null)
     {
         Assert.NotEmpty(pixels); float peak=0;
         for(int i=0;i<pixels.Length;i++)
         {
-            Assert.True(float.IsFinite(pixels[i]));
+            if (!float.IsFinite(pixels[i]))
+                Assert.Fail($"{observation ?? "Lighting output"}[{i}] is {pixels[i]}; length={pixels.Length}.");
             if(i%4!=3) peak=Math.Max(peak,Math.Abs(pixels[i]));
         }
         return peak;
@@ -205,7 +212,7 @@ internal sealed partial class SurfaceLightingConsumerRuntimeFixture : IDisposabl
     private void Draw()
     {
         int program=GL.GetInteger(GetPName.CurrentProgram); Assert.NotEqual(0,program);
-        DrawnPrograms.Add(program); drawing.RenderGeometry();
+        drawing.RenderGeometry();
         // Engine RenderMesh preserves the active shader across repeated draws (including HZB mip levels).
 
     }

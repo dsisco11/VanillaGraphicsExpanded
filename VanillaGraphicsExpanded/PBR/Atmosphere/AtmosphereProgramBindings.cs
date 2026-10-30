@@ -79,7 +79,8 @@ internal static class AtmosphereProgramBindings
         // VGE programs own their own contracts and are not patched engine source families.
         if (program is not ShaderProgram source || source.AssetDomain == Constants.ModId) return;
         if (Expected(source.PassName) == AtmosphereBindings.None) return;
-        var layout = new GpuProgramLayout();
+        // Name resolution projects canonical linked facts; an empty layout has no reflected interface.
+        var layout = GpuProgramLayout.TryBuild(source.ProgramId);
         // The engine's source-derived uniform table is not the linked interface. In particular,
         // active sampler3D inputs must be registered even when its source scanner omitted them.
         var active = Resolve(source.PassName, name =>

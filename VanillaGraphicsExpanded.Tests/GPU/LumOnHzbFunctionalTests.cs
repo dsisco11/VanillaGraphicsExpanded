@@ -111,7 +111,7 @@ public sealed class LumOnHzbFunctionalTests : LumOnShaderFunctionalTestBase
         using var history = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, TextureFormat.Rgba16f, historyData);
         using var metaHistory = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, TextureFormat.Rg32f, new float[AtlasWidth * AtlasHeight * 2]);
 
-        using var outputAtlas = TestFramework.CreateTestGBuffer(AtlasWidth, AtlasHeight, TextureFormat.Rgba16f);
+        using var outputAtlas = TestFramework.CreateTestGBuffer(AtlasWidth, AtlasHeight, TextureFormat.Rgba16f, TextureFormat.Rg32f);
 
         var progMip0 = Programs.Create<LumOnScreenProbeAtlasTraceShaderProgram>(settings: new Dictionary<string, string?>
             {

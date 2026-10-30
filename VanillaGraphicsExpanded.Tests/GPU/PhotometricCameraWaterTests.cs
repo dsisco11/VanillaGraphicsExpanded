@@ -30,7 +30,7 @@ public sealed class PhotometricCameraWaterTests(HeadlessGLFixture fixture) : Lum
         using var normal = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba32f, [.5f, 1f, .5f, 1]);
         using var surface = LayeredTestTexture.Create(normal, zero, zero);
         using var optical = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba32f, [-.7f, -1.4f, -2.1f, -7]);
-        using var output = CreateMRTRenderTarget(1, 1, TextureFormat.Rgba32f);
+        using var output = CreateMRTRenderTarget(1, 1, TextureFormat.Rgba32f, TextureFormat.Rgba16f, TextureFormat.R32f);
         using var camera = TestFrameCamera.Create([1,0,0,0, 0,1,0,0, 0,0,20,0, 0,0,0,1],
             [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1]);
         using var publication = new TestFrameLightingPublication();
@@ -84,7 +84,7 @@ public sealed class PhotometricCameraWaterTests(HeadlessGLFixture fixture) : Lum
         using var lighting = LayeredTestTexture.Create(zero, zero, zero);
         using var surface = LayeredTestTexture.Create(normal, zero, zero);
         using var water = LayeredTestTexture.Create(zero, zero);
-        using var output = CreateMRTRenderTarget(1, 1, TextureFormat.Rgba32f);
+        using var output = CreateMRTRenderTarget(1, 1, TextureFormat.Rgba32f, TextureFormat.Rgba16f, TextureFormat.R32f);
         using var camera = TestFrameCamera.Create([1,0,0,0, 0,1,0,0, 0,0,20,0, 0,0,0,1],
             [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1]);
         camera.SetLightingCalibration(new(8, .2f, AccessorSkyFloor: .25f,

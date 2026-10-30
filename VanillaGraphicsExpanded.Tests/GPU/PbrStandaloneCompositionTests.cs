@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Tests.GPU.Helpers;
 using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
@@ -37,7 +38,7 @@ public sealed class PbrStandaloneCompositionTests : LumOnShaderFunctionalTestBas
         using var material = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba16f, new[] { roughness, metallic, 0f, 0f });
         using var environment = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba16f, new[] { availability, availability, availability, 1f });
         using var depth = TestFramework.CreateTexture(1, 1, TextureFormat.R32f, new[] { .25f });
-        using var output = TestFramework.CreateTestGBuffer(1, 1, TextureFormat.Rgba16f);
+        using var output = TestFramework.CreateTestGBuffer(1, 1, TextureFormat.Rgba16f, TextureFormat.Rgba16f, TextureFormat.R32f);
         using var position = TestFramework.CreateTexture(1, 1, TextureFormat.Rgba32f, new float[4]);
         program.GBufferPosition = position;
         FramebufferTestSetup.BindForEngineRendering(output);
@@ -52,18 +53,21 @@ public sealed class PbrStandaloneCompositionTests : LumOnShaderFunctionalTestBas
             program.FrameInputs = frameCamera;
 
             program.IndirectIntensity = 1; program.IndirectTint = new(1,1,1);
-            TestFramework.RenderQuadTo(program, output);
-            if (!lumon)
+            TestFramework.RenderQuadTo(program, output, afterDraw: () =>
             {
-                int active = GL.GetInteger(GetPName.ActiveTexture);
-                GL.ActiveTexture(TextureUnit.Texture6);
-                int bound = GL.GetInteger(GetPName.TextureBinding2DArray);
-                GL.ActiveTexture((TextureUnit)active);
-                Assert.Equal(surface.TextureId, bound);
-            }
+                if (!lumon)
+                {
+                    int active = GL.GetInteger(GetPName.ActiveTexture);
+                    GL.ActiveTexture(TextureUnit.Texture6);
+                    int bound = GL.GetInteger(GetPName.TextureBinding2DArray);
+                    GL.ActiveTexture((TextureUnit)active);
+                    Assert.Equal(surface.TextureId, bound);
+                }
+            });
         }
         float f0 = metallic == 1 ? .5f : .04f;
-        float response = lumon ? .75f * .5f : availability * ((1 - f0) * (1 - metallic) * .5f + f0 * (1 - roughness));
+        float reflected=(float)MicrofacetEnergyReference.NormalResponse(roughness,f0).Reflection;
+        float response = lumon ? .75f * .5f : availability * ((1 - reflected) * (1 - metallic) * .5f + reflected);
         foreach (float actual in output[0].ReadPixels().Take(3)) Assert.InRange(actual, .25f + response - .001f, .25f + response + .001f);
     }
     #endregion

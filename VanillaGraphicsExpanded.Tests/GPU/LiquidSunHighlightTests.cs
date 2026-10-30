@@ -6,6 +6,7 @@ using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.PBR.Liquids;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Shaders;
+using VanillaGraphicsExpanded.Rendering.Pipeline.Descriptions;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 
 namespace VanillaGraphicsExpanded.Tests.GPU;
@@ -45,8 +46,10 @@ public sealed class LiquidSunHighlightTests(HeadlessGLFixture fixture) : RenderT
         program.TerrainTexture = terrain;
         program.MaterialParamsTexture = material;
         program.DepthTexture = depth;
-        program.ShadowMapNear = depth;
-        program.ShadowMapFar = depth;
+        using var shadow = new DepthTexture(1, 1, TextureFormat.DepthComponent32f);
+        shadow.UploadDataImmediate([1f]);
+        program.ShadowMapNear = shadow;
+        program.ShadowMapFar = shadow;
         program.AerialRadianceTexture = aerial;
         program.AerialAttenuationTexture = aerial;
         program.ShadowRanges = Vector4.Zero;
@@ -64,41 +67,11 @@ public sealed class LiquidSunHighlightTests(HeadlessGLFixture fixture) : RenderT
         using var sharedLights = new VgeLightsUniformBuffer();
         program.LightsInputs = sharedLights;
         program.FrameInputs = frameCamera;
-        var state = OpenGlStateCache.Current;
-        using var fixedFunction = LegacyFixedFunctionReference.Capture(state);
-        using var framebufferBinding = state.BindFramebufferScope(FramebufferTarget.Framebuffer, target.FboId);
-        using var vao = NativeResourceSetup.CreateVertexArray("Test.LiquidSun.Vao");
-        using var vertices = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = "Test.LiquidSun.Vertices" }).RequireResource();
-        using var flags = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = "Test.LiquidSun.Flags" }).RequireResource();
-        using var indices = RHICommandContext.Current.CreateIndexBuffer(new RHIBufferDescription { Role = BufferRole.Index, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = "Test.LiquidSun.Indices" }).RequireResource();
-        using var vertexBinding = OpenGlStateCache.Current.BindVertexArrayScope(vao.VertexArrayId);
-        // Supply every input through vertex buffers instead of mutable global constant attributes.
-        using (OpenGlStateCache.Current.BindBufferScope(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBufferValues.Target(vertices.Role), vertices.BufferId))
-        {
-            vertices.UploadData(new float[] {
+        using var mesh = new LiquidMeshFixture(new float[] {
                 -10,-1,-1, .5f,.5f, 0,0,0,1, 0,0,
                  10,-1,-1, .5f,.5f, 0,0,0,1, 0,0,
                  10,-1,-20,.5f,.5f, 0,0,0,1, 0,0,
-                -10,-1,-20,.5f,.5f, 0,0,0,1, 0,0 });
-            using (OpenGlStateCache.Current.BindVertexArrayScope(vao.VertexArrayId)) GL.VertexAttribPointer(0, 3, VertexAttribPointerType.Float, false, 44, 0);
-            using (OpenGlStateCache.Current.BindVertexArrayScope(vao.VertexArrayId)) GL.VertexAttribPointer(1, 2, VertexAttribPointerType.Float, false, 44, 12);
-            using (OpenGlStateCache.Current.BindVertexArrayScope(vao.VertexArrayId)) GL.VertexAttribPointer(2, 4, VertexAttribPointerType.Float, false, 44, 20);
-            using (OpenGlStateCache.Current.BindVertexArrayScope(vao.VertexArrayId)) GL.VertexAttribPointer(4, 2, VertexAttribPointerType.Float, false, 44, 36);
-        }
-        using (OpenGlStateCache.Current.BindBufferScope(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBufferValues.Target(flags.Role), flags.BufferId))
-        {
-            flags.UploadData(new int[12]);
-            using (OpenGlStateCache.Current.BindVertexArrayScope(vao.VertexArrayId)) GL.VertexAttribIPointer(3, 1, VertexAttribIntegerType.Int, 12, 0);
-            using (OpenGlStateCache.Current.BindVertexArrayScope(vao.VertexArrayId)) GL.VertexAttribIPointer(5, 1, VertexAttribIntegerType.Int, 12, 4);
-            using (OpenGlStateCache.Current.BindVertexArrayScope(vao.VertexArrayId)) GL.VertexAttribIPointer(6, 1, VertexAttribIntegerType.Int, 12, 8);
-        }
-        indices.UploadIndices(new uint[] { 0, 1, 2, 0, 2, 3 });
-        state.Apply(new GlPipelineDesc(
-            defaultMask: GlPipelineStateMask.From(GlPipelineStateId.DepthTestEnable)
-                .With(GlPipelineStateId.CullFaceEnable).With(GlPipelineStateId.BlendEnable)
-                .With(GlPipelineStateId.ScissorTestEnable).With(GlPipelineStateId.ColorMask),
-            nonDefaultMask: default,
-            name: "Test.LiquidSun"));
+                -10,-1,-20,.5f,.5f, 0,0,0,1, 0,0 }, new int[12], [0, 1, 2, 0, 2, 3]);
         Assert.True(target.CheckStatus(out var error), error);
         float a = Draw(-18.5f, out float sunA), b = Draw(-19f, out float sunB);
         TestContext.Current.TestOutputHelper!.WriteLine($"Sun NDC Y {sunA} -> {sunB}; receiver RGB {a} -> {b}; ratio {b / a}");
@@ -112,16 +85,25 @@ public sealed class LiquidSunHighlightTests(HeadlessGLFixture fixture) : RenderT
         {
             var view = Matrix4x4.CreateRotationX(-pitch * MathF.PI / 180);
             program.ModelViewMatrix = Flatten(view);
-            using var active = ShaderBindingTestPipeline.Create(program);
-        RHICommandContext.Current.SetPipeline(active);
-        RHICommandContext.Current.BindResources(program.CaptureBindings());
             var sun = Vector4.Transform(new Vector4(0, 1, -5, 0), view * projection); sunY = sun.Y / sun.W;
             var receiver = Vector4.Transform(new Vector4(0, -1, -5, 1), view * projection);
             int x = (int)((receiver.X / receiver.W * .5f + .5f) * size), y = (int)((receiver.Y / receiver.W * .5f + .5f) * size);
-            // Status checks and texture readback release their framebuffer binding.
-            FramebufferTestSetup.BindForEngineRendering(target);
-            FramebufferTestSetup.ClearAttachments(target, 0, 0, 0, 0);
-            GL.DrawElements(PrimitiveType.Triangles, indices.IndexCount, DrawElementsType.UnsignedInt, IntPtr.Zero);
+            var commands = RHICommandContext.Current;
+            var pass = FramebufferTestSetup.DescribeAttachments(target,
+                Enumerable.Range(0, 6).Select(index => new RHIColorAttachment(AttachmentIndex: index,
+                    Load: AttachmentLoad.Clear, Clear: ColorClearValue.Float(0, 0, 0, 0))));
+            using var pipeline = commands.CreateGraphicsPipeline(new(program.Shader, LiquidMeshFixture.Layout,
+                commands.DescribeRenderTargets(pass), DynamicPipelineState.Viewport)).RequireResource();
+            using var boundary = commands.EnterBoundary(new("Tests.LiquidSun", true,
+                graphics: [pipeline], operations: BoundaryOperations.RenderPasses));
+            boundary.Run(() =>
+            {
+                commands.BeginRenderPass(pass); commands.SetPipeline(pipeline);
+                commands.SetDynamicState(new() { Viewport = commands.PassViewport });
+                commands.BindResources(program.CaptureBindings());
+                commands.DrawIndexed(mesh.Inputs, new(0, mesh.IndexCount));
+                commands.EndRenderPass();
+            });
             // Attachment 3 is the first OIT radiance/weight output.
             float[] pixel = target[3].ReadPixelsRegion(x, y, 1, 1);
             return pixel[0] / pixel[3];

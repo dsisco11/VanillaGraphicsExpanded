@@ -6,6 +6,7 @@ using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.PBR.Liquids;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Shaders;
+using VanillaGraphicsExpanded.Rendering.Pipeline.Descriptions;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 using VanillaGraphicsExpanded.Tests.GPU.Helpers;
 
@@ -45,8 +46,10 @@ public sealed class LiquidSpecularTriangulationTests(HeadlessGLFixture fixture) 
         program.TerrainTexture = terrain;
         program.MaterialParamsTexture = material;
         program.DepthTexture = depth;
-        program.ShadowMapNear = depth;
-        program.ShadowMapFar = depth;
+        using var shadow = new DepthTexture(1, 1, TextureFormat.DepthComponent32f);
+        shadow.UploadDataImmediate([1f]);
+        program.ShadowMapNear = shadow;
+        program.ShadowMapFar = shadow;
         program.AerialRadianceTexture = aerial;
         program.AerialAttenuationTexture = aerial;
         program.ShadowRanges = Vector4.Zero;
@@ -69,47 +72,18 @@ public sealed class LiquidSpecularTriangulationTests(HeadlessGLFixture fixture) 
         program.ModelViewMatrix = Flatten(view);
 
 
-        var state = OpenGlStateCache.Current;
-        using var fixedFunction = LegacyFixedFunctionReference.Capture(state);
-        using var framebufferBinding = state.BindFramebufferScope(FramebufferTarget.Framebuffer, target.FboId);
-        using var vao = NativeResourceSetup.CreateVertexArray("Test.LiquidTriangulation.Vao");
-        using var vertices = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = "Test.LiquidTriangulation.Vertices" }).RequireResource();
-        using var flags = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = "Test.LiquidTriangulation.Flags" }).RequireResource();
-        using var indices = RHICommandContext.Current.CreateIndexBuffer(new RHIBufferDescription { Role = BufferRole.Index, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = "Test.LiquidTriangulation.Indices" }).RequireResource();
-        using var vertexBinding = OpenGlStateCache.Current.BindVertexArrayScope(vao.VertexArrayId);
-        using (OpenGlStateCache.Current.BindBufferScope(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBufferValues.Target(vertices.Role), vertices.BufferId))
-        {
-            vertices.UploadData(new float[] {
+        // Identical packed +Y normals and animated-water flags isolate the fold in the mesh.
+        const int up = 7 << 18;
+        using var mesh = new LiquidMeshFixture(new float[] {
                 -2,-1,-4, .5f,.5f, 0,0,0,1, 0,0,
                  2,-1,-4, .5f,.5f, 0,0,0,1, 0,0,
                  2,-1,-8, .5f,.5f, 0,0,0,1, 0,0,
-                -2,-.45f,-8, .5f,.5f, 0,0,0,1, 0,0 });
-            using (OpenGlStateCache.Current.BindVertexArrayScope(vao.VertexArrayId)) GL.VertexAttribPointer(0, 3, VertexAttribPointerType.Float, false, 44, 0);
-            using (OpenGlStateCache.Current.BindVertexArrayScope(vao.VertexArrayId)) GL.VertexAttribPointer(1, 2, VertexAttribPointerType.Float, false, 44, 12);
-            using (OpenGlStateCache.Current.BindVertexArrayScope(vao.VertexArrayId)) GL.VertexAttribPointer(2, 4, VertexAttribPointerType.Float, false, 44, 20);
-            using (OpenGlStateCache.Current.BindVertexArrayScope(vao.VertexArrayId)) GL.VertexAttribPointer(4, 2, VertexAttribPointerType.Float, false, 44, 36);
-        }
-        using (OpenGlStateCache.Current.BindBufferScope(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBufferValues.Target(flags.Role), flags.BufferId))
-        {
-            // Identical packed +Y normals and animated-water flags isolate the fold in the mesh.
-            const int up = 7 << 18;
-            flags.UploadData(new int[] {
+                -2,-.45f,-8, .5f,.5f, 0,0,0,1, 0,0 }, new int[] {
                 up,0,1 | (255 << 2),
                 up,0,1 | (255 << 2),
                 up,0,1 | (255 << 2),
                 up,0,1 | (255 << 2)
-            });
-            using (OpenGlStateCache.Current.BindVertexArrayScope(vao.VertexArrayId)) GL.VertexAttribIPointer(3, 1, VertexAttribIntegerType.Int, 12, 0);
-            using (OpenGlStateCache.Current.BindVertexArrayScope(vao.VertexArrayId)) GL.VertexAttribIPointer(5, 1, VertexAttribIntegerType.Int, 12, 4);
-            using (OpenGlStateCache.Current.BindVertexArrayScope(vao.VertexArrayId)) GL.VertexAttribIPointer(6, 1, VertexAttribIntegerType.Int, 12, 8);
-        }
-        var liquidPipeline = new GlPipelineDesc(
-            defaultMask: GlPipelineStateMask.From(GlPipelineStateId.DepthTestEnable)
-                .With(GlPipelineStateId.CullFaceEnable).With(GlPipelineStateId.BlendEnable)
-                .With(GlPipelineStateId.ScissorTestEnable).With(GlPipelineStateId.ColorMask),
-            nonDefaultMask: default,
-            name: "Test.LiquidTriangulation");
-        state.Apply(liquidPipeline);
+            }, [0, 1, 2, 0, 2, 3]);
         Assert.True(target.CheckStatus(out var error), error);
 
         string? capturePath = Environment.GetEnvironmentVariable("VGE_CAPTURE_LIQUID_TRIANGULATION");
@@ -144,22 +118,12 @@ public sealed class LiquidSpecularTriangulationTests(HeadlessGLFixture fixture) 
             program.TerrainTexture = terrain;
             program.MaterialParamsTexture = material;
             program.DepthTexture = depth;
-            program.ShadowMapNear = depth;
-            program.ShadowMapFar = depth;
+            program.ShadowMapNear = shadow;
+            program.ShadowMapFar = shadow;
 
-            float[] radiance;
-            // Each executable borrow ends before changing variants or retiring the fixture registry.
-            using (var bindingPipeline1 = ShaderBindingTestPipeline.Create(program))
-            {
-                RHICommandContext.Current.SetPipeline(bindingPipeline1);
-                RHICommandContext.Current.BindResources(program.CaptureBindings());
-                state.Apply(liquidPipeline);
-                indices.UploadIndices(topology);
-                FramebufferTestSetup.BindForEngineRendering(target);
-                FramebufferTestSetup.ClearAttachments(target, 0, 0, 0, 0);
-                GL.DrawElements(PrimitiveType.Triangles, indices.IndexCount, DrawElementsType.UnsignedInt, IntPtr.Zero);
-                radiance = target[0].ReadPixels();
-            }
+            mesh.SetTopology(topology);
+            Submit(wire: false);
+            float[] radiance = target[0].ReadPixels();
             if (capture is not null)
             {
                 string path = Path.Combine(Path.GetDirectoryName(capturePath!) ?? string.Empty,
@@ -168,18 +132,34 @@ public sealed class LiquidSpecularTriangulationTests(HeadlessGLFixture fixture) 
                 // The wire variant shares the production vertex stage and marks actual GL-rasterized edges.
                 program.CaptureMode = 2;
                 Assert.True(program.EnsureReady(), string.Join("\n", assets.Logs));
-                using var wireScope = ShaderBindingTestPipeline.Create(program);
-        RHICommandContext.Current.SetPipeline(wireScope);
-        RHICommandContext.Current.BindResources(program.CaptureBindings());
-                state.Apply(liquidPipeline);
-                FramebufferTestSetup.BindForEngineRendering(target);
-                GL.PolygonMode(MaterialFace.FrontAndBack, PolygonMode.Line);
-                try { GL.DrawElements(PrimitiveType.Triangles, indices.IndexCount, DrawElementsType.UnsignedInt, IntPtr.Zero); }
-                finally { GL.PolygonMode(MaterialFace.FrontAndBack, PolygonMode.Fill); }
+                Submit(wire: true);
                 capture.Capture(target, Path.Combine(Path.GetDirectoryName(capturePath!) ?? string.Empty,
                     Path.GetFileNameWithoutExtension(capturePath) + $"-{label}-Wire.bmp"));
             }
             return radiance;
+        }
+
+        /// <summary>Draws the exact prepared generation with explicit packing, target and raster policy.</summary>
+        void Submit(bool wire)
+        {
+            var commands = RHICommandContext.Current;
+            var pass = FramebufferTestSetup.DescribeAttachments(target,
+                Enumerable.Range(0, target.ColorAttachmentCount).Select(index => new RHIColorAttachment(AttachmentIndex: index,
+                    Load: wire ? AttachmentLoad.Preserve : AttachmentLoad.Clear,
+                    Clear: ColorClearValue.Float(0, 0, 0, 0))));
+            using var pipeline = commands.CreateGraphicsPipeline(new(program.Shader, LiquidMeshFixture.Layout,
+                commands.DescribeRenderTargets(pass), DynamicPipelineState.Viewport,
+                rasterizer: new() { PolygonMode = wire ? RasterizerFillMode.Line : RasterizerFillMode.Fill })).RequireResource();
+            using var boundary = commands.EnterBoundary(new("Tests.LiquidTriangulation", true,
+                graphics: [pipeline], operations: BoundaryOperations.RenderPasses));
+            boundary.Run(() =>
+            {
+                commands.BeginRenderPass(pass); commands.SetPipeline(pipeline);
+                commands.SetDynamicState(new() { Viewport = commands.PassViewport });
+                commands.BindResources(program.CaptureBindings());
+                commands.DrawIndexed(mesh.Inputs, new(0, mesh.IndexCount));
+                commands.EndRenderPass();
+            });
         }
     }
     #endregion

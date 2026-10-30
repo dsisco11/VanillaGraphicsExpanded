@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Tests.GPU.Helpers;
 using System.Numerics;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 
@@ -216,7 +217,7 @@ public sealed class SurfaceLightingRuntimeScenariosTests : RenderTestBase
         using var runtime = new SurfaceLightingConsumerRuntimeFixture(sh9, scene);
         // The production material atlas stores albedo in RGBA8 UNORM before lighting.
         var albedo = scene.SourceAlbedo ?? new Vector3(scene.Reflectance);
-        var capturedAlbedo = new Vector3(MathF.Round(albedo.X * 255), MathF.Round(albedo.Y * 255), MathF.Round(albedo.Z * 255)) / 255;
+        var capturedAlbedo = GgxHemisphereReference.CapturedDiffuse(albedo);
         SurfaceLightingRefreshSynchronization.RefreshAndFreeze(runtime);
         SurfaceLightingRefreshSynchronization.CompleteConsumers(runtime, scene, expectedWorldRadiance: capturedAlbedo * (scene.BlockLight / MathF.PI));
         AssertBoundaries(runtime, true);

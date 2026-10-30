@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Tests.GPU.Helpers;
 using VanillaGraphicsExpanded.LumOn.Scene;
 using VanillaGraphicsExpanded.LumOn.Scene.Geometry;
 using VanillaGraphicsExpanded.Tests.Fixtures.WorldProbes;
@@ -55,7 +56,7 @@ public sealed class SharedTraceSceneSurfaceTests : RenderTestBase
         float[] result = page.ReadLighting();
         for (int i = 0; i < result.Length; i += 4)
         {
-            Assert.InRange(result[i], 31.9f, 32.1f);
+            float expected=32*GgxHemisphereReference.CapturedDiffuse(1); Assert.InRange(result[i], expected-.1f, expected+.1f);
             Assert.Equal(2f, result[i + 3]);
         }
         page.ResetLighting();

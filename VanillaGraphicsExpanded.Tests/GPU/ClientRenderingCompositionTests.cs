@@ -67,7 +67,9 @@ public sealed class ClientRenderingCompositionTests(HeadlessGLFixture fixture) :
         mods.Setup(x => x.GetModSystem<RHIResourceManagerModSystem>(It.IsAny<bool>())).Returns(managerSystem);
         var registry = GpuShaderProgramLibraries.Create(api.Object);
         var lifetime = ClientRenderingLifetime.Find(api.Object)!;
-        var manager = new RHIResourceManager(); RHIResourceManagerSystem.Initialize(manager);
+        // Native observation already owns the context's single manager; the root adopts that service.
+        var manager = RHIResourceManagerSystem.CurrentManager
+            ?? throw new InvalidOperationException("The fixture must initialize native observation first.");
         manager.OnRenderFrame(0, RHIResourceManager.Stage);
         Set(root, "capi", api.Object); Set(root, "renderingLifetime", lifetime);
         Set(managerSystem, "capi", api.Object); Set(managerSystem, "renderer", manager); Set(managerSystem, "rendererRegistered", true);

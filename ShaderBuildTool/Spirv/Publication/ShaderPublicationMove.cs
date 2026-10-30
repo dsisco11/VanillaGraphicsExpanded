@@ -23,7 +23,9 @@ internal static class ShaderPublicationMove
                         "Inspect open handles to this directory and its descendants, and directory permissions. " +
                         "No per-file replacement was attempted; the uncommitted transaction will undergo normal publication recovery.", error);
                 int delay = 50 << attempt;
-                report?.Invoke($"Shader directory rename blocked (Windows error {code}): '{source}' -> '{destination}'; " +
+                // MSBuild Exec recognizes "error <number>" inside ordinary output as a failure.
+                // A bounded retry is informational; exhausted attempts still throw the real diagnostic above.
+                report?.Invoke($"Shader directory rename blocked (Windows status {code}): '{source}' -> '{destination}'; " +
                     $"retry {attempt + 1}/5 in {delay} ms.");
                 if (cancellationToken.WaitHandle.WaitOne(delay)) cancellationToken.ThrowIfCancellationRequested();
             }

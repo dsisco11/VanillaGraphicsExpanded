@@ -86,7 +86,7 @@ public sealed class WaterShallowContinuityTests(HeadlessGLFixture fixture, ITest
         inputs.Normal = Vector3.Normalize(new Vector3(curved ? -.7f : -.4f,0,1));
         inputs.Color = halfColor ?? color; inputs.Depth = halfDepth ?? depth;
         using var target = CreateMRTRenderTarget(1,1,TextureFormat.Rgba32f,TextureFormat.Rgba32f,
-            TextureFormat.Rgba32f,TextureFormat.Rgba32f,TextureFormat.Rgba32f,TextureFormat.Rgba32f);
+            TextureFormat.Rgba32f,TextureFormat.Rgba32f,TextureFormat.Rgba32f,TextureFormat.Rgba32f,TextureFormat.Rgba32f);
         var filter = Programs.Create<WaterReceiverFilterShaderProgram>();
         var filterInputs = (IWaterReceiverFilterBindings)filter;
         var projection = Matrix4x4.CreatePerspectiveFieldOfView(MathF.PI/3,1,.1f,100);
@@ -96,7 +96,7 @@ public sealed class WaterShallowContinuityTests(HeadlessGLFixture fixture, ITest
         program.FrameInputs = frameCamera;
         filter.FrameInputs = frameCamera;
         filterInputs.Normal = inputs.Normal; filterInputs.Color = halfColor ?? color; filterInputs.Depth = halfDepth ?? depth;
-        using var filterTarget = CreateMRTRenderTarget(1,1,TextureFormat.Rgba32f,TextureFormat.Rgba32f);
+        using var filterTarget = CreateMRTRenderTarget(1,1,TextureFormat.Rgba32f,TextureFormat.Rgba32f,TextureFormat.Rgba32f);
         float maximumJump = 0, maximumAssociationError = 0;
         float maximumFilterJump = 0;
         int switches = 0, previousMethod = 0, rays = 0, uv = 0;
@@ -123,6 +123,17 @@ public sealed class WaterShallowContinuityTests(HeadlessGLFixture fixture, ITest
             var position = target[4].ReadPixels(); var radiance = target[5].ReadPixels();
             Assert.Equal(1,decision[0]); Assert.Equal(1,decision[3]);
             int method = (int)selection[0];
+            if (quality == 0)
+            {
+                Vector3 selectedPosition=new(position[0],position[1],position[2]);
+                Assert.True(Vector3.Dot(selectedPosition-inputs.Surface,inputs.Normal)<0,
+                    "Bounded continuation must retain submerged receiver coverage.");
+                // Two bounded footprints plus reduced-source coverage recovery never become a ray search.
+                var operations = target[6].ReadPixels();
+                Assert.InRange(selection[1], 0, 2);
+                Assert.InRange(operations[0], 0, 15);
+                Assert.InRange(operations[1], 0, 4);
+            }
             if (method == 1) rays++; else { Assert.Equal(2,method); uv++; }
             if (!curved) Assert.InRange(MathF.Abs(position[2] + wallDepth - slope * position[0]),0,.0001f);
             if (previousMethod != 0 && previousMethod != method) switches++;
@@ -140,6 +151,19 @@ public sealed class WaterShallowContinuityTests(HeadlessGLFixture fixture, ITest
         }
         output.WriteLine($"quality={quality} half={half} shoreline={shoreline} curved={curved}: ray={rays}, uv={uv}, switches={switches}, maxAdjacentHdrJump={maximumJump:R}, maxAssociationError={maximumAssociationError:R}, maxDirectFilterJump={maximumFilterJump:R}");
         output.WriteLine($"Largest jump at motion {largestJumpMotion}, method {largestJumpOldMethod}->{largestJumpNewMethod}.");
+        if (maximumJump > .01f)
+        {
+            // Replay only the failing adjacent pair to expose the existing kernel's triangle/fallback
+            // work and selected UV. The measured sweep and its numerical assertions remain unchanged.
+            for (int motion = Math.Max(0, largestJumpMotion - 1); motion <= largestJumpMotion; motion++)
+            {
+                inputs.Surface = new(-motionRange + motion * motionRange / 100, 0, -2);
+                TestFramework.RenderQuadTo(program, target);
+                output.WriteLine($"receiver-replay motion={motion} selection={string.Join(',', target[3].ReadPixels())} "
+                    + $"position={string.Join(',', target[4].ReadPixels())} radiance={string.Join(',', target[5].ReadPixels())} "
+                    + $"operations={string.Join(',', target[6].ReadPixels())}");
+            }
+        }
         Assert.InRange(maximumAssociationError,0,.0001f);
         if (quality == 0) Assert.InRange(maximumFilterJump,0,.01f);
         // A 0.4 mm surface shift on this bounded wall moves radiance by less

@@ -41,7 +41,8 @@ public sealed partial class LumOnDirectWorldProbeVisibilityTests
         for (int i = 0; i < atlas.Metadata.Length; i += 2) atlas.Metadata[i] = 1;
         var result = RenderDirectVisibility(atlas, local.Scene, new Vector3(1.75f, 0.5f, 0.5f),
             new Vector3(-1.5f), 4, consumer, ring: new Vector3(ringX, 0, 0));
-        float expectedGreen = consumer >= 0 ? MathF.PI / (1 + MathF.PI) : MathF.PI;
+        // Debug views tone-map physical E; a gather returns Lambertian E/pi for unit radiance.
+        float expectedGreen = consumer >= 0 ? MathF.PI / (1 + MathF.PI) : 1f;
         for (int i = 0; i < result.Length; i += 4)
         {
             Assert.Equal(0, result[i]);

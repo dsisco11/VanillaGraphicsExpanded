@@ -37,11 +37,17 @@ internal static class RuntimeEngineServices
         return render.Object;
     }
 
-    /// <summary>Exposes supplied services and forwards only asset/logging dependencies from the built-shader host.</summary>
+    /// <summary>Exposes supplied services, fixed disabled native effects, and asset/logging dependencies from the built-shader host.</summary>
     public static ICoreClientAPI Client(ICoreClientAPI assets, IClientEventAPI events, IClientWorldAccessor world,
         IRenderAPI render, IShaderAPI shader, IModLoader? mods = null, IInputAPI? input = null)
     {
         var api = new Mock<ICoreClientAPI>(MockBehavior.Strict);
+        // These controlled scenes do not admit native postprocessing. The real camera owner
+        // still observes settings and subscribes through the installed engine interfaces.
+        var settings = new Mock<ISettings> { DefaultValue = DefaultValue.Mock };
+        settings.SetupGet(value => value.Int[It.IsAny<string>()]).Returns(0);
+        settings.SetupGet(value => value.Bool[It.IsAny<string>()]).Returns(false);
+        api.SetupGet(value => value.Settings).Returns(settings.Object);
         api.SetupGet(value => value.Assets).Returns(assets.Assets);
         api.SetupGet(value => value.Logger).Returns(assets.Logger);
         api.SetupGet(value => value.Side).Returns(EnumAppSide.Client);

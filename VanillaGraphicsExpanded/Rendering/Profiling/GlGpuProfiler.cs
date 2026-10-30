@@ -429,13 +429,15 @@ public sealed class GlGpuProfiler : IDisposable
                 pending[slot] = false;
 
                 long deltaNs = endNs - beginNs;
-                if (deltaNs <= 0)
+                // Two completed timestamps can share a clock tick. Retain a zero-duration
+                // interval as a sample; only reversed time is invalid.
+                if (deltaNs < 0)
                 {
                     continue;
                 }
 
                 float ms = deltaNs / 1_000_000f;
-                if (!float.IsFinite(ms) || ms <= 0f)
+                if (!float.IsFinite(ms) || ms < 0f)
                 {
                     continue;
                 }

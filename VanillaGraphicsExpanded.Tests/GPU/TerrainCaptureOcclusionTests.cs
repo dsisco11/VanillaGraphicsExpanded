@@ -47,6 +47,7 @@ public sealed class TerrainCaptureOcclusionTests(HeadlessGLFixture fixture) : Lu
             commands.BeginRenderPass(pass);
             commands.SetPipeline(pipeline);
             commands.SetDynamicState(new() { Viewport = commands.PassViewport });
+            commands.BindResources(shader.CaptureBindings());
             commands.Draw(geometry.Inputs, new(0, 3));
             commands.EndRenderPass();
         });
