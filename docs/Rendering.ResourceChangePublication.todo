@@ -3,7 +3,7 @@ Resource snapshot and change publication — implementation plan
 
 Source proposal: [Rendering.ResourceChangePublication.Proposal.md](Rendering.ResourceChangePublication.Proposal.md).
 Parent work: Rendering.GpuCommands.todo, Phase 9.2. Prerequisite: its existing-work boundary, Phase 9.1.
-Status: approved design; implementation not started. Every task below is open.
+Status: Phase 1 mapping complete and independently reviewed; production implementation starts in Phase 2.
 
 Goal
   Establish one manager-owned completion contract for snapshot delivery and meaningful resource changes
@@ -35,28 +35,32 @@ Execution boundaries
 Phase 1: Establish the complete migration and behavior map
   Outcome: every existing producer, consumer and revision dependency has a specified final route.
 
-  ☐ Trace GpuResourceMetadataEntry.Publish/Associate, GpuResource<T>.HandleMetadataChanged,
+  ☑ Trace GpuResourceMetadataEntry.Publish/Associate, GpuResource<T>.HandleMetadataChanged,
     RHIResourceManager.MetadataPublication, MetadataOperation, MetadataObservation and ProgramFields.
     Map creation, owned composition, intercepted mutation, explicit discovery/recovery and local delivery
     to the proposal's common completion path, including initially reserved and newly associated resources.
-  ☐ Trace NotifyImageDependents, NotifyProgramDependents, NotifyFramebufferDependents, OwnerImages,
+  ☑ Trace NotifyImageDependents, NotifyProgramDependents, NotifyFramebufferDependents, OwnerImages,
     texture-view availability, buffer/renderbuffer-backed textures and deletion dependencies.
     Record actual recipients, weak ownership, projection order, duplicate-delivery avoidance and failures.
     Distinguish currently proven defects from separate routes that already serve legitimate responsibilities.
-  ☐ Map every resource kind to its canonical struct and change consumers using the proposal's coverage
+  ☑ Map every resource kind to its canonical struct and change consumers using the proposal's coverage
     table. Explicitly include Buffer, Texture, Renderbuffer, Framebuffer, Shader, Program, VertexArray,
     TransformFeedback, Sampler, ProgramPipeline, Query, Sync, Semaphore and MemoryObject.
     Treat GpuImageMetadata as a projection; texture variants remain in the Texture family.
-  ☐ Inventory MetadataRevision, StorageRevision and executable-generation readers, pending effect flags,
+  ☑ Inventory MetadataRevision, StorageRevision and executable-generation readers, pending effect flags,
     admission/reentry guards, retirement paths and off-thread disposal handoffs. Identify any consumer
     that currently treats republication as a change or depends on the old revision increment policy.
-  ☐ Map explicit framebuffer resize/rebuild/import owner events and initiating-owner suppression separately
+  ☑ Map explicit framebuffer resize/rebuild/import owner events and initiating-owner suppression separately
     from canonical changes. Trace replaced-owner images, borrowed aliases, native views and name reuse.
-  ☐ Record the implementation-to-requirement mapping concisely in Rendering.GpuCommands.Migrations.md:
+  ☑ Record the implementation-to-requirement mapping concisely in Rendering.GpuCommands.Migrations.md:
     current route -> replacement owner -> preserved behavior -> focused verification. No separate audit
     report is required. Confirm the proposed order can migrate all coupled paths without a compatibility layer.
-  ☐ Completion: all families, producers, recipients and revision readers are mapped; no unresolved
+  ☑ Completion: all families, producers, recipients and revision readers are mapped; no unresolved
     interpretation prevents implementing the approved contract. No production change is required here.
+
+  Evidence: Rendering.GpuCommands.Migrations.md, Resource-change publication migration map.
+  Source/document second review and independent audit-stage-completion passed; git diff --check passed.
+  Documentation-only work: no production edits, builds, tests, staging or commits. Phases 2–3 remain open.
 
 Phase 2: Replace publication and notification as one complete unit
   Depends on Phase 1.
@@ -138,8 +142,15 @@ Phase 3: Reconcile contracts and qualify completion
     failures, owner events and lifecycle behavior. Reconcile the governing RHI proposal where required;
     permanent architecture documents describe current code rather than migration history.
   ☐ Update Rendering.GpuCommands.Migrations.md with removed routes, final callers and exact focused
-    verification evidence. Remove superseded planning notes or any temporary migration artifacts introduced
-    by this work; retain useful regression tests. No additional review-report files are required.
+    verification evidence for review. Treat this migration map as temporary working documentation,
+    not a permanent architecture document. No additional review-report files are required.
+  ☐ Remove temporary planning and migration files at closeout, explicitly including
+    docs/Rendering.GpuCommands.Migrations.md. First move still-relevant architecture contracts into
+    the permanent resource/RHI documentation and preserve concise verification receipts, unresolved
+    findings and outstanding 9.3/10 obligations in Rendering.GpuCommands.todo. Remove obsolete inventories
+    and working reports introduced by this work; retain useful regression tests and required evidence.
+    Update links and task references, including this plan's Phase 1 evidence pointer, to the retained
+    destinations so deleting the temporary documents leaves no broken references or lost obligations.
   ☐ Perform a second source/requirement review, checking every resource family and every proposal rule
     against implementation, callers and tests. Confirm no native queries, duplicated registry, public event
     bus, new generation token, compatibility shim or unintended content notification was introduced.
@@ -164,6 +175,8 @@ Final acceptance
   ☐ Snapshot/dependency consistency precedes callbacks; failures and reentry cannot undo committed work,
     starve remaining valid recipients or resurrect retired/reused identities.
   ☐ No superseded routes or migration shims remain. Parent 9.3 and Phase 10 retain their distinct scope.
+  ☐ Temporary migration documents, including Rendering.GpuCommands.Migrations.md, are removed;
+    enduring contracts, required evidence and outstanding obligations remain in their owning documents.
 
 Proposal coverage map
   Current-route and family inventory -> Phase 1; complete replacement -> Phase 2.

@@ -1,5 +1,162 @@
 # RHI migration units
 
+## Resource-change publication migration map
+
+Planning map for [Rendering.ResourceChangePublication.todo](Rendering.ResourceChangePublication.todo),
+Phase 1; production behavior below is the inspected baseline, not an implemented completion claim.
+The approved [publication proposal](Rendering.ResourceChangePublication.Proposal.md) controls the replacement.
+Source paths below are relative to `VanillaGraphicsExpanded/Rendering/`; backend paths start at
+`RHI/Backends/OpenGL/`. Verification entries describe required focused cases, not executed tests.
+
+### Authority and traceability
+
+| Plan task group | Consulted controlling sections | Requirement and evidence |
+| --- | --- | --- |
+| Producers and completion | Publication proposal: Contract, One completion result, Publication and delivery order; `Rendering.GpuCommands.Contracts.md`: Authority and ownership, Internal resource execution; `Rendering.GpuResources.md`: Wrappers and initialization, Command results and queries | Manager owns facts and completion; backend owns execution. Source routes below identify every direct entry publication and snapshot-assignment family. |
+| Recipients, families and revisions | Publication proposal: Equality and resource coverage; resource contract: Explicit acquisition and image dependencies, Maintained image facts, Shader executable ownership, Binding knowledge and retirement; `Rendering.ShaderBindingState.md`: Prepared resource submission; `Rendering.GpuResourceHandles.Inventory.md`: Canonical metadata schemas and field migration | Fourteen registration kinds, selected-image projections, original identity and query-free validation. Family and reader tables below retain backend state ownership. |
+| Owner events and lifetime | Publication proposal: Publication and delivery order; RHI proposal: Resource creation and adoption, Shader and pipeline objects; contracts: Executable and pipeline contracts | Explicit owner completion survives equal facts; borrowers and fixed executables never follow reused identities. Lifecycle routes and callback ordering below specify the coupled migration. |
+| Inherited constraints | `Rendering.OpenTKBindingInterception.Proposal.md`: Dispatch design, Generated callbacks and handwritten observers, Responsibility boundaries; archived `3f307365:docs/Rendering.CommandPublication.Proposal.md`: Operation-owned publication and Shared commit and interruption contract; archived `b9fca04c:docs/Rendering.GpuTextureRef.Proposal.md`: Identity and metadata, Binding and selection | Native observers never veto/retry/throw to callers; managed composition commits once; consumer refs add no registry. The newer RHI/publication proposals supersede old execution placement and benchmark language. |
+| Completion boundary | Parent `Rendering.GpuCommands.todo` 9.1 completed; 9.2 approved design and dedicated plan | This map closes only the inventory step. Implementation, focused execution evidence and parent 9.3 acceptance remain open. |
+
+### Producer and recipient closure
+
+| Current route | Replacement owner and preserved behavior | Focused verification |
+| --- | --- | --- |
+| `GpuResourceMetadataEntry.Publish/Associate/AssignSnapshot`, `GpuResource.Metadata.HandleMetadataChanged` | Entry classifies facts/effects and commits revisions; manager-internal snapshot assignment is separate from the shared resource callback. Keep weak membership, disposed-recipient pruning and initial/missing-recipient delivery even for equal facts. | CPU: equal separately allocated collections, initial publication, late association, missing projection, disposed recipient. |
+| `RHIResourceManager.Creation.CreateResource`; `BufferLifecycle`, `ImageLifecycle`, `ExecutableLifecycle`, `EmptyLifecycles`, `SynchronizationLifecycle` | Same completion for supplied creation/defaults; preserve publish-before-owner-association and private identity handoff. Gen reservations are not usable merely because their empty schema compares equal. Initial pre-install/EXT provenance and realization without complete facts remain distinct. | CPU family matrix: reserved, realized, first available, equal repeat, import success; candidate failure remains distinct from post-commit callback failure. |
+| `MetadataPublication.RefreshMetadata/PublishMetadataCore` | Common manager classification, dependency reconciliation, snapshot commit and notification. Retain existing authorized reader gates, framebuffer mode reconciliation, original-context checks and pending effects. No query for equality. | CPU: unchanged refresh, changed facts, equal-descriptor Storage/Executable, failed recovery, successful recovery with accumulated effects. |
+| `MetadataOperation.Commit/Dispose`, `OperationPublication`, `MetadataObservation`, `MetadataAcquisition.RecoverWrapperMetadata` | Carry generic initiating owner and previous committed facts/visible availability through the existing operation. Mark commit successful before any consumer code. Local supplied snapshots use the same rules without another persistent registry; retain explicit local-buffer recovery and local texture storage identity. | CPU: successful callback throws then Dispose, dispatch throws, caught interruption, unchanged success without availability event pair; local owner recovery. |
+| `ProgramFields.PublishProgramAssignment` directly calls `entry.Publish` and program notification | Route assignments through common completion without losing unit/block patching or pending executable effects. `OpenGLProgramAssignments.Execute` currently withdraws preparation before execution; successful exclusion must not itself emit an availability pair. | CPU plus focused native assignment: equal units/block binding, actual assignment, failure/recovery, equal-interface executable replacement. |
+| `OpenGlStateCache.NativeFramebufferMetadata`, `NativeProgramMetadata`, `NativeBufferStorage/Binding`, `NativeRenderbufferStorage`, `ImageDefinitions`, `NativeConflicts`, `VertexBufferRealization`, `QueryLifecycle`, native `Auxiliary/QueryNames` and `Textures/TextureView` | All direct BeginRefresh/withdrawal sites feed manager transition classification. Keep native acceptance/interruption and selector knowledge in their backend owners; rejected calls retain facts. `OpenGLVertexConfiguration` and `OpenGLProgramAssignments` retain synchronous exclusion but use the same completion semantics. | Focused native: established/rejected/uncertain effects, exactly one dispatch, nested mutation, no extra acquisition. CPU: final withdrawal vs temporary exclusion. |
+| Entry `NotifyImageDependents/SetImageRecipientAvailability/ClearImageRecipientSnapshots`; `ImageMetadata`, `ImageAcquisition` | Assign all affected `GpuImageMetadata` projections before callback delivery. `GpuFramebufferAttachment.NotifyDependents` currently fans out to weak framebuffer observers; preserve that ownership while classifying projection/backing changes once. Missing images become unavailable without invalidating successful owner storage. | CPU: same dimensions with changed backing storage; missing selection; several framebuffers sharing an image; one failing recipient does not starve others. |
+| `OwnerImages.PublishOwnerImages/PublishOwnerImage`; backend `OpenGLBackend.TextureOwners/TextureStorage` | Retain ConditionalWeakTable owner-to-weak-image relationships for local tools and intentional owner replacement. Existing same-entry exclusion prevents duplicate delivery and must survive consolidation. Registered projection uses available facts; local projection uses supplied snapshots. | CPU: local owner, replaced owner, image already delivered by entry, projection error after committed allocation. |
+| Entry `NotifyProgramDependents` -> `GpuProgramObject.OnNativeProgramMetadataChanged` -> `GpuProgramLayout.ObserveNativeMetadata` | Shared resource callback drives preparation withdrawal/rebuild or fixed-executable invalidation. Preserve attempt-all-recipient behavior and original failures. Remove caller-owned program notification from normal publication, assignments and native uncertainty. | CPU: preparation unavailable/recovered; native integration: same-interface relink invalidates old shader/PSO. |
+| Backend `OpenGLBackend.ProgramLink.SubmitProgramExecutable/CompleteProgramLink` directly invoke `OnNativeProgramMetadataChanged` when no entry exists | Replace these local withdrawal/completion calls with the same manager-owned local completion classification. Preserve deferred submission, consumed-once completion, pending-owner supersession and driver-produced interface output; do not remove local preparation notification. | CPU/local integration: pending, failed, completed and superseded link; equal-interface replacement still invalidates preparation. |
+| Entry `NotifyFramebufferDependents/NotifyFramebufferBackingRetired`; `OperationPublication`, native framebuffer observation, `DeletionDependencies` | Shared framebuffer reaction clears retained descriptor reconciliation and emits only meaningful canonical changes. Preserve distinction between observed configuration and retired backing that must not cancel pending owner reattachment. Initiating-owner policy suppresses only duplicate explicit completion, not other aliases. | CPU/native: equal attachment definitions, changed original backing, alias notification, bound automatic detach vs unbound retained identity. |
+| `BufferTextureDependencies/RenderbufferTextureDependencies`, `TextureBackingIdentity` | Existing original backing association remains authoritative. Propagate storage/availability through common classification even if dependent texture descriptors are unchanged. Replace recursive callback delivery with completion-local dependency reconciliation before callbacks; no general scheduler. | CPU/native: same-shape backing replacement, failed backing, recovery, stale original registration under same name. |
+| `NativeTextureViews`, `TextureViewSources`, `TextureReferences` | Retain original source registration, cumulative selection and StorageRevision/local storage certificate. Source withdrawal/recovery updates projections; source replacement retires validity of old certificates rather than retargeting. Finish nested-view facts before notifications. | CPU/native: nested view chain, ordinary borrower of a native view, equal projection with changed source storage, name reuse. |
+| `Registry.RetireResource/ObserveDeletion/RetireMetadataRegistry`, `DeletionDependencies`, `ResourceLifecycle.TryScheduleResourceRetirement`; creation-failure invalidation | Capture recipients before ClearAssociations, close usability immediately, classify terminal delivery once for the original lifetime. Preserve native bound/unbound deletion semantics and original-registration queue checks. A later delete must not repeat scheduled retirement. | CPU: immediate/queued/native/context retirement, late association race, duplicate terminal request, reused name. |
+
+Direct entry `Publish` calls are confined to `MetadataPublication` and `ProgramFields`; direct snapshot
+assignments additionally occur in creation, local recovery/discard, operation publication and image
+projection/owner fallback. These are the source closure, not permission to leave fallback notification
+routes alongside the new path. Preserve direct available-fact lookup as lookup, not as a new producer.
+
+### Resource-kind coverage
+
+Canonical structs reside in `Metadata/`. Lifecycle sources named below are manager partials; all kinds
+also use the generic association, availability and terminal completion contract.
+
+| Kind | Canonical struct | Producer/dependent scope |
+| --- | --- | --- |
+| Buffer | `GpuBufferMetadata` | BufferLifecycle, owned storage, observed storage; capacity/usage/access, buffer-texture backing, range validation. Content uploads are excluded. |
+| Texture | `GpuTextureMetadata` | ImageLifecycle, image definitions/storage/mips/base-max, buffer/renderbuffer associations, native views; selected images, source certificates, streaming and shader validation. Include all texture wrapper variants. |
+| Renderbuffer | `GpuRenderbufferMetadata` | ImageLifecycle and storage; selected images and renderbuffer-backed textures. |
+| Framebuffer | `GpuFramebufferMetadata` | ImageLifecycle, managed configuration/import, attachment/default observation and deletion dependencies; retained helpers/pass targets. Read/draw routing remains cache state. |
+| Shader | `GpuShaderMetadata` | ExecutableLifecycle and owned stage creation; stage/lifetime only. Compile results remain backend outputs. |
+| Program | `GpuProgramMetadata` | ExecutableLifecycle, link/binary completion, ProgramFields; interface/prepared layouts and fixed shader/PSO validation. |
+| VertexArray | `GpuVertexArrayMetadata` (empty) | EmptyLifecycles and managed/native configuration admission; lifecycle notifications only. Geometry configuration certification uses the existing backend epoch (reader correction below). |
+| TransformFeedback | `GpuTransformFeedbackMetadata` (empty) | EmptyLifecycles; realization and lifetime. Indexed binding/capture state remains backend-owned. |
+| Sampler | `GpuSamplerMetadata` (empty) | EmptyLifecycles; realization and lifetime. Sampler parameter knowledge remains backend-owned. |
+| ProgramPipeline | `GpuProgramPipelineMetadata` (empty) | ExecutableLifecycle; reservation/realization/lifetime. Native stage selections remain backend-owned; managed PSOs are not this registered kind. |
+| Query | `GpuQueryMetadata` (empty) | SynchronizationLifecycle, query-name and QueryLifecycle admission; lifecycle only, not execution revision or result readiness. |
+| Sync | `GpuSyncMetadata` (empty) | SynchronizationLifecycle; nonzero returned fence and retirement; wait/result readiness stays in synchronization services. |
+| Semaphore | `GpuSemaphoreMetadata` (empty) | SynchronizationLifecycle; generated reservation vs established import usability, preserving the authorized targeted import check. |
+| MemoryObject | `GpuMemoryObjectMetadata` (empty) | BufferLifecycle memory-object creation/import; lifecycle, not inferred opaque payload validity. |
+
+`GpuImageMetadata` and `GpuImageSelection` project Texture/Renderbuffer facts, never a fifteenth entry.
+Structural equality/hash work is confined to collection-bearing Texture (mip/face), Framebuffer
+(slot dictionary, including OriginalBacking) and Program (interface/index and unit location) records;
+all scalar fields remain included. Default/unavailable differs from known-empty. Backing registration
+and storage certificates outside those records participate in dependency classification separately.
+
+### Revision and guard readers
+
+| Reader/source | Required disposition and focused case |
+| --- | --- |
+| `GpuResourceMetadataEntry.Publish`, pendingChange, `GpuResourceRegistration` | Replace effect-flag increments with one revision per actual committed transition; preserve Storage/Executable evidence and uncertainty. BeginRefresh exclusion alone is not a change. Test equal publication and failed/recovered effects. |
+| `Registry.AcquireResource/RecoverResource`, `RetainInitialCandidate/DiscardInitialCandidate`; `OpenGLTextureQueries`, `NativeBufferTexture/Storage`, `NativeFramebufferMetadata`, framebuffer availability checks | MetadataRevision zero currently means no completed initial facts. Availability/retirement revisions must not let zero/nonzero shortcuts certify unresolved initial facts. Use the existing explicit realization/discovery/available-fact distinctions in these predicates; test withdrawal before first publication and EXT initial candidates. |
+| `ShaderInputValidation`, `GpuTexture.StorageGeneration`, `TextureStreamingManager` queued request checks; `PBR/Clouds/CloudNativeMapAdapter` (relative to project root) retained storage revisions | Preserve identity, availability and metadata/storage comparisons. Equal republication keeps compatibility history; replacement still rejects stale streaming/storage work and cloud publication reuse. |
+| `GpuProgramLayout.NativeMetadataRevision` and InstallCandidate; `GpuProgramObject`, `RHIShader`, `ExecutableReferences.RequireFixedExecutable`; backend `ProgramBindingAssignments`, pending `ProgramLink` | Fixed shader captures existing metadata revision; actual interface/assignment change still rejects it, equal republication does not. Executable effects always invalidate preparation even with equal interfaces. Pending links and assignment completion retain original identity/revision/context rejection. Do not create another executable generation token. |
+| `RHIGeometryImport.IsCurrent`, backend `GeometryVertexArray.Matches`, manager `GeometryAcquisition` | Tracked paths currently rely on empty-schema metadata increments, while local paths check configuration epoch. Check existing `RHIGeometryContext.ConfigurationEpoch`/cache `GetVertexConfigurationRevision` for both paths, plus original registration, availability and context. Preserve acquisition before/after certification. Test real VAO mutation rejecting tracked imports/cached arrays while equal metadata alone does not. |
+| Backend `Passes/OpenGLPassTarget`, `OpenGLAttachmentIdentity`, `OpenGLBackend.PassCompleteness`, `RenderPassTargets`; `GpuFramebuffer.AttachmentRevision` | Metadata revision certifies canonical configuration; storage identity certifies attachments; explicit owner AttachmentRevision still reports rebuild/import completion. Keep route/configuration cache ownership independent. Test unchanged metadata reuse versus explicit owner event and changed backing. |
+| `TextureViewSources/TextureReferences`, `NativeTextureViews`, `TextureBackingIdentity`, backing dependency publication | Keep original registration and StorageRevision (or existing local storage identity); no numeric-name recertification. Test nested aliases and reused names. |
+| `MetadataOperation`, `MetadataPublication.BeginMetadataCompletion/RequireUninterruptedCompletion`, `OpenGlStateCache.NativeConflicts` and `IRHIResourceOperation` | Keep operation identity/context/exclusion and CompletionInterrupted/PendingChange. Snapshot commit precedes callbacks; post-callback identity/revision/availability checks stop stale delivery after native reentry. Test managed rejection, native non-vetoing mutation and callback retirement. |
+
+PendingProgramLink currently captures its revision before submission withdraws availability. Once an
+actual availability transition advances the revision, capture the expected post-submission transition
+under that existing pending owner; otherwise its own withdrawal would reject every completion. Preserve
+rejection of subsequent unrelated mutation, retirement and superseding requests rather than dropping
+the revision check. Verify both ordinary completion and a genuinely stale pending link.
+
+### Owner events, teardown and observed defects
+
+`GpuFramebuffer.Configuration.SetAttachmentCore/RemoveAttachmentCore/ResizeCore`,
+`GpuFramebuffer.Publication.CompleteExternalPublication`, and detach/dispose retain explicit owner events.
+`GpuFramebuffer.SurfaceMetadata.PublishSurfaceMetadata` also emits an explicit window-surface event;
+framebuffer zero stays unregistered. `PBR/SceneColor/SceneColorParticleTargets` (project-root path)
+subscribes `Invalidate` to `AttachmentsChanged` and unsubscribes on Dispose, expiring retained particle
+capture targets. This ordinary owner event is not weak; preserve its explicit unsubscribe contract.
+The image-to-framebuffer observers and canonical recipients, in contrast, are weak.
+`GpuFramebuffer.OnAttachmentChanged` guards disposed/unselected images and external publication;
+`resizing` coalesces completion. Carry the initiating owner through common completion, preserving these
+guards and events even when imported selections compare equal. Other framebuffer aliases still react.
+Images keep weak framebuffer observers; owner replacement can reproject owned selections, whereas
+borrowed aliases/native views keep original associations. A dependency notification is not native reattachment.
+
+`GpuResource.Dispose` can run off-thread and calls `TryScheduleResourceRetirement` before unregistering
+the wrapper. `RHIResourceManager` already owns `GpuDeletionCommand` with original registration/context
+and optional cleanup, `EnqueueContextCleanup`, and `DrainDeletionQueue`; `RHIResourceDisposalQueue`
+separately transfers owned wrappers from finalization to render-thread disposal. Use this existing lifecycle
+handoff for captured notification work, before destructive recipient clearing, rather than a new event
+queue or worker-thread consumer call. Preserve registration checks at drain, live foreign-context deferral,
+dead-context abandonment and CPU-only terminal invalidation. Context-affine callbacks must not execute
+against a replacement/dead namespace; closure must release captured recipients when that context ends.
+Do not retry native deletion because notification failed. Test retirement-before-drain and closure-before-drain.
+
+Source-established gaps, rather than inferred runtime failures:
+
+- Publish currently increments MetadataRevision from any nonzero effect and has no structural equality;
+  normal completion notifies image/program recipients even for equal snapshots. Program preparation rebuilds
+  via UseNativeMetadata. These are concrete unnecessary-change routes; no claim that every call duplicates events.
+- MetadataOperation marks `completed` after publication callbacks. A thrown callback can therefore enter
+  Dispose's unsuccessful-operation withdrawal after canonical commit. Commit status must be separated first.
+- Buffer/renderbuffer dependency publication recursively invokes callbacks while sibling dependencies may
+  still be unreconciled. Common completion must finish the affected dependency facts before notification.
+- Retirement currently clears membership through Invalidate without a common terminal callback. View/deletion
+  withdrawal paths update subsets; validation rejecting use is legitimate but does not replace notification.
+- Existing weak OwnerImages same-entry exclusion, native dispatch containment, operation guards, backend
+  configuration epochs and explicit owner events serve real contracts and must not be deleted as duplicates.
+
+`Rendering.GpuResources.md` currently claims equal framebuffer definitions retain revisions and describes
+the removed RG-to-RGBA texture-clear workaround. The former is an intended publication behavior not supplied
+by the inspected baseline; reconcile it when the new contract is implemented. The latter is unrelated stale
+qualification documentation for parent 9.3, not permission to restore the workaround. Neither changes the
+approved publication scope or adds a design decision needed before implementation.
+The canonical-schema inventory's VAO entry-revision wording describes the current coupling; reconcile
+that wording with backend configuration-epoch certification during the dedicated plan's documentation
+closeout. Empty metadata must not acquire invented configuration fields to preserve that older wording.
+
+### Coupled implementation order and verification boundary
+
+Implement value equality and completion classification first inside the single replacement unit, then
+snapshot/dependency commit, committed-operation status, common recipient delivery and lifecycle handoff.
+Migrate creation/recovery/assignments/native withdrawals, image/program/framebuffer reactions, local owner
+fallback and all revision readers before deleting old notification entry points. In particular, migrate
+tracked VAO epoch consumers with revision semantics, and preserve initial-publication predicates when
+availability begins advancing revisions. No intermediate implementation is a separately accepted shim.
+
+Required CPU cases are specified in the tables; `Unit/Rendering/GpuResourceMetadataRegistryTests.cs`
+in the test project supplies controlled context identity without GL. Existing focused GPU anchors include
+`GpuMetadataOperationFoundationTests`, `GpuResourceMetadataRecoveryTests`, `GpuFramebufferPublicationTests`,
+`GpuFramebufferMetadataInterceptionTests`, `FramebufferAttachmentNotificationTests`,
+`GpuProgramDerivedMetadataTests`, `GpuExecutableLifecycleTests` and `GpuGeometryAliasTests`.
+Reuse applicable cases and add missing behavior checks, rather than duplicating entire fixtures.
+Focused GPU cases cover observed attachment/storage changes, same-interface relink,
+VAO configuration, original backing/name reuse and explicit owner events. No execution evidence is claimed
+by this inventory. No production change, build, GPU run, benchmark or full-suite run is needed for Phase 1.
+Implementation and qualification remain in dedicated Phases 2–3; parent 9.3 and 10 retain their boundaries.
+
 Planning inventory for [Phase 1](Rendering.GpuCommands.todo), implementing the final
 [contracts](Rendering.GpuCommands.Contracts.md) under the [approved proposal](Rendering.GpuCommands.Proposal.md).
 The implementation checklist controls acceptance of each unit. This document defines replacement boundaries, not a
