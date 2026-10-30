@@ -1321,6 +1321,9 @@ Phase 9.1: Establish the commit boundary for existing qualification work
 
 Phase 9.2: Design and implement consistent resource-change publication
   Depends on 9.1. Outcome: one coherent snapshot and change-notification contract across resource families.
+  Approved design: Rendering.ResourceChangePublication.Proposal.md.
+  Dedicated implementation plan: Rendering.ResourceChangePublication.todo. Execute its complete migration
+    and qualification before closing this parent gate; 9.3 and Phase 10 retain their separate scope.
 
   ☐ Inventory snapshot assignment, metadata/storage revisions, availability withdrawal/recovery and
     consumer notifications for every registered resource family. Trace owned operations, intercepted
@@ -1345,6 +1348,10 @@ Phase 9.2: Design and implement consistent resource-change publication
     delegated focused validation and independent review; record exact evidence and remaining limitations.
   ☐ Completion: the approved system covers every resource family and affected consumer, superseded
     paths are removed, and focused correctness evidence is recorded. Integrated acceptance belongs to 9.3.
+
+  Design progress: the proposal inventories all fourteen registered resource kinds and selected-image
+    projections, existing publication/withdrawal/dependency routes and the proposed shared change contract.
+    Production implementation and completion verification have not begun; all task markers remain open.
 
 Phase 9.3: Finish outstanding diagnosis and integrated qualification
   Depends on 9.1 and 9.2. Earlier receipts below describe their archived candidates only.
