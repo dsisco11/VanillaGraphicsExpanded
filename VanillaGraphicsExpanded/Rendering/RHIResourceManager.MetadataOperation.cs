@@ -30,13 +30,14 @@ internal sealed partial class RHIResourceManager
                 {
                     if (entry is null)
                     {
-                        if (!guard.Deleted && resource.ResourceId == guard.Handle.Id) DiscardUntrackedMetadata(resource, effects);
-                        PublishOwnerImages(resource, false);
+                        if (!guard.Deleted && resource.ResourceId == guard.Handle.Id)
+                            try { InvalidateWrapperMetadata(resource, effects); } catch { }
                     }
                     else
                     {
-                        entry.BeginRefresh(effects);
-                        WithdrawOperationDependents(entry, resource, effects);
+                        using var delivery = entry.Manager.BeginChangeDelivery();
+                        entry.Withdraw(effects, resource);
+                        if (entry.Kind == GpuResourceKind.Texture) entry.Manager.WithdrawResourceDependencies(entry, GpuMetadataChange.Metadata);
                     }
                 }
             }
@@ -76,7 +77,7 @@ internal sealed partial class RHIResourceManager
                     entry.BeginRefresh(effects);
                     if (!entry.ContainsRecipient(resource)) entry.Manager.AssociateResource(entry, resource);
                 }
-                else DiscardUntrackedMetadata(resource, GpuMetadataChange.None);
+
             }
             catch
             {
@@ -104,17 +105,23 @@ internal sealed partial class RHIResourceManager
         /// <summary>Commits a complete supplied candidate once; native recovery is the operation owner's choice.</summary>
         internal void Commit(T candidate)
         {
+            using var delivery = resource.ResourceManager?.BeginChangeDelivery();
             RequireLive();
             completionAttempted = true;
             if (entry is not null)
             {
-                entry.Manager.PublishMetadataCore(entry, candidate, effects, false, guard);
-                NotifyOperationDependents(entry, resource);
+                entry.Manager.PublishMetadataCore(entry, candidate, effects, false, guard, resource, MarkCommitted);
             }
-            else DeliverUntrackedOperationResult(resource, candidate, effects);
+            RHIResourceChange localChange = default;
+            if (entry is null) localChange = DeliverUntrackedOperationResult(resource, candidate, effects);
             completed = true;
             if (entry is not null) entry.OperationInProgress = false;
-            else PublishOwnerImages(resource, true, reportMissingImages: (effects & GpuMetadataChange.Storage) != 0);
+            else
+            {
+                PublishOwnerImages(resource, true, reportMissingImages: (effects & GpuMetadataChange.Storage) != 0);
+                if (localChange.Kind != ResourceChangeKind.None) resource.OnResourceChanged(localChange);
+            }
+            delivery?.Complete();
         }
 
         /// <summary>Checks original identity after any external callback or native read.</summary>
@@ -133,6 +140,14 @@ internal sealed partial class RHIResourceManager
         }
         #endregion
 
+        #region Private
+        /// <summary>Finalizes successful allocation before dependency errors or callbacks can unwind the operation.</summary>
+        private void MarkCommitted()
+        {
+            completed = true;
+            if (entry is not null) entry.OperationInProgress = false;
+        }
 
+        #endregion
     }
 }

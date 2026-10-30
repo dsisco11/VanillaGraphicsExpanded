@@ -9,7 +9,7 @@ internal sealed partial class RHIResourceManager
     #region Internal API
     /// <summary>Patches represented locations from a validated call against the previously available executable.</summary>
     internal bool PublishProgramAssignment(GpuResourceMetadataEntry<GpuProgramMetadata> entry, GpuProgramMetadata previous,
-        bool unit, int location, ReadOnlySpan<int> values, ProgramBlockKind block, int index)
+        bool unit, int location, ReadOnlySpan<int> values, ProgramBlockKind block, int index, IRHIResourceOperation? operation = null)
     {
         RequireMetadataContext();
         RequireLiveEntry(entry);
@@ -38,8 +38,7 @@ internal sealed partial class RHIResourceManager
         }
         // Assignment arithmetic has no callback boundary. Commit before notifying dependent
         // preparation; publication failure cannot roll back the already executed native change.
-        entry.Publish(candidate, GpuMetadataChange.Metadata | entry.PendingChange);
-        entry.NotifyProgramDependents(GpuMetadataChange.Metadata, true);
+        PublishMetadata(entry, candidate, GpuMetadataChange.Metadata, operation: operation);
         return true;
     }
     #endregion

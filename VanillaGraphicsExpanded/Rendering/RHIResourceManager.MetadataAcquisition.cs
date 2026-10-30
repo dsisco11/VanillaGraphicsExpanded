@@ -50,14 +50,16 @@ internal sealed partial class RHIResourceManager
         // supplied snapshots never need this read. Once a service is active, missing entries
         // remain tracking defects rather than permission to promote an unknown identity.
         if (resource.ResourceManager is null && resource is GpuBufferObject local
-            && local.PublishedMetadata.Usage == RHI.BufferUsage.Undefined)
+            && !local.HasMetadataSnapshot)
         {
             resource.RequireOriginalContext();
             ObjectDisposedException.ThrowIf(resource.IsDisposed, resource);
             RHICommandContext.RequireResourceOperationAvailable(resource.Kind, resource.ResourceId);
             if (!reader.TryRead(resource.ResourceId, out var recovered))
                 throw new InvalidOperationException("Explicit context-local storage recovery failed.");
-            resource.HandleMetadataChanged(recovered);
+            var change = DeliverUntrackedOperationResult(resource, recovered, GpuMetadataChange.None);
+            PublishOwnerImages(resource, true, reportMissingImages: (change.Kind & ResourceChangeKind.Storage) != 0);
+            if (change.Kind != ResourceChangeKind.None) resource.OnResourceChanged(change);
             return;
         }
         if (resource.ResourceManager is { } manager && manager.CanAcquireWrapperMetadata(resource))

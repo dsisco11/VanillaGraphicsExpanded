@@ -17,7 +17,7 @@ internal sealed partial class OpenGlStateCache
         // facts on their existing entry; explicit discovery will verify the actual target.
         if (entry is null && extNamed)
             entry = RHIResourceManagerSystem.CurrentManager?.FindObservedResource(GpuResourceKind.Texture, selector)
-                is GpuResourceMetadataEntry<GpuTextureMetadata> { IsUsable: false, MetadataRevision: 0,
+                is GpuResourceMetadataEntry<GpuTextureMetadata> { IsUsable: false, HasCommittedMetadata: false,
                     InitialDiscovery: GpuInitialDiscovery.ImplicitCreation } unknown ? unknown : null;
         if (entry?.IsRealized != true) return;
         // Deleting a known backing withdraws this association without losing the
@@ -51,7 +51,7 @@ internal sealed partial class OpenGlStateCache
         }
         cache.InterruptNativeResourceOperation(GpuResourceKind.Texture, (int)entry.Id);
         if (InterruptNativeMetadataCompletion(entry, GpuMetadataChange.Storage)) return;
-        if (!entry.IsUsable && (entry.MetadataRevision == 0 || entry.PendingChange != GpuMetadataChange.Metadata)) return;
+        if (!entry.IsUsable && (!entry.HasCommittedMetadata || entry.PendingChange != GpuMetadataChange.Metadata)) return;
         entry.Manager.PublishMetadata(entry, entry.Metadata with { Buffer = association }, GpuMetadataChange.Storage, true);
     }
     #endregion

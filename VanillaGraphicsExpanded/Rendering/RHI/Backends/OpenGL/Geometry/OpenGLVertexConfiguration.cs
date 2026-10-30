@@ -17,6 +17,8 @@ internal static class OpenGLVertexConfiguration
         cache.InvalidateVertexConfiguration(vao);
         if (elementBinding) cache.ForgetVertexArrayElementKnowledge(vao);
         if (entry is not null) { entry.OperationInProgress = true; entry.BeginRefresh(GpuMetadataChange.Metadata); }
+        using var delivery = manager?.BeginChangeDelivery();
+        bool committed = false;
         try
         {
             apply();
@@ -24,13 +26,14 @@ internal static class OpenGLVertexConfiguration
                 throw new InvalidOperationException("Vertex configuration was interrupted or changed context.");
             if (entry is not null)
             {
-                operation.Dispose();
                 entry.OperationInProgress = false;
                 if (!manager!.IsRegistered(entry) || entry.State != GpuResourceRegistrationState.Live)
                     throw new InvalidOperationException("Vertex configuration identity was retired.");
-                manager.PublishMetadata(entry, default(GpuVertexArrayMetadata), GpuMetadataChange.Metadata);
+                manager.PublishMetadata(entry, default(GpuVertexArrayMetadata), GpuMetadataChange.Metadata, operation: operation);
+                committed = true;
+                delivery?.Complete();
             }
-            // Publication callbacks can retire the entry or switch context before binding knowledge is retained.
+            // Complete backend binding knowledge before the delivery scope invokes consumer code.
             if (!cache.OwnsKnowledgeFor(origin) || !Integration.RenderContextRegistry.IsCurrentResourceContext(origin)
                 || entry is not null && (!manager!.IsRegistered(entry) || entry.State != GpuResourceRegistrationState.Live))
                 throw new InvalidOperationException("Vertex configuration publication lost its original identity or context.");
@@ -39,7 +42,7 @@ internal static class OpenGLVertexConfiguration
         finally
         {
             // An unsuccessful operation leaves the already withdrawn entry and helper configuration unavailable.
-            if (entry is not null) entry.OperationInProgress = false;
+            if (entry is not null) { entry.OperationInProgress = false; if (!committed) entry.Withdraw(); }
         }
     }
     #endregion

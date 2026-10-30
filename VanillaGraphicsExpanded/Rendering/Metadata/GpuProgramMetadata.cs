@@ -8,7 +8,17 @@ namespace VanillaGraphicsExpanded.Rendering;
 public readonly record struct GpuProgramMetadata(bool ExecutableAvailable,
     ImmutableArray<GpuProgramResourceMetadata> Resources, ImmutableArray<GpuProgramTextureUnitMetadata> TextureUnits,
     PrimitiveTopology? GeometryInput = null, PrimitiveTopology? TessellationOutput = null,
-    (int X, int Y, int Z)? ComputeLocalSize = null);
+    (int X, int Y, int Z)? ComputeLocalSize = null){
+    #region Public API
+    /// <summary>Compares executable facts and interface values independently of collection allocation.</summary>
+    public bool Equals(GpuProgramMetadata other) => ExecutableAvailable == other.ExecutableAvailable
+        && GeometryInput == other.GeometryInput && TessellationOutput == other.TessellationOutput && ComputeLocalSize == other.ComputeLocalSize
+        && MetadataCollections.Equal(Resources, other.Resources) && MetadataCollections.Equal(TextureUnits, other.TextureUnits);
+    /// <summary>Hashes scalar executable facts and unordered interface values.</summary>
+    public override int GetHashCode() => System.HashCode.Combine(ExecutableAvailable, GeometryInput, TessellationOutput,
+        ComputeLocalSize, MetadataCollections.Hash(Resources), MetadataCollections.Hash(TextureUnits));
+    #endregion
+}
 
 /// <summary>Contains typed immutable facts for one executable resource; null fields are unavailable or inapplicable.</summary>
 public readonly record struct GpuProgramResourceMetadata(

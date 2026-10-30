@@ -272,7 +272,7 @@ public sealed class GpuResourceMetadataPublicationTests(HeadlessGLFixture fixtur
                 Assert.Throws<ArgumentException>(() => VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLFramebufferConfiguration.FramebufferTexture(framebuffer, invalid, replacement, operation));
             }
             Assert.False(entry.MetadataAvailable);
-            Assert.Equal(revision, entry.MetadataRevision);
+            Assert.Equal(revision + 1, entry.MetadataRevision);
             Assert.Equal(previous, entry.Metadata.Attachments[FramebufferSlot.Color0]);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }

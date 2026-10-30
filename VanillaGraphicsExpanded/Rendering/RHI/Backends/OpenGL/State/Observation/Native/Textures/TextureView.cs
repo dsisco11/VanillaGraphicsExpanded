@@ -25,7 +25,7 @@ internal sealed unsafe partial class OpenGlStateCache
         var source = manager.FindObservedResource(GpuResourceKind.Texture, origtexture) as GpuResourceMetadataEntry<GpuTextureMetadata>;
         if (destination is null || destination.IsRealized || source?.IsUsable != true || !source.Metadata.ImmutableStorage
             || minlevel < 0 || numlevels == 0 || minlayer < 0 || numlayers == 0 || !TryImageTarget((int)target, out var dimension)) return;
-        if (!GpuSupport.HasCachedCapabilitiesForCurrentContext) { destination.BeginRefresh(GpuMetadataChange.Storage); return; }
+        if (!GpuSupport.HasCachedCapabilitiesForCurrentContext) { destination.Withdraw(GpuMetadataChange.Storage); return; }
         int availableLevels = (source.Metadata.View?.LevelCount ?? source.Metadata.ImmutableLevels) - minlevel;
         int availableLayers = (source.Metadata.View?.LayerCount ?? 1) - minlayer;
         if (availableLevels <= 0 || availableLayers <= 0) return;

@@ -3,7 +3,8 @@
 ## Resource-change publication migration map
 
 Planning map for [Rendering.ResourceChangePublication.todo](Rendering.ResourceChangePublication.todo),
-Phase 1; production behavior below is the inspected baseline, not an implemented completion claim.
+Phase 1. The baseline tables record inspected pre-replacement behavior; implementation traceability
+and focused evidence appear in Resource-change replacement traceability below.
 The approved [publication proposal](Rendering.ResourceChangePublication.Proposal.md) controls the replacement.
 Source paths below are relative to `VanillaGraphicsExpanded/Rendering/`; backend paths start at
 `RHI/Backends/OpenGL/`. Verification entries describe required focused cases, not executed tests.
@@ -156,6 +157,34 @@ Focused GPU cases cover observed attachment/storage changes, same-interface reli
 VAO configuration, original backing/name reuse and explicit owner events. No execution evidence is claimed
 by this inventory. No production change, build, GPU run, benchmark or full-suite run is needed for Phase 1.
 Implementation and qualification remain in dedicated Phases 2–3; parent 9.3 and 10 retain their boundaries.
+
+### Resource-change replacement traceability
+
+The tables above retain the inspected pre-replacement baseline. The following source closure implements
+its approved replacement; dedicated Phase 3 still owns final document reconciliation and removal of
+this temporary map. Parent 9.3 and 10 retain integrated qualification and test-suite cleanup.
+
+| Requirement group | Current implementation | Focused verification |
+| --- | --- | --- |
+| Canonical equality and classification | Metadata collection records and MetadataCollections; GpuResourceMetadataEntry.Publish/Withdraw; RHIResourceChange/ResourceChangeKind | ResourceChangePublicationTests: structural equality/hash, equal/initial/late delivery, explicit equal storage/executable effects and fourteen-kind lifecycle matrix. |
+| Complete facts before notifications | RHIResourceManager.ChangeDelivery, MetadataPublication/MetadataOperation, ProgramFields; GpuResource.AssignMetadataSnapshot and internal OnResourceChanged | CPU batch/failure/reentry cases; ResourceChangeNativeTests committed-allocation failure and controlled assignment exclusion. The original operation is finalized before callbacks and its authorized guard remains held through delivery. |
+| Original dependencies and projections | BufferTextureDependencies, RenderbufferTextureDependencies, DependencyAvailability, NativeTextureViews, OwnerImages | Source-only recovery versus independent child uncertainty; detached backing; renewed original backing under reused name; existing native buffer/view/renderbuffer and framebuffer owner-event checks. Owner fallback completes every projection before fanout and rechecks original identities/revisions. |
+| Revision readers and local completion | RHIGeometryImport and GeometryVertexArray use existing backend configuration epochs; initial-fact predicates use HasCommittedMetadata; pending program links capture their own submitted revision; fixed local shaders use their prepared-interface identity | Geometry lifecycle/interception/import cases, shader compatibility cases, pending executable lifecycle, local same-interface executable replacement. Equal republication retains compatibility history; native configuration still expires receipts. |
+| Failure and lifetime closure | Entry commit/withdraw/terminal capture share synchronization and live-state checks; captured terminal delivery is idempotent; existing cleanup queue handles worker disposal; context teardown captures all recipients before callbacks | CPU queued-retirement/context teardown and identity reuse; native worker retirement/local image retirement and successful-commit callback failure. The shared entry lock prevents a later commit from changing the captured terminal revision. |
+
+Local snapshot presence and pending effects are passive evidence written only by manager services into
+the existing typed snapshot container. They confer no registration identity, membership, revision,
+dependency-validation or canonical-usability authority. Registered usability still requires its original
+manager entry regardless of these fields; local completion introduces no persistent registry or token.
+The controlling ownership documents now state this distinction explicitly. Full current-state
+publication documentation and temporary-file cleanup remain dedicated Phase 3 work.
+
+Independent Phase 2 completion audit and affected-path rechecks passed after the source/requirements
+second review. Canonical shader-enabled Debug and ordinary optimized Release builds passed with zero
+errors. Each current focused run passed 252/252 cases (52 CPU, 200 GPU), zero failures/skips and no
+JIT overrides. Receipts are artifacts/resource-change-phase2-affinity-{debug,release}-build.log and
+artifacts/TestResults/resource-change-phase2-affinity-{debug,release}.trx.
+These receipts cover the dedicated publication unit, not parent 9.3 package/live/full-suite qualification.
 
 Planning inventory for [Phase 1](Rendering.GpuCommands.todo), implementing the final
 [contracts](Rendering.GpuCommands.Contracts.md) under the [approved proposal](Rendering.GpuCommands.Proposal.md).

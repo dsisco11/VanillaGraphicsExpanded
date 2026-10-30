@@ -87,7 +87,7 @@ public sealed class GpuExecutableLifecycleTests(HeadlessGLFixture fixture)
             Assert.Equal(revision, entry.MetadataRevision);
             entry.BeginRefresh(GpuMetadataChange.Executable);
             GL.ProgramUniform1(program, location, 4);
-            Assert.False(entry.IsUsable); Assert.Equal(revision, entry.MetadataRevision);
+            Assert.False(entry.IsUsable); Assert.Equal(revision + 1, entry.MetadataRevision);
             Assert.Equal(0, reads.StageReads); Assert.Equal(0, reads.InterfaceReads); Assert.Equal(0, reads.UnitReads);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }

@@ -24,7 +24,7 @@ public abstract partial class GpuTexture : GpuResource<GpuTextureMetadata>, IDis
     /// <summary>Accesses the base image internalFormat through the typed metadata snapshot.</summary>
     protected TextureFormat internalFormat => BaseImage.Format;
     /// <summary>Accesses the canonical native target independently of sampler policy.</summary>
-    protected TextureDimension textureTarget => metadata.Target;
+    protected TextureDimension textureTarget => PublishedMetadata.Target;
     protected TextureFilterMode filterMode;
     protected string? debugName;
 

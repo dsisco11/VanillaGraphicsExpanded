@@ -118,7 +118,7 @@ public sealed class GpuGeometryLifecycleTests(HeadlessGLFixture fixture)
             Assert.True(RHIResourceManager.IsEngineGeometryConfigurationCurrent(receipt));
             if (core) GL4.VertexArrayAttribFormat(array.VertexArrayId, 0, 3, OpenTK.Graphics.OpenGL4.VertexAttribType.Float, false, 0);
             else GL.VertexArrayAttribFormat(array.VertexArrayId, 0, 3, VertexAttribType.Float, false, 0);
-            Assert.Equal(revision + 1, entry.MetadataRevision);
+            Assert.Equal(revision, entry.MetadataRevision);
             Assert.False(RHIResourceManager.IsEngineGeometryConfigurationCurrent(receipt));
             GL.VertexArrayElementBuffer(array.VertexArrayId, elements.BufferId);
             OpenGLVertexSelection.Bind(OpenGlStateCache.Current, array.VertexArrayId);
@@ -143,14 +143,14 @@ public sealed class GpuGeometryLifecycleTests(HeadlessGLFixture fixture)
             var entry = RHIResourceManagerSystem.CurrentManager!.FindResource(GpuResourceKind.TransformFeedback, feedback)!;
             if (core) GL4.TransformFeedbackBufferRange(feedback, 0, buffer.BufferId, 0, 16);
             else GL.TransformFeedbackBufferRange(feedback, 0, buffer.BufferId, 0, 16);
-            Assert.Equal(2UL, entry.MetadataRevision);
+            Assert.Equal(1UL, entry.MetadataRevision);
             GL.TransformFeedbackBufferRange(feedback, 0, buffer.BufferId, 1, 16);
-            Assert.Equal(ErrorCode.InvalidValue, GL.GetError()); Assert.Equal(2UL, entry.MetadataRevision);
+            Assert.Equal(ErrorCode.InvalidValue, GL.GetError()); Assert.Equal(1UL, entry.MetadataRevision);
             GL.TransformFeedbackBufferRange(feedback, 0, buffer.BufferId, 0, 32);
-            Assert.Equal(ErrorCode.NoError, GL.GetError()); Assert.Equal(3UL, entry.MetadataRevision);
+            Assert.Equal(ErrorCode.NoError, GL.GetError()); Assert.Equal(1UL, entry.MetadataRevision);
             GL.BindTransformFeedback(TransformFeedbackTarget.TransformFeedback, feedback);
             GL.BindBufferBase(BufferRangeTarget.TransformFeedbackBuffer, 0, buffer.BufferId);
-            Assert.Equal(4UL, entry.MetadataRevision); Assert.True(entry.IsUsable);
+            Assert.Equal(1UL, entry.MetadataRevision); Assert.True(entry.IsUsable);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
         finally
@@ -160,7 +160,7 @@ public sealed class GpuGeometryLifecycleTests(HeadlessGLFixture fixture)
             fixture.CleanupGpuResources();
         }
     }
-    /// <summary>One multi-bind publishes one revision, and named default-object updates refresh executed slots.</summary>
+    /// <summary>Multi-bind preserves canonical lifecycle facts while refreshing executed output slots.</summary>
     [Fact]
     public void FeedbackBatchAndDefaultObjectRetainExecutedBindings()
     {
@@ -178,9 +178,9 @@ public sealed class GpuGeometryLifecycleTests(HeadlessGLFixture fixture)
             int genericBefore = GL.GetInteger(GetPName.TransformFeedbackBufferBinding);
             GL.BindBuffersBase(BufferRangeTarget.TransformFeedbackBuffer, 0, 2, new[] { first.BufferId, second.BufferId });
             Assert.Equal(genericBefore, GL.GetInteger(GetPName.TransformFeedbackBufferBinding));
-            Assert.Equal(2UL, entry.MetadataRevision);
+            Assert.Equal(1UL, entry.MetadataRevision);
             GL.BindTransformFeedback(TransformFeedbackTarget.TransformFeedback, feedback.TransformFeedbackId);
-            Assert.Equal(2UL, entry.MetadataRevision);
+            Assert.Equal(1UL, entry.MetadataRevision);
             GL.BindBuffer(BufferTarget.TransformFeedbackBuffer, first.BufferId);
             Assert.False(cache.NeedsIndexedBufferBinding(BufferRangeTarget.TransformFeedbackBuffer, 0, first.BufferId, 0, 0, false));
             GL.BindBuffer(BufferTarget.TransformFeedbackBuffer, second.BufferId);

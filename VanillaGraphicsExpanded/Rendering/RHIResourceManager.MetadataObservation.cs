@@ -11,16 +11,9 @@ internal sealed partial class RHIResourceManager
         if (resource.ResourceManager?.GetResourceRegistration(resource) is not null) return;
         if ((change & GpuMetadataChange.Storage) != 0 && resource is GpuTexture changedTexture)
             changedTexture.UntrackedStorageIdentity = new();
-        // There is no availability registry in context-local tools. Empty descriptors cannot
-        // masquerade as the previous allocation; object target alone remains a stable native fact.
-        if (resource is GpuResource<GpuTextureMetadata> texture)
-        {
-            var target = resource is GpuTexture owner ? owner.TextureTarget
-                : resource is GpuTextureView view ? view.Target
-                : resource is GpuBufferView ? RHI.TextureDimension.Buffer : 0;
-            texture.HandleMetadataChanged(default(GpuTextureMetadata) with { Target = target });
-        }
-        else resource.HandleMetadataChanged(default);
+        // Keep the last supplied facts for recovery classification; ordinary local properties
+        // expose an unavailable snapshot until explicit publication restores it.
+        resource.WithdrawMetadataSnapshot(change);
     }
 
     /// <summary>Withdraws usability when an acquisition or a grouped native command cannot certify a complete snapshot.</summary>
@@ -29,17 +22,27 @@ internal sealed partial class RHIResourceManager
     {
         if (resource.ResourceManager?.GetResourceRegistration(resource) is GpuResourceMetadataEntry<T> entry)
         {
-            entry.BeginRefresh(change);
-            entry.NotifyProgramDependents(change, available: false);
-            entry.NotifyImageDependents(suppressErrors: true);
-            if (entry.Kind == GpuResourceKind.Texture) entry.Manager.SetTextureViewSourceAvailability(entry, false);
+            using var delivery = entry.Manager.BeginChangeDelivery();
+            entry.Withdraw(change);
+            if (entry.Kind == GpuResourceKind.Texture) entry.Manager.WithdrawResourceDependencies(entry, GpuMetadataChange.Metadata);
         }
         else
         {
+            bool available = resource.HasMetadataSnapshot;
             DiscardUntrackedMetadata(resource, change);
             PublishOwnerImages(resource, false);
+            if (available) resource.OnResourceChanged(new(ResourceChangeKind.Availability, false, 0, 0));
         }
     }
 
+    /// <summary>Completes an owned local lifetime without inventing a native registration or blocking deletion.</summary>
+    internal static void CompleteLocalRetirement(GpuResource resource)
+    {
+        try { PublishOwnerImages(resource, false); } catch { }
+        // The owner is already disposed. Affinity was checked by its existing disposal policy;
+        // observer failure cannot prevent the native owner from completing cleanup.
+        try { resource.OnResourceChanged(new(ResourceChangeKind.Retired | ResourceChangeKind.Availability, false, 0, 0, resource)); }
+        catch { }
+    }
     #endregion
 }

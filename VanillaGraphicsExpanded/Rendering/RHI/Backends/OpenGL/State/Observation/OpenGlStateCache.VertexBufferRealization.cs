@@ -22,7 +22,7 @@ internal sealed partial class OpenGlStateCache
             // specific ambiguity for explicit adoption; never invent a default layout.
             entry = manager.RegisterCreatedResource<GpuVertexArrayMetadata>(GpuResourceKind.VertexArray, vao);
             entry.InitialDiscovery = GpuInitialDiscovery.ImplicitCreation;
-            entry.BeginRefresh(GpuMetadataChange.Metadata);
+            entry.Withdraw(GpuMetadataChange.Metadata);
             return false;
         }
         if (entry.InitialDiscovery != GpuInitialDiscovery.None || entry.PendingChange != GpuMetadataChange.None) return false;

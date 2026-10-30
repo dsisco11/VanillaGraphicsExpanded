@@ -10,7 +10,7 @@ internal sealed partial class RHIResourceManager
     internal static bool TryGetRenderbufferReferenceMetadata(GpuResource<GpuRenderbufferMetadata>? resource, out GpuRenderbufferMetadata data)
     {
         data = default;
-        if (resource is null || !resource.IsValid) return false;
+        if (resource is null || !resource.HasMetadataSnapshot || !resource.IsValid) return false;
         var manager = resource.ResourceManager;
         if (manager?.GetResourceRegistration(resource) is not null && !manager.IsResourceMetadataAvailable(resource)) return false;
         data = resource.PublishedMetadata;

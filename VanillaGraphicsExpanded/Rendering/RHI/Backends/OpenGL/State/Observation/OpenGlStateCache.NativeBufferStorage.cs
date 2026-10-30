@@ -13,7 +13,7 @@ internal sealed partial class OpenGlStateCache
     {
         if (RHIResourceManagerSystem.CurrentManager?.FindObservedResource(GpuResourceKind.Buffer, id)
             is GpuResourceMetadataEntry<GpuBufferMetadata> { IsRealized: false } entry)
-            entry.BeginRefresh(GpuMetadataChange.Metadata);
+            entry.Withdraw(GpuMetadataChange.Metadata);
     }
 
     /// <summary>Realizes legal names through the original registry and establishes empty-object execution defaults.</summary>
@@ -56,7 +56,7 @@ internal sealed partial class OpenGlStateCache
                 && (nativeFlags & (Native.BufferStorageFlags.MapReadBit | Native.BufferStorageFlags.MapWriteBit)) == 0
             || (nativeFlags & Native.BufferStorageFlags.MapCoherentBit) != 0
                 && (nativeFlags & Native.BufferStorageFlags.MapPersistentBit) == 0)) return;
-        if (entry is { MetadataRevision: not 0 } && entry.Metadata.ImmutableStorage) return;
+        if (entry is { HasCommittedMetadata: true } && entry.Metadata.ImmutableStorage) return;
         if ((nativeFlags & (Native.BufferStorageFlags)Native.ArbSparseBuffer.SparseStorageBitArb) != 0
             && (nativeFlags & (Native.BufferStorageFlags.MapReadBit | Native.BufferStorageFlags.MapWriteBit)) != 0) return;
         if (entry is { IsRealized: false })
@@ -64,7 +64,7 @@ internal sealed partial class OpenGlStateCache
             // A possibly realized name may have accepted this allocation. Record that
             // descriptor uncertainty so a later bind cannot fabricate empty defaults.
             // A proven untouched reservation instead retains its rejected-command facts.
-            if (entry.PendingChange != GpuMetadataChange.None) entry.BeginRefresh(GpuMetadataChange.Storage);
+            if (entry.PendingChange != GpuMetadataChange.None) entry.Withdraw(GpuMetadataChange.Storage);
             return;
         }
         cache.InterruptNativeResourceOperation(GpuResourceKind.Buffer, id);
@@ -76,7 +76,7 @@ internal sealed partial class OpenGlStateCache
         // also depends on payload facts that the empty memory schema does not certify.
         if (!entry.IsUsable || targetAccepted is null || unresolvedImport || sparse && !capabilitiesKnown)
         {
-            entry.BeginRefresh(GpuMetadataChange.Storage);
+            entry.Withdraw(GpuMetadataChange.Storage);
             return;
         }
         var candidate = new GpuBufferMetadata(size, immutable ? BufferUsage.DynamicDraw

@@ -18,7 +18,7 @@ internal sealed partial class RHIResourceManager
         out GpuTextureMetadata data)
     {
         data = default;
-        if (resource is null || !IsTextureReferenceLifetimeLive(resource)) return false;
+        if (resource is null || !resource.HasMetadataSnapshot || !IsTextureReferenceLifetimeLive(resource)) return false;
         var manager = resource.ResourceManager;
         if (manager?.GetResourceRegistration(resource) is not null && !manager.IsResourceMetadataAvailable(resource))
             return false;

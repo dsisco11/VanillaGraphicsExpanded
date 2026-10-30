@@ -9,7 +9,10 @@ internal sealed partial class RHIResourceManager
     private readonly ConditionalWeakTable<GpuResourceRegistration, TextureBackingDependency> textureBackingIdentities = new();
 
     /// <summary>Retains one original backing and an optional fixed storage revision for immutable native views.</summary>
-    private sealed record TextureBackingDependency(GpuResourceRegistration Source, ulong? StorageRevision = null);
+    private sealed record TextureBackingDependency(GpuResourceRegistration Source, ulong? StorageRevision = null)
+    {
+        internal bool WithdrawnBySource { get; set; }
+    }
 
     #region Private
     /// <summary>Rejects implicit adoption of a replacement allocation under a retained association's old name.</summary>

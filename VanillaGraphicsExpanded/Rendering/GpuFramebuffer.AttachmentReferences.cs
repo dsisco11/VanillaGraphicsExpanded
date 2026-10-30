@@ -24,14 +24,14 @@ public abstract partial class GpuFramebuffer
         // remain representable until a consumer requires usable attachment images.
         attachmentsDirty = false;
         reconciledAttachmentDescriptors = null;
-        PublishAttachmentsChanged();
+        PublishAttachmentsChanged(resourceChange: true);
     }
 
     /// <summary>Reports loss of an observed backing while retaining any pending owner reattachment.</summary>
     internal void OnObservedBackingRetired()
     {
         reconciledAttachmentDescriptors = null;
-        if (!resizing) PublishAttachmentsChanged();
+        if (!resizing) PublishAttachmentsChanged(resourceChange: true);
     }
     /// <summary>Resolves a requested external image from one reusable canonical framebuffer discovery.</summary>
     internal GpuFramebufferAttachment DiscoverAttachment(FramebufferSlot slot)
@@ -43,7 +43,7 @@ public abstract partial class GpuFramebuffer
     {
         if (!allowUnpublishedExternal && !ownsFramebuffer && !passMetadataPublished || attachmentsDirty || metadata.Attachments is null || !recoverBackings && ReferenceEquals(metadata.Attachments, reconciledAttachmentDescriptors)) return;
         // Unavailable descriptors must not reacquire a deleted attachment through a reused name.
-        if (ResourceManager?.GetResourceRegistration(this) is { MetadataRevision: > 0, MetadataAvailable: false }) return;
+        if (ResourceManager?.GetResourceRegistration(this) is GpuResourceMetadataEntry<GpuFramebufferMetadata> { HasCommittedMetadata: true, MetadataAvailable: false }) return;
         RHI.RHICommandContext.Current.ResolveFramebufferAttachments(this, recoverBackings);
     }
 

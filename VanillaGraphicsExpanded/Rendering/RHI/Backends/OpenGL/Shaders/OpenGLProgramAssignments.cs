@@ -61,9 +61,11 @@ internal static class OpenGLProgramAssignments
         }
         if (!known) entry = null;
         if (entry is not null) { entry.OperationInProgress = true; entry.BeginRefresh(GpuMetadataChange.Metadata); }
+        using var delivery = manager?.BeginChangeDelivery();
+        bool committed = false;
         try
         {
-            if (entry is not null) entry.NotifyProgramDependents(GpuMetadataChange.Metadata, available: false);
+
             if (operation.Cancelled) throw new InvalidOperationException("Program assignment was interrupted before execution.");
             apply();
             if (operation.Cancelled || !cache.OwnsKnowledgeFor(origin) || !Integration.RenderContextRegistry.IsCurrentResourceContext(origin))
@@ -72,10 +74,12 @@ internal static class OpenGLProgramAssignments
             entry.OperationInProgress = false;
             if (!manager!.IsRegistered(entry) || entry.State != GpuResourceRegistrationState.Live)
                 throw new InvalidOperationException("Program assignment identity was retired.");
-            bool success = manager.PublishProgramAssignment(entry, previous, unit, location, [supplied], block, index);
+            bool success = manager.PublishProgramAssignment(entry, previous, unit, location, [supplied], block, index, operation);
             if (!success) throw new InvalidOperationException("Program assignment metadata is unavailable.");
+            committed = true;
+            delivery?.Complete();
         }
-        finally { if (entry is not null) entry.OperationInProgress = false; }
+        finally { if (entry is not null) { entry.OperationInProgress = false; if (!committed) entry.Withdraw(); } }
     }
     #endregion
 }

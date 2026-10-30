@@ -16,6 +16,7 @@ internal sealed partial class RHIResourceManager
         if (source.ResourceManager?.GetResourceRegistration(source) is { } entry
             && !entry.Manager.IsResourceMetadataAvailable(source))
             throw new InvalidOperationException("The original program metadata is unavailable.");
+        if (!source.HasMetadataSnapshot) throw new InvalidOperationException("The local executable snapshot is unavailable.");
         var data = source.MetadataSnapshot;
         if (!data.ExecutableAvailable) throw new InvalidOperationException("A linked executable is required for preparation.");
         return data;

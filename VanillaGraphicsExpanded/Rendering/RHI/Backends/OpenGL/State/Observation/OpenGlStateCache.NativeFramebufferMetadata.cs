@@ -80,7 +80,7 @@ internal sealed partial class OpenGlStateCache
             if (backingId != 0 && source?.IsRealized != true) return;
             CubeFace face = CubeFace.None;
             bool layered = false;
-            if (!rb && backingId != 0 && source is GpuResourceMetadataEntry<GpuTextureMetadata> { MetadataRevision: > 0 } image)
+            if (!rb && backingId != 0 && source is GpuResourceMetadataEntry<GpuTextureMetadata> { HasCommittedMetadata: true } image)
             {
                 var target = image.Metadata.Target;
                 if (target is TextureDimension.Buffer or TextureDimension.RenderbufferTexture) return;
@@ -127,15 +127,15 @@ internal sealed partial class OpenGlStateCache
         cache.InterruptNativeResourceOperation(GpuResourceKind.Framebuffer, id);
         if (InterruptNativeMetadataCompletion(entry, GpuMetadataChange.Metadata)) return;
         manager.PublishMetadata(entry, candidate, GpuMetadataChange.Metadata);
-        entry.NotifyFramebufferDependents();
+
     }
 
     /// <summary>Contains unavailable framebuffer effects without changing unrelated executed knowledge.</summary>
     private static void WithdrawFramebufferDefinition(OpenGlStateCache cache, GpuResourceMetadataEntry<GpuFramebufferMetadata> entry)
     {
         cache.InterruptNativeResourceOperation(GpuResourceKind.Framebuffer, (int)entry.Id);
-        if (!InterruptNativeMetadataCompletion(entry, GpuMetadataChange.Metadata)) entry.BeginRefresh(GpuMetadataChange.Metadata);
-        entry.NotifyFramebufferDependents();
+        if (!InterruptNativeMetadataCompletion(entry, GpuMetadataChange.Metadata)) entry.Withdraw();
+
     }
     #endregion
 }

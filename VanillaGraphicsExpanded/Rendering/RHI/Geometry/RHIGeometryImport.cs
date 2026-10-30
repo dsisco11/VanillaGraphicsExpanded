@@ -31,6 +31,7 @@ internal sealed class RHIGeometryImport
     /// <summary>Allows an external producer to refresh a changed receipt before entering a submission boundary.</summary>
     internal bool IsCurrent((nint Handle, long Generation) origin, ulong epoch) => Origin == origin && Array.IsValid
         && ReferenceEquals(association, Array.ResourceManager?.GetResourceRegistration(Array))
+        && epoch == localEpoch
         && (association is not null ? association.MetadataRevision == revision && Array.ResourceManager?.IsResourceMetadataAvailable(Array) == true
             : epoch == localEpoch);
     #endregion

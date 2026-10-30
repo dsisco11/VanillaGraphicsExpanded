@@ -44,10 +44,10 @@ internal sealed class GpuProgramObject : GpuResource<GpuProgramMetadata>
     /// <summary>Shares installed preparation without adding another native metadata association.</summary>
     internal void SetPreparedLayout(GpuProgramLayout layout) => bindingCache = layout;
     /// <summary>Reconciles manager-published facts with this allocation's derived layout.</summary>
-    internal void OnNativeProgramMetadataChanged(GpuMetadataChange change, bool available)
+    internal override void OnResourceChanged(in RHIResourceChange change)
     {
         ulong revision = ResourceManager?.GetResourceRegistration(this)?.MetadataRevision ?? 0;
-        bindingCache.ObserveNativeMetadata(programId, metadata, revision, change, available);
+        bindingCache.ObserveNativeMetadata(programId, metadata, revision, change.Effects, change.Available);
     }
     /// <summary>Takes deletion ownership of a program returned by an external linker and acquires its canonical facts.</summary>
     internal static GpuProgramObject Adopt(int programId)

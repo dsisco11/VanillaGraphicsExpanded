@@ -96,7 +96,7 @@ public sealed class GpuResourceMetadataRegistryTests
         else Assert.False(manager.RefreshMetadata(entry, GpuMetadataChange.Metadata));
         Assert.False(entry.MetadataAvailable);
         Assert.False(manager.IsResourceMetadataAvailable(resource));
-        Assert.Equal(1ul, entry.MetadataRevision);
+        Assert.Equal(2ul, entry.MetadataRevision);
         reader.Readable = true; reader.Throws = false;
         Assert.True(manager.RefreshMetadata(entry, GpuMetadataChange.Metadata));
         Assert.True(manager.IsResourceMetadataAvailable(resource));
@@ -324,7 +324,7 @@ public sealed class GpuResourceMetadataRegistryTests
         manager.AssociateResource(entry, resource);
         var canonical = entry.Metadata;
         Assert.True(manager.IsResourceMetadataAvailable(resource));
-        resource.HandleMetadataChanged(new(100, BufferUsage.DynamicDraw));
+        resource.AssignMetadataSnapshot(new(100, BufferUsage.DynamicDraw));
         Assert.Equal(canonical, entry.Metadata);
         Assert.True(manager.IsResourceMetadataAvailable(resource));
         Assert.Equal(1ul, entry.MetadataRevision);
@@ -343,7 +343,7 @@ public sealed class GpuResourceMetadataRegistryTests
         Assert.False(manager.RefreshMetadata(entry, GpuMetadataChange.Storage));
         reader.Readable = true;
         Assert.Same(entry, manager.RecoverResource(GpuResourceKind.Buffer, 7, reader));
-        Assert.Equal(2ul, entry.MetadataRevision);
+        Assert.Equal(3ul, entry.MetadataRevision);
         Assert.Equal(1ul, entry.StorageRevision);
     }
 
@@ -381,7 +381,7 @@ public sealed class GpuResourceMetadataRegistryTests
         manager.AssociateResource(replacement, newAlias);
         manager.UnregisterResource(oldEntry, oldAlias);
         manager.UnregisterResource(oldEntry, newAlias);
-        oldAlias.HandleMetadataChanged(new(100, BufferUsage.DynamicDraw));
+        oldAlias.AssignMetadataSnapshot(new(100, BufferUsage.DynamicDraw));
         Assert.True(manager.IsResourceMetadataRetired(oldAlias));
         Assert.False(manager.IsResourceMetadataAvailable(oldAlias));
         Assert.Throws<InvalidOperationException>(() => manager.AssociateResource(replacement, oldAlias));
@@ -407,7 +407,7 @@ public sealed class GpuResourceMetadataRegistryTests
         Assert.True(retired);
         Assert.False(manager.IsResourceMetadataAvailable(alias));
         Assert.True(manager.IsResourceMetadataRetired(alias));
-        alias.HandleMetadataChanged(new(100, BufferUsage.DynamicDraw));
+        alias.AssignMetadataSnapshot(new(100, BufferUsage.DynamicDraw));
         Assert.False(manager.IsResourceMetadataAvailable(alias));
         Assert.True(manager.IsRegistered(entry));
         Assert.Throws<InvalidOperationException>(() => manager.RegisterCreatedResource<GpuBufferMetadata>(GpuResourceKind.Buffer, 7));

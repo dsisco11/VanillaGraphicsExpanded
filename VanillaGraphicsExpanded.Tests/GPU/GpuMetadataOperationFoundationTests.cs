@@ -62,7 +62,7 @@ public sealed class GpuMetadataOperationFoundationTests(HeadlessGLFixture fixtur
             {
                 operation.RequireParticipation(owner, GpuMetadataChange.Metadata);
                 ResizeNative(owner, 64);
-                Assert.Equal(registered ? 16 : 0, owner.SizeBytes);
+                Assert.Equal(16, owner.SizeBytes);
                 if (entry is not null) Assert.False(entry.MetadataAvailable);
                 operation.Commit(new(64, BufferUsage.StaticDraw));
                 Assert.Throws<InvalidOperationException>(() => operation.Commit(new(128, BufferUsage.DynamicDraw)));
@@ -286,7 +286,7 @@ public sealed class GpuMetadataOperationFoundationTests(HeadlessGLFixture fixtur
             Assert.Equal(1, reader.Reads);
             Assert.IsType<InvalidOperationException>(reader.InnerFailure);
             Assert.False(entry.MetadataAvailable);
-            Assert.Equal(revision, entry.MetadataRevision);
+            Assert.Equal(revision + 1, entry.MetadataRevision);
             Assert.Equal(16, owner.SizeBytes);
             entry.Reader = original;
             Assert.Equal(ErrorCode.NoError, GL.GetError());
@@ -367,7 +367,7 @@ public sealed class GpuMetadataOperationFoundationTests(HeadlessGLFixture fixtur
                 Assert.Throws<InvalidOperationException>(() => operation.Commit());
             }
             Assert.False(entry.MetadataAvailable);
-            Assert.Equal(revision, entry.MetadataRevision);
+            Assert.Equal(revision + 1, entry.MetadataRevision);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
         finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }

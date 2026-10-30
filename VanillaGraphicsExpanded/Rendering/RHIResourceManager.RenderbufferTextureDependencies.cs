@@ -11,7 +11,12 @@ internal sealed partial class RHIResourceManager
     private void AcquireRenderbufferTextureBacking<TMetadata>(GpuResourceRegistration entry, TMetadata candidate,
         bool renewAssociation) where TMetadata : struct
     {
-        if (candidate is not GpuTextureMetadata { Renderbuffer: not 0 } texture) return;
+        if (candidate is not GpuTextureMetadata { Renderbuffer: not 0 } texture)
+        {
+            if (candidate is GpuTextureMetadata && textureBackingIdentities.TryGetValue(entry, out var old)
+                && old.Source.Kind == GpuResourceKind.Renderbuffer && !old.StorageRevision.HasValue) textureBackingIdentities.Remove(entry);
+            return;
+        }
         RequireOriginalTextureBacking(entry, GpuResourceKind.Renderbuffer, texture.Renderbuffer, renewAssociation);
         var backing = LookupAvailableResource<GpuRenderbufferMetadata>(GpuResourceKind.Renderbuffer, texture.Renderbuffer);
         if (backing is null)
@@ -35,7 +40,8 @@ internal sealed partial class RHIResourceManager
         foreach (var pair in metadataRegistry)
         {
             if (pair.Value is not GpuResourceMetadataEntry<GpuTextureMetadata> texture
-                || !texture.IsUsable || texture.Metadata.Renderbuffer != backing.Id) continue;
+                || !texture.IsUsable || texture.Metadata.Renderbuffer != backing.Id
+                || !textureBackingIdentities.TryGetValue(texture, out var original) || !ReferenceEquals(original.Source, backing)) continue;
             // Renderbuffer textures have no levels of their own. Refresh the dependency's
             // revision while retaining its queried association and separate backing facts.
             try { PublishMetadata(texture, texture.Metadata, GpuMetadataChange.Storage); }

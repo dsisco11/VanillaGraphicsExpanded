@@ -22,7 +22,9 @@ does not bypass that check. Explicit operation steps recheck affinity after call
 
 `GpuResource` supplies identity, ownership, disposal and deletion scheduling. `GpuResource<TMetadata>`
 stores a snapshot, exposes it read-only to derived wrappers, and assigns complete snapshots through
-`HandleMetadataChanged`. Tracking, availability, revisions and recipient membership belong to the manager.
+`AssignMetadataSnapshot`. Registration identity, canonical availability, revisions and recipient membership belong to the manager.
+The snapshot container also retains manager-written local presence and unfinished-effect evidence for
+context-local completion/recovery; these passive facts never override a tracked entry or initiate acquisition.
 Resource properties read the supplied snapshot; allocation policy, upload strategy and selected
 subresources remain with their existing wrappers and helpers.
 

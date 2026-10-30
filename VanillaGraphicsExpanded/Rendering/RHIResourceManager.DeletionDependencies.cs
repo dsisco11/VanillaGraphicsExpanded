@@ -27,7 +27,7 @@ internal sealed partial class RHIResourceManager
                     || drawFramebuffer.HasValue && framebuffer.Id == drawFramebuffer.Value))
                 {
                     PublishMetadata(framebuffer, framebuffer.Metadata with { Attachments = remaining }, GpuMetadataChange.Metadata);
-                    if (!external) framebuffer.NotifyFramebufferDependents();
+
                 }
                 else if (framebuffer.IsUsable)
                 {
@@ -35,17 +35,17 @@ internal sealed partial class RHIResourceManager
                     // numeric name. Later attachment commands can therefore replace it.
                     foreach (var attachment in attachments.Values)
                         if (attachment.Kind == kind && attachment.Id == id && attachment.OriginalBacking is null)
-                        { framebuffer.BeginRefresh(GpuMetadataChange.Metadata); if (!external) framebuffer.NotifyFramebufferDependents(); break; }
+                        { framebuffer.Withdraw(); break; }
                 }
-                if (external) framebuffer.NotifyFramebufferBackingRetired();
+
             }
             else if (kind == GpuResourceKind.Buffer && pair.Value is GpuResourceMetadataEntry<GpuTextureMetadata> texture
                 && texture.Metadata.Buffer is { } buffer && buffer.BufferId == id)
-                texture.BeginRefresh(GpuMetadataChange.Metadata);
+                texture.Withdraw();
             else if (kind == GpuResourceKind.Renderbuffer
                 && pair.Value is GpuResourceMetadataEntry<GpuTextureMetadata> renderbufferTexture
                 && renderbufferTexture.Metadata.Renderbuffer == id)
-                renderbufferTexture.BeginRefresh(GpuMetadataChange.Metadata);
+                renderbufferTexture.Withdraw();
         }
     }
     #endregion

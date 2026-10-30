@@ -89,6 +89,8 @@ public abstract partial class GpuResource : IDisposable
         ResourceId = 0;
 
         OnBeforeDelete(id);
+        if (id != 0 && OwnsResource && ResourceManager?.GetResourceRegistration(this) is null)
+            RHIResourceManager.CompleteLocalRetirement(this);
 
         if (id != 0 && OwnsResource)
         {
@@ -103,6 +105,9 @@ public abstract partial class GpuResource : IDisposable
     #endregion
 
     #region Internal API
+    /// <summary>Reacts to a manager-committed transition after affected snapshots are coherent.</summary>
+    internal virtual void OnResourceChanged(in RHIResourceChange change) { }
+
     /// <summary>Installs or clears identity during manager-owned creation without invoking wrapper policy.</summary>
     internal void SetCreationIdentity(nint id, (nint Handle, long Generation)? context = null)
     {

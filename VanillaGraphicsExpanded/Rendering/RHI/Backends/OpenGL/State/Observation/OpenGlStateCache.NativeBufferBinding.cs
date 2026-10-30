@@ -52,7 +52,7 @@ internal sealed partial class OpenGlStateCache
         bufferMappings.Remove(id);
         if (RHIResourceManagerSystem.CurrentManager?.FindObservedResource(GpuResourceKind.Buffer, id)
             is not GpuResourceMetadataEntry<GpuBufferMetadata> entry) return;
-        if (!InterruptNativeMetadataCompletion(entry, GpuMetadataChange.Storage)) entry.BeginRefresh(GpuMetadataChange.Storage);
+        if (!InterruptNativeMetadataCompletion(entry, GpuMetadataChange.Storage)) entry.Withdraw(GpuMetadataChange.Storage);
     }
     #endregion
 }

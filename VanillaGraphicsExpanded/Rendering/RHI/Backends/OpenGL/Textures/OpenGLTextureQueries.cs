@@ -41,13 +41,13 @@ internal readonly struct OpenGLTextureQueries
         var target = knownTarget;
         var initial = RHIResourceManagerSystem.CurrentManager?.FindResource(GpuResourceKind.Texture, id)
             as GpuResourceMetadataEntry<GpuTextureMetadata>;
-        if (target == TextureTarget.TextureBuffer || initial is { IsUsable: false, MetadataRevision: 0,
+        if (target == TextureTarget.TextureBuffer || initial is { IsUsable: false, HasCommittedMetadata: false,
             Metadata.Target: TextureDimension.Buffer })
         {
             // Buffer textures are not valid targets of GetTextureParameter. A nonzero
             // buffer-level association verifies this target without speculative binds.
             // Detached or unobserved associations cannot certify a consumable buffer view.
-            if (initial is not { IsUsable: false, MetadataRevision: 0,
+            if (initial is not { IsUsable: false, HasCommittedMetadata: false,
                 Metadata: { Target: TextureDimension.Buffer, Buffer: { BufferId: not 0 } association } supplied }) return false;
             int actualBuffer = 0;
             GL.GetTextureLevelParameter(texture, 0, (Native.GetTextureParameter)All.TextureBufferDataStoreBinding, out actualBuffer);

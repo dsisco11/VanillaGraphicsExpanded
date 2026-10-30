@@ -18,6 +18,14 @@ public abstract partial class GpuFramebuffer : GpuResource<GpuFramebufferMetadat
     private bool attachmentsDirty;
     private bool resizing;
 
+    /// <summary>Reconciles retained attachment helpers while preserving explicit owner completion.</summary>
+    internal override void OnResourceChanged(in RHIResourceChange change)
+    {
+        if (ReferenceEquals(change.Origin, this)) return;
+        if ((change.Kind & ResourceChangeKind.Metadata) != 0) OnNativeConfigurationChanged();
+        else OnObservedBackingRetired();
+    }
+
     #region Public API
     #region Properties
     /// <summary>Notifies dependents after image changes, external refresh, or retirement.</summary>
@@ -130,7 +138,7 @@ public abstract partial class GpuFramebuffer : GpuResource<GpuFramebufferMetadat
     {
         ObjectDisposedException.ThrowIf(IsDisposed || fboId != 0 && !IsValid, this);
         if ((ownsFramebuffer || passMetadataPublished) && !attachmentsDirty
-            && ResourceManager?.GetResourceRegistration(this) is { MetadataRevision: > 0, MetadataAvailable: false })
+            && ResourceManager?.GetResourceRegistration(this) is GpuResourceMetadataEntry<GpuFramebufferMetadata> { HasCommittedMetadata: true, MetadataAvailable: false })
             throw new InvalidOperationException("Framebuffer metadata must be republished after backing resource retirement.");
         ReconcileAttachmentMetadata();
         ObjectDisposedException.ThrowIf(IsDisposed, this);
@@ -142,7 +150,7 @@ public abstract partial class GpuFramebuffer : GpuResource<GpuFramebufferMetadat
     {
         if (IsDisposed || externalPublicationInProgress || !attachments.ContainsValue(attachment)) return;
         attachmentsDirty = true;
-        if (!resizing) PublishAttachmentsChanged();
+        if (!resizing) PublishAttachmentsChanged(resourceChange: true);
     }
     #endregion
 
@@ -172,8 +180,9 @@ public abstract partial class GpuFramebuffer : GpuResource<GpuFramebufferMetadat
 
     #region Private
     /// <summary>Notifies all dependents even when one callback fails after a committed attachment change.</summary>
-    private void PublishAttachmentsChanged()
+    private void PublishAttachmentsChanged(bool resourceChange = false)
     {
+        if (resourceChange && ResourceManager?.AdmitDependentOwnerChange(this) == false) return;
         AttachmentRevision++;
         if (AttachmentsChanged is not { } callbacks) return;
         foreach (Action callback in callbacks.GetInvocationList())

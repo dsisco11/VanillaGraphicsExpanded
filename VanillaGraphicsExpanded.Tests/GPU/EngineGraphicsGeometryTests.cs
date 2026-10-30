@@ -46,6 +46,8 @@ public sealed class EngineGraphicsGeometryTests(HeadlessGLFixture fixture) : Ren
             var manager = RHIResourceManagerSystem.CurrentManager!;
             var entry = Assert.IsType<GpuResourceMetadataEntry<GpuVertexArrayMetadata>>(manager.GetResourceRegistration(array));
             manager.PublishMetadata(entry, new GpuVertexArrayMetadata(), GpuMetadataChange.Metadata);
+            Assert.True(RHIResourceManager.IsEngineGeometryConfigurationCurrent(receipt));
+            OpenTK.Graphics.OpenGL4.GL.VertexArrayAttribFormat(array.VertexArrayId, 0, 2, OpenTK.Graphics.OpenGL4.VertexAttribType.Float, false, 0);
             Assert.False(RHIResourceManager.IsEngineGeometryConfigurationCurrent(receipt));
             receipt = RHIResourceManager.AcquireEngineGeometryConfiguration(array, layout, [], indices);
             Assert.True(RHIResourceManager.IsEngineGeometryConfigurationCurrent(receipt));

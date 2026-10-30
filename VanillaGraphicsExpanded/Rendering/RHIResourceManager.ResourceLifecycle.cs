@@ -73,6 +73,9 @@ internal sealed partial class RHIResourceManager
         if (GetResourceRegistration(resource) is not { } entry) return false;
         if (!metadataRegistry.TryGetValue(entry.Handle, out var current) || !ReferenceEquals(current, entry)
             || entry.State != GpuResourceRegistrationState.Live) return true;
+        // Availability and native auto-detachment belong to this same owner retirement completion.
+        using var completion = Environment.CurrentManagedThreadId == System.Threading.Volatile.Read(ref metadataThreadId)
+            ? BeginChangeDelivery() : null;
         RetireResource(entry);
         // Keep the same context policy as legacy owner disposal, but carry the original entry
         // rather than resolving a potentially reused numeric name when the queue drains.

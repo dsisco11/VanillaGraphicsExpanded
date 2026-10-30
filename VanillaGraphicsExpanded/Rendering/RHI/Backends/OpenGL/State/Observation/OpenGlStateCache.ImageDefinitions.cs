@@ -209,9 +209,8 @@ internal sealed partial class OpenGlStateCache
         entry.DiscardInitialCandidate();
         cache.InterruptNativeResourceOperation(GpuResourceKind.Texture, (int)entry.Id);
         if (InterruptNativeMetadataCompletion(entry, change)) return;
-        entry.BeginRefresh(change);
-        entry.NotifyImageDependents(true);
-        entry.Manager.NotifyTextureViewSourceUnavailable(entry);
+        entry.Withdraw(change);
+
     }
     #endregion
 }

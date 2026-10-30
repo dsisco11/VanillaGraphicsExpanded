@@ -4,10 +4,6 @@ namespace VanillaGraphicsExpanded.Rendering;
 internal sealed partial class RHIResourceManager
 {
     #region Internal API
-    /// <summary>Withdraws dependent projections when a native texture result is uncertain.</summary>
-    internal void NotifyTextureViewSourceUnavailable(GpuResourceRegistration source)
-        => SetTextureViewSourceAvailability(source, false);
-
     /// <summary>Records a newly established view's original backing, including nested views.</summary>
     internal void RecordNativeTextureView(GpuResourceRegistration view, GpuResourceRegistration source)
     {
@@ -44,33 +40,13 @@ internal sealed partial class RHIResourceManager
     {
         foreach (var pair in metadataRegistry)
         {
-            if (pair.Value is not GpuResourceMetadataEntry<GpuTextureMetadata> view || !view.IsUsable) continue;
+            if (pair.Value is not GpuResourceMetadataEntry<GpuTextureMetadata> view || !view.HasCommittedMetadata) continue;
             var current = (GpuResourceRegistration)view;
             while (textureBackingIdentities.TryGetValue(current, out var dependency) && dependency.StorageRevision.HasValue)
             {
                 if (ReferenceEquals(dependency.Source, source))
                 {
-                    view.BeginRefresh(GpuMetadataChange.Metadata);
-                    view.SetImageRecipientAvailability(false);
-                    break;
-                }
-                current = dependency.Source;
-            }
-        }
-    }
-
-    /// <summary>Propagates a source's temporary availability without changing view storage identity.</summary>
-    private void SetTextureViewSourceAvailability(GpuResourceRegistration source, bool available)
-    {
-        foreach (var pair in metadataRegistry)
-        {
-            if (pair.Value is not GpuResourceMetadataEntry<GpuTextureMetadata> view || !view.IsUsable) continue;
-            var current = (GpuResourceRegistration)view;
-            while (textureBackingIdentities.TryGetValue(current, out var dependency) && dependency.StorageRevision.HasValue)
-            {
-                if (ReferenceEquals(dependency.Source, source))
-                {
-                    view.SetImageRecipientAvailability(available && IsNativeTextureViewSourceAvailable(view));
+                    view.Withdraw();
                     break;
                 }
                 current = dependency.Source;

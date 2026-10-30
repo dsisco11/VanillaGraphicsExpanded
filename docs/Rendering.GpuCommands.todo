@@ -1351,7 +1351,9 @@ Phase 9.2: Design and implement consistent resource-change publication
 
   Design progress: the proposal inventories all fourteen registered resource kinds and selected-image
     projections, existing publication/withdrawal/dependency routes and the proposed shared change contract.
-    Production implementation and completion verification have not begun; all task markers remain open.
+    Dedicated implementation Phases 1–2 are complete and independently reviewed: both Debug and ordinary
+    Release pass 252 focused cases. Dedicated Phase 3 document reconciliation and closeout remain open,
+    so this parent completion gate and its task markers remain open.
 
 Phase 9.3: Finish outstanding diagnosis and integrated qualification
   Depends on 9.1 and 9.2. Earlier receipts below describe their archived candidates only.

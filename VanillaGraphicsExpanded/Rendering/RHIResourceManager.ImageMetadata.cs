@@ -29,7 +29,7 @@ internal sealed partial class RHIResourceManager
             : image.Kind == GpuResourceKind.Renderbuffer && renderbuffer is { } renderbufferFacts
                 ? ProjectRenderbufferImage(renderbufferFacts, image.MetadataImageSelection) : null;
         if (!candidate.HasValue) throw new InvalidOperationException("The supplied framebuffer image selection is unavailable.");
-        image.HandleMetadataChanged(candidate.Value);
+        image.AssignMetadataSnapshot(candidate.Value);
     }
 
     /// <summary>Associates an image selection with the same backing registration without another native query.</summary>
@@ -57,10 +57,11 @@ internal sealed partial class RHIResourceManager
         };
         if (!candidate.HasValue)
         {
-            image.HandleMetadataChanged(default);
+            image.AssignMetadataSnapshot(default);
+            image.WithdrawMetadataSnapshot();
             return false;
         }
-        image.HandleMetadataChanged(candidate.Value);
+        image.AssignMetadataSnapshot(candidate.Value);
         return true;
     }
     #endregion

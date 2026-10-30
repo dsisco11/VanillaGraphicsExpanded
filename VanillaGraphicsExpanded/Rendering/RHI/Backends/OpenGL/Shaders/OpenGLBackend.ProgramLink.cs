@@ -32,11 +32,7 @@ internal sealed partial class OpenGLBackend
         try
         {
             RHIResourceManager.InvalidateWrapperMetadata(program, GpuMetadataChange.Metadata | GpuMetadataChange.Executable);
-            if (pending.Entry is null)
-            {
-                RHIResourceManager.DiscardUntrackedMetadata(program);
-                program.OnNativeProgramMetadataChanged(GpuMetadataChange.Executable, false);
-            }
+            pending.CaptureSubmittedRevision();
             if (binary is null) OpenGLDriverCalls.LinkProgram(program.ProgramId);
             else
             {
@@ -80,7 +76,7 @@ internal sealed partial class OpenGLBackend
             if (!IsPendingProgramCurrent(program, pending)) return false;
             if (pending.Entry is { } original) original.Manager.ResetProgramUnitRepresentation(original);
             operation.Commit(candidate);
-            if (pending.Entry is null) program.OnNativeProgramMetadataChanged(change, true);
+
             return candidate.ExecutableAvailable;
         }
         finally { if (pendingProgramLinks.TryGetValue(program, out var current) && ReferenceEquals(current, pending)) pendingProgramLinks.Remove(program); }
@@ -99,7 +95,7 @@ internal sealed partial class OpenGLBackend
         private readonly int id;
         private readonly (nint Handle, long Generation) context;
         internal readonly GpuResourceRegistration? Entry;
-        private readonly ulong revision;
+        private ulong revision;
         internal bool Consumed;
 
         #region Internal API
@@ -111,6 +107,8 @@ internal sealed partial class OpenGLBackend
             Entry = program.ResourceManager?.GetResourceRegistration(program);
             revision = Entry?.MetadataRevision ?? 0;
         }
+        /// <summary>Captures submission's own availability transition without accepting later mutations.</summary>
+        internal void CaptureSubmittedRevision() => revision = Entry?.MetadataRevision ?? 0;
         /// <summary>Rejects retired names, context changes and substituted registrations.</summary>
         internal bool IsCurrent(GpuProgramObject program) => program.IsValid && program.ProgramId == id
             && context == RenderContextRegistry.Current()

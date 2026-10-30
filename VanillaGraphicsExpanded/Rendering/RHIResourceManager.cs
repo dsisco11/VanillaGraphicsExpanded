@@ -173,6 +173,7 @@ internal sealed partial class RHIResourceManager : IRenderer, IDisposable
 
     private void DrainDeletionQueue()
     {
+        using var completion = BeginChangeDelivery();
         var deferred = new System.Collections.Generic.List<GpuDeletionCommand>();
         while (deletionQueue.TryDequeue(out GpuDeletionCommand command))
         {

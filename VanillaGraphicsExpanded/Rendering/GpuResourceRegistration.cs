@@ -115,6 +115,9 @@ internal abstract class GpuResourceRegistration
 
     /// <summary>Releases weak association storage on terminal invalidation.</summary>
     internal abstract void ClearAssociations();
+
+    /// <summary>Captures exactly-once terminal notification before recipient membership is released.</summary>
+    internal abstract Action CaptureRetirement();
     #endregion
     #endregion
 }

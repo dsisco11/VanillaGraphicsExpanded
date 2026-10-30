@@ -10,6 +10,7 @@ internal sealed partial class RHIResourceManager
         bool renewTextureAssociation = false)
         where TMetadata : struct
     {
+        using var delivery = BeginChangeDelivery();
         RequireMetadataContext();
         RequireLiveEntry(entry);
         if (entry.OperationInProgress) throw new System.InvalidOperationException("An operation owns this resource result.");
@@ -26,41 +27,45 @@ internal sealed partial class RHIResourceManager
             candidate = ReconcileFramebufferAttachmentModes(entry, candidate);
             // Retirement can run while the native read is in progress. Never publish captured
             // facts into an entry removed by retirement or replaced under the same numeric ID.
+            textureBackingIdentities.TryGetValue(entry, out var previousBacking);
             AcquireBufferTextureBacking(entry, candidate, renewTextureAssociation);
             AcquireRenderbufferTextureBacking(entry, candidate, renewTextureAssociation);
+            textureBackingIdentities.TryGetValue(entry, out var resultingBacking);
+            bool backingChanged = !ReferenceEquals(previousBacking?.Source, resultingBacking?.Source);
             RequireMetadataContext();
             RequireLiveEntry(entry);
             RequireUninterruptedCompletion(entry);
             ulong previousStorage = entry.StorageRevision;
-            change = entry.Publish(candidate, change);
+            entry.Publish(candidate, change, backingIdentityChanged: backingChanged);
+            finished = true;
             PublishBufferTextureDependencies(entry, previousStorage);
             PublishRenderbufferTextureDependencies(entry, previousStorage);
             if (entry.Kind == GpuResourceKind.Texture && entry.StorageRevision != previousStorage)
                 WithdrawChangedTextureViews(entry);
-            else if (entry.Kind == GpuResourceKind.Texture) SetTextureViewSourceAvailability(entry, true);
-            finished = true;
+            RecoverResourceDependencies(entry);
+            delivery.Complete();
             return true;
         }
         finally
         {
             entry.CompletionInProgress = false;
             if (!finished && interruptedExecutable) entry.CompletionInterrupted = true;
-            try { entry.NotifyImageDependents(suppressErrors: !finished); }
-            finally { entry.NotifyProgramDependents(change, finished); }
+            if (!finished) entry.Withdraw(change);
         }
     }
 
     /// <summary>Publishes facts already proven by a validated native operation, without another native query.</summary>
     internal void PublishMetadata<TMetadata>(GpuResourceMetadataEntry<TMetadata> entry, TMetadata candidate, GpuMetadataChange change,
-        bool renewTextureAssociation = false)
+        bool renewTextureAssociation = false, IRHIResourceOperation? operation = null)
         where TMetadata : struct
-        => PublishMetadataCore(entry, candidate, change, renewTextureAssociation, null);
+        => PublishMetadataCore(entry, candidate, change, renewTextureAssociation, operation);
 
     /// <summary>Commits a supplied result, allowing only an explicitly authorized operation past its execution guard.</summary>
     private void PublishMetadataCore<TMetadata>(GpuResourceMetadataEntry<TMetadata> entry, TMetadata candidate,
-        GpuMetadataChange change, bool renewTextureAssociation, IRHIResourceOperation? operation)
+        GpuMetadataChange change, bool renewTextureAssociation, IRHIResourceOperation? operation, GpuResource? origin = null, System.Action? committed = null)
         where TMetadata : struct
     {
+        using var delivery = BeginChangeDelivery();
         RequireMetadataContext();
         RequireLiveEntry(entry);
         if (entry.OperationInProgress && operation is null) throw new System.InvalidOperationException("An operation owns this resource result.");
@@ -75,26 +80,30 @@ internal sealed partial class RHIResourceManager
             if (!CanReadProgramUnitMetadata(entry))
                 throw new System.InvalidOperationException("Program texture-unit representation requires a replacement executable.");
             candidate = ReconcileFramebufferAttachmentModes(entry, candidate);
+            textureBackingIdentities.TryGetValue(entry, out var previousBacking);
             AcquireBufferTextureBacking(entry, candidate, renewTextureAssociation);
             AcquireRenderbufferTextureBacking(entry, candidate, renewTextureAssociation);
+            textureBackingIdentities.TryGetValue(entry, out var resultingBacking);
+            bool backingChanged = !ReferenceEquals(previousBacking?.Source, resultingBacking?.Source);
             RequireMetadataContext();
             RequireLiveEntry(entry);
             RequireUninterruptedCompletion(entry);
             ulong previousStorage = entry.StorageRevision;
-            change = entry.Publish(candidate, change);
+            entry.Publish(candidate, change, origin, backingChanged);
+            finished = true;
+            committed?.Invoke();
             PublishBufferTextureDependencies(entry, previousStorage);
             PublishRenderbufferTextureDependencies(entry, previousStorage);
             if (entry.Kind == GpuResourceKind.Texture && entry.StorageRevision != previousStorage)
                 WithdrawChangedTextureViews(entry);
-            else if (entry.Kind == GpuResourceKind.Texture) SetTextureViewSourceAvailability(entry, true);
-            finished = true;
+            RecoverResourceDependencies(entry);
+            delivery.Complete();
         }
         finally
         {
             entry.CompletionInProgress = false;
             if (!finished && interruptedExecutable) entry.CompletionInterrupted = true;
-            try { entry.NotifyImageDependents(suppressErrors: !finished); }
-            finally { entry.NotifyProgramDependents(change, finished); }
+            if (!finished) entry.Withdraw(change);
         }
     }
     #endregion

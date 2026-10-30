@@ -12,7 +12,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 public sealed class ShaderInputMetadataRevisionTests(HeadlessGLFixture fixture)
 {
     #region Public API
-    /// <summary>Equal native descriptors still invalidate successful compatibility history after publication.</summary>
+    /// <summary>Equal facts retain compatibility history while explicit storage replacement invalidates it.</summary>
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -33,8 +33,9 @@ public sealed class ShaderInputMetadataRevisionTests(HeadlessGLFixture fixture)
             var current = ShaderInputValidation.TextureKey(texture);
             Assert.Equal(previous.Width, current.Width);
             Assert.Equal(previous.Format, current.Format);
-            Assert.NotEqual(previous.Revisions, current.Revisions);
-            Assert.False(validation.Matches(default, current));
+            if (storage) Assert.NotEqual(previous.Revisions, current.Revisions);
+            else Assert.Equal(previous.Revisions, current.Revisions);
+            Assert.Equal(!storage, validation.Matches(default, current));
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
         finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
@@ -61,8 +62,10 @@ public sealed class ShaderInputMetadataRevisionTests(HeadlessGLFixture fixture)
             var current = ShaderInputValidation.StorageKey(range);
             Assert.Equal(previous.Capacity, current.Capacity);
             Assert.Equal(previous.Size, current.Size);
-            Assert.NotEqual(previous.Revisions, current.Revisions);
-            Assert.False(validation.Matches(default, current));
+            Assert.Equal(previous.Revisions, current.Revisions);
+            Assert.True(validation.Matches(default, current));
+            manager.PublishMetadata(entry, entry.Metadata with { Usage = BufferUsage.DynamicDraw }, GpuMetadataChange.Metadata);
+            Assert.False(validation.Matches(default, ShaderInputValidation.StorageKey(range)));
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
         finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }

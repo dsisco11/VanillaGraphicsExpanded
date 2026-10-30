@@ -80,7 +80,7 @@ internal sealed partial class RHIResourceManager
                     reader = (IGpuResourceMetadataReader<TMetadata>)(object)GpuTextureMetadataReader.Instance;
             }
             tracked.Reader = reader;
-            return RefreshMetadata(tracked, tracked.MetadataRevision == 0 ? GpuMetadataChange.None : GpuMetadataChange.Metadata) ? tracked : null;
+            return RefreshMetadata(tracked, !tracked.HasCommittedMetadata ? GpuMetadataChange.None : GpuMetadataChange.Metadata) ? tracked : null;
         }
         return null;
     }
@@ -96,7 +96,7 @@ internal sealed partial class RHIResourceManager
         if (entry.State != GpuResourceRegistrationState.Live || entry.OperationInProgress || entry.CompletionInProgress) return null;
         if (kind == GpuResourceKind.Buffer && !entry.IsRealized && entry.InitialDiscovery == GpuInitialDiscovery.None) return null;
         entry.InitialDiscovery = GpuInitialDiscovery.None;
-        if (entry.MetadataRevision == 0 && reader is GpuTextureMetadataReader)
+        if (!entry.HasCommittedMetadata && reader is GpuTextureMetadataReader)
             reader = (IGpuResourceMetadataReader<TMetadata>)(object)GpuTextureMetadataReader.Instance;
         if (entry is GpuResourceMetadataEntry<GpuMemoryObjectMetadata> memory)
         {
@@ -193,7 +193,22 @@ internal sealed partial class RHIResourceManager
     {
         if (!ReferenceEquals(entry.Manager, this)) throw new InvalidOperationException("The registration belongs to another manager.");
         entry.RequireRetirement();
-        return entry.TryRetire();
+        if (!entry.TryRetire()) return false;
+        var delivery = entry.CaptureRetirement();
+        if (Environment.CurrentManagedThreadId == Volatile.Read(ref metadataThreadId))
+        {
+            using var batch = BeginChangeDelivery();
+            WithdrawResourceDependencies(entry, GpuMetadataChange.Metadata);
+            DeliverResourceChange(delivery);
+            return true;
+        }
+        EnqueueContextCleanup(() =>
+        {
+            using var batch = BeginChangeDelivery();
+            WithdrawResourceDependencies(entry, GpuMetadataChange.Metadata);
+            DeliverResourceChange(delivery);
+        }, context);
+        return true;
     }
 
     /// <summary>Removes a deleted name and invalidates its aliases before that name can be registered again.</summary>
@@ -201,20 +216,19 @@ internal sealed partial class RHIResourceManager
         bool external = false)
     {
         if (id == 0 || context != currentMetadataContext()) return;
+        using var delivery = BeginChangeDelivery();
         RHICommandContext.CancelResourceOperation(kind, id);
         GpuResourceRegistration? deleted = null;
         if (metadataRegistry.TryRemove(new(kind, id), out var entry))
         {
             deleted = entry;
-            if (external && entry is GpuResourceMetadataEntry<GpuTextureMetadata> texture)
-                texture.ClearImageRecipientSnapshots();
-            else if (external && entry is GpuResourceMetadataEntry<GpuRenderbufferMetadata> renderbuffer)
-                renderbuffer.ClearImageRecipientSnapshots();
+            DeliverResourceChange(entry.CaptureRetirement());
             entry.Invalidate(GpuResourceRegistrationState.Deleted);
             if (kind == GpuResourceKind.Texture) WithdrawChangedTextureViews(entry);
         }
         // A tracked dependent can refer to an externally owned, unregistered backing name.
         InvalidateDeletionDependencies(kind, id, deleted, readFramebuffer, drawFramebuffer, external);
+        delivery.Complete();
     }
 
     /// <summary>Checks captured registration identity for deferred work without reacquiring a reused numeric name.</summary>
@@ -308,9 +322,17 @@ internal sealed partial class RHIResourceManager
     {
         if (Interlocked.Exchange(ref metadataRegistryRetired, 1) != 0) return;
         RenderContextRegistry.Retiring -= OnMetadataContextRetiring;
+        var notifications = new System.Collections.Generic.List<Action>();
         foreach (var pair in metadataRegistry)
             if (metadataRegistry.TryRemove(pair.Key, out var entry))
+            {
+                var terminal = entry.CaptureRetirement();
                 entry.Invalidate(GpuResourceRegistrationState.ContextRetired);
+                notifications.Add(terminal);
+            }
+        // Every entry is terminal and every image snapshot withdrawn before consumers run.
+        foreach (var notify in notifications)
+            try { notify(); } catch { }
     }
     #endregion
     #endregion

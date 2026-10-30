@@ -30,7 +30,7 @@ internal sealed partial class OpenGlStateCache
         if (!entry.IsUsable || !GpuSupport.HasCachedCapabilitiesForCurrentContext)
         {
             cache.InterruptNativeResourceOperation(GpuResourceKind.Renderbuffer, id);
-            if (!InterruptNativeMetadataCompletion(entry, GpuMetadataChange.Storage)) entry.BeginRefresh(GpuMetadataChange.Storage);
+            if (!InterruptNativeMetadataCompletion(entry, GpuMetadataChange.Storage)) entry.Withdraw(GpuMetadataChange.Storage);
             return;
         }
         int requestedSamples = coverage ? coverageSamples : samples;
@@ -52,7 +52,7 @@ internal sealed partial class OpenGlStateCache
             && (entry.Metadata.Width != width || entry.Metadata.Height != height || entry.Metadata.Format != format))
         {
             cache.InterruptNativeResourceOperation(GpuResourceKind.Renderbuffer, id);
-            if (!InterruptNativeMetadataCompletion(entry, GpuMetadataChange.Storage)) entry.BeginRefresh(GpuMetadataChange.Storage);
+            if (!InterruptNativeMetadataCompletion(entry, GpuMetadataChange.Storage)) entry.Withdraw(GpuMetadataChange.Storage);
             return;
         }
         cache.InterruptNativeResourceOperation(GpuResourceKind.Renderbuffer, id);

@@ -13,7 +13,18 @@ public readonly record struct GpuTextureMetadata(
     int MaxLevel,
     GpuTextureBufferMetadata? Buffer = null,
     GpuTextureViewMetadata? View = null,
-    nint Renderbuffer = 0);
+    nint Renderbuffer = 0){
+    #region Public API
+    /// <summary>Compares image values independently of collection allocation and order.</summary>
+    public bool Equals(GpuTextureMetadata other) => Target == other.Target && ImmutableStorage == other.ImmutableStorage
+        && ImmutableLevels == other.ImmutableLevels && BaseLevel == other.BaseLevel && MaxLevel == other.MaxLevel
+        && Buffer == other.Buffer && View == other.View && Renderbuffer == other.Renderbuffer
+        && MetadataCollections.Equal(Levels, other.Levels);
+    /// <summary>Hashes the same scalar facts and unordered image values used by equality.</summary>
+    public override int GetHashCode() => System.HashCode.Combine(Target, ImmutableStorage, ImmutableLevels,
+        BaseLevel, MaxLevel, Buffer, View, System.HashCode.Combine(Renderbuffer, MetadataCollections.Hash(Levels)));
+    #endregion
+}
 
 /// <summary>Describes one native mip image or cube face; unallocated images remain explicit.</summary>
 public readonly record struct GpuTextureLevelMetadata(

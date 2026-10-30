@@ -1,3 +1,4 @@
+using System.Linq;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -9,6 +10,10 @@ internal sealed class GpuResourceMetadataEntry<TMetadata> : GpuResourceRegistrat
 {
     private readonly ConcurrentDictionary<WeakReference<GpuResource>, bool> recipients = new();
     private GpuMetadataChange pendingChange;
+    private bool publishedAvailable;
+    private Action? retirementDelivery;
+    /// <summary>Distinguishes committed facts from revision changes caused by availability or retirement.</summary>
+    internal bool HasCommittedMetadata { get; private set; }
     /// <summary>Prevents recursive native acquisition while a complete result is being recovered or committed.</summary>
     internal bool CompletionInProgress { get; set; }
     /// <summary>Rejects a stale outer candidate after a caught reentrant mutation attempt.</summary>
@@ -72,57 +77,23 @@ internal sealed class GpuResourceMetadataEntry<TMetadata> : GpuResourceRegistrat
     #endregion
 
     #region Snapshot publication
-    /// <summary>Invalidates retained framebuffer helper state after external native configuration observation.</summary>
-    internal void NotifyFramebufferDependents(GpuResource? origin = null)
-    {
-        foreach (var recipient in recipients.ToArray())
-            if (TryGetRecipient(recipient.Key, out var resource) && !ReferenceEquals(resource, origin)
-                && resource is GpuFramebuffer framebuffer)
-                framebuffer.OnNativeConfigurationChanged();
-    }
-
-    /// <summary>Reports an externally deleted backing without cancelling pending owner reattachment.</summary>
-    internal void NotifyFramebufferBackingRetired()
-    {
-        foreach (var recipient in recipients.ToArray())
-            if (TryGetRecipient(recipient.Key, out var resource) && resource is GpuFramebuffer framebuffer)
-                framebuffer.OnObservedBackingRetired();
-    }
-
-    /// <summary>Clears image snapshots before an external deletion retires their subscriptions.</summary>
-    internal void ClearImageRecipientSnapshots()
-    {
-        foreach (var recipient in recipients.ToArray())
-            if (TryGetRecipient(recipient.Key, out var resource) && resource is GpuFramebufferAttachment image)
-                image.HandleMetadataChanged(default);
-    }
-
-    /// <summary>Withdraws or restores dependent image projections when a view source changes availability.</summary>
-    internal void SetImageRecipientAvailability(bool available)
-    {
-        foreach (var recipient in recipients.ToArray())
-        {
-            if (!TryGetRecipient(recipient.Key, out var resource) || resource is not GpuFramebufferAttachment image
-                || recipient.Value == available) continue;
-            bool assigned = available && Manager.AssignImageMetadata(this, image);
-            if (!available) image.HandleMetadataChanged(default);
-            recipients.TryUpdate(recipient.Key, assigned, recipient.Value);
-            try { image.NotifyDependents(); } catch { }
-        }
-    }
-
     /// <summary>Marks canonical metadata unavailable before reading a replacement candidate.</summary>
-    internal void BeginRefresh(GpuMetadataChange change)
+    internal void BeginRefresh(GpuMetadataChange change, bool fromBacking = false)
     {
-        pendingChange |= change;
-        MetadataAvailable = false;
-        PruneAssociations();
+        lock (recipients)
+        {
+            if (State != GpuResourceRegistrationState.Live) return;
+            if (!fromBacking) Manager.ClearDependencyWithdrawal(this);
+            pendingChange |= change;
+            MetadataAvailable = false;
+            PruneAssociations();
+        }
     }
 
     /// <summary>Retains supplied initial facts privately while an unknown EXT identity still needs discovery.</summary>
     internal void RetainInitialCandidate(TMetadata candidate)
     {
-        if (IsUsable || MetadataRevision != 0 || InitialDiscovery != GpuInitialDiscovery.ImplicitCreation)
+        if (IsUsable || HasCommittedMetadata || InitialDiscovery != GpuInitialDiscovery.ImplicitCreation)
             throw new InvalidOperationException("Only an unresolved initial EXT identity can retain supplied facts.");
         Metadata = candidate;
     }
@@ -130,74 +101,94 @@ internal sealed class GpuResourceMetadataEntry<TMetadata> : GpuResourceRegistrat
     /// <summary>Discards unpublished supplied facts after a later potentially accepted effect makes them uncertain.</summary>
     internal void DiscardInitialCandidate()
     {
-        if (!IsUsable && MetadataRevision == 0)
+        if (!IsUsable && !HasCommittedMetadata)
             Metadata = Metadata is GpuTextureMetadata texture
                 ? (TMetadata)(object)(texture with { Buffer = null }) : default;
     }
 
-    /// <summary>Assigns recipient snapshots before publishing canonical availability and revisions.</summary>
-    internal GpuMetadataChange Publish(TMetadata candidate, GpuMetadataChange change)
+    /// <summary>Commits facts and revisions, assigns snapshots, then schedules one classified transition.</summary>
+    internal void Publish(TMetadata candidate, GpuMetadataChange effects, GpuResource? origin = null, bool backingIdentityChanged = false)
     {
-        change |= pendingChange;
-        MetadataAvailable = false;
-        Metadata = candidate;
-        Realize();
-        InitialDiscovery = GpuInitialDiscovery.None;
-        List<Exception>? failures = null;
-        foreach (var recipient in recipients.ToArray())
+        using var delivery = Manager.BeginChangeDelivery();
+        lock (recipients)
         {
-            if (!TryGetRecipient(recipient.Key, out var resource)) continue;
-            bool assigned = false;
-            try { assigned = AssignSnapshot(resource); }
-            catch (Exception error) { (failures ??= new()).Add(error); }
-            // Conditional update cannot recreate a slot removed concurrently by disposal.
-            recipients.TryUpdate(recipient.Key, assigned, recipient.Value);
+            if (State != GpuResourceRegistrationState.Live || Manager.IsMetadataRegistryRetired)
+                throw new InvalidOperationException("The original resource retired before snapshot commit.");
+            effects |= pendingChange;
+            var reasons = backingIdentityChanged || !HasCommittedMetadata || !EqualityComparer<TMetadata>.Default.Equals(Metadata, candidate)
+                ? ResourceChangeKind.Metadata : ResourceChangeKind.None;
+            if (!publishedAvailable) reasons |= ResourceChangeKind.Availability;
+            if ((effects & GpuMetadataChange.Storage) != 0) reasons |= ResourceChangeKind.Storage;
+            if ((effects & GpuMetadataChange.Executable) != 0) reasons |= ResourceChangeKind.Executable;
+            Metadata = candidate;
+            HasCommittedMetadata = true;
+            Realize();
+            InitialDiscovery = GpuInitialDiscovery.None;
+            if (reasons != ResourceChangeKind.None) MetadataRevision++;
+            if ((reasons & ResourceChangeKind.Storage) != 0) StorageRevision++;
+            pendingChange = GpuMetadataChange.None;
+            publishedAvailable = MetadataAvailable = true;
+            foreach (var recipient in recipients.ToArray())
+            {
+                if (!TryGetRecipient(recipient.Key, out var resource)) continue;
+                bool assigned = AssignSnapshot(resource);
+                recipients.TryUpdate(recipient.Key, assigned, recipient.Value);
+            }
+            ScheduleChange(reasons, origin);
         }
-        if (MetadataRevision == 0 || change != GpuMetadataChange.None) MetadataRevision++;
-        if ((change & GpuMetadataChange.Storage) != 0) StorageRevision++;
-        pendingChange = GpuMetadataChange.None;
-        MetadataAvailable = true;
-        // Entry lifecycle gates availability even if retirement overlaps these assignments.
-        if (failures is not null) throw new AggregateException("GPU metadata publication failed.", failures);
-        return change;
+        delivery.Complete();
     }
 
-    /// <summary>Refreshes every program recipient's derived preparation after canonical snapshot delivery.</summary>
-    internal void NotifyProgramDependents(GpuMetadataChange change, bool available)
+    /// <summary>Publishes a real loss of facts; temporary operation exclusion uses BeginRefresh instead.</summary>
+    internal void Withdraw(GpuMetadataChange effects = GpuMetadataChange.Metadata, GpuResource? origin = null, bool fromBacking = false)
     {
-        if (Kind != GpuResourceKind.Program) return;
-        List<Exception>? failures = null;
-        foreach (var recipient in recipients.ToArray())
+        using var delivery = Manager.BeginChangeDelivery();
+        lock (recipients)
         {
-            if (!TryGetRecipient(recipient.Key, out var resource)) continue;
-            try
-            {
-                if (resource is GpuProgramObject program) program.OnNativeProgramMetadataChanged(change, available);
-            }
-            catch (Exception error) { (failures ??= new()).Add(error); }
+            if (State != GpuResourceRegistrationState.Live || Manager.IsMetadataRegistryRetired) return;
+            BeginRefresh(effects, fromBacking);
+            Manager.WithdrawResourceDependencies(this, effects);
+            if (!publishedAvailable) return;
+            publishedAvailable = false;
+            MetadataRevision++;
+            foreach (var recipient in recipients.ToArray())
+                if (TryGetRecipient(recipient.Key, out var resource) && resource is GpuFramebufferAttachment image)
+                {
+                    image.AssignMetadataSnapshot(default);
+                    image.WithdrawMetadataSnapshot();
+                }
+            ScheduleChange(ResourceChangeKind.Availability, origin);
         }
-        if (available && failures is not null)
-            throw new AggregateException("GPU program preparation notification failed.", failures);
+        delivery.Complete();
     }
 
-    /// <summary>Invalidates existing image consumers after all snapshots have been assigned or withdrawn.</summary>
-    internal void NotifyImageDependents(bool suppressErrors)
+    /// <summary>Captures the terminal recipients before membership is cleared.</summary>
+    internal override Action CaptureRetirement()
     {
-        List<Exception>? failures = null;
-        foreach (var recipient in recipients.ToArray())
+        lock (recipients)
         {
-            if (!TryGetRecipient(recipient.Key, out var resource) || resource is not GpuFramebufferAttachment image) continue;
-            try
+            // A queued retirement and context shutdown may both capture this lifetime.
+            // They share one idempotent delivery so teardown cannot lose or repeat it.
+            if (retirementDelivery is not null) return retirementDelivery;
+            var reasons = ResourceChangeKind.Retired;
+            if (publishedAvailable) reasons |= ResourceChangeKind.Availability;
+            publishedAvailable = MetadataAvailable = false;
+            MetadataRevision++;
+            foreach (var recipient in recipients.ToArray())
+                if (TryGetRecipient(recipient.Key, out var resource) && resource is GpuFramebufferAttachment image)
+                {
+                    image.AssignMetadataSnapshot(default);
+                    image.WithdrawMetadataSnapshot();
+                }
+            var captured = CaptureChange(reasons, null, terminal: true);
+            int delivered = 0;
+            return retirementDelivery = () =>
             {
-                if (!IsUsable) image.HandleMetadataChanged(default);
-                image.NotifyDependents();
-            }
-            catch (Exception error) { (failures ??= new()).Add(error); }
+                if (System.Threading.Interlocked.Exchange(ref delivered, 1) == 0) captured();
+            };
         }
-        // A reader/publication exception remains the primary failure. All callbacks still run.
-        if (!suppressErrors && failures is not null)
-            throw new AggregateException("GPU image dependency notification failed.", failures);
     }
+
     #endregion
 
     #region Recipient removal
@@ -223,6 +214,34 @@ internal sealed class GpuResourceMetadataEntry<TMetadata> : GpuResourceRegistrat
     #endregion
 
     #region Private
+    /// <summary>Enqueues only meaningful transitions; equal publication still delivered snapshots above.</summary>
+    private void ScheduleChange(ResourceChangeKind reasons, GpuResource? origin)
+    {
+        if (reasons != ResourceChangeKind.None) Manager.DeliverResourceChange(CaptureChange(reasons, origin, false));
+    }
+
+    /// <summary>Retains weak recipients and stops obsolete delivery after native reentry.</summary>
+    private Action CaptureChange(ResourceChangeKind reasons, GpuResource? origin, bool terminal)
+    {
+        var captured = recipients.Keys.ToArray();
+        var change = new RHIResourceChange(reasons, !terminal && publishedAvailable, MetadataRevision, StorageRevision, origin);
+        return () =>
+        {
+            List<Exception>? failures = null;
+            foreach (var recipient in captured)
+            {
+                if (MetadataRevision != change.MetadataRevision || (!terminal && (!Manager.IsRegistered(this) || IsUsable != change.Available))) break;
+                if (!recipient.TryGetTarget(out var resource) || resource.IsDisposed
+                    || !ReferenceEquals(Manager.GetResourceRegistration(resource), this)
+                    || !terminal && !ContainsRecipient(resource)) continue;
+                var delivered = resource is GpuFramebufferAttachment && !terminal
+                    ? change with { Available = change.Available && HasSnapshot(resource) } : change;
+                try { resource.OnResourceChanged(delivered); }
+                catch (Exception error) { (failures ??= new()).Add(error); }
+            }
+            if (failures is not null) throw new AggregateException("Resource recipients failed after publication.", failures);
+        };
+    }
     /// <summary>Resolves live wrappers whose weak slot still belongs to this manager entry.</summary>
     private bool TryGetRecipient(WeakReference<GpuResource> recipient, out GpuResource resource)
     {
@@ -236,7 +255,7 @@ internal sealed class GpuResourceMetadataEntry<TMetadata> : GpuResourceRegistrat
     {
         if (resource is GpuResource<TMetadata> typed)
         {
-            typed.HandleMetadataChanged(Metadata);
+            typed.AssignMetadataSnapshot(Metadata);
             return true;
         }
         return Manager.AssignImageMetadata(this, resource);

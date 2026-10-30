@@ -22,6 +22,9 @@ public sealed class GpuFramebufferAttachment : GpuResource<GpuImageMetadata>
 
     private int retired;
 
+    /// <summary>Invalidates weak framebuffer consumers after projection and backing changes commit.</summary>
+    internal override void OnResourceChanged(in RHIResourceChange change) => NotifyDependents();
+
     #region Public API
     #region Construction
     /// <summary>Borrows a view-relative multiview range without transferring storage ownership.</summary>

@@ -41,7 +41,7 @@ internal sealed partial class RHIResourceManager
                 // failure notification must not silently reacquire and revive withdrawn facts.
                 if (!manager.IsResourceMetadataAvailable(image))
                 {
-                    image.HandleMetadataChanged(default);
+                    image.AssignMetadataSnapshot(default);
                     throw new InvalidOperationException("The selected framebuffer image metadata is unavailable.");
                 }
                 return;
@@ -84,7 +84,7 @@ internal sealed partial class RHIResourceManager
         }
         if (!projected.HasValue)
             throw new InvalidOperationException("The selected framebuffer image metadata is unavailable.");
-        image.HandleMetadataChanged(projected.Value);
+        image.AssignMetadataSnapshot(projected.Value);
     }
     #endregion
 }

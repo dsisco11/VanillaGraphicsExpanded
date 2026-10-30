@@ -128,7 +128,7 @@ internal sealed partial class OpenGLBackend
         {
             if (retired || !Array.IsValid || !ReferenceEquals(registration, Array.ResourceManager?.GetResourceRegistration(Array))) return false;
             if (registration is not null && Array.ResourceManager?.IsResourceMetadataAvailable(Array) != true) return false;
-            if (registration is not null ? registration.MetadataRevision != revision : localEpoch != cache.GetVertexConfigurationRevision(Array.VertexArrayId)) return false;
+            if (localEpoch != cache.GetVertexConfigurationRevision(Array.VertexArrayId) || registration is not null && registration.MetadataRevision != revision) return false;
             for (int index = 0; index < streamNames.Length; index++)
                 if (streamNames[index] != geometry.Streams[index].Range.Buffer.RequireResource().ResourceId) return false;
             return elementName == (geometry.Indices is { } indices ? indices.Range.Buffer.RequireResource().ResourceId : 0);

@@ -37,7 +37,7 @@ public sealed class GpuVertexMetadataInterceptionTests(HeadlessGLFixture fixture
             using var alias=new VertexAlias(owner.VertexArrayId); manager.AssociateResource(entry,alias);
             ulong revision=entry.MetadataRevision,storage=entry.StorageRevision;
             Mutate(variant,owner.VertexArrayId,buffer.BufferId);
-            Assert.Equal(revision+1,entry.MetadataRevision); Assert.Equal(storage,entry.StorageRevision);
+            Assert.Equal(revision,entry.MetadataRevision); Assert.Equal(storage,entry.StorageRevision);
             Assert.True(manager.IsResourceMetadataAvailable(alias));
             Assert.Equal(named?sentinel.VertexArrayId:owner.VertexArrayId,GL.GetInteger(GetPName.VertexArrayBinding));
             Assert.Equal(previous.BufferId,GL.GetInteger(GetPName.ArrayBufferBinding));

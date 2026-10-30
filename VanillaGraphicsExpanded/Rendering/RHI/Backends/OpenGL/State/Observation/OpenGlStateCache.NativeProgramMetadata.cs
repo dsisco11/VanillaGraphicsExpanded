@@ -70,30 +70,32 @@ internal sealed partial class OpenGlStateCache
         Current.InterruptNativeResourceOperation(GpuResourceKind.Program, program);
         var change = GpuMetadataChange.Metadata | (executable ? GpuMetadataChange.Executable : GpuMetadataChange.None);
         if (InterruptNativeMetadataCompletion(entry, change)) return;
+        using var delivery = manager.BeginChangeDelivery();
         if (executable) entry.CompletionInterrupted = true;
         entry.BeginRefresh(change);
-        entry.NotifyProgramDependents(change, false);
         if (executable)
         {
             manager.ResetProgramUnitRepresentation(entry);
             entry.Reader ??= GpuProgramMetadataReader.Instance;
             // Early engine compilation can precede admission. Withdraw the executable now;
             // explicit completion after admission may obtain outputs without discovery here.
-            if (!GpuSupport.HasCachedCapabilitiesForCurrentContext) return;
+            if (!GpuSupport.HasCachedCapabilitiesForCurrentContext) { entry.Withdraw(change); return; }
             // Parallel linking may still be pending after native return. Its nonblocking
             // output flag is distinct from interface discovery and ordinary assignments.
             if (GpuSupport.Graphics.SupportsArbParallelShaderCompile || GpuSupport.Graphics.SupportsKhrParallelShaderCompile)
             {
                 OpenGLDriverCalls.GetProgram(program, (GetProgramParameterName)ArbParallelShaderCompile.CompletionStatusArb, out int complete);
-                if (complete == 0) return;
+                if (complete == 0) { entry.Withdraw(change); return; }
             }
             manager.RefreshMetadata(entry, change);
         }
-        else if (unsupportedUnits) manager.WithdrawUnsupportedProgramUnits(entry);
+        else if (unsupportedUnits) { manager.WithdrawUnsupportedProgramUnits(entry); entry.Withdraw(change); }
         else if (known && GpuSupport.HasCachedCapabilitiesForCurrentContext)
             manager.PublishProgramAssignment(entry, previous, unit, location,
                 supplied.HasValue ? [supplied.Value] : values[..count],
                 block == ProgramInterface.UniformBlock ? ProgramBlockKind.Uniform : ProgramBlockKind.Storage, blockIndex);
+        else entry.Withdraw(change);
+        delivery.Complete();
         // An unavailable executable stays unavailable. Assignments are never implicit recovery.
     }
     #endregion

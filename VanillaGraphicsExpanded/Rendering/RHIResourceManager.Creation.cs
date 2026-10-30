@@ -67,7 +67,7 @@ internal sealed partial class RHIResourceManager
                 if (creation.Kind != GpuResourceKind.Semaphore && !manager.IsResourceMetadataAvailable(recipient))
                     throw new InvalidOperationException("Initial metadata delivery did not complete.");
             }
-            else recipient.HandleMetadataChanged(candidate.Value);
+            else recipient.AssignMetadataSnapshot(candidate.Value);
             handle = new(creation.Kind, id);
             committed = true;
             return candidate;

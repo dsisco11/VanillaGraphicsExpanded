@@ -26,7 +26,12 @@ internal sealed partial class RHIResourceManager
     private void AcquireBufferTextureBacking<TMetadata>(GpuResourceRegistration texture, TMetadata candidate,
         bool renewAssociation) where TMetadata : struct
     {
-        if (candidate is not GpuTextureMetadata { Buffer: { BufferId: not 0 } association }) return;
+        if (candidate is not GpuTextureMetadata { Buffer: { BufferId: not 0 } association })
+        {
+            if (candidate is GpuTextureMetadata && textureBackingIdentities.TryGetValue(texture, out var old)
+                && old.Source.Kind == GpuResourceKind.Buffer && !old.StorageRevision.HasValue) textureBackingIdentities.Remove(texture);
+            return;
+        }
         // A concrete texture association makes this an observed dependency, not a speculative
         // registration of arbitrary native objects. Existing usable entries need no readback.
         RequireOriginalTextureBacking(texture, GpuResourceKind.Buffer, association.BufferId, renewAssociation);
@@ -54,7 +59,8 @@ internal sealed partial class RHIResourceManager
         {
             if (pair.Value is not GpuResourceMetadataEntry<GpuTextureMetadata> texture
                 || !texture.IsUsable || texture.Metadata.Buffer is not { } association
-                || association.BufferId != backing.Id) continue;
+                || association.BufferId != backing.Id
+                || !textureBackingIdentities.TryGetValue(texture, out var original) || !ReferenceEquals(original.Source, backing)) continue;
             // Buffer storage commands cannot alter a texture's association, explicit range,
             // or whole-buffer mode. Those proven descriptors remain valid; their backing
             // allocation has changed. Never recover a texture withdrawn for another reason.

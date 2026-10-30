@@ -46,7 +46,7 @@ internal sealed partial class OpenGlStateCache
                 if (previous is not null) previous.Revision++;
                 observedActiveQueries[key] = (entry, target, previous?.Revision ?? 0);
                 if (entry is GpuResourceMetadataEntry<GpuQueryMetadata> { IsRealized: false } pending)
-                    pending.BeginRefresh(GpuMetadataChange.Metadata);
+                    pending.Withdraw(GpuMetadataChange.Metadata);
             }
             return;
         }

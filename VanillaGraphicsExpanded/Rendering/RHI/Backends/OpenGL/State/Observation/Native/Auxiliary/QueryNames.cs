@@ -30,7 +30,7 @@ internal sealed unsafe partial class OpenGlStateCache
             manager.ObserveQueryCreation(id, established);
             if (established) cache.EstablishQueryTarget(id, target);
             else if (manager.FindResource(GpuResourceKind.Query, id) is GpuResourceMetadataEntry<GpuQueryMetadata> entry)
-                entry.BeginRefresh(GpuMetadataChange.Metadata);
+                entry.Withdraw(GpuMetadataChange.Metadata);
         }
     }
 
