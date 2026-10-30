@@ -25,7 +25,6 @@ internal static class ShaderPreparedSubmission
         bool valid = RHIResourceManager.ValidateTextureReferenceInput(texture.Resource);
         Require(binding, valid);
         if (!valid) return;
-        Pipeline.Passes.RenderPass.ValidateSampledTexture(texture);
         var key = ShaderInputValidation.TextureKey(texture);
         if (history.Matches(binding, key)) return;
         ValidateSampler(binding, texture);
@@ -74,7 +73,6 @@ internal static class ShaderPreparedSubmission
         if (!binding.Active) return;
         bool valid = RHIResourceManager.ValidateTextureReferenceInput(texture.Resource);
         Require(binding, valid);
-        if (valid) Pipeline.Passes.RenderPass.ValidateSampledTexture(texture);
         if (valid && (GpuPreparedBindings.CompatibleTextureTarget(binding.Type) != (int)texture.Target ||
             !ShaderResourceFormatCompatibility.Matches(binding.Type, texture.RequireImage(0).Format)))
             throw new InvalidOperationException($"Incompatible texture target for {binding.Contract.Name}.");

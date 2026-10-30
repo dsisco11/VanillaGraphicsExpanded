@@ -378,6 +378,13 @@ Immediate callers declare it; closed lists derive it from immutable inputs only.
 cannot widen. Reuse existing selective restoration, feedback/usage guards and helper state; no blanket
 capture or implicit list isolation.
 
+Sampler/framebuffer feedback is checked at graphics draw submission against the selected pipeline,
+including when bindings are reused after a pipeline change. Binding a shader resource table alone
+does not execute a draw. OpenGL 4.5 attached-depth sampling is allowed when the pipeline cannot write
+depth, with a texture barrier before execution to order earlier writes. Overlapping color/stencil
+attachments and writable depth remain rejected; image load/store retains its conservative overlap checks.
+These rules follow [OpenGL 4.5 section 9.3.1](https://registry.khronos.org/OpenGL/specs/gl/glspec45.core.pdf).
+
 `RHIResourceBindings` uniform inputs capture logical bytes/revision/lifetime. Physical allocator selection,
 upload and `UniformPublication.Prepare/Commit/Abort` occur at execution in the current open epoch.
 Commit only the captured successful revision, preserving newer CPU edits. Cancellation allocates no ring

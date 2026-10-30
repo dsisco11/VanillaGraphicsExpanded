@@ -17,7 +17,7 @@ internal sealed partial class OpenGLBackend
         RequireContext();
         var pipeline = reference.RequirePipeline();
         var shader = pipeline.RequireShader();
-        ValidateGraphicsPacket(pipeline, geometry, dynamics);
+        ValidateGraphicsPacket(pipeline, geometry, dynamics, resources);
         ValidateDirectDraw(geometry, draw);
         pipeline.BeginSubmission();
         try
@@ -42,7 +42,7 @@ internal sealed partial class OpenGLBackend
         RequireContext();
         var pipeline = reference.RequirePipeline();
         var shader = pipeline.RequireShader();
-        ValidateGraphicsPacket(pipeline, geometry, dynamics);
+        ValidateGraphicsPacket(pipeline, geometry, dynamics, resources);
         ValidateIndexedDraw(geometry, draw);
         var indices = geometry.Indices!.Value;
         nint offset = checked(indices.Range.Offset + checked((nint)draw.FirstIndex * RHIGeometryInputs.IndexWidth(indices.Format)));
@@ -66,13 +66,14 @@ internal sealed partial class OpenGLBackend
 
     #region Private
     /// <summary>Rejects the complete supplied draw shape before any VAO configuration, program selection or resource upload.</summary>
-    private void ValidateGraphicsPacket(RHIGraphicsPipeline pipeline, RHIGeometryInputs geometry, RHIDynamicState dynamics)
+    private void ValidateGraphicsPacket(RHIGraphicsPipeline pipeline, RHIGeometryInputs geometry, RHIDynamicState dynamics, RHIResourceBindings? resources)
     {
         ArgumentNullException.ThrowIfNull(dynamics);
         var pass = activeRenderPass ?? throw new InvalidOperationException("Graphics drawing requires an active render pass.");
         pass.ValidatePipeline(pipeline);
         ValidateGeometryInputs(pipeline, geometry);
         dynamics.ValidateFor(pipeline.Description);
+        ValidateGraphicsFeedback(pipeline, resources);
     }
     /// <summary>Realizes geometry and applies already validated state while all original buffer and executable guards are held.</summary>
     private void PrepareGraphicsPacket(RHIGraphicsPipeline pipeline, RHIShader shader, RHIGeometryInputs geometry,
@@ -89,6 +90,7 @@ internal sealed partial class OpenGLBackend
         if (resources is null) ApplyExecutable(shader);
         else PublishResourceBindings(shader, resources, reuseCommittedUniforms: true);
         OpenGLVertexSelection.Bind(cache,vertexArrayName);
+        if (ValidateGraphicsFeedback(pipeline, resources)) GL.TextureBarrier();
         shader.RequireUsable();
         geometry.RequireLive();
         if (geometry.ImportedArray is { } imported)

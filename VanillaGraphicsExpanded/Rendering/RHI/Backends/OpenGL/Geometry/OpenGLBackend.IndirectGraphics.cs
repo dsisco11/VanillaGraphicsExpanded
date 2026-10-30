@@ -28,7 +28,7 @@ internal sealed partial class OpenGLBackend
         RequireContext();
         var pipeline = reference.RequirePipeline();
         var shader = pipeline.RequireShader();
-        ValidateGraphicsPacket(pipeline, geometry, dynamics);
+        ValidateGraphicsPacket(pipeline, geometry, dynamics, resources);
         ValidateIndirectDraw(geometry, draw, indexed);
         pipeline.BeginSubmission();
         try

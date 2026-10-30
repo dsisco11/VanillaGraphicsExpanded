@@ -17,7 +17,7 @@ internal sealed partial class OpenGLBackend
         RequireContext();
         var pipeline = reference.RequirePipeline();
         var shader = pipeline.RequireShader();
-        ValidateGraphicsPacket(pipeline, geometry, dynamics);
+        ValidateGraphicsPacket(pipeline, geometry, dynamics, resources);
         var indices = geometry.Indices ?? throw new InvalidOperationException("Indexed batches require an index stream.");
         int width = RHIGeometryInputs.IndexWidth(indices.Format);
         // Validate every supplied interval before changing any native state. Scratch arrays
