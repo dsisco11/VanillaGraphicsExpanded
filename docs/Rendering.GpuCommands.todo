@@ -1421,6 +1421,8 @@ Phase 9.2.1: Replace registry-wide resource dependency searches
 Phase 9.3: Finish outstanding diagnosis and integrated qualification
   Depends on 9.1, 9.2 and 9.2.1. Earlier receipts below describe their archived candidates only.
   Outcome: the final combined source has current correctness/package evidence and explicit live acceptance.
+  Final qualification follows 9.3.1–9.3.3. Their identified repeated work is a corrective target, not
+    proof of the measured liquid-depth delay; retain that distinction in diagnosis and acceptance.
 
   ☐ Resolve the undecorated texture-clear discrepancy with the RG-to-RGBA workaround absent. Isolate
     wrapper versus semantic entry points while holding native format, target and ordering constant;
@@ -1570,8 +1572,67 @@ Phase 9.3: Finish outstanding diagnosis and integrated qualification
     completion audit remain open. Complete-suite qualification of this final source is pending. Any later runtime/shader change requires
     refreshed package identity. No staging or commits are authorized by these partial receipts.
 
+Phase 9.3.1: Reuse liquid submission preparation until its inputs change
+  Depends on 9.2.1 and the existing liquid submission path; completion precedes final 9.3 qualification.
+  Outcome: unchanged liquid submissions reuse pool membership, target signatures and pipeline preparation.
+
+  ☐ Audit LiquidGraphicsSubmission.Run and its depth, volume and surface callers. Replace recurring
+    pool-set construction, retirement-array allocation and unchanged target/pipeline-description work
+    with retained preparation refreshed by the owning lifecycle or explicit revisions. Existing pipeline
+    instances already use structural description equality; do not mistake description work for repeated
+    native pipeline creation. Keep current visibility and draw intervals dynamic.
+  ☐ Define refresh/retirement authority for pool addition/removal, buffer replacement, geometry changes,
+    target replacement/resize, shader reload, world exit and context replacement. Share preparation only
+    where pass inputs genuinely match; avoid registry-wide scans or per-frame hashes as substitutes for
+    lifecycle notification. Preserve previous valid preparation when replacement preparation fails.
+  ☐ Migrate affected callers together and remove superseded preparation paths without forwarding shims.
+    Verify unchanged submissions reuse preparation and each relevant lifecycle change refreshes or retires
+    it correctly, without changing render order, culling, resource ownership or failure behavior.
+  ☐ Record focused correctness evidence for final 9.3 qualification. Use behavioral reuse/allocation checks
+    where useful; no timing benchmark or separate complete-suite run is required for this subphase.
+
+Phase 9.3.2: Eliminate redundant resource-binding processing
+  Depends on the existing binding/submission contracts; completion precedes final 9.3 qualification.
+  Outcome: binding selection and draw execution share reusable work while execution-time correctness remains intact.
+
+  ☐ Trace BindResources, BeginBindingExecution and PublishResourceBindings through immediate and recorded
+    submission. Separate selection-time validation, execution-time validation, resource retention and native
+    publication. Identify which work is actually duplicated; committed-uniform reuse already avoids a second
+    upload but does not eliminate repeated binding traversal.
+  ☐ Define the exact validity conditions for reusing prepared binding work: shader/layout identity, binding
+    snapshot, uniform version, resource generation and availability, context identity and relevant observed
+    state changes. Preserve required revalidation after intervening external GL calls, callbacks, replacement
+    or disposal. Do not unconditionally skip draw-time checks or rely on stale cache state.
+  ☐ Implement one coherent preparation/execution path that avoids duplicate unchanged traversal/publication
+    and retains resources through native dispatch. Preserve uniform commitment, binding suppression, failed
+    submission cleanup, recorded-command semantics and restoration of externally changed bindings. Remove
+    superseded paths in the same change without compatibility facades.
+  ☐ Verify unchanged binding reuse, changed uniforms/resources/layouts, active and inactive bindings,
+    external-state restoration and failure/disposal behavior with focused tests. Assert relevant publication
+    or upload counts where useful; retain necessary execution checks and defer combined qualification to 9.3.
+
+Phase 9.3.3: Reuse invariant geometry validation across submission
+  Depends on the existing geometry/submission contracts; coordinate with 9.3.1 and complete before final 9.3 qualification.
+  Outcome: unchanged geometry avoids repeated full validation while each draw retains its dynamic bounds checks.
+
+  ☐ Audit EngineLiquidPoolGeometry.IsCurrent, Inputs, CaptureDraws and indexed backend validation. Separate
+    identity/configuration/stream-layout invariants from current visibility, draw ranges and per-draw fetch
+    bounds. The current allocation walk is already monotonic; do not treat it as a quadratic search.
+  ☐ Establish bounded reuse keyed by authoritative resource/configuration revisions. Validate invariant
+    geometry once for the relevant revision and reuse that result across preparation, capture and execution;
+    refresh on VAO/stream/index-buffer replacement, storage-size changes, name reuse, disposal, context
+    changes or observed external geometry mutation. Keep dynamic indexed/instanced range validation and
+    producer-owned index-content guarantees; introduce no GPU readback or registry-wide search.
+  ☐ Remove repeated invariant stream/attribute walks and redundant IsCurrent calls from migrated callers.
+    If allocation membership needs an index, maintain it at its owning lifecycle boundary while checking
+    current culled intervals at submission. Preserve resource retention and reject invalid geometry before
+    native dispatch; do not replace meaningful guards with a blanket previously-validated flag.
+  ☐ Verify unchanged reuse plus mutation, replacement, disposal, buffer-size, instancing and out-of-range
+    cases. Preserve engine culling and draw order. Record focused evidence and reconcile all three corrective
+    subphases into the final 9.3 source/package identity and integrated qualification; no mandatory benchmark.
+
 Phase 10: Streamline GPU integration tests and eliminate unnecessary test work
-  Depends on Phase 9, including 9.1–9.3. Outcome: clearly classified, focused tests retain useful
+  Depends on Phase 9, including 9.1–9.3 and corrective subphases 9.3.1–9.3.3. Outcome: clearly classified, focused tests retain useful
     correctness coverage with less repeated setup, disk access, GPU work and CPU readback.
 
   ☐ Inventory GPU cases and shared fixtures by behavior, setup/teardown, shader/program preparation,
