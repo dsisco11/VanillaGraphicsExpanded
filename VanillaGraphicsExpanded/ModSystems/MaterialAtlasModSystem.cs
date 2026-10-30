@@ -6,7 +6,7 @@ using Vintagestory.API.Common;
 
 namespace VanillaGraphicsExpanded.ModSystems;
 
-public sealed class MaterialAtlasModSystem : ModSystem, ILiveConfigurable
+public sealed class MaterialAtlasModSystem : ClientRenderingModSystem, ILiveConfigurable
 {
     private ICoreClientAPI? capi;
 

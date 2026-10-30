@@ -9,7 +9,7 @@ using Vintagestory.API.Common;
 namespace VanillaGraphicsExpanded.ModSystems;
 
 /// <summary>Owns client shader asset services and their lifetime boundaries.</summary>
-public sealed class ShaderModSystem : ModSystem
+public sealed class ShaderModSystem : ClientRenderingModSystem
 {
     private ShaderPatchErrors? patchErrors;
     /// <summary>Installs shader services only on the client.</summary>

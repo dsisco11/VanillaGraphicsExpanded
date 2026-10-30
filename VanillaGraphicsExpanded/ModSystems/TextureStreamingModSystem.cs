@@ -6,7 +6,7 @@ using Vintagestory.API.Common;
 
 namespace VanillaGraphicsExpanded.ModSystems;
 
-public sealed class TextureStreamingModSystem : ModSystem, ILiveConfigurable
+public sealed class TextureStreamingModSystem : ClientRenderingModSystem, ILiveConfigurable
 {
     private ICoreClientAPI? capi;
 

@@ -5,7 +5,7 @@ using Vintagestory.API.Common;
 
 namespace VanillaGraphicsExpanded.ModSystems;
 
-public sealed class PbrMaterialsModSystem : ModSystem
+public sealed class PbrMaterialsModSystem : ClientRenderingModSystem
 {
     public override bool ShouldLoad(EnumAppSide forSide) => forSide == EnumAppSide.Client;
 

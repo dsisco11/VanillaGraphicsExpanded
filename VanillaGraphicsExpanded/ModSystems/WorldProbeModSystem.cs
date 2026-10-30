@@ -11,7 +11,7 @@ using Vintagestory.API.MathTools;
 
 namespace VanillaGraphicsExpanded.ModSystems;
 
-public sealed class WorldProbeModSystem : ModSystem, ILiveConfigurable
+public sealed class WorldProbeModSystem : ClientRenderingModSystem, ILiveConfigurable
 {
     private const int MaxPendingWorldProbeDirtyChunks = 2048;
 

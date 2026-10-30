@@ -14,7 +14,7 @@ using Vintagestory.API.Common;
 
 namespace VanillaGraphicsExpanded;
 
-public sealed class LumOnModSystem : ModSystem, ILiveConfigurable
+public sealed class LumOnModSystem : ClientRenderingModSystem, ILiveConfigurable
 {
     private readonly System.Func<VgeConfig> readConfig;
     private readonly System.Func<ICoreClientAPI, LumOnCameraState?> readCamera;

@@ -6,7 +6,7 @@ using Vintagestory.API.Common;
 namespace VanillaGraphicsExpanded.ModSystems;
 
 /// <summary>Composes native cloud adaptation; shader/draw/history resources belong to their cloud-domain owners.</summary>
-public sealed class CloudModSystem : ModSystem, IRenderer
+public sealed class CloudModSystem : ClientRenderingModSystem, IRenderer
 {
     private ICoreClientAPI? api;
     private CloudNativeRuntime? runtime;

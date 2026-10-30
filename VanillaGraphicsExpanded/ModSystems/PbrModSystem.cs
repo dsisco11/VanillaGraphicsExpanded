@@ -8,7 +8,7 @@ using Vintagestory.API.Common;
 namespace VanillaGraphicsExpanded.ModSystems;
 
 /// <summary>Composes shared PBR renderers and their client resource lifetimes.</summary>
-public sealed class PbrModSystem : ModSystem, IRenderer
+public sealed class PbrModSystem : ClientRenderingModSystem, IRenderer
 {
     public double RenderOrder => -.6;
     public int RenderRange => 1;

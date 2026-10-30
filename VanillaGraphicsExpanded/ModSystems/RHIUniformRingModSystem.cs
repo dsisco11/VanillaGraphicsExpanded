@@ -8,7 +8,7 @@ namespace VanillaGraphicsExpanded.ModSystems;
 /// <summary>
 /// Installs a per-frame UBO ring allocator and exposes it via <see cref="RHIUniformRingSystem"/>.
 /// </summary>
-public sealed class RHIUniformRingModSystem : ModSystem
+public sealed class RHIUniformRingModSystem : ClientRenderingModSystem
 {
     private ICoreClientAPI? capi;
     private RHIUniformRingFrameController? controller;

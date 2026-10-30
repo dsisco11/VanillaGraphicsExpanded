@@ -40,6 +40,14 @@ The new public creation boundary supersedes recipient-bearing public creation, n
 Older DSA alternatives and measurement requirements in those documents do not override this proposal's
 4.5 minimum or its explicit exemption from performance measurement.
 
+Client mod-system admission checks the actual desktop OpenGL version before any VGE startup hooks
+or rendering resources are installed. An unsupported context disables all VGE client systems for
+that client lifetime, raises the engine's `glContextVersion` setting to at least `4.5` without
+downgrading higher values, and saves through the engine settings API. A log warning and a local
+chat message after world loading explain that a full game restart is required. Saving a launch
+setting cannot upgrade a live context or unsupported hardware; the actual context is checked
+again on the next launch, and backend admission retains its independent minimum-version check.
+
 | Type/service | Final contract |
 | --- | --- |
 | `RHICommandContext` | Context/thread-affine immediate factories and semantic operations, pass sequencing, graphics/compute selection, binding publication, boundary admission and synchronous list submission. Entirely replaces `GraphicsCommandContext`. Reuses specialized helpers; no duplicate submission state. |

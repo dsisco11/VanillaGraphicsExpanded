@@ -6,7 +6,7 @@ using Vintagestory.API.Common;
 namespace VanillaGraphicsExpanded.ModSystems;
 
 /// <summary>Hosts the deletion service whose terminal lifetime is owned by the rendering root.</summary>
-public sealed class RHIResourceManagerModSystem : ModSystem
+public sealed class RHIResourceManagerModSystem : ClientRenderingModSystem
 {
     private ICoreClientAPI? capi;
     private RHIResourceManager? renderer;

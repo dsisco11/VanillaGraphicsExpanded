@@ -16,7 +16,7 @@ using Vintagestory.API.Datastructures;
 
 namespace VanillaGraphicsExpanded.ModSystems;
 
-internal sealed class ConfigModSystem : ModSystem
+internal sealed class ConfigModSystem : ClientRenderingModSystem
 {
     public const string ConfigSavedEvent = "configlib:{0}:config-saved";
     public const string ConfigChangedEvent = "configlib:{0}:setting-changed";

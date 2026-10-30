@@ -10,7 +10,7 @@ using Vintagestory.API.Common;
 namespace VanillaGraphicsExpanded.ModSystems;
 
 /// <summary>Schedules background atmosphere builds and publishes matching sky and lighting inputs before scene rendering.</summary>
-public sealed class AtmosphereModSystem : ModSystem, IRenderer
+public sealed class AtmosphereModSystem : ClientRenderingModSystem, IRenderer
 {
     private System.IDisposable? reloadRegistration;
     private ICoreClientAPI? api;

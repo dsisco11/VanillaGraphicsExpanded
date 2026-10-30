@@ -11,7 +11,7 @@ namespace VanillaGraphicsExpanded.ModSystems;
 /// Diagnostics-only facade for querying LumOn runtime state from debug views.
 /// Keeps debug-specific APIs out of the core LumOnModSystem.
 /// </summary>
-public sealed class LumOnDiagnosticsModSystem : ModSystem
+public sealed class LumOnDiagnosticsModSystem : ClientRenderingModSystem
 {
     private ICoreClientAPI? capi;
 

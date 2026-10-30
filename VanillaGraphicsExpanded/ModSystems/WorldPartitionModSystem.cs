@@ -5,7 +5,7 @@ using Vintagestory.API.Common;
 namespace VanillaGraphicsExpanded.ModSystems;
 
 /// <summary>Owns the shared spatial coordinator for rendering partitions.</summary>
-public sealed class WorldPartitionModSystem : ModSystem
+public sealed class WorldPartitionModSystem : ClientRenderingModSystem
 {
     private PartitionCoordinator? coordinator;
     private long tick;

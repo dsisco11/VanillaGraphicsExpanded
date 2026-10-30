@@ -18,7 +18,7 @@ using System;
 
 namespace VanillaGraphicsExpanded;
 
-public sealed class VanillaGraphicsExpandedModSystem : ModSystem, ILiveConfigurable
+public sealed class VanillaGraphicsExpandedModSystem : ClientRenderingModSystem, ILiveConfigurable
 {
     private ICoreClientAPI? capi;
     private GBufferManager? gBufferManager;

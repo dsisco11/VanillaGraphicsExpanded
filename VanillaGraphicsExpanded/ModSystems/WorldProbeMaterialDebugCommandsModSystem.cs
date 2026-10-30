@@ -10,7 +10,7 @@ using Vintagestory.API.Common;
 
 namespace VanillaGraphicsExpanded.ModSystems;
 
-public sealed class WorldProbeMaterialDebugCommandsModSystem : ModSystem
+public sealed class WorldProbeMaterialDebugCommandsModSystem : ClientRenderingModSystem
 {
     public override bool ShouldLoad(EnumAppSide forSide) => forSide == EnumAppSide.Client;
 
