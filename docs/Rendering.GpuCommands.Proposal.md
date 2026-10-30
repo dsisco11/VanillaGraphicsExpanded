@@ -452,6 +452,8 @@ unavailable without issuing GL into a replacement context.
 
 ## Backend dispatch and publication
 
+Snapshot delivery and meaningful changes follow the implemented [resource publication contract](Rendering.GpuResources.md#snapshot-and-change-publication). Equal facts do not advance revisions or emit changes; explicit storage/executable replacement and availability/retirement remain observable. Canonical facts, dependencies and projections precede callbacks; operations finalize successful commit before delivery. All resource families share the internal callback, preserving original identities, explicit owner events and context-affine retirement.
+
 Every operation has one execution owner:
 
 1. Check context, resource usability, legal inputs and existing usage/reentry guards. Baseline operations

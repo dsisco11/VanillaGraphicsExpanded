@@ -3,7 +3,8 @@ Resource snapshot and change publication — implementation plan
 
 Source proposal: [Rendering.ResourceChangePublication.Proposal.md](Rendering.ResourceChangePublication.Proposal.md).
 Parent work: Rendering.GpuCommands.todo, Phase 9.2. Prerequisite: its existing-work boundary, Phase 9.1.
-Status: Phases 1–2 complete and independently reviewed; Phase 3 contract reconciliation and closeout remain open.
+Status: all three phases complete after source/document second review and independent completion audit.
+Parent 9.2 is complete; parent 9.3 integrated/package/live qualification and Phase 10 cleanup remain open.
 
 Goal
   Establish one manager-owned completion contract for snapshot delivery and meaningful resource changes
@@ -15,7 +16,7 @@ Controlling documents
   contracts in Rendering.GpuCommands.Contracts.md, Rendering.GpuResources.md,
   Rendering.ShaderBindingState.md (Prepared resource submission), and Rendering.GpuCommands.Proposal.md.
   Reconcile these documents with the approved refinement rather than retaining superseded notification
-  behavior. Rendering.GpuCommands.Migrations.md records implementation routes and qualification limits.
+  behavior. Rendering.GpuCommands.todo, Retained migration evidence, preserves final routes, receipts and qualification limits.
 
 Execution boundaries
   - Complete the producer/consumer migration as one implementation unit in Phase 2. Do not introduce
@@ -52,13 +53,15 @@ Phase 1: Establish the complete migration and behavior map
     that currently treats republication as a change or depends on the old revision increment policy.
   ☑ Map explicit framebuffer resize/rebuild/import owner events and initiating-owner suppression separately
     from canonical changes. Trace replaced-owner images, borrowed aliases, native views and name reuse.
-  ☑ Record the implementation-to-requirement mapping concisely in Rendering.GpuCommands.Migrations.md:
+  ☑ Record the implementation-to-requirement mapping concisely in the temporary migration map (now retained
+    in Rendering.GpuCommands.todo, Retained migration evidence):
     current route -> replacement owner -> preserved behavior -> focused verification. No separate audit
     report is required. Confirm the proposed order can migrate all coupled paths without a compatibility layer.
   ☑ Completion: all families, producers, recipients and revision readers are mapped; no unresolved
     interpretation prevents implementing the approved contract. No production change is required here.
 
-  Evidence: Rendering.GpuCommands.Migrations.md, Resource-change publication migration map.
+  Evidence: Rendering.GpuCommands.todo, Retained migration evidence (final route/family mapping and
+  immutable Git reference to the reviewed original inventory).
   Source/document second review and independent audit-stage-completion passed; git diff --check passed.
   Documentation-only evidence for Phase 1; subsequent implementation and verification are recorded below.
 
@@ -134,58 +137,69 @@ Phase 2: Replace publication and notification as one complete unit
     required behavior is exercised and source compiles. Any coupled omission keeps this entire unit open.
 
   Evidence: complete source/document second review and independent audit-stage-completion passed.
-  Replacement routes and requirement mapping: Rendering.GpuCommands.Migrations.md,
-  Resource-change replacement traceability. Delegated canonical shader-enabled test-project builds
+  Replacement routes and requirement mapping: Rendering.GpuCommands.todo,
+  Retained migration evidence. Delegated canonical shader-enabled test-project builds
   passed in Debug and ordinary optimized Release with zero errors; each focused run passed 252/252
   cases (52 CPU, 200 GPU), zero failures/skips, without JIT overrides. Current receipts:
   artifacts/resource-change-phase2-affinity-{debug,release}-build.log and
   artifacts/TestResults/resource-change-phase2-affinity-{debug,release}.trx.
-  git diff --check passed. No staging or commits were performed by this work. Phase 3 remains open;
+  git diff --check passed. No staging or commits were performed by this work. At this checkpoint Phase 3 remained open;
   no full-suite, package, live-rendering or performance qualification is claimed.
 
 Phase 3: Reconcile contracts and qualify completion
   Depends on Phase 2.
   Outcome: the implemented system and its focused evidence satisfy parent Phase 9.2.
 
-  ☐ Update Rendering.GpuResources.md, Rendering.GpuCommands.Contracts.md and relevant sections of
+  ☑ Update Rendering.GpuResources.md, Rendering.GpuCommands.Contracts.md and relevant sections of
     Rendering.ShaderBindingState.md to describe actual publication, equality, revisions, delivery order,
     failures, owner events and lifecycle behavior. Reconcile the governing RHI proposal where required;
     permanent architecture documents describe current code rather than migration history.
-  ☐ Update Rendering.GpuCommands.Migrations.md with removed routes, final callers and exact focused
-    verification evidence for review. Treat this migration map as temporary working documentation,
-    not a permanent architecture document. No additional review-report files are required.
-  ☐ Remove temporary planning and migration files at closeout, explicitly including
+  ☑ Reconcile removed routes, final callers and exact focused verification from the temporary
+    Rendering.GpuCommands.Migrations.md into Rendering.GpuCommands.todo, Retained migration evidence,
+    before removing the working map. No additional review-report files are required.
+  ☑ Remove temporary planning and migration files at closeout, explicitly including
     docs/Rendering.GpuCommands.Migrations.md. First move still-relevant architecture contracts into
     the permanent resource/RHI documentation and preserve concise verification receipts, unresolved
     findings and outstanding 9.3/10 obligations in Rendering.GpuCommands.todo. Remove obsolete inventories
     and working reports introduced by this work; retain useful regression tests and required evidence.
     Update links and task references, including this plan's Phase 1 evidence pointer, to the retained
     destinations so deleting the temporary documents leaves no broken references or lost obligations.
-  ☐ Perform a second source/requirement review, checking every resource family and every proposal rule
+  ☑ Perform a second source/requirement review, checking every resource family and every proposal rule
     against implementation, callers and tests. Confirm no native queries, duplicated registry, public event
     bus, new generation token, compatibility shim or unintended content notification was introduced.
-  ☐ Run delegated canonical builds and required focused tests in Debug and ordinary Release. Reuse
+  ☑ Run delegated canonical builds and required focused tests in Debug and ordinary Release. Reuse
     applicable evidence from Phase 2; rerun only what changes or unresolved findings invalidate.
     CPU evidence proves manager semantics; GPU evidence proves native integration. Neither proves live
     rendering acceptance. Do not initiate a full-suite/package/live run under this plan.
-  ☐ Apply the independent audit-stage-completion workflow against the complete proposal, this plan,
+  ☑ Apply the independent audit-stage-completion workflow against the complete proposal, this plan,
     parent 9.2 and controlling documents. Resolve confirmed issues and evidence gaps, rechecking affected
     dependencies before marking any implementation or completion requirement satisfied.
-  ☐ Reconcile parent Rendering.GpuCommands.todo Phase 9.2 after successful review/audit. Leave parent
+  ☑ Reconcile parent Rendering.GpuCommands.todo Phase 9.2 after successful review/audit. Leave parent
     9.3 integrated/package/live work and Phase 10 test-suite cleanup open; do not promote historical
     candidate receipts into qualification of this implementation.
-  ☐ Completion: source, documents and focused evidence agree; every required proposal behavior is
+  ☑ Completion: source, documents and focused evidence agree; every required proposal behavior is
     implemented and independently reviewed, with no unresolved coverage or architecture gap.
 
+  Closeout evidence: source/document second review and independent audit-stage-completion passed.
+  Current publication contracts: Rendering.GpuResources.md, Snapshot and change publication;
+  Rendering.GpuCommands.Contracts.md, Resource completion; Rendering.ShaderBindingState.md,
+  Prepared executable bindings / Prepared resource submission. Nested resource proposal/inventory
+  now agree with the internal assignment and common callback contract. Final routes, focused receipts,
+  historical evidence provenance, unresolved diagnosis and user-run checklist are retained in
+  Rendering.GpuCommands.todo, Retained migration evidence. The temporary migration map is removed;
+  no other working inventory/report was introduced by this dedicated plan. No production/test source
+  changed during closeout, so the original 252/252 Debug and ordinary Release receipts remain applicable.
+  git diff --check passed. Parent 9.2 is complete; 9.3/10 remain open. No staging or commits.
+
 Final acceptance
-  ☐ All three phases are complete and every proposal requirement maps to current source and evidence.
-  ☐ Every resource kind uses the same publication contract; specific reactions preserve their ownership.
-  ☐ Equal snapshots cause no spurious changes; storage/executable replacement and lifecycle transitions
+  ☑ All three phases are complete and every proposal requirement maps to current source and evidence.
+  ☑ Every resource kind uses the same publication contract; specific reactions preserve their ownership.
+  ☑ Equal snapshots cause no spurious changes; storage/executable replacement and lifecycle transitions
     remain observable even when descriptor values match.
-  ☐ Snapshot/dependency consistency precedes callbacks; failures and reentry cannot undo committed work,
+  ☑ Snapshot/dependency consistency precedes callbacks; failures and reentry cannot undo committed work,
     starve remaining valid recipients or resurrect retired/reused identities.
-  ☐ No superseded routes or migration shims remain. Parent 9.3 and Phase 10 retain their distinct scope.
-  ☐ Temporary migration documents, including Rendering.GpuCommands.Migrations.md, are removed;
+  ☑ No superseded routes or migration shims remain. Parent 9.3 and Phase 10 retain their distinct scope.
+  ☑ Temporary migration documents, including Rendering.GpuCommands.Migrations.md, are removed;
     enduring contracts, required evidence and outstanding obligations remain in their owning documents.
 
 Proposal coverage map

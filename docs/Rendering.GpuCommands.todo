@@ -5,8 +5,8 @@ Source proposal: [Rendering.GpuCommands.Proposal.md](Rendering.GpuCommands.Propo
 Parent design task: Rendering.GpuResourceHandles.todo, Phase 8.
 Status: Phases 1–7 have recorded qualification receipts. Corrective subphases 8a–8k and 8h.1 are qualified.
 The maintained metadata lifecycle and combined corrective qualification are complete.
-Management naming is complete. Phase 9 remains open: 9.1 establishes the existing-work commit boundary,
-9.2 designs and implements consistent resource-change publication, and 9.3 completes remaining
+Management naming is complete. Phase 9 remains open: 9.1 records the existing-work commit boundary,
+9.2 is complete with consistent resource-change publication, and 9.3 completes remaining
 diagnosis, integrated qualification, package evidence and user-run acceptance.
 Final Phase 10 audits and streamlines GPU integration tests and their fixtures.
 
@@ -73,7 +73,7 @@ Scope and implementation boundaries
 Phase 1: Establish final contracts and migration dependency closure
   Outcome: the final API model and explicit migration units are defined before replacing execution.
   Deliverables: [final contract definitions](Rendering.GpuCommands.Contracts.md) and
-    [source inventory, replacement units and baseline evidence](Rendering.GpuCommands.Migrations.md).
+    [source inventory, replacement units and baseline evidence](#retained-migration-evidence).
   Contracts are defined in these planning companions; production types are implemented with their
     complete families below, without empty interface scaffolding or old-executor forwarding placeholders.
 
@@ -139,7 +139,7 @@ Phase 2: Establish backend admission and replace the buffer family
 
   Evidence: second review and independent stage audit completed against all linked authority.
     Source closure, removed APIs, delegated tests and final package identities are recorded in
-    [Buffer migration qualification](Rendering.GpuCommands.Migrations.md#buffer-migration-qualification-phase-2).
+    [Buffer migration qualification](#retained-migration-evidence).
     Debug scoped 673 passed, final affected rechecks 53/84 passed, generator 180 passed. Ordinary Release
     675: 671 passed and four Harmony observer/injection failures; the same Release binaries passed all
     13 affected cases with process-only JIT controls. Canonical package and 761 shader identities passed.
@@ -172,7 +172,7 @@ Phase 3: Replace images, samplers and backing-resource relationships
     remains in Phase 5 and must call these completed image operations through their final contracts.
 
   Evidence: second review and independent stage audit completed against the linked authority.
-    [Image migration qualification](Rendering.GpuCommands.Migrations.md#image-migration-qualification-phase-3)
+    [Image migration qualification](#retained-migration-evidence)
     records source closure, direct caller migration, exact adapters and final identities. Debug 929 and
     generator 180 passed. Ordinary Release: 917 passed, 12 Harmony observer/injection failures; the same
     Release binaries passed all 929 with process-only JIT controls. Canonical package and all 761 shader
@@ -200,7 +200,7 @@ Phase 4: Replace synchronization, queries and remaining non-draw resource operat
     dependencies use final operations with no temporary bridge to old StateCache execution methods.
 
   Evidence: second review and independent stage audit completed against the linked authority.
-    [Auxiliary migration qualification](Rendering.GpuCommands.Migrations.md#auxiliary-migration-qualification-phase-4)
+    [Auxiliary migration qualification](#retained-migration-evidence)
     records final routes, source closure, exact adapters, package identity and native coverage limits.
     Frozen Debug and controlled Release focused: 55 passed; generator: 180 passed. Canonical package
     and 761 shader identities passed. Ordinary Release broad: 1,106 passed/23 failed; the same binaries
@@ -356,7 +356,7 @@ Phase 5b: Correct manager-to-execution dependency direction
     match an isolated compiled checkpoint baseline. Additional registry/initialization/capability cases:
     53/53 passed. New manager-certification and corrected 4.5 initialization cases passed.
     Exact candidate, routes, baseline comparison and limitations are recorded in
-    [Manager execution dependency correction](Rendering.GpuCommands.Migrations.md#manager-execution-dependency-correction-phase-5b).
+    [Manager execution dependency correction](#retained-migration-evidence).
     Inherited geometry failures remain assigned to 5c and other inherited failures to 5e. This receipt
     closes 5b only; Phase 5, 5c–5e and command recording remain open. No commit was created.
 
@@ -393,7 +393,7 @@ Phase 5c: Separate backend-neutral RHI objects from OpenGL realization
     concrete backend implementation types to semantic callers.
 
   Completion evidence (2026-10-26): second source review and independent stage-completion audit passed.
-    See Rendering.GpuCommands.Migrations.md, Semantic objects and backend realization (Phase 5c), for
+    See the historical map archived under Retained migration evidence, section Semantic objects and backend realization (Phase 5c), for
     linked-document traceability, final routes, source fingerprint and exact receipts. Canonical Debug
     and Release builds passed. Targeted checks: 119 passed, two baseline-inherited shader-capture
     fixture schema failures retained for 5e; registry/dependency checks 53/53 and pending retirement 2/2.
@@ -494,7 +494,7 @@ Phase 5d: Route resource wrappers and remaining consumer operations through fina
   Qualification: all 5d tasks passed second source review and audit-stage-completion against their linked
     contracts. Canonical Debug/Release builds passed; 227 focused, 8 binding-cache, 53 dependency and
     157 generator checks passed without skips. Source fingerprint and full receipts are recorded in
-    Rendering.GpuCommands.Migrations.md, Wrapper and consumer execution correction (Phase 5d).
+    the historical map archived under Retained migration evidence, section Wrapper and consumer execution correction (Phase 5d).
     Phase 5 and 5e remain open. No staging or commit was performed.
 
 Phase 5e: Close the redesigned dependency graph and qualify the combined migration
@@ -551,7 +551,7 @@ Phase 5e: Close the redesigned dependency graph and qualify the combined migrati
     no temporary forwarding facade, duplicate dispatcher, backend escape hatch or old-path dependency.
     Use focused source inspection and behavioral checks; do not add reflection inventory tests or benchmarks.
   ☑ Reconcile Rendering.GpuCommands.Proposal.md, Rendering.GpuCommands.Contracts.md and
-    Rendering.GpuCommands.Migrations.md with the approved boundaries and actual final routes. Preserve
+    the Retained migration evidence section below with the approved boundaries and actual final routes. Preserve
     historical qualification limits in planning receipts; permanent architecture docs describe current code.
   ☑ Reconcile inherited failures captured by 5b's checkpoint comparison: GpuMetadataOperationFoundationTests
     fixture mutation through unavailable wrapper metadata; GpuFramebufferExecutableCreationTests affected-field
@@ -574,7 +574,7 @@ Phase 5e: Close the redesigned dependency graph and qualify the combined migrati
     with process-only JIT controls passed 722/722, zero skips. Production Release remains uninstrumented.
     Final source fingerprint: 80fc0816dfb4b617f4aee4bc0d53c85f3fd5403648590746931006313057ca7e.
     Exact candidate, routes, full failed-run receipts, focused reruns and qualification limits are in
-    [Combined dependency closure](Rendering.GpuCommands.Migrations.md#combined-rendering-dependency-closure-phase-5e).
+    [Combined dependency closure](#retained-migration-evidence).
     The original Phase 5 gate is satisfied. Phases 6–8 and final integrated/package acceptance remain open.
     No live visual/performance acceptance is claimed; no changes were staged or committed.
 
@@ -618,7 +618,7 @@ Phase 6: Implement single-use command recording on the final immediate machinery
     observer failure. The same Release binaries passed 178/178 with process-only JIT observation controls.
     Second review and independent completion audit found no remaining required gap. Full traceability,
     candidate identity, supporting checks and limitations are recorded in
-    [Single-use recording qualification](Rendering.GpuCommands.Migrations.md#single-use-recording-qualification-phase-6).
+    [Single-use recording qualification](#retained-migration-evidence).
     Nothing was staged or committed. Phases 7–8 remain open.
 
 Phase 7: Finish the cache split and reconcile architecture documentation
@@ -645,7 +645,7 @@ Phase 7: Finish the cache split and reconcile architecture documentation
     full-lighting numerical case. Broad suites remain Debug 424/425 and ordinary Release 416/425;
     eight observer/fault-injection failures resolve with process-only JIT controls. The lighting oracle
     and tolerance remain unchanged; its mismatch is explicitly assigned to integrated qualification below.
-    [Exact receipts and traceability](Rendering.GpuCommands.Migrations.md#backend-cache-closure-phase-7).
+    [Exact receipts and traceability](#retained-migration-evidence).
     Subsequent wrapper-dependency review found that this source-closure assessment was too narrow:
     cache policy, acquisition orchestration and diagnostic/helper dependencies still cross the RHI boundary.
     The receipts above remain evidence for their tested candidate, not proof of complete architectural closure.
@@ -689,7 +689,7 @@ Phase 8a: Route framebuffer cache policy and frame lifecycle through RHI
     proposal/contracts, retained resource/binding contracts and 8g removal policy. Delegated shader-enabled
     Debug and ordinary Release compilation passed; 175 focused/lifecycle/workflow tests passed in each
     configuration, with no failures, skips, JIT overrides or instrumented product. Exact routes, traceability
-    and receipts: [Framebuffer owner admission qualification](Rendering.GpuCommands.Migrations.md#framebuffer-owner-admission-qualification-phase-8a).
+    and receipts: [Framebuffer owner admission qualification](#retained-migration-evidence).
     No staging or commit. Phases 8b–8k and Phase 9 remain open; complete interception coverage is not claimed.
 
 Phase 8b: Close owner creation entry points without disturbing private handoff
@@ -711,7 +711,7 @@ Phase 8b: Close owner creation entry points without disturbing private handoff
   Qualification: second source review and independent stage-completion audit passed. Delegated canonical
     shader-enabled Debug/ordinary Release builds succeeded; 235 focused tests passed in each configuration
     with zero failures/skips and no JIT overrides. Final routes, cleanup cases, fixture corrections and receipts:
-    [Owner creation boundary qualification](Rendering.GpuCommands.Migrations.md#owner-creation-boundary-qualification-phase-8b).
+    [Owner creation boundary qualification](#retained-migration-evidence).
     No staging or commits by the agent. Subphases 8c–8k and Phase 9 remain open.
 
 Phase 8c: Centralize acquisition, recovery and image dependency publication
@@ -768,7 +768,7 @@ Phase 8c: Centralize acquisition, recovery and image dependency publication
   Earlier evidence: Debug 253/253; Release 253 in two fresh-process partitions (68 + 185), with seven
     disclosed order-sensitive Harmony observer failures in the combined run. The later 138-case selector
     checks prove signature isolation only and do not qualify the reopened semantic migration.
-    [Authority, previous receipts and corrective scope](Rendering.GpuCommands.Migrations.md#acquisition-and-image-publication-boundary-phase-8c).
+    [Authority, previous receipts and corrective scope](#retained-migration-evidence).
     Corrective validation: Debug 396/396; ordinary Release 396/396 across fresh-process partitions
     (92 + 304) on the same binaries; generator suite 157/157. The combined Release run retains
     11 observer/fault-injection/counter failures; it is not a clean-suite receipt. No JIT overrides.
@@ -827,7 +827,7 @@ Phase 8d: Complete semantic resource schemas and remove capability/shader-layout
   Completion receipt: canonical Debug/Release builds passed; affected Debug 842/842, generator 157/157
     and build-tool identity/cache tests 256/256 passed. Ordinary Release combined 840/842; the exact two
     fault-injection cases passed 2/2 fresh on unchanged optimized binaries. Second review and independent
-    stage-completion audit found no remaining 8d blocker. See Rendering.GpuCommands.Migrations.md,
+    stage-completion audit found no remaining 8d blocker. See the historical map archived under Retained migration evidence, section
     "Semantic executable and buffer boundary (Phase 8d)" for routes, traceability and receipt limits.
     Subphases 8f–8k and Phase 9 remain open. Nothing was staged or committed.
 
@@ -855,7 +855,7 @@ Phase 8e: Put resource labels and native diagnostics beneath the backend
     regressions passed 182/182 in each configuration, with zero skips. Native label/error behavior,
     pending-error preservation, injected diagnostic failure, Release exclusion and capability startup
     ordering are covered. No instrumented Release, JIT override, game launch, staging or commit.
-    [Routes, authority and final receipts](Rendering.GpuCommands.Migrations.md#resource-labels-and-native-diagnostics-boundary-phase-8e).
+    [Routes, authority and final receipts](#retained-migration-evidence).
     Subphases 8f–8k and Phase 9 remain open.
 
 Phase 8f: Preserve legitimate manager ownership and close affected caller dependencies
@@ -900,7 +900,7 @@ Phase 8f: Preserve legitimate manager ownership and close affected caller depend
     interruption, deletion/name reuse, two physical local contexts, supplied-only CPU image projection,
     refs, retirement, native boundary footprints and lifecycle/restoration. No staging or commit was
     performed; existing staged changes were preserved. Subphases 8g–8k and Phase 9 remain open.
-    [Routes, retained policy and final receipts](Rendering.GpuCommands.Migrations.md#manager-operation-exclusions-and-retained-ownership-phase-8f).
+    [Routes, retained policy and final receipts](#retained-migration-evidence).
 
 Phase 8g: Remove legacy state purges and preserve established state knowledge
   Depends on 8a–8f.
@@ -908,7 +908,7 @@ Phase 8g: Remove legacy state purges and preserve established state knowledge
   Scope decision: interception replacement and all remaining shared observer corrections belong to 8h.
   This unit closes the independent cleanup already implemented; it does not certify complete interception,
   observation-only forwarding or the remaining program/pipeline/transform-feedback acceptance model.
-  Receipts and task-to-document/source mapping: Rendering.GpuCommands.Migrations.md,
+  Receipts and task-to-document/source mapping: the historical map archived under Retained migration evidence, section
   section Persistent intercepted knowledge. Complete: second review and independent completion audit
   passed against this revised boundary. Delegated Debug/Release builds and 405 tests per configuration
   passed with no failures or skips; portable-PDB source identity confirms the receipts apply to current
@@ -1096,7 +1096,7 @@ Phase 8h: Replace caller rewriting with native OpenTK binding interception
     sequence-dependent integration observations. All initially unmatched classes pass the final
     combined selection, but full-suite ordering/output acceptance remains explicitly in Phase 9.
     No package, installed-game startup, live appearance or wider hardware qualification is claimed.
-    Task/document/evidence mapping and exact limits: Rendering.GpuCommands.Migrations.md,
+    Task/document/evidence mapping and exact limits: the historical map archived under Retained migration evidence, section
     "Native interception replacement: 8h completion receipt". Subphases 8i–8k remain open.
 
 Phase 8h.1: Correct effect classification and simplify native observation delivery
@@ -1177,7 +1177,7 @@ Phase 8h.1: Correct effect classification and simplify native observation delive
 
   Qualification: canonical Debug/ordinary Release builds passed; 666/666 focused native tests and
     26/26 generator tests passed in each configuration, with zero skipped tests. Second source review
-    and independent completion audit passed. See Rendering.GpuCommands.Migrations.md and local
+    and independent completion audit passed. See the Retained migration evidence section below and local
     artifacts/phase8h.1 closure receipts. No staging or commit; 8i and later gates remain open.
 
 Phase 8i: Implement the maintained metadata lifecycle plan
@@ -1245,7 +1245,7 @@ Phase 8j: Qualify corrective closure and reconcile documentation
   Qualification: second source review and independent completion audit passed. Canonical shader-enabled
     Debug and ordinary Release builds passed; each qualified 1,297 combined cases plus 35 current generator
     cases with zero failures/skips. Final route mapping, analyzer identity and exact receipts are recorded in
-    Rendering.GpuCommands.Migrations.md, Corrective dependency closure (8j), and artifacts/rhi-phase8j/.
+    the historical map archived under Retained migration evidence, section Corrective dependency closure (8j), and artifacts/rhi-phase8j/.
     Management naming (8k) and integrated/package/user acceptance (9) remain open. No staging or commit.
 
 Phase 8k: Align resource-management service names with RHI ownership
@@ -1294,7 +1294,7 @@ Phase 8k: Align resource-management service names with RHI ownership
   Qualification: second source review and independent completion audit passed. Canonical shader-enabled
     Debug and ordinary Release builds passed; each qualified 1,355 focused cases plus 35 current generator
     cases with zero failures/skips. Naming map, source comparison, fixture correction and exact receipts
-    are recorded in Rendering.GpuCommands.Migrations.md, Management-service naming (8k), and
+    are recorded in the historical map archived under Retained migration evidence, section Management-service naming (8k), and
     artifacts/rhi-phase8k/. Phase 9 and final acceptance remain open. No staging or commit.
 
 Phase 9: Qualify integrated behavior and release artifacts
@@ -1313,7 +1313,7 @@ Phase 9.1: Establish the commit boundary for existing qualification work
     passing earlier candidate receipts do not qualify this changed source. Explicitly hand unresolved
     texture-clear diagnosis to 9.3 and publication/notification redesign to 9.2.
   ✔ Review the boundary and reconcile its source/evidence inventory and known failures with @done(26-10-29 17:30)
-    Rendering.GpuCommands.Migrations.md. Distinguish completed edits from qualified runtime behavior;
+    the Retained migration evidence section below. Distinguish completed edits from qualified runtime behavior;
     retain missing historical evidence and interrupted runs as such.
   ✔ Completion: the existing-work boundary is reviewable and its deferred work is explicitly assigned. @done(26-10-29 17:30)
     This is a commit boundary, not authorization to stage or commit. Only do either when explicitly
@@ -1325,35 +1325,37 @@ Phase 9.2: Design and implement consistent resource-change publication
   Dedicated implementation plan: Rendering.ResourceChangePublication.todo. Execute its complete migration
     and qualification before closing this parent gate; 9.3 and Phase 10 retain their separate scope.
 
-  ☐ Inventory snapshot assignment, metadata/storage revisions, availability withdrawal/recovery and
+  ☑ Inventory snapshot assignment, metadata/storage revisions, availability withdrawal/recovery and
     consumer notifications for every registered resource family. Trace owned operations, intercepted
     native mutations, explicit discovery/refresh, aliases/views, failure, retirement and name reuse.
     Include framebuffer attachment helpers, image/view dependencies and shader/program preparation;
     identify duplicate delivery, missed changes and notifications caused solely by republication.
-  ☐ Write a concise proposal defining snapshot delivery versus meaningful resource changes, notification
+  ☑ Write a concise proposal defining snapshot delivery versus meaningful resource changes, notification
     ownership/order and resource-specific change classification. Define structural collection equality,
     backing identity, same-description storage replacement, executable replacement, unavailable/recovered
     metadata, content-only updates and identical republishes. Preserve requested-value command suppression;
     do not add native queries merely to detect changes. Obtain user approval before implementation.
-  ☐ Implement the approved publication contract and migrate all affected producers and consumers together.
+  ☑ Implement the approved publication contract and migrate all affected producers and consumers together.
     Centralize change classification at the appropriate publication boundary; eliminate ad hoc
     framebuffer-only snapshot fields/comparisons and duplicate consumer notification routes. Preserve
     original identities, originating contexts, explicit owner events and failure/retirement semantics.
     Do not introduce compatibility shims, parallel event systems or deferred caller migrations.
-  ☐ Add focused behavioral coverage for unchanged republishes, separately built equivalent collections,
+  ☑ Add focused behavioral coverage for unchanged republishes, separately built equivalent collections,
     actual configuration changes, same-description storage/executable replacement, aliases/views,
     reentrant consumers, failure/recovery, deletion and reused names. Verify complete snapshot delivery,
     correct notification ordering and no duplicate/missed consumer updates across resource families.
-  ☐ Reconcile architecture documentation and linked contracts with the implemented design. Complete
+  ☑ Reconcile architecture documentation and linked contracts with the implemented design. Complete
     delegated focused validation and independent review; record exact evidence and remaining limitations.
-  ☐ Completion: the approved system covers every resource family and affected consumer, superseded
+  ☑ Completion: the approved system covers every resource family and affected consumer, superseded
     paths are removed, and focused correctness evidence is recorded. Integrated acceptance belongs to 9.3.
 
-  Design progress: the proposal inventories all fourteen registered resource kinds and selected-image
-    projections, existing publication/withdrawal/dependency routes and the proposed shared change contract.
-    Dedicated implementation Phases 1–2 are complete and independently reviewed: both Debug and ordinary
-    Release pass 252 focused cases. Dedicated Phase 3 document reconciliation and closeout remain open,
-    so this parent completion gate and its task markers remain open.
+  Completion evidence: all three dedicated implementation phases are complete after source/document
+    second review and independent audit-stage-completion. All fourteen kinds use common classification,
+    snapshot/dependency ordering and lifetime delivery. Canonical shader-enabled Debug and ordinary
+    Release builds passed with zero errors; each focused run passed 252/252 (52 CPU, 200 GPU), no skips
+    or failures. Documentation-only closeout reuses these unchanged-source receipts. Current contracts,
+    final routes, exact receipt paths, archived historical mapping and remaining qualification limits
+    are retained below. The temporary map is removed; no staging or commits. Parent 9.3 and 10 stay open.
 
 Phase 9.3: Finish outstanding diagnosis and integrated qualification
   Depends on 9.1 and 9.2. Earlier receipts below describe their archived candidates only.
@@ -1397,14 +1399,14 @@ Phase 9.3: Finish outstanding diagnosis and integrated qualification
   ☐ Provide a user-run visual/runtime checklist for graphics, compute, cloud/depth content ordering,
     resize, shader reload and teardown. Record actual user evidence separately from headless tests;
     leave live appearance/runtime-behavior acceptance unchecked until supplied.
-    The prepared checklist is in Rendering.GpuCommands.Migrations.md, User-run visual and runtime checklist.
+    The prepared checklist is under User-run visual and runtime checklist below.
   ☐ Reconcile every proposal requirement with implementation and evidence; resolve deviations or obtain
     explicit scope approval rather than declaring unimplemented requirements complete.
   ☐ Completion: all required correctness/package receipts and user-run acceptance are recorded;
     remaining unsupported hardware evidence is disclosed, and no unapproved architecture deviation remains.
 
   Qualification in progress: all completion markers remain unchecked. Source/evidence traceability,
-    archived candidates and detailed receipts are in Rendering.GpuCommands.Migrations.md,
+    archived candidates and detailed receipts are in the historical map archived under Retained migration evidence, section
     Integrated qualification (9). The approved E/pi correction passes 108 affected cases in both
     configurations; physical-irradiance debug assertions and tolerances are unchanged.
     The immutable batch27 full ordinary Release run and batch28 full Debug run each completed with
@@ -1432,7 +1434,7 @@ Phase 9.3: Finish outstanding diagnosis and integrated qualification
     acceptance or installed-game qualification. That package predates the shoreline shader correction;
     final package refresh is required even though the managed runtime hashes remain unchanged.
     Focused behavioral allocation, binding-suppression and metadata-reuse checks, shader/generator tool
-    receipts and DEBUG-only counter evidence remain recorded in the migration document. No benchmarks
+    receipts and DEBUG-only counter evidence are retained under Retained migration evidence below. No benchmarks
     or instrumented Release are required. Unsupported hardware evidence remains explicit.
     The user approved independent GGX/material-energy and water oracle corrections with unchanged
     authored inputs and tolerances. Those test-only corrections pass 249/249 affected cases in each
@@ -1532,3 +1534,60 @@ Proposal coverage map
   Representative outcomes, efficient-execution checks, package and user-run qualification: Phase 9, supported
     by focused verification and current-state documentation in every owning migration unit.
   GPU integration-test classification, I/O isolation, coverage consolidation and compact assertions: Phase 10.
+
+## Retained migration evidence
+
+The temporary migration map was removed after its current contracts were reconciled into
+Rendering.GpuResources.md (Snapshot and change publication), Rendering.GpuCommands.Contracts.md
+(Resource completion) and Rendering.ShaderBindingState.md (Prepared executable bindings / Prepared
+resource submission). Historical before/after inventories and exact older candidate commands remain
+retrievable from Git blob 21185ed8770e73c1a8c43384f9138a9669bf53b6 at commit
+24d01f73770a54fb64d0e861387290a249765b99. This immutable historical record is not a live controlling
+document or qualification of later source. Existing per-unit receipts and limitations above remain.
+
+Resource-change task/source/evidence traceability:
+
+| Requirement | Final source route | Focused evidence |
+| --- | --- | --- |
+| Equality, meaningful effects and all fourteen families | MetadataCollections; GpuTextureMetadata/GpuFramebufferMetadata/GpuProgramMetadata; GpuResourceMetadataEntry.Publish/Withdraw; RHIResourceChange | ResourceChangePublicationTests: structural equality/hash, initial/late/equal delivery, equal-descriptor replacements and fourteen-kind lifecycle matrix. |
+| Facts before consumers; committed result survives callback failure | RHIResourceManager.ChangeDelivery, MetadataPublication, MetadataOperation, ProgramFields; AssignMetadataSnapshot and OnResourceChanged | CPU ordering/failure/reentry cases; ResourceChangeNativeTests committed-allocation failure and controlled-assignment exclusion. |
+| Original backing and selected images | BufferTextureDependencies, RenderbufferTextureDependencies, DependencyAvailability, NativeTextureViews, OwnerImages | Source-only recovery versus independent child uncertainty, detached backing, reused names, native buffer/view/renderbuffer checks and explicit framebuffer owner events. |
+| Revision and fixed realization readers | RHIGeometryImport/GeometryVertexArray configuration epochs; HasCommittedMetadata; pending link submitted revision; fixed local shader prepared-interface identity | Geometry lifecycle/import/interception, shader compatibility, executable lifecycle and local equal-interface replacement tests. |
+| Lifetime/thread closure | Entry synchronization and idempotent terminal capture; original cleanup queue; context retirement | CPU queued-retirement/teardown/name reuse and foreign-thread rejection; native worker/local-image retirement. |
+
+Canonical shader-enabled Debug and ordinary optimized Release builds passed with zero errors.
+Each focused run passed 252/252 (52 CPU, 200 GPU), zero failures/skips, without JIT overrides.
+Exact receipts: artifacts/resource-change-phase2-affinity-{debug,release}-build.log and
+artifacts/TestResults/resource-change-phase2-affinity-{debug,release}.trx. Documentation-only closeout
+leaves that runtime/test source unchanged. CPU cases establish manager semantics; GPU integration
+cases establish native behavior, not live rendering, package identity or measured performance.
+
+Parent 9.3 retains all final combined-suite, package and user acceptance work. Earlier 8,389-pass/
+35-failure full-run candidates and candidate27 packaging remain historical; candidate34 focused
+472/472 GPU and 256/256 shader-tool passes do not qualify the new combined runtime. Candidate35 was
+stopped and supplies no complete-suite or final-package receipt. The unavailable historical
+artifacts/phase8h/closure5-head-comparison.json was not recovered; the approved replacement is current
+per-case full-suite evidence, retaining the original fourteen sequence-sensitive regression checks.
+The removed RG-to-RGBA clear workaround remains absent: a passing focused recheck did not explain
+earlier failures, and parent 9.3 retains diagnosis without an assumed driver defect. Optional external
+producer imports, unsupported hardware paths and user-run appearance remain unqualified where not
+executed. Phase 10 retains GPU integration terminology, I/O isolation/mocks, redundant-case removal,
+coverage consolidation and compact assertions without bulk pixel readbacks.
+
+### User-run visual and runtime checklist
+
+Use the final qualified Release package; record its runtime DLL hash, game version, GPU/driver,
+settings and actual results. No timing measurement or agent-launched game is required.
+
+- [ ] Enter a world; inspect terrain, entities, sky, liquids and postprocessing for missing outputs,
+  corrupt geometry, binding errors and incorrect lighting.
+- [ ] Move along a shallow shoreline with lowest refraction quality and half-resolution backgrounds;
+  check abrupt color steps and foreground leaks.
+- [ ] Exercise configured atmosphere/exposure/depth/lighting compute consumers and inspect current results.
+- [ ] Exercise cloud mode, terrain/liquid occlusion, enable/disable and movement for stale content.
+- [ ] Resize window/render resolution and check replacement targets, aspect ratio, cloud/depth and postprocessing.
+- [ ] Reload shaders/change shader settings; check compatible replacement and preservation on failure.
+- [ ] Leave/reenter a world and shut down; check stale resources, disposal/context errors and late callbacks.
+
+User evidence remains pending. Record failures with logs/reproduction; unexecuted hardware/import cases
+remain unqualified. Headless tests and older installed binaries cannot check these boxes.

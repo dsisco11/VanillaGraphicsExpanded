@@ -75,7 +75,7 @@ Unit/block changes publish their supplied scalar/array values against the existi
 without uniform getters or full reflection. Ignored locations, numeric uniforms and proven rejected
 assignments preserve revisions and active certificates. Unavailable executable facts remain unavailable;
 an assignment cannot authorize recovery or revive a withdrawn executable generation.
-Unit/block changes revalidate prepared resource tables through the existing revision machinery;
+Meaningful unit/block changes revalidate prepared resource tables through the existing revision machinery;
 relinking or binary installation withdraws executable preparation until the owner validates its replacement.
 Cached driver executables retain their candidate owner during installation; the manager delivers the
 linked snapshot before graphics/compute preparation, including tools without an installed registry.
@@ -107,6 +107,16 @@ Preparation receives texture/image-unit limits as supplied values and requires n
 
 Validation covers fixed sampler/image namespaces, array activity, incompatible types, supplied metadata,
 executable replacement and failure preservation. Generated submission consumes the resulting table.
+
+Program snapshots are assigned before the shared internal resource-change callback reconciles preparation.
+Structurally equal interfaces/assignments retain metadata revisions and compatibility history; equal
+republication still supplies missing snapshots. Executable replacement remains a change even when its
+interface is equal. Published withdrawal/recovery invalidates unavailable preparation, while temporary
+operation exclusion alone does not emit availability transitions. Tracked fixed shaders check original
+registration/revisions; local fixed shaders also retain their exact prepared-interface identity and
+preparation invalidation, so equal-interface replacement cannot silently preserve an obsolete executable.
+Managed assignment exclusion remains held through callbacks. Notification failure after commit never
+withdraws the successfully installed executable or retries linking. See [resource publication](Rendering.GpuResources.md#snapshot-and-change-publication).
 
 ## Prepared resource submission
 
@@ -250,4 +260,4 @@ effects independently of shader-local compatibility. See [recorded ownership](Re
 Prepared-binding, generated-input, uniform-lifetime, RHI shader/pipeline/recording and engine-boundary tests
 cover these contracts against supplied metadata and headless output/state checks. Exact adapter tests
 preserve signature and native effects. Test receipts and qualification limits belong to the implementation
-checklists and migration records; headless checks do not establish installed-game appearance or performance.
+checklists; headless checks do not establish installed-game appearance or performance.

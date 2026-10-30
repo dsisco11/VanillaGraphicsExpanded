@@ -41,8 +41,8 @@ qualification and its evidence limits are recorded in the implementation checkli
 | Component | Responsibility |
 | --- | --- |
 | RHIResourceManager | Context-scoped registry, canonical metadata, registration validity, shared existing guard state, snapshot publication and deferred deletion. |
-| GpuResource | Native identity, wrapper-local ownership/disposal and existing deletion scheduling contract. No metadata members or notification contract. |
-| GpuResource<TMetadata> | Private snapshot, protected read-only access and public HandleMetadataChanged(TMetadata data) that assigns the snapshot. No registration, availability, revision or subscription state. |
+| GpuResource | Native identity, wrapper-local ownership/disposal and existing deletion scheduling contract. No canonical metadata authority; internal resource-change reactions are manager-delivered. |
+| GpuResource<TMetadata> | Private snapshot, protected read-only access and internal AssignMetadataSnapshot(TMetadata data). Passive manager-written local presence/effects only; no registration, canonical availability, revision or subscription authority. |
 | Typed resource wrappers | Resource-specific operations and metadata accessors; authored policy remains local. |
 | OpenGlStateCache | Observes established backend effects and forwards changes to the manager; retains binding/restoration knowledge. Native execution belongs to the RHI backend. |
 | Rendering integrations | Resource selection, producer content readiness and frame qualification. |
@@ -50,6 +50,10 @@ qualification and its evidence limits are recorded in the implementation checkli
 The readonly value `GpuResourceHandle` contains resource kind and native-width ID as a registry key.
 It carries no ownership or lifetime state. There is no separate `GpuResourceLifetime` or borrowed-resource
 registry; registration membership and the entries used by queued deletion stay inside the manager.
+
+The current [snapshot and change publication contract](Rendering.GpuResources.md#snapshot-and-change-publication)
+defines structural equality, meaningful revisions, callback ordering and lifecycle delivery. Snapshot
+assignment alone is not a change event.
 
 ## Canonical metadata and registration
 
@@ -65,15 +69,15 @@ association and never reacquires by numeric ID at drain time. Context retirement
 Registration neither grants native ownership nor deletes storage when a reference is released.
 
 `GpuResource<TMetadata> : GpuResource where TMetadata : struct` owns a private snapshot and exposes it
-to derived wrappers as `protected ref readonly TMetadata metadata`. Its public non-virtual
-`HandleMetadataChanged(TMetadata data)` method assigns the complete private snapshot.
+to derived wrappers as `protected ref readonly TMetadata metadata`. Its internal non-virtual
+`AssignMetadataSnapshot(TMetadata data)` method assigns the complete private snapshot.
 Existing resource abstractions inherit this base directly or through their existing typed superclass.
 Native metadata properties are getter-only accessors. Derived wrappers cannot edit the snapshot.
 Requested dimensions, formats and allocation hints remain command arguments or separate declaration policy.
 The RHI backend executes metadata-changing commands and forwards established results through OpenGlStateCache to the manager; wrappers
 do not capture, construct or publish replacement metadata. Authorized discovery is manager-owned;
 context-local tools receive supplied initialization snapshots without native rediscovery. The generic base handles snapshot assignment;
-the non-generic base has no metadata responsibilities. The manager owns registration validity,
+the non-generic base exposes the internal resource-change reaction without owning canonical facts. The manager owns registration validity,
 availability, revisions and subscription membership. Metadata-dependent validation asks the manager
 about the wrapper's original association; neither base stores that association or runs a tracking state machine.
 Ownership, disposal, authored policy and selected subresources remain local.
@@ -127,8 +131,8 @@ contract separately requires rejecting unrelated reentry while an explicit opera
 OpenGlStateCache forwards established backend metadata effects to the manager. Controlled commands build a complete
 candidate from inputs/defaults/derived facts; readers acquire external unknown state and justified outputs.
 The manager commits that candidate and assigns snapshots to all associated wrappers.
-Wrappers do not independently query native metadata. Generic notification is only assignment; manager
-publication maintains availability and revisions and coordinates existing dependent observers outside
+Wrappers do not independently query native metadata. Snapshot assignment is not notification; manager
+publication classifies meaningful changes, maintains availability/revisions and coordinates resource callbacks outside
 that method. Pending owner retirement, deletion and context retirement make the original association
 unusable in the manager; refresh failures leave its metadata unavailable until a complete recovery.
 

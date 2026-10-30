@@ -20,20 +20,13 @@ Preserve [prepared resource submission](Rendering.ShaderBindingState.md#prepared
 original registration identities, explicit recovery, requested-value suppression and the existing
 query policy. No extra native query, registry, resource hierarchy or public event bus is proposed.
 
-## What the current implementation does
+## Completion ownership
 
-| Area | Current route and issue to resolve |
-| --- | --- |
-| Snapshot delivery | `GpuResourceMetadataEntry.Publish` assigns every associated snapshot and increments revisions from supplied effect flags. It does not distinguish equal facts from changed facts. |
-| Normal publication/recovery | `RHIResourceManager.MetadataPublication` updates backing dependencies, then separately notifies image and program consumers. |
-| Program assignments | `RHIResourceManager.ProgramFields` directly publishes and invokes program notification, bypassing that completion route. |
-| Framebuffers | `MetadataOperation`, native framebuffer observation and deletion handling explicitly invoke framebuffer notifications. Explicit imported publication also emits its owner event. |
-| Image dependencies | Entry recipients, `OwnerImages`, texture-view availability and buffer/renderbuffer-backed texture propagation each perform part of delivery. The owner-image path deliberately skips registered recipients already delivered by the entry. |
-| Withdrawal/retirement | `MetadataObservation`, operation unwind, registry retirement and deletion dependencies have different notification paths. Terminal invalidation clears recipient membership, so recipients must be captured before that happens. |
-| Snapshot API | `GpuResource<T>.HandleMetadataChanged` only assigns a field; its name suggests an event that it does not implement. |
-
-These are distinct routes to consolidate, not proof that every route currently produces duplicate events.
-The removed framebuffer-only comparison is not part of this proposal's implementation.
+The implemented current-state contract is [resource publication](Rendering.GpuResources.md#snapshot-and-change-publication).
+Entry classification, manager dependency completion and snapshot assignment precede the single internal
+resource callback. Program preparation and framebuffer attachment helpers consume that callback;
+explicit owner events retain their separate owner-completion meaning. Canonical entries own tracked
+availability and revisions; weak owner/image relationships cover intentional replacement and local tools.
 
 ## One completion result
 
@@ -143,5 +136,5 @@ reentry and terminal events. Add focused GPU integration cases only for native i
 storage replacement, executable replacement and original backing/name reuse. Preserve existing explicit
 owner-event checks. No full-suite rerun or pixel-buffer scan is needed to validate this design step.
 
-After approval and implementation, reconcile the resource/binding contracts and migration map, perform
-the second review and independent completion audit, and retain integrated qualification in 9.3.
+Resource/binding contracts describe the implementation. The implementation plan retains focused
+verification and independent review receipts; integrated qualification remains in parent 9.3.

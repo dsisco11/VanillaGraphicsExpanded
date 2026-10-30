@@ -63,6 +63,73 @@ Observed deletion removes that route through the backend's existing retirement p
 Screen resize preserves unrelated executed knowledge and runs resource callbacks in dependency order;
 uniform frame callbacks advance allocation/publication epochs without purging bindings each frame.
 
+## Snapshot and change publication
+
+Snapshot assignment and meaningful change delivery are separate manager responsibilities.
+GpuResourceMetadataEntry<T> compares a candidate with its last committed facts and prior published
+availability. Temporary operation exclusion withholds usability during dispatch; a successful equal
+completion does not produce an unavailable/available pair. Initial facts are distinguished from lifecycle
+revision changes by HasCommittedMetadata. Newly associated or missing recipients still receive the
+complete snapshot when republication is equal.
+
+Canonical record equality compares values. GpuTextureMetadata images compare by mip/face,
+GpuFramebufferMetadata attachments by slot and original backing registration, and GpuProgramMetadata
+resources by interface/index and unit assignments by location. Immutable allocation and enumeration
+order are irrelevant; hashing follows the same rules. Default/unavailable collections remain distinct
+from known empty collections. Backing associations held outside those structs participate separately
+in classification using their original registration and storage certificate.
+
+The internal RHIResourceChange carries ResourceChangeKind reasons, resulting availability, existing
+metadata/storage revisions and the initiating owner. Metadata means represented facts or original
+backing selection changed; Storage and Executable preserve established replacement effects even when
+descriptors or interfaces compare equal. Availability covers published withdrawal/recovery; Retired is
+terminal for the original lifetime. MetadataRevision advances once per actual published transition,
+including availability and retirement. StorageRevision advances only for established or conservatively
+recovered storage replacement. Generic metadata-effect flags alone do not prove change. Uncertain
+storage/executable effects survive explicit recovery; content writes and GPU completion are separate.
+
+RHIResourceManager.ChangeDelivery batches only one synchronous completion and its dependency chain:
+canonical facts, revisions, original backing associations, wrapper snapshots and all selected-image
+projections are committed before consumer callbacks. MetadataOperation finalizes its committed result
+before delivery while retaining its authorized exclusion through callbacks. OnResourceChanged is the
+single internal resource callback; wrappers without derived work need no handler. There is no public
+event bus, asynchronous notification service or second context-local registry.
+
+All fourteen registered kinds use that contract: Buffer, Texture, Renderbuffer, Framebuffer, Shader,
+Program, VertexArray, TransformFeedback, Sampler, ProgramPipeline, Query, Sync, Semaphore and MemoryObject.
+GpuImageMetadata is a projection. Empty schemas report realization, availability and retirement without
+mirroring backend configuration, query readiness, synchronization state or shader compilation results.
+VAO import and realization receipts use the existing backend configuration epoch independently of the
+canonical metadata revision, so equal empty snapshots cannot hide actual vertex configuration changes.
+
+Buffer/renderbuffer-backed textures and native views retain original dependencies. Source withdrawal
+withholds dependent usability; source recovery restores only source-caused uncertainty and never an
+independent child failure or invalidated fixed view storage certificate. Detaching a backing removes
+its obsolete association. OwnerImages preserves weak local-owner/replacement relationships, projects
+all affected images before callbacks and skips recipients already served by their canonical entry.
+A failed projection does not prevent attempts for other valid recipients. Local completion uses the
+existing manager-written snapshot/effect evidence, without granting it tracked usability authority.
+
+Framebuffer attachment helpers and program preparation react through the same callback. Explicit
+framebuffer resize/rebuild/import events remain owner completions even for identical selections.
+The initiating owner is excluded from duplicate metadata-driven completion, while aliases still
+receive their resource changes. Dependency fanout to an owner is coalesced within one completed chain;
+explicit owner completions are not suppressed by this coalescing.
+
+Callbacks may inspect committed facts; managed same-resource reentry remains guarded. Before each
+remaining delivery, original association, revision and availability are checked so an intercepted
+reentrant mutation or retirement cannot be overwritten by an obsolete result. Other valid recipients
+are attempted after consumer failure. Successful-completion callback errors are reported after commit,
+without undoing allocation, retrying native work or treating it as failed initialization. Failure paths
+preserve the original operation exception; external observation contains its own exceptions.
+
+Retirement immediately closes usability and captures weak recipients before membership is cleared.
+Publish, withdrawal and terminal capture share entry synchronization; terminal delivery is idempotent
+across scheduled disposal, native deletion and context teardown. Worker disposal captures and queues
+through the existing originating cleanup lifecycle; context-affine callbacks do not run on that worker.
+Context retirement withdraws the affected registrations before callbacks. Original lifetime checks
+prevent notification or native cleanup from targeting a recycled name or replacement context.
+
 ## Explicit acquisition and image dependencies
 
 Image and framebuffer wrapper APIs, canonical metadata, initialization records and capability-cache keys
@@ -144,8 +211,8 @@ and commits once. Participating internal steps receive the operation explicitly.
 reentry is rejected before dispatch. Cleanup does not recover or retry mutations; recovery is explicit.
 Deferred program linking retains its separate submission/completion boundary. Pending link records
 are held by the backend against the original program wrapper, association and metadata revision;
-submission supersedes only that wrapper's previous request, and completion consumes it once. Snapshot assignment precedes
-availability and dependent notification. Selected framebuffer images project backing metadata without
+submission supersedes only that wrapper's previous request, and completion consumes it once. Canonical facts,
+availability and wrapper snapshots are committed before dependent notification. Selected framebuffer images project backing metadata without
 another canonical entry or reader when facts are available.
 
 Execution exclusion is separate from canonical publication. The manager's `MetadataOperation<T>`
@@ -176,10 +243,8 @@ format capabilities. Narrow allocation outcomes include an unsized resolved form
 sample-count fallback, and the immutable-storage flag for an opaque external-memory allocation. The
 last case does not authorize a descriptor scan.
 
-OpenGL clear execution expands an RG floating-point input texel to RGBA with blue zero and alpha one
-before native dispatch. Red and green retain their original float precision. This backend encoding
-preserves the RHI value and exact clear region without retaining caller memory, allocating a heap
-object, querying allocation facts or waiting for completion. Content clears do not publish storage facts.
+Texture clears dispatch the supplied pixel encoding and value over the exact requested region.
+They change contents, not allocation metadata, and emit no resource-change notification.
 
 Native views own separate registrations and retain original source/storage dependencies regardless of
 which wrapper later borrows them. Cumulative view ranges supply feedback/overlap coordinates, while

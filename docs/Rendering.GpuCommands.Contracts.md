@@ -2,9 +2,8 @@
 
 Planning companion to [the approved proposal](Rendering.GpuCommands.Proposal.md) and
 [implementation plan](Rendering.GpuCommands.todo). These define the implemented execution and ownership
-boundaries. The [migration map](Rendering.GpuCommands.Migrations.md) records replacement routes and
-their qualification limits. No throwing placeholder, old-executor forwarding facade or duplicate owner
-is part of this contract.
+boundaries. Qualification receipts and outstanding acceptance belong to the implementation plan.
+No throwing placeholder, old-executor forwarding facade or duplicate owner is part of this contract.
 
 ## Authority and ownership
 
@@ -63,6 +62,31 @@ canonical availability, revisions and all transitions remain manager-owned. It p
 
 The context does not publish metadata itself. The backend consults the cache, executes and reconciles;
 existing manager services commit snapshots and notifications exactly once.
+
+### Resource completion
+
+The manager separates complete snapshot assignment from meaningful change delivery through the internal
+RHIResourceChange/ResourceChangeKind contract described in [resource publication](Rendering.GpuResources.md#snapshot-and-change-publication).
+Equal canonical values cause no event or revision increment; missing recipients still receive snapshots.
+Structural equality includes represented values and original backing identity, with matching hashing;
+default collections differ from known empty values. Established Storage/Executable replacement remains
+observable even with equal descriptors/interfaces. MetadataRevision advances once for a published
+metadata, storage, executable, availability or terminal transition; StorageRevision tracks replacement.
+Operation exclusion alone does not constitute published unavailability.
+
+Canonical facts, original dependencies and every affected snapshot/projection precede callbacks.
+Successful operations are finalized before notification and remain protected by their original exclusion.
+All families use one internal callback, including empty-schema lifecycle transitions. Owner-level
+framebuffer completion remains explicit; origin suppression prevents its duplicate metadata reaction.
+Weak owner/image fallback covers local completion and deliberate owner replacement without retargeting
+borrowers/views. Independent child uncertainty cannot be recovered by a source-only recovery.
+
+Delivery rechecks original identity, revision and availability after reentry, attempts remaining valid
+recipients after consumer failure, and cannot roll back or retry committed native work. Failure unwind
+preserves its original error; external observations contain notification failures. Retirement closes
+usability immediately and delivers one terminal transition for the original lifetime. Worker disposal
+uses the existing context-affine cleanup handoff; teardown never enters a replacement context.
+No additional queries, public event bus, registry or generation token participates in classification.
 
 ### Internal resource execution
 

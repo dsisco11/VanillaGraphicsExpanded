@@ -242,11 +242,11 @@ Geometry admission validates supplied layout/ranges through the manager and reta
 the backend realizes private VAOs without native layout discovery.
 
 `GpuResource<TMetadata> : GpuResource where TMetadata : struct` retains a private snapshot with
-`protected ref readonly TMetadata metadata` access for derived wrappers. Public non-virtual
-`HandleMetadataChanged(TMetadata data)` assigns that complete private snapshot. Native metadata
+`protected ref readonly TMetadata metadata` access for derived wrappers. The manager-internal `AssignMetadataSnapshot(TMetadata data)` assigns that complete private snapshot. Native metadata
 accessors are getter-only; the compiler rejects derived snapshot writes. The non-generic base retains native identity, disposal and ownership with no
-metadata members or notification contract. The generic base owns no tracking state, availability flags,
-revision copies or lifecycle notification handlers. `RHIResourceManager.WrapperAssociations.cs` owns
+canonical metadata authority and exposes the internal resource-change reaction. The generic base owns no
+registration or revision authority; its local snapshot presence and unfinished effects are passive
+manager-written evidence. `RHIResourceManager.WrapperAssociations.cs` owns
 association identity and exposes manager-side tracking, availability and retirement checks.
 Revisions stay on canonical entries. Metadata-dependent consumers validate through the manager;
 no registration or recipient back-reference is stored in a wrapper.
@@ -331,19 +331,17 @@ Reported failures do not publish success. Silent native failure detection remain
 boundary; external uncertain effects remain unavailable until recovery. Unqueryable external facts
 stay unavailable. The command-publication proposal lists the justified read exceptions.
 
-Commit canonical metadata, assign all typed snapshots, then expose the revision as available and notify
-existing dependents. Do not invoke arbitrary dependent observers between assignments. Failed refresh
-keeps all affected aliases unavailable. If a projection or dependent notification fails, continue other
-notifications and keep affected dependent use unavailable under existing error policy. Selected-image
-refresh always invalidates its framebuffer dependents, including when projection fails. Storage observer
-dispatch reports aggregated failures only after processing every image. Successful later
-refresh may recover metadata, never a deleted registration. Mutable framebuffer configuration can remove
-or replace invalid outgoing images without rendering validation of the old configuration. Other dirty
-attachments retain their pending reattachment until rendering use, which still validates every image.
+Commit canonical facts, availability, revisions and dependencies, assign every affected snapshot/projection,
+then deliver the shared internal resource-change callback. Do not invoke observers between assignments.
+Equal republication supplies missing snapshots without notifying or changing revisions. Actual published
+withdrawal/recovery remains observable. Projection failure attempts remaining images; a consumer failure
+after commit cannot withdraw the successful allocation or retry native work. Explicit owner completion
+remains independent of equal metadata; origin suppression avoids duplicate owner reactions.
 New associations receive a current snapshot
 before becoming usable. Collections shared through struct copies must be immutable.
 
-Entry MetadataRevision advances for changed facts or executable/configuration invalidation. StorageRevision
+Entry MetadataRevision advances once for meaningful metadata, storage, executable, availability or terminal transitions.
+Backend configuration epochs remain separate for empty-schema VAO/feedback configuration. StorageRevision
 advances for storage replacement effects, including equal-sized reallocation where existing source
 storage dependencies require it. Neither is an ID generation. Existing owner notification paths consume
 manager publication once without duplicate increments. Extend existing ShaderInputValidation.InputKey
@@ -498,3 +496,8 @@ and argument-dependent affected targets remain inside domain methods.
 Handwritten classifiers distinguish known changes, proven rejection and uncertainty. Unsigned ordinary
 uniform setters have no represented canonical effect; signed sampler/image and opaque-handle assignments
 retain their metadata routes. Program relevance is established before operation interruption or refresh.
+
+Publication and reactions follow [snapshot and change publication](Rendering.GpuResources.md#snapshot-and-change-publication):
+equal facts still supply missing snapshots without a change event; explicit replacement and lifetime
+transitions retain their revision effects. Manager-written local snapshot presence and pending effects
+are passive completion evidence, not registration or canonical-usability authority.
