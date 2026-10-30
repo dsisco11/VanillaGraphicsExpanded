@@ -120,6 +120,7 @@ internal sealed class GpuResourceMetadataEntry<TMetadata> : GpuResourceRegistrat
             if (!publishedAvailable) reasons |= ResourceChangeKind.Availability;
             if ((effects & GpuMetadataChange.Storage) != 0) reasons |= ResourceChangeKind.Storage;
             if ((effects & GpuMetadataChange.Executable) != 0) reasons |= ResourceChangeKind.Executable;
+            Manager.ReconcilePublishedDependencies(this, Metadata, candidate);
             Metadata = candidate;
             HasCommittedMetadata = true;
             Realize();

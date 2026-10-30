@@ -110,6 +110,19 @@ all affected images before callbacks and skips recipients already served by thei
 A failed projection does not prevent attempts for other valid recipients. Local completion uses the
 existing manager-written snapshot/effect evidence, without granting it tracked usability authority.
 
+The manager indexes dependency edges with Graffs' `MutableDirectedGraph<GpuResourceRegistration>`
+using reference identity. Only registrations participating in relationships enter that derived graph;
+canonical metadata and lifetime authority remain in the registry. Forward texture associations and
+framebuffer attachment descriptors determine edges. Per-source immutable neighborhood snapshots are
+reused until membership changes, so publication, withdrawal and storage fanout never scan unrelated
+registrations. Multiple framebuffer slots sharing one source retain one edge until the last is detached.
+Retiring dependents release incoming edges, while source retirement retains outgoing edges needed for
+the eventual native deletion outcome. Final deletion removes obsolete graph retention; context retirement
+clears the graph alongside the terminal registry sweep. Descriptors lacking original backing identity
+remain in a weak unresolved subset consulted only during deletion, never ordinary publication; numeric
+name reuse does not establish their original association. Graph access is synchronized without holding
+its lock during resource callbacks, and worker retirement uses the existing context cleanup handoff.
+
 Tracked texture-object replacement executes old retirement, new initialization and image reassociation
 through one private owner-bearing RHI operation and completion batch. Original borrowers/views remain
 tied to the old allocation; owner-following images are projected before consumer delivery.

@@ -6,7 +6,8 @@ Parent design task: Rendering.GpuResourceHandles.todo, Phase 8.
 Status: Phases 1–7 have recorded qualification receipts. Corrective subphases 8a–8k and 8h.1 are qualified.
 The maintained metadata lifecycle and combined corrective qualification are complete.
 Management naming is complete. Phase 9 remains open: 9.1 records the existing-work commit boundary,
-9.2 is complete with consistent resource-change publication, and 9.3 completes remaining
+9.2 is complete with consistent resource-change publication. Corrective subphase 9.2.1 is qualified, replacing
+registry-wide dependency searches. Phase 9.3 completes remaining
 diagnosis, integrated qualification, package evidence and user-run acceptance.
 Final Phase 10 audits and streamlines GPU integration tests and their fixtures.
 
@@ -1357,8 +1358,68 @@ Phase 9.2: Design and implement consistent resource-change publication
     final routes, exact receipt paths, archived historical mapping and remaining qualification limits
     are retained below. The temporary map is removed; no staging or commits. Parent 9.3 and 10 stay open.
 
+Phase 9.2.1: Replace registry-wide resource dependency searches
+  Depends on 9.2 and existing 9.3 publication corrections; prerequisite to final qualification.
+  Approved design: [Targeted resource dependency lookup](Rendering.ResourceDependencyLookup.Proposal.md).
+  Authority: Rendering.GpuResources.md (Snapshot and change publication) and
+    Rendering.GpuCommands.Contracts.md (Authority and ownership).
+  Outcome: dependency fanout visits affected original-lifetime relationships without searching unrelated
+    registrations, preserving metadata, availability, revision and notification contracts.
+
+  ☑ Implement a manager-owned reverse lookup from original source registration to direct dependents.
+    Use the direct Graffs 0.2.0 dependency and its mutable directed graph with reference identity,
+    registering only relationship endpoints and reusing stable per-neighborhood snapshots.
+    Preserve the authoritative registry and public APIs;
+    add no native-name registry, wrapper ownership, compatibility shim or general graph scheduler.
+  ☑ Centralize textureBackingIdentities association updates/removal for buffer textures, renderbuffer
+    textures and native views. Derive framebuffer membership from canonical attachment OriginalBacking
+    identities, deduplicating sources across slots. Reconcile membership within existing completion
+    before fanout/callbacks. Equal publication must still assign snapshots to missing recipients.
+  ☑ Replace all six global searches together: RecoverResourceDependencies, WithdrawResourceDependencies,
+    PublishBufferTextureDependencies, PublishRenderbufferTextureDependencies, WithdrawChangedTextureViews
+    and InvalidateDeletionDependencies. Traverse nested views through direct edges; preserve stable
+    traversal during reentrant association changes and existing completion/callback coalescing.
+  ☑ Preserve source-caused recovery versus independent child uncertainty, original identities, fixed view
+    storage revisions, retarget/detach behavior and old borrower/view lifetimes. Remove obsolete dependent
+    membership on terminal cleanup, but retain relationships needed for native deletion and bound-FBO
+    auto-detachment after source retirement is queued. Use the existing originating-context handoff;
+    clear obsolete lookup data at final deletion/context teardown. Retain the legitimate terminal context
+    registry sweep and existing targeted weak owner/image relationships.
+  ☑ Preserve conservative deletion handling for descriptors without OriginalBacking using a weak subset
+    of unresolved dependents, consulted only for exceptional deletion. Ordinary publication must not
+    search it. Do not invent registrations, query missing metadata or attach unresolved descriptors to
+    reused names; migrate membership only when a legitimate existing association establishes identity.
+  ☑ Make ResourcePublicationTraversalTests green, adapting/replacing its test-only capture for the new
+    lookup. Prove zero unrelated visits with 0, 1,024 and 32,768 unrelated registrations and with one
+    actual dependent among unrelated registrations. Do not retain the old loop or add production counters
+    for the test. Preserve successful publication, unchanged revisions and complete snapshot delivery.
+  ☑ Add/reuse focused coverage for source-only recovery, independent child failure, retarget/detach,
+    nested views, shared-source framebuffer slots, retirement followed by native deletion, unresolved
+    backing, name reuse, context teardown and reentrant delivery. Preserve native outputs, revision and
+    callback-order assertions and the no-query contract; add no blanket invalidation.
+  ☑ Delegate required builds and narrow CPU/native integration selections, reusing applicable evidence
+    without a default full-suite rerun or timing/benchmark gate. Perform a second source review and
+    completion audit; reconcile architecture documentation and record exact results and limitations.
+    Hand user-run loading confirmation and refreshed final candidate/package evidence to 9.3.
+  ☑ Completion: all six searches and association lifecycle paths use the approved lookup, focused
+    correctness/anti-redundancy checks pass, and documentation matches implementation. Structural evidence
+    alone does not establish that the loading stall is resolved. Leave 9.3 acceptance open; do not stage
+    or commit without explicit user instruction.
+
+  Completion evidence: second source review and independent audit-stage-completion passed. All six
+    registry-wide dependency searches now use Graffs 0.2.0 original-registration adjacency lookup.
+    The audit found and resolved failed-creation terminal fallback retention; its injected cleanup-failure
+    regression passes. Canonical shader-enabled ordinary Release build: zero errors, 234 warnings.
+    Focused CPU/native checks: 144/144 passed; after the isolated cleanup correction, 18/18 creation
+    checks passed, zero failures/skips. The earlier selection was not repeated. At 0/1,024/32,768
+    unrelated registrations, equal publication visits zero dependents and source recovery with one actual
+    dependent visits exactly one. Receipts: artifacts/resource-dependency-lookup/release-focused.trx,
+    release-cleanup-focused.trx and their build/log companions. No benchmark or full-suite rerun.
+    Existing staged changes were preserved; no staging or commit by the agent. Loading confirmation,
+    refreshed final package identity and integrated acceptance remain open in 9.3.
+
 Phase 9.3: Finish outstanding diagnosis and integrated qualification
-  Depends on 9.1 and 9.2. Earlier receipts below describe their archived candidates only.
+  Depends on 9.1, 9.2 and 9.2.1. Earlier receipts below describe their archived candidates only.
   Outcome: the final combined source has current correctness/package evidence and explicit live acceptance.
 
   ☐ Resolve the undecorated texture-clear discrepancy with the RG-to-RGBA workaround absent. Isolate
@@ -1366,7 +1427,9 @@ Phase 9.3: Finish outstanding diagnosis and integrated qualification
     independently verify readback and investigate value lifetime/native dispatch without assuming a
     driver defect. Preserve original numerical assertions and report instrumentation-sensitive evidence
     as such. Any production correction requires an established explanation and focused regressions.
-  ☐ Reconcile all remaining Phase 9 findings after 9.1 and 9.2; preserve approved numerical-oracle and
+  ☐ Obtain user-run startup evidence after 9.2.1 to confirm the effect on the observed loading stall;
+    retain unresolved symptoms explicitly rather than inferring live acceptance from the CPU reproduction.
+  ☐ Reconcile all remaining Phase 9 findings after 9.1, 9.2 and 9.2.1; preserve approved numerical-oracle and
     shoreline decisions. The stopped candidate35 Debug run is incomplete, and its queued Release/package
     work supplies no final receipt. Refresh source/binary/shader identities before final qualification.
   ☐ Run delegated focused and integrated regressions on an immutable candidate, covering all family receipts,

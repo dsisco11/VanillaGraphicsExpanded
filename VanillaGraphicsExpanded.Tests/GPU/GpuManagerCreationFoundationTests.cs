@@ -4,6 +4,8 @@ using System.Collections.Immutable;
 using OpenTK.Graphics.OpenGL;
 using Native = OpenTK.Graphics.OpenGL4;
 using GLFW = OpenTK.Windowing.GraphicsLibraryFramework.GLFW;
+using HarmonyLib;
+using Graffs.Implementations;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Integration;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
@@ -16,6 +18,48 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 public sealed class GpuManagerCreationFoundationTests(HeadlessGLFixture fixture)
 {
     #region Public API
+    /// <summary>Failed native cleanup cannot retain graph edges after the candidate registration is abandoned.</summary>
+    [Fact]
+    public void FailedCleanupReleasesCandidateDependencyEdges()
+    {
+        fixture.EnsureContextValid(); fixture.InitializeResourceDisposal();
+        var harmony = new Harmony("Tests.CandidateDependencyCleanup." + Guid.NewGuid());
+        int leakedFramebuffer = 0;
+        try
+        {
+            using var backing = RHICommandContext.Current.CreateRenderbuffer(new RHIRenderbufferDescription
+                { Format = TextureFormat.Rgba8, Width = 4, Height = 4, Samples = 0, Label = null }).RequireResource();
+            var manager = RHIResourceManagerSystem.CurrentManager!;
+            var source = manager.FindResource(GpuResourceKind.Renderbuffer, backing.RenderbufferId)!;
+            var graph = (MutableDirectedGraph<GpuResourceRegistration>)AccessTools.Field(typeof(RHIResourceManager),
+                "resourceDependencies").GetValue(manager)!;
+            var original = new InvalidOperationException("identity handoff failed");
+            using var recipient = new Declaration<GpuFramebufferMetadata>(GpuResourceKind.Framebuffer);
+            recipient.AfterIdentityInstall = () =>
+            {
+                leakedFramebuffer = checked((int)recipient.ResourceId);
+                Assert.Single(graph.GetDependents(source));
+                throw original;
+            };
+            harmony.Patch(AccessTools.Method(typeof(GpuResource), "RetireResource"),
+                prefix: new HarmonyMethod(typeof(GpuManagerCreationFoundationTests), nameof(FailFramebufferCleanup)));
+            Assert.Same(original, Assert.Throws<InvalidOperationException>(() =>
+                RHIResourceManager.CreateResource<EmptyRequest, GpuFramebufferMetadata, FramebufferCreation>(
+                    default, recipient, out _, new(backing.RenderbufferId))));
+            Assert.NotEqual(0, leakedFramebuffer);
+            Assert.Null(manager.FindResource(GpuResourceKind.Framebuffer, leakedFramebuffer));
+            Assert.Empty(graph.GetDependents(source));
+            Assert.True(backing.IsValid);
+        }
+        finally
+        {
+            harmony.UnpatchAll(harmony.Id);
+            // The injected failure prevented actual deletion; the fixture owns that deliberately leaked name.
+            if (leakedFramebuffer != 0) GL.DeleteFramebuffer(leakedFramebuffer);
+            fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll();
+        }
+    }
+
     /// <summary>Successful handoff exposes the committed identity and the same canonical snapshot to registry and recipient.</summary>
     [Theory]
     [InlineData(false)]
@@ -319,6 +363,12 @@ public sealed class GpuManagerCreationFoundationTests(HeadlessGLFixture fixture)
     #endregion
 
     #region Private
+    /// <summary>Fails only the candidate framebuffer cleanup before manager deletion observation.</summary>
+    private static void FailFramebufferCleanup(GpuResourceKind kind)
+    {
+        if (kind == GpuResourceKind.Framebuffer) throw new InvalidOperationException("injected cleanup failure");
+    }
+
     /// <summary>Provides one small mutable allocation with all required intent assigned.</summary>
     private static GpuBufferInitialization MutableRequest() => new()
         { Mode = GpuBufferStorageMode.Mutable, Capacity = 32, Usage = BufferUsage.StaticDraw };

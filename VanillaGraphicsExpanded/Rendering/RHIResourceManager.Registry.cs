@@ -199,6 +199,7 @@ internal sealed partial class RHIResourceManager
         {
             using var batch = BeginChangeDelivery();
             WithdrawResourceDependencies(entry, GpuMetadataChange.Metadata);
+            RetireDependentRelationships(entry);
             DeliverResourceChange(delivery);
             return true;
         }
@@ -206,6 +207,7 @@ internal sealed partial class RHIResourceManager
         {
             using var batch = BeginChangeDelivery();
             WithdrawResourceDependencies(entry, GpuMetadataChange.Metadata);
+            RetireDependentRelationships(entry);
             DeliverResourceChange(delivery);
         }, context);
         return true;
@@ -224,10 +226,14 @@ internal sealed partial class RHIResourceManager
             deleted = entry;
             DeliverResourceChange(entry.CaptureRetirement());
             entry.Invalidate(GpuResourceRegistrationState.Deleted);
-            if (kind == GpuResourceKind.Texture) WithdrawChangedTextureViews(entry);
         }
         // A tracked dependent can refer to an externally owned, unregistered backing name.
-        InvalidateDeletionDependencies(kind, id, deleted, readFramebuffer, drawFramebuffer, external);
+        try
+        {
+            if (kind == GpuResourceKind.Texture && deleted is not null) WithdrawChangedTextureViews(deleted);
+            InvalidateDeletionDependencies(kind, id, deleted, readFramebuffer, drawFramebuffer, external);
+        }
+        finally { if (deleted is not null) RemoveDeletedRelationships(deleted); }
         delivery.Complete();
     }
 
@@ -279,6 +285,7 @@ internal sealed partial class RHIResourceManager
         // Remove only this exact entry so cleanup cannot remove a replacement registration.
         metadataRegistry.TryRemove(new System.Collections.Generic.KeyValuePair<GpuResourceHandle, GpuResourceRegistration>(entry.Handle, entry));
         entry.Invalidate(GpuResourceRegistrationState.ContextRetired);
+        RemoveDeletedRelationships(entry);
         RequireActiveRegistry();
     }
 
@@ -330,6 +337,12 @@ internal sealed partial class RHIResourceManager
                 entry.Invalidate(GpuResourceRegistrationState.ContextRetired);
                 notifications.Add(terminal);
             }
+        lock (dependencySync)
+        {
+            resourceDependencies.Clear();
+            unresolvedDependencies.Clear();
+            textureBackingIdentities.Clear();
+        }
         // Every entry is terminal and every image snapshot withdrawn before consumers run.
         foreach (var notify in notifications)
             try { notify(); } catch { }

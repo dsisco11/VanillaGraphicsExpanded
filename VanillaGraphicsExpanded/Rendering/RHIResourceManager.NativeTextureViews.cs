@@ -9,8 +9,7 @@ internal sealed partial class RHIResourceManager
     {
         RequireLiveEntry(view);
         RequireLiveEntry(source);
-        textureBackingIdentities.Remove(view);
-        textureBackingIdentities.Add(view, new(source, source.StorageRevision));
+        RecordTextureBacking(view, source, source.StorageRevision);
     }
 
     /// <summary>Resolves original shared storage for owned views and ordinary wrappers borrowing native views.</summary>
@@ -38,19 +37,13 @@ internal sealed partial class RHIResourceManager
     /// <summary>Withdraws views whose original source allocation has changed or retired.</summary>
     private void WithdrawChangedTextureViews(GpuResourceRegistration source)
     {
-        foreach (var pair in metadataRegistry)
+        // Withdrawal propagates through direct backing edges, including nested views.
+        foreach (var dependent in GetResourceDependents(source))
         {
-            if (pair.Value is not GpuResourceMetadataEntry<GpuTextureMetadata> view || !view.HasCommittedMetadata) continue;
-            var current = (GpuResourceRegistration)view;
-            while (textureBackingIdentities.TryGetValue(current, out var dependency) && dependency.StorageRevision.HasValue)
-            {
-                if (ReferenceEquals(dependency.Source, source))
-                {
-                    view.Withdraw();
-                    break;
-                }
-                current = dependency.Source;
-            }
+            if (dependent is not GpuResourceMetadataEntry<GpuTextureMetadata> view || !view.HasCommittedMetadata
+                || !textureBackingIdentities.TryGetValue(view, out var backing)
+                || !ReferenceEquals(backing.Source, source) || !backing.StorageRevision.HasValue) continue;
+            view.Withdraw();
         }
     }
 

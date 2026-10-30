@@ -18,6 +18,14 @@ internal sealed partial class RHIResourceManager
         texture.RetainInitialCandidate(new(RHI.TextureDimension.Buffer,
             System.Collections.Immutable.ImmutableArray<GpuTextureLevelMetadata>.Empty, false, 0, 0, 0, association));
         if (backing is not null) RecordTextureBacking(texture, backing);
+        else
+        {
+            lock (dependencySync)
+            {
+                unresolvedDependencies.Remove(texture);
+                unresolvedDependencies.Add(texture, unresolvedDependency);
+            }
+        }
     }
     #endregion
 
@@ -29,7 +37,7 @@ internal sealed partial class RHIResourceManager
         if (candidate is not GpuTextureMetadata { Buffer: { BufferId: not 0 } association })
         {
             if (candidate is GpuTextureMetadata && textureBackingIdentities.TryGetValue(texture, out var old)
-                && old.Source.Kind == GpuResourceKind.Buffer && !old.StorageRevision.HasValue) textureBackingIdentities.Remove(texture);
+                && old.Source.Kind == GpuResourceKind.Buffer && !old.StorageRevision.HasValue) RemoveTextureBacking(texture);
             return;
         }
         // A concrete texture association makes this an observed dependency, not a speculative
@@ -55,9 +63,9 @@ internal sealed partial class RHIResourceManager
     {
         if (backing.Kind != GpuResourceKind.Buffer || backing.StorageRevision == previousStorage) return;
         System.Collections.Generic.List<Exception>? failures = null;
-        foreach (var pair in metadataRegistry)
+        foreach (var dependent in GetResourceDependents(backing))
         {
-            if (pair.Value is not GpuResourceMetadataEntry<GpuTextureMetadata> texture
+            if (dependent is not GpuResourceMetadataEntry<GpuTextureMetadata> texture
                 || !texture.IsUsable || texture.Metadata.Buffer is not { } association
                 || association.BufferId != backing.Id
                 || !textureBackingIdentities.TryGetValue(texture, out var original) || !ReferenceEquals(original.Source, backing)) continue;

@@ -13,9 +13,9 @@ internal sealed partial class RHIResourceManager
     /// <summary>Withdraws affected dependent facts while preserving unrelated uncertainty and original identities.</summary>
     internal void WithdrawResourceDependencies(GpuResourceRegistration source, GpuMetadataChange effects)
     {
-        foreach (var pair in metadataRegistry)
+        foreach (var dependent in GetResourceDependents(source))
         {
-            if (pair.Value is not GpuResourceMetadataEntry<GpuTextureMetadata> texture
+            if (dependent is not GpuResourceMetadataEntry<GpuTextureMetadata> texture
                 || !textureBackingIdentities.TryGetValue(texture, out var backing) || !ReferenceEquals(backing.Source, source)) continue;
             if (texture.IsUsable) backing.WithdrawnBySource = true;
             texture.Withdraw(backing.StorageRevision.HasValue ? GpuMetadataChange.Metadata : effects, fromBacking: true);
@@ -25,9 +25,9 @@ internal sealed partial class RHIResourceManager
     /// <summary>Restores only withdrawals caused by this source, never unrelated failed operations.</summary>
     internal void RecoverResourceDependencies(GpuResourceRegistration source)
     {
-        foreach (var pair in metadataRegistry)
+        foreach (var dependent in GetResourceDependents(source))
         {
-            if (pair.Value is not GpuResourceMetadataEntry<GpuTextureMetadata> texture
+            if (dependent is not GpuResourceMetadataEntry<GpuTextureMetadata> texture
                 || !textureBackingIdentities.TryGetValue(texture, out var backing) || !ReferenceEquals(backing.Source, source)
                 || !backing.WithdrawnBySource || !texture.HasCommittedMetadata || texture.OperationInProgress || texture.CompletionInProgress
                 || backing.StorageRevision.HasValue && backing.StorageRevision.Value != source.StorageRevision) continue;

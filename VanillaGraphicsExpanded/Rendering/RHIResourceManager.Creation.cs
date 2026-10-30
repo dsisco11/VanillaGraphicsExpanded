@@ -99,6 +99,7 @@ internal sealed partial class RHIResourceManager
                     {
                         manager!.metadataRegistry.TryRemove(new KeyValuePair<GpuResourceHandle, GpuResourceRegistration>(entry.Handle, entry));
                         entry.Invalidate(GpuResourceRegistrationState.Deleted);
+                        manager.RemoveDeletedRelationships(entry);
                     }
                 }
             }

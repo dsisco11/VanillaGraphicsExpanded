@@ -14,7 +14,7 @@ internal sealed partial class RHIResourceManager
         if (candidate is not GpuTextureMetadata { Renderbuffer: not 0 } texture)
         {
             if (candidate is GpuTextureMetadata && textureBackingIdentities.TryGetValue(entry, out var old)
-                && old.Source.Kind == GpuResourceKind.Renderbuffer && !old.StorageRevision.HasValue) textureBackingIdentities.Remove(entry);
+                && old.Source.Kind == GpuResourceKind.Renderbuffer && !old.StorageRevision.HasValue) RemoveTextureBacking(entry);
             return;
         }
         RequireOriginalTextureBacking(entry, GpuResourceKind.Renderbuffer, texture.Renderbuffer, renewAssociation);
@@ -37,9 +37,9 @@ internal sealed partial class RHIResourceManager
     {
         if (backing.Kind != GpuResourceKind.Renderbuffer || backing.StorageRevision == previousStorage) return;
         List<Exception>? failures = null;
-        foreach (var pair in metadataRegistry)
+        foreach (var dependent in GetResourceDependents(backing))
         {
-            if (pair.Value is not GpuResourceMetadataEntry<GpuTextureMetadata> texture
+            if (dependent is not GpuResourceMetadataEntry<GpuTextureMetadata> texture
                 || !texture.IsUsable || texture.Metadata.Renderbuffer != backing.Id
                 || !textureBackingIdentities.TryGetValue(texture, out var original) || !ReferenceEquals(original.Source, backing)) continue;
             // Renderbuffer textures have no levels of their own. Refresh the dependency's

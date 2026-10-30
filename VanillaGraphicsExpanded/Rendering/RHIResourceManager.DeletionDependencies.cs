@@ -9,9 +9,10 @@ internal sealed partial class RHIResourceManager
     private void InvalidateDeletionDependencies(GpuResourceKind kind, nint id, GpuResourceRegistration? deleted,
         int? readFramebuffer, int? drawFramebuffer, bool external)
     {
-        foreach (var pair in metadataRegistry)
+        foreach (var dependent in GetDeletionDependents(deleted))
         {
-            if (pair.Value is GpuResourceMetadataEntry<GpuFramebufferMetadata> framebuffer
+            if (!IsRegistered(dependent) || dependent.State != GpuResourceRegistrationState.Live) continue;
+            if (dependent is GpuResourceMetadataEntry<GpuFramebufferMetadata> framebuffer
                 && framebuffer.Metadata.Attachments is { } attachments)
             {
                 var remaining = attachments;
@@ -39,12 +40,14 @@ internal sealed partial class RHIResourceManager
                 }
 
             }
-            else if (kind == GpuResourceKind.Buffer && pair.Value is GpuResourceMetadataEntry<GpuTextureMetadata> texture
-                && texture.Metadata.Buffer is { } buffer && buffer.BufferId == id)
+            else if (kind == GpuResourceKind.Buffer && dependent is GpuResourceMetadataEntry<GpuTextureMetadata> texture
+                && texture.Metadata.Buffer is { } buffer && buffer.BufferId == id
+                && (!textureBackingIdentities.TryGetValue(texture, out var bufferBacking) || ReferenceEquals(bufferBacking.Source, deleted)))
                 texture.Withdraw();
             else if (kind == GpuResourceKind.Renderbuffer
-                && pair.Value is GpuResourceMetadataEntry<GpuTextureMetadata> renderbufferTexture
-                && renderbufferTexture.Metadata.Renderbuffer == id)
+                && dependent is GpuResourceMetadataEntry<GpuTextureMetadata> renderbufferTexture
+                && renderbufferTexture.Metadata.Renderbuffer == id
+                && (!textureBackingIdentities.TryGetValue(renderbufferTexture, out var imageBacking) || ReferenceEquals(imageBacking.Source, deleted)))
                 renderbufferTexture.Withdraw();
         }
     }

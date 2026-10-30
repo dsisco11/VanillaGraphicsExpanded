@@ -29,11 +29,28 @@ internal sealed partial class RHIResourceManager
     }
 
     /// <summary>Records one backing identity for the original texture entry without retaining wrappers.</summary>
-    private void RecordTextureBacking(GpuResourceRegistration texture, GpuResourceRegistration backing)
+    private void RecordTextureBacking(GpuResourceRegistration texture, GpuResourceRegistration backing, ulong? storageRevision = null)
     {
-        if (textureBackingIdentities.TryGetValue(texture, out var previous) && ReferenceEquals(previous.Source, backing)) return;
-        textureBackingIdentities.Remove(texture);
-        textureBackingIdentities.Add(texture, new(backing));
+        lock (dependencySync)
+        {
+            if (textureBackingIdentities.TryGetValue(texture, out var previous)
+                && ReferenceEquals(previous.Source, backing) && previous.StorageRevision == storageRevision) return;
+            RemoveTextureBacking(texture);
+            textureBackingIdentities.Add(texture, new(backing, storageRevision));
+            unresolvedDependencies.Remove(texture);
+            AddResourceDependency(backing, texture);
+        }
+    }
+
+    /// <summary>Removes the forward association and its reverse edge as one context-owned update.</summary>
+    private void RemoveTextureBacking(GpuResourceRegistration texture)
+    {
+        lock (dependencySync)
+        {
+            if (!textureBackingIdentities.TryGetValue(texture, out var previous)) return;
+            textureBackingIdentities.Remove(texture);
+            RemoveResourceDependency(previous.Source, texture);
+        }
     }
 
     /// <summary>Checks the captured allocation independently of any resource subsequently using its numeric name.</summary>

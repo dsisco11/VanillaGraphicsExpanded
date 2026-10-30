@@ -88,6 +88,13 @@ usability immediately and delivers one terminal transition for the original life
 uses the existing context-affine cleanup handoff; teardown never enters a replacement context.
 No additional queries, public event bus, registry or generation token participates in classification.
 
+Resource dependency lookup uses a manager-owned Graffs mutable directed graph over original registration
+references. It is derived adjacency data, not another metadata or lifetime authority. Relationship changes
+update only their incident edges; fanout uses stable direct-neighborhood snapshots rather than registry
+enumeration. A weak unresolved-dependent subset preserves exceptional deletion handling without granting
+discovery or adopting reused names. Retirement retains edges required for deferred native deletion;
+final deletion and context teardown release obsolete lookup retention.
+
 ### Internal resource execution
 
 The context routes private resource work through the internal `IRHIResourceExecution` contract inherited
