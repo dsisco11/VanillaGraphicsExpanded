@@ -28,7 +28,9 @@ internal sealed partial class OpenGLBackend
         if (description.Access.HasFlag(ResourceAccess.ShaderStorage)) flags |= MemoryBarrierFlags.ShaderStorageBarrierBit;
         if (description.Access.HasFlag(ResourceAccess.ClientMapped)) flags |= MemoryBarrierFlags.ClientMappedBufferBarrierBit;
         if (description.Access.HasFlag(ResourceAccess.QueryResult)) flags |= MemoryBarrierFlags.QueryBufferBarrierBit;
-        GL.MemoryBarrier(flags);
+        if (flags != 0) GL.MemoryBarrier(flags);
+        // Framebuffer feedback ordering is a distinct caller-declared dependency, not an inferred sampler hazard.
+        if (description.FramebufferFeedback) GL.TextureBarrier();
         RequireContext();
     }
     /// <inheritdoc />

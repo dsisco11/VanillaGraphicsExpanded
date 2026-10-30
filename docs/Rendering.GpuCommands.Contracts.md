@@ -381,7 +381,11 @@ capture or implicit list isolation.
 Sampler/framebuffer feedback is checked at graphics draw submission against the selected pipeline,
 including when bindings are reused after a pipeline change. Binding a shader resource table alone
 does not execute a draw. OpenGL 4.5 attached-depth sampling is allowed when the pipeline cannot write
-depth, with a texture barrier before execution to order earlier writes. Overlapping color/stencil
+depth. Pass callers declare any required prior-write ordering through
+`Barrier(new(ResourceAccess.None, FramebufferFeedback: true))`; ordinary shader-memory visibility
+continues to use the access flags. Immediate and recorded commands preserve this explicit intent.
+The backend does not infer barriers from attachment overlap or maintain a universal write-history tracker.
+Overlapping color/stencil
 attachments and writable depth remain rejected; image load/store retains its conservative overlap checks.
 These rules follow [OpenGL 4.5 section 9.3.1](https://registry.khronos.org/OpenGL/specs/gl/glspec45.core.pdf).
 

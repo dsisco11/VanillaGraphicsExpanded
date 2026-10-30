@@ -7,20 +7,18 @@ namespace VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 internal sealed partial class OpenGLBackend
 {
     #region Private
-    /// <summary>Rejects writable overlap and requests visibility ordering for attached read-only depth.</summary>
-    private static bool ValidateGraphicsFeedback(RHIGraphicsPipeline pipeline, RHIResourceBindings? resources)
+    /// <summary>Rejects writable overlap without inferring synchronization from resource bindings.</summary>
+    private static void ValidateGraphicsFeedback(RHIGraphicsPipeline pipeline, RHIResourceBindings? resources)
     {
-        if (resources is null) return false;
-        bool needsBarrier = false;
+        if (resources is null) return;
         // Only executable sampler entries participate; permutation-excluded inputs cannot sample storage.
         foreach (var active in pipeline.RequireShader().Interface.PreparedBindings.ActiveEntries)
         {
             if (active.Binding.Contract.Kind != ShaderBindingKind.Sampler
                 || !resources.TrySampler(active.Identity, active.Element, out var input)
                 || input.Texture.IsEmpty) continue;
-            needsBarrier |= RenderPass.ValidateSampledTexture(input.Texture, pipeline.Description.DepthStencil);
+            RenderPass.ValidateSampledTexture(input.Texture, pipeline.Description.DepthStencil);
         }
-        return needsBarrier;
     }
     #endregion
 }

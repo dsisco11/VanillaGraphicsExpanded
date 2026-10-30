@@ -90,7 +90,7 @@ internal sealed partial class OpenGLBackend
         if (resources is null) ApplyExecutable(shader);
         else PublishResourceBindings(shader, resources, reuseCommittedUniforms: true);
         OpenGLVertexSelection.Bind(cache,vertexArrayName);
-        if (ValidateGraphicsFeedback(pipeline, resources)) GL.TextureBarrier();
+        ValidateGraphicsFeedback(pipeline, resources);
         shader.RequireUsable();
         geometry.RequireLive();
         if (geometry.ImportedArray is { } imported)

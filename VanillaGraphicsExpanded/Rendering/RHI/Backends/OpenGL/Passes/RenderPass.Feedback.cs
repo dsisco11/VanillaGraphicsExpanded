@@ -9,18 +9,16 @@ namespace VanillaGraphicsExpanded.Rendering.Pipeline.Passes;
 internal sealed partial class RenderPass
 {
     #region Internal API
-    /// <summary>Checks accessible mips and reports whether read-only depth overlap requires a texture barrier.</summary>
-    internal static bool ValidateSampledTexture(GpuTextureRef texture, DepthStencilDesc? depthStencil = null)
+    /// <summary>Checks accessible mips against the selected draw state; the caller owns prior-write synchronization.</summary>
+    internal static void ValidateSampledTexture(GpuTextureRef texture, DepthStencilDesc? depthStencil = null)
     {
-        if (active is null) return false;
-        bool needsBarrier = false;
+        if (active is null) return;
         var data = texture.RequireMetadata();
         foreach (var level in data.Levels)
         {
             if (!level.Allocated || level.Level < data.BaseLevel || level.Level > data.MaxLevel) continue;
-            needsBarrier |= ValidateTextureRange(texture, data, level.Level, null, depthStencil);
+            ValidateTextureRange(texture, data, level.Level, null, depthStencil);
         }
-        return needsBarrier;
     }
 
     /// <summary>Checks the explicit image mip and layer; image access ignores sampler base/max parameters.</summary>
@@ -34,9 +32,8 @@ internal sealed partial class RenderPass
 
     #region Private
     /// <summary>Compares object-relative selections on the same name and absolute selections on proven shared storage.</summary>
-    private static bool ValidateTextureRange(GpuTextureRef texture, GpuTextureMetadata data, int level, int? layer, DepthStencilDesc? depthStencil = null)
+    private static void ValidateTextureRange(GpuTextureRef texture, GpuTextureMetadata data, int level, int? layer, DepthStencilDesc? depthStencil = null)
     {
-        bool needsBarrier = false;
         int name = texture.TextureId;
         var view = data.View;
         int storage = RHIResourceManager.TextureStorageName(texture.Resource);
@@ -65,17 +62,15 @@ internal sealed partial class RenderPass
                 ? 1 : attachedView?.LayerCount ?? int.MaxValue;
             if (first >= attachedFirst + attachedCount || attachedFirst >= first + count) continue;
             // OpenGL 4.5 permits attached depth sampling when this draw cannot write it.
-            // Color, stencil and image-load/store overlap remain conservative. The executor
-            // inserts a texture barrier before drawing to make earlier depth writes visible.
+            // Color, stencil and image-load/store overlap remain conservative. Pass callers
+            // must explicitly order earlier writes when their execution sequence requires it.
             if (pair.Key == FramebufferSlot.Depth && depthStencil is not null
                 && (!depthStencil.DepthTest || !depthStencil.DepthWrite))
             {
-                needsBarrier = true;
                 continue;
             }
             throw new InvalidOperationException($"Texture {name} access overlaps writable or unqualified framebuffer attachment {pair.Key}.");
         }
-        return needsBarrier;
     }
     #endregion
 }

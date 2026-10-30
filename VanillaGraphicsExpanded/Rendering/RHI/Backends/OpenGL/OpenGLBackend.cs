@@ -88,7 +88,7 @@ internal sealed partial class OpenGLBackend : IRHIBackend
       "glGetVertexArrayiv", "glGetVertexArrayIndexediv", "glGetVertexArrayIndexed64iv",
       "glDrawArraysInstancedBaseInstance", "glDrawElementsInstancedBaseVertexBaseInstance", "glMultiDrawElementsBaseVertex",
       "glMultiDrawArraysIndirect", "glMultiDrawElementsIndirect",
-      "glFenceSync", "glClientWaitSync", "glWaitSync", "glDeleteSync", "glIsSync", "glMemoryBarrier", "glFlush", "glFinish",
+      "glFenceSync", "glClientWaitSync", "glWaitSync", "glDeleteSync", "glIsSync", "glMemoryBarrier", "glTextureBarrier", "glFlush", "glFinish",
       "glCreateQueries", "glBeginQuery", "glEndQuery", "glQueryCounter", "glGetQueryObjectiv", "glGetQueryObjectui64v", "glDeleteQueries", "glIsQuery",
       "glBeginConditionalRender", "glEndConditionalRender", "glBindTransformFeedback", "glDeleteTransformFeedbacks", "glIsTransformFeedback",
       "glCreateTransformFeedbacks", "glTransformFeedbackBufferRange", "glBeginTransformFeedback", "glEndTransformFeedback", "glPauseTransformFeedback", "glResumeTransformFeedback",

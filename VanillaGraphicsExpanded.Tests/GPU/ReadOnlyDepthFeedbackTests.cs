@@ -14,11 +14,41 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 public sealed class ReadOnlyDepthFeedbackTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
     #region Public API
+    /// <summary>Recording preserves explicit feedback intent without issuing native work before submission.</summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public unsafe void RecordedBarrierPreservesFramebufferFeedbackIntent(bool framebufferFeedback)
+    {
+        EnsureContextValid();
+        var commands = RHICommandContext.Current;
+        int barriers = 0;
+        using var native = new NativeDriverCapture();
+        nint original = native.Original("glTextureBarrier");
+        native.Add("glTextureBarrier", new Barrier(() =>
+        {
+            ((delegate* unmanaged[Stdcall]<void>)original)();
+            native.Observe(() => barriers++);
+        }));
+        native.Install();
+        using var list = commands.CreateCommandList();
+        list.Barrier(new(ResourceAccess.None, FramebufferFeedback: framebufferFeedback));
+        list.Close();
+        // Native ordering belongs to replay; the stored flag must survive recording unchanged.
+        Assert.Equal(0, barriers);
+        var result = commands.Submit(list);
+        Assert.Null(result.Error);
+        Assert.Equal(CommandListState.Executed, result.State);
+        Assert.Equal(framebufferFeedback ? 1 : 0, barriers);
+        native.RequireSuccessfulObservation();
+        Assert.Equal(ErrorCode.NoError, GL.GetError());
+    }
+
     /// <summary>Cloud and water depth states can sample attached depth, but changing to writable depth rejects before drawing.</summary>
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public unsafe void ReadOnlyDepthIsOrderedAndPipelineChangesRevalidate(bool depthTest)
+    public unsafe void ReadOnlyDepthUsesExplicitOrderingAndPipelineChangesRevalidate(bool depthTest)
     {
         EnsureContextValid();
         var commands = RHICommandContext.Current;
@@ -61,14 +91,18 @@ public sealed class ReadOnlyDepthFeedbackTests(HeadlessGLFixture fixture) : Rend
             commands.BindResources(shader.CaptureBindings());
             int before = barriers;
             commands.Draw(geometry.Inputs, new(0, 3));
-            Assert.Equal(before + 1, barriers);
+            Assert.Equal(before, barriers);
             // Reusing bindings must not retain the previous pipeline's read-only permission.
             commands.SetPipeline(writable);
             Assert.Throws<InvalidOperationException>(() => commands.Draw(geometry.Inputs, new(0, 3)));
-            Assert.Equal(before + 1, barriers);
+            Assert.Equal(before, barriers);
             commands.SetPipeline(readOnly);
             commands.Draw(geometry.Inputs, new(0, 3));
-            Assert.Equal(before + 2, barriers);
+            Assert.Equal(before, barriers);
+            commands.Barrier(new(ResourceAccess.None, FramebufferFeedback: true));
+            Assert.Equal(before + 1, barriers);
+            commands.Draw(geometry.Inputs, new(0, 3));
+            Assert.Equal(before + 1, barriers);
             commands.EndRenderPass();
         });
         native.RequireSuccessfulObservation();
