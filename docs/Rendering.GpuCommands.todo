@@ -1576,20 +1576,33 @@ Phase 9.3.1: Reuse liquid submission preparation until its inputs change
   Depends on 9.2.1 and the existing liquid submission path; completion precedes final 9.3 qualification.
   Outcome: unchanged liquid submissions reuse pool membership, target signatures and pipeline preparation.
 
-  ☐ Audit LiquidGraphicsSubmission.Run and its depth, volume and surface callers. Replace recurring
+  ☑ Audit LiquidGraphicsSubmission.Run and its depth, volume and surface callers. Replace recurring
     pool-set construction, retirement-array allocation and unchanged target/pipeline-description work
     with retained preparation refreshed by the owning lifecycle or explicit revisions. Existing pipeline
     instances already use structural description equality; do not mistake description work for repeated
     native pipeline creation. Keep current visibility and draw intervals dynamic.
-  ☐ Define refresh/retirement authority for pool addition/removal, buffer replacement, geometry changes,
+  ☑ Define refresh/retirement authority for pool addition/removal, buffer replacement, geometry changes,
     target replacement/resize, shader reload, world exit and context replacement. Share preparation only
     where pass inputs genuinely match; avoid registry-wide scans or per-frame hashes as substitutes for
     lifecycle notification. Preserve previous valid preparation when replacement preparation fails.
-  ☐ Migrate affected callers together and remove superseded preparation paths without forwarding shims.
+  ☑ Migrate affected callers together and remove superseded preparation paths without forwarding shims.
     Verify unchanged submissions reuse preparation and each relevant lifecycle change refreshes or retires
     it correctly, without changing render order, culling, resource ownership or failure behavior.
-  ☐ Record focused correctness evidence for final 9.3 qualification. Use behavioral reuse/allocation checks
+  ☑ Record focused correctness evidence for final 9.3 qualification. Use behavioral reuse/allocation checks
     where useful; no timing benchmark or separate complete-suite run is required for this subphase.
+
+  Qualification: retained membership checks the installed engine's append-only pool list identity/count
+    and current manager prefix; stale geometry rebuilds transactionally. Target facts, surface attachment
+    revisions and context identity govern preparation reuse; current pass/draw validation remains intact.
+    All three liquid callers use active-prefix spans. Shader reload remains owned by GraphicsPipelineAsset.
+    Traceability: Rendering.GpuCommands.Proposal.md (PSO replacement, geometry and attachment targets),
+    Rendering.GpuCommands.Contracts.md, Rendering.GpuResources.md (snapshot/change publication) and
+    Rendering.ShaderBindingState.md (prepared submission); current behavior documented in PBR.Liquids.md.
+    Second source review and independent completion audit passed. Release focused checks passed 29 distinct
+    cases with zero failures/skips: initial 24/24, final changed lifecycle classes 5/5, pipeline-generation
+    checks 4/4. Receipts: artifacts/rhi-phase931/liquid-preparation-release.trx,
+    liquid-preparation-final-release.trx and program-generation-release.trx. No timing or live performance
+    claim; final integrated/package/user-run qualification remains in 9.3, and 9.3.2–9.3.3 remain open.
 
 Phase 9.3.2: Eliminate redundant resource-binding processing
   Depends on the existing binding/submission contracts; completion precedes final 9.3 qualification.

@@ -127,7 +127,7 @@ internal sealed class LiquidRenderer : IRenderer
             program.TerrainTexture = source.AtlasTexture(0);
             program.MaterialParamsTexture = initialMaterial.MaterialParamsTexture;
             BindWaterMedium(program, store, atlases[0]);
-            submission.Run(program, pools[..atlases.Length], new(submission.Borrow(transparent).SurfaceReference, LiquidPipelineStates.SurfaceOutputs),
+            submission.Run(program, pools.AsSpan(0, atlases.Length), new(submission.Borrow(transparent).SurfaceReference, LiquidPipelineStates.SurfaceOutputs),
                 LiquidPipelineStates.Surface, LiquidPipelineStates.SurfaceBlending, () =>
             {
                 // Once submission begins, a partial failure must not draw the same water twice.

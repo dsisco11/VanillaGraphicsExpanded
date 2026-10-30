@@ -108,7 +108,7 @@ internal sealed class WaterVolumeRenderer : IRenderer
             program.LightShaftOcclusion = Postprocessing.LightShaftOcclusionRenderer.Texture;
             program.AerialRadianceTexture = ModSystems.AtmosphereModSystem.AerialRadianceTexture;
             program.AerialAttenuationTexture = ModSystems.AtmosphereModSystem.AerialAttenuationTexture;
-            if (!submission.Run(program, pools[..atlases.Length], volumePass!,
+            if (!submission.Run(program, pools.AsSpan(0, atlases.Length), volumePass!,
                 new(), LiquidPipelineStates.VolumeBlending, () =>
             {
                 for (int i = 0; i < atlases.Length; i++)

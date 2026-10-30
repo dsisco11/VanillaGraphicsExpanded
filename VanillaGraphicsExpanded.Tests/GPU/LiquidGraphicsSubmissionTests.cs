@@ -55,6 +55,18 @@ public sealed class LiquidGraphicsSubmissionTests(HeadlessGLFixture fixture) : R
         }));
         Assert.True(LiquidMeshSource.UseSsbo(render));
         Assert.InRange(target[0].ReadPixels()[0], .6999f, .7001f);
+        var retainedTargets = AccessTools.Field(typeof(LiquidGraphicsSubmission), "targets").GetValue(submission);
+        var retainedPipeline = AccessTools.Field(typeof(LiquidGraphicsSubmission), "pipeline").GetValue(submission);
+        // An equivalent freshly authored pass must reuse preparation, independently of pass object identity.
+        Assert.True(submission.Run(shader, [manager], FramebufferTestSetup.DescribeAttachments(target, [new(AttachmentIndex: 0)]),
+            new(), [new ColorBlendDesc()], () => { }));
+        Assert.Same(retainedTargets, AccessTools.Field(typeof(LiquidGraphicsSubmission), "targets").GetValue(submission));
+        Assert.Same(retainedPipeline, AccessTools.Field(typeof(LiquidGraphicsSubmission), "pipeline").GetValue(submission));
+        // A failed target candidate must not displace the last successful preparation.
+        Assert.ThrowsAny<Exception>(() => submission.Run(shader, [manager],
+            new([new(Image: RHIAttachment.FromTexture(first, new(MipLevel: 8)))]), new(), [new ColorBlendDesc()], () => { }));
+        Assert.Same(retainedTargets, AccessTools.Field(typeof(LiquidGraphicsSubmission), "targets").GetValue(submission));
+        Assert.Same(retainedPipeline, AccessTools.Field(typeof(LiquidGraphicsSubmission), "pipeline").GetValue(submission));
         Assert.Throws<ArithmeticException>(() => submission.Run(shader, [manager], FramebufferTestSetup.DescribeAttachments(target, [new(AttachmentIndex: 0)]), new(),
             [new ColorBlendDesc()], () => throw new ArithmeticException("Manager fixture failure.")));
         Assert.True(LiquidMeshSource.UseSsbo(render));
@@ -67,6 +79,19 @@ public sealed class LiquidGraphicsSubmissionTests(HeadlessGLFixture fixture) : R
             LiquidPipelineStates.Depth, LiquidPipelineStates.DepthBlending,
             () => Assert.False(LiquidPoolSubmissionHook.Prefix(storage.Pool))));
         Assert.InRange(depth.ReadPixels()[0], .4999f, .5001f);
+        var beforeContext = AccessTools.Field(typeof(LiquidGraphicsSubmission), "pipeline").GetValue(submission);
+        // Supply an obsolete preparation identity; the real current context must replace that preparation.
+        AccessTools.Field(typeof(LiquidGraphicsSubmission), "preparedContext").SetValue(submission,
+            RuntimeHelpers.GetUninitializedObject(typeof(RHICommandContext)));
+        Assert.True(submission.Run(shader, [manager], FramebufferTestSetup.DescribeAttachments(target, [new(AttachmentIndex: 0)]),
+            new(), [new ColorBlendDesc()], () => { }));
+        Assert.NotSame(beforeContext, AccessTools.Field(typeof(LiquidGraphicsSubmission), "pipeline").GetValue(submission));
+        Mock.Get(api.Object.Event).Raise(value => value.LeaveWorld += null);
+        Assert.True(borrowedDepth.IsDisposed);
+        Assert.Null(AccessTools.Field(typeof(LiquidGraphicsSubmission), "pipeline").GetValue(submission));
+        Assert.Null(AccessTools.Field(typeof(LiquidGraphicsSubmission), "targets").GetValue(submission));
+        Assert.True(submission.Run(shader, [manager], FramebufferTestSetup.DescribeAttachments(target, [new(AttachmentIndex: 0)]),
+            new(), [new ColorBlendDesc()], () => { }));
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
     #endregion

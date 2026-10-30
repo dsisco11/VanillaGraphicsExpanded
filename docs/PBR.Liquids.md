@@ -8,6 +8,10 @@
 
 `LiquidRenderHooks` inserts a conditional bypass from the engine liquid shader selection through its stop call. Matrix pushes/pops, transparent terrain and meta-block submission remain in place. The original liquid instructions remain available as a vanilla fallback. The previous `PbrLiquidShaderPatches` source injection and liquid atmosphere interception are removed.
 
+Liquid submissions retain pool membership between changes to the active manager prefix, private pool-list identity or count. The installed engine appends pools through `MeshDataPoolManager.AddModel`; replacing managers and leaving the world retire old membership. Geometry adapters still check current storage before submission and validate the engine's current culled intervals at draw time. Replacement preparation is built before old adapters are retired.
+
+Target-signature and pipeline-description preparation is reused while the originating RHI context, shader generation, depth/blend intent, output routing and published target facts match. External surfaces use their attachment revision; attachment-based passes compare available published image facts. Equal-format storage replacement may reuse pipeline compatibility, but `BeginRenderPass` still resolves and validates current identities and executes every load/store/clear intention. Shader assets retain coherent reload ownership. Resize invalidates target preparation, while world exit and context replacement retire the relevant retained preparation without deleting engine storage.
+
 ## Shader and buffer contracts
 
 The SPIR-V program explicitly reimplements the mesh-pool `IShaderProgram` calls for origin, model-view transform and preview transparency. Every such write publishes a new draw UBO range through the existing uniform ring, so subsequent pools cannot overwrite data used by earlier draws. Mini-dimension restoration follows the engine's existing interface calls. Frame lighting/material-animation inputs are captured once per invocation; integer/vector writes use `CpuUniformBuffer` typed operations.

@@ -2,9 +2,6 @@ using VanillaGraphicsExpanded.Rendering.ShaderCompilation;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using System.Collections.Generic;
-using System.Linq;
-using HarmonyLib;
-using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Integration;
 using VanillaGraphicsExpanded.Rendering.Pipeline;
@@ -18,13 +15,16 @@ namespace VanillaGraphicsExpanded.PBR.Liquids;
 /// <summary>Retains engine pool culling and transform staging while owning every liquid draw's complete pipeline.</summary>
 internal sealed class LiquidGraphicsSubmission : IDisposable
 {
-    private static readonly AccessTools.FieldRef<MeshDataPoolManager, List<MeshDataPool>> ReadPools =
-        AccessTools.FieldRefAccess<MeshDataPoolManager, List<MeshDataPool>>("pools");
     [ThreadStatic] private static LiquidGraphicsSubmission? active;
-    private readonly Dictionary<MeshDataPool, EngineLiquidPoolGeometry> geometry = new();
+    private readonly LiquidPoolPreparation geometry = new();
+    private RHICommandContext? preparedContext;
+    private LiquidTargetPreparation? targets;
+    private DepthStencilDesc? preparedDepth;
+    private ColorBlendDesc[] preparedBlends = [];
     private readonly Action unregister;
     private readonly ICoreClientAPI api;
     private GpuFramebuffer? borrowed;
+    private RHICommandContext? borrowedContext;
     private GraphicsPipelineAsset? pipeline;
     private RHICommandContext? commands;
     private bool dirty = true;
@@ -37,25 +37,26 @@ internal sealed class LiquidGraphicsSubmission : IDisposable
     {
         this.api = api;
         unregister = ScreenResourceManager.Register(ScreenResourceManager.CompositeOrder, Invalidate);
-        api.Event.LeaveWorld += Invalidate;
+        api.Event.LeaveWorld += LeaveWorld;
     }
 
     /// <summary>Publishes the engine target once per rebuild, retaining its exact attachment metadata.</summary>
     internal GpuFramebuffer Borrow(FrameBufferRef source)
     {
-        if (dirty || borrowed is null || borrowed.FboId != source.FboId
+        var context = RHICommandContext.Current;
+        if (dirty || !ReferenceEquals(borrowedContext, context) || borrowed is null || borrowed.FboId != source.FboId
             || borrowed.Width != source.Width || borrowed.Height != source.Height)
         {
             var candidate = DynamicGpuFramebuffer.Wrap(source.FboId, "Liquid.EngineTarget", source.Width, source.Height);
             try { candidate.PublishRenderPassMetadata(); }
             catch { candidate.Dispose(); throw; }
-            borrowed?.Dispose(); borrowed = candidate; dirty = false;
+            borrowed?.Dispose(); borrowed = candidate; borrowedContext = context; dirty = false;
         }
         return borrowed;
     }
 
     /// <summary>Prepares storage before entry, then lets engine managers stage uniforms before intercepted complete draws.</summary>
-    internal bool Run(GpuProgram shader, MeshDataPoolManager[] managers, RHIRenderPassDescription pass,
+    internal bool Run(GpuProgram shader, ReadOnlySpan<MeshDataPoolManager> managers, RHIRenderPassDescription pass,
         DepthStencilDesc depth, IReadOnlyList<ColorBlendDesc> blends, Action renderManagers)
     {
         if (!shader.EnsureReady()) return false;
@@ -64,24 +65,32 @@ internal sealed class LiquidGraphicsSubmission : IDisposable
             inputOwner = shader;
             inputAdapter = shader is ILiquidPoolInputs inputs ? new(inputs) : null;
         }
-        var current = managers.SelectMany(manager => ReadPools(manager)).ToHashSet();
-        foreach (var old in geometry.Keys.Where(pool => !current.Contains(pool)).ToArray())
-        { geometry[old].Dispose(); geometry.Remove(old); }
-        foreach (var pool in current)
+        var context = RHICommandContext.Current;
+        if (preparedContext is not null && !ReferenceEquals(preparedContext, context))
         {
-            if (geometry.TryGetValue(pool, out var existing) && existing.IsCurrent) continue;
-            var candidate = new EngineLiquidPoolGeometry(pool);
-            existing?.Dispose(); geometry[pool] = candidate;
+            Retire();
         }
-        var signature=RHICommandContext.Current.DescribeRenderTargets(pass);
-        var description = new RHIGraphicsPipelineDescription(shader.Shader, EngineLiquidPoolGeometry.Layout,
-            signature, DynamicPipelineState.Viewport, depthStencil: depth, blending: blends);
-        if (pipeline is null || pipeline.Description != description || pipeline.Description.Shader != shader.Shader)
+        preparedContext = context;
+        geometry.Prepare(managers);
+        bool blendChanged = preparedBlends.Length != blends.Count;
+        for (int i = 0; !blendChanged && i < blends.Count; i++) blendChanged = preparedBlends[i] != blends[i];
+        if (pipeline is null || pipeline.Description.Shader != shader.Shader
+            || preparedDepth != depth || blendChanged || targets is null || !targets.Matches(pass))
         {
-            var candidate = new GraphicsPipelineAsset(shader,description);
-            pipeline?.Dispose(); pipeline = candidate;
+            var signature = context.DescribeRenderTargets(pass);
+            var targetCandidate = new LiquidTargetPreparation(pass);
+            var blendCandidate = new ColorBlendDesc[blends.Count];
+            for (int i = 0; i < blends.Count; i++) blendCandidate[i] = blends[i];
+            var description = new RHIGraphicsPipelineDescription(shader.Shader, EngineLiquidPoolGeometry.Layout,
+                signature, DynamicPipelineState.Viewport, depthStencil: depth, blending: blendCandidate);
+            // Publish only after all candidate work succeeds. Equal target facts may still reuse the PSO.
+            if (pipeline is null || pipeline.Description != description)
+            {
+                var candidate = new GraphicsPipelineAsset(shader, description);
+                pipeline?.Dispose(); pipeline = candidate;
+            }
+            targets = targetCandidate; preparedDepth = depth; preparedBlends = blendCandidate;
         }
-        var context=RHICommandContext.Current;
         if(!context.TryEnterBoundary(new(shader.PassName,true,graphics:[pipeline.Pipeline],operations:BoundaryOperations.RenderPasses),out var boundary)) return false;
         using(boundary) boundary!.Run(()=>
         {
@@ -107,8 +116,7 @@ internal sealed class LiquidGraphicsSubmission : IDisposable
     internal static bool TryDraw(MeshDataPool pool)
     {
         if (active is null) return false;
-        if (!active.geometry.TryGetValue(pool, out var geometry))
-            throw new InvalidOperationException("Engine submitted an unprepared liquid pool.");
+        var geometry = active.geometry[pool];
         if (pool.indicesGroupsCount > 0)
         {
             var draws = geometry.CaptureDraws();
@@ -121,14 +129,27 @@ internal sealed class LiquidGraphicsSubmission : IDisposable
     /// <summary>Retires realizations and metadata without disposing any engine storage.</summary>
     public void Dispose()
     {
-        unregister(); api.Event.LeaveWorld -= Invalidate;
-        foreach (var entry in geometry.Values) entry.Dispose();
-        geometry.Clear(); pipeline?.Dispose();  borrowed?.Dispose();
+        unregister(); api.Event.LeaveWorld -= LeaveWorld;
+        LeaveWorld();
     }
     #endregion
 
     #region Private
     /// <summary>Withdraws borrowed identity after rebuild or world retirement, including reused native names.</summary>
-    private void Invalidate() => dirty = true;
+    private void Invalidate() { dirty = true; targets = null; }
+
+    /// <summary>Releases world/context preparation without deleting the engine allocations it borrows.</summary>
+    private void Retire()
+    {
+        geometry.Dispose(); pipeline?.Dispose(); pipeline = null;
+        targets = null; preparedContext = null;
+    }
+
+    /// <summary>Releases the old world's preparation and external surface association before possible native name reuse.</summary>
+    private void LeaveWorld()
+    {
+        Retire(); borrowed?.Dispose(); borrowed = null; borrowedContext = null; dirty = true;
+        inputOwner = null; inputAdapter = null;
+    }
     #endregion
 }
