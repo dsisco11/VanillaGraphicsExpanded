@@ -64,6 +64,7 @@ public sealed class AtmosphereModSystem : ClientRenderingModSystem, IRenderer
         pendingPublication = null;
         context = default;
         ambientPublication?.Dispose();
+        HarmonyPatches.AtmosphereShaderBindingHook.InvalidateTextureBindings();
         AerialRadianceTexture = null; AerialAttenuationTexture = null;
         ExternalTransmissionTexture = null;
         Lighting = null; SkyTextureId = 0; SkyTexture = default; AerialRadianceTextureId = 0; AerialAttenuationTextureId = 0;
@@ -185,6 +186,7 @@ public sealed class AtmosphereModSystem : ClientRenderingModSystem, IRenderer
             // celestial lifetime independently abandons its dead sets and restarts load preparation.
             pendingPublication = null; Lighting = null;
             SkyTextureId = AerialRadianceTextureId = AerialAttenuationTextureId = 0; SkyTexture = default;
+            HarmonyPatches.AtmosphereShaderBindingHook.InvalidateTextureBindings();
             AerialRadianceTexture = AerialAttenuationTexture = null; ExternalTransmissionTexture = null;
             Rendering.Integration.RenderingCleanup.Run(
                 () => { computation?.Dispose(); computation = null; },
@@ -210,6 +212,7 @@ public sealed class AtmosphereModSystem : ClientRenderingModSystem, IRenderer
         // A failed upload leaves every published texture and its lighting unchanged.
         // Reuse two complete sets rather than allocating textures on every sun update.
         (textures, stagingTextures) = (stagingTextures, textures);
+        HarmonyPatches.AtmosphereShaderBindingHook.InvalidateTextureBindings();
         AerialRadianceTexture = textures.Radiance;
         AerialAttenuationTexture = textures.Attenuation;
         ExternalTransmissionTexture = textures.ExternalTransmission;

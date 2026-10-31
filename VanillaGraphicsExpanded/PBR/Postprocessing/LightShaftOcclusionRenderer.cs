@@ -74,6 +74,7 @@ internal sealed class LightShaftOcclusionRenderer : IRenderer
     /// <summary>Retires executable references before images and clears every publication.</summary>
     private void Retire()
     {
+        HarmonyPatches.AtmosphereShaderBindingHook.InvalidateTextureBindings();
         published=false; draw?.Dispose(); draw=null; shafts.Dispose(); resources.Dispose(); resources=new(); depth=null;
     }
     /// <summary>Retires executable references before their image storage on shader reload.</summary>

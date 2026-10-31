@@ -33,7 +33,7 @@ internal sealed unsafe partial class OpenGlStateCache
             if (name != 0 && index <= int.MaxValue && GpuSupport.HasCachedCapabilitiesForCurrentContext
                 && OpenGLBufferBindingCalls.ValidIndexedSlot((BufferRangeTarget)target, (int)index)
                 && cache.TryGetFeedbackActivity(out var activity) && !activity.Active)
-                cache.indexedBufferBindings.Remove(((BufferRangeTarget)target, (int)index));
+                cache.SetIndexedBufferKnowledge((BufferRangeTarget)target, (int)index, null);
         }
     }
     #endregion

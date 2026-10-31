@@ -74,8 +74,7 @@ internal static class FrameShaderBindingHook
             throw new InvalidOperationException("The engine light consumer could not bind its shared light snapshot.");
         if (membership.Energy)
         {
-            RHICommandContext.Current.BindSampledTextures([new(GpuBindingRegistry.Sampler.MicrofacetEnergy,
-                PBR.Materials.Energy.MicrofacetEnergyLookup.Prepare(), GpuSamplers.LinearClamp)]);
+            RHICommandContext.Current.BindSampledTextures(PBR.Materials.Energy.MicrofacetEnergyLookup.PrepareBindings());
         }
     }
     #endregion

@@ -26,7 +26,7 @@ internal sealed partial class OpenGLBackend
             snapshot.Publication.MarkExecution(snapshot.ContentRevision);
             return true;
         }
-        finally { ReleaseExecutionResources(); }
+        finally { ClearResourceBindings(); }
     }
     #endregion
 }

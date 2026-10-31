@@ -25,7 +25,7 @@ public sealed partial class RHICommandList
     private readonly CommandPages<RHIReadbackDescription> readbackDescriptionArguments = new();
     private readonly CommandPages<RHIReadbackTicket> readbackTicketArguments = new();
     private readonly CommandPages<GpuTransformFeedbackRef> transformFeedbackReferencesArguments = new();
-    private readonly CommandArray<RHISampledTextureSlot> sampledInputs = new();
+    private readonly CommandPages<RHISampledTextureBindings> sampledInputs = new();
     private readonly CommandArray<RHIDrawIndexed> indexedDraws = new();
     private readonly CommandArray<GpuBufferRef> semaphoreBuffers = new();
     private readonly CommandArray<RHIExternalTextureTransition> semaphoreTextures = new();

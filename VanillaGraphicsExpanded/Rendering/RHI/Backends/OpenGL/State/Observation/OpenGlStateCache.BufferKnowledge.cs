@@ -24,14 +24,16 @@ internal sealed partial class OpenGlStateCache
     /// <summary>Establishes only facts proved by a completed controlled generic bind.</summary>
     internal void EstablishBufferBinding(BufferTarget target, int buffer)
     {
-        ChangeBindingPublication();
+        ChangeBufferWrite(target);
+
         bufferBindingByTarget[target] = buffer;
     }
 
     /// <summary>Commits an indexed key and its generic association after native execution.</summary>
     internal void EstablishIndexedBufferBinding(BufferRangeTarget target, int slot, int buffer, nint offset, nint size, bool range)
     {
-        ChangeBindingPublication();
+        ChangeBufferWrite((BufferTarget)target, slot);
+
         indexedBufferBindings[(target, slot)] = new(buffer, offset, size, range);
         bufferBindingByTarget[(BufferTarget)target] = buffer;
 #if DEBUG
@@ -42,7 +44,8 @@ internal sealed partial class OpenGlStateCache
     /// <summary>Withdraws only uncertain generic/indexed selector knowledge after interruption.</summary>
     internal void ForgetBufferBinding(BufferTarget target, int? slot = null)
     {
-        ChangeBindingPublication();
+        ChangeBufferWrite(target, slot);
+
         bufferBindingByTarget.Remove(target);
         if (slot.HasValue) indexedBufferBindings.Remove(((BufferRangeTarget)target, slot.Value));
     }
@@ -54,6 +57,17 @@ internal sealed partial class OpenGlStateCache
         CancelResourceOperation(GpuResourceKind.Buffer, id);
         RHIResourceManagerSystem.CurrentManager?.ObserveDeletion(GpuResourceKind.Buffer, id);
         ForgetDeletedBuffer(id);
+    }
+    #endregion
+
+    #region Private
+    /// <summary>Records an index-only native effect without inventing a generic-buffer side effect for multi-bind or named configuration.</summary>
+    private void SetIndexedBufferKnowledge(BufferRangeTarget target, int slot, IndexedBufferBinding? value)
+    {
+        var key = ((BufferTarget)target, slot);
+        bufferWrites[key] = bufferWrites.GetValueOrDefault(key) + 1;
+        if (value is { } binding) indexedBufferBindings[(target, slot)] = binding;
+        else indexedBufferBindings.Remove((target, slot));
     }
     #endregion
 }

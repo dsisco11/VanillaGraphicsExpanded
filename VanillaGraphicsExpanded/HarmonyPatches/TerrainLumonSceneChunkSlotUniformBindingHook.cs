@@ -99,7 +99,7 @@ internal static class TerrainLumonSceneChunkSlotUniformBindingHook
             var texture = LumonSceneChunkSlotUniformState.GenerationTexture;
             if (genLoc >= 0 && !texture.IsEmpty)
             {
-                VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(LumonSceneChunkSlotUniformState.GenerationTextureUnit, texture)]);
+                VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures(LumonSceneChunkSlotUniformState.GenerationBindings!);
             }
 
             // Compute passes reuse the Object binding; a version check alone cannot restore it.

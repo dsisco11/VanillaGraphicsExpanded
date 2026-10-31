@@ -10,7 +10,7 @@ internal sealed partial class OpenGLBackend
 {
     #region Private
     /// <summary>Publishes or clears a previously validated buffer selection without implicit extent conventions.</summary>
-    private void PublishBufferInput(ShaderBindingKind kind, int slot, RHIBufferBinding input)
+    private void PublishBufferInput(ShaderBindingKind kind, int slot, RHIBufferBinding input, int name)
     {
         var target = kind switch
         {
@@ -19,7 +19,6 @@ internal sealed partial class OpenGLBackend
             ShaderBindingKind.AtomicCounter => Legacy.BufferRangeTarget.AtomicCounterBuffer,
             _ => throw new ArgumentOutOfRangeException(nameof(kind))
         };
-        int name = input.Buffer.IsEmpty ? 0 : checked((int)input.Buffer.RequireResource().ResourceId);
         if (input.Buffer.IsEmpty || input.Whole) OpenGLBufferBindings.BindBufferBase(cache, target, slot, name);
         else OpenGLBufferBindings.BindBufferRange(cache, target, slot, name, input.Offset, input.Length);
     }
@@ -39,9 +38,8 @@ internal sealed partial class OpenGLBackend
             candidate = owner.Prepare(ring, snapshot.Bytes, snapshot.ContentRevision);
         try
         {
-            RetainExecutionResource(candidate.Buffer);
             OpenGLBufferBindings.BindBufferRange(cache, Legacy.BufferRangeTarget.UniformBuffer, slot,
-                candidate.Buffer.BufferId, candidate.Offset, candidate.Size);
+                checked((int)candidate.Buffer.ResourceId), candidate.Offset, candidate.Size);
             owner.Commit(ring, candidate, snapshot.ContentRevision);
             snapshot.CommitSource();
             return candidate;

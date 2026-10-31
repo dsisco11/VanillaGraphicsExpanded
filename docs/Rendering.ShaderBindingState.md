@@ -2,21 +2,21 @@
 
 The shared [GPU resource contract](Rendering.GpuResources.md) defines canonical metadata,
 initialization, query policy, original associations and deletion. Binding knowledge and shader-local
-compatibility history remain separate from that resource metadata.
+compatibility preparation remain separate from that resource metadata.
 
 ## Executable ownership and current compatibility
 
-Graphics `GpuProgram` and compute `GpuComputeProgram` implement internal `IGpuProgram`;
-shared default workflows use concrete lifecycle state and deliberate facades, preserving authored
-and generated `Submit`. Runtime/offline generation recognizes both families through abstract
-intermediates. Family owners expose ProgramLayout/ProgramId for generated publication; direct
-pipeline adapters retain their explicitly accessible pipeline-field path.
+Graphics `GpuProgram` and compute `GpuComputeProgram` implement internal `IGpuProgram`; shared lifecycle
+workflows preserve authored and generated `CaptureBindingsCore` ownership. Generation recognizes both
+families through abstract intermediates. Captures retain the exact `Shader` reference and its prepared
+interface. ProgramLayout/ProgramId remain explicit asset/integration and diagnostic adapters rather than
+a generated native publication route.
 
-Prepared interfaces publish atomically with the independent executable/revision/asset generation.
-Desired values and CPU blocks survive reload, while successful-upload history follows the installed
-generation. OpenGlStateCache's existing scopes carry owner/revision/context borrows; native engine globals
-are not a VGE ownership channel. Replacement and retirement reject active borrows. Every managed draw
-publishes intended inputs even when the binding ID is unchanged.
+Prepared interfaces publish with the independent executable/revision/asset generation. Desired selections
+and CPU blocks survive reload; captured tables keep their exact generation and bytes. Compute execution
+uses change-delivered readiness under owner lifetimes. Existing graphics restoration and pass borrows
+remain with their operation owners. Every requested draw/dispatch publishes its intended inputs through
+the executed cache; a reused table never suppresses actual rendering or uniform consumption.
 
 Shader preparation and native geometry admission use the RHI preparation gate to reject work inside an
 active engine restoration boundary. The gate consults existing thread-local boundary authority without native
@@ -112,7 +112,7 @@ Validation covers fixed sampler/image namespaces, array activity, incompatible t
 executable replacement and failure preservation. Generated submission consumes the resulting table.
 
 Program snapshots are assigned before the shared internal resource-change callback reconciles preparation.
-Structurally equal interfaces/assignments retain metadata revisions and compatibility history; equal
+Structurally equal interfaces/assignments retain metadata revisions and prepared facts; equal
 republication still supplies missing snapshots. Executable replacement remains a change even when its
 interface is equal. Published withdrawal/recovery invalidates unavailable preparation, while temporary
 operation exclusion alone does not emit availability transitions. Tracked fixed shaders check original
@@ -123,119 +123,82 @@ withdraws the successfully installed executable or retries linking. See [resourc
 
 ## Prepared resource submission
 
-Texture inputs use `GpuTextureRef` for owned textures, borrowers and native views. Wrapper-owned implicit
-conversions retain the managed object without exposing lifecycle operations to the shader contract.
-`GpuTextureBinding` combines that reference with explicit image access, mip, layer and format selection.
-Native-view selections are relative to the view; source offsets are used only for shared-storage checks.
-Resource usability belongs to `RHIResourceManager`, while shader compatibility and pass feedback checks
-remain at submission. A reference follows intentional replacement by its owning wrapper, so equality
-alone never suppresses current-identity, availability or compatibility checks.
+Texture and buffer references remain non-owning. Owners preserve their selected storage through immediate
+execution or execution/discard of retained commands, and withdraw consumers before incompatible replacement.
+An owner-following texture selection refreshes after explicit replacement; borrowers and native views remain
+tied to their original associations. Canonical resource facts stay with the manager.
 
-Generated `Submit` snapshots each source once, selects entries from the installed prepared table,
-validates the complete active input set, then supplies a frozen `RHIResourceBindings` table for context execution, using
-[ShaderPreparedSubmission](../VanillaGraphicsExpanded/Rendering/ShaderPreparedSubmission.cs).
-Activity and required/optional policy come from the executable's entries. Inactive inputs are skipped;
-missing required allocations fail before publication; optional absence clears the corresponding slot.
-Ordinary uniform and engine-facing location adapters remain available for their inventoried consumers.
-Validation checks texture targets and signed/unsigned/floating interpretation, image format compatibility,
-selected mip/layer bounds and storage-range alignment. An explicit single-layer view of layered storage
-uses the layer's dimensionality. Texture-only image properties select the whole allocation when the
-linked shader expects a layered image; optional absent images clear with canonical valid view parameters.
+Generated `CaptureBindingsCore` samples authored getters once and retains generated desired state. Its input
+revision changes only for actual resource-selection edits. Arrays are copied on assignment/capture. The
+resulting `RHIResourceBindings` freezes numeric authored identities, exact executable identity, sampler array
+elements, image selectors, buffer intervals and logical uniform snapshots. Capture is CPU-only: it performs
+no native queries, slot publication, physical uniform allocation or resource-lifetime acquisition.
 
-The generator emits deterministic numeric resource identities from the authoritative kind/name pair.
-Preparation maps those identities to its immutable entries and rejects collisions. This handles owners
-with multiple program contracts without assuming that an entry's table index or fixed slot identifies
-the same desired property across programs. Names serve preparation and diagnostics; submission does
-not reflect the executable or perform name/location lookup. Array publication respects element activity.
+Each retained resource structure projects its exact shader interface into active semantic entries. Excluded
+and inactive inputs do no compatibility, subscription or publication work. Required absence rejects
+preparation; optional absence is an explicit clear of the declared slot/target. A present but unavailable
+resource never becomes an optional clear. Preparation establishes texture target/format, image view/mip/layer,
+buffer extent/alignment and linked-block relationships before native publication. It stores derived results
+and non-owning selections, without a duplicate canonical descriptor registry.
 
-Generated inputs retain a shader-local `ShaderInputValidation` value. Prepared-entry resolution runs
-only when the installed table changes. Successful texture/image/range compatibility checks are reused
-while the resource reference, allocation metadata, manager-owned metadata/storage revisions and desired
-view/range remain equal. Snapshot availability is checked before reusing compatibility history;
-uncached inputs and arrays also reject unavailable metadata. Explicit storage ranges remain bounded by
-the current allocation. Owner metadata is sampled without driver queries; current lifetime
-is still checked before publication. Resize, capacity changes and executable replacement invalidate the applicable result. Failed checks never
-replace a successful result. Context-wide binding comparisons and UBO content uploads remain independent
-of this compatibility history.
-Managed resources resolve their current allocation and validity on each use. Raw engine IDs require
-allocation-identity admission; equal numeric names cannot establish the original association. Binding
-publication compares existing slot knowledge and temporarily withdraws only fields it actually changes.
-CPU uniform-block uploads and dirty-state commitment
-remain with `CpuUniformBuffer` and the existing ring allocator, using the prepared binding slot.
+Initial compatibility preparation occurs on the first use in an admitted context. Relevant committed resource
+changes withdraw that structure through weak subscriptions on the existing resource-change delivery path;
+the next use refreshes it before execution. Failed preparation remains unavailable until another relevant
+change, with no stale-result fallback, per-use metadata polling, native discovery or automatic retry.
+Ordinary content writes and unrelated registrations do not visit structural preparation. Abandoned tables
+and their subscriptions are collectible; resources do not retain consumer owners.
 
-The OpenGL backend weakly associates each frozen binding table with an OpenGLBindingPlan for its exact
-prepared interface. Schema checks, authored-identity lookup, active-entry partitioning, default image-view
-projection and texture-slot sorting happen once on first execution, never during recording. Selection,
-draw and dispatch reuse that plan. It retains desired references, compatibility history and a publication receipt,
-never an independently trusted copy of executed slot state. New snapshots and shader generations get
-distinct plans; context-owned backend lifetime bounds reuse.
+Logical uniform versions are independent of resource structure. Generated capture uses `WithUniforms` when
+only CPU block revisions change, so old recordings retain their captured bytes while both tables share
+structural preparation. Changing a uniform/storage buffer declaration still creates a new structure.
+Immutable captured block sizes are checked once. Execution retains the actual open-epoch, allocation,
+consumption, commitment and completion protocols of `UniformPublication` and the existing ring allocator.
+Only successfully bound captured versions commit CPU history; newer CPU edits remain pending. Single-draw
+consumption advances when a draw or dispatch is about to execute, rather than during recording or selection.
+Different captured versions and executable consumers use their actual captured publication/version pairs.
 
-A successful publication retains a receipt of the existing cache binding revision and its validated input facts.
-Managed binding mutations, uncertainty, deletion, boundary restoration and context changes expire that receipt;
-external observation conservatively expires it as well. A callback during publication prevents certification.
-An unchanged receipt skips repeated slot traversal/publication, but uniform allocator versions and last-use
-ownership are still checked. Single-draw consumption or a new epoch forces the appropriate publication.
+The backend weakly associates each semantic structure with native `OpenGLBindingPlan` realization. Native
+names and resolved image formats refresh only when that structure changes. Texture slot ordering and active
+partitions are retained across uniform-only captures. This is derived backend realization under owner
+lifetimes, never another registry or ownership certificate. Shared policy samplers keep their existing
+context owner and invalidate the actual structures that depend on them when retired.
 
-Every execution validates current availability, allocation identity, metadata revisions, ranges and
-uniform lifetime while retaining the active resources in the same walk. Required publication visits the prepared
-texture and non-texture partitions directly and consults the existing state cache, so observed external
-mutations are restored and known-equal native binds remain suppressed. It does not skip execution checks
-merely because a table is unchanged. Uniform commitment still uses the current allocator epoch and
-captured revision; consumption visits only prepared uniform entries. All guards release on failure or
-after dispatch, and weak plan keys do not retain otherwise abandoned snapshots.
+Publication walks compact active partitions and consults the existing context-wide slot cache. There is no
+whole-table receipt invalidated by arbitrary observation. Known-equal assignments suppress native work;
+external changes restore only affected texture/sampler/image/buffer bindings without revalidating resource
+compatibility. Indexed buffer keys include range/whole intent and their generic selector side effect.
+Optional texture clears preserve unrelated targets on the same unit. Current-pass sampler/image overlap
+checks remain separate from stable shader/resource compatibility and do not infer synchronization.
 
-Cloud map, primary visibility and liquid-depth consumers retain typed non-owning wrappers through the
-common resource manager. Stable selections use published metadata and ordinary slot comparisons;
-deletion invalidates their original associations before a reused name can be selected again. Simple
-cloud liquid depth uses the same typed route. Material depth is supplied as its existing owned texture.
-These typed paths do not use raw-ID slot invalidation. Raw identity admission remains distinct from
-binding comparison: a numeric name alone does not establish an original allocation association.
-Supported operations through both OpenTK GL binding tables are observed at native dispatch,
-regardless of caller assembly, delegate, generic instantiation or dynamic caller. Backend-owned work
-uses saved originals and publishes through its existing owner once. Native observations never veto an
-external call or deliver observer exceptions to its caller. Other native libraries and independently
-cached driver pointers are outside this boundary; routine state purges do not compensate for missing
-coverage within the supported tables.
+Native slot writes withdraw affected knowledge before dispatch. Per-unit/per-buffer-selector and active-unit/program mutation stamps
+detect overlapping observer reentry; interrupted fields remain unknown, the managed command reports failure,
+and already-issued native work is never retried. Other units/domains remain independent. Intercepted native
+calls still forward exactly once and contain observer exceptions. Context retirement discards originating
+knowledge; deletion and restoration reconcile the existing affected selectors.
 
-[OpenGlStateCache.ResourceSlots](../VanillaGraphicsExpanded/Rendering/RHI/Backends/OpenGL/State/Observation/OpenGlStateCache.ResourceSlots.cs)
-adds complete image-view and indexed buffer-range keys to the existing context cache. Cache invalidation,
-immediate and queued deletion, image scopes, buffer texture views and engine terrain buffer binds use
-the same owner. Debug-only image/buffer slot bind counts distinguish actual driver calls from cache comparisons.
-No second global cache or texture attachment is introduced.
+`RHISampledTextureBindings` provides the same retained declaration contract for explicit engine sampled
+slots without manufacturing an owned shader. Its constructor copies/sorts supplied slots and rejects duplicate
+or malformed declarations; relevant resource changes withdraw its preparation. Immediate and recorded
+commands retain the immutable table. Engine atmosphere, terrain atlas, chunk mapping and energy-lookup owners
+reuse declarations and withdraw them at their existing publication/replacement boundaries. One-off arrays
+or spans convert into copied declarations; callers that reuse selections retain the resulting object.
+Direct buffer bindings use producer-delivered snapshot readiness and bounded new role/slot/range checks;
+original-association misuse checks are DEBUG diagnostics. Dynamic ranges retain mandatory bounds/alignment
+handling without repeated manager resolution in ordinary Release.
 
 ## Generated desired state and ordinary value publication
 
-`RuntimeSubmissionEmitter` emits a nested `<ShaderName>State` and active instance for every
-participating concrete graphics/compute owner, including empty states for UBO-only owners.
-`ShaderInputSubmissionStateTests.EveryConcreteOwnerHasCompleteGeneratedState` checks every
-main-assembly concrete owner and its complete inherited non-UBO contract field names/types.
-Descriptors and UBO contents are excluded. Generated accessors preserve mutation guards;
-reference-valued resources compare identity, image/range records compare their full payload,
-and ordinary numeric values compare exact upload bits. The shader-local input revision changes
-only on an actual desired-value change; it never suppresses context-wide resource checks.
+The generator emits a nested `<ShaderName>State` for each participating concrete graphics/compute owner.
+Resource properties preserve mutation checks and increment the shader-local revision only when desired
+values change. Authored getters are read once per capture; generated properties use retained state.
+`ShaderInputSubmissionStateTests` verifies the complete inherited contract. Descriptors and CPU uniform
+contents are separate from resource revision tracking.
 
-Authored getters are sampled once per submission and compared into the same retained state.
-Ordinary arrays are copied on retention and on generated getter exposure, so caller edits cannot
-mutate generated state. Authored arrays are compared by content and captured when changed.
-Existing liquid/lighting matrix and array facades continue to copy into their existing UBO owners.
-
-`ShaderUniformPublication<T>` retains the last successful value and immutable executable identity.
-First use uploads even a default value; unchanged values on that executable skip. Selecting another
-executable forces an upload, including returning to the first executable after a switch. Failed
-validation publishes no uniform values; a throwing upload does not commit successful history.
-Typed ordinary values use actual `UniformLocation` contracts and retained linked type/array extent.
-The offline `tests/uniform_state` fixture reads those float/array/vector/matrix values to produce
-an image. Its locations are shader value addresses, never storage for CPU texture IDs or history.
-Its specialization option is compiled by the existing specialization owner, independently of
-ordinary uniform publication.
-
-The inventoried production assembly has no authored `Submit` override. All its concrete shader
-owners use generated state/submission. Static catalogs have no instance state; their supported
-pipeline/fixture consumers retain the existing immediate-publication contract and are covered by
-the catalog and binding regressions. Test-only `Submit` overrides deliberately instrument guards,
-restoration or lifecycle and keep that explicit contract. `InterfaceBindingTests` retains coverage
-for the alternate authored-submission emitter; its compatibility cleanup remains separately tracked.
-This does not promise automatic retained publication for a future custom override.
+Ordinary numeric data remains in the existing CPU uniform owners. Captures copy coherent bytes and versions;
+physical allocation/upload and successful-history commitment occur only during execution in an open epoch.
+Static catalogs and explicitly authored capture implementations retain their own declaration ownership and
+use the same context execution contracts. Engine `ShaderProgramBase` numeric setters keep their native
+semantics; no global ordinary-uniform history or inherited engine dictionary is introduced.
 
 ## Shader ownership and publication
 
@@ -247,8 +210,8 @@ Failed replacement preserves the installed set, while successful replacement doe
 pipeline references or recorded resource tables. See [GPU resources](Rendering.GpuResources.md#shader-executable-ownership).
 
 `RHICommandContext` selects pipelines, admits pass/boundary usage and executes resource publication.
-`ShaderPreparedSubmission` validates supplied tables and resources behind that boundary; it is not a
-second execution context. Cached compatibility never suppresses current resource/lifetime checks.
+Typed binding structures establish supplied compatibility behind that boundary; the backend executes their
+native realization under owner-guaranteed resource lifetimes.
 Physical uniform storage and successful history are committed only when publication executes.
 
 ## Retained compatibility boundaries
@@ -272,12 +235,12 @@ Engine `ShaderProgramBase` setters retain their own behavior; no global external
 Recorded binding tables retain immutable interface and executable identities and copied logical uniform
 snapshots. Recording allocates no physical ring storage, publishes no successful history and never clears
 dirty CPU work. Execution allocates or reuses storage in the current publication epoch and commits only
-the captured successful revision, preserving newer edits. A missing epoch, retired executable, unavailable
-resource, expired borrow or incompatible table rejects use; a list does not extend engine callback lifetime.
+the captured successful revision, preserving newer edits. A missing epoch or withdrawn preparation rejects use. Owners finish or discard recorded work before
+retiring its dependencies; a list does not extend engine callback lifetime.
 
 Texture owner replacement remains visible through `GpuTextureRef`; borrowers/native views retain original
 associations and dependencies. `OpenGlStateCache` owns actual slot knowledge and deletion/restoration
-effects independently of shader-local compatibility. See [recorded ownership](Rendering.GpuResources.md#recorded-command-ownership).
+effects independently of resource compatibility preparation. See [recorded ownership](Rendering.GpuResources.md#recorded-command-ownership).
 
 ## Verification boundary
 

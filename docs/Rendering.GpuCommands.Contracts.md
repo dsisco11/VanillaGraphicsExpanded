@@ -313,7 +313,7 @@ ordinary values and current resource instances. Renderer owners reuse realizatio
 or reference-counted sharing. Pipeline disposal never disposes its shader; retention does not block
 explicit shader retirement. Reload builds shader and required PSOs, installs a compatible set between
 submissions and preserves the installed set on candidate failure. Stale candidates cannot install.
-Prepared tables/history belong to the exact installed interface; never retarget recorded slot indices.
+Prepared tables belong to the exact installed interface; never retarget recorded slot indices.
 
 Immutable graphics-description construction establishes authored enum, stage/topology and fixed-state
 shape before canonicalization. Device validation consumes that established shape and checks cached limits
@@ -375,7 +375,7 @@ transfer responsibility for legal lifetime scheduling from owners to consumers.
    mutation. Content-dependent index/indirect values remain the producer's responsibility; validate only
    supplied descriptors and accesses derivable from explicit parameters, with no validation readback.
 2. Eligible known-equal binding/state changes may be suppressed. Allocation, upload, draw, link and
-   synchronization never suppress merely because metadata matches. Stable refs still revalidate identity.
+   synchronization never suppress merely because metadata matches. Prepared binding references rely on their owner interval; other operation families retain their explicit checks.
 3. Capture original associations and restoration facts, withdraw affected metadata through existing
    manager operations and explicitly compose internal steps. No ambient collector or success-on-dispose.
 4. Execute once; reconcile cache knowledge and commit complete facts once through the manager. Use
@@ -414,15 +414,24 @@ Commit only the captured successful revision, preserving newer CPU edits. Cancel
 storage; failed binding aborts only a new candidate. Ordinary successful-upload history also advances
 at execution, never recording. Shader table/generation compatibility is checked before publication.
 
-Binding execution reuses an immutable-input plan owned by the current backend and keyed weakly by the
-captured table. Fixed schema/interface selection, active partitions and slot ordering are prepared once;
-native identities, metadata availability and resource guards remain execution-time
-work. Validation and retention share one active-input walk; publication and uniform consumption use
-their prepared subsets. A successful unchanged publication reuses a receipt of the existing cache binding
-revision, validated input facts and current uniform allocation versions. Binding mutation, external
-observation, uncertainty, deletion, restoration or context changes expire the receipt; callbacks during
-publication prevent certification. No slot state is duplicated and resource validation is never bypassed.
-Recorded and immediate commands use this same path and preserve current-epoch uniform commitment.
+Binding tables retain a backend-neutral resource structure for their exact shader interface, independently
+of logical uniform versions. Active entries, array elements and supplied resource relationships are prepared
+initially and refreshed through relevant committed changes. Failed refresh withdraws use. Generated capture
+shares this structure across uniform-only edits; recording remains CPU-only and acquires no lifetime guards.
+The backend realizes native selectors for that structure without repeated registration/metadata resolution.
+
+Publication uses the existing affected-slot executed cache, with no global receipt expiry on unrelated
+observations. Compact binding comparisons remain. Texture/sampler/image selectors and indexed/generic buffer
+side effects restore from actual knowledge; partial native publication never retries. Affected-slot write
+stamps prevent overlapping observer callbacks from certifying interrupted fields. Exactly-once non-throwing
+external forwarding remains independent of managed command failure reporting.
+
+Compute selection uses fixed application data and change-delivered executable readiness under the owner's
+lifetime contract, without temporary shader/resource/PSO guards. Recursive context submission remains an
+operation error. Geometry, pass and transfer owners retain their existing operation-specific protocols.
+Uniform epoch, candidate/abort, captured commitment, consumption and GPU-safe last-use work remain with the
+existing allocator/publication owners. Explicit engine sampled slots retain `RHISampledTextureBindings`,
+including copied recording inputs and change-driven native realization.
 
 ## List lifecycle and storage
 

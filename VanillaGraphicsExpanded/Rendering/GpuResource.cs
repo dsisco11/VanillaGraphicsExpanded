@@ -64,6 +64,7 @@ public abstract partial class GpuResource : IDisposable
         nint id = ResourceId;
         ResourceId = 0;
         Interlocked.Exchange(ref disposed, 1);
+        InvalidatePreparedConsumers();
         ResourceManager?.UnregisterWrapper(this);
         OnDetached(id);
         return id;
@@ -101,6 +102,7 @@ public abstract partial class GpuResource : IDisposable
         nint id = ResourceId;
         ResourceId = 0;
 
+        InvalidatePreparedConsumers();
         OnBeforeDelete(id);
         if (id != 0 && OwnsResource && ResourceManager?.GetResourceRegistration(this) is null)
             RHIResourceManager.CompleteLocalRetirement(this);
@@ -127,6 +129,9 @@ public abstract partial class GpuResource : IDisposable
         ObjectDisposedException.ThrowIf(id != 0 && IsDisposed, this);
         if (id != 0 && ResourceId != 0)
             throw new InvalidOperationException("Creation requires an unpublished resource declaration.");
+        // Explicit owner replacement can suppress the initiating wrapper's metadata callback.
+        // Withdraw derived selections at the identity handoff; consumers refresh only after completion.
+        if (ResourceId != id) InvalidatePreparedConsumers();
         ResourceId = id;
         if (id != 0)
         {

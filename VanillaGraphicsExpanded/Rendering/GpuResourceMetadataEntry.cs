@@ -237,7 +237,7 @@ internal sealed class GpuResourceMetadataEntry<TMetadata> : GpuResourceRegistrat
                     || !terminal && !ContainsRecipient(resource)) continue;
                 var delivered = resource is GpuFramebufferAttachment && !terminal
                     ? change with { Available = change.Available && HasSnapshot(resource) } : change;
-                try { resource.OnResourceChanged(delivered); }
+                try { resource.NotifyResourceChanged(delivered); }
                 catch (Exception error) { (failures ??= new()).Add(error); }
             }
             if (failures is not null) throw new AggregateException("Resource recipients failed after publication.", failures);

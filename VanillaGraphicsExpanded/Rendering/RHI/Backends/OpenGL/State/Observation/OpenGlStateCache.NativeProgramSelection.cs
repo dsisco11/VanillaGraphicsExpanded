@@ -77,6 +77,7 @@ internal sealed partial class OpenGlStateCache
 
         if (!cache.OwnsKnowledgeFor(context) || !Integration.RenderContextRegistry.IsCurrentResourceContext(context)) return;
         int? result = rejected ? previous : accepted ? value : null;
+        if (selector != NativeProgramSelector.PipelineUniform) cache.ProgramWriteStamp++;
         if (selector == NativeProgramSelector.Pipeline) cache.currentProgramPipeline = result;
         else if (selector == NativeProgramSelector.PipelineUniform)
         {

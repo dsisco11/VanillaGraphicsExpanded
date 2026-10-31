@@ -35,7 +35,9 @@ public sealed class RHIComputePipelineTests(HeadlessGLFixture fixture)
             Assert.Same(shader, shaderReference.RequireShader());
             Assert.Same(shader, second.RequireShader());
             shader.Dispose();
+#if DEBUG
             Assert.Throws<ObjectDisposedException>(() => second.RequireShader());
+#endif
         }
         finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
@@ -54,9 +56,9 @@ public sealed class RHIComputePipelineTests(HeadlessGLFixture fixture)
         }
         finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }
-    /// <summary>Native callbacks cannot retire executing objects, and retired selections reject work before dispatch.</summary>
+    /// <summary>Compliant owners keep resources live without guards; recursive submission remains an operation error.</summary>
     [Fact]
-    public unsafe void DispatchProtectsShaderAndPipelineUntilNativeReturn()
+    public unsafe void DispatchReliesOnOwnerLifetimesAndRejectsRecursiveSubmission()
     {
         fixture.EnsureContextValid(); fixture.InitializeResourceDisposal();
         try
@@ -72,8 +74,8 @@ public sealed class RHIComputePipelineTests(HeadlessGLFixture fixture)
                 native.Observe(() =>
                 {
                     calls++;
-                    Assert.Throws<InvalidOperationException>(shader.Dispose);
-                    Assert.Throws<InvalidOperationException>(pipeline.Dispose);
+                    Assert.Equal((0, 0), shader.Program.UsageReferences);
+                    Assert.False(pipeline.IsDisposed);
                     Assert.Throws<InvalidOperationException>(() => context.Dispatch(new(0)));
                     Assert.Throws<InvalidOperationException>(() => context.SetPipeline(pipeline));
                 });
@@ -87,7 +89,9 @@ public sealed class RHIComputePipelineTests(HeadlessGLFixture fixture)
             native.RequireSuccessfulObservation();
             Assert.Equal(1, calls);
             pipeline.Dispose();
+#if DEBUG
             Assert.Throws<ObjectDisposedException>(() => context.Dispatch(new(0)));
+#endif
             Assert.Equal(1, calls);
             Assert.Same(shader, ((RHIShaderRef)shader).RequireShader());
         }

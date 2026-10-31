@@ -119,7 +119,7 @@ internal sealed partial class RHIResourceManager
             else
             {
                 PublishOwnerImages(resource, true, reportMissingImages: (effects & GpuMetadataChange.Storage) != 0);
-                if (localChange.Kind != ResourceChangeKind.None) resource.OnResourceChanged(localChange);
+                if (localChange.Kind != ResourceChangeKind.None) resource.NotifyResourceChanged(localChange);
             }
             delivery?.Complete();
         }

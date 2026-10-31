@@ -14,6 +14,11 @@ internal static class AtmosphereShaderBindingHook
     /// <summary>Provides allocation-free local storage for the complete atmosphere texture set.</summary>
     [InlineArray(3)] private struct TextureSlots { private RHISampledTextureSlot first; }
 
+    private static readonly System.Collections.Generic.Dictionary<(AtmosphereBindings Flags, bool Occlusion), RHISampledTextureBindings> textureBindings = new();
+
+    /// <summary>Withdraws cached declarations at the atmosphere or occlusion owner replacement boundary.</summary>
+    internal static void InvalidateTextureBindings() => textureBindings.Clear();
+
     private const int AerialRadianceTextureUnit = AtmosphereProgramBindings.AerialRadianceTextureUnit;
     private const int AerialAttenuationTextureUnit = AtmosphereProgramBindings.AerialAttenuationTextureUnit;
 
@@ -42,28 +47,28 @@ internal static class AtmosphereShaderBindingHook
                     AtmosphereSolarDiskStorage.MaximumScale(disk, glare.Bloom, glare.Shafts));
             }
         }
-        TextureSlots slots = default;
-        int count = 0;
         if ((bindings & AtmosphereBindings.AerialRadiance) != 0)
-        {
-            // Standard also draws before world initialization. Assign distinct 3D
-            // sampler units even then, so they cannot alias engine 2D samplers at unit zero.
             __instance.Uniform("vge_atmosphereAerialRadiance", AerialRadianceTextureUnit);
-            slots[count++] = new(AerialRadianceTextureUnit, AtmosphereModSystem.AerialRadianceTexture, Dimension: TextureDimension.Three);
-        }
         if ((bindings & AtmosphereBindings.AerialAttenuation) != 0)
-        {
             __instance.Uniform("vge_atmosphereAerialAttenuation", AerialAttenuationTextureUnit);
-            slots[count++] = new(AerialAttenuationTextureUnit, AtmosphereModSystem.AerialAttenuationTexture, Dimension: TextureDimension.Three);
-        }
         if ((bindings & AtmosphereBindings.LightShaftOcclusion) != 0)
+            __instance.Uniform("vge_lightShaftOcclusion", AtmosphereProgramBindings.LightShaftOcclusionTextureUnit);
+        bool occlusion = PBR.Postprocessing.LightShaftOcclusionRenderer.Texture is not null;
+        var key = (bindings, occlusion);
+        if (!textureBindings.TryGetValue(key, out var selected) || selected.RequiresRefresh)
         {
-            const int unit=AtmosphereProgramBindings.LightShaftOcclusionTextureUnit;
-            __instance.Uniform("vge_lightShaftOcclusion",unit);
-            var texture=PBR.Postprocessing.LightShaftOcclusionRenderer.Texture;
-            slots[count++] = new(unit, texture);
+            TextureSlots slots = default;
+            int count = 0;
+            if ((bindings & AtmosphereBindings.AerialRadiance) != 0)
+                slots[count++] = new(AerialRadianceTextureUnit, AtmosphereModSystem.AerialRadianceTexture, Dimension: TextureDimension.Three);
+            if ((bindings & AtmosphereBindings.AerialAttenuation) != 0)
+                slots[count++] = new(AerialAttenuationTextureUnit, AtmosphereModSystem.AerialAttenuationTexture, Dimension: TextureDimension.Three);
+            if ((bindings & AtmosphereBindings.LightShaftOcclusion) != 0)
+                slots[count++] = new(AtmosphereProgramBindings.LightShaftOcclusionTextureUnit, PBR.Postprocessing.LightShaftOcclusionRenderer.Texture);
+            selected = new(((System.ReadOnlySpan<RHISampledTextureSlot>)slots)[..count]);
+            textureBindings[key] = selected;
         }
-        RHICommandContext.Current.BindSampledTextures(((System.ReadOnlySpan<RHISampledTextureSlot>)slots)[..count]);
+        RHICommandContext.Current.BindSampledTextures(selected);
         // Resource initialization is owned by the Before renderer.
         if (lighting is null) return;
         if ((bindings & AtmosphereBindings.Environment) != 0)

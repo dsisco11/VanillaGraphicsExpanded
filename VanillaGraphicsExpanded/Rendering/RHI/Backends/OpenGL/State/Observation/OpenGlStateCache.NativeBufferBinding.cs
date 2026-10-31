@@ -20,7 +20,7 @@ internal sealed partial class OpenGlStateCache
             cache.TryGetCachedBoundBuffer(target, out int previousBinding);
             cache.WithdrawUncertainBufferTarget(buffer);
             if (previousBinding != buffer) cache.WithdrawUncertainBufferTarget(previousBinding);
-            cache.bufferBindingByTarget.Remove(target);
+            cache.ForgetBufferBinding(target);
             return;
         }
         bool elements = target == BufferTarget.ElementArrayBuffer;
@@ -34,12 +34,12 @@ internal sealed partial class OpenGlStateCache
         bool established = buffer == 0 || cache.RealizeNativeBuffer(buffer, GpuSupport.HasCachedCapabilitiesForCurrentContext && !GpuSupport.Graphics.CoreProfile) is { IsRealized: true };
         bool sameElement = elements && cache.elementArrayBufferByVao.TryGetValue(vao, out int previous) && previous == buffer;
         var origin = Integration.RenderContextRegistry.CaptureResourceContext();
-        cache.bufferBindingByTarget.Remove(target);
+        cache.ForgetBufferBinding(target);
         if (elements && !sameElement) ObserveVertexMetadata(vao, named: true, elementBinding: true);
         if (!established || !cache.OwnsKnowledgeFor(origin)
             || !Integration.RenderContextRegistry.IsCurrentResourceContext(origin)) return;
         if (elements) cache.elementArrayBufferByVao[vao] = buffer;
-        else cache.bufferBindingByTarget[target] = buffer;
+        else cache.EstablishBufferBinding(target, buffer);
     }
     #endregion
 

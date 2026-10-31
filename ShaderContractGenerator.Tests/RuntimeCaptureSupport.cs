@@ -50,6 +50,9 @@ internal static class RuntimeCaptureSupport
             public RHIImageInput[] Images { get; }
             public RHIBufferBinding[] Buffers { get; }
             public RHIUniformBinding[] Uniforms { get; }
+            /// <summary>Models new logical versions sharing the original resource declaration.</summary>
+            public RHIResourceBindings WithUniforms(System.Collections.Generic.IEnumerable<RHIUniformBinding> values)
+                => new(Shader, Samplers, Images, Buffers, values);
             public RHIResourceBindings(RHIShaderRef shader, System.Collections.Generic.IEnumerable<RHISamplerBinding> samplers = null,
                 System.Collections.Generic.IEnumerable<RHIImageInput> images = null, System.Collections.Generic.IEnumerable<RHIBufferBinding> buffers = null,
                 System.Collections.Generic.IEnumerable<RHIUniformBinding> uniforms = null)

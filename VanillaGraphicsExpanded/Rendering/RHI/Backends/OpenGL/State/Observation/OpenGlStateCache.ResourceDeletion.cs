@@ -22,15 +22,15 @@ internal sealed partial class OpenGlStateCache
     /// <summary>Forgets only references to a deleted buffer; other VAOs may retain attached storage.</summary>
     private void ForgetDeletedBuffer(int buffer)
     {
-        ChangeBindingPublication();
+
         RecordBoundaryRetirement(EPipelineState.BufferBindings, buffer);
         if (buffer == 0) return;
         bufferMappings.Remove(buffer);
         InvalidateVertexConfigurationsForBuffer(buffer);
         foreach (var key in indexedBufferBindings.Where(pair => pair.Value.Buffer == buffer).Select(pair => pair.Key).ToArray())
-            indexedBufferBindings.Remove(key);
+            ForgetBufferBinding((BufferTarget)key.Target, key.Slot);
         foreach (var key in bufferBindingByTarget.Where(pair => pair.Value == buffer).Select(pair => pair.Key).ToArray())
-            bufferBindingByTarget.Remove(key);
+            ForgetBufferBinding(key);
         foreach (var key in elementArrayBufferByVao.Where(pair => pair.Value == buffer).Select(pair => pair.Key).ToArray())
             elementArrayBufferByVao.Remove(key);
     }

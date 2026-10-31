@@ -16,7 +16,7 @@ internal sealed partial class OpenGlStateCache
     /// <summary>Retires only proven deleted names; exact adapters may supply an outcome from their original native loader.</summary>
     internal void CompleteResourceDeletion(GpuResourceKind kind, nint nativeId, bool? observedDeletion = null, bool external = false)
     {
-        ChangeBindingPublication();
+
         if (nativeId == 0 || !(observedDeletion ?? WasResourceDeleted(kind, nativeId))) return;
         CancelResourceOperation(kind, nativeId);
         if (kind == GpuResourceKind.Query) ForgetQueryTarget(nativeId);
@@ -32,11 +32,12 @@ internal sealed partial class OpenGlStateCache
                 RecordBoundaryRetirement(EPipelineState.TextureBindings, id);
                 InvalidateImageTexture(id);
                 if (textureBindingsByUnit is null) break;
-                foreach (var bindings in textureBindingsByUnit)
+                for (int unit = 0; unit < textureBindingsByUnit.Length; unit++)
                 {
+                    var bindings = textureBindingsByUnit[unit];
                     if (bindings is null) continue;
                     foreach (var binding in bindings)
-                        if (binding.Value == id) bindings[binding.Key] = 0;
+                        if (binding.Value == id) { ChangeTextureWrite(unit); bindings[binding.Key] = 0; }
                 }
                 break;
             case GpuResourceKind.Buffer:
@@ -50,7 +51,7 @@ internal sealed partial class OpenGlStateCache
                 RecordBoundaryRetirement(EPipelineState.SamplerBindings, id);
                 if (samplerBindingByUnit is not null)
                     for (int unit = 0; unit < samplerBindingByUnit.Length; unit++)
-                        if (samplerBindingByUnit[unit] == id) samplerBindingByUnit[unit] = 0;
+                        if (samplerBindingByUnit[unit] == id) SetSamplerKnowledge(unit, 0);
                 break;
             case GpuResourceKind.Framebuffer:
                 InvalidateFramebufferDrawRouting(id);

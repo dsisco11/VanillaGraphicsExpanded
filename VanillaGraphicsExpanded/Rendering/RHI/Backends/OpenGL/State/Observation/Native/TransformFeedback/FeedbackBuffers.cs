@@ -42,9 +42,9 @@ internal sealed partial class OpenGlStateCache
         if (cache.currentTransformFeedback != feedback || index > int.MaxValue) return;
         if (!GpuSupport.HasCachedCapabilitiesForCurrentContext || !cache.feedbackActivity.TryGetValue(feedback, out var known) || known.Active
             || buffer != 0 && !cache.HasEstablishedNativeIdentity(GpuResourceKind.Buffer, buffer))
-            cache.indexedBufferBindings.Remove((BufferRangeTarget.TransformFeedbackBuffer, (int)index));
-        else cache.indexedBufferBindings[(BufferRangeTarget.TransformFeedbackBuffer, (int)index)]
-            = new(buffer, buffer == 0 ? 0 : offset, buffer == 0 ? 0 : size, range && buffer != 0);
+            cache.SetIndexedBufferKnowledge(BufferRangeTarget.TransformFeedbackBuffer, (int)index, null);
+        else cache.SetIndexedBufferKnowledge(BufferRangeTarget.TransformFeedbackBuffer, (int)index,
+            new(buffer, buffer == 0 ? 0 : offset, buffer == 0 ? 0 : size, range && buffer != 0));
     }
     #endregion
 }

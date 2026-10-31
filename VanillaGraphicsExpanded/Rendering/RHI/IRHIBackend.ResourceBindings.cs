@@ -10,6 +10,6 @@ internal partial interface IRHIBackend
     /// <summary>Publishes a retained logical uniform version into an explicitly selected slot.</summary>
     bool BindUniformSnapshot(int slot, RHIUniformSnapshot snapshot);
     /// <summary>Validates all declared texture slots before publishing any resource selection.</summary>
-    void BindSampledTextures(ReadOnlySpan<RHISampledTextureSlot> inputs);
+    void BindSampledTextures(RHISampledTextureBindings inputs);
     #endregion
 }

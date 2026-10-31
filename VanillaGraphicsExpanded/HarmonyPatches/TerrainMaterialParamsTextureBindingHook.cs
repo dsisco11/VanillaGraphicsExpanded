@@ -41,6 +41,13 @@ internal static class TerrainMaterialParamsTextureBindingHook
     private static readonly Dictionary<int, int> normalDepthUniformLocationCache = new();
 
 
+    /// <summary>Retains declarations for actual page/program consumers, never interning arbitrary resource sets.</summary>
+    private sealed record AtlasBindings(RHISampledTextureBindings Slots, GpuTextureRef NormalDepth);
+    private static readonly Dictionary<int, ConditionalWeakTable<ShaderProgramBase, AtlasBindings>> pageBindings = new();
+
+    /// <summary>Withdraws only consumers of a replaced atlas or displacement page.</summary>
+    internal static void InvalidateAtlasBindings(int atlas) => pageBindings.Remove(atlas);
+
     private static GpuTextureRef lastBoundNormalDepth;
     private static int lastBoundAtlasTexId;
 
@@ -55,6 +62,13 @@ internal static class TerrainMaterialParamsTextureBindingHook
     /// <summary>Binds material and relief resources for the atlas selected by an engine terrain draw.</summary>
     internal static void BindAtlas(ShaderProgramBase __instance, int value)
     {
+        if (pageBindings.TryGetValue(value, out var retained) && retained.TryGetValue(__instance, out var captured) && !captured.Slots.RequiresRefresh)
+        {
+            RestoreUnits(__instance, captured.Slots);
+            if (!captured.NormalDepth.IsEmpty) { lastBoundNormalDepth = captured.NormalDepth; lastBoundAtlasTexId = value; }
+            RHICommandContext.Current.BindSampledTextures(captured.Slots);
+            return;
+        }
         TextureSlots slots = default;
         int slotCount = TerrainReliefBindings.Prepare(__instance, value, MaterialAtlasSystem.Instance.TextureStore, slots);
         try
@@ -106,7 +120,10 @@ internal static class TerrainMaterialParamsTextureBindingHook
                     OpenGLProgramAssignments.SetUnit(programId, normalDepthUniformLoc, NormalDepthTextureUnit);
                 }
             }
-            RHICommandContext.Current.BindSampledTextures(((ReadOnlySpan<RHISampledTextureSlot>)slots)[..slotCount]);
+            var selection = new RHISampledTextureBindings(((ReadOnlySpan<RHISampledTextureSlot>)slots)[..slotCount]);
+            if (!pageBindings.TryGetValue(value, out var consumers)) pageBindings.Add(value, consumers = new());
+            consumers.AddOrUpdate(__instance, new(selection, hasNormalDepth ? selectedPage.NormalDepthTexture : default));
+            RHICommandContext.Current.BindSampledTextures(selection);
         }
         catch
         {
@@ -114,11 +131,28 @@ internal static class TerrainMaterialParamsTextureBindingHook
         }
     }
 
+    /// <summary>Restores fixed engine sampler units without rebuilding resource selections or consulting their metadata.</summary>
+    private static void RestoreUnits(ShaderProgramBase program, RHISampledTextureBindings bindings)
+    {
+        foreach (var input in bindings.Inputs)
+        {
+            string name = input.Slot switch
+            {
+                TerrainReliefBindings.IndexUnit => "vge_displacementTex",
+                TerrainReliefBindings.RecordUnit => "vge_displacementRecords",
+                NormalDepthTextureUnit => NormalDepthSamplerUniform,
+                MaterialTextureUnit => MaterialSamplerUniform,
+                _ => throw new InvalidOperationException("Unexpected terrain sampler slot.")
+            };
+            program.Uniform(name, input.Slot);
+        }
+    }
     /// <summary>
     /// Call when shaders are reloaded to clear cached uniform locations.
     /// </summary>
     public static void ClearUniformCache()
     {
+        pageBindings.Clear();
         TerrainReliefBindings.Reset();
         uniformLocationCache.Clear();
         normalDepthUniformLocationCache.Clear();

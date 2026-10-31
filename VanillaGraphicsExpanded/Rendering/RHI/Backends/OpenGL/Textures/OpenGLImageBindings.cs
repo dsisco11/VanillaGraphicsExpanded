@@ -17,8 +17,14 @@ internal static class OpenGLImageBindings
         if (unit < 0 || unit >= backend.Capabilities.MaxCombinedTextureImageUnits) throw new ArgumentOutOfRangeException(nameof(unit));
         if (cache.ActiveTextureKnowledge == unit) return;
         cache.ActiveTextureKnowledge = null;
+        ulong stamp = cache.ActiveTextureWriteStamp;
         OpenGLDriverCalls.ActiveTexture(Native.TextureUnit.Texture0 + unit);
         backend.RequireContext();
+        if (stamp != cache.ActiveTextureWriteStamp)
+        {
+            cache.ActiveTextureKnowledge = null;
+            throw new InvalidOperationException("Active texture selection was interrupted by an overlapping native callback.");
+        }
         cache.ActiveTextureKnowledge = unit;
     }
     /// <summary>Changes a target on the active unit without guessing an unknown selector.</summary>
@@ -28,14 +34,31 @@ internal static class OpenGLImageBindings
         int? unit = cache.ActiveTextureKnowledge;
         if (unit is int known && cache.TryGetCachedBoundTexture(target, known, out int previous) && previous == texture) return;
         cache.ForgetImageBinding(target, unit);
+        ulong stamp = unit is { } selectedUnit ? cache.TextureWriteStamp(selectedUnit) : 0;
+        ulong selectorStamp = cache.ActiveTextureWriteStamp;
         OpenGLDriverCalls.BindTexture((Native.TextureTarget)target, texture);
         cache.RecordTextureBind();
         backend.RequireContext();
+        if (selectorStamp != cache.ActiveTextureWriteStamp)
+        {
+            // The native write may have used an intermediate unit, not merely either observed endpoint.
+            // Withdraw this target domain only; other texture targets and binding domains remain known.
+            cache.ForgetImageBinding(target, null);
+            throw new InvalidOperationException("Bound texture publication was interrupted by an active-unit callback.");
+        }
         // A backend selector can realize an externally generated reservation. Private
         // creation candidates have no registration until their single factory handoff.
         if (texture != 0 && RHIResourceManagerSystem.CurrentManager is { } manager)
             manager.RealizeObservedImage(GpuResourceKind.Texture, texture, OpenGLImageValues.Dimension(target), false);
-        if (unit is int selected) cache.ImageBindings(selected)[target] = texture;
+        if (unit is int selected)
+        {
+            if (stamp != cache.TextureWriteStamp(selected))
+            {
+                cache.ForgetImageBinding(target, selected);
+                throw new InvalidOperationException("Texture publication was interrupted by an overlapping native callback.");
+            }
+            cache.ImageBindings(selected)[target] = texture;
+        }
     }
     /// <summary>Selects the requested unit and suppresses only an established equal target binding.</summary>
     internal static void BindTexture(OpenGlStateCache cache, TextureTarget target, int unit, int texture)
@@ -66,9 +89,15 @@ internal static class OpenGLImageBindings
         if (unit < 0 || unit >= backend.Capabilities.MaxCombinedTextureImageUnits) throw new ArgumentOutOfRangeException(nameof(unit));
         if (cache.SamplerKnowledge(unit) == sampler) return;
         cache.SetSamplerKnowledge(unit, null);
+        ulong stamp = cache.SamplerWriteStamp(unit);
         OpenGLDriverCalls.BindSampler(unit, sampler);
         cache.RecordSamplerBind();
         backend.RequireContext();
+        if (stamp != cache.SamplerWriteStamp(unit))
+        {
+            cache.SetSamplerKnowledge(unit, null);
+            throw new InvalidOperationException("Sampler publication was interrupted by an overlapping native callback.");
+        }
         cache.SetSamplerKnowledge(unit, sampler);
     }
     /// <summary>Validates the owner before using managed equality for suppression.</summary>

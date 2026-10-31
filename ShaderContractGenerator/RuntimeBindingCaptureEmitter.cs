@@ -167,6 +167,18 @@ internal static class RuntimeBindingCaptureEmitter
                 text.Append(" && global::System.Object.ReferenceEquals(__captured_").Append(resources[i].Name).Append(", ")
                     .Append(IsCpuBuffer(resources[i].Type) ? "snapshot" : "input").Append(i).Append(')');
         text.Append(") return __capturedBindings;\n");
+        // Uniform bytes have their own version owner. A new CPU revision must not recapture resource structure.
+        text.Append("if (__capturedBindings is not null && __capturedBindings.Shader == Shader && __capturedInputRevision == __inputRevision");
+        for (int i = 0; i < resources.Length; i++)
+            if (!IsStateful(resources[i]) && !IsCpuBuffer(resources[i].Type))
+                text.Append(" && global::System.Object.ReferenceEquals(__captured_").Append(resources[i].Name).Append(", input").Append(i).Append(')');
+        text.Append(") { var updated = __capturedBindings.WithUniforms([");
+        text.Append(string.Join(", ", Enumerable.Range(0, resources.Length).Where(i => IsCpuBuffer(resources[i].Type)).Select(i =>
+            "new " + rhi + "RHIUniformBinding(" + Identity(resources[i]) + "UL, snapshot" + i + ")")));
+        text.Append("]);\n");
+        for (int i = 0; i < resources.Length; i++)
+            if (IsCpuBuffer(resources[i].Type)) text.Append("__captured_").Append(resources[i].Name).Append(" = snapshot").Append(i).Append(";\n");
+        text.Append("return __capturedBindings = updated; }\n");
         var samplerIndices = Enumerable.Range(0, resources.Length).Where(i => Kind(resources[i]) == ShaderBindingKind.Sampler).ToArray();
         if (samplerIndices.Length != 0)
         {

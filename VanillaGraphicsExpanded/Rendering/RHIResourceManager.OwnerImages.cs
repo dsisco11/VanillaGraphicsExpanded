@@ -86,7 +86,7 @@ internal sealed partial class RHIResourceManager
                 || owner is GpuResource<GpuTextureMetadata> current && !ReferenceEquals(storage, TextureStorageIdentity(current))) return;
             // Existing owner affinity admission rejects a replacement context without a descriptor read.
             try { owner.RequireOriginalContext(); } catch { return; }
-            image.OnResourceChanged(change);
+            image.NotifyResourceChanged(change);
         };
     }
 

@@ -59,7 +59,7 @@ internal sealed partial class RHIResourceManager
                 throw new InvalidOperationException("Explicit context-local storage recovery failed.");
             var change = DeliverUntrackedOperationResult(resource, recovered, GpuMetadataChange.None);
             PublishOwnerImages(resource, true, reportMissingImages: (change.Kind & ResourceChangeKind.Storage) != 0);
-            if (change.Kind != ResourceChangeKind.None) resource.OnResourceChanged(change);
+            if (change.Kind != ResourceChangeKind.None) resource.NotifyResourceChanged(change);
             return;
         }
         if (resource.ResourceManager is { } manager && manager.CanAcquireWrapperMetadata(resource))

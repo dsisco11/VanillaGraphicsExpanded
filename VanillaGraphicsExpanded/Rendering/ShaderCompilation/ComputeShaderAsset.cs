@@ -44,16 +44,8 @@ internal sealed partial class ComputeShaderAsset : IDisposable
     internal ShaderSettings? InstalledSettings { get; private set; }
     /// <summary>Reports owner retirement independently of native context availability.</summary>
     internal bool IsDisposed => disposed;
-    /// <summary>Reports an installed, unchanged executable using manager validation without native queries or recovery.</summary>
-    internal bool IsValid
-    {
-        get
-        {
-            if (disposed || shader == null) return false;
-            try { shader.RequireUsable(); return true; }
-            catch (InvalidOperationException) { return false; }
-        }
-    }
+    /// <summary>Reports installed readiness delivered by executable changes rather than resolving metadata on every use.</summary>
+    internal bool IsValid => !disposed && shader is { IsPrepared: true };
     /// <summary>Reports invalidation of an installed generation without silently reflecting or relinking it.</summary>
     internal bool NeedsNativePreparation => shader != null && !IsValid;
     /// <summary>Gets the policy owner's installation revision.</summary>

@@ -10,6 +10,7 @@ public sealed class RHIShader : IDisposable
     private readonly GpuResourceRegistration? registration;
     private readonly ulong revision;
     private readonly GpuProgramMetadata snapshot;
+    private bool preparationWithdrawn;
 
     #region Public API
     /// <summary>Gets the immutable selected code and binding description.</summary>
@@ -32,6 +33,8 @@ public sealed class RHIShader : IDisposable
     internal GpuProgramInterface Interface { get; }
     /// <summary>Gets the original native owner for backend execution, never for consumer mutation.</summary>
     internal GpuProgramObject Program => program;
+    /// <summary>Reports readiness maintained by original-generation change delivery, independently of native context queries.</summary>
+    internal bool IsPrepared => !IsDisposed && !preparationWithdrawn;
     /// <summary>Captures a completed manager association and prepared interface without reflecting again.</summary>
     internal RHIShader(RHIShaderDescription description, GpuProgramObject program, GpuProgramInterface prepared)
     {
@@ -40,6 +43,12 @@ public sealed class RHIShader : IDisposable
         snapshot = RHIResourceManager.RequireProgramSnapshot(program);
         registration = program.ResourceManager?.GetResourceRegistration(program);
         revision = registration?.MetadataRevision ?? 0;
+        program.ObservePreparation(this, WithdrawPreparation);
+    }
+    /// <summary>Rejects a withdrawn executable using change-delivered readiness, without resolving metadata on use.</summary>
+    internal void RequirePrepared()
+    {
+        if (!IsPrepared) throw new InvalidOperationException("The selected executable preparation is unavailable.");
     }
     /// <summary>Rejects unavailable, externally changed or retired generations without native discovery.</summary>
     internal void RequireUsable()
@@ -47,5 +56,10 @@ public sealed class RHIShader : IDisposable
         ObjectDisposedException.ThrowIf(IsDisposed, this);
         RHIResourceManager.RequireFixedExecutable(program, registration, revision, snapshot, Interface);
     }
+    #endregion
+
+    #region Private
+    /// <summary>Withdraws this fixed generation when its canonical executable facts change or its owner retires.</summary>
+    private void WithdrawPreparation() { preparationWithdrawn = true; }
     #endregion
 }

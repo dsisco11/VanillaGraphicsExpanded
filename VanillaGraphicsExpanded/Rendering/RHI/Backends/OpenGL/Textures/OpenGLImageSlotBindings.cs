@@ -33,8 +33,14 @@ internal static class OpenGLImageSlotBindings
         var binding = new OpenGlStateCache.ImageBinding(texture, level, layered, layer, access, format);
         if (!cache.NeedsImageBinding(unit, binding)) return;
         cache.ForgetImageBinding(unit);
+        ulong stamp = cache.ImageWriteStamp(unit);
         OpenGLDriverCalls.BindImageTexture(unit, texture, level, layered, layer, (Native.TextureAccess)access, (Native.SizedInternalFormat)format);
         backend.RequireContext();
+        if (stamp != cache.ImageWriteStamp(unit))
+        {
+            cache.ForgetImageBinding(unit);
+            throw new System.InvalidOperationException("Image publication was interrupted by an overlapping native callback.");
+        }
         cache.EstablishImageBinding(unit, binding);
     }
     #endregion

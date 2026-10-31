@@ -28,7 +28,7 @@ public sealed class PreparedSubmissionTests(HeadlessGLFixture fixture) : RenderT
         using var source = RHICommandContext.Current.CreateDynamicTexture3D(new RHITextureDescription { Dimension = TextureDimension.TwoArray, Format = TextureFormat.Rgba32f, Width = System.Math.Max(1, 2), Height = System.Math.Max(1, 2), Depth = System.Math.Max(1, 6), MipLevels = 1, Storage = (true ? ResourceStorageMode.Immutable : ResourceStorageMode.Mutable), Filter = TextureFilterMode.Linear, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         using var nativeView = RHICommandContext.Current.CreateTextureView(new RHITextureViewDescription { Source = source, Dimension = TextureDimension.TwoArray, Format = TextureFormat.Rgba32f, BaseMip = 0, MipCount = 1, BaseLayer = 3, LayerCount = 2, Label = null }).RequireResource();
         var image = new RHIImageBinding(nativeView, ImageAccess.WriteOnly, Level: 0, Layered: false, Layer: 1);
-        ShaderPreparedSubmission.ValidateImage(binding, image);
+        ShaderResourcePreparation.ValidateImage(binding, image);
         using var sampled = RHICommandContext.Current.CreateTexture2D(new() { Dimension=TextureDimension.Two, Width=2, Height=2, MipLevels=1, Format=TextureFormat.Rgba32f, Storage=ResourceStorageMode.Mutable }).RequireResource();
         RHICommandContext.Current.SetPipeline(pipeline.Pipeline);
         RHICommandContext.Current.BindResources(Capture(pipeline, sampled, sampled, image));
@@ -39,7 +39,7 @@ public sealed class PreparedSubmissionTests(HeadlessGLFixture fixture) : RenderT
         Assert.Equal(nativeView.TextureId, name);
         Assert.Equal(0, level);
         Assert.Equal(1, layer);
-        Assert.Throws<InvalidOperationException>(() => ShaderPreparedSubmission.ValidateImage(binding, image with { Layer = 2 }));
+        Assert.Throws<InvalidOperationException>(() => ShaderResourcePreparation.ValidateImage(binding, image with { Layer = 2 }));
     }
 
     /// <summary>Successful compatibility is reused while input changes, executable replacement and retirement remain observable.</summary>
@@ -48,47 +48,33 @@ public sealed class PreparedSubmissionTests(HeadlessGLFixture fixture) : RenderT
     {
         EnsureContextValid();
         using var pipeline = Load();
-        var owner = new SubmissionTarget(pipeline);
-        var history = new ShaderInputValidation();
-        ulong identity = GpuBindingEntry.Identity(ShaderBindingKind.Image, "outputImage");
-        var binding = history.Resolve(owner, identity);
-        using var texture = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba32f, Width = System.Math.Max(1, 2), Height = System.Math.Max(1, 2), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
-        var view = new RHIImageBinding(texture, ImageAccess.WriteOnly);
-        for (int use = 0; use < 5; use++)
-        {
-            binding = history.Resolve(owner, identity);
-            ShaderPreparedSubmission.ValidateImage(binding, view, ref history);
-        }
+        using var texture = RHICommandContext.Current.CreateDynamicTexture2D(new() { Dimension = TextureDimension.Two,
+            Format = TextureFormat.Rgba32f, Width = 2, Height = 2, MipLevels = 1, Storage = ResourceStorageMode.Mutable }).RequireResource();
+        var context = RHICommandContext.Current;
+        var bindings = Capture(pipeline, texture, texture, new(texture, ImageAccess.WriteOnly));
+        context.SetPipeline(pipeline.Pipeline);
+        for (int use = 0; use < 5; use++) context.BindResources(bindings);
 #if DEBUG
-        Assert.Equal(1, history.EntryResolutions);
-        Assert.Equal(1, history.CompatibilityChecks);
+        Assert.Equal(1, bindings.Structure.Preparations);
 #endif
         texture.Resize(4, 4);
-        ShaderPreparedSubmission.ValidateImage(binding, view, ref history);
+        context.BindResources(bindings);
 #if DEBUG
-        Assert.Equal(2, history.CompatibilityChecks);
+        Assert.Equal(2, bindings.Structure.Preparations);
 #endif
-        var invalid = view with { Level = 3 };
-        Assert.Throws<InvalidOperationException>(() => ShaderPreparedSubmission.ValidateImage(binding, invalid, ref history));
+        var invalid = Capture(pipeline, texture, texture, new(texture, ImageAccess.WriteOnly, Level: 3));
+        Assert.Throws<InvalidOperationException>(() => context.BindResources(invalid));
+        context.BindResources(bindings);
 #if DEBUG
-        Assert.Equal(2, history.CompatibilityChecks);
-#endif
-        ShaderPreparedSubmission.ValidateImage(binding, view, ref history);
-#if DEBUG
-        Assert.Equal(2, history.CompatibilityChecks);
+        Assert.Equal(2, bindings.Structure.Preparations);
 #endif
         using var replacement = Load();
-        binding = history.Resolve(new SubmissionTarget(replacement), identity);
-        ShaderPreparedSubmission.ValidateImage(binding, view, ref history);
-#if DEBUG
-        Assert.Equal(2, history.EntryResolutions);
-        Assert.Equal(3, history.CompatibilityChecks);
-#endif
+        context.SetPipeline(replacement.Pipeline);
+        var replaced = Capture(replacement, texture, texture, new(texture, ImageAccess.WriteOnly));
+        context.BindResources(replaced);
+        Assert.NotSame(bindings.Structure, replaced.Structure);
         texture.Dispose();
-        Assert.Throws<InvalidOperationException>(() => ShaderPreparedSubmission.ValidateImage(binding, view, ref history));
-#if DEBUG
-        Assert.Equal(3, history.CompatibilityChecks);
-#endif
+        Assert.Throws<InvalidOperationException>(() => context.BindResources(replaced));
     }
     /// <summary>Array sampling and image writes use independent fixed slots without authored sampler locations.</summary>
     [Fact]
@@ -106,8 +92,7 @@ public sealed class PreparedSubmissionTests(HeadlessGLFixture fixture) : RenderT
         var view = new RHIImageBinding(output, ImageAccess.WriteOnly);
         GpuTextureRef[] desired = [first, second];
         // Validate the entire set before publication, as generated Submit does.
-        ShaderPreparedSubmission.ValidateSamplerArray(inputs, desired);
-        ShaderPreparedSubmission.ValidateImage(outputBinding, view);
+
         var desiredCapture = Capture(pipeline, first, second, view);
         RHICommandContext.Current.SetPipeline(pipeline.Pipeline);
         RHICommandContext.Current.BindResources(desiredCapture);
@@ -142,18 +127,18 @@ public sealed class PreparedSubmissionTests(HeadlessGLFixture fixture) : RenderT
         using var output = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba32f, Width = System.Math.Max(1, 1), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         RHICommandContext.Current.SetPipeline(pipeline.Pipeline);
         RHICommandContext.Current.BindResources(Capture(pipeline, texture, texture, new(output, ImageAccess.WriteOnly)));
-        Assert.Throws<InvalidOperationException>(() => ShaderPreparedSubmission.ValidateSamplerArray(inputs, [texture]));
+        Assert.Throws<InvalidOperationException>(() => RHICommandContext.Current.BindResources(new RHIResourceBindings(pipeline.Shader,
+            samplers: [new(GpuBindingEntry.Identity(ShaderBindingKind.Sampler, "inputs"), texture)],
+            images: [new(GpuBindingEntry.Identity(ShaderBindingKind.Image, "outputImage"), new RHIImageBinding(output))])));
         Assert.True(OpenGlStateCache.Current.TryGetCachedImageTexture(7, out int retained));
         Assert.Equal(output.TextureId, retained);
-        ShaderPreparedSubmission.ValidateSampler(inactive, (GpuTexture?)null);
+        ShaderResourcePreparation.ValidateSampler(inactive, (GpuTexture?)null);
         Assert.False(OpenGlStateCache.Current.TryGetCachedBoundTexture(TextureTarget.Texture2D, 10, out _));
 
         // The same disposed wrapper is now invalid even though its desired reference did not change.
         texture.Dispose();
-        Assert.Throws<InvalidOperationException>(() => ShaderPreparedSubmission.ValidateSamplerArray(inputs, [texture, texture]));
-        var optional = inputs with { Contract = inputs.Contract with { Binding = inputs.Contract.Binding with { Required = false } } };
-        ShaderPreparedSubmission.ValidateSamplerArray(optional, [texture, texture]);
-        // Optional metadata validation does not mutate native slots. Publication policy belongs to the fixed shader contract.
+        Assert.Throws<InvalidOperationException>(() => RHICommandContext.Current.BindResources(Capture(pipeline, texture, texture, new(output))));
+        // Active optional absence and unavailable selections are covered through real optional contracts in BindingPreparationPolicyTests.
         output.Dispose();
         Assert.False(OpenGlStateCache.Current.TryGetCachedImageTexture(7, out _));
     }
@@ -217,16 +202,17 @@ public sealed class PreparedSubmissionTests(HeadlessGLFixture fixture) : RenderT
         var image = table.Resolve(GpuBindingEntry.Identity(ShaderBindingKind.Image, "outputImage"));
         using var integer = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba32ui, Width = System.Math.Max(1, 1), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         using var floating = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba32f, Width = System.Math.Max(1, 1), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
-        Assert.Throws<InvalidOperationException>(() => ShaderPreparedSubmission.ValidateSamplerArray(inputs, [floating, integer]));
+        RHICommandContext.Current.SetPipeline(pipeline.Pipeline);
+        Assert.Throws<InvalidOperationException>(() => RHICommandContext.Current.BindResources(Capture(pipeline, floating, integer, new(floating))));
         // Equal texel byte sizes do not make unsigned storage valid for a floating image interpretation.
-        Assert.Throws<InvalidOperationException>(() => ShaderPreparedSubmission.ValidateImage(image, integer));
-        Assert.Throws<InvalidOperationException>(() => ShaderPreparedSubmission.ValidateImage(image,
+        Assert.Throws<InvalidOperationException>(() => ShaderResourcePreparation.ValidateImage(image, new RHIImageBinding(integer)));
+        Assert.Throws<InvalidOperationException>(() => ShaderResourcePreparation.ValidateImage(image,
             new RHIImageBinding(floating, Level: 1)));
         using var array = RHICommandContext.Current.CreateTexture3D(new RHITextureDescription { Dimension = TextureDimension.TwoArray, Format = TextureFormat.Rgba32f, Width = System.Math.Max(1, 1), Height = System.Math.Max(1, 1), Depth = System.Math.Max(1, 2), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Linear, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
-        ShaderPreparedSubmission.ValidateImage(image, new RHIImageBinding(array, Layer: 1));
-        Assert.Throws<InvalidOperationException>(() => ShaderPreparedSubmission.ValidateImage(image,
+        ShaderResourcePreparation.ValidateImage(image, new RHIImageBinding(array, Layer: 1));
+        Assert.Throws<InvalidOperationException>(() => ShaderResourcePreparation.ValidateImage(image,
             new RHIImageBinding(array, Layer: 2)));
-        Assert.Throws<InvalidOperationException>(() => ShaderPreparedSubmission.ValidateImage(image,
+        Assert.Throws<InvalidOperationException>(() => ShaderResourcePreparation.ValidateImage(image,
             new RHIImageBinding(array, Layered: true)));
         // Authored selector shape is checked even when the reference is absent.
         Assert.Throws<ArgumentException>(() => new RHIResourceBindings(pipeline.Shader,
@@ -241,12 +227,6 @@ public sealed class PreparedSubmissionTests(HeadlessGLFixture fixture) : RenderT
             new(GpuBindingEntry.Identity(ShaderBindingKind.Sampler, "inputs"), second, Element: 1)],
             images: [new(GpuBindingEntry.Identity(ShaderBindingKind.Image, "outputImage"), output)]);
 
-    /// <summary>Exposes a fixture-owned prepared executable through the production submission boundary.</summary>
-    private sealed record SubmissionTarget(ComputeShaderAsset Pipeline) : IShaderSubmissionTarget
-    {
-        public int ProgramId => Pipeline.ProgramId;
-        public GpuProgramLayout ProgramLayout => Pipeline.ProgramLayout;
-    }
     /// <summary>Loads the existing offline array fixture through the production preparation owner.</summary>
     private static ComputeShaderAsset Load()
     {

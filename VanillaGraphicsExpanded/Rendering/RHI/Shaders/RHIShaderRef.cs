@@ -22,6 +22,8 @@ public readonly struct RHIShaderRef : IEquatable<RHIShaderRef>
     #endregion
 
     #region Internal API
+    /// <summary>Gets the exact captured generation without repeating resource-validity proof.</summary>
+    internal RHIShader SelectedShader => shader ?? throw new InvalidOperationException("A shader reference is required.");
     /// <summary>Captures the supplied owner without querying, registering or transferring lifecycle authority.</summary>
     internal RHIShaderRef(RHIShader? shader) { this.shader = shader; }
     /// <summary>Reads frozen stage inputs without acquiring native context or validating mutable resource state.</summary>

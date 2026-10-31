@@ -16,6 +16,7 @@ internal sealed partial class MaterialAtlasTextureStore
     /// <summary>Rebuilds metadata from the current resolved plan, never from a stale height/BRDF disk cache.</summary>
     internal void UpdateDisplacement(AtlasBuildPlan plan)
     {
+        foreach (var page in plan.Pages) HarmonyPatches.TerrainMaterialParamsTextureBindingHook.InvalidateAtlasBindings(page.AtlasTextureId);
         // Clear old generations first; missing/newly unassigned tiles always resolve to zero.
         foreach (var texture in displacementByAtlas.Values) texture.Dispose();
         displacementByAtlas.Clear();

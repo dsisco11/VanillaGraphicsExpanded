@@ -32,7 +32,7 @@ public sealed partial class RHICommandContext
         submitting = true;
         try
         {
-            if (graphics is not null) graphics.BeginSubmission(); else compute!.BeginSubmission();
+            if (graphics is not null) graphics.BeginSubmission();
             borrowed = true;
             backend.BindResources(shader, inputs);
             selectedResources = inputs;
@@ -40,7 +40,7 @@ public sealed partial class RHICommandContext
         catch { selectedResources = null; throw; }
         finally
         {
-            if (borrowed) { if (graphics is not null) graphics.EndSubmission(); else compute!.EndSubmission(); }
+            if (borrowed) { if (graphics is not null) graphics.EndSubmission(); }
             submitting = false;
         }
     }
@@ -53,7 +53,7 @@ public sealed partial class RHICommandContext
         finally { submitting = false; }
     }
     /// <summary>Publishes a complete supplied set of sampled slots without owning the consuming executable.</summary>
-    public void BindSampledTextures(ReadOnlySpan<RHISampledTextureSlot> inputs)
+    public void BindSampledTextures(RHISampledTextureBindings inputs)
     {
         backend.RequireContext(); RequireIdleSubmission();
         submitting = true;

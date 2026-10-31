@@ -28,6 +28,8 @@ internal static class LumonSceneChunkSlotUniformState
     public static VectorInt3 Ring { get; private set; }
 
     public static GpuTextureRef GenerationTexture { get; private set; }
+    /// <summary>Retains the mapping owner's sampled declaration until its selected texture changes.</summary>
+    internal static RHISampledTextureBindings? GenerationBindings { get; private set; }
 
     #region Mapping lifecycle
     /// <summary>Clears the mapping and releases its render-thread GPU storage.</summary>
@@ -41,6 +43,7 @@ internal static class LumonSceneChunkSlotUniformState
         Dims = default;
         Ring = default;
         GenerationTexture = default;
+        GenerationBindings = null;
         Interlocked.Increment(ref version);
     }
 
@@ -50,6 +53,8 @@ internal static class LumonSceneChunkSlotUniformState
         OriginMinChunk = originMinChunk;
         Dims = dims;
         Ring = ring;
+        if (GenerationTexture != generationTexture || GenerationBindings is null)
+            GenerationBindings = [new(GenerationTextureUnit, generationTexture)];
         GenerationTexture = generationTexture;
         Enabled = !generationTexture.IsEmpty && dims.X > 0 && dims.Y > 0 && dims.Z > 0;
         Interlocked.Increment(ref version);

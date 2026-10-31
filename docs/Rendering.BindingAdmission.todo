@@ -2,7 +2,7 @@ Owner-guaranteed resource lifetimes and change-driven execution — implementati
 ===================================================================================
 
 Source proposal: [Rendering.BindingAdmission.Proposal.md](Rendering.BindingAdmission.Proposal.md).
-Status: phases 1–3 complete. Phases 4–7 pending; operation-family execution migration remains pending.
+Status: phases 1–4 complete. Phases 5–7 pending; geometry/pass and remaining operation-family migration remain pending.
 Related work: Rendering.GpuCommands.todo. This plan does not complete its outstanding qualification tasks.
 
 Goal
@@ -139,34 +139,48 @@ Phase 3: Establish producer invariants and targeted preparation refresh
 
 Phase 4: Replace binding execution and uniform publication as one unit
   Outcome: shader bindings execute prepared relationships without repeated lifetime/compatibility proof.
-  [ ] Prepare backend-neutral active selections, required/optional rules, arrays, views and compatibility
+  [x] Prepare backend-neutral active selections, required/optional rules, arrays, views and compatibility
       against the exact shader interface. Keep preparation with the typed operation/renderer owner and
       native realization in the backend. Inactive inputs do no binding work; optional absence clears slots.
-  [ ] Separate stable resource structure from captured uniform versions. Reuse owner-local preparation;
+  [x] Separate stable resource structure from captured uniform versions. Reuse owner-local preparation;
       do not globally intern selections or compare every resource merely to discover unchanged capture.
-  [ ] Replace BeginBindingExecution and redundant paths in ResourceBindingValidation, ShaderPreparedSubmission
+  [x] Replace BeginBindingExecution and redundant paths in ResourceBindingValidation, ShaderPreparedSubmission
       and ShaderInputValidation. Remove superseded compatibility histories and per-resource temporary
       retain/guard walks, including hidden repeated manager/metadata reads through reference accessors.
-  [ ] Migrate immediate and recorded draw/dispatch callers, generated binding owners, internal policy resources
+  [x] Migrate immediate and recorded draw/dispatch callers, generated binding owners, internal policy resources
       and local/tool paths together. Preserve recorded captured versions and exact executable identity.
-  [ ] Rework BindingReuse and OpenGlStateCache.BindingPublication to process affected slots/tables/domains.
+  [x] Rework BindingReuse and OpenGlStateCache.BindingPublication to process affected slots/tables/domains.
       Distinguish external binding changes from storage/lifetime changes; account for sampler/image selectors,
       program changes, generic-buffer side effects, restoration and deletion/name reuse. Known-equal or
       unrelated observations must not invalidate all publication. Unknown outcomes affect only their domain.
-  [ ] Keep uniform allocation/upload/commit with its owner. Refresh for version, epoch and allocation changes;
+  [x] Keep uniform allocation/upload/commit with its owner. Refresh for version, epoch and allocation changes;
       preserve single-draw consumption, frame/multi-frame reuse, failed-candidate aborts and GPU-safe last use.
       Different captured versions and multiple executable consumers must not incorrectly share commitment.
-  [ ] Preserve exactly-once native forwarding, contained observer errors and partial-publication failure
+  [x] Preserve exactly-once native forwarding, contained observer errors and partial-publication failure
       semantics. Never retry partially issued native work or certify interrupted publication as complete.
-  [ ] Verify unchanged draw/dispatch removes metadata resolution, compatibility reconstruction and resource
+  [x] Verify unchanged draw/dispatch removes metadata resolution, compatibility reconstruction and resource
       guard work; unrelated registrations do not add work. Verify affected refresh, optional clears, inactive
       inputs, external state restoration, uniform ordering/consumption and preparation/native failure cleanup.
       Compact legitimate binding loops remain allowed; tests must not mandate zero iteration.
-  [ ] Reconcile Rendering.ShaderBindingState.md and applicable RHI contracts; delete superseded binding APIs
+  [x] Reconcile Rendering.ShaderBindingState.md and applicable RHI contracts; delete superseded binding APIs
       and callers in this unit. Check ordinary Release does not depend on diagnostic lifetime checks.
-  [ ] Completion gate: every binding route uses the final preparation/publication path, valid Debug/Release
+  [x] Completion gate: every binding route uses the final preparation/publication path, valid Debug/Release
       behavior agrees, and unchanged execution performs no repeated resource-validity proof.
 
+  Completion evidence: second review and independent completion audit passed with no unresolved findings.
+  Structural preparation is shared across uniform-only captures; relevant committed changes and explicit
+  owner identity handoffs withdraw it without per-use metadata polling or binding resource guards.
+  Immediate/recorded and direct integration routes use retained declarations and affected executed-state
+  publication. Uniform allocation, commitment, consumption and GPU-safe last-use protocols remain intact.
+  Generator Debug and ordinary Release each passed 68/68. Final corrective checks passed 9/9 in both
+  configurations; Debug callback/policy/identity checks passed 18/18, all with zero failures or skips.
+  Receipts: TestResults/BindingExecution/generator-{debug,release}.trx,
+  bindings-capture-{debug,release}.trx and bindings-debug-owner-identity.trx. These rechecks supersede the
+  identified optional-helper, initiating-owner replacement and legacy Release misuse assertions in earlier
+  runs; their unaffected passing evidence remains valid (initial focused Debug 171 passing, broad Release
+  235 passing). Failed receipts are retained rather than described as all-green runs. The migration map
+  traces tasks and evidence. Geometry/pass and transfer guards remain assigned to phases 5–6.
+  No full-suite, live-game appearance or measured performance acceptance is claimed. No staging or commits.
 Phase 5: Migrate geometry, pipelines and complete render passes
   Outcome: graphics submission reuses stable geometry/pass relationships under owner lifetimes.
   [ ] Prepare streams, attributes, index layouts, buffer dependencies and reusable fetch limits when their

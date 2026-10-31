@@ -11,7 +11,7 @@ public sealed partial class RHICommandList
     private readonly record struct BindUniformSnapshotPayload(int slot, int snapshot);
     private readonly CommandPages<BindSampledTexturesPayload> payloadBindSampledTextures = new();
     /// <summary>Locates fully retained arguments in typed tables.</summary>
-    private readonly record struct BindSampledTexturesPayload((int Offset, int Length) inputs);
+    private readonly record struct BindSampledTexturesPayload(int inputs);
     #region Public API
     /// <summary>Records bind resources with supplied inputs only; native validation remains at execution.</summary>
     public void BindResources(RHIResourceBindings inputs)
@@ -32,7 +32,7 @@ public sealed partial class RHICommandList
         headers.Add(new(CommandOperation.BindUniformSnapshot, payload));
     }
     /// <summary>Records bind sampled textures with supplied inputs only; native validation remains at execution.</summary>
-    public void BindSampledTextures(ReadOnlySpan<RHISampledTextureSlot> inputs)
+    public void BindSampledTextures(RHISampledTextureBindings inputs)
     {
         RequireRecording();
         foreach (var input in inputs)
@@ -67,7 +67,7 @@ public sealed partial class RHICommandList
             case CommandOperation.BindSampledTextures:
             {
                 var value = payloadBindSampledTextures.Get(command.Payload);
-                context.BindSampledTextures(sampledInputs.Read(value.inputs));
+                context.BindSampledTextures(sampledInputs.Get(value.inputs));
 
                 return;
             }

@@ -14,6 +14,7 @@ internal sealed partial class OpenGLBackend
     private readonly record struct TexturePublication(int Slot, Legacy.TextureTarget Target, int Texture, int Sampler);
     private readonly List<TexturePublication> texturePublications = new();
     private int[] bindingNames = new int[16];
+    private ulong[] bindingWriteStamps = new ulong[16];
 
     #region Private
     #region Selection and policy
@@ -23,12 +24,12 @@ internal sealed partial class OpenGLBackend
         texturePublications.Clear();
         foreach (var prepared in plan.Textures)
         {
-            var entry = prepared.Binding;
+            var entry = prepared.Selection.Binding;
 
-            var input = prepared.Sampler;
+            var input = prepared.Selection.Sampler;
             var target = OpenGLImageValues.Target((TextureDimension)GpuPreparedBindings.CompatibleTextureTarget(entry.Type));
-            int texture = input.Texture.IsEmpty ? 0 : input.Texture.TextureId;
-            int sampler = prepared.NativeSampler;
+            int texture = prepared.Texture;
+            int sampler = prepared.Sampler;
             texturePublications.Add(new(entry.Contract.Binding.Slot, target, texture, sampler));
         }
 
@@ -37,7 +38,7 @@ internal sealed partial class OpenGLBackend
         PublishSamplerRanges();
     }
     /// <summary>Resolves existing shared sampler policy only during execution, never during CPU capture.</summary>
-    private int ResolvePolicySampler(ShaderSamplerPolicy policy)
+    private int ResolvePolicySampler(ShaderSamplerPolicy policy, RHIResourceBindingStructure structure)
     {
         GpuSampler? sampler = policy switch
         {
@@ -49,7 +50,7 @@ internal sealed partial class OpenGLBackend
         };
         if (sampler is null) return 0;
         _ = RHIResourceManager.RequireSamplerReferenceMetadata(sampler);
-        RetainExecutionResource(sampler);
+        structure.Observe(sampler);
         return sampler.SamplerId;
     }
     #endregion
@@ -90,14 +91,23 @@ internal sealed partial class OpenGLBackend
             var input = texturePublications[index + item];
             cache.ForgetImageBinding(input.Target, input.Slot);
         }
+        if (bindingWriteStamps.Length < count) Array.Resize(ref bindingWriteStamps, count);
+        for (int item = 0; item < count; item++) bindingWriteStamps[item] = cache.TextureWriteStamp(texturePublications[index + item].Slot);
         fixed (int* names = bindingNames) OpenGLDriverCalls.BindTextures(first.Slot, count, names);
         RequireContext();
         cache.RecordTextureBind();
+        bool interrupted = false;
         for (int item = 0; item < count; item++)
         {
             var input = texturePublications[index + item];
-            cache.ImageBindings(input.Slot)[input.Target] = input.Texture;
+            if (bindingWriteStamps[item] != cache.TextureWriteStamp(input.Slot))
+            {
+                cache.ForgetImageBinding(input.Target, input.Slot);
+                interrupted = true;
+            }
+            else cache.ImageBindings(input.Slot)[input.Target] = input.Texture;
         }
+        if (interrupted) throw new InvalidOperationException("Texture publication was interrupted by an overlapping native callback.");
     }
     #endregion
     #region Sampler publication
@@ -116,14 +126,23 @@ internal sealed partial class OpenGLBackend
                 bindingNames[count++] = next.Sampler;
                 cache.SetSamplerKnowledge(next.Slot, null);
             }
+            if (bindingWriteStamps.Length < count) Array.Resize(ref bindingWriteStamps, count);
+            for (int item = 0; item < count; item++) bindingWriteStamps[item] = cache.SamplerWriteStamp(texturePublications[index + item].Slot);
             fixed (int* names = bindingNames) OpenGLDriverCalls.BindSamplers(first.Slot, count, names);
             RequireContext();
             cache.RecordSamplerBind();
+            bool interrupted = false;
             for (int item = 0; item < count; item++)
             {
                 var input = texturePublications[index + item];
-                cache.SetSamplerKnowledge(input.Slot, input.Sampler);
+                if (bindingWriteStamps[item] != cache.SamplerWriteStamp(input.Slot))
+                {
+                    cache.SetSamplerKnowledge(input.Slot, null);
+                    interrupted = true;
+                }
+                else cache.SetSamplerKnowledge(input.Slot, input.Sampler);
             }
+            if (interrupted) throw new InvalidOperationException("Sampler publication was interrupted by an overlapping native callback.");
             index += count;
         }
     }

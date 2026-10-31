@@ -33,7 +33,7 @@ internal sealed partial class OpenGLBackend
         pipeline.BeginSubmission();
         try
         {
-            BeginBindingExecution(shader, resources);
+            SelectResourceBindings(shader, resources);
             try
             {
                 RetainExecutionResource(draw.Arguments.Buffer.RequireResource());

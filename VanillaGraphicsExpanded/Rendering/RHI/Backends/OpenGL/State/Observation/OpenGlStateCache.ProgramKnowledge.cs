@@ -8,6 +8,7 @@ internal sealed partial class OpenGlStateCache
     internal bool PrepareProgramSelection(int program)
     {
         if (currentProgramStagesKnown && currentProgram == program) return false;
+        ProgramWriteStamp++;
         currentProgram = null;
         currentProgramStagesKnown = false;
         return true;

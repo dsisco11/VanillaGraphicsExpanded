@@ -11,7 +11,7 @@ internal sealed partial class OpenGLBackend
     public void BindBuffer(BufferRole role, GpuBufferRef buffer)
     {
         RequireContext();
-        int name = buffer.IsEmpty ? 0 : checked((int)RequireRange(buffer, 0, 0).ResourceId);
+        int name = buffer.IsEmpty ? 0 : checked((int)PrepareBufferSelection(buffer).ResourceId);
         OpenGLBufferBindings.BindBuffer(cache, OpenGLBufferValues.Target(role), name);
     }
 
@@ -20,7 +20,7 @@ internal sealed partial class OpenGLBackend
     {
         RequireContext();
         var target = RequireIndexedSlot(role, slot);
-        int name = buffer.IsEmpty ? 0 : checked((int)RequireRange(buffer, 0, 0).ResourceId);
+        int name = buffer.IsEmpty ? 0 : checked((int)PrepareBufferSelection(buffer).ResourceId);
         OpenGLBufferBindings.BindBufferBase(cache, target, slot, name);
     }
 
@@ -31,7 +31,9 @@ internal sealed partial class OpenGLBackend
         var target = RequireIndexedSlot(role, slot);
         if (buffer.IsEmpty) { OpenGLBufferBindings.BindBufferBase(cache, target, slot, 0); return; }
         if (size <= 0) throw new ArgumentOutOfRangeException(nameof(size));
-        var owner = RequireRange(buffer, offset, size);
+        var owner = PrepareBufferSelection(buffer);
+        if (offset < 0 || offset > owner.PublishedMetadata.Capacity - size)
+            throw new ArgumentOutOfRangeException(nameof(offset));
         int alignment = role switch
         {
             BufferRole.Uniform => Math.Max(1, Capabilities.UniformBufferOffsetAlignment),
@@ -45,6 +47,16 @@ internal sealed partial class OpenGLBackend
     #endregion
 
     #region Private
+    /// <summary>Uses producer-delivered readiness and facts; original-association misuse is a development diagnostic.</summary>
+    private static GpuResource<GpuBufferMetadata> PrepareBufferSelection(GpuBufferRef buffer)
+    {
+        var owner = buffer.RequireResource();
+#if DEBUG
+        _ = RHIResourceManager.RequireBufferReferenceMetadata(owner);
+#endif
+        if (!owner.HasMetadataSnapshot) throw new InvalidOperationException("Buffer storage preparation is unavailable.");
+        return owner;
+    }
     /// <summary>Resolves indexed namespaces using cached limits, without native queries.</summary>
     private Legacy.BufferRangeTarget RequireIndexedSlot(BufferRole role, int slot)
     {

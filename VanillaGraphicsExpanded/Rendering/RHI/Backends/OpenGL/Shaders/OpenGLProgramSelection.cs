@@ -11,9 +11,15 @@ internal static class OpenGLProgramSelection
     {
         if (!cache.PrepareProgramSelection(program)) return;
         var origin=GpuResource.CaptureCreationContext(GpuResourceKind.Program);
+        ulong stamp = cache.ProgramWriteStamp;
         OpenGLDriverCalls.UseProgram(program);
         if(!VanillaGraphicsExpanded.Rendering.Integration.RenderContextRegistry.IsCurrentResourceContext(origin))
             throw new System.InvalidOperationException("Program selection returned in a foreign context.");
+        if (stamp != cache.ProgramWriteStamp)
+        {
+            cache.Invalidate(EPipelineState.Program);
+            throw new System.InvalidOperationException("Program selection was interrupted by an overlapping native callback.");
+        }
         cache.NotifyProgramBound(program);
     }
     #endregion

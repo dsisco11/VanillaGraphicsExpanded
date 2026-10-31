@@ -51,13 +51,15 @@ internal sealed partial class OpenGlStateCache
     /// <summary>Withdraws only the affected image slot before native mutation.</summary>
     internal void ForgetImageBinding(int unit)
     {
-        ChangeBindingPublication();
+        ChangeImageWrite(unit);
+
         imageBindings.Remove(unit);
     }
     /// <summary>Records a completed native image assignment without executing another command.</summary>
     internal void EstablishImageBinding(int unit, ImageBinding binding)
     {
-        ChangeBindingPublication();
+        ChangeImageWrite(unit);
+
         imageBindings[unit] = binding;
 #if DEBUG
         ResourceSlotBindCount++;
@@ -88,9 +90,9 @@ internal sealed partial class OpenGlStateCache
     /// <summary>Forgets image views using deleted texture names so name reuse always restores binding.</summary>
     private void InvalidateImageTexture(int texture)
     {
-        ChangeBindingPublication();
+
         foreach (var key in imageBindings.Where(pair => pair.Value.Texture == texture).Select(pair => pair.Key).ToArray())
-            imageBindings.Remove(key);
+            ForgetImageBinding(key);
     }
     #endregion
 }

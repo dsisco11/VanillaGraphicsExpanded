@@ -12,6 +12,7 @@ internal static class MicrofacetEnergyLookup
 {
     private static Texture2D? texture;
     private static (nint Handle, long Generation) context;
+    private static RHISampledTextureBindings? bindings;
 
     #region Public API
     /// <summary>Reuses complete storage or uploads a validated replacement before exposing it to shaders.</summary>
@@ -20,7 +21,7 @@ internal static class MicrofacetEnergyLookup
         var current = RenderContextRegistry.Current();
         if (current == default) throw new InvalidOperationException("Microfacet lookup requires a live rendering context.");
         int size = ShadingQuality.EnergyLookupSize(ConfigModSystem.Config.ShadingQuality);
-        if (context == current && texture is { IsValid: true } && texture.Width == size) return texture;
+        if (context == current && texture is not null && texture.Width == size) return texture;
         var support = GpuSupport.Graphics;
         if (support.MaxCombinedTextureImageUnits <= GpuBindingRegistry.Sampler.MicrofacetEnergy)
             throw new InvalidOperationException("The microfacet energy lookup exceeds texture binding capabilities.");
@@ -29,6 +30,7 @@ internal static class MicrofacetEnergyLookup
         catch { candidate.Dispose(); throw; }
         // Reloaded shaders reuse storage; quality/context replacement becomes visible only
         // after the complete synchronous upload succeeds, preserving the previous texture on failure.
+        bindings = null;
         var previous = texture; texture = candidate; context = current; previous?.Dispose();
         return candidate;
     }
@@ -36,7 +38,16 @@ internal static class MicrofacetEnergyLookup
     /// <summary>Withdraws publication before retiring its owned GPU storage at world/context teardown.</summary>
     internal static void Retire()
     {
+        bindings = null;
         var previous = texture; texture = null; context = default; previous?.Dispose();
+    }
+    /// <summary>Reuses the lookup owner's sampled declaration independently of external slot mutations.</summary>
+    internal static RHISampledTextureBindings PrepareBindings()
+    {
+        var selected = Prepare();
+        if (bindings is null || bindings.RequiresRefresh)
+            bindings = [new(GpuBindingRegistry.Sampler.MicrofacetEnergy, selected, GpuSamplers.LinearClamp)];
+        return bindings;
     }
     #endregion
 }

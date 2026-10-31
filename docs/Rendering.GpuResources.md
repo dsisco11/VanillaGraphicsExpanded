@@ -176,6 +176,15 @@ without starting retirement; the originating cleanup lifecycle performs withdraw
 Context retirement withdraws the affected registrations before callbacks. Original lifetime checks
 prevent notification or native cleanup from targeting a recycled name or replacement context.
 
+Actual cached shader-resource structures and explicit sampled declarations attach weak consumer callbacks
+to their selected wrappers. Committed change delivery runs wrapper policy and withdraws those dependent
+results after coherent snapshots are installed. Owner disposal/detach also withdraws local cached selections
+before losing the wrapper identity, even when a terminal entry no longer includes that disposed recipient.
+The explicit creation-identity handoff also withdraws owner-following preparation when replacement suppresses
+the initiating wrapper callback; refresh occurs after the completed handoff supplies coherent facts.
+Subscriptions do not own native storage, block mutations, create another registry or retain abandoned
+consumer tables. Failed compatibility remains unavailable until another relevant change. Fixed executable
+readiness uses the same original-generation delivery rather than repeated manager validation at compute use.
 ## Explicit acquisition and image dependencies
 
 Image and framebuffer wrapper APIs, canonical metadata, initialization records and capability-cache keys
@@ -606,8 +615,8 @@ native allocation, captured lifetime token or metadata cache.
 
 The manager checks usability and native-view source dependencies using existing associations and local
 storage certificates. Metadata access performs no recovery. Explicit recovery remains with the producer;
-unavailable facts reject active submission. Shader compatibility history examines current identity and
-metadata revisions even when the reference value compares equal. Texture-reference retention does not
+unavailable facts withdraw affected preparation. Retained binding structures observe relevant changes through
+weak consumers on the existing wrapper delivery path; unchanged execution does not resolve them again. Texture-reference retention does not
 acquire a pass guard or prevent explicit owner disposal.
 
 Resource validity and metadata availability do not prove that an object is bound. OpenGlStateCache separately

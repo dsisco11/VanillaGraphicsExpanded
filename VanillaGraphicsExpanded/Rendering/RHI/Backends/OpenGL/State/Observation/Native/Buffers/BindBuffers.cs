@@ -39,7 +39,7 @@ internal sealed unsafe partial class OpenGlStateCache
             // without allocating a span proportional to an untrusted native count.
             foreach (var key in cache.indexedBufferBindings.Keys)
                 if (key.Target == target && key.Slot >= first && (ulong)key.Slot < (ulong)first + (uint)count)
-                    cache.indexedBufferBindings.Remove(key);
+                    cache.SetIndexedBufferKnowledge(key.Target, key.Slot, null);
             if (feedback) cache.ObserveFeedbackConfiguration(cache.currentTransformFeedback ?? 0);
             return;
         }
@@ -54,17 +54,17 @@ internal sealed unsafe partial class OpenGlStateCache
             nint offset = 0, size = 0;
             if (range && names != null)
             {
-                if (offsets == null || sizes == null) { cache.indexedBufferBindings.Remove((target, slot)); changed = true; continue; }
+                if (offsets == null || sizes == null) { cache.SetIndexedBufferKnowledge(target, slot, null); changed = true; continue; }
                 offset = offsets[i]; size = sizes[i];
                 if (!OpenGLBufferBindingCalls.ValidIndexedRange(target, id, offset, size, multi: true)) continue;
             }
             changed = true;
             if (feedback && !activityKnown || id != 0 && !cache.HasEstablishedNativeIdentity(GpuResourceKind.Buffer, id))
             {
-                cache.indexedBufferBindings.Remove((target, slot));
+                cache.SetIndexedBufferKnowledge(target, slot, null);
                 continue;
             }
-            cache.indexedBufferBindings[(target, slot)] = new(id, id == 0 ? 0 : offset, id == 0 ? 0 : size, range && id != 0);
+            cache.SetIndexedBufferKnowledge(target, slot, new(id, id == 0 ? 0 : offset, id == 0 ? 0 : size, range && id != 0));
         }
         if (feedback && changed) cache.ObserveFeedbackConfiguration(cache.currentTransformFeedback ?? 0);
     }

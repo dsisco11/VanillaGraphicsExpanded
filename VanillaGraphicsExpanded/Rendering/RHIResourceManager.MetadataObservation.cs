@@ -31,7 +31,7 @@ internal sealed partial class RHIResourceManager
             bool available = resource.HasMetadataSnapshot;
             DiscardUntrackedMetadata(resource, change);
             PublishOwnerImages(resource, false);
-            if (available) resource.OnResourceChanged(new(ResourceChangeKind.Availability, false, 0, 0));
+            if (available) resource.NotifyResourceChanged(new(ResourceChangeKind.Availability, false, 0, 0));
         }
     }
 
@@ -41,7 +41,7 @@ internal sealed partial class RHIResourceManager
         try { PublishOwnerImages(resource, false); } catch { }
         // The owner is already disposed. Affinity was checked by its existing disposal policy;
         // observer failure cannot prevent the native owner from completing cleanup.
-        try { resource.OnResourceChanged(new(ResourceChangeKind.Retired | ResourceChangeKind.Availability, false, 0, 0, resource)); }
+        try { resource.NotifyResourceChanged(new(ResourceChangeKind.Retired | ResourceChangeKind.Availability, false, 0, 0, resource)); }
         catch { }
     }
     #endregion

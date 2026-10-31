@@ -178,16 +178,27 @@ public sealed class RHICommandListTests(HeadlessGLFixture fixture) : RenderTestB
         { Assert.Equal(CommandListState.Executed, context.Submit(list).State); }
         Assert.False(uniform.IsDirty);
     }
-    /// <summary>Fixed executable references reject retirement rather than silently following a newly created pipeline.</summary>
+    /// <summary>The recording owner executes or discards commands before retiring their fixed pipeline; diagnostics cover deliberate misuse.</summary>
     [Fact]
-    public void RetiredPipelineFailsRecordedSelection()
+    public void RecordedPipelineOwnerExecutesOrDiscardsBeforeRetirement()
     {
         Start(); var context = RHICommandContext.Current;
         using var shader = context.CreateShader(RHIShaderInputs.ComputeDescription()).RequireResource();
         using var pipeline = context.CreateComputePipeline(new(shader)).RequireResource();
-        using var list = context.CreateCommandList(); list.SetPipeline(pipeline); list.Close(); pipeline.Dispose();
-        var result = context.Submit(list); Assert.Equal(CommandListState.Failed, result.State); Assert.Equal(0, result.FailureIndex);
+        using var list = context.CreateCommandList(); list.SetPipeline(pipeline); list.Close();
+        Assert.Equal(CommandListState.Executed, context.Submit(list).State);
+        using var discardedPipeline = context.CreateComputePipeline(new(shader)).RequireResource();
+        using var discarded = context.CreateCommandList(); discarded.SetPipeline(discardedPipeline); discarded.Close();
+        discarded.Cancel(); discardedPipeline.Dispose();
+        Assert.Equal(CommandListState.Cancelled, discarded.State);
+#if DEBUG
+        using var misuse = context.CreateCommandList(); misuse.SetPipeline(pipeline); misuse.Close(); pipeline.Dispose();
+        var result = context.Submit(misuse); Assert.Equal(CommandListState.Failed, result.State); Assert.Equal(0, result.FailureIndex);
         Assert.NotNull(result.Error);
+#else
+        pipeline.Dispose();
+#endif
+        Assert.False(shader.IsDisposed);
     }
     /// <summary>Image payloads freeze client bytes and current bounds are rechecked after deliberate owner resize.</summary>
     [Theory]

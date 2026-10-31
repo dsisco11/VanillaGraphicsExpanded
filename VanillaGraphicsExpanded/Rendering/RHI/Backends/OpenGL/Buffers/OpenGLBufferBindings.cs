@@ -28,9 +28,15 @@ internal static class OpenGLBufferBindings
             return;
         }
         cache.ForgetBufferBinding(target);
+        var stamp = cache.BufferWriteStamp(target, -1);
         OpenGLDriverCalls.BindBuffer(native, buffer);
         context.RequireContext();
         cache.RealizeNativeBuffer(buffer, false);
+        if (stamp != cache.BufferWriteStamp(target, -1))
+        {
+            cache.ForgetBufferBinding(target);
+            throw new InvalidOperationException("Buffer publication was interrupted by an overlapping native callback.");
+        }
         cache.EstablishBufferBinding(target, buffer);
     }
 
@@ -42,9 +48,15 @@ internal static class OpenGLBufferBindings
         if (!cache.NeedsIndexedBufferBinding(target, slot, buffer, 0, 0, false)) return;
         var native = IndexedTarget(target);
         cache.ForgetBufferBinding((Legacy.BufferTarget)target, slot);
+        var stamp = cache.BufferWriteStamp((Legacy.BufferTarget)target, slot);
         OpenGLDriverCalls.BindBufferBase(native, slot, buffer);
         context.RequireContext();
         cache.RealizeNativeBuffer(buffer, false);
+        if (stamp != cache.BufferWriteStamp((Legacy.BufferTarget)target, slot))
+        {
+            cache.ForgetBufferBinding((Legacy.BufferTarget)target, slot);
+            throw new InvalidOperationException("Indexed buffer publication was interrupted by an overlapping native callback.");
+        }
         cache.EstablishIndexedBufferBinding(target, slot, buffer, 0, 0, false);
     }
 
@@ -56,9 +68,15 @@ internal static class OpenGLBufferBindings
         if (!cache.NeedsIndexedBufferBinding(target, slot, buffer, offset, size, true)) return;
         var native = IndexedTarget(target);
         cache.ForgetBufferBinding((Legacy.BufferTarget)target, slot);
+        var stamp = cache.BufferWriteStamp((Legacy.BufferTarget)target, slot);
         OpenGLDriverCalls.BindBufferRange(native, slot, buffer, offset, size);
         context.RequireContext();
         cache.RealizeNativeBuffer(buffer, false);
+        if (stamp != cache.BufferWriteStamp((Legacy.BufferTarget)target, slot))
+        {
+            cache.ForgetBufferBinding((Legacy.BufferTarget)target, slot);
+            throw new InvalidOperationException("Indexed buffer publication was interrupted by an overlapping native callback.");
+        }
         cache.EstablishIndexedBufferBinding(target, slot, buffer, offset, size, true);
     }
     #endregion

@@ -37,7 +37,7 @@ public sealed class CameraExposureShaderTests(HeadlessGLFixture fixture) : LumOn
         var binding=shader.ProgramLayout.BinaryInterface!.PreparedBindings.Resolve(
             GpuBindingEntry.Identity(ShaderBindingKind.Sampler,"sceneRadiance"));
         Assert.True(binding.Active);
-        var error=Assert.Throws<InvalidOperationException>(()=>ShaderPreparedSubmission.ValidateSampler(binding,borrowed));
+        var error=Assert.Throws<InvalidOperationException>(()=>ShaderResourcePreparation.ValidateSampler(binding,borrowed));
         Assert.Contains("Incompatible texture target",error.Message);
         Assert.Equal(ErrorCode.NoError,GL.GetError());
     }
