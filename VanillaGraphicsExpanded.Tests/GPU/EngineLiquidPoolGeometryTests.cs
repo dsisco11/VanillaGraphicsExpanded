@@ -63,10 +63,11 @@ public sealed class EngineLiquidPoolGeometryTests(HeadlessGLFixture fixture) : R
         OpenTK.Graphics.OpenGL4.GL.GetVertexArray(storage.Mesh.VaoId,
             (OpenTK.Graphics.OpenGL4.VertexArrayParameter)OpenTK.Graphics.OpenGL4.All.ElementArrayBufferBinding, out int nativeElements);
         Assert.Equal(detachedIndices ? 0 : storage.Mesh.vboIdIndex, nativeElements);
-        int original = storage.Mesh.customDataIntVboId; storage.Mesh.customDataIntVboId = 0;
-        Assert.False(geometry.IsCurrent); Assert.Throws<InvalidOperationException>(() => geometry.Inputs);
-        storage.Mesh.customDataIntVboId = original; geometry.Dispose(); Assert.True(GL.IsVertexArray(storage.Mesh.VaoId));
-        Assert.False(geometry.IsCurrent); Assert.Equal(ErrorCode.NoError, GL.GetError());
+        // Real observed configuration withdrawal replaces the old test's unsignaled managed-ID edit.
+        OpenTK.Graphics.OpenGL4.GL.VertexArrayVertexBuffer(storage.Mesh.VaoId, 0, storage.Mesh.xyzVboId, IntPtr.Zero, 12);
+        Assert.False(geometry.IsPrepared); Assert.Throws<InvalidOperationException>(() => geometry.Inputs);
+        geometry.Dispose(); Assert.True(GL.IsVertexArray(storage.Mesh.VaoId));
+        Assert.False(geometry.IsPrepared); Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
 
     /// <summary>The installed allocator publishes the complete pool contract without reproducing its GL calls in the fixture.</summary>
@@ -95,7 +96,7 @@ public sealed class EngineLiquidPoolGeometryTests(HeadlessGLFixture fixture) : R
             pool.VerticesPoolSize = 3; pool.IndicesPoolSize = 3;
             AccessTools.Field(typeof(MeshDataPool), "modelRef").SetValue(pool, mesh);
             using var geometry = new EngineLiquidPoolGeometry(pool);
-            Assert.True(geometry.IsCurrent);
+            Assert.True(geometry.IsPrepared);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
         finally
@@ -124,7 +125,7 @@ public sealed class EngineLiquidPoolGeometryTests(HeadlessGLFixture fixture) : R
         GL.VertexAttribIPointer(location, 1, VertexAttribIntegerType.Int, location == 3 ? 4 : 8, (IntPtr)(location == 6 ? 4 : 0));
         using var reads = new GeometryDescriptorCapture();
         using var geometry = new EngineLiquidPoolGeometry(storage.Pool);
-        Assert.True(geometry.IsCurrent); Assert.Equal(0, reads.Reads);
+        Assert.True(geometry.IsPrepared); Assert.Equal(0, reads.Reads);
     }
 
     /// <summary>Private realization uses authored eight-byte integer strides without scanning the engine array.</summary>
@@ -137,7 +138,7 @@ public sealed class EngineLiquidPoolGeometryTests(HeadlessGLFixture fixture) : R
         GL.VertexAttribIPointer(5, 1, VertexAttribIntegerType.UnsignedInt, 0, IntPtr.Zero);
         using var reads = new GeometryDescriptorCapture();
         using var geometry = new EngineLiquidPoolGeometry(storage.Pool);
-        Assert.True(geometry.IsCurrent); Assert.Equal(0, reads.Reads);
+        Assert.True(geometry.IsPrepared); Assert.Equal(0, reads.Reads);
     }
     #endregion
 }

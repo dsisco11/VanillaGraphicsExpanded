@@ -25,10 +25,10 @@ public sealed class LiquidPreparationTests(HeadlessGLFixture fixture) : RenderTe
         prepared.Prepare([manager]);
         var original = prepared[storage.Pool];
         OpenTK.Graphics.OpenGL4.GL.VertexArrayVertexBuffer(storage.Mesh.VaoId, 0, storage.Mesh.xyzVboId, IntPtr.Zero, 12);
-        Assert.False(original.IsCurrent);
+        Assert.False(original.IsPrepared);
         prepared.Prepare([manager]);
         Assert.NotSame(original, prepared[storage.Pool]);
-        Assert.True(prepared[storage.Pool].IsCurrent);
+        Assert.True(prepared[storage.Pool].IsPrepared);
     }
 
     /// <summary>Canonical buffer changes invalidate retained geometry without requiring a membership change.</summary>
@@ -50,7 +50,7 @@ public sealed class LiquidPreparationTests(HeadlessGLFixture fixture) : RenderTe
         OpenTK.Graphics.OpenGL4.GL.NamedBufferData(storage.Mesh.customDataIntVboId, 24, IntPtr.Zero,
             OpenTK.Graphics.OpenGL4.BufferUsageHint.StaticDraw);
         prepared.Prepare([manager]);
-        Assert.True(prepared[storage.Pool].IsCurrent);
+        Assert.True(prepared[storage.Pool].IsPrepared);
     }
 
     /// <summary>The installed disposal hook expires borrowers before invoking engine mesh deletion.</summary>
@@ -65,7 +65,7 @@ public sealed class LiquidPreparationTests(HeadlessGLFixture fixture) : RenderTe
         var render = new Moq.Mock<IRenderAPI>();
         var api = new Moq.Mock<ICoreClientAPI>();
         api.SetupGet(a => a.Render).Returns(render.Object);
-        render.Setup(r => r.DeleteMesh(storage.Mesh)).Callback(() => Assert.False(original.IsCurrent));
+        render.Setup(r => r.DeleteMesh(storage.Mesh)).Callback(() => Assert.False(original.IsPrepared));
         var harmony = new Harmony("VGE.Tests.LiquidGeometryRetirement");
         try
         {
@@ -98,7 +98,7 @@ public sealed class LiquidPreparationTests(HeadlessGLFixture fixture) : RenderTe
         second.Mesh.customDataIntVboId = 0;
         Assert.Throws<InvalidOperationException>(() => prepared.Prepare([manager]));
         Assert.Same(original, prepared[first.Pool]);
-        Assert.True(original.IsCurrent);
+        Assert.True(original.IsPrepared);
         second.Mesh.customDataIntVboId = stream;
         prepared.Prepare([manager]);
         Assert.Same(original, prepared[first.Pool]);
@@ -107,13 +107,13 @@ public sealed class LiquidPreparationTests(HeadlessGLFixture fixture) : RenderTe
         pools.Remove(first.Pool);
         LiquidGeometryLifecycle.Retire(first.Pool);
         prepared.Prepare([manager]);
-        Assert.False(original.IsCurrent);
+        Assert.False(original.IsPrepared);
         Assert.Same(added, prepared[second.Pool]);
         Assert.Throws<InvalidOperationException>(() => prepared[first.Pool]);
         // A replacement manager with the same count must not reuse the previous membership.
         LiquidGeometryLifecycle.ChangedCollections();
         prepared.Prepare([Manager([first.Pool])]);
-        Assert.False(added.IsCurrent);
+        Assert.False(added.IsPrepared);
         Assert.NotSame(original, prepared[first.Pool]);
         prepared.Dispose();
         Assert.False(first.Mesh.Disposed);
@@ -134,17 +134,79 @@ public sealed class LiquidPreparationTests(HeadlessGLFixture fixture) : RenderTe
         first.Pool.indicesSizes[0] = 6;
         Assert.Throws<InvalidOperationException>(() => original.CaptureDraws().ToArray());
         first.Pool.indicesSizes[0] = 3;
-        int stream = first.Mesh.customDataIntVboId;
-        first.Mesh.customDataIntVboId = 0;
-        Assert.Throws<InvalidOperationException>(() => prepared.Prepare([manager]));
+        OpenTK.Graphics.OpenGL4.GL.NamedBufferData(first.Mesh.customDataIntVboId, 4, IntPtr.Zero,
+            OpenTK.Graphics.OpenGL4.BufferUsageHint.StaticDraw);
+        Assert.False(original.IsPrepared);
+        Assert.Throws<ArgumentOutOfRangeException>(() => prepared.Prepare([manager]));
         Assert.Same(original, prepared[first.Pool]);
-        first.Mesh.customDataIntVboId = stream;
-        Assert.True(original.IsCurrent);
+        Assert.Throws<InvalidOperationException>(() => original.CaptureDraws().ToArray());
+        // The failed refresh stays withdrawn. A legal owner replacement supplies complete storage;
+        // the already queued affected pool is retried only at the next explicit preparation boundary.
         AccessTools.Field(typeof(MeshDataPool), "modelRef").SetValue(first.Pool, second.Mesh);
         prepared.Prepare([manager]);
         Assert.NotSame(original, prepared[first.Pool]);
-        Assert.False(original.IsCurrent);
-        Assert.True(prepared[first.Pool].IsCurrent);
+        Assert.False(original.IsPrepared);
+        Assert.True(prepared[first.Pool].IsPrepared);
+    }
+
+    /// <summary>Source-only refresh visits its affected adapter without rediscovering engine membership or replacing peers.</summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void DeliveredWithdrawalRefreshesOnlyItsPool(bool storageChange)
+    {
+        EnsureContextValid();
+        using var first = new LiquidPoolStorage();
+        using var second = new LiquidPoolStorage();
+        using var prepared = new LiquidGeometryPreparation();
+        var manager = Manager([first.Pool, second.Pool]);
+        prepared.Prepare([manager]);
+        var original = prepared[first.Pool];
+        var peer = prepared[second.Pool];
+        // Unchanged preparation consumes neither the manager row nor a retained-adapter identity scan.
+        prepared.Prepare([]);
+        Assert.Same(original, prepared[first.Pool]);
+        if (storageChange)
+            OpenTK.Graphics.OpenGL4.GL.NamedBufferData(first.Mesh.customDataIntVboId, 24, IntPtr.Zero,
+                OpenTK.Graphics.OpenGL4.BufferUsageHint.StaticDraw);
+        else
+            OpenTK.Graphics.OpenGL4.GL.VertexArrayVertexBuffer(first.Mesh.VaoId, 0, first.Mesh.xyzVboId, IntPtr.Zero, 12);
+        Assert.False(original.IsPrepared);
+        Assert.True(peer.IsPrepared);
+        Assert.Throws<InvalidOperationException>(() => original.CaptureDraws().ToArray());
+        // No topology notification occurred, so the supplied row is unused: only queued pools refresh.
+        prepared.Prepare([]);
+        Assert.NotSame(original, prepared[first.Pool]);
+        Assert.Same(peer, prepared[second.Pool]);
+        Assert.True(prepared[first.Pool].IsPrepared);
+        Assert.Equal(3, prepared[first.Pool].CaptureDraws()[0].IndexCount);
+        prepared.Prepare([]);
+        Assert.Same(peer, prepared[second.Pool]);
+    }
+
+    /// <summary>Observed native deletion withdraws the original borrow before an owner supplies replacement storage.</summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void NativeRetirementCannotRetargetOriginalAdapter(bool deleteArray)
+    {
+        EnsureContextValid();
+        using var first = new LiquidPoolStorage();
+        using var replacement = new LiquidPoolStorage();
+        using var prepared = new LiquidGeometryPreparation();
+        prepared.Prepare([Manager([first.Pool])]);
+        var original = prepared[first.Pool];
+        if (deleteArray) OpenTK.Graphics.OpenGL4.GL.DeleteVertexArray(first.Mesh.VaoId);
+        else OpenTK.Graphics.OpenGL4.GL.DeleteBuffer(first.Mesh.customDataIntVboId);
+        Assert.False(original.IsPrepared);
+        Assert.Throws<InvalidOperationException>(() => original.Inputs);
+        // Replacement is explicit owner handoff, after the original resource's observed retirement.
+        AccessTools.Field(typeof(MeshDataPool), "modelRef").SetValue(first.Pool, replacement.Mesh);
+        prepared.Prepare([]);
+        Assert.NotSame(original, prepared[first.Pool]);
+        Assert.True(prepared[first.Pool].IsPrepared);
+        Assert.False(original.IsPrepared);
+        Assert.True(OpenTK.Graphics.OpenGL4.GL.IsVertexArray(replacement.Mesh.VaoId));
     }
 
     /// <summary>Equivalent pass values reuse target facts, but changed images, routing and disposal cannot.</summary>

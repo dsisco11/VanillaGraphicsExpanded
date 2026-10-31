@@ -11,6 +11,7 @@ internal sealed class EngineGeometryInputs : IDisposable
 {
     private readonly List<GpuResource> recipients = new();
     private readonly RHIGeometryBorrow borrow = new();
+    private readonly Action? invalidated;
     private bool disposed;
     private bool withdrawn;
 
@@ -22,12 +23,13 @@ internal sealed class EngineGeometryInputs : IDisposable
 
     /// <summary>Captures native identity from the engine owner and certifies only externally supplied configuration.</summary>
     internal EngineGeometryInputs(VAO mesh, RHIVertexLayout layout, IReadOnlyDictionary<int, int> streams,
-        int vertices, int indices, int instances = 1)
+        int vertices, int indices, int instances = 1, Action? invalidated = null)
     {
         if (mesh.Disposed || !mesh.Initialized || mesh.VaoId <= 0 || mesh.vboIdIndex <= 0
             || vertices <= 0 || indices <= 0 || instances <= 0)
             throw new ArgumentException("Engine geometry has no complete realized storage.", nameof(mesh));
         RHICommandContext.RequirePreparationAdmission();
+        this.invalidated = invalidated;
         try
         {
             var array = new ArrayRecipient(mesh);
@@ -51,6 +53,7 @@ internal sealed class EngineGeometryInputs : IDisposable
             // retains the original revision and must be re-admitted after external mutation.
             var certificate = RHIResourceManager.AcquireEngineGeometryConfiguration(array, layout, vertexStreams, indexStream);
             Inputs = new(layout, vertexStreams, indexStream, certificate, borrow);
+            certificate.Withdrawn += Withdraw;
             foreach (var recipient in recipients) recipient.ObservePreparation(this, Withdraw);
         }
         catch { Dispose(); throw; }
@@ -63,6 +66,7 @@ internal sealed class EngineGeometryInputs : IDisposable
     {
         if (disposed) return;
         disposed = true;
+        if (Inputs is not null) Inputs.ImportedArray!.Withdrawn -= Withdraw;
         borrow.Dispose();
         foreach (var recipient in recipients) recipient.Dispose();
         recipients.Clear();
@@ -71,7 +75,13 @@ internal sealed class EngineGeometryInputs : IDisposable
 
     #region Private
     /// <summary>Requires the integration owner to recapture source declarations after a relevant structural change.</summary>
-    private void Withdraw() { withdrawn = true; }
+    private void Withdraw()
+    {
+        if (withdrawn || disposed) return;
+        // Both canonical source changes and array-only configuration changes invalidate this borrow.
+        withdrawn = true;
+        invalidated?.Invoke();
+    }
     /// <summary>Receives canonical buffer facts for one engine-owned allocation.</summary>
     private sealed class BufferRecipient : GpuResource<GpuBufferMetadata>
     {

@@ -27,42 +27,36 @@ internal sealed class EngineLiquidPoolGeometry : GraphicsGeometry
         new(5, 1, VertexComponentFormat.UnsignedInt, VertexInterpretation.Integer, 5, 0, 8),
         new(6, 1, VertexComponentFormat.UnsignedInt, VertexInterpretation.Integer, 5, 4, 8)]);
     private readonly MeshDataPool pool;
-    private readonly VAO mesh;
     private readonly EngineGeometryInputs inputs;
     private RHIDrawIndexed[] draws = [];
-    private readonly int vao, elements, vertices, indices;
-    private readonly int[] streams;
+    private readonly int vertices, indices;
     private bool disposed;
 
     #region Public API
     /// <summary>Admits the producer's layout and original allocations before submission; engine storage remains borrowed.</summary>
-    internal EngineLiquidPoolGeometry(MeshDataPool pool)
+    internal EngineLiquidPoolGeometry(MeshDataPool pool, Action? invalidated = null)
     {
         RHICommandContext.RequirePreparationAdmission();
         this.pool = pool;
-        mesh = ReadMesh(pool) as VAO ?? throw new NotSupportedException("Unsupported liquid pool mesh.");
-        vao = mesh.VaoId; elements = mesh.vboIdIndex;
+        var mesh = ReadMesh(pool) as VAO ?? throw new NotSupportedException("Unsupported liquid pool mesh.");
         vertices = pool.VerticesPoolSize; indices = pool.IndicesPoolSize;
-        streams = [mesh.xyzVboId, mesh.uvVboId, mesh.rgbaVboId, mesh.flagsVboId, mesh.customDataFloatVboId, mesh.customDataIntVboId];
-        if (vao == 0 || elements == 0 || vertices <= 0 || indices <= 0 || streams.Any(id => id == 0))
+        int[] streams = [mesh.xyzVboId, mesh.uvVboId, mesh.rgbaVboId, mesh.flagsVboId, mesh.customDataFloatVboId, mesh.customDataIntVboId];
+        if (mesh.VaoId == 0 || mesh.vboIdIndex == 0 || vertices <= 0 || indices <= 0 || streams.Any(id => id == 0))
             throw new InvalidOperationException("Liquid pool has incomplete ordinary vertex storage.");
         inputs = new(mesh, Layout, new Dictionary<int, int>
-            { [0] = streams[0], [1] = streams[1], [2] = streams[2], [3] = streams[3], [4] = streams[4], [5] = streams[5] }, vertices, indices);
+            { [0] = streams[0], [1] = streams[1], [2] = streams[2], [3] = streams[3], [4] = streams[4], [5] = streams[5] }, vertices, indices,
+            invalidated: invalidated);
     }
 
-    /// <summary>Detects engine retirement and replacement without querying GPU state.</summary>
-    internal bool IsCurrent => !disposed && ReferenceEquals(ReadMesh(pool), mesh) && !mesh.Disposed && mesh.Initialized
-        && mesh.VaoId == vao && mesh.vboIdIndex == elements && pool.VerticesPoolSize == vertices && pool.IndicesPoolSize == indices
-        && mesh.xyzVboId == streams[0] && mesh.uvVboId == streams[1] && mesh.rgbaVboId == streams[2]
-        && mesh.flagsVboId == streams[3] && mesh.customDataFloatVboId == streams[4] && mesh.customDataIntVboId == streams[5]
-        && inputs.IsPrepared;
+    /// <summary>Reports delivered source/configuration readiness under the engine pool's allocation lifetime.</summary>
+    internal bool IsPrepared => !disposed && inputs.IsPrepared;
 
     /// <summary>Lends original engine storage without a native draw executor.</summary>
     internal override RHIGeometryInputs Inputs
     {
         get
         {
-            if (!IsCurrent) throw new InvalidOperationException("Liquid pool storage changed after preparation.");
+            if (!IsPrepared) throw new InvalidOperationException("Liquid pool preparation was withdrawn.");
             return inputs.Inputs;
         }
     }
@@ -70,7 +64,7 @@ internal sealed class EngineLiquidPoolGeometry : GraphicsGeometry
     /// <summary>Validates producer-owned culling allocations and freezes the current noninstanced indexed intervals.</summary>
     internal ReadOnlySpan<RHIDrawIndexed> CaptureDraws()
     {
-        if (!IsCurrent) throw new InvalidOperationException("Liquid pool storage changed after preparation.");
+        if (!IsPrepared) throw new InvalidOperationException("Liquid pool preparation was withdrawn.");
         int count = pool.indicesGroupsCount;
         if (IntPtr.Size != 8 || count <= 0
             || count > pool.indicesSizes.Length || count > pool.indicesStartsByte.Length / 2)

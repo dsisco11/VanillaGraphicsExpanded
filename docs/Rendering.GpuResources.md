@@ -618,6 +618,12 @@ producer-owned. Backend VAOs and imported certificates receive weak, array-local
 so equal empty metadata cannot hide native configuration changes. Prepared consumers never retain source
 ownership, and engine borrow cleanup still retires backend arrays on its original disposal service.
 
+An imported array's configuration withdrawal also notifies its integration owner. Liquid preparation
+queues only affected retained pool adapters for replacement before boundary admission; canonical buffer
+changes use the same owner notification. Unchanged preparation performs no adapter identity scan, and
+source-only refresh does not enumerate engine membership. The engine retains pool membership and allocation
+lifetime authority. Current culling intervals and draw bounds remain dynamic operation inputs.
+
 Pass preparation retains attachment/signature/area relationships and refreshes after actual owner or surface
 publication. Native targets retire through affected dependencies, without scanning unrelated cached targets.
 Selected feedback relationships cache successful or failed results until texture or target configuration

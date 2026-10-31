@@ -1699,32 +1699,83 @@ Phase 9.3.2: Eliminate redundant resource-binding processing
     passed with no remaining findings. Permanent binding/contracts documentation reflects these rules.
     No benchmark or live performance claim; combined qualification and geometry work remain in 9.3/9.3.3.
 
-Phase 9.3.3: Reuse invariant geometry validation across submission
+Phase 9.3.3: Remove redundant liquid-adapter identity polling
   Depends on 9.3.1.1 and the existing geometry/submission contracts; complete before final 9.3 qualification.
-  Outcome: unchanged geometry avoids repeated full validation while each draw retains its dynamic bounds checks.
+  Outcome: retained liquid adapters refresh from relevant lifecycle changes without rescanning unchanged
+    mesh identities during preparation and submission; current culled intervals retain dynamic validation.
 
-  Related implementation: Rendering.BindingAdmission.todo phases 3–6 establish change-delivered geometry,
-    pipeline/pass and binding preparation under explicit owner lifetimes, with dynamic draw bounds retained.
-    Its phase 7 records integrated/package qualification separately. These receipts do not complete the
-    outstanding diagnosis, full-suite sequence reconciliation or user-run acceptance required by 9.3.
-    The tasks below retain their original scope as the parent plan's reconciliation checklist; references
-    to resource retention mean owner-preserved intervals, not consumer lifetime counters or per-draw proof.
+  Implemented foundation: the completed binding-admission redesign already supplies change-driven RHI
+    geometry preparation, reusable fetch limits, pipeline/pass compatibility and dynamic draw bounds.
+    See Rendering.GpuResources.md (Imported geometry certification) and Rendering.GpuCommands.Contracts.md
+    (Submission and failure rules); closeout evidence is retained at
+    46cbe4d2:docs/Rendering.BindingAdmission.todo. Do not rebuild or repeat that general RHI work here.
+    This subphase covers the remaining liquid integration only. Final diagnosis, full-suite sequence
+    reconciliation, combined package qualification and user-run acceptance remain in 9.3.
 
-  ☐ Audit EngineLiquidPoolGeometry.IsCurrent, Inputs, CaptureDraws and indexed backend validation. Separate
-    identity/configuration/stream-layout invariants from current visibility, draw ranges and per-draw fetch
-    bounds. The current allocation walk is already monotonic; do not treat it as a quadratic search.
-  ☐ Establish bounded reuse keyed by authoritative resource/configuration revisions. Validate invariant
-    geometry once for the relevant revision and reuse that result across preparation, capture and execution;
-    refresh on VAO/stream/index-buffer replacement, storage-size changes, name reuse, disposal, context
-    changes or observed external geometry mutation. Keep dynamic indexed/instanced range validation and
-    producer-owned index-content guarantees; introduce no GPU readback or registry-wide search.
-  ☐ Remove repeated invariant stream/attribute walks and redundant IsCurrent calls from migrated callers.
-    If allocation membership needs an index, maintain it at its owning lifecycle boundary while checking
-    current culled intervals at submission. Preserve resource retention and reject invalid geometry before
-    native dispatch; do not replace meaningful guards with a blanket previously-validated flag.
-  ☐ Verify unchanged reuse plus mutation, replacement, disposal, buffer-size, instancing and out-of-range
-    cases. Preserve engine culling and draw order. Record focused evidence and reconcile all corrective
-    subphases into the final 9.3 source/package identity and integrated qualification; no mandatory benchmark.
+  ☑ Trace LiquidGeometryPreparation.Prepare and EngineLiquidPoolGeometry.IsCurrent, Inputs and CaptureDraws.
+    Identify repeated mesh/VAO/buffer-ID/capacity comparisons separately from delivered IsPrepared readiness
+    and changing visibility/allocation/draw intervals. Preserve the existing monotonic allocation walk;
+    do not describe it as quadratic or introduce an allocation index without an established need.
+  ☑ Connect retained adapter withdrawal to the existing engine pool lifecycle and resource/configuration
+    change delivery. Ensure mesh/VAO/stream/index-buffer replacement, capacity changes, external vertex
+    configuration changes, retirement and original-context loss withdraw the affected adapter before reuse.
+    Resolve any missing owner lifecycle signal at its source. Reuse EngineGeometryInputs readiness and
+    existing RHI preparation; add no parallel identity registry, generic validity service or lifetime guard.
+  ☑ Remove the unchanged-frame adapter identity scan and repeated IsCurrent comparisons in Inputs and
+    CaptureDraws once relevant changes reliably withdraw those selections. Rebuild affected adapters at
+    the existing preparation boundary before admitted submission. Preserve engine-owned storage intervals,
+    original borrower identity and failed-refresh withdrawal; remove superseded helpers with their callers.
+  ☑ Keep CaptureDraws validation of current culled groups, offsets/counts and admitted allocation membership,
+    together with backend dynamic indexed/instanced bounds checks. Preserve engine culling, batching and
+    draw order, producer-owned index contents and existing memory-safety checks. No GPU readback, automatic
+    synchronization, per-draw structural reconstruction or broader mesh-management redesign is required.
+  ☑ Verify unchanged adapters avoid repeated identity work and affected adapters withdraw/rebuild for the
+    lifecycle changes above. Retain malformed/current culled-interval and out-of-range coverage, and reuse
+    valid RHI preparation receipts rather than repeating its completed test matrix. Record focused evidence
+    and update affected contracts; hand the resulting candidate to final 9.3 qualification. No mandatory
+    benchmark or live performance claim; do not mark unrelated qualification or runtime acceptance complete.
+
+  Implementation traceability:
+    - Audit/owner lifecycle -> 9.3.1.1, Rendering.GpuResources.md (Imported geometry certification),
+      Rendering.GpuCommands.Contracts.md (Submission and failure rules), and completed binding-admission
+      evidence at 46cbe4d2 -> retain non-owning engine borrows and existing change-driven RHI preparation.
+      MeshDataPool.cs assigns modelRef/capacities only at allocation; manager growth creates another pool,
+      and the existing pool-disposal hook precedes native deletion. Arbitrary unsignaled managed-field
+      edits are not an engine lifecycle signal or a reason to restore per-frame identity polling.
+    - Source/configuration delivery -> the same imported-geometry contract -> RHIGeometryImport withdrawal
+      closes readiness before notifying EngineGeometryInputs, which queues its affected pool at the owning
+      LiquidGeometryPreparation. Disposed borrows unsubscribe. Actual membership changes still use the
+      engine collections; source-only refresh consumes only pending pools and installs candidates together.
+      Failure preserves withdrawn originals and pending work until another explicit preparation call.
+    - Execution/dynamic safety -> submission contract and PBR.Liquids.md (Ownership and engine boundary)
+      -> IsCurrent identity/capacity comparisons and the unchanged-frame adapter scan are removed.
+      IsPrepared reports delivered readiness. CaptureDraws' monotonic allocation walk and current culled
+      interval checks, batching/order and backend dynamic bounds remain unchanged. No native execution,
+      descriptor queries, synchronization or new allocation-membership index was added.
+    - Verification -> these contracts and focused engine geometry/liquid tests -> real configuration,
+      storage shrink/recovery, native deletion and explicit owner replacement replace old tests that
+      depended on detecting unsignaled managed-ID edits. Peer reuse, source-only refresh without reading
+      a manager row, failed candidates, malformed culled intervals and existing retirement/owner tests
+      provide behavioral evidence; unchanged RHI preparation receipts remain applicable to their code.
+
+  Qualification evidence: second source/contract review completed. Delegated shader-enabled Debug and
+    ordinary Release builds each passed with zero errors; existing warnings remain (232 Debug, 240 Release,
+    including offline NuGet audit, nullable/unused/obsolete/platform and xUnit analyzer warnings).
+    The focused selection passed 32/32 in each configuration, zero failures/skips: 29 GPU integration
+    cases and three CPU cases. EngineLiquidPoolGeometryTests and LiquidPreparationTests cover original
+    source/configuration withdrawal, native deletion, explicit replacement, local peer reuse, failed
+    candidates/recovery, current culled ranges and nonownership. EngineGraphicsGeometryTests retains
+    original-context retirement coverage; LiquidGraphicsSubmissionTests, LiquidMeshSourceTests,
+    RHIGeometryInputTests and GraphicsPreparationTests cover the adjacent contracts.
+    Receipts and exact commands: TestResults/LiquidAdapter933/commands.txt, build-{debug,release}.log,
+    liquid-{debug,release}.trx and corresponding logs. Builds used --no-restore -p:UseSharedCompilation=false;
+    tests used --no-build --no-restore with the seven-class filter recorded in commands.txt.
+    The ordinary Release candidate is handed to final 9.3 qualification; this is not a refreshed canonical
+    package/full-suite receipt, live-game acceptance or measured performance evidence. Parent 9.3 and
+    Phase 10 remain open. No staging or commits.
+
+  Completion gate: independent audit-stage-completion passed after the second review, with no unresolved
+    findings. All five tasks are complete; final integrated/package and user-run qualification remain in 9.3.
 
 Phase 10: Streamline GPU integration tests and eliminate unnecessary test work
   Depends on Phase 9, including 9.1–9.3 and corrective subphases 9.3.1–9.3.3 (including 9.3.1.1–9.3.1.2). Outcome: clearly classified, focused tests retain useful
