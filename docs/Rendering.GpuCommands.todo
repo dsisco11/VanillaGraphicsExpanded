@@ -1421,7 +1421,7 @@ Phase 9.2.1: Replace registry-wide resource dependency searches
 Phase 9.3: Finish outstanding diagnosis and integrated qualification
   Depends on 9.1, 9.2 and 9.2.1. Earlier receipts below describe their archived candidates only.
   Outcome: the final combined source has current correctness/package evidence and explicit live acceptance.
-  Final qualification follows 9.3.1–9.3.3. Their identified repeated work is a corrective target, not
+  Final qualification follows 9.3.1–9.3.3, including 9.3.1.1–9.3.1.2. Their identified repeated work is a corrective target, not
     proof of the measured liquid-depth delay; retain that distinction in diagnosis and acceptance.
 
   ☐ Resolve the undecorated texture-clear discrepancy with the RG-to-RGBA workaround absent. Isolate
@@ -1604,6 +1604,65 @@ Phase 9.3.1: Reuse liquid submission preparation until its inputs change
     liquid-preparation-final-release.trx and program-generation-release.trx. No timing or live performance
     claim; final integrated/package/user-run qualification remains in 9.3, and 9.3.2–9.3.3 remain open.
 
+Phase 9.3.1.1: Consume engine mesh-pool organization and remove duplicate classification
+  Depends on 9.3.1. Migrate all affected consumers and remove superseded systems as one replacement unit.
+  Outcome: the engine owns pass/atlas/pool membership; VGE retains only its rendering policy and prepared resources.
+
+  ☐ Confirm the installed engine contract at ChunkRenderer.AddPoolsForAtlasAndPass, RuntimeAddBlockTextureAtlas,
+    TesselatedChunkPart.AddToPools, MeshDataPoolManager and MeshDataPoolMasterManager. Consume
+    poolsByRenderPass[renderPass][atlas] and each manager's existing pool collection as the sole membership
+    authority. Do not introduce EngineMeshPoolInventory, copied membership tables, membership revisions or a
+    replacement pool-management system. Direct array selection is not a rediscovery operation to cache away.
+  ☐ Carry the engine-selected EnumChunkRenderPass into the relevant VGE terrain/shadow draw scopes at verified
+    call sites. Express two-sided-normal and displacement eligibility as policies over that supplied category,
+    preserving moving-mini-dimension exclusions and restoration on nested/exceptional exits. Shared shader
+    identity must not stand in for pass identity. Verify installed call-site shapes and preserve engine arguments,
+    draw ordering, culling modes and unrelated rendering.
+  ☐ Delete MeshPoolClassifier, its reverse-membership sets/table cache and Current scope, together with obsolete
+    classification registration/rebuild hooks. Migrate TerrainSurfaceNormals and TerrainDisplacementRuntime
+    directly to supplied pass provenance. Preserve necessary engine debug-label lifecycle hooks and Debug-only
+    labeling, using engine-provided pass/atlas identity rather than recreating classification collections.
+  ☐ Make LiquidMeshSource and depth, volume, surface and refraction consumers use the engine's current liquid
+    manager row and active atlas prefix directly. Keep necessary shape/admission checks at appropriate ownership
+    boundaries; remove duplicate discovery/copies without freezing engine arrays across runtime atlas growth or
+    manager/world replacement. Preserve allocation-free spans and engine-owned pool enumeration.
+  ☐ Rename LiquidPoolPreparation to LiquidGeometryPreparation and remove its independent membership snapshots
+    and polling. Retain only VGE geometry adapters associated with actual engine pools. Use verified engine
+    lifecycle boundaries to prepare/retire affected adapters before submission, initializing existing pools once
+    when required; do not move resource preparation inside an admitted draw boundary or rebuild a parallel
+    membership inventory. Preserve candidate-before-retirement behavior and resource/configuration validation.
+  ☐ Audit pool creation, manager replacement, world exit/reentry and context retirement so geometry borrows cannot
+    survive their engine allocation lifetime. Content updates and dynamic culled intervals remain engine-owned;
+    the geometry adapter cache is not another selection authority. Preserve 9.3.1 target/pipeline reuse and leave
+    consolidation of invariant geometry checks to 9.3.3.
+  ☐ Migrate all affected callers and fixtures directly; delete superseded accessors, caches and registration
+    machinery in the same unit. No forwarding aliases, compatibility facades, duplicate classification or
+    temporary dual ownership. Verify each used render-pass policy, shadow/opaque scopes, atlas growth, pool
+    additions/retirement, manager replacement, late initialization, world/context retirement and candidate failure.
+    Verify unchanged reuse and changed geometry with unchanged engine membership. Reconcile PBR.Liquids.md and
+    affected architecture documentation; record focused correctness evidence for final 9.3 qualification.
+
+Phase 9.3.1.2: Derive liquid occupancy from engine mesh mutations
+  Depends on 9.3.1.1. Outcome: refraction demand uses maintained occupancy without duplicating engine membership.
+
+  ☐ Verify whether the installed engine exposes a suitable maintained aggregate before adding bookkeeping.
+    If absent, retain only the occupancy facts/counts needed for demand, derived from actual engine-owned liquid
+    pools and successful insertion, location removal and retirement. Observe completed mutations, including the
+    master manager's delayed-removal path; a queued removal is not a completed removal. Failed/no-op mutations
+    must not fabricate transitions. Initialize occupancy once for existing pools when required.
+  ☐ Keep demand bookkeeping separate from geometry preparation and pass classification. Content changes within
+    a pool update occupancy without rebuilding adapters or selections. Use the engine's pass/atlas provenance
+    and collections; do not add a parallel pool inventory or synthetic membership revision system. Handle atlas
+    growth, manager/world replacement and teardown without stale counts or retained subscriptions.
+  ☐ Replace LiquidMeshSource.MayHaveLiquidGeometry's manager/pool scan and migrate WaterRefractionCapture to the
+    maintained demand result. Preserve conservative capture when occupancy is not established; only known absence
+    may suppress it. Include offscreen and mini-dimension pools; camera position, visibility and previous draw
+    counts cannot establish absence. Preserve capture ordering and resource reuse across empty frames.
+  ☐ Remove the obsolete scan and temporary parallel demand paths. Verify occupancy transitions without membership
+    changes, failed/no-op mutations, delayed removals, multiple managers, last-occupied-pool retirement, initial
+    unknown state and world reentry. Update PBR.Liquids.md and record focused evidence for 9.3; no benchmark,
+    timing study or additional full-suite run is required for either new subphase.
+
 Phase 9.3.2: Eliminate redundant resource-binding processing
   Depends on the existing binding/submission contracts; completion precedes final 9.3 qualification.
   Outcome: binding selection and draw execution share reusable work while execution-time correctness remains intact.
@@ -1625,7 +1684,7 @@ Phase 9.3.2: Eliminate redundant resource-binding processing
     or upload counts where useful; retain necessary execution checks and defer combined qualification to 9.3.
 
 Phase 9.3.3: Reuse invariant geometry validation across submission
-  Depends on the existing geometry/submission contracts; coordinate with 9.3.1 and complete before final 9.3 qualification.
+  Depends on 9.3.1.1 and the existing geometry/submission contracts; complete before final 9.3 qualification.
   Outcome: unchanged geometry avoids repeated full validation while each draw retains its dynamic bounds checks.
 
   ☐ Audit EngineLiquidPoolGeometry.IsCurrent, Inputs, CaptureDraws and indexed backend validation. Separate
@@ -1641,11 +1700,11 @@ Phase 9.3.3: Reuse invariant geometry validation across submission
     current culled intervals at submission. Preserve resource retention and reject invalid geometry before
     native dispatch; do not replace meaningful guards with a blanket previously-validated flag.
   ☐ Verify unchanged reuse plus mutation, replacement, disposal, buffer-size, instancing and out-of-range
-    cases. Preserve engine culling and draw order. Record focused evidence and reconcile all three corrective
+    cases. Preserve engine culling and draw order. Record focused evidence and reconcile all corrective
     subphases into the final 9.3 source/package identity and integrated qualification; no mandatory benchmark.
 
 Phase 10: Streamline GPU integration tests and eliminate unnecessary test work
-  Depends on Phase 9, including 9.1–9.3 and corrective subphases 9.3.1–9.3.3. Outcome: clearly classified, focused tests retain useful
+  Depends on Phase 9, including 9.1–9.3 and corrective subphases 9.3.1–9.3.3 (including 9.3.1.1–9.3.1.2). Outcome: clearly classified, focused tests retain useful
     correctness coverage with less repeated setup, disk access, GPU work and CPU readback.
 
   ☐ Inventory GPU cases and shared fixtures by behavior, setup/teardown, shader/program preparation,
