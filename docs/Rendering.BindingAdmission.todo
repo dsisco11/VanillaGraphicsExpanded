@@ -2,7 +2,7 @@ Owner-guaranteed resource lifetimes and change-driven execution — implementati
 ===================================================================================
 
 Source proposal: [Rendering.BindingAdmission.Proposal.md](Rendering.BindingAdmission.Proposal.md).
-Status: phases 1–6 complete. Phase 7 integrated qualification, documentation closeout and user-run acceptance remain pending.
+Status: phases 1–7 complete. User-run runtime acceptance remains explicitly pending; unrelated parent qualification is not completed by this plan.
 Related work: Rendering.GpuCommands.todo. This plan does not complete its outstanding qualification tasks.
 
 Goal
@@ -68,7 +68,9 @@ Phase 1: Map ownership, checks and complete migration units
   [x] Completion gate: every family and check has an owner, disposition and migration unit; no unit relies
       on a later fix or shim, and no unapproved ownership/admission mechanism has been introduced.
 
-  Completion evidence: source inventory in [Rendering.BindingAdmission.Migrations.md](Rendering.BindingAdmission.Migrations.md).
+  Completion evidence: the source inventory was captured in the temporary migration map. Its completed
+  decisions are preserved in the resource, shader and RHI contracts, and the implementation/evidence below;
+  the historical inventory remains available in Git at e64eb12f:docs/Rendering.BindingAdmission.Migrations.md.
   Second review and independent completion audit passed. Documentation-only work; no runtime edits or
   build/test run required. Owner corrections remain assigned to phases 2–6; later phases stay pending.
 
@@ -263,28 +265,91 @@ Phase 6: Migrate transfers, stateful operations and retire obsolete protection
   runtime acceptance remain assigned to phase 7. No staging, commits, game launch or performance claim.
 Phase 7: Qualify the integrated design and reconcile documentation
   Outcome: the completed system is reviewable with truthful evidence and no temporary support documents.
-  [ ] Perform a second source/contract review against every proposal section and the phase 1 migration map.
+  [x] Perform a second source/contract review against every proposal section and the phase 1 migration map.
       Confirm non-owning references, accountable owners, local refresh, singular metadata/cache authorities,
       preserved backend boundaries and absence of universal admission/group machinery.
-  [ ] Reconcile Rendering.GpuResources.md, Rendering.ShaderBindingState.md, Rendering.GpuCommands.Contracts.md
+  [x] Reconcile Rendering.GpuResources.md, Rendering.ShaderBindingState.md, Rendering.GpuCommands.Contracts.md
       and Rendering.GpuCommands.Proposal.md with the implemented contract. Update affected references and
       Rendering.GpuCommands.todo to record this work's actual status without completing unrelated tasks.
-  [ ] Run proportionate integrated automated checks through subagents after coherent implementation changes.
+  [x] Run proportionate integrated automated checks through subagents after coherent implementation changes.
       Distinguish source audit, CPU unit tests, GPU integration tests and ordinary Release/DEBUG diagnostics.
       Reuse valid focused receipts; rerun only where subsequent changes invalidate them or integration requires it.
-  [ ] Verify the canonical Release build/package through a subagent, including required dependencies and
+  [x] Verify the canonical Release build/package through a subagent, including required dependencies and
       diagnostic exclusion. Record exact commands, results and remaining warnings/failures. No timing benchmark
       or full-suite repetition solely for performance claims is required.
-  [ ] Record user-run runtime results separately for affected world rendering, resize, shader reload and
+  [x] Record user-run runtime results separately for affected world rendering, resize, shader reload and
       world exit/reentry/shutdown. Do not launch the game or equate headless/package checks with appearance,
       frame-time or runtime acceptance. If evidence is unavailable, leave that acceptance explicitly pending.
-  [ ] Inventory temporary implementation-support documents, explicitly including
+  [x] Inventory temporary implementation-support documents, explicitly including
       docs/Rendering.BindingAdmission.Migrations.md and any working notes, interim audits or handoff drafts
       created during this plan. Preserve still-required decisions in permanent architecture documentation
       and required receipts in the project's acceptance-evidence destination before deletion.
-  [ ] Remove those temporary documents and update all references. Retain this implementation plan,
+  [x] Remove those temporary documents and update all references. Retain this implementation plan,
       Rendering.BindingAdmission.Proposal.md, permanent documentation and required acceptance evidence.
       Do not delete unrelated project documents or classify authoritative documents as temporary.
-  [ ] Completion gate: every source requirement is satisfied or an explicit user-approved deferral is recorded;
+  [x] Completion gate: every source requirement is satisfied or an explicit user-approved deferral is recorded;
       automated/package evidence and documentation are reconciled, temporary files are removed, and runtime
       acceptance is accurately marked. No unperformed acceptance or unrelated parent work is marked complete.
+
+  Closeout traceability:
+    - Source/owner review -> BindingAdmission proposal (all sections), original F1–F12/O1–O9/C1–C16 map
+      -> creation/preparation/change-driven execution, non-owning consumers, owner intervals, singular
+      metadata/cache authorities and retained safety -> direct source review and independent audit;
+      focused receipts in phases 2–6 remain applicable because closeout changes only documentation.
+    - Architecture reconciliation -> GpuResources (wrappers, snapshots, geometry/passes, transfers,
+      completion/retirement), ShaderBindingState (capture/preparation/publication), GpuCommands.Contracts
+      (all-family submission) and GpuCommands.Proposal -> current owner/preparation contract. The parent
+      GpuCommands.todo records related implementation without completing its outstanding acceptance.
+    - Automated/package qualification -> proposal acceptance and this section -> delegated integrated
+      CPU/GPU and generator checks, canonical Release packaging, dependencies and diagnostic exclusion.
+      Exact commands and receipts are under TestResults/BindingIntegrated; results are recorded below.
+    - Cleanup -> this section and map's removal instruction -> reviewed docs introduced by this plan;
+      only Rendering.BindingAdmission.Migrations.md was temporary. Its architectural decisions are in
+      permanent contracts, and required verification receipts remain under TestResults with locations
+      recorded in this plan. No working-note/interim-audit/handoff document was created or retained.
+    - Runtime acceptance -> this section -> world rendering, resize, shader reload and world
+      exit/reentry/shutdown remain PENDING USER RUN. No new live results were supplied. Headless checks,
+      source inspection and package identity do not establish appearance, frame time or live acceptance;
+      this explicitly pending state is permitted by this phase's runtime-evidence task.
+
+  Qualification evidence:
+    - No source implementation changed during closeout. The second source/contract review retained the
+      valid family receipts above. Delegated integrated GPU tests passed 91/91, CPU Unit.Rendering
+      tests 271/271, ShaderContractGenerator tests 157/157 and OpenGLInterceptionGenerator tests 35/35
+      in EACH of Debug and ordinary Release, zero failures or skips. These are proportionate integrated
+      selections, not a full-suite or hardware-coverage claim. Receipts under TestResults/BindingIntegrated:
+      integrated-{debug,release}.trx, cpu-rendering-{debug,release}.trx,
+      shadercontractgenerator.tests-{debug,release}.trx and openglinterceptiongenerator.tests-{debug,release}.trx.
+    - Canonical command (repository root): dotnet run --project CakeBuild/CakeBuild.csproj -c Release
+      --no-restore -p:UseSharedCompilation=false -- --target Package --configuration Release.
+      The first attempt failed on stale Cake restore assets for Graffs 0.2; that failed receipt remains
+      package-release.log. dotnet restore CakeBuild/CakeBuild.csproj --ignore-failed-sources
+      -p:NuGetAudit=false refreshed assets from the existing cache, after which the canonical command
+      passed (exit 0): JSON validation, clean Release publish, 761 shader variants and ZIP packaging.
+      Receipt: package-release-restored.log. Actual warnings remain CS0414/CS0618/CS0649/CS8602/CS8604
+      and offline NU1900 (50 warning lines, no final build errors); no warning cleanup is claimed.
+    - Final package: Releases/vanillagraphicsexpanded_999.99.9.zip, 7,519,239 bytes;
+      SHA256 B9B0A0EBEB2647D87E9B3A0639C4C0D67FDB10918B39D17894EC70D6544E6029.
+      Packaged mod DLL SHA256 0E6477F02EBA494289B90B8BBD04CE3E5B002052913B2C0BDA2759667CC428E4.
+      All nine runtime DLLs in the dependency manifest (mod plus eight private dependencies, including
+      Graffs 0.2) are present. Engine/OpenTK/Harmony, test/generator/startup-hook binaries and cache
+      payloads are excluded. Published/ZIP DLL identity and all 761 shader lengths/digests were checked.
+      Receipts: package-verification.json and package-warnings.json.
+    - The clean canonical rebuild changed the mod DLL identity from the earlier Release test copy.
+      To link qualification to the final artifact, the packaged mod/private DLLs were supplied to the
+      Release test host and the same integrated selection passed 91/91, zero skips. Receipt:
+      integrated-package-release.trx; package-test-overlay.json records before/package/test hashes.
+      Earlier receipts remain truthful evidence for their own compiled candidate; they are not described
+      as runs against the later package. No broader matrix was repeated after this artifact handoff.
+    - Compiled IL inspection distinguishes Debug diagnostics from ordinary Release. The selected conditional
+      owner/query diagnostic call sites and preparation counters are excluded from Release while remaining
+      present in Debug. Receipt: diagnostic-exclusion.txt. This does not claim removal of required dynamic,
+      memory-safety, native-outcome or actual completion checks. Exact commands and environment are retained
+      in commands.txt; NUGET_PACKAGES uses C:/Users/Sisco/.nuget/packages.
+    - Runtime acceptance remains PENDING USER RUN as recorded above. No game was launched, no performance
+      measurement or installed-game acceptance is claimed, and unrelated parent tasks remain unchecked.
+
+  Completion verdict: second source/contract review and independent audit-stage-completion passed with
+  no unresolved findings. All closeout tasks are satisfied, including the expressly permitted pending
+  runtime-evidence record. Only documentation and temporary-map cleanup changed in this unit. No staging,
+  commits, game launch or unrelated parent completion was performed.

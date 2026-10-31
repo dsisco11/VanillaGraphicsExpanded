@@ -14,9 +14,11 @@ it does not introduce a second registry. `RHIUniformRingSystem` exposes the curr
 `RHIUniformRingFrameController` and its begin/end renderers advance and close publication epochs.
 `RHIUniformRingModSystem` owns their engine registration. The storage/allocation contract remains
 `GpuUniformRingBuffer`; `GpuBindingRegistry` remains the project's authored shader-slot assignments.
-Tracked command inputs, operation admission, deferred link submission and executable transfer validate
-the originating context and thread before dispatch or metadata withdrawal. Reusing an available snapshot
-does not bypass that check. Explicit operation steps recheck affinity after callbacks.
+Operation admission, deferred link submission and executable transfer check the originating context and
+thread before dispatch or metadata withdrawal. Reusing an available snapshot does not bypass physical
+namespace safety. Original resource associations and stable compatibility are established during preparation
+and refreshed by relevant change delivery, rather than resolved for every draw. Explicit operation steps
+recheck affinity after callbacks. See the [owner lifetime contract](Rendering.BindingAdmission.Proposal.md#ownership-and-non-owning-references).
 
 ## Wrappers and initialization
 
@@ -81,6 +83,9 @@ or discard pending work before the after-composition cleanup boundary; this queu
 lifetime lock. Local tools without a disposal service release on their owning physical context.
 DEBUG owner-thread diagnostics at explicit mutation/transfer boundaries neither repair state nor own
 resources. Original-context deletion checks and actual mapping/completion protocols remain operational.
+Explicit owner APIs may retain their documented Try/status or early-return policy for an unavailable
+allocation. That bounded requested behavior is distinct from a private validator repeatedly proving the
+lifetime of every input to an otherwise unchanged prepared draw.
 
 Framebuffer configuration admission runs through owner-bearing RHI operations before shared attachment
 storage or native selectors change. Static framebuffer owners retain a disposable configuration lease;
@@ -450,6 +455,9 @@ uses saved-original driver calls and publishes through its existing operation ow
 Context-local buffers retain physical context identity without registering a second lifetime system.
 Local tools must dispose their owners before destroying that context; foreign-context disposal rejects
 without surrendering ownership. Registered resources retain the existing deferred retirement service.
+Raw mapped spans retain original-owner/allocation checks for the entire pointer interval: those checks
+protect CPU memory safety and remain operational in Release. Descriptor readiness alone cannot establish
+that a pointer is still mapped or safe to access.
 
 ## Image execution
 

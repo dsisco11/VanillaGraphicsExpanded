@@ -1,8 +1,9 @@
 # RHI commands and command lists
 
-Status: approved. Design deliverable for Phase 8 of
-[Rendering.GpuResourceHandles.todo](Rendering.GpuResourceHandles.todo). This document proposes
-an execution boundary; it does not implement commands or rename `StateCache`.
+Status: approved and implemented. The execution and lifetime contracts below incorporate
+[owner-guaranteed lifetimes and change-driven execution](Rendering.BindingAdmission.Proposal.md).
+Qualification status belongs to [Rendering.GpuCommands.todo](Rendering.GpuCommands.todo) and
+[Rendering.BindingAdmission.todo](Rendering.BindingAdmission.todo).
 
 Use uppercase `RHI` in all interface-layer type, namespace and directory names. Existing GPU resource names remain unchanged; `OpenGlStateCache` names the backend-specific cache.
 Management services use `RHIResourceManager`, `RHIResourceManagerSystem` and
@@ -29,7 +30,7 @@ Recorded lists own their retained arguments; recording and execution have separa
 flowchart TD
     W[Wrappers, upload helpers, render submission] --> C[Semantic commands: immediate or recorded]
     C --> B[OpenGL backend operation]
-    B --> P[Validate and consult OpenGlStateCache]
+    B --> P[Use prepared facts and consult OpenGlStateCache]
     P --> N[Execute OpenGL 4.5 operation]
     N --> R[Reconcile OpenGlStateCache]
     R --> M[RHIResourceManager publishes metadata effects]
@@ -85,16 +86,17 @@ vertex layout and synchronization intent. No public operation accepts an OpenTK 
 DSA flag, GL method name or native overload selector. Migration proceeds through complete operation-family
 replacements against this final contract, as defined below.
 
-Use the implemented `GpuTextureRef` unchanged for texture consumption. Published metadata uses
-project-owned dimensions, formats and selections and remains query-free. Commands retain the reference
-opaquely; the backend/manager resolves its original association. Consumption grants no native execution,
+Use `GpuTextureRef` for texture consumption. Published metadata uses project-owned dimensions, formats
+and selections and remains query-free. Preparation resolves the original association; relevant changes
+withdraw affected results before subsequent execution. Commands retain non-owning references, and unchanged
+prepared execution does not repeat that resolution. Consumption grants no native execution,
 metadata recovery or lifecycle authority. This boundary does not claim another backend is implemented.
 
 Introduce analogous consumer-only values as needed: `GpuBufferRef`, `GpuSamplerRef`,
 `GpuRenderbufferRef`, `GpuFramebufferRef`, `GpuVertexArrayRef`,
 `GpuQueryRef`, `GpuSyncRef`, `GpuTransformFeedbackRef`,
 `GpuSemaphoreRef` and `GpuMemoryObjectRef`. Each retains its existing typed resource base, exposes
-no ownership API and uses manager validation; none captures another lifetime token or metadata copy.
+no ownership API and consumes manager-published facts; none captures another lifetime token or metadata copy.
 Pipeline bindings use the immutable RHI pipeline realizations and executable generations defined below.
 Public shader inputs use `RHIShaderRef`; native shader, program and program-pipeline references, if
 needed, remain private to OpenGL realization/integration and are not public command inputs.
@@ -105,8 +107,9 @@ framebuffers merely to begin a pass.
 
 Consumption does not grant resize, deletion or ownership transfer. Mutating wrapper methods use an
 internal owner-bearing execution route; destroy requests originate only from existing ownership and
-retirement services. Buffer uploads/copies are explicit write operations admitted through existing
-usage guards, not methods on the reference itself. Imported resources keep their current ownership rules.
+retirement services. Buffer uploads/copies are explicit write operations with bounded dynamic checks,
+not methods on the reference itself. Owners preserve storage through consumption and schedule incompatible
+mutation or retirement outside that interval. Imported resources keep their current ownership rules.
 
 | Operation family | API intent and execution disposition |
 | --- | --- |
@@ -114,7 +117,7 @@ usage guards, not methods on the reference itself. Imported resources keep their
 | Storage/configuration | Allocate buffer/image/renderbuffer storage; configure attachments, vertex input and samplers. Executable configuration belongs to shader creation, with subsequent managed changes producing a new generation. Owner operations execute immediately and commit one coherent result. Immutable storage restrictions remain enforced. |
 | Shader work | Create an executable from stage-code inputs through the shader contract below. Compilation, linking, binary installation and native stage configuration are backend details. Existing deferred link completion remains internal to pending creation; it is not command-list GPU completion. |
 | Upload/copy/clear/mips | Typed buffer ranges, texture regions, row/slice pitches and view-relative subresources. Upload, copy and clear can be recorded. Mip generation is immediate initially because mutable generation can change storage facts. Contents never become canonical metadata. |
-| Binding/passes | Set pipeline, bind resource table, set dynamic state, begin/end render pass. Include explicit image level/layer/access/format and attachment load/store/clear intent. Preserve full-input validation and alias feedback checks. Recordable. |
+| Binding/passes | Set pipeline, bind resource table, set dynamic state, begin/end render pass. Include explicit image level/layer/access/format and attachment load/store/clear intent. Prepare compatibility and feedback relationships initially and on relevant changes; preserve dynamic restrictions and every requested pass effect. Recordable. |
 | Draw/dispatch | Direct, indexed, instanced and indirect draw/dispatch with explicit offsets/counts. Preserve noninstanced indexed batching through `DrawIndexedBatch` and stable supplied intervals. Vertex/index semantics stay above GL addressing. Recordable; no reordering. |
 | Synchronization | Resource access barriers, fence insertion, GPU waits and external semaphore operations. Backend maps supported access intent; no inferred render graph. CPU waits are explicit immediate calls. Imported-handle ownership is never inferred from a command. |
 | Queries/readback | Begin/end timestamp or statistics operations and enqueue readback into owned staging storage are recordable. Typed result requests expose `Pending`, `Ready`, `Failed` or `Cancelled`; polling/waiting/mapping is explicit and immediate. Raw client pointers and mapped spans are never recorded. |
@@ -253,8 +256,8 @@ original native associations. Cancellation/teardown cleans the candidate through
 services. This is deferred native creation completion, not worker compilation or asynchronous submission.
 
 Each ready `RHIShader` represents a fixed executable generation. Published code/interface cannot be
-relinked in place through the managed RHI. Record native association and executable revision so external
-mutation or context retirement invalidates use through existing manager validation. A consumer-only
+relinked in place through the managed RHI. Original association and executable change delivery withdraw
+dependent readiness after external mutation or context retirement, without polling at every use. A consumer-only
 `RHIShaderRef` retains that managed object without exposing disposal, relinking or its native resource.
 It never follows a higher-level shader asset's replacement generation.
 
@@ -300,10 +303,12 @@ survive; prepared layouts and successful-upload history belong to the installed 
 The owner can retain an old set deliberately, but retiring it invalidates later use of its references.
 
 `SetPipeline` records a pipeline reference, not a mutable shader owner or lookup key. Recorded resource
-tables carry that pipeline's prepared-interface identity. Execution rejects retired pipelines, unavailable
-or externally changed executables, mismatched tables and incompatible pass targets before issuing the
-affected work. It never silently retargets recorded slot indices to a replacement generation. A still-live
-old set can execute; a retired set requires re-recording. Texture references retain their separately agreed
+tables carry that pipeline's prepared-interface identity. Preparation establishes exact executable/table
+and pass-target relationships; relevant change withdraws readiness before affected work can execute again.
+Owners finish or discard recorded work before retiring its dependencies. DEBUG diagnoses representative
+lifetime misuse; ordinary Release does not promise universal rejection of owner violations. Recorded slot
+indices never silently retarget to a replacement generation. A still-live old set can execute; work for a
+retired set must be discarded and recorded again. Texture references retain their separately agreed
 owner-following behavior: executable identity has a stricter contract because it defines command layout.
 
 There is no general replay recovery or list-wide native rollback. If a later command fails validation,
@@ -316,10 +321,11 @@ must preserve original associations and prevent stale candidates from installing
 
 Draws consume retained geometry inputs: vertex-buffer references with stream ranges, offsets and strides,
 an optional index-buffer reference with its format/range, and explicit draw parameters. The pipeline
-supplies the immutable vertex-layout contract. Before issuing a draw, validate layout compatibility,
-resource usability, supplied offsets/alignment and declared ranges against known resource bounds.
-Validate accesses derivable from explicit draw parameters; indirect inputs retain their buffer references
-and argument ranges under the same execution-time rules.
+supplies the immutable vertex-layout contract. Preparation establishes stream/index layout compatibility,
+original allocation relationships and reusable fetch limits. Relevant storage/configuration changes
+withdraw those facts. Draw execution checks new counts, offsets and instance ranges against prepared
+limits without rebuilding attribute compatibility. Indirect inputs retain their buffer references and
+bounded argument ranges under the same owner lifetime contract.
 
 Producers remain responsible for index values and GPU-generated draw arguments, including the validity
 of accesses those contents determine. Ordinary RHI submission does not inspect or read back those
@@ -329,8 +335,9 @@ prove every content-dependent vertex access.
 Geometry adapters supply these inputs and retain ownership/adoption policy; they do not execute draws.
 Replace `GraphicsGeometry.Submit` and concrete engine/native draw paths with backend-owned submission.
 Engine mesh adapters preserve engine ownership and their permitted usage interval when exposing borrowed
-streams. Retaining a recording does not extend that interval; reject expired inputs before dispatch.
-Move upload/adoption, manager-backed validation, input binding, draw submission and retirement together
+streams. Retaining a recording does not extend that interval; the owner executes or discards it before
+expiration. DEBUG diagnoses expired callback inputs. Upload/adoption, declaration preparation, input binding,
+draw submission and retirement share the same RHI boundary
 so no completed geometry migration retains an adapter-owned native execution path.
 
 ### Attachment-based pass targets
@@ -340,15 +347,16 @@ render area and load/store/clear intentions. Renderers own the attachment resour
 the OpenGL backend owns the framebuffer objects needed to execute those descriptions. An explicit
 surface input follows its surface integration contract rather than becoming an ordinary attachment cache entry.
 
-A target service scoped to the owning context/backend resolves attachments at execution and reuses or
-creates a framebuffer for their resolved configuration. Its key includes original resource associations,
+A target service scoped to the owning context/backend prepares attachment relationships initially and
+after relevant changes, then reuses or creates a framebuffer for that configuration. Its key includes original resource associations,
 selected mip/layer or layered ranges, and other configuration affecting framebuffer realization, including
 routing where retained on the object. Do not key solely by wrapper equality or numeric native names.
 Per-pass clear values and load/store actions are executed intentions, not reasons to create another
 framebuffer. The service caches native realizations, not another copy of canonical resource metadata.
 
-Create and configure cache misses through backend operations and existing manager publication. Validate
-attachment usability, target compatibility and completeness before executing pass loads, clears or draws.
+Create and configure cache misses through backend operations and existing manager publication. Establish
+attachment usability and target compatibility during preparation, and completeness during native realization,
+before executing pass loads, clears or draws. Unchanged passes reuse those facts while still executing their effects.
 Publish a reusable realization only after successful configuration; failure retires its candidate and
 unwinds admission without exposing a partial target. Recording retains descriptions/references and does
 not realize framebuffers or acquire pass guards.
@@ -357,11 +365,11 @@ The manager retains canonical framebuffer metadata, attachment dependencies and 
 Replacement or invalidation of an attachment makes dependent cached realizations ineligible for reuse;
 the next execution resolves the current owner identity and realizes the matching configuration. Borrowed
 attachments preserve their original associations and cannot follow unrelated name reuse. Retire obsolete
-owned framebuffers through existing guards and original-context queues, leaving attachment ownership
+owned framebuffers through owner scheduling and original-context queues, leaving attachment ownership
 unchanged. Context teardown releases the target cache through those same lifetime rules. Explicitly
 borrowed engine framebuffers remain external objects and never acquire backend deletion ownership.
 
-Migrate attachment descriptions, target realization/reuse, routing, completeness validation, pass guards
+Keep attachment descriptions, target realization/reuse, routing, completeness preparation, pass sequencing
 and restoration together. Existing pass helpers remain responsible for their specialized behavior behind
 the unified context; they consume the resolved target rather than requiring renderer-created framebuffers.
 
@@ -417,17 +425,17 @@ descriptions at recording; freeze immutable executable/descriptive objects by re
 record closures or require one heap object per command. Reuse storage where ownership permits; page sizes
 and pooling are implementation choices, not benchmark gates. Immediate calls need no recording allocation.
 
-References retain wrappers but do not prevent explicit disposal or replacement. Resolve current resource
-identity and metadata at execution, consistent with `GpuTextureRef`: an intentional owner replacement
-before submission is visible, while retired borrowers/views remain invalid. Copying descriptors freezes
+References retain wrappers but do not prevent explicit disposal or replacement. Owners preserve dependencies
+through execution or discard. An intentional owner replacement before submission refreshes affected preparation,
+consistent with `GpuTextureRef`, while original borrowers/views cannot follow it. Copying descriptors freezes
 arguments, not resource contents or native identity. Callers needing old storage must retain a distinct
-owner; the command list does not invent snapshot semantics. Revalidate bounds, executable compatibility,
-manager usability and pass feedback before use, even when reference equality is unchanged.
+owner; the command list does not invent snapshot semantics. Execution uses current change-delivered
+preparation and checks genuinely dynamic arguments, without per-use metadata or lifetime proof.
 
 Recording performs argument-shape and balanced-pass checks without native queries, cache updates,
-guards or metadata publication. Submission rechecks context, required optional features and resource limits,
-and validates each complete
-binding set before publishing it. Pass guards start on execution and end on execution/unwind. Lists must
+guards or metadata publication. Submission checks context and actual operation state, prepares selected
+relationships when first used or changed, and publishes active bindings through the existing cache. Real
+pass intervals start on execution and end on execution/unwind; they acquire no per-resource lifetime guards. Lists must
 contain complete passes; they cannot leave an active pass for another list or straddle an engine callback.
 They are not implicitly state-isolated: commands leave their specified state, while temporary operation
 bindings and explicit pass/engine boundary scopes restore their contracted surrounding state.
@@ -456,7 +464,8 @@ Snapshot delivery and meaningful changes follow the implemented [resource public
 
 Every operation has one execution owner:
 
-1. Check context, resource usability, legal inputs and existing usage/reentry guards. Baseline operations
+1. Check context, supplied dynamic inputs, delivered readiness and actual operation/reentry state.
+   Preparation establishes stable compatibility and refreshes after relevant change; DEBUG diagnoses owner misuse. Baseline operations
    use their fixed core implementation; only optional operations check their extension requirement.
 2. Ask `OpenGlStateCache` whether an eligible known-equal state change can be suppressed. Allocation,
    content upload, draw, link and synchronization are not suppressible just because metadata matches.
@@ -558,13 +567,14 @@ operation/publication services without recursively invoking creation. Preserve w
 ownership and helper responsibilities; update GL-shaped signatures and their callers where the final
 contract requires it rather than retaining obsolete overloads. Readers keep manager acquisition ownership.
 
-`ShaderPreparedSubmission` retains complete-set validation and compatibility history; its publication
-target becomes command operations using the pipeline's exact executable/interface generation.
-`GpuPreparedBindings` continues preparing supplied program metadata
-only. Generated submissions retain immutable desired arguments for recording; successful-upload history
+Semantic binding structures prepare active resource relationships against the pipeline's exact interface
+initially and after relevant changes. They retain weak change subscriptions and cache failure until another
+relevant change, without a compatibility history reconstructed per draw. Native realization remains backend-owned.
+`GpuPreparedBindings` prepares supplied program metadata only.
+Generated submissions retain immutable desired arguments for recording; successful-upload history
 must advance on execution, never merely when commands are recorded. On cancellation/failure, preserve
-dirty CPU uniform state and invalidate only affected execution history. Prepared tables/executable owners
-are revalidated at execution so a recorded layout cannot be used against a different linked interface.
+dirty CPU uniform state and invalidate only affected execution history. Prepared tables retain exact
+executable identity, and delivered changes withdraw affected readiness before subsequent execution.
 Commit only the captured uniform version that actually executed; never clear a newer CPU edit. Reject
 an incompatible executable/table change and require re-recording rather than replaying old slot indices
 against a new interface. Submission-time equality checks cannot discard a needed upload based solely
@@ -584,8 +594,8 @@ into the unified context alongside compute dispatch. Migrate all callers and del
 the same replacement unit; no forwarding facade, parallel graphics context API or duplicated submission
 state remains. Renderers retain orchestration: choosing work and its order, not another execution context.
 
-Specialized pass, validation, usage-guard and engine-boundary restoration helpers remain behind the
-unified context with their existing responsibilities. Reuse them rather than duplicating their state
+Specialized pass preparation, operation-state and engine-boundary restoration helpers remain behind the
+unified context with their distinct responsibilities. Reuse them rather than duplicating their state
 inside the context. Immediate calls and recorded execution use the same execution machinery; recording
 itself still acquires no pass guards and changes no executed state.
 
@@ -603,7 +613,8 @@ fit its already admitted declaration; submission neither widens that boundary no
 isolating scope. Keep explicit boundary scopes and selective restoration, without blanket state capture
 or a second restoration cache.
 
-Render pass scopes retain clear/load/store behavior, feedback guards and boundary restoration. Draw and
+Render pass scopes retain clear/load/store behavior, prepared feedback relationships, dynamic restrictions
+and boundary restoration. Draw and
 dispatch enter the same backend; no direct native draw escape remains in migrated consumers. Retirement
 queues retain original entries/context and run backend deletion only after their existing admission.
 Recorded references never authorize a queued delete to reacquire an entry by reused ID.
@@ -627,9 +638,9 @@ is replaced under the 4.5 contract.
 | Cube with several mips | Existing constructor supplies its allocation request. Manager/backend creates privately, derives all face/mip facts, publishes once, then hands off identity. Partial allocation failure cleans only the provisional object; no usable partial wrapper. |
 | Buffer upload | Core named operations produce expected contents while sentinel bindings remain unchanged; no temporary bind, per-call capability query, extra metadata refresh or retry after native failure. |
 | Framebuffer reattachment failure | Capture original association, apply configuration as an explicit operation. A detected partial failure leaves affected metadata unavailable, restores surrounding selectors and prevents drawing from stale attachments. No rollback claim; explicit repair/recovery remains possible. |
-| Draw/dispatch | Bind complete validated inputs and pipeline, execute work in order, preserve shader algorithms and content readiness. Stable bindings suppress native calls without bypassing current resource checks. |
+| Draw/dispatch | Use complete prepared inputs and pipeline, execute work in order, preserve shader algorithms and content readiness. Stable bindings suppress native calls without repeating resource lifetime/compatibility proof; relevant changes withdraw preparation. |
 | External deletion | Exact engine overload executes once, per-object outcomes retire original entries and repair affected binding knowledge. Duplicate/zero names and retained shader/program native references keep their existing semantics. |
-| Queued retirement | Dispose withdraws managed usability under existing guards. Drain validates original entry/context before deletion; name reuse cannot redirect it. A list retaining a retired wrapper fails use, rather than keeping it artificially live. |
+| Queued retirement | Owners withdraw consumers and schedule release outside their use intervals. Worker Dispose queues the entire retirement on the originating service. Drain validates original entry/context before deletion; name reuse cannot redirect it. Lists acquire no native lifetime or disposal authority. |
 
 Test immediate and recorded paths against the same outputs and sentinel state, including native views,
 view-relative selections, aliases, owner replacement, unavailable metadata, context-local tools and
@@ -661,7 +672,7 @@ perform no target realization, and cache reuse must still honor manager dependen
 For shader/PSO replacement, verify synchronous and pending creation, compile/link/interface failure,
 candidate cleanup, context retirement, exact shader-generation identity, graphics target compatibility,
 compute stage validation and renderer-owned reuse. Verify pipeline disposal preserves its shader owner,
-shader retirement rejects dependent pipeline use, failed reload preserves the installed set, and successful
+shader retirement withdraws dependent pipeline readiness, failed reload preserves the installed set, and successful
 reload never retargets recorded bindings. Assert PSO realization performs no duplicate link/reflection.
 Exercise graphics and compute through the same lifetime/result contracts, including cached-binary creation.
 
@@ -692,8 +703,10 @@ original identity, interruption and deletion state only; it neither holds candid
 The existing backend cache supplies that exclusion through the thin context composition root without
 native admission. This preserves registry-only tools, cancellation and originating-cache cleanup while
 removing concrete cache guards from manager signatures. Context-local operations also preserve physical
-namespace identity through the existing context registry. Ordinary wrappers retain ownership, usage
-retention and queued retirement policy; consumer references read only published facts.
+namespace identity through the existing context registry. Ordinary wrappers retain ownership and queued
+retirement policy. Consumers hold non-owning references; owners guarantee legal use intervals without
+per-resource execution counters or group locks. Actual mapping, query/capture, allocator and GPU-completion
+protocols remain operational and distinct from metadata availability.
 
 ## Optional diagnostics
 
@@ -707,7 +720,8 @@ shader compilation retains its bounded diagnostic report at that explicit integr
 ## Approval and controlling contracts
 
 Recommended decisions: semantic backend operations; immediate default with initially single-threaded,
-single-use recorded lists and the required context-independent recording contract; execution-time resource resolution; immediate creation/storage/lifecycle
+single-use recorded lists and the required context-independent recording contract; change-driven preparation
+under owner-guaranteed lifetimes; immediate creation/storage/lifecycle
 operations; direct OpenGL 4.5 execution with explicit optional features; existing manager publication
 and error policy.
 These choices are approved together. No unresolved external specification blocks the design;

@@ -14,8 +14,8 @@ a generated native publication route.
 
 Prepared interfaces publish with the independent executable/revision/asset generation. Desired selections
 and CPU blocks survive reload; captured tables keep their exact generation and bytes. Compute execution
-uses change-delivered readiness under owner lifetimes. Existing graphics restoration and pass borrows
-remain with their operation owners. Every requested draw/dispatch publishes its intended inputs through
+uses change-delivered readiness under owner lifetimes. Graphics restoration and actual pass intervals
+remain with their operation owners; attachment owners preserve storage through pass end. Every requested draw/dispatch publishes its intended inputs through
 the executed cache; a reused table never suppresses actual rendering or uniform consumption.
 
 Shader preparation and native geometry admission use the RHI preparation gate to reject work inside an
@@ -50,8 +50,8 @@ constraints, texture targets and sampler policies are carried by generated resou
 Texture dimensions come from explicit `TextureTarget` contract metadata, independently of wrapper
 class names. Exact types use the engine-independent `ShaderResourceType` enum and match semantic
 `ShaderValueType` facts through explicit cases; target compatibility also uses explicit cases. Unconstrained
-dimensions remain flexible, and actual storage formats are resource inputs validated during
-submission rather than invented shader-type constraints.
+dimensions remain flexible, and actual storage formats are resource inputs validated during initial
+or relevant-change compatibility preparation rather than invented shader-type constraints.
 `GpuBindingContract.Merge` rejects cross-stage disagreement and overlapping ranges within each
 resource namespace. Resource entries receive deterministic indices ordered by kind and name;
 these indices are independent of GPU binding numbers.

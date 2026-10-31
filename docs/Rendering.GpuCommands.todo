@@ -1703,6 +1703,13 @@ Phase 9.3.3: Reuse invariant geometry validation across submission
   Depends on 9.3.1.1 and the existing geometry/submission contracts; complete before final 9.3 qualification.
   Outcome: unchanged geometry avoids repeated full validation while each draw retains its dynamic bounds checks.
 
+  Related implementation: Rendering.BindingAdmission.todo phases 3–6 establish change-delivered geometry,
+    pipeline/pass and binding preparation under explicit owner lifetimes, with dynamic draw bounds retained.
+    Its phase 7 records integrated/package qualification separately. These receipts do not complete the
+    outstanding diagnosis, full-suite sequence reconciliation or user-run acceptance required by 9.3.
+    The tasks below retain their original scope as the parent plan's reconciliation checklist; references
+    to resource retention mean owner-preserved intervals, not consumer lifetime counters or per-draw proof.
+
   ☐ Audit EngineLiquidPoolGeometry.IsCurrent, Inputs, CaptureDraws and indexed backend validation. Separate
     identity/configuration/stream-layout invariants from current visibility, draw ranges and per-draw fetch
     bounds. The current allocation walk is already monotonic; do not treat it as a quadratic search.

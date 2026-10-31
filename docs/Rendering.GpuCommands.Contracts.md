@@ -2,7 +2,11 @@
 
 Planning companion to [the approved proposal](Rendering.GpuCommands.Proposal.md) and
 [implementation plan](Rendering.GpuCommands.todo). These define the implemented execution and ownership
-boundaries. Qualification receipts and outstanding acceptance belong to the implementation plan.
+boundaries. [Owner-guaranteed lifetimes and change-driven preparation](Rendering.BindingAdmission.Proposal.md)
+control consumer execution across all resource families: references remain non-owning, stable relationships
+prepare initially and on relevant changes, and ordinary Release does not universally detect lifetime misuse.
+Dynamic safety, actual operation intervals, native outcomes and GPU completion remain operational.
+Qualification receipts and outstanding acceptance belong to the implementation plans.
 No throwing placeholder, old-executor forwarding facade or duplicate owner is part of this contract.
 
 ## Authority and ownership
