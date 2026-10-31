@@ -31,6 +31,8 @@ internal static class ScreenResourceManager
     /// <summary>Reattaches and resizes resources after the complete engine framebuffer rebuild.</summary>
     public static void HandleScreenResize()
     {
+        // Rebuilding targets is owner lifecycle work, never a callback inside their use interval.
+        RHI.RHICommandContext.RequirePreparationAdmission();
         // Observed resource retirement updates affected knowledge. Resize callbacks retain
         // unrelated executed state and run in their declared dependency order.
         foreach (var orderedCallbacks in callbacks.Values)

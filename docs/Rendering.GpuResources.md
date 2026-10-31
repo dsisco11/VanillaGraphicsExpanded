@@ -53,6 +53,21 @@ semantic command descriptions with backend helpers. Buffer role is owner policy,
 metadata. Texture/image/sampler slot publication belongs to RHI resource operations, not wrapper bind
 methods. Buffer-texture views use the same retained texture reference as other sampled textures.
 
+Owners keep resources and required configuration valid through immediate execution, the complete pass,
+or execution/discard of retained commands. Consumer references remain non-owning; managed reachability
+does not prevent explicit retirement. Cached selections are withdrawn before their storage is released,
+and replacement preparation happens before those selections are used again. Engine allocations remain
+owned by the engine: pool retirement hooks withdraw adapters, and framebuffer rebuild callbacks refresh
+borrowed targets. Neither observation nor reference capture extends the engine's usable interval.
+
+For a resource with an originating disposal service, a worker `Dispose` requests the entire retirement
+on that service. The wrapper ID, association and usability remain unchanged until the owner-thread drain;
+no cleanup callback runs on the requesting worker. Repeated requests enqueue once. Owners must finish
+or discard pending work before the after-composition cleanup boundary; this queue is not a command-list
+lifetime lock. Local tools without a disposal service release on their owning physical context.
+DEBUG owner-thread diagnostics at explicit mutation/transfer boundaries neither repair state nor own
+resources. Original-context deletion checks and actual mapping/completion protocols remain operational.
+
 Framebuffer configuration admission runs through owner-bearing RHI operations before shared attachment
 storage or native selectors change. Static framebuffer owners retain a disposable configuration lease;
 the backend registers the immutable declaration in the existing cache and withdraws it on lease disposal
@@ -60,6 +75,8 @@ or original-context retirement. Lease cleanup issues no native calls and can run
 Backing-allocation guards remain owner policy and are released on disposal or detach. Detaching a wrapper
 or publishing attachments does not discard the still-live native object's independently known output route.
 Observed deletion removes that route through the backend's existing retirement publication.
+Screen resize and the manager's after-composition drain reject entry inside an active restoration
+boundary before running lifecycle work. Shader reload/shutdown use the same existing preparation boundary.
 Screen resize preserves unrelated executed knowledge and runs resource callbacks in dependency order;
 uniform frame callbacks advance allocation/publication epochs without purging bindings each frame.
 
@@ -142,8 +159,8 @@ preserve the original operation exception; external observation contains its own
 
 Retirement immediately closes usability and captures weak recipients before membership is cleared.
 Publish, withdrawal and terminal capture share entry synchronization; terminal delivery is idempotent
-across scheduled disposal, native deletion and context teardown. Worker disposal captures and queues
-through the existing originating cleanup lifecycle; context-affine callbacks do not run on that worker.
+across scheduled disposal, native deletion and context teardown. Worker disposal queues the wrapper
+without starting retirement; the originating cleanup lifecycle performs withdrawal and notification together.
 Context retirement withdraws the affected registrations before callbacks. Original lifetime checks
 prevent notification or native cleanup from targeting a recycled name or replacement context.
 
@@ -510,6 +527,12 @@ physical uniform allocation. Immutable descriptions and exact shader/PSO referen
 upload bytes, indexed batches and variable slot/transition spans are copied into reusable list storage.
 Headers identify typed payload locations, and managed resources remain in typed list-owned tables.
 Immediate execution allocates no recording storage.
+
+The recording caller preserves dependencies until execution or discard. Lists own CPU storage only;
+their references do not acquire resources or block disposal. The depth hierarchy's recorded path submits
+synchronously within its renderer-owned interval. A caller retaining a list across lifecycle boundaries
+must cancel it before releasing dependencies. CPU submission completion is not GPU completion: readback
+tickets own their staging/fences, and uniform allocators retain fence and last-use based reuse rules.
 
 Close publishes a complete recording and an immutable `Boundary` derived from its pipeline references,
 operation kinds and explicit helper slots. Enter that boundary when restoration is required, or submit

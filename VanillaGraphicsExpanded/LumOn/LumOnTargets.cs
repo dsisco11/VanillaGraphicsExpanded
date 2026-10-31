@@ -164,8 +164,8 @@ internal sealed class LumOnTargets : IDisposable
     /// <summary>Releases every allocation, regardless of its current temporal role.</summary>
     public void Dispose()
     {
-        resources.Dispose();
         clearPasses.Clear();
+        resources.Dispose();
     }
     #endregion
 }

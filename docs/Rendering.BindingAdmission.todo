@@ -2,7 +2,7 @@ Owner-guaranteed resource lifetimes and change-driven execution — implementati
 ===================================================================================
 
 Source proposal: [Rendering.BindingAdmission.Proposal.md](Rendering.BindingAdmission.Proposal.md).
-Status: approved proposal; phase 1 inventory complete. Phases 2–7 pending; runtime implementation has not started.
+Status: phases 1–2 complete. Phases 3–7 pending; operation-family execution migration remains pending.
 Related work: Rendering.GpuCommands.todo. This plan does not complete its outstanding qualification tasks.
 
 Goal
@@ -74,29 +74,35 @@ Phase 1: Map ownership, checks and complete migration units
 
 Phase 2: Establish owner lifecycle and diagnostic boundaries
   Outcome: resource consumers can rely on explicit owner sequencing before their execution paths change.
-  [ ] Correct identified owner lifecycle gaps at the owning creation, replacement, release and teardown sites.
+  [x] Correct identified owner lifecycle gaps at the owning creation, replacement, release and teardown sites.
       Preserve non-owning reference semantics and original associations; do not add consumer AddRef/Release
       behavior, hidden lifetime extension or a new resource hierarchy.
-  [ ] Make cached consumers withdraw or rebuild before incompatible replacement/release. Make recorded-work
+  [x] Make cached consumers withdraw or rebuild before incompatible replacement/release. Make recorded-work
       owners preserve dependencies until execution or discard, without having recording acquire ownership.
       Cover immediate execution, pass attachments and actual mapping/asynchronous lifetime intervals.
-  [ ] Route worker disposal through existing owner scheduling and prevent legal callbacks from destroying
+  [x] Route worker disposal through existing owner scheduling and prevent legal callbacks from destroying
       resources in their enclosing use interval. Do not solve this with per-draw guard or group activation.
-  [ ] Establish engine integration use intervals from engine lifecycle boundaries; refresh or withdraw
+  [x] Establish engine integration use intervals from engine lifecycle boundaries; refresh or withdraw
       consumers on replacement/retirement. Cover local/tool resources and internally owned samplers/buffers.
       Interception updates knowledge but never supplies ownership or vetoes native calls.
-  [ ] Preserve context-correct deletion, GPU completion tickets, allocator last-use and deferred reuse.
+  [x] Preserve context-correct deletion, GPU completion tickets, allocator last-use and deferred reuse.
       CPU command completion must not be substituted for GPU completion.
-  [ ] Establish optional DEBUG validation at appropriate boundaries for stale references, ownership misuse,
+  [x] Establish optional DEBUG validation at appropriate boundaries for stale references, ownership misuse,
       wrong context/thread and internal consistency. Reuse diagnostic infrastructure where available;
       diagnostics must neither repair state nor be necessary for valid Release execution.
-  [ ] Update tests for owner withdrawal, recording/discard, replacement, worker scheduling and teardown.
+  [x] Update tests for owner withdrawal, recording/discard, replacement, worker scheduling and teardown.
       Move representative misuse expectations to diagnostics; retain operational-failure and memory-safety
       coverage in Release. Do not weaken unrelated numerical or rendering assertions.
-  [ ] Reconcile Rendering.GpuResources.md and applicable submission contracts with implemented owner behavior;
+  [x] Reconcile Rendering.GpuResources.md and applicable submission contracts with implemented owner behavior;
       leave not-yet-migrated execution changes in this plan, not as completed permanent documentation.
-  [ ] Completion gate: focused owner/lifecycle checks pass and concrete scheduling is correct for the upcoming
+  [x] Completion gate: focused owner/lifecycle checks pass and concrete scheduling is correct for the upcoming
       consumers. No existing execution guard is removed solely on the assumption that owners are compliant.
+
+  Completion evidence: second review and independent completion audit passed. Focused Debug and ordinary
+  Release each passed 119/119 tests, zero skipped. Receipts: TestResults/BindingOwner/
+  binding-owner-debug-final.trx and binding-owner-release-final.trx. Original-service capture, worker
+  retirement, recording/discard, lifecycle reentry, alias identity and teardown are covered. Existing
+  operation-family guards remain for phases 3–6; no live-game or performance acceptance is claimed.
 
 Phase 3: Establish producer invariants and targeted preparation refresh
   Outcome: creation and changes publish reliable facts for family-specific prepared consumers.

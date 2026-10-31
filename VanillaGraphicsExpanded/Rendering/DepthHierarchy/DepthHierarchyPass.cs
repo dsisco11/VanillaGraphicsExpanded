@@ -119,11 +119,13 @@ internal sealed class DepthHierarchyPass : IDisposable
     /// <summary>Retires staging storage and shared texture together before a resize or executable reload.</summary>
     public void Dispose()
     {
-        resources.Dispose(); resources = new(); tail = null; Texture = null;
+        var retiring = resources;
+        resources = new(); tail = null; Texture = null;
 #if DEBUG
         StorageBytes = 0;
 #endif
         ScratchBytes = 0; shader = null;
+        retiring.Dispose();
     }
     #endregion
     #region Private

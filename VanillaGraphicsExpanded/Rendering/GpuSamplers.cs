@@ -3,6 +3,7 @@ using System;
 
 namespace VanillaGraphicsExpanded.Rendering;
 
+/// <summary>Owns context-local policy samplers shared by prepared shader consumers.</summary>
 internal static class GpuSamplers
 {
     private static readonly object Sync = new();
@@ -33,8 +34,12 @@ internal static class GpuSamplers
     {
         lock (Sync)
         {
-            nearestClamp?.Dispose(); linearClamp?.Dispose(); shadowCompareLinearClamp?.Dispose();
+            var nearest = nearestClamp;
+            var linear = linearClamp;
+            var shadow = shadowCompareLinearClamp;
             nearestClamp = null; linearClamp = null; shadowCompareLinearClamp = null;
+            Integration.RenderingCleanup.Run(
+                () => nearest?.Dispose(), () => linear?.Dispose(), () => shadow?.Dispose());
         }
     }
     #endregion

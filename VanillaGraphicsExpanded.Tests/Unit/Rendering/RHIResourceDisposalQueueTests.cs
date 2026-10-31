@@ -6,6 +6,26 @@ namespace VanillaGraphicsExpanded.Tests.Unit.Rendering;
 public sealed class RHIResourceDisposalQueueTests
 {
     #region Public API
+    /// <summary>Owner diagnostics detect foreign-thread use only in DEBUG and never change resource state.</summary>
+    [Fact]
+    public void OwnerThreadDiagnosticDoesNotSupplyLifetime()
+    {
+        using var resource = new ObservedResource();
+        Exception? failure = null;
+        var worker = new Thread(() =>
+        {
+            try { resource.ValidateOwnerThread(); }
+            catch (Exception error) { failure = error; }
+        });
+        worker.Start(); worker.Join();
+#if DEBUG
+        Assert.IsType<InvalidOperationException>(failure);
+#else
+        Assert.Null(failure);
+#endif
+        Assert.False(resource.IsDisposed);
+        Assert.Equal((nint)1, resource.ResourceId);
+    }
     /// <summary>A borrowed resource retains its identifier after rejected transfer and clears it on local disposal.</summary>
     [Theory]
     [InlineData(true)]

@@ -65,9 +65,11 @@ internal sealed class AmbientOcclusionPass : IDisposable
     }
     /// <summary>Withdraws all resources together; no prior-frame image survives retirement.</summary>
     public void Dispose() {
-        minimumChildren.Dispose();resources.Dispose();resources=new();
+        var retiring = resources;
+        resources=new();
         raw=filtered=output=null;rawTarget=filteredTarget=outputTarget=null;
         horizon=null;filter=null;horizonPipeline=filterPipeline=null;targetStorageBytes=0;
+        minimumChildren.Dispose();retiring.Dispose();
     }
     #endregion
     #region Private

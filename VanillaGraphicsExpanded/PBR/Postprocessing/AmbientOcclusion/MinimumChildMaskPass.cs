@@ -63,7 +63,9 @@ internal sealed class MinimumChildMaskPass : IDisposable
     /// <summary>Retires borrowers before sidecar storage on disable, resize, reload or world teardown.</summary>
     public void Dispose()
     {
-        resources.Dispose();resources=new();targets=[];Texture=null;StorageBytes=0;shader=null;pipeline=null;
+        var retiring = resources;
+        resources=new();targets=[];Texture=null;StorageBytes=0;shader=null;pipeline=null;
+        retiring.Dispose();
     }
     #endregion
 }

@@ -397,7 +397,7 @@ public sealed class GpuResourceWrapperLifecycleTests(HeadlessGLFixture fixture)
         finally { harmony.UnpatchAll(harmony.Id); }
     }
 
-    /// <summary>Worker retirement invalidates aliases immediately and deletes native storage when its context drains.</summary>
+    /// <summary>Worker retirement preserves aliases until the owner context drains the complete lifecycle transition.</summary>
     [Fact]
     public void QueuedOwnerRetirementDeletesOnlyAfterOriginatingContextDrains()
     {
@@ -407,9 +407,9 @@ public sealed class GpuResourceWrapperLifecycleTests(HeadlessGLFixture fixture)
         int native = owner.TextureId;
         var original = lifetime.Manager.GetResourceRegistration(owner)!;
         RunWithoutCurrentContext(owner.Dispose);
-        Assert.Equal(GpuResourceRegistrationState.Retiring, original.State);
-        Assert.False(borrower.IsValid);
-        Assert.False(lifetime.Manager.IsResourceMetadataAvailable(borrower));
+        Assert.Equal(GpuResourceRegistrationState.Live, original.State);
+        Assert.True(borrower.IsValid);
+        Assert.True(lifetime.Manager.IsResourceMetadataAvailable(borrower));
         Assert.True(GL.IsTexture(native));
         lifetime.Manager.OnRenderFrame(0, RHIResourceManager.Stage);
         Assert.False(GL.IsTexture(native));
@@ -428,8 +428,8 @@ public sealed class GpuResourceWrapperLifecycleTests(HeadlessGLFixture fixture)
         int native = owner.TextureId;
         var original = lifetime.Manager.GetResourceRegistration(owner)!;
         RunWithoutCurrentContext(owner.Dispose);
-        Assert.Equal(GpuResourceRegistrationState.Retiring, original.State);
-        Assert.False(borrower.IsValid);
+        Assert.Equal(GpuResourceRegistrationState.Live, original.State);
+        Assert.True(borrower.IsValid);
         Assert.True(GL.IsTexture(native));
         try
         {

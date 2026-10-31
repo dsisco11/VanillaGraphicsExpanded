@@ -52,6 +52,9 @@ internal sealed partial class RHIResourceManager : IRenderer, IDisposable
         EnsureRenderThreadId();
         if (context == default) context = Integration.RenderContextRegistry.Current();
         if (context != default && context != Integration.RenderContextRegistry.Current()) return;
+        // The engine's after-composition callback is the owner retirement boundary.
+        // Reject reentrant draining before uploads or managed teardown can mutate live inputs.
+        RHICommandContext.RequirePreparationAdmission();
 
         // Drive texture streaming uploads from the GPU manager tick.
         TextureStreamingSystem.TickOnRenderThread();

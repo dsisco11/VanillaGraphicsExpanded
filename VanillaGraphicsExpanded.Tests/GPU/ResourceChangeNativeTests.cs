@@ -39,7 +39,7 @@ public sealed class ResourceChangeNativeTests(HeadlessGLFixture fixture)
         finally { fixture.CleanupGpuResources(); }
     }
 
-    /// <summary>Worker disposal closes usability immediately but invokes consumers only on the origin thread, once.</summary>
+    /// <summary>Worker disposal preserves inputs until the owner boundary retires identity and notifies consumers once.</summary>
     [Fact]
     public void WorkerRetirementUsesTheExistingLifecycleHandoff()
     {
@@ -58,8 +58,12 @@ public sealed class ResourceChangeNativeTests(HeadlessGLFixture fixture)
             Exception? failure = null;
             var worker = new Thread(() => { try { owner.Dispose(); } catch (Exception error) { failure = error; } });
             worker.Start(); worker.Join();
-            Assert.Null(failure); Assert.False(entry.IsUsable); Assert.Empty(alias.Changes);
+            Assert.Null(failure); Assert.True(entry.IsUsable); Assert.Empty(alias.Changes);
+            Assert.False(owner.IsDisposed);
+            Assert.NotEqual(0, owner.ResourceId);
             manager.OnRenderFrame(0, RHIResourceManager.Stage);
+            Assert.True(owner.IsDisposed);
+            Assert.False(entry.IsUsable);
             Assert.Single(alias.Changes);
             Assert.True((alias.Changes[0].Kind & ResourceChangeKind.Retired) != 0);
             manager.OnRenderFrame(0, RHIResourceManager.Stage);

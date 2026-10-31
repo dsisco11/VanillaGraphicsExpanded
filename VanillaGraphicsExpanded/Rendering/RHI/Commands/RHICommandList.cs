@@ -4,6 +4,8 @@ using System.Linq;
 using System.Threading;
 namespace VanillaGraphicsExpanded.Rendering.RHI;
 /// <summary>Owns one context-independent, single-use CPU recording for an explicit originating context.</summary>
+/// <remarks>The caller preserves resource lifetimes and configuration until execution or discard.
+/// Captured references and copied arguments do not own native resources or prevent their disposal.</remarks>
 public sealed partial class RHICommandList : IDisposable
 {
     private readonly RHICommandContext origin;

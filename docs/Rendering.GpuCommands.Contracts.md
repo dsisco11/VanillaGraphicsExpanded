@@ -352,6 +352,14 @@ optional variants are rejected before dispatch when unavailable, never emulated 
 
 ## Submission and failure rules
 
+Resource owners establish the lifetime interval: immediate use through return, attachments through pass
+end, and recorded dependencies through execution or discard. References and recording do not own native
+resources. Worker disposal schedules the complete owner retirement on the original disposal service;
+owners finish or withdraw consumers before its after-composition drain. Resize, reload and cleanup run
+outside active restoration boundaries. DEBUG owner-thread checks diagnose misuse without repairing it.
+The execution validation described below remains in the current operation implementations; it does not
+transfer responsibility for legal lifetime scheduling from owners to consumers.
+
 1. Validate context/thread, resource identity/usability, known limits and usage/reentry guards before
    mutation. Content-dependent index/indirect values remain the producer's responsibility; validate only
    supplied descriptors and accesses derivable from explicit parameters, with no validation readback.

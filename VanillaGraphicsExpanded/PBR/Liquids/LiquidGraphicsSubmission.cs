@@ -141,15 +141,19 @@ internal sealed class LiquidGraphicsSubmission : IDisposable
     /// <summary>Releases world/context preparation without deleting the engine allocations it borrows.</summary>
     private void Retire()
     {
-        geometry.Clear(); pipeline?.Dispose(); pipeline = null;
+        var retiring = pipeline;
+        pipeline = null;
         targets = null; preparedContext = null;
+        geometry.Clear(); retiring?.Dispose();
     }
 
     /// <summary>Releases the old world's preparation and external surface association before possible native name reuse.</summary>
     private void LeaveWorld()
     {
-        Retire(); borrowed?.Dispose(); borrowed = null; borrowedContext = null; dirty = true;
+        var retiring = borrowed;
+        borrowed = null; borrowedContext = null; dirty = true;
         inputOwner = null; inputAdapter = null;
+        Retire(); retiring?.Dispose();
     }
     #endregion
 }

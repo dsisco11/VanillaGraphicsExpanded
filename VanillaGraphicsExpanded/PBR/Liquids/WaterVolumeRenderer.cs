@@ -181,10 +181,11 @@ internal sealed class WaterVolumeRenderer : IRenderer
     {
         completed = null;
         composed = false;
-        targetResources?.Dispose();
+        var retiring = targetResources;
         targetResources = null;
         volumePass = null;
         transport = null;
+        retiring?.Dispose();
     }
     #endregion
 }

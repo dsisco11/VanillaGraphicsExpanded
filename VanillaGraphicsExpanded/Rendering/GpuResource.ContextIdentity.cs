@@ -7,6 +7,14 @@ namespace VanillaGraphicsExpanded.Rendering;
 public abstract partial class GpuResource
 {
     #region Internal API
+    /// <summary>Captures the service at association for declarations made before manager startup, never retargeting an owner.</summary>
+    internal void AssociateLifecycle(RHIResourceManager manager)
+    {
+        if (deletionManager is not null && !ReferenceEquals(deletionManager, manager))
+            throw new InvalidOperationException("A resource cannot change its originating lifecycle service.");
+        deletionManager = manager;
+    }
+
     /// <summary>Supplies the original namespace for backend-owned CPU configuration guards.</summary>
     internal (nint Handle, long Generation) OriginalContext => nativeContext;
     /// <summary>Captures registered identity, or the physical context for an explicitly local buffer or image tool.</summary>

@@ -317,18 +317,21 @@ public sealed partial class GBufferManager : IDisposable
     /// <summary>Releases owned images and borrowed recipients through their manager-certified lifetimes.</summary>
     private void DeleteTextures()
     {
-        fallbackPosition?.Dispose();
+        var oldFallback = fallbackPosition;
+        var oldBorrower = borrowedPosition;
+        var oldTextures = textures;
         fallbackPosition = null;
-        borrowedPosition?.Dispose();
         borrowedPosition = null;
         PositionTextureId = 0;
 
-        textures?.Dispose();
         textures = null;
         surfaceTex = null;
         patchIdTex = null;
         isInitialized = false;
         isInjected = false;
+        // Publication must be withdrawn before deletion delivers dependent-resource callbacks.
+        Rendering.Integration.RenderingCleanup.Run(
+            () => oldFallback?.Dispose(), () => oldBorrower?.Dispose(), () => oldTextures?.Dispose());
     }
 
     /// <summary>

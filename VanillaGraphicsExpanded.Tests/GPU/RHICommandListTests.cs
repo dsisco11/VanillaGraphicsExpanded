@@ -32,9 +32,16 @@ public sealed class RHICommandListTests(HeadlessGLFixture fixture) : RenderTestB
         try { list.UploadBuffer(reference, 0, new byte[16]); list.Close(); }
         finally { GLFW.MakeContextCurrent(current); }
         Assert.Equal(CommandListState.Closed, list.State);
+#if DEBUG
         var result = context.Submit(list);
         Assert.Equal(CommandListState.Failed, result.State); Assert.Equal(0, result.FailureIndex);
         Assert.NotNull(result.Error);
+#else
+        // Recording is CPU-only, but the owner must discard this stale selection before use.
+        // Release does not promise successful detection of arbitrary owner lifetime violations.
+        list.Cancel();
+        Assert.Equal(CommandListState.Cancelled, list.State);
+#endif
     }
     /// <summary>Variable payloads survive caller mutation and reusable pages survive reset without replay authority.</summary>
     [Fact]

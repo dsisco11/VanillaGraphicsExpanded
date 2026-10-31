@@ -40,8 +40,10 @@ internal sealed class RetainedPostprocessRenderer : IDisposable
     /// <summary>Retires owned targets and clears publication before a new resource lifetime.</summary>
     public void Dispose()
     {
-        resources.Dispose(); resources=new(); lumaTarget=null; lumaImage=null;
+        var retiring = resources;
+        resources=new(); lumaTarget=null; lumaImage=null;
         luma=null; lumaPipeline=null;
+        retiring.Dispose();
     }
     #endregion
     #region Private

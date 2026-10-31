@@ -11,7 +11,9 @@ public abstract partial class GpuResource : IDisposable
     private int disposed;
     private int activePassReferences;
     private int lifetimeReferences;
-    private readonly RHIResourceManager? deletionManager = RHIResourceManagerSystem.CurrentManager;
+    private int disposalRequested;
+    private int ownerThread = Environment.CurrentManagedThreadId;
+    private RHIResourceManager? deletionManager = RHIResourceManagerSystem.CurrentManager;
     private (nint Handle, long Generation) nativeContext = Integration.RenderContextRegistry.Current();
     protected virtual (nint Handle, long Generation) NativeProgramContext => default;
 
@@ -47,6 +49,7 @@ public abstract partial class GpuResource : IDisposable
     /// <summary>Transfers the native handle only after active pass and deferred restoration borrowers release it.</summary>
     public virtual nint Detach()
     {
+        ValidateOwnerThread();
         if (!OwnsResource) throw new NotSupportedException("Borrowed resources cannot transfer ownership.");
         if (IsDisposed)
         {
@@ -71,12 +74,22 @@ public abstract partial class GpuResource : IDisposable
         return Detach();
     }
 
-    /// <summary>Retires storage exactly once after active pass and deferred restoration borrows have ended.</summary>
+    /// <summary>Requests complete owner-thread retirement, or retires immediately on that thread after use has ended.</summary>
+    /// <remarks>Worker requests preserve identity until the originating cleanup boundary. Owners must withdraw
+    /// future work and finish or discard recordings before that boundary; queuing does not establish GPU completion.</remarks>
     public void Dispose()
     {
         // Detached or disposed wrappers no longer mutate the shared allocation. Other aliases
         // may subsequently borrow it, but those guards cannot make local cleanup non-idempotent.
         if (IsDisposed) return;
+        // A worker requests retirement; it must not withdraw identity or invoke owner callbacks.
+        // The originating manager drains the entire transition after rendering, not just its GL delete.
+        if (Environment.CurrentManagedThreadId != ownerThread && deletionManager?.ResourceDisposals is { } queue)
+        {
+            if (Interlocked.Exchange(ref disposalRequested, 1) == 0) queue.Enqueue(this);
+            return;
+        }
+        ValidateOwnerThread();
         // Local tools have no queue-owning context registration; retain ownership until their context is current.
         if (nativeContext != default && nativeContext.Generation == 0) RequireOriginalContext();
         RequireRetirement();
@@ -115,12 +128,17 @@ public abstract partial class GpuResource : IDisposable
         if (id != 0 && ResourceId != 0)
             throw new InvalidOperationException("Creation requires an unpublished resource declaration.");
         ResourceId = id;
-        if (id != 0) nativeContext = context ?? Integration.RenderContextRegistry.Current();
+        if (id != 0)
+        {
+            nativeContext = context ?? Integration.RenderContextRegistry.Current();
+            ownerThread = Environment.CurrentManagedThreadId;
+        }
     }
 
     /// <summary>Rejects storage mutation or retirement while a pass or immutable framebuffer borrows its configuration.</summary>
     internal void RequireMutableStorage(bool allowRetired = false)
     {
+        ValidateOwnerThread();
         ResourceManager?.RequireResourceMutable(this, allowRetired);
         if (Volatile.Read(ref activePassReferences) != 0)
             throw new InvalidOperationException("End the render pass before changing or retiring its target storage.");
