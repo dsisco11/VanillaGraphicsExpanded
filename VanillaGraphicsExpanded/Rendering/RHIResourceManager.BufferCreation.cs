@@ -26,10 +26,7 @@ internal sealed partial class RHIResourceManager
         /// <inheritdoc />
         public GpuResourceKind Kind => GpuResourceKind.Buffer;
         /// <inheritdoc />
-        public void Validate(in GpuBufferInitialization initialization)
-        {
-            initialization.Validate();
-        }
+        public GpuBufferInitialization Prepare(in GpuBufferInitialization initialization) { initialization.Validate(); return initialization; }
         /// <inheritdoc />
         public GpuBufferMetadata? Initialize(RHI.RHICommandContext execution, in GpuBufferInitialization initialization, out nint id)
             => execution.InitializeBuffer(initialization, out id, data, byteCount, offset);

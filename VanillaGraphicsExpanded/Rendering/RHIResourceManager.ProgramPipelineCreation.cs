@@ -18,7 +18,7 @@ internal sealed partial class RHIResourceManager
         /// <inheritdoc />
         public GpuResourceKind Kind => GpuResourceKind.ProgramPipeline;
         /// <inheritdoc />
-        public void Validate(in GpuProgramPipelineInitialization initialization) { }
+        public GpuProgramPipelineInitialization Prepare(in GpuProgramPipelineInitialization initialization) => initialization;
         /// <inheritdoc />
         public GpuProgramPipelineMetadata? Initialize(RHI.RHICommandContext execution, in GpuProgramPipelineInitialization initialization, out nint id)
             => execution.InitializeProgramPipeline(out id);

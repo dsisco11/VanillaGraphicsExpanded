@@ -15,8 +15,6 @@ internal sealed partial class OpenGLBackend
         RequireContext();
         ValidateTextureOwner<T>(request);
         var initialization = LowerTexture(request);
-        var resolved = initialization.Resolve();
-        ValidateTextureInitialData(resolved, initialData);
         // The owner must capture its context's live manager before construction;
         // otherwise later recovery can attach it to a retired or missing lifetime.
         RHIResourceManagerSystem.EnsureCurrentContext();
@@ -29,7 +27,7 @@ internal sealed partial class OpenGLBackend
         owner.SetAllocationPolicy(request.Has(11) ? request.Filter : TextureFilterMode.Nearest, request.Label);
         try
         {
-            if (!RHIResourceManager.CreateTexture(resolved, owner, out _, initialData.ToArray()).HasValue)
+            if (!RHIResourceManager.CreateTexture(initialization, owner, out _, initialData.ToArray()).HasValue)
             {
                 owner.Dispose();
                 return new(null, "Image initialization did not complete.");
@@ -81,9 +79,6 @@ internal sealed partial class OpenGLBackend
         }
         if (!description.Has(0) || !description.Has(1) || !description.Has(2) || !description.Has(5) || !description.Has(6))
             throw new ArgumentException("Texture dimension, format, width, mip count and storage mode are required.");
-        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(description.Width);
-        if (description.Has(3)) ArgumentOutOfRangeException.ThrowIfNegativeOrZero(description.Height);
-        if (description.Has(4)) ArgumentOutOfRangeException.ThrowIfNegativeOrZero(description.Depth);
         if (description.Storage is not (ResourceStorageMode.Mutable or ResourceStorageMode.Immutable)) throw new ArgumentException("Image storage must be mutable or immutable.");
         var result = new GpuTextureInitialization { Target = description.Dimension, InternalFormat = description.Format,
             Width = description.Width, Levels = description.MipLevels, AllocationMode = description.Storage == ResourceStorageMode.Immutable ? GpuTextureAllocationMode.Immutable : GpuTextureAllocationMode.Mutable };

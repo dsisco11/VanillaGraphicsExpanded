@@ -2,7 +2,7 @@
 
 Temporary implementation support for [Rendering.BindingAdmission.todo](Rendering.BindingAdmission.todo).
 The approved [proposal](Rendering.BindingAdmission.Proposal.md) controls the design. This map records
-source inspection, not implemented replacement behavior or runtime qualification. Remove it in phase 7
+source findings and implementation traceability; completion status and receipts belong to the plan. Remove it in phase 7
 after preserving required decisions and evidence. Paths below are relative to `VanillaGraphicsExpanded/Rendering`
 unless prefixed with a project name. File families include their partials; method names identify search anchors.
 
@@ -150,6 +150,22 @@ currently advances a single global receipt revision for external observations. R
 invalidation with affected executed-state domains while retaining interruption semantics.
 
 ## Dependency-complete units
+
+Producer implementation traceability (U3):
+
+The final creation sweep also consolidates sampler policy validation before its private setter sequence,
+retains transform-feedback output selections across candidate configuration instead of resolving ranges
+twice, and leaves base external-object feature checks at native initialization. Import-kind checks and
+approved outcome reads retain their separate purposes. `RHIImageTests`, `RHIAuxiliaryTests`,
+`GpuMemoryObjectLifecycleTests` and `OwnerCreationBoundaryTests` cover those affected routes.
+
+| Tasks | Controlling source | Implementation and verification route |
+| --- | --- | --- |
+| Creation validation and failure cleanup | Proposal: Establish facts once; Validation and operational failure handling; GpuResources: Wrappers and initialization; GpuCommands.Contracts: Resource references and factories | `IGpuResourceCreation.Prepare` returns normalized frozen intent to `CreateResource`; buffer lowering preserves assignments; image payload validation precedes native allocation; renderbuffer validation has one family boundary. `GpuManagerCreationFoundationTests`, `RHIBufferTests`, `RHIImageTests`, `OwnerCreationBoundaryTests` cover supplied intent, actual outcomes and cleanup. |
+| Typed views, executable/pipeline generation | Proposal: Resource and operation coverage; GpuResources: Shader executable ownership; GpuCommands.Contracts: Executable and pipeline contracts | Existing view creation captures original backing; shader factories prepare supplied canonical output; pipeline factories establish exact-generation layout/stage/fixed state. Immutable PSO constructors establish authored shape; capability validation no longer repeats it. `RHIShaderCreationTests`, `RHIProgramGenerationTests`, `RHIComputePipelineTests`, graphics-description/relevance and view/buffer-texture tests. Execution guard removal remains U4/U5. |
+| Local change propagation, owner replacement and identity | Proposal: Change-driven updates; GpuResources: Snapshot and change publication | Existing `OnResourceChanged`, owner-image projections and Graffs adjacency deliver coherent affected facts; original view/borrow associations stay fixed. No additional subscription layer is needed for these existing derived results. `ResourceChangePublicationTests`, `ResourceDependencyLookupTests`, `ResourcePublicationTraversalTests`, `ResourceAcquisitionBoundaryTests`, `GpuTextureMetadataPublicationTests` cover equal-value effects, detach, local completion, context retirement and unrelated registrations. |
+| Failed preparation and content writes | Proposal: Change-driven updates; ShaderBindingState: Compiled resource metadata | `GpuProgramLayout.UseNativeMetadata` withdraws active projections before refresh; the existing callback installs compatible supplied interfaces or leaves preparation unavailable. Derived-program tests cover rejected assignments and equal/replaced executables; buffer operation tests preserve storage revisions for content writes. No descriptor query, per-draw refresh recovery or second authority is added. |
+| Documentation and dependency closure | Full approved proposal and U3 completion gate | Resource, shader and RHI contracts describe implemented producer boundaries. Existing signatures outside private creation remain intact; U4/U5 still replace binding/graphics execution, so this unit adds no unused future notification facade. |
 
 | Unit | Work and prerequisites | Required same-unit closure / deletion |
 | --- | --- | --- |

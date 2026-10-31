@@ -7,10 +7,9 @@ namespace VanillaGraphicsExpanded.Rendering.Pipeline.Descriptions;
 internal static class PipelineFixedFunctionValidation
 {
     #region Public API
-    /// <summary>Rejects non-finite, unsupported and out-of-range state even when its category is disabled.</summary>
+    /// <summary>Checks device ranges after immutable description construction validates authored values.</summary>
     public static void Validate(RHIGraphicsPipelineDescription value, GraphicsCapabilities caps)
     {
-        ValidateShape(value);
         Range(value.Rasterizer.LineWidth, caps.MinLineWidth, caps.MaxLineWidth);
         Range(value.Rasterizer.PointSize, caps.MinPointSize, caps.MaxPointSize);
         if (value.Sampling.Masks is { } masks && masks.Count > caps.MaxSampleMaskWords)

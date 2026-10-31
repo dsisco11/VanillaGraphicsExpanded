@@ -17,7 +17,6 @@ internal sealed partial class OpenGLBackend
             if (!request.Has(field)) throw new ArgumentException("Source, representation and complete mip/layer selection are required.");
         var source = request.Source.Resource ?? throw new ArgumentException("A texture source is required.");
         source.RequireOriginalContext();
-        var facts = request.Source.RequireMetadata();
         var initialization = new GpuTextureViewInitialization
         {
             Source = (int)source.ResourceId, Target = request.Dimension,

@@ -9,7 +9,6 @@ internal sealed partial class OpenGLBackend
     public RHICreationResult<GpuSemaphore> CreateSemaphore(in RHISemaphoreDescription description)
     {
         RequireContext();
-        if (!Capabilities.ExternalSemaphores) throw new NotSupportedException("External semaphores are unavailable.");
         var request = description;
         if (request.Import is { } handle) ValidateExternalHandle(handle, false);
         var owner = new GpuSemaphore(request.Import.HasValue);
@@ -27,7 +26,6 @@ internal sealed partial class OpenGLBackend
     public RHICreationResult<GpuMemoryObject> CreateMemoryObject(in RHIMemoryObjectDescription description)
     {
         RequireContext();
-        if (!Capabilities.ExternalMemory) throw new NotSupportedException("External memory is unavailable.");
         var request = description;
         if (request.Import is { } handle)
         {

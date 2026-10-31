@@ -77,6 +77,9 @@ assignments preserve revisions and active certificates. Unavailable executable f
 an assignment cannot authorize recovery or revive a withdrawn executable generation.
 Meaningful unit/block changes revalidate prepared resource tables through the existing revision machinery;
 relinking or binary installation withdraws executable preparation until the owner validates its replacement.
+Refreshing assignments first clears the active binding projections as well as withdrawing prepared access.
+If compatibility preparation fails, actual canonical assignments still reach aliases, while no previous
+active sampler/image/block projection remains available as a successful refresh result.
 Cached driver executables retain their candidate owner during installation; the manager delivers the
 linked snapshot before graphics/compute preparation, including tools without an installed registry.
 Ordinary numeric uniform writes do not refresh resource metadata. Managed ordinary uniforms use core named ProgramUniform operations on the admitted OpenGL 4.5 context.

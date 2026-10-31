@@ -39,6 +39,18 @@ Semaphore generation instead hands off an owned reservation: its empty snapshot 
 after payload realization is established, and wait/signal reject an unimported reservation.
 Partial allocation cleanup preserves the original exception and the originating deletion context.
 
+The private creation handoff freezes authored inputs, then calls its resource family's `Prepare` once.
+That method validates and returns the normalized request consumed by initialization; texture defaults
+are resolved there rather than recomputed during handoff. Buffer description lowering preserves all
+assigned fields, including contradictory combinations, for the common family validator. Native execution
+handles capability-dependent outcomes and initial payload bounds before allocating. Storage replacement
+also validates before surrendering an existing allocation or withdrawing its usable metadata. Native
+outcome checks and original-association reconciliation are separate from supplied-input validation.
+Sampler creation and reconfiguration each validate policy at their own entry boundary, then share the
+private setter sequence. Transform-feedback creation resolves output ranges once and uses those native
+selections only for its private candidate configuration. The retained authored outputs remain non-owning;
+capture scheduling and completion retain their separate operation contracts.
+
 Owned framebuffer declarations and attachment-owned renderbuffers request allocation through private
 owner-bearing RHI operations. Their backend implementations invoke the existing manager handoff;
 constructors do not coordinate native allocation or publication directly. Geometry arrays and unlinked
@@ -333,6 +345,9 @@ Canonical shader metadata and initialization use `ShaderStage`. Program resource
 `ProgramResourceKind`, `ShaderValueType`, nullable typed location/extent/block fields and `ShaderStageMask`;
 missing fields remain unavailable. Native reflection selectors and tokens are decoded inside the backend.
 Prepared tables consume these facts and supplied limits without queries or context admission.
+Assignment refresh withdraws both the prepared interface and its active binding projections before
+constructing replacements. Failed compatibility preparation leaves those projections empty while canonical
+facts retain the actual native assignment; it cannot expose the previous successful binding table.
 External authored assignments resolve against canonical facts through a private RHI operation, skip
 unchanged values and publish through the existing observation path; ordinary layout reads use snapshots.
 Temporary stages are retired after completion. Pending creation exposes outcomes through

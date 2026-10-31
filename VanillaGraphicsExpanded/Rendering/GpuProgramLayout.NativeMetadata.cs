@@ -33,6 +33,7 @@ public partial class GpuProgramLayout
         // Withdraw old prepared entries before validating replacements; failure cannot
         // leave fixed-slot resource submission using the previous executable's table.
         nativePreparationUnavailable = true;
+        SetActiveSnapshot(null, null, null, null);
         var prepared = binaryInterface?.RefreshResources(program, data);
         nativeMetadata = data;
         NativeMetadataRevision = revision;

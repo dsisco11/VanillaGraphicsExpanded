@@ -18,6 +18,34 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 public sealed class GpuManagerCreationFoundationTests(HeadlessGLFixture fixture)
 {
     #region Public API
+    /// <summary>Execution consumes normalized intent once while the caller's authored request stays unchanged.</summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void PreparationHandsResolvedIntentToExecution(bool registered)
+    {
+        fixture.EnsureContextValid();
+        if (registered) fixture.InitializeResourceDisposal(); else fixture.UseContextLocalResources();
+        try
+        {
+            using var recipient = new Declaration<GpuBufferMetadata>(GpuResourceKind.Buffer);
+            var request = MutableRequest();
+            var state = new CreationState { PreparedCapacity = 48 };
+            var result = RHIResourceManager.CreateResource<GpuBufferInitialization, GpuBufferMetadata, BufferCreation>(
+                request, recipient, out _, new(state));
+            Assert.Equal(32, request.Capacity);
+            Assert.Equal(48, result!.Value.Capacity);
+            Assert.Equal(result.Value, recipient.Snapshot);
+            Assert.Equal(1, state.Preparations);
+            Assert.Equal(1, state.Initializations);
+            using var binding = OpenGlStateCache.Current.BindBufferScope(BufferTarget.ArrayBuffer, state.Id);
+            GL.GetBufferParameter(BufferTarget.ArrayBuffer, BufferParameterName.BufferSize, out int capacity);
+            Assert.Equal(48, capacity);
+            Assert.Equal(ErrorCode.NoError, GL.GetError());
+        }
+        finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
+    }
+
     /// <summary>Failed native cleanup cannot retain graph edges after the candidate registration is abandoned.</summary>
     [Fact]
     public void FailedCleanupReleasesCandidateDependencyEdges()
@@ -81,6 +109,7 @@ public sealed class GpuManagerCreationFoundationTests(HeadlessGLFixture fixture)
             Assert.Equal(result.Value, recipient.Snapshot);
             Assert.True(recipient.IsValid);
             Assert.Equal(1, state.Initializations);
+            Assert.Equal(1, state.Preparations);
             Assert.Equal(registered, RHIResourceManagerSystem.CurrentManager is not null);
             if (registered)
             {
@@ -376,7 +405,8 @@ public sealed class GpuManagerCreationFoundationTests(HeadlessGLFixture fixture)
     /// <summary>Observes fixture backend calls and carries an exact failure instance across orchestration.</summary>
     private sealed class CreationState
     {
-        internal int Id, Initializations, CollisionId, Failure = -1;
+        internal int Id, Initializations, Preparations, CollisionId, Failure = -1;
+        internal nint? PreparedCapacity;
         internal Action? AfterInitialize;
         internal Action? DuringValidation;
         internal readonly InvalidOperationException Exception = new("Injected creation failure.");
@@ -388,10 +418,14 @@ public sealed class GpuManagerCreationFoundationTests(HeadlessGLFixture fixture)
         /// <inheritdoc />
         public GpuResourceKind Kind => GpuResourceKind.Buffer;
         /// <inheritdoc />
-        public void Validate(in GpuBufferInitialization initialization)
+        public GpuBufferInitialization Prepare(in GpuBufferInitialization initialization)
         {
+            state.Preparations++;
             state.DuringValidation?.Invoke();
             initialization.Validate();
+            var resolved = initialization;
+            if (state.PreparedCapacity is { } capacity) resolved.Capacity = capacity;
+            return resolved;
         }
         /// <inheritdoc />
         public GpuBufferMetadata? Initialize(VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext execution, in GpuBufferInitialization initialization, out nint id)
@@ -416,7 +450,7 @@ public sealed class GpuManagerCreationFoundationTests(HeadlessGLFixture fixture)
         /// <inheritdoc />
         public GpuResourceKind Kind => GpuResourceKind.Program;
         /// <inheritdoc />
-        public void Validate(in GpuProgramInitialization initialization) { }
+        public GpuProgramInitialization Prepare(in GpuProgramInitialization initialization) => initialization;
         /// <inheritdoc />
         public GpuProgramMetadata? Initialize(VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext execution, in GpuProgramInitialization initialization, out nint id)
         {
@@ -434,7 +468,7 @@ public sealed class GpuManagerCreationFoundationTests(HeadlessGLFixture fixture)
         /// <inheritdoc />
         public GpuResourceKind Kind => GpuResourceKind.Sampler;
         /// <inheritdoc />
-        public void Validate(in EmptyRequest initialization) { }
+        public EmptyRequest Prepare(in EmptyRequest initialization) => initialization;
         /// <inheritdoc />
         public GpuSamplerMetadata? Initialize(VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext execution, in EmptyRequest initialization, out nint id)
         {
@@ -450,7 +484,7 @@ public sealed class GpuManagerCreationFoundationTests(HeadlessGLFixture fixture)
         /// <inheritdoc />
         public GpuResourceKind Kind => GpuResourceKind.Framebuffer;
         /// <inheritdoc />
-        public void Validate(in EmptyRequest initialization) { }
+        public EmptyRequest Prepare(in EmptyRequest initialization) => initialization;
         /// <inheritdoc />
         public GpuFramebufferMetadata? Initialize(VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext execution, in EmptyRequest initialization, out nint id)
         {

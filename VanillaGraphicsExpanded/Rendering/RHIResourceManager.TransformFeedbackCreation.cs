@@ -18,7 +18,7 @@ internal sealed partial class RHIResourceManager
         /// <inheritdoc />
         public GpuResourceKind Kind => GpuResourceKind.TransformFeedback;
         /// <inheritdoc />
-        public void Validate(in GpuTransformFeedbackInitialization initialization) { }
+        public GpuTransformFeedbackInitialization Prepare(in GpuTransformFeedbackInitialization initialization) => initialization;
         /// <inheritdoc />
         public GpuTransformFeedbackMetadata? Initialize(RHI.RHICommandContext execution, in GpuTransformFeedbackInitialization initialization, out nint id)
             => execution.InitializeTransformFeedback(out id);

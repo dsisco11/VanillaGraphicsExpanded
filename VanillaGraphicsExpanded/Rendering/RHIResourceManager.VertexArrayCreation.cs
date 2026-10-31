@@ -18,7 +18,7 @@ internal sealed partial class RHIResourceManager
         /// <inheritdoc />
         public GpuResourceKind Kind => GpuResourceKind.VertexArray;
         /// <inheritdoc />
-        public void Validate(in GpuVertexArrayInitialization initialization) { }
+        public GpuVertexArrayInitialization Prepare(in GpuVertexArrayInitialization initialization) => initialization;
         /// <inheritdoc />
         public GpuVertexArrayMetadata? Initialize(RHI.RHICommandContext execution, in GpuVertexArrayInitialization initialization, out nint id)
             => execution.CreateVertexArray(out id);

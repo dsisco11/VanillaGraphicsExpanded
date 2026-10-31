@@ -8,8 +8,8 @@ internal interface IGpuResourceCreation<TInitialization, TMetadata>
     /// <summary>Identifies the single native object owned by this creation operation.</summary>
     GpuResourceKind Kind { get; }
 
-    /// <summary>Validates required inputs and conditional defaults before native allocation.</summary>
-    void Validate(in TInitialization initialization);
+    /// <summary>Validates and resolves the frozen family request once before native allocation.</summary>
+    TInitialization Prepare(in TInitialization initialization);
 
     /// <summary>Dispatches through the admitted RHI context and returns established metadata, or a detected failure.</summary>
     /// <remarks>Assign the newly owned ID as soon as it is allocated, including on exceptional exit.

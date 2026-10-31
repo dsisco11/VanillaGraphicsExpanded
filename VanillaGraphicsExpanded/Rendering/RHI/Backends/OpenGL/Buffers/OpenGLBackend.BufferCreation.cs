@@ -12,14 +12,7 @@ internal sealed partial class OpenGLBackend
         // Freeze value intent before native execution or callbacks can observe the caller again.
         var request = description;
         RequireContext();
-        request.Validate();
-        if (request.Access.HasFlag(StorageAccess.Sparse) && !Capabilities.SparseBuffers) throw new NotSupportedException("Sparse buffers are unavailable.");
-        if (request.Access.HasFlag(StorageAccess.Sparse) && !initialData.Bytes.IsEmpty)
-            throw new ArgumentException("Sparse storage starts uncommitted; commit pages before uploading content.");
-        if (initialData.Offset < 0 || initialData.Offset > request.Capacity
-            || initialData.Bytes.Length > request.Capacity - initialData.Offset
-            || request.Mode == ResourceStorageMode.Realization && !initialData.Bytes.IsEmpty)
-            throw new ArgumentException("Initial content exceeds the requested allocation.");
+        var initialization = request.ToInitialization();
         var usage = request.Mode == ResourceStorageMode.Mutable ? request.Usage : BufferUsage.StaticDraw;
         GpuBufferObject owner = request.Role switch
         {
@@ -34,7 +27,6 @@ internal sealed partial class OpenGLBackend
         };
         try
         {
-            var initialization = LowerBufferDescription(request);
             if (!RHIResourceManager.CreateBuffer(initialization, owner, initialData, out _).HasValue)
             {
                 owner.Dispose();
@@ -53,25 +45,4 @@ internal sealed partial class OpenGLBackend
     }
     #endregion
 
-    #region Private
-    /// <summary>Preserves omitted versus assigned fields when lowering to private initialization.</summary>
-    private static GpuBufferInitialization LowerBufferDescription(in RHIBufferDescription description)
-    {
-        var request = new GpuBufferInitialization
-        {
-            Mode = description.Mode switch
-            {
-                ResourceStorageMode.Realization => GpuBufferStorageMode.Realization,
-                ResourceStorageMode.Mutable => GpuBufferStorageMode.Mutable,
-                ResourceStorageMode.Immutable => GpuBufferStorageMode.Immutable,
-                _ => throw new ArgumentOutOfRangeException(nameof(description))
-            }
-        };
-        if (description.Mode == ResourceStorageMode.Realization) return request;
-        request.Capacity = description.Capacity;
-        if (description.Mode == ResourceStorageMode.Mutable) request.Usage = description.Usage;
-        else request.StorageFlags = description.Access;
-        return request;
-    }
-    #endregion
 }

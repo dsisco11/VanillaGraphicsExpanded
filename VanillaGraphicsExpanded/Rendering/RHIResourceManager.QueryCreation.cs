@@ -18,7 +18,7 @@ internal sealed partial class RHIResourceManager
         /// <inheritdoc />
         public GpuResourceKind Kind => GpuResourceKind.Query;
         /// <inheritdoc />
-        public void Validate(in GpuQueryInitialization initialization) { }
+        public GpuQueryInitialization Prepare(in GpuQueryInitialization initialization) => initialization;
         /// <inheritdoc />
         public GpuQueryMetadata? Initialize(RHI.RHICommandContext execution, in GpuQueryInitialization initialization, out nint id)
             => execution.InitializeQuery(initialization.Kind, out id);

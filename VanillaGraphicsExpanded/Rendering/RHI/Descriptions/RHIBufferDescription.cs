@@ -30,31 +30,24 @@ public struct RHIBufferDescription
     #endregion
 
     #region Internal API
-    /// <summary>Rejects missing or contradictory inputs without inspecting a native resource.</summary>
-    internal readonly void Validate()
+    /// <summary>Preserves assignment intent while lowering to the single family validation boundary.</summary>
+    internal readonly GpuBufferInitialization ToInitialization()
     {
         if ((assigned & (Inputs.Role | Inputs.Mode)) != (Inputs.Role | Inputs.Mode)
             || !Enum.IsDefined(role) || !Enum.IsDefined(mode)) throw new ArgumentException("A valid role and storage mode are required.");
-        if (mode == ResourceStorageMode.Realization)
+        // Copy contradictory assignments too: lowering must not silently erase inputs
+        // that family preparation needs to reject before native allocation.
+        var result = new GpuBufferInitialization { Mode = mode switch
         {
-            if ((assigned & (Inputs.Capacity | Inputs.Usage | Inputs.Access)) != 0) throw new ArgumentException("Empty realization rejects allocation inputs.");
-            return;
-        }
-        if ((assigned & Inputs.Capacity) == 0 || capacity < 0) throw new ArgumentException("An explicit nonnegative capacity is required.");
-        if (mode == ResourceStorageMode.Mutable)
-        {
-            if ((assigned & Inputs.Usage) == 0 || !Enum.IsDefined(usage) || usage == BufferUsage.Undefined || (assigned & Inputs.Access) != 0)
-                throw new ArgumentException("Mutable storage requires usage and rejects immutable access flags.");
-            return;
-        }
-        const StorageAccess all = StorageAccess.Read | StorageAccess.Write | StorageAccess.Persistent
-            | StorageAccess.Coherent | StorageAccess.DynamicUpdates | StorageAccess.ClientStorage | StorageAccess.Sparse;
-        if (access.HasFlag(StorageAccess.Sparse) && (access & (StorageAccess.Read | StorageAccess.Write)) != 0)
-            throw new ArgumentException("Sparse storage cannot be mapped.");
-        if (capacity == 0 || (assigned & Inputs.Access) == 0 || (assigned & Inputs.Usage) != 0 || (access & ~all) != 0
-            || access.HasFlag(StorageAccess.Persistent) && (access & (StorageAccess.Read | StorageAccess.Write)) == 0
-            || access.HasFlag(StorageAccess.Coherent) && !access.HasFlag(StorageAccess.Persistent))
-            throw new ArgumentException("Invalid immutable storage request.");
+            ResourceStorageMode.Realization => GpuBufferStorageMode.Realization,
+            ResourceStorageMode.Mutable => GpuBufferStorageMode.Mutable,
+            ResourceStorageMode.Immutable => GpuBufferStorageMode.Immutable,
+            _ => throw new ArgumentOutOfRangeException(nameof(Mode))
+        } };
+        if ((assigned & Inputs.Capacity) != 0) result.Capacity = capacity;
+        if ((assigned & Inputs.Usage) != 0) result.Usage = usage;
+        if ((assigned & Inputs.Access) != 0) result.StorageFlags = access;
+        return result;
     }
     #endregion
 }

@@ -14,6 +14,8 @@ internal sealed partial class OpenGLBackend
     public GpuTextureMetadata? InitializeTexture(in GpuTextureInitialization request, out nint id, RHITextureInitialData[]? initialData = null)
     {
         RequireContext();
+        // Payload safety is established before native allocation, including private owner/tool callers.
+        if (initialData is not null) ValidateTextureInitialData(request, initialData);
         int name = 0;
         try { OpenGLDriverCalls.CreateTextures((Native.TextureTarget)OpenGLImageValues.Target(request.Target), 1, out name); }
         finally { id = name; }

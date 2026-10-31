@@ -14,9 +14,9 @@ internal sealed partial class OpenGLBackend
     public void AllocateRenderbufferStorage(GpuRenderbuffer owner, in RHIRenderbufferDescription description)
     {
         var request = LowerRenderbuffer(description);
+        request.Validate();
         RequireContext();
         owner.RequireOriginalContext();
-        request.Validate();
         owner.RequireMutableStorage();
         using var operation = new RHIResourceManager.MetadataOperation<GpuRenderbufferMetadata>(owner, GpuMetadataChange.Storage);
         var result = DefineRenderbuffer(owner.RenderbufferId, request, operation);
@@ -62,7 +62,6 @@ internal sealed partial class OpenGLBackend
         var result = new GpuRenderbufferInitialization { Format = request.Format, Width = request.Width, Height = request.Height };
         if (request.Has(3)) result.Samples = request.Samples;
         if (request.Has(4)) result.CoverageSamples = request.CoverageSamples;
-        result.Validate();
         return result;
     }
     /// <summary>Resolves samples from cached format capabilities, never a whole-descriptor query.</summary>

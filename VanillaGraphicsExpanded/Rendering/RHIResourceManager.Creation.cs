@@ -24,7 +24,7 @@ internal sealed partial class RHIResourceManager
             throw new InvalidOperationException("Creation requires an unpublished declaration of the requested kind.");
         // Freeze value intent before validation; family backends also freeze referenced inputs.
         var request = initialization;
-        creation.Validate(request);
+        request = creation.Prepare(request);
         var origin = RenderContextRegistry.Current();
         var nativeOrigin = GpuResource.CaptureCreationContext(creation.Kind);
         if (manager is not null && manager.CanAcquireWrapperMetadata(recipient)) manager.RequireMetadataContext();

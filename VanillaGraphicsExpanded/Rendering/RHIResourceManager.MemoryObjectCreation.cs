@@ -18,7 +18,7 @@ internal sealed partial class RHIResourceManager
         /// <inheritdoc />
         public GpuResourceKind Kind => GpuResourceKind.MemoryObject;
         /// <inheritdoc />
-        public void Validate(in GpuMemoryObjectInitialization initialization) { }
+        public GpuMemoryObjectInitialization Prepare(in GpuMemoryObjectInitialization initialization) => initialization;
         /// <inheritdoc />
         public GpuMemoryObjectMetadata? Initialize(RHI.RHICommandContext execution, in GpuMemoryObjectInitialization initialization, out nint id)
             => execution.InitializeMemoryObject(out id);

@@ -16,12 +16,14 @@ internal sealed partial class OpenGLBackend
         RequireContext();
         ArgumentNullException.ThrowIfNull(description);
         var slots = new HashSet<int>();
-        foreach (var output in description.Outputs)
+        var buffers = new int[description.Outputs.Length];
+        for (int index = 0; index < buffers.Length; index++)
         {
+            var output = description.Outputs[index];
             if ((uint)output.Slot >= (uint)Capabilities.MaxTransformFeedbackBuffers || !slots.Add(output.Slot)
                 || output.Range.Length <= 0 || output.Range.Offset % 4 != 0 || output.Range.Length % 4 != 0)
                 throw new ArgumentException("Capture slots and ranges must be unique, aligned and within limits.");
-            RequireRange(output.Range.Buffer, output.Range.Offset, output.Range.Length);
+            buffers[index] = (int)RequireRange(output.Range.Buffer, output.Range.Offset, output.Range.Length).ResourceId;
         }
         var owner = new GpuTransformFeedback();
         try
@@ -29,10 +31,11 @@ internal sealed partial class OpenGLBackend
             if (!RHIResourceManager.CreateTransformFeedback(new(), owner, out _).HasValue)
             { owner.Dispose(); return new(null, "Transform-feedback initialization failed."); }
             // Configure only the new private candidate; a failed setup never exposes a usable owner.
-            foreach (var output in description.Outputs)
+            // Reuse the resolved selections within this owner-controlled creation interval.
+            for (int index = 0; index < buffers.Length; index++)
             {
-                var buffer = RequireRange(output.Range.Buffer, output.Range.Offset, output.Range.Length);
-                OpenGLDriverCalls.TransformFeedbackBufferRange(owner.TransformFeedbackId, output.Slot, (int)buffer.ResourceId, output.Range.Offset, output.Range.Length);
+                var output = description.Outputs[index];
+                OpenGLDriverCalls.TransformFeedbackBufferRange(owner.TransformFeedbackId, output.Slot, buffers[index], output.Range.Offset, output.Range.Length);
                 RequireContext();
             }
             feedbackOutputs.Add(owner, description);

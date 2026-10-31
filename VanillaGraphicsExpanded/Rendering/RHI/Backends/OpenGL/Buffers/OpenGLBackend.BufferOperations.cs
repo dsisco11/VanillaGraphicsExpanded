@@ -14,7 +14,10 @@ internal sealed partial class OpenGLBackend
         // Freeze value intent before native execution or callbacks can observe the caller again.
         var request = description;
         RequireContext();
-        request.Validate();
+        var initialization = request.ToInitialization();
+        initialization.Validate();
+        if ((initialization.StorageFlags & StorageAccess.Sparse) != 0 && !Capabilities.SparseBuffers)
+            throw new NotSupportedException("Sparse buffers are unavailable.");
         if (request.Mode == ResourceStorageMode.Realization) throw new ArgumentException("Storage replacement requires an allocation request.");
         if (initialData.Length > request.Capacity) throw new ArgumentException("Initial bytes exceed requested capacity.");
         RHIResourceManager.RequireWrapperMetadataAccess(owner);
@@ -45,7 +48,7 @@ internal sealed partial class OpenGLBackend
             ? BufferUsage.DynamicDraw : request.Usage;
         cache.EstablishBufferUnmapped(nativeId);
         operation.Commit(new(request.Capacity, usage, request.Mode == ResourceStorageMode.Immutable,
-            request.Mode == ResourceStorageMode.Immutable ? LowerBufferDescription(request).StorageFlags : 0));
+            request.Mode == ResourceStorageMode.Immutable ? initialization.StorageFlags : 0));
     }
 
     /// <inheritdoc />
@@ -87,7 +90,6 @@ internal sealed partial class OpenGLBackend
     public GpuBufferMetadata? InitializeBuffer(in GpuBufferInitialization initialization, out nint id, nint data = 0, int byteCount = 0, nint offset = 0)
     {
         RequireContext();
-        initialization.Validate();
         if ((initialization.StorageFlags & StorageAccess.Sparse) != 0)
         {
             if (!Capabilities.SparseBuffers) throw new NotSupportedException("Sparse buffers are unavailable.");

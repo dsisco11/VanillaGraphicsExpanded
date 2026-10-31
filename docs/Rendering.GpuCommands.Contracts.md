@@ -209,6 +209,12 @@ declaration construction to avoid constructor/factory recursion. Failure cleans 
 through original-context retirement; borrowed backing allocations survive. Intentional owner replacement
 commits ready storage under existing replacement rules; it does not promise rollback after old retirement.
 
+Private family preparation validates and normalizes one frozen creation request, and initialization consumes
+that returned value. Public lowering preserves assigned-versus-omitted intent instead of dropping illegal
+extra fields or duplicating family validation. Initial payload safety and native capability/outcome handling
+remain execution responsibilities before allocation and publication. This handoff adds no metadata registry
+or consumer lifetime authority.
+
 Borrow/adopt/recover native names belong to the OpenGL integration boundary. They accept explicit native
 identity and ownership intent there and reuse covered available facts. Discovery requires recorded
 pre-installation or supported EXT implicit-creation provenance; failed discovery requires explicit
@@ -308,6 +314,11 @@ or reference-counted sharing. Pipeline disposal never disposes its shader; reten
 explicit shader retirement. Reload builds shader and required PSOs, installs a compatible set between
 submissions and preserves the installed set on candidate failure. Stale candidates cannot install.
 Prepared tables/history belong to the exact installed interface; never retarget recorded slot indices.
+
+Immutable graphics-description construction establishes authored enum, stage/topology and fixed-state
+shape before canonicalization. Device validation consumes that established shape and checks cached limits
+and optional support; it does not repeat constructor validation. Realization separately establishes the
+selected executable's linked layout and output relationships.
 
 ## Operation signatures and dispositions
 

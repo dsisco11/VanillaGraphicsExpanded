@@ -18,7 +18,7 @@ internal sealed partial class RHIResourceManager
         /// <inheritdoc />
         public GpuResourceKind Kind => GpuResourceKind.Sync;
         /// <inheritdoc />
-        public void Validate(in GpuSyncInitialization initialization) { }
+        public GpuSyncInitialization Prepare(in GpuSyncInitialization initialization) => initialization;
         /// <inheritdoc />
         public GpuSyncMetadata? Initialize(RHI.RHICommandContext execution, in GpuSyncInitialization initialization, out nint id)
             => execution.InitializeSync(out id);

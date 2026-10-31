@@ -17,7 +17,7 @@ internal sealed partial class RHIResourceManager
         /// <inheritdoc />
         public GpuResourceKind Kind => GpuResourceKind.Framebuffer;
         /// <inheritdoc />
-        public void Validate(in GpuFramebufferInitialization initialization) => initialization.Validate();
+        public GpuFramebufferInitialization Prepare(in GpuFramebufferInitialization initialization) { initialization.Validate(); return initialization; }
         /// <inheritdoc />
         public GpuFramebufferMetadata? Initialize(RHI.RHICommandContext execution, in GpuFramebufferInitialization initialization, out nint id)
             => execution.CreateFramebuffer(initialization, out id);

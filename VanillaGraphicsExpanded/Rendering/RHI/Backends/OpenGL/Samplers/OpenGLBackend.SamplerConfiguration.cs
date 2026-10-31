@@ -17,26 +17,34 @@ internal sealed partial class OpenGLBackend
         var owner = new GpuSampler();
         try
         {
-                if (!RHIResourceManager.CreateSampler(new(), owner, out _).HasValue) return new(null, "Sampler creation did not complete.");
-                ConfigureSampler(owner, request);
-                owner.SetDebugName(request.Label);
-                return new(owner, null);
-            }
-            catch { try { owner.Dispose(); } catch { } throw; }
+            if (!RHIResourceManager.CreateSampler(new(), owner, out _).HasValue) return new(null, "Sampler creation did not complete.");
+            ApplySamplerConfiguration(owner, request);
+            owner.SetDebugName(request.Label);
+            return new(owner, null);
         }
-        /// <summary>Applies only assigned fields after validating the complete request before mutation.</summary>
-        public void ConfigureSampler(GpuSampler owner, in RHISamplerDescription description)
+        catch { try { owner.Dispose(); } catch { } throw; }
+    }
+    /// <summary>Applies only assigned fields after validating the complete request before mutation.</summary>
+    public void ConfigureSampler(GpuSampler owner, in RHISamplerDescription description)
+    {
+        var request = description;
+        RequireContext();
+        ValidateSampler(request);
+        ApplySamplerConfiguration(owner, request);
+    }
+    #endregion
+
+    #region Private
+    /// <summary>Executes established policy while preserving original-owner checks and compound-operation cleanup.</summary>
+    private void ApplySamplerConfiguration(GpuSampler owner, in RHISamplerDescription request)
+    {
+        owner.RequireOriginalContext();
+        RHIResourceManager.RequireWrapperMetadataAccess(owner);
+        cache.RequireResourceOperationAvailable(GpuResourceKind.Sampler, owner.ResourceId);
+        int id = owner.SamplerId;
+        var guard = cache.EnterResourceOperation(new(GpuResourceKind.Sampler, id));
+        try
         {
-            var request = description;
-            RequireContext();
-            owner.RequireOriginalContext();
-            RHIResourceManager.RequireWrapperMetadataAccess(owner);
-            ValidateSampler(request);
-            cache.RequireResourceOperationAvailable(GpuResourceKind.Sampler, owner.ResourceId);
-            int id = owner.SamplerId;
-            var guard = cache.EnterResourceOperation(new(GpuResourceKind.Sampler, id));
-            try
-            {
             if (request.Has(0)) { OpenGLDriverCalls.SamplerParameter(id, Native.SamplerParameterName.TextureMinFilter, MinFilter(request.MinFilter)); CheckSamplerStep(owner, id, guard); }
             if (request.Has(1)) { OpenGLDriverCalls.SamplerParameter(id, Native.SamplerParameterName.TextureMagFilter, MinFilter(request.MagFilter)); CheckSamplerStep(owner, id, guard); }
             if (request.Has(2)) { OpenGLDriverCalls.SamplerParameter(id, Native.SamplerParameterName.TextureWrapS, Address(request.AddressS)); CheckSamplerStep(owner, id, guard); }
@@ -56,9 +64,6 @@ internal sealed partial class OpenGLBackend
         }
         finally { cache.ExitResourceOperation(guard); }
     }
-    #endregion
-
-    #region Private
     /// <summary>Stops a setter sequence after original identity retirement or a context change.</summary>
     private void CheckSamplerStep(GpuSampler owner, int id, OpenGlStateCache.ResourceOperationGuard guard)
     {

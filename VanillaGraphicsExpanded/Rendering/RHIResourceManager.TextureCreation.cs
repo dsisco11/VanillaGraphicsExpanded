@@ -24,10 +24,10 @@ internal sealed partial class RHIResourceManager
         /// <inheritdoc />
         public GpuResourceKind Kind => GpuResourceKind.Texture;
         /// <inheritdoc />
-        public void Validate(in GpuTextureInitialization initialization) => _ = initialization.Resolve();
+        public GpuTextureInitialization Prepare(in GpuTextureInitialization initialization) => initialization.Resolve();
         /// <inheritdoc />
         public GpuTextureMetadata? Initialize(RHI.RHICommandContext execution, in GpuTextureInitialization initialization, out nint id)
-            => execution.InitializeTexture(initialization.Resolve(), out id, initialData);
+            => execution.InitializeTexture(initialization, out id, initialData);
         #endregion
     }
 }

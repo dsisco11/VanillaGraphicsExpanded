@@ -11,8 +11,11 @@ internal partial struct GpuTextureInitialization
     internal readonly GpuTextureInitialization Resolve()
     {
         const Inputs required = Inputs.Target | Inputs.AllocationMode | Inputs.InternalFormat | Inputs.Width | Inputs.Levels;
-        if (!IsAssigned(required) || !Enum.IsDefined(allocationMode) || width <= 0 || levels <= 0)
+        if (!IsAssigned(required) || !Enum.IsDefined(allocationMode) || levels <= 0)
             throw new ArgumentException("Texture allocation requires target, mode, format, width and positive level count.");
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(width);
+        if (IsAssigned(Inputs.Height)) ArgumentOutOfRangeException.ThrowIfNegativeOrZero(height);
+        if (IsAssigned(Inputs.Depth)) ArgumentOutOfRangeException.ThrowIfNegativeOrZero(depth);
         if (internalFormat == TextureFormat.Undefined || !Enum.IsDefined(internalFormat) && internalFormat is not (TextureFormat.Red or TextureFormat.Rg or TextureFormat.StencilIndex8))
             throw new ArgumentOutOfRangeException(nameof(InternalFormat));
         bool one = target == TextureDimension.One;

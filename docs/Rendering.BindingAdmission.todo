@@ -2,7 +2,7 @@ Owner-guaranteed resource lifetimes and change-driven execution — implementati
 ===================================================================================
 
 Source proposal: [Rendering.BindingAdmission.Proposal.md](Rendering.BindingAdmission.Proposal.md).
-Status: phases 1–2 complete. Phases 3–7 pending; operation-family execution migration remains pending.
+Status: phases 1–3 complete. Phases 4–7 pending; operation-family execution migration remains pending.
 Related work: Rendering.GpuCommands.todo. This plan does not complete its outstanding qualification tasks.
 
 Goal
@@ -106,27 +106,36 @@ Phase 2: Establish owner lifecycle and diagnostic boundaries
 
 Phase 3: Establish producer invariants and targeted preparation refresh
   Outcome: creation and changes publish reliable facts for family-specific prepared consumers.
-  [ ] Remove duplicate supplied-description checks across factories, manager publication and backend creation
+  [x] Remove duplicate supplied-description checks across factories, manager publication and backend creation
       where no distinct contract requires them. Validate initialization/import once at the right boundary;
       preserve necessary native outcome checks and cleanup, with no provisional usable resource on failure.
-  [ ] Apply the same principles to storage/configuration and typed views, shaders, executables and pipelines.
+  [x] Apply the same principles to storage/configuration and typed views, shaders, executables and pipelines.
       Establish interface, layout, stage and fixed-state relationships for the exact selected generation.
       Keep metadata canonical and backend realization private; do not copy it into a new descriptor registry.
-  [ ] Use existing change publication/dependency links for derived consumer data. Add private subscriptions
+  [x] Use existing change publication/dependency links for derived consumer data. Add private subscriptions
       only for actual cached results and remove them with their owner. Propagation must stay local.
-  [ ] Refresh owner-following selections on explicit replacement while preserving original borrower/view
+  [x] Refresh owner-following selections on explicit replacement while preserving original borrower/view
       identity and preventing name-reuse retargeting. Cover source/view changes, configuration changes with
       equal descriptor values, detach, local resources, failed mutation and context retirement.
-  [ ] Publish coherent facts before subsequent execution; failed refresh withdraws the prepared operation.
+  [x] Publish coherent facts before subsequent execution; failed refresh withdraws the prepared operation.
       Ordinary content writes must not invalidate structural compatibility. No stale-result fallback,
       automatic retry, registry scan, descriptor query or poll-every-draw recovery path is permitted.
-  [ ] Migrate affected producer APIs and all direct consumers together. If a consumer contract cannot change
+  [x] Migrate affected producer APIs and all direct consumers together. If a consumer contract cannot change
       independently, include that consumer's phase 4/5 work in this unit before removing the old API.
-  [ ] Verify initialization/import failure cleanup, exact-generation compatibility, local change fanout,
+  [x] Verify initialization/import failure cleanup, exact-generation compatibility, local change fanout,
       original identity and failed refresh with focused tests; preserve current query/forwarding policy.
-  [ ] Update relevant resource, shader and RHI contract documentation to match the completed implementation.
-  [ ] Completion gate: producer invariants and actual consumer refresh paths are implemented, with no second
+  [x] Update relevant resource, shader and RHI contract documentation to match the completed implementation.
+  [x] Completion gate: producer invariants and actual consumer refresh paths are implemented, with no second
       authority or placeholder notification layer awaiting later work.
+
+  Completion evidence: second review and independent completion audit passed. Debug and ordinary Release
+  each passed the 265/265 focused matrix, the 49/49 affected correction checks and the strengthened 1/1
+  failed-refresh regression, with zero failures or skips. Receipts under TestResults/BindingProducer:
+  producer-{debug,release}-final.trx, producer-corrections-{debug,release}.trx and
+  producer-refresh-{debug,release}.trx. Normalized request handoff, failed-candidate cleanup, supplied
+  compatibility, original/local identities, local fanout and failed-refresh withdrawal are covered.
+  Existing binding/graphics/transfer execution guards remain assigned to phases 4–6. No live-game or
+  performance acceptance is claimed.
 
 Phase 4: Replace binding execution and uniform publication as one unit
   Outcome: shader bindings execute prepared relationships without repeated lifetime/compatibility proof.

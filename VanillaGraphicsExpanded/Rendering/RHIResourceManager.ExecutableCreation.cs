@@ -22,7 +22,7 @@ internal sealed partial class RHIResourceManager
         /// <inheritdoc />
         public GpuResourceKind Kind => GpuResourceKind.Shader;
         /// <inheritdoc />
-        public void Validate(in GpuShaderInitialization initialization) => initialization.Validate();
+        public GpuShaderInitialization Prepare(in GpuShaderInitialization initialization) { initialization.Validate(); return initialization; }
         /// <inheritdoc />
         public GpuShaderMetadata? Initialize(RHI.RHICommandContext execution, in GpuShaderInitialization initialization, out nint id)
             => execution.InitializeShader(initialization, out id);
@@ -36,7 +36,7 @@ internal sealed partial class RHIResourceManager
         /// <inheritdoc />
         public GpuResourceKind Kind => GpuResourceKind.Program;
         /// <inheritdoc />
-        public void Validate(in GpuProgramInitialization initialization) { }
+        public GpuProgramInitialization Prepare(in GpuProgramInitialization initialization) => initialization;
         /// <inheritdoc />
         public GpuProgramMetadata? Initialize(RHI.RHICommandContext execution, in GpuProgramInitialization initialization, out nint id)
             => execution.InitializeProgram(out id);

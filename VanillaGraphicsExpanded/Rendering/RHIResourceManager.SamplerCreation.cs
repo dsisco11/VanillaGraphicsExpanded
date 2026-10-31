@@ -18,7 +18,7 @@ internal sealed partial class RHIResourceManager
         /// <inheritdoc />
         public GpuResourceKind Kind => GpuResourceKind.Sampler;
         /// <inheritdoc />
-        public void Validate(in GpuSamplerInitialization initialization) { }
+        public GpuSamplerInitialization Prepare(in GpuSamplerInitialization initialization) => initialization;
         /// <inheritdoc />
         public GpuSamplerMetadata? Initialize(RHI.RHICommandContext execution, in GpuSamplerInitialization initialization, out nint id)
             => execution.InitializeSampler(out id);

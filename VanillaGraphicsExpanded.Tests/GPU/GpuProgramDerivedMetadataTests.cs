@@ -63,10 +63,15 @@ public sealed partial class GpuProgramMetadataInterceptionTests
         {
             using var program=CreateProgram(out int shader,true); VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.RetireResource(new(VanillaGraphicsExpanded.Rendering.GpuResourceKind.Shader, shader));
             var layout=PrepareArrayLayout(program);
+            layout.RebuildCache(program.ProgramId);
+            Assert.NotEmpty(layout.SamplerBindings);
+            Assert.NotEmpty(layout.UniformBlockBindings);
             using var alias=new ProgramAlias(program.ProgramId); RHIResourceManager.AcquireWrapperMetadata(alias,GpuProgramMetadataReader.Instance);
             int location=GL.GetUniformLocation(program.ProgramId,"inputs[0]");
             Assert.ThrowsAny<Exception>(()=>OpenGLProgramAssignments.SetUnit(program.ProgramId,location,5));
             Assert.True(program.NeedsNativePreparation); Assert.Throws<InvalidOperationException>(()=>layout.BinaryInterface);
+            Assert.Empty(layout.SamplerBindings);
+            Assert.Empty(layout.UniformBlockBindings);
             Assert.Contains(alias.Snapshot.TextureUnits,item=>item.Location==location && item.Unit==5);
             Assert.Equal(ErrorCode.NoError,GL.GetError());
         }

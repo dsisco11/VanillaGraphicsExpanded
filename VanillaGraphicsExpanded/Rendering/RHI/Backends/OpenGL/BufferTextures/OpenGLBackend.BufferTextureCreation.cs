@@ -15,7 +15,6 @@ internal sealed partial class OpenGLBackend
         RequireContext();
         if (!request.Has(0) || !request.Has(1) || !request.Has(2)) throw new ArgumentException("Backing buffer, format and whole/range intent are required.");
         var buffer = request.Buffer.RequireResource();
-        _ = RHIResourceManager.RequireBufferReferenceMetadata(buffer);
         var initialization = new GpuBufferTextureInitialization { Buffer = (int)buffer.ResourceId,
             Format = request.Format, Mode = request.WholeBuffer ? GpuBufferTextureMode.Whole : GpuBufferTextureMode.Range };
         if (!request.WholeBuffer)

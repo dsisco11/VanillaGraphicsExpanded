@@ -60,7 +60,7 @@ internal sealed partial class OpenGLBackend
     {
         var request = description;
         RequireContext();
-        var initialization = LowerTexture(request).Resolve();
+        var initialization = LowerTexture(request);
         try
         {
             if (!RHIResourceManager.CreateTexture(initialization, owner, out _).HasValue)

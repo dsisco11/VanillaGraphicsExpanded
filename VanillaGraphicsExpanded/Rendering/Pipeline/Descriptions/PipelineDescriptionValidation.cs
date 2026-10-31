@@ -10,11 +10,10 @@ namespace VanillaGraphicsExpanded.Rendering.Pipeline.Descriptions;
 internal static class PipelineDescriptionValidation
 {
     #region Public API
-    /// <summary>Checks cross-category invariants and delegates focused state validation before publication.</summary>
+    /// <summary>Checks device-dependent relationships for a description whose constructor established authored shape.</summary>
     public static void Validate(RHIGraphicsPipelineDescription value, GraphicsCapabilities capabilities)
     {
         ArgumentNullException.ThrowIfNull(capabilities);
-        ValidateShape(value);
         if (capabilities.MaxDrawBuffers < 1 || capabilities.MaxVertexAttributes < 1 || capabilities.MaxSampleMaskWords < 1)
             throw new ArgumentException("Incomplete graphics capabilities.", nameof(capabilities));
         if (value.Targets.Colors.Count > capabilities.MaxDrawBuffers || value.Targets.Samples > Math.Max(1, capabilities.MaxSamples))

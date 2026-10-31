@@ -18,7 +18,7 @@ internal sealed partial class RHIResourceManager
         /// <inheritdoc />
         public GpuResourceKind Kind => GpuResourceKind.Semaphore;
         /// <inheritdoc />
-        public void Validate(in GpuSemaphoreInitialization initialization) { }
+        public GpuSemaphoreInitialization Prepare(in GpuSemaphoreInitialization initialization) => initialization;
         /// <inheritdoc />
         public GpuSemaphoreMetadata? Initialize(RHI.RHICommandContext execution, in GpuSemaphoreInitialization initialization, out nint id)
             => execution.InitializeSemaphore(out id);
