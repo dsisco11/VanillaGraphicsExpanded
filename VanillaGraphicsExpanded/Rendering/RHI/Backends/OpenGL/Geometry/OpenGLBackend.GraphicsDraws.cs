@@ -26,7 +26,7 @@ internal sealed partial class OpenGLBackend
             try
             {
                 PrepareGraphicsPacket(pipeline, shader, geometry, dynamics, resources);
-                MarkBindingExecution(shader, resources);
+                MarkBindingExecution();
                 GL.DrawArraysInstancedBaseInstance(OpenGLPrimitiveValues.ToCore(pipeline.Description.Assembly.Topology),
                     draw.FirstVertex, draw.VertexCount, draw.InstanceCount, draw.BaseInstance);
                 CompleteGraphicsPacket(geometry);
@@ -53,7 +53,7 @@ internal sealed partial class OpenGLBackend
             try
             {
                 PrepareGraphicsPacket(pipeline, shader, geometry, dynamics, resources);
-                MarkBindingExecution(shader, resources);
+                MarkBindingExecution();
                 GL.DrawElementsInstancedBaseVertexBaseInstance(OpenGLPrimitiveValues.ToCore(pipeline.Description.Assembly.Topology),
                     draw.IndexCount, IndexType(indices.Format), offset, draw.InstanceCount, draw.BaseVertex, draw.BaseInstance);
                 CompleteGraphicsPacket(geometry);
@@ -88,7 +88,7 @@ internal sealed partial class OpenGLBackend
         var realized = (OpenGLGraphicsPipelineRealization)pipeline.Realization;
         cache.ApplyGraphicsState(pipeline.Description, dynamics, realized.Relevance, realized.Coverage);
         if (resources is null) ApplyExecutable(shader);
-        else PublishResourceBindings(shader, resources, reuseCommittedUniforms: true);
+        else PublishResourceBindings(shader, reuseCommittedUniforms: true);
         OpenGLVertexSelection.Bind(cache,vertexArrayName);
         ValidateGraphicsFeedback(pipeline, resources);
         shader.RequireUsable();

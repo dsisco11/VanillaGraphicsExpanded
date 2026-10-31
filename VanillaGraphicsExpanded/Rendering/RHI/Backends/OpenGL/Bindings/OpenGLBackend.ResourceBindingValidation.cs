@@ -1,6 +1,5 @@
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
-using System.Runtime.InteropServices;
 using VanillaGraphicsExpanded.Rendering.Contracts;
 using VanillaGraphicsExpanded.Rendering.Pipeline.Passes;
 using VanillaGraphicsExpanded.Rendering.Spirv;
@@ -13,66 +12,65 @@ internal sealed partial class OpenGLBackend
 {
     #region Private
     #region Complete set
-    /// <summary>Rechecks resource usability on every execution while retaining successful compatibility history.</summary>
-    private void ValidateResourceBindings(RHIShader shader, RHIResourceBindings inputs)
+    /// <summary>Checks current availability and acquires guards in one walk of the retained active inputs.</summary>
+    private void ValidateResourceBindings(OpenGLBindingPlan plan)
     {
-        var prepared = shader.Interface.PreparedBindings;
-        if (!inputs.SchemaValidated)
+        foreach (var input in plan.Inputs)
         {
-            foreach (var input in inputs.Samplers)
-            {
-                var entry = prepared.Resolve(input.Identity);
-                if (entry.Contract.Name is null) continue; // A property excluded by this immutable permutation has no slot effect.
-                if (entry.Contract.Kind != ShaderBindingKind.Sampler || input.Element >= entry.ActiveElements.Count)
-                    throw new ArgumentException("Sampler input does not match its prepared contract.");
-            }
-            foreach (var input in inputs.Images) RequireInputKind(prepared, input.Identity, ShaderBindingKind.Image);
-            foreach (var input in inputs.Uniforms) RequireInputKind(prepared, input.Identity, ShaderBindingKind.UniformBlock);
-            foreach (var input in inputs.Buffers)
-                RequireInputKind(prepared, input.Identity, BufferKind(input.Role));
-            inputs.SchemaValidated = true;
-        }
-        foreach (var active in prepared.ActiveEntries)
-        {
-            var binding = active.Binding;
-            ref var history = ref CollectionsMarshal.GetValueRefOrAddDefault(inputs.ValidationHistory,
-                (active.Identity, active.Element), out _);
+            var binding = input.Binding;
+            var previous = input.History;
             switch (binding.Contract.Kind)
             {
                 case ShaderBindingKind.Sampler:
-                    inputs.TrySampler(active.Identity, active.Element, out var sampler);
+                    var sampler = input.Sampler;
                     if (!sampler.Texture.IsEmpty && !RHIResourceManager.ValidateTextureReferenceInput(sampler.Texture.Resource))
                         throw new InvalidOperationException("Captured sampler storage was retired or became unavailable.");
-                    ShaderPreparedSubmission.ValidateSampler(binding, sampler.Texture, ref history);
+                    ShaderPreparedSubmission.ValidateSampler(binding, sampler.Texture, ref input.History);
+                    if (!sampler.Texture.IsEmpty && !previous.HasSameResult(input.History)) plan.InputsChanged = true;
+                    RetainExecutionResource(sampler.Texture.Resource);
+                    int samplerName;
                     if (!sampler.Sampler.IsEmpty)
-                        _ = RHIResourceManager.RequireSamplerReferenceMetadata(sampler.Sampler.RequireResource());
+                    {
+                        var owner = sampler.Sampler.RequireResource();
+                        _ = RHIResourceManager.RequireSamplerReferenceMetadata(owner);
+                        RetainExecutionResource(owner);
+                        samplerName = checked((int)owner.ResourceId);
+                    }
+                    else samplerName = ResolvePolicySampler((ShaderSamplerPolicy)binding.Contract.Binding.Sampler);
+                    if (input.NativeSampler != samplerName) plan.InputsChanged = true;
+                    input.NativeSampler = samplerName;
                     break;
                 case ShaderBindingKind.Image:
-                    inputs.TryImage(active.Identity, out var image);
-                    var view = ResolveImageView(binding, image);
+                    var view = input.Image;
                     if (!view.Texture.IsEmpty && !RHIResourceManager.ValidateTextureReferenceInput(view.Texture.Resource))
                         throw new InvalidOperationException("Captured image storage was retired or became unavailable.");
-                    ShaderPreparedSubmission.ValidateImage(binding, view, ref history);
+                    ShaderPreparedSubmission.ValidateImage(binding, view, ref input.History);
+                    if (!view.Texture.IsEmpty && !previous.HasSameResult(input.History)) plan.InputsChanged = true;
                     if (!view.Texture.IsEmpty) RenderPass.ValidateImageTexture(view);
+                    RetainExecutionResource(view.Texture.Resource);
                     break;
                 case ShaderBindingKind.UniformBlock:
-                    if (inputs.TryUniform(active.Identity, out var uniform)) ValidateUniformSnapshot(binding, uniform.Snapshot);
-                    else { inputs.TryBuffer(active.Identity, out var buffer); ValidateBufferInput(binding, buffer); }
+                    if (input.HasUniform) ValidateUniformSnapshot(binding, input.Uniform);
+                    else ValidateAndRetainBuffer(plan, input);
                     break;
                 case ShaderBindingKind.StorageBlock:
                 case ShaderBindingKind.AtomicCounter:
-                    inputs.TryBuffer(active.Identity, out var storage);
-                    ValidateBufferInput(binding, storage);
+                    ValidateAndRetainBuffer(plan, input);
                     break;
             }
         }
     }
-    /// <summary>Checks represented entry kinds while preserving intentionally excluded permutation inputs.</summary>
-    private static void RequireInputKind(GpuPreparedBindings prepared, ulong identity, ShaderBindingKind kind)
+    /// <summary>Protects a validated original buffer through publication and dispatch.</summary>
+    private void ValidateAndRetainBuffer(OpenGLBindingPlan plan, OpenGLBindingPlan.Input input)
     {
-        var entry = prepared.Resolve(identity);
-        if (entry.Contract.Name is not null && entry.Contract.Kind != kind)
-            throw new ArgumentException("Resource input kind does not match its prepared contract.");
+        ValidateBufferInput(input.Binding, input.Buffer);
+        if (input.Buffer.Buffer.IsEmpty) return;
+        var resource = input.Buffer.Buffer.RequireResource();
+        var metadata = RHIResourceManager.RequireBufferReferenceMetadata(resource);
+        if (input.BufferIdentity != resource.ResourceId || input.BufferMetadata != metadata) plan.InputsChanged = true;
+        input.BufferIdentity = resource.ResourceId;
+        input.BufferMetadata = metadata;
+        RetainExecutionResource(resource);
     }
     #endregion
     #region Uniforms and buffers
@@ -106,14 +104,6 @@ internal sealed partial class OpenGLBackend
             || binding.Contract.Kind == ShaderBindingKind.UniformBlock && length > Capabilities.MaxUniformBlockSize)
             throw new ArgumentException($"Captured {binding.Contract.Name} buffer extent {length} (minimum {minimum}, offset {input.Offset}, alignment {alignment}) is incompatible with its prepared block.");
     }
-    /// <summary>Maps the three semantic buffer roles accepted by immutable resource tables.</summary>
-    private static ShaderBindingKind BufferKind(BufferRole role) => role switch
-    {
-        BufferRole.Uniform => ShaderBindingKind.UniformBlock,
-        BufferRole.ShaderStorage => ShaderBindingKind.StorageBlock,
-        BufferRole.AtomicCounter => ShaderBindingKind.AtomicCounter,
-        _ => throw new ArgumentOutOfRangeException(nameof(role))
-    };
     /// <summary>Rejects absent required resources; optional absent inputs are explicitly cleared during execution.</summary>
     private static void RequireInput(GpuPreparedBindings.Entry binding, bool present)
     {
@@ -121,21 +111,6 @@ internal sealed partial class OpenGLBackend
             throw new InvalidOperationException($"Shader requires a captured {binding.Contract.Name} resource.");
     }
     #endregion
-    #region Image projection
-    /// <summary>Projects the semantic selection for the retained metadata validator, never choosing a native execution variant.</summary>
-    private static RHIImageBinding ResolveImageView(GpuPreparedBindings.Entry binding, RHIImageInput input)
-    {
-        var view = input.View;
-        bool layered = view.Layered;
-        if (input.DefaultView)
-        {
-            var target = (TextureDimension)GpuPreparedBindings.CompatibleTextureTarget(binding.Type);
-            layered = target is TextureDimension.Three or TextureDimension.TwoArray
-                or TextureDimension.Cube or TextureDimension.OneArray
-                or TextureDimension.CubeArray or TextureDimension.TwoMultisampleArray;
-        }
-        return view with { Layered = layered };
-    }
-    #endregion
+
     #endregion
 }

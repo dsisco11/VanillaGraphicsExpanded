@@ -395,6 +395,16 @@ Commit only the captured successful revision, preserving newer CPU edits. Cancel
 storage; failed binding aborts only a new candidate. Ordinary successful-upload history also advances
 at execution, never recording. Shader table/generation compatibility is checked before publication.
 
+Binding execution reuses an immutable-input plan owned by the current backend and keyed weakly by the
+captured table. Fixed schema/interface selection, active partitions and slot ordering are prepared once;
+native identities, metadata availability and resource guards remain execution-time
+work. Validation and retention share one active-input walk; publication and uniform consumption use
+their prepared subsets. A successful unchanged publication reuses a receipt of the existing cache binding
+revision, validated input facts and current uniform allocation versions. Binding mutation, external
+observation, uncertainty, deletion, restoration or context changes expire the receipt; callbacks during
+publication prevent certification. No slot state is duplicated and resource validation is never bypassed.
+Recorded and immediate commands use this same path and preserve current-epoch uniform commitment.
+
 ## List lifecycle and storage
 
 `Recording -> Closed -> Executing -> Executed | Failed`; `Recording | Closed -> Cancelled`.

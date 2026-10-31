@@ -1662,21 +1662,42 @@ Phase 9.3.2: Eliminate redundant resource-binding processing
   Depends on the existing binding/submission contracts; completion precedes final 9.3 qualification.
   Outcome: binding selection and draw execution share reusable work while execution-time correctness remains intact.
 
-  ☐ Trace BindResources, BeginBindingExecution and PublishResourceBindings through immediate and recorded
+  ☑ Trace BindResources, BeginBindingExecution and PublishResourceBindings through immediate and recorded
     submission. Separate selection-time validation, execution-time validation, resource retention and native
     publication. Identify which work is actually duplicated; committed-uniform reuse already avoids a second
     upload but does not eliminate repeated binding traversal.
-  ☐ Define the exact validity conditions for reusing prepared binding work: shader/layout identity, binding
+  ☑ Define the exact validity conditions for reusing prepared binding work: shader/layout identity, binding
     snapshot, uniform version, resource generation and availability, context identity and relevant observed
     state changes. Preserve required revalidation after intervening external GL calls, callbacks, replacement
     or disposal. Do not unconditionally skip draw-time checks or rely on stale cache state.
-  ☐ Implement one coherent preparation/execution path that avoids duplicate unchanged traversal/publication
+  ☑ Implement one coherent preparation/execution path that avoids duplicate unchanged traversal/publication
     and retains resources through native dispatch. Preserve uniform commitment, binding suppression, failed
     submission cleanup, recorded-command semantics and restoration of externally changed bindings. Remove
     superseded paths in the same change without compatibility facades.
-  ☐ Verify unchanged binding reuse, changed uniforms/resources/layouts, active and inactive bindings,
+  ☑ Verify unchanged binding reuse, changed uniforms/resources/layouts, active and inactive bindings,
     external-state restoration and failure/disposal behavior with focused tests. Assert relevant publication
     or upload counts where useful; retain necessary execution checks and defer combined qualification to 9.3.
+
+  Implementation traceability:
+    Binding selection/execution -> Rendering.GpuCommands.Proposal.md recording/execution and binding
+    publication contracts, Rendering.GpuCommands.Contracts.md submission/failure rules, and
+    Rendering.ShaderBindingState.md prepared-resource-submission -> fixed interface/snapshot preparation,
+    current resource validation, active-only retention, uniform epoch/version commitment and single cache.
+    Previously BindResources and draw/dispatch each resolved active inputs, walked retention separately,
+    sorted texture slots and traversed publication. OpenGLBindingPlan now prepares immutable selections
+    once; BeginBindingExecution validates and retains together. PublishResourceBindings reuses a successful
+    cache-revision/input/uniform-allocation receipt before traversing slots. Mutations, external observation,
+    restoration, uncertainty and context changes expire receipts; callbacks prevent false certification.
+    ShaderInputValidation compatibility keys and manager usability remain authoritative. Public APIs and
+    recorded opcodes are unchanged; old SchemaValidated/ValidationHistory and repeated lookup/sort paths
+    are removed. Uniform consumption uses the active uniform subset; native multi-bind uses saved dispatch.
+    Focused Debug evidence: artifacts/rhi-phase932/final-debug.log and final-debug.trx, 92/92 passed,
+    zero failures/skips. This includes unchanged publication counters, recorded snapshots, external
+    restoration, changed inputs/interfaces, inactive entries, disposal/failure and callback retention.
+    Normal shader-enabled Release build: zero errors, 24 warnings; 761/761 cached shader variants reused.
+    Receipt: artifacts/rhi-phase932/final-release.log. Second review and independent completion audit
+    passed with no remaining findings. Permanent binding/contracts documentation reflects these rules.
+    No benchmark or live performance claim; combined qualification and geometry work remain in 9.3/9.3.3.
 
 Phase 9.3.3: Reuse invariant geometry validation across submission
   Depends on 9.3.1.1 and the existing geometry/submission contracts; complete before final 9.3 qualification.

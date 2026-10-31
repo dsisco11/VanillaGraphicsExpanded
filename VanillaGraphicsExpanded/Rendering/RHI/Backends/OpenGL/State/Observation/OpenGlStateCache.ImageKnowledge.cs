@@ -17,6 +17,7 @@ internal sealed partial class OpenGlStateCache
     /// <summary>Returns the existing unit's target dictionary for backend reconciliation.</summary>
     internal Dictionary<TextureTarget, int> ImageBindings(int unit)
     {
+        ChangeBindingPublication();
         EnsureTextureUnitCapacity(unit);
         return textureBindingsByUnit![unit] ??= new();
     }
@@ -29,12 +30,14 @@ internal sealed partial class OpenGlStateCache
     /// <summary>Publishes or withdraws one sampler selector after backend execution.</summary>
     internal void SetSamplerKnowledge(int unit, int? value)
     {
+        ChangeBindingPublication();
         EnsureTextureUnitCapacity(unit);
         samplerBindingByUnit![unit] = value;
     }
     /// <summary>Withdraws only the potentially changed target/slot after an external bind.</summary>
     internal void ForgetImageBinding(TextureTarget target, int? unit)
     {
+        ChangeBindingPublication();
         if (unit is int known) { ImageBindings(known).Remove(target); return; }
         if (textureBindingsByUnit is not null)
             foreach (var bindings in textureBindingsByUnit) bindings?.Remove(target);

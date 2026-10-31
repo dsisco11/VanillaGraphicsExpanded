@@ -24,9 +24,9 @@ internal sealed partial class OpenGLBackend
             try
             {
                 if (resources is null) ApplyExecutable(shader);
-                else PublishResourceBindings(shader, resources, reuseCommittedUniforms: true);
+                else PublishResourceBindings(shader, reuseCommittedUniforms: true);
                 shader.RequireUsable();
-                MarkBindingExecution(shader, resources);
+                MarkBindingExecution();
                 GL.DispatchCompute(dispatch.X, dispatch.Y, dispatch.Z);
                 RequireContext();
             }
@@ -53,13 +53,13 @@ internal sealed partial class OpenGLBackend
                 try
                 {
                     if (resources is null) ApplyExecutable(shader);
-                    else PublishResourceBindings(shader, resources, reuseCommittedUniforms: true);
+                    else PublishResourceBindings(shader, reuseCommittedUniforms: true);
                     // Indirect dispatch is a bound-only native operation. The backend owns selector restoration.
                     using var binding = cache.BindBufferScope(OpenTK.Graphics.OpenGL.BufferTarget.DispatchIndirectBuffer, (int)buffer.ResourceId);
                     RequireContext();
                     shader.RequireUsable();
                     RequireRange(arguments.Buffer, arguments.Offset, arguments.Length);
-                    MarkBindingExecution(shader, resources);
+                    MarkBindingExecution();
                     GL.DispatchComputeIndirect(arguments.Offset);
                     RequireContext();
                 }

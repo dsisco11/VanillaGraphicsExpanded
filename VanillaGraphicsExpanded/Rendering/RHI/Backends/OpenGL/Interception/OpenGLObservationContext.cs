@@ -9,6 +9,7 @@ internal static class OpenGLObservationContext
         bool requireCapabilities = true)
     {
         cache = OpenGlStateCache.Current;
+        cache.ObserveBindingPublication();
         origin = default;
         // Menu rendering may precede explicit capability admission. Absence is ordinary control flow.
         if (Integration.RenderContextRegistry.Current().Generation == 0

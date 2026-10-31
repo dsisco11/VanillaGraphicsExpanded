@@ -16,6 +16,7 @@ internal sealed partial class OpenGlStateCache
     /// <summary>Retires only proven deleted names; exact adapters may supply an outcome from their original native loader.</summary>
     internal void CompleteResourceDeletion(GpuResourceKind kind, nint nativeId, bool? observedDeletion = null, bool external = false)
     {
+        ChangeBindingPublication();
         if (nativeId == 0 || !(observedDeletion ?? WasResourceDeleted(kind, nativeId))) return;
         CancelResourceOperation(kind, nativeId);
         if (kind == GpuResourceKind.Query) ForgetQueryTarget(nativeId);

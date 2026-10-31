@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Runtime.CompilerServices;
 using VanillaGraphicsExpanded.Rendering.Contracts;
 using Legacy = OpenTK.Graphics.OpenGL;
 
@@ -9,6 +10,13 @@ namespace VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 internal sealed partial class OpenGLBackend
 {
     private readonly List<GpuResource> executionResources = new();
+    private readonly HashSet<GpuResource> executionResourceSet = new(ReferenceEqualityComparer.Instance);
+    private readonly ConditionalWeakTable<RHIResourceBindings, OpenGLBindingPlan> bindingPlans = new();
+    private OpenGLBindingPlan? executionBindingPlan;
+#if DEBUG
+    /// <summary>Counts immutable input-plan construction independently of execution checks.</summary>
+    internal long BindingPlansPrepared { get; private set; }
+#endif
 
     #region Public API
     /// <inheritdoc />
@@ -19,7 +27,7 @@ internal sealed partial class OpenGLBackend
         if (inputs.Shader != reference) throw new InvalidOperationException("Captured bindings belong to a different executable generation.");
         var shader = reference.RequireShader();
         BeginBindingExecution(shader, inputs);
-        try { PublishResourceBindings(shader, inputs, reuseCommittedUniforms: false); }
+        try { PublishResourceBindings(shader, reuseCommittedUniforms: false); }
         finally { ReleaseExecutionResources(); }
     }
     #endregion
@@ -40,18 +48,18 @@ internal sealed partial class OpenGLBackend
             }
             if (inputs.Shader != (RHIShaderRef)shader)
                 throw new InvalidOperationException("Captured resources belong to a different executable generation.");
-            ValidateResourceBindings(shader, inputs);
-            foreach (var active in shader.Interface.PreparedBindings.ActiveEntries)
+            if (!bindingPlans.TryGetValue(inputs, out var plan))
             {
-                if (inputs.TrySampler(active.Identity, active.Element, out var sampler))
-                {
-                    RetainExecutionResource(sampler.Texture.Resource);
-                    if (!sampler.Sampler.IsEmpty) RetainExecutionResource(sampler.Sampler.RequireResource());
-                }
-                if (inputs.TryImage(active.Identity, out var image)) RetainExecutionResource(image.View.Texture.Resource);
-                if (inputs.TryBuffer(active.Identity, out var buffer) && !buffer.Buffer.IsEmpty)
-                    RetainExecutionResource(buffer.Buffer.RequireResource());
+                plan = new OpenGLBindingPlan(shader.Interface.PreparedBindings, inputs);
+                bindingPlans.Add(inputs, plan);
+#if DEBUG
+                BindingPlansPrepared++;
+#endif
             }
+            if (!ReferenceEquals(plan.Interface, shader.Interface.PreparedBindings))
+                throw new InvalidOperationException("Prepared binding interface changed.");
+            executionBindingPlan = plan;
+            ValidateResourceBindings(plan);
         }
         catch { ReleaseExecutionResources(); throw; }
     }
@@ -60,52 +68,64 @@ internal sealed partial class OpenGLBackend
     {
         for (int index = executionResources.Count - 1; index >= 0; index--) executionResources[index].ReleasePassReference();
         executionResources.Clear();
+        executionResourceSet.Clear();
+        executionBindingPlan = null;
     }
     /// <summary>Applies executed resources, reusing committed uniform ranges only for a rendering command's state restoration.</summary>
-    private void PublishResourceBindings(RHIShader shader, RHIResourceBindings inputs, bool reuseCommittedUniforms)
+    private void PublishResourceBindings(RHIShader shader, bool reuseCommittedUniforms)
     {
         ApplyExecutable(shader);
-        PublishTextureInputs(shader, inputs);
-        foreach (var active in shader.Interface.PreparedBindings.ActiveEntries)
+        var plan = executionBindingPlan ?? throw new InvalidOperationException("Binding execution was not prepared.");
+        if (plan.Published && !plan.InputsChanged && plan.PublicationRevision == cache.BindingPublicationRevision
+            && ReuseUniformPublication(plan, reuseCommittedUniforms))
         {
-            var binding = active.Binding;
+            shader.RequireUsable();
+            return;
+        }
+        // Do not certify a partially published set or one interrupted by an external callback.
+        plan.Published = false;
+        ulong observations = cache.BindingObservationRevision;
+        PublishTextureInputs(plan);
+        foreach (var input in plan.Other)
+        {
+            var binding = input.Binding;
             int slot = binding.Contract.Binding.Slot;
             switch (binding.Contract.Kind)
             {
                 case ShaderBindingKind.Image:
-                    inputs.TryImage(active.Identity, out var image);
-                    var view = ResolveImageView(binding, image);
-                    OpenGLImageSlotBindings.BindImageTexture(cache, slot, view);
+                    OpenGLImageSlotBindings.BindImageTexture(cache, slot, input.Image);
                     break;
                 case ShaderBindingKind.UniformBlock:
-                    if (inputs.TryUniform(active.Identity, out var uniform)) PublishUniformSnapshot(slot, uniform.Snapshot, reuseCommittedUniforms);
-                    else { inputs.TryBuffer(active.Identity, out var buffer); PublishBufferInput(binding.Contract.Kind, slot, buffer); }
+                    if (input.HasUniform) input.CommittedUniform = PublishUniformSnapshot(slot, input.Uniform, reuseCommittedUniforms);
+                    else PublishBufferInput(binding.Contract.Kind, slot, input.Buffer);
                     break;
                 case ShaderBindingKind.StorageBlock:
                 case ShaderBindingKind.AtomicCounter:
-                    inputs.TryBuffer(active.Identity, out var storage);
-                    PublishBufferInput(binding.Contract.Kind, slot, storage);
+                    PublishBufferInput(binding.Contract.Kind, slot, input.Buffer);
                     break;
             }
         }
         shader.RequireUsable();
+        plan.InputsChanged = false;
+        plan.PublicationRevision = cache.BindingPublicationRevision;
+        plan.Published = observations == cache.BindingObservationRevision;
     }
     /// <summary>Marks only active captured blocks consumed before dispatch, preserving pending recordings and inactive inputs.</summary>
-    private static void MarkBindingExecution(RHIShader shader, RHIResourceBindings? inputs)
+    private void MarkBindingExecution()
     {
-        if (inputs is null) return;
-        foreach (var active in shader.Interface.PreparedBindings.ActiveEntries)
-            if (active.Binding.Contract.Kind == ShaderBindingKind.UniformBlock
-                && inputs.TryUniform(active.Identity, out var uniform) && uniform.Snapshot is { } snapshot)
+        if (executionBindingPlan is not { } plan) return;
+        foreach (var input in plan.Uniforms)
+            if (input.Uniform is { } snapshot)
                 snapshot.Publication.MarkExecution(snapshot.ContentRevision);
     }
 
     /// <summary>Retains each original backing wrapper once until native callbacks and publication cleanup return.</summary>
     private void RetainExecutionResource(GpuResource? resource)
     {
-        if (resource is null || executionResources.Contains(resource)) return;
+        if (resource is null || executionResourceSet.Contains(resource)) return;
         resource.RetainPassReference();
         executionResources.Add(resource);
+        executionResourceSet.Add(resource);
         if (resource is GpuTextureView { Source: { } source }) RetainExecutionResource(source);
     }
     #endregion

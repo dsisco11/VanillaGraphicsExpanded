@@ -14,6 +14,7 @@ internal sealed partial class OpenGlStateCache
     internal void AttemptBoundaryCleanup(Action cleanup, List<Exception> failures,
         bool shaderOwnership = false)
     {
+        ChangeBindingPublication();
         bool previousRestoration = restoringBoundary;
         try
         {

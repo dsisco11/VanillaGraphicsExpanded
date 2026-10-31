@@ -22,11 +22,16 @@ internal sealed partial class OpenGlStateCache
     }
 
     /// <summary>Establishes only facts proved by a completed controlled generic bind.</summary>
-    internal void EstablishBufferBinding(BufferTarget target, int buffer) => bufferBindingByTarget[target] = buffer;
+    internal void EstablishBufferBinding(BufferTarget target, int buffer)
+    {
+        ChangeBindingPublication();
+        bufferBindingByTarget[target] = buffer;
+    }
 
     /// <summary>Commits an indexed key and its generic association after native execution.</summary>
     internal void EstablishIndexedBufferBinding(BufferRangeTarget target, int slot, int buffer, nint offset, nint size, bool range)
     {
+        ChangeBindingPublication();
         indexedBufferBindings[(target, slot)] = new(buffer, offset, size, range);
         bufferBindingByTarget[(BufferTarget)target] = buffer;
 #if DEBUG
@@ -37,6 +42,7 @@ internal sealed partial class OpenGlStateCache
     /// <summary>Withdraws only uncertain generic/indexed selector knowledge after interruption.</summary>
     internal void ForgetBufferBinding(BufferTarget target, int? slot = null)
     {
+        ChangeBindingPublication();
         bufferBindingByTarget.Remove(target);
         if (slot.HasValue) indexedBufferBindings.Remove(((BufferRangeTarget)target, slot.Value));
     }

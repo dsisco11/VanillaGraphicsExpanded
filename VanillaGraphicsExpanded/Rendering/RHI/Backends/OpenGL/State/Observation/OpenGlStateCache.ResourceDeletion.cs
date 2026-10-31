@@ -22,6 +22,7 @@ internal sealed partial class OpenGlStateCache
     /// <summary>Forgets only references to a deleted buffer; other VAOs may retain attached storage.</summary>
     private void ForgetDeletedBuffer(int buffer)
     {
+        ChangeBindingPublication();
         RecordBoundaryRetirement(EPipelineState.BufferBindings, buffer);
         if (buffer == 0) return;
         bufferMappings.Remove(buffer);

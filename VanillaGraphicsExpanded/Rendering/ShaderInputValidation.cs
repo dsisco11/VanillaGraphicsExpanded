@@ -47,6 +47,10 @@ internal struct ShaderInputValidation
     internal readonly bool Matches(GpuPreparedBindings.Entry binding, InputKey input) =>
         hasValidation && validated == binding && key == input;
 
+    /// <summary>Compares successful compatibility facts for an executed binding receipt, never granting usability.</summary>
+    internal readonly bool HasSameResult(in ShaderInputValidation other) =>
+        hasValidation && other.hasValidation && validated == other.validated && key == other.key;
+
     /// <summary>Records compatibility only after validation succeeds, preserving failed-input retries.</summary>
     internal void Commit(GpuPreparedBindings.Entry binding, InputKey input)
     {

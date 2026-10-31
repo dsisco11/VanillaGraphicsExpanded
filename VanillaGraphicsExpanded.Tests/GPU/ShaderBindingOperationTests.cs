@@ -59,8 +59,8 @@ public sealed class ShaderBindingOperationTests(HeadlessGLFixture fixture, ITest
 #if DEBUG
         Assert.Equal(uploads, ring.AllocationsWritten);
         Assert.Equal(bytes, ring.BytesWritten);
-        // BindResources publishes immediately, and dispatch revalidates the retained set at execution.
-        Assert.Equal(imageChecks + repeats * 2, cache.ImageCacheChecks);
+        // Execution still validates lifetime, but unchanged publication reuses its cache-owned receipt.
+        Assert.Equal(imageChecks, cache.ImageCacheChecks);
         Assert.Equal(imageBinds, cache.ResourceSlotBindCount);
         Assert.Equal(reflection, acquisition.Reads);
         Assert.Equal(names, pipeline.ProgramLayout.UniformNameResolutions);
@@ -69,7 +69,7 @@ public sealed class ShaderBindingOperationTests(HeadlessGLFixture fixture, ITest
         RHICommandContext.Current.Barrier(new(ResourceAccess.Framebuffer));
         Assert.Equal(new float[] { 7, 5, 0, 0 }, result.ReadPixels());
 #if DEBUG
-        output.WriteLine($"Generated owner: {repeats * 3} assignment attempts/skips; 0 revision changes; preparation reflection queries {reflection}; steady-state reflection/name resolutions 0; {repeats} submissions with two image cache checks each; entry resolutions 1; compatibility checks 1; numeric GL uploads 0; repeated block copies/allocations 0; repeated image or UBO range binds 0.");
+        output.WriteLine($"Generated owner: {repeats * 3} assignment attempts/skips; 0 revision changes; preparation reflection queries {reflection}; steady-state reflection/name resolutions 0; {repeats} submissions without repeated image cache checks; entry resolutions 1; compatibility checks 1; numeric GL uploads 0; repeated block copies/allocations 0; repeated image or UBO range binds 0.");
 #endif
 
         using var arrays = Load("prepared_binding", PreparedBindingComputeShader.Contract);
@@ -103,10 +103,10 @@ public sealed class ShaderBindingOperationTests(HeadlessGLFixture fixture, ITest
         Assert.Equal(textures, cache.TextureBindCount);
         Assert.Equal(samplers, cache.SamplerBindCount);
         Assert.Equal(imageBinds, cache.ResourceSlotBindCount);
-        Assert.Equal(textureChecks + repeats * 2, cache.TextureCacheChecks);
+        Assert.Equal(textureChecks, cache.TextureCacheChecks);
         // Core sampler batching compares direct SamplerKnowledge; it does not enter scalar-bind instrumentation.
         Assert.Equal(samplerChecks, cache.SamplerCacheChecks);
-        Assert.Equal(imageChecks + repeats, cache.ImageCacheChecks);
+        Assert.Equal(imageChecks, cache.ImageCacheChecks);
         Assert.Equal(reflection, acquisition.Reads);
         Assert.Equal(names, arrays.ProgramLayout.UniformNameResolutions);
         Assert.Equal(interfaceNames, arrays.ProgramLayout.BinaryInterface.UniformNameResolutions);
@@ -116,7 +116,7 @@ public sealed class ShaderBindingOperationTests(HeadlessGLFixture fixture, ITest
         RHICommandContext.Current.Barrier(new(ResourceAccess.Image | ResourceAccess.Framebuffer));
         Assert.Equal(new float[] { 11, 22, 33, 44 }, result.ReadPixels());
 #if DEBUG
-        output.WriteLine($"Managed array: preparation reflection queries {reflection}; {repeats} full-set validations/publications; {repeats * 2} texture cache checks; sampler comparisons use the uninstrumented batch path; {repeats} image cache checks; steady-state reflection/name resolutions 0; texture/sampler/image binds 0.");
+        output.WriteLine($"Managed array: preparation reflection queries {reflection}; {repeats} full-set validations/publications; 0 repeated texture cache checks; sampler comparisons use the uninstrumented batch path; 0 repeated image cache checks; steady-state reflection/name resolutions 0; texture/sampler/image binds 0.");
 #endif
 
         using var buffer = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = BufferRole.ShaderStorage, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.DynamicDraw, Label = null }).RequireResource();
@@ -174,6 +174,61 @@ public sealed class ShaderBindingOperationTests(HeadlessGLFixture fixture, ITest
 #endif
         }
         finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
+    }
+    /// <summary>A retained plan restores external bindings, preserves recorded versions and rejects disposed inputs before dispatch.</summary>
+    [Fact]
+    public void PreparedPlanSurvivesRecordedReuseAndExternalChangesButNotDisposal()
+    {
+        EnsureContextValid();
+        using var pipeline = Load("uniform_state", UniformStateComputeShader.Contract);
+        using var shader = new UniformStateComputeShader(pipeline);
+        var context = RHICommandContext.Current;
+        using var outputTexture = context.CreateTexture2D(new() { Dimension = TextureDimension.Two,
+            Format = TextureFormat.Rgba32f, Width = 1, Height = 1, MipLevels = 1,
+            Storage = ResourceStorageMode.Mutable }).RequireResource();
+        shader.Values = [2, 3]; shader.Scalar = 7;
+        shader.Output = new(outputTexture, ImageAccess.WriteOnly);
+        var original = shader.CaptureBindings();
+        context.SetPipeline(shader.Pipeline);
+        context.BindResources(original);
+#if DEBUG
+        var backend = (OpenGLBackend)typeof(RHICommandContext)
+            .GetField("backend", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(context)!;
+        long plans = backend.BindingPlansPrepared;
+#endif
+        using var list = context.CreateCommandList();
+        list.SetPipeline(shader.Pipeline); list.BindResources(original); list.Dispatch(new(1)); list.Close();
+        // A later CPU edit cannot change the captured version or its prepared entry selections.
+        shader.Scalar = 19;
+        GL.BindImageTexture(0, 0, 0, false, 0, TextureAccess.WriteOnly, SizedInternalFormat.Rgba32f);
+        Assert.Equal(CommandListState.Executed, context.Submit(list).State);
+        context.Barrier(new(ResourceAccess.Image | ResourceAccess.Framebuffer));
+        Assert.Equal(new float[] { 7, 5, 0, 0 }, outputTexture.ReadPixels());
+#if DEBUG
+        Assert.Equal(plans, backend.BindingPlansPrepared);
+#endif
+        // Intervening external mutation must also be restored when dispatch does not repeat BindResources.
+        GL.BindImageTexture(0, 0, 0, false, 0, TextureAccess.WriteOnly, SizedInternalFormat.Rgba32f);
+        context.Dispatch(new(1));
+        GL.GetInteger((GetIndexedPName)All.ImageBindingName, 0, out int image);
+        Assert.Equal(outputTexture.TextureId, image);
+        context.BindResources(shader.CaptureBindings());
+        context.Dispatch(new(1));
+        context.Barrier(new(ResourceAccess.Image | ResourceAccess.Framebuffer));
+        Assert.Equal(new float[] { 19, 5, 0, 0 }, outputTexture.ReadPixels());
+#if DEBUG
+        Assert.Equal(plans + 1, backend.BindingPlansPrepared);
+#endif
+        outputTexture.Dispose();
+        Assert.ThrowsAny<InvalidOperationException>(() => context.Dispatch(new(1)));
+        // Failed validation must release all guards and leave the same backend usable.
+        using var replacement = context.CreateTexture2D(new() { Dimension = TextureDimension.Two,
+            Format = TextureFormat.Rgba32f, Width = 1, Height = 1, MipLevels = 1,
+            Storage = ResourceStorageMode.Mutable }).RequireResource();
+        shader.Output = new(replacement, ImageAccess.WriteOnly);
+        shader.Dispatch(1);
+        context.Barrier(new(ResourceAccess.Image | ResourceAccess.Framebuffer));
+        Assert.Equal(new float[] { 19, 5, 0, 0 }, replacement.ReadPixels());
     }
     #endregion
 

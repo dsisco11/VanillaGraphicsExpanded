@@ -243,6 +243,7 @@ internal sealed partial class OpenGlStateCache
         /// <summary>Attempts all independent borrowed fields and reports the complete failure set.</summary>
         public void Dispose()
         {
+            cache.ChangeBindingPublication();
             var failures = new List<Exception>();
             // Predicates read live cache knowledge after earlier dependent restores.
             foreach (var field in fields)

@@ -24,12 +24,12 @@ internal sealed partial class OpenGLBackend
         else OpenGLBufferBindings.BindBufferRange(cache, target, slot, name, input.Offset, input.Length);
     }
     /// <summary>Selects current-epoch physical storage and commits only the captured version after native binding succeeds.</summary>
-    private void PublishUniformSnapshot(int slot, RHIUniformSnapshot? snapshot, bool reuseCommittedUniforms)
+    private UniformPublication.Candidate? PublishUniformSnapshot(int slot, RHIUniformSnapshot? snapshot, bool reuseCommittedUniforms)
     {
         if (snapshot is null)
         {
             OpenGLBufferBindings.BindBufferBase(cache, Legacy.BufferRangeTarget.UniformBuffer, slot, 0);
-            return;
+            return null;
         }
         snapshot.RequireUsable();
         if (!RHIUniformRingSystem.TryGetCurrent(out var ring)) throw new InvalidOperationException("No open uniform allocation epoch.");
@@ -44,6 +44,7 @@ internal sealed partial class OpenGLBackend
                 candidate.Buffer.BufferId, candidate.Offset, candidate.Size);
             owner.Commit(ring, candidate, snapshot.ContentRevision);
             snapshot.CommitSource();
+            return candidate;
         }
         catch { owner.Abort(candidate); throw; }
     }

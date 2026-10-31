@@ -13,6 +13,7 @@ internal sealed partial class OpenGlStateCache
     /// <exception cref="ArgumentOutOfRangeException">The mask contains undefined bits.</exception>
     internal void Invalidate(EPipelineState states)
     {
+        ChangeBindingPublication();
         if (!EPipelineState.All.HasFlag(states)) throw new ArgumentOutOfRangeException(nameof(states));
 
         // Preserve the existing public invalidation groups while using unified category masks.

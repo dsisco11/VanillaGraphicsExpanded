@@ -18,21 +18,20 @@ internal sealed partial class OpenGLBackend
     #region Private
     #region Selection and policy
     /// <summary>Resolves stable managed identities, then suppresses or batches only the affected declared slots.</summary>
-    private void PublishTextureInputs(RHIShader shader, RHIResourceBindings inputs)
+    private void PublishTextureInputs(OpenGLBindingPlan plan)
     {
         texturePublications.Clear();
-        foreach (var active in shader.Interface.PreparedBindings.ActiveEntries)
+        foreach (var prepared in plan.Textures)
         {
-            var entry = active.Binding;
-            if (entry.Contract.Kind != ShaderBindingKind.Sampler) continue;
-            inputs.TrySampler(active.Identity, active.Element, out var input);
+            var entry = prepared.Binding;
+
+            var input = prepared.Sampler;
             var target = OpenGLImageValues.Target((TextureDimension)GpuPreparedBindings.CompatibleTextureTarget(entry.Type));
             int texture = input.Texture.IsEmpty ? 0 : input.Texture.TextureId;
-            int sampler = input.Sampler.IsEmpty ? ResolvePolicySampler((ShaderSamplerPolicy)entry.Contract.Binding.Sampler)
-                : checked((int)input.Sampler.RequireResource().ResourceId);
+            int sampler = prepared.NativeSampler;
             texturePublications.Add(new(entry.Contract.Binding.Slot, target, texture, sampler));
         }
-        texturePublications.Sort(static (left, right) => left.Slot.CompareTo(right.Slot));
+
         if (bindingNames.Length < texturePublications.Count) Array.Resize(ref bindingNames, texturePublications.Count);
         PublishTextureRanges();
         PublishSamplerRanges();
@@ -91,7 +90,7 @@ internal sealed partial class OpenGLBackend
             var input = texturePublications[index + item];
             cache.ForgetImageBinding(input.Target, input.Slot);
         }
-        fixed (int* names = bindingNames) GL.BindTextures(first.Slot, count, names);
+        fixed (int* names = bindingNames) OpenGLDriverCalls.BindTextures(first.Slot, count, names);
         RequireContext();
         cache.RecordTextureBind();
         for (int item = 0; item < count; item++)

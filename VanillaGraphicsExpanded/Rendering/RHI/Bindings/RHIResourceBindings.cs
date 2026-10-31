@@ -56,10 +56,6 @@ public sealed class RHIResourceBindings
     #endregion
 
     #region Internal API
-    /// <summary>Retains only successful compatibility history; it does not change the captured desired inputs.</summary>
-    internal Dictionary<(ulong Identity, int Element), ShaderInputValidation> ValidationHistory { get; } = new();
-    /// <summary>Records successful fixed-interface shape validation without changing captured input values.</summary>
-    internal bool SchemaValidated { get; set; }
     /// <summary>Looks up one frozen array element without re-enumerating caller input.</summary>
     internal bool TrySampler(ulong identity, int element, out RHISamplerBinding value) => samplers.TryGetValue((identity, element), out value);
     /// <summary>Looks up an explicit or default frozen image view.</summary>

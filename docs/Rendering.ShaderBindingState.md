@@ -160,6 +160,27 @@ publication compares existing slot knowledge and temporarily withdraws only fiel
 CPU uniform-block uploads and dirty-state commitment
 remain with `CpuUniformBuffer` and the existing ring allocator, using the prepared binding slot.
 
+The OpenGL backend weakly associates each frozen binding table with an OpenGLBindingPlan for its exact
+prepared interface. Schema checks, authored-identity lookup, active-entry partitioning, default image-view
+projection and texture-slot sorting happen once on first execution, never during recording. Selection,
+draw and dispatch reuse that plan. It retains desired references, compatibility history and a publication receipt,
+never an independently trusted copy of executed slot state. New snapshots and shader generations get
+distinct plans; context-owned backend lifetime bounds reuse.
+
+A successful publication retains a receipt of the existing cache binding revision and its validated input facts.
+Managed binding mutations, uncertainty, deletion, boundary restoration and context changes expire that receipt;
+external observation conservatively expires it as well. A callback during publication prevents certification.
+An unchanged receipt skips repeated slot traversal/publication, but uniform allocator versions and last-use
+ownership are still checked. Single-draw consumption or a new epoch forces the appropriate publication.
+
+Every execution validates current availability, allocation identity, metadata revisions, ranges and
+uniform lifetime while retaining the active resources in the same walk. Required publication visits the prepared
+texture and non-texture partitions directly and consults the existing state cache, so observed external
+mutations are restored and known-equal native binds remain suppressed. It does not skip execution checks
+merely because a table is unchanged. Uniform commitment still uses the current allocator epoch and
+captured revision; consumption visits only prepared uniform entries. All guards release on failure or
+after dispatch, and weak plan keys do not retain otherwise abandoned snapshots.
+
 Cloud map, primary visibility and liquid-depth consumers retain typed non-owning wrappers through the
 common resource manager. Stable selections use published metadata and ordinary slot comparisons;
 deletion invalidates their original associations before a reused name can be selected again. Simple

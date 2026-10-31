@@ -49,7 +49,7 @@ internal sealed partial class OpenGLBackend
                     batchBaseVertices[index] = draws[index].BaseVertex;
                     batchOffsets[index] = checked(indices.Range.Offset + checked((nint)draws[index].FirstIndex * width));
                 }
-                MarkBindingExecution(shader, resources);
+                MarkBindingExecution();
                 fixed (int* counts = batchCounts, bases = batchBaseVertices)
                 fixed (nint* offsets = batchOffsets)
                     GL.MultiDrawElementsBaseVertex(OpenGLPrimitiveValues.ToCore(pipeline.Description.Assembly.Topology),

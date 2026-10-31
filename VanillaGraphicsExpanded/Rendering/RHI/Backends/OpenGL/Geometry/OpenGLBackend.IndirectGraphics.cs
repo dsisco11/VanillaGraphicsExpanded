@@ -62,7 +62,7 @@ internal sealed partial class OpenGLBackend
             RequireContext();
             pipeline.RequireShader().RequireUsable();
             geometry.RequireLive();
-            MarkBindingExecution(pipeline.RequireShader(), resources);
+            MarkBindingExecution();
             ExecuteNativeIndirect(pipeline.Description.Assembly.Topology, geometry.Indices?.Format, draw, indexed);
             CompleteGraphicsPacket(geometry);
         }
