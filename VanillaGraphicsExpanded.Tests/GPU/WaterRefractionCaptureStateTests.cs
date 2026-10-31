@@ -271,41 +271,23 @@ public sealed class WaterRefractionCaptureStateTests(HeadlessGLFixture fixture) 
             }
             AssertStableFrames();
 
-            // A live empty pool is authoritative even after a previous wet frame.
-            // Keep allocated targets across the skip, then republish current data
-            // when geometry is added back to that same engine-owned pool.
+            // Even a known-empty liquid manager must retain capture and reuse its allocations.
             var liquidRenderer = (Vintagestory.Client.NoObf.ChunkRenderer)System.Runtime.CompilerServices.RuntimeHelpers.GetUninitializedObject(typeof(Vintagestory.Client.NoObf.ChunkRenderer));
             liquidRenderer.textureIds = [17];
             liquidRenderer.poolsByRenderPass = new MeshDataPoolManager[(int)EnumChunkRenderPass.Liquid + 1][];
-            var manager = new MeshDataPoolManager(null!, null!, api, 16, 24, 4);
-            liquidRenderer.poolsByRenderPass[(int)EnumChunkRenderPass.Liquid] = [manager];
-            var pool = (MeshDataPool)HarmonyLib.AccessTools.Constructor(typeof(MeshDataPool), [typeof(int), typeof(int), typeof(int)]).Invoke([16, 24, 4]);
-            var livePools = (List<MeshDataPool>)HarmonyLib.AccessTools.Field(typeof(MeshDataPoolManager), "pools").GetValue(manager)!;
-            var locations = (List<ModelDataPoolLocation>)HarmonyLib.AccessTools.Field(typeof(MeshDataPool), "poolLocations").GetValue(pool)!;
-            livePools.Add(pool);
+            liquidRenderer.poolsByRenderPass[(int)EnumChunkRenderPass.Liquid] = [new MeshDataPoolManager(null!, null!, api, 16, 24, 4)];
             VanillaGraphicsExpanded.PBR.Liquids.LiquidMeshSource.Register(api, liquidRenderer, new(1, 1));
             try
             {
                 var retainedColor = composite.PreOverlayScene.Color;
                 var retainedDepth = composite.PreOverlayScene.Depth;
-                int beforeDry = draws;
-                HarmonyLib.AccessTools.Method(typeof(VanillaGraphicsExpanded.PBR.Liquids.WaterRefractionCapture), "Capture").Invoke(capture, null);
-                Assert.Equal(beforeDry, draws);
-                Assert.False(composite.PreOverlayScene.Published);
+                int beforeCapture = draws;
+                capture.OnRenderFrame(.016f, EnumRenderStage.Before);
+                ComposeChangedWorld(.45f);
+                Assert.True(draws > beforeCapture);
                 Assert.Same(retainedColor, composite.PreOverlayScene.Color);
                 Assert.Same(retainedDepth, composite.PreOverlayScene.Depth);
                 Assert.True(retainedColor!.IsValid); Assert.True(retainedDepth!.IsValid);
-                var location = new ModelDataPoolLocation();
-                locations.Add(location);
-                capture.OnRenderFrame(.016f, EnumRenderStage.Before);
-                ComposeChangedWorld(.45f);
-                Assert.Same(retainedColor, composite.PreOverlayScene.Color);
-                Assert.Same(retainedDepth, composite.PreOverlayScene.Depth);
-                pool.RemoveLocation(location);
-                capture.OnRenderFrame(.016f, EnumRenderStage.Before);
-                beforeDry = draws;
-                HarmonyLib.AccessTools.Method(typeof(VanillaGraphicsExpanded.PBR.Liquids.WaterRefractionCapture), "Capture").Invoke(capture, null);
-                Assert.Equal(beforeDry, draws); Assert.False(composite.PreOverlayScene.Published);
             }
             finally { VanillaGraphicsExpanded.PBR.Liquids.LiquidMeshSource.Remove(api); }
 

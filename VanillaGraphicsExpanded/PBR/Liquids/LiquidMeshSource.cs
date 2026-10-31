@@ -1,4 +1,3 @@
-using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using HarmonyLib;
 using Vintagestory.API.Client;
@@ -8,38 +7,22 @@ using Vintagestory.Client.NoObf;
 namespace VanillaGraphicsExpanded.PBR.Liquids;
 
 /// <summary>Tracks engine-owned liquid managers without capturing atlas arrays across their replacement.</summary>
-internal sealed partial class LiquidMeshSource(ChunkRenderer renderer, Vec2f tileSize) : System.IDisposable
+internal sealed partial class LiquidMeshSource : System.IDisposable
 {
     private static readonly ConditionalWeakTable<ICoreClientAPI, LiquidMeshSource> sources = new();
-    // The manager exposes draw statistics, but those are cached by prior culling.
-    // Read its current pool collection and use each pool's authoritative emptiness.
-    private static readonly AccessTools.FieldRef<MeshDataPoolManager, List<MeshDataPool>> ReadPools =
-        AccessTools.FieldRefAccess<MeshDataPoolManager, List<MeshDataPool>>("pools");
     // The public rendering API exposes only a getter for this engine mesh-layout selector.
     internal static readonly AccessTools.FieldRef<Vintagestory.Client.RenderAPIBase, bool> UseSsbo =
         AccessTools.FieldRefAccess<Vintagestory.Client.RenderAPIBase, bool>("useSSBOs");
-    internal ChunkRenderer Renderer { get; } = renderer;
-    internal Vec2f TileSize { get; } = tileSize;
+    internal ChunkRenderer Renderer { get; }
+    internal Vec2f TileSize { get; }
     internal bool SuppressNextEngineDraw { get; set; }
 
     #region Submission resources
-    /// <summary>Proves absence only when every current liquid pool is empty; unknown or unculled geometry retains demand.</summary>
-    internal bool MayHaveLiquidGeometry()
+    /// <summary>Retains the engine renderer and atlas metric without taking ownership.</summary>
+    internal LiquidMeshSource(ChunkRenderer renderer, Vec2f tileSize)
     {
-        if (Renderer.textureIds is null || Renderer.poolsByRenderPass is null
-            || Renderer.poolsByRenderPass.Length <= (int)EnumChunkRenderPass.Liquid
-            || Renderer.poolsByRenderPass[(int)EnumChunkRenderPass.Liquid] is null
-            || !TryGetAtlasPools(out var atlases, out var managers)) return true;
-        for (int i = 0; i < atlases.Length; i++)
-        {
-            var pools = ReadPools(managers[i]);
-            if (pools is null) return true;
-            // Include offscreen and mini-dimension pools. Cached triangle counts
-            // and camera fluid classification cannot prove that no interface exists.
-            for (int pool = 0; pool < pools.Count; pool++)
-                if (pools[pool] is null || !pools[pool].IsEmpty()) return true;
-        }
-        return false;
+        Renderer = renderer;
+        TileSize = tileSize;
     }
 
     /// <summary>Reads current atlas and liquid-pool arrays, validating only the engine's active atlas prefix.</summary>

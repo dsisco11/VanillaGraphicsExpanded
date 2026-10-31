@@ -1652,26 +1652,11 @@ Phase 9.3.1.1: Consume engine mesh-pool organization and remove duplicate classi
   reset, target/pipeline reuse and Debug labeling. Receipts: artifacts/rhi-phase9311/qualified-release.{log,trx}
   and qualified-debug.{log,trx}; git diff --check passed. No live appearance or performance claim is made.
 
-Phase 9.3.1.2: Derive liquid occupancy from engine mesh mutations
-  Depends on 9.3.1.1. Outcome: refraction demand uses maintained occupancy without duplicating engine membership.
-
-  ☐ Verify whether the installed engine exposes a suitable maintained aggregate before adding bookkeeping.
-    If absent, retain only the occupancy facts/counts needed for demand, derived from actual engine-owned liquid
-    pools and successful insertion, location removal and retirement. Observe completed mutations, including the
-    master manager's delayed-removal path; a queued removal is not a completed removal. Failed/no-op mutations
-    must not fabricate transitions. Initialize occupancy once for existing pools when required.
-  ☐ Keep demand bookkeeping separate from geometry preparation and pass classification. Content changes within
-    a pool update occupancy without rebuilding adapters or selections. Use the engine's pass/atlas provenance
-    and collections; do not add a parallel pool inventory or synthetic membership revision system. Handle atlas
-    growth, manager/world replacement and teardown without stale counts or retained subscriptions.
-  ☐ Replace LiquidMeshSource.MayHaveLiquidGeometry's manager/pool scan and migrate WaterRefractionCapture to the
-    maintained demand result. Preserve conservative capture when occupancy is not established; only known absence
-    may suppress it. Include offscreen and mini-dimension pools; camera position, visibility and previous draw
-    counts cannot establish absence. Preserve capture ordering and resource reuse across empty frames.
-  ☐ Remove the obsolete scan and temporary parallel demand paths. Verify occupancy transitions without membership
-    changes, failed/no-op mutations, delayed removals, multiple managers, last-occupied-pool retirement, initial
-    unknown state and world reentry. Update PBR.Liquids.md and record focused evidence for 9.3; no benchmark,
-    timing study or additional full-suite run is required for either new subphase.
+Phase 9.3.1.2: Derive liquid occupancy from engine mesh mutations — superseded by user decision
+  CPU occupancy gating has been removed. Refraction capture assumes liquid demand while its existing
+  feature/boundary checks remain active. No occupancy bookkeeping or per-frame pool scan remains.
+  GPU conditional capture and mesh-pool visibility are evaluation tasks in PBR.BaselineShading.todo;
+  they require discussion before implementation. Earlier occupancy qualification does not describe current behavior.
 
 Phase 9.3.2: Eliminate redundant resource-binding processing
   Depends on the existing binding/submission contracts; completion precedes final 9.3 qualification.

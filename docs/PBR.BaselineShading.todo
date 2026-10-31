@@ -490,3 +490,24 @@ Tasks
     - Validate capability/failure handling with focused tests, then obtain user-run acceptance on
       supported HDR displays and SDR fallback. Record presentation/interop costs and limitations;
       do not claim monitor-output support from floating-point framebuffer tests alone.
+
+  ☐ Evaluate GPU-based conditional rendering to gate the refraction-capture pass.
+    - Determine whether a GPU-produced visibility/demand predicate can be available before the existing
+      pre-overlay capture boundary. Compare same-frame and prior-frame results, synchronization costs,
+      conservative handling of unavailable results, camera changes and newly visible water.
+    - Evaluate which capture draws/operations conditional rendering can skip, and how skipped work affects
+      snapshot publication, stale contents, retained allocations and later refraction consumers. Avoid CPU
+      result readback or blocking waits. Preserve ordering and correctness when capture is required.
+    - Present feasibility, complexity, expected benefit and limitations for discussion before implementation.
+      Until approved otherwise, refraction capture assumes liquid demand; do not restore CPU occupancy tracking.
+
+  ☐ Evaluate and discuss GPU-based conditional rendering for the entire engine mesh-data-pool system.
+    - Inspect existing engine frustum/culling and pool submission behavior first. Assess GPU visibility or
+      occlusion predicates that could skip offscreen/occluded pools without duplicating engine membership.
+    - Cover opaque, shadow, transparent and liquid passes, multiple atlases, moving mini-dimensions and pool
+      creation/retirement. Main-camera invisibility must not incorrectly suppress shadow or other-view draws.
+    - Compare conditional rendering with GPU-driven indirect submission where appropriate. Account for
+      predicate generation, CPU submission that would remain, synchronization, temporal visibility changes,
+      and conservative behavior for unavailable results without CPU readback or waits.
+    - Report feasibility, integration risks, expected benefit and alternatives, then discuss the findings
+      with the user before deriving implementation work. This task does not authorize implementation.
