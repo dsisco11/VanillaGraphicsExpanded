@@ -17,6 +17,7 @@ public sealed class SurfaceLightingDisplayBoundaryTests : RenderTestBase
     /// <summary>Brightness and gamma changes retain the same HDR image and cache generation; owned final composition grades it later.</summary>
     [Theory]
     [InlineData(false)] [InlineData(true)]
+    [Trait("Scenario", "HeadlessRuntime")]
     public void DisplayGradingDoesNotEnterSceneLinearLighting(bool sh9)
     {
         EnsureContextValid();

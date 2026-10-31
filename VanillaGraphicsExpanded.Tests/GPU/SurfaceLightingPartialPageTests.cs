@@ -14,6 +14,7 @@ public sealed class SurfaceLightingPartialPageTests(HeadlessGLFixture fixture) :
     #region Partial seed publication
     /// <summary>Partial lighting support never relaxes the requirement for a coherent complete material capture.</summary>
     [Fact]
+    [Trait("Scenario", "HeadlessRuntime")]
     public void UnresolvedCapturedSourceKeepsEntirePageUnavailable()
     {
         EnsureContextValid();
@@ -31,6 +32,7 @@ public sealed class SurfaceLightingPartialPageTests(HeadlessGLFixture fixture) :
     /// <summary>Unsupported neighboring geometry cannot suppress valid texels on the same fully captured page.</summary>
     [Theory]
     [InlineData(1)] [InlineData(4)]
+    [Trait("Scenario", "HeadlessRuntime")]
     public void ReadySeedTexelsPublishWhileUnresolvedNeighborsRetry(int density)
     {
         EnsureContextValid();
@@ -66,6 +68,7 @@ public sealed class SurfaceLightingPartialPageTests(HeadlessGLFixture fixture) :
 
     /// <summary>A real source invalidation resets prior lighting before publishing a different partial valid region.</summary>
     [Fact]
+    [Trait("Scenario", "HeadlessRuntime")]
     public void SourceChangeCannotExposePriorValidTexelsInNewPartialPage()
     {
         EnsureContextValid();
@@ -92,6 +95,7 @@ public sealed class SurfaceLightingPartialPageTests(HeadlessGLFixture fixture) :
     #region Partial indirect publication
     /// <summary>Short ray budgets leave some directions unresolved while successful nearby bounces still reach published outgoing light.</summary>
     [Fact]
+    [Trait("Scenario", "HeadlessRuntime")]
     public void MixedIndirectTraceOutcomesPublishSuccessfulTexels()
     {
         EnsureContextValid();

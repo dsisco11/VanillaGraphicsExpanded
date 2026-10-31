@@ -15,6 +15,7 @@ public sealed class CameraExposureMeasurementTests(HeadlessGLFixture fixture, IT
     #region Public API
     /// <summary>Checks a maximally contended bin before timing the production histogram and adaptation pair.</summary>
     [Theory]
+    [Trait("Purpose", "Diagnostic")]
     [InlineData(64,36,false)]
     [InlineData(320,180,false)]
     [InlineData(1280,720,false)]
@@ -26,7 +27,7 @@ public sealed class CameraExposureMeasurementTests(HeadlessGLFixture fixture, IT
     [InlineData(4097,2161,true)]
     public void DenseHistogramWarmCost(int width,int height,bool weighted)
     {
-        if(Environment.GetEnvironmentVariable("VGE_RUN_EXPOSURE_MEASUREMENTS")!="1")return;
+        Assert.SkipUnless(Environment.GetEnvironmentVariable("VGE_RUN_EXPOSURE_MEASUREMENTS") == "1", "Explicit diagnostic opt-in required.");
         EnsureShaderTestAvailable();
         var meter=Programs.CreateCompute(CameraHistogramShaderProgram.Create);
         var adapt=Programs.CreateCompute(CameraAdaptShaderProgram.Create);

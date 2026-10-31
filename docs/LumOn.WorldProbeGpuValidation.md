@@ -197,9 +197,9 @@ dotnet test VanillaGraphicsExpanded.Tests/VanillaGraphicsExpanded.Tests.csproj `
     -p:NuGetAudit=false -p:RestoreIgnoreFailedSources=true
 
 $env:VGE_RUN_ROUTING_MEASUREMENTS = '1'
-$env:VGE_ROUTING_MEASUREMENT_OUTPUT = Join-Path $PWD 'artifacts/world-probe-routing-measurements.json'
+$env:VGE_ROUTING_MEASUREMENT_OUTPUT = 'world-probe-routing-measurements.json' # logical memory report, emitted through runner output
 dotnet test VanillaGraphicsExpanded.Tests/VanillaGraphicsExpanded.Tests.csproj `
-    --no-build --no-restore --filter FullyQualifiedName~WorldProbeRoutingMeasurementTests `
+    --no-build --no-restore --settings VanillaGraphicsExpanded.Tests/DiagnosticTests.runsettings --filter 'Purpose=Diagnostic&FullyQualifiedName~WorldProbeRoutingMeasurementTests' `
     --logger 'trx;LogFileName=world-probe-routing-measurements.trx' `
     --results-directory artifacts/TestResults
 ```

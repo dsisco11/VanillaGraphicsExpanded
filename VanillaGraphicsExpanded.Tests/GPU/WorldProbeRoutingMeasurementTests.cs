@@ -18,9 +18,11 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GpuIntegration")]
 public sealed class WorldProbeRoutingMeasurementTests(HeadlessGLFixture fixture):RenderTestBase(fixture)
 {
+    private readonly VanillaGraphicsExpanded.Tests.TestSupport.CountingDiskCacheFileSystem reports = new(DiagnosticReports.Publish);
     #region Reproducible experiment
     /// <summary>Records independent ABBA blocks on supported and selectively unsupported versions of the same fixed room.</summary>
     [Fact]
+    [Trait("Purpose", "Diagnostic")]
     public void MatchedFlagOffOnWorkloads()
     {
         Assert.SkipUnless(Environment.GetEnvironmentVariable("VGE_RUN_ROUTING_MEASUREMENTS")=="1","Explicit measurement run required.");
@@ -81,8 +83,8 @@ public sealed class WorldProbeRoutingMeasurementTests(HeadlessGLFixture fixture)
             }
         }
         string path=Environment.GetEnvironmentVariable("VGE_ROUTING_MEASUREMENT_OUTPUT")??Path.Combine(Path.GetTempPath(),"world-probe-routing-measurements.json");
-        Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(path))!);
-        File.WriteAllText(path,JsonSerializer.Serialize(new{Utc=DateTime.UtcNow,Vendor=GL.GetString(StringName.Vendor),Renderer=GL.GetString(StringName.Renderer),Version=GL.GetString(StringName.Version),Runtime=Environment.Version.ToString(),Os=Environment.OSVersion.ToString(),Cpu=Environment.GetEnvironmentVariable("PROCESSOR_IDENTIFIER"),Processors=Environment.ProcessorCount,Rows=rows},new JsonSerializerOptions{WriteIndented=true}));
+        reports.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(path))!);
+        reports.WriteAllText(path,JsonSerializer.Serialize(new{Utc=DateTime.UtcNow,Vendor=GL.GetString(StringName.Vendor),Renderer=GL.GetString(StringName.Renderer),Version=GL.GetString(StringName.Version),Runtime=Environment.Version.ToString(),Os=Environment.OSVersion.ToString(),Cpu=Environment.GetEnvironmentVariable("PROCESSOR_IDENTIFIER"),Processors=Environment.ProcessorCount,Rows=rows},new JsonSerializerOptions{WriteIndented=true}));
     }
     #endregion
 

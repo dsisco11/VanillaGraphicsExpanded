@@ -15,7 +15,7 @@ internal sealed class CapturedAmbientOcclusionFixture : IDisposable
 {
     private readonly GpuResourceCollection resources = new();
     private readonly JsonDocument manifest;
-    private readonly string directory;
+    private readonly TestAssetSnapshot inputs;
     private readonly DynamicTexture2D depth, hierarchy;
     private readonly Texture3D surface;
     private readonly VgeFrameUniformBuffer camera;
@@ -34,10 +34,10 @@ internal sealed class CapturedAmbientOcclusionFixture : IDisposable
     internal float[] CapturedOutput { get; }
 
     /// <summary>Loads verified payloads without changing formats, camera transforms, mip contents or array layer order.</summary>
-    internal CapturedAmbientOcclusionFixture(ComponentShaderPrograms programs, string directory)
+    internal CapturedAmbientOcclusionFixture(ComponentShaderPrograms programs, TestAssetSnapshot inputs)
     {
-        this.directory = directory;
-        manifest = JsonDocument.Parse(File.ReadAllText(Path.Combine(directory, "manifest.json")));
+        this.inputs = inputs;
+        manifest = JsonDocument.Parse(inputs.Copy("manifest.json"));
         try
         {
             var root = manifest.RootElement;
@@ -51,13 +51,13 @@ internal sealed class CapturedAmbientOcclusionFixture : IDisposable
 
             var blocks = root.GetProperty("uniformBuffers").EnumerateArray().ToArray();
             // This immutable capture predates source calibration; its camera prefix remains exact.
-            byte[] frameBytes = ReadPayload(blocks.Single(block => block.GetProperty("binding").GetString() == "vgeFrame"), 544);
+            byte[] frameBytes = CapturedPayload.Read(inputs, blocks.Single(block => block.GetProperty("binding").GetString() == "vgeFrame"), 544);
             camera = TestFrameCamera.CreateFromPacked(frameBytes);
             // AO reads these two matrices directly. Other frame fields are recaptured by their typed owner.
             Assert.True(camera.Bytes.Slice(64, 128).SequenceEqual(frameBytes.AsSpan(64, 128)));
             Assert.Equal((float)Width, UboPacking.ReadFloat(frameBytes, 384));
             Assert.Equal((float)Height, UboPacking.ReadFloat(frameBytes, 388));
-            byte[] parameterBytes = ReadPayload(blocks.Single(block => block.GetProperty("binding").GetString() == "AmbientOcclusionInputs_var"), 48);
+            byte[] parameterBytes = CapturedPayload.Read(inputs, blocks.Single(block => block.GetProperty("binding").GetString() == "AmbientOcclusionInputs_var"), 48);
             float[] parameters = DecodeFloat(parameterBytes);
             Assert.Equal(new float[] { 0, 0, 2, 0, 1.25f, .25f, 6, 6, 64, 96, 0, 0 }, parameters);
             Quality = 2;
@@ -66,7 +66,7 @@ internal sealed class CapturedAmbientOcclusionFixture : IDisposable
             Assert.Equal("R16G16B16A16_FLOAT", output.GetProperty("format").GetString());
             Assert.Equal((Width + 1) / 2, output.GetProperty("width").GetInt32());
             Assert.Equal((Height + 1) / 2, output.GetProperty("height").GetInt32());
-            CapturedOutput = DecodeHalf(ReadPayload(output, checked((Width + 1) / 2 * ((Height + 1) / 2) * 8)));
+            CapturedOutput = DecodeHalf(CapturedPayload.Read(inputs, output, checked((Width + 1) / 2 * ((Height + 1) / 2) * 8)));
             horizon = programs.Create<PostSsaoShaderProgram>();
             maskShader = programs.Create<MinimumChildMaskShaderProgram>();
         }
@@ -129,7 +129,7 @@ internal sealed class CapturedAmbientOcclusionFixture : IDisposable
                 int width = Math.Max(1, Width >> mip), height = Math.Max(1, Height >> mip);
                 Assert.Equal(width, subresource.GetProperty("width").GetInt32());
                 Assert.Equal(height, subresource.GetProperty("height").GetInt32());
-                float[] pixels = DecodeFloat(ReadPayload(subresource, checked(width * height * 4)));
+                float[] pixels = DecodeFloat(CapturedPayload.Read(inputs, subresource, checked(width * height * 4)));
                 using (OpenGlStateCache.Current.BindTextureScope(TextureTarget.Texture2D, 0, texture.TextureId))
                 using (OpenGLPixelLayouts.UnpackScope(OpenGlStateCache.Current, new OpenGlStateCache.PixelUnpackState(4)))
                     GL.TexSubImage2D(TextureTarget.Texture2D, mip, 0, 0, width, height, PixelFormat.Red, PixelType.Float, pixels);
@@ -158,7 +158,7 @@ internal sealed class CapturedAmbientOcclusionFixture : IDisposable
             {
                 Assert.Equal(0, subresource.GetProperty("mip").GetInt32());
                 int layer = subresource.GetProperty("layer").GetInt32();
-                float[] pixels = DecodeHalf(ReadPayload(subresource, checked(Width * Height * 8)));
+                float[] pixels = DecodeHalf(CapturedPayload.Read(inputs, subresource, checked(Width * Height * 8)));
                 // Half values are exactly representable as float; the upload returns to the original RGBA16F storage.
                 texture.UploadDataImmediate(pixels, 0, 0, layer, Width, Height, 1);
                 using var restored = texture.ReadPixelsRegion(0, 0, Width, Height, layer);
@@ -171,16 +171,6 @@ internal sealed class CapturedAmbientOcclusionFixture : IDisposable
     #endregion
 
     #region Payload verification and decoding
-    /// <summary>Checks exported length and digest before a payload is interpreted or uploaded.</summary>
-    private byte[] ReadPayload(JsonElement record, int expectedBytes)
-    {
-        Assert.Equal(expectedBytes, record.GetProperty("bytes").GetInt32());
-        byte[] bytes = File.ReadAllBytes(Path.Combine(directory, record.GetProperty("file").GetString()!));
-        Assert.Equal(expectedBytes, bytes.Length);
-        Assert.Equal(record.GetProperty("sha256").GetString(), Convert.ToHexString(SHA256.HashData(bytes)));
-        return bytes;
-    }
-
     /// <summary>Decodes exported little-endian R32F texels without resampling.</summary>
     private static float[] DecodeFloat(byte[] bytes)
     {

@@ -15,6 +15,7 @@ public sealed class AtmosphereGpuMeasurementTests(HeadlessGLFixture fixture, ITe
     #region Measurement
     /// <summary>Records ABBA CPU/GPU source rebuild and cached-source sky refresh costs, plus maximum-quality dispatch cost.</summary>
     [Fact]
+    [Trait("Purpose", "Diagnostic")]
     public void MatchedTransportCosts()
     {
         if (Environment.GetEnvironmentVariable("VGE_RUN_ATMOSPHERE_MEASUREMENTS") != "1")

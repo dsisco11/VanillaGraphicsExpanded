@@ -16,9 +16,11 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GpuIntegration")]
 public sealed class MicrofacetEnergyMeasurementTests(HeadlessGLFixture fixture, ITestOutputHelper log) : RenderTestBase(fixture)
 {
+    private readonly VanillaGraphicsExpanded.Tests.TestSupport.CountingDiskCacheFileSystem reports = new(DiagnosticReports.Publish);
     #region Public API
     /// <summary>Compares warm single scattering and compensated material evaluations with typical and repeated workloads.</summary>
     [Fact]
+    [Trait("Purpose", "Diagnostic")]
     public void WarmLookupCost()
     {
         Assert.SkipUnless(Environment.GetEnvironmentVariable("VGE_RUN_MICROFACET_MEASUREMENTS")=="1",
@@ -27,9 +29,9 @@ public sealed class MicrofacetEnergyMeasurementTests(HeadlessGLFixture fixture, 
         Helpers.MicrofacetTextureReference.Bind();
         using var modules=new TerrainShaderTestFixture();
         string directory=Path.Combine(AppContext.BaseDirectory,"assets/shaders/includes");
-        string common=File.ReadAllText(Path.Combine(directory,"pbr_common.glsl"))
-            .Replace("@import \"./common_constants.glsl\"",File.ReadAllText(Path.Combine(directory,"common_constants.glsl")));
-        string energy=File.ReadAllText(Path.Combine(directory,"pbr_microfacet_energy.glsl"));
+        string common=TestAssetSnapshot.ReadBuiltText(Path.Combine(directory,"pbr_common.glsl"))
+            .Replace("@import \"./common_constants.glsl\"",TestAssetSnapshot.ReadBuiltText(Path.Combine(directory,"common_constants.glsl")));
+        string energy=TestAssetSnapshot.ReadBuiltText(Path.Combine(directory,"pbr_microfacet_energy.glsl"));
         int vertex=modules.Compile(ShaderType.VertexShader,"#version 330 core\nlayout(location=0)in vec2 position;void main(){gl_Position=vec4(position,0,1);}");
         var programs=new List<int>();
         var records=new List<object>();
@@ -78,7 +80,7 @@ public sealed class MicrofacetEnergyMeasurementTests(HeadlessGLFixture fixture, 
                 records.Add(new{compensated,pixels=65536,evaluations,medianGpuMilliseconds=median,samplesMilliseconds=elapsed});
             }
             string? path=Environment.GetEnvironmentVariable("VGE_MICROFACET_MEASUREMENT_OUTPUT");
-            if(!string.IsNullOrEmpty(path))File.WriteAllText(path,System.Text.Json.JsonSerializer.Serialize(new{
+            if(!string.IsNullOrEmpty(path))reports.WriteAllText(path,System.Text.Json.JsonSerializer.Serialize(new{
                 renderer=GL.GetString(StringName.Renderer),lookupBytes=VanillaGraphicsExpanded.PBR.Materials.Energy.MicrofacetEnergyLookup.Prepare().Width
                     *VanillaGraphicsExpanded.PBR.Materials.Energy.MicrofacetEnergyLookup.Prepare().Height*4,records,
                 limitation="Warm synthetic shader cost, varying roughness per evaluation. Not live frame cost or measured physical-memory bandwidth."
@@ -90,6 +92,7 @@ public sealed class MicrofacetEnergyMeasurementTests(HeadlessGLFixture fixture, 
 
     /// <summary>Qualifies one batched default-quality hardware lookup against retained independently integrated physical references.</summary>
     [Fact]
+    [Trait("Purpose", "Diagnostic")]
     public void DefaultTextureMatchesRetainedIndependentReferences()
     {
         Assert.SkipUnless(Environment.GetEnvironmentVariable("VGE_RUN_MICROFACET_QUALIFICATION")=="1",
@@ -97,7 +100,7 @@ public sealed class MicrofacetEnergyMeasurementTests(HeadlessGLFixture fixture, 
         EnsureContextValid();
         string root=Environment.GetEnvironmentVariable("VGE_MICROFACET_REFERENCE_ROOT")!;
         var references=new[]{"generator-warped-corners.csv","generator-offgrid.csv"}
-            .SelectMany(name=>File.ReadLines(Path.Combine(root,name)).Skip(1))
+            .SelectMany(name=>TestAssetSnapshot.CaptureDirectory(root).Lines(name).Skip(1))
             .Select(line=>line.Split(',').Select(value=>double.Parse(value,CultureInfo.InvariantCulture)).ToArray()).ToArray();
         Assert.Equal(360,references.Length);
         int oldQuality=ConfigModSystem.Config.ShadingQuality;
@@ -143,7 +146,7 @@ public sealed class MicrofacetEnergyMeasurementTests(HeadlessGLFixture fixture, 
                 cases.Add(new{roughness=references[i][0],viewCosine=references[i][1],expectedE=e,expectedEf=ef,actualE,actualEf});
             }
             string path=Environment.GetEnvironmentVariable("VGE_MICROFACET_QUALIFICATION_OUTPUT")??Path.Combine(root,"hardware-texture-quality.json");
-            File.WriteAllText(path,System.Text.Json.JsonSerializer.Serialize(new{renderer=GL.GetString(StringName.Renderer),size=128,maxRelativeE=maxE,maxAbsoluteEf=maxEf,maxRelativeW=maxW,maxAbsoluteR=maxR,idealMaxE,idealMaxEf,
+            reports.WriteAllText(path,System.Text.Json.JsonSerializer.Serialize(new{renderer=GL.GetString(StringName.Renderer),size=128,maxRelativeE=maxE,maxAbsoluteEf=maxEf,maxRelativeW=maxW,maxAbsoluteR=maxR,idealMaxE,idealMaxEf,
                 errorPartition="Ideal half-quantized bilinear table retains .5% relative E/.0005 absolute Ef; actual hardware adds only per-coordinate half-output rounding, local filter-weight slopes and Float32 epsilon.",cases},new System.Text.Json.JsonSerializerOptions{WriteIndented=true}));
             log.WriteLine($"Actual default texture: maxRelativeE={maxE:R}, maxAbsoluteEf={maxEf:R}, maxRelativeW={maxW:R}, maxAbsoluteR={maxR:R}");
             Assert.InRange(idealMaxE,0,.005);Assert.InRange(idealMaxEf,0,.0005);

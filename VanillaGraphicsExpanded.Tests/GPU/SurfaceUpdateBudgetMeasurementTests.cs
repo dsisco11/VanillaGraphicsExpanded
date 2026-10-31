@@ -15,9 +15,11 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GpuIntegration")]
 public sealed class SurfaceUpdateBudgetMeasurementTests(HeadlessGLFixture fixture):RenderTestBase(fixture)
 {
+    private readonly VanillaGraphicsExpanded.Tests.TestSupport.CountingDiskCacheFileSystem reports = new(DiagnosticReports.Publish);
     #region Matched measurement
     /// <summary>Runs independent ABBA legs with identical useful pages and synchronous completion readback.</summary>
     [Fact]
+    [Trait("Purpose", "Diagnostic")]
     public void MatchedLegacyAndSeparateBudgets()
     {
         Assert.SkipUnless(Environment.GetEnvironmentVariable("VGE_RUN_SURFACE_BUDGET_MEASUREMENTS")=="1","Explicit measurement run required.");
@@ -115,8 +117,8 @@ public sealed class SurfaceUpdateBudgetMeasurementTests(HeadlessGLFixture fixtur
                 Counters=counters.Select(values=>Enum.GetValues<SurfaceWorkCounter>().Where(value=>value!=SurfaceWorkCounter.Count).ToDictionary(value=>value.ToString(),value=>values[(int)value]))});
         }
         string path=Environment.GetEnvironmentVariable("VGE_SURFACE_BUDGET_MEASUREMENT_OUTPUT")??Path.Combine(Path.GetTempPath(),"surface-update-budget-measurements.json");
-        Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(path))!);
-        File.WriteAllText(path,JsonSerializer.Serialize(new {Utc=DateTime.UtcNow,Vendor=GL.GetString(StringName.Vendor),Renderer=GL.GetString(StringName.Renderer),
+        reports.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(path))!);
+        reports.WriteAllText(path,JsonSerializer.Serialize(new {Utc=DateTime.UtcNow,Vendor=GL.GetString(StringName.Vendor),Renderer=GL.GetString(StringName.Renderer),
             Version=GL.GetString(StringName.Version),Runtime=Environment.Version.ToString(),
             Config=new {Pages=24,Texels=64,Rays=1,Steps=1024,Distance=512,IndependentAbbaBlocks=3,StageOrder=new[]{"seed","direct","indirect"}},Rows=rows},new JsonSerializerOptions{WriteIndented=true}));
     }

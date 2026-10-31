@@ -18,9 +18,9 @@ internal sealed class ComponentShaderPrograms : IDisposable
 
     #region Program lifetime
     /// <summary>Uses current built assets or an explicitly frozen asset root for matched diagnostics.</summary>
-    internal ComponentShaderPrograms(string? assetRoot = null)
+    internal ComponentShaderPrograms(TestAssetSnapshot? snapshot = null)
     {
-        assets = new BinaryShaderApiFixture(assetRoot);
+        assets = new BinaryShaderApiFixture(snapshot);
     }
 
     /// <summary>Configures a real shader before loading its declared variant; retains ownership through test teardown.</summary>

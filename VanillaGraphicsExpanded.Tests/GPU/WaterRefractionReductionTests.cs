@@ -17,110 +17,19 @@ public sealed class WaterRefractionReductionTests(HeadlessGLFixture fixture, ITe
     [Fact]
     public void CandidateValidityAndTieOrderPreserveExactReceiver()
     {
-        EnsureShaderTestAvailable();
-        var cases=new List<(float[] Depth,float[] Red,float[] Alpha,int Selected)>();
-        foreach(float invalid in new[] {float.NaN,float.PositiveInfinity,float.NegativeInfinity,-1f,0f,.999999f,1f})
-            cases.Add(([.25f,.5f,.75f,invalid],[10,11,12,13],[1,1,1,1],2));
-        foreach(float invalid in new[] {float.NaN,float.PositiveInfinity,float.NegativeInfinity,65520f})
-            cases.Add(([.25f,.5f,.75f,.875f],[10,11,12,invalid],[1,1,1,1],2));
-        foreach(float invalid in new[] {0f,.49f,float.NaN,float.PositiveInfinity})
-            cases.Add(([.25f,.5f,.75f,.875f],[10,11,12,13],[1,1,1,invalid],2));
-        cases.Add(([.5f,.75f,.75f,.75f],[10,11,12,13],[1,1,1,1],1));
-        cases.Add(([.75f,.75f,.75f,.75f],[10,11,12,13],[1,1,1,1],0));
-        cases.Add(([.9f,.7f,.5f,.2f],[10,11,12,13],[1,1,1,1],0));
-        cases.Add(([.2f,.5f,.7f,.9f],[10,11,12,13],[1,1,1,1],3));
-        cases.Add(([.2f,.5f,.7f,.9f],[10,11,12,13],[1,1,1,.5f],3));
-        cases.Add(([.75f,.75f,.75f,.75f],[float.NaN,11,12,13],[1,1,1,1],1));
-        cases.Add(([.25f,.5f,.9f,.8f],[10,11,float.NaN,13],[1,1,1,1],3));
-        cases.Add(([.9f,.1f,.1f,.1f],[10,11,12,13],[1,1,1,1],0));
-        cases.Add(([0,0,0,0],[10,11,12,13],[1,1,1,1],-1));
-        int width=cases.Count*2;
-        var colors=new float[width*2*4]; var depths=new float[width*2];
-        for(int scenario=0;scenario<cases.Count;scenario++)
-        for(int tap=0;tap<4;tap++)
-        {
-            int pixel=(tap/2)*width+scenario*2+tap%2;
-            depths[pixel]=cases[scenario].Depth[tap];
-            colors[pixel*4]=cases[scenario].Red[tap];
-            colors[pixel*4+1]=2; colors[pixel*4+2]=1; colors[pixel*4+3]=cases[scenario].Alpha[tap];
-        }
-        using var color=RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba32f, Width = System.Math.Max(1, width), Height = System.Math.Max(1, 2), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
-        using var depth=RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.R32f, Width = System.Math.Max(1, width), Height = System.Math.Max(1, 2), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
-        color.UploadDataImmediate(colors); depth.UploadDataImmediate(depths);
-        var program=Programs.Create<WaterRefractionReductionShaderProgram>();
-        program.SourceColor=color; program.SourceDepth=depth;
-        using var target=CreateMRTRenderTarget(cases.Count,1,TextureFormat.Rgba32f,TextureFormat.Rgba32f);
-        TestFramework.RenderQuadTo(program,target);
-        float[] actualColor=target[0].ReadPixels(),actualDepth=target[1].ReadPixels();
-        for(int scenario=0;scenario<cases.Count;scenario++)
-        {
-            int selected=cases[scenario].Selected,offset=scenario*4;
-            float[] expectedColor=[0,0,0,0],expectedDepth=[1,0,0,0];
-            if(selected>=0)
-            {
-                expectedColor=[cases[scenario].Red[selected],2,1,cases[scenario].Alpha[selected]];
-                expectedDepth=[cases[scenario].Depth[selected],(scenario*2+selected%2+.5f)/width,(selected/2+.5f)/2,1];
-            }
-            Assert.Equal(expectedColor,actualColor.AsSpan(offset,4).ToArray());
-            Assert.Equal(expectedDepth[0],actualDepth[offset]);
-            Assert.Equal(expectedDepth[3],actualDepth[offset+3]);
-            for(int coordinate=1;coordinate<=2;coordinate++)
-                Assert.InRange(MathF.Abs(expectedDepth[coordinate]-actualDepth[offset+coordinate]),0,1e-6f);
-            output.WriteLine($"reduction-case={scenario} color={string.Join(',',actualColor.AsSpan(offset,4).ToArray())} depth={string.Join(',',actualDepth.AsSpan(offset,4).ToArray())}");
-        }
-        if(Environment.GetEnvironmentVariable("VGE_MEASURE_WATER_REDUCTION")=="1")
-        {
-            // Query only repeated draws after publication and activation, using
-            // the same triangle, target formats and source footprint per binary.
-            const int size=512;
-            using var measuredColor=RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba16f, Width = System.Math.Max(1, size), Height = System.Math.Max(1, size), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
-            using var measuredDepth=RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.R32f, Width = System.Math.Max(1, size), Height = System.Math.Max(1, size), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
-            using var measuredTarget=CreateMRTRenderTarget(size/2,size/2,TextureFormat.Rgba16f,TextureFormat.Rgba32f);
-            measuredColor.UploadDataImmediate(Enumerable.Range(0,size*size).SelectMany(_=>new[] {8f,2f,1f,1f}).ToArray());
-            program.SourceColor=measuredColor; program.SourceDepth=measuredDepth;
-            using var vao=NativeResourceSetup.CreateVertexArray("Test.WaterReduction.Measurement");
-            using var vertices=RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = "Test.WaterReduction.Vertices" }).RequireResource();
-            using var indices=RHICommandContext.Current.CreateIndexBuffer(new RHIBufferDescription { Role = BufferRole.Index, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = "Test.WaterReduction.Indices" }).RequireResource();
-            using var geometry=OpenGlStateCache.Current.BindVertexArrayScope(vao.VertexArrayId);
-            indices.UploadIndices(new uint[] {0,1,2});
-            using(OpenGlStateCache.Current.BindBufferScope(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBufferValues.Target(vertices.Role), vertices.BufferId))
-            {
-                vertices.UploadData(new float[] {-1,-1,0,3,-1,0,-1,3,0});
-                using (OpenGlStateCache.Current.BindVertexArrayScope(vao.VertexArrayId)) GL.VertexAttribPointer(0,3,VertexAttribPointerType.Float,false,12,0);
-            }
-            output.WriteLine($"reduction-device renderer={GL.GetString(StringName.Renderer)} version={GL.GetString(StringName.Version)}");
-            foreach(string workload in new[] {"invalid","descending","ascending","mixed"})
-            {
-                var measuredDepths=new float[size*size];
-                for(int pixel=0;pixel<measuredDepths.Length;pixel++)
-                {
-                    int x=pixel%size,y=pixel/size,tap=(x&1)+2*(y&1);
-                    measuredDepths[pixel]=workload=="invalid"?1:workload=="descending"?.8f-.2f*tap
-                        :workload=="ascending"?.2f+.2f*tap:((x/2+y/2)&1)==0?1:tap==0?.9f:.1f;
-                }
-                measuredDepth.UploadDataImmediate(measuredDepths);
-                TestFramework.RenderQuadTo(program,measuredTarget);
-                FramebufferTestSetup.BindForEngineRendering(measuredTarget);
-                using var activation = ShaderBindingTestPipeline.Create(program);
-        RHICommandContext.Current.SetPipeline(activation);
-        RHICommandContext.Current.BindResources(program.CaptureBindings());
-                using var measuredGeometry=OpenGlStateCache.Current.BindVertexArrayScope(vao.VertexArrayId);
-                for(int sample=-5;sample<10;sample++)
-                {
-                    using var elapsed=GpuTimerQuery.Create();
-                    elapsed.Begin();
-                    for(int draw=0;draw<128;draw++) GL.DrawElements(PrimitiveType.Triangles, indices.IndexCount, DrawElementsType.UnsignedInt, IntPtr.Zero);
-                    elapsed.End();
-                    double milliseconds=elapsed.GetResultNanoseconds()/1e6;
-                    if(sample>=0) output.WriteLine($"reduction-cost workload={workload} sample={sample} gpuMs={milliseconds:R} source=512x512 draws=128");
-                }
-                float[] validity=measuredTarget[1].ReadPixels();
-                int valid=Enumerable.Range(0,size*size/4).Count(pixel=>validity[pixel*4+3]==1);
-                Assert.Equal(workload=="invalid"?0:workload=="mixed"?size*size/8:size*size/4,valid);
-            }
-        }
+        CheckReceivers(measure: false);
     }
 
+    /// <summary>Measures explicitly requested reduction draws after verifying the unchanged receiver oracle.</summary>
+    [Fact]
+    [Trait("Purpose", "Diagnostic")]
+    public void ProfileReceiverReduction()
+    {
+        CheckReceivers(measure: true);
+    }
+    #endregion
+
+    #region Public API
     /// <summary>Reduction rejects float32 radiance that cannot survive its RGBA16F destination.</summary>
     [Theory]
     [InlineData(65504f, true)]
@@ -202,4 +111,114 @@ public sealed class WaterRefractionReductionTests(HeadlessGLFixture fixture, ITe
         }
     }
     #endregion
+    #region Private
+    /// <summary>Verifies receiver selection and isolates the optional large draw-only workload.</summary>
+    private void CheckReceivers(bool measure)
+    {
+        EnsureShaderTestAvailable();
+        var cases=new List<(float[] Depth,float[] Red,float[] Alpha,int Selected)>();
+        foreach(float invalid in new[] {float.NaN,float.PositiveInfinity,float.NegativeInfinity,-1f,0f,.999999f,1f})
+            cases.Add(([.25f,.5f,.75f,invalid],[10,11,12,13],[1,1,1,1],2));
+        foreach(float invalid in new[] {float.NaN,float.PositiveInfinity,float.NegativeInfinity,65520f})
+            cases.Add(([.25f,.5f,.75f,.875f],[10,11,12,invalid],[1,1,1,1],2));
+        foreach(float invalid in new[] {0f,.49f,float.NaN,float.PositiveInfinity})
+            cases.Add(([.25f,.5f,.75f,.875f],[10,11,12,13],[1,1,1,invalid],2));
+        cases.Add(([.5f,.75f,.75f,.75f],[10,11,12,13],[1,1,1,1],1));
+        cases.Add(([.75f,.75f,.75f,.75f],[10,11,12,13],[1,1,1,1],0));
+        cases.Add(([.9f,.7f,.5f,.2f],[10,11,12,13],[1,1,1,1],0));
+        cases.Add(([.2f,.5f,.7f,.9f],[10,11,12,13],[1,1,1,1],3));
+        cases.Add(([.2f,.5f,.7f,.9f],[10,11,12,13],[1,1,1,.5f],3));
+        cases.Add(([.75f,.75f,.75f,.75f],[float.NaN,11,12,13],[1,1,1,1],1));
+        cases.Add(([.25f,.5f,.9f,.8f],[10,11,float.NaN,13],[1,1,1,1],3));
+        cases.Add(([.9f,.1f,.1f,.1f],[10,11,12,13],[1,1,1,1],0));
+        cases.Add(([0,0,0,0],[10,11,12,13],[1,1,1,1],-1));
+        int width=cases.Count*2;
+        var colors=new float[width*2*4]; var depths=new float[width*2];
+        for(int scenario=0;scenario<cases.Count;scenario++)
+        for(int tap=0;tap<4;tap++)
+        {
+            int pixel=(tap/2)*width+scenario*2+tap%2;
+            depths[pixel]=cases[scenario].Depth[tap];
+            colors[pixel*4]=cases[scenario].Red[tap];
+            colors[pixel*4+1]=2; colors[pixel*4+2]=1; colors[pixel*4+3]=cases[scenario].Alpha[tap];
+        }
+        using var color=RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba32f, Width = System.Math.Max(1, width), Height = System.Math.Max(1, 2), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
+        using var depth=RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.R32f, Width = System.Math.Max(1, width), Height = System.Math.Max(1, 2), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
+        color.UploadDataImmediate(colors); depth.UploadDataImmediate(depths);
+        var program=Programs.Create<WaterRefractionReductionShaderProgram>();
+        program.SourceColor=color; program.SourceDepth=depth;
+        using var target=CreateMRTRenderTarget(cases.Count,1,TextureFormat.Rgba32f,TextureFormat.Rgba32f);
+        TestFramework.RenderQuadTo(program,target);
+        float[] actualColor=target[0].ReadPixels(),actualDepth=target[1].ReadPixels();
+        for(int scenario=0;scenario<cases.Count;scenario++)
+        {
+            int selected=cases[scenario].Selected,offset=scenario*4;
+            float[] expectedColor=[0,0,0,0],expectedDepth=[1,0,0,0];
+            if(selected>=0)
+            {
+                expectedColor=[cases[scenario].Red[selected],2,1,cases[scenario].Alpha[selected]];
+                expectedDepth=[cases[scenario].Depth[selected],(scenario*2+selected%2+.5f)/width,(selected/2+.5f)/2,1];
+            }
+            Assert.Equal(expectedColor,actualColor.AsSpan(offset,4).ToArray());
+            Assert.Equal(expectedDepth[0],actualDepth[offset]);
+            Assert.Equal(expectedDepth[3],actualDepth[offset+3]);
+            for(int coordinate=1;coordinate<=2;coordinate++)
+                Assert.InRange(MathF.Abs(expectedDepth[coordinate]-actualDepth[offset+coordinate]),0,1e-6f);
+            output.WriteLine($"reduction-case={scenario} color={string.Join(',',actualColor.AsSpan(offset,4).ToArray())} depth={string.Join(',',actualDepth.AsSpan(offset,4).ToArray())}");
+        }
+        if(measure)
+        {
+            // Query only repeated draws after publication and activation, using
+            // the same triangle, target formats and source footprint per binary.
+            const int size=512;
+            using var measuredColor=RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba16f, Width = System.Math.Max(1, size), Height = System.Math.Max(1, size), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
+            using var measuredDepth=RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.R32f, Width = System.Math.Max(1, size), Height = System.Math.Max(1, size), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
+            using var measuredTarget=CreateMRTRenderTarget(size/2,size/2,TextureFormat.Rgba16f,TextureFormat.Rgba32f);
+            measuredColor.UploadDataImmediate(Enumerable.Range(0,size*size).SelectMany(_=>new[] {8f,2f,1f,1f}).ToArray());
+            program.SourceColor=measuredColor; program.SourceDepth=measuredDepth;
+            using var vao=NativeResourceSetup.CreateVertexArray("Test.WaterReduction.Measurement");
+            using var vertices=RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = BufferRole.Vertex, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = "Test.WaterReduction.Vertices" }).RequireResource();
+            using var indices=RHICommandContext.Current.CreateIndexBuffer(new RHIBufferDescription { Role = BufferRole.Index, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StaticDraw, Label = "Test.WaterReduction.Indices" }).RequireResource();
+            using var geometry=OpenGlStateCache.Current.BindVertexArrayScope(vao.VertexArrayId);
+            indices.UploadIndices(new uint[] {0,1,2});
+            using(OpenGlStateCache.Current.BindBufferScope(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBufferValues.Target(vertices.Role), vertices.BufferId))
+            {
+                vertices.UploadData(new float[] {-1,-1,0,3,-1,0,-1,3,0});
+                using (OpenGlStateCache.Current.BindVertexArrayScope(vao.VertexArrayId)) GL.VertexAttribPointer(0,3,VertexAttribPointerType.Float,false,12,0);
+            }
+            output.WriteLine($"reduction-device renderer={GL.GetString(StringName.Renderer)} version={GL.GetString(StringName.Version)}");
+            foreach(string workload in new[] {"invalid","descending","ascending","mixed"})
+            {
+                var measuredDepths=new float[size*size];
+                for(int pixel=0;pixel<measuredDepths.Length;pixel++)
+                {
+                    int x=pixel%size,y=pixel/size,tap=(x&1)+2*(y&1);
+                    measuredDepths[pixel]=workload=="invalid"?1:workload=="descending"?.8f-.2f*tap
+                        :workload=="ascending"?.2f+.2f*tap:((x/2+y/2)&1)==0?1:tap==0?.9f:.1f;
+                }
+                measuredDepth.UploadDataImmediate(measuredDepths);
+                TestFramework.RenderQuadTo(program,measuredTarget);
+                FramebufferTestSetup.BindForEngineRendering(measuredTarget);
+                using var activation = ShaderBindingTestPipeline.Create(program);
+        RHICommandContext.Current.SetPipeline(activation);
+        RHICommandContext.Current.BindResources(program.CaptureBindings());
+                using var measuredGeometry=OpenGlStateCache.Current.BindVertexArrayScope(vao.VertexArrayId);
+                for(int sample=-5;sample<10;sample++)
+                {
+                    using var elapsed=GpuTimerQuery.Create();
+                    elapsed.Begin();
+                    for(int draw=0;draw<128;draw++) GL.DrawElements(PrimitiveType.Triangles, indices.IndexCount, DrawElementsType.UnsignedInt, IntPtr.Zero);
+                    elapsed.End();
+                    double milliseconds=elapsed.GetResultNanoseconds()/1e6;
+                    if(sample>=0) output.WriteLine($"reduction-cost workload={workload} sample={sample} gpuMs={milliseconds:R} source=512x512 draws=128");
+                }
+                float[] validity=measuredTarget[1].ReadPixels();
+                int valid=Enumerable.Range(0,size*size/4).Count(pixel=>validity[pixel*4+3]==1);
+                Assert.Equal(workload=="invalid"?0:workload=="mixed"?size*size/8:size*size/4,valid);
+            }
+        }
+    }
+
+    #endregion
+
 }

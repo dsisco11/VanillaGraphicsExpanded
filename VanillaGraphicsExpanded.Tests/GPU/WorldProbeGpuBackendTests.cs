@@ -54,6 +54,7 @@ public sealed class WorldProbeGpuBackendTests(HeadlessGLFixture fixture) : Rende
     #region Production renderer
     /// <summary>Default L0 compute publication fills the real atlas without CPU ray-tracing worker reads.</summary>
     [Fact]
+    [Trait("Scenario", "HeadlessRuntime")]
     public void DefaultComputePathPublishesWithoutCpuTraversal()
     {
         EnsureContextValid();

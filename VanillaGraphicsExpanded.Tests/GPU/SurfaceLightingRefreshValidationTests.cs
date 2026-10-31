@@ -12,6 +12,7 @@ public sealed class SurfaceLightingRefreshValidationTests(HeadlessGLFixture fixt
     #region Settled refresh
     /// <summary>A recycled physical page rejects its bright old contents until a different dark surface is captured and initialized.</summary>
     [Fact]
+    [Trait("Scenario", "HeadlessRuntime")]
     public void ReusedPhysicalPageCannotPublishOldLightingBeforeCapture()
     {
         EnsureContextValid();
@@ -55,6 +56,7 @@ public sealed class SurfaceLightingRefreshValidationTests(HeadlessGLFixture fixt
 
     /// <summary>Remote retained indirect lighting reaches the same energy as a fresh cache of the edited scene.</summary>
     [Fact]
+    [Trait("Scenario", "HeadlessRuntime")]
     public void RemoteIndirectConvergesToFreshEditedSceneWithoutRecapture()
     {
         EnsureContextValid();

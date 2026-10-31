@@ -6,8 +6,8 @@ using VanillaGraphicsExpanded.Rendering;
 
 namespace VanillaGraphicsExpanded.Tests.GPU.Helpers;
 
-/// <summary>Copies one display framebuffer's BGRA8 pixels through a PBO into a BMP file.</summary>
-internal sealed class FramebufferBmpCapture(int width, int height) : IDisposable
+/// <summary>Copies one display framebuffer's BGRA8 pixels through a PBO into a provider-backed BMP payload.</summary>
+internal sealed class FramebufferBmpCapture(int width, int height, VanillaGraphicsExpanded.Cache.Disk.IDiskCacheFileSystem storage) : IDisposable
 {
     private readonly GpuPixelPackBuffer readback = RHICommandContext.Current.CreatePixelPackBuffer(new RHIBufferDescription { Role = BufferRole.PixelPack, Mode = ResourceStorageMode.Mutable, Capacity = 0, Usage = BufferUsage.StreamRead, Label = "Test.FramebufferBmp.Readback" }).RequireResource();
 
@@ -45,8 +45,8 @@ internal sealed class FramebufferBmpCapture(int width, int height) : IDisposable
     private void WriteBmp(string path, byte[] pixels)
     {
         string fullPath = Path.GetFullPath(path);
-        Directory.CreateDirectory(Path.GetDirectoryName(fullPath)!);
-        using var output = File.Create(fullPath);
+        storage.CreateDirectory(Path.GetDirectoryName(fullPath)!);
+        using var output = storage.OpenWrite(fullPath);
         using var writer = new BinaryWriter(output);
         writer.Write((ushort)0x4d42);
         writer.Write(54 + pixels.Length);

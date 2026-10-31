@@ -16,6 +16,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GpuIntegration")]
 public sealed class AmbientOcclusionPerformanceTests(HeadlessGLFixture fixture, ITestOutputHelper log) : LumOnShaderFunctionalTestBase(fixture)
 {
+    private readonly VanillaGraphicsExpanded.Tests.TestSupport.CountingDiskCacheFileSystem reports = new(DiagnosticReports.Publish);
     #region Public API
     /// <summary>Covers odd and collapsed mip axes, receiver selection, contact, corners, transmission and native quality.</summary>
     [Theory]
@@ -52,6 +53,7 @@ public sealed class AmbientOcclusionPerformanceTests(HeadlessGLFixture fixture, 
     [InlineData(3440, 1377, 2, 0)]
     [InlineData(3440, 1377, 1, 10)]
     [InlineData(3440, 1377, 2, 10)]
+    [Trait("Purpose", "Diagnostic")]
     public void FullResolutionHorizonImageMatchesReference(int width, int height, int quality, int scene)
     {
         Assert.SkipUnless(Environment.GetEnvironmentVariable("VGE_RUN_AO_FULL_RESOLUTION") == "1", "Explicit full-resolution AO comparison run required.");
@@ -70,6 +72,7 @@ public sealed class AmbientOcclusionPerformanceTests(HeadlessGLFixture fixture, 
     [InlineData(3440, 1377, 2, 0)]
     [InlineData(3440, 1377, 1, 10)]
     [InlineData(3440, 1377, 2, 10)]
+    [Trait("Purpose", "Diagnostic")]
     public void MatchedHorizonCosts(int width, int height, int quality, int scene)
     {
         Assert.SkipUnless(Environment.GetEnvironmentVariable("VGE_RUN_AO_MEASUREMENTS") == "1", "Explicit AO measurement run required.");
@@ -79,12 +82,13 @@ public sealed class AmbientOcclusionPerformanceTests(HeadlessGLFixture fixture, 
 
     /// <summary>Checks a captured scene against its original output before optionally measuring the restored horizon workload.</summary>
     [Fact]
+    [Trait("Purpose", "Diagnostic")]
     public void CapturedSceneMatchesOriginalAndReference()
     {
         string? directory = Environment.GetEnvironmentVariable("VGE_AO_CAPTURE_INPUT_DIR");
         Assert.SkipUnless(directory is not null, "Exported RenderDoc AO inputs required.");
         EnsureShaderTestAvailable();
-        using var inputs = new CapturedAmbientOcclusionFixture(Programs, directory!);
+        using var inputs = new CapturedAmbientOcclusionFixture(Programs, TestAssetSnapshot.CaptureDirectory(directory!));
         using var draw = new PostprocessDraw();
         using var referenceTarget = TestFramework.CreateTestGBuffer((inputs.Width + 1) / 2, (inputs.Height + 1) / 2, TextureFormat.Rgba16f);
         using var currentTarget = TestFramework.CreateTestGBuffer((inputs.Width + 1) / 2, (inputs.Height + 1) / 2, TextureFormat.Rgba16f);
@@ -134,8 +138,8 @@ public sealed class AmbientOcclusionPerformanceTests(HeadlessGLFixture fixture, 
         log.WriteLine($"{workload} horizon {width}x{height} quality={quality} scene={scene}: reference GPU median={Median(referenceGpu):F4}ms current={Median(currentGpu):F4}ms; reference CPU submission median={Median(referenceCpu):F4}ms current={Median(currentCpu):F4}ms; GPU={GL.GetString(StringName.Renderer)}. Identical full images; hierarchy, preparation, allocation and readback excluded. Not live frame costs.");
         log.WriteLine($"Reference GPU samples(ms): {string.Join(",", referenceGpu.Select(value => value.ToString("F4")))}; current: {string.Join(",", currentGpu.Select(value => value.ToString("F4")))}");
         string directory = Environment.GetEnvironmentVariable("VGE_AO_MEASUREMENT_DIR") ?? Path.Combine(AppContext.BaseDirectory, "ao-performance");
-        Directory.CreateDirectory(directory);
-        File.WriteAllText(Path.Combine(directory, $"horizon-{width}x{height}-q{quality}-scene{scene}.json"), JsonSerializer.Serialize(new
+        reports.CreateDirectory(directory);
+        reports.WriteAllText(Path.Combine(directory, $"horizon-{width}x{height}-q{quality}-scene{scene}.json"), JsonSerializer.Serialize(new
         {
             width, height, quality, scene, workload, capturedAtUtc = DateTime.UtcNow,
             renderer = GL.GetString(StringName.Renderer), version = GL.GetString(StringName.Version),

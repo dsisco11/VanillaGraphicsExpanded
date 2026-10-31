@@ -17,6 +17,7 @@ public sealed class SurfaceLightingReadinessDiagnosticTests : RenderTestBase
     #region Publication states
     /// <summary>Instrumentation toggles retain published page readiness and dependency identity while normal refresh continues.</summary>
     [Fact]
+    [Trait("Scenario", "HeadlessRuntime")]
     public void RuntimeDiagnosticTogglePreservesPublishedLighting()
     {
         EnsureContextValid();using var runtime=new SurfaceCacheRuntimeFixture();
@@ -37,6 +38,7 @@ public sealed class SurfaceLightingReadinessDiagnosticTests : RenderTestBase
 
     /// <summary>A disabled relight budget is distinguished from failed capture or shader work.</summary>
     [Fact]
+    [Trait("Scenario", "HeadlessRuntime")]
     public void ZeroBudget_ReportsNoSeedAttempts()
     {
         EnsureContextValid();
@@ -52,6 +54,7 @@ public sealed class SurfaceLightingReadinessDiagnosticTests : RenderTestBase
 
     /// <summary>An out-of-domain source defers GPU capture and recovers when the camera brings it into coverage.</summary>
     [Fact]
+    [Trait("Scenario", "HeadlessRuntime")]
     public void CaptureOutsideCoverage_DefersWithoutGpuAttemptsThenPublishesAfterRecovery()
     {
         EnsureContextValid();
@@ -82,6 +85,7 @@ public sealed class SurfaceLightingReadinessDiagnosticTests : RenderTestBase
 
     /// <summary>A captured source inside coverage reports seed failures when its exterior light-query cell lies outside.</summary>
     [Fact]
+    [Trait("Scenario", "HeadlessRuntime")]
     public void SeedOutsideCoverage_ReportsFailedSeedAttempts()
     {
         EnsureContextValid();
@@ -103,6 +107,7 @@ public sealed class SurfaceLightingReadinessDiagnosticTests : RenderTestBase
 
     /// <summary>A successful cold start reports completed seed work without inventing completion failures.</summary>
     [Fact]
+    [Trait("Scenario", "HeadlessRuntime")]
     public void FirstPublication_ReportsSuccessfulSeedAndResetsOnLeaveWorld()
     {
         EnsureContextValid();

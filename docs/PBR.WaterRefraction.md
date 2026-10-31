@@ -1374,7 +1374,7 @@ Run through a build/test subagent with the existing NuGet package location:
 
 ```powershell
 $env:NUGET_PACKAGES = 'C:/Users/Sisco/.nuget/packages'
-dotnet test VanillaGraphicsExpanded.Tests/VanillaGraphicsExpanded.Tests.csproj -c Debug --no-restore --filter 'FullyQualifiedName~WaterRefraction|FullyQualifiedName~WaterMedium|FullyQualifiedName~WaterBoundary|FullyQualifiedName~WaterVolume|FullyQualifiedName~Liquid|FullyQualifiedName~PbrComposite' --logger 'console;verbosity=detailed'
+dotnet test VanillaGraphicsExpanded.Tests/VanillaGraphicsExpanded.Tests.csproj -c Debug --no-restore --settings VanillaGraphicsExpanded.Tests/AllTests.runsettings --filter 'Purpose!=Diagnostic&(FullyQualifiedName~WaterRefraction|FullyQualifiedName~WaterMedium|FullyQualifiedName~WaterBoundary|FullyQualifiedName~WaterVolume|FullyQualifiedName~Liquid|FullyQualifiedName~PbrComposite)' --logger 'console;verbosity=detailed'
 ```
 
 Source/contract review separates these executed baseline observations from the planned fixes.

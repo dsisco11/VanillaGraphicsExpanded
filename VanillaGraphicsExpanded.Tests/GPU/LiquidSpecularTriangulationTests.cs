@@ -22,6 +22,24 @@ public sealed class LiquidSpecularTriangulationTests(HeadlessGLFixture fixture) 
     [Fact]
     public void FoldedWaterQuadProducesComparableCaptures()
     {
+        CompareFolds(capturePath: null);
+    }
+
+    /// <summary>Produces optional BMP captures in an isolated memory provider after the same numerical assertions.</summary>
+    [Fact]
+    [Trait("Purpose", "Diagnostic")]
+    public void CaptureFoldedWaterQuad()
+    {
+        string? path = Environment.GetEnvironmentVariable("VGE_CAPTURE_LIQUID_TRIANGULATION");
+        Assert.SkipUnless(!string.IsNullOrWhiteSpace(path), "Select a logical capture name for this diagnostic.");
+        CompareFolds(path);
+    }
+    #endregion
+
+    #region Private
+    /// <summary>Compares both folds, optionally encoding captures without filesystem effects.</summary>
+    private void CompareFolds(string? capturePath)
+    {
         EnsureContextValid();
         using var platform = new EngineShaderPlatformScope();
         using var assets = new BinaryShaderApiFixture();
@@ -86,8 +104,8 @@ public sealed class LiquidSpecularTriangulationTests(HeadlessGLFixture fixture) 
             }, [0, 1, 2, 0, 2, 3]);
         Assert.True(target.CheckStatus(out var error), error);
 
-        string? capturePath = Environment.GetEnvironmentVariable("VGE_CAPTURE_LIQUID_TRIANGULATION");
-        using var capture = string.IsNullOrWhiteSpace(capturePath) ? null : new FramebufferBmpCapture(size, size);
+
+        using var capture = string.IsNullOrWhiteSpace(capturePath) ? null : new FramebufferBmpCapture(size, size, new VanillaGraphicsExpanded.Tests.TestSupport.CountingDiskCacheFileSystem(DiagnosticReports.Publish));
         float[] diagonalA = Draw([0, 1, 2, 0, 2, 3], "A");
         float[] diagonalB = Draw([0, 1, 3, 1, 2, 3], "B");
         float largestDifference = 0;

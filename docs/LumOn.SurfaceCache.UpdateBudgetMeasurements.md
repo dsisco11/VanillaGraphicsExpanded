@@ -74,10 +74,10 @@ particularly with large pages or prolonged missing dependencies.
 
 Set `NUGET_PACKAGES=C:\Users\Sisco\.nuget\packages`,
 `VGE_RUN_SURFACE_BUDGET_MEASUREMENTS=1`, and
-`VGE_SURFACE_BUDGET_MEASUREMENT_OUTPUT` to the desired JSON path, then run:
+`VGE_SURFACE_BUDGET_MEASUREMENT_OUTPUT` to a logical JSON report name (the in-memory report is emitted through test output), then run:
 
 ```powershell
-dotnet test VanillaGraphicsExpanded.Tests/VanillaGraphicsExpanded.Tests.csproj --filter FullyQualifiedName~SurfaceUpdateBudgetMeasurementTests -p:NuGetAudit=false -p:RestoreIgnoreFailedSources=true --logger "trx;LogFileName=surface-update-budget-measurements.trx" --results-directory artifacts/TestResults
+dotnet test VanillaGraphicsExpanded.Tests/VanillaGraphicsExpanded.Tests.csproj --settings VanillaGraphicsExpanded.Tests/DiagnosticTests.runsettings --filter "Purpose=Diagnostic&FullyQualifiedName~SurfaceUpdateBudgetMeasurementTests" -p:NuGetAudit=false -p:RestoreIgnoreFailedSources=true --logger "trx;LogFileName=surface-update-budget-measurements.trx" --results-directory artifacts/TestResults
 ```
 
 Receipts: `artifacts/surface-update-budget-measurements.json`,

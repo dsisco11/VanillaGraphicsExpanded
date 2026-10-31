@@ -122,6 +122,7 @@ public sealed class CelestialGalaxyGenerationTests(HeadlessGLFixture fixture, IT
 
     /// <summary>Qualifies selected dimensions, omitted-star flux and loading cost only when explicitly requested.</summary>
     [Fact]
+    [Trait("Purpose", "Diagnostic")]
     public void FullQualityGenerationQualification()
     {
         if (Environment.GetEnvironmentVariable("VGE_RUN_CELESTIAL_QUALIFICATION") != "1")

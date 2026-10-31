@@ -88,10 +88,11 @@ public sealed class LocalExposureQualificationTests(HeadlessGLFixture fixture, I
     [InlineData(1280, 720)]
     [InlineData(1920, 1080)]
     [InlineData(2560, 1440)]
+    [Trait("Purpose", "Diagnostic")]
     public void WarmProductionCost(int width, int height)
     {
         if (Environment.GetEnvironmentVariable("VGE_RUN_LOCAL_EXPOSURE_MEASUREMENTS") != "1")
-        { output.WriteLine("Full-resolution measurement not requested; set VGE_RUN_LOCAL_EXPOSURE_MEASUREMENTS=1."); return; }
+        Assert.Skip("Set VGE_RUN_LOCAL_EXPOSURE_MEASUREMENTS=1 for the explicit diagnostic workload.");
         EnsureShaderTestAvailable();
         using var lighting = new TestFrameLightingPublication();
         using var owner = new LocalExposureRenderer(); owner.FrameLightingInputs = lighting.Buffer;

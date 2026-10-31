@@ -90,6 +90,7 @@ public sealed class ColorGradingLutTests(HeadlessGLFixture fixture, ITestOutputH
 
     /// <summary>A failed packaged compute reload leaves the previous complete transform intact and never labels it current.</summary>
     [Fact]
+    [Trait("Scenario", "HeadlessRuntime")]
     public void FailedShaderReloadRetainsPreviousCompleteTexture()
     {
         EnsureShaderTestAvailable();

@@ -16,6 +16,7 @@ public sealed class SurfaceLightingIdentityTests(HeadlessGLFixture fixture) : Re
     /// <summary>Unchanged and light-only source refreshes retain capture and lighting after geometry becomes available again.</summary>
     [Theory]
     [InlineData(false)] [InlineData(true)]
+    [Trait("Scenario", "HeadlessRuntime")]
     public void SameSurfaceIdentityPreservesCaptureAndLighting(bool changeLight)
     {
         EnsureContextValid();
@@ -44,6 +45,7 @@ public sealed class SurfaceLightingIdentityTests(HeadlessGLFixture fixture) : Re
 
     /// <summary>Unknown geometry suspends sampling without destroying retained history or forcing recapture on unchanged recovery.</summary>
     [Fact]
+    [Trait("Scenario", "HeadlessRuntime")]
     public void UnknownGeometrySuspendsAndResumesTheSameCapturedPage()
     {
         EnsureContextValid();
@@ -81,6 +83,7 @@ public sealed class SurfaceLightingIdentityTests(HeadlessGLFixture fixture) : Re
 
     /// <summary>A geometry edit in one patch does not recapture or clear another patch in the same source chunk.</summary>
     [Fact]
+    [Trait("Scenario", "HeadlessRuntime")]
     public void ChangedPatchInvalidatesOnlyItsOwnPage()
     {
         EnsureContextValid();

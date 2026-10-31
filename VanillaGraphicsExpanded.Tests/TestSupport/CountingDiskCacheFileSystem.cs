@@ -9,11 +9,18 @@ namespace VanillaGraphicsExpanded.Tests.TestSupport;
 /// <summary>Models isolated cache files, leases and atomic publications entirely in memory.</summary>
 internal sealed class CountingDiskCacheFileSystem : IAtomicCacheFileSystem
 {
+    private readonly Action<string, byte[]>? published;
     private readonly HashSet<string> leases = new(StringComparer.OrdinalIgnoreCase);
     private readonly HashSet<string> directories = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, byte[]> files = new(StringComparer.OrdinalIgnoreCase);
 
     #region Public API
+    /// <summary>Optionally observes completed diagnostic reports while retaining all storage in memory.</summary>
+    internal CountingDiskCacheFileSystem(Action<string, byte[]>? published = null)
+    {
+        this.published = published;
+    }
+
     public int MetaJsonCommitWrites { get; private set; }
 
     #region Atomic publication
@@ -86,7 +93,11 @@ internal sealed class CountingDiskCacheFileSystem : IAtomicCacheFileSystem
     {
         string p = Normalize(path);
         CreateDirectory(Path.GetDirectoryName(p) ?? string.Empty);
-        return new CommitOnDisposeStream(bytes => files[p] = bytes, initialCapacity: 256);
+        return new CommitOnDisposeStream(bytes =>
+        {
+            files[p] = bytes;
+            published?.Invoke(p, bytes.ToArray());
+        }, initialCapacity: 256);
     }
 
     /// <summary>Moves controlled bytes and counts completed metadata publications.</summary>

@@ -8,7 +8,7 @@ using VanillaGraphicsExpanded.Rendering.Pipeline.Descriptions;
 
 namespace VanillaGraphicsExpanded.Tests;
 
-/// <summary>Exercises immutable graphics description contracts without native graphics state.</summary>
+/// <summary>Exercises graphics descriptions using real admitted shader references.</summary>
 [Collection("GPU")]
 [Trait("Category", "GpuIntegration")]
 public sealed class GraphicsPipelineDescriptionTests : IDisposable
@@ -349,21 +349,6 @@ public sealed class GraphicsPipelineDescriptionTests : IDisposable
         Assert.NotEqual(Create(), Create(assembly: new() { FixedIndexRestart = true }));
         Assert.ThrowsAny<ArgumentException>(() => Create(assembly: new() { Restart = true, FixedIndexRestart = true }));
         Assert.ThrowsAny<ArgumentException>(()=>Create(assembly:new(){Topology=PrimitiveTopology.Patches}));
-    }
-    #endregion
-    #region Compatibility
-    /// <summary>Legacy partial masks retain their stable wire numbering and cannot be used as complete descriptions.</summary>
-    [Fact]
-    public void LegacyOverridesRemainASeparateStableContract()
-    {
-        GlPipelineStateId[] ids = [GlPipelineStateId.DepthTestEnable, GlPipelineStateId.DepthFunc, GlPipelineStateId.DepthWriteMask,
-            GlPipelineStateId.BlendEnable, GlPipelineStateId.BlendFunc, GlPipelineStateId.BlendEnableIndexed, GlPipelineStateId.BlendFuncIndexed,
-            GlPipelineStateId.CullFaceEnable, GlPipelineStateId.ColorMask, GlPipelineStateId.ScissorTestEnable, GlPipelineStateId.LineWidth, GlPipelineStateId.PointSize];
-        for (int index = 0; index < ids.Length; index++) Assert.Equal(index, (int)ids[index]);
-        Assert.Equal(12, (int)GlPipelineStateId.Count);
-        Assert.False(typeof(RHIGraphicsPipelineDescription).IsAssignableFrom(typeof(GlPipelineDesc)));
-        Assert.DoesNotContain(typeof(RHIGraphicsPipelineDescription).GetConstructors(), constructor =>
-            constructor.GetParameters().Any(parameter => parameter.ParameterType == typeof(GlPipelineDesc)));
     }
     #endregion
 

@@ -43,6 +43,7 @@ public sealed class SurfaceLightingWorldProbeTransportTests : SurfaceLightingHit
 
     /// <summary>Unavailable source geometry defers capture until publication without requiring new feedback allocation.</summary>
     [Fact]
+    [Trait("Scenario", "HeadlessRuntime")]
     public void FailedCaptureRetriesAfterGeometryBecomesAvailable()
     {
         EnsureShaderTestAvailable();
@@ -68,6 +69,7 @@ public sealed class SurfaceLightingWorldProbeTransportTests : SurfaceLightingHit
 
     /// <summary>Registered cache callbacks publish changed source lighting and replacement resources to real worker-hit queries.</summary>
     [Fact]
+    [Trait("Scenario", "HeadlessRuntime")]
     public void RuntimePublicationAndInvalidationReachWorkerHits()
     {
         EnsureShaderTestAvailable();

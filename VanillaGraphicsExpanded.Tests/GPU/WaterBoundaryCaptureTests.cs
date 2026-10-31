@@ -16,6 +16,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GpuIntegration")]
 public sealed class WaterBoundaryCaptureTests(HeadlessGLFixture fixture, ITestOutputHelper output) : RenderTestBase(fixture)
 {
+    private readonly VanillaGraphicsExpanded.Tests.TestSupport.CountingDiskCacheFileSystem reports = new(DiagnosticReports.Publish);
     #region Public API
     /// <summary>Captures sloped entry/exit faces, separated water bodies, opaque foreground clipping and sky-depth capture bounds.</summary>
     [Theory]
@@ -32,13 +33,40 @@ public sealed class WaterBoundaryCaptureTests(HeadlessGLFixture fixture, ITestOu
     [InlineData(7, 2f, 0f, .25f)]
     public void CaptureMeasuresOrientedIntervals(int scenario, float length, float count, float storageScale = 1)
     {
+        RunComparison(scenario, length, count, storageScale, diagnostic: false);
+    }
+
+    /// <summary>Runs explicitly selected binary, capture and timing diagnostics without physical persistence.</summary>
+    [Theory]
+    [InlineData(0, 2f, 0f)]
+    [InlineData(1, 5f, 0f)]
+    [InlineData(2, 0f, 0f)]
+    [InlineData(3, 2f, 0f)]
+    [InlineData(4, -7f, -1f)]
+    [InlineData(5, -97f, -1f)]
+    [InlineData(6, 2f, 0f)]
+    [InlineData(7, 2f, 0f)]
+    [InlineData(8, 2f, 0f)]
+    [InlineData(9, 2f, 0f)]
+    [InlineData(7, 2f, 0f, .25f)]
+    [Trait("Purpose", "Diagnostic")]
+    public void DiagnosticCaptureMeasuresOrientedIntervals(int scenario, float length, float count, float storageScale = 1)
+    {
+        RunComparison(scenario, length, count, storageScale, diagnostic: true);
+    }
+    #endregion
+
+    #region Private
+    /// <summary>Retains the numerical contract while isolating optional diagnostic inputs and output sinks.</summary>
+    private void RunComparison(int scenario, float length, float count, float storageScale, bool diagnostic)
+    {
         EnsureContextValid();
         using var platform = new EngineShaderPlatformScope();
         using var assets = new BinaryShaderApiFixture();
-        string? measuredBinary = Environment.GetEnvironmentVariable("VGE_WATER_BOUNDARY_BINARY");
+        string? measuredBinary = diagnostic ? Environment.GetEnvironmentVariable("VGE_WATER_BOUNDARY_BINARY") : null;
         if (!string.IsNullOrEmpty(measuredBinary))
         {
-            byte[] binary = File.ReadAllBytes(measuredBinary);
+            byte[] binary = TestAssetSnapshot.CaptureFile(measuredBinary);
             assets.BeforeRead = path =>
             {
                 if (path.Contains("variants/pbr_liquid.fsh/", StringComparison.Ordinal)) assets.Overrides[path] = binary;
@@ -216,11 +244,11 @@ public sealed class WaterBoundaryCaptureTests(HeadlessGLFixture fixture, ITestOu
                 string? outputDirectory = Environment.GetEnvironmentVariable("VGE_WATER_BOUNDARY_OUTPUTS");
                 if (!string.IsNullOrEmpty(outputDirectory))
                 {
-                    Directory.CreateDirectory(outputDirectory);
+                    reports.CreateDirectory(outputDirectory);
                     for (int attachment = 0; attachment < 2; attachment++)
                     {
                         float[] values = measuredTarget[attachment].ReadPixels();
-                        File.WriteAllBytes(Path.Combine(outputDirectory, $"{workload}-mrt{attachment}.f32"),
+                        reports.WriteAllBytes(Path.Combine(outputDirectory, $"{workload}-mrt{attachment}.f32"),
                             System.Runtime.InteropServices.MemoryMarshal.AsBytes(values.AsSpan()).ToArray());
                     }
                 }

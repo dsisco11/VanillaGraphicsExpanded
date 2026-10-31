@@ -8,9 +8,11 @@ namespace VanillaGraphicsExpanded.Tests;
 /// <summary>Measures complete matched scalar and SIMD table builds without timing assertions.</summary>
 public sealed class AtmosphereMultipleScatteringTensorMeasurementTests
 {
+    private readonly VanillaGraphicsExpanded.Tests.TestSupport.CountingDiskCacheFileSystem reports = new(DiagnosticReports.Publish);
     #region Measurement
     /// <summary>Records warmed independent ABBA blocks for the production default and bounded higher-quality budgets.</summary>
     [Fact]
+    [Trait("Purpose", "Diagnostic")]
     public void MatchedTableConstruction()
     {
         Assert.SkipUnless(Environment.GetEnvironmentVariable("VGE_RUN_ATMOSPHERE_MEASUREMENTS") == "1", "Explicit measurement run required.");
@@ -37,8 +39,8 @@ public sealed class AtmosphereMultipleScatteringTensorMeasurementTests
             }
         }
         string path = Environment.GetEnvironmentVariable("VGE_ATMOSPHERE_REPORT") ?? Path.Combine(AppContext.BaseDirectory, "atmosphere-ms-tensor.json");
-        Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(path))!);
-        File.WriteAllText(path, JsonSerializer.Serialize(new { framework = RuntimeInformation.FrameworkDescription,
+        reports.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(path))!);
+        reports.WriteAllText(path, JsonSerializer.Serialize(new { framework = RuntimeInformation.FrameworkDescription,
             cpu = Environment.GetEnvironmentVariable("PROCESSOR_IDENTIFIER"), affinity = Process.GetCurrentProcess().ProcessorAffinity.ToInt64(),
             tieredCompilation = Environment.GetEnvironmentVariable("DOTNET_TieredCompilation"), rows }, new JsonSerializerOptions { WriteIndented = true }));
         Xunit.TestContext.Current.TestOutputHelper!.WriteLine(path);

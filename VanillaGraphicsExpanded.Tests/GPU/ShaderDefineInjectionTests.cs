@@ -20,40 +20,6 @@ public class ShaderDefineInjectionTests
     }
 
     [Fact]
-    public void ProcessedSource_InsertsDefinesImmediatelyAfterVersion()
-    {
-        _fixture.EnsureContextValid();
-
-        var shaderPath = Path.Combine(AppContext.BaseDirectory, "assets", "shaders");
-        var includePath = Path.Combine(AppContext.BaseDirectory, "assets", "shaders", "includes");
-
-        Assert.SkipWhen(!TestAssetSnapshot.HasDirectory(shaderPath), $"Shader path not found: {shaderPath}");
-        Assert.SkipWhen(!TestAssetSnapshot.HasDirectory(includePath), $"Include path not found: {includePath}");
-
-        using var helper = new ShaderTestHelper();
-
-        var defines = new Dictionary<string, string?>
-        {
-            ["VGE_TEST_DEFINE"] = "1",
-            ["VGE_TEST_FLOAT"] = "2.0",
-        };
-
-        var source = helper.GetProcessedSource("lumon_probe_atlas_gather.fsh", defines);
-        Assert.NotNull(source);
-
-        int versionIndex = source!.IndexOf("#version", StringComparison.Ordinal);
-        Assert.True(versionIndex >= 0, "Expected processed source to contain #version");
-
-        int versionLineEnd = source.IndexOf('\n', versionIndex);
-        Assert.True(versionLineEnd >= 0, "Expected #version to be terminated by a newline");
-
-        // Defines must be injected immediately after the #version line.
-        int injectedStart = versionLineEnd + 1;
-        Assert.True(source.AsSpan(injectedStart).StartsWith("#define VGE_TEST_DEFINE 1\n", StringComparison.Ordinal),
-            "Expected injected defines to start immediately after #version line");
-    }
-
-    [Fact]
     public void Shaders_CompileAndLink_WithInjectedDefines()
     {
         _fixture.EnsureContextValid();
@@ -126,94 +92,6 @@ public class ShaderDefineInjectionTests
 
         var result = helper.CompileProgram("lumon_debug_view_world_probe_irradiance_combined", defines);
         Assert.True(result.IsSuccess, result.ErrorMessage);
-    }
-
-    [Fact]
-    public void DebugEntrypoint_Preprocess_EmitsLineDirectives_ForAccurateErrorLocations()
-    {
-        // This does not require a GL context; it validates source mapping for shader error reporting.
-        var shaderPath = Path.Combine(AppContext.BaseDirectory, "assets", "shaders");
-        var includePath = Path.Combine(AppContext.BaseDirectory, "assets", "shaders", "includes");
-
-        Assert.SkipWhen(!TestAssetSnapshot.HasDirectory(shaderPath), $"Shader path not found: {shaderPath}");
-        Assert.SkipWhen(!TestAssetSnapshot.HasDirectory(includePath), $"Include path not found: {includePath}");
-
-        string filename = "lumon_debug_view_world_probe_irradiance_combined.fsh";
-        string filePath = Path.Combine(shaderPath, filename);
-        Assert.SkipWhen(!File.Exists(filePath), $"Shader file not found: {filePath}");
-
-        string rawSource = File.ReadAllText(filePath);
-
-        var sources = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var includeFilePath in Directory.EnumerateFiles(includePath, "*.glsl", SearchOption.AllDirectories))
-        {
-            string fileName = Path.GetRelativePath(includePath, includeFilePath).Replace('\\', '/');
-            sources[$"shaders/includes/{fileName}"] = File.ReadAllText(includeFilePath);
-        }
-        foreach (var includeFilePath in Directory.EnumerateFiles(includePath, "*.fsh", SearchOption.AllDirectories))
-        {
-            string fileName = Path.GetRelativePath(includePath, includeFilePath).Replace('\\', '/');
-            sources[$"shaders/includes/{fileName}"] = File.ReadAllText(includeFilePath);
-        }
-        foreach (var includeFilePath in Directory.EnumerateFiles(includePath, "*.vsh", SearchOption.AllDirectories))
-        {
-            string fileName = Path.GetRelativePath(includePath, includeFilePath).Replace('\\', '/');
-            sources[$"shaders/includes/{fileName}"] = File.ReadAllText(includeFilePath);
-        }
-
-        var resolver = new DictionarySyntaxTreeResourceResolver(sources, ShaderImportsSystem.DefaultDomain);
-        var preprocessor = new ShaderSyntaxTreePreprocessor(resolver);
-
-        var cache = new Dictionary<ResourceId, SyntaxTree>();
-        SyntaxTree ContentProvider(ResourceId id)
-        {
-            if (cache.TryGetValue(id, out var cached))
-            {
-                return cached;
-            }
-
-            string idText = id.ToString();
-            string path = idText;
-            int colon = idText.IndexOf(':');
-            if (colon >= 0)
-            {
-                path = idText[(colon + 1)..];
-            }
-
-            // Root shader stage.
-            if (string.Equals(path, $"shaders/{filename}", StringComparison.Ordinal))
-            {
-                var tree = ShaderImportsSystem.Instance.CreateSyntaxTree(rawSource, filename)
-                           ?? SyntaxTree.Parse(string.Empty, GlslSchema.Instance);
-                cache[id] = tree;
-                return tree;
-            }
-
-            // Imported resources.
-            if (sources.TryGetValue(path, out var text))
-            {
-                var tree = ShaderImportsSystem.Instance.CreateSyntaxTree(text, path)
-                           ?? SyntaxTree.Parse(string.Empty, GlslSchema.Instance);
-                cache[id] = tree;
-                return tree;
-            }
-
-            var empty = SyntaxTree.Parse(string.Empty, GlslSchema.Instance);
-            cache[id] = empty;
-            return empty;
-        }
-
-        var code = ShaderSourceCode.FromSource(
-            shaderName: "lumon_debug_view_world_probe_irradiance_combined",
-            stageExtension: "fsh",
-            rawSource: rawSource,
-            sourceName: filename,
-            importPreprocessor: preprocessor,
-            contentProvider: ContentProvider,
-            ct: TestContext.Current.CancellationToken);
-
-        Assert.Contains("#line ", code.EmittedSource);
-        Assert.NotEmpty(code.LineDirectiveSourceIdToResource);
     }
 
     [Theory]

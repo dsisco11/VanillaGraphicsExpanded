@@ -18,6 +18,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GpuIntegration")]
 public sealed class AoMinimumChildProductionTests(HeadlessGLFixture fixture, ITestOutputHelper log) : LumOnShaderFunctionalTestBase(fixture)
 {
+    private readonly VanillaGraphicsExpanded.Tests.TestSupport.CountingDiskCacheFileSystem reports = new(DiagnosticReports.Publish);
     #region Public API
     /// <summary>Checks exact images at small odd, collapsed, tied, cutout and transmitted receiver workloads.</summary>
     [Theory]
@@ -53,6 +54,7 @@ public sealed class AoMinimumChildProductionTests(HeadlessGLFixture fixture, ITe
     [InlineData(3440,1377,2,0)]
     [InlineData(3440,1377,1,10)]
     [InlineData(3440,1377,2,10)]
+    [Trait("Purpose", "Diagnostic")]
     public void FullImagesAndCosts(int width,int height,int quality,int scene)
     {
         Assert.SkipUnless(Environment.GetEnvironmentVariable("VGE_RUN_AO_MASK_EVALUATION")=="1","Explicit production mask measurement required.");
@@ -61,12 +63,13 @@ public sealed class AoMinimumChildProductionTests(HeadlessGLFixture fixture, ITe
 
     /// <summary>Checks captured raw output and every hierarchy mip before measuring both complete owners.</summary>
     [Fact]
+    [Trait("Purpose", "Diagnostic")]
     public void CapturedImageAndCosts()
     {
         string? directory=Environment.GetEnvironmentVariable("VGE_AO_CAPTURE_INPUT_DIR");
         Assert.SkipUnless(Environment.GetEnvironmentVariable("VGE_RUN_AO_MASK_EVALUATION")=="1" && !string.IsNullOrEmpty(directory),"Explicit captured production measurement required.");
         EnsureShaderTestAvailable();
-        using var inputs=new CapturedAmbientOcclusionFixture(Programs,directory!);
+        using var inputs=new CapturedAmbientOcclusionFixture(Programs,TestAssetSnapshot.CaptureDirectory(directory!));
         Run(inputs.Width,inputs.Height,inputs.Quality,-1,inputs.CapturedOutput,true,
             (reference,draw,target)=>inputs.PrepareComparison(reference,draw,target,target));
     }
@@ -138,8 +141,8 @@ public sealed class AoMinimumChildProductionTests(HeadlessGLFixture fixture, ITe
         if(measure) {
             int[] gamePids=Process.GetProcessesByName("Vintagestory").Select(process=>process.Id).ToArray();
             string output=Environment.GetEnvironmentVariable("VGE_AO_MASK_OUTPUT_DIR")??Path.Combine(AppContext.BaseDirectory,"ao-production-masks");
-            Directory.CreateDirectory(output);
-            File.WriteAllText(Path.Combine(output,$"production-{width}x{height}-q{quality}-scene{scene}.json"),JsonSerializer.Serialize(new {
+            reports.CreateDirectory(output);
+            reports.WriteAllText(Path.Combine(output,$"production-{width}x{height}-q{quality}-scene{scene}.json"),JsonSerializer.Serialize(new {
                 width,height,quality,scene,capturedAtUtc=DateTime.UtcNow,gamePids,contended=gamePids.Length>0,
                 renderer=GL.GetString(StringName.Renderer),hierarchyBytes=Enumerable.Range(0,hierarchy.Texture!.MipLevels).Sum(level=>4L*Math.Max(1,width>>level)*Math.Max(1,height>>level)),
                 addedMaskBytes=current.StorageBytes-frozen.StorageBytes,

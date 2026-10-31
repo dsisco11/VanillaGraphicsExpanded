@@ -428,6 +428,7 @@ public sealed class ShaderLinkBatchTests(HeadlessGLFixture fixture, ITestOutputH
     #region Timing evidence
     /// <summary>Records matched executable submission, consumption, and first draw costs without claiming a cold driver cache.</summary>
     [Fact]
+    [Trait("Purpose", "Diagnostic")]
     public void MatchedLoadingTimings()
     {
         EnsureContextValid();

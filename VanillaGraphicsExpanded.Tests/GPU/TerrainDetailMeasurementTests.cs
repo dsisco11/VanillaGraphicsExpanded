@@ -13,9 +13,11 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GpuIntegration")]
 public sealed class TerrainDetailMeasurementTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
+    private readonly VanillaGraphicsExpanded.Tests.TestSupport.CountingDiskCacheFileSystem reports = new(DiagnosticReports.Publish);
     #region Measurement
     /// <summary>Records three warmed ABBA blocks per comparison with identical draws and no timing assertions.</summary>
     [Fact]
+    [Trait("Purpose", "Diagnostic")]
     public void MatchedProductionStages()
     {
         Assert.SkipUnless(Environment.GetEnvironmentVariable("VGE_RUN_TERRAIN_DETAIL_MEASUREMENTS")=="1", "Explicit measurement run required.");
@@ -43,8 +45,8 @@ public sealed class TerrainDetailMeasurementTests(HeadlessGLFixture fixture) : R
             }
         }
         string path=Environment.GetEnvironmentVariable("VGE_TERRAIN_DETAIL_REPORT") ?? Path.Combine(AppContext.BaseDirectory,"terrain-detail-measurement.json");
-        Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(path))!);
-        File.WriteAllText(path,JsonSerializer.Serialize(new{renderer=GL.GetString(StringName.Renderer),vendor=GL.GetString(StringName.Vendor),version=GL.GetString(StringName.Version),width=256,height=256,targetEdgePixels=8,maximumLevel=8,effectiveOddCap=7,focalPixels=256,amplitudeMetres=.04,nearFade=new[]{10,20},fadedFade=new[]{0,.1},heightSample=0,neutralHeight=.5,overdrawPerSample=256,description="Synthetic saturated full-screen terrain faces; production TCS/TES and relief include; excludes actual chunks, shadows, material binding and CPU traversal",rows},new JsonSerializerOptions{WriteIndented=true}));
+        reports.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(path))!);
+        reports.WriteAllText(path,JsonSerializer.Serialize(new{renderer=GL.GetString(StringName.Renderer),vendor=GL.GetString(StringName.Vendor),version=GL.GetString(StringName.Version),width=256,height=256,targetEdgePixels=8,maximumLevel=8,effectiveOddCap=7,focalPixels=256,amplitudeMetres=.04,nearFade=new[]{10,20},fadedFade=new[]{0,.1},heightSample=0,neutralHeight=.5,overdrawPerSample=256,description="Synthetic saturated full-screen terrain faces; production TCS/TES and relief include; excludes actual chunks, shadows, material binding and CPU traversal",rows},new JsonSerializerOptions{WriteIndented=true}));
     }
     #endregion
 

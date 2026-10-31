@@ -9,9 +9,11 @@ namespace VanillaGraphicsExpanded.Tests;
 /// <summary>Records matched warmed scalar and TensorPrimitives atmospheric integration costs.</summary>
 public sealed class AtmosphereTensorMeasurementTests
 {
+    private readonly VanillaGraphicsExpanded.Tests.TestSupport.CountingDiskCacheFileSystem reports = new(DiagnosticReports.Publish);
     #region Measurement
     /// <summary>Measures independent ABBA blocks without machine-specific performance assertions.</summary>
     [Fact]
+    [Trait("Purpose", "Diagnostic")]
     public void MatchedRadianceIntegration()
     {
         Assert.SkipUnless(Environment.GetEnvironmentVariable("VGE_RUN_ATMOSPHERE_MEASUREMENTS") == "1", "Explicit measurement run required.");
@@ -37,8 +39,8 @@ public sealed class AtmosphereTensorMeasurementTests
             }
         }
         string path = Environment.GetEnvironmentVariable("VGE_ATMOSPHERE_REPORT") ?? Path.Combine(AppContext.BaseDirectory, "atmosphere-tensor-measurement.json");
-        Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(path))!);
-        File.WriteAllText(path, JsonSerializer.Serialize(new { framework = RuntimeInformation.FrameworkDescription, architecture = RuntimeInformation.ProcessArchitecture.ToString(), cpu = Environment.GetEnvironmentVariable("PROCESSOR_IDENTIFIER"), processors = Environment.ProcessorCount, affinity = Process.GetCurrentProcess().ProcessorAffinity.ToInt64(), tieredCompilation = Environment.GetEnvironmentVariable("DOTNET_TieredCompilation"), altitudeKm = 2, aerosol = 1, warmupSecondsPerWorkload = 3, rows }, new JsonSerializerOptions { WriteIndented = true, IncludeFields = true }));
+        reports.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(path))!);
+        reports.WriteAllText(path, JsonSerializer.Serialize(new { framework = RuntimeInformation.FrameworkDescription, architecture = RuntimeInformation.ProcessArchitecture.ToString(), cpu = Environment.GetEnvironmentVariable("PROCESSOR_IDENTIFIER"), processors = Environment.ProcessorCount, affinity = Process.GetCurrentProcess().ProcessorAffinity.ToInt64(), tieredCompilation = Environment.GetEnvironmentVariable("DOTNET_TieredCompilation"), altitudeKm = 2, aerosol = 1, warmupSecondsPerWorkload = 3, rows }, new JsonSerializerOptions { WriteIndented = true, IncludeFields = true }));
         Xunit.TestContext.Current.TestOutputHelper!.WriteLine(path);
     }
     #endregion

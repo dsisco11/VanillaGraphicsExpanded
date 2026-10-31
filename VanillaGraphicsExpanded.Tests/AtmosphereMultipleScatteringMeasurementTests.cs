@@ -10,6 +10,7 @@ public sealed class AtmosphereMultipleScatteringMeasurementTests
     #region Measurement
     /// <summary>Separates angular and radial error at the high-altitude twilight boundary.</summary>
     [Fact]
+    [Trait("Purpose", "Diagnostic")]
     public void DiagnoseQuadrature()
     {
         Assert.SkipUnless(Environment.GetEnvironmentVariable("VGE_RUN_ATMOSPHERE_MEASUREMENTS") == "1", "Explicit measurement run required.");
@@ -23,6 +24,7 @@ public sealed class AtmosphereMultipleScatteringMeasurementTests
     }
     /// <summary>Measures separate source-table construction and full sky snapshots reusing that table.</summary>
     [Fact]
+    [Trait("Purpose", "Diagnostic")]
     public void RecordWorkerCosts()
     {
         Assert.SkipUnless(Environment.GetEnvironmentVariable("VGE_RUN_ATMOSPHERE_MEASUREMENTS") == "1", "Explicit measurement run required.");

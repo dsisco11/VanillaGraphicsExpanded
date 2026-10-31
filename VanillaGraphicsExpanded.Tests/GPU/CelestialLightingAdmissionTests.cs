@@ -17,6 +17,7 @@ public sealed class CelestialLightingAdmissionTests(HeadlessGLFixture fixture) :
     #region Public API
     /// <summary>Source replacement versions snapshots before admission while ordinary diffuse changes only prioritize direct refresh.</summary>
     [Fact]
+    [Trait("Scenario", "HeadlessRuntime")]
     public void SourceReplacementVersionsPublishedSnapshotWithoutResettingHistoryOnMotion()
     {
         EnsureContextValid();

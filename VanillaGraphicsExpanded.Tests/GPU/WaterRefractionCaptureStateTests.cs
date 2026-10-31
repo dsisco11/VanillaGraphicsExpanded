@@ -21,6 +21,7 @@ public sealed class WaterRefractionCaptureStateTests(HeadlessGLFixture fixture) 
     [InlineData(2, false)]
     [InlineData(1, true)]
     [InlineData(2, true)]
+    [Trait("Scenario", "HeadlessRuntime")]
     public void CaptureRestoresEngineOwnerAndIndependentFramebufferBindings(int backgroundScale, bool lumon)
     {
         EnsureContextValid();

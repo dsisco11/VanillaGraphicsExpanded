@@ -5,6 +5,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
+    <!-- Default discovery excludes native fixtures and explicitly selected diagnostics. -->
     <RunSettingsFilePath>$(MSBuildProjectDirectory)\UnitTests.runsettings</RunSettingsFilePath>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <EnableSpirv Condition="'$(EnableSpirv)' == ''">true</EnableSpirv>

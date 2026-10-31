@@ -1784,9 +1784,9 @@ Phase 10: Streamline GPU integration tests and eliminate unnecessary test work
   Scope: VanillaGraphicsExpanded.Tests and its required fixtures/callers. Other test projects, including
     shader-build-tool tests, are excluded. Necessary shared declarations or production filesystem seams
     must be identified and justified individually; this is not authorization for unrelated redesign.
-  The existing-work commit boundary in 10.1 is complete by user acceptance. Next, analyze the entire
-    remaining scope in 10.2 before defining and executing further implementation subphases. Existing
-    edits do not establish an approved implementation pattern for the remaining families.
+  The existing-work boundary in 10.1, approved analysis in 10.2 and classification/I/O isolation in 10.3
+    are complete. Shared setup, compact assertions, family migration and combined qualification remain
+    in 10.4–10.6; existing edits do not complete those later obligations.
 
 Phase 10.1: Establish the commit boundary for existing test-cleanup work
   Status: complete by user acceptance as the existing-work commit boundary.
@@ -2135,28 +2135,59 @@ Phase 10.3: Finish test classification and filesystem isolation
   Outcome: routine CPU/GPU correctness selections have explicit boundaries and VGE test-owned storage
     and export behavior uses providers; diagnostic utilities execute only when explicitly requested.
 
-  ☐ Retain Category=GpuIntegration for real context/driver/shader cases, serial GPU collection ownership,
+  ☑ Retain Category=GpuIntegration for real context/driver/shader cases, serial GPU collection ownership,
     CPU state collection isolation and NearFieldMaterialCaptureCollection's DisableParallelization.
     Split genuinely CPU-only methods from mixed native classes, including ShaderDefineInjectionTests'
     source-map/import case. Do not fabricate ready shader references to relabel native admission as CPU.
-  ☐ Apply Purpose=Diagnostic to diagnostic methods; exclude them from routine unit/GPU correctness runs.
+  ☑ Apply Purpose=Diagnostic to diagnostic methods; exclude them from routine unit/GPU correctness runs.
     Classify Scenario=HeadlessRuntime by actual execution. Replace disabled diagnostic success-return
     cases with explicit selection/reporting. Preserve correctness methods in mixed diagnostic classes.
     Reconcile the csproj, UnitTests.runsettings, AllTests.runsettings and documented commands together;
     preserve an explicit combined correctness selection and a separately requested diagnostic selection.
-  ☐ Complete every remaining I/O action in 10.2's filesystem mapping: immutable built-source snapshots
+  ☑ Complete every remaining I/O action in 10.2's filesystem mapping: immutable built-source snapshots
     for source-map/import tests; provider-backed captured AO/binary overrides and export sinks; in-memory
     shader-demand/cache subjects. Retain existing cache/material providers, serialization, corruption,
     contention, replacement/reload and failure contracts; no physical filesystem verification claims.
     Keep manifest-owned bootstrap, assembly-loader inputs and runner receipts separate from test I/O.
     Preserve DriverProgramCache.Bypass isolation and scoped policy restoration.
-  ☐ Verify through delegated focused checks that routine unit selection cannot initialize a GPU fixture,
+  ☑ Verify through delegated focused checks that routine unit selection cannot initialize a GPU fixture,
     neither correctness selection executes diagnostic exports/physical persistence, and missing/corrupt
     inputs still fail as intended. Verify filtered discovery as well as affected behavior; do not claim
     removed OS coverage. Reconcile terminology/commands in affected permanent docs, then second-review
     and independently audit this unit. No other test projects or unrelated runtime redesign.
-  ☐ Completion: mapped classification/I/O changes and their callers are migrated together, superseded
+  ☑ Completion: mapped classification/I/O changes and their callers are migrated together, superseded
     paths are removed, coverage mapping is current, and focused evidence supports the execution boundaries.
+
+  Qualification and traceability:
+    - 10.3 -> 10.2's classification/filesystem map; Rendering.GpuCommands.Proposal.md, Representative
+      outcomes and verification; Rendering.GpuCommands.Contracts.md, Submission and failure/resource
+      completion; Rendering.GpuResources.md, ownership/snapshots; Rendering.ShaderBindingState.md,
+      Verification boundary -> retain native effects, owner intervals, numeric oracles and completion.
+      Production behavior is unchanged; CPU preprocessing/compatibility assertions no longer acquire GL.
+    - UnitTests.runsettings excludes GpuIntegration and Diagnostic; AllTests.runsettings selects combined
+      correctness; DiagnosticTests.runsettings selects diagnostics. Mixed water/link/reduction workloads
+      have separate entry points; runtime traits follow actual renderer/lifecycle fixtures. Serialized GPU,
+      CPU-state and NearFieldMaterialCapture ownership remains intact.
+    - CapturedPayload/TestAssetSnapshot retain relative source identity, immutable bytes, extent/digest
+      checks and missing/corrupt failures. Captures/binary overrides snapshot explicitly selected inputs
+      once. Existing CountingDiskCacheFileSystem owns cache/export payloads in memory; text reports and
+      binary identities reach runner output. Only manifest/explicit-input bootstrap and assembly loading
+      retain physical reads. Scoped driver-cache overrides and ordinary shader-cache bypass are preserved.
+    - Delegated Debug build: zero errors, 213 existing nullable/analyzer/offline-audit warnings. Focused
+      evidence: 49 CPU cases, 54 retained native cases, 18 water cases and one final demand case passed;
+      122 passing cases, no outstanding failures/skips. TestResults/GpuTests103 contains build-debug.log,
+      focused-cpu.trx, focused-gpu.trx, focused-water.trx and demand-correctness.trx. The earlier demand
+      failure in focused-gpu.trx is superseded only by that case's final passing rerun: the formerly gated
+      fixture now checks the unprepared authored declaration set and supplies explicit frame lighting.
+      Pixel expectations/tolerances were retained; repeated selections additionally require zero reads.
+    - Filtered discovery: 2,185 unit + 6,125 GPU correctness = 8,310 combined correctness rows; 166 diagnostic
+      rows. These are runner display rows, not unique IDs. Sets are disjoint; qualified source/discovery
+      reconciliation found no native-fixture cases in the default unit selection. Discovery receipts are
+      discovery-*.log beside the focused results. Commands use the named settings and explicit purpose
+      filters documented in README.md; builds retain the full shader producer and UseSharedCompilation=false.
+    - Second review and independent completion audit passed. git diff --check passed. No full-suite,
+      Release, expensive diagnostic or live-game qualification is claimed here; those later obligations
+      remain open. No staging or commits. Shared GPU setup and compact assertions remain in 10.4–10.6.
 
 Phase 10.4: Consolidate shared GPU setup and establish compact assertions
   Depends on 10.3. Governing design: 10.2's shared setup, readback and instrumentation sections;

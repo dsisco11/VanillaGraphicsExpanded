@@ -20,6 +20,7 @@ public sealed class SurfaceLightingPublicationProgressTests : RenderTestBase
     [Theory]
     [InlineData(1)]
     [InlineData(15)]
+    [Trait("Scenario", "HeadlessRuntime")]
     public void CameraMotion_PreservesPublicationProgress(int firstBlock)
     {
         EnsureContextValid();
@@ -57,6 +58,7 @@ public sealed class SurfaceLightingPublicationProgressTests : RenderTestBase
 
     /// <summary>New feedback residency preserves partial sweeps and already published unchanged pages.</summary>
     [Fact]
+    [Trait("Scenario", "HeadlessRuntime")]
     public void GrowingResidency_PreservesPartialAndPublishedPages()
     {
         EnsureContextValid();
@@ -86,6 +88,7 @@ public sealed class SurfaceLightingPublicationProgressTests : RenderTestBase
     [Theory]
     [InlineData(1)]
     [InlineData(4)]
+    [Trait("Scenario", "HeadlessRuntime")]
     public void FiniteWorkingSet_EventuallyPublishes(int texelsPerEdge)
     {
         EnsureContextValid();

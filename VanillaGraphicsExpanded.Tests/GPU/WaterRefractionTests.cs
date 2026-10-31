@@ -19,6 +19,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GpuIntegration")]
 public sealed class WaterRefractionTests(HeadlessGLFixture fixture, ITestOutputHelper output) : RenderTestBase(fixture)
 {
+    private readonly VanillaGraphicsExpanded.Tests.TestSupport.CountingDiskCacheFileSystem reports = new(DiagnosticReports.Publish);
     private const int LavaCase = 1;
     private const int FullAlphaCase = 2;
     private const int FogCase = 3;
@@ -124,9 +125,120 @@ public sealed class WaterRefractionTests(HeadlessGLFixture fixture, ITestOutputH
     [InlineData(0, true, 0, 2, 0, 0, true)]
     public void OpaqueHitsAndUnavailableSourcesHaveDefinedComposition(int scenario, bool sceneLinear = false, int scatteringSource = 0, int backgroundScale = 1, int refractionQuality = 3, int compatibility = 0, bool captureReceiver = false)
     {
+        RunComparison(scenario, sceneLinear, scatteringSource, backgroundScale, refractionQuality, compatibility, captureReceiver, diagnosticRun: false);
+    }
+
+    /// <summary>Runs explicitly selected binary, capture and timing diagnostics without physical persistence.</summary>
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(2)]
+    [InlineData(3)]
+    [InlineData(4)]
+    [InlineData(5)]
+    [InlineData(6)]
+    [InlineData(7)]
+    [InlineData(8)]
+    [InlineData(9)]
+    [InlineData(10)]
+    [InlineData(11)]
+    [InlineData(12)]
+    [InlineData(13)]
+    [InlineData(14)]
+    [InlineData(15)]
+    [InlineData(16)]
+    [InlineData(17)]
+    [InlineData(18)]
+    [InlineData(19)]
+    [InlineData(0, true)]
+    [InlineData(7, true)]
+    [InlineData(9, true)]
+    [InlineData(14, true)]
+    [InlineData(9, true, 1)]
+    [InlineData(9, true, 2)]
+    [InlineData(0, true, 0, 2)]
+    [InlineData(1, true, 0, 2)]
+    [InlineData(11, true, 0, 2)]
+    [InlineData(14, true, 0, 2)]
+    [InlineData(0, false, 0, 1, 0)]
+    [InlineData(0, true, 0, 1, 0)]
+    [InlineData(0, true, 0, 2, 0)]
+    [InlineData(1, true, 0, 1, 0)]
+    [InlineData(1, true, 0, 2, 0)]
+    [InlineData(3, true, 0, 1, 0)]
+    [InlineData(6, true, 0, 1, 0)]
+    [InlineData(7, true, 0, 1, 0)]
+    [InlineData(10, true, 0, 1, 0)]
+    [InlineData(11, true, 0, 2, 0)]
+    [InlineData(9, false, 0, 1, 0)]
+    [InlineData(9, true, 0, 1, 0)]
+    [InlineData(9, true, 1, 1, 0)]
+    [InlineData(9, true, 2, 1, 0)]
+    [InlineData(0, false, 0, 1, 1)]
+    [InlineData(0, true, 0, 2, 1)]
+    [InlineData(1, true, 0, 2, 1)]
+    [InlineData(6, true, 0, 1, 1)]
+    [InlineData(7, true, 0, 1, 1)]
+    [InlineData(8, true, 0, 1, 1)]
+    [InlineData(9, false, 0, 1, 1)]
+    [InlineData(9, true, 1, 1, 1)]
+    [InlineData(9, true, 2, 1, 1)]
+    [InlineData(11, true, 0, 2, 1)]
+    [InlineData(14, true, 0, 2, 1)]
+    [InlineData(0, false, 0, 1, 2)]
+    [InlineData(0, true, 0, 2, 2)]
+    [InlineData(1, true, 0, 2, 2)]
+    [InlineData(6, true, 0, 1, 2)]
+    [InlineData(7, true, 0, 1, 2)]
+    [InlineData(8, true, 0, 1, 2)]
+    [InlineData(9, false, 0, 1, 2)]
+    [InlineData(9, true, 1, 1, 2)]
+    [InlineData(9, true, 2, 1, 2)]
+    [InlineData(11, true, 0, 2, 2)]
+    [InlineData(14, true, 0, 2, 2)]
+    [InlineData(0, true, 0, 1, 1)]
+    [InlineData(0, true, 0, 1, 2)]
+    [InlineData(3, true, 0, 2, 0)]
+    [InlineData(3, true, 0, 1, 1)]
+    [InlineData(3, true, 0, 2, 1)]
+    [InlineData(3, true, 0, 1, 2)]
+    [InlineData(3, true, 0, 2, 2)]
+    [InlineData(3, true, 0, 1, 3)]
+    [InlineData(3, true, 0, 2, 3)]
+    [InlineData(6, true, 0, 2, 0)]
+    [InlineData(6, true, 0, 2, 1)]
+    [InlineData(6, true, 0, 2, 2)]
+    [InlineData(6, true, 0, 1, 3)]
+    [InlineData(6, true, 0, 2, 3)]
+    [InlineData(7, true, 0, 2, 0)]
+    [InlineData(7, true, 0, 2, 1)]
+    [InlineData(7, true, 0, 2, 2)]
+    [InlineData(7, true, 0, 2, 3)]
+    [InlineData(0, false, 0, 2, 0)]
+    [InlineData(0, false, 0, 2, 1)]
+    [InlineData(0, false, 0, 2, 2)]
+    [InlineData(0, false, 0, 2, 3)]
+    [InlineData(0, true, 0, 1, 3, LavaCase)]
+    [InlineData(0, true, 0, 1, 3, FullAlphaCase)]
+    [InlineData(0, true, 0, 1, 3, FogCase)]
+    [InlineData(9, true, 1, 1, 3, ShadowCase)]
+    [InlineData(0, true, 0, 1, 3, FlowCase)]
+    [InlineData(0, true, 0, 1, 0, 0, true)]
+    [InlineData(0, true, 0, 2, 0, 0, true)]
+    [Trait("Purpose", "Diagnostic")]
+    public void DiagnosticOpaqueHitsAndUnavailableSourcesHaveDefinedComposition(int scenario, bool sceneLinear = false, int scatteringSource = 0, int backgroundScale = 1, int refractionQuality = 3, int compatibility = 0, bool captureReceiver = false)
+    {
+        RunComparison(scenario, sceneLinear, scatteringSource, backgroundScale, refractionQuality, compatibility, captureReceiver, diagnosticRun: true);
+    }
+    #endregion
+
+    #region Private
+    /// <summary>Retains the numerical contract while isolating optional diagnostic inputs and output sinks.</summary>
+    private void RunComparison(int scenario, bool sceneLinear, int scatteringSource, int backgroundScale, int refractionQuality, int compatibility, bool captureReceiver, bool diagnosticRun)
+    {
         EnsureContextValid();
-        string? binaryDirectory = Environment.GetEnvironmentVariable("VGE_WATER_SURFACE_BINARIES");
-        bool measure = Environment.GetEnvironmentVariable("VGE_MEASURE_WATER_SURFACE") == "1" && scenario == 0 && compatibility == 0;
+        string? binaryDirectory = diagnosticRun ? Environment.GetEnvironmentVariable("VGE_WATER_SURFACE_BINARIES") : null;
+        bool measure = diagnosticRun && Environment.GetEnvironmentVariable("VGE_MEASURE_WATER_SURFACE") == "1" && scenario == 0 && compatibility == 0;
         bool phaseMeasurement = measure && Environment.GetEnvironmentVariable("VGE_MEASURE_WATER_PHASE") == "1";
         int frameSize = measure ? 512 : scenario >= 14 ? 128 : 16;
         int center = frameSize / 2;
@@ -140,7 +252,7 @@ public sealed class WaterRefractionTests(HeadlessGLFixture fixture, ITestOutputH
                 if (!variant && !path.EndsWith("/pbr_liquid.fsh.spv", StringComparison.Ordinal)) return;
                 string binary = Path.Combine(binaryDirectory, variant
                     ? $"pbr_liquid.fsh.{Path.GetFileNameWithoutExtension(path)}.glsl.spv" : "default.spv");
-                assets.Overrides[path] = File.ReadAllBytes(binary);
+                assets.Overrides[path] = TestAssetSnapshot.CaptureDirectory(binaryDirectory).Copy(Path.GetFileName(binary));
             };
         }
         var program = GpuShaderProgramLibraries.Declare(assets.Api, LiquidShaderProgram.Contract.Identity, () => new LiquidShaderProgram());
@@ -442,7 +554,7 @@ public sealed class WaterRefractionTests(HeadlessGLFixture fixture, ITestOutputH
             for (int attachment = 0; attachment < 6; attachment++)
                 output.WriteLine($"surface-mrt index={attachment} center={string.Join(',', target[attachment].ReadPixelsRegion(center, center, 1, 1))}");
         }
-        if (Environment.GetEnvironmentVariable("VGE_VALIDATE_WATER_AERIAL") == "1")
+        if (diagnosticRun && Environment.GetEnvironmentVariable("VGE_VALIDATE_WATER_AERIAL") == "1")
         {
             // The normal scenario assertions run first. This optional comparison
             // then records actual production outputs with nonzero atmospheric LUTs.
@@ -461,7 +573,7 @@ public sealed class WaterRefractionTests(HeadlessGLFixture fixture, ITestOutputH
                     }
                 }
         }
-        if (Environment.GetEnvironmentVariable("VGE_VALIDATE_WATER_PHASE") == "1")
+        if (diagnosticRun && Environment.GetEnvironmentVariable("VGE_VALIDATE_WATER_PHASE") == "1")
         {
             // Matched production binaries exercise independent solar and point
             // sources through both fallback and selected receiver composition.
@@ -572,8 +684,8 @@ public sealed class WaterRefractionTests(HeadlessGLFixture fixture, ITestOutputH
                     string? captureDirectory = Environment.GetEnvironmentVariable("VGE_WATER_SURFACE_OUTPUTS");
                     if (!string.IsNullOrEmpty(captureDirectory))
                     {
-                        Directory.CreateDirectory(captureDirectory);
-                        using var file = File.Create(Path.Combine(captureDirectory, $"q{refractionQuality}-{workload}-mrt{attachment}.f32.gz"));
+                        reports.CreateDirectory(captureDirectory);
+                        using var file = reports.OpenWrite(Path.Combine(captureDirectory, $"q{refractionQuality}-{workload}-mrt{attachment}.f32.gz"));
                         using var compressed = new System.IO.Compression.GZipStream(file, System.IO.Compression.CompressionLevel.Fastest);
                         compressed.Write(System.Runtime.InteropServices.MemoryMarshal.AsBytes(pixels.AsSpan()));
                     }

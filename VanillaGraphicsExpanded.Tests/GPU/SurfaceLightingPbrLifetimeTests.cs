@@ -15,6 +15,7 @@ public sealed class SurfaceLightingPbrLifetimeTests : RenderTestBase
     /// <summary>Source removal leaves exactly direct plus emission; restoration recovers indirect with retained consumers.</summary>
     [Theory]
     [InlineData(false)] [InlineData(true)]
+    [Trait("Scenario", "HeadlessRuntime")]
     public void SourceChangesReachRetainedComposition(bool sh9)
     {
         EnsureContextValid();
@@ -62,6 +63,7 @@ public sealed class SurfaceLightingPbrLifetimeTests : RenderTestBase
     /// <summary>A dark replacement atlas must reject old bright history before source restoration recovers the final image.</summary>
     [Theory]
     [InlineData(false)] [InlineData(true)]
+    [Trait("Scenario", "HeadlessRuntime")]
     public void CacheReplacementInvalidatesComposedHistory(bool sh9)
     {
         EnsureContextValid();
@@ -101,6 +103,7 @@ public sealed class SurfaceLightingPbrLifetimeTests : RenderTestBase
     /// <summary>Bright neighboring rooms cannot illuminate any composed dark-room pixel, including immediately after movement.</summary>
     [Theory]
     [InlineData(false)] [InlineData(true)]
+    [Trait("Scenario", "HeadlessRuntime")]
     public void SealedNeighborRejectsLocalizedLeakage(bool sh9)
     {
         EnsureContextValid();

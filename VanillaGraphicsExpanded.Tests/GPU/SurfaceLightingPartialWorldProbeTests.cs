@@ -13,6 +13,7 @@ public sealed class SurfaceLightingPartialWorldProbeTests(HeadlessGLFixture fixt
     #region Partial runtime publication
     /// <summary>A ready subset can publish below the original complete-batch cost without exceeding the upload budget.</summary>
     [Fact]
+    [Trait("Scenario", "HeadlessRuntime")]
     public void PartialUploadFitsBelowOriginalAdmissionCost()
     {
         EnsureContextValid();
@@ -30,6 +31,7 @@ public sealed class SurfaceLightingPartialWorldProbeTests(HeadlessGLFixture fixt
 
     /// <summary>Unavailable pages cannot discard ready directions, and retries query only still unresolved descriptors.</summary>
     [Fact]
+    [Trait("Scenario", "HeadlessRuntime")]
     public void PartialCachePagesPublishAndRetryWithoutDiscardingReadyDirections()
     {
         EnsureContextValid();
@@ -76,6 +78,7 @@ public sealed class SurfaceLightingPartialWorldProbeTests(HeadlessGLFixture fixt
     #region History lifetime
     /// <summary>A submitted bright query cannot publish after source readiness is withdrawn, without replacing the cache generation.</summary>
     [Fact]
+    [Trait("Scenario", "HeadlessRuntime")]
     public void PendingQueryRejectsSourceInvalidationWithoutGlobalCacheReplacement()
     {
         EnsureContextValid();
@@ -96,6 +99,7 @@ public sealed class SurfaceLightingPartialWorldProbeTests(HeadlessGLFixture fixt
 
     /// <summary>An unavailable engine accessor cannot postpone already queued slot retirement past the frame callback.</summary>
     [Fact]
+    [Trait("Scenario", "HeadlessRuntime")]
     public void MissingWorldAccessorStillFlushesQueuedHistory()
     {
         EnsureContextValid();
@@ -118,6 +122,7 @@ public sealed class SurfaceLightingPartialWorldProbeTests(HeadlessGLFixture fixt
     /// <summary>Real scheduler anchor events clear introduced physical slots while preserving overlap in either direction.</summary>
     [Theory]
     [InlineData(4,48)] [InlineData(-4,48)] [InlineData(20,0)]
+    [Trait("Scenario", "HeadlessRuntime")]
     public void AnchorShiftClearsReusedSlotsAndPreservesOverlappingDirections(int delta,int remaining)
     {
         EnsureContextValid();
@@ -135,6 +140,7 @@ public sealed class SurfaceLightingPartialWorldProbeTests(HeadlessGLFixture fixt
     /// <summary>Dirty geometry removes retained directions and rejects the already queued partial retry ticket.</summary>
     [Theory]
     [InlineData(false)] [InlineData(true)]
+    [Trait("Scenario", "HeadlessRuntime")]
     public void GeometryDirtyClearsRetainedDirectionsAndRejectsPendingRetry(bool explicitFlush)
     {
         EnsureContextValid();

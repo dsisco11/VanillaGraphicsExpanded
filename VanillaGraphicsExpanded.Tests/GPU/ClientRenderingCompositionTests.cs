@@ -20,6 +20,7 @@ public sealed class ClientRenderingCompositionTests(HeadlessGLFixture fixture) :
     #region Public API
     /// <summary>An intervening asset epoch cannot leave configuration reload permanently blocked by an obsolete queued callback.</summary>
     [Fact]
+    [Trait("Scenario", "HeadlessRuntime")]
     public void ObsoleteConfigurationCallbackDoesNotBlockNextQueue()
     {
         EnsureContextValid();
@@ -52,6 +53,7 @@ public sealed class ClientRenderingCompositionTests(HeadlessGLFixture fixture) :
 
     /// <summary>An early engine manager callback preserves root ownership; root shutdown continues through a feature failure and drains native names last.</summary>
     [Fact]
+    [Trait("Scenario", "HeadlessRuntime")]
     public void RootOwnsShutdownDespiteEarlyManagerCallback()
     {
         EnsureContextValid();

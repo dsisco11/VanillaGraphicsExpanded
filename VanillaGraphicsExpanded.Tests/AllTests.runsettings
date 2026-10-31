@@ -1,3 +1,5 @@
 <RunSettings>
-  <RunConfiguration />
+  <RunConfiguration>
+    <TestCaseFilter>Purpose!=Diagnostic</TestCaseFilter>
+  </RunConfiguration>
 </RunSettings>

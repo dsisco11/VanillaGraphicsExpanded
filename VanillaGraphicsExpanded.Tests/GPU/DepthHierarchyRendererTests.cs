@@ -21,6 +21,7 @@ public sealed class DepthHierarchyRendererTests(HeadlessGLFixture fixture) : Lum
     #region Public API
     /// <summary>Explicit enablement shares one current-view chain and retires it immediately when disabled.</summary>
     [Fact]
+    [Trait("Scenario", "HeadlessRuntime")]
     public void EnabledPublicationIsCurrentViewAndLifecycleBounded() {
         EnsureShaderTestAvailable();using var assets=new BinaryShaderApiFixture();using var platform=new EngineShaderPlatformScope();
         using var terrain=new EngineTerrainBuffers(7,3);terrain.Depth.UploadDataImmediate(Enumerable.Repeat(.4f,21).ToArray());

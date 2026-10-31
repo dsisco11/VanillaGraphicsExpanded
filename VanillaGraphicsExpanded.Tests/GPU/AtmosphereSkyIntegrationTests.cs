@@ -33,6 +33,7 @@ public sealed class AtmosphereSkyIntegrationTests(HeadlessGLFixture fixture) : R
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
+    [Trait("Scenario", "HeadlessRuntime")]
     public void IndependentFullscreenDrawRestoresState(bool ssao)
     {
         EnsureContextValid();

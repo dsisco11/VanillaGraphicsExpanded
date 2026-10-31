@@ -20,6 +20,7 @@ public sealed class LumOnTemporalRendererTests : RenderTestBase
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
+    [Trait("Scenario", "HeadlessRuntime")]
     public void RegisteredRendererUploadsRebasedHistory(bool debug)
     {
         EnsureContextValid();
@@ -45,6 +46,7 @@ public sealed class LumOnTemporalRendererTests : RenderTestBase
 
     /// <summary>The actual HZB consumer routes every mip and restores hostile engine state on repeated submissions.</summary>
     [Fact]
+    [Trait("Scenario", "HeadlessRuntime")]
     public void RendererHzbSubmissionBuildsEveryMipUnderHostileState()
     {
         EnsureContextValid();
@@ -71,6 +73,7 @@ public sealed class LumOnTemporalRendererTests : RenderTestBase
 
     /// <summary>A foreign engine shader rejects submission without publishing or advancing temporal history, and the next valid frame recovers.</summary>
     [Fact]
+    [Trait("Scenario", "HeadlessRuntime")]
     public void RejectedBoundaryDoesNotCommitOrSwapHistory()
     {
         EnsureContextValid();

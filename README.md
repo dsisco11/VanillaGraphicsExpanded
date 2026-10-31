@@ -156,9 +156,9 @@ This project includes CPU unit tests and GPU integration tests. The test suite u
 
 ### Running Tests
 
-By default the VGE project uses `UnitTests.runsettings`, which excludes real GPU integration tests. CPU tests that touch engine globals use a serialized collection without creating a GL context. Headless renderer scenarios are integration tests; in-game visual/runtime acceptance remains separate.
+By default the VGE project uses `UnitTests.runsettings`, which excludes GPU integration tests and diagnostic workloads. CPU tests that touch engine globals use a serialized collection without creating a GL context. Headless renderer scenarios are integration tests; in-game visual/runtime acceptance remains separate.
 
-**Run all VGE tests locally (requires GPU):**
+**Run combined VGE correctness tests locally (requires GPU):**
 
 ```bash
 dotnet test VanillaGraphicsExpanded.Tests --settings VanillaGraphicsExpanded.Tests/AllTests.runsettings
@@ -167,14 +167,33 @@ dotnet test VanillaGraphicsExpanded.Tests --settings VanillaGraphicsExpanded.Tes
 **Run only non-GPU tests (CI environments without GPU):**
 
 ```bash
-dotnet test --filter "Category!=GpuIntegration"
+dotnet test VanillaGraphicsExpanded.Tests --settings VanillaGraphicsExpanded.Tests/UnitTests.runsettings --filter "Category!=GpuIntegration&Purpose!=Diagnostic"
 ```
 
 **Run only GPU tests:**
 
 ```bash
-dotnet test VanillaGraphicsExpanded.Tests --settings VanillaGraphicsExpanded.Tests/AllTests.runsettings --filter "Category=GpuIntegration"
+dotnet test VanillaGraphicsExpanded.Tests --settings VanillaGraphicsExpanded.Tests/AllTests.runsettings --filter "Category=GpuIntegration&Purpose!=Diagnostic"
 ```
+
+**Run explicitly selected diagnostics:**
+
+```bash
+dotnet test VanillaGraphicsExpanded.Tests --settings VanillaGraphicsExpanded.Tests/DiagnosticTests.runsettings --filter "Purpose=Diagnostic&FullyQualifiedName~BloomRadialDiagnosticsTests"
+```
+
+`AllTests.runsettings` selects combined correctness tests (`Purpose!=Diagnostic`); `DiagnosticTests.runsettings`
+selects `Purpose=Diagnostic`. Explicit command-line filters replace the settings filter, so include the purpose
+predicate when selecting individual classes. Diagnostics requiring a capture or an additional workload opt-in
+report a skip when it is missing; they never return a successful no-op. `Scenario=HeadlessRuntime` identifies
+production renderer/lifecycle execution, independently of the CPU/GPU and diagnostic classifications.
+
+VGE persistence and export subjects use the existing in-memory filesystem provider. Immutable shader inputs
+are frozen from the build manifest once; explicitly requested diagnostic captures/binary overrides are also
+snapshotted once before their consumers read the provider. Missing inputs and bad capture lengths/digests
+fail validation. Diagnostic reports and BMP/raw exports use memory sinks, not files at environment-selected
+paths. Text reports and binary payload identities are emitted through test output. Required assembly loading and build/test-runner receipts retain their normal bootstrap I/O. These tests
+verify serialization and replacement protocols, not operating-system filesystem atomicity.
 
 ### GPU Test Categories
 
@@ -196,7 +215,7 @@ For CI runners without GPU access, exclude GPU tests:
 
 ```yaml
 - name: Run Tests
-  run: dotnet test --filter "Category!=GpuIntegration"
+  run: dotnet test VanillaGraphicsExpanded.Tests --settings VanillaGraphicsExpanded.Tests/UnitTests.runsettings --filter "Category!=GpuIntegration&Purpose!=Diagnostic"
 ```
 
 #### Linux CI with Software Rendering (Mesa llvmpipe)

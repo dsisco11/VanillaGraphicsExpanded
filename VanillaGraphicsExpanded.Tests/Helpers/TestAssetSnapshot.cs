@@ -10,11 +10,28 @@ internal sealed class TestAssetSnapshot
     private readonly FrozenDictionary<string, byte[]> files;
     private readonly Lazy<FrozenDictionary<string, byte[]>> assets;
     private readonly ConcurrentDictionary<string, string> text = new(StringComparer.Ordinal);
+    private static readonly ConcurrentDictionary<string, Lazy<TestAssetSnapshot>> diagnosticDirectories = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly ConcurrentDictionary<string, Lazy<byte[]>> diagnosticFiles = new(StringComparer.OrdinalIgnoreCase);
     internal static TestAssetSnapshot Built { get; } = LoadBuilt();
 
     #region Internal API
+    /// <summary>Freezes authored or deliberately malformed inputs independently of their caller's mutable arrays.</summary>
+    internal TestAssetSnapshot(IReadOnlyDictionary<string, byte[]> inputs)
+    {
+        files = inputs.ToFrozenDictionary(pair => Normalize(pair.Key), pair => pair.Value.ToArray(), StringComparer.Ordinal);
+        assets = new(() => files.ToFrozenDictionary(StringComparer.OrdinalIgnoreCase));
+    }
+
     /// <summary>Captures one explicitly selected build-output directory before consumers run against memory.</summary>
-    internal TestAssetSnapshot(string root) : this(root, Directory.EnumerateFiles(root, "*", SearchOption.AllDirectories)) { }
+    private TestAssetSnapshot(string root) : this(root, Directory.EnumerateFiles(root, "*", SearchOption.AllDirectories)) { }
+
+    /// <summary>Freezes an explicitly requested diagnostic capture once; consumers read only the immutable provider.</summary>
+    internal static TestAssetSnapshot CaptureDirectory(string root) => diagnosticDirectories.GetOrAdd(Path.GetFullPath(root),
+        path => new Lazy<TestAssetSnapshot>(() => new(path))).Value;
+
+    /// <summary>Freezes an explicitly requested diagnostic binary once and gives each consumer isolated bytes.</summary>
+    internal static byte[] CaptureFile(string path) => diagnosticFiles.GetOrAdd(Path.GetFullPath(path),
+        name => new Lazy<byte[]>(() => File.ReadAllBytes(name))).Value.ToArray();
 
     /// <summary>Captures only the explicitly supplied current input set.</summary>
     private TestAssetSnapshot(string root, IEnumerable<string> inputs)

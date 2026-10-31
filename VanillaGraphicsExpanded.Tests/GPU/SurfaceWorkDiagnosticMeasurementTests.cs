@@ -15,9 +15,11 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GpuIntegration")]
 public sealed class SurfaceWorkDiagnosticMeasurementTests(HeadlessGLFixture fixture):RenderTestBase(fixture)
 {
+    private readonly VanillaGraphicsExpanded.Tests.TestSupport.CountingDiskCacheFileSystem reports = new(DiagnosticReports.Publish);
     #region Matched measurement
     /// <summary>Measures warmed independent ABBA blocks without treating timing as correctness acceptance.</summary>
     [Fact]
+    [Trait("Purpose", "Diagnostic")]
     public void MatchedDiagnosticsOffOn()
     {
         Assert.SkipUnless(Environment.GetEnvironmentVariable("VGE_RUN_SURFACE_DIAGNOSTICS_MEASUREMENTS")=="1","Explicit measurement run required.");
@@ -80,8 +82,8 @@ public sealed class SurfaceWorkDiagnosticMeasurementTests(HeadlessGLFixture fixt
             }
         }
         string path=Environment.GetEnvironmentVariable("VGE_SURFACE_DIAGNOSTICS_MEASUREMENT_OUTPUT")??Path.Combine(Path.GetTempPath(),"surface-work-diagnostics-measurements.json");
-        Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(path))!);
-        File.WriteAllText(path,JsonSerializer.Serialize(new {Utc=DateTime.UtcNow,Vendor=GL.GetString(StringName.Vendor),Renderer=GL.GetString(StringName.Renderer),
+        reports.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(path))!);
+        reports.WriteAllText(path,JsonSerializer.Serialize(new {Utc=DateTime.UtcNow,Vendor=GL.GetString(StringName.Vendor),Renderer=GL.GetString(StringName.Renderer),
             Version=GL.GetString(StringName.Version),Runtime=Environment.Version.ToString(),Os=Environment.OSVersion.ToString(),
             Cpu=Environment.GetEnvironmentVariable("PROCESSOR_IDENTIFIER"),Processors=Environment.ProcessorCount,
             Config=new {PageEdge=8,PagesPerDispatch=4,TexelsPerPage=64,RaysPerTexel=1,Steps=64,WarmupDispatches=8,IndependentAbbaBlocks=3},Rows=rows},

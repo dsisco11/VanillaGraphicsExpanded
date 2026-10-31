@@ -27,6 +27,7 @@ public sealed class SceneColorParticlePublicationTests(HeadlessGLFixture fixture
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
+    [Trait("Scenario", "HeadlessRuntime")]
     public void RegisteredCapturePublishesAndInvalidatesAcrossLifecycle(bool ssao)
     {
         EnsureContextValid();

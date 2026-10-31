@@ -22,6 +22,7 @@ public sealed class PbrModeLifecycleTests : RenderTestBase
     #region Production ownership
     /// <summary>A renderer started without LumOn discovers a later provider and rejects unpublished or disabled GI.</summary>
     [Fact]
+    [Trait("Scenario", "HeadlessRuntime")]
     public void LateProviderAndModeChangesDoNotConsumeStaleLighting()
     {
         EnsureContextValid();

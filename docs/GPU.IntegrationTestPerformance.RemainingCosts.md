@@ -8,7 +8,7 @@ assertions. The source audit is independent of timing attribution; both are reco
 
 - Build and restore time are separate from `--no-build --no-restore` test runs.
 - One GPU test process runs at a time. Fresh processes do not imply cold driver/filesystem caches.
-- Use the existing representative selection and a current broad `Category=GPU` run. Record cases,
+- Use the existing representative selection and a current correctness `Category=GpuIntegration&Purpose!=Diagnostic` run using `AllTests.runsettings`. Record cases,
   failures and skips; historical results are context rather than matched optimization controls.
 - Temporary scopes retain every draw, readback, condition, frame limit and assertion. Restore the
   original source bytes and rebuild before completing the investigation.

@@ -12,6 +12,7 @@ public sealed class SurfaceLightingRefreshTests(HeadlessGLFixture fixture) : Ren
     #region Resident refresh
     /// <summary>Disabling indirect work leaves initial direct seeding and subsequent light refresh active.</summary>
     [Fact]
+    [Trait("Scenario", "HeadlessRuntime")]
     public void ZeroIndirectBudgetPreservesDirectProgressAndLiveBudgetIdentity()
     {
         EnsureContextValid();
@@ -40,6 +41,7 @@ public sealed class SurfaceLightingRefreshTests(HeadlessGLFixture fixture) : Ren
 
     /// <summary>Live history-limit edits reach the producer without replacing storage, captures, or published lighting.</summary>
     [Fact]
+    [Trait("Scenario", "HeadlessRuntime")]
     public void HistoryLimitChangesPreservePublishedSurfaceIdentity()
     {
         EnsureContextValid();
@@ -72,6 +74,7 @@ public sealed class SurfaceLightingRefreshTests(HeadlessGLFixture fixture) : Ren
 
     /// <summary>A light edit in one source chunk cannot prevent successful indirect work in an unchanged neighboring chunk.</summary>
     [Fact]
+    [Trait("Scenario", "HeadlessRuntime")]
     public void RemoteResidentContinuesIndirectRefreshAfterAnotherChunkChanges()
     {
         EnsureContextValid();
@@ -106,6 +109,7 @@ public sealed class SurfaceLightingRefreshTests(HeadlessGLFixture fixture) : Ren
 
     /// <summary>Refreshing exterior occupancy revisits hidden faces without recapturing their unchanged owning patch.</summary>
     [Fact]
+    [Trait("Scenario", "HeadlessRuntime")]
     public void ExteriorOcclusionCanHideAndRevealTheSameCapture()
     {
         EnsureContextValid();
@@ -125,6 +129,7 @@ public sealed class SurfaceLightingRefreshTests(HeadlessGLFixture fixture) : Ren
 
     /// <summary>Repeated unavailable rounds cannot restart page selection and starve later resident pages.</summary>
     [Fact]
+    [Trait("Scenario", "HeadlessRuntime")]
     public void RepeatedDirtyAvailabilityCyclesRefreshEveryPage()
     {
         EnsureContextValid();
@@ -154,6 +159,7 @@ public sealed class SurfaceLightingRefreshTests(HeadlessGLFixture fixture) : Ren
     /// <summary>Small page and texel budgets eventually refresh every resident page through repeated light changes.</summary>
     [Theory]
     [InlineData(4)] [InlineData(16)]
+    [Trait("Scenario", "HeadlessRuntime")]
     public void LightChangesRefreshAllResidentsWithoutRecapture(int texels)
     {
         EnsureContextValid();
@@ -189,6 +195,7 @@ public sealed class SurfaceLightingRefreshTests(HeadlessGLFixture fixture) : Ren
 
     /// <summary>Unavailable neighboring lighting retains valid texels and recovers without recapturing unchanged surfaces.</summary>
     [Fact]
+    [Trait("Scenario", "HeadlessRuntime")]
     public void UnresolvedRefreshRetainsPreviousDirectAndOutgoing()
     {
         EnsureContextValid();

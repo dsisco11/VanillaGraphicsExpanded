@@ -22,9 +22,9 @@ internal sealed class BinaryShaderApiFixture : IDisposable
 
     #region API construction
     /// <summary>Routes asset reads to the test output and allows isolated in-memory edits for reload scenarios.</summary>
-    public BinaryShaderApiFixture(string? assetRoot = null)
+    public BinaryShaderApiFixture(TestAssetSnapshot? snapshot = null)
     {
-        var snapshot = assetRoot is null ? TestAssetSnapshot.Built : new TestAssetSnapshot(assetRoot);
+        snapshot ??= TestAssetSnapshot.Built;
         var assets = Proxy<IAssetManager>((method, args) =>
         {
             if (method.Name != "TryGet") throw new NotSupportedException(method.Name);

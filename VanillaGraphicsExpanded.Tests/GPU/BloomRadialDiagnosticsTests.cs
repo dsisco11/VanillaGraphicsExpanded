@@ -16,12 +16,14 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category", "GpuIntegration")]
 public sealed class BloomRadialDiagnosticsTests(HeadlessGLFixture fixture,ITestOutputHelper output) : LumOnShaderFunctionalTestBase(fixture)
 {
+    private readonly VanillaGraphicsExpanded.Tests.TestSupport.CountingDiskCacheFileSystem reports = new(DiagnosticReports.Publish);
     #region Public API
     /// <summary>Compares equal physical point sources through the raw half-float graph at two frozen storage scales.</summary>
     [Fact]
+    [Trait("Purpose", "Diagnostic")]
     public void RawHaloStoragePrecisionComparison()
     {
-        if(Environment.GetEnvironmentVariable("VGE_RUN_BLOOM_RADIAL_DIAGNOSTICS")!="1")return;
+        Assert.SkipUnless(Environment.GetEnvironmentVariable("VGE_RUN_BLOOM_RADIAL_DIAGNOSTICS") == "1", "Explicit diagnostic opt-in required.");
         EnsureShaderTestAvailable();
         const int size=512,levels=5;
         using var assets=new BinaryShaderApiFixture();using var platform=new EngineShaderPlatformScope();
@@ -56,7 +58,7 @@ public sealed class BloomRadialDiagnosticsTests(HeadlessGLFixture fixture,ITestO
                 output.WriteLine(FormattableString.Invariant($"PRECISION scale={scale:G9} fraction={fraction:G5} pixels={indices.Length} meanRelativeError={mean:F6} maxRelativeError={max:F6} zeroPixels={zeros} distinctPhysicalValues={distinct} physicalHalfQuantum={Math.Pow(2,-24)/scale:G9}"));
             }
             string directory=Path.GetFullPath(Path.Combine(AppContext.BaseDirectory,"..","..","..","..","artifacts","BloomRadial"));
-            Directory.CreateDirectory(directory);
+            reports.CreateDirectory(directory);
             Report(reference,size/2,127.5,127.5,"precision-unit",Path.Combine(directory,"precision-unit"));
             Report(physical,size/2,127.5,127.5,"precision-1over1024",Path.Combine(directory,"precision-1over1024"));
             WriteLogImage(Path.Combine(directory,"precision-unit.pgm"),reference,size/2);
@@ -67,14 +69,15 @@ public sealed class BloomRadialDiagnosticsTests(HeadlessGLFixture fixture,ITestO
 
     /// <summary>Records angular profiles and contour radii for actual pyramid outputs and recovered individual scales.</summary>
     [Fact]
+    [Trait("Purpose", "Diagnostic")]
     public void RawPyramidAxisAndDiagonalProfiles()
     {
-        if(Environment.GetEnvironmentVariable("VGE_RUN_BLOOM_RADIAL_DIAGNOSTICS")!="1")return;
+        Assert.SkipUnless(Environment.GetEnvironmentVariable("VGE_RUN_BLOOM_RADIAL_DIAGNOSTICS") == "1", "Explicit diagnostic opt-in required.");
         EnsureShaderTestAvailable();
         bool detailed=Environment.GetEnvironmentVariable("VGE_RUN_BLOOM_RADIAL_DIAGNOSTICS")=="1";
         int size=detailed?512:128;
         string directory=Path.GetFullPath(Path.Combine(AppContext.BaseDirectory,"..","..","..","..","artifacts","BloomRadial"));
-        if(detailed)Directory.CreateDirectory(directory);
+        if(detailed)reports.CreateDirectory(directory);
         using var assets=new BinaryShaderApiFixture();
         using var platform=new EngineShaderPlatformScope();
         Assert.True(VgeShaderPrograms.RegisterAll(assets.Api));
@@ -197,13 +200,13 @@ public sealed class BloomRadialDiagnosticsTests(HeadlessGLFixture fixture,ITestO
             double axis=Directional(values,width,cx,cy,r,false),diagonal=Directional(values,width,cx,cy,r,true);
             csv.AppendLine(string.Create(CultureInfo.InvariantCulture,$"{r:G9},{axis:G12},{diagonal:G12},{(diagonal>0?axis/diagonal:double.NaN):G12},{axis/peak:G12},{diagonal/peak:G12}"));
         }
-        if(path is not null)File.WriteAllText(path+".csv",csv.ToString());
+        if(path is not null)reports.WriteAllText(path+".csv",csv.ToString());
     }
     /// <summary>Writes dependency-free log grayscale over seven decades; the raw numeric profiles remain authoritative.</summary>
-    private static void WriteLogImage(string path,float[] values,int width)
+    private void WriteLogImage(string path,float[] values,int width)
     {
         double peak=values.Where((_,i)=>i%4==0).Max();
-        using var file=File.Create(path);byte[] header=Encoding.ASCII.GetBytes($"P5\n{width} {width}\n255\n");file.Write(header);
+        using var file=reports.OpenWrite(path);byte[] header=Encoding.ASCII.GetBytes($"P5\n{width} {width}\n255\n");file.Write(header);
         var gray=new byte[width*width];
         for(int i=0;i<gray.Length;i++)
         {
