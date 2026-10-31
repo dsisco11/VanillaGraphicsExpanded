@@ -1883,57 +1883,376 @@ Phase 10.2: Analyze the complete test-cleanup scope before further implementatio
     discussion. Consult the current candidate as well as the original behavior; earlier exploratory
     findings are leads to verify, not settled decisions. This subphase is analysis and planning only.
 
-  ☐ Inventory all VGE test families and shared fixtures by behavior, setup/teardown, shader/program
+  ☑ Inventory all VGE test families and shared fixtures by behavior, setup/teardown, shader/program
     preparation, filesystem access, draws/dispatches, synchronization and readback dimensions/size.
     Use source inspection and existing receipts to identify costly repetition; do not rerun the complete
     suite merely to rediscover its duration. Separate correctness checks, headless renderer scenarios,
     explicit diagnostic/export workloads and user-run in-game acceptance.
-  ☐ Determine the final classification and execution boundaries. Real context/driver/shader execution is
+  ☑ Determine the final classification and execution boundaries. Real context/driver/shader execution is
     GPU integration testing; CPU-only logic remains unit testing, including CPU cases inside GPU classes.
     Identify all required names, traits, collections, filters, runner settings and documentation changes.
     Verify that routine unit runs cannot initialize a GPU fixture, including measurement-only categories.
     Consider file/directory/project changes only where they provide a concrete benefit.
-  ☐ Trace direct and transitive filesystem access in test bodies, fixtures, helpers and production code
+  ☑ Trace direct and transitive filesystem access in test bodies, fixtures, helpers and production code
     exercised by tests. Include shader source/binary loads, cache persistence, temporary directories,
     existence/enumeration checks, installed-game inputs, schemas/baselines and optional exports.
     For VGE filesystem tests, design mocked/in-memory providers as explicitly requested by the user;
     preserve storage, corruption, contention, reload and failure contracts without claiming physical
     filesystem verification. Distinguish required immutable build-input bootstrap, assembly-loader inputs
     and runner receipts from avoidable test-body I/O. Other projects' filesystem tests remain out of scope.
-  ☐ Evaluate every family for redundant, obsolete, implementation-mirroring or pointless cases and excessive
+  ☑ Evaluate every family for redundant, obsolete, implementation-mirroring or pointless cases and excessive
     parameter matrices. Map existing coverage to each proposed retained, removed or replacement case,
     with a reason and exact source references. Distinguish unique pending coverage from obsolete tests.
     Evaluate CPU contract checks plus representative GPU cases where they preserve the tested guarantees.
-  ☐ Evaluate consolidation of useful cases sharing costly setup, shader preparation or equivalent work.
+  ☑ Evaluate consolidation of useful cases sharing costly setup, shader preparation or equivalent work.
     Specify what can be shared immutably, what must remain independently owned, how scenarios retain
     identifiable failures, and how reset/cleanup preserves isolation. Do not propose order-dependent
     mega-tests, shared mutable subjects or caches that bypass creation/replacement behavior under test.
-  ☐ Audit assertions and synchronization across every family. Identify bulk image transfers followed by
+  ☑ Audit assertions and synchronization across every family. Identify bulk image transfers followed by
     CPU scans, including even modest images, and choose minimal controlled targets/selected texels or
     independent GPU-side checks with compact results. Preserve expected values, tolerances, spatial and
     negative coverage; do not repeat the production algorithm as its oracle or substitute draw counts.
     Readback-API subjects use minimal known payloads. Identify unnecessary waits, flushes, repeated setup
     and diagnostic queries separately from required completion, mapping and GPU-safe resource reuse.
-  ☐ Review native capture hooks, reflection-based fixture internals and fault injection for unnecessary
+  ☑ Review native capture hooks, reflection-based fixture internals and fault injection for unnecessary
     machinery, hidden mutation, swallowed failures and instrumentation-dependent observations. Retain
     mechanisms required for meaningful assertions with explicit restoration and cleanup. Assess existing
     and newly introduced helpers against the same standard.
-  ☐ Record the complete proposed change set, coverage mapping, dependencies, removals, verification and
+  ☑ Record the complete proposed change set, coverage mapping, dependencies, removals, verification and
     unresolved decisions in this plan. Divide the reviewed work into coherent implementation subphases
     only after the analysis is complete and discussed with the user. Include a final combined correctness
     run, documentation reconciliation and available runner durations, without a benchmark framework,
     repeated timing study or numerical speedup requirement. Include cleanup of temporary support files
     if any are introduced, preserving authoritative decisions and acceptance evidence first.
-  ☐ Completion: the upfront analysis accounts for every family and identifies the intended changes before
+  ☑ Completion: the upfront analysis accounts for every family and identifies the intended changes before
     additional implementation begins. Findings and proposed implementation boundaries have been reviewed;
     later implementation subphases are defined from that agreed analysis rather than discovered piecemeal.
 
-  Further implementation subphases: intentionally not defined yet. Preserve the complete Phase 10
-    acceptance contract when deriving them: correct classification; mocked VGE filesystem dependencies;
-    removal of avoidable I/O, redundant coverage and bulk pixel-readback assertions; isolated, diagnostic
-    retained tests; complete coverage mapping; no shims or weakened assertions; reconciled commands/docs;
-    delegated focused verification and a final complete VGE suite on the combined resulting source;
-    second review and independent audit. Phase 10 remains incomplete until these requirements are met.
+  Analysis for discussion (source snapshot: working tree after the accepted 10.1 boundary)
+
+    Scope and evidence:
+    - Inspected the VGE project's source inventory, case attributes, native-fixture/trait references,
+      filesystem operations, readback sites and shared fixture call paths. There are 961 C# files;
+      788 contain Fact/Theory attributes after removing comments, with 3,324 attribute declarations.
+      These are source counts, not discovered cases: partial classes, MemberData and InlineData expand
+      differently. Of those files, 478 are under GPU and 310 elsewhere; directory placement alone does
+      not establish classification. No build, test execution or new timing study supports this analysis.
+    - The family partition below is exhaustive for those 478 GPU files. Apply its selectors in listed
+      order, using the basename without extension; the final row owns every remaining GPU case file.
+      Partial-class files remain with their family. Helpers/fixtures inherit every consuming family's
+      contract, including support files outside GPU/Fixtures, GPU/Helpers and Helpers.
+    - Existing source/receipts in 10.1 describe an accepted work boundary, not combined qualification.
+      GPU.IntegrationTestPerformance.RemainingCosts.md and GPU.IntegrationTestPerformance.Analysis.md
+      provide historical leads, not a current baseline or controlling benchmark requirement. The former's
+      d9e46b0a run took about 21 minutes for 1,966 cases; that is not today's inventory or passing receipt.
+      Its LumOnUniformTests repetition no longer exists, depth-oracle loops are already localized,
+      lifecycle reload matrices are already reduced, and TestUniformRing already fences reused storage.
+    - Controlling requirements: this plan's Phase 10/10.2 and Rendering.GpuCommands.Proposal.md
+      (representative outcomes/verification); Rendering.GpuCommands.Contracts.md (Submission and failure
+      rules, resource completion); Rendering.GpuResources.md (ownership and snapshot/change publication);
+      Rendering.ShaderBindingState.md (Verification boundary). Retain values/tolerances, original resource
+      identity, delivered changes, owner intervals, native effects and real completion. Historical links
+      to the removed BindingAdmission proposal resolve through Git commit 46cbe4d2; they do not authorize
+      reconstructing that temporary document. Current contracts govern the resulting implementation.
+
+    Complete family coverage and intended disposition:
+    - The selected design is full-domain compact GPU validation for every existing multi-texel content
+      assertion, including arrays returned through fixtures/helpers and then scanned by callers. Keep
+      current target dimensions, parameter rows, selected mip/region/layer and spatial coverage. Existing
+      single-texel/tuple assertions remain direct small reads. This resolves the alternatives in the
+      original task: no target shrinking or sparse replacement of whole-domain contracts is proposed.
+      The table describes which predicates survive, not permission to choose weaker sampled coverage.
+    - Readback dimensions are owner-derived, including runtime/capture-dependent extents: a full 2D mip
+      transfers max(1,W>>m)*max(1,H>>m)*C*b bytes; arrays retain layer count, 3D images additionally retain
+      max(1,D>>m), and cube selections retain all asserted faces. A region retains the exact requested
+      width*height*depth*C*b; buffers retain their requested byte interval. C/b follow the readback format
+      and component width, not necessarily storage format. Rgba float is 16 bytes/texel, R32f four.
+      The new result is bounded counters/extrema/first-failure data, independent of those image extents.
+      Examples: cloud rank storage is 32*256*4 = 32,768 bytes; depth reduction checks every mip of the
+      existing 65x37 through 257x131 and 1xN/Nx1/odd test domains; stored-cloud views include
+      1920x1080/3440x1377; surface checks cover every requested physical-page region and directional atlas
+      layer. Imported capture widths/heights/layers/mips come from its validated manifest, not a guessed
+      fixed resolution. Preserve these dimensions in the compact checks rather than download/scan them.
+
+    | Family / ordered selector / case-bearing files | Existing coverage and preparation | Proposed coverage-preserving work; coverage retained |
+    | --- | --- | --- |
+    | Diagnostic/mixed: Measurement or Performance in basename; BloomRadialDiagnostics, AoMinimumChildProduction, WaterBoundaryCapture / 14 | Timed repeated draws/dispatches, query completion, captured inputs and optional exports; some methods also assert correctness. | Separate diagnostic methods from ordinary correctness selection. Retain bounds, shader behavior and state assertions in correctness cases. Keep requested diagnostic output outside routine test execution; no elapsed-time oracle or automatic case deletion. Mixed AoMinimumChildProduction and WaterBoundaryCapture remain correctness owners for their non-measurement methods. |
+    | SPIR-V: Spirv* / 2 | SpirvInventoryTests.BuiltVariantSpecializes, DeclaredGraphicsCombinationLinks, ComputeAssignmentsLinkAndRepresentativeDisposalPreservesReplacement; SpirvGraphicsLifecycleTests.RuntimeAssignmentsValidateAndRepresentativesRetirePreviousExecutable. | Retain every distinct packaged binary specialization, stage combination and production runtime-interface assignment. Raw linking does not replace production admission. Retain representative reload/retirement, invalid binary and working-generation preservation. Share immutable bytes/catalog only; do not remove the remaining full assignment matrix or replace it with CPU catalog enumeration. |
+    | Atmosphere/sky: Atmosphere*, Celestial*, SunDisk*, MoonDisk*, Sky*, ProductionSky* / 21 | LUT/scattering computations, solar/lunar raster, orientation, lighting/publication and native sky integration; component programs and some full startup. | Consolidate identical program setup only for immutable numerical subjects. Replace full LUT/cube/color downloads with compact whole-domain finite/range/expected-value checks. Preserve horizon/zenith/disk edges, dark/bright limits, directional faces, publication/resize/replacement and production sky wiring. AtmosphereGpuScatteringTests and AtmosphereEngineBindingTests remain distinct numerical versus integration contracts. |
+    | Clouds: Cloud* / 14 | Storage/compute, traversal/reduction, temporal freshness, blue-noise ranks, native simple-cloud draws and stored-volume view, including 1920x1080 and 3440x1377 targets. | CloudStoredVolumeViewTests/Fixtures/CloudStoredVolumeViewScene: retain odd extents, tail groups, viewport, temporal and large-size dispatch/coverage contracts with compact results. CloudBlueNoiseTextureTests.MasksHaveCompleteRanksAndStableOwnedStorage must retain all ranks for each of eight 32x32 slices and distinct slices, plus ownership/disposal; use rank occurrence counts and slice mismatch results. A sampled texel cannot prove the permutation. Retain density/diffuse/direct/reduction and observed native adapter effects separately. |
+    | Liquids: Water*, Liquid*, Oit*, PhotometricCameraWater* / 28 | Real depth, refraction/composition, layer transport, OIT arithmetic, pool submission, lifecycle/state; WaterRefractionTests has optional binary overrides and export/timing branches. | Share immutable program preparation across compatible numerical inputs; replace multi-texel downloaded MRT images with whole-domain compact checks. Existing local shoreline/boundary tuples remain direct small reads. Retain full quality/compatibility contracts, foreground/above-water rejection, shoreline continuity, half-resolution interpolation and read budgets, energy/medium/blend/depth behavior. Keep WaterRefractionCaptureStateTests and WaterRefractionResolutionTests failures recorded in 10.1 as unresolved qualification items, not redundant assertions. Do not change expected exception types or tolerances to make them pass. |
+    | LumOn/scene/probes: Surface*, LumOn*, Lumon*, WorldProbe*, SharedTrace*, SharedGeometry*, NearField*, ExpandedTrace*, TraceGeometry* / 111 | Component trace/filter/SH/gather/temporal tests and full worker/publication/lighting consumers; repeated frame observation and substantial atlas/history transfers. | SurfaceLightingConsumerRuntimeFixture.Frame/Energy/WaitObservations, SurfaceCacheRuntimeFixture.LightingObservations, SurfaceLightingRefreshSynchronization.CompleteConsumers and their callers: compact finite/energy/weight/confidence checks, device-side previous-history comparison and exact requested-page regions. Preserve every requested directional texel, exact history equality where asserted, fresh publication versus stale positive energy, retries, partial coverage, origin shifts and worker completion. Retain representative real startup/consumer/exit scenarios; component tests cannot replace those. Reuse already retained within-test programs, not a new global mutable cache. |
+    | PBR/material/terrain: Terrain*, Material*, Microfacet*, Pbr*, PhotometricMaterial*, PhotometricLighting* / 39 | Terrain raster/tessellation/relief/temporal cases, BRDF/material energy, normal/depth bake, Poisson/multigrid and material atlas; real draws/dispatches. | Compact independently expected-value comparisons over existing domains; keep independent CPU numerical oracles and current tolerances. Preserve seams, triangle orientation, depth bias, odd/tail texels, convergence/residuals, atlas pages, replacement and installed production shader coverage. PbrPoisson* whole-domain residuals cannot become a center-pixel assertion. Keep full-chain bake/composition cases distinct from isolated numerical kernels. |
+    | Postprocess/depth: AmbientOcclusion*, DepthHierarchy*, Camera*, ColorGrading*, Bloom*, LocalExposure*, LightShaft*, Postprocessing*, FinalDisplay*, PackedComposite*, Exposure* / 22 | Exposure/history/HDR, AO horizons/integrals, bloom/local exposure, conservative depth mips and renderer integration. | DepthHierarchyPassTests.EveryMipMatchesIndependentConservativeReduction/RepeatedFramesReuseCounterAndResizeStorage: retain all mip/odd/1xN/Nx1/1x1/last-group coverage with independent expected arrays and compact comparisons. Preserve AO foreground/background and horizon negatives, exposure history/photometry and adaptation at existing extents. Keep DepthHierarchyRendererTests routing/enablement distinct from reduction math. |
+    | Engine/composition: SceneColor*, ClientRendering*, GBuffer*, FrameLighting*, FrameShader*, Engine*, NativeFrame*, NativeFog*, LightingResource*, DirectLighting*, OwnedPostprocess* / 38 | Engine target/binding scopes, shaders, boundary restoration, framebuffer rebuilds, ordered runtime composition and resource lifetime. | Retain real production entry points and observable output/state/restoration. Share immutable assets only; mock API dependencies not under test. Replace multi-texel output scans with compact assertions without reducing scope to call counts. ClientRenderingCompositionTests and engine boundary cases keep world/resize/reload/retirement distinctions. Full shader registration remains in representative startup scenarios. |
+    | Remaining GPU files: RHI/resources/state/shader / 189 | Native creation, reference/metadata publication, context/name reuse, query/fence/mapping, bindless, interception, buffers, render passes, shader inputs/link/cache and state suppression. | Retain unique API/overload/native-effect and failure/restoration coverage. Reduce readback-API payloads to the smallest values proving format/stride/mip/layer/aspect/range; other output checks follow compact/selected-value rules. Distinguish static description equality from real admission and lifecycle. Keep exact once-only native forwarding, stale/context/name identity, completion, retention and error paths. No blanket matrix deletion: a distinct intercepted signature or resource lifecycle is not duplicated merely because the expected value matches. |
+
+    Non-GPU-directory coverage (all 310 other case-bearing files):
+    - Unit/Cache (6), Unit/Collections (1), Unit/Imaging (2), Unit/LumOn (65), Unit/Noise (2),
+      Unit/Numerics (1), Unit/PBR (28), Unit/Rendering (52), Unit/Voxels (3), Unit/WorldPartition (8),
+      the 19 files directly under Unit, and 123 root files: retain CPU contracts and parameter rows unless
+      an exact equivalent is established. These cover caches/configuration, numeric/collection behavior,
+      scheduling/admission/partitioning, scene/material decisions, shader source/contracts, patch routing,
+      debug views, state values and lifecycle selection. No readback calls were found in these files.
+      This does not imply no native setup: GraphicsPipelineDescriptionTests, GraphicsStateRelevanceTests
+      and ConfigurableRasterizerDescriptionTests construct real shaders through HeadlessGLFixture.
+      Split genuinely pure subcases only if they can use legal descriptions without fabricated ready
+      references; native admission and shader-dependent cases stay GPU integration tests.
+    - Mixed GPU/ShaderDefineInjectionTests.Shader source-map/import case (Fact at line 131): migrate the
+      CPU preprocessor/source-map assertions to the CPU source-test family using immutable built sources.
+      Keep source IDs/import locations, remove File.Exists-based success-by-skip and physical include scans.
+      Preserve relative include identity rather than flattening unrelated include paths to filenames.
+    - The existing CPU state collection and 10.1 trait moves already isolate global CPU/Harmony state.
+      Retain these; do not require OpenGL initialization just to serialize stateful CPU tests. Preserve
+      NearFieldMaterialCaptureCollection's DisableParallelization boundary as well as GPU serialization.
+
+    Filesystem mapping (direct sites and the exercised storage/asset call paths):
+    - Already in memory: Unit/Cache/DiskBlobCacheStoreTests, DiskJsonDictionaryCacheStoreTests,
+      DebouncedMetaWritesTests, DataCacheSystemTests; Unit/Rendering/ProgramBinaryStoreTests;
+      GPU/DriverProgramCacheTests, ShaderDigestIndexCacheTests, ShaderAssetCandidateTests and
+      ShaderLinkBatchTests pass CountingDiskCacheFileSystem into the actual stores. Material-atlas
+      fixtures use InMemoryMaterialAtlasFileSystem; asset proxies use TestAssetSnapshot/ShaderAssetFileSystem.
+      Retain real serialization, atomic-replacement protocol, concurrent access, corruption/truncation,
+      reload and failure assertions against providers. Do not recreate these subjects as physical I/O tests
+      or describe provider tests as OS atomicity proof. No second mock filesystem abstraction is needed.
+      HeadlessGLFixture.EnsureContextValid sets DriverProgramCache.Bypass=true so ordinary real shader
+      preparation cannot fall through to physical cache storage; cache-subject tests opt into their own
+      provider-backed stores. Keep that isolation and restore scoped cache policy explicitly.
+    - Remaining direct source reads: GPU/ShaderDefineInjectionTests as above; GPU/Fixtures/
+      CapturedAmbientOcclusionFixture reads manifest.json and payload bytes. Snapshot explicitly requested
+      captures once through a provider, preserving manifest dimensions/formats/mips, digest and malformed-
+      input checks. Capture-driven evaluation is an opt-in diagnostic workload, not a default asset source.
+    - Helpers/TestAssetSnapshot.LoadBuilt reads fixture-inputs.txt and the explicit build-owned
+      files once; its directory-taking constructor can enumerate. Routine callers should use the manifest
+      snapshot and independent in-memory overlays. Required shader bytes, schemas, contract baselines,
+      config patches and installed-engine source copies are immutable build inputs, not cache persistence.
+      Tests must not silently discover stale output or access the live game asset tree. The csproj owns
+      freezing/copying those inputs; build/runner I/O is distinct from repeated test-body I/O.
+    - GPU/Fixtures/EngineDependencyResolution and RHIContractIsolationTests.Execution read/probe required
+      assemblies (the latter caches its PE reference). Preserve loader/compiler inputs; mocks cannot
+      replace a real assembly while retaining the assembly-boundary subject. No test-owned persistence.
+    - GPU/LumOnDebugShaderDemandTimingTests explicitly opens a physical ProgramBinaryStore and removes its
+      directory. Split correctness/demand/cache expectations onto the existing in-memory provider; retain
+      optional profiling as a diagnostic entry point outside ordinary correctness execution. No physical
+      cache experiment is required for this plan's acceptance.
+    - Export/input-override sites: root AtmosphereTensorMeasurementTests and
+      AtmosphereMultipleScatteringTensorMeasurementTests; GPU/BloomRadialDiagnosticsTests,
+      AoMinimumChildProductionTests, AmbientOcclusionPerformanceTests, MicrofacetEnergyMeasurementTests,
+      TerrainDetailMeasurementTests, SurfaceWorkDiagnosticMeasurementTests,
+      SurfaceUpdateBudgetMeasurementTests, WorldProbeRoutingMeasurementTests; GPU/Helpers/
+      FramebufferBmpCapture; GPU/WaterBoundaryCaptureTests and WaterRefractionTests.
+      Separate optional binary/capture providers and export sinks from retained correctness assertions;
+      ordinary VGE tests use memory, including export formatting/failure tests. Filesystem exporters, if
+      kept for manual diagnosis, are explicit utilities rather than returning passing tests when disabled.
+      The 19 files with direct File/Directory signals include these exporters, bootstrap/assembly inputs,
+      the physical timing cache and the two source/capture readers; this is not 19 unmocked storage subjects.
+
+    Shared setup, consolidation and removal decisions:
+    - GPU/Fixtures/RuntimeLightingPrograms.Initialize registers every production program. Keep this for
+      startup/registration, full runtime and replacement subjects; use ComponentShaderPrograms.Create/
+      CreateCompute/CreateDepthHierarchy for isolated numerical/component tests. A failed unused program
+      must not disable an unrelated component case. Shared binaries/catalogs/expected CPU data may be
+      immutable; GPU programs and native objects stay with an explicit context-bound fixture owner.
+    - GPU/Fixtures/LayeredTestTexture.Create currently downloads source textures, broadcasts/resamples CPU
+      arrays and uploads again. Replace equal-size, format-compatible construction with GPU copies; use authored CPU
+      data for constant fixtures, explicit GPU copy/blit for required resampling. Retain layer identity,
+      precision, zero-filled missing channels and sampling semantics. Format conversion needs explicit
+      channel expansion; do not replace it with an incompatible raw copy or change nearest sampling into interpolation.
+    - GPU/Fixtures/RenderTestBase.EnsureContextValid invalidates all state and drains GetError even for
+      nested target/draw/read helpers. Remove routine blanket purges/error swallowing under the established
+      interception invariant. Use named initialization/context-retirement/fault-injection boundaries and
+      meaningful error assertions that report earlier failures. Preserve restoration after deliberate
+      native bypasses. Review HeadlessGLFixture, ShaderTestFramework, LumOnShaderFunctionalTestBase and their disposal
+      scopes together; no unsupported assumption that every reset or error query is unnecessary.
+    - TestUniformRing.BeginFrame/RetireSubmittedWork already uses an originating-context fence before
+      resetting its persistent page. Retain this independent of assertion readback. Keep map/query/ticket
+      and driver failure completion; remove Finish/Flush only where the following synchronous operation
+      already supplies the entire required ordering. Never use GL.Finish as universal test cleanup.
+    - Candidate consolidation units are numerical cases with the same immutable program/target contract
+      within each family above. Keep named theory rows and independent resets; no megatest depending on
+      prior rows. Full registration, reload, creation, lifetime and context-switch subjects keep fresh
+      owners. No further case deletion is justified by this analysis: matching names/results alone do not
+      prove redundancy. Remove superseded helper paths and duplicate setup/observations only when their
+      exact assertions have moved. Existing 10.1 reductions are retained, not counted again as new work.
+
+    Readback and instrumentation design:
+    - Keep existing single-texel/local tuple assertions and their controlled targets. All multi-texel content contracts use
+      a fixture-owned generic GPU comparison/reduction with only bounded counters/extrema/first-failure
+      coordinates returned: nonfinite counts, independent expected-value mismatch, range/energy/confidence
+      and history equality. Preserve actual domains: 2D, layered/3D/cube selections, integer/depth aspects,
+      mips and channel masks. Keep CPU-authored expected data; do not replicate production BRDF, tracing,
+      reduction or filtering algorithms in the checker. Exact comparison must deliberately cover signed
+      zero, NaN/infinity and subnormals; tolerance remains the existing assertion's tolerance.
+    - Surface histories need full-domain previous GPU snapshots, not a few sampled texels. Readiness checks
+      retain requested-page coverage, alpha/sample weights and publication freshness, not just a positive
+      sum. Shader read-count/dispatch counter assertions remain workload contracts, never output oracles.
+      Failure-only diagnostic dumps are separate from required finite/energy checks and normal readback.
+    - Do not adopt TestResults/GpuTests101/deferred-gpu-assertions as implemented machinery. Its cached raw
+      names use thread-local state-cache identity rather than physical context identity; SSBO base/range
+      restoration, partial construction, exact-float and native failure reporting need redesign. Prefer
+      copies for fixture input construction; introduce only the generic checker operations needed above.
+      Give its programs/buffers explicit original-context ownership, assert sentinel/result validity and
+      preserve pack/program/generic and indexed binding state. No global native-name cache or success on
+      failed dispatch. Cover exception cleanup and context switches before using it as another oracle.
+    - GPU/Fixtures/NativeDriverCapture and NativeIndexedDrawCapture catch callback exceptions and rethrow
+      after native return/cleanup. Retain this required unmanaged-boundary containment and exactly-once
+      forwarding/restored slots; it is not swallowed failure. GraphicsTransitionCapture intentionally
+      injects GetError results for negative restoration tests. LegacyFixedFunctionReference is a historical
+      negative-control oracle, not a replacement production state path. Retain both where their assertion
+      needs them. Reflection into scheduler/query state is eligible for removal only with an equivalent
+      existing observable fixture seam; do not add broad production inspection APIs or weaken freshness.
+
+    Approved execution boundaries (implemented by 10.3–10.6 below):
+    1. Finish execution classification and I/O isolation: Category=GpuIntegration remains the native test
+       category and collection GPU stays serial. Keep UnitTests.runsettings's native exclusion and add
+       Purpose=Diagnostic to diagnostic methods, excluded from routine unit/GPU correctness runs.
+       Explicit diagnostic commands select Purpose=Diagnostic; correctness commands exclude that value.
+       Scenario=HeadlessRuntime describes actual production runtime execution, not filenames containing
+       Runtime. Split mixed methods; avoid project/directory renames without a concrete execution benefit.
+       Reconcile the test csproj, both runsettings and documented commands; no old Category=GPU command.
+    2. Fix shared setup/state/copy infrastructure and design/qualify the minimal compact assertion fixture.
+       Keep immutable asset sharing separate from per-context GPU owners and per-test mutable subjects.
+    3. Migrate atlas/history/runtime consumers together, preserving mandatory wait observations and exact
+       history/freshness contracts; migrate the numerical/spatial families using the coverage table.
+       Keep API readback subjects minimal and independent from the checker consuming them.
+    4. Reconcile all retained/remapped cases, documentation and filters; delegated focused checks for each
+       affected unit, then one complete VGE correctness suite on the combined source, Debug/Release where
+       required by the parent contract. Record actual counts/failures/skips and available runner durations.
+       Diagnose the outstanding water-state failures; do not loosen assertions. Native checks establish
+       headless behavior only. User-run visual acceptance and unrelated tool projects remain separate.
+       Review/remove TestResults/GpuTests101/deferred-gpu-assertions/ and tracked-candidate.patch after
+       preserving decisions/useful evidence; retain authoritative plans, proposals and qualification TRX/logs.
+    Review: source census and mappings received a second review and independent completion audit;
+      no build/test run was needed for this analysis. The user subsequently approved the design and
+      execution boundaries, including independently expected full-domain GPU checks with compact results.
+      Subphases 10.3–10.6 carry that agreed work. The final second review and independent completion audit
+      passed after defining those subphases; 10.2 is complete. Only this planning document changed; no runtime/test
+      implementation, staging, commit or new performance evidence is part of this analysis boundary.
+      Coverage not explicitly replaced above stays intact.
+
+Phase 10.3: Finish test classification and filesystem isolation
+  Depends on 10.2. Governing design and coverage mapping: 10.2, including its filesystem mapping.
+  Outcome: routine CPU/GPU correctness selections have explicit boundaries and VGE test-owned storage
+    and export behavior uses providers; diagnostic utilities execute only when explicitly requested.
+
+  ☐ Retain Category=GpuIntegration for real context/driver/shader cases, serial GPU collection ownership,
+    CPU state collection isolation and NearFieldMaterialCaptureCollection's DisableParallelization.
+    Split genuinely CPU-only methods from mixed native classes, including ShaderDefineInjectionTests'
+    source-map/import case. Do not fabricate ready shader references to relabel native admission as CPU.
+  ☐ Apply Purpose=Diagnostic to diagnostic methods; exclude them from routine unit/GPU correctness runs.
+    Classify Scenario=HeadlessRuntime by actual execution. Replace disabled diagnostic success-return
+    cases with explicit selection/reporting. Preserve correctness methods in mixed diagnostic classes.
+    Reconcile the csproj, UnitTests.runsettings, AllTests.runsettings and documented commands together;
+    preserve an explicit combined correctness selection and a separately requested diagnostic selection.
+  ☐ Complete every remaining I/O action in 10.2's filesystem mapping: immutable built-source snapshots
+    for source-map/import tests; provider-backed captured AO/binary overrides and export sinks; in-memory
+    shader-demand/cache subjects. Retain existing cache/material providers, serialization, corruption,
+    contention, replacement/reload and failure contracts; no physical filesystem verification claims.
+    Keep manifest-owned bootstrap, assembly-loader inputs and runner receipts separate from test I/O.
+    Preserve DriverProgramCache.Bypass isolation and scoped policy restoration.
+  ☐ Verify through delegated focused checks that routine unit selection cannot initialize a GPU fixture,
+    neither correctness selection executes diagnostic exports/physical persistence, and missing/corrupt
+    inputs still fail as intended. Verify filtered discovery as well as affected behavior; do not claim
+    removed OS coverage. Reconcile terminology/commands in affected permanent docs, then second-review
+    and independently audit this unit. No other test projects or unrelated runtime redesign.
+  ☐ Completion: mapped classification/I/O changes and their callers are migrated together, superseded
+    paths are removed, coverage mapping is current, and focused evidence supports the execution boundaries.
+
+Phase 10.4: Consolidate shared GPU setup and establish compact assertions
+  Depends on 10.3. Governing design: 10.2's shared setup, readback and instrumentation sections;
+    Rendering.GpuCommands.Contracts.md (Submission and failure rules, resource completion),
+    Rendering.GpuResources.md (ownership) and Rendering.ShaderBindingState.md (Verification boundary).
+  Outcome: shared fixture behavior preserves context/lifetime/state contracts without redundant purges,
+    CPU image round trips or unqualified native caches; compact checks are ready for consuming families.
+
+  ☐ Migrate RenderTestBase, HeadlessGLFixture, ShaderTestFramework and LumOnShaderFunctionalTestBase
+    coherently: remove routine nested blanket invalidation/error draining, preserve real initialization,
+    context retirement and deliberate bypass/fault boundaries, and report original failures. Retain
+    TestUniformRing's completion fence and mapping/query/ticket retirement protocols. Remove a wait,
+    Finish or Flush only when the remaining operation supplies the entire required completion contract.
+  ☐ Replace LayeredTestTexture's CPU round trip with compatible GPU copies, explicit conversion/resampling
+    or authored constant data as mapped in 10.2. Preserve zero-filled channels, precision, layer identity
+    and nearest sampling. Share immutable assets/catalogs/expected CPU data; keep GPU resources under
+    explicit original-context owners and mutable subjects isolated. Use component preparation for
+    component subjects; retain real full registration in startup/lifecycle subjects.
+  ☐ Implement only the generic GPU assertion operations required by the family mapping: independently
+    expected-value/tolerance comparisons, finite/range/extrema/counter checks, rank occurrence/slice
+    differences and retained-history comparison. Preserve selected mips/regions/channels and existing
+    domains across 2D/array/3D/cube/integer/depth subjects. Return bounded results and useful failure
+    locations; retain CPU oracles and existing local tuple reads. Do not mirror production algorithms.
+  ☐ Give checker resources explicit context ownership, completion and exception-safe cleanup. Verify
+    result/sentinel validity, partial construction, original-context retirement/context switches,
+    pack/program/generic/indexed binding restoration and base-versus-range SSBO restoration. Qualify
+    exact and tolerant float behavior, including signed zero, NaN/infinity and subnormals. Reconsider
+    the archived experiment as described in 10.2; do not copy its raw-name cache or silent-success paths.
+  ☐ Integrate representative real consuming assertions with the checker in this same unit; retain known
+    pass and deliberate mismatch/nonfinite cases and meaningful diagnostics. Keep native capture
+    once-only forwarding, callback exception containment, slot restoration and deliberate negative
+    controls. Replace reflection only with equivalent observable seams, without new production backdoors.
+    No dormant scaffold, forwarding compatibility path or permanently duplicated old assertion route.
+  ☐ Delegate focused infrastructure/caller verification, complete a second review and independent audit.
+    Completion: representative callers exercise qualified compact results; setup/copy/state changes
+    preserve their original contracts. The remaining family migrations belong to 10.5.
+
+Phase 10.5: Migrate image assertions and runtime observations across all families
+  Depends on 10.4. Governing coverage map: every ordered family row and non-GPU-directory exception in
+    10.2; its dimensions/formats, retained coverage and no-weakening rules apply to every caller.
+  Outcome: multi-texel correctness checks execute over their existing GPU domains with compact results;
+    useful cases remain isolated and identifiable, with no bulk CPU image assertion path left unmapped.
+
+  ☐ Migrate SurfaceLightingConsumerRuntimeFixture Frame/Energy/WaitObservations, SurfaceCacheRuntimeFixture
+    LightingObservations, SurfaceLightingRefreshSynchronization and all affected runtime consumers as a
+    coherent unit. Preserve every requested page/directional texel, exact history equality, freshness,
+    weights/confidence, mandatory finite/energy observations, partial coverage and worker completion.
+    Retain failure-only diagnostics separately from unconditional correctness observations.
+  ☐ Migrate atmosphere/sky, clouds, liquids/OIT, PBR/material/terrain and postprocess/depth families using
+    10.2's exact retained predicates. Include all mips, odd/tail domains, cube faces, temporal slices,
+    full-rank permutations, spatial negatives, shoreline/foreground continuity and convergence residuals.
+    Preserve existing target dimensions, parameter rows, independent expectations and tolerances.
+  ☐ Migrate engine/composition and remaining RHI/resource/state/shader output assertions, including arrays
+    returned by helpers and scanned later. Retain small direct local tuples; use minimal known payloads
+    for readback-API subjects while preserving stride/mip/layer/aspect/range guarantees. Keep these API
+    tests independent of the checker that consumes readback/completion services.
+  ☐ Consolidate equivalent immutable numerical setup within the mapped families while retaining named
+    case diagnostics and independent resets. Keep fresh owners for creation/reload/lifetime/context
+    subjects. Retain all distinct SPIR-V specialization/link and production-assignment coverage; no
+    additional matrix/case deletion or target shrinking without an exact reviewed replacement mapping.
+    Keep CPU-only contracts, production startup scenarios and native effect/restoration coverage intact.
+  ☐ Remove superseded scan/copy/setup paths with migrated callers; update the coverage mapping in this
+    plan. Audit every family/helper for residual multi-texel CPU assertions and unclassified diagnostics.
+    Delegate focused checks for each coherent changed family; second-review and independently audit
+    the combined migration, including unchanged local-read and readback-API exceptions.
+  ☐ Completion: every 10.2 family has a retained/replaced coverage disposition and the approved assertion
+    design is used end-to-end; no shims, weakened oracles, order-dependent megatests or shared mutable
+    subject caches remain. Integrated qualification is still required in 10.6.
+
+Phase 10.6: Qualify the combined test cleanup and remove temporary support files
+  Depends on 10.3–10.5. Governing acceptance: Phase 10 and 10.2's complete coverage/design mapping;
+    Rendering.ShaderBindingState.md (Verification boundary) and inherited resource/command contracts.
+  Outcome: the resulting VGE test suite, documented commands and retained evidence agree on coverage,
+    classification, I/O isolation and qualification limits.
+
+  ☐ Reconcile every retained/remapped family, helper, trait, filter, csproj/runsettings and permanent test
+    documentation. Confirm no superseded source path, stale Category=GPU command, physical test-owned
+    persistence or bulk image assertion survives outside the explicitly classified exceptions. Required
+    immutable bootstrap/loader inputs and runner receipts retain their documented boundaries.
+  ☐ Diagnose the outstanding water-state/exception failures recorded in 10.1 against the resulting source.
+    Preserve expected contracts and tolerances; do not treat an unexplained failure as redundancy or
+    change assertions to match incidental behavior. Reconcile any other failing retained correctness case.
+  ☐ Delegate final combined VGE correctness qualification on an identified resulting source, including
+    required Debug/Release configuration checks. Record commands, filters, counts, failures/skips and
+    available runner durations; distinguish build/bootstrap costs and diagnostic selections. Run each
+    required complete selection once; repeat only where a change/failure invalidates its evidence.
+    No benchmark framework, repeated timing study or numerical speedup threshold. No unrelated tool
+    test projects, agent-launched game or substitution for Phase 9 user-run visual/runtime acceptance.
+  ☐ Review and remove temporary TestResults/GpuTests101/deferred-gpu-assertions/ (including its
+    tracked-candidate.patch) and any temporary implementation inventories/capture scaffolding introduced
+    during this work, after preserving required decisions and useful evidence here or in permanent docs.
+    Update references first. Retain authoritative proposals/plans and qualification TRX/logs; do not
+    confuse acceptance evidence or permanent test fixtures with disposable migration documents.
+  ☐ Complete the final second review and independent completion audit against all Phase 10 requirements.
+    Completion: full VGE correctness evidence and current docs support the preserved coverage and final
+    execution boundaries; all implementation subphases are satisfied. Mark Phase 10 complete only then.
 
 Final acceptance
   ☐ All ten phases, their subphases and mandatory migration receipts are satisfied; later cleanup never substitutes for
