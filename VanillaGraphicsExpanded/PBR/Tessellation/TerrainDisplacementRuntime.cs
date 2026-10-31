@@ -30,9 +30,9 @@ internal static class TerrainDisplacementRuntime
     }
 
     #region Draw policy
-    /// <summary>Matches the engine's opaque and topsoil pool entries by identity, without classifying individual blocks.</summary>
-    internal static bool IsEligiblePool(MeshDataPoolManager manager)
-        => MeshPoolClassifier.Current?.IsDisplacementEligible(manager) == true;
+    /// <summary>Applies displacement only to the render categories selected by the engine.</summary>
+    internal static bool IsEligiblePass(EnumChunkRenderPass pass)
+        => pass is EnumChunkRenderPass.Opaque or EnumChunkRenderPass.TopSoil;
 
     /// <summary>Freezes one perspective metric before shadow and visible passes so both choose identical edge levels.</summary>
     internal static void CaptureView()

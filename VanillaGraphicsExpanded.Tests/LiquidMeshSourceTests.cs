@@ -31,6 +31,7 @@ public sealed class LiquidMeshSourceTests
         try
         {
             harmony.CreateClassProcessor(typeof(LiquidMeshSourceHook)).Patch();
+            harmony.CreateClassProcessor(typeof(LiquidGeometryManagerHook)).Patch();
             var renderer = new ChunkRenderer([17], game);
             Assert.True(LiquidMeshSource.TryGet(api, out var source));
             Assert.Same(renderer, source.Renderer);

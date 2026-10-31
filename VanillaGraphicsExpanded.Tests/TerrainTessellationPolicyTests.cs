@@ -27,19 +27,9 @@ public sealed class TerrainTessellationPolicyTests
     [Fact]
     public void ShadowPoolProvenanceExcludesOtherTerrainPasses()
     {
-        var previous=MeshPoolClassifier.Current;
-        var opaque=(Vintagestory.API.Client.MeshDataPoolManager)System.Runtime.CompilerServices.RuntimeHelpers.GetUninitializedObject(typeof(Vintagestory.API.Client.MeshDataPoolManager));
-        var soil=(Vintagestory.API.Client.MeshDataPoolManager)System.Runtime.CompilerServices.RuntimeHelpers.GetUninitializedObject(typeof(Vintagestory.API.Client.MeshDataPoolManager));
-        var liquid=(Vintagestory.API.Client.MeshDataPoolManager)System.Runtime.CompilerServices.RuntimeHelpers.GetUninitializedObject(typeof(Vintagestory.API.Client.MeshDataPoolManager));
-        GC.SuppressFinalize(opaque);GC.SuppressFinalize(soil);GC.SuppressFinalize(liquid);
-        try
-        {
-            MeshPoolClassifier.Current=null;Assert.False(TerrainDisplacementRuntime.IsEligiblePool(opaque));
-            MeshPoolClassifier.Current=MeshPoolClassifier.For([[opaque],[liquid],[],[],[],[soil]]);
-            Assert.True(TerrainDisplacementRuntime.IsEligiblePool(opaque));Assert.True(TerrainDisplacementRuntime.IsEligiblePool(soil));
-            Assert.False(TerrainDisplacementRuntime.IsEligiblePool(liquid));
-        }
-        finally { MeshPoolClassifier.Current=previous; }
+        Assert.True(TerrainDisplacementRuntime.IsEligiblePass(Vintagestory.API.Client.EnumChunkRenderPass.Opaque));
+        Assert.True(TerrainDisplacementRuntime.IsEligiblePass(Vintagestory.API.Client.EnumChunkRenderPass.TopSoil));
+        Assert.False(TerrainDisplacementRuntime.IsEligiblePass(Vintagestory.API.Client.EnumChunkRenderPass.Liquid));
     }
     #endregion
 
@@ -49,7 +39,7 @@ public sealed class TerrainTessellationPolicyTests
     public void PoolHookFieldsMatchInstalledEngine()
     {
         Assert.Equal(typeof(int),AccessTools.Field(typeof(Vintagestory.API.Client.MeshDataPool),"dimensionId").FieldType);
-        var targets=TerrainDisplacementRenderScope.TargetMethods().ToArray();
+        var targets=TerrainPassDrawHook.TargetMethods().ToArray();
         Assert.Equal(new[]{AccessTools.Method(typeof(ChunkRenderer),nameof(ChunkRenderer.RenderOpaque)),AccessTools.Method(typeof(ChunkRenderer),nameof(ChunkRenderer.RenderShadow))},targets.OrderBy(method=>method.Name).ToArray());
         Assert.Equal(typeof(Vintagestory.API.Client.MeshDataPoolManager[][]),AccessTools.Field(typeof(ChunkRenderer),"poolsByRenderPass").FieldType);
     }

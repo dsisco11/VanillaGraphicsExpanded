@@ -46,7 +46,11 @@ internal sealed partial class LiquidMeshSource(ChunkRenderer renderer, Vec2f til
     internal bool TryGetAtlasPools(out int[] atlases, out MeshDataPoolManager[] pools)
     {
         atlases = Renderer.textureIds;
-        pools = Renderer.poolsByRenderPass[(int)EnumChunkRenderPass.Liquid];
+        pools = [];
+        var table = Renderer.poolsByRenderPass;
+        if (atlases is null || table is null || table.Length <= (int)EnumChunkRenderPass.Liquid
+            || table[(int)EnumChunkRenderPass.Liquid] is not { } liquid) return false;
+        pools = liquid;
         // The engine reserves extra pool slots for runtime atlas growth. Those trailing
         // slots may be null; only entries indexed by the current atlas array are drawn.
         if (pools.Length < atlases.Length) return false;

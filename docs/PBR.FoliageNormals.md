@@ -14,18 +14,13 @@ plant normals incorrectly make vertical faces receive overhead sunlight.
 
 ## Correction
 
-`MeshPoolClassifier` builds shared reference-identity hash sets for `OpaqueNoCull`/`BlendNoCull` and
-opaque/topsoil displacement managers. Postfixes on `ChunkRenderer` construction and
-`RuntimeAddBlockTextureAtlas` refresh membership after the engine populates or extends its
-table, including additions within the same outer array. Installed-engine inspection confirmed
-both operations create managers through `AddPoolsForAtlasAndPass`.
-
-The render scope resolves the cached snapshot once; manager draws use hash-set membership
-without scanning pool arrays. A one-time lazy build supports an already-existing renderer.
-A weak table keyed by the engine pool table avoids retaining retired worlds. Replacement
-tables get independent snapshots; normal render-scope restoration releases the active reference.
-Both foliage and displacement use this shared classification.
-
+`TerrainPassDrawHook` carries the engine-selected `EnumChunkRenderPass` directly from each
+verified `ChunkRenderer.RenderOpaque` and `RenderShadow` manager selection. The engine's
+pass/atlas table remains the only membership authority; VGE maintains no classification sets.
+Two-sided policy applies to `OpaqueNoCull` and `BlendNoCull`; displacement policy applies to
+`Opaque` and `TopSoil`. The adapter preserves original manager arguments and culling order,
+restores enclosing policy on exceptional or nested exits, and retains moving-mini-dimension
+exclusion. Debug labels use engine pass/atlas identity independently of rendering policy.
 `TerrainSurfaceNormals` publishes `vge_twoSidedTerrain` at the existing manager draw boundary,
 including false for other managers sharing the shader. No mesh mutation is introduced, and
 selection does not depend on tessellation being enabled.

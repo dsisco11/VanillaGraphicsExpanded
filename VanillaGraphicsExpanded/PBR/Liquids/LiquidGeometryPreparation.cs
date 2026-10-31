@@ -6,12 +6,12 @@ using Vintagestory.API.Client;
 
 namespace VanillaGraphicsExpanded.PBR.Liquids;
 
-/// <summary>Retains engine pool membership and prepared geometry between manager lifecycle changes.</summary>
-internal sealed class LiquidPoolPreparation : IDisposable
+/// <summary>Retains only borrowed geometry; engine collections remain the membership authority.</summary>
+internal sealed class LiquidGeometryPreparation : IDisposable
 {
     private static readonly AccessTools.FieldRef<MeshDataPoolManager, List<MeshDataPool>> ReadPools =
         AccessTools.FieldRefAccess<MeshDataPoolManager, List<MeshDataPool>>("pools");
-    private (MeshDataPoolManager Manager, List<MeshDataPool> Pools, int Count)[] membership = [];
+    private bool dirty = true;
     private Dictionary<MeshDataPool, EngineLiquidPoolGeometry> geometry = new();
 
     #region Public API
@@ -19,52 +19,65 @@ internal sealed class LiquidPoolPreparation : IDisposable
     internal EngineLiquidPoolGeometry this[MeshDataPool pool] => geometry.TryGetValue(pool, out var value)
         ? value : throw new InvalidOperationException("Engine submitted an unprepared liquid pool.");
 
-    /// <summary>Rebuilds membership only on manager/list replacement or engine pool growth and refreshes stale geometry.</summary>
-    internal void Prepare(ReadOnlySpan<MeshDataPoolManager> managers)
+    /// <summary>Listens to engine topology changes without retaining a separate membership description.</summary>
+    internal LiquidGeometryPreparation()
     {
-        // The installed manager only appends in AddModel; retirement replaces managers on world exit.
-        // List identity and count also detect wholesale list replacement and shrinking without a pool scan.
-        bool changed = membership.Length != managers.Length;
-        for (int i = 0; !changed && i < managers.Length; i++)
-            changed = !ReferenceEquals(membership[i].Manager, managers[i])
-                || !ReferenceEquals(membership[i].Pools, ReadPools(managers[i]))
-                || membership[i].Count != membership[i].Pools.Count;
-        if (changed) Rebuild(managers);
-        else
-        {
-            // Geometry validity remains authoritative; draw-time bounds and culling are never cached here.
-            foreach (var pools in membership)
-                foreach (var pool in pools.Pools)
-                    if (!geometry[pool].IsCurrent)
-                    {
-                        Rebuild(managers);
-                        return;
-                    }
-        }
+        LiquidGeometryLifecycle.Changed += Invalidate;
+        LiquidGeometryLifecycle.Retiring += RetirePool;
     }
 
-    /// <summary>Releases adapters at world/context retirement without disposing engine storage.</summary>
-    public void Dispose()
+    /// <summary>Checks retained geometry receipts before admission; enumerates engine collections only when replacement is required.</summary>
+    internal void Prepare(ReadOnlySpan<MeshDataPoolManager> managers)
+    {
+        // Configuration epochs are independent of canonical metadata. Preserve receipt validation
+        // here so a changed VAO is rebuilt before boundary admission, never during a draw.
+        // This visits only adapters, not engine membership lists or manager selection snapshots.
+        if (!dirty)
+            foreach (var value in geometry.Values)
+                if (!value.IsCurrent) { dirty = true; break; }
+        if (dirty) Rebuild(managers);
+    }
+
+    /// <summary>Schedules replacement before the next admitted submission.</summary>
+    internal void Invalidate() => dirty = true;
+
+    /// <summary>Clears borrowed preparation while retaining lifecycle subscriptions for world reentry.</summary>
+    internal void Clear()
     {
         foreach (var value in geometry.Values) value.Dispose();
         geometry.Clear();
-        membership = [];
+        dirty = true;
+    }
+    /// <summary>Releases adapters at world/context retirement without disposing engine storage.</summary>
+    public void Dispose()
+    {
+        LiquidGeometryLifecycle.Changed -= Invalidate;
+        LiquidGeometryLifecycle.Retiring -= RetirePool;
+        Clear();
     }
     #endregion
 
     #region Private
+    /// <summary>Retires one original engine allocation immediately without deleting its storage.</summary>
+    private void RetirePool(MeshDataPool pool)
+    {
+        if (geometry.Remove(pool, out var value)) value.Dispose();
+        dirty = true;
+    }
+
+
     /// <summary>Builds a complete replacement before retiring removed pools, preserving installed entries on failure.</summary>
     private void Rebuild(ReadOnlySpan<MeshDataPoolManager> managers)
     {
         var next = new Dictionary<MeshDataPool, EngineLiquidPoolGeometry>();
         var created = new List<EngineLiquidPoolGeometry>();
-        var members = new (MeshDataPoolManager, List<MeshDataPool>, int)[managers.Length];
+
         try
         {
             for (int i = 0; i < managers.Length; i++)
             {
                 var pools = ReadPools(managers[i]);
-                members[i] = (managers[i], pools, pools.Count);
+
                 foreach (var pool in pools)
                 {
                     if (next.ContainsKey(pool)) continue;
@@ -85,7 +98,7 @@ internal sealed class LiquidPoolPreparation : IDisposable
         foreach (var entry in geometry)
             if (!next.TryGetValue(entry.Key, out var retained) || !ReferenceEquals(entry.Value, retained)) entry.Value.Dispose();
         geometry = next;
-        membership = members;
+        dirty = false;
     }
     #endregion
 }

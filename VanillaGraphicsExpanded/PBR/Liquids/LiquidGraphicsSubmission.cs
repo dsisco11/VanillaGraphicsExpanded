@@ -16,7 +16,7 @@ namespace VanillaGraphicsExpanded.PBR.Liquids;
 internal sealed class LiquidGraphicsSubmission : IDisposable
 {
     [ThreadStatic] private static LiquidGraphicsSubmission? active;
-    private readonly LiquidPoolPreparation geometry = new();
+    private readonly LiquidGeometryPreparation geometry = new();
     private RHICommandContext? preparedContext;
     private LiquidTargetPreparation? targets;
     private DepthStencilDesc? preparedDepth;
@@ -130,7 +130,7 @@ internal sealed class LiquidGraphicsSubmission : IDisposable
     public void Dispose()
     {
         unregister(); api.Event.LeaveWorld -= LeaveWorld;
-        LeaveWorld();
+        LeaveWorld(); geometry.Dispose();
     }
     #endregion
 
@@ -141,7 +141,7 @@ internal sealed class LiquidGraphicsSubmission : IDisposable
     /// <summary>Releases world/context preparation without deleting the engine allocations it borrows.</summary>
     private void Retire()
     {
-        geometry.Dispose(); pipeline?.Dispose(); pipeline = null;
+        geometry.Clear(); pipeline?.Dispose(); pipeline = null;
         targets = null; preparedContext = null;
     }
 

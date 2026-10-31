@@ -10,11 +10,13 @@ internal static class TerrainSurfaceNormals
 {
     #region Terrain draw binding
     /// <summary>Sets the normal policy through the existing terrain-manager draw boundary, independently of tessellation.</summary>
-    internal static void Bind(MeshDataPoolManager manager, MeshPoolClassifier? pools)
+    internal static void Bind(EnumChunkRenderPass pass)
     {
         // The engine binds the shared terrain shader before rendering each manager.
         if (ShaderProgramBase.CurrentShaderProgram is { } program && ShaderCapabilities.Has(program, ShaderCapability.TwoSidedSurfaceNormals))
-            program.Uniform("vge_twoSidedTerrain", pools?.IsTwoSided(manager) == true ? 1 : 0);
+            program.Uniform("vge_twoSidedTerrain", IsTwoSided(pass) ? 1 : 0);
     }
+    /// <summary>Uses the engine category rather than reverse-classifying a manager.</summary>
+    internal static bool IsTwoSided(EnumChunkRenderPass pass) => pass is EnumChunkRenderPass.OpaqueNoCull or EnumChunkRenderPass.BlendNoCull;
     #endregion
 }

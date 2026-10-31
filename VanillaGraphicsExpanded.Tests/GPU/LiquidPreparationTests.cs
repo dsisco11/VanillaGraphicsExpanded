@@ -14,6 +14,69 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 public sealed class LiquidPreparationTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
     #region Public API
+    /// <summary>A real native configuration mutation expires and replaces the receipt before admission.</summary>
+    [Fact]
+    public void VertexConfigurationRefreshDoesNotRequireMembershipChange()
+    {
+        EnsureContextValid();
+        using var storage = new LiquidPoolStorage();
+        using var prepared = new LiquidGeometryPreparation();
+        var manager = Manager([storage.Pool]);
+        prepared.Prepare([manager]);
+        var original = prepared[storage.Pool];
+        OpenTK.Graphics.OpenGL4.GL.VertexArrayVertexBuffer(storage.Mesh.VaoId, 0, storage.Mesh.xyzVboId, IntPtr.Zero, 12);
+        Assert.False(original.IsCurrent);
+        prepared.Prepare([manager]);
+        Assert.NotSame(original, prepared[storage.Pool]);
+        Assert.True(prepared[storage.Pool].IsCurrent);
+    }
+
+    /// <summary>Canonical buffer changes invalidate retained geometry without requiring a membership change.</summary>
+    [Fact]
+    public void ResourcePublicationInvalidatesPreparation()
+    {
+        EnsureContextValid();
+        using var storage = new LiquidPoolStorage();
+        using var prepared = new LiquidGeometryPreparation();
+        var manager = Manager([storage.Pool]);
+        prepared.Prepare([manager]);
+        var original = prepared[storage.Pool];
+        // Make the native stream too small. Its existing recipient receives the committed facts;
+        // the next pre-boundary preparation must reject it rather than silently reuse an old receipt.
+        OpenTK.Graphics.OpenGL4.GL.NamedBufferData(storage.Mesh.customDataIntVboId, 4, IntPtr.Zero,
+            OpenTK.Graphics.OpenGL4.BufferUsageHint.StaticDraw);
+        Assert.ThrowsAny<Exception>(() => prepared.Prepare([manager]));
+        Assert.Same(original, prepared[storage.Pool]);
+        OpenTK.Graphics.OpenGL4.GL.NamedBufferData(storage.Mesh.customDataIntVboId, 24, IntPtr.Zero,
+            OpenTK.Graphics.OpenGL4.BufferUsageHint.StaticDraw);
+        prepared.Prepare([manager]);
+        Assert.True(prepared[storage.Pool].IsCurrent);
+    }
+
+    /// <summary>The installed disposal hook expires borrowers before invoking engine mesh deletion.</summary>
+    [Fact]
+    public void EngineDisposalRetiresGeometryBeforeDeleteMesh()
+    {
+        EnsureContextValid();
+        using var storage = new LiquidPoolStorage();
+        using var prepared = new LiquidGeometryPreparation();
+        prepared.Prepare([Manager([storage.Pool])]);
+        var original = prepared[storage.Pool];
+        var render = new Moq.Mock<IRenderAPI>();
+        var api = new Moq.Mock<ICoreClientAPI>();
+        api.SetupGet(a => a.Render).Returns(render.Object);
+        render.Setup(r => r.DeleteMesh(storage.Mesh)).Callback(() => Assert.False(original.IsCurrent));
+        var harmony = new Harmony("VGE.Tests.LiquidGeometryRetirement");
+        try
+        {
+            harmony.CreateClassProcessor(typeof(VanillaGraphicsExpanded.HarmonyPatches.LiquidGeometryPoolRetirementHook)).Patch();
+            storage.Pool.Dispose(api.Object);
+            Assert.Throws<InvalidOperationException>(() => prepared[storage.Pool]);
+            render.Verify(r => r.DeleteMesh(storage.Mesh), Moq.Times.Once);
+        }
+        finally { harmony.UnpatchAll(harmony.Id); }
+    }
+
     /// <summary>Stable membership reuses adapters; growth, failed candidates, removal and retirement preserve ownership.</summary>
     [Fact]
     public void MembershipRefreshIsTransactionalAndRetainsUnchangedGeometry()
@@ -21,7 +84,7 @@ public sealed class LiquidPreparationTests(HeadlessGLFixture fixture) : RenderTe
         EnsureContextValid();
         using var first = new LiquidPoolStorage();
         using var second = new LiquidPoolStorage();
-        using var prepared = new LiquidPoolPreparation();
+        using var prepared = new LiquidGeometryPreparation();
         var pools = new List<MeshDataPool> { first.Pool };
         var manager = Manager(pools);
         prepared.Prepare([manager]);
@@ -30,6 +93,7 @@ public sealed class LiquidPreparationTests(HeadlessGLFixture fixture) : RenderTe
         Assert.Same(original, prepared[first.Pool]);
 
         pools.Add(second.Pool);
+        VanillaGraphicsExpanded.HarmonyPatches.LiquidGeometryPoolAdditionHook.Finalizer(pools, 1);
         int stream = second.Mesh.customDataIntVboId;
         second.Mesh.customDataIntVboId = 0;
         Assert.Throws<InvalidOperationException>(() => prepared.Prepare([manager]));
@@ -41,11 +105,13 @@ public sealed class LiquidPreparationTests(HeadlessGLFixture fixture) : RenderTe
         var added = prepared[second.Pool];
 
         pools.Remove(first.Pool);
+        LiquidGeometryLifecycle.Retire(first.Pool);
         prepared.Prepare([manager]);
         Assert.False(original.IsCurrent);
         Assert.Same(added, prepared[second.Pool]);
         Assert.Throws<InvalidOperationException>(() => prepared[first.Pool]);
         // A replacement manager with the same count must not reuse the previous membership.
+        LiquidGeometryLifecycle.ChangedCollections();
         prepared.Prepare([Manager([first.Pool])]);
         Assert.False(added.IsCurrent);
         Assert.NotSame(original, prepared[first.Pool]);
@@ -61,7 +127,7 @@ public sealed class LiquidPreparationTests(HeadlessGLFixture fixture) : RenderTe
         EnsureContextValid();
         using var first = new LiquidPoolStorage();
         using var second = new LiquidPoolStorage();
-        using var prepared = new LiquidPoolPreparation();
+        using var prepared = new LiquidGeometryPreparation();
         var manager = Manager([first.Pool]);
         prepared.Prepare([manager]);
         var original = prepared[first.Pool];

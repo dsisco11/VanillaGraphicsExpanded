@@ -1,3 +1,4 @@
+#if DEBUG
 using System.Collections.Generic;
 using System.Reflection;
 using HarmonyLib;
@@ -7,9 +8,9 @@ using Vintagestory.Client.NoObf;
 
 namespace VanillaGraphicsExpanded.HarmonyPatches;
 
-/// <summary>Refreshes shared mesh-pool classification only when the engine creates or extends manager tables.</summary>
+/// <summary>Labels engine-owned pools when the engine creates or extends manager tables.</summary>
 [HarmonyPatch]
-internal static class MeshPoolLifecycleHooks
+internal static class EngineMeshPoolLabelLifecycleHook
 {
     #region Engine lifecycle
     /// <summary>Targets the two installed-engine operations that populate ChunkRenderer manager tables.</summary>
@@ -23,8 +24,9 @@ internal static class MeshPoolLifecycleHooks
     [HarmonyPostfix]
     internal static void Postfix(MeshDataPoolManager[][] ___poolsByRenderPass)
     {
-        MeshPoolClassifier.Rebuild(___poolsByRenderPass);
         VanillaGraphicsExpanded.Rendering.Diagnostics.EngineMeshPoolDebugLabels.Register(___poolsByRenderPass);
     }
     #endregion
 }
+
+#endif

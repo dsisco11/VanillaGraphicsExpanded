@@ -1608,39 +1608,49 @@ Phase 9.3.1.1: Consume engine mesh-pool organization and remove duplicate classi
   Depends on 9.3.1. Migrate all affected consumers and remove superseded systems as one replacement unit.
   Outcome: the engine owns pass/atlas/pool membership; VGE retains only its rendering policy and prepared resources.
 
-  ☐ Confirm the installed engine contract at ChunkRenderer.AddPoolsForAtlasAndPass, RuntimeAddBlockTextureAtlas,
+  ☑ Confirm the installed engine contract at ChunkRenderer.AddPoolsForAtlasAndPass, RuntimeAddBlockTextureAtlas,
     TesselatedChunkPart.AddToPools, MeshDataPoolManager and MeshDataPoolMasterManager. Consume
     poolsByRenderPass[renderPass][atlas] and each manager's existing pool collection as the sole membership
     authority. Do not introduce EngineMeshPoolInventory, copied membership tables, membership revisions or a
     replacement pool-management system. Direct array selection is not a rediscovery operation to cache away.
-  ☐ Carry the engine-selected EnumChunkRenderPass into the relevant VGE terrain/shadow draw scopes at verified
+  ☑ Carry the engine-selected EnumChunkRenderPass into the relevant VGE terrain/shadow draw scopes at verified
     call sites. Express two-sided-normal and displacement eligibility as policies over that supplied category,
     preserving moving-mini-dimension exclusions and restoration on nested/exceptional exits. Shared shader
     identity must not stand in for pass identity. Verify installed call-site shapes and preserve engine arguments,
     draw ordering, culling modes and unrelated rendering.
-  ☐ Delete MeshPoolClassifier, its reverse-membership sets/table cache and Current scope, together with obsolete
+  ☑ Delete MeshPoolClassifier, its reverse-membership sets/table cache and Current scope, together with obsolete
     classification registration/rebuild hooks. Migrate TerrainSurfaceNormals and TerrainDisplacementRuntime
     directly to supplied pass provenance. Preserve necessary engine debug-label lifecycle hooks and Debug-only
     labeling, using engine-provided pass/atlas identity rather than recreating classification collections.
-  ☐ Make LiquidMeshSource and depth, volume, surface and refraction consumers use the engine's current liquid
+  ☑ Make LiquidMeshSource and depth, volume, surface and refraction consumers use the engine's current liquid
     manager row and active atlas prefix directly. Keep necessary shape/admission checks at appropriate ownership
     boundaries; remove duplicate discovery/copies without freezing engine arrays across runtime atlas growth or
     manager/world replacement. Preserve allocation-free spans and engine-owned pool enumeration.
-  ☐ Rename LiquidPoolPreparation to LiquidGeometryPreparation and remove its independent membership snapshots
+  ☑ Rename LiquidPoolPreparation to LiquidGeometryPreparation and remove its independent membership snapshots
     and polling. Retain only VGE geometry adapters associated with actual engine pools. Use verified engine
     lifecycle boundaries to prepare/retire affected adapters before submission, initializing existing pools once
     when required; do not move resource preparation inside an admitted draw boundary or rebuild a parallel
     membership inventory. Preserve candidate-before-retirement behavior and resource/configuration validation.
-  ☐ Audit pool creation, manager replacement, world exit/reentry and context retirement so geometry borrows cannot
+  ☑ Audit pool creation, manager replacement, world exit/reentry and context retirement so geometry borrows cannot
     survive their engine allocation lifetime. Content updates and dynamic culled intervals remain engine-owned;
     the geometry adapter cache is not another selection authority. Preserve 9.3.1 target/pipeline reuse and leave
     consolidation of invariant geometry checks to 9.3.3.
-  ☐ Migrate all affected callers and fixtures directly; delete superseded accessors, caches and registration
+  ☑ Migrate all affected callers and fixtures directly; delete superseded accessors, caches and registration
     machinery in the same unit. No forwarding aliases, compatibility facades, duplicate classification or
     temporary dual ownership. Verify each used render-pass policy, shadow/opaque scopes, atlas growth, pool
     additions/retirement, manager replacement, late initialization, world/context retirement and candidate failure.
     Verify unchanged reuse and changed geometry with unchanged engine membership. Reconcile PBR.Liquids.md and
     affected architecture documentation; record focused correctness evidence for final 9.3 qualification.
+  Qualification: removed MeshPoolClassifier and its reverse-membership scope/registration; verified engine
+  opaque/shadow table selections now carry EnumChunkRenderPass directly through TerrainPassDrawHook.
+  LiquidGeometryPreparation replaces LiquidPoolPreparation without membership snapshots; engine lifecycle
+  hooks invalidate selection and retire borrows. Pre-admission geometry receipt checks remain intentionally
+  until 9.3.3, including VAO configuration epochs independent of metadata. PBR.Liquids.md and
+  PBR.FoliageNormals.md reflect current ownership. Second review and independent completion audit passed.
+  Release 57/57 and Debug 62/62 focused tests passed with zero failures/skips, including native configuration
+  changes, actual hook installation/nesting, engine disposal, atlas growth, candidate failure, world/context
+  reset, target/pipeline reuse and Debug labeling. Receipts: artifacts/rhi-phase9311/qualified-release.{log,trx}
+  and qualified-debug.{log,trx}; git diff --check passed. No live appearance or performance claim is made.
 
 Phase 9.3.1.2: Derive liquid occupancy from engine mesh mutations
   Depends on 9.3.1.1. Outcome: refraction demand uses maintained occupancy without duplicating engine membership.
