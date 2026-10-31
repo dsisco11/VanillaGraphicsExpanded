@@ -16,12 +16,10 @@ internal sealed partial class ComputeShaderAsset : IDisposable
     private string preparationLog = string.Empty;
 
     #region Public API
-    /// <summary>Retires the exclusively owned executable and managed realization after active native borrowing ends.</summary>
+    /// <summary>Retires the exclusively owned executable and managed realization at its owner-controlled release boundary.</summary>
     public void Dispose()
     {
         if (disposed) return;
-        if (NativeProgram is { } native && native.UsageReferences.Pass != 0)
-            throw new InvalidOperationException("The compute executable is borrowed by an active submission.");
         shader?.Dispose(); shader = null;
         pipeline?.Dispose(); pipeline = null;
         disposed = true;

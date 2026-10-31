@@ -8,7 +8,7 @@ namespace VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 /// <summary>Realizes named capture objects and retains their authored buffer selections.</summary>
 internal sealed partial class OpenGLBackend
 {
-    private readonly ConditionalWeakTable<GpuTransformFeedback, RHITransformFeedbackDescription> feedbackOutputs = new();
+    private readonly ConditionalWeakTable<GpuTransformFeedback, FeedbackOutputs> feedbackOutputs = new();
     #region Public API
     /// <inheritdoc />
     public RHICreationResult<GpuTransformFeedback> CreateTransformFeedback(RHITransformFeedbackDescription description)
@@ -38,7 +38,7 @@ internal sealed partial class OpenGLBackend
                 OpenGLDriverCalls.TransformFeedbackBufferRange(owner.TransformFeedbackId, output.Slot, buffers[index], output.Range.Offset, output.Range.Length);
                 RequireContext();
             }
-            feedbackOutputs.Add(owner, description);
+            feedbackOutputs.Add(owner, new(this, description, buffers));
             return new(owner, null);
         }
         catch { try { owner.Dispose(); } catch { } throw; }

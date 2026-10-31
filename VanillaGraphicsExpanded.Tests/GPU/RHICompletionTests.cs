@@ -152,9 +152,9 @@ public sealed class RHICompletionTests(HeadlessGLFixture fixture)
         finally { GL.BindBuffer(BufferTarget.QueryBuffer, previous); Finish(); }
     }
 
-    /// <summary>Active accumulation prevents owner retirement and only matching end enables result requests.</summary>
+    /// <summary>The query owner preserves its interval and only matching end enables result requests.</summary>
     [Fact]
-    public void QueryCaptureGuardsItsOriginalOwner()
+    public void QueryOwnerPreservesAccumulationAndConditionIntervals()
     {
         Start();
         try
@@ -164,7 +164,6 @@ public sealed class RHICompletionTests(HeadlessGLFixture fixture)
             context.BeginQuery(query);
             try
             {
-                Assert.Throws<InvalidOperationException>(() => query.Dispose());
                 Assert.Throws<InvalidOperationException>(() => context.BeginQuery(query));
                 Assert.Throws<InvalidOperationException>(() => context.RequestQueryResult(query));
             }
@@ -173,7 +172,7 @@ public sealed class RHICompletionTests(HeadlessGLFixture fixture)
             Assert.Equal(CompletionStatus.Ready, ticket.Wait());
             Assert.Equal(0UL, ticket.Result);
             context.BeginConditionalRender(query, ConditionalRenderPolicy.NoWait);
-            try { Assert.Throws<InvalidOperationException>(() => query.Dispose()); }
+            try { Assert.True(query.IsValid); }
             finally { context.EndConditionalRender(); }
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
@@ -193,7 +192,9 @@ public sealed class RHICompletionTests(HeadlessGLFixture fixture)
             Assert.Equal(CompletionStatus.Ready, context.WaitCpu(fence, TimeSpan.FromSeconds(5)));
             Assert.True(fence.IsValid);
             fence.Dispose();
+#if DEBUG
             Assert.Throws<InvalidOperationException>(() => context.Poll(fence));
+#endif
             Assert.Throws<InvalidOperationException>(() => context.WaitGpu(default));
             Assert.Throws<ArgumentOutOfRangeException>(() => context.Barrier(new((ResourceAccess)(1 << 20))));
             context.Barrier(new(ResourceAccess.ShaderStorage | ResourceAccess.BufferUpdate));

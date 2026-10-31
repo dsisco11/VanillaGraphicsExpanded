@@ -17,6 +17,24 @@ public sealed class RHIAuxiliaryTests(HeadlessGLFixture fixture, Xunit.ITestOutp
     private static int waitCalls;
     private static int unmapCalls;
     #region Public API
+    /// <summary>A local generated semaphore stays disposable but nonconsumable until a successful payload import.</summary>
+    [Fact]
+    public void LocalSemaphoreReservationCannotWaitOrSignal()
+    {
+        fixture.EnsureContextValid();
+        fixture.UseContextLocalResources();
+        var context = RHICommandContext.Current;
+        if (!context.Capabilities.ExternalSemaphores)
+        {
+            Assert.Throws<NotSupportedException>(() => context.CreateSemaphore(new()));
+            return;
+        }
+        using var semaphore = context.CreateSemaphore(new()).RequireResource();
+        Assert.False(semaphore.HasMetadataSnapshot);
+        Assert.Throws<InvalidOperationException>(() => context.WaitSemaphore(semaphore, [], []));
+        Assert.Throws<InvalidOperationException>(() => context.SignalSemaphore(semaphore, [], []));
+        Assert.Equal(ErrorCode.NoError, GL.GetError());
+    }
     /// <summary>Native callbacks cannot end or replace a query before its begin transition is committed.</summary>
     [Fact]
     public void QueryBeginRejectsReentrantTransitions()
@@ -107,7 +125,7 @@ public sealed class RHIAuxiliaryTests(HeadlessGLFixture fixture, Xunit.ITestOutp
         }
     }
 
-    /// <summary>Capture keeps its object and output guards across pause/resume, then restores selection on unwind.</summary>
+    /// <summary>The owner preserves capture and outputs across pause/resume; scope unwind restores selection.</summary>
     [Fact]
     public void TransformFeedbackCapturesAcrossOneCompleteScope()
     {
@@ -143,8 +161,8 @@ public sealed class RHIAuxiliaryTests(HeadlessGLFixture fixture, Xunit.ITestOutp
             using (context.CaptureTransformFeedback(capture, CapturePrimitive.Points))
             {
                 Assert.Equal(capture.TransformFeedbackId, GL.GetInteger(GetPName.TransformFeedbackBinding));
-                Assert.Throws<InvalidOperationException>(() => output.Dispose());
-                Assert.Throws<InvalidOperationException>(() => capture.Dispose());
+                Assert.True(output.IsValid);
+                Assert.True(capture.IsValid);
                 GL.DrawArrays(PrimitiveType.Points, 0, 1);
                 context.PauseTransformFeedback();
                 Assert.Equal(capture.TransformFeedbackId, GL.GetInteger(GetPName.TransformFeedbackBinding));
@@ -158,6 +176,15 @@ public sealed class RHIAuxiliaryTests(HeadlessGLFixture fixture, Xunit.ITestOutp
             Assert.Equal(CompletionStatus.Ready, result.Wait(TimeSpan.FromSeconds(5)));
             using var mapped = result.MapReadyReadback();
             Assert.Equal(new float[] { 3, 3 }, MemoryMarshal.Cast<byte, float>(mapped.Bytes).ToArray());
+            // An incompatible source change withdraws the prepared capture; repeated use
+            // cannot fall back to its former range. Another legal change makes it usable again.
+            output.Allocate(8);
+            Assert.Throws<ArgumentOutOfRangeException>(() => context.BeginTransformFeedback(capture, CapturePrimitive.Points));
+            Assert.Throws<ArgumentOutOfRangeException>(() => context.BeginTransformFeedback(capture, CapturePrimitive.Points));
+            output.Allocate(16);
+            using (context.CaptureTransformFeedback(capture, CapturePrimitive.Points))
+                GL.DrawArrays(PrimitiveType.Points, 0, 1);
+            Assert.Equal(previous, GL.GetInteger(GetPName.TransformFeedbackBinding));
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
         finally

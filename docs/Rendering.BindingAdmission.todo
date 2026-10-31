@@ -2,7 +2,7 @@ Owner-guaranteed resource lifetimes and change-driven execution — implementati
 ===================================================================================
 
 Source proposal: [Rendering.BindingAdmission.Proposal.md](Rendering.BindingAdmission.Proposal.md).
-Status: phases 1–5 complete. Phases 6–7 pending; remaining operation-family migration and integrated qualification remain pending.
+Status: phases 1–6 complete. Phase 7 integrated qualification, documentation closeout and user-run acceptance remain pending.
 Related work: Rendering.GpuCommands.todo. This plan does not complete its outstanding qualification tasks.
 
 Goal
@@ -222,25 +222,45 @@ Phase 5: Migrate geometry, pipelines and complete render passes
   No staging or commits were performed by the implementation or validation/audit agents.
 Phase 6: Migrate transfers, stateful operations and retire obsolete protection
   Outcome: every remaining operation family follows the same contracts without unnecessary plan objects.
-  [ ] Apply bounded call-boundary checks to one-off uploads, copies, clears and mip operations. Reuse stable
+  [x] Apply bounded call-boundary checks to one-off uploads, copies, clears and mip operations. Reuse stable
       format/eligibility relationships where callers already retain preparation; preserve dynamic extents,
       offsets, payload lengths and managed memory safety. Do not allocate a plan/node for every region.
-  [ ] Migrate mapping, queries, synchronization and readback. Preserve actual mapping intervals, issued
+  [x] Migrate mapping, queries, synchronization and readback. Preserve actual mapping intervals, issued
       generations, readiness, waits/polls, completion and operation effects. Stable metadata never implies
       completed work, unchanged contents, unmapped state or dispensable synchronization.
-  [ ] Remove redundant consumer validation/temporary guards in these paths with their callers and tests.
+  [x] Remove redundant consumer validation/temporary guards in these paths with their callers and tests.
       Keep mapping, allocator and completion protocols that do actual operation/lifetime work; record why
       remaining protections are necessary rather than treating them as exceptions to an admission system.
-  [ ] Complete storage/configuration, import, retirement and teardown routes left by the inventory, including
+  [x] Complete storage/configuration, import, retirement and teardown routes left by the inventory, including
       external/native, recorded and local/tool paths. No family may retain a private polling validator or
       require a future lifecycle fix to make this unit correct.
-  [ ] Verify one-off and reusable operations, malformed dynamic payloads, failure cleanup, mapping/query
+  [x] Verify one-off and reusable operations, malformed dynamic payloads, failure cleanup, mapping/query
       state, explicit synchronization and context/GPU-safe retirement using focused behavioral checks.
-  [ ] Audit all inventory rows and remove orphaned guard APIs, obsolete compatibility histories, duplicate
+  [x] Audit all inventory rows and remove orphaned guard APIs, obsolete compatibility histories, duplicate
       registry resolution and broad publication invalidation. Confirm no shim or native retry remains.
-  [ ] Completion gate: all proposal families have completed routes and retained checks have an identified
+  [x] Completion gate: all proposal families have completed routes and retained checks have an identified
       structural, dynamic, operational, diagnostic or memory-safety purpose.
 
+  Completion evidence: second source/contract review and independent completion audit passed with no
+  unresolved findings. Bounded transfers use supplied snapshots and dynamic regions/payloads without
+  resource-lock walks; reusable capture ranges refresh on source changes. Canonical withdrawal clears
+  supplied snapshot presence before consumers, and failed updates remain unavailable until recovery.
+  Local semaphore reservations stay nonconsumable until successful import. Physical namespace checks,
+  mapping pointer safety, query/conditional/capture intervals, issued revisions, staging/fence ownership,
+  exactly-once publication, restoration and context/GPU-safe retirement remain intact.
+  Wrapper/registration usage counters, manager mirrors, transfer borrower lists, post-blit polling and
+  orphaned executable borrowing hooks are removed with their callers. Existing explicit owner status
+  policies retain their distinct early-return behavior; no zero-metadata-read claim applies to them.
+  Shader-enabled Debug and ordinary Release builds passed with zero errors. Each configuration's
+  broader 304-case receipt retains 302 unaffected passes; final focused corrections passed 70/70 in
+  both configurations, zero skips, covering the corrected assertions and namespace/readiness dependencies.
+  Earlier failed receipts remain available and are not described as all-green runs. Final receipts:
+  TestResults/BindingTransfers/build-debug-corrections.log, build-release-corrected-final.log,
+  transfers-debug-corrections.trx and transfers-release-corrected-final.trx; broader receipts:
+  transfers-debug-final.trx and transfers-release-final.trx. Existing offline NuGet, nullable/generated
+  and analyzer warnings remain. The existing migration map records task/document/source traceability.
+  Full-suite/package verification, final documentation reconciliation, temporary map cleanup and user-run
+  runtime acceptance remain assigned to phase 7. No staging, commits, game launch or performance claim.
 Phase 7: Qualify the integrated design and reconcile documentation
   Outcome: the completed system is reviewable with truthful evidence and no temporary support documents.
   [ ] Perform a second source/contract review against every proposal section and the phase 1 migration map.

@@ -76,7 +76,9 @@ existing manager services commit snapshots and notifications exactly once.
 The manager separates complete snapshot assignment from meaningful change delivery through the internal
 RHIResourceChange/ResourceChangeKind contract described in [resource publication](Rendering.GpuResources.md#snapshot-and-change-publication).
 Equal canonical values cause no event or revision increment; missing recipients still receive snapshots.
-Structural equality includes represented values and original backing identity, with matching hashing;
+Real canonical withdrawal/retirement clears supplied snapshot presence for all typed recipients before
+callbacks; temporary operation exclusion does not. Subsequent transfers cannot consume an old successful
+snapshot after a failed update. Structural equality includes represented values and original backing identity, with matching hashing;
 default collections differ from known empty values. Established Storage/Executable replacement remains
 observable even with equal descriptors/interfaces. MetadataRevision advances once for a published
 metadata, storage, executable, availability or terminal transition; StorageRevision tracks replacement.
@@ -165,8 +167,9 @@ before participating dispatch/commit. Physical discovery is confined to `RenderC
 Consumer values retain one existing typed resource, with private construction supplied by its wrapper.
 They expose absence/usability and published facts where needed, never public underlying-resource,
 disposal, detach, resize, mapping or mutation APIs. Creation/conversion never queries, registers, acquires
-guards or transfers ownership. Metadata access never performs recovery. Resolve original associations
-through the manager on use; equality alone cannot establish current validity or suppress a binding.
+guards or transfers ownership. Metadata access never performs recovery. Preparation establishes original associations;
+unchanged execution consumes producer-delivered facts under owner lifetimes. Equality alone cannot certify
+readiness or suppress a native effect.
 
 | Reference | Existing resource / canonical metadata | Factory result / description |
 | --- | --- | --- |
@@ -369,14 +372,14 @@ resources. Worker disposal schedules the complete owner retirement on the origin
 owners finish or withdraw consumers before its after-composition drain. Resize, reload and cleanup run
 outside active restoration boundaries. DEBUG owner-thread checks diagnose misuse without repairing it.
 Graphics structural preparation refreshes on relevant delivered changes; transfer/stateful operations retain
-their bounded operation checks. Neither transfers lifetime responsibility from owners to consumers.
+their bounded dynamic/safety checks and actual interval/completion state. None transfers lifetime responsibility from owners to consumers.
 
 1. Establish identity, usability and structural limits at preparation/change boundaries. Validate context/thread
    and actual operation state before
    mutation. Content-dependent index/indirect values remain the producer's responsibility; validate only
    supplied descriptors and accesses derivable from explicit parameters, with no validation readback.
 2. Eligible known-equal binding/state changes may be suppressed. Allocation, upload, draw, link and
-   synchronization never suppress merely because metadata matches. Prepared binding/graphics references rely on their owner interval; transfer/stateful families retain their explicit checks.
+   synchronization never suppress merely because metadata matches. All consumer references rely on their owner interval; transfer/stateful families retain dynamic, safety and completion checks.
 3. Capture original associations and restoration facts, withdraw affected metadata through existing
    manager operations and explicitly compose internal steps. No ambient collector or success-on-dispose.
 4. Execute once; reconcile cache knowledge and commit complete facts once through the manager. Use
@@ -444,7 +447,8 @@ external forwarding remains independent of managed command failure reporting.
 
 Compute selection uses fixed application data and change-delivered executable readiness under the owner's
 lifetime contract, without temporary shader/resource/PSO guards. Recursive context submission remains an
-operation error. Graphics uses the same owner contract; transfers retain their operation-specific protocols.
+operation error. Graphics and transfers use the same owner contract; mapping, query/capture intervals,
+issued generations, readiness and completion-safe retirement retain their operation-specific protocols.
 Uniform epoch, candidate/abort, captured commitment, consumption and GPU-safe last-use work remain with the
 existing allocator/publication owners. Explicit engine sampled slots retain `RHISampledTextureBindings`,
 including copied recording inputs and change-driven native realization.

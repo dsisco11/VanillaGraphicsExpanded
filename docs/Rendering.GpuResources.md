@@ -2,7 +2,7 @@
 
 `RHIResourceManager` owns canonical metadata for the originating rendering context. Its concurrent
 registry uses `GpuResourceHandle`, a resource-kind/native-width-ID value, as the key. Each entry holds
-one typed metadata snapshot, availability and revisions, shared usage guards, and weak wrapper recipients.
+one typed metadata snapshot, availability and revisions, and weak wrapper recipients.
 Resource registrations distinguish reserved names from realized objects independently of availability and
 terminal retirement. For buffers, Gen reserves; legal realization publishes capacity zero, StaticDraw usage,
 mutable mode and no storage flags on the original entry. Other kinds retain their specific factory and
@@ -24,7 +24,9 @@ does not bypass that check. Explicit operation steps recheck affinity after call
 stores a snapshot, exposes it read-only to derived wrappers, and assigns complete snapshots through
 `AssignMetadataSnapshot`. Registration identity, canonical availability, revisions and recipient membership belong to the manager.
 The snapshot container also retains manager-written local presence and unfinished-effect evidence for
-context-local completion/recovery; these passive facts never override a tracked entry or initiate acquisition.
+context-local completion/recovery; these passive facts never override a tracked entry or initiate acquisition. Canonical withdrawal and
+retirement withdraw supplied snapshot presence on every typed recipient before consumer delivery;
+temporary operation exclusion alone does not discard snapshots. Only successful publication supplies them again.
 Resource properties read the supplied snapshot; allocation policy, upload strategy and selected
 subresources remain with their existing wrappers and helpers.
 
@@ -35,7 +37,7 @@ feedback, semaphores, memory objects, framebuffers, vertex arrays and executable
 initialization receives the admitted context explicitly and dispatches through `IRHIResourceExecution`,
 without retrieving the concrete backend or reentering a public factory. A nullable metadata result reports detected failure;
 identity and a complete initial snapshot are handed to the wrapper only after successful initialization.
-Semaphore generation instead hands off an owned reservation: its empty snapshot becomes available only
+Semaphore generation instead hands off an owned reservation, including context-local creation: its empty snapshot becomes available only
 after payload realization is established, and wait/signal reject an unimported reservation.
 Partial allocation cleanup preserves the original exception and the originating deletion context.
 
@@ -84,7 +86,7 @@ Framebuffer configuration admission runs through owner-bearing RHI operations be
 storage or native selectors change. Static framebuffer owners retain a disposable configuration lease;
 the backend registers the immutable declaration in the existing cache and withdraws it on lease disposal
 or original-context retirement. Lease cleanup issues no native calls and can run on a worker thread.
-Backing-allocation guards remain owner policy and are released on disposal or detach. Detaching a wrapper
+The declaration borrows its backing allocations; their owner preserves them until configuration retirement. Detaching a wrapper
 or publishing attachments does not discard the still-live native object's independently known output route.
 Observed deletion removes that route through the backend's existing retirement publication.
 Screen resize and the manager's after-composition drain reject entry inside an active restoration
@@ -437,8 +439,9 @@ temporary staging copy. Native deferred destruction retains that staging storage
 No alternate execution path is retried after failure.
 
 `GpuBufferRef` privately retains the typed resource and exposes only published metadata and managed
-identity. It grants no lifecycle or storage-replacement authority. Backend use validates original context
-and manager association before examining binding suppression. Generated native callbacks forward external
+identity. It grants no lifecycle or storage-replacement authority. Bounded buffer operations consume producer-delivered
+capacity/permissions; DEBUG diagnoses original-association misuse. Dynamic ranges and mapping outcomes remain
+operation checks, while retained bindings/geometry refresh on relevant source changes. Generated native callbacks forward external
 buffer calls exactly once, preserving original arguments and native errors. Cache-owned post-call effects in
 `Rendering/RHI/Backends/OpenGL/State/Observation/Native/Buffers` maintain established facts or withdraw
 uncertain knowledge; they never apply managed omission or suppression rules. Managed backend execution
@@ -463,7 +466,9 @@ single-value read only when that cache cannot supply a result. Optional coverage
 capability checked before dispatch and reads only its resulting sample count.
 
 GPU buffer/image transfers carry explicit byte offsets and row/slice pitches. Pixel layouts and pack/unpack
-selectors use the existing cache and restore on unwind in their original context. Content operations do
+selectors use the existing cache and restore on unwind in their original context. One-off regions, offsets,
+pitches and payload lengths are checked at the bounded call boundary; no persistent transfer plan or
+per-resource exclusion is allocated. Snapshot reads do not recover metadata or certify GPU completion. Content operations do
 not publish allocation revisions. Mip generation is immediate: mutable image geometry commits once when
 it changes; regeneration of existing images preserves storage revisions.
 
@@ -485,7 +490,7 @@ External selectors never use managed duplicate suppression; uncertain binding fa
 
 Explicit RHI access barriers order visibility without inferring hazards or adding implicit fences.
 Fence insertion creates the existing native-width owner through private manager handoff; polling and
-CPU/GPU waits validate its original association. Pending or failed waits do not release staging or
+CPU/GPU waits retain original-context checks and actual native readiness; original-association misuse is a DEBUG diagnostic. Pending or failed waits do not release staging or
 uniform storage for reuse. CPU submission is not GPU completion.
 
 Queries declare their category before core named realization. Timestamp, elapsed, occlusion and primitive
@@ -515,8 +520,10 @@ the internal backend-neutral execution contract for observation and mapping. Exi
 may retain and map their own fenced output storage through the same backend instead of adding a copy.
 
 Transform-feedback creation configures named output ranges from frozen authored descriptions. Capture
-retains the object selection and output lifetime guards across begin/end, pause/resume and scope unwind;
-per-method scopes never restore a binding during active capture. Canonical capture metadata stays empty.
+keeps actual begin/end and pause/resume state under owner-preserved object/output lifetimes;
+per-method scopes never restore a binding during active capture. Authored output ranges refresh on source changes,
+and failed refresh remains withdrawn until another change. Native output setup executes for each requested
+capture to restore authored selections after external edits. Canonical capture metadata stays empty.
 Optional memory/semaphore descriptions make platform-handle kind and ownership explicit: successful FD
 imports transfer their descriptor to GL, while Win32 handles remain caller-owned. The pinned OpenTK
 package exposes these optional entry points only through GL.Ext, confined to backend modules. No payload
@@ -568,8 +575,9 @@ state isolation, a completion fence or a GPU wait. Immediate submission remains 
 Lists are exclusive to their originating thread and follow Recording -> Closed -> Executing -> Executed
 or Failed. Cancellation is allowed only before execution; only terminal lists can reset. Reset and disposal
 release CPU references while keeping reusable page capacity; they never dispose issued result storage.
-Resources are resolved again at execution: owner-following references see deliberate replacement;
-expired borrowers and fixed shader generations reject rather than retarget. Retention extends no engine
+Execution uses current producer-delivered facts: owner-following references see deliberate replacement;
+borrowers remain tied to original associations and fixed shader generations never retarget. Owners discard
+work before releasing dependencies; representative lifetime misuse is diagnosed in DEBUG. Retention extends no engine
 callback borrowing interval and certifies no producer content freshness.
 
 Recorded readback/query requests use their existing ticket types; recorded fences return `RHIFenceTicket`.

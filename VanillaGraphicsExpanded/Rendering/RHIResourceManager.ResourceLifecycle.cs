@@ -3,11 +3,11 @@ using VanillaGraphicsExpanded.Rendering.Integration;
 
 namespace VanillaGraphicsExpanded.Rendering;
 
-/// <summary>Applies native ownership and shared usage rules through manager-owned wrapper associations.</summary>
+/// <summary>Applies native ownership and retirement through manager-owned wrapper associations.</summary>
 internal sealed partial class RHIResourceManager
 {
     #region Internal API
-    #region Native validity and shared guards
+    #region Native validity
     /// <summary>Rejects retired original objects while preserving unregistered declaration behavior.</summary>
     internal bool IsResourceLive(GpuResource resource)
     {
@@ -15,30 +15,6 @@ internal sealed partial class RHIResourceManager
             && entry.State == GpuResourceRegistrationState.Live;
     }
 
-    /// <summary>Applies existing storage guards across aliases of the same native object.</summary>
-    internal void RequireResourceMutable(GpuResource resource, bool allowRetired)
-    {
-        ObjectDisposedException.ThrowIf(!allowRetired && !IsResourceLive(resource), resource);
-        GetResourceRegistration(resource)?.RequireMutableStorage();
-    }
-
-    /// <summary>Applies existing retirement guards across aliases of the same native object.</summary>
-    internal void RequireResourceRetirement(GpuResource resource)
-    {
-        GetResourceRegistration(resource)?.RequireRetirement();
-    }
-
-    /// <summary>Retains an already associated native object for a pass or restoration boundary.</summary>
-    internal void RetainResource(GpuResource resource, bool pass)
-    {
-        GetResourceRegistration(resource)?.Retain(pass);
-    }
-
-    /// <summary>Releases shared guard state even when the original entry has since retired.</summary>
-    internal void ReleaseResource(GpuResource resource, bool pass)
-    {
-        GetResourceRegistration(resource)?.Release(pass);
-    }
     #endregion
 
     #region Wrapper publication and removal

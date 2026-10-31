@@ -51,10 +51,12 @@ internal sealed partial class OpenGLBackend
     private static GpuResource<GpuBufferMetadata> PrepareBufferSelection(GpuBufferRef buffer)
     {
         var owner = buffer.RequireResource();
+        // Native names are meaningful only in the source's physical context, independently of metadata readiness.
+        owner.RequireOriginalContext();
 #if DEBUG
         _ = RHIResourceManager.RequireBufferReferenceMetadata(owner);
 #endif
-        if (!owner.HasMetadataSnapshot) throw new InvalidOperationException("Buffer storage preparation is unavailable.");
+        if (owner.IsDisposed || !owner.HasMetadataSnapshot) throw new InvalidOperationException("Buffer storage preparation is unavailable.");
         return owner;
     }
     /// <summary>Resolves indexed namespaces using cached limits, without native queries.</summary>

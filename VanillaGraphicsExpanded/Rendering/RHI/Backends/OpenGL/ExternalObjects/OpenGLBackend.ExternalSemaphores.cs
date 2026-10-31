@@ -29,9 +29,10 @@ internal sealed partial class OpenGLBackend
         RequireContext();
         if (!Capabilities.ExternalSemaphores) throw new NotSupportedException("External semaphores are unavailable.");
         var owner = reference.RequireResource(); owner.RequireOriginalContext();
+#if DEBUG
         if (!reference.IsValid) throw new InvalidOperationException("The original semaphore is unavailable.");
-        var registration = owner.ResourceManager?.GetResourceRegistration(owner);
-        if (registration is not null ? !registration.IsUsable : !owner.ImportRequested)
+#endif
+        if (!owner.HasMetadataSnapshot)
             throw new InvalidOperationException("A semaphore payload must be imported before wait or signal.");
         cache.RequireResourceOperationAvailable(GpuResourceKind.Semaphore, owner.ResourceId);
         return owner;
@@ -44,8 +45,7 @@ internal sealed partial class OpenGLBackend
         for (int i = 0; i < buffers.Length; i++) bufferNames[i] = (int)RequireRange(buffers[i], 0, 0).ResourceId;
         for (int i = 0; i < textures.Length; i++)
         {
-            _ = textures[i].Texture.RequireMetadata();
-            var resource = textures[i].Texture.Resource!; resource.RequireOriginalContext();
+            var resource = SelectTexture(textures[i].Texture); resource.RequireOriginalContext();
             textureNames[i] = (int)resource.ResourceId;
             layouts[i] = textures[i].Layout switch
             {

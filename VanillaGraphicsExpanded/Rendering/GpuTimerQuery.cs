@@ -142,15 +142,16 @@ internal sealed class GpuTimerQuery : IDisposable
     {
         if (active)
         {
+            var context = activeContext!;
+            // Foreign-context rejection leaves the interval retryable; entered cleanup consumes it.
+            if (!context.HasRetiredOrigin) context.RequireContext();
             try
             {
-                activeContext!.EndQuery(query);
+                context.EndQuery(query);
             }
             finally
             {
-                // A rejected foreign-context unwind keeps the interval retryable. A completed or
-                // retired-origin unwind releases its guard even when result reconciliation fails.
-                if (query.UsageReferences.Pass == 0) { active = false; activeContext = null; }
+                active = false; activeContext = null;
             }
         }
 

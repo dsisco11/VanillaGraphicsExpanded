@@ -16,14 +16,6 @@ internal sealed class GpuProgramLifetime
     {
         if (!IsSubmissionAdmitted) throw new InvalidOperationException("GPU program submission admission is closed.");
     }
-    /// <summary>Reuses the native resource borrow contract when the family already has a resource owner.</summary>
-    internal GpuResource? NativeExecutable { get; set; }
-    /// <summary>Rejects retirement or replacement while scopes retain executable ownership.</summary>
-    internal void RequireUnborrowed()
-    {
-        if (NativeExecutable?.UsageReferences.Pass > 0)
-            throw new InvalidOperationException("GPU program generation is borrowed by an active use lifetime.");
-    }
     /// <summary>Reports terminal owner retirement independently of executable invalidation.</summary>
     internal bool IsRetired { get; set; }
     /// <summary>Reports an active retained-input publication.</summary>

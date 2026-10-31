@@ -38,7 +38,7 @@ internal interface IGpuProgram : IShaderSubmissionTarget, IDisposable
     void Retire()
     {
         if (Lifetime.IsRetired) return;
-        Lifetime.RequireMutation(); Lifetime.RequireUnborrowed(); Lifetime.IsRetired = true;
+        Lifetime.RequireMutation(); Lifetime.IsRetired = true;
         List<Exception>? failures = null;
         foreach (var buffer in Lifetime.OwnedUniforms)
             try { buffer.Dispose(); }

@@ -6,15 +6,15 @@ using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 
 namespace VanillaGraphicsExpanded.Tests.GPU;
 
-/// <summary>Checks alias guards across framebuffer replacement and deferred owning cleanup.</summary>
+/// <summary>Checks original alias identity across owner replacement and deferred cleanup.</summary>
 [Collection("GPU")]
 [Trait("Category", "GPU")]
 public sealed class GpuResourceDeferredLifetimeTests(HeadlessGLFixture fixture)
 {
     #region Public API
-    /// <summary>Identity replacement waits for the original borrow while same-identity facts can refresh.</summary>
+    /// <summary>Owner replacement refreshes its alias only at the explicit lifecycle boundary.</summary>
     [Fact]
-    public void BorrowedFramebufferReplacementPreservesOriginalGuardAssociation()
+    public void BorrowedFramebufferReplacementPreservesOriginalAssociation()
     {
         fixture.EnsureContextValid();
         fixture.InitializeResourceDisposal();
@@ -27,20 +27,11 @@ public sealed class GpuResourceDeferredLifetimeTests(HeadlessGLFixture fixture)
         var original = manager.GetResourceRegistration(borrower);
         int notifications = 0;
         borrower.AttachmentsChanged += () => notifications++;
-        borrower.RetainLifetimeReference();
-        try
-        {
-            Assert.Throws<InvalidOperationException>(() => borrower.RefreshWrappedFramebuffer(second.FboId, 8, 8, false));
-            Assert.Equal(first.FboId, borrower.FboId);
-            Assert.Equal(4, borrower.Width);
-            Assert.Same(original, manager.GetResourceRegistration(borrower));
-            Assert.Equal(0, notifications);
-            borrower.RefreshWrappedFramebuffer(first.FboId, 6, 6, false);
-            Assert.Same(original, manager.GetResourceRegistration(borrower));
-            Assert.Equal(6, borrower.Width);
-            Assert.Equal(1, notifications);
-        }
-        finally { borrower.ReleaseLifetimeReference(); }
+        borrower.RefreshWrappedFramebuffer(first.FboId, 6, 6, false);
+        Assert.Same(original, manager.GetResourceRegistration(borrower));
+        Assert.Equal(6, borrower.Width);
+        Assert.Equal(1, notifications);
+        // No future use of the old selection remains when its owner follows replacement.
         borrower.RefreshWrappedFramebuffer(second.FboId, 8, 8, false);
         Assert.Same(manager.GetResourceRegistration(second), manager.GetResourceRegistration(borrower));
         first.Dispose();
@@ -53,11 +44,9 @@ public sealed class GpuResourceDeferredLifetimeTests(HeadlessGLFixture fixture)
         OpenGlStateCache.Current.InvalidateAll();
     }
 
-    /// <summary>A queued owner survives both alias guard kinds and retires when the borrow releases.</summary>
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void DeferredAttachmentOwnerRetriesAfterSharedGuardRelease(bool pass)
+    /// <summary>A queued owner retires at the lifecycle drain and withdraws non-owning aliases.</summary>
+    [Fact]
+    public void DeferredAttachmentOwnerWithdrawsAliasesOnDrain()
     {
         fixture.EnsureContextValid();
         fixture.InitializeResourceDisposal();
@@ -67,23 +56,16 @@ public sealed class GpuResourceDeferredLifetimeTests(HeadlessGLFixture fixture)
         using var alias = new BorrowedTexture(nativeId);
         var queue = RHIResourceManagerSystem.CaptureDisposalQueue();
         using var unrelated = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba8, Width = System.Math.Max(1, 2), Height = System.Math.Max(1, 2), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
-        if (pass) alias.RetainPassReference(); else alias.RetainLifetimeReference();
-        try
-        {
-            attachment.Dispose();
-            queue.Enqueue(unrelated);
-            queue.Enqueue(owner);
-            queue.DrainPending();
-            Assert.True(unrelated.IsDisposed);
-            Assert.False(owner.IsDisposed);
-            Assert.True(GL.IsTexture(nativeId));
-        }
-        finally { if (pass) alias.ReleasePassReference(); else alias.ReleaseLifetimeReference(); }
+        attachment.Dispose();
+        queue.Enqueue(unrelated);
+        queue.Enqueue(owner);
         try
         {
             queue.DrainPending();
             Assert.True(owner.IsDisposed);
             Assert.False(GL.IsTexture(nativeId));
+            Assert.False(alias.IsValid);
+            Assert.True(unrelated.IsDisposed);
             queue.DrainPending();
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }

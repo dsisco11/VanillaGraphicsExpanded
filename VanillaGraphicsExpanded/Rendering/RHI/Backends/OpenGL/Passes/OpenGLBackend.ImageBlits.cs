@@ -9,6 +9,7 @@ namespace VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 /// <summary>Executes explicit framebuffer image transfers and format conversion without native selector escapes.</summary>
 internal sealed partial class OpenGLBackend
 {
+    private bool transferringImages;
     #region Public API
     /// <inheritdoc />
     public void BlitImages(in RHIImageBlit blit)
@@ -18,20 +19,20 @@ internal sealed partial class OpenGLBackend
         var source = OpenGLAttachmentIdentity.Resolve(blit.Source);
         var destination = OpenGLAttachmentIdentity.Resolve(blit.Destination);
         ValidateImageBlit(blit, source, destination);
-        if (executionResources.Count != 0) throw new InvalidOperationException("Resource execution cannot recurse.");
+        if (transferringImages) throw new InvalidOperationException("Resource execution cannot recurse.");
+        transferringImages = true;
         try
         {
-            RetainExecutionResource(source.Resource);
-            RetainExecutionResource(destination.Resource);
             var readDescription = TransferTarget(blit.Source, blit.Aspects);
             var drawDescription = TransferTarget(blit.Destination, blit.Aspects);
-            var readKey = ResolvePassTargetKey(readDescription);
-            var drawKey = ResolvePassTargetKey(drawDescription);
+            // Both source selections were established above; target realization consumes those
+            // same original identities without resolving registrations and mip facts a second time.
+            var readKey = TransferTargetKey(source, blit.Aspects);
+            var drawKey = TransferTargetKey(destination, blit.Aspects);
             ValidatePassIntentions(readDescription, readKey);
             ValidatePassIntentions(drawDescription, drawKey);
             var read = ResolvePassTarget(readDescription, readKey);
             var draw = ResolvePassTarget(drawDescription, drawKey);
-            RetainExecutionResource(read); RetainExecutionResource(draw);
             var state = cache.PreserveImageTransferState();
             Exception? failure = null;
             try
@@ -46,8 +47,6 @@ internal sealed partial class OpenGLBackend
                     to.X, to.Y, checked(to.X + to.Width), checked(to.Y + to.Height), mask,
                     blit.Filter == SamplerFilter.Linear ? BlitFramebufferFilter.Linear : BlitFramebufferFilter.Nearest);
                 RequireContext();
-                if (!source.IsCurrent || !destination.IsCurrent)
-                    throw new InvalidOperationException("The original image storage became unavailable during transfer.");
             }
             catch (Exception error) { failure = error; }
             try { state.Dispose(); }
@@ -58,7 +57,7 @@ internal sealed partial class OpenGLBackend
             }
             if (failure is not null) ExceptionDispatchInfo.Capture(failure).Throw();
         }
-        finally { ReleaseExecutionResources(); }
+        finally { transferringImages = false; }
     }
     #endregion
 
@@ -66,6 +65,10 @@ internal sealed partial class OpenGLBackend
     /// <summary>Projects one transfer selection to the same context-owned target service used by rendering.</summary>
     private static RHIRenderPassDescription TransferTarget(RHIAttachment image, ImageAspects aspects)
         => aspects == ImageAspects.Color ? new([new(Image: image)]) : new([], depthStencil: image);
+
+    /// <summary>Projects an already validated transfer image into the native target cache's existing key.</summary>
+    private static OpenGLPassTargetKey TransferTargetKey(in OpenGLAttachmentIdentity image, ImageAspects aspects)
+        => aspects == ImageAspects.Color ? new([(0, image)], null, [0]) : new([], image, []);
 
     /// <summary>Rejects unsupported conversion, resolve, filtering and overlap before target realization or native state effects.</summary>
     private static void ValidateImageBlit(in RHIImageBlit blit, in OpenGLAttachmentIdentity source, in OpenGLAttachmentIdentity destination)

@@ -1,10 +1,9 @@
 using System;
-using System.Collections.Generic;
 using OpenTK.Graphics.OpenGL4;
 
 namespace VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 
-/// <summary>Keeps capture selection and output guards across the complete begin/end interval.</summary>
+/// <summary>Keeps actual capture state and restores selection across the complete begin/end interval.</summary>
 internal sealed partial class OpenGLBackend
 {
     private FeedbackCapture? feedbackCapture;
@@ -35,19 +34,18 @@ internal sealed partial class OpenGLBackend
             };
             var owner = feedback.RequireResource();
             owner.RequireOriginalContext();
-            if (!owner.IsValid || !feedbackOutputs.TryGetValue(owner, out var description))
+            if (owner.IsDisposed || !owner.HasMetadataSnapshot || !feedbackOutputs.TryGetValue(owner, out var outputs))
                 throw new InvalidOperationException("The configured capture resource is unavailable.");
-            var retained = new List<GpuResource>();
+            outputs.Prepare();
             int previous = OpenGLFeedbackBindings.Get(cache);
             try
             {
-                owner.RetainPassReference(); retained.Add(owner);
-                foreach (var output in description.Outputs)
+                // Restore authored outputs after possible external edits. Structural range facts
+                // refresh only on source changes; this loop performs the requested native configuration.
+                for (int index = 0; index < outputs.Description.Outputs.Length; index++)
                 {
-                    var buffer = RequireRange(output.Range.Buffer, output.Range.Offset, output.Range.Length);
-                    buffer.RetainPassReference(); retained.Add(buffer);
-                    // Resolve owner-following inputs again at execution; never capture into a former allocation.
-                    OpenGLDriverCalls.TransformFeedbackBufferRange(owner.TransformFeedbackId, output.Slot, (int)buffer.ResourceId,
+                    var output = outputs.Description.Outputs[index];
+                    OpenGLDriverCalls.TransformFeedbackBufferRange(owner.TransformFeedbackId, output.Slot, outputs.Names[index],
                         output.Range.Offset, output.Range.Length);
                     RequireContext();
                 }
@@ -55,7 +53,7 @@ internal sealed partial class OpenGLBackend
                 OpenGLDriverCalls.BeginTransformFeedback(nativePrimitive);
                 RequireContext();
                 cache.RecordFeedbackActivity(true, false);
-                feedbackCapture = new(previous, retained);
+                feedbackCapture = new(previous);
             }
             catch
             {
@@ -66,7 +64,6 @@ internal sealed partial class OpenGLBackend
                     else cache.TransformFeedbackKnowledge = null;
                 }
                 catch { cache.TransformFeedbackKnowledge = null; }
-                finally { foreach (var item in retained) item.ReleasePassReference(); }
                 throw;
             }
         }
@@ -84,7 +81,6 @@ internal sealed partial class OpenGLBackend
             {
                 var retired = feedbackCapture ?? throw new InvalidOperationException("Capture is not active.");
                 feedbackCapture = null;
-                foreach (var item in retired.Retained) item.ReleasePassReference();
                 return;
             }
             RequireContext();
@@ -101,7 +97,6 @@ internal sealed partial class OpenGLBackend
                     else cache.TransformFeedbackKnowledge = null;
                 }
                 catch { cache.TransformFeedbackKnowledge = null; if (failure is null) throw; }
-                finally { foreach (var item in capture.Retained) item.ReleasePassReference(); }
             }
         }
         finally { feedbackTransition = false; }
@@ -156,10 +151,9 @@ internal sealed partial class OpenGLBackend
         #endregion
     }
     /// <summary>Retains only execution-lifetime state, not a second metadata or binding cache.</summary>
-    private sealed class FeedbackCapture(int previous, List<GpuResource> retained)
+    private sealed class FeedbackCapture(int previous)
     {
         internal readonly int Previous = previous;
-        internal readonly List<GpuResource> Retained = retained;
         internal bool Paused;
     }
     #endregion

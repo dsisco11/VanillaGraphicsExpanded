@@ -54,11 +54,9 @@ public sealed class GpuResourceAliasMetadataTests(HeadlessGLFixture fixture)
         }
     }
 
-    /// <summary>Owner and alias lifetime references reject native-name replacement before changing registration.</summary>
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void TextureReplacementPreservesLifetimeRetainedAllocation(bool retainOwner)
+    /// <summary>Owner replacement withdraws fixed aliases without making their references owning.</summary>
+    [Fact]
+    public void TextureReplacementWithdrawsOriginalBorrower()
     {
         fixture.EnsureContextValid();
         fixture.InitializeResourceDisposal();
@@ -66,23 +64,15 @@ public sealed class GpuResourceAliasMetadataTests(HeadlessGLFixture fixture)
         {
             using var owner = RHICommandContext.Current.CreateDynamicTexture3D(new RHITextureDescription { Dimension = TextureDimension.TwoArray, Format = TextureFormat.Rgba8, Width = System.Math.Max(1, 4), Height = System.Math.Max(1, 4), Depth = System.Math.Max(1, 2), MipLevels = 1, Storage = (true ? ResourceStorageMode.Immutable : ResourceStorageMode.Mutable), Filter = TextureFilterMode.Linear, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
             using var borrower = new BorrowedTexture(owner.TextureId);
-            GpuResource retained = retainOwner ? owner : borrower;
             var manager = RHIResourceManagerSystem.CurrentManager!;
             var original = manager.GetResourceRegistration(owner)!;
             int originalId = owner.TextureId;
-            retained.RetainLifetimeReference();
-            try
-            {
-                Assert.Throws<InvalidOperationException>(() => owner.Resize(8, 4, 2));
-                Assert.Equal(GpuResourceRegistrationState.Live, original.State);
-                Assert.Same(original, manager.GetResourceRegistration(owner));
-                Assert.Equal(originalId, owner.TextureId);
-                Assert.True(borrower.IsValid);
-                Assert.True(owner.IsValid);
-                Assert.True(GL.IsTexture(originalId));
-                Assert.Equal(ErrorCode.NoError, GL.GetError());
-            }
-            finally { retained.ReleaseLifetimeReference(); }
+            Assert.True(owner.Resize(8, 4, 2));
+            Assert.NotSame(original, manager.GetResourceRegistration(owner));
+            Assert.NotEqual(GpuResourceRegistrationState.Live, original.State);
+            Assert.False(borrower.IsValid);
+            Assert.True(owner.IsValid);
+            Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
         finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
     }

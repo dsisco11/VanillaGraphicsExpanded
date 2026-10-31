@@ -10,15 +10,19 @@ internal sealed partial class OpenGLBackend
     {
         RequireContext();
         if (!Capabilities.BindlessTextures) throw new NotSupportedException("Bindless textures are unavailable.");
-        _ = texture.RequireMetadata();
-        texture.Resource!.RequireOriginalContext();
+        var image = SelectTexture(texture);
+        image.RequireOriginalContext();
         ulong handle;
-        if (sampler.IsEmpty) handle = unchecked((ulong)GL.Arb.GetTextureHandle(texture.TextureId));
+        if (sampler.IsEmpty) handle = unchecked((ulong)GL.Arb.GetTextureHandle(checked((int)image.ResourceId)));
         else
         {
             var owner = sampler.RequireResource();
+            owner.RequireOriginalContext();
+#if DEBUG
             _ = RHIResourceManager.RequireSamplerReferenceMetadata(owner);
-            handle = unchecked((ulong)GL.Arb.GetTextureSamplerHandle(texture.TextureId, checked((int)owner.ResourceId)));
+#endif
+            if (!owner.HasMetadataSnapshot) throw new InvalidOperationException("Sampler preparation is unavailable.");
+            handle = unchecked((ulong)GL.Arb.GetTextureSamplerHandle(checked((int)image.ResourceId), checked((int)owner.ResourceId)));
         }
         RequireContext();
         if (handle == 0) throw new InvalidOperationException("Bindless handle issuance returned zero.");

@@ -101,7 +101,9 @@ internal sealed partial class OpenGLBackend
         if (!OpenGLDriverCalls.Ext.IsSemaphore(owner.SemaphoreId))
             throw new InvalidOperationException("Semaphore payload import did not establish a usable object.");
         RequireContext();
-        owner.ResourceManager?.ObserveSemaphoreRealization(owner.ResourceId);
+        if (owner.ResourceManager?.GetResourceRegistration(owner) is not null)
+            owner.ResourceManager.ObserveSemaphoreRealization(owner.ResourceId);
+        else owner.AssignMetadataSnapshot(new GpuSemaphoreMetadata());
     }
     /// <summary>Imports the explicit memory size once under the selected ownership contract.</summary>
     private void ImportMemory(GpuMemoryObject owner, ulong size, RHIExternalHandle handle)

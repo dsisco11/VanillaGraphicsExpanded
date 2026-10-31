@@ -26,9 +26,9 @@ public sealed class StaticGpuFramebufferTests(HeadlessGLFixture fixture, ITestOu
         Assert.DoesNotContain(typeof(StaticGpuFramebuffer).GetMethods(BindingFlags.Public | BindingFlags.Static | BindingFlags.FlattenHierarchy), method => method.Name is "CreateEmpty" or "Wrap" or "CreateMRT");
         Assert.Equal(typeof(DynamicGpuFramebuffer), typeof(DynamicGpuFramebuffer).GetMethod("CreateEmpty")!.DeclaringType);
     }
-    /// <summary>Attachment aliases cannot alter frozen allocations, while uploads into existing storage remain valid.</summary>
+    /// <summary>The declaration stays immutable while its owner preserves borrowed attachments until retirement.</summary>
     [Fact]
-    public void FrozenAttachmentsRejectAliasedReconfigurationButPermitContents()
+    public void ImmutableDeclarationBorrowsOwnerScheduledAttachments()
     {
         EnsureContextValid();
         using var texture = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba32f, Width = System.Math.Max(1, 2), Height = System.Math.Max(1, 2), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
@@ -36,9 +36,6 @@ public sealed class StaticGpuFramebufferTests(HeadlessGLFixture fixture, ITestOu
         using var target = StaticGpuFramebuffer.Create([attachment]);
         using var alias = DynamicGpuFramebuffer.Wrap(target.FboId, width: 2, height: 2);
         Assert.Throws<InvalidOperationException>(() => target.Resize(3, 3));
-        Assert.Throws<InvalidOperationException>(() => texture.Resize(3, 3));
-        Assert.Throws<InvalidOperationException>(texture.Dispose);
-        Assert.Throws<InvalidOperationException>(attachment.Dispose);
         Assert.Throws<InvalidOperationException>(() => alias.SetAttachment(FramebufferSlot.Color0, attachment));
         Assert.Throws<InvalidOperationException>(() => alias.RemoveAttachment(FramebufferSlot.Color0));
         Assert.Throws<InvalidOperationException>(() => alias.Resize(3, 3));
@@ -51,17 +48,15 @@ public sealed class StaticGpuFramebufferTests(HeadlessGLFixture fixture, ITestOu
         Assert.True(texture.Resize(3, 3));
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
-    /// <summary>Static view attachments retain both the view and source allocation until configuration retirement.</summary>
+    /// <summary>The owner keeps both the view and source allocation until static configuration retirement.</summary>
     [Fact]
-    public void StaticArrayViewFreezesSourceAndDetachReleasesConfiguration()
+    public void StaticArrayViewOwnerPreservesSourceUntilDetach()
     {
         EnsureContextValid();
         using var array = RHICommandContext.Current.CreateDynamicTexture3D(new RHITextureDescription { Dimension = TextureDimension.TwoArray, Format = TextureFormat.Rgba32f, Width = System.Math.Max(1, 2), Height = System.Math.Max(1, 2), Depth = System.Math.Max(1, 3), MipLevels = 1, Storage = (true ? ResourceStorageMode.Immutable : ResourceStorageMode.Mutable), Filter = TextureFilterMode.Linear, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         using var view = RHICommandContext.Current.CreateTextureView(new RHITextureViewDescription { Source = array, Dimension = TextureDimension.TwoArray, Format = TextureFormat.Rgba32f, BaseMip = 0, MipCount = 1, BaseLayer = 0, LayerCount = 3, Label = null }).RequireResource();
         using var image = GpuFramebufferAttachment.FromTexture(view, layer: 1);
         using var target = StaticGpuFramebuffer.Create([image]);
-        Assert.Throws<InvalidOperationException>(() => array.Resize(3, 3, 3));
-        Assert.Throws<InvalidOperationException>(view.Dispose);
         int id = (int)target.Detach(); try
         {
             Assert.True(array.Resize(3, 3, 3));
@@ -142,9 +137,11 @@ public sealed class StaticGpuFramebufferTests(HeadlessGLFixture fixture, ITestOu
             worker.Start();
             worker.Join();
             Assert.Null(failure);
+            Assert.False(target.IsDisposed);
+            Assert.Throws<InvalidOperationException>(() => OpenGlStateCache.Current.RequireMutableFramebufferConfiguration(id));
+            manager.OnRenderFrame(0, RHIResourceManager.Stage);
             OpenGlStateCache.Current.RequireMutableFramebufferConfiguration(id);
             Assert.True(texture.Resize(3, 3));
-            manager.OnRenderFrame(0, RHIResourceManager.Stage);
             Assert.False(GL.IsFramebuffer(id));
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }

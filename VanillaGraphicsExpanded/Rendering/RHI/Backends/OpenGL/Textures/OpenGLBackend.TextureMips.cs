@@ -14,8 +14,8 @@ internal sealed partial class OpenGLBackend
     public void GenerateMipmaps(GpuTextureRef texture)
     {
         RequireContext();
-        var previous = texture.RequireMetadata();
-        var owner = texture.Resource!;
+        var owner = SelectTexture(texture);
+        var previous = owner.PublishedMetadata;
         owner.RequireOriginalContext();
         if (previous.Target is TextureDimension.Rectangle or TextureDimension.Buffer or TextureDimension.TwoMultisample or TextureDimension.TwoMultisampleArray)
             throw new ArgumentException("This target does not support mip generation.");

@@ -14,8 +14,11 @@ internal sealed partial class OpenGLBackend
         int bytes;
         if (request.IsTexture)
         {
-            var metadata = request.Texture.RequireMetadata();
-            ValidateTextureRegion(metadata, request.Region);
+            // Reject malformed source extents before allocating staging; the shared transfer
+            // boundary separately validates its actual destination layout and byte budget.
+            ValidateTextureRegion(SelectTexture(request.Texture).PublishedMetadata, request.Region);
+            if (request.Region.Width <= 0 || request.Region.Height <= 0 || request.Region.Depth <= 0)
+                throw new ArgumentOutOfRangeException(nameof(description));
             int pixelBytes = request.Encoding.BytesPerPixel;
             int row = request.RowPitch == 0 ? checked(request.Region.Width * pixelBytes) : request.RowPitch;
             int slice = request.SlicePitch == 0 ? checked(row * request.Region.Height) : request.SlicePitch;

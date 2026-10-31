@@ -27,12 +27,12 @@ internal sealed class RHIResourceDisposalQueue
         }
     }
 
-    /// <summary>Attempts one admission batch, retaining guard-blocked resources for a later drain.</summary>
+    /// <summary>Attempts one owner-scheduled cleanup batch, preserving requests rejected before retirement.</summary>
     public void DrainPending()
     {
         int attempts;
         lock (gate) attempts = pending.Count;
-        // Requeued borrows and new admissions wait until the next drain, so blocked cleanup
+        // Requeued cleanup and new admissions wait until the next drain, so blocked cleanup
         // cannot spin or prevent unrelated resources in this batch from retiring.
         for (int index = 0; index < attempts; index++)
         {
@@ -44,7 +44,7 @@ internal sealed class RHIResourceDisposalQueue
             try { resource.Dispose(); }
             catch (Exception error)
             {
-                // Dispose checks usage guards before committing local retirement. Preserve
+                // An original-context rejection can precede local retirement. Preserve
                 // ownership only when that transition has not occurred; cleanup-hook failures
                 // after retirement are not retryable disposal requests.
                 if (!resource.IsDisposed) Enqueue(resource);

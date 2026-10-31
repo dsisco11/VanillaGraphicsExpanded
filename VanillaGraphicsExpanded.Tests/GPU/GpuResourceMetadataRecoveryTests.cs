@@ -117,11 +117,9 @@ public sealed class GpuResourceMetadataRecoveryTests(HeadlessGLFixture fixture)
         }
     }
 
-    /// <summary>Repeated local retirement cannot consult alias guards after an owner has successfully transferred its handle.</summary>
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void TransferredOwnerRemainsIdempotentWhileAliasRetainsGuard(bool pass)
+    /// <summary>Repeated local retirement preserves the transferred allocation and its non-owning alias.</summary>
+    [Fact]
+    public void TransferredOwnerRemainsIdempotentWhileAliasRemainsLive()
     {
         fixture.EnsureContextValid();
         fixture.InitializeResourceDisposal();
@@ -131,9 +129,6 @@ public sealed class GpuResourceMetadataRecoveryTests(HeadlessGLFixture fixture)
             using var owner = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba8, Width = System.Math.Max(1, 4), Height = System.Math.Max(1, 4), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
             using var alias = new BorrowedTexture(owner.TextureId);
             native = checked((int)owner.Detach());
-            if (pass) alias.RetainPassReference();
-            else alias.RetainLifetimeReference();
-            try
             {
                 owner.Dispose();
                 Assert.Equal((nint)0, owner.Detach());
@@ -141,11 +136,6 @@ public sealed class GpuResourceMetadataRecoveryTests(HeadlessGLFixture fixture)
                 Assert.True(alias.IsValid);
                 Assert.True(GL.IsTexture(native));
                 Assert.Equal(ErrorCode.NoError, GL.GetError());
-            }
-            finally
-            {
-                if (pass) alias.ReleasePassReference();
-                else alias.ReleaseLifetimeReference();
             }
         }
         finally
@@ -175,12 +165,45 @@ public sealed class GpuResourceMetadataRecoveryTests(HeadlessGLFixture fixture)
                 // Abandon the operation after a real accepted image replacement.
             }
             Assert.False(entry.MetadataAvailable);
+            Assert.False(texture.HasMetadataSnapshot);
             Assert.Equal(0, texture.Width);
+            var region = new RHITextureRegion(new(), 0, 0, 0, 1, 1, 1);
+            var encoding = new RHIPixelEncoding(PixelChannelLayout.Rgba, PixelComponentType.UnsignedByte);
+            Assert.Throws<InvalidOperationException>(() => RHICommandContext.Current.ClearTexture(texture, region, encoding, new byte[4]));
             Assert.Same(entry, manager.RecoverResource(GpuResourceKind.Texture, texture.TextureId,
                 GpuTextureMetadataReader.Instance));
+            Assert.True(texture.HasMetadataSnapshot);
+            RHICommandContext.Current.ClearTexture(texture, region, encoding, new byte[4]);
             Assert.Equal(12, texture.Width);
             Assert.Equal(6, texture.Height);
             Assert.True(entry.StorageRevision > previousStorageRevision);
+            Assert.Equal(ErrorCode.NoError, GL.GetError());
+        }
+        finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
+    }
+    /// <summary>A real abandoned allocation withdraws buffer snapshots before consumers, until explicit recovery.</summary>
+    [Fact]
+    public void InterruptedBufferStorageCannotBeConsumedBeforeRecovery()
+    {
+        fixture.EnsureContextValid();
+        fixture.InitializeResourceDisposal();
+        try
+        {
+            var context = RHICommandContext.Current;
+            using var buffer = context.CreateBuffer(new RHIBufferDescription
+            { Role = BufferRole.CopySource, Mode = ResourceStorageMode.Mutable, Capacity = 16, Usage = BufferUsage.StreamRead }).RequireResource();
+            var manager = RHIResourceManagerSystem.CurrentManager!;
+            var entry = Assert.IsType<GpuResourceMetadataEntry<GpuBufferMetadata>>(manager.GetResourceRegistration(buffer));
+            using (var operation = new RHIResourceManager.MetadataOperation<GpuBufferMetadata>(buffer, GpuMetadataChange.Storage))
+                OpenGLDriverCalls.NamedBufferData(buffer.BufferId, 8, 0, OpenTK.Graphics.OpenGL4.BufferUsageHint.StreamRead);
+            Assert.False(entry.IsUsable);
+            Assert.False(buffer.HasMetadataSnapshot);
+            Assert.Throws<InvalidOperationException>(() => context.ClearBuffer(buffer, 0, 4));
+            Assert.Throws<InvalidOperationException>(() => context.MapBuffer(buffer, 0, 4, BufferMapAccess.Read));
+            Assert.Same(entry, manager.RecoverResource(GpuResourceKind.Buffer, buffer.BufferId, new GpuBufferMetadataReader()));
+            Assert.True(buffer.HasMetadataSnapshot);
+            context.ClearBuffer(buffer, 0, 4);
+            Assert.Equal(8, buffer.SizeBytes);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
         finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }

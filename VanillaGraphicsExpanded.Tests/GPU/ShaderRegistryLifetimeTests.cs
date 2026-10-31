@@ -81,9 +81,9 @@ public sealed class ShaderRegistryLifetimeTests(HeadlessGLFixture fixture) : Ren
         Assert.False(GL.IsProgram(installed));
     }
 
-    /// <summary>Borrow rejection validates all owners before withdrawing any registry readiness.</summary>
+    /// <summary>Reload withdraws prepared owners before replacing their executable generations.</summary>
     [Fact]
-    public void ReloadRejectsActiveBorrowWithoutPartialInvalidation()
+    public void ReloadWithdrawsReadinessAtOwnerBoundary()
     {
         EnsureContextValid();
         using var assets = new BinaryShaderApiFixture();
@@ -93,15 +93,10 @@ public sealed class ShaderRegistryLifetimeTests(HeadlessGLFixture fixture) : Ren
         using var depth = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.R32f, Width = System.Math.Max(1, 1), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         owner.PrimaryDepth = depth;
         Assert.True(owner.EnsureReady());
-        var executable = ((IGpuProgram)owner).Lifetime.NativeExecutable!;
-        executable.RetainPassReference();
-        try
-        {
-            Assert.Throws<InvalidOperationException>(registry.BeginReload);
-            Assert.False(owner.RequiresPreparation);
-            Assert.False(registry.IsReloading);
-        }
-        finally { executable.ReleasePassReference(); }
+        registry.BeginReload();
+        Assert.True(owner.RequiresPreparation);
+        Assert.True(registry.IsReloading);
+        registry.CompleteReload();
     }
 
     #endregion
@@ -122,10 +117,6 @@ public sealed class ShaderRegistryLifetimeTests(HeadlessGLFixture fixture) : Ren
         block.SetBytes(new byte[16]);
         int old = owner.ProgramId;
         ulong revision = ((IGpuProgram)owner).ExecutableRevision;
-        var executable = ((IGpuProgram)owner).Lifetime.NativeExecutable!;
-        executable.RetainPassReference();
-        try { Assert.Throws<InvalidOperationException>(owner.InvalidateAssets); }
-        finally { executable.ReleasePassReference(); }
         owner.InvalidateAssets();
         Assert.False(owner.IsValid);
         if (failedReplacement) assets.BeforeRead = path => { if (path.EndsWith(".spv")) assets.Overrides[path] = new byte[20]; };
@@ -327,9 +318,10 @@ public sealed class ShaderRegistryLifetimeTests(HeadlessGLFixture fixture) : Ren
         var commands=RHICommandContext.Current;
         var boundary=commands.EnterBoundary(new("RetirementPass",true,operations:BoundaryOperations.RenderPasses));
         commands.BeginRenderPass(FramebufferTestSetup.DescribeAttachments(target));
-        Assert.Throws<InvalidOperationException>(texture.Dispose);
         try
         {
+            // The owner keeps attachments alive until irreversible context retirement abandons the pass.
+            Assert.True(texture.IsValid);
             RenderContextRegistry.Retire(fixture);
             Assert.True(lifetime.IsClosed); Assert.True(registry.IsClosed);
             Assert.False(target.IsValid); Assert.False(texture.IsValid);

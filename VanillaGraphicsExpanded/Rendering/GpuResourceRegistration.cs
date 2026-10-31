@@ -3,12 +3,10 @@ using System.Threading;
 
 namespace VanillaGraphicsExpanded.Rendering;
 
-/// <summary>Stores shared identity, availability, revisions and usage guards for one manager registry entry.</summary>
+/// <summary>Stores shared identity, availability and revisions for one manager registry entry.</summary>
 internal abstract class GpuResourceRegistration
 {
     private int state;
-    private int activePassReferences;
-    private int lifetimeReferences;
     private int metadataAvailable;
 
     #region Internal API
@@ -64,38 +62,6 @@ internal abstract class GpuResourceRegistration
 
     #endregion
 
-    #region Shared usage guards
-    /// <summary>Rejects storage mutation while any alias participates in existing pass enforcement.</summary>
-    internal void RequireMutableStorage()
-    {
-        if (Volatile.Read(ref activePassReferences) != 0)
-            throw new InvalidOperationException("End the render pass before changing or retiring its target storage.");
-    }
-
-    /// <summary>Preserves both pass and deferred-restoration borrows during owner retirement.</summary>
-    internal void RequireRetirement()
-    {
-        RequireMutableStorage();
-        if (Volatile.Read(ref lifetimeReferences) != 0)
-            throw new InvalidOperationException("End the graphics boundary before retiring its borrowed resource.");
-    }
-
-    /// <summary>Retains the existing pass or lifetime guard on the shared registration.</summary>
-    internal void Retain(bool pass)
-    {
-        if (State != GpuResourceRegistrationState.Live) throw new ObjectDisposedException(nameof(GpuResourceRegistration));
-        if (pass) Interlocked.Increment(ref activePassReferences);
-        else Interlocked.Increment(ref lifetimeReferences);
-    }
-
-    /// <summary>Releases the corresponding shared guard, including after terminal invalidation.</summary>
-    internal void Release(bool pass)
-    {
-        if (pass) Interlocked.Decrement(ref activePassReferences);
-        else Interlocked.Decrement(ref lifetimeReferences);
-    }
-
-    #endregion
 
     #region Wrapper associations
     /// <summary>Removes dead wrapper associations without discarding canonical metadata.</summary>

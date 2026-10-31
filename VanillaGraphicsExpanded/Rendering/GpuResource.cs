@@ -9,8 +9,6 @@ namespace VanillaGraphicsExpanded.Rendering;
 public abstract partial class GpuResource : IDisposable
 {
     private int disposed;
-    private int activePassReferences;
-    private int lifetimeReferences;
     private int disposalRequested;
     private int ownerThread = Environment.CurrentManagedThreadId;
     private RHIResourceManager? deletionManager = RHIResourceManagerSystem.CurrentManager;
@@ -23,8 +21,6 @@ public abstract partial class GpuResource : IDisposable
     /// <summary>Gets the originating lifecycle service without storing any registry entry in the wrapper.</summary>
     internal RHIResourceManager? ResourceManager => deletionManager ?? RHIResourceManagerSystem.CurrentManager;
 
-    /// <summary>Captures declaration-local guard counts when native association first becomes available.</summary>
-    internal (int Pass, int Lifetime) UsageReferences => (Volatile.Read(ref activePassReferences), Volatile.Read(ref lifetimeReferences));
 
     #region Public API
     /// <summary>Reports whether this wrapper has been disposed.</summary>
@@ -46,7 +42,7 @@ public abstract partial class GpuResource : IDisposable
 
     protected virtual bool OwnsResource => true;
 
-    /// <summary>Transfers the native handle only after active pass and deferred restoration borrowers release it.</summary>
+    /// <summary>Transfers the native handle at the owner's legal release boundary.</summary>
     public virtual nint Detach()
     {
         ValidateOwnerThread();
@@ -55,7 +51,6 @@ public abstract partial class GpuResource : IDisposable
         {
             return 0;
         }
-        RequireRetirement();
         if (ResourceId != 0 && !IsValid) throw new InvalidOperationException("The original resource allocation has retired.");
         var origin = NativeProgramContext != default ? NativeProgramContext : nativeContext;
         if (ResourceId != 0 && origin != default && (origin.Generation == 0 ? !Integration.RenderContextRegistry.IsCurrentResourceContext(origin) : !Integration.RenderContextRegistry.IsAlive(origin)))
@@ -80,8 +75,7 @@ public abstract partial class GpuResource : IDisposable
     /// future work and finish or discard recordings before that boundary; queuing does not establish GPU completion.</remarks>
     public void Dispose()
     {
-        // Detached or disposed wrappers no longer mutate the shared allocation. Other aliases
-        // may subsequently borrow it, but those guards cannot make local cleanup non-idempotent.
+        // Retirement is idempotent; consumers never acquire exclusion over the owner.
         if (IsDisposed) return;
         // A worker requests retirement; it must not withdraw identity or invoke owner callbacks.
         // The originating manager drains the entire transition after rendering, not just its GL delete.
@@ -93,7 +87,6 @@ public abstract partial class GpuResource : IDisposable
         ValidateOwnerThread();
         // Local tools have no queue-owning context registration; retain ownership until their context is current.
         if (nativeContext != default && nativeContext.Generation == 0) RequireOriginalContext();
-        RequireRetirement();
         if (Interlocked.Exchange(ref disposed, 1) != 0)
         {
             return;
@@ -140,55 +133,12 @@ public abstract partial class GpuResource : IDisposable
         }
     }
 
-    /// <summary>Rejects storage mutation or retirement while a pass or immutable framebuffer borrows its configuration.</summary>
+    /// <summary>Diagnoses owner mutation of a retired original allocation in development builds.</summary>
+    [System.Diagnostics.Conditional("DEBUG")]
     internal void RequireMutableStorage(bool allowRetired = false)
     {
         ValidateOwnerThread();
-        ResourceManager?.RequireResourceMutable(this, allowRetired);
-        if (Volatile.Read(ref activePassReferences) != 0)
-            throw new InvalidOperationException("End the render pass before changing or retiring its target storage.");
-    }
-
-    /// <summary>Retains a live resource for pass validation or immutable attachment configuration without transferring ownership.</summary>
-    internal void RetainPassReference()
-    {
-        ObjectDisposedException.ThrowIf(IsDisposed, this);
-        ResourceManager?.RetainResource(this, true);
-        Interlocked.Increment(ref activePassReferences);
-    }
-
-    /// <summary>Releases a matching immediate pass reference without retiring the resource.</summary>
-    internal void ReleasePassReference()
-    {
-        ResourceManager?.ReleaseResource(this, true);
-        Interlocked.Decrement(ref activePassReferences);
-    }
-
-    /// <summary>Prevents handle retirement while allowing storage or attachment mutation outside an active pass.</summary>
-    internal void RetainLifetimeReference()
-    {
-        ObjectDisposedException.ThrowIf(IsDisposed, this);
-        ResourceManager?.RetainResource(this, false);
-        Interlocked.Increment(ref lifetimeReferences);
-    }
-
-    /// <summary>Ends a native-handle borrow without disposing or mutating the resource.</summary>
-    internal void ReleaseLifetimeReference()
-    {
-        ResourceManager?.ReleaseResource(this, false);
-        Interlocked.Decrement(ref lifetimeReferences);
-    }
-    #endregion
-
-    #region Protected API
-    /// <summary>Preserves native names needed by deferred restoration independently of active image mutation guards.</summary>
-    protected internal void RequireRetirement()
-    {
-        if (OwnsResource) ResourceManager?.RequireResourceRetirement(this);
-        if (Volatile.Read(ref activePassReferences) != 0)
-            throw new InvalidOperationException("End the render pass before retiring its target storage.");
-        if (Volatile.Read(ref lifetimeReferences) != 0)
-            throw new InvalidOperationException("End the graphics boundary before retiring its borrowed resource.");
+        ObjectDisposedException.ThrowIf(!allowRetired && (IsDisposed || ResourceId != 0 && !IsValid), this);
     }
     #endregion
 

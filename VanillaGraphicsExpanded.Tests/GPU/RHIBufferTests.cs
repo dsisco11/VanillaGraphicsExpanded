@@ -188,6 +188,9 @@ public sealed class RHIBufferTests(HeadlessGLFixture fixture)
         fixture.EnsureContextValid();
         var original = GLFW.GetCurrentContext();
         var originalContext = RHICommandContext.Current;
+        using var image = originalContext.CreateTexture(new RHITextureDescription
+        { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba8, Width = 1, Height = 1,
+            MipLevels = 1, Storage = ResourceStorageMode.Immutable }).RequireResource();
         GLFW.WindowHint(WindowHintInt.ContextVersionMajor, 4);
         GLFW.WindowHint(WindowHintInt.ContextVersionMinor, 5);
         GLFW.WindowHint(WindowHintBool.Visible, false);
@@ -205,6 +208,10 @@ public sealed class RHIBufferTests(HeadlessGLFixture fixture)
             originalContext.RequireContext();
             Assert.False(OpenGlStateCache.Current.TryGetCachedBoundBuffer(BufferTarget.ArrayBuffer, out _));
             Assert.Throws<InvalidOperationException>(() => originalContext.ClearBuffer(owner, 0, 16));
+            var transfer = new RHITextureTransfer(owner, 0, new(new(), 0, 0, 0, 1, 1, 1),
+                new(PixelChannelLayout.Rgba, PixelComponentType.UnsignedByte));
+            Assert.Throws<InvalidOperationException>(() => originalContext.TransferBufferToTexture(image, transfer));
+            Assert.Throws<InvalidOperationException>(() => originalContext.TransferTextureToBuffer(image, transfer));
             Assert.Throws<InvalidOperationException>(() => owner.Dispose());
             Assert.False(owner.IsDisposed);
             GLFW.MakeContextCurrent(local);

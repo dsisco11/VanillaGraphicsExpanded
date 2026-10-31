@@ -11,8 +11,8 @@ internal sealed partial class OpenGLBackend
     public unsafe void ClearTexture(GpuTextureRef destination, in RHITextureRegion region, RHIPixelEncoding encoding, ReadOnlySpan<byte> value)
     {
         RequireContext();
-        var metadata = destination.RequireMetadata();
-        var owner = destination.Resource!;
+        var owner = SelectTexture(destination);
+        var metadata = owner.PublishedMetadata;
         owner.RequireOriginalContext();
         ValidateTextureRegion(metadata, region);
         if (value.Length != encoding.BytesPerPixel) throw new ArgumentException("Clear requires one encoded pixel value.");

@@ -19,7 +19,6 @@ internal sealed partial class OpenGLBackend
         // completion spans retirement and projection so owner-following images see final
         // facts, while borrowers and views still retire with their original registration.
         _ = LowerTexture(description).Resolve();
-        if (replaceExisting && owner.ResourceId != 0) owner.RequireRetirement();
         using var completion = replaceExisting ? owner.ResourceManager?.BeginChangeDelivery() : null;
         if (replaceExisting && owner.ResourceId != 0)
         {

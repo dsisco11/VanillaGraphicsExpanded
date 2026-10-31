@@ -215,31 +215,17 @@ public sealed class GpuResourceWrapperLifecycleTests(HeadlessGLFixture fixture)
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
 
-    /// <summary>Pass and lifetime borrows guard the owner even when held through another wrapper.</summary>
+    /// <summary>Non-owning aliases follow metadata publication and withdraw on original owner retirement.</summary>
     [Fact]
-    public void AliasGuardsPreventOwnerRetirementAndStorageReplacement()
+    public void AliasReferencesDoNotBlockOwnerLifecycle()
     {
         using var lifetime = StartManager();
         using var owner = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba8, Width = System.Math.Max(1, 8), Height = System.Math.Max(1, 4), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         using var borrower = new BorrowedTexture(owner.TextureId);
         int original = owner.TextureId;
-        borrower.RetainPassReference();
-        try
-        {
-            Assert.Throws<InvalidOperationException>(() => owner.Resize(16, 8));
-            Assert.Throws<InvalidOperationException>(() => owner.Dispose());
-            Assert.Throws<InvalidOperationException>(() => owner.Detach());
-            Assert.Equal(original, owner.TextureId);
-            Assert.False(owner.IsDisposed);
-        }
-        finally { borrower.ReleasePassReference(); }
-        borrower.RetainLifetimeReference();
-        try
-        {
-            Assert.Throws<InvalidOperationException>(() => owner.Dispose());
-            Assert.Throws<InvalidOperationException>(() => owner.Detach());
-        }
-        finally { borrower.ReleaseLifetimeReference(); }
+        Assert.True(owner.Resize(16, 8));
+        Assert.True(borrower.IsValid);
+        Assert.Equal(16, borrower.Width);
         owner.Dispose();
         Assert.False(borrower.IsValid);
         Assert.False(GL.IsTexture(original));
@@ -324,10 +310,18 @@ public sealed class GpuResourceWrapperLifecycleTests(HeadlessGLFixture fixture)
             using (OpenGlStateCache.Current.BindBufferScope(BufferTarget.ShaderStorageBuffer, buffer.BufferId))
                 Assert.Equal(buffer.BufferId, GL.GetInteger(GetPName.ShaderStorageBufferBinding));
             Assert.Throws<InvalidOperationException>(() => RHICommandContext.Current.BindBuffer(BufferRole.ShaderStorage, buffer));
+#if DEBUG
             Assert.Throws<ObjectDisposedException>(() => texture.Resize(16, 8));
+#else
+            Assert.False(texture.Resize(16, 8));
+#endif
             buffer.Allocate(64);
             Assert.Throws<ObjectDisposedException>(() => framebuffer.Bind());
+#if DEBUG
             Assert.Throws<ObjectDisposedException>(() => framebuffer.Resize(16, 8));
+#else
+            Assert.False(framebuffer.Resize(16, 8));
+#endif
             Assert.Throws<InvalidOperationException>(() => RHICommandContext.Current.BindSampledTextures(
                 [new(2, texture, Dimension: TextureDimension.Two)]));
             buffer.Bind();

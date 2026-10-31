@@ -153,11 +153,7 @@ internal sealed class GpuResourceMetadataEntry<TMetadata> : GpuResourceRegistrat
             publishedAvailable = false;
             MetadataRevision++;
             foreach (var recipient in recipients.ToArray())
-                if (TryGetRecipient(recipient.Key, out var resource) && resource is GpuFramebufferAttachment image)
-                {
-                    image.AssignMetadataSnapshot(default);
-                    image.WithdrawMetadataSnapshot();
-                }
+                if (TryGetRecipient(recipient.Key, out var resource)) WithdrawSnapshot(resource, effects);
             ScheduleChange(ResourceChangeKind.Availability, origin);
         }
         delivery.Complete();
@@ -176,11 +172,7 @@ internal sealed class GpuResourceMetadataEntry<TMetadata> : GpuResourceRegistrat
             publishedAvailable = MetadataAvailable = false;
             MetadataRevision++;
             foreach (var recipient in recipients.ToArray())
-                if (TryGetRecipient(recipient.Key, out var resource) && resource is GpuFramebufferAttachment image)
-                {
-                    image.AssignMetadataSnapshot(default);
-                    image.WithdrawMetadataSnapshot();
-                }
+                if (TryGetRecipient(recipient.Key, out var resource)) WithdrawSnapshot(resource, GpuMetadataChange.None);
             var captured = CaptureChange(reasons, null, terminal: true);
             int delivered = 0;
             return retirementDelivery = () =>
@@ -260,6 +252,19 @@ internal sealed class GpuResourceMetadataEntry<TMetadata> : GpuResourceRegistrat
             return true;
         }
         return Manager.AssignImageMetadata(this, resource);
+    }
+
+    /// <summary>Projects canonical unavailability to every supplied snapshot before dependent consumers run.</summary>
+    private static void WithdrawSnapshot(GpuResource resource, GpuMetadataChange effects)
+    {
+        // Keep prior typed values for explicit recovery classification, but never expose them as
+        // supplied usable facts. The registry remains the authority that publishes or withdraws them.
+        if (resource is GpuResource<TMetadata> typed) typed.WithdrawMetadataSnapshot(effects);
+        else if (resource is GpuResource<GpuImageMetadata> image)
+        {
+            image.AssignMetadataSnapshot(default);
+            image.WithdrawMetadataSnapshot(effects);
+        }
     }
     #endregion
 }

@@ -10,7 +10,6 @@ namespace VanillaGraphicsExpanded.Rendering;
 public sealed class StaticGpuFramebuffer : GpuFramebuffer
 {
     private readonly int[] routing;
-    private readonly List<GpuResource> frozen = new();
     private IDisposable? configuration;
 
     #region Public API
@@ -47,7 +46,7 @@ public sealed class StaticGpuFramebuffer : GpuFramebuffer
     #endregion
 
     #region Protected API
-    /// <summary>Releases immutable backing guards before retiring this framebuffer, preserving borrowed storage ownership.</summary>
+    /// <summary>Releases its immutable declaration lease before retiring this framebuffer, preserving borrowed storage ownership.</summary>
     protected override void OnBeforeDelete(nint id)
     {
         ReleaseConfiguration();
@@ -62,7 +61,7 @@ public sealed class StaticGpuFramebuffer : GpuFramebuffer
     #endregion
 
     #region Private
-    /// <summary>Builds native state transactionally, then prevents changes through every managed attachment alias.</summary>
+    /// <summary>Builds native state transactionally under the attachment owner lifetime contract.</summary>
     private StaticGpuFramebuffer(IReadOnlyList<GpuFramebufferAttachment> colors,
         GpuFramebufferAttachment? depth, string? name, int firstColorAttachment) : base(true, name: name)
     {
@@ -72,33 +71,25 @@ public sealed class StaticGpuFramebuffer : GpuFramebuffer
             foreach (var pair in AttachmentImages)
             {
                 var image = pair.Value;
-                if (image.Resource is not { } storage || storage is BorrowedTexture
-                    || storage is GpuTextureView { Source: null or BorrowedTexture })
-                    throw new ArgumentException("Static framebuffers require managed attachment storage with tracked allocation ownership.");
-                Freeze(image); Freeze(storage);
+                ValidateManagedStorage(image.Resource);
             }
             configuration = RHI.RHICommandContext.Current.SealFramebufferConfiguration(this);
 
         }
         catch { Dispose(); throw; }
     }
-    /// <summary>Guards each shared image/allocation once, without preventing writes to its existing contents.</summary>
-    private void Freeze(GpuResource resource)
+    /// <summary>Establishes managed ownership throughout a view chain without locking any borrowed allocation.</summary>
+    private static void ValidateManagedStorage(GpuResource? storage)
     {
-        if (frozen.Contains(resource)) return;
-        if (resource is BorrowedTexture || resource is GpuTextureView { Source: null })
-            throw new ArgumentException("Static framebuffers require managed backing ownership throughout a view chain.");
-        frozen.Add(resource);
-        try { resource.RetainPassReference(); }
-        catch { frozen.Remove(resource); throw; }
-        if (resource is GpuTextureView { Source: { } source }) Freeze(source);
+        // Every source remains externally owned by its feature; the static declaration owns only its FBO.
+        if (storage is null or BorrowedTexture || storage is GpuTextureView { Source: null })
+            throw new ArgumentException("Static framebuffers require managed attachment storage with tracked allocation ownership.");
+        if (storage is GpuTextureView { Source: { } source }) ValidateManagedStorage(source);
     }
-    /// <summary>Removes static admission and releases all image/allocation guards without native mutations.</summary>
+    /// <summary>Removes the immutable declaration without native mutation or attachment ownership.</summary>
     private void ReleaseConfiguration()
     {
         System.Threading.Interlocked.Exchange(ref configuration, null)?.Dispose();
-        foreach (var resource in frozen) resource.ReleasePassReference();
-        frozen.Clear();
     }
     #endregion
 }

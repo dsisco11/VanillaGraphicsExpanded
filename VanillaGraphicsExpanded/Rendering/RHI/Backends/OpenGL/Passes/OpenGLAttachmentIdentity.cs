@@ -8,21 +8,6 @@ internal readonly record struct OpenGLAttachmentIdentity(GpuResource Resource, G
     nint Name, ulong StorageRevision, RHITextureSubresource Subresource, bool Layered, GpuImageMetadata Image)
 {
     #region Internal API
-    /// <summary>Checks the captured original allocation and projection without acquiring missing facts or accepting name reuse.</summary>
-    internal bool IsCurrent
-    {
-        get
-        {
-            try
-            {
-                var selected = Resource is GpuResource<GpuRenderbufferMetadata> renderbuffer
-                    ? RHIAttachment.FromRenderbuffer(new(renderbuffer))
-                    : RHIAttachment.FromTexture(new((GpuResource<GpuTextureMetadata>)Resource), Subresource, Layered);
-                return this == Resolve(selected);
-            }
-            catch (Exception error) when (error is InvalidOperationException or ArgumentException) { return false; }
-        }
-    }
     /// <summary>Projects already published facts without native reads, image-wrapper allocation or target realization.</summary>
     internal static OpenGLAttachmentIdentity Resolve(in RHIAttachment attachment)
     {

@@ -170,25 +170,17 @@ public sealed class GpuResourceMetadataRegistryTests
     #endregion
 
     #region Guards and context boundaries
-    /// <summary>Independent pass and lifetime guards belong to shared entries and remain releasable after retirement.</summary>
+    /// <summary>Owner retirement keeps original registration identity and withdraws usability exactly once.</summary>
     [Fact]
-    public void SharedGuardsAndRetirementDoNotCreateReplacementIdentity()
+    public void OwnerRetirementDoesNotCreateReplacementIdentity()
     {
         using var manager = CreateManager();
         var entry = manager.RegisterCreatedResource<GpuBufferMetadata>(GpuResourceKind.Buffer, 7);
-        entry.Retain(true);
-        Assert.Throws<InvalidOperationException>(() => entry.RequireMutableStorage());
-        Assert.Throws<InvalidOperationException>(() => manager.RetireResource(entry));
-        entry.Release(true); entry.Retain(false);
-        entry.RequireMutableStorage();
-        Assert.Throws<InvalidOperationException>(() => manager.RetireResource(entry));
-        entry.Release(false);
         Assert.True(manager.RetireResource(entry));
         Assert.False(manager.RetireResource(entry));
         Assert.False(entry.IsUsable);
         Assert.True(manager.IsRegistered(entry));
         Assert.Null(manager.AcquireResource(GpuResourceKind.Buffer, 7, new BufferReader()));
-        Assert.Throws<ObjectDisposedException>(() => entry.Retain(true));
     }
 
     /// <summary>Native mutations remain context-thread confined while registration identity can be looked up concurrently.</summary>

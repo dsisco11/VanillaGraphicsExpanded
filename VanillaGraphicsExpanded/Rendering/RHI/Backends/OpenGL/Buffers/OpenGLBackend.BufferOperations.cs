@@ -204,12 +204,12 @@ internal sealed partial class OpenGLBackend
             try { staging?.Dispose(); } catch when (!completed) { }
         }
     }
-    /// <summary>Checks known bounds and original usability without querying or recovering metadata.</summary>
+    /// <summary>Checks dynamic extents against producer-delivered storage without registry resolution.</summary>
     private GpuResource<GpuBufferMetadata> RequireRange(GpuBufferRef buffer, nint offset, nint byteCount)
     {
         RequireContext();
-        var owner = buffer.RequireResource();
-        var data = RHIResourceManager.RequireBufferReferenceMetadata(owner);
+        var owner = PrepareBufferSelection(buffer);
+        var data = owner.PublishedMetadata;
         if (offset < 0 || byteCount < 0 || offset > data.Capacity || byteCount > data.Capacity - offset)
             throw new ArgumentOutOfRangeException(nameof(byteCount), "Buffer range exceeds available storage.");
         return owner;

@@ -33,8 +33,6 @@ internal sealed partial class OpenGLBackend
                 ConditionalRenderPolicy.RegionNoWaitInverted => ConditionalRenderType.QueryByRegionNoWaitInverted,
                 _ => throw new ArgumentOutOfRangeException(nameof(mode))
             };
-            owner.RetainPassReference();
-            try
             {
                 OpenGLDriverCalls.BeginConditionalRender(owner.QueryId, nativeMode);
                 RequireContext();
@@ -42,7 +40,6 @@ internal sealed partial class OpenGLBackend
                 conditionalRevision = cache.QueryConditionRevision;
                 conditionalQuery = owner;
             }
-            catch { owner.ReleasePassReference(); throw; }
         }
         finally { queryTransition = false; }
     }
@@ -58,7 +55,6 @@ internal sealed partial class OpenGLBackend
             {
                 var retired = conditionalQuery ?? throw new InvalidOperationException("Conditional rendering is not active.");
                 conditionalQuery = null;
-                retired.ReleasePassReference();
                 return;
             }
             RequireContext();
@@ -69,7 +65,7 @@ internal sealed partial class OpenGLBackend
                     throw new InvalidOperationException("The original conditional interval was ended or replaced externally.");
                 OpenGLDriverCalls.EndConditionalRender(); RequireContext(); cache.EndQueryCondition();
             }
-            finally { conditionalQuery = null; owner.ReleasePassReference(); }
+            finally { conditionalQuery = null; }
         }
         finally { queryTransition = false; }
     }

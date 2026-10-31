@@ -41,7 +41,7 @@ public abstract partial class GpuProgram
     internal void InvalidateAssets()
     {
         RequireOutsideSubmission();
-        lifetime.RequireUnborrowed();
+
         lock (settingsLock)
         {
             assetGeneration++;
@@ -73,7 +73,7 @@ public abstract partial class GpuProgram
             readySettings = settings;
             return true;
         }
-        lifetime.RequireUnborrowed();
+
         var plan = new ShaderLoadPlan(settings);
         if (failedAssetGeneration == assets && failedPreparation?.SameInputs(plan) == true) return false;
         if (!CompileAndLink())

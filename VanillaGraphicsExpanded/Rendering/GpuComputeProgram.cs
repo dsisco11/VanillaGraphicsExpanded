@@ -83,13 +83,13 @@ internal abstract partial class GpuComputeProgram : IGpuProgram
     protected GpuComputeProgram(ComputeShaderAsset pipeline)
     {
         this.pipeline = pipeline ?? throw new ArgumentNullException(nameof(pipeline));
-        lifetime.NativeExecutable = pipeline.NativeProgram;
+
         rebuild = pipeline.Rebuild;
         rebuildDiagnostic = pipeline.RebuildDiagnostic;
         renderingLifetime = pipeline.RenderingLifetime;
         lifetime.SubmissionAdmission = () => renderingLifetime is not ({ IsClosed: true } or { Reloading: true });
         executableRevision = pipeline.ExecutableRevision;
-        if (rebuild is not null) reloadRegistration = renderingLifetime?.RegisterCompute(RequireReloadBoundary, InvalidateAssets);
+        if (rebuild is not null) reloadRegistration = renderingLifetime?.RegisterCompute(lifetime.RequireOutsidePublication, InvalidateAssets);
     }
     /// <summary>Allows derived resource owners to preserve idempotent disposal.</summary>
     protected bool IsDisposed => lifetime.IsRetired;

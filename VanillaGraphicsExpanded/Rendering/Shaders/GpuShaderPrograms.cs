@@ -82,7 +82,6 @@ internal sealed class GpuShaderPrograms(Func<string, ShaderAssetSource> assets) 
         {
             if (!programs.Values.Any(e => ReferenceEquals(e.Owner, owner))) throw new InvalidOperationException("Preload requires a declaration from this registry.");
             owner.RequireOutsideSubmission();
-            if (owner.RequiresPreparation) ((IGpuProgram)owner).Lifetime.RequireUnborrowed();
         }
         bool success = true;
         foreach (var group in selection.Distinct().Where(o => !o.IsRetired && o.RequiresPreparation && o.CanSubmitPreparation).GroupBy(o => o.AssetDomain))
@@ -102,7 +101,6 @@ internal sealed class GpuShaderPrograms(Func<string, ShaderAssetSource> assets) 
         foreach (var entry in programs.Values)
         {
             entry.Owner.RequireOutsideSubmission();
-            ((IGpuProgram)entry.Owner).Lifetime.RequireUnborrowed();
         }
         foreach (var entry in programs.Values) if (!entry.Owner.IsRetired) entry.Owner.InvalidateAssets();
         reloading = true;
@@ -125,7 +123,6 @@ internal sealed class GpuShaderPrograms(Func<string, ShaderAssetSource> assets) 
         foreach (var entry in programs.Values)
         {
             ((IGpuProgram)entry.Owner).Lifetime.RequireOutsidePublication();
-            ((IGpuProgram)entry.Owner).Lifetime.RequireUnborrowed();
         }
     }
     /// <summary>Closes admission permanently and attempts every independent owner cleanup.</summary>

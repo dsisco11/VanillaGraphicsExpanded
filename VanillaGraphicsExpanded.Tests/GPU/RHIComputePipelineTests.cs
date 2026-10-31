@@ -74,7 +74,6 @@ public sealed class RHIComputePipelineTests(HeadlessGLFixture fixture)
                 native.Observe(() =>
                 {
                     calls++;
-                    Assert.Equal((0, 0), shader.Program.UsageReferences);
                     Assert.False(pipeline.IsDisposed);
                     Assert.Throws<InvalidOperationException>(() => context.Dispatch(new(0)));
                     Assert.Throws<InvalidOperationException>(() => context.SetPipeline(pipeline));

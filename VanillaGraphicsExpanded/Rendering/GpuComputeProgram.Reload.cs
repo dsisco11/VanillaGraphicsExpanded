@@ -5,12 +5,10 @@ namespace VanillaGraphicsExpanded.Rendering;
 internal abstract partial class GpuComputeProgram
 {
     #region Internal API
-    /// <summary>Admits replacement only after all current and suspended uses end.</summary>
-    internal void RequireReloadBoundary() { lifetime.RequireOutsidePublication(); lifetime.RequireUnborrowed(); }
     /// <summary>Withdraws readiness without retiring retained inputs or the old allocation.</summary>
     internal void InvalidateAssets()
     {
-        RequireReloadBoundary();
+        lifetime.RequireOutsidePublication();
         if (lifetime.IsRetired || rebuild is null) return;
         assetGeneration++;
         reloadRequired = true;
@@ -34,11 +32,11 @@ internal abstract partial class GpuComputeProgram
             ulong preparingAssets = assetGeneration;
             bool ready = pipeline.EnsureReady(() => !lifetime.IsRetired && preparingAssets == assetGeneration);
             if (lifetime.IsRetired || preparingAssets != assetGeneration) return false;
-            if (ready) { lifetime.NativeExecutable = pipeline.NativeProgram; if (executableRevision == 0) executableRevision = 1; }
+            if (ready && executableRevision == 0) executableRevision = 1;
             return ready;
         }
         if (reloadFailed || rebuild is null) return false;
-        RequireReloadBoundary();
+        lifetime.RequireOutsidePublication();
         var context = Integration.RenderContextRegistry.Current();
         ulong assets = assetGeneration;
         ComputeShaderAsset? candidate;
@@ -58,7 +56,7 @@ internal abstract partial class GpuComputeProgram
         // Publish executable, interface and revision together; retained generated values and CPU blocks remain on this wrapper.
         var previous = pipeline;
         pipeline = candidate;
-        lifetime.NativeExecutable = candidate.NativeProgram;
+
         executableRevision++;
         reloadRequired = false;
         previous.Dispose();

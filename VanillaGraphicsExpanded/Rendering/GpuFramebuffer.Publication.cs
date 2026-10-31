@@ -25,7 +25,6 @@ public abstract partial class GpuFramebuffer
         if (replacementId.HasValue)
         {
             if (replacementId.Value <= 0 || width <= 0 || height <= 0) throw new ArgumentOutOfRangeException(nameof(replacementId));
-            if (replaces) RequireRetirement();
             Surface = null;
             attachments.Clear();
             attachmentsDirty = false;

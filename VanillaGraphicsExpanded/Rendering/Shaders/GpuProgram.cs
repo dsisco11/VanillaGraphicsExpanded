@@ -129,7 +129,7 @@ public abstract partial class GpuProgram : IDisposable, IGpuProgram
     {
         RequireOutsideSubmission();
         if (lifetime.IsRetired || PreparationAdmission?.Invoke() == false) return false;
-        lifetime.RequireUnborrowed();
+
         if (assetSource is null)
         {
             throw new InvalidOperationException("GpuProgram was not initialized. Call Initialize(api) first.");

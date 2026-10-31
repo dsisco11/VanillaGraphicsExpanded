@@ -192,7 +192,6 @@ internal sealed partial class RHIResourceManager
     internal bool RetireResource(GpuResourceRegistration entry)
     {
         if (!ReferenceEquals(entry.Manager, this)) throw new InvalidOperationException("The registration belongs to another manager.");
-        entry.RequireRetirement();
         if (!entry.TryRetire()) return false;
         var delivery = entry.CaptureRetirement();
         if (Environment.CurrentManagedThreadId == Volatile.Read(ref metadataThreadId))

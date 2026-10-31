@@ -43,8 +43,6 @@ internal sealed partial class OpenGLBackend
             var state = queryExecutions.GetOrCreateValue(owner);
             state.Issued = false;
             state.Revision++;
-            owner.RetainPassReference();
-            try
             {
                 OpenGLDriverCalls.BeginQuery(QueryTargetFor(owner.QueryKind), owner.QueryId);
                 RequireContext();
@@ -52,7 +50,6 @@ internal sealed partial class OpenGLBackend
                 state.NativeRevision = cache.QueryExecutionRevision(owner.QueryId);
                 activeQueries.Add(owner.QueryKind, owner);
             }
-            catch { owner.ReleasePassReference(); throw; }
         }
         finally { queryTransition = false; }
     }
@@ -71,7 +68,6 @@ internal sealed partial class OpenGLBackend
                     throw new InvalidOperationException("The matching query is not active.");
                 activeQueries.Remove(retired.QueryKind);
                 queryExecutions.GetOrCreateValue(retired).Issued = false;
-                retired.ReleasePassReference();
                 return;
             }
             RequireContext();
@@ -87,9 +83,9 @@ internal sealed partial class OpenGLBackend
                 OpenGLDriverCalls.EndQuery(QueryTargetFor(owner.QueryKind));
                 RequireContext();
                 cache.ObserveQueryEnd((int)QueryTargetFor(owner.QueryKind), 0);
-                queryExecutions.GetOrCreateValue(owner).Issued = owner.IsValid;
+                queryExecutions.GetOrCreateValue(owner).Issued = true;
             }
-            finally { activeQueries.Remove(owner.QueryKind); owner.ReleasePassReference(); }
+            finally { activeQueries.Remove(owner.QueryKind); }
         }
         finally { queryTransition = false; }
     }
@@ -197,9 +193,16 @@ internal sealed partial class OpenGLBackend
         RequireContext();
         var owner = reference.RequireResource();
         owner.RequireOriginalContext();
-        if (!reference.IsValid) throw new InvalidOperationException("The original query is unavailable.");
+        ValidateQueryOwner(reference);
+        if (!owner.HasMetadataSnapshot) throw new InvalidOperationException("Query preparation is unavailable.");
         cache.RequireResourceOperationAvailable(GpuResourceKind.Query, owner.ResourceId);
         return owner;
+    }
+    /// <summary>Diagnoses expired original query identity without participating in Release polling.</summary>
+    [System.Diagnostics.Conditional("DEBUG")]
+    private static void ValidateQueryOwner(GpuQueryRef reference)
+    {
+        if (!reference.IsValid) throw new InvalidOperationException("The original query is unavailable.");
     }
     /// <summary>Rejects optional statistics before issuing creation or beginning work.</summary>
     private void RequireQueryKind(QueryKind kind)

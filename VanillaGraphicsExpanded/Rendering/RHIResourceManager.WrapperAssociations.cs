@@ -15,14 +15,7 @@ internal sealed partial class RHIResourceManager
     internal void RecordResourceAssociation(GpuResourceRegistration entry, GpuResource resource)
     {
         resource.AssociateLifecycle(this);
-        bool admitted = false;
-        var original = resourceAssociations.GetValue(resource, _ => { admitted = true; return entry; });
-        if (admitted)
-        {
-            var references = resource.UsageReferences;
-            for (int index = 0; index < references.Pass; index++) entry.Retain(true);
-            for (int index = 0; index < references.Lifetime; index++) entry.Retain(false);
-        }
+        var original = resourceAssociations.GetValue(resource, _ => entry);
         if (!ReferenceEquals(original, entry))
             throw new InvalidOperationException("The wrapper belongs to a different original registration.");
     }

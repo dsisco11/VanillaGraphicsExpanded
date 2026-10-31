@@ -15,11 +15,11 @@ internal sealed partial class OpenGLBackend
     {
         var request = transfer;
         RequireContext();
-        var data = destination.RequireMetadata();
-        var image = destination.Resource!;
+        var image = SelectTexture(destination);
+        var data = image.PublishedMetadata;
         image.RequireOriginalContext();
-        var buffer = request.Buffer.RequireResource();
-        var storage = RHIResourceManager.RequireBufferReferenceMetadata(buffer);
+        var buffer = PrepareBufferSelection(request.Buffer);
+        var storage = buffer.PublishedMetadata;
         if (request.Offset < 0 || request.Offset > storage.Capacity) throw new ArgumentOutOfRangeException(nameof(transfer));
         ValidateTextureRegion(data, request.Region);
         var layout = PixelLayoutForTarget(ValidatePixelLayout(request.Region, request.Encoding, storage.Capacity - request.Offset, request.RowPitch, request.SlicePitch), data.Target);
@@ -36,11 +36,11 @@ internal sealed partial class OpenGLBackend
     {
         var request = transfer;
         RequireContext();
-        var data = source.RequireMetadata();
-        var image = source.Resource!;
+        var image = SelectTexture(source);
+        var data = image.PublishedMetadata;
         image.RequireOriginalContext();
-        var buffer = request.Buffer.RequireResource();
-        var storage = RHIResourceManager.RequireBufferReferenceMetadata(buffer);
+        var buffer = PrepareBufferSelection(request.Buffer);
+        var storage = buffer.PublishedMetadata;
         if (request.Offset < 0 || request.Offset > storage.Capacity) throw new ArgumentOutOfRangeException(nameof(transfer));
         ValidateTextureRegion(data, request.Region);
         var layout = PixelLayoutForTarget(ValidatePixelLayout(request.Region, request.Encoding, storage.Capacity - request.Offset, request.RowPitch, request.SlicePitch), data.Target);
@@ -63,16 +63,18 @@ internal sealed partial class OpenGLBackend
     public void CopyTexture(GpuTextureRef source, in RHITextureRegion sourceRegion, GpuTextureRef destination, in RHITextureRegion destinationRegion)
     {
         RequireContext();
-        var from = source.RequireMetadata();
-        var to = destination.RequireMetadata();
+        var sourceOwner = SelectTexture(source);
+        var destinationOwner = SelectTexture(destination);
+        var from = sourceOwner.PublishedMetadata;
+        var to = destinationOwner.PublishedMetadata;
         source.Resource!.RequireOriginalContext(); destination.Resource!.RequireOriginalContext();
-        ValidateTextureRegion(from, sourceRegion, allowMultisample: true);
-        ValidateTextureRegion(to, destinationRegion, allowMultisample: true);
+        var fromImage = ValidateTextureRegion(from, sourceRegion, allowMultisample: true);
+        var toImage = ValidateTextureRegion(to, destinationRegion, allowMultisample: true);
         if (sourceRegion.Width != destinationRegion.Width || sourceRegion.Height != destinationRegion.Height || sourceRegion.Depth != destinationRegion.Depth)
             throw new ArgumentException("Copy extents must match.");
-        if (!TextureViewFormatCompatibility.AreCompatible(source.RequireImage(sourceRegion.Subresource.MipLevel).Format, destination.RequireImage(destinationRegion.Subresource.MipLevel).Format))
+        if (!TextureViewFormatCompatibility.AreCompatible(fromImage.Format, toImage.Format))
             throw new ArgumentException("Copy image representations are incompatible.");
-        if (source.RequireImage(sourceRegion.Subresource.MipLevel).Samples != destination.RequireImage(destinationRegion.Subresource.MipLevel).Samples)
+        if (fromImage.Samples != toImage.Samples)
             throw new ArgumentException("Image copies require matching sample counts; resolving samples is a pass operation.");
         cache.RequireResourceOperationAvailable(GpuResourceKind.Texture, source.Resource.ResourceId);
         cache.RequireResourceOperationAvailable(GpuResourceKind.Texture, destination.Resource.ResourceId);
@@ -82,9 +84,9 @@ internal sealed partial class OpenGLBackend
         int sourceLayer = sourceRegion.Subresource.Layer + sourceRegion.Z;
         int destinationLayer = destinationRegion.Subresource.Layer + destinationRegion.Z;
         if (source.Resource.ResourceId == destination.Resource.ResourceId && sourceRegion.Subresource.MipLevel == destinationRegion.Subresource.MipLevel
-            && sourceRegion.X < destinationRegion.X + destinationRegion.Width && destinationRegion.X < sourceRegion.X + sourceRegion.Width
-            && sourceRegion.Y < destinationRegion.Y + destinationRegion.Height && destinationRegion.Y < sourceRegion.Y + sourceRegion.Height
-            && sourceLayer < destinationLayer + destinationRegion.Depth && destinationLayer < sourceLayer + sourceRegion.Depth)
+            && sourceRegion.X < (long)destinationRegion.X + destinationRegion.Width && destinationRegion.X < (long)sourceRegion.X + sourceRegion.Width
+            && sourceRegion.Y < (long)destinationRegion.Y + destinationRegion.Height && destinationRegion.Y < (long)sourceRegion.Y + sourceRegion.Height
+            && sourceLayer < (long)destinationLayer + destinationRegion.Depth && destinationLayer < (long)sourceLayer + sourceRegion.Depth)
             throw new ArgumentException("Copy regions within the same image must not overlap.");
         GL.CopyImageSubData((int)source.Resource.ResourceId, (Native.ImageTarget)OpenGLImageValues.Target(from.Target), sourceRegion.Subresource.MipLevel,
             sourceRegion.X, sourceArray ? sourceLayer : sourceRegion.Y, sourceArray ? 0 : sourceLayer,

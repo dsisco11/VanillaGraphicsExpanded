@@ -50,7 +50,7 @@ public abstract partial class GpuProgram
                 executable = candidate;
                 ProgramLayout.InstallCandidate(layout);
                 candidate.Program.SetPreparedLayout(ProgramLayout);
-                lifetime.NativeExecutable = candidate.Program;
+
                 candidate = null;
                 installedPlan = plan;
                 ExecutableContext = context;

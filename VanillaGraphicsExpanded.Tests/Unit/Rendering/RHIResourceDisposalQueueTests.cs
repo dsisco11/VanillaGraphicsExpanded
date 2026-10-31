@@ -107,50 +107,25 @@ public sealed class RHIResourceDisposalQueueTests
         Assert.Equal(canDispose ? 1 : 0, pending.Disposals);
         Assert.Equal(0, late.Disposals);
     }
-    /// <summary>Local guards retain queued resources without blocking later work or duplicating disposal.</summary>
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void GuardedResourceRetriesOnLaterDrain(bool pass)
+    /// <summary>A scheduled cleanup batch retires each owner once and never carries names into a later queue.</summary>
+    [Fact]
+    public void OwnerScheduledCleanupIsIdempotentAndContextLocal()
     {
         var queue = new RHIResourceDisposalQueue();
-        using var guarded = new ObservedResource();
-        using var later = new ObservedResource();
-        if (pass) guarded.RetainPassReference(); else guarded.RetainLifetimeReference();
-        queue.Enqueue(guarded);
-        queue.Enqueue(guarded);
-        queue.Enqueue(later);
-        try
-        {
-            queue.DrainPending();
-            Assert.False(guarded.IsDisposed);
-            Assert.Equal(1, later.Disposals);
-        }
-        finally { if (pass) guarded.ReleasePassReference(); else guarded.ReleaseLifetimeReference(); }
+        using var first = new ObservedResource();
+        using var second = new ObservedResource();
+        queue.Enqueue(first); queue.Enqueue(first); queue.Enqueue(second);
         queue.DrainPending();
-        Assert.Equal(1, guarded.Disposals);
+        Assert.Equal(1, first.Disposals);
+        Assert.Equal(1, second.Disposals);
         queue.DrainPending();
-        Assert.Equal(1, guarded.Disposals);
-    }
-
-    /// <summary>Closing a queue abandons blocked names rather than sending them into another context.</summary>
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void ClosingQueueDoesNotCarryGuardedRetryIntoNewQueue(bool canDispose)
-    {
-        var oldQueue = new RHIResourceDisposalQueue();
-        var newQueue = new RHIResourceDisposalQueue();
-        using var guarded = new ObservedResource();
-        guarded.RetainLifetimeReference();
-        oldQueue.Enqueue(guarded);
-        oldQueue.DrainPending();
-        oldQueue.Close(canDispose);
-        guarded.ReleaseLifetimeReference();
-        oldQueue.DrainPending();
-        newQueue.DrainPending();
-        Assert.True(oldQueue.IsClosed);
-        Assert.False(guarded.IsDisposed);
+        Assert.Equal(1, first.Disposals);
+        queue.Close(true);
+        var replacement = new RHIResourceDisposalQueue();
+        using var late = new ObservedResource();
+        queue.Enqueue(late);
+        replacement.DrainPending();
+        Assert.False(late.IsDisposed);
     }
     #endregion
 

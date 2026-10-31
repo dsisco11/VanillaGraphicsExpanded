@@ -93,7 +93,10 @@ internal sealed partial class OpenGLBackend
         RequireContext();
         var owner = fence.RequireResource();
         owner.RequireOriginalContext();
+#if DEBUG
         if (!fence.IsValid) throw new InvalidOperationException("The original fence is unavailable.");
+#endif
+        if (!owner.HasMetadataSnapshot) throw new InvalidOperationException("Fence preparation is unavailable.");
         cache.RequireResourceOperationAvailable(GpuResourceKind.Sync, owner.ResourceId);
         return owner;
     }

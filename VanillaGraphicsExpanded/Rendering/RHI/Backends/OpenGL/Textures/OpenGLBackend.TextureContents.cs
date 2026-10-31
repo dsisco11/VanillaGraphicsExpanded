@@ -15,8 +15,8 @@ internal sealed partial class OpenGLBackend
         ReadOnlySpan<byte> bytes, int rowPitch, int slicePitch)
     {
         RequireContext();
-        var data = destination.RequireMetadata();
-        var owner = destination.Resource!;
+        var owner = SelectTexture(destination);
+        var data = owner.PublishedMetadata;
         owner.RequireOriginalContext();
         ValidateTextureRegion(data, region);
         var layout = PixelLayoutForTarget(ValidatePixelLayout(region, encoding, bytes.Length, rowPitch, slicePitch), data.Target);
@@ -54,7 +54,7 @@ internal sealed partial class OpenGLBackend
     }
 
     /// <summary>Checks selected view-relative mip bounds without native discovery.</summary>
-    private static void ValidateTextureRegion(GpuTextureMetadata metadata, in RHITextureRegion region, bool allowMultisample = false)
+    private static GpuTextureLevelMetadata ValidateTextureRegion(GpuTextureMetadata metadata, in RHITextureRegion region, bool allowMultisample = false)
     {
         if (metadata.Target == TextureDimension.Buffer || !allowMultisample && metadata.Target is TextureDimension.TwoMultisample or TextureDimension.TwoMultisampleArray)
             throw new ArgumentException("This operation requires a non-multisample image.");
@@ -81,7 +81,7 @@ internal sealed partial class OpenGLBackend
                         if (!found) throw new ArgumentException("A selected cube face is not allocated.");
                     }
                 }
-                return;
+                return image;
             }
         throw new ArgumentException("The selected mip is not allocated.");
     }

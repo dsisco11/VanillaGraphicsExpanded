@@ -12,8 +12,9 @@ internal sealed partial class OpenGLBackend
     {
         RequireContext();
         if (!Capabilities.SparseTextures) throw new NotSupportedException("Sparse textures are unavailable.");
-        var metadata = texture.RequireMetadata();
-        texture.Resource!.RequireOriginalContext();
+        var owner = SelectTexture(texture);
+        var metadata = owner.PublishedMetadata;
+        owner.RequireOriginalContext();
         ValidateTextureRegion(metadata, region);
         cache.RequireResourceOperationAvailable(GpuResourceKind.Texture, texture.Resource.ResourceId);
         // Sparse allocation/page shape is native integration policy, absent from canonical metadata.

@@ -88,7 +88,11 @@ public sealed class GpuResourceRetirementRegressionTests(HeadlessGLFixture fixtu
             Assert.Equal(GpuResourceRegistrationState.Deleted, original.State);
             Assert.False(entry.MetadataAvailable);
             Assert.False(view.IsValid);
-            Assert.Equal(buffer, view.BufferId);
+            Assert.False(view.HasMetadataSnapshot);
+            Assert.Equal(0, view.BufferId);
+            // The last descriptor remains private for recovery/provenance, rather than being
+            // exposed as supplied usable facts after backing availability has been withdrawn.
+            Assert.Equal((nint)buffer, view.PublishedMetadata.Buffer!.Value.BufferId);
             GL.GetTextureLevelParameter(view.TextureId, 0, (GetTextureParameter)All.TextureBufferDataStoreBindingExt, out int actualBuffer);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
