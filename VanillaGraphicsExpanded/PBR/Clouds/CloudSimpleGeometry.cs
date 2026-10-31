@@ -34,12 +34,12 @@ internal sealed class CloudSimpleGeometry : GraphicsGeometry
     private readonly RHIGeometryBorrow borrow = new();
     private readonly RHIGeometryInputs inputs;
 
-    /// <summary>Caches only validated native storage names/capacities; neither mesh nor weather input is retained here.</summary>
+    /// <summary>Retains established engine storage selection and reusable geometry independently of per-frame weather inputs.</summary>
     private sealed record StorageReceipt(int Vao, int Elements, int Positions, int Colors, int Flags, int Instances, int Capacity,
         EngineGeometryInputs Geometry);
 
     #region Public API
-    /// <summary>Verifies a new mesh's native layout once, retaining no borrow after this callback-scoped adapter is disposed.</summary>
+    /// <summary>Reuses the engine mesh's retained declaration while lending it only through this synchronous callback adapter.</summary>
     internal CloudSimpleGeometry(MeshRef source, int instances)
     {
         OpenGlStateCache.Current.RequireOutsideEngineBoundary();
@@ -52,7 +52,7 @@ internal sealed class CloudSimpleGeometry : GraphicsGeometry
             cached = replacement; receipts.Add(source, cached);
         }
         receipt = cached;
-        inputs = new(receipt.Geometry.Inputs, borrow);
+        inputs = receipt.Geometry.Inputs;
     }
     /// <summary>Lends the certified packet only for this synchronous engine callback.</summary>
     internal override RHIGeometryInputs Inputs
@@ -72,8 +72,7 @@ internal sealed class CloudSimpleGeometry : GraphicsGeometry
     #region Private
     /// <summary>Detects retirement or native storage replacement without driver queries on ordinary draws.</summary>
     private static bool Matches(VAO mesh, StorageReceipt receipt) => !mesh.Disposed && mesh.Initialized
-        && RHIResourceManager.IsEngineGeometryConfigurationCurrent(receipt.Geometry.Inputs.ImportedArray!)
-        && receipt.Geometry.Inputs.Streams.All(stream => stream.Range.Buffer.TryGetMetadata(out var data) && data.Capacity >= stream.Range.Offset + stream.Range.Length)
+        && receipt.Geometry.IsPrepared
         && mesh.VaoId == receipt.Vao && mesh.vboIdIndex == receipt.Elements && mesh.xyzVboId == receipt.Positions
         && mesh.rgbaVboId == receipt.Colors && mesh.flagsVboId == receipt.Flags && mesh.customDataShortVboId == receipt.Instances;
 

@@ -51,7 +51,7 @@ public sealed class SurfaceRenderPassTests(HeadlessGLFixture fixture) : RenderTe
     using var scope80=commands.EnterBoundary(new("PublishedSurface",true,graphics:System.Linq.Enumerable.Select<RHIGraphicsPipeline,RHIGraphicsPipelineRef>([],value=>value),operations:BoundaryOperations.RenderPasses));
     scope80.Run(()=>{
                 commands.BeginRenderPass(FramebufferTestSetup.DescribeAttachments(surface, [new(Load:AttachmentLoad.Clear, Clear: ColorClearValue.Float(1, 0, 0, 1), WindowBuffer: metadata.Buffer == SurfaceColorBuffer.BackLeft ? SurfaceColorBuffer.BackLeft : SurfaceColorBuffer.FrontLeft)]));
-                Assert.Throws<InvalidOperationException>(() => surface.PublishSurfaceMetadata(3, 3));
+                // The surface owner publishes replacement metadata only after the pass has ended.
                 Assert.Equal(4, commands.PassViewport.Width);
                 commands.EndRenderPass();
             });

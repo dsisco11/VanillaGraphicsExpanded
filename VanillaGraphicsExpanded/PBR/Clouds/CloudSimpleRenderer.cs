@@ -18,6 +18,7 @@ namespace VanillaGraphicsExpanded.PBR.Clouds;
 /// <summary>Owns Simple pipeline resources while borrowing native geometry only during synchronous callback submission.</summary>
 internal sealed class CloudSimpleRenderer : IDisposable
 {
+    private RHIRenderPassDescription? surfacePass;
     private readonly ICoreClientAPI api;
     private readonly Action unregisterResize;
     private GpuFramebuffer? target;
@@ -75,7 +76,9 @@ internal sealed class CloudSimpleRenderer : IDisposable
                 target?.Dispose(); target = replacement;
             }
             using var geometry = new CloudSimpleGeometry(input.Mesh, input.Count);
-            var pass = new RHIRenderPassDescription(target.SurfaceReference, LiquidPipelineStates.SurfaceOutputs);
+            if (surfacePass is null || surfacePass.Surface != target.SurfaceReference)
+                surfacePass = new(target.SurfaceReference, LiquidPipelineStates.SurfaceOutputs);
+            var pass = surfacePass;
             var signature=RHICommandContext.Current.DescribeRenderTargets(pass);
             var description = new RHIGraphicsPipelineDescription(program.Shader, CloudSimpleGeometry.Layout, signature,
                 DynamicPipelineState.Viewport, depthStencil: LiquidPipelineStates.Surface,
@@ -111,6 +114,7 @@ internal sealed class CloudSimpleRenderer : IDisposable
     /// <summary>Retries resources at existing reload/resize boundaries without relinquishing visible ownership.</summary>
     internal void Reset()
     {
+        surfacePass = null;
         failed = false; program = null;
         RenderingCleanup.Run(() => { pipeline?.Dispose(); pipeline = null; }, () => { target?.Dispose(); target = null; },
             () => { liquidDepth?.Dispose(); liquidDepth = null; });

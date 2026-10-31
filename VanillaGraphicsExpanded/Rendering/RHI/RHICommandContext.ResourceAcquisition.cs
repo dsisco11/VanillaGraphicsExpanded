@@ -16,6 +16,8 @@ public sealed partial class RHICommandContext
     internal bool ReadExternalRenderbuffer(nint id, out GpuRenderbufferMetadata metadata) => backend.ReadExternalRenderbuffer(id, out metadata);
     /// <summary>Routes explicit acquisition through the context execution contract.</summary>
     internal bool ReadExternalRenderbufferTexture(int texture, out GpuTextureMetadata metadata) => backend.ReadExternalRenderbufferTexture(texture, out metadata);
+    /// <summary>Connects exact imported geometry to its backend configuration owner without exposing native types.</summary>
+    internal void ObserveGeometryConfiguration(RHIGeometryImport geometry) => backend.ObserveGeometryConfiguration(geometry);
     #endregion
     #region Format capabilities
     /// <summary>Fills the existing capability cache through the execution contract, without another discovery authority.</summary>

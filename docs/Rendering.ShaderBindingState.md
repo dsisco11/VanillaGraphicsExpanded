@@ -168,7 +168,8 @@ whole-table receipt invalidated by arbitrary observation. Known-equal assignment
 external changes restore only affected texture/sampler/image/buffer bindings without revalidating resource
 compatibility. Indexed buffer keys include range/whole intent and their generic selector side effect.
 Optional texture clears preserve unrelated targets on the same unit. Current-pass sampler/image overlap
-checks remain separate from stable shader/resource compatibility and do not infer synchronization.
+relationships are cached for the selected target generation, texture selection and pipeline write state; relevant
+changes withdraw them. These checks remain separate from shader/resource compatibility and infer no synchronization.
 
 Native slot writes withdraw affected knowledge before dispatch. Per-unit/per-buffer-selector and active-unit/program mutation stamps
 detect overlapping observer reentry; interrupted fields remain unknown, the managed command reports failure,

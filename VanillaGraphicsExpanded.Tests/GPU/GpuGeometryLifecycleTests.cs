@@ -115,11 +115,11 @@ public sealed class GpuGeometryLifecycleTests(HeadlessGLFixture fixture)
             else GL.VertexArrayAttribFormat(array.VertexArrayId, 0, 5, VertexAttribType.Float, false, 0);
             Assert.Equal(ErrorCode.InvalidValue, GL.GetError());
             Assert.Equal(revision, entry.MetadataRevision);
-            Assert.True(RHIResourceManager.IsEngineGeometryConfigurationCurrent(receipt));
+            Assert.True(receipt.IsPrepared);
             if (core) GL4.VertexArrayAttribFormat(array.VertexArrayId, 0, 3, OpenTK.Graphics.OpenGL4.VertexAttribType.Float, false, 0);
             else GL.VertexArrayAttribFormat(array.VertexArrayId, 0, 3, VertexAttribType.Float, false, 0);
             Assert.Equal(revision, entry.MetadataRevision);
-            Assert.False(RHIResourceManager.IsEngineGeometryConfigurationCurrent(receipt));
+            Assert.False(receipt.IsPrepared);
             GL.VertexArrayElementBuffer(array.VertexArrayId, elements.BufferId);
             OpenGLVertexSelection.Bind(OpenGlStateCache.Current, array.VertexArrayId);
             Assert.Equal(elements.BufferId, OpenGlStateCache.Current.GetBoundBuffer(BufferTarget.ElementArrayBuffer));

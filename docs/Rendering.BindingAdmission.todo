@@ -2,7 +2,7 @@ Owner-guaranteed resource lifetimes and change-driven execution — implementati
 ===================================================================================
 
 Source proposal: [Rendering.BindingAdmission.Proposal.md](Rendering.BindingAdmission.Proposal.md).
-Status: phases 1–4 complete. Phases 5–7 pending; geometry/pass and remaining operation-family migration remain pending.
+Status: phases 1–5 complete. Phases 6–7 pending; remaining operation-family migration and integrated qualification remain pending.
 Related work: Rendering.GpuCommands.todo. This plan does not complete its outstanding qualification tasks.
 
 Goal
@@ -183,27 +183,43 @@ Phase 4: Replace binding execution and uniform publication as one unit
   No full-suite, live-game appearance or measured performance acceptance is claimed. No staging or commits.
 Phase 5: Migrate geometry, pipelines and complete render passes
   Outcome: graphics submission reuses stable geometry/pass relationships under owner lifetimes.
-  [ ] Prepare streams, attributes, index layouts, buffer dependencies and reusable fetch limits when their
+  [x] Prepare streams, attributes, index layouts, buffer dependencies and reusable fetch limits when their
       declarations/storage/configuration change. Use these facts for necessary dynamic draw arguments;
       indirect contents remain producer-owned, without CPU readback or universal bounds scans.
-  [ ] Prepare attachment dimensions/samples/routing, target realization and pipeline/pass compatibility.
+  [x] Prepare attachment dimensions/samples/routing, target realization and pipeline/pass compatibility.
       Refresh relational results on attachment/backing, configuration and pipeline changes, including
       changes not represented by descriptor equality alone. Failed preparation cannot remain executable.
-  [ ] Refresh framebuffer feedback relationships when selections, attachments or write state change.
+  [x] Refresh framebuffer feedback relationships when selections, attachments or write state change.
       Keep genuinely dynamic restrictions and explicit synchronization; insert no automatic barriers.
-  [ ] Replace repeated geometry/pass resource validation and defensive lifetime guards with the phase 2
+  [x] Replace repeated geometry/pass resource validation and defensive lifetime guards with the phase 2
       owner contracts. Preserve attachment lifetime for the full pass and retain genuine pass sequencing.
       Execute load/store/clear effects on each requested pass, irrespective of cached compatibility.
-  [ ] Migrate all immediate/recorded graphics callers, cached draws, engine integrations and local/tool paths
+  [x] Migrate all immediate/recorded graphics callers, cached draws, engine integrations and local/tool paths
       with obsolete entry-point removal. Integrate preparation with phase 4 without a flattened per-draw
       resource union, a group mechanism or backend-specific types leaking into RHI APIs.
-  [ ] Verify dynamic ranges, relevant replacement, attachment relationships, failed refresh, pass effects,
+  [x] Verify dynamic ranges, relevant replacement, attachment relationships, failed refresh, pass effects,
       engine restoration and recorded/cached lifetimes. Check unchanged execution avoids repeated structural
       validation while still producing the required draw/pass effects.
-  [ ] Reconcile Rendering.GpuCommands.Contracts.md and affected permanent rendering documentation.
-  [ ] Completion gate: the complete graphics path uses prepared structural relationships, explicit owners
+  [x] Reconcile Rendering.GpuCommands.Contracts.md and affected permanent rendering documentation.
+  [x] Completion gate: the complete graphics path uses prepared structural relationships, explicit owners
       and real dynamic execution work, with no remaining private per-draw lifetime validator in this family.
 
+  Completion evidence: second source/contract review and independent completion audit passed with no
+  unresolved findings. Geometry fetch limits, target/signature/feedback relationships and native
+  realizations refresh on relevant delivered changes. Immediate/recorded, engine and local graphics
+  routes use owner lifetimes without resource/PSO/pass guard walks; actual dynamic ranges, pass effects,
+  explicit barriers, scope restoration and originating-context retirement remain intact. Retained engine
+  declarations and source readiness avoid per-frame metadata polling and redundant geometry capture.
+  Shader-enabled Debug and ordinary Release builds completed with zero errors. Release passed 217/217
+  focused tests; the broader Debug run's 208 unaffected passes plus the 15/15 corrective checks cover
+  the corrected withdrawal assertion and supplemental pipeline/target cases, all with zero skips.
+  Receipts: TestResults/BindingGraphics/build-debug-final-corrected.log, build-release-final.log,
+  graphics-debug-final.trx, graphics-debug-corrections.trx and graphics-release-final.trx. The earlier
+  Debug failed assertion receipt is retained and superseded for that case, not reported as all-green.
+  The existing migration map traces controlling documents, implementation and evidence. Image-blit
+  transfer protection remains assigned to phase 6. Full-suite/package and user-run runtime acceptance
+  remain assigned to phase 7; no performance measurement or live-game appearance is claimed.
+  No staging or commits were performed by the implementation or validation/audit agents.
 Phase 6: Migrate transfers, stateful operations and retire obsolete protection
   Outcome: every remaining operation family follows the same contracts without unnecessary plan objects.
   [ ] Apply bounded call-boundary checks to one-off uploads, copies, clears and mip operations. Reuse stable

@@ -11,28 +11,9 @@ internal sealed partial class OpenGLBackend
     private void ValidateGeometryInputs(RHIGraphicsPipeline pipeline, RHIGeometryInputs geometry)
     {
         ArgumentNullException.ThrowIfNull(geometry);
-        geometry.RequireLive();
+        geometry.Prepare(Capabilities, this, pipeline);
         if (geometry.ImportedArray is { } imported)
-            imported.RequireCurrent(NativeOrigin, cache.GetVertexConfigurationRevision(checked((int)imported.Array.ResourceId)));
-        if (geometry.Layout != pipeline.Description.VertexLayout)
-            throw new InvalidOperationException("Geometry layout does not match the selected graphics pipeline.");
-        foreach (var attribute in geometry.Layout.Attributes)
-            if (attribute.Location >= NativeCapabilities.MaxVertexAttributes
-                || attribute.Binding >= NativeCapabilities.MaxVertexBindings
-                || attribute.Stride > NativeCapabilities.MaxVertexStride
-                || attribute.Offset > NativeCapabilities.MaxVertexRelativeOffset)
-                throw new ArgumentException("Vertex layout exceeds cached device limits.", nameof(geometry));
-        foreach (var stream in geometry.Streams)
-            RequireRange(stream.Range.Buffer, stream.Range.Offset, stream.Range.Length);
-        if (geometry.Indices is { } indices)
-            RequireRange(indices.Range.Buffer, indices.Range.Offset, indices.Range.Length);
-    }
-
-    /// <summary>Retains the same original stream allocations for the complete native submission interval.</summary>
-    private void RetainGeometryInputs(RHIGeometryInputs geometry)
-    {
-        foreach (var stream in geometry.Streams) RetainExecutionResource(stream.Range.Buffer.RequireResource());
-        if (geometry.Indices is { } indices) RetainExecutionResource(indices.Range.Buffer.RequireResource());
+            imported.RequirePrepared(NativeOrigin);
     }
     #endregion
 
@@ -70,22 +51,11 @@ internal sealed partial class OpenGLBackend
         int instanceCount, uint baseInstance, bool fetch)
     {
         if (!fetch) return;
-        foreach (var stream in geometry.Streams)
+        foreach (var limit in geometry.FetchLimits)
         {
-            // Streams are frozen in binding order; attributes are sorted by location,
-            // so visit the matching attributes without assuming location equals binding.
-            foreach (var attribute in geometry.Layout.Attributes)
-            {
-                if (attribute.Binding != stream.Binding) continue;
-                long last = stream.Divisor == 0 ? lastVertex
-                    : (long)baseInstance + (instanceCount - 1L) / stream.Divisor;
-                // Indexed per-vertex values are producer-owned. Still require enough bytes
-                // to represent an attribute at all when the draw can perform a fetch.
-                long end = checked(Math.Max(0, last) * stream.Stride + attribute.Offset
-                    + VertexScalarWidth(attribute.Storage) * attribute.Components);
-                if (end > stream.Range.Length)
-                    throw new ArgumentOutOfRangeException(nameof(geometry), "Vertex or instance fetch exceeds its supplied stream interval.");
-            }
+            long last = limit.Divisor == 0 ? lastVertex : (long)baseInstance + (instanceCount - 1L) / limit.Divisor;
+            if (Math.Max(0, last) > limit.Last)
+                throw new ArgumentOutOfRangeException(nameof(geometry), "Vertex or instance fetch exceeds its supplied stream interval.");
         }
     }
     #endregion
@@ -103,25 +73,23 @@ internal sealed partial class OpenGLBackend
         long bytes = draw.Count == 0 ? 0 : checked((draw.Count - 1L) * stride + width);
         if (bytes > draw.Arguments.Length)
             throw new ArgumentException("Indirect commands exceed their supplied argument interval.", nameof(draw));
-        RequireRange(draw.Arguments.Buffer, draw.Arguments.Offset, draw.Arguments.Length);
+        ValidateIndirectRange(draw.Arguments);
         if (draw.CountBuffer is { } count)
         {
             if (!Capabilities.IndirectDrawCount) throw new NotSupportedException("Indirect count drawing is unavailable.");
             if (count.Offset % 4 != 0 || count.Length < 4)
                 throw new ArgumentException("Indirect count storage requires an aligned four-byte interval.", nameof(draw));
-            RequireRange(count.Buffer, count.Offset, count.Length);
+            ValidateIndirectRange(count);
         }
     }
     #endregion
 
-    /// <summary>Gets represented scalar byte extent independently of native enum values.</summary>
-    private static int VertexScalarWidth(VertexComponentFormat format) => format switch
+    /// <summary>Checks dynamic argument bounds against producer-delivered storage, without resolving registrations.</summary>
+    private static void ValidateIndirectRange(RHIBufferRange range)
     {
-        VertexComponentFormat.SignedByte or VertexComponentFormat.UnsignedByte => 1,
-        VertexComponentFormat.SignedShort or VertexComponentFormat.UnsignedShort or VertexComponentFormat.Half => 2,
-        VertexComponentFormat.SignedInt or VertexComponentFormat.UnsignedInt or VertexComponentFormat.Float => 4,
-        VertexComponentFormat.Double => 8,
-        _ => throw new ArgumentOutOfRangeException(nameof(format))
-    };
+        var owner = PrepareBufferSelection(range.Buffer);
+        if (range.Offset < 0 || range.Length < 0 || range.Offset > owner.PublishedMetadata.Capacity - range.Length)
+            throw new ArgumentOutOfRangeException(nameof(range));
+    }
     #endregion
 }

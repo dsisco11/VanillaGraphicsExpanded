@@ -15,6 +15,7 @@ namespace VanillaGraphicsExpanded.PBR.Atmosphere;
 /// <summary>Owns procedural fullscreen geometry and drawing while consuming atmospheric publication.</summary>
 internal sealed class AtmosphereSkyPass : IDisposable
 {
+    private RHIRenderPassDescription? surfacePass;
     private System.IDisposable? reloadRegistration;
     private static AtmosphereSkyPass? active;
     private readonly ICoreClientAPI api;
@@ -114,7 +115,9 @@ internal sealed class AtmosphereSkyPass : IDisposable
         // Use the same convention as all other contributors to primary.
         shader.Capture(api, lighting, sceneLinear: true);
         // Sky owns color and glow only; framebuffer clearing establishes background validity.
-        var pass = new RHIRenderPassDescription(target.SurfaceReference,[new(AttachmentIndex:0),new(AttachmentIndex:1)]);
+        if (surfacePass is null || surfacePass.Surface != target.SurfaceReference)
+            surfacePass = new(target.SurfaceReference, [new(AttachmentIndex:0),new(AttachmentIndex:1)]);
+        var pass = surfacePass;
         var signature=RHICommandContext.Current.DescribeRenderTargets(pass);
         var blend = new ColorBlendDesc { Enabled = true,
             SourceRgb = Celestial.CelestialDrawPass.IsEnabled ? BlendFactor.One : BlendFactor.SourceAlpha, DestinationRgb = BlendFactor.OneMinusSourceAlpha,
@@ -141,6 +144,7 @@ internal sealed class AtmosphereSkyPass : IDisposable
     /// <summary>Retires the pipeline and procedural geometry at publication and world boundaries.</summary>
     private void Reset()
     {
+        surfacePass = null;
         // Resource retirement does not release replacement ownership or restart vanilla rendering.
         pipeline?.Dispose(); pipeline = null;
         geometry?.Dispose(); geometry = null; failed = false;

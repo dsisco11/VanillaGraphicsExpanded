@@ -30,35 +30,32 @@ internal sealed partial class OpenGLBackend
             _ = checked(indices.Range.Offset + checked((nint)draw.FirstIndex * width));
         }
         if (draws.IsEmpty) return;
-        pipeline.BeginSubmission();
+
         try
         {
             SelectResourceBindings(shader, resources);
-            try
+
+            PrepareGraphicsPacket(pipeline, shader, geometry, dynamics, resources);
+            if (batchCounts.Length < draws.Length)
             {
-                PrepareGraphicsPacket(pipeline, shader, geometry, dynamics, resources);
-                if (batchCounts.Length < draws.Length)
-                {
-                    System.Array.Resize(ref batchCounts, draws.Length);
-                    System.Array.Resize(ref batchBaseVertices, draws.Length);
-                    System.Array.Resize(ref batchOffsets, draws.Length);
-                }
-                for (int index = 0; index < draws.Length; index++)
-                {
-                    batchCounts[index] = draws[index].IndexCount;
-                    batchBaseVertices[index] = draws[index].BaseVertex;
-                    batchOffsets[index] = checked(indices.Range.Offset + checked((nint)draws[index].FirstIndex * width));
-                }
-                MarkBindingExecution();
-                fixed (int* counts = batchCounts, bases = batchBaseVertices)
-                fixed (nint* offsets = batchOffsets)
-                    GL.MultiDrawElementsBaseVertex(OpenGLPrimitiveValues.ToCore(pipeline.Description.Assembly.Topology),
-                        counts, IndexType(indices.Format), (nint)offsets, draws.Length, bases);
-                CompleteGraphicsPacket(geometry);
+                System.Array.Resize(ref batchCounts, draws.Length);
+                System.Array.Resize(ref batchBaseVertices, draws.Length);
+                System.Array.Resize(ref batchOffsets, draws.Length);
             }
-            finally { ReleaseExecutionResources(); }
+            for (int index = 0; index < draws.Length; index++)
+            {
+                batchCounts[index] = draws[index].IndexCount;
+                batchBaseVertices[index] = draws[index].BaseVertex;
+                batchOffsets[index] = checked(indices.Range.Offset + checked((nint)draws[index].FirstIndex * width));
+            }
+            MarkBindingExecution();
+            fixed (int* counts = batchCounts, bases = batchBaseVertices)
+            fixed (nint* offsets = batchOffsets)
+                GL.MultiDrawElementsBaseVertex(OpenGLPrimitiveValues.ToCore(pipeline.Description.Assembly.Topology),
+                    counts, IndexType(indices.Format), (nint)offsets, draws.Length, bases);
+            CompleteGraphicsPacket(geometry);
         }
-        finally { pipeline.EndSubmission(); }
+        finally { ClearResourceBindings(); }
     }
     #endregion
 }

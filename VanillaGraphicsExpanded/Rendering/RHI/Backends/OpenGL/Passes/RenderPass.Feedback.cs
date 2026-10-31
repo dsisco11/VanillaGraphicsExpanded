@@ -13,26 +13,20 @@ internal sealed partial class RenderPass
     internal static void ValidateSampledTexture(GpuTextureRef texture, DepthStencilDesc? depthStencil = null)
     {
         if (active is null) return;
-        var data = texture.RequireMetadata();
-        foreach (var level in data.Levels)
-        {
-            if (!level.Allocated || level.Level < data.BaseLevel || level.Level > data.MaxLevel) continue;
-            ValidateTextureRange(texture, data, level.Level, null, depthStencil);
-        }
+        active.targets.PrepareFeedback(texture, null, null, depthStencil);
     }
 
     /// <summary>Checks the explicit image mip and layer; image access ignores sampler base/max parameters.</summary>
     internal static void ValidateImageTexture(RHIImageBinding image)
     {
         if (active is null) return;
-        ValidateTextureRange(image.Texture, image.Texture.RequireMetadata(), image.Level,
-            image.Layered ? null : image.Layer);
+        active.targets.PrepareFeedback(image.Texture, image.Level, image.Layered ? null : image.Layer, null);
     }
     #endregion
 
     #region Private
     /// <summary>Compares object-relative selections on the same name and absolute selections on proven shared storage.</summary>
-    private static void ValidateTextureRange(GpuTextureRef texture, GpuTextureMetadata data, int level, int? layer, DepthStencilDesc? depthStencil = null)
+    internal static void ValidateTextureRange(GpuTextureRef texture, GpuTextureMetadata data, int level, int? layer, DepthStencilDesc? depthStencil = null)
     {
         int name = texture.TextureId;
         var view = data.View;

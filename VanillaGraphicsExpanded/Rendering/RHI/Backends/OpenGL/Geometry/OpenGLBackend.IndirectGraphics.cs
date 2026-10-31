@@ -21,7 +21,7 @@ internal sealed partial class OpenGLBackend
     #endregion
 
     #region Private
-    /// <summary>Validates the complete packet before effects and retains every argument source through native dispatch and restoration.</summary>
+    /// <summary>Checks dynamic indirect arguments before effects and restores the required native selectors after dispatch.</summary>
     private void ExecuteIndirectGraphics(RHIGraphicsPipelineRef reference, RHIGeometryInputs geometry, in RHIIndirectDraw draw,
         RHIDynamicState dynamics, RHIResourceBindings? resources, bool indexed)
     {
@@ -30,20 +30,16 @@ internal sealed partial class OpenGLBackend
         var shader = pipeline.RequireShader();
         ValidateGraphicsPacket(pipeline, geometry, dynamics, resources);
         ValidateIndirectDraw(geometry, draw, indexed);
-        pipeline.BeginSubmission();
+
         try
         {
             SelectResourceBindings(shader, resources);
-            try
-            {
-                RetainExecutionResource(draw.Arguments.Buffer.RequireResource());
-                if (draw.CountBuffer is { } count) RetainExecutionResource(count.Buffer.RequireResource());
-                PrepareGraphicsPacket(pipeline, shader, geometry, dynamics, resources);
-                ExecuteIndirectSelectors(pipeline, geometry, draw, resources, indexed);
-            }
-            finally { ReleaseExecutionResources(); }
+
+
+            PrepareGraphicsPacket(pipeline, shader, geometry, dynamics, resources);
+            ExecuteIndirectSelectors(pipeline, geometry, draw, resources, indexed);
         }
-        finally { pipeline.EndSubmission(); }
+        finally { ClearResourceBindings(); }
     }
 
     /// <summary>Scopes only the required bound-only selectors and preserves an original failure alongside independent restoration failures.</summary>
@@ -60,7 +56,7 @@ internal sealed partial class OpenGLBackend
                 count = cache.BindBufferScope(Legacy.BufferTarget.ParameterBuffer,
                     checked((int)counter.Buffer.RequireResource().ResourceId));
             RequireContext();
-            pipeline.RequireShader().RequireUsable();
+            pipeline.RequireShader().RequirePrepared();
             geometry.RequireLive();
             MarkBindingExecution();
             ExecuteNativeIndirect(pipeline.Description.Assembly.Topology, geometry.Indices?.Format, draw, indexed);

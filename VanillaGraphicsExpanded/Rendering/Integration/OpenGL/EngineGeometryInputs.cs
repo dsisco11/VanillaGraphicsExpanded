@@ -12,10 +12,13 @@ internal sealed class EngineGeometryInputs : IDisposable
     private readonly List<GpuResource> recipients = new();
     private readonly RHIGeometryBorrow borrow = new();
     private bool disposed;
+    private bool withdrawn;
 
     #region Internal API
     /// <summary>Gets the certified packet; adapters expose this data instead of issuing an engine draw.</summary>
     internal RHIGeometryInputs Inputs { get; }
+    /// <summary>Reports delivered source/configuration readiness under the engine's retained storage interval.</summary>
+    internal bool IsPrepared => !disposed && !withdrawn && Inputs.ImportedArray!.IsPrepared;
 
     /// <summary>Captures native identity from the engine owner and certifies only externally supplied configuration.</summary>
     internal EngineGeometryInputs(VAO mesh, RHIVertexLayout layout, IReadOnlyDictionary<int, int> streams,
@@ -48,6 +51,7 @@ internal sealed class EngineGeometryInputs : IDisposable
             // retains the original revision and must be re-admitted after external mutation.
             var certificate = RHIResourceManager.AcquireEngineGeometryConfiguration(array, layout, vertexStreams, indexStream);
             Inputs = new(layout, vertexStreams, indexStream, certificate, borrow);
+            foreach (var recipient in recipients) recipient.ObservePreparation(this, Withdraw);
         }
         catch { Dispose(); throw; }
     }
@@ -66,6 +70,8 @@ internal sealed class EngineGeometryInputs : IDisposable
     #endregion
 
     #region Private
+    /// <summary>Requires the integration owner to recapture source declarations after a relevant structural change.</summary>
+    private void Withdraw() { withdrawn = true; }
     /// <summary>Receives canonical buffer facts for one engine-owned allocation.</summary>
     private sealed class BufferRecipient : GpuResource<GpuBufferMetadata>
     {

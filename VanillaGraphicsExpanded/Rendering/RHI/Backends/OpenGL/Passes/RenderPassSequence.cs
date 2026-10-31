@@ -24,7 +24,7 @@ internal sealed class RenderPassSequence : IDisposable
         {
             try { route.Restore(); }
             catch(Exception error){failures.Add(error);}
-            finally {route.Release();}
+
         }
         external.Clear();
         if(failures.Count!=0)throw new EngineBoundaryRestoreException("Pass routing restoration failed.",new AggregateException(failures));
@@ -32,7 +32,7 @@ internal sealed class RenderPassSequence : IDisposable
     #endregion
 
     #region Internal API
-    /// <summary>Registers specialized restoration before individual passes so their attachment guards release first.</summary>
+    /// <summary>Registers specialized sequence restoration independently of individual pass completion.</summary>
     internal RenderPassSequence(EngineBoundaryScope boundary,OpenGLBackend backend)
     {
         this.boundary=boundary;this.backend=backend;
@@ -46,7 +46,7 @@ internal sealed class RenderPassSequence : IDisposable
         if(target is OpenGLPassTarget realized)
         {
             if(!realized.IsReusable)throw new InvalidOperationException("The pass target realization is obsolete.");
-            realized.ValidateDeclaredRouting(System.Array.ConvertAll(outputs, value => value == DrawBuffersEnum.None ? -1 : (int)value - (int)DrawBuffersEnum.ColorAttachment0));
+
             backend.SelectPassTarget(realized);
             backend.RequirePassCompleteness(target, outputs);
             return;
@@ -63,15 +63,15 @@ internal sealed class RenderPassSequence : IDisposable
     #endregion
 
     #region Private
-    /// <summary>Releases CPU lifetime guards on irreversible context loss without issuing restoration commands.</summary>
+    /// <summary>Abandons copied routing on irreversible context loss without issuing restoration commands.</summary>
     private void Abandon()
     {
         if(disposed)return;disposed=true;
-        foreach(var route in external.Values)route.Release();
+
         external.Clear();
     }
 
-    /// <summary>Retains one original external allocation and its pre-mutation route, rather than an asset owner or a reusable native-name lookup.</summary>
+    /// <summary>Retains the original external target selection and copied route under the integration owner's restoration interval.</summary>
     private sealed class Routing
     {
         private readonly GpuFramebuffer target;
@@ -80,13 +80,13 @@ internal sealed class RenderPassSequence : IDisposable
         private bool applied;
 
         #region Internal API
-        /// <summary>Captures routing only after the already guarded original target has been selected.</summary>
+        /// <summary>Captures routing after selecting the original target, whose owner preserves it until restoration.</summary>
         internal Routing(GpuFramebuffer target,OpenGLBackend backend)
         {
             this.target=target;this.backend=backend;
-            target.RetainLifetimeReference();
-            try {original=OpenGLFramebufferRouting.Capture(OpenGlStateCache.Current,target.FboId);}
-            catch {target.ReleaseLifetimeReference();throw;}
+
+            original=OpenGLFramebufferRouting.Capture(OpenGlStateCache.Current,target.FboId);
+
         }
         /// <summary>Remembers attempted mutation so failed native publication still participates in restoration.</summary>
         internal void Apply(DrawBuffersEnum[] outputs)
@@ -102,8 +102,7 @@ internal sealed class RenderPassSequence : IDisposable
             if(target.FboId==0)backend.SelectPassTarget(target);
             OpenGLFramebufferRouting.Restore(OpenGlStateCache.Current,target.FboId,original);
         }
-        /// <summary>Releases the original allocation's lifetime guard after restoration or abandonment.</summary>
-        internal void Release()=>target.ReleaseLifetimeReference();
+
         #endregion
     }
     #endregion

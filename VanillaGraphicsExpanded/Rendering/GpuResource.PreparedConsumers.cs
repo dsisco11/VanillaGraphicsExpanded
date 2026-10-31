@@ -24,7 +24,7 @@ public abstract partial class GpuResource
         }
     }
     /// <summary>Withdraws local derived selections before an owner retires its wrapper identity.</summary>
-    private void InvalidatePreparedConsumers()
+    private protected void InvalidatePreparedConsumers()
     {
         var consumers = Volatile.Read(ref preparedConsumers);
         if (consumers is null) return;

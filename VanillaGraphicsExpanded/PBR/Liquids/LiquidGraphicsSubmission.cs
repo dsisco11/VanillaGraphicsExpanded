@@ -30,8 +30,21 @@ internal sealed class LiquidGraphicsSubmission : IDisposable
     private bool dirty = true;
     private GpuProgram? inputOwner;
     private LiquidPoolInputAdapter? inputAdapter;
+    private RHIRenderPassDescription? passDeclaration;
+    private RHIColorAttachment[]? passOutputs;
 
     #region Public API
+    /// <summary>Retains fixed engine output intentions while the existing borrowed target owner remains selected.</summary>
+    internal RHIRenderPassDescription DescribePass(FrameBufferRef source, RHIColorAttachment[] outputs)
+    {
+        var target = Borrow(source);
+        if (passDeclaration is null || passDeclaration.Surface != target.SurfaceReference || !ReferenceEquals(outputs, passOutputs))
+        {
+            passDeclaration = new(target.SurfaceReference, outputs);
+            passOutputs = outputs;
+        }
+        return passDeclaration;
+    }
     /// <summary>Invalidates borrowed target metadata when the engine publishes rebuilt screen resources.</summary>
     internal LiquidGraphicsSubmission(ICoreClientAPI api)
     {
@@ -152,6 +165,7 @@ internal sealed class LiquidGraphicsSubmission : IDisposable
     {
         var retiring = borrowed;
         borrowed = null; borrowedContext = null; dirty = true;
+        passDeclaration = null; passOutputs = null;
         inputOwner = null; inputAdapter = null;
         Retire(); retiring?.Dispose();
     }

@@ -36,6 +36,12 @@ public sealed class RHICapabilities
     public bool Multiview => source.SupportsOvrMultiview;
     /// <summary>Gets the number of vertex input locations.</summary>
     public int MaxVertexAttributes => source.MaxVertexAttributes;
+    /// <summary>Gets the cached vertex stream binding limit.</summary>
+    public int MaxVertexBindings => source.MaxVertexBindings;
+    /// <summary>Gets the cached vertex stream stride limit.</summary>
+    public int MaxVertexStride => source.MaxVertexStride;
+    /// <summary>Gets the cached attribute-relative offset limit.</summary>
+    public int MaxVertexRelativeOffset => source.MaxVertexRelativeOffset;
     /// <summary>Gets the available draw-output count.</summary>
     public int MaxColorOutputs => source.MaxDrawBuffers;
     /// <summary>Gets the implementation-wide sample bound; formats retain their cached specific limits.</summary>

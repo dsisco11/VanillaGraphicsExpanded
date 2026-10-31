@@ -21,7 +21,7 @@ internal sealed class ArrayGraphicsGeometry : GraphicsGeometry
         get
         {
             borrow.RequireLive();
-            if (inputs is not null && inputs.Streams.All(stream => stream.Range.Length == buffers[stream.Binding].SizeBytes)) return inputs;
+            if (inputs is not null) return inputs;
             // A packet keeps these declared bounds even when the producer enlarges storage later.
             var streams = layout.Attributes.GroupBy(attribute => attribute.Binding).Select(group =>
             {
@@ -46,9 +46,15 @@ internal sealed class ArrayGraphicsGeometry : GraphicsGeometry
         this.layout = layout;
         this.buffers = new(buffers);
         this.proceduralVertices = proceduralVertices;
+        foreach (var buffer in this.buffers.Values) buffer.ObservePreparation(this, WithdrawInputs);
     }
 
     /// <summary>Expires packets and backend realizations while preserving externally owned streaming buffers.</summary>
     public override void Dispose() => borrow.Dispose();
+    #endregion
+
+    #region Private
+    /// <summary>Rebuilds authored extents only after a selected stream's structural publication.</summary>
+    private void WithdrawInputs() { inputs = null; }
     #endregion
 }

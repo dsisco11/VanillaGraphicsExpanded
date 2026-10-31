@@ -29,5 +29,7 @@ internal partial interface IRHIResourceExecution
     #region Geometry admission
     /// <summary>Validates authored geometry/ranges without inspecting the external native layout.</summary>
     void ValidateImportedGeometry(int array, RHIVertexLayout layout, IReadOnlyList<RHIVertexStream> streams, RHIIndexStream indices);
+    /// <summary>Connects the exact import to change delivery from its original native configuration authority.</summary>
+    void ObserveGeometryConfiguration(RHIGeometryImport geometry);
     #endregion
 }

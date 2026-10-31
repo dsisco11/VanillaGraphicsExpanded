@@ -97,7 +97,7 @@ public abstract partial class GpuFramebuffer : GpuResource<GpuFramebufferMetadat
     {
         if (bindingTarget is not (FramebufferSelection.ReadAndDraw or FramebufferSelection.Draw))
             throw new ArgumentOutOfRangeException(nameof(bindingTarget));
-        ValidateAttachments();
+        PrepareAttachments();
         if (attachmentsDirty)
         {
             // Shared image changes can affect several FBOs; refresh each FBO lazily
@@ -184,6 +184,7 @@ public abstract partial class GpuFramebuffer : GpuResource<GpuFramebufferMetadat
     {
         if (resourceChange && ResourceManager?.AdmitDependentOwnerChange(this) == false) return;
         AttachmentRevision++;
+        InvalidatePreparedConsumers();
         if (AttachmentsChanged is not { } callbacks) return;
         foreach (Action callback in callbacks.GetInvocationList())
         {

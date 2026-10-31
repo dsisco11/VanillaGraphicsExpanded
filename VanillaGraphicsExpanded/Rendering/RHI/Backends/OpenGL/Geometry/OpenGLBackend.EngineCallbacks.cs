@@ -46,7 +46,7 @@ internal sealed partial class OpenGLBackend
         internal ParticleCapture(OpenGLBackend backend, GpuFramebuffer target, GlPipelineDesc capture, GlPipelineDesc boundary)
         {
             this.backend = backend; this.boundary = boundary;
-            target.ValidateAttachments();
+            target.PrepareAttachments();
             selectors = backend.cache.BindFramebufferScope();
             try
             {

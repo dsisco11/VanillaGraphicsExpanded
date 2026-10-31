@@ -4,7 +4,7 @@ using VanillaGraphicsExpanded.Rendering.Pipeline.Passes;
 
 namespace VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 
-/// <summary>Owns direct graphics dispatch and retains original resources through all native callbacks.</summary>
+/// <summary>Executes prepared graphics under caller-owned resource lifetimes and context sequencing.</summary>
 internal sealed partial class OpenGLBackend
 {
     private RenderPass? activeRenderPass;
@@ -19,21 +19,18 @@ internal sealed partial class OpenGLBackend
         var shader = pipeline.RequireShader();
         ValidateGraphicsPacket(pipeline, geometry, dynamics, resources);
         ValidateDirectDraw(geometry, draw);
-        pipeline.BeginSubmission();
+
         try
         {
             SelectResourceBindings(shader, resources);
-            try
-            {
-                PrepareGraphicsPacket(pipeline, shader, geometry, dynamics, resources);
-                MarkBindingExecution();
-                GL.DrawArraysInstancedBaseInstance(OpenGLPrimitiveValues.ToCore(pipeline.Description.Assembly.Topology),
-                    draw.FirstVertex, draw.VertexCount, draw.InstanceCount, draw.BaseInstance);
-                CompleteGraphicsPacket(geometry);
-            }
-            finally { ReleaseExecutionResources(); }
+
+            PrepareGraphicsPacket(pipeline, shader, geometry, dynamics, resources);
+            MarkBindingExecution();
+            GL.DrawArraysInstancedBaseInstance(OpenGLPrimitiveValues.ToCore(pipeline.Description.Assembly.Topology),
+                draw.FirstVertex, draw.VertexCount, draw.InstanceCount, draw.BaseInstance);
+            CompleteGraphicsPacket(geometry);
         }
-        finally { pipeline.EndSubmission(); }
+        finally { ClearResourceBindings(); }
     }
     /// <inheritdoc />
     public void DrawIndexed(RHIGraphicsPipelineRef reference, RHIGeometryInputs geometry, in RHIDrawIndexed draw,
@@ -46,21 +43,18 @@ internal sealed partial class OpenGLBackend
         ValidateIndexedDraw(geometry, draw);
         var indices = geometry.Indices!.Value;
         nint offset = checked(indices.Range.Offset + checked((nint)draw.FirstIndex * RHIGeometryInputs.IndexWidth(indices.Format)));
-        pipeline.BeginSubmission();
+
         try
         {
             SelectResourceBindings(shader, resources);
-            try
-            {
-                PrepareGraphicsPacket(pipeline, shader, geometry, dynamics, resources);
-                MarkBindingExecution();
-                GL.DrawElementsInstancedBaseVertexBaseInstance(OpenGLPrimitiveValues.ToCore(pipeline.Description.Assembly.Topology),
-                    draw.IndexCount, IndexType(indices.Format), offset, draw.InstanceCount, draw.BaseVertex, draw.BaseInstance);
-                CompleteGraphicsPacket(geometry);
-            }
-            finally { ReleaseExecutionResources(); }
+
+            PrepareGraphicsPacket(pipeline, shader, geometry, dynamics, resources);
+            MarkBindingExecution();
+            GL.DrawElementsInstancedBaseVertexBaseInstance(OpenGLPrimitiveValues.ToCore(pipeline.Description.Assembly.Topology),
+                draw.IndexCount, IndexType(indices.Format), offset, draw.InstanceCount, draw.BaseVertex, draw.BaseInstance);
+            CompleteGraphicsPacket(geometry);
         }
-        finally { pipeline.EndSubmission(); }
+        finally { ClearResourceBindings(); }
     }
     #endregion
 
@@ -75,26 +69,25 @@ internal sealed partial class OpenGLBackend
         dynamics.ValidateFor(pipeline.Description);
         ValidateGraphicsFeedback(pipeline, resources);
     }
-    /// <summary>Realizes geometry and applies already validated state while all original buffer and executable guards are held.</summary>
+    /// <summary>Realizes prepared geometry and applies changed state without acquiring resource lifetime authority.</summary>
     private void PrepareGraphicsPacket(RHIGraphicsPipeline pipeline, RHIShader shader, RHIGeometryInputs geometry,
         RHIDynamicState dynamics, RHIResourceBindings? resources)
     {
-        RetainGeometryInputs(geometry);
+
         var vertexArray = ResolveGeometryVertexArray(geometry);
-        RetainExecutionResource(vertexArray);
+
         int vertexArrayName = checked((int)vertexArray.ResourceId);
-        activeRenderPass!.ValidatePipeline(pipeline);
+
         geometry.RequireLive();
         var realized = (OpenGLGraphicsPipelineRealization)pipeline.Realization;
         cache.ApplyGraphicsState(pipeline.Description, dynamics, realized.Relevance, realized.Coverage);
         if (resources is null) ApplyExecutable(shader);
         else PublishResourceBindings(shader, reuseCommittedUniforms: true);
         OpenGLVertexSelection.Bind(cache,vertexArrayName);
-        ValidateGraphicsFeedback(pipeline, resources);
-        shader.RequireUsable();
+        shader.RequirePrepared();
         geometry.RequireLive();
         if (geometry.ImportedArray is { } imported)
-            imported.RequireCurrent(NativeOrigin, cache.GetVertexConfigurationRevision(checked((int)imported.Array.ResourceId)));
+            imported.RequirePrepared(NativeOrigin);
     }
     /// <summary>Checks originating admission after native callbacks and records only actually issued draw commands.</summary>
     private void CompleteGraphicsPacket(RHIGeometryInputs geometry)
@@ -102,7 +95,7 @@ internal sealed partial class OpenGLBackend
         RequireContext();
         geometry.RequireLive();
         if (geometry.ImportedArray is { } imported)
-            imported.RequireCurrent(NativeOrigin, cache.GetVertexConfigurationRevision(checked((int)imported.Array.ResourceId)));
+            imported.RequirePrepared(NativeOrigin);
 #if DEBUG
         cache.RecordDrawSubmission();
 #endif

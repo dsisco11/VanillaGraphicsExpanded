@@ -12,15 +12,6 @@ internal sealed class OpenGLPassTargetKey : IEquatable<OpenGLPassTargetKey>
     private readonly int hash;
 
     #region Internal API
-    /// <summary>Reports original dependency usability without retaining a second canonical metadata snapshot.</summary>
-    internal bool IsCurrent
-    {
-        get
-        {
-            foreach (var color in Colors) if (!color.Image.IsCurrent) return false;
-            return DepthStencil is not { } depth || depth.IsCurrent;
-        }
-    }
     /// <summary>Copies execution-resolved configuration after published resource validation.</summary>
     internal OpenGLPassTargetKey(ImmutableArray<(int Slot, OpenGLAttachmentIdentity Image)> colors,
         OpenGLAttachmentIdentity? depthStencil, ImmutableArray<int> outputs)
@@ -31,18 +22,6 @@ internal sealed class OpenGLPassTargetKey : IEquatable<OpenGLPassTargetKey>
         digest.Add(depthStencil);
         foreach (int output in outputs) digest.Add(output);
         hash = digest.ToHashCode();
-    }
-    /// <summary>Checks a repeatedly executed frozen description without allocating another key or reading native state.</summary>
-    internal bool Matches(RHIRenderPassDescription description)
-    {
-        int imageIndex = 0;
-        for (int output = 0; output < description.Colors.Length; output++)
-            if (description.Colors[output].Image is { } image)
-            {
-                if (imageIndex >= Colors.Length || Colors[imageIndex++].Image != OpenGLAttachmentIdentity.Resolve(image)) return false;
-            }
-        return imageIndex == Colors.Length && (description.DepthStencil is { } depth
-            ? DepthStencil == OpenGLAttachmentIdentity.Resolve(depth) : !DepthStencil.HasValue);
     }
     #endregion
 

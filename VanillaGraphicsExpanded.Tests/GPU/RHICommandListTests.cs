@@ -237,7 +237,18 @@ public sealed class RHICommandListTests(HeadlessGLFixture fixture) : RenderTestB
         list.BeginRenderPass(FramebufferTestSetup.DescribeAttachments(target)); list.SetPipeline(pipeline);
         list.SetDynamicState(new() { Viewport = new(0, 0, 1, 1) }); list.BindResources(shader.CaptureBindings());
         list.DrawIndexedBatch(inputs, draws); list.EndRenderPass(); draws[0] = new(0, 999); shader.HzbDepth = default;
-        list.Close(true); if (expire) borrow.Dispose();
+        list.Close(true);
+#if !DEBUG
+        if (expire)
+        {
+            // The recording owner discards the consumer before ending the engine borrowing interval.
+            list.Cancel(); borrow.Dispose();
+            Assert.Equal(CommandListState.Cancelled, list.State);
+            Assert.False(context.HasRenderPass);
+            return;
+        }
+#endif
+        if (expire) borrow.Dispose();
         int prior = GL.GetInteger(GetPName.DrawFramebufferBinding);
         using (var boundary = context.EnterBoundary(list.Boundary))
         {

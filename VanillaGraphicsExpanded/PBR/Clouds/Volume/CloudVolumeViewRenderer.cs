@@ -17,6 +17,7 @@ namespace VanillaGraphicsExpanded.PBR.Clouds.Volume;
 internal sealed class CloudVolumeViewRenderer(CloudVolumeViewProgram program,CloudVolumeReconstructProgram reconstruct,CloudVolumeTemporalProgram temporal):IDisposable
 {
     internal static readonly RHIVertexLayout Layout=new([]);
+    private RHIRenderPassDescription? surfacePass;
     private CloudVolumeViewPass? integration,composition;
     private RHIGraphicsPipeline[] active=[];
     private Action<RHICommandContext>? submitPasses;
@@ -93,6 +94,7 @@ internal sealed class CloudVolumeViewRenderer(CloudVolumeViewProgram program,Clo
     internal bool Draw(CloudVolumeViewFields fields,CloudMapInput input,CloudVolumeViewScene scene,GpuFramebuffer target,Func<bool> current,int debugMode=0,bool captureDiagnostics=false)
     {
         ObjectDisposedException.ThrowIf(disposed,this);Failure=null;
+        if (surfacePass is not null && surfacePass.Surface != target.SurfaceReference) surfacePass = null;
         if(!prepared||failed||!current())return Reject("Stored cloud publication unavailable.");
         if(scene.Camera.FrameIndex!=input.Frame||scene.Atmosphere.CalibrationGeneration==0)return Reject("Stored cloud camera or atmosphere publication unavailable.");
         Vector2 extent=MemoryMarshal.Read<Vector2>(scene.Camera.Bytes.Slice(384,8));
@@ -110,7 +112,7 @@ internal sealed class CloudVolumeViewRenderer(CloudVolumeViewProgram program,Clo
             if(settings.TraceDivisor==1)
             {
                 history.Invalidate();
-                integration.Prepare(new(target.SurfaceReference,LiquidPipelineStates.SurfaceOutputs),true);
+                integration.Prepare(surfacePass ??= new(target.SurfaceReference,LiquidPipelineStates.SurfaceOutputs),true);
             }
             else
             {
@@ -149,7 +151,7 @@ internal sealed class CloudVolumeViewRenderer(CloudVolumeViewProgram program,Clo
                 temporalPasses[cursor]??=new(temporal);
                 temporalPasses[cursor]!.Prepare(next.FilterPass,false);
                 composition??=new(reconstruct);
-                composition.Prepare(new(target.SurfaceReference,LiquidPipelineStates.SurfaceOutputs),true);
+                composition.Prepare(surfacePass ??= new(target.SurfaceReference,LiquidPipelineStates.SurfaceOutputs),true);
             }
             Check(current);
             if(settings.TraceDivisor==1)
@@ -193,7 +195,7 @@ internal sealed class CloudVolumeViewRenderer(CloudVolumeViewProgram program,Clo
     {
         // Drop descriptors before their framebuffer owners; no cached target survives resize or reload.
         active=[];history.Invalidate();HistoryCompatible=false;historyDensity=null;historyMaterial=null;historyDomain=null;cursor=0;
-        integration?.Dispose();composition?.Dispose();targets?.Dispose();targets=null;currentTrace=null;
+        integration?.Dispose();composition?.Dispose();targets?.Dispose();targets=null;currentTrace=null;surfacePass=null;
         for(int i=0;i<2;i++){temporalPasses[i]?.Dispose();temporalPasses[i]=null;histories[i]?.Dispose();histories[i]=null;}
         noise?.Dispose();noise=null;
     }

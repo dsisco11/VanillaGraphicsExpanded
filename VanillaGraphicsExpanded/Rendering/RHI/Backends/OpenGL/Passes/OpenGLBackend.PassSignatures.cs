@@ -15,29 +15,28 @@ internal sealed partial class OpenGLBackend
     public Pipeline.Descriptions.RenderTargetSignature DescribeRenderTargets(RHIRenderPassDescription description)
     {
         RequireContext();
-        if (!description.Surface.IsEmpty)
-        {
-            using var facts = new RenderPassTargets(LowerPass(description, description.Surface.RequireSurface()), retain: false);
-            return facts.Signature;
-        }
-        var key = ResolvePassTargetKey(description);
-        ValidatePassIntentions(description, key);
+        return PreparePass(description, realize: false).Signature!;
+    }
+    #endregion
+
+    #region Private
+    /// <summary>Derives semantic output compatibility from selected facts without allocating native targets.</summary>
+    private static Pipeline.Descriptions.RenderTargetSignature PreparePassSignature(RHIRenderPassDescription description, OpenGLPassTargetKey key)
+    {
         var colors = new Pipeline.Descriptions.ColorTargetSlot[description.Colors.Length];
+        int imageIndex = 0;
         for (int output = 0; output < colors.Length; output++)
         {
             var source = description.Colors[output];
-            TextureFormat? format = source.Image is { } image
-                ? OpenGLAttachmentIdentity.Resolve(image).Image.Format : null;
+            TextureFormat? format = source.Image.HasValue ? key.Colors[imageIndex++].Image.Image.Format : null;
             colors[output] = new(format, source.DiscardOutput);
         }
         var first = key.DepthStencil?.Image ?? key.Colors[0].Image.Image;
         var depth = key.DepthStencil?.Image;
-        var signature = new Pipeline.Descriptions.RenderTargetSignature(colors,
-            depth is { } imageDepth ? imageDepth.Format : null,
-            Math.Max(1, first.Samples), depth is { } d && TextureFormatHelper.IsDepthFormat(d.Format),
+        return new(colors, depth?.Format, Math.Max(1, first.Samples),
+            depth is { } d && TextureFormatHelper.IsDepthFormat(d.Format),
             depth is { } s && (TextureFormatHelper.IsStencilFormat(s.Format)
                 || s.Format is TextureFormat.Depth24Stencil8 or TextureFormat.Depth32fStencil8));
-        return signature;
     }
     #endregion
 }

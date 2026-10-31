@@ -6,7 +6,7 @@ using System.Linq;
 namespace VanillaGraphicsExpanded.Rendering.RHI;
 
 /// <summary>Freezes geometry consumption inputs without owning buffers, a native VAO, or a draw executor.</summary>
-public sealed class RHIGeometryInputs
+public sealed partial class RHIGeometryInputs
 {
     private readonly RHIGeometryBorrow? borrow;
 
@@ -55,6 +55,7 @@ public sealed class RHIGeometryInputs
                 throw new ArgumentException("Index storage requires an aligned interval and represented scalar format.", nameof(indices));
             _ = checked(element.Range.Offset + element.Range.Length);
         }
+        ObserveGeometry();
     }
     #endregion
 
@@ -68,6 +69,7 @@ public sealed class RHIGeometryInputs
         Layout = source.Layout; Streams = source.Streams; Indices = source.Indices;
         ProceduralVertexCount = source.ProceduralVertexCount; ImportedArray = source.ImportedArray;
         this.borrow = borrow ?? throw new ArgumentNullException(nameof(borrow));
+        ObserveGeometry();
     }
 
     /// <summary>Freezes an explicitly certified external array with its streams and independent ownership interval.</summary>
@@ -83,6 +85,7 @@ public sealed class RHIGeometryInputs
         => this.borrow = borrow ?? throw new ArgumentNullException(nameof(borrow));
 
     /// <summary>Rejects an expired adapter before execution inspects any backing resource.</summary>
+    [System.Diagnostics.Conditional("DEBUG")]
     internal void RequireLive() => borrow?.RequireLive();
     /// <summary>Associates private native realization cleanup with an explicitly owned adapter lifetime when present.</summary>
     internal void RetireWithBorrow(Action retire) => borrow?.RetireWithBorrow(retire);

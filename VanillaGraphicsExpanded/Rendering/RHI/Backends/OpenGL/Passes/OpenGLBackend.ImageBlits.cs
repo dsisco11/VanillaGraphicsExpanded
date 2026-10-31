@@ -23,8 +23,14 @@ internal sealed partial class OpenGLBackend
         {
             RetainExecutionResource(source.Resource);
             RetainExecutionResource(destination.Resource);
-            var read = ResolvePassTarget(TransferTarget(blit.Source, blit.Aspects));
-            var draw = ResolvePassTarget(TransferTarget(blit.Destination, blit.Aspects));
+            var readDescription = TransferTarget(blit.Source, blit.Aspects);
+            var drawDescription = TransferTarget(blit.Destination, blit.Aspects);
+            var readKey = ResolvePassTargetKey(readDescription);
+            var drawKey = ResolvePassTargetKey(drawDescription);
+            ValidatePassIntentions(readDescription, readKey);
+            ValidatePassIntentions(drawDescription, drawKey);
+            var read = ResolvePassTarget(readDescription, readKey);
+            var draw = ResolvePassTarget(drawDescription, drawKey);
             RetainExecutionResource(read); RetainExecutionResource(draw);
             var state = cache.PreserveImageTransferState();
             Exception? failure = null;

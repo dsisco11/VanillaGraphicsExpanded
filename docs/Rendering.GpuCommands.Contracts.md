@@ -368,14 +368,15 @@ end, and recorded dependencies through execution or discard. References and reco
 resources. Worker disposal schedules the complete owner retirement on the original disposal service;
 owners finish or withdraw consumers before its after-composition drain. Resize, reload and cleanup run
 outside active restoration boundaries. DEBUG owner-thread checks diagnose misuse without repairing it.
-The execution validation described below remains in the current operation implementations; it does not
-transfer responsibility for legal lifetime scheduling from owners to consumers.
+Graphics structural preparation refreshes on relevant delivered changes; transfer/stateful operations retain
+their bounded operation checks. Neither transfers lifetime responsibility from owners to consumers.
 
-1. Validate context/thread, resource identity/usability, known limits and usage/reentry guards before
+1. Establish identity, usability and structural limits at preparation/change boundaries. Validate context/thread
+   and actual operation state before
    mutation. Content-dependent index/indirect values remain the producer's responsibility; validate only
    supplied descriptors and accesses derivable from explicit parameters, with no validation readback.
 2. Eligible known-equal binding/state changes may be suppressed. Allocation, upload, draw, link and
-   synchronization never suppress merely because metadata matches. Prepared binding references rely on their owner interval; other operation families retain their explicit checks.
+   synchronization never suppress merely because metadata matches. Prepared binding/graphics references rely on their owner interval; transfer/stateful families retain their explicit checks.
 3. Capture original associations and restoration facts, withdraw affected metadata through existing
    manager operations and explicitly compose internal steps. No ambient collector or success-on-dispose.
 4. Execute once; reconcile cache knowledge and commit complete facts once through the manager. Use
@@ -386,6 +387,21 @@ transfer responsibility for legal lifetime scheduling from owners to consumers.
    retain earlier outcomes. No alternate-path retry, implicit repair or native rollback. Retire original
    entries/context only, never rediscover a queued delete by reused numeric ID.
 
+Geometry declarations prepare stream capacities, attribute fetch limits and exact pipeline layout relationships
+initially and after relevant resource changes. Draws check dynamic intervals against those limits without
+reconstructing packing or resolving registrations. Native VAOs observe their original configuration authority;
+empty-schema configuration changes withdraw imports and realizations without a native layout mirror.
+Native array retirement follows affected owner changes and the originating disposal service.
+
+Pass descriptions retain target/signature/area preparation. Attachment and explicit surface publication
+withdraw affected results, including equal-descriptor storage replacement. Failed refresh stays withdrawn
+until a relevant change; it never executes the previous target. Pipeline/signature and sampled/image feedback
+relationships are prepared per selected target generation and write state. Compact selection/cache lookups
+remain, but unchanged draws do not walk metadata or acquire resource/PSO/pass lifetime guards. Owners keep
+attachments alive for the full pass and external targets alive through routing restoration. Load/store/clear
+intentions execute on every request, independently of compatibility reuse. Render-pass sequencing and
+originating-context restoration remain real execution state.
+
 Pass target realization keys use original attachment associations, view-relative subresources, proven
 selection mode and routing/configuration, excluding load/store/clear intentions. The context/backend
 target service owns its framebuffer realizations, manager retains metadata/dependencies. Validate
@@ -394,7 +410,7 @@ reuse; teardown retires only owned targets. Explicit engine framebuffer/surface 
 
 Boundary admission occurs before mutation using the full permitted pipeline set and state footprint.
 Immediate callers declare it; closed lists derive it from immutable inputs only. Existing boundaries
-cannot widen. Reuse existing selective restoration, feedback/usage guards and helper state; no blanket
+cannot widen. Reuse existing selective restoration, prepared feedback relationships and operation state; no blanket
 capture or implicit list isolation.
 
 Sampler/framebuffer feedback is checked at graphics draw submission against the selected pipeline,
@@ -428,7 +444,7 @@ external forwarding remains independent of managed command failure reporting.
 
 Compute selection uses fixed application data and change-delivered executable readiness under the owner's
 lifetime contract, without temporary shader/resource/PSO guards. Recursive context submission remains an
-operation error. Geometry, pass and transfer owners retain their existing operation-specific protocols.
+operation error. Graphics uses the same owner contract; transfers retain their operation-specific protocols.
 Uniform epoch, candidate/abort, captured commitment, consumption and GPU-safe last-use work remain with the
 existing allocator/publication owners. Explicit engine sampled slots retain `RHISampledTextureBindings`,
 including copied recording inputs and change-driven native realization.

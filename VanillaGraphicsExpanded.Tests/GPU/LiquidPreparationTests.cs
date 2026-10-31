@@ -169,7 +169,7 @@ public sealed class LiquidPreparationTests(HeadlessGLFixture fixture) : RenderTe
         var resized = new LiquidTargetPreparation(pass);
         Assert.True(resized.Matches(pass));
         image.Dispose();
-        Assert.Throws<InvalidOperationException>(() => resized.Matches(pass));
+        Assert.False(resized.Matches(pass));
     }
 
     /// <summary>Borrowed surfaces invalidate signatures when their attached image storage changes or they retire.</summary>

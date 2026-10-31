@@ -8,21 +8,21 @@ using VanillaGraphicsExpanded.Rendering.Pipeline.Descriptions;
 
 namespace VanillaGraphicsExpanded.Rendering.Pipeline.Passes;
 
-/// <summary>Validates concrete image metadata and borrows its owners for one immediate pass.</summary>
-internal sealed class RenderPassTargets : IDisposable
+/// <summary>Prepares concrete target relationships under its attachment owners' full-pass lifetime contract.</summary>
+internal sealed partial class RenderPassTargets
 {
     private readonly GpuFramebuffer target;
     private readonly ulong revision;
-    private readonly List<GpuResource> borrowed = new();
+    private readonly System.Runtime.CompilerServices.ConditionalWeakTable<RHIGraphicsPipeline, object> pipelines = new();
     internal RenderTargetSignature Signature { get; }
     internal RenderArea Area { get; }
 
     #region Public API
     /// <summary>Resolves exact formats, samples and area before any target mutation or clear.</summary>
-    internal RenderPassTargets(RenderPassDesc description, bool retain = true)
+    internal RenderPassTargets(RenderPassDesc description)
     {
         target = description.Target;
-        target.ValidateAttachments();
+        target.PrepareAttachments();
         if (target.FboId == 0)
         {
             var surface = target.Surface ?? throw new NotSupportedException("Strict passes require published window-surface metadata.");
@@ -38,7 +38,7 @@ internal sealed class RenderPassTargets : IDisposable
                 || (!surface.HasStencil && (description.DepthStencil.StencilLoad != AttachmentLoad.Preserve || description.DepthStencil.StencilStore != AttachmentStore.Preserve)))
                 throw new ArgumentException("Window attachment intentions require a published aspect.");
             revision = target.AttachmentRevision;
-            if (retain) Borrow(target);
+
             return;
         }
         foreach (var color in description.Colors)
@@ -85,43 +85,22 @@ internal sealed class RenderPassTargets : IDisposable
             || (long)Area.X + Area.Width > width || (long)Area.Y + Area.Height > height)
             throw new ArgumentOutOfRangeException(nameof(description), "Render area exceeds the current target dimensions.");
         revision = target.AttachmentRevision;
-        if (!retain) return;
-        try
-        {
-            Borrow(target);
-            foreach (var pair in target.AttachmentImages)
-            {
-                Borrow(pair.Value);
-                if (pair.Value.Resource is { } storage) Borrow(storage);
-            }
-        }
-        catch { Dispose(); throw; }
     }
 
     /// <summary>Rejects obsolete or retired borrowed targets without querying native state.</summary>
+    [System.Diagnostics.Conditional("DEBUG")]
     internal void Validate()
     {
         if (target.IsDisposed || target.AttachmentRevision != revision)
             throw new InvalidOperationException("Render target changed during an active pass; end and begin again.");
-        target.ValidateAttachments();
     }
 
-    /// <summary>Releases pass references while preserving every resource's original owner.</summary>
-    public void Dispose()
+    /// <summary>Establishes an exact pipeline signature once for this prepared target generation.</summary>
+    internal void PreparePipeline(RHIGraphicsPipeline pipeline)
     {
-        foreach (var resource in borrowed) resource.ReleasePassReference();
-        borrowed.Clear();
-    }
-    #endregion
-
-    #region Private
-    /// <summary>Retains shared backing resources only once, including packed depth/stencil aliases.</summary>
-    private void Borrow(GpuResource resource)
-    {
-        if (borrowed.Contains(resource)) return;
-        resource.RetainPassReference();
-        borrowed.Add(resource);
-        if (resource is GpuTextureView { Source: { } source }) Borrow(source);
+        if (pipelines.TryGetValue(pipeline, out _)) return;
+        pipeline.ValidateTargets(Signature);
+        pipelines.Add(pipeline, new object());
     }
     #endregion
 }

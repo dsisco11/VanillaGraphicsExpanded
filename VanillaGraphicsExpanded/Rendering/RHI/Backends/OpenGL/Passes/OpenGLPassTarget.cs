@@ -11,8 +11,8 @@ internal sealed class OpenGLPassTarget : GpuFramebuffer
 {
     private readonly OpenGlStateCache configurationOwner = OpenGlStateCache.Current;
     private readonly DrawBuffersEnum[] route;
-    private readonly GpuResourceRegistration? registration;
-    private readonly ulong metadataRevision, attachmentRevision;
+    private bool changed;
+
     private readonly GpuFramebufferAttachment[] projections = [];
 
     #region Public API
@@ -37,18 +37,16 @@ internal sealed class OpenGLPassTarget : GpuFramebuffer
         try
         {
             backend.CompletePassTarget(this, route);
-            registration = ResourceManager?.GetResourceRegistration(this);
-            metadataRevision = registration?.MetadataRevision ?? 0;
-            attachmentRevision = AttachmentRevision;
+            ObservePreparation(this, WithdrawPreparedTarget);
+
             configurationOwner.RegisterImmutableFramebuffer(this);
         }
         catch { Dispose(); throw; }
     }
     /// <summary>Rejects changed native configuration or storage dependencies using existing publication authority.</summary>
-    internal bool IsReusable => IsValid && AttachmentRevision == attachmentRevision
-        && ReferenceEquals(registration, ResourceManager?.GetResourceRegistration(this))
-        && (registration is null || registration.IsUsable && registration.MetadataRevision == metadataRevision);
-    /// <summary>Returns the fixed native route independently of mutable selector knowledge.</summary>
+    internal bool IsReusable => !changed && !IsDisposed;
+    /// <summary>Withdraws this native realization on actual committed dependency/configuration changes.</summary>
+    private void WithdrawPreparedTarget() { changed = true; }    /// <summary>Returns the fixed native route independently of mutable selector knowledge.</summary>
     internal override int[] CaptureDeclaredRouting() => System.Array.ConvertAll(route, value => value == DrawBuffersEnum.None ? -1 : (int)value - (int)DrawBuffersEnum.ColorAttachment0);
     /// <summary>Withdraws configuration authority without issuing GL when its original context retires.</summary>
     internal void WithdrawConfiguration() => configurationOwner.UnregisterImmutableFramebuffer(FboId, this);

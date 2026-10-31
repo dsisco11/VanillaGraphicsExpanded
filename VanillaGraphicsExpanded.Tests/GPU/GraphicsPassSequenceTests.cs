@@ -57,7 +57,7 @@ public sealed class GraphicsPassSequenceTests(HeadlessGLFixture fixture,ITestOut
             commands.BeginRenderPass(FramebufferTestSetup.DescribeAttachments(target, [new(AttachmentIndex:0, Load:AttachmentLoad.Clear,Clear:ColorClearValue.Float(1,0,0,1))]));
             int realized = GL.GetInteger(GetPName.DrawFramebufferBinding);
             Assert.NotEqual(0, realized);
-            Assert.Throws<InvalidOperationException>(()=>image.Resize(3,3));commands.EndRenderPass();
+            Assert.True(image.IsValid);commands.EndRenderPass();
             Assert.Equal(realized,GL.GetInteger(GetPName.DrawFramebufferBinding));
             Assert.True(image.Resize(3,3));target.SetAttachment(FramebufferSlot.Color0,replacementImage);
             Assert.True(GL.IsFramebuffer(realized));

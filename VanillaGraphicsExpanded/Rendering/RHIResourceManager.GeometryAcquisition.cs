@@ -26,13 +26,9 @@ internal sealed partial class RHIResourceManager
             || !array.IsValid || !ReferenceEquals(original, array.ResourceManager?.GetResourceRegistration(array))
             || original is not null && array.ResourceManager?.IsResourceMetadataAvailable(array) != true)
             throw new InvalidOperationException("External geometry changed during configuration acquisition.");
-        return new(array, certification.Origin, certification.ConfigurationEpoch);
-    }
-    /// <summary>Checks a completed import against current manager identity and context knowledge without reading native configuration.</summary>
-    internal static bool IsEngineGeometryConfigurationCurrent(RHIGeometryImport import)
-    {
-        var current = RHICommandContext.Current.CaptureGeometryContext(checked((int)import.Array.ResourceId));
-        return import.IsCurrent(current.Origin, current.ConfigurationEpoch);
+        var result = new RHIGeometryImport(array, certification.Origin);
+        execution.ObserveGeometryConfiguration(result);
+        return result;
     }
     #endregion
 }

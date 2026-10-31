@@ -12,6 +12,33 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 public sealed class RHIPassFeedbackTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
     #region Public API
+    /// <summary>Sampling-range changes withdraw both cached success and cached failure across repeated pass use.</summary>
+    [Fact]
+    public void CachedFeedbackRefreshesAfterSamplingConfigurationChanges()
+    {
+        EnsureContextValid();
+        var commands = RHICommandContext.Current;
+        using var texture = commands.CreateTexture(new() { Dimension = TextureDimension.Two, Width = 4, Height = 4,
+            Format = TextureFormat.Rgba8, MipLevels = 2, Storage = ResourceStorageMode.Immutable, BaseLevel = 0, MaxLevel = 0 }).RequireResource();
+        var pass = new RHIRenderPassDescription([new(Image: RHIAttachment.FromTexture(texture, new(1)))]);
+        void Execute(bool conflict)
+        {
+            using var boundary = commands.EnterBoundary(new("Tests.FeedbackRefresh", true, operations: BoundaryOperations.RenderPasses));
+            boundary.Run(() =>
+            {
+                commands.BeginRenderPass(pass);
+                for (int repeat = 0; repeat < 2; repeat++)
+                    if (conflict) Assert.Throws<InvalidOperationException>(() => RenderPass.ValidateSampledTexture(texture));
+                    else RenderPass.ValidateSampledTexture(texture);
+                commands.EndRenderPass();
+            });
+        }
+        Execute(false);
+        texture.SetMipRange(0, 1);
+        Execute(true);
+        texture.SetMipRange(0, 0);
+        Execute(false);
+    }
     /// <summary>Image bindings select their exact mip and layer independently of sampler base/max parameters.</summary>
     [Fact]
     public void ImageSelectionRejectsOnlyOverlappingMipAndLayers()

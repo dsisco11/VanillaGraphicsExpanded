@@ -28,19 +28,18 @@ public sealed partial class RHICommandContext
         RHIComputePipeline? compute = selectedComputePipeline.IsEmpty ? null : selectedComputePipeline.RequirePipeline();
         if (graphics is null && compute is null) throw new InvalidOperationException("Select a pipeline before publishing resources.");
         var shader = graphics?.Description.Shader ?? compute!.Description.Shader;
-        bool borrowed = false;
+
         submitting = true;
         try
         {
-            if (graphics is not null) graphics.BeginSubmission();
-            borrowed = true;
+
             backend.BindResources(shader, inputs);
             selectedResources = inputs;
         }
         catch { selectedResources = null; throw; }
         finally
         {
-            if (borrowed) { if (graphics is not null) graphics.EndSubmission(); }
+
             submitting = false;
         }
     }

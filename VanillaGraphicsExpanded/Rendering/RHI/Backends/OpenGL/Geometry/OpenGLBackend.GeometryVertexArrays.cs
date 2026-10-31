@@ -9,33 +9,17 @@ internal sealed partial class OpenGLBackend
 {
     private readonly ConditionalWeakTable<RHIGeometryInputs, GeometryVertexArray> geometryVertexArrays = new();
 
-    #region Internal API
-    /// <summary>Retires only cached arrays that still retain a deleted buffer or the deleted original array.</summary>
-    internal void InvalidateGeometryRealizations(GpuResourceKind kind, int id)
-    {
-        if (kind is not (GpuResourceKind.Buffer or GpuResourceKind.VertexArray)) return;
-        var affected = new System.Collections.Generic.List<RHIGeometryInputs>();
-        foreach (var pair in geometryVertexArrays)
-            if (pair.Value.DependsOn(kind, id))
-            {
-                pair.Value.Retire();
-                affected.Add(pair.Key);
-            }
-        foreach (var geometry in affected) geometryVertexArrays.Remove(geometry);
-    }
-    #endregion
-
     #region Private
     /// <summary>Reuses a surviving configuration or publishes a complete candidate without exposing partial native setup.</summary>
     private GpuResource<GpuVertexArrayMetadata> ResolveGeometryVertexArray(RHIGeometryInputs geometry)
     {
         if (geometry.ImportedArray is { } imported)
         {
-            imported.RequireCurrent(NativeOrigin, cache.GetVertexConfigurationRevision(checked((int)imported.Array.ResourceId)));
+            imported.RequirePrepared(NativeOrigin);
         }
         if (geometryVertexArrays.TryGetValue(geometry, out var current))
         {
-            if (current.Matches(geometry, cache)) return current.Array;
+            if (current.IsCurrent(geometry.Revision)) return current.Array;
             geometryVertexArrays.Remove(geometry);
             current.Retire();
         }
@@ -101,10 +85,9 @@ internal sealed partial class OpenGLBackend
     private sealed class GeometryVertexArray
     {
         private readonly RHIResourceDisposalQueue disposals = RHIResourceManagerSystem.CaptureDisposalQueue();
-        private readonly GpuResourceRegistration? registration;
-        private readonly ulong revision, localEpoch;
-        private readonly int[] streamNames;
-        private readonly int elementName;
+        private readonly ulong geometryRevision;
+        private bool changed;
+
         private bool retired;
 
         #region Internal API
@@ -114,33 +97,16 @@ internal sealed partial class OpenGLBackend
         internal GeometryVertexArray(GpuVao array, RHIGeometryInputs geometry, OpenGlStateCache cache)
         {
             Array = array;
-            registration = array.ResourceManager?.GetResourceRegistration(array);
-            revision = registration?.MetadataRevision ?? 0;
-            localEpoch = cache.GetVertexConfigurationRevision(Array.VertexArrayId);
-            streamNames = new int[geometry.Streams.Length];
-            for (int index = 0; index < streamNames.Length; index++)
-                streamNames[index] = checked((int)geometry.Streams[index].Range.Buffer.RequireResource().ResourceId);
-            elementName = geometry.Indices is { } indices
-                ? checked((int)indices.Range.Buffer.RequireResource().ResourceId) : 0;
+            geometryRevision = geometry.Revision;
+            array.ObservePreparation(this, Withdraw);
+            cache.ObserveVertexConfiguration(array.VertexArrayId, this, Withdraw);
+            foreach (var stream in geometry.Streams) stream.Range.Buffer.RequireResource().ObservePreparation(this, Retire);
+            if (geometry.Indices is { } indices) indices.Range.Buffer.RequireResource().ObservePreparation(this, Retire);
         }
-        /// <summary>Checks original array identity and observed configuration changes without inspecting driver state.</summary>
-        internal bool Matches(RHIGeometryInputs geometry, OpenGlStateCache cache)
-        {
-            if (retired || !Array.IsValid || !ReferenceEquals(registration, Array.ResourceManager?.GetResourceRegistration(Array))) return false;
-            if (registration is not null && Array.ResourceManager?.IsResourceMetadataAvailable(Array) != true) return false;
-            if (localEpoch != cache.GetVertexConfigurationRevision(Array.VertexArrayId) || registration is not null && registration.MetadataRevision != revision) return false;
-            for (int index = 0; index < streamNames.Length; index++)
-                if (streamNames[index] != geometry.Streams[index].Range.Buffer.RequireResource().ResourceId) return false;
-            return elementName == (geometry.Indices is { } indices ? indices.Range.Buffer.RequireResource().ResourceId : 0);
-        }
-        /// <summary>Checks the names captured by this realization before numeric reuse can occur.</summary>
-        internal bool DependsOn(GpuResourceKind kind, int id)
-        {
-            if (kind == GpuResourceKind.VertexArray) return Array.VertexArrayId == id;
-            if (elementName == id) return true;
-            foreach (int name in streamNames) if (name == id) return true;
-            return false;
-        }
+        /// <summary>Tests only delivered configuration changes and the semantic preparation revision.</summary>
+        internal bool IsCurrent(ulong revision) => !retired && !changed && geometryRevision == revision;
+        /// <summary>Withdraws only this realized array without scanning other cached geometry.</summary>
+        private void Withdraw() { changed = true; Retire(); }
         /// <summary>Transfers cleanup to the existing originating-lifetime queue once, including from finalization.</summary>
         internal void Retire()
         {

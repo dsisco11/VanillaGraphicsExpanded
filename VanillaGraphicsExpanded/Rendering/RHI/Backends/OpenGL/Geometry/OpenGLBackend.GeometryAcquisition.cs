@@ -9,6 +9,12 @@ internal sealed partial class OpenGLBackend
 {
     #region Public API
     /// <inheritdoc />
+    public void ObserveGeometryConfiguration(RHIGeometryImport geometry)
+    {
+        RequireContext();
+        cache.ObserveVertexConfiguration(checked((int)geometry.Array.ResourceId), geometry, geometry.Withdraw);
+    }
+    /// <inheritdoc />
     public RHIGeometryContext CaptureGeometryContext(int array)
     {
         RequireContext();

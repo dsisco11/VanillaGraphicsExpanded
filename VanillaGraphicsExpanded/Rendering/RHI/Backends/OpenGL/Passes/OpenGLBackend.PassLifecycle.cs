@@ -21,8 +21,8 @@ internal sealed partial class OpenGLBackend
         RequireContext();
         cache.RequireEngineBoundary(boundary);
         if (activeRenderPass is not null) throw new InvalidOperationException("Render passes cannot nest.");
-        var target = ResolvePassTarget(description);
-        activeRenderPass = RenderPass.Begin(LowerPass(description, target), boundary, renderPassSequence??throw new InvalidOperationException("Pass effects were not admitted."));
+        var prepared = PreparePass(description);
+        activeRenderPass = RenderPass.Begin(prepared.Description!, boundary, renderPassSequence??throw new InvalidOperationException("Pass effects were not admitted."), prepared.Targets!);
         RequireContext();
     }
     /// <inheritdoc />

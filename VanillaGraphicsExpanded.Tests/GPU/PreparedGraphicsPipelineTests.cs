@@ -65,11 +65,15 @@ public sealed class PreparedGraphicsPipelineTests(HeadlessGLFixture fixture, ITe
         var shader = programs.Create<LumOnUpsampleShaderProgram>();
         using var first = RHICommandContext.Current.CreateGraphicsPipeline(Description(shader)).RequireResource();
         first.Dispose();
+#if DEBUG
         Assert.Throws<ObjectDisposedException>(() => first.RequireShader());
+#endif
         Assert.True(shader.IsLinked);
         using var second = RHICommandContext.Current.CreateGraphicsPipeline(Description(shader)).RequireResource();
         second.Dispose();
+#if DEBUG
         Assert.Throws<ObjectDisposedException>(() => second.RequireShader());
+#endif
         using var third = RHICommandContext.Current.CreateGraphicsPipeline(Description(shader)).RequireResource();
         Assert.NotNull(third.RequireShader());
         Assert.True(shader.IsLinked);

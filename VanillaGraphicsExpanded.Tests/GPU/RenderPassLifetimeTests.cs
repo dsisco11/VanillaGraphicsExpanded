@@ -48,11 +48,11 @@ public sealed class RenderPassLifetimeTests(HeadlessGLFixture fixture) : RenderT
         });
     }
 
-    /// <summary>Pass guards hold original image storage on success and failure without transferring its ownership.</summary>
+    /// <summary>Owners preserve pass images through normal completion or scope unwind before resizing them.</summary>
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void ActiveBorrowGuardsMutationsAndReleasesOnBoundaryExit(bool fail)
+    public void OwnerPreservesImagesUntilPassCompletionOrBoundaryExit(bool fail)
     {
         EnsureContextValid();
         var commands = RHICommandContext.Current;
@@ -65,9 +65,7 @@ public sealed class RenderPassLifetimeTests(HeadlessGLFixture fixture) : RenderT
             boundary.Run(() =>
             {
                 commands.BeginRenderPass(pass);
-                Assert.Throws<InvalidOperationException>(() => image.Resize(5, 5));
-                Assert.Throws<InvalidOperationException>(image.Dispose);
-                Assert.Throws<InvalidOperationException>(() => image.Detach());
+                Assert.True(image.IsValid);
                 Assert.Throws<InvalidOperationException>(() => commands.BeginRenderPass(pass));
                 if (fail) throw expected;
                 commands.EndRenderPass();

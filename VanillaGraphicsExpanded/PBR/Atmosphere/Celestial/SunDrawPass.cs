@@ -17,6 +17,7 @@ namespace VanillaGraphicsExpanded.PBR.Atmosphere.Celestial;
 /// <summary>Owns solar disk scheduling and drawing before local atmospheric coverage and scene geometry.</summary>
 internal sealed class SunDrawPass : IDisposable
 {
+    private RHIRenderPassDescription? surfacePass;
     private static SunDrawPass? active;
     private readonly ICoreClientAPI api;
     private readonly GBufferManager gbuffer;
@@ -114,7 +115,9 @@ internal sealed class SunDrawPass : IDisposable
         float maximumScale = AtmosphereSolarDiskStorage.MaximumScale(AtmosphereSolarDisk.Radiance(publication!), glare.Bloom, glare.Shafts);
         if (maximumScale <= 0) throw new InvalidOperationException("Solar storage headroom could not be certified.");
         program.DrawInputs.Capture(publication!, maximumScale);
-        var pass = new RHIRenderPassDescription(target.SurfaceReference,[new(AttachmentIndex:0),new(AttachmentIndex:1)]);
+        if (surfacePass is null || surfacePass.Surface != target.SurfaceReference)
+            surfacePass = new(target.SurfaceReference, [new(AttachmentIndex:0),new(AttachmentIndex:1)]);
+        var pass = surfacePass;
         var signature=RHICommandContext.Current.DescribeRenderTargets(pass);
         var blend = new ColorBlendDesc { Enabled = true, SourceRgb = BlendFactor.One, DestinationRgb = BlendFactor.One,
             SourceAlpha = BlendFactor.Zero, DestinationAlpha = BlendFactor.One };
@@ -135,6 +138,7 @@ internal sealed class SunDrawPass : IDisposable
     /// <summary>Withdraws frame admission and retires resources without restoring native callbacks.</summary>
     private void Reset()
     {
+        surfacePass = null;
         admitted = false; failed = false; publication = null;
         Rendering.Integration.RenderingCleanup.Run(
             () => { pipeline?.Dispose(); pipeline = null; }, () => { geometry?.Dispose(); geometry = null; });

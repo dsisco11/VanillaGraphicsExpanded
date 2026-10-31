@@ -17,6 +17,7 @@ namespace VanillaGraphicsExpanded.PBR.Atmosphere.Celestial;
 /// <summary>Owns galaxy and instanced stars before the atmosphere, independent of native night-sky readiness.</summary>
 internal sealed class CelestialDrawPass : IDisposable
 {
+    private RHIRenderPassDescription? surfacePass;
     private static CelestialDrawPass? active;
     private readonly ICoreClientAPI api;
     private readonly GBufferManager gbuffer;
@@ -117,7 +118,9 @@ internal sealed class CelestialDrawPass : IDisposable
             || !target.HasRenderPassMetadata) return null;
         var stars = GpuShaderProgramLibraries.Get<CelestialStarProgram>(api,"celestial_stars")!;
         var galaxy = GpuShaderProgramLibraries.Get<CelestialGalaxyProgram>(api,"celestial_galaxy")!;
-        var pass = new RHIRenderPassDescription(target.SurfaceReference,[new(AttachmentIndex:0),new(AttachmentIndex:1)]);
+        if (surfacePass is null || surfacePass.Surface != target.SurfaceReference)
+            surfacePass = new(target.SurfaceReference, [new(AttachmentIndex:0),new(AttachmentIndex:1)]);
+        var pass = surfacePass;
         var signature=RHICommandContext.Current.DescribeRenderTargets(pass);
         var blend = new ColorBlendDesc { Enabled = true, SourceRgb = BlendFactor.One,
             DestinationRgb = BlendFactor.One, SourceAlpha = BlendFactor.Zero, DestinationAlpha = BlendFactor.One };
@@ -157,6 +160,7 @@ internal sealed class CelestialDrawPass : IDisposable
     /// <summary>Withdraws frame admission and pipelines without reactivating native drawing.</summary>
     private void Reset()
     {
+        surfacePass = null;
         source = null; atmosphere = null; maximum = 0; failed = false;
         Rendering.Integration.RenderingCleanup.Run(
             () => { galaxyPipeline?.Dispose(); galaxyPipeline = null; },

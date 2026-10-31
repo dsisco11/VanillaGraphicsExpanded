@@ -378,8 +378,8 @@ context property exposes the concrete backend.
 Engine-owned executables consume captured logical uniforms through
 `RHICommandContext.BindUniformSnapshot`. Sampled engine inputs use one complete
 `BindSampledTextures` packet of retained texture/sampler references and semantic dimensions. The
-backend validates every supplied slot and backing dependency before binding effects, retains original
-resources during execution, and uses the same cache suppression and multi-bind publication as owned
+backend prepares active slot/backing relationships once and after relevant change, relying on the engine owner's
+resource lifetime interval. It uses the same cache suppression and multi-bind publication as owned
 shader tables. Empty inputs clear only their declared texture target and supplied sampler. Program
 membership, sampler assignment and engine generation policy remain with their explicit integration.
 
@@ -399,8 +399,8 @@ publication observes callback outcomes separately from metadata validity and nev
 Optional bindless owners likewise route handle issuance/residency through private RHI execution and
 never issue cleanup against a replacement context.
 
-Compute dispatch guards both its selected realization and native executable against retirement and
-rejects recursive submission or pipeline-selection changes. Managed retirement unbinds a selected owned
+Graphics and compute consume fixed, change-delivered executable readiness under owner lifetimes and
+reject recursive context submission or pipeline-selection changes. They acquire no per-draw resource or PSO guards. Managed retirement unbinds a selected owned
 program before deletion, preventing subsequent scopes from capturing a deleted restoration target.
 Exact external deletion preserves OpenGL's deferred current-program behavior.
 
@@ -589,12 +589,25 @@ recorded publication; successful execution commits only the captured revision, p
 The manager admits engine geometry from its original array/buffer identities and supplied layout,
 stream ranges and index declaration. Admission validates those declarations without scanning native
 attribute configuration or repairing the engine array. The backend creates a private VAO from the
-retained declaration when drawing. The import receipt retains original association, metadata revision,
-context and selected-array configuration epoch; external changes expire it without descriptor queries.
+retained declaration when drawing. Initial admission checks the original association and compares the originating context/configuration epoch
+across preparation. The import then retains its original array/context and receives weak source and exact-array
+configuration withdrawal; external changes expire it without polling or descriptor queries.
 Unrelated arrays do not expire the receipt. Borrow lifetime and engine layout policy remain with the
 integration adapter. No current external producer supplies a certificate permitting direct native-array
 reuse, so imports conservatively use private realization.
 
+Retained geometry prepares stream/index allocation relationships and reusable attribute fetch limits when
+its selected owners change. Dynamic draw ranges use those limits; index and indirect contents remain
+producer-owned. Backend VAOs and imported certificates receive weak, array-local configuration withdrawal,
+so equal empty metadata cannot hide native configuration changes. Prepared consumers never retain source
+ownership, and engine borrow cleanup still retires backend arrays on its original disposal service.
+
+Pass preparation retains attachment/signature/area relationships and refreshes after actual owner or surface
+publication. Native targets retire through affected dependencies, without scanning unrelated cached targets.
+Selected feedback relationships cache successful or failed results until texture or target configuration
+changes; pipeline write state participates independently. Pass load/clear operations and external routing
+restoration still run for each requested interval. Owners preserve attachments through pass end and preserve
+external framebuffer identity until restoration; consumer capture does not acquire lifetime exclusion.
 Vertex arrays, transform-feedback objects and samplers keep empty canonical schemas. Their generated
 names remain reservations until specified use; core Create operations realize immediately. Sampler
 parameter/getter/IsSampler use initializes a known generated sampler without parameter discovery.

@@ -16,6 +16,7 @@ namespace VanillaGraphicsExpanded.PBR.Atmosphere.Celestial;
 /// <summary>Owns lunar HDR drawing before atmospheric local occlusion, clouds and scene geometry.</summary>
 internal sealed class MoonDrawPass : IDisposable
 {
+    private RHIRenderPassDescription? surfacePass;
     private static MoonDrawPass? active;
     private readonly ICoreClientAPI api;
     private readonly GBufferManager gbuffer;
@@ -112,7 +113,9 @@ internal sealed class MoonDrawPass : IDisposable
         if(primary is null || target.FboId!=primary.FboId || api.Render.CurrentFrameBuffer?.FboId!=primary.FboId
             || !target.HasRenderPassMetadata) return null;
         var program=GpuShaderProgramLibraries.Get<MoonProgram>(api,"celestial_moon")!;
-        var pass=new RHIRenderPassDescription(target.SurfaceReference,[new(AttachmentIndex:0),new(AttachmentIndex:1)]);
+        if (surfacePass is null || surfacePass.Surface != target.SurfaceReference)
+            surfacePass = new(target.SurfaceReference, [new(AttachmentIndex:0),new(AttachmentIndex:1)]);
+        var pass = surfacePass;
         var signature=RHICommandContext.Current.DescribeRenderTargets(pass);
         var blend=new ColorBlendDesc {Enabled=true,SourceRgb=BlendFactor.One,DestinationRgb=BlendFactor.One,
             SourceAlpha=BlendFactor.Zero,DestinationAlpha=BlendFactor.One};
@@ -133,6 +136,7 @@ internal sealed class MoonDrawPass : IDisposable
     /// <summary>Retires frame and executable resources without reactivating native callbacks.</summary>
     private void Reset()
     {
+        surfacePass = null;
         admitted=false;failed=false;maximum=0;publication=null;
         Rendering.Integration.RenderingCleanup.Run(
             ()=>{pipeline?.Dispose();pipeline=null;},()=>{geometry?.Dispose();geometry=null;});

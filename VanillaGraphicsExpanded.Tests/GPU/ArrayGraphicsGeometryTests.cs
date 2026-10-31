@@ -48,7 +48,9 @@ public sealed class ArrayGraphicsGeometryTests(HeadlessGLFixture fixture) : Rend
             Assert.Throws<ArgumentOutOfRangeException>(() => commands.Draw(original, new(0, 3)));
             var expired = geometry.Inputs;
             geometry.Dispose();
+#if DEBUG
             Assert.Throws<ObjectDisposedException>(() => commands.Draw(expired, new(0, 0)));
+#endif
             Assert.True(buffer.IsValid);
             commands.EndRenderPass();
         });
@@ -114,7 +116,9 @@ public sealed class ArrayGraphicsGeometryTests(HeadlessGLFixture fixture) : Rend
             Assert.Throws<ArgumentOutOfRangeException>(() => commands.DrawIndexed(geometry, new(-1, 3)));
             Assert.Throws<ArgumentOutOfRangeException>(() => commands.DrawIndexed(geometry, new(1, 3)));
             indices.Dispose();
+#if DEBUG
             Assert.Throws<ObjectDisposedException>(() => commands.DrawIndexed(geometry, new(0, 3)));
+#endif
             commands.EndRenderPass();
         });
         Assert.InRange(target[0].ReadPixels()[0], .1999f, .2001f);

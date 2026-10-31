@@ -24,7 +24,7 @@ internal sealed partial class OpenGlStateCache
         int? drawFramebuffer = TryGetCachedCurrentFramebuffer(FramebufferTarget.DrawFramebuffer, out int draw) ? draw : null;
         RHIResourceManagerSystem.CurrentManager?.ObserveDeletion(kind, nativeId, readFramebuffer, drawFramebuffer, external);
         int id = unchecked((int)nativeId);
-        RHI.Backends.OpenGL.OpenGLRHIContext.NotifyResourceDeleted(this, kind, id);
+
         // Reconcile only the bindings whose native command has an implicit unbinding effect.
         switch (kind)
         {

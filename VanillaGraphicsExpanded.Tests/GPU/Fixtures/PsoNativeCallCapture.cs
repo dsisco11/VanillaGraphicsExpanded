@@ -14,8 +14,12 @@ internal sealed partial class PsoNativeCallCapture : IDisposable
 {
     private static readonly FieldInfo selectedGraphics = typeof(RHICommandContext).GetField("selectedGraphicsPipeline", BindingFlags.Instance | BindingFlags.NonPublic)
         ?? throw new MissingFieldException(typeof(RHICommandContext).FullName, "selectedGraphicsPipeline");
-    private static readonly FieldInfo pipelineLifetime = typeof(RHIGraphicsPipeline).GetField("lifetime", BindingFlags.Instance | BindingFlags.NonPublic)
-        ?? throw new MissingFieldException(typeof(RHIGraphicsPipeline).FullName, "lifetime");
+    private static readonly FieldInfo submitting = typeof(RHICommandContext).GetField("submitting", BindingFlags.Instance | BindingFlags.NonPublic)
+        ?? throw new MissingFieldException(typeof(RHICommandContext).FullName, "submitting");
+    private static readonly FieldInfo selectedBackend = typeof(RHICommandContext).GetField("backend", BindingFlags.Instance | BindingFlags.NonPublic)
+        ?? throw new MissingFieldException(typeof(RHICommandContext).FullName, "backend");
+    private static readonly FieldInfo activePass = typeof(OpenGLBackend).GetField("activeRenderPass", BindingFlags.Instance | BindingFlags.NonPublic)
+        ?? throw new MissingFieldException(typeof(OpenGLBackend).FullName, "activeRenderPass");
     private static readonly FieldInfo referencedPipeline = typeof(RHIGraphicsPipelineRef).GetField("pipeline", BindingFlags.Instance | BindingFlags.NonPublic)
         ?? throw new MissingFieldException(typeof(RHIGraphicsPipelineRef).FullName, "pipeline");
     private readonly RHICommandContext context = RHICommandContext.Current;
@@ -38,15 +42,14 @@ internal sealed partial class PsoNativeCallCapture : IDisposable
     #endregion
 
     #region Private
-    /// <summary>Reads existing execution ownership solely for fixture trace classification, without adding a production hook.</summary>
+    /// <summary>Reads actual command/pass sequencing solely for trace classification, without adding a production hook.</summary>
     private RHIGraphicsPipeline? ExecutingPipeline()
     {
-        // Idle selections can reference a retired owner. Inspect only its execution marker;
-        // observation must not invoke the reference's validation or native resource admission.
+        // Pass loads run before the pass becomes active; idle selections and restoration must not
+        // be classified as draw application. Observation never resolves resource metadata.
+        if (!(bool)submitting.GetValue(context)! || activePass.GetValue(selectedBackend.GetValue(context)!) is null) return null;
         var pipeline = (RHIGraphicsPipeline?)referencedPipeline.GetValue(selectedGraphics.GetValue(context)!);
-        if (pipeline is null) return null;
-        // BeginSubmission owns value one through native dispatch and cleanup; zero is idle and two retired.
-        return (int)pipelineLifetime.GetValue(pipeline)! == 1 ? pipeline : null;
+        return pipeline;
     }
 
     /// <summary>Associates subsequent native effects with the exact selected immutable blend contract.</summary>

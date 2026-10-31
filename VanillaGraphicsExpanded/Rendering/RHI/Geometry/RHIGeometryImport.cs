@@ -2,37 +2,31 @@ using System;
 
 namespace VanillaGraphicsExpanded.Rendering.RHI;
 
-/// <summary>Retains the original realized array and the configuration revision certified by an explicit external importer.</summary>
+/// <summary>Retains original imported array/context and change-delivered readiness without polling configuration metadata.</summary>
 internal sealed class RHIGeometryImport
 {
-    private readonly GpuResourceRegistration? association;
-    private readonly ulong revision, localEpoch;
+    private bool withdrawn;
 
     #region Internal API
     /// <summary>Gets a nonowning recipient for an already configured native array.</summary>
     internal GpuResource<GpuVertexArrayMetadata> Array { get; }
+    /// <summary>Reports change-delivered certification readiness without resolving resource metadata.</summary>
+    internal bool IsPrepared => !withdrawn;
     /// <summary>Gets the importer-established originating native namespace.</summary>
     internal (nint Handle, long Generation) Origin { get; }
     /// <summary>Captures only completed certified identity; this never queries or recovers external configuration.</summary>
-    internal RHIGeometryImport(GpuResource<GpuVertexArrayMetadata> array, (nint Handle, long Generation) origin, ulong localEpoch)
+    internal RHIGeometryImport(GpuResource<GpuVertexArrayMetadata> array, (nint Handle, long Generation) origin)
     {
         Array = array;
         Origin = origin;
-        association = array.ResourceManager?.GetResourceRegistration(array);
-        revision = association?.MetadataRevision ?? 0;
-        this.localEpoch = localEpoch;
+        array.ObservePreparation(this, Withdraw);
     }
-    /// <summary>Rejects changed, retired or wrong-context original configuration without issuing a native query.</summary>
-    internal void RequireCurrent((nint Handle, long Generation) origin, ulong epoch)
+    /// <summary>Checks change-delivered certification rather than repeatedly resolving the original array.</summary>
+    internal void RequirePrepared((nint Handle, long Generation) origin)
     {
-        if (!IsCurrent(origin, epoch))
-            throw new InvalidOperationException("Imported geometry no longer has its certified original array, configuration or context.");
+        if (withdrawn || Origin != origin) throw new InvalidOperationException("Imported geometry certification was withdrawn.");
     }
-    /// <summary>Allows an external producer to refresh a changed receipt before entering a submission boundary.</summary>
-    internal bool IsCurrent((nint Handle, long Generation) origin, ulong epoch) => Origin == origin && Array.IsValid
-        && ReferenceEquals(association, Array.ResourceManager?.GetResourceRegistration(Array))
-        && epoch == localEpoch
-        && (association is not null ? association.MetadataRevision == revision && Array.ResourceManager?.IsResourceMetadataAvailable(Array) == true
-            : epoch == localEpoch);
+    /// <summary>Withdraws the exact import; a changed original array requires explicit producer recertification.</summary>
+    internal void Withdraw() { withdrawn = true; }
     #endregion
 }
