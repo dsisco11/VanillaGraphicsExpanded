@@ -1,6 +1,6 @@
 # Owner-guaranteed resource lifetimes and change-driven execution
 
-Status: proposed; awaiting review. This document does not authorize implementation or define an implementation task list.
+Status: approved. Implementation is governed by [Rendering.BindingAdmission.todo](Rendering.BindingAdmission.todo).
 
 ## Objective
 
