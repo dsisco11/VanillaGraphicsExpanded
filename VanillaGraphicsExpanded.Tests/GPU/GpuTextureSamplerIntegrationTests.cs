@@ -15,7 +15,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 /// and unbinds any sampler object that would override them.
 /// </summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public class GpuTextureSamplerIntegrationTests
 {
     private readonly HeadlessGLFixture fixture;

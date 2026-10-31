@@ -145,7 +145,7 @@ public sealed class ConfigModSystemUnitTests
     [Fact]
     public void DefinitionNamesResolveAllSerializedConfigProperties()
     {
-        var definition = Newtonsoft.Json.Linq.JObject.Parse(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "assets/config/configlib-patches.json")));
+        var definition = Newtonsoft.Json.Linq.JObject.Parse(TestAssetSnapshot.ReadBuiltText(Path.Combine(AppContext.BaseDirectory, "assets/config/configlib-patches.json")));
         var config = Newtonsoft.Json.Linq.JObject.FromObject(new VgeConfig());
         int validated = 0;
         foreach (var category in ((Newtonsoft.Json.Linq.JObject)definition["settings"]!).Properties())
@@ -166,7 +166,7 @@ public sealed class ConfigModSystemUnitTests
     [Fact]
     public void EnabledFalseResolvesAndAppliesWithoutDefaultFallback()
     {
-        var definition = Newtonsoft.Json.Linq.JObject.Parse(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "assets/config/configlib-patches.json")));
+        var definition = Newtonsoft.Json.Linq.JObject.Parse(TestAssetSnapshot.ReadBuiltText(Path.Combine(AppContext.BaseDirectory, "assets/config/configlib-patches.json")));
         var setting = definition["settings"]!["boolean"]!["ENABLED"]!;
         string path = (string)setting["name"]!;
         string code = (string)setting["code"]!;

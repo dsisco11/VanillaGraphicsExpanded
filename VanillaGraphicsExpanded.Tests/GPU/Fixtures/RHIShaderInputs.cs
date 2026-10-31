@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Tests.Helpers;
 using System;
 using System.IO;
 using System.Linq;
@@ -19,7 +20,7 @@ internal static class RHIShaderInputs
         var plan = new ShaderLoadPlan(new ShaderSettings(GpuShaderContracts.Registry.FindProgram("tests/GpuUniformRingBufferIntegrationTests_1")));
         var selection = plan.Stages.Single();
         Assert.Equal(ShaderStageKind.Compute, selection.Stage.Kind);
-        byte[] binary = File.ReadAllBytes(Path.Combine(AppContext.BaseDirectory, "assets", "shaders", selection.BinaryPath));
+        byte[] binary = TestAssetSnapshot.Built.Copy("shaders/" + selection.BinaryPath);
         var values = selection.Specializations.Select(value => value.Value.Type switch
         {
             ShaderScalarType.Bool => new RHIShaderSpecialization(value.Id, value.Value.Bits != 0),

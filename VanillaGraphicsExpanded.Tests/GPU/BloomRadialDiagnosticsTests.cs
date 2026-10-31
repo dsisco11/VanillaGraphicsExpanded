@@ -13,7 +13,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Measures raw bloom geometry separately from local exposure, grading and display quantization.</summary>
 [Collection("GPU")]
-[Trait("Category","GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class BloomRadialDiagnosticsTests(HeadlessGLFixture fixture,ITestOutputHelper output) : LumOnShaderFunctionalTestBase(fixture)
 {
     #region Public API

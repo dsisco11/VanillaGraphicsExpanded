@@ -9,7 +9,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Checks dependent notification and allocation identity across local metadata failures.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class GpuTextureDependencyRecoveryTests(HeadlessGLFixture fixture)
 {
     #region Public API

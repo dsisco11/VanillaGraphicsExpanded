@@ -7,7 +7,7 @@ using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Verifies stored-field OIT arithmetic, independent clipping/encoding and compiled fallback paths.</summary>
-[Collection("GPU")][Trait("Category","GPU")]
+[Collection("GPU")][Trait("Category", "GpuIntegration")]
 public sealed class CloudStoredVolumeViewTests(HeadlessGLFixture fixture,Xunit.ITestOutputHelper output):LumOnShaderFunctionalTestBase(fixture)
 {
     private readonly string gpu=fixture.GLRenderer;

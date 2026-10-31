@@ -6,7 +6,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Exercises bounded lighting refresh without replacing captured surface identities or displayed storage.</summary>
 [Collection("NearFieldMaterialCapture")]
-[Trait("Category","GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class SurfaceLightingRefreshTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
     #region Resident refresh

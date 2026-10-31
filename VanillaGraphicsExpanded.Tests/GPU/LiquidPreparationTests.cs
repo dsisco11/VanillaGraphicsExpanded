@@ -10,7 +10,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Checks retained liquid preparation against engine membership and published target changes.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class LiquidPreparationTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
     #region Public API

@@ -1778,52 +1778,162 @@ Phase 9.3.3: Remove redundant liquid-adapter identity polling
     findings. All five tasks are complete; final integrated/package and user-run qualification remain in 9.3.
 
 Phase 10: Streamline GPU integration tests and eliminate unnecessary test work
-  Depends on Phase 9, including 9.1–9.3 and corrective subphases 9.3.1–9.3.3 (including 9.3.1.1–9.3.1.2). Outcome: clearly classified, focused tests retain useful
-    correctness coverage with less repeated setup, disk access, GPU work and CPU readback.
+  Depends on Phase 9, including 9.1–9.3 and corrective subphases 9.3.1–9.3.3 (including 9.3.1.1–9.3.1.2).
+  Outcome: clearly classified, focused tests retain useful correctness coverage with less repeated setup,
+    disk access, GPU work and CPU readback. Phase 9 qualification and user acceptance remain separate.
+  Scope: VanillaGraphicsExpanded.Tests and its required fixtures/callers. Other test projects, including
+    shader-build-tool tests, are excluded. Necessary shared declarations or production filesystem seams
+    must be identified and justified individually; this is not authorization for unrelated redesign.
+  The existing-work commit boundary in 10.1 is complete by user acceptance. Next, analyze the entire
+    remaining scope in 10.2 before defining and executing further implementation subphases. Existing
+    edits do not establish an approved implementation pattern for the remaining families.
 
-  ☐ Inventory GPU cases and shared fixtures by behavior, setup/teardown, shader/program preparation,
-    filesystem access, draws/dispatches, synchronization and readback size. Use existing receipts and
-    source inspection to prioritize expensive families; do not rerun the complete suite merely to
-    rediscover its duration. Keep an explicit map from existing coverage to retained/replacement tests.
-  ☐ Classify real context/driver/shader execution as GPU integration tests, with end-to-end runtime
-    scenarios identified separately and CPU-only logic retained as unit tests. Update names, traits,
-    filters, runner instructions and documentation consistently so routine unit-test runs do not
-    implicitly execute the GPU integration suite. Rename files/directories/projects where useful;
-    do not apply a blanket rename to tests that are genuinely CPU-only unit tests.
-  ☐ Audit direct and transitive disk I/O in test bodies, fixtures and helpers, including repeated shader
-    source/binary loads, cache persistence, temporary directories and file existence/enumeration checks.
-    Replace test-authored runtime filesystem dependencies with mocked/in-memory sources and controlled
-    data. Load required prebuilt GPU assets once and reuse immutable bytes rather than repeatedly
-    touching disk per case. Distinguish compiler/build inputs and runner receipts from test-body I/O;
-    identify any tests whose explicit subject is physical filesystem behavior for user review rather
-    than silently dropping that coverage or pretending a mock verifies the real filesystem.
-  ☐ Evaluate every family for redundant, obsolete, implementation-mirroring or pointless tests and
-    excessive parameter matrices. Remove cases only when their unique behavior is absent or retained
-    elsewhere; document the coverage mapping. Replace exhaustive GPU enumeration with CPU contract
-    checks plus representative GPU integration cases where that preserves the tested guarantees.
-  ☐ Evaluate consolidation of useful tests sharing costly setup, shader preparation or equivalent
-    workloads. Merge coherent cases or share immutable fixture resources where isolation permits;
-    retain identifiable per-scenario failures and deterministic reset/cleanup. Do not merge unrelated
-    behaviors into order-dependent mega-tests or reuse mutable state across cases without ownership.
-  ☐ Audit assertion and synchronization practices. Remove even modest-sized image readbacks followed
-    by CPU pixel-buffer scans. Use the smallest controlled render targets and selected texels needed
-    to prove the behavior, or independent GPU-side validation producing a compact result/counter.
-    Retain independent expected values, tolerances and useful spatial/negative coverage; do not validate
-    an implementation by repeating the same algorithm or replace correctness checks with draw counts.
-    When validating a readback API itself, use minimal known payloads. Remove unnecessary waits, flushes,
-    repeated setup and diagnostic queries, while preserving real completion/lifetime requirements.
+Phase 10.1: Establish the commit boundary for existing test-cleanup work
+  Status: complete by user acceptance as the existing-work commit boundary.
+  Outcome: selected work is identified, reviewed, staged and separated from unfinished experiments.
+    This closure does not claim complete test qualification or completion of Phase 10.
+  A commit boundary does not authorize staging or committing; those actions require an explicit request.
+
+  ☑ Inventory the existing working-tree changes without adding further cleanup families. Identify test
+    classification/filter changes, CPU serialization, immutable asset/source inputs, mocked filesystem
+    providers and their production seams, removed/reduced duplicate cases, selected-texel reads, GPU-side
+    summary/comparison kernels, retained GPU history snapshots, fixture lifecycle and documentation changes.
+    Account for added/deleted files and shared fixture catalog declarations as well as edited callers.
+  ☑ Review this existing candidate for correctness, coverage preservation, isolation and appropriate scope.
+    Reevaluate its new helper machinery rather than treating it as the required design for later work.
+    Map every removed/reduced assertion or case to retained behavior, independent expected values and
+    negative coverage. Identify incomplete migrations, stale commands and outstanding defects explicitly.
+  ☑ Resolve defects necessary to make this bounded candidate reviewable, or explicitly separate unfinished
+    work from the proposed boundary without losing it. Preserve unrelated work and existing staged content.
+    Do not expand this item into the remaining all-family cleanup or introduce compatibility shims.
+  ☑ Record the delegated checks, documentation reconciliation, second source review and independent source
+    review performed for the boundary, together with their evidence and limitations. The user accepted
+    this commit boundary without requiring the unfinished qualification/audit to continue.
+    Do not run the full suite merely to establish timing; final combined qualification belongs to the
+    later implementation/closeout subphases defined after analysis.
+  ☑ Completion: the existing-work boundary is reviewable and its verification status is explicit. No claim
+    that Phase 10 as a whole is complete, and no staging or commit without an explicit user instruction.
+
+  Recorded validation limits:
+    Debug builds passed. The affected CPU selection passed 84/84 and the GPU preflight passed 7/7.
+    Default unit selection excluded GPU integration classes; its broader run recorded an unchanged-source
+    chunk-processing timeout, which passed in isolation, and a mocked missing-file diagnostic defect that
+    was subsequently fixed without changing its assertion. The larger affected GPU run was stopped at
+    the user's request after refraction failure-path assertions failed; no clean complete receipt or final
+    completion-audit verdict is claimed. Release and combined qualification were not completed here.
+    Receipts remain in ../TestResults/GpuTests101/. Outstanding qualification remains explicit for later
+    work; no additional test execution is required to identify or accept this commit boundary.
+  Boundary inventory and coverage traceability (broader qualification remains pending):
+    - Classification -> parent Phase 10 and this boundary -> Category=GpuIntegration replaces the old GPU
+      category, including missing native categories; CPU-only global-state tests use CPU state without a
+      context fixture. CPU digest/source checks were extracted from GPU classes. Runsettings, README and
+      CI filters agree; tagged renderer scenarios use Scenario=HeadlessRuntime. Linux CI is not qualified
+      by Windows receipts. Changes limited to category/collection/example spelling require no new numerical
+      oracle; the initial normalized diff identified 365 category-only files separately from behavioral edits.
+    - Input/loading closure -> RHI proposal (Representative outcomes and verification) and current executable
+      ownership -> TestAssetSnapshot, BinaryShaderApiFixture, ShaderAssetFileSystem, ShaderTestHelper,
+      BuiltShaderFixture, RHIShaderInputs and TerrainShaderTestFixture consume immutable build inputs.
+      The test project writes fixture-inputs.txt from current Content/SPIR-V items; obsolete incremental
+      output is excluded. Engine asset canonicalization has a case-insensitive view sharing immutable bytes;
+      raw file lookup remains exact. Returned mutable bytes, Overrides/MissingAssets, BeforeRead and Reads
+      preserve isolated corruption/reload scenarios. All constructor/read callers changed directly.
+    - Filesystem policy -> parent Phase 10 and the user's VGE-only mocked-provider instruction -> existing
+      cache/codec cases retain their assertions through controlled storage or memory streams. The only
+      production seams are IAtomicCacheFileSystem/RealDiskCacheFileSystem, ProgramBinaryStore's provider,
+      ComputeShaderAsset's explicit file-loader provider and provider-scoped ShaderDigestIndexCache.
+      Physical defaults, atomic replace, optional-cache failure policy and reload behavior are preserved;
+      mocks do not qualify OS persistence. Lease idempotence/contention and asset-case/mutation regressions
+      cover review defects. ShaderVariantSourceTests retains shared in-memory preprocessing plus production
+      Emit; it no longer tests the tool's physical Expand resolver. Other test projects remain unchanged.
+    - Assertion/readback closure -> RHI proposal verification and Rendering.GpuCommands.Contracts.md
+      (Submission and failure rules / operation-specific completion) -> TextureReferenceReadback.ReadTexel
+      replaces only first-texel/channel reads with the same original image, format, expected values and
+      tolerances. Ticket completion/mapping remains explicit. The byte readback infrastructure subject uses
+      one RGBA texel instead of sixteen; it still checks every returned component and exact payload length.
+      The independent depth oracle keeps its interval-intersection condition and all mip assertions while
+      limiting iteration to potentially overlapping source intervals. Bulk assertion redesign is deferred.
+    - Removed/reduced cases -> the same verification contract -> LumOnShaderCompilationTests' three compile/
+      link theories are covered by SpirvInventoryTests.BuiltVariantSpecializes and DeclaredGraphicsCombinationLinks,
+      with ShaderHelperOwnershipTests retaining helper lifecycle behavior. Every runtime graphics assignment
+      still executes CompileAndLink and packaged/native interface validation; only additional reload cycles
+      are representative per stage family. Every compute assignment still loads/links; repeated disposed-owner
+      checks remain on the resource-free compute representative. The already skipped obsolete L1 gather
+      comparison was removed; active SH9 projection/gather tests remain. Other skipped unique trace cases
+      were retained. The redundant Finish before mandatory pixel readback was removed without removing completion.
+    - Owner/restoration boundary -> current resource/submission contracts and Rendering.ShaderBindingState.md
+      (Verification boundary); owner language also retained at 46cbe4d2:docs/Rendering.BindingAdmission.Proposal.md
+      (Ownership and non-owning references) -> no resource ownership, renderer algorithm, uniform retirement,
+      production native execution, synchronization policy or capture-hook contract changed in this boundary.
+      Headless results do not establish visual acceptance or measured performance.
+
+  Separated unfinished work:
+    The new GpuImageChecks/GpuImageComparison helpers, kernels, regression file, catalog declarations and
+    summary/history-comparison caller edits are outside the candidate. Their complete source snapshots and
+    tracked diff are preserved locally in ../TestResults/GpuTests101/deferred-gpu-assertions/ and
+    tracked-candidate.patch inside that directory. This ignored recovery archive is not a completion report,
+    qualified implementation or part of the proposed commit. Existing assertion paths were restored directly;
+    there is no forwarding shim. Review found unsafe thread-local-cache versus physical-context ownership,
+    base/ranged SSBO restoration and native failure-detection gaps; exact-float comparison also required care.
+    Phase 10.2 must reconsider the approach before reusing it. Its eventual closeout must explicitly review
+    and remove this temporary recovery archive after preserving any required decisions and useful evidence;
+    retained qualification logs/TRX files are separate acceptance evidence, not temporary design scaffolding.
+
+Phase 10.2: Analyze the complete test-cleanup scope before further implementation
+  Outcome: one upfront, source-backed inventory and coverage-preserving change design is available for
+    discussion. Consult the current candidate as well as the original behavior; earlier exploratory
+    findings are leads to verify, not settled decisions. This subphase is analysis and planning only.
+
+  ☐ Inventory all VGE test families and shared fixtures by behavior, setup/teardown, shader/program
+    preparation, filesystem access, draws/dispatches, synchronization and readback dimensions/size.
+    Use source inspection and existing receipts to identify costly repetition; do not rerun the complete
+    suite merely to rediscover its duration. Separate correctness checks, headless renderer scenarios,
+    explicit diagnostic/export workloads and user-run in-game acceptance.
+  ☐ Determine the final classification and execution boundaries. Real context/driver/shader execution is
+    GPU integration testing; CPU-only logic remains unit testing, including CPU cases inside GPU classes.
+    Identify all required names, traits, collections, filters, runner settings and documentation changes.
+    Verify that routine unit runs cannot initialize a GPU fixture, including measurement-only categories.
+    Consider file/directory/project changes only where they provide a concrete benefit.
+  ☐ Trace direct and transitive filesystem access in test bodies, fixtures, helpers and production code
+    exercised by tests. Include shader source/binary loads, cache persistence, temporary directories,
+    existence/enumeration checks, installed-game inputs, schemas/baselines and optional exports.
+    For VGE filesystem tests, design mocked/in-memory providers as explicitly requested by the user;
+    preserve storage, corruption, contention, reload and failure contracts without claiming physical
+    filesystem verification. Distinguish required immutable build-input bootstrap, assembly-loader inputs
+    and runner receipts from avoidable test-body I/O. Other projects' filesystem tests remain out of scope.
+  ☐ Evaluate every family for redundant, obsolete, implementation-mirroring or pointless cases and excessive
+    parameter matrices. Map existing coverage to each proposed retained, removed or replacement case,
+    with a reason and exact source references. Distinguish unique pending coverage from obsolete tests.
+    Evaluate CPU contract checks plus representative GPU cases where they preserve the tested guarantees.
+  ☐ Evaluate consolidation of useful cases sharing costly setup, shader preparation or equivalent work.
+    Specify what can be shared immutably, what must remain independently owned, how scenarios retain
+    identifiable failures, and how reset/cleanup preserves isolation. Do not propose order-dependent
+    mega-tests, shared mutable subjects or caches that bypass creation/replacement behavior under test.
+  ☐ Audit assertions and synchronization across every family. Identify bulk image transfers followed by
+    CPU scans, including even modest images, and choose minimal controlled targets/selected texels or
+    independent GPU-side checks with compact results. Preserve expected values, tolerances, spatial and
+    negative coverage; do not repeat the production algorithm as its oracle or substitute draw counts.
+    Readback-API subjects use minimal known payloads. Identify unnecessary waits, flushes, repeated setup
+    and diagnostic queries separately from required completion, mapping and GPU-safe resource reuse.
   ☐ Review native capture hooks, reflection-based fixture internals and fault injection for unnecessary
-    machinery, hidden state mutation, swallowed failures and instrumentation-dependent observations.
-    Keep only mechanisms needed for meaningful assertions; preserve explicit restoration and cleanup.
-  ☐ Implement the reviewed cleanup in coherent families, updating all callers and obsolete helpers
-    together. No compatibility shims or weakened assertions to obtain faster passing runs. Reconcile
-    test documentation and commands, then run delegated focused checks and a final complete suite on
-    the resulting source. Compare retained behavioral coverage and report available runner durations;
-    no benchmark framework, repeated timing study or numerical speedup threshold is required.
-  ☐ Completion: real GPU tests are correctly named/classified; avoidable runtime disk I/O, redundant
-    coverage and bulk pixel-readback assertions are removed; retained tests are isolated and diagnostic;
-    coverage mapping, independent review and current correctness receipts are recorded. Any unresolved
-    filesystem-specific coverage decision remains explicit and requires user agreement before closure.
+    machinery, hidden mutation, swallowed failures and instrumentation-dependent observations. Retain
+    mechanisms required for meaningful assertions with explicit restoration and cleanup. Assess existing
+    and newly introduced helpers against the same standard.
+  ☐ Record the complete proposed change set, coverage mapping, dependencies, removals, verification and
+    unresolved decisions in this plan. Divide the reviewed work into coherent implementation subphases
+    only after the analysis is complete and discussed with the user. Include a final combined correctness
+    run, documentation reconciliation and available runner durations, without a benchmark framework,
+    repeated timing study or numerical speedup requirement. Include cleanup of temporary support files
+    if any are introduced, preserving authoritative decisions and acceptance evidence first.
+  ☐ Completion: the upfront analysis accounts for every family and identifies the intended changes before
+    additional implementation begins. Findings and proposed implementation boundaries have been reviewed;
+    later implementation subphases are defined from that agreed analysis rather than discovered piecemeal.
+
+  Further implementation subphases: intentionally not defined yet. Preserve the complete Phase 10
+    acceptance contract when deriving them: correct classification; mocked VGE filesystem dependencies;
+    removal of avoidable I/O, redundant coverage and bulk pixel-readback assertions; isolated, diagnostic
+    retained tests; complete coverage mapping; no shims or weakened assertions; reconciled commands/docs;
+    delegated focused verification and a final complete VGE suite on the combined resulting source;
+    second review and independent audit. Phase 10 remains incomplete until these requirements are met.
 
 Final acceptance
   ☐ All ten phases, their subphases and mandatory migration receipts are satisfied; later cleanup never substitutes for

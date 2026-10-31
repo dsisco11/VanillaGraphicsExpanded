@@ -12,7 +12,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Executes production displacement functions with controlled atlas samples and projection inputs.</summary>
 [Collection("GPU")]
-[Trait("Category","GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class TerrainDisplacementNumericalTests : RenderTestBase
 {
     /// <summary>Uses the shared headless context.</summary>
@@ -66,7 +66,7 @@ public sealed class TerrainDisplacementNumericalTests : RenderTestBase
         using var shaders = new TerrainShaderTestFixture();
         int vertex = shaders.Compile(ShaderType.VertexShader,"#version 430 core\nlayout(location=0) in vec2 position; void main(){gl_Position=vec4(position,0,1);}");
         string directory = Path.Combine(AppContext.BaseDirectory,"assets","shaders","includes");
-        string contract = File.ReadAllText(Path.Combine(directory,"tests","displacement_inputs.glsl"));
+        string contract = TestAssetSnapshot.ReadSourceText(Path.Combine(directory,"tests","displacement_inputs.glsl"));
         string kernel = TerrainEyeRelativeShadingTests.Expand(Path.Combine(directory,"tessellation","terrain_displacement.glsl"));
         int fragment = shaders.Compile(ShaderType.FragmentShader, "#version 430 core\n#define VGE_TESS_SHADOW 1\n" + contract + kernel + """
             out vec4 result;

@@ -9,7 +9,7 @@ using VolumeStorage=VanillaGraphicsExpanded.PBR.Clouds.Volume.CloudVolumeStorage
 namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Checks DDA coverage and progress on actual anisotropic circular textures without image-quality gates.</summary>
-[Collection("GPU")][Trait("Category","GPU")]
+[Collection("GPU")][Trait("Category", "GpuIntegration")]
 public sealed class CloudVolumeTraversalTests(HeadlessGLFixture fixture,Xunit.ITestOutputHelper testOutput):LumOnShaderFunctionalTestBase(fixture)
 {
     #region Public API

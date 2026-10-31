@@ -6,7 +6,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Exercises ownership transfer between raw-handle fixture callers and their allocating helper.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class ShaderHelperOwnershipTests : RenderTestBase
 {
     /// <summary>Uses the shared test context.</summary>
@@ -19,7 +19,7 @@ public sealed class ShaderHelperOwnershipTests : RenderTestBase
     {
         EnsureContextValid();
         string root = Path.Combine(AppContext.BaseDirectory, "assets", "shaders");
-        using var helper = new ShaderTestHelper(root, Path.Combine(root, "includes"));
+        using var helper = new ShaderTestHelper();
         var result = helper.CompileProgram("tests/render_infrastructure");
         Assert.True(result.IsSuccess, result.ErrorMessage);
         GL.GetProgram(result.ProgramId, GetProgramParameterName.AttachedShaders, out int count);

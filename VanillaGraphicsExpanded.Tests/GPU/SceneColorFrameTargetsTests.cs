@@ -15,7 +15,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Validates borrowed scene storage through actual texture allocations and publication metadata.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class SceneColorFrameTargetsTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
     #region Public API

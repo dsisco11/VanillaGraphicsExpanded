@@ -9,7 +9,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Executes native interception across buffer allocation addressing and managed upload signatures.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class GpuBufferMetadataInterceptionTests(HeadlessGLFixture fixture)
 {
     #region Public API

@@ -9,7 +9,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Verifies separated submerged intervals, underwater initialization and RGB transport in production SPIR-V.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class WaterBoundaryTests(HeadlessGLFixture fixture) : LumOnShaderFunctionalTestBase(fixture)
 {
     #region Public API

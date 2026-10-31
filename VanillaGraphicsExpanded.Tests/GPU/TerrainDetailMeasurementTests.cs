@@ -10,7 +10,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Measures production stage assets on a controlled, explicitly synthetic terrain workload.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class TerrainDetailMeasurementTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
     #region Measurement

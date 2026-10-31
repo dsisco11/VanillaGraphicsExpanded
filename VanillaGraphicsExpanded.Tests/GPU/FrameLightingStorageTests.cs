@@ -12,7 +12,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Checks the actual compute publication's immutable frame scale and generation identity.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class FrameLightingStorageTests(HeadlessGLFixture fixture) : LumOnShaderFunctionalTestBase(fixture)
 {
     #region Public API
@@ -172,7 +172,7 @@ public sealed class FrameLightingStorageTests(HeadlessGLFixture fixture) : LumOn
 
     #region Private
     /// <summary>Expands the actual production storage and BRDF helpers without replacing their arithmetic.</summary>
-    private static string Expand(string path)=>Regex.Replace(File.ReadAllText(path),"@import \\\"([^\\\"]+)\\\"",
+    private static string Expand(string path)=>Regex.Replace(TestAssetSnapshot.ReadSourceText(path),"@import \\\"([^\\\"]+)\\\"",
         match=>Expand(Path.GetFullPath(Path.Combine(Path.GetDirectoryName(path)!,match.Groups[1].Value))));
     #endregion
 }

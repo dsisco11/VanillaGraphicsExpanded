@@ -8,7 +8,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Checks exact requested coverage and fresh observations in the readiness readback helper.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class SurfaceCacheReadinessReadbackTests(HeadlessGLFixture fixture, ITestOutputHelper output) : RenderTestBase(fixture)
 {
     #region Coverage and freshness

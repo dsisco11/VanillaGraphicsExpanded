@@ -9,7 +9,7 @@ using Xunit;
 namespace VanillaGraphicsExpanded.Tests.GPU;
 
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public class ShaderDefineInjectionTests
 {
     private readonly HeadlessGLFixture _fixture;
@@ -27,10 +27,10 @@ public class ShaderDefineInjectionTests
         var shaderPath = Path.Combine(AppContext.BaseDirectory, "assets", "shaders");
         var includePath = Path.Combine(AppContext.BaseDirectory, "assets", "shaders", "includes");
 
-        Assert.SkipWhen(!Directory.Exists(shaderPath), $"Shader path not found: {shaderPath}");
-        Assert.SkipWhen(!Directory.Exists(includePath), $"Include path not found: {includePath}");
+        Assert.SkipWhen(!TestAssetSnapshot.HasDirectory(shaderPath), $"Shader path not found: {shaderPath}");
+        Assert.SkipWhen(!TestAssetSnapshot.HasDirectory(includePath), $"Include path not found: {includePath}");
 
-        using var helper = new ShaderTestHelper(shaderPath, includePath);
+        using var helper = new ShaderTestHelper();
 
         var defines = new Dictionary<string, string?>
         {
@@ -61,10 +61,10 @@ public class ShaderDefineInjectionTests
         var shaderPath = Path.Combine(AppContext.BaseDirectory, "assets", "shaders");
         var includePath = Path.Combine(AppContext.BaseDirectory, "assets", "shaders", "includes");
 
-        Assert.SkipWhen(!Directory.Exists(shaderPath), $"Shader path not found: {shaderPath}");
-        Assert.SkipWhen(!Directory.Exists(includePath), $"Include path not found: {includePath}");
+        Assert.SkipWhen(!TestAssetSnapshot.HasDirectory(shaderPath), $"Shader path not found: {shaderPath}");
+        Assert.SkipWhen(!TestAssetSnapshot.HasDirectory(includePath), $"Include path not found: {includePath}");
 
-        using var helper = new ShaderTestHelper(shaderPath, includePath);
+        using var helper = new ShaderTestHelper();
 
         // Note: these defines may not be referenced yet by the shaders under test.
         // This test primarily validates the injection mechanism and that shaders still compile.
@@ -87,10 +87,10 @@ public class ShaderDefineInjectionTests
         var shaderPath = Path.Combine(AppContext.BaseDirectory, "assets", "shaders");
         var includePath = Path.Combine(AppContext.BaseDirectory, "assets", "shaders", "includes");
 
-        Assert.SkipWhen(!Directory.Exists(shaderPath), $"Shader path not found: {shaderPath}");
-        Assert.SkipWhen(!Directory.Exists(includePath), $"Include path not found: {includePath}");
+        Assert.SkipWhen(!TestAssetSnapshot.HasDirectory(shaderPath), $"Shader path not found: {shaderPath}");
+        Assert.SkipWhen(!TestAssetSnapshot.HasDirectory(includePath), $"Include path not found: {includePath}");
 
-        using var helper = new ShaderTestHelper(shaderPath, includePath);
+        using var helper = new ShaderTestHelper();
 
         var result = helper.CompileAndLink(
             "tests/vge_global_defines_smoke.vsh",
@@ -110,10 +110,10 @@ public class ShaderDefineInjectionTests
         var shaderPath = Path.Combine(AppContext.BaseDirectory, "assets", "shaders");
         var includePath = Path.Combine(AppContext.BaseDirectory, "assets", "shaders", "includes");
 
-        Assert.SkipWhen(!Directory.Exists(shaderPath), $"Shader path not found: {shaderPath}");
-        Assert.SkipWhen(!Directory.Exists(includePath), $"Include path not found: {includePath}");
+        Assert.SkipWhen(!TestAssetSnapshot.HasDirectory(shaderPath), $"Shader path not found: {shaderPath}");
+        Assert.SkipWhen(!TestAssetSnapshot.HasDirectory(includePath), $"Include path not found: {includePath}");
 
-        using var helper = new ShaderTestHelper(shaderPath, includePath);
+        using var helper = new ShaderTestHelper();
 
         // World-probe program uses compile-time gating; compile representative enabled/disabled variants.
         var defines = new Dictionary<string, string?>
@@ -135,8 +135,8 @@ public class ShaderDefineInjectionTests
         var shaderPath = Path.Combine(AppContext.BaseDirectory, "assets", "shaders");
         var includePath = Path.Combine(AppContext.BaseDirectory, "assets", "shaders", "includes");
 
-        Assert.SkipWhen(!Directory.Exists(shaderPath), $"Shader path not found: {shaderPath}");
-        Assert.SkipWhen(!Directory.Exists(includePath), $"Include path not found: {includePath}");
+        Assert.SkipWhen(!TestAssetSnapshot.HasDirectory(shaderPath), $"Shader path not found: {shaderPath}");
+        Assert.SkipWhen(!TestAssetSnapshot.HasDirectory(includePath), $"Include path not found: {includePath}");
 
         string filename = "lumon_debug_view_world_probe_irradiance_combined.fsh";
         string filePath = Path.Combine(shaderPath, filename);
@@ -226,10 +226,10 @@ public class ShaderDefineInjectionTests
         var shaderPath = Path.Combine(AppContext.BaseDirectory, "assets", "shaders");
         var includePath = Path.Combine(AppContext.BaseDirectory, "assets", "shaders", "includes");
 
-        Assert.SkipWhen(!Directory.Exists(shaderPath), $"Shader path not found: {shaderPath}");
-        Assert.SkipWhen(!Directory.Exists(includePath), $"Include path not found: {includePath}");
+        Assert.SkipWhen(!TestAssetSnapshot.HasDirectory(shaderPath), $"Shader path not found: {shaderPath}");
+        Assert.SkipWhen(!TestAssetSnapshot.HasDirectory(includePath), $"Include path not found: {includePath}");
 
-        using var helper = new ShaderTestHelper(shaderPath, includePath);
+        using var helper = new ShaderTestHelper();
 
         var defines = new Dictionary<string, string?>
         {
@@ -253,10 +253,10 @@ public class ShaderDefineInjectionTests
         var shaderPath = Path.Combine(AppContext.BaseDirectory, "assets", "shaders");
         var includePath = Path.Combine(AppContext.BaseDirectory, "assets", "shaders", "includes");
 
-        Assert.SkipWhen(!Directory.Exists(shaderPath), $"Shader path not found: {shaderPath}");
-        Assert.SkipWhen(!Directory.Exists(includePath), $"Include path not found: {includePath}");
+        Assert.SkipWhen(!TestAssetSnapshot.HasDirectory(shaderPath), $"Shader path not found: {shaderPath}");
+        Assert.SkipWhen(!TestAssetSnapshot.HasDirectory(includePath), $"Include path not found: {includePath}");
 
-        using var helper = new ShaderTestHelper(shaderPath, includePath);
+        using var helper = new ShaderTestHelper();
 
         var defines = new Dictionary<string, string?>
         {
@@ -283,10 +283,10 @@ public class ShaderDefineInjectionTests
         var shaderPath = Path.Combine(AppContext.BaseDirectory, "assets", "shaders");
         var includePath = Path.Combine(AppContext.BaseDirectory, "assets", "shaders", "includes");
 
-        Assert.SkipWhen(!Directory.Exists(shaderPath), $"Shader path not found: {shaderPath}");
-        Assert.SkipWhen(!Directory.Exists(includePath), $"Include path not found: {includePath}");
+        Assert.SkipWhen(!TestAssetSnapshot.HasDirectory(shaderPath), $"Shader path not found: {shaderPath}");
+        Assert.SkipWhen(!TestAssetSnapshot.HasDirectory(includePath), $"Include path not found: {includePath}");
 
-        using var helper = new ShaderTestHelper(shaderPath, includePath);
+        using var helper = new ShaderTestHelper();
 
         var defines = new Dictionary<string, string?>
         {
@@ -312,10 +312,10 @@ public class ShaderDefineInjectionTests
         var shaderPath = Path.Combine(AppContext.BaseDirectory, "assets", "shaders");
         var includePath = Path.Combine(AppContext.BaseDirectory, "assets", "shaders", "includes");
 
-        Assert.SkipWhen(!Directory.Exists(shaderPath), $"Shader path not found: {shaderPath}");
-        Assert.SkipWhen(!Directory.Exists(includePath), $"Include path not found: {includePath}");
+        Assert.SkipWhen(!TestAssetSnapshot.HasDirectory(shaderPath), $"Shader path not found: {shaderPath}");
+        Assert.SkipWhen(!TestAssetSnapshot.HasDirectory(includePath), $"Include path not found: {includePath}");
 
-        using var helper = new ShaderTestHelper(shaderPath, includePath);
+        using var helper = new ShaderTestHelper();
 
         var defines = new Dictionary<string, string?>
         {
@@ -341,10 +341,10 @@ public class ShaderDefineInjectionTests
         var shaderPath = Path.Combine(AppContext.BaseDirectory, "assets", "shaders");
         var includePath = Path.Combine(AppContext.BaseDirectory, "assets", "shaders", "includes");
 
-        Assert.SkipWhen(!Directory.Exists(shaderPath), $"Shader path not found: {shaderPath}");
-        Assert.SkipWhen(!Directory.Exists(includePath), $"Include path not found: {includePath}");
+        Assert.SkipWhen(!TestAssetSnapshot.HasDirectory(shaderPath), $"Shader path not found: {shaderPath}");
+        Assert.SkipWhen(!TestAssetSnapshot.HasDirectory(includePath), $"Include path not found: {includePath}");
 
-        using var helper = new ShaderTestHelper(shaderPath, includePath);
+        using var helper = new ShaderTestHelper();
 
         var defines = new Dictionary<string, string?>
         {
@@ -366,10 +366,10 @@ public class ShaderDefineInjectionTests
         var shaderPath = Path.Combine(AppContext.BaseDirectory, "assets", "shaders");
         var includePath = Path.Combine(AppContext.BaseDirectory, "assets", "shaders", "includes");
 
-        Assert.SkipWhen(!Directory.Exists(shaderPath), $"Shader path not found: {shaderPath}");
-        Assert.SkipWhen(!Directory.Exists(includePath), $"Include path not found: {includePath}");
+        Assert.SkipWhen(!TestAssetSnapshot.HasDirectory(shaderPath), $"Shader path not found: {shaderPath}");
+        Assert.SkipWhen(!TestAssetSnapshot.HasDirectory(includePath), $"Include path not found: {includePath}");
 
-        using var helper = new ShaderTestHelper(shaderPath, includePath);
+        using var helper = new ShaderTestHelper();
 
         var defines = new Dictionary<string, string?>
         {

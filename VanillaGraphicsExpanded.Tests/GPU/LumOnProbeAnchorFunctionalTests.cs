@@ -39,7 +39,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 /// </code>
 /// </remarks>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public class LumOnProbeAnchorFunctionalTests : LumOnShaderFunctionalTestBase
 {
     // Additional test-specific constants (those not in base class)

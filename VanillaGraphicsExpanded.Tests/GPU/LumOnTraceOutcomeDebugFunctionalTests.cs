@@ -11,7 +11,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Validates the debug palette from packed raw trace metadata on the GPU.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class LumOnTraceOutcomeDebugFunctionalTests : LumOnShaderFunctionalTestBase
 {
     #region Construction

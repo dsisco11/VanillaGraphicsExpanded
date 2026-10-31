@@ -8,7 +8,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Qualifies explicit discovery of unknown EXT objects without callback readback or fabricated defaults.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed unsafe class GpuImplicitImageDiscoveryTests(HeadlessGLFixture fixture)
 {
     #region Public API

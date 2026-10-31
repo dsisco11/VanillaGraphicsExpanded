@@ -13,7 +13,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Checks production liquid outputs against the captured six-target bucket OIT blend contract.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class LiquidTransparencyTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
     #region Public API

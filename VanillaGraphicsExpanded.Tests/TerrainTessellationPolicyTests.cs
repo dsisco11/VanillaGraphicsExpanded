@@ -8,7 +8,7 @@ using Vintagestory.Client.NoObf;
 namespace VanillaGraphicsExpanded.Tests;
 
 /// <summary>Checks terrain-only selection and guarded engine draw rewriting.</summary>
-[Collection("GPU")]
+[Collection("CPU state")]
 public sealed class TerrainTessellationPolicyTests
 {
     #region Displacement boundaries

@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Tests.Helpers;
 using System.Reflection;
 using System.Text;
 using Vintagestory.API.Client;
@@ -23,6 +24,7 @@ internal sealed class BinaryShaderApiFixture : IDisposable
     /// <summary>Routes asset reads to the test output and allows isolated in-memory edits for reload scenarios.</summary>
     public BinaryShaderApiFixture(string? assetRoot = null)
     {
+        var snapshot = assetRoot is null ? TestAssetSnapshot.Built : new TestAssetSnapshot(assetRoot);
         var assets = Proxy<IAssetManager>((method, args) =>
         {
             if (method.Name != "TryGet") throw new NotSupportedException(method.Name);
@@ -30,11 +32,10 @@ internal sealed class BinaryShaderApiFixture : IDisposable
             Reads.Add(location.Path);
             if (MissingAssets.Contains(location.Path)) return null;
             BeforeRead?.Invoke(location.Path);
-            string path = Path.Combine(assetRoot ?? Path.Combine(AppContext.BaseDirectory, "assets"), location.Path);
             if (!Overrides.TryGetValue(location.Path, out var data))
             {
-                if (!File.Exists(path)) return null;
-                data = File.ReadAllBytes(path);
+                data = snapshot.TryCopyAsset(location.Path);
+                if (data is null) return null;
             }
             return Proxy<IAsset>((member, _) => member.Name switch
             {

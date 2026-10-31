@@ -8,7 +8,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Verifies external aliases reuse covered facts and local images project supplied owner snapshots.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class GpuExternalAcquisitionReuseTests(HeadlessGLFixture fixture)
 {
     #region Public API

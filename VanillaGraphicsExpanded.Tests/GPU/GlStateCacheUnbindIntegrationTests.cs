@@ -15,7 +15,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 /// Integration tests verifying GlStateCache Unbind helpers restore a "0" binding for each resource type.
 /// </summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public class GlStateCacheUnbindIntegrationTests
 {
     private readonly HeadlessGLFixture fixture;

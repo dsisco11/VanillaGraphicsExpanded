@@ -10,7 +10,7 @@ namespace VanillaGraphicsExpanded.Tests;
 
 /// <summary>Exercises immutable graphics description contracts without native graphics state.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class GraphicsPipelineDescriptionTests : IDisposable
 {
     private readonly ComponentShaderPrograms programs;

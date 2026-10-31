@@ -15,7 +15,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Qualifies dormant-state preservation and necessary native transitions using real sky, cloud and point-resolve shaders.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class PsoStateRelevanceWorkloadTests(HeadlessGLFixture fixture, ITestOutputHelper output) : LumOnShaderFunctionalTestBase(fixture)
 {
     #region Public API

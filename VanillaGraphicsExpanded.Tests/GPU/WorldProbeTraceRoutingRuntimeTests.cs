@@ -4,7 +4,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Exercises routing lifetime changes through the registered world-probe renderer.</summary>
 [Collection("NearFieldMaterialCapture")]
-[Trait("Category","GPU")]
+[Trait("Category", "GpuIntegration")]
+[Trait("Scenario", "HeadlessRuntime")]
 public sealed class WorldProbeTraceRoutingRuntimeTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
     /// <summary>Switching from CPU queries to compute retains atlas values; both routing changes allow replacement work.</summary>

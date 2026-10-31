@@ -45,7 +45,7 @@ jobs:
       run: dotnet restore
 
     - name: Run unit tests (excluding GPU)
-      run: dotnet test --filter "Category!=GPU" --logger "console;verbosity=normal"
+      run: dotnet test --filter "Category!=GpuIntegration" --logger "console;verbosity=normal"
 
   # ============================================================================
   # GPU Shader Tests (VintageStory client + Mesa llvmpipe software renderer)
@@ -83,7 +83,7 @@ jobs:
 
     - name: Run GPU shader tests (with Xvfb)
       run: |
-        xvfb-run -a dotnet test --filter "Category=GPU" --logger "console;verbosity=normal" || true
+        xvfb-run -a dotnet test --settings VanillaGraphicsExpanded.Tests/AllTests.runsettings --filter "Category=GpuIntegration" --logger "console;verbosity=normal"
       env:
         DISPLAY: ":99"
 

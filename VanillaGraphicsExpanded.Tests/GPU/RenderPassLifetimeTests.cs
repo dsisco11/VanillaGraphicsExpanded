@@ -10,7 +10,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Checks attachment intention realization, private target reuse, mutation guards and cleanup through the final context.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class RenderPassLifetimeTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
     #region Public API

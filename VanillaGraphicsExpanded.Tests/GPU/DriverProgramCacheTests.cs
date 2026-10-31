@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Tests.TestSupport;
 using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.ShaderCompilation;
 using VanillaGraphicsExpanded.Rendering.RHI;
@@ -13,9 +14,11 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Exercises disposable driver executables through the production graphics and compute loaders.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class DriverProgramCacheTests(HeadlessGLFixture fixture, ITestOutputHelper output) : RenderTestBase(fixture)
 {
+    private readonly CountingDiskCacheFileSystem storage = new();
+
     #region Graphics execution
     /// <summary>Invalid packaged declarations cannot replace a working generation, including a cached native executable.</summary>
     [Theory]
@@ -33,7 +36,7 @@ public sealed class DriverProgramCacheTests(HeadlessGLFixture fixture, ITestOutp
         string directory = Path.Combine(Path.GetTempPath(), "VGE.DriverCacheTests", Guid.NewGuid().ToString("N"));
         try
         {
-            using var cache = DriverProgramCache.UseStoreForTesting(useCache ? new ProgramBinaryStore(directory) : null);
+            using var cache = DriverProgramCache.UseStoreForTesting(useCache ? new ProgramBinaryStore(directory, fileSystem: storage) : null);
             using var assets = new BinaryShaderApiFixture();
             using var program = new FixtureProgram();
             program.Initialize(assets.Api);
@@ -44,7 +47,7 @@ public sealed class DriverProgramCacheTests(HeadlessGLFixture fixture, ITestOutp
             ulong revision = program.ExecutableRevision;
             var bindings = program.ResourceBindings;
             var graphics = program.GraphicsInterface;
-            var manifest = ShaderBinaryDigest.Parse(File.ReadAllBytes(Path.Combine(AppContext.BaseDirectory,
+            var manifest = ShaderBinaryDigest.Parse(TestAssetSnapshot.ReadBuiltBytes(Path.Combine(AppContext.BaseDirectory,
                 "assets", "shaders", ShaderBinaryDigest.FileName)))!;
             const string fragment = "tests/render_infrastructure.fsh.spv";
             var entry = manifest.Binaries[fragment];
@@ -79,7 +82,7 @@ public sealed class DriverProgramCacheTests(HeadlessGLFixture fixture, ITestOutp
         finally
         {
             ShaderDigestIndexCache.Clear();
-            if (Directory.Exists(directory)) Directory.Delete(directory, true);
+            if (storage.DirectoryExists(directory)) storage.DeleteDirectory(directory, true);
         }
     }
 
@@ -91,7 +94,7 @@ public sealed class DriverProgramCacheTests(HeadlessGLFixture fixture, ITestOutp
         string directory = Path.Combine(Path.GetTempPath(), "VGE.DriverCacheTests", Guid.NewGuid().ToString("N"));
         try
         {
-            using var cache = DriverProgramCache.UseStoreForTesting(new ProgramBinaryStore(directory));
+            using var cache = DriverProgramCache.UseStoreForTesting(new ProgramBinaryStore(directory, fileSystem: storage));
             using var assets = new BinaryShaderApiFixture();
             using var program = new FixtureProgram();
             program.Initialize(assets.Api);
@@ -117,13 +120,13 @@ public sealed class DriverProgramCacheTests(HeadlessGLFixture fixture, ITestOutp
                 output.WriteLine($"Graphics generation {generation}: load {load:F3} ms, first draw/completion {firstUse:F3} ms");
                 if (generation == 1) program.InvalidateAssets();
             }
-            Assert.NotEmpty(Directory.GetFiles(directory, "*.json"));
+            Assert.NotEmpty(storage.EnumerateFiles(directory, "*.json"));
             GL.UseProgram(0);
             program.Dispose();
             Assert.False(GL.IsProgram(previous));
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { if (Directory.Exists(directory)) Directory.Delete(directory, true); }
+        finally { if (storage.DirectoryExists(directory)) storage.DeleteDirectory(directory, true); }
     }
 
     /// <summary>Compute cached executables retain uniform and image bindings and their first dispatch result.</summary>
@@ -134,7 +137,7 @@ public sealed class DriverProgramCacheTests(HeadlessGLFixture fixture, ITestOutp
         string directory = Path.Combine(Path.GetTempPath(), "VGE.DriverCacheTests", Guid.NewGuid().ToString("N"));
         try
         {
-            using var cache = DriverProgramCache.UseStoreForTesting(new ProgramBinaryStore(directory));
+            using var cache = DriverProgramCache.UseStoreForTesting(new ProgramBinaryStore(directory, fileSystem: storage));
             using var assets = new BinaryShaderApiFixture();
             const string identity = "tests/GpuUniformRingBufferIntegrationTests_1";
             var settings = new ShaderSettings(GpuShaderContracts.Registry.FindProgram(identity));
@@ -177,7 +180,7 @@ public sealed class DriverProgramCacheTests(HeadlessGLFixture fixture, ITestOutp
         finally
         {
             OpenGlStateCache.Current.InvalidateAll();
-            if (Directory.Exists(directory)) Directory.Delete(directory, true);
+            if (storage.DirectoryExists(directory)) storage.DeleteDirectory(directory, true);
         }
     }
 
@@ -189,13 +192,13 @@ public sealed class DriverProgramCacheTests(HeadlessGLFixture fixture, ITestOutp
         string directory = Path.Combine(Path.GetTempPath(), "VGE.DriverCacheTests", Guid.NewGuid().ToString("N"));
         try
         {
-            var store = new ProgramBinaryStore(directory);
+            var store = new ProgramBinaryStore(directory, fileSystem: storage);
             using var cache = DriverProgramCache.UseStoreForTesting(store);
             using var assets = new BinaryShaderApiFixture();
             using var program = new FixtureProgram();
             program.Initialize(assets.Api);
             Assert.True(program.CompileAndLink());
-            string key = Path.GetFileNameWithoutExtension(Assert.Single(Directory.GetFiles(directory, "*.bin")));
+            string key = Path.GetFileNameWithoutExtension(Assert.Single(storage.EnumerateFiles(directory, "*.bin")));
             store.Write(key, -1, [1, 2, 3, 4]);
             Assert.True(program.CompileAndLink());
             Assert.False(DriverProgramCache.LastLoadWasHit);
@@ -221,7 +224,7 @@ public sealed class DriverProgramCacheTests(HeadlessGLFixture fixture, ITestOutp
             }
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { if (Directory.Exists(directory)) Directory.Delete(directory, true); }
+        finally { if (storage.DirectoryExists(directory)) storage.DeleteDirectory(directory, true); }
     }
 
     /// <summary>Production lighting samplers and block declarations retain their compiled slots on a hit.</summary>
@@ -232,7 +235,7 @@ public sealed class DriverProgramCacheTests(HeadlessGLFixture fixture, ITestOutp
         string directory = Path.Combine(Path.GetTempPath(), "VGE.DriverCacheTests", Guid.NewGuid().ToString("N"));
         try
         {
-            using var cache = DriverProgramCache.UseStoreForTesting(new ProgramBinaryStore(directory));
+            using var cache = DriverProgramCache.UseStoreForTesting(new ProgramBinaryStore(directory, fileSystem: storage));
             using var assets = new BinaryShaderApiFixture();
             using var program = new FixtureProgram("pbr_direct_lighting");
             program.Initialize(assets.Api);
@@ -260,7 +263,7 @@ public sealed class DriverProgramCacheTests(HeadlessGLFixture fixture, ITestOutp
             }
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { if (Directory.Exists(directory)) Directory.Delete(directory, true); }
+        finally { if (storage.DirectoryExists(directory)) storage.DeleteDirectory(directory, true); }
     }
 
     /// <summary>Selects packaged declarations while leaving binary loading and linking untouched.</summary>

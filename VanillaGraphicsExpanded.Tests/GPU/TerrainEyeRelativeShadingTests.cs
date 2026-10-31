@@ -12,7 +12,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Checks imported terrain eye vectors, parallax and normal fading under equivalent render origins.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class TerrainEyeRelativeShadingTests : RenderTestBase
 {
     /// <summary>Uses the shared graphics context for the linked terrain-style shader.</summary>
@@ -97,7 +97,7 @@ public sealed class TerrainEyeRelativeShadingTests : RenderTestBase
     #region Shader fixtures
 
     /// <summary>Expands relative production includes without altering their implementations.</summary>
-    internal static string Expand(string path) => Regex.Replace(File.ReadAllText(path),"@import\\s+\"([^\"]+)\"",
+    internal static string Expand(string path) => Regex.Replace(TestAssetSnapshot.ReadSourceText(path),"@import\\s+\"([^\"]+)\"",
         match=>Expand(Path.GetFullPath(Path.Combine(Path.GetDirectoryName(path)!,match.Groups[1].Value))));
     #endregion
 }

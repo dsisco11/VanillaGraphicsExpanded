@@ -14,7 +14,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Captures liquid specular output where two water triangles meet at a fold.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class LiquidSpecularTriangulationTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
     #region Public API

@@ -6,7 +6,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Changes engine scene inputs and observes the mod-owned cache, probe pipeline and full-resolution output.</summary>
 [Collection("NearFieldMaterialCapture")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
+[Trait("Scenario", "HeadlessRuntime")]
 public sealed class SurfaceLightingRuntimeScenariosTests : RenderTestBase
 {
     /// <summary>Uses the exclusive material and graphics context.</summary>

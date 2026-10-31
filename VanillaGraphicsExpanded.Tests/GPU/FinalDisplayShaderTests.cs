@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Tests.TestSupport;
 using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Numerics;
@@ -11,9 +12,11 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Checks owned final composition against independent radiometric and display expectations.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class FinalDisplayShaderTests(HeadlessGLFixture fixture, ITestOutputHelper output) : LumOnShaderFunctionalTestBase(fixture)
 {
+    private readonly CountingDiskCacheFileSystem storage = new();
+
     #region Public API
     /// <summary>Exercises the original registered final-display path through cold, warm, corrupt and batched executable preparation.</summary>
     [Fact]
@@ -25,7 +28,7 @@ public sealed class FinalDisplayShaderTests(HeadlessGLFixture fixture, ITestOutp
         string directory = Path.Combine(Path.GetTempPath(), "VGE.FinalCache", Guid.NewGuid().ToString("N"));
         try
         {
-            var store = new VanillaGraphicsExpanded.Rendering.ProgramBinaries.ProgramBinaryStore(directory);
+            var store = new VanillaGraphicsExpanded.Rendering.ProgramBinaries.ProgramBinaryStore(directory, fileSystem: storage);
             using var cache = VanillaGraphicsExpanded.Rendering.ProgramBinaries.DriverProgramCache.UseStoreForTesting(store);
             using var assets = new BinaryShaderApiFixture();
             var shader = VanillaGraphicsExpanded.Rendering.Shaders.GpuShaderProgramLibraries.Declare(assets.Api, FinalDisplayShaderProgram.Contract.Identity, () => new FinalDisplayShaderProgram());
@@ -45,7 +48,7 @@ public sealed class FinalDisplayShaderTests(HeadlessGLFixture fixture, ITestOutp
                 if (path != 0) shader.InvalidateAssets();
                 if (path == 2)
                 {
-                    string key = Path.GetFileNameWithoutExtension(Assert.Single(Directory.GetFiles(directory, "*.bin")));
+                    string key = Path.GetFileNameWithoutExtension(Assert.Single(storage.EnumerateFiles(directory, "*.bin")));
                     store.Write(key, -1, [1, 2, 3, 4]);
                 }
                 bool ready = path == 3
@@ -58,7 +61,7 @@ public sealed class FinalDisplayShaderTests(HeadlessGLFixture fixture, ITestOutp
                 GL.GetProgram(shader.ProgramId, GetProgramParameterName.AttachedShaders, out int attached);
                 Assert.Equal(0, attached);
                 Draw(shader, target);
-                Assert.InRange(target[0].ReadPixels()[0], Display(4f) - .00001f, Display(4f) + .00001f);
+                Assert.InRange(target[0].ReadTexel()[0], Display(4f) - .00001f, Display(4f) + .00001f);
             }
             int installed = shader.ProgramId;
             shader.InvalidateAssets();
@@ -70,7 +73,7 @@ public sealed class FinalDisplayShaderTests(HeadlessGLFixture fixture, ITestOutp
             Assert.True(GL.IsProgram(installed));
             Assert.True(shader.RequiresPreparation);
         }
-        finally { if (Directory.Exists(directory)) Directory.Delete(directory, true); }
+        finally { if (storage.DirectoryExists(directory)) storage.DeleteDirectory(directory, true); }
     }
 
     /// <summary>Already lit scene radiance receives additive effects, then one exposure and display transform.</summary>

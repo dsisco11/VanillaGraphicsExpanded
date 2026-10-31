@@ -8,7 +8,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Exercises partial cache publication using production capture, seed, scheduling and atlas ownership.</summary>
 [Collection("NearFieldMaterialCapture")]
-[Trait("Category","GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class SurfaceLightingPartialPageTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
     #region Partial seed publication

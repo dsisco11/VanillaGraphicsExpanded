@@ -9,7 +9,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Verifies real graphics owner capture guards independently of native program selection and execution.</summary>
 [Collection("GPU")]
-[Trait("Category","GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class RHIProgramCaptureTests(HeadlessGLFixture fixture)
 {
     #region Public API

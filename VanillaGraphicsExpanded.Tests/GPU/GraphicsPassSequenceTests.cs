@@ -13,7 +13,7 @@ using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Qualifies consecutive owned pass transitions against independent pass scopes and native-state handback.</summary>
-[Collection("GPU")][Trait("Category","GPU")]
+[Collection("GPU")][Trait("Category", "GpuIntegration")]
 public sealed class GraphicsPassSequenceTests(HeadlessGLFixture fixture,ITestOutputHelper output):RenderTestBase(fixture)
 {
     #region Public API
@@ -72,7 +72,7 @@ public sealed class GraphicsPassSequenceTests(HeadlessGLFixture fixture,ITestOut
         });
 }
         Assert.Equal(incoming.FboId,GL.GetInteger(GetPName.DrawFramebufferBinding));
-        Assert.Equal(.25f,replacement.ReadPixels()[0]);Assert.True(image.Resize(4,4));target.Dispose();Assert.True(replacement.IsValid);
+        Assert.Equal(.25f,replacement.ReadTexel()[0]);Assert.True(image.Resize(4,4));target.Dispose();Assert.True(replacement.IsValid);
         Assert.Equal(ErrorCode.NoError,GL.GetError());
     }
     /// <summary>Outer cleanup releases active pass images and restores native state after early return or exceptions.</summary>
@@ -138,7 +138,7 @@ public sealed class GraphicsPassSequenceTests(HeadlessGLFixture fixture,ITestOut
         Assert.Equal(incoming.FboId,GL.GetInteger(GetPName.DrawFramebufferBinding));
         broken.Bind();Assert.Equal((int)DrawBuffersEnum.ColorAttachment1,GL.GetInteger(GetPName.DrawBuffer0));
         Assert.Equal((int)DrawBuffersEnum.ColorAttachment0,GL.GetInteger(GetPName.DrawBuffer1));
-        Assert.Equal(.5f,valid[0].ReadPixels()[0]);broken.Dispose();Assert.True(layered.IsValid);
+        Assert.Equal(.5f,valid[0].ReadTexel()[0]);broken.Dispose();Assert.True(layered.IsValid);
         Assert.Equal(ErrorCode.NoError,GL.GetError());
     }
     #endregion

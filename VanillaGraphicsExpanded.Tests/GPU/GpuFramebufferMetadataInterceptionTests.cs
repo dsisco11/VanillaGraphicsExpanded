@@ -11,7 +11,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Checks native framebuffer descriptor publication and lazy helper reconciliation.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class GpuFramebufferMetadataInterceptionTests(HeadlessGLFixture fixture)
 {
     #region Public API

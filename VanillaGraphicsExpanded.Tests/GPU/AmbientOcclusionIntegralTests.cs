@@ -5,7 +5,7 @@ using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 namespace VanillaGraphicsExpanded.Tests.GPU;
 /// <summary>Compares the production analytic visibility integral with independent cosine-weighted numerical quadrature.</summary>
 [Collection("GPU")]
-[Trait("Category","GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class AmbientOcclusionIntegralTests(HeadlessGLFixture fixture) : LumOnShaderFunctionalTestBase(fixture)
 {
     #region Public API
@@ -45,7 +45,7 @@ public sealed class AmbientOcclusionIntegralTests(HeadlessGLFixture fixture) : L
             float actual=0,expected=0;
             foreach(float candidate in evidence) {
                 program.CaptureRelaxation(actual,candidate,relaxation);TestFramework.RenderQuadTo(program,target);
-                actual=target[0].ReadPixels()[0];
+                actual=target[0].ReadTexel()[0];
                 expected=candidate>=expected?candidate:expected+(candidate-expected)*Math.Clamp(relaxation,0,1);
                 Assert.InRange(actual,expected-.00001f,expected+.00001f);
                 Assert.InRange(actual,0,1);

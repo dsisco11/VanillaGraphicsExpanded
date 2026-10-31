@@ -7,7 +7,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Checks compiled feedback bindings without depending on optional SPIR-V debug names.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class LumonSceneFeedbackLayoutContractTests : RenderTestBase
 {
     /// <summary>Uses the shared GPU context.</summary>
@@ -43,9 +43,7 @@ public sealed class LumonSceneFeedbackLayoutContractTests : RenderTestBase
 
     #region Resource inspection
     /// <summary>Constructs the asset context; missing build output is a failure.</summary>
-    private static ShaderTestHelper CreateShaderHelper() => new(
-        Path.Combine(AppContext.BaseDirectory, "assets", "shaders"),
-        Path.Combine(AppContext.BaseDirectory, "assets", "shaders", "includes"));
+    private static ShaderTestHelper CreateShaderHelper() => new();
 
     /// <summary>Finds an active buffer by its baked binding and checks parameter size when specified.</summary>
     private static void AssertBuffer(int program, ProgramInterface kind, int binding, int? size = null)

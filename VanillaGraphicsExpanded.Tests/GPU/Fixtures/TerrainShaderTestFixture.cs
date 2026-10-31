@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Tests.Helpers;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 using VanillaGraphicsExpanded.Tests.GPU.Helpers;
 using OpenTK.Graphics.OpenGL;
@@ -41,7 +42,7 @@ internal sealed class TerrainShaderTestFixture : IDisposable
     /// <summary>Owns a precompiled reusable fixture alongside runtime-generated test stages.</summary>
     internal int Load(ShaderType type, string path)
     {
-        byte[] binary = File.ReadAllBytes(Path.Combine(AppContext.BaseDirectory, "assets", "shaders", path + ".spv"));
+        byte[] binary = TestAssetSnapshot.Built.Copy("shaders/" + path + ".spv");
         var module = VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLRHIContext.CompileExternalStage(new(PrecompiledStageFixture.Stage(type), binary)).RequireResource();
         stages.Add(module!.ShaderId, (module, string.Empty));
         return module.ShaderId;

@@ -9,7 +9,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Verifies affinity rejection occurs before native commands or canonical availability withdrawal.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class GpuResourceOperationContextTests(HeadlessGLFixture fixture)
 {
     #region Public API

@@ -7,7 +7,7 @@ using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Checks mask rank data, immutable upload and independent cloud-resource retirement.</summary>
-[Collection("GPU")][Trait("Category", "GPU")]
+[Collection("GPU")][Trait("Category", "GpuIntegration")]
 public sealed class CloudBlueNoiseTextureTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
     #region Public API

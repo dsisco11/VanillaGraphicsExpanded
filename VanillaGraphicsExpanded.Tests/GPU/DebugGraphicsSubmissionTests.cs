@@ -16,7 +16,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Exercises retained debug submission with actual primitive and texture programs.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class DebugGraphicsSubmissionTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
     #region Public API
@@ -121,7 +121,7 @@ public sealed class DebugGraphicsSubmissionTests(HeadlessGLFixture fixture) : Re
             using var hostile = new HostileFullscreenState();
             Assert.True(submission.Draw("texture", shader, geometry.Inputs, new(0, 3), PrimitiveTopology.Triangles));
             hostile.AssertRestored(); Assert.Equal(id, GL.GetInteger(GetPName.DrawFramebufferBinding));
-            if (id != 0) Assert.Equal(.25f, target[0].ReadPixels()[0]);
+            if (id != 0) Assert.Equal(.25f, target[0].ReadTexel()[0]);
             else
             {
                 GL.ReadBuffer(GL.GetInteger(GetPName.Doublebuffer) != 0 ? ReadBufferMode.Back : ReadBufferMode.Front);

@@ -15,7 +15,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Checks prepared graphics ownership against real compiled production executables.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class PreparedGraphicsPipelineTests(HeadlessGLFixture fixture, ITestOutputHelper output)
 {
     #region Public API

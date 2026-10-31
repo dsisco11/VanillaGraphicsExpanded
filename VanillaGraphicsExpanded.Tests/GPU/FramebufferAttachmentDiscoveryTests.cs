@@ -8,7 +8,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Verifies imported framebuffer images preserve their layer and cube-face selections during copies.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class FramebufferAttachmentDiscoveryTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
     #region Public API
@@ -56,7 +56,7 @@ public sealed class FramebufferAttachmentDiscoveryTests(HeadlessGLFixture fixtur
             var copy = new RHIImageBlit(RHIAttachment.FromTexture(importedTexture,new(imported.MipLevel,selection)),
                 new(0,0,2,2),FramebufferTestSetup.Select(destination.GetAttachment(FramebufferSlot.Color0)!),new(0,0,2,2));
             RHICommandContext.Current.BlitImages(copy);
-            Assert.Equal(new[] { 0.25f, 0.5f, 0.75f, 1f }, destination[0].ReadPixels()[..4]);
+            Assert.Equal(new[] { 0.25f, 0.5f, 0.75f, 1f }, destination[0].ReadTexel()[..4]);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
         finally { fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll(); }
@@ -111,7 +111,7 @@ public sealed class FramebufferAttachmentDiscoveryTests(HeadlessGLFixture fixtur
             var copy=new RHIImageBlit(RHIAttachment.FromTexture(borrowedTexture,new(imported.MipLevel,(int)imported.CubeFace!.Value-(int)CubeFace.PositiveX)),
                 new(0,0,2,2),FramebufferTestSetup.Select(destination.GetAttachment(FramebufferSlot.Color0)!),new(0,0,2,2));
             RHICommandContext.Current.BlitImages(copy);
-            Assert.Equal(new[] { 0.125f, 0.25f, 0.5f, 1f }, destination[0].ReadPixels()[..4]);
+            Assert.Equal(new[] { 0.125f, 0.25f, 0.5f, 1f }, destination[0].ReadTexel()[..4]);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
         finally

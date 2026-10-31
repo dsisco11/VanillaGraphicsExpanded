@@ -6,7 +6,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Exercises asynchronous diagnostic ownership and producer outcomes without changing lighting policy.</summary>
 [Collection("NearFieldMaterialCapture")]
-[Trait("Category","GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class SurfaceWorkDiagnosticTests(HeadlessGLFixture fixture):RenderTestBase(fixture)
 {
     #region Numerical transparency

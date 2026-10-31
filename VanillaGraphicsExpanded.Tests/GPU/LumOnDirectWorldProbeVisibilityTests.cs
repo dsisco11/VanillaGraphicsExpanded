@@ -8,7 +8,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Checks exact local occlusion in direct irradiance debug and both gather fallback consumers.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed partial class LumOnDirectWorldProbeVisibilityTests : DirectWorldProbeVisibilityTestBase
 {
     /// <summary>Shares the mandatory GPU context.</summary>

@@ -15,7 +15,7 @@ using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 namespace VanillaGraphicsExpanded.Tests.GPU;
 /// <summary>Exercises registry identity, synchronous reload, retained compute inputs and terminal admission.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class ShaderRegistryLifetimeTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
     #region Public API

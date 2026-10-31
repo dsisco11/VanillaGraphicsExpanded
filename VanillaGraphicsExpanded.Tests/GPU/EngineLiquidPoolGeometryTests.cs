@@ -16,7 +16,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Checks installed liquid pool layouts and admitted grouped ranges against real GPU submission.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class EngineLiquidPoolGeometryTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
     #region Public API
@@ -59,7 +59,7 @@ public sealed class EngineLiquidPoolGeometryTests(HeadlessGLFixture fixture) : R
 #endif
         });
 }
-        Assert.InRange(target[0].ReadPixels()[0], .1999f, .2001f);
+        Assert.InRange(target[0].ReadTexel()[0], .1999f, .2001f);
         OpenTK.Graphics.OpenGL4.GL.GetVertexArray(storage.Mesh.VaoId,
             (OpenTK.Graphics.OpenGL4.VertexArrayParameter)OpenTK.Graphics.OpenGL4.All.ElementArrayBufferBinding, out int nativeElements);
         Assert.Equal(detachedIndices ? 0 : storage.Mesh.vboIdIndex, nativeElements);

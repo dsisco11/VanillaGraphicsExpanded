@@ -6,7 +6,7 @@ using Vintagestory.Client.NoObf;
 namespace VanillaGraphicsExpanded.Tests;
 
 /// <summary>Checks the native display settings and environmental effect adapter independently of GPU packing.</summary>
-[Collection("GPU")]
+[Collection("CPU state")]
 public sealed class FinalDisplayParametersTests
 {
     #region Public API

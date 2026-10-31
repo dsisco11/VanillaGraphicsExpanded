@@ -8,7 +8,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Exercises the production cache lookup and asynchronous transport against real captured and lit surfaces.</summary>
 [Collection("NearFieldMaterialCapture")]
-[Trait("Category","GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class SurfaceLightingConsumerTests : NearFieldShaderTestBase
 {
     /// <summary>Uses the isolated material registry and headless GPU context.</summary>

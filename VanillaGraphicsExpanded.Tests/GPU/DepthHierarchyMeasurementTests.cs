@@ -9,7 +9,7 @@ using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 namespace VanillaGraphicsExpanded.Tests.GPU;
 /// <summary>Compares the single dispatch with the retired raster chain at identical synthetic workloads.</summary>
 [Collection("GPU")]
-[Trait("Category","GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class DepthHierarchyMeasurementTests(HeadlessGLFixture fixture, ITestOutputHelper log) : LumOnShaderFunctionalTestBase(fixture)
 {
     #region Public API

@@ -8,7 +8,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Checks retained resource identity, temporal isolation and lifetime through production owners.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class ShaderLightingResourcesTests : RenderTestBase
 {
     /// <summary>Uses the shared mandatory OpenGL context.</summary>
@@ -41,7 +41,7 @@ public sealed class ShaderLightingResourcesTests : RenderTestBase
             screen.ScreenProbeAtlasCurrentTex!.UploadDataImmediate(Enumerable.Repeat(frame * .25f, 16 * 16 * 4).ToArray());
             screen.SwapRadianceBuffers();
             Assert.Equal(revision, screen.HistoryRevision);
-            Assert.Equal(frame * .25f, screen.ScreenProbeAtlasHistoryTex!.ReadPixels()[0]);
+            Assert.Equal(frame * .25f, screen.ScreenProbeAtlasHistoryTex!.ReadTexel()[0]);
             // Ping-pong changes roles, not allocation identity or the independent branch's generation.
             Assert.Equal(original.Select(t => t.TextureId).Order(), BorrowScreen(screen).Select(t => t.TextureId).Order());
             Assert.All(BorrowScreen(screen), texture => Assert.DoesNotContain(texture, other));

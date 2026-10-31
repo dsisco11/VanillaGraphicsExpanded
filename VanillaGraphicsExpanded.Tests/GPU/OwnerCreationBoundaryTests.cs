@@ -10,7 +10,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Checks owner-allocation failure across the final RHI boundary without transferring borrowed storage.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class OwnerCreationBoundaryTests(HeadlessGLFixture fixture)
 {
     private static int candidate;

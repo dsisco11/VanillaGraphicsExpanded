@@ -10,7 +10,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Exercises fallback admission and retained estimator commits through packaged production shaders.</summary>
 [Collection("NearFieldMaterialCapture")]
-[Trait("Category","GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class SurfaceFallbackGpuTests(HeadlessGLFixture fixture):RenderTestBase(fixture)
 {
     #region Admission

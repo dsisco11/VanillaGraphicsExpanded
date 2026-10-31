@@ -13,7 +13,7 @@ public sealed class ShaderProcessedSourceDiagnosticsTests
     [Fact]
     public void LumonDebugFsh_ProcessedSource_HasTopLevelTraceSceneHelpers()
     {
-        using var helper = new ShaderTestHelper(shaderBasePath: ".", includeBasePath: ".");
+        using var helper = new ShaderTestHelper();
         var src = helper.GetProcessedSource("lumon_debug_view_near_field_geometry.fsh");
         Assert.NotNull(src);
 

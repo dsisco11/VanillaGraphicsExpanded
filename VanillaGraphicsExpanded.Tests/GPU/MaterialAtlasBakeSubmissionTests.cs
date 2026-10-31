@@ -14,7 +14,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Exercises the atlas owner's independent clear and complete multigrid bake entries.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class MaterialAtlasBakeSubmissionTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
     #region Public API

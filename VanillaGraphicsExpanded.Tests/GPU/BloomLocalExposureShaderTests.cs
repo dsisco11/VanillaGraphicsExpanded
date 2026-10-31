@@ -14,7 +14,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Checks source-local bloom extraction independently of destination-local final composition.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class BloomLocalExposureShaderTests(HeadlessGLFixture fixture) : LumOnShaderFunctionalTestBase(fixture)
 {
     #region Public API
@@ -38,7 +38,7 @@ public sealed class BloomLocalExposureShaderTests(HeadlessGLFixture fixture) : L
         program.Capture(new(0, 0, 0, automatic ? 1 : 0), new(.06f, 0, 1, automatic ? -10 : 0));
         Draw(program, target);
         float expected = enabled ? MathF.Sqrt(.04f * .18f) : 0;
-        Assert.InRange(target[0].ReadPixels()[0], expected - .00001f, expected + .00001f);
+        Assert.InRange(target[0].ReadTexel()[0], expected - .00001f, expected + .00001f);
         Assert.Equal(new[] { .04f, .04f, .04f, 1f }, source.ReadPixels());
     }
 
@@ -60,11 +60,11 @@ public sealed class BloomLocalExposureShaderTests(HeadlessGLFixture fixture) : L
         Draw(program, target);
         // Unequal sources distinguish averaging corrected samples from correcting the averaged source.
         float expected = values.Average(v => MathF.Sqrt(v * .18f));
-        Assert.InRange(target[0].ReadPixels()[0], expected - .00002f, expected + .00002f);
+        Assert.InRange(target[0].ReadTexel()[0], expected - .00002f, expected + .00002f);
         program.Capture(new(0, 0, 1, 0), Vector4.Zero);
         Draw(program, target);
         float unchanged = values.Average();
-        Assert.InRange(target[0].ReadPixels()[0], unchanged - .00001f, unchanged + .00001f);
+        Assert.InRange(target[0].ReadTexel()[0], unchanged - .00001f, unchanged + .00001f);
     }
 
     /// <summary>The real pyramid applies source gain once, then retains its normalized energy across variant transitions.</summary>

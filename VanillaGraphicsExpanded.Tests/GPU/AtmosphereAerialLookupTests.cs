@@ -15,7 +15,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Executes finite-path lookup against independent angular and distance ramps.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class AtmosphereAerialLookupTests(HeadlessGLFixture fixture) : LumOnShaderFunctionalTestBase(fixture)
 {
     #region Lookup reconstruction

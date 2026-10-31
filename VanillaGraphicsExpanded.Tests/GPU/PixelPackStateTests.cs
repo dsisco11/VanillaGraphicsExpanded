@@ -8,7 +8,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Checks cached pack layouts against independently observed driver state.</summary>
 [Collection("GPU")]
-[Trait("Category","GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class PixelPackStateTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
     #region State transitions

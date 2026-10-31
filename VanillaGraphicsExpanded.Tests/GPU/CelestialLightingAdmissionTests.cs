@@ -11,7 +11,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Checks source lifetime invalidation separately from ordinary atmosphere motion in the retained surface producer.</summary>
 [Collection("NearFieldMaterialCapture")]
-[Trait("Category","GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class CelestialLightingAdmissionTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
     #region Public API

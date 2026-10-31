@@ -7,7 +7,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Checks coefficient publication independently of BRDF caches and retires metadata with atlas pages.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class WaterMediumAtlasTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
     #region Public API

@@ -4,7 +4,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Measures temporal response through the packaged lighting producer and real half-float history.</summary>
 [Collection("NearFieldMaterialCapture")]
-[Trait("Category","GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class SurfaceLightingTemporalTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
     #region Controlled completed samples

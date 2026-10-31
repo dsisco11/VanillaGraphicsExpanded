@@ -15,7 +15,7 @@ using Xunit;
 namespace VanillaGraphicsExpanded.Tests.GPU;
 
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class PbrDirectLightingFunctionalTests : LumOnShaderFunctionalTestBase
 {
     public PbrDirectLightingFunctionalTests(HeadlessGLFixture fixture) : base(fixture) { }

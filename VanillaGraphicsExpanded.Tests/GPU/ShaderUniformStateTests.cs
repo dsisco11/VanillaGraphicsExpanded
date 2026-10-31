@@ -11,7 +11,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Verifies packed block upload suppression using generated owners, offline SPIR-V and semantic image readback.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class ShaderUniformStateTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
     #region Public API
@@ -22,9 +22,9 @@ public sealed class ShaderUniformStateTests(HeadlessGLFixture fixture) : RenderT
         EnsureContextValid();
         string path = Path.Combine(AppContext.BaseDirectory, "assets", "shaders", "tests", "uniform_state.csh.spv");
         var settings = new ShaderSettings(UniformStateComputeShader.Contract);
-        Assert.True(ComputeShaderAsset.TryLoadFromSpirv(path, settings, out var first, out string log), log);
-        Assert.True(ComputeShaderAsset.TryLoadFromSpirv(path, settings.With(UniformStateComputeShader.Alternate, true), out var second, out log), log);
-        Assert.True(ComputeShaderAsset.TryLoadFromSpirv(path, settings, out var replacement, out log), log);
+        Assert.True(ComputeShaderAsset.TryLoadFromSpirv(path, settings, out var first, out string log, fileSystem: ShaderAssetFileSystem.Built), log);
+        Assert.True(ComputeShaderAsset.TryLoadFromSpirv(path, settings.With(UniformStateComputeShader.Alternate, true), out var second, out log, fileSystem: ShaderAssetFileSystem.Built), log);
+        Assert.True(ComputeShaderAsset.TryLoadFromSpirv(path, settings, out var replacement, out log, fileSystem: ShaderAssetFileSystem.Built), log);
         using var a = first!;
         using var b = second!;
         using var c = replacement!;
@@ -58,7 +58,7 @@ public sealed class ShaderUniformStateTests(HeadlessGLFixture fixture) : RenderT
         EnsureContextValid();
         string path = Path.Combine(AppContext.BaseDirectory, "assets", "shaders", "tests", "uniform_state.csh.spv");
         Assert.True(ComputeShaderAsset.TryLoadFromSpirv(path, new ShaderSettings(UniformStateComputeShader.Contract),
-            out var pipeline, out string log), log);
+            out var pipeline, out string log, fileSystem: ShaderAssetFileSystem.Built), log);
         using var shader = new UniformStateComputeShader(pipeline!);
         using var output = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = TextureDimension.Two, Format = TextureFormat.Rgba32f, Width = System.Math.Max(1, 1), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         Assert.True(RHIUniformRingSystem.TryGetCurrent(out var ring));

@@ -8,7 +8,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Checks named metadata reads and required cube-face discovery without disturbing surrounding selectors.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class GpuMetadataBoundAcquisitionTests(HeadlessGLFixture fixture)
 {
     #region Public API

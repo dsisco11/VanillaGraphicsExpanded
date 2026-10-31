@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Tests.TestSupport;
 using VanillaGraphicsExpanded.Rendering.ShaderCompilation;
 using VanillaGraphicsExpanded.Rendering.Contracts;
 using System;
@@ -7,8 +8,10 @@ using Xunit;
 
 namespace VanillaGraphicsExpanded.Tests.Unit.Rendering;
 
+/// <summary>Checks explicit file-loader failure contracts against an isolated mocked filesystem.</summary>
 public sealed class GpuComputePipelineSpirvLoadTests
 {
+    private readonly CountingDiskCacheFileSystem storage = new();
     [Fact]
     public void TryLoadFromSpirv_EmptyPath_ReturnsFalse()
     {
@@ -16,7 +19,7 @@ public sealed class GpuComputePipelineSpirvLoadTests
             spirvBinaryPath: "",
             settings: new ShaderSettings(GpuShaderContracts.Registry.FindProgram("lumonscene_feedback_mark_pages")),
             pipeline: out var pipeline,
-            infoLog: out string infoLog);
+            infoLog: out string infoLog, fileSystem: storage);
 
         Assert.False(ok);
         Assert.Null(pipeline);
@@ -32,7 +35,7 @@ public sealed class GpuComputePipelineSpirvLoadTests
             spirvBinaryPath: path,
             settings: new ShaderSettings(GpuShaderContracts.Registry.FindProgram("lumonscene_feedback_mark_pages")),
             pipeline: out var pipeline,
-            infoLog: out string infoLog);
+            infoLog: out string infoLog, fileSystem: storage);
 
         Assert.False(ok);
         Assert.Null(pipeline);
@@ -46,13 +49,13 @@ public sealed class GpuComputePipelineSpirvLoadTests
 
         try
         {
-            File.WriteAllBytes(path, Array.Empty<byte>());
+            storage.WriteAllBytes(path, Array.Empty<byte>());
 
             bool ok = ComputeShaderAsset.TryLoadFromSpirv(
                 spirvBinaryPath: path,
                 settings: new ShaderSettings(GpuShaderContracts.Registry.FindProgram("lumonscene_feedback_mark_pages")),
             pipeline: out var pipeline,
-                infoLog: out string infoLog);
+                infoLog: out string infoLog, fileSystem: storage);
 
             Assert.False(ok);
             Assert.Null(pipeline);
@@ -61,9 +64,9 @@ public sealed class GpuComputePipelineSpirvLoadTests
         }
         finally
         {
-            if (File.Exists(path))
+            if (storage.FileExists(path))
             {
-                File.Delete(path);
+                storage.DeleteFile(path);
             }
         }
     }

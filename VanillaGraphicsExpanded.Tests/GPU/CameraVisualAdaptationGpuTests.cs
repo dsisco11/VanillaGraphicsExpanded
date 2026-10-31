@@ -8,7 +8,7 @@ using VanillaGraphicsExpanded.Tests.GPU.Helpers;
 namespace VanillaGraphicsExpanded.Tests.GPU;
 /// <summary>Qualifies instantaneous histogram metadata independently of the applied camera gain.</summary>
 [Collection("GPU")]
-[Trait("Category","GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class CameraVisualAdaptationGpuTests(HeadlessGLFixture fixture, ITestOutputHelper output) : LumOnShaderFunctionalTestBase(fixture)
 {
     private CameraHistogramShaderProgram? histogramProgram;

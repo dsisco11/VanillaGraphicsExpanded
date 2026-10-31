@@ -8,7 +8,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Checks original alias identity across owner replacement and deferred cleanup.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class GpuResourceDeferredLifetimeTests(HeadlessGLFixture fixture)
 {
     #region Public API

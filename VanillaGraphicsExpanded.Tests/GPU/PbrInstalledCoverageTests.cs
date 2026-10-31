@@ -10,7 +10,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Executes installed engine fragment shaders to protect opaque and OIT coverage.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class PbrInstalledCoverageTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
     #region Coverage preservation

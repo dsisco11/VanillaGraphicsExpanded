@@ -12,7 +12,7 @@ using Xunit;
 namespace VanillaGraphicsExpanded.Tests.GPU;
 
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class GpuImageUnitBindingIntegrationTests
 {
     private readonly HeadlessGLFixture _fixture;

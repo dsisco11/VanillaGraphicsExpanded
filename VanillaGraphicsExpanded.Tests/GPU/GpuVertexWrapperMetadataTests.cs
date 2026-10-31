@@ -10,7 +10,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Checks owned VAO initialization and helper mutations against capability-selected native execution.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class GpuVertexWrapperMetadataTests(HeadlessGLFixture fixture)
 {
     #region Public API

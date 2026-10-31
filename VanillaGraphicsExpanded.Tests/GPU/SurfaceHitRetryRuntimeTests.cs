@@ -7,7 +7,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Checks retained hit retries across production feedback, capture, initial seeding and publication.</summary>
 [Collection("NearFieldMaterialCapture")]
-[Trait("Category","GPU")]
+[Trait("Category", "GpuIntegration")]
+[Trait("Scenario", "HeadlessRuntime")]
 public sealed class SurfaceHitRetryRuntimeTests(HeadlessGLFixture fixture):RenderTestBase(fixture)
 {
     #region Missing page progress

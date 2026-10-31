@@ -31,7 +31,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Executes mandatory HDR preparation and installed binding transitions with real owned producer resources.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
+[Trait("Scenario", "HeadlessRuntime")]
 public sealed class SceneColorRuntimeTests(HeadlessGLFixture fixture, ITestOutputHelper output) : RenderTestBase(fixture)
 {
     #region Public API
@@ -208,7 +209,7 @@ public sealed class SceneColorRuntimeTests(HeadlessGLFixture fixture, ITestOutpu
             GL.GetInteger(GetPName.ScissorBox, restoredScissor);
             Assert.Equal(inheritedScissor, restoredScissor);
             sky.OnRenderFrame(0, EnumRenderStage.Opaque);
-            Assert.True(engine[0].ReadPixels()[0] * sceneInverseScale > 1f, "Owned sky must retain physical HDR radiance in primary.");
+            Assert.True(engine[0].ReadTexel()[0] * sceneInverseScale > 1f, "Owned sky must retain physical HDR radiance in primary.");
 
             shaftOcclusion.OnRenderFrame(0, EnumRenderStage.Before);
             Assert.Null(LightShaftOcclusionRenderer.Texture);

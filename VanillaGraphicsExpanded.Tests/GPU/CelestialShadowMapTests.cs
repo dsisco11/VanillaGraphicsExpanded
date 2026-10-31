@@ -14,7 +14,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Checks installed shadow routing and the completed emitter's camera and horizon inputs.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class CelestialShadowMapTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
     #region Public API

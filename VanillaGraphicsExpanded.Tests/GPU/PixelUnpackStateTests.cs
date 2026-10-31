@@ -9,7 +9,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Verifies complete unpack-layout borrowing and streaming uploads against driver state.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class PixelUnpackStateTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
     #region Public API

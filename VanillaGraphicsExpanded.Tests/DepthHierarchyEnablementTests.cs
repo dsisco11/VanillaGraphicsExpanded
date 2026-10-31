@@ -7,7 +7,7 @@ using Vintagestory.API.Client;
 namespace VanillaGraphicsExpanded.Tests;
 
 /// <summary>Qualifies change-driven hierarchy demand from settings and committed consumer lifetimes.</summary>
-[Collection("GPU")]
+[Collection("CPU state")]
 public sealed class DepthHierarchyEnablementTests
 {
     #region Public API

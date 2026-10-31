@@ -9,7 +9,7 @@ using VolumeStorage=VanillaGraphicsExpanded.PBR.Clouds.Volume.CloudVolumeStorage
 namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Checks isolation and exact dirty-block publication without image-quality or timing thresholds.</summary>
-[Collection("GPU")][Trait("Category","GPU")]
+[Collection("GPU")][Trait("Category", "GpuIntegration")]
 public sealed class CloudVolumePublicationTests(HeadlessGLFixture fixture,Xunit.ITestOutputHelper output):LumOnShaderFunctionalTestBase(fixture)
 {
     #region Public API

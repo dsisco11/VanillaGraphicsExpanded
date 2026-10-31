@@ -7,7 +7,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Measures publication latency using production tile resolution and bounded renderer callbacks.</summary>
 [Collection("NearFieldMaterialCapture")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class SurfaceLightingPublicationProgressTests : RenderTestBase
 {
     #region Construction

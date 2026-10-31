@@ -75,7 +75,7 @@ public sealed class CameraExposureSettingsTests
         Assert.Equal(8, config.CameraExposure.DarkenRate);
         Assert.Null(JObject.FromObject(config)["PhotometricVersion"]);
 
-        var definition = JObject.Parse(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "assets/config/configlib-patches.json")));
+        var definition = JObject.Parse(TestAssetSnapshot.ReadBuiltText(Path.Combine(AppContext.BaseDirectory, "assets/config/configlib-patches.json")));
         int bounds = 0;
         foreach (var category in ((JObject)definition["settings"]!).Properties())
         foreach (var setting in ((JObject)category.Value).Properties())

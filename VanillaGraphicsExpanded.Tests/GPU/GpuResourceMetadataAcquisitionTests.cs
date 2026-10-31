@@ -9,7 +9,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Verifies native metadata acquisition and originating-context retirement of registry primitives.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class GpuResourceMetadataAcquisitionTests
 {
     private readonly HeadlessGLFixture fixture;

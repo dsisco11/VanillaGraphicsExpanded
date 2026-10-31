@@ -19,7 +19,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Exercises the vanilla terrain binding hook with the actual imported chunk and patch mapping functions.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class TerrainChunkSlotBindingTests : RenderTestBase
 {
     #region Construction
@@ -183,7 +183,7 @@ public sealed class TerrainChunkSlotBindingTests : RenderTestBase
     /// <summary>Expands only relative production imports, retaining their include guards and mapping implementation unchanged.</summary>
     private static string Expand(string path)
     {
-        string source = File.ReadAllText(path);
+        string source = TestAssetSnapshot.ReadSourceText(path);
         return Regex.Replace(source, "@import\\s+\"([^\"]+)\"", match =>
             Expand(Path.GetFullPath(Path.Combine(Path.GetDirectoryName(path)!, match.Groups[1].Value))));
     }

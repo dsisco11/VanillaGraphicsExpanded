@@ -36,7 +36,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 /// - Float comparison epsilon: 1e-2f (for GPU precision variance)
 ///
 /// All derived test classes should:
-/// 1. Use [Collection("GPU")] and [Trait("Category", "GPU")] attributes
+/// 1. Use [Collection("GPU")] and [Trait("Category", "GpuIntegration")] attributes
 /// 2. Call EnsureShaderTestAvailable() at the start of each test
 /// 3. Let the fixture dispose its shader owners
 /// 4. Document expected value derivations in XML comments
@@ -295,9 +295,9 @@ public abstract class LumOnShaderFunctionalTestBase : RenderTestBase, IDisposabl
         var shaderPath = Path.Combine(AppContext.BaseDirectory, "assets", "shaders");
         var includePath = Path.Combine(AppContext.BaseDirectory, "assets", "shaders", "includes");
 
-        if (Directory.Exists(shaderPath) && Directory.Exists(includePath))
+        if (VanillaGraphicsExpanded.Tests.Helpers.TestAssetSnapshot.Built.Paths.Any())
         {
-            _shaderHelper = new ShaderTestHelper(shaderPath, includePath);
+            _shaderHelper = new ShaderTestHelper();
             _testFramework = new ShaderTestFramework();
         }
     }

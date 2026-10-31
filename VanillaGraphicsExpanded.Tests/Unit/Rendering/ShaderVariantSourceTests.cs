@@ -46,7 +46,7 @@ public sealed class ShaderVariantSourceTests
     [Fact]
     public void ConfigurationPrecedesImportedGuardedDefaults()
     {
-        using var assets = new SourceAssets();
+        var assets = new SourceAssets();
         assets.Write("entry.csh", "#version 330 core\n@import \"guard.inc\"\nvoid main() { float value = FACTOR; }");
         assets.Write("guard.inc", "@import \"nested.inc\"\n#ifndef FACTOR\n#define FACTOR 0.25\n#endif\n");
         assets.Write("nested.inc", "// nested import retained\n#define IMPORTED 1\n");
@@ -54,7 +54,7 @@ public sealed class ShaderVariantSourceTests
         var stage = new ShaderStageContract("entry.csh", "entry.csh", ShaderStageKind.Compute, new(), specializations: [new(3, factor)]);
         var program = new GpuShaderContract("entry", [stage], 1, [factor]);
         var emitter = new ShaderVariantSource(assets.Root, "fixture");
-        string source = emitter.Emit(emitter.Expand("entry.csh"), new ShaderVariantResolver([program]).Binaries[0]);
+        string source = emitter.Emit(assets.Expand("entry.csh"), new ShaderVariantResolver([program]).Binaries[0]);
         Assert.DoesNotContain("@import", source);
         Assert.Contains("nested import retained", source);
         Assert.Contains("#define FACTOR 0.25", source);
@@ -90,16 +90,23 @@ public sealed class ShaderVariantSourceTests
     #endregion
 
     #region Isolated source assets
-    /// <summary>Owns a bounded source tree for production import expansion.</summary>
-    private sealed class SourceAssets : IDisposable
+    /// <summary>Supplies controlled shader inputs to the shared preprocessor without a physical source tree.</summary>
+    private sealed class SourceAssets
     {
-        public string Root { get; } = Path.Combine(Path.GetTempPath(), "vge-source-emission-" + Guid.NewGuid().ToString("N"));
-        /// <summary>Creates the owned domain source directory.</summary>
-        public SourceAssets() => Directory.CreateDirectory(Path.Combine(Root, "fixture", "shaders"));
-        /// <summary>Writes only test-specified files within the owned source directory.</summary>
-        public void Write(string name, string text) => File.WriteAllText(Path.Combine(Root, "fixture", "shaders", name), text);
-        /// <summary>Removes this fixture's uniquely allocated tree.</summary>
-        public void Dispose() => Directory.Delete(Root, true);
+        private readonly Dictionary<string, string> sources = new(StringComparer.Ordinal);
+        internal string Root => ".";
+        /// <summary>Supplies one source under its declared asset identity.</summary>
+        internal void Write(string name, string text) => sources["shaders/" + name] = text;
+        /// <summary>Resolves nested imports through the same syntax-tree engine with an in-memory provider.</summary>
+        internal string Expand(string name)
+        {
+            var resolver = new DictionarySyntaxTreeResourceResolver(sources, "fixture");
+            var processor = new VanillaGraphicsExpanded.ShaderSyntaxTreePreprocessor(resolver);
+            var tree = TinyTokenizer.Ast.SyntaxTree.Parse(sources["shaders/" + name], VanillaGraphicsExpanded.GlslSchema.Instance);
+            var result = processor.Process(new TinyPreprocessor.Core.ResourceId("fixture:shaders/" + name), tree);
+            Assert.True(result.Success);
+            return result.Content.ToText();
+        }
     }
     #endregion
 }

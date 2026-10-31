@@ -14,7 +14,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 /// Tests actual OpenGL element buffer creation, data upload, and drawing operations.
 /// </summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public class GpuEboIntegrationTests : IDisposable
 {
     private readonly HeadlessGLFixture _fixture;

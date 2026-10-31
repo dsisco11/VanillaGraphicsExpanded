@@ -9,7 +9,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Exercises failed replacement and context-local snapshot failure through live resource APIs.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class GpuTextureFailureRecoveryTests(HeadlessGLFixture fixture)
 {
     #region Public API

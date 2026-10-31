@@ -15,7 +15,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 /// Integration tests for <see cref="GpuMappedBufferScope{T}"/> and the <see cref="GpuBufferObject.MapScope{T}"/> API.
 /// </summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public class GpuMappedBufferScopeIntegrationTests
 {
     private readonly HeadlessGLFixture fixture;

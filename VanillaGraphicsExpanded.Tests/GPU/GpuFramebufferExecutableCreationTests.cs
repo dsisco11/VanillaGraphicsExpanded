@@ -9,7 +9,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Verifies framebuffer and executable creation publishes established facts without native descriptor discovery.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class GpuFramebufferExecutableCreationTests(HeadlessGLFixture fixture)
 {
 

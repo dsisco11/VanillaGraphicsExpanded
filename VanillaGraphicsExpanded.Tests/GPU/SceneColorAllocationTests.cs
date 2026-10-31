@@ -15,7 +15,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Checks scene format selection against installed allocation IL and real driver storage.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class SceneColorAllocationTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
     #region Public API

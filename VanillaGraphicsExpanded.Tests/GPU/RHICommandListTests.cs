@@ -15,7 +15,7 @@ using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 namespace VanillaGraphicsExpanded.Tests.GPU;
 /// <summary>Exercises frozen recording, exclusive lifecycle, ordered failure and independently owned completion on a real context.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class RHICommandListTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
     #region Public API
@@ -259,7 +259,7 @@ public sealed class RHICommandListTests(HeadlessGLFixture fixture) : RenderTestB
             Assert.False(context.HasRenderPass);
         }
         Assert.Equal(prior, GL.GetInteger(GetPName.DrawFramebufferBinding));
-        if (!expire) Assert.InRange(target[0].ReadPixels()[0], .1999f, .2001f);
+        if (!expire) Assert.InRange(target[0].ReadTexel()[0], .1999f, .2001f);
     }
     /// <summary>Failures inside an active query release its native interval, and foreign owners cannot mutate recordings.</summary>
     [Fact]

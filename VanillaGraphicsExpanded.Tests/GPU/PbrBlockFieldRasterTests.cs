@@ -11,7 +11,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Executes complete installed terrain stages to verify nonlinear field conversion after raster interpolation.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class PbrBlockFieldRasterTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
     #region Public API

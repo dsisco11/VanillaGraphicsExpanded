@@ -9,7 +9,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Qualifies maintained native image lifetimes and query-free image consumer reuse.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed unsafe class GpuImageLifecycleTests(HeadlessGLFixture fixture)
 {
     #region Public API

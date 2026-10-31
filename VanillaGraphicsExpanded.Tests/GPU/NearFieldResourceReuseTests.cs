@@ -6,7 +6,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Verifies the migrated trace harness actually borrows and retains its supplied branch resources.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class NearFieldResourceReuseTests : NearFieldShaderTestBase
 {
     /// <summary>Uses the shared GPU context and real component shader owners.</summary>

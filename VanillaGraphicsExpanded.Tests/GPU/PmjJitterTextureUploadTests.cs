@@ -8,7 +8,7 @@ using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Checks shared immutable jitter provisioning independently of either rendering consumer.</summary>
-[Collection("GPU")][Trait("Category","GPU")]
+[Collection("GPU")][Trait("Category", "GpuIntegration")]
 public sealed class PmjJitterTextureUploadTests(HeadlessGLFixture fixture):RenderTestBase(fixture)
 {
     #region Public API

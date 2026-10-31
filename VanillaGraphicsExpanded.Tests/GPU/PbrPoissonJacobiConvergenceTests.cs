@@ -16,7 +16,7 @@ using Xunit;
 namespace VanillaGraphicsExpanded.Tests.GPU;
 
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class PbrPoissonJacobiConvergenceTests : RenderTestBase
 {
     private readonly HeadlessGLFixture fixture;
@@ -50,12 +50,12 @@ public sealed class PbrPoissonJacobiConvergenceTests : RenderTestBase
         string shaderPath = Path.Combine(AppContext.BaseDirectory, "assets", "shaders");
         string includePath = Path.Combine(AppContext.BaseDirectory, "assets", "shaders", "includes");
 
-        if (!Directory.Exists(shaderPath) || !Directory.Exists(includePath))
+        if (!TestAssetSnapshot.HasDirectory(shaderPath) || !TestAssetSnapshot.HasDirectory(includePath))
         {
             Assert.SkipWhen(true, "Test shader assets not found in output directory.");
         }
 
-        using var helper = new ShaderTestHelper(shaderPath, includePath);
+        using var helper = new ShaderTestHelper();
 
         var progResult = helper.CompileAndLink(
             vertexFilename: "pbr_heightbake_fullscreen.vsh",
@@ -124,12 +124,12 @@ public sealed class PbrPoissonJacobiConvergenceTests : RenderTestBase
         string shaderPath = Path.Combine(AppContext.BaseDirectory, "assets", "shaders");
         string includePath = Path.Combine(AppContext.BaseDirectory, "assets", "shaders", "includes");
 
-        if (!Directory.Exists(shaderPath) || !Directory.Exists(includePath))
+        if (!TestAssetSnapshot.HasDirectory(shaderPath) || !TestAssetSnapshot.HasDirectory(includePath))
         {
             Assert.SkipWhen(true, "Test shader assets not found in output directory.");
         }
 
-        using var helper = new ShaderTestHelper(shaderPath, includePath);
+        using var helper = new ShaderTestHelper();
 
         var progResult = helper.CompileAndLink(
             vertexFilename: "pbr_heightbake_fullscreen.vsh",

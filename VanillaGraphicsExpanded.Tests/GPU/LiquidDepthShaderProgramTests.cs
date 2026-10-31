@@ -8,7 +8,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Links both owned liquid programs against their shared wave block contract.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class LiquidDepthShaderProgramTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
     #region Program linkage

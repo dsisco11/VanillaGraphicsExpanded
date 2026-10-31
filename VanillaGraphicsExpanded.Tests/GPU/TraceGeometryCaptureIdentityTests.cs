@@ -6,7 +6,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Checks bounded capture identity storage against signed world coordinates and source publication lifetime.</summary>
 [Collection("NearFieldMaterialCapture")]
-[Trait("Category","GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class TraceGeometryCaptureIdentityTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
     #region Published capture identity

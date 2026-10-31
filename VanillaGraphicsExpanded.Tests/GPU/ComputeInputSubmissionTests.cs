@@ -12,7 +12,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Checks compute publication against actual indexed resources and nested graphics ownership.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class ComputeInputSubmissionTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
     #region Public API

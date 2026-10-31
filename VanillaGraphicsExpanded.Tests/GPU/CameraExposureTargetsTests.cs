@@ -7,7 +7,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Checks temporal exposure publication never aliases its sampled history and retires owned storage.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class CameraExposureTargetsTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
     #region Public API

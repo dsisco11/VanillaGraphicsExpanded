@@ -15,7 +15,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Exercises staged inputs against the production upsample program and real uniform allocator.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class ShaderInputSubmissionTests : RenderTestBase
 {
     /// <summary>Uses the mandatory headless context without starting the game.</summary>

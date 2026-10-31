@@ -8,7 +8,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Exercises consumer references across metadata changes and owner retirement.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class GpuTextureReferenceTests(HeadlessGLFixture fixture)
 {
     #region Public API

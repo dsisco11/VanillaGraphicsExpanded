@@ -14,7 +14,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Verifies private creation handoff, candidate cleanup and original-context publication.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class GpuManagerCreationFoundationTests(HeadlessGLFixture fixture)
 {
     #region Public API

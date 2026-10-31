@@ -12,10 +12,7 @@ public sealed class DdsRgba16UnormCodecTests
     [Fact]
     public void RoundTrip_PreservesDimensions_AndExactValues()
     {
-        string dir = Path.Combine(Path.GetTempPath(), "VGE", "DdsTests");
-        Directory.CreateDirectory(dir);
-
-        string path = Path.Combine(dir, "rgba16unorm.dds");
+        using var stream = new MemoryStream();
 
         const int width = 7;
         const int height = 5;
@@ -30,9 +27,10 @@ public sealed class DdsRgba16UnormCodecTests
         src[0] = 0;
         src[1] = 65535;
 
-        DdsRgba16UnormCodec.WriteRgba16Unorm(path, width, height, src);
+        DdsRgba16UnormCodec.WriteRgba16Unorm(stream, width, height, src);
 
-        ushort[] dst = DdsRgba16UnormCodec.ReadRgba16Unorm(path, out int rw, out int rh);
+        stream.Position = 0;
+        ushort[] dst = DdsRgba16UnormCodec.ReadRgba16Unorm(stream, out int rw, out int rh);
 
         Assert.Equal(width, rw);
         Assert.Equal(height, rh);

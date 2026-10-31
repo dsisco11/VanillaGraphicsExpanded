@@ -15,7 +15,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Qualifies the installed transparent allocation boundary and bright layered accumulation.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class EngineOitAccumulationFormatTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
     #region Public API

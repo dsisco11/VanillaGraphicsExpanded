@@ -16,7 +16,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Checks clean world restoration in the production composite without altering first-person presentation.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class WaterRefractionOverlayCompositionTests(HeadlessGLFixture fixture) : LumOnShaderFunctionalTestBase(fixture)
 {
     #region Public API

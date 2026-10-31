@@ -10,7 +10,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Checks controlled texture publication, native results and storage revisions.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class GpuControlledTexturePublicationTests(HeadlessGLFixture fixture)
 {
     #region Public API

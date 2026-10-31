@@ -11,7 +11,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Executes both installed engine routing signatures through the production call-site adapter.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class EngineFramebufferRoutingTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
     #region Public API

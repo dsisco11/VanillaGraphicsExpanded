@@ -9,7 +9,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Exercises attachment composition against real framebuffer storage and managed lifetimes.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class GpuFramebufferAttachmentTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
     #region Public API

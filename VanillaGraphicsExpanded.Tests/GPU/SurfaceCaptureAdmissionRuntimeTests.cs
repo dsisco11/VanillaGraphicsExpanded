@@ -7,7 +7,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Exercises deferred capture admission through registered geometry and Surface Cache owners.</summary>
 [Collection("NearFieldMaterialCapture")]
-[Trait("Category","GPU")]
+[Trait("Category", "GpuIntegration")]
+[Trait("Scenario", "HeadlessRuntime")]
 public sealed class SurfaceCaptureAdmissionRuntimeTests(HeadlessGLFixture fixture):RenderTestBase(fixture)
 {
     #region Deferred source recovery

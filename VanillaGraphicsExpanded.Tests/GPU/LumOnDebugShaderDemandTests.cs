@@ -9,7 +9,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Checks declaration, demand loading and replacement lifetimes for production debug programs.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class LumOnDebugShaderDemandTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
     #region Declaration and selection

@@ -6,7 +6,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Exercises owner scheduling independently of per-resource execution guards.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class ResourceOwnerSequencingTests(HeadlessGLFixture fixture)
 {
     #region Public API

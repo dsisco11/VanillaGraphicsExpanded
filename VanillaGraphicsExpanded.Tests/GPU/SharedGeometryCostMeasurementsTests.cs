@@ -11,7 +11,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Measures controlled source completion, real publication and retained payload for repeatable movement/edit workloads.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class SharedGeometryCostMeasurementsTests : RenderTestBase
 {
     private readonly ITestOutputHelper output;

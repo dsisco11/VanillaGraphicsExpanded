@@ -12,7 +12,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Exercises surface-cache texture binding through the actual debug shader owner.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class SurfaceCacheDebugBindingTests : LumOnShaderFunctionalTestBase
 {
     /// <summary>Uses the shared rendering context.</summary>

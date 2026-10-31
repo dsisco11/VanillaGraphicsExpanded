@@ -10,7 +10,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Exercises production helper interception independently of engine-local variable names.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class PbrSurfaceCaptureBoundaryTests : RenderTestBase
 {
     /// <summary>Uses the shared headless context.</summary>
@@ -64,7 +64,7 @@ public sealed class PbrSurfaceCaptureBoundaryTests : RenderTestBase
             """;
         if (renamed) source = source.Replace("float murkiness = 1.0;", "").Replace("murkiness", "changedWaterVariable")
             .Replace("float b = 0.5;", "float changedWaterVariable = 1.0; float b = 0.5;");
-        string helper = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "assets/shaders/includes/pbr_color.glsl"));
+        string helper = TestAssetSnapshot.ReadBuiltText(Path.Combine(AppContext.BaseDirectory, "assets/shaders/includes/pbr_color.glsl"));
         source = source.Replace("layout(location=0)", helper + "\nlayout(location=0)");
         var tree = SyntaxTree.Parse(source, GlslSchema.Instance);
         PbrSurfaceShaderPatches.Apply(tree, "standard.fsh");

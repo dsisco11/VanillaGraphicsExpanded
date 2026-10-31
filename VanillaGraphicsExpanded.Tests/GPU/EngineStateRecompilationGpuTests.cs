@@ -10,7 +10,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Checks that warmed higher callers reach native observation without caller rewriting.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class EngineStateRecompilationGpuTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
     #region Public API

@@ -7,7 +7,7 @@ using VanillaGraphicsExpanded.PBR.Atmosphere;
 namespace VanillaGraphicsExpanded.Tests;
 
 /// <summary>Checks complete callback suppression follows the owned renderer lifecycle.</summary>
-[Collection("GPU")]
+[Collection("CPU state")]
 public sealed class AtmosphereSkyDrawHookTests
 {
     #region Public API

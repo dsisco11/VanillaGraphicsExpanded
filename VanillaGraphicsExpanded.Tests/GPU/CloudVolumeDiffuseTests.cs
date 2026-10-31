@@ -11,7 +11,7 @@ using VolumeStorage=VanillaGraphicsExpanded.PBR.Clouds.Volume.CloudVolumeStorage
 namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Checks the declared diffuse recurrence and coherent partial publication without convergence/image gates.</summary>
-[Collection("GPU")][Trait("Category","GPU")]
+[Collection("GPU")][Trait("Category", "GpuIntegration")]
 public sealed class CloudVolumeDiffuseTests(HeadlessGLFixture fixture,Xunit.ITestOutputHelper output):LumOnShaderFunctionalTestBase(fixture)
 {
     #region Public API

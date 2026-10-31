@@ -10,7 +10,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Compiles transformed engine GLSL to verify capture scope and material output numerically.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class PbrTerrainCaptureGpuTests : RenderTestBase
 {
     /// <summary>Uses the shared context without loading a game process.</summary>
@@ -24,7 +24,7 @@ public sealed class PbrTerrainCaptureGpuTests : RenderTestBase
     public void TransformedEngineMainCompilesAndCapturesMaterial(string name)
     {
         EnsureContextValid();
-        string helper = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "assets", "shaders", "includes", "pbr_color.glsl"));
+        string helper = TestAssetSnapshot.ReadBuiltText(Path.Combine(AppContext.BaseDirectory, "assets", "shaders", "includes", "pbr_color.glsl"));
         string source = "#version 330 core\n" + helper + """
 
             layout(location=0) out vec4 outColor;

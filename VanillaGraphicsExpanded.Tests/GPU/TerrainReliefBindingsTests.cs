@@ -10,7 +10,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Checks engine relief registration and neutral page binding through real linked uniforms.</summary>
 [Collection("GPU")]
-[Trait("Category","GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class TerrainReliefBindingsTests : RenderTestBase
 {
     /// <summary>Uses the shared headless context.</summary>

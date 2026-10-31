@@ -10,7 +10,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Exercises shared diagnostic classification, logical domains and precise surface reconstruction.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class SharedGeometryDebugTests : LumOnShaderFunctionalTestBase
 {
     /// <summary>Uses the mandatory graphics context.</summary>

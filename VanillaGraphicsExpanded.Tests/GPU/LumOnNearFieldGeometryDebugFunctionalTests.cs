@@ -17,7 +17,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Checks the camera-ray geometry diagnostic against actual published voxel and readiness textures.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class LumOnNearFieldGeometryDebugFunctionalTests : LumOnShaderFunctionalTestBase
 {
     #region Scenario resources

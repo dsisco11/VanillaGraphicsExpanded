@@ -10,7 +10,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Checks attached-depth sampling with actual RHI draws and native barrier observation.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class ReadOnlyDepthFeedbackTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
     #region Public API

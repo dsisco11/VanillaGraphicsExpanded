@@ -12,7 +12,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Exercises exact native buffer texture association dispatch and canonical range certification.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed unsafe class GpuBufferTextureInterceptionTests(HeadlessGLFixture fixture)
 {
     private static nint capturedOffset, capturedSize;

@@ -9,7 +9,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Qualifies raw query/fence lifetimes and their query-free managed handoff.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed unsafe class GpuSynchronizationLifecycleTests(HeadlessGLFixture fixture)
 {
     #region Public API

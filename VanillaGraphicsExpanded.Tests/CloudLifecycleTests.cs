@@ -14,6 +14,7 @@ namespace VanillaGraphicsExpanded.Tests;
 
 /// <summary>Qualifies cloud lifetime transitions through native registration and VGE callback admission.</summary>
 [Collection("GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class CloudLifecycleTests(HeadlessGLFixture fixture)
 {
     #region Public API

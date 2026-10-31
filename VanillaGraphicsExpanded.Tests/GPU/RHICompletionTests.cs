@@ -11,7 +11,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Checks actual completion, request ownership and query-generation behavior of semantic operations.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class RHICompletionTests(HeadlessGLFixture fixture)
 {
     #region Public API

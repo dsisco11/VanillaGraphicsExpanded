@@ -14,7 +14,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Verifies declared entry without depending on restoration or production capture migration.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class EngineBoundaryEntryTests(HeadlessGLFixture fixture)
 {
     #region Public API

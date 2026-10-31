@@ -12,7 +12,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Protects shared terrain origin publication against animated engine camera translations.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class SurfaceCacheWorldOriginTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
     #region Public API

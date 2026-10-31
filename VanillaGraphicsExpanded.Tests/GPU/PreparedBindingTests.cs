@@ -12,7 +12,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Validates prepared resource activity against packaged production SPIR-V.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class PreparedBindingTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
     #region Public API
@@ -65,7 +65,7 @@ public sealed class PreparedBindingTests(HeadlessGLFixture fixture) : RenderTest
         EnsureContextValid();
         string path = Path.Combine(AppContext.BaseDirectory, "assets", "shaders", "tests", "prepared_binding.csh.spv");
         Assert.True(ComputeShaderAsset.TryLoadFromSpirv(path, new ShaderSettings(PreparedBindingComputeShader.Contract),
-            out var pipeline, out string log), log);
+            out var pipeline, out string log, fileSystem: ShaderAssetFileSystem.Built), log);
         using (pipeline)
         {
             var contract = CopyResources(PreparedBindingComputeShader.Contract.Bindings);
@@ -84,7 +84,7 @@ public sealed class PreparedBindingTests(HeadlessGLFixture fixture) : RenderTest
         EnsureContextValid();
         string path = Path.Combine(AppContext.BaseDirectory, "assets", "shaders", "tests", "prepared_binding.csh.spv");
         Assert.True(ComputeShaderAsset.TryLoadFromSpirv(path, new ShaderSettings(PreparedBindingComputeShader.Contract),
-            out var pipeline, out string log), log);
+            out var pipeline, out string log, fileSystem: ShaderAssetFileSystem.Built), log);
         using (pipeline)
         {
             var entries = pipeline!.ProgramLayout.BinaryInterface!.PreparedBindings.Entries;

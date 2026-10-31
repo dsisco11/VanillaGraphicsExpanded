@@ -8,7 +8,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Verifies bounded readiness observation leaves fence consumption with its owner.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class GpuFenceCompletionTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
     #region Completion observation

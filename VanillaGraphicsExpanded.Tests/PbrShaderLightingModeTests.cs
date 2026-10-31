@@ -6,7 +6,7 @@ using Vintagestory.Client.NoObf;
 namespace VanillaGraphicsExpanded.Tests;
 
 /// <summary>Checks shared engine-generation mode independently of mutable queued configuration.</summary>
-[Collection("GPU")]
+[Collection("CPU state")]
 public sealed class PbrShaderLightingModeTests
 {
     #region Generation coherence

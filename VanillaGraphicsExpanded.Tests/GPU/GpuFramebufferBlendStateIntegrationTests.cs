@@ -14,7 +14,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Verifies that complete pipelines own indexed output blending and channel writes independently of framebuffer storage.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class GpuFramebufferBlendStateIntegrationTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
     #region Public API

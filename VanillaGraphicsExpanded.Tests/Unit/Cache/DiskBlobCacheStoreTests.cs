@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Tests.TestSupport;
 using System;
 using System.IO;
 
@@ -7,13 +8,15 @@ namespace VanillaGraphicsExpanded.Tests.Unit.Cache;
 
 public sealed class DiskBlobCacheStoreTests
 {
+    private readonly CountingDiskCacheFileSystem storage = new();
+
     [Fact]
     public void RoundTrip_Writes_And_Reads_Bytes()
     {
         string root = CreateTempDir();
         try
         {
-            using var store = new DiskBlobCacheStore(root);
+            using var store = new DiskBlobCacheStore(root, storage);
 
             Assert.True(store.TryWriteAtomic("k1", new byte[] { 1, 2, 3 }));
 
@@ -32,12 +35,12 @@ public sealed class DiskBlobCacheStoreTests
         string root = CreateTempDir();
         try
         {
-            using var store = new DiskBlobCacheStore(root);
+            using var store = new DiskBlobCacheStore(root, storage);
             Assert.True(store.TryWriteAtomic("k1", new byte[] { 9, 9 }));
 
             // Delete payload file to simulate corruption/missing.
             string payloadPath = Path.Combine(root, "payloads", "k1.bin");
-            File.Delete(payloadPath);
+            storage.DeleteFile(payloadPath);
 
             Assert.False(store.TryRead("k1", out _));
             Assert.DoesNotContain("k1", store.EnumerateEntryIds());
@@ -48,20 +51,20 @@ public sealed class DiskBlobCacheStoreTests
         }
     }
 
-    private static string CreateTempDir()
+    private string CreateTempDir()
     {
         string path = Path.Combine(Path.GetTempPath(), "vge-cachetests", Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(path);
+        storage.CreateDirectory(path);
         return path;
     }
 
-    private static void TryDeleteDir(string path)
+    private void TryDeleteDir(string path)
     {
         try
         {
-            if (Directory.Exists(path))
+            if (storage.DirectoryExists(path))
             {
-                Directory.Delete(path, recursive: true);
+                storage.DeleteDirectory(path, recursive: true);
             }
         }
         catch

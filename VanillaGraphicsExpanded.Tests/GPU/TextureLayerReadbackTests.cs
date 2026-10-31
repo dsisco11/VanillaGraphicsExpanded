@@ -9,7 +9,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Checks layered region readback and the caller's independent framebuffer bindings.</summary>
 [Collection("GPU")]
-[Trait("Category","GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class TextureLayerReadbackTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
     #region Layer readback

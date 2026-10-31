@@ -13,7 +13,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Exercises bounded patch rollback through the installed engine compiler.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class ShaderPatchRecoveryTests : RenderTestBase
 {
     /// <summary>Uses the shared driver context without starting a game.</summary>

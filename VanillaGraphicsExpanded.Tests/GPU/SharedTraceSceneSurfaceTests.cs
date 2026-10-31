@@ -8,7 +8,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Tests shared publication through production surface capture and relight bindings.</summary>
 [Collection("NearFieldMaterialCapture")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class SharedTraceSceneSurfaceTests : RenderTestBase
 {
     /// <summary>Uses the exclusive material fixture's GPU context.</summary>

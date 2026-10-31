@@ -10,7 +10,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Executes transpiled call sites against a real context and verifies cache/native agreement.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class EngineStateSwitchingGpuTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
     #region Public API

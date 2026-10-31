@@ -7,7 +7,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Checks binding suppression against native state and implicit binding side effects.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class BindingSuppressionTests(HeadlessGLFixture fixture)
 {
     #region Public API

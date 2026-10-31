@@ -15,7 +15,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Qualifies actual optional spatial ownership, full-area reduction and final grading integration.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
+[Trait("Scenario", "HeadlessRuntime")]
 public sealed class LocalExposureRuntimeTests(HeadlessGLFixture fixture, ITestOutputHelper output) : LumOnShaderFunctionalTestBase(fixture)
 {
     private FinalDisplayShaderProgram? finalProgram;

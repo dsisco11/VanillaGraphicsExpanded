@@ -7,7 +7,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Executes the installed cube-particle vertex lighting before interpolation or fragment containment.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class SceneColorParticleLightingTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
     #region Public API

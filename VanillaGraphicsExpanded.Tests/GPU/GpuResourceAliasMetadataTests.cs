@@ -8,7 +8,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Checks shared buffer-texture acquisition and alias-wide native replacement guards.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class GpuResourceAliasMetadataTests(HeadlessGLFixture fixture)
 {
     #region Public API

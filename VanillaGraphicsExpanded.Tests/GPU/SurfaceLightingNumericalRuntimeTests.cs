@@ -7,7 +7,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Constrains each runtime pixel against analytic constant-radiance enclosure lighting.</summary>
 [Collection("NearFieldMaterialCapture")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
+[Trait("Scenario", "HeadlessRuntime")]
 public sealed class SurfaceLightingNumericalRuntimeTests : RenderTestBase
 {
     /// <summary>Uses the exclusive material/graphics context.</summary>

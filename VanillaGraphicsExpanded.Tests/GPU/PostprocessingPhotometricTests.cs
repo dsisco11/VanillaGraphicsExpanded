@@ -15,7 +15,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Checks actual half-float postprocess storage and physical display quantities on tiny fixtures.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class PostprocessingPhotometricTests(HeadlessGLFixture fixture) : LumOnShaderFunctionalTestBase(fixture)
 {
     #region Public API
@@ -51,7 +51,7 @@ public sealed class PostprocessingPhotometricTests(HeadlessGLFixture fixture) : 
         final.Capture(false, new(new(1, 1, 1, 0), Vector4.Zero, Vector4.Zero), new(0, 1, 0, 0));
         Submit(draw, final, target);
         float expected = FilmicGradingReference.Quantize(FilmicGradingReference.Lookup(new Vector3(stored[0] / scale * 256), new(1, 1, 1, 0)).X);
-        foreach (float component in target[0].ReadPixels().Take(3)) Assert.InRange(component, expected - 1.001f / 255, expected + 1.001f / 255);
+        foreach (float component in target[0].ReadTexel().Take(3)) Assert.InRange(component, expected - 1.001f / 255, expected + 1.001f / 255);
     }
     /// <summary>Maximum admitted display exposure and reciprocal storage scale keep three half-float inputs finite.</summary>
     [Theory]
@@ -152,7 +152,7 @@ public sealed class PostprocessingPhotometricTests(HeadlessGLFixture fixture) : 
             Assert.InRange(actual[channel], expected == 0 ? 0 : expected - 32, expected);
         }
         Assert.Equal(1, actual[3]);
-        Assert.Equal(input, source.ReadPixels()[0]);
+        Assert.Equal(input, source.ReadTexel()[0]);
     }
 
     /// <summary>Exposed highlight selection retains the same physical RGB at different frozen storage scales.</summary>

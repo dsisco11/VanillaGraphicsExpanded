@@ -9,7 +9,7 @@ using VanillaGraphicsExpanded.Tests.GPU.Helpers;
 namespace VanillaGraphicsExpanded.Tests.GPU;
 /// <summary>Opt-in full-resolution correctness and warm component cost for dense exposure metering.</summary>
 [Collection("GPU")]
-[Trait("Category","GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class CameraExposureMeasurementTests(HeadlessGLFixture fixture, ITestOutputHelper log) : LumOnShaderFunctionalTestBase(fixture)
 {
     #region Public API

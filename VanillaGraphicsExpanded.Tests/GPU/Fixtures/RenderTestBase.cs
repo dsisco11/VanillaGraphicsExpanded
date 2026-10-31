@@ -18,7 +18,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 /// Usage:
 /// <code>
 /// [Collection("GPU")]
-/// [Trait("Category", "GPU")]
+/// [Trait("Category", "GpuIntegration")]
 /// public class MyRenderTests : RenderTestBase
 /// {
 ///     public MyRenderTests(HeadlessGLFixture fixture) : base(fixture) { }

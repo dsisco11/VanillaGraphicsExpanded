@@ -11,7 +11,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Checks change-driven geometry and pass preparation independently of requested native rendering effects.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class GraphicsPreparationTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
     #region Public API
@@ -89,7 +89,7 @@ public sealed class GraphicsPreparationTests(HeadlessGLFixture fixture) : Render
 #if DEBUG
         Assert.Equal(prepared, backend.PassPreparations);
 #endif
-        Assert.Equal(1, texture.ReadPixels()[0]);
+        Assert.Equal(1, texture.ReadTexel()[0]);
         Assert.True(texture.Resize(2, 1));
         Execute();
 #if DEBUG

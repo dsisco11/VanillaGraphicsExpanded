@@ -8,7 +8,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Validates framebuffer publications and configured copies across attachment lifetime changes.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class FramebufferAttachmentNotificationTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
     #region Public API

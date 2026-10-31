@@ -12,7 +12,7 @@ public sealed class ConfigLibOrderingTests
     public void SettingsAndFormattingHaveUniqueWeights()
     {
         string path = Path.Combine(AppContext.BaseDirectory, "assets/config/configlib-patches.json");
-        var asset = JObject.Parse(File.ReadAllText(path));
+        var asset = JObject.Parse(TestAssetSnapshot.ReadBuiltText(path));
         var blocks = new SortedDictionary<float, string>();
         // ConfigLib merges all setting categories with formatting, rather than giving
         // boolean, integer and float settings separate ordering namespaces.

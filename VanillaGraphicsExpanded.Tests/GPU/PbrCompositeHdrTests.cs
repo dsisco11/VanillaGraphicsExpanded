@@ -14,7 +14,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Constrains lighting composition before the separate display resolve.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class PbrCompositeHdrTests : LumOnShaderFunctionalTestBase
 {
     /// <summary>Uses the shared graphics context.</summary>
@@ -238,7 +238,7 @@ public sealed class PbrCompositeHdrTests : LumOnShaderFunctionalTestBase
             depth.UploadDataImmediate([.01f]);
             normal.UploadDataImmediate([.5f, 1f, .5f, -1f]);
             direct.UploadDataImmediate([100f, 20f, 10f, 1f]);
-            Assert.Equal(.01f, depth.ReadPixels()[0]);
+            Assert.Equal(.01f, depth.ReadTexel()[0]);
         }
         var actual = output[0].ReadPixels();
         var rawSource = output[1].ReadPixels();

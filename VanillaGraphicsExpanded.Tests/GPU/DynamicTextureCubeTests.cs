@@ -9,7 +9,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Qualifies reusable cube storage independently of celestial format and encoding policy.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class DynamicTextureCubeTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
     #region Public API

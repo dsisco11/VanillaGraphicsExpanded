@@ -10,7 +10,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Checks that texture lifetime changes cannot leave deleted objects in cached binding restoration.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class GpuTextureLifetimeTests : RenderTestBase
 {
     /// <summary>Uses the shared GL context.</summary>

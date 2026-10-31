@@ -6,7 +6,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Checks exhaustion readback, delayed retry admission and geometry wake through the production renderer.</summary>
 [Collection("NearFieldMaterialCapture")]
-[Trait("Category","GPU")]
+[Trait("Category", "GpuIntegration")]
+[Trait("Scenario", "HeadlessRuntime")]
 public sealed class SurfaceTraversalRuntimeTests(HeadlessGLFixture fixture):RenderTestBase(fixture)
 {
     #region Runtime scheduling

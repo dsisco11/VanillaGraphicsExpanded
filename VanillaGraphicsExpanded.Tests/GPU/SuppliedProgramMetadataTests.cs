@@ -9,7 +9,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Checks preparation solely against immutable supplied executable facts.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class SuppliedProgramMetadataTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
     #region Public API

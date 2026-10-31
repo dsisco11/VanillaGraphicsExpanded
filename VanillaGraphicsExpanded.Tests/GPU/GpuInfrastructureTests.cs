@@ -8,7 +8,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 /// Sanity tests to verify the GPU test infrastructure works.
 /// </summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public class GpuInfrastructureTests
 {
     private readonly HeadlessGLFixture _fixture;
@@ -37,10 +37,10 @@ public class GpuInfrastructureTests
         var includePath = Path.Combine(AppContext.BaseDirectory, "assets", "shaders", "includes");
 
         // Skip if assets not found (e.g., running from wrong directory)
-        Assert.SkipWhen(!Directory.Exists(shaderPath), $"Shader path not found: {shaderPath}");
-        Assert.SkipWhen(!Directory.Exists(includePath), $"Include path not found: {includePath}");
+        Assert.SkipWhen(!TestAssetSnapshot.HasDirectory(shaderPath), $"Shader path not found: {shaderPath}");
+        Assert.SkipWhen(!TestAssetSnapshot.HasDirectory(includePath), $"Include path not found: {includePath}");
 
-        using var helper = new ShaderTestHelper(shaderPath, includePath);
+        using var helper = new ShaderTestHelper();
         Assert.NotNull(helper);
     }
 }

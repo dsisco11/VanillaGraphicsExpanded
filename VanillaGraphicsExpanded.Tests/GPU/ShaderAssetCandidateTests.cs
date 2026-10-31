@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Tests.TestSupport;
 using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System;
 using System.IO;
@@ -14,9 +15,11 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Checks asset-level cache selection, exact ownership transfer and abandoned RHI candidate cleanup.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class ShaderAssetCandidateTests(HeadlessGLFixture fixture)
 {
+    private readonly CountingDiskCacheFileSystem storage = new();
+
     #region Public API
     /// <summary>Asset preparation persists a ready executable and reuses its opaque bytes for a new owned generation.</summary>
     [Fact]
@@ -24,7 +27,7 @@ public sealed class ShaderAssetCandidateTests(HeadlessGLFixture fixture)
     {
         fixture.EnsureContextValid(); fixture.InitializeResourceDisposal();
         string directory = Path.Combine(Path.GetTempPath(), "VGE-ShaderAsset-" + Guid.NewGuid().ToString("N"));
-        using var policy = DriverProgramCache.UseStoreForTesting(new ProgramBinaryStore(directory));
+        using var policy = DriverProgramCache.UseStoreForTesting(new ProgramBinaryStore(directory, fileSystem: storage));
         using var assets = new BinaryShaderApiFixture();
         try
         {
@@ -51,7 +54,7 @@ public sealed class ShaderAssetCandidateTests(HeadlessGLFixture fixture)
         finally
         {
             fixture.CleanupGpuResources(); OpenGlStateCache.Current.InvalidateAll();
-            if (Directory.Exists(directory)) Directory.Delete(directory, true);
+            if (storage.DirectoryExists(directory)) storage.DeleteDirectory(directory, true);
         }
     }
 
@@ -81,6 +84,6 @@ public sealed class ShaderAssetCandidateTests(HeadlessGLFixture fixture)
     /// <summary>Selects a canonical existing compute contract and its typed defaults.</summary>
     private static ShaderLoadPlan Plan() => new(new ShaderSettings(GpuShaderContracts.Registry.FindProgram("tests/GpuUniformRingBufferIntegrationTests_1")));
     /// <summary>Reads the canonical precompiled fixture payload.</summary>
-    private static ReadOnlySpan<byte> Read(string path) => File.ReadAllBytes(Path.Combine(AppContext.BaseDirectory, "assets", "shaders", path));
+    private static ReadOnlySpan<byte> Read(string path) => TestAssetSnapshot.ReadBuiltBytes(Path.Combine(AppContext.BaseDirectory, "assets", "shaders", path));
     #endregion
 }

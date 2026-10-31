@@ -8,7 +8,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Checks change-delivered preparation invalidation against canonical availability and revisions.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class ShaderInputMetadataRevisionTests(HeadlessGLFixture fixture)
 {
     #region Public API

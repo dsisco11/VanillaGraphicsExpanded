@@ -13,7 +13,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Measures bounded opt-in shader arithmetic and lookup overhead independently of game rendering.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class MicrofacetEnergyMeasurementTests(HeadlessGLFixture fixture, ITestOutputHelper log) : RenderTestBase(fixture)
 {
     #region Public API
@@ -106,7 +106,7 @@ public sealed class MicrofacetEnergyMeasurementTests(HeadlessGLFixture fixture, 
         int program=0;
         try
         {
-            string helper=File.ReadAllText(Path.Combine(AppContext.BaseDirectory,"assets/shaders/includes/pbr_microfacet_energy.glsl"));
+            string helper=TestAssetSnapshot.ReadBuiltText(Path.Combine(AppContext.BaseDirectory,"assets/shaders/includes/pbr_microfacet_energy.glsl"));
             int vertex=modules.Compile(ShaderType.VertexShader,"#version 330 core\nlayout(location=0)in vec2 position;void main(){gl_Position=vec4(position,0,1);}");
             int fragment=modules.Compile(ShaderType.FragmentShader,"#version 330 core\n"+helper+"\nlayout(binding=0)uniform sampler2D coordinates;layout(location=0)out vec4 result;void main(){vec2 p=texelFetch(coordinates,ivec2(int(gl_FragCoord.x),0),0).rg;result=vec4(VgeDirectionalAlbedo(p.x,p.y),0,1);}");
             program=TerrainShaderTestFixture.Link(vertex,fragment);

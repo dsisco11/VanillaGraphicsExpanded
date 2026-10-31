@@ -13,7 +13,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Reproduces stale material identities through production capture and GPU publication, independently of live scheduling.</summary>
 [Collection("NearFieldMaterialCapture")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class LumOnNearFieldMaterialReadinessTests : NearFieldShaderTestBase
 {
     #region Construction

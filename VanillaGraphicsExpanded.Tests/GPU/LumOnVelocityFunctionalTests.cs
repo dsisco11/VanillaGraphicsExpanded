@@ -24,7 +24,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 /// - A : uintBitsToFloat(flags)
 /// </summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public class LumOnVelocityFunctionalTests : LumOnShaderFunctionalTestBase
 {
     private const uint FlagValid = 1u << 0;

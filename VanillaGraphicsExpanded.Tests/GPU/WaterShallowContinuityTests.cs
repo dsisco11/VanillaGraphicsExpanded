@@ -11,7 +11,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Measures subpixel receiver continuity on independently authored shallow planar and curved walls.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class WaterShallowContinuityTests(HeadlessGLFixture fixture, ITestOutputHelper output)
     : LumOnShaderFunctionalTestBase(fixture)
 {
@@ -113,7 +113,7 @@ public sealed class WaterShallowContinuityTests(HeadlessGLFixture fixture, ITest
                 filterInputs.Surface = inputs.Surface;
                 filterInputs.SampleUv = new(inputs.Surface.X/2*MathF.Sqrt(3)*.5f+.5f,.5f);
                 TestFramework.RenderQuadTo(filter,filterTarget);
-                float filteredRadiance = filterTarget[1].ReadPixels()[0];
+                float filteredRadiance = filterTarget[1].ReadTexel()[0];
                 if (previousFilterRadiance is { } previousFilter)
                     maximumFilterJump = MathF.Max(maximumFilterJump,MathF.Abs(filteredRadiance-previousFilter));
                 previousFilterRadiance = filteredRadiance;

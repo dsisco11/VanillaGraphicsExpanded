@@ -16,7 +16,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Exercises the engine's actual grouped draw and safe candidate rejection without a game instance.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class TerrainTessellationEngineDrawTests : RenderTestBase
 {
     /// <summary>Uses the shared headless context.</summary>

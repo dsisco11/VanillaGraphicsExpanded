@@ -9,7 +9,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Verifies controlled buffer and image initialization publishes supplied facts without descriptor recovery.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class GpuBufferImageCreationTests(HeadlessGLFixture fixture)
 {
     #region Public API

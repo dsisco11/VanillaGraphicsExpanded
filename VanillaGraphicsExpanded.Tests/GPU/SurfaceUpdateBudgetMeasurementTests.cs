@@ -12,6 +12,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 /// <summary>Opt-in matched shader costs and simulated completion latency for separate update budgets.</summary>
 [Collection("NearFieldMaterialCapture")]
 [Trait("Category","Measurement")]
+[Trait("Category", "GpuIntegration")]
 public sealed class SurfaceUpdateBudgetMeasurementTests(HeadlessGLFixture fixture):RenderTestBase(fixture)
 {
     #region Matched measurement

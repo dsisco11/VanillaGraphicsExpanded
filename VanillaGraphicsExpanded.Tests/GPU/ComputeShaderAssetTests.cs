@@ -13,7 +13,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Checks compute asset preparation independently of command selection and physical resource publication.</summary>
 [Collection("GPU")]
-[Trait("Category","GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class ComputeShaderAssetTests(HeadlessGLFixture fixture)
 {
     #region Public API

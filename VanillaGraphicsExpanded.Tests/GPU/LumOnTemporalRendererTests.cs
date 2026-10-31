@@ -9,7 +9,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Checks temporal origin history uploaded by registered normal and debug render callbacks.</summary>
 [Collection("NearFieldMaterialCapture")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class LumOnTemporalRendererTests : RenderTestBase
 {
     /// <summary>Uses the shared material-isolated graphics context.</summary>

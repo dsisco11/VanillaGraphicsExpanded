@@ -22,7 +22,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Exercises the complete lighting pipeline with deterministic inputs and owned target storage.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctionalTestBase
 {
     private readonly HeadlessGLFixture fixture;

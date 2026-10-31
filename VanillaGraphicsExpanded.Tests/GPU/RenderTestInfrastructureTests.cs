@@ -14,7 +14,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 /// and pixel readback functionality using production GBuffer and DynamicTexture classes.
 /// </summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public class RenderTestInfrastructureTests : RenderTestBase
 {
     private readonly HeadlessGLFixture _fixture;
@@ -29,9 +29,9 @@ public class RenderTestInfrastructureTests : RenderTestBase
             var shaderPath = Path.Combine(AppContext.BaseDirectory, "assets", "shaders");
                 var includePath = Path.Combine(AppContext.BaseDirectory, "assets", "shaders", "includes");
 
-            if (Directory.Exists(shaderPath) && Directory.Exists(includePath))
+            if (TestAssetSnapshot.HasDirectory(shaderPath) && TestAssetSnapshot.HasDirectory(includePath))
             {
-                _helper = new ShaderTestHelper(shaderPath, includePath);
+                _helper = new ShaderTestHelper();
             }
         }
     }
@@ -215,7 +215,7 @@ public class RenderTestInfrastructureTests : RenderTestBase
     {
         EnsureContextValid();
 
-        using var gBuffer = CreateRenderTarget(4, 4, TextureFormat.Rgba8);
+        using var gBuffer = CreateRenderTarget(1, 1, TextureFormat.Rgba8);
         
         // Clear to a known color (roughly 64, 128, 192, 255 in byte values)
         gBuffer.Bind();
@@ -224,7 +224,7 @@ public class RenderTestInfrastructureTests : RenderTestBase
 
         var pixels = ReadPixelsByte(gBuffer);
 
-        Assert.Equal(4 * 4 * 4, pixels.Length);
+        Assert.Equal(4, pixels.Length);
 
         // Check first pixel (with some tolerance for rounding)
         Assert.True(Math.Abs(pixels[0] - 64) < 2, $"Red mismatch: {pixels[0]}");

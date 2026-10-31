@@ -20,7 +20,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 /// Usage:
 /// <code>
 /// [Collection("GPU")]
-/// [Trait("Category", "GPU")]
+/// [Trait("Category", "GpuIntegration")]
 /// public class MyGpuTests : IClassFixture&lt;HeadlessGLFixture&gt;
 /// {
 ///     private readonly HeadlessGLFixture _fixture;

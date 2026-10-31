@@ -7,27 +7,13 @@ namespace VanillaGraphicsExpanded.Tests;
 
 public sealed class TraceSceneDebugShaderCoordSpaceTests
 {
+    /// <summary>Reads the exact shader source captured by the test build, without checkout discovery.</summary>
     private static string ReadRepoFileOrSkip(string relativePath)
     {
-        var dir = new DirectoryInfo(AppContext.BaseDirectory);
-        for (int i = 0; i < 8 && dir is not null; i++)
-        {
-            string sln = Path.Combine(dir.FullName, "VanillaGraphicsExpanded.sln");
-            if (File.Exists(sln))
-            {
-                string full = Path.Combine(dir.FullName, relativePath);
-                if (!File.Exists(full))
-                {
-                    break;
-                }
-
-                return File.ReadAllText(full);
-            }
-
-            dir = dir.Parent;
-        }
-
-        throw new InvalidOperationException($"Repo root not found for test file: {relativePath}");
+        const string prefix = "VanillaGraphicsExpanded/assets/vanillagraphicsexpanded/";
+        string normalized = relativePath.Replace('\\', '/');
+        Assert.StartsWith(prefix, normalized);
+        return TestAssetSnapshot.Built.Text(normalized[prefix.Length..]);
     }
 
     [Fact]

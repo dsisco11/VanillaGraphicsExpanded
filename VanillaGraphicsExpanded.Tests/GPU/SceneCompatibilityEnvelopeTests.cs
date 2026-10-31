@@ -10,7 +10,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Compares storage envelopes to arithmetic extracted verbatim from the installed native shaders.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class SceneCompatibilityEnvelopeTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
     #region Public API
@@ -26,8 +26,8 @@ public sealed class SceneCompatibilityEnvelopeTests(HeadlessGLFixture fixture) :
         string modulation = Slice(vertex, "rgbaCloud.rgb *= mix(1, 0.2", "rgbaCloud.a *= max");
         string body = Slice(fragment, "vec4 col = rgbaCloud;", "// fake depth for better blending")
             .Replace("texture(liquidDepth, gl_FragCoord.xy/frameSize.xy).r", ".25", StringComparison.Ordinal);
-        string fog = File.ReadAllText(Path.Combine(GameRoot(), "assets/game/shaderincludes/fogandlight.fsh"));
-        string water = File.ReadAllText(Path.Combine(GameRoot(), "assets/game/shaderincludes/underwatereffects.fsh"));
+        string fog = TestAssetSnapshot.ReadSourceText(Path.Combine(GameRoot(), "assets/game/shaderincludes/fogandlight.fsh"));
+        string water = TestAssetSnapshot.ReadSourceText(Path.Combine(GameRoot(), "assets/game/shaderincludes/underwatereffects.fsh"));
         using var shaders = new TerrainShaderTestFixture();
         using var program = Link(shaders, """
             #define BLOOM 1
@@ -66,9 +66,9 @@ public sealed class SceneCompatibilityEnvelopeTests(HeadlessGLFixture fixture) :
     public void InstalledCubeParticleLightingFitsEnvelope(bool pointSources, bool staticBranch)
     {
         EnsureContextValid();
-        string include = File.ReadAllText(Path.Combine(GameRoot(), "assets/game/shaderincludes/fogandlight.vsh"));
-        string fragment = File.ReadAllText(Path.Combine(GameRoot(), "assets/game/shaderincludes/fogandlight.fsh"));
-        string underwater = File.ReadAllText(Path.Combine(GameRoot(), "assets/game/shaderincludes/underwatereffects.fsh"));
+        string include = TestAssetSnapshot.ReadSourceText(Path.Combine(GameRoot(), "assets/game/shaderincludes/fogandlight.vsh"));
+        string fragment = TestAssetSnapshot.ReadSourceText(Path.Combine(GameRoot(), "assets/game/shaderincludes/fogandlight.fsh"));
+        string underwater = TestAssetSnapshot.ReadSourceText(Path.Combine(GameRoot(), "assets/game/shaderincludes/underwatereffects.fsh"));
         using var shaders = new TerrainShaderTestFixture();
         using var program = Link(shaders, "#define DYNLIGHTS " + (staticBranch ? 0 : 2) + "\n" + """
             #define SHADOWQUALITY 1
@@ -122,9 +122,9 @@ public sealed class SceneCompatibilityEnvelopeTests(HeadlessGLFixture fixture) :
         string native = Native("clouds.fsh");
         string body = Slice(native, "vec4 col = rgbaCloud;", "// fake depth for better blending")
             .Replace("texture(liquidDepth, gl_FragCoord.xy/frameSize.xy).r", ".25", StringComparison.Ordinal);
-        string fog = File.ReadAllText(Path.Combine(GameRoot(), "assets/game/shaderincludes/fogandlight.fsh"));
+        string fog = TestAssetSnapshot.ReadSourceText(Path.Combine(GameRoot(), "assets/game/shaderincludes/fogandlight.fsh"));
         string perception = Slice(fog, "vec3 palette(", "vec4 applyRustEffect(");
-        string underwater = Slice(File.ReadAllText(Path.Combine(GameRoot(), "assets/game/shaderincludes/underwatereffects.fsh")), "vec3 applyUnderwaterEffects", "\n}") + "\n}";
+        string underwater = Slice(TestAssetSnapshot.ReadSourceText(Path.Combine(GameRoot(), "assets/game/shaderincludes/underwatereffects.fsh")), "vec3 applyUnderwaterEffects", "\n}") + "\n}";
         using var shaders = new TerrainShaderTestFixture();
         using var program = Link(shaders, """
             #define BLOOM 1
@@ -232,7 +232,7 @@ public sealed class SceneCompatibilityEnvelopeTests(HeadlessGLFixture fixture) :
     {
         EnsureContextValid();
         string body = Slice(Native("celestialobject.fsh"), "texColor = applyFog(texColor, fogAmount);", "#if SSAOLEVEL > 0");
-        string underwater = Slice(File.ReadAllText(Path.Combine(GameRoot(), "assets/game/shaderincludes/underwatereffects.fsh")), "vec3 applyUnderwaterEffects", "\n}") + "\n}";
+        string underwater = Slice(TestAssetSnapshot.ReadSourceText(Path.Combine(GameRoot(), "assets/game/shaderincludes/underwatereffects.fsh")), "vec3 applyUnderwaterEffects", "\n}") + "\n}";
         using var shaders = new TerrainShaderTestFixture();
         using var program = Link(shaders, "uniform float fixtureMurk;vec4 waterMurkColor=vec4(7,2,3,1);float getSkyMurkiness(){return fixtureMurk;}\n" + underwater + "\n" +
             "vec4 applyFog(vec4 c,float f){return vec4(mix(c.rgb,vec3(6,4,2),f),c.a);}" +
@@ -263,7 +263,7 @@ public sealed class SceneCompatibilityEnvelopeTests(HeadlessGLFixture fixture) :
     }
 
     /// <summary>Loads native code from the same installation used by the shader catalog.</summary>
-    private static string Native(string name) => File.ReadAllText(Path.Combine(GameRoot(), "assets/game/shaders", name));
+    private static string Native(string name) => TestAssetSnapshot.ReadSourceText(Path.Combine(GameRoot(), "assets/game/shaders", name));
     /// <summary>Locates the configured installation.</summary>
     private static string GameRoot() => Environment.GetEnvironmentVariable("VINTAGE_STORY") ?? "G:/Vintagestory";
     /// <summary>Selects a verbatim expression region, failing if its installed contract moved.</summary>
@@ -275,7 +275,7 @@ public sealed class SceneCompatibilityEnvelopeTests(HeadlessGLFixture fixture) :
     /// <summary>Links exact native expression regions to production authored-color decoding.</summary>
     private static GpuProgramObject Link(TerrainShaderTestFixture shaders, string body)
     {
-        string helper = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "assets/shaders/includes/pbr_color.glsl"));
+        string helper = TestAssetSnapshot.ReadBuiltText(Path.Combine(AppContext.BaseDirectory, "assets/shaders/includes/pbr_color.glsl"));
         int vertex = shaders.Compile(ShaderType.VertexShader, "#version 330 core\nlayout(location=0)in vec2 position;void main(){gl_Position=vec4(position,0,1);}");
         int fragment = shaders.Compile(ShaderType.FragmentShader, "#version 330 core\nlayout(location=0)out vec4 outColor;\n" + helper + "\n" + body);
         return GpuProgramObject.Adopt(TerrainShaderTestFixture.Link(vertex, fragment));

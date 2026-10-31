@@ -8,7 +8,7 @@ using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 namespace VanillaGraphicsExpanded.Tests.GPU;
 /// <summary>Checks categorized transitions against the native context, including all output aliases.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class CategorizedStateCacheTests(HeadlessGLFixture fixture)
 {
     #region Public API

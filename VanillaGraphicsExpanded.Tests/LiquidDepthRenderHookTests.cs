@@ -7,7 +7,7 @@ using Vintagestory.Client.NoObf;
 namespace VanillaGraphicsExpanded.Tests;
 
 /// <summary>Checks the owned depth-pass handoff against the installed engine method body.</summary>
-[Collection("GPU")]
+[Collection("CPU state")]
 public sealed class LiquidDepthRenderHookTests
 {
     #region Installed engine contract

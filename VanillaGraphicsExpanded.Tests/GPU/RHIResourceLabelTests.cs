@@ -12,7 +12,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Checks optional owner labels without giving wrappers native diagnostic authority.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class RHIResourceLabelTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
     private static int labelAttempts;

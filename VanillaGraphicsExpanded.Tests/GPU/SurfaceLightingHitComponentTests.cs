@@ -4,7 +4,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Proves controlled cache lighting reaches directional hits independently of runtime orchestration.</summary>
 [Collection("NearFieldMaterialCapture")]
-[Trait("Category","GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class SurfaceLightingHitComponentTests : SurfaceLightingHitTestBase
 {
     /// <summary>Uses the shared material-isolated GPU context.</summary>

@@ -17,7 +17,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Checks dormant native state, later activation and union restoration independently of cache contents.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class RelevantGraphicsStateTests(HeadlessGLFixture fixture) : IDisposable
 {
     private readonly GraphicsStateShaders stateShaders = new();

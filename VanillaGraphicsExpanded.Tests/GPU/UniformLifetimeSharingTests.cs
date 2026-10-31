@@ -11,7 +11,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Checks retained logical ownership across named bindings, numeric slots and executable replacement.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class UniformLifetimeSharingTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
     #region Public API

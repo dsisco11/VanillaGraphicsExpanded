@@ -54,7 +54,7 @@ public sealed class MaterialDisplacementTests
     [Fact]
     public void SchemaKeepsDisplacementOutsideBrdfAndMappingOverrides()
     {
-        var schema=JObject.Parse(File.ReadAllText(Path.Combine(AppContext.BaseDirectory,"schemas/pbr_material_definitions.schema.json")));
+        var schema=JObject.Parse(TestAssetSnapshot.Built.Text("schemas/pbr_material_definitions.schema.json"));
         var definitions=schema["$defs"]!;
         Assert.NotNull(definitions["material"]!["properties"]!["displacement"]);
         Assert.Null(definitions["BRDFProperties"]!["properties"]!["displacement"]);

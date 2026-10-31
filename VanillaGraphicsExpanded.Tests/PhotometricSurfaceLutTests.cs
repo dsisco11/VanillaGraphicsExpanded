@@ -6,7 +6,7 @@ using Vintagestory.API.Common;
 namespace VanillaGraphicsExpanded.Tests;
 
 /// <summary>Checks material emission admission before compact identifiers become visible.</summary>
-[Collection("NearFieldMaterialCapture")]
+[Collection("CPU state")]
 public sealed class PhotometricSurfaceLutTests
 {
     #region Public API

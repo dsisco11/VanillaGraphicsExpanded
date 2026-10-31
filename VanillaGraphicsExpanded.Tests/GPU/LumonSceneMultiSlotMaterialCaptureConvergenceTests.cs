@@ -17,7 +17,7 @@ using Xunit;
 namespace VanillaGraphicsExpanded.Tests.GPU;
 
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class LumonSceneMultiSlotMaterialCaptureConvergenceTests : RenderTestBase
 {
     public LumonSceneMultiSlotMaterialCaptureConvergenceTests(HeadlessGLFixture fixture) : base(fixture) { }

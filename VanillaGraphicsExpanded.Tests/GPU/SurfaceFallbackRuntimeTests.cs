@@ -8,7 +8,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Checks fallback completion through actual renderer scheduling, collision traversal and publication.</summary>
 [Collection("NearFieldMaterialCapture")]
-[Trait("Category","GPU")]
+[Trait("Category", "GpuIntegration")]
+[Trait("Scenario", "HeadlessRuntime")]
 public sealed class SurfaceFallbackRuntimeTests(HeadlessGLFixture fixture):RenderTestBase(fixture)
 {
     #region Runtime completion

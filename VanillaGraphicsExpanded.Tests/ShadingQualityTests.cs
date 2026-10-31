@@ -29,7 +29,7 @@ public sealed class ShadingQualityTests
     {
         Assert.Equal(3,new VgeConfig().ShadingQuality);
         Assert.Equal(3,JsonConvert.DeserializeObject<VgeConfig>("{}")!.ShadingQuality);
-        var document=JObject.Parse(File.ReadAllText(Path.Combine(AppContext.BaseDirectory,"assets/config/configlib-patches.json")));
+        var document=JObject.Parse(TestAssetSnapshot.ReadBuiltText(Path.Combine(AppContext.BaseDirectory,"assets/config/configlib-patches.json")));
         var setting=document.Descendants().OfType<JObject>().Single(value=>value["name"]?.Value<string>()=="ShadingQuality");
         Assert.Equal(3,setting["default"]!.Value<int>());
         Assert.Equal(0,setting["range"]!["min"]!.Value<int>());

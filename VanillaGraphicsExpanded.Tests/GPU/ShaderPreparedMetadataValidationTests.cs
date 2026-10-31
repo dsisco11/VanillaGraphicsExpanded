@@ -10,7 +10,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Checks direct submission validation against withdrawn snapshots and shrinking native stores.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class ShaderPreparedMetadataValidationTests(HeadlessGLFixture fixture)
 {
     #region Public API

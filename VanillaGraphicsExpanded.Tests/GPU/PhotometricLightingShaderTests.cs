@@ -11,7 +11,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Exercises the production quantity helpers against independent double-precision expectations.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class PhotometricLightingShaderTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
     #region Public API
@@ -459,7 +459,7 @@ public sealed class PhotometricLightingShaderTests(HeadlessGLFixture fixture) : 
     }
 
     /// <summary>Expands local guarded production includes without replacing their quantity equations.</summary>
-    private static string Expand(string path) => Regex.Replace(File.ReadAllText(path), "@import \\\"([^\\\"]+)\\\"",
+    private static string Expand(string path) => Regex.Replace(TestAssetSnapshot.ReadSourceText(path), "@import \\\"([^\\\"]+)\\\"",
         match => Expand(Path.GetFullPath(Path.Combine(Path.GetDirectoryName(path)!, match.Groups[1].Value))));
 
     /// <summary>Compiles a diagnostic stage and includes the driver's explanation on failure.</summary>

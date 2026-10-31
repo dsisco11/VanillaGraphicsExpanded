@@ -11,7 +11,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Tests CPU hits, asynchronous cache queries and real GPU atlas publication across source changes.</summary>
 [Collection("NearFieldMaterialCapture")]
-[Trait("Category","GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class SurfaceLightingWorldProbeTransportTests : SurfaceLightingHitTestBase
 {
     /// <summary>Uses the shared material-isolated GPU context.</summary>

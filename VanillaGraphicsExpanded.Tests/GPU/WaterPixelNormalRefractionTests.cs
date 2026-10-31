@@ -11,7 +11,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Verifies the lowest-quality production selector uses bounded normal-detail distortion.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class WaterPixelNormalRefractionTests(HeadlessGLFixture fixture) : LumOnShaderFunctionalTestBase(fixture)
 {
     private const int Width = 128;

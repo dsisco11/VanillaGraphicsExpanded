@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Tests.Helpers;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using VanillaGraphicsExpanded.Tests.GPU.Helpers;
 using OpenTK.Graphics.OpenGL;
@@ -20,14 +21,14 @@ internal static class BuiltShaderFixture
         var owner = GpuShaderContracts.Registry.Programs.Values.OrderBy(p => p.Identity, StringComparer.Ordinal).First(p => p.Stages.Any(s => s.Identity == identity));
         var selected = new ShaderLoadPlan(new ShaderSettings(owner, defines)).Stages.Single(s => s.Stage.Identity == identity);
         using var loaded = PrecompiledStageFixture.Load(selected,
-            path => File.ReadAllBytes(Path.Combine(AppContext.BaseDirectory, "assets", "shaders", path)));
+            path => TestAssetSnapshot.Built.Copy("shaders/" + path));
         TestShaderInterfaces.TrackShader(loaded.ShaderId, selected.Stage.Bindings);
         return (int)loaded.Detach();
     }
     /// <summary>Loads a fixed test stage with source-authored numeric locations and transfers its native ownership.</summary>
     public static int LoadFixture(string path, ShaderType type)
     {
-        byte[] binary = File.ReadAllBytes(Path.Combine(AppContext.BaseDirectory, "assets", "shaders", path + ".spv"));
+        byte[] binary = TestAssetSnapshot.Built.Copy("shaders/" + path + ".spv");
         using var module = VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLRHIContext.CompileExternalStage(new(PrecompiledStageFixture.Stage(type), binary)).RequireResource();
         return (int)module.Detach();
     }

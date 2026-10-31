@@ -9,7 +9,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Verifies active policy and preparation-context contracts through actual immutable binding tables.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class BindingPreparationPolicyTests(HeadlessGLFixture fixture)
 {
     #region Public API

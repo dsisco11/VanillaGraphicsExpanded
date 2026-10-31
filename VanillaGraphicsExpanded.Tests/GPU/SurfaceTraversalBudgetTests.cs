@@ -9,7 +9,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Exercises long production Surface Cache rays without treating incomplete traversal as sky.</summary>
 [Collection("NearFieldMaterialCapture")]
-[Trait("Category","GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class SurfaceTraversalBudgetTests(HeadlessGLFixture fixture):RenderTestBase(fixture)
 {
     #region Long routes

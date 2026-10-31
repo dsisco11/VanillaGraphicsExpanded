@@ -15,7 +15,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Checks shared graphics and compute declaration boundaries independently of debug grouping.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class ShaderDemandPreparationTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
     #region Graphics demand and ownership

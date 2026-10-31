@@ -10,7 +10,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Checks eligible receiver support without foreground leakage or fictional depth layers.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class WaterReceiverFilterTests(HeadlessGLFixture fixture) : LumOnShaderFunctionalTestBase(fixture)
 {
     #region Public API
@@ -269,7 +269,7 @@ public sealed class WaterReceiverFilterTests(HeadlessGLFixture fixture) : LumOnS
         // Four queried corners are geometrically coplanar even though the two
         // plateaus are disconnected. Outside neighbors disprove the invented slope.
         Assert.InRange(MathF.Abs(target[0].ReadPixels()[2]+2.2f),0,.0001f);
-        Assert.InRange(MathF.Abs(target[1].ReadPixels()[0]-8),0,.0001f);
+        Assert.InRange(MathF.Abs(target[1].ReadTexel()[0]-8),0,.0001f);
     }
     #endregion
 

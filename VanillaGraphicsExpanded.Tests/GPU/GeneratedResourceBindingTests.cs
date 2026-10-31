@@ -14,7 +14,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Verifies generated property assignments with a linked compute dispatch and readback.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class GeneratedResourceBindingTests : RenderTestBase
 {
     #region Public API
@@ -28,9 +28,9 @@ public sealed class GeneratedResourceBindingTests : RenderTestBase
         EnsureContextValid();
         string path = Path.Combine(AppContext.BaseDirectory,"assets","shaders","tests","GpuProgramLayoutBindingTests_1.csh.spv");
         var settings = new ShaderSettings(VanillaGraphicsExpanded.Rendering.Contracts.GpuShaderContracts.Registry.FindProgram("tests/GpuProgramLayoutBindingTests_1"));
-        Assert.True(ComputeShaderAsset.TryLoadFromSpirv(path,settings,out var first,out string log),log);
+        Assert.True(ComputeShaderAsset.TryLoadFromSpirv(path,settings,out var first,out string log, fileSystem: ShaderAssetFileSystem.Built),log);
         using var shader = new GeneratedResourceBindingShader(first!);
-        Assert.True(ComputeShaderAsset.TryLoadFromSpirv(path,settings,out var second,out log),log);
+        Assert.True(ComputeShaderAsset.TryLoadFromSpirv(path,settings,out var second,out log, fileSystem: ShaderAssetFileSystem.Built),log);
         using var direct = new GeneratedTextureImageShader(second!);
         try
         {

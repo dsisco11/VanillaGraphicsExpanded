@@ -107,7 +107,7 @@ public sealed class PbrTerrainColorPatchesTests
     private static string ReadShader(string name)
     {
         string root = Environment.GetEnvironmentVariable("VINTAGE_STORY") ?? throw new InvalidOperationException("VINTAGE_STORY must identify the test engine installation.");
-        return File.ReadAllText(Path.Combine(root, "assets", "game", "shaders", name));
+        return TestAssetSnapshot.ReadSourceText(Path.Combine(root, "assets", "game", "shaders", name));
     }
     #endregion
 }

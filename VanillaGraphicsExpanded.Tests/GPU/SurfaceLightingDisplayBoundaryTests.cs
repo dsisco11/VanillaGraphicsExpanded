@@ -7,7 +7,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Verifies that engine display grading is excluded from persistent lighting and pre-display PBR output.</summary>
 [Collection("NearFieldMaterialCapture")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class SurfaceLightingDisplayBoundaryTests : RenderTestBase
 {
     /// <summary>Uses the exclusive graphics context and restores engine settings after each case.</summary>

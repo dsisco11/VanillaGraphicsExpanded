@@ -8,7 +8,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Checks borrowed transfer rejection, backing deletion dependencies, and deferred shader retirement.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class GpuResourceRetirementRegressionTests(HeadlessGLFixture fixture)
 {
     #region Public API

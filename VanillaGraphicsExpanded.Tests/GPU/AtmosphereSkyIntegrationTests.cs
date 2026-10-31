@@ -25,7 +25,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Exercises the owned sky through its runtime registration, framebuffer owner and independent fullscreen inputs.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class AtmosphereSkyIntegrationTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
     #region Public API
@@ -150,8 +150,8 @@ public sealed class AtmosphereSkyIntegrationTests(HeadlessGLFixture fixture) : R
                 Assert.Equal(engine.FboId, GL.GetInteger(GetPName.DrawFramebufferBinding));
                 for (int attachment = 0; attachment < 8; attachment++)
                     Assert.Equal((int)routing[attachment], GL.GetInteger(GetPName.DrawBuffer0 + attachment));
-                Assert.True(engine[0].ReadPixels()[0] > 0, string.Join(Environment.NewLine, assets.Logs));
-                Assert.Equal(new float[] { 0, 0, 0, 1 }, engine[1].ReadPixels()[..4]);
+                Assert.True(engine[0].ReadTexel()[0] > 0, string.Join(Environment.NewLine, assets.Logs));
+                Assert.Equal(new float[] { 0, 0, 0, 1 }, engine[1].ReadTexel()[..4]);
                 for (int attachment = 2; attachment < 8; attachment++)
                 {
                     if (attachment == 2 && !ssao) continue;

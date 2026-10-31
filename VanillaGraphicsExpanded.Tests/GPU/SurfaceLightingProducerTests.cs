@@ -7,7 +7,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Verifies separated lighting terms and previous-generation multi-bounce transport numerically.</summary>
 [Collection("NearFieldMaterialCapture")]
-[Trait("Category","GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class SurfaceLightingProducerTests : RenderTestBase
 {
     /// <summary>Uses the isolated material and real SPIR-V graphics context.</summary>

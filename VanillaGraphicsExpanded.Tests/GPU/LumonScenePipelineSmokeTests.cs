@@ -18,7 +18,7 @@ using Xunit;
 namespace VanillaGraphicsExpanded.Tests.GPU;
 
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class LumonScenePipelineSmokeTests : RenderTestBase
 {
     public LumonScenePipelineSmokeTests(HeadlessGLFixture fixture) : base(fixture) { }

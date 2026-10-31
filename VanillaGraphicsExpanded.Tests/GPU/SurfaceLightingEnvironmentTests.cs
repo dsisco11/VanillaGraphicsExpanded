@@ -7,7 +7,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Exercises environment completion through the packaged Surface Cache lighting producer.</summary>
 [Collection("NearFieldMaterialCapture")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class SurfaceLightingEnvironmentTests : RenderTestBase
 {
     /// <summary>Uses the isolated material and real graphics context.</summary>

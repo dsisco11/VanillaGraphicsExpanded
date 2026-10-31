@@ -25,11 +25,8 @@ public sealed class ShaderBindingMigrationTests
     [Fact]
     public void GeneratedBindingsMatchApprovedSubmissionLayouts()
     {
-        var directory = new DirectoryInfo(AppContext.BaseDirectory);
-        while (directory != null && !File.Exists(Path.Combine(directory.FullName, "project.todo"))) directory = directory.Parent;
-        Assert.NotNull(directory);
-        string path = Path.Combine(directory.FullName, "VanillaGraphicsExpanded.Tests", "Unit", "Rendering", "Contracts", "Fixtures", "ShaderBindingMigrationBaseline.txt");
-        string[] expected = File.ReadAllLines(path);
+
+        string[] expected = TestAssetSnapshot.Built.Lines("test-inputs/baselines/ShaderBindingMigrationBaseline.txt");
         string[] actual = new[] { "production", "build-validation", "generator-fixture" }.SelectMany(scope =>
             GeneratedShaderCatalog.Programs(scope).SelectMany(p => p.Stages).DistinctBy(s => s.Identity)
                 .Select(stage => scope + "|" + stage.Identity + "|" + Fingerprint(stage.Bindings)))

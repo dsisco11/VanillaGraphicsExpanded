@@ -8,7 +8,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Checks that framebuffer images consume manager-owned canonical texture facts.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class GpuImageMetadataProjectionRegressionTests(HeadlessGLFixture fixture)
 {
     #region Public API

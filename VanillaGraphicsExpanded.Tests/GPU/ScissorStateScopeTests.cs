@@ -7,7 +7,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Verifies cached scissor scopes preserve caller state without adopting unknown driver state.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class ScissorStateScopeTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
     #region Public API

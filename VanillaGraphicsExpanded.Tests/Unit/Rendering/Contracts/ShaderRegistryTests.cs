@@ -13,17 +13,9 @@ public sealed class ShaderRegistryTests
     [Fact]
     public void SourcesAndRegistryCoverEachOther()
     {
-        var directory = new DirectoryInfo(AppContext.BaseDirectory);
-        while (directory != null && !File.Exists(Path.Combine(directory.FullName, "ShaderBuildTool", "Program.cs")))
-            directory = directory.Parent;
-        Assert.NotNull(directory);
-        string[] roots = [
-            Path.Combine(directory.FullName, "VanillaGraphicsExpanded", "assets", "vanillagraphicsexpanded", "shaders"),
-            Path.Combine(directory.FullName, "VanillaGraphicsExpanded.Tests", "Fixtures", "Shaders", "assets", "vanillagraphicsexpanded", "shaders")];
         string[] extensions = [".vsh", ".fsh", ".csh", ".gsh", ".tcsh", ".tesh", ".glsl"];
-        var sources = roots.SelectMany(root => Directory.EnumerateFiles(root, "*", SearchOption.AllDirectories)
-            .Where(path => extensions.Contains(Path.GetExtension(path)))
-            .Select(path => Path.GetRelativePath(root, path).Replace('\\', '/')))
+        var sources = TestAssetSnapshot.Built.Paths.Where(path => path.StartsWith("shaders/", StringComparison.Ordinal))
+            .Where(path => extensions.Contains(Path.GetExtension(path))).Select(path => path["shaders/".Length..])
             // Fixture overlays replace a production source at the same asset path.
             .Where(path => !path.StartsWith("includes/", StringComparison.Ordinal) && Path.GetExtension(path)!=".glsl")
             .Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal);

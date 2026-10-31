@@ -9,7 +9,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Separates ordinary transition costs from explicitly checked native operations.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class StateTransitionDiagnosticsTests(HeadlessGLFixture fixture)
 {
     #region Public API

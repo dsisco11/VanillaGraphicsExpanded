@@ -11,7 +11,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Checks bounded UV receiver selection against independently projected optical geometry.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class WaterUvRefractionTests(HeadlessGLFixture fixture) : LumOnShaderFunctionalTestBase(fixture)
 {
     private const int Width = 128;

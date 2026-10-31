@@ -7,7 +7,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Checks atlas amplitude publication and removal independently of baked height data.</summary>
 [Collection("GPU")]
-[Trait("Category","GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class MaterialDisplacementAtlasTests : RenderTestBase
 {
     /// <summary>Uses the shared headless context.</summary>

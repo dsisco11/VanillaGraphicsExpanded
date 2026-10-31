@@ -7,7 +7,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Verifies explicit GPU ownership and allocation-failure cleanup.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class GpuResourceCollectionTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
     #region Ownership tests

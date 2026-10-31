@@ -6,7 +6,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Checks first-publication diagnostics against actual capture and relight callback outcomes.</summary>
 [Collection("NearFieldMaterialCapture")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class SurfaceLightingReadinessDiagnosticTests : RenderTestBase
 {
     #region Construction

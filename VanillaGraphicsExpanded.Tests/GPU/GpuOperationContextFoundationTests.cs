@@ -14,7 +14,7 @@ public sealed class OperationContextCollection : ICollectionFixture<HeadlessGLFi
 
 /// <summary>Checks operation guards across context registration lifetimes independently of shared rendering fixtures.</summary>
 [Collection("OperationContext")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class GpuOperationContextFoundationTests(HeadlessGLFixture fixture)
 {
     #region Public API

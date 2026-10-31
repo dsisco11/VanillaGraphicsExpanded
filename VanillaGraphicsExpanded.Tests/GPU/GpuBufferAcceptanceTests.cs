@@ -11,7 +11,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Checks native rejection, realization and uncertainty before canonical or selector publication.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed unsafe class GpuBufferAcceptanceTests(HeadlessGLFixture fixture)
 {
     #region Public API

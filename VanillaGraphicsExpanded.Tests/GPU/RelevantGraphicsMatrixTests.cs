@@ -14,7 +14,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Qualifies dormant-to-active native transitions across target aspects and independent selector families.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class RelevantGraphicsMatrixTests(HeadlessGLFixture fixture) : IDisposable
 {
     private readonly GraphicsStateShaders stateShaders = new();

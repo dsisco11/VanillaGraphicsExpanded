@@ -11,10 +11,7 @@ public sealed class DdsBc7Rgba8CodecTests
     [Fact]
     public void RoundTrip_PreservesDimensions_AndIsReasonablyClose()
     {
-        string dir = Path.Combine(Path.GetTempPath(), "VGE", "DdsTests");
-        Directory.CreateDirectory(dir);
-
-        string path = Path.Combine(dir, "bc7.dds");
+        using var stream = new MemoryStream();
 
         const int width = 8;
         const int height = 8;
@@ -33,9 +30,10 @@ public sealed class DdsBc7Rgba8CodecTests
             }
         }
 
-        DdsBc7Rgba8Codec.WriteBc7Dds(path, width, height, src);
+        DdsBc7Rgba8Codec.WriteBc7Dds(stream, width, height, src);
 
-        byte[] dst = DdsBc7Rgba8Codec.ReadRgba8FromDds(path, out int rw, out int rh);
+        stream.Position = 0;
+        byte[] dst = DdsBc7Rgba8Codec.ReadRgba8FromDds(stream, out int rw, out int rh);
 
         Assert.Equal(width, rw);
         Assert.Equal(height, rh);

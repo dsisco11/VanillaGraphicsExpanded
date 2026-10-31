@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Tests.TestSupport;
 using System;
 using System.IO;
 using System.Numerics;
@@ -15,13 +16,15 @@ namespace VanillaGraphicsExpanded.Tests.Unit.PBR.Materials;
 [Collection("PbrMaterialRegistry")]
 public sealed class BaseColorCachePhase6Tests
 {
+    private readonly CountingDiskCacheFileSystem storage = new();
+
     [Fact]
     public void Corrupt_Entry_DoesNotPoison_Other_Entries()
     {
         string root = CreateTempDir();
         try
         {
-            var store = new DiskJsonDictionaryCacheStore(root);
+            var store = new DiskJsonDictionaryCacheStore(root, "meta.json", storage);
             using (store)
             {
 
@@ -115,20 +118,20 @@ public sealed class BaseColorCachePhase6Tests
         reg.Clear();
     }
 
-    private static string CreateTempDir()
+    private string CreateTempDir()
     {
         string path = Path.Combine(Path.GetTempPath(), "vge-cachetests", Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(path);
+        storage.CreateDirectory(path);
         return path;
     }
 
-    private static void TryDeleteDir(string path)
+    private void TryDeleteDir(string path)
     {
         try
         {
-            if (Directory.Exists(path))
+            if (storage.DirectoryExists(path))
             {
-                Directory.Delete(path, recursive: true);
+                storage.DeleteDirectory(path, recursive: true);
             }
         }
         catch

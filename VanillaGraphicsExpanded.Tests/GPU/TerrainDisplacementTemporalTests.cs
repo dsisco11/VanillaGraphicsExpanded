@@ -4,7 +4,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Checks temporal rejection across changes to displaced geometry.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class TerrainDisplacementTemporalTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
     #region Temporal transition regression

@@ -12,7 +12,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Observes production buffer interfaces and traversal policies at the actual driver binding boundary.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class LumOnShaderBufferInterfaceTests : RenderTestBase
 {
     /// <summary>Uses the mandatory graphics context and production uniform-ring lifecycle.</summary>

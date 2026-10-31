@@ -8,7 +8,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Checks complete typed slot publication independently of ownership of an engine executable.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class RHISampledSlotTests(HeadlessGLFixture fixture)
 {
     #region Public API

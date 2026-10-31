@@ -10,7 +10,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Verifies exact buffer-binding overloads preserve VAO metadata effects and cache recovery.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class GpuVertexBufferBindingInterceptionTests(HeadlessGLFixture fixture)
 {
     #region Public API

@@ -11,7 +11,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Checks hardware-filtered half-float lookup interpolation, furnace endpoints and invalid-input containment.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class MicrofacetEnergyShaderTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
     #region Public API
@@ -189,12 +189,12 @@ public sealed class MicrofacetEnergyShaderTests(HeadlessGLFixture fixture) : Ren
     private float[] Render(float roughness, float viewCosine, bool invalid, bool furnace = false,
         float environmentMetallic = -1, bool grazing = false, float waterAngle = 0)
     {
-        string helper = File.ReadAllText(Path.Combine(AppContext.BaseDirectory,
+        string helper = TestAssetSnapshot.ReadBuiltText(Path.Combine(AppContext.BaseDirectory,
             "assets/shaders/includes/pbr_microfacet_energy.glsl"));
-        string common = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "assets/shaders/includes/pbr_common.glsl"))
-            .Replace("@import \"./common_constants.glsl\"", File.ReadAllText(Path.Combine(AppContext.BaseDirectory,
+        string common = TestAssetSnapshot.ReadBuiltText(Path.Combine(AppContext.BaseDirectory, "assets/shaders/includes/pbr_common.glsl"))
+            .Replace("@import \"./common_constants.glsl\"", TestAssetSnapshot.ReadBuiltText(Path.Combine(AppContext.BaseDirectory,
                 "assets/shaders/includes/common_constants.glsl")));
-        string environment = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "assets/shaders/includes/pbr_environment.glsl"))
+        string environment = TestAssetSnapshot.ReadBuiltText(Path.Combine(AppContext.BaseDirectory, "assets/shaders/includes/pbr_environment.glsl"))
             .Replace("@import \"./pbr_common.glsl\"", "").Replace("@import \"./pbr_microfacet_energy.glsl\"", "");
         using var modules = new TerrainShaderTestFixture();
         int vertex = modules.Compile(ShaderType.VertexShader,

@@ -16,7 +16,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Exercises native configurable raster transitions in core and compatibility contexts.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class ConfigurableRasterizerGpuTests(HeadlessGLFixture fixture, ITestOutputHelper output) : IDisposable
 {
     private readonly GraphicsStateShaders stateShaders = new();
@@ -109,7 +109,7 @@ public sealed class ConfigurableRasterizerGpuTests(HeadlessGLFixture fixture, IT
         texture.UploadDataImmediate(new ushort[] { 17 });
         Assert.Equal(8, GL.GetInteger(GetPName.UnpackAlignment));
         Assert.Equal(8, OpenGLPixelLayouts.GetUnpack(cache).Alignment);
-        Assert.Equal(17f / ushort.MaxValue, texture.ReadPixels()[0], precision: 6);
+        Assert.Equal(17f / ushort.MaxValue, texture.ReadTexel()[0], precision: 6);
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
     /// <summary>Real fragments exercise matching clip-depth conventions.</summary>

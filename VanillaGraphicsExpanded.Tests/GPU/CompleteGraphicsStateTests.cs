@@ -13,7 +13,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Verifies complete state against native values independently of production migration.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class CompleteGraphicsStateTests(HeadlessGLFixture fixture) : IDisposable
 {
     private readonly GraphicsStateShaders stateShaders = new();

@@ -8,7 +8,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Verifies that real binaries start with the shared GPU contract's slots before runtime binding.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class ShaderContractBindingTests : RenderTestBase
 {
     /// <summary>Uses the common graphics fixture.</summary>

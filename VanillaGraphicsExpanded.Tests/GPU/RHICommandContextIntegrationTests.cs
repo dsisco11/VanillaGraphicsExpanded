@@ -16,7 +16,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Exercises authoritative immediate submission against production shader inputs and real target pixels.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class RHICommandContextIntegrationTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
     #region Public API
@@ -169,7 +169,7 @@ public sealed class RHICommandContextIntegrationTests(HeadlessGLFixture fixture)
             shader.HzbDepth=second;commands.BindResources(shader.CaptureBindings());commands.DrawIndexed(geometry.Inputs,new(0,3));
             commands.EndRenderPass();
         });
-        Assert.InRange(target[0].ReadPixels()[0],.6999f,.7001f);
+        Assert.InRange(target[0].ReadTexel()[0],.6999f,.7001f);
     }
 
     /// <summary>Missing dynamics, missing resources, incompatible layouts and invalid ranges never submit a draw.</summary>

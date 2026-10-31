@@ -11,7 +11,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Verifies established binding facts independently of canonical resource revisions.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class CommandBindingKnowledgeTests(HeadlessGLFixture fixture)
 {
     #region Public API

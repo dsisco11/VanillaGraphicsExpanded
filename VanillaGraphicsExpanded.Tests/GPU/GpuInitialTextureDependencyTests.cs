@@ -8,7 +8,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Verifies initial canonical acquisition establishes known native buffer-texture dependencies.</summary>
 [Collection("GPU")]
-[Trait("Category","GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class GpuInitialTextureDependencyTests(HeadlessGLFixture fixture)
 {
     #region Public API

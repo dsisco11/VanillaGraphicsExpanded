@@ -12,7 +12,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Checks resident GPU lighting transport through the production atlas publication owner.</summary>
 [Collection("NearFieldMaterialCapture")]
-[Trait("Category","GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class WorldProbeResidentPublicationTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
     #region Resident publication

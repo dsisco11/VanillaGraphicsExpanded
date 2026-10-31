@@ -6,7 +6,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Checks settled lighting transport through retained pages after localized source edits.</summary>
 [Collection("NearFieldMaterialCapture")]
-[Trait("Category","GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class SurfaceLightingRefreshValidationTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
     #region Settled refresh

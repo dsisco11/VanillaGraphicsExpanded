@@ -7,7 +7,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Checks native deletion effects without discarding unrelated binding knowledge.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class StateCacheResourceDeletionTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
     #region Public API

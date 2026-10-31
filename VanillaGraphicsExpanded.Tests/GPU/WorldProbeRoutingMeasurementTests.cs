@@ -15,6 +15,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 /// <summary>Opt-in matched routing measurements; numerical acceptance never depends on elapsed time.</summary>
 [Collection("NearFieldMaterialCapture")]
 [Trait("Category","Measurement")]
+[Trait("Category", "GpuIntegration")]
 public sealed class WorldProbeRoutingMeasurementTests(HeadlessGLFixture fixture):RenderTestBase(fixture)
 {
     #region Reproducible experiment

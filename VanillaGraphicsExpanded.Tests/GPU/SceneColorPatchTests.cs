@@ -12,7 +12,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Checks installed scene producer boundaries under both color conventions.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class SceneColorPatchTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
     #region Public API
@@ -159,7 +159,7 @@ public sealed class SceneColorPatchTests(HeadlessGLFixture fixture) : RenderTest
     }
 
     /// <summary>Loads the exact production color helpers copied by the build.</summary>
-    private static string Helper() => File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "assets/shaders/includes/pbr_color.glsl"));
+    private static string Helper() => TestAssetSnapshot.ReadBuiltText(Path.Combine(AppContext.BaseDirectory, "assets/shaders/includes/pbr_color.glsl"));
     /// <summary>Decodes authored sRGB without invoking production helper code.</summary>
     private static float Decode(float value) => value <= .04045f ? value / 12.92f : MathF.Pow((value + .055f) / 1.055f, 2.4f);
     /// <summary>Encodes the independent shoulder result for the perceptual metric.</summary>

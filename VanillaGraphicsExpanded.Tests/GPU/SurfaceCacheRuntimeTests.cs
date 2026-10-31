@@ -13,7 +13,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Exercises renderer ownership through the callbacks registered with the engine.</summary>
 [Collection("NearFieldMaterialCapture")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
+[Trait("Scenario", "HeadlessRuntime")]
 public sealed class SurfaceCacheRuntimeTests : RenderTestBase
 {
     /// <summary>Uses the material-isolated graphics context.</summary>

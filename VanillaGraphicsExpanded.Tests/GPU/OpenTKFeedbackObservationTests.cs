@@ -10,7 +10,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Qualifies external capture activity using real native acceptance and per-object executed history.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class OpenTKFeedbackObservationTests(HeadlessGLFixture fixture)
 {
     #region Public API

@@ -22,7 +22,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Executes production celestial programs with independent footprint and angular-energy references.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class CelestialDrawTests(HeadlessGLFixture fixture) : LumOnShaderFunctionalTestBase(fixture)
 {
     #region Public API

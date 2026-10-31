@@ -13,7 +13,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Checks the production bloom shader and multiscale graph against independent energy and spatial expectations.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class OwnedPostprocessShaderTests(HeadlessGLFixture fixture, ITestOutputHelper output) : LumOnShaderFunctionalTestBase(fixture)
 {
     private PostprocessDraw? draw;
@@ -34,7 +34,7 @@ public sealed class OwnedPostprocessShaderTests(HeadlessGLFixture fixture, ITest
         using var target = TestFramework.CreateTestGBuffer(1, 1, TextureFormat.Rgba32f);
         shader.SourceImage=source; shader.SecondaryImage=source; shader.ExposureBuffer=exposure;
         shader.Capture(new(0,0,0,automatic?1:0),new(2,.5f,1,automatic?-8:ev)); Draw(shader,target);
-        Assert.InRange(target[0].ReadPixels()[0],weight-.00001f,weight+.00001f);
+        Assert.InRange(target[0].ReadTexel()[0],weight-.00001f,weight+.00001f);
         Assert.Equal(new[]{1f,1f,1f,.3f},source.ReadPixels());
     }
 
@@ -49,7 +49,7 @@ public sealed class OwnedPostprocessShaderTests(HeadlessGLFixture fixture, ITest
         using var target=TestFramework.CreateTestGBuffer(1,1,TextureFormat.Rgba32f);
         shader.SecondaryImage=red;
         shader.SourceImage=red; shader.Capture(Vector4.Zero,new(1,0,1,0)); Draw(shader,target);
-        Assert.Equal(0,target[0].ReadPixels()[0]);
+        Assert.Equal(0,target[0].ReadTexel()[0]);
         shader.SourceImage=green; Draw(shader,target);
         Assert.Equal(4,target[0].ReadPixels()[1]);
         shader.SourceImage=red; shader.Capture(Vector4.Zero,new(0,.5f,.25f,-20)); Draw(shader,target);
@@ -61,7 +61,7 @@ public sealed class OwnedPostprocessShaderTests(HeadlessGLFixture fixture, ITest
             shader.Capture(Vector4.Zero,new(threshold,.5f,1,0)); Draw(shader,target);
             float t=Math.Clamp((1-threshold*.5f)/threshold,0,1);
             float expected=t*t*(3-2*t);
-            Assert.InRange(target[0].ReadPixels()[0],expected-.00001f,expected+.00001f);
+            Assert.InRange(target[0].ReadTexel()[0],expected-.00001f,expected+.00001f);
         }
     }
 

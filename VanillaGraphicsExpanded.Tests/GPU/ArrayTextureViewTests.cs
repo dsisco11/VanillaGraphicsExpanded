@@ -8,7 +8,7 @@ using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Qualifies managed array-view lifetime and feedback exclusion against actual OpenGL storage.</summary>
-[Collection("GPU")][Trait("Category","GPU")]
+[Collection("GPU")][Trait("Category", "GpuIntegration")]
 public sealed class ArrayTextureViewTests(HeadlessGLFixture fixture):RenderTestBase(fixture)
 {
     #region Public API

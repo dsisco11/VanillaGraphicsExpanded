@@ -10,7 +10,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Verifies compute realization identity and independent shader/pipeline ownership.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class RHIComputePipelineTests(HeadlessGLFixture fixture)
 {
     #region Public API

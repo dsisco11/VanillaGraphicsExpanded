@@ -9,7 +9,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Checks irradiance normalization independently of ray travel distance.</summary>
 [Collection("NearFieldMaterialCapture")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class SurfaceCacheLightingTermsTests : RenderTestBase
 {
     /// <summary>Uses the material-isolated graphics context.</summary>

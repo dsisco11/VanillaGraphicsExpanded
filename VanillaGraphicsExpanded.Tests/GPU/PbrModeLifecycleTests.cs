@@ -13,7 +13,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Exercises production mode selection, live provider discovery and attachment lifetime.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class PbrModeLifecycleTests : RenderTestBase
 {
     /// <summary>Uses the shared headless context.</summary>
@@ -147,7 +147,7 @@ public sealed class PbrModeLifecycleTests : RenderTestBase
             Assert.False(firstResolve.Colors[0].Image!.Value.Texture.IsValid);
             Assert.True(terrain.Color.IsValid);
             Assert.Equal(replacement.TextureId, replacedResolve.Colors[0].Image!.Value.Texture.TextureId);
-            Assert.True(replacement.ReadPixels()[0] > 0f);
+            Assert.True(replacement.ReadTexel()[0] > 0f);
             GL.NamedFramebufferTexture(terrain.Primary.FboId, FramebufferAttachment.ColorAttachment0, terrain.Color.TextureId, 0);
             terrain.Primary.ColorTextureIds[0] = terrain.Color.TextureId;
             gbuffer.SetupGBuffers();

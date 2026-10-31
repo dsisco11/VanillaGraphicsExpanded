@@ -18,7 +18,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Exercises geometry and world-probe diagnostics through the registered production renderer.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class LumOnDebugRendererFunctionalTests : LumOnShaderFunctionalTestBase
 {
     #region Construction

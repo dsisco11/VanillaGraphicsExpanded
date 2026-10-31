@@ -21,7 +21,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 /// - respects per-texel confidence (low-confidence samples do not bleed)
 /// </summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public class LumOnProbeAtlasFilterFunctionalTests : LumOnShaderFunctionalTestBase
 {
     public LumOnProbeAtlasFilterFunctionalTests(HeadlessGLFixture fixture) : base(fixture) { }

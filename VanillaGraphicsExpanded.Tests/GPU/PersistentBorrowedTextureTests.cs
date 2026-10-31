@@ -9,7 +9,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Qualifies retained external selections against common metadata and binding ownership.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class PersistentBorrowedTextureTests(HeadlessGLFixture fixture)
 {
     #region Public API

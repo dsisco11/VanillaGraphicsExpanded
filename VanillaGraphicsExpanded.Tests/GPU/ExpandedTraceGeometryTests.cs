@@ -6,7 +6,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Checks real surface capture outside the old coverage and after bounded ring reuse.</summary>
 [Collection("NearFieldMaterialCapture")]
-[Trait("Category","GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class ExpandedTraceGeometryTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
     #region Expanded capture

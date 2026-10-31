@@ -12,7 +12,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 /// Integration tests for <see cref="GpuBindlessTextureHandle"/>.
 /// </summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public class GpuBindlessTextureHandleIntegrationTests
 {
     private readonly HeadlessGLFixture fixture;

@@ -7,7 +7,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Checks dynamic surface illumination using real shared publication, invalidation and bounded GPU relighting.</summary>
 [Collection("NearFieldMaterialCapture")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class SurfaceCacheDynamicLightingTests : RenderTestBase
 {
     /// <summary>Uses the material-isolated GPU context.</summary>

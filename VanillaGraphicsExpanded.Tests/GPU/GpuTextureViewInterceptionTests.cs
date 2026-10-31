@@ -11,7 +11,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Exercises native view creation on reserved tracked names without prematurely realizing texture objects.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class GpuTextureViewInterceptionTests(HeadlessGLFixture fixture)
 {
     #region Public API

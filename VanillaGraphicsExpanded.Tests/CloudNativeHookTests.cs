@@ -4,7 +4,7 @@ using VanillaGraphicsExpanded.HarmonyPatches;
 namespace VanillaGraphicsExpanded.Tests;
 
 /// <summary>Checks that passive observer hooks install against the actual installed native methods.</summary>
-[Collection("GPU")]
+[Collection("CPU state")]
 public sealed class CloudNativeHookTests
 {
     #region Public API

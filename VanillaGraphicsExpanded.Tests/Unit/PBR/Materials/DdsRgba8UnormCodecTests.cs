@@ -31,10 +31,7 @@ public sealed class DdsRgba8UnormCodecTests
     [Fact]
     public void RoundTrip_PreservesDimensions_AndExactValues()
     {
-        string dir = Path.Combine(Path.GetTempPath(), "VGE", "DdsTests");
-        Directory.CreateDirectory(dir);
-
-        string path = Path.Combine(dir, "rgba8unorm.dds");
+        using var stream = new MemoryStream();
 
         const int width = 9;
         const int height = 3;
@@ -48,9 +45,10 @@ public sealed class DdsRgba8UnormCodecTests
         src[0] = 0;
         src[1] = 255;
 
-        DdsRgba8UnormCodec.WriteRgba8Unorm(path, width, height, src);
+        DdsRgba8UnormCodec.WriteRgba8Unorm(stream, width, height, src);
 
-        byte[] dst = DdsRgba8UnormCodec.ReadRgba8Unorm(path, out int rw, out int rh);
+        stream.Position = 0;
+        byte[] dst = DdsRgba8UnormCodec.ReadRgba8Unorm(stream, out int rw, out int rh);
 
         Assert.Equal(width, rw);
         Assert.Equal(height, rh);

@@ -7,7 +7,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Tests bounded compute completion against changing borrowed resource lifetimes.</summary>
 [Collection("NearFieldMaterialCapture")]
-[Trait("Category","GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class WorldProbeGpuBackendTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
     #region Completion lifetime

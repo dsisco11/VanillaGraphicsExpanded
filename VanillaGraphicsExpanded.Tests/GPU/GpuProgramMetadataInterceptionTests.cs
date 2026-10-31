@@ -10,7 +10,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Checks exact native executable and interface commands against canonical program publication.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed partial class GpuProgramMetadataInterceptionTests(HeadlessGLFixture fixture,ITestOutputHelper output)
 {
     #region Public API

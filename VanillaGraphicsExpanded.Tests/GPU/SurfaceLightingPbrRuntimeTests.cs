@@ -9,7 +9,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Measures cache-originating lighting after the actual registered PBR renderer writes the engine target.</summary>
 [Collection("NearFieldMaterialCapture")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
+[Trait("Scenario", "HeadlessRuntime")]
 public sealed class SurfaceLightingPbrRuntimeTests : RenderTestBase
 {
     /// <summary>Uses the exclusive material/graphics context.</summary>

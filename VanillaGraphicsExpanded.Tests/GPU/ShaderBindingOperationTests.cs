@@ -13,7 +13,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Measures retained submission work separately from preparation and actual driver resource binds.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class ShaderBindingOperationTests(HeadlessGLFixture fixture, ITestOutputHelper output) : RenderTestBase(fixture)
 {
     #region Public API
@@ -295,7 +295,7 @@ public sealed class ShaderBindingOperationTests(HeadlessGLFixture fixture, ITest
     private static ComputeShaderAsset Load(string name, GpuShaderContract contract)
     {
         string path = Path.Combine(AppContext.BaseDirectory, "assets", "shaders", "tests", name + ".csh.spv");
-        Assert.True(ComputeShaderAsset.TryLoadFromSpirv(path, new ShaderSettings(contract), out var pipeline, out string log), log);
+        Assert.True(ComputeShaderAsset.TryLoadFromSpirv(path, new ShaderSettings(contract), out var pipeline, out string log, fileSystem: ShaderAssetFileSystem.Built), log);
         return pipeline!;
     }
     #endregion

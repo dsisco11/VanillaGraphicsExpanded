@@ -13,7 +13,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Exercises atmospheric sampler discovery through installed engine compilation and use.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class AtmosphereEngineBindingTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
     #region Engine lifecycle

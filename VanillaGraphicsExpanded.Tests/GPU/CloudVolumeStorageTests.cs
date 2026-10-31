@@ -11,7 +11,7 @@ using CloudVolumeStorage = VanillaGraphicsExpanded.PBR.Clouds.Volume.CloudVolume
 namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Checks actual circular hardware sampling, retained fields, atomic replacement and failed publication.</summary>
-[Collection("GPU")][Trait("Category", "GPU")]
+[Collection("GPU")][Trait("Category", "GpuIntegration")]
 public sealed class CloudVolumeStorageTests(HeadlessGLFixture fixture) : LumOnShaderFunctionalTestBase(fixture)
 {
     #region Public API

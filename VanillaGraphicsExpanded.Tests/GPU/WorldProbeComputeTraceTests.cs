@@ -17,7 +17,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Exercises bounded production compute traversal against independently authored CPU geometry.</summary>
 [Collection("NearFieldMaterialCapture")]
-[Trait("Category","GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class WorldProbeComputeTraceTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
     #region Geometry and lighting

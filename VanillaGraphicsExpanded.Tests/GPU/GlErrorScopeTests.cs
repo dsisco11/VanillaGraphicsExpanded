@@ -7,7 +7,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Verifies that GL diagnostics distinguish pending errors from errors inside an operation.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class GlErrorScopeTests : RenderTestBase
 {
     /// <summary>Uses the shared real OpenGL context.</summary>

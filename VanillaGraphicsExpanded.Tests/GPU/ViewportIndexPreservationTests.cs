@@ -11,7 +11,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Proves viewport-zero managed work and restoration leave independently owned viewport indices untouched.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class ViewportIndexPreservationTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
     #region Public API

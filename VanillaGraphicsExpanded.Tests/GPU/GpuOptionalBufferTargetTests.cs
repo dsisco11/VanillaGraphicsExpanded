@@ -9,7 +9,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Checks optional-target uncertainty without native capability or selector discovery.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed unsafe class GpuOptionalBufferTargetTests(HeadlessGLFixture fixture)
 {
     #region Public API

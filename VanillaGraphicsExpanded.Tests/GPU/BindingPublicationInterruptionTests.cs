@@ -9,7 +9,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Verifies native callback interruption without retries or false certification of affected bindings.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class BindingPublicationInterruptionTests(HeadlessGLFixture fixture)
 {
     #region Public API

@@ -11,7 +11,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Qualifies optional semaphore delivery without claiming real external-producer execution.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed unsafe class GpuSemaphoreLifecycleTests(HeadlessGLFixture fixture)
 {
     #region Public API

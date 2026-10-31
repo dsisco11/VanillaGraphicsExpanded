@@ -9,7 +9,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Qualifies optional EXT first-use delivery with explicit core-backed native stand-ins.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed unsafe class GpuGeometryAliasTests(HeadlessGLFixture fixture)
 {
     #region Public API

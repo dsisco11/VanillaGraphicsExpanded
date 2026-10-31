@@ -12,7 +12,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Exercises selector recovery, partial multi-binding and revision-aware double attribute configuration.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class GpuVertexSelectionAndMultiBindingTests(HeadlessGLFixture fixture)
 {
     #region Public API

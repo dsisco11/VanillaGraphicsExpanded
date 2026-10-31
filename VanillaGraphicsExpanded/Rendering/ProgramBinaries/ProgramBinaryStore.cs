@@ -8,8 +8,10 @@ using System.Text.Json;
 namespace VanillaGraphicsExpanded.Rendering.ProgramBinaries;
 
 /// <summary>Stores bounded driver executables and an atomically published JSON index; storage failures are cache misses.</summary>
-internal sealed class ProgramBinaryStore(string directory, long maxBytes = 256L << 20, int maxEntries = 512)
+internal sealed class ProgramBinaryStore(string directory, long maxBytes = 256L << 20, int maxEntries = 512,
+    Cache.Disk.IAtomicCacheFileSystem? fileSystem = null)
 {
+    private readonly Cache.Disk.IAtomicCacheFileSystem storage = fileSystem ?? new Cache.Disk.RealDiskCacheFileSystem();
     internal const int Schema = 1;
     internal const int MaximumBinaryBytes = 32 << 20;
     private readonly object gate = new();
@@ -33,8 +35,8 @@ internal sealed class ProgramBinaryStore(string directory, long maxBytes = 256L 
                 var index = ReadIndex();
                 if (!index.Entries.TryGetValue(key, out var entry) || entry.Size <= 0 || entry.Size > MaximumBinaryBytes) return false;
                 string path = Path.Combine(directory, key + ".bin");
-                if (new FileInfo(path).Length != entry.Size) return false;
-                byte[] data = File.ReadAllBytes(path);
+                if (storage.GetFileSizeBytes(path) != entry.Size) return false;
+                byte[] data = storage.ReadAllBytes(path);
                 if (Convert.ToHexString(SHA256.HashData(data)) != entry.Digest) return false;
                 // Index maintenance is optional; a recency-write failure must not discard a valid executable.
                 if (DateTime.UtcNow - entry.LastUsedUtc >= TimeSpan.FromMinutes(1))
@@ -61,7 +63,7 @@ internal sealed class ProgramBinaryStore(string directory, long maxBytes = 256L 
                 var index = ReadIndex();
                 index.Entries[key] = new(format, bytes.Length, Convert.ToHexString(SHA256.HashData(bytes)), DateTime.UtcNow);
                 // Holding the process lease means no other publisher owns an in-progress temporary file.
-                foreach (string path in Directory.EnumerateFiles(directory, "*.tmp")) File.Delete(path);
+                foreach (string path in storage.EnumerateFiles(directory, "*.tmp")) storage.DeleteFile(path);
                 long total = index.Entries.Values.Sum(value => (long)value.Size);
                 foreach (var item in index.Entries.Where(pair => pair.Key != key).OrderBy(pair => pair.Value.LastUsedUtc).ToArray())
                 {
@@ -69,8 +71,8 @@ internal sealed class ProgramBinaryStore(string directory, long maxBytes = 256L 
                     index.Entries.Remove(item.Key); total -= item.Value.Size;
                 }
                 // Clean orphaned binaries from interrupted publications as well as evicted entries.
-                foreach (string path in Directory.EnumerateFiles(directory, "*.bin"))
-                    if (!index.Entries.ContainsKey(Path.GetFileNameWithoutExtension(path))) File.Delete(path);
+                foreach (string path in storage.EnumerateFiles(directory, "*.bin"))
+                    if (!index.Entries.ContainsKey(Path.GetFileNameWithoutExtension(path))) storage.DeleteFile(path);
                 AtomicWrite(Path.Combine(directory, key + ".bin"), bytes);
                 PublishIndex(index);
             }
@@ -90,7 +92,7 @@ internal sealed class ProgramBinaryStore(string directory, long maxBytes = 256L 
                 var index = ReadIndex();
                 index.Entries.Remove(key);
                 PublishIndex(index);
-                File.Delete(Path.Combine(directory, key + ".bin"));
+                storage.DeleteFile(Path.Combine(directory, key + ".bin"));
             }
             catch (Exception) { }
         }
@@ -99,10 +101,10 @@ internal sealed class ProgramBinaryStore(string directory, long maxBytes = 256L 
 
     #region Index publication
     /// <summary>Takes a nonblocking process lease; contention simply skips caching.</summary>
-    private FileStream Acquire()
+    private Stream Acquire()
     {
-        Directory.CreateDirectory(directory);
-        return new FileStream(Path.Combine(directory, "index.lock"), FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
+        storage.CreateDirectory(directory);
+        return storage.AcquireExclusive(Path.Combine(directory, "index.lock"));
     }
 
     /// <summary>Rejects incompatible, oversized or malformed metadata before reading executable payloads.</summary>
@@ -111,8 +113,8 @@ internal sealed class ProgramBinaryStore(string directory, long maxBytes = 256L 
         string path = Path.Combine(directory, "index.json");
         try
         {
-            if (new FileInfo(path).Length > (1 << 20)) return new(Schema, []);
-            var index = JsonSerializer.Deserialize<Index>(File.ReadAllBytes(path));
+            if (storage.GetFileSizeBytes(path) > (1 << 20)) return new(Schema, []);
+            var index = JsonSerializer.Deserialize<Index>(storage.ReadAllBytes(path));
             if (index is null || index.Version != Schema || index.Entries is null || index.Entries.Count > 4096 ||
                 index.Entries.Any(pair => !ValidKey(pair.Key) || pair.Value is null || pair.Value.Size <= 0 || pair.Value.Size > MaximumBinaryBytes))
                 return new(Schema, []);
@@ -125,11 +127,15 @@ internal sealed class ProgramBinaryStore(string directory, long maxBytes = 256L 
     private void PublishIndex(Index index) => AtomicWrite(Path.Combine(directory, "index.json"), JsonSerializer.SerializeToUtf8Bytes(index));
 
     /// <summary>Publishes from a unique same-directory temporary file and cleans it on failure.</summary>
-    private static void AtomicWrite(string path, byte[] bytes)
+    private void AtomicWrite(string path, byte[] bytes)
     {
         string temporary = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
-        try { File.WriteAllBytes(temporary, bytes); File.Move(temporary, path, true); }
-        finally { if (File.Exists(temporary)) File.Delete(temporary); }
+        try
+        {
+            using (var output = storage.OpenWrite(temporary)) output.Write(bytes);
+            storage.ReplaceFile(temporary, path);
+        }
+        finally { if (storage.FileExists(temporary)) storage.DeleteFile(temporary); }
     }
 
     /// <summary>Allows only SHA-256 hex keys, preventing index data from selecting arbitrary filesystem paths.</summary>

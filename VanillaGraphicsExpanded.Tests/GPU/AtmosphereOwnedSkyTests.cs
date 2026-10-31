@@ -21,7 +21,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Executes the owned binary sky program against controlled atmospheric and engine inputs.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class AtmosphereOwnedSkyTests(HeadlessGLFixture fixture) : LumOnShaderFunctionalTestBase(fixture)
 {
     #region Public API

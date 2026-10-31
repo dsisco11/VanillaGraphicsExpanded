@@ -8,7 +8,7 @@ using Vintagestory.API.Client;
 namespace VanillaGraphicsExpanded.Tests;
 
 /// <summary>Verifies engine-supplied pass policy and exact terrain draw rewriting.</summary>
-[Collection("GPU")]
+[Collection("CPU state")]
 public sealed class TerrainPassDrawTests
 {
     private static int nesting;

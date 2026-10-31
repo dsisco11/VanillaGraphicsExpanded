@@ -9,7 +9,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Exercises isolated particle blending, depth separation and borrowed image lifetimes.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class SceneColorParticleTests(HeadlessGLFixture fixture) : LumOnShaderFunctionalTestBase(fixture)
 {
     #region Public API
@@ -80,8 +80,8 @@ public sealed class SceneColorParticleTests(HeadlessGLFixture fixture) : LumOnSh
         float[] captured = capture.DrawTarget[0].ReadPixels();
         float[] expected = scenario >= 2 ? [0, 0, 0, 0] : [2, 2, 0, .75f];
         Assert.Equal(expected, captured[..4]);
-        Assert.Equal(new[] { .125f, .25f, .5f, 1f }, primary[0].ReadPixels()[..4]);
-        Assert.Equal(scenario == 3 ? new[] { .1f, .2f, .3f, .4f } : new[] { .8f, .7f, .6f, .5f }, primary[1].ReadPixels()[..4]);
+        Assert.Equal(new[] { .125f, .25f, .5f, 1f }, primary[0].ReadTexel()[..4]);
+        Assert.Equal(scenario == 3 ? new[] { .1f, .2f, .3f, .4f } : new[] { .8f, .7f, .6f, .5f }, primary[1].ReadTexel()[..4]);
         if (scenario == 1)
         {
             primary.Bind();
@@ -96,8 +96,8 @@ public sealed class SceneColorParticleTests(HeadlessGLFixture fixture) : LumOnSh
         resolve.AfterDepth = capture.AfterDepth;
         resolve.ParticleColor = capture.ParticleColor;
         TestFramework.RenderQuadTo(resolve, capture.ResolvePass);
-        Assert.Equal(scenario == 1 ? ReadDepth(depth.TextureId) : ReadDepth(capture.BeforeDepth.TextureId), capture.MaterialDepth.ReadPixels()[0]);
-        Assert.Equal(scenario == 1 ? new float[4] : expected, capture.VisibleRadiance.ReadPixels()[..4]);
+        Assert.Equal(scenario == 1 ? ReadDepth(depth.TextureId) : ReadDepth(capture.BeforeDepth.TextureId), capture.MaterialDepth.ReadTexel()[0]);
+        Assert.Equal(scenario == 1 ? new float[4] : expected, capture.VisibleRadiance.ReadTexel()[..4]);
         Assert.InRange(ReadDepth(depth.TextureId), (scenario == 1 ? .25f : visibilityAfterDraw) - .0000001f, (scenario == 1 ? .25f : visibilityAfterDraw) + .0000001f);
         capture.ResetCapture();
         Assert.False(capture.Captured);

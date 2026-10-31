@@ -12,8 +12,8 @@ internal static class ShaderDigestIndexCache
 {
     private static readonly object Gate = new();
     private static ConditionalWeakTable<IAssetManager, Dictionary<string, ShaderBinaryDigest.Manifest?>> assets = new();
-    private static readonly Dictionary<string, ShaderBinaryDigest.Manifest?> files = new(
-        OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal);
+    private static readonly Cache.Disk.IDiskCacheFileSystem physicalFiles = new Cache.Disk.RealDiskCacheFileSystem();
+    private static ConditionalWeakTable<Cache.Disk.IDiskCacheFileSystem, Dictionary<string, ShaderBinaryDigest.Manifest?>> files = new();
 
     #region Shared reads
     /// <summary>Loads the application asset index once per domain, including caching unavailable metadata.</summary>
@@ -35,15 +35,19 @@ internal static class ShaderDigestIndexCache
     }
 
     /// <summary>Shares indexes for explicit binary-file loading until the next shader asset reload.</summary>
-    internal static ShaderBinaryDigest.Manifest? ForFile(string path)
+    internal static ShaderBinaryDigest.Manifest? ForFile(string path, Cache.Disk.IDiskCacheFileSystem? fileSystem = null)
     {
         path = Path.GetFullPath(path);
         lock (Gate)
         {
-            if (files.TryGetValue(path, out var manifest)) return manifest;
-            try { manifest = ShaderBinaryDigest.Parse(File.ReadAllBytes(path)); }
+            // A provider owns its path namespace. An in-memory source must never donate a
+            // cached manifest to the physical loader, or vice versa.
+            var source = files.GetValue(fileSystem ?? physicalFiles, _ => new(
+                OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal));
+            if (source.TryGetValue(path, out var manifest)) return manifest;
+            try { manifest = ShaderBinaryDigest.Parse((fileSystem ?? physicalFiles).ReadAllBytes(path)); }
             catch (Exception) { manifest = null; }
-            files.Add(path, manifest);
+            source.Add(path, manifest);
             return manifest;
         }
     }
@@ -56,7 +60,7 @@ internal static class ShaderDigestIndexCache
         lock (Gate)
         {
             assets = new();
-            files.Clear();
+            files = new();
         }
     }
     #endregion

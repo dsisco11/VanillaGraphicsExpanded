@@ -10,7 +10,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Verifies procedural engine labels on real compiled binary program objects.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class EngineShaderDebugLabelsTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
     #region Label lifecycle

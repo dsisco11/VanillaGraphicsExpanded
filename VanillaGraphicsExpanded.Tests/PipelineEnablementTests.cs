@@ -9,7 +9,7 @@ using Vintagestory.API.Common;
 namespace VanillaGraphicsExpanded.Tests;
 
 /// <summary>Qualifies persistent pipeline conditions against their native and committed configuration sources.</summary>
-[Collection("GPU")]
+[Collection("CPU state")]
 public sealed class PipelineEnablementTests
 {
     #region Public API

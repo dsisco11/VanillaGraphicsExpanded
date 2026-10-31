@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Tests.TestSupport;
 using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
@@ -12,9 +13,11 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Checks bounded driver submission and ownership through the production loaders.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class ShaderLinkBatchTests(HeadlessGLFixture fixture, ITestOutputHelper output) : RenderTestBase(fixture)
 {
+    private readonly CountingDiskCacheFileSystem storage = new();
+
     private const string Graphics = "tests/render_infrastructure";
     private const string Compute = "tests/GpuUniformRingBufferIntegrationTests_1";
 
@@ -127,7 +130,7 @@ public sealed class ShaderLinkBatchTests(HeadlessGLFixture fixture, ITestOutputH
                 VanillaGraphicsExpanded.Rendering.Integration.RenderContextRegistry.Retire(fixture);
                 VanillaGraphicsExpanded.Rendering.Integration.RenderContextRegistry.RegisterCurrent(replacement, static _ => true);
             }
-            return File.ReadAllBytes(Path.Combine(AppContext.BaseDirectory, "assets", "shaders", path));
+            return TestAssetSnapshot.ReadBuiltBytes(Path.Combine(AppContext.BaseDirectory, "assets", "shaders", path));
         }
         try
         {
@@ -156,7 +159,7 @@ public sealed class ShaderLinkBatchTests(HeadlessGLFixture fixture, ITestOutputH
         string directory = Path.Combine(Path.GetTempPath(), "VGE.BatchContext", Guid.NewGuid().ToString("N"));
         try
         {
-            using var cache = DriverProgramCache.UseStoreForTesting(cached ? new ProgramBinaryStore(directory) : null);
+            using var cache = DriverProgramCache.UseStoreForTesting(cached ? new ProgramBinaryStore(directory, fileSystem: storage) : null);
             using var assets = new BinaryShaderApiFixture();
             using var program = new FixtureProgram();
             using var sentinel = new FixtureProgram();
@@ -200,7 +203,7 @@ public sealed class ShaderLinkBatchTests(HeadlessGLFixture fixture, ITestOutputH
             Assert.Equal(0, batch.Outstanding);
             batch.Dispose();
         }
-        finally { if (Directory.Exists(directory)) Directory.Delete(directory, true); }
+        finally { if (storage.DirectoryExists(directory)) storage.DeleteDirectory(directory, true); }
     }
 
     /// <summary>An asset epoch change after batch submission prevents old captured binaries being published as new assets.</summary>
@@ -242,7 +245,7 @@ public sealed class ShaderLinkBatchTests(HeadlessGLFixture fixture, ITestOutputH
         EnsureContextValid();
         using var cache = DriverProgramCache.UseStoreForTesting(null);
         using var assets = new BinaryShaderApiFixture();
-        ReadOnlySpan<byte> Read(string path) => File.ReadAllBytes(Path.Combine(AppContext.BaseDirectory, "assets", "shaders", path));
+        ReadOnlySpan<byte> Read(string path) => TestAssetSnapshot.ReadBuiltBytes(Path.Combine(AppContext.BaseDirectory, "assets", "shaders", path));
         var plan = new ShaderLoadPlan(Settings(Graphics));
         var inputs = DriverProgramCache.Prepare(plan, Read,
             () => ShaderDigestIndexCache.ForAssets(assets.Api.Assets, ShaderImportsSystem.DefaultDomain));
@@ -395,13 +398,13 @@ public sealed class ShaderLinkBatchTests(HeadlessGLFixture fixture, ITestOutputH
         string directory = Path.Combine(Path.GetTempPath(), "VGE.ParallelLinkTests", Guid.NewGuid().ToString("N"));
         try
         {
-            var store = new ProgramBinaryStore(directory);
+            var store = new ProgramBinaryStore(directory, fileSystem: storage);
             using var cache = DriverProgramCache.UseStoreForTesting(store);
             using var assets = new BinaryShaderApiFixture();
             using var program = new FixtureProgram();
             program.Initialize(assets.Api);
             Assert.True(program.CompileAndLink());
-            string key = Path.GetFileNameWithoutExtension(Assert.Single(Directory.GetFiles(directory, "*.bin")));
+            string key = Path.GetFileNameWithoutExtension(Assert.Single(storage.EnumerateFiles(directory, "*.bin")));
             using (var batch = new ShaderLinkBatch(assets.Api.Assets, ShaderImportsSystem.DefaultDomain, [Settings(Graphics)]))
             {
                 Assert.True(program.CompileAndLink(), string.Join('\n', assets.Logs));
@@ -419,7 +422,7 @@ public sealed class ShaderLinkBatchTests(HeadlessGLFixture fixture, ITestOutputH
             Assert.NotEqual(-1, repairedFormat);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { if (Directory.Exists(directory)) Directory.Delete(directory, true); }
+        finally { if (storage.DirectoryExists(directory)) storage.DeleteDirectory(directory, true); }
     }
     #endregion
     #region Timing evidence

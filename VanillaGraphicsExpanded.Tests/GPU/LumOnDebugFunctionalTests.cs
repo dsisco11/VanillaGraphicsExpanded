@@ -36,7 +36,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 /// - Probe spacing: 2 pixels
 /// </summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public class LumOnDebugFunctionalTests : LumOnShaderFunctionalTestBase
 {
     // Debug mode constants

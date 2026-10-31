@@ -5,6 +5,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
+    <RunSettingsFilePath>$(MSBuildProjectDirectory)\UnitTests.runsettings</RunSettingsFilePath>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <EnableSpirv Condition="'$(EnableSpirv)' == ''">true</EnableSpirv>
     <SpirvArtifactsDir Condition="'$(SpirvArtifactsDir)' == ''">$(MSBuildProjectDirectory)\..\artifacts\spirv\$(Configuration)</SpirvArtifactsDir>
@@ -63,6 +64,7 @@
 
   <ItemGroup>
     <Using Include="Xunit" />
+    <Using Include="VanillaGraphicsExpanded.Tests.Helpers" />
 
   </ItemGroup>
 
@@ -90,7 +92,11 @@
   <!-- Copy shader assets to test output directory for GPU tests -->
   <ItemGroup>
     <Content Include="Fixtures\Shaders\assets\vanillagraphicsexpanded\**\*" Link="assets\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
-    <Content Include="..\schemas\pbr_material_definitions.schema.json" Link="schemas\pbr_material_definitions.schema.json" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="..\schemas\pbr_material_definitions.schema.json" Link="assets\schemas\pbr_material_definitions.schema.json" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="Unit\Rendering\Contracts\Fixtures\*.txt" Link="assets\test-inputs\baselines\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <!-- Freeze installed-engine shader inputs at build time, like the owned shader fixtures. -->
+    <Content Include="$(VINTAGE_STORY)\assets\game\shaders\**\*" Link="assets\game\shaders\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="$(VINTAGE_STORY)\assets\game\shaderincludes\**\*" Link="assets\game\shaderincludes\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="..\VanillaGraphicsExpanded\assets\vanillagraphicsexpanded\config\configlib-patches.json">
       <Link>assets\config\configlib-patches.json</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
@@ -122,6 +128,13 @@
            Text="Missing compiled test shader: %(_RequiredTestSpirv.Filename)%(_RequiredTestSpirv.Extension).spv" />
     <Delete Files="@(_ObsoleteTestSpirv)" />
     <Copy SourceFiles="@(_TestSpirvFiles)" DestinationFiles="@(_TestSpirvFiles->'$(TargetDir)assets\shaders\%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" />
+  </Target>
+
+  <!-- Snapshot only this build's explicit inputs; obsolete files in incremental output are not test data. -->
+  <Target Name="WriteTestInputManifest" AfterTargets="CopyTestSpirvAssets">
+    <WriteLinesToFile File="$(TargetDir)fixture-inputs.txt"
+                      Lines="@(Content->'%(Link)');@(_TestSpirvFiles->'assets/shaders/%(RecursiveDir)%(Filename)%(Extension)')"
+                      Overwrite="true" WriteOnlyWhenDifferent="true" Encoding="UTF-8" />
   </Target>
 
 </Project>

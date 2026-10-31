@@ -13,7 +13,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Exercises semantic creation, content operations and original-context rejection.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class RHIBufferTests(HeadlessGLFixture fixture)
 {
     [ThreadStatic] private static Action? beforeAllocation;

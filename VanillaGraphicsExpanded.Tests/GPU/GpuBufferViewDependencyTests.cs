@@ -12,7 +12,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Checks buffer texture certificates against the original backing allocation and its observation failures.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class GpuBufferViewDependencyTests(HeadlessGLFixture fixture)
 {
     #region Public API

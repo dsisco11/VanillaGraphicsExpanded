@@ -19,7 +19,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Runs particle capture publication and retirement through registered renderer callbacks.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class SceneColorParticlePublicationTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
     #region Public API
@@ -193,7 +193,7 @@ public sealed class SceneColorParticlePublicationTests(HeadlessGLFixture fixture
                     Assert.All(hierarchy.Texture.ReadPixels(mip), value => Assert.Equal(.75f, value));
                 int perCycle = ssao ? 6 : 1;
                 Assert.Equal(cycle * perCycle + 1, resolveDraws);
-                if (ssao) Assert.Equal(new[] { 1f, 2f, 3f, 4f }, engine[3].ReadPixels()[..4]);
+                if (ssao) Assert.Equal(new[] { 1f, 2f, 3f, 4f }, engine[3].ReadTexel()[..4]);
                 SceneColorParticleCapture.RestoreSsao(assets.Api);
                 Assert.Equal(cycle * perCycle + 1, resolveDraws);
                 // Model the compositor's later boundary explicitly: receiver separation
@@ -223,7 +223,7 @@ public sealed class SceneColorParticlePublicationTests(HeadlessGLFixture fixture
                 }
                 else SceneColorParticleCapture.RestoreSsao(api);
                 Assert.Equal((cycle + 1) * perCycle, resolveDraws);
-                if (ssao) Assert.Equal(new[] { 1f, 2f, 3f, 4f }, engine[3].ReadPixels()[..4]);
+                if (ssao) Assert.Equal(new[] { 1f, 2f, 3f, 4f }, engine[3].ReadTexel()[..4]);
                 if (cycle == 0) capture.OnRenderFrame(.016f, EnumRenderStage.Before);
                 if (cycle == 1) events.LeaveWorld();
                 if (cycle == 2) ScreenResourceManager.HandleScreenResize();

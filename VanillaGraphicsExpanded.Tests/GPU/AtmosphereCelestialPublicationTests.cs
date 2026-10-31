@@ -16,7 +16,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Checks coherent dual transport and actual three-band texture storage at bounded lookup sizes.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class AtmosphereCelestialPublicationTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
     #region Public API
@@ -219,7 +219,7 @@ public sealed class AtmosphereCelestialPublicationTests(HeadlessGLFixture fixtur
                 GL.Uniform3(GL.GetUniformLocation(program, "ray"), direction.X, direction.Y, direction.Z);
                 framework.RenderQuadTo(program, output);
                 float expected = smooth + solar * AtmosphereMieTransport.Factor(direction.X) + lunar * AtmosphereMieTransport.Factor(direction.Y);
-                foreach (float value in output[0].ReadPixels().Take(3)) Assert.True(Math.Abs(value - expected) <= .00001f,
+                foreach (float value in output[0].ReadTexel().Take(3)) Assert.True(Math.Abs(value - expected) <= .00001f,
                     $"Aerial direction {direction}: actual {value:R}, expected {expected:R}");
             }
         }
@@ -227,7 +227,7 @@ public sealed class AtmosphereCelestialPublicationTests(HeadlessGLFixture fixtur
     }
 
     /// <summary>Expands guarded production shader imports while retaining the original decoder equations.</summary>
-    private static string Expand(string path) => Regex.Replace(File.ReadAllText(path), "@import \"([^\"]+)\"",
+    private static string Expand(string path) => Regex.Replace(TestAssetSnapshot.ReadSourceText(path), "@import \"([^\"]+)\"",
         match => Expand(Path.GetFullPath(Path.Combine(Path.GetDirectoryName(path)!, match.Groups[1].Value))));
 
     /// <summary>Compiles one diagnostic stage at the unchanged runtime shader baseline.</summary>

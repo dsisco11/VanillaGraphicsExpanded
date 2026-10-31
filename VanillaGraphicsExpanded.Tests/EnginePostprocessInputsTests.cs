@@ -10,7 +10,7 @@ using Vintagestory.Client.NoObf;
 namespace VanillaGraphicsExpanded.Tests;
 
 /// <summary>Verifies native graphics settings remain authoritative at the owned postprocessing boundary.</summary>
-[Collection("GPU")]
+[Collection("CPU state")]
 public sealed class EnginePostprocessInputsTests
 {
     #region Public API

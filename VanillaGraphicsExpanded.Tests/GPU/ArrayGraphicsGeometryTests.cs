@@ -12,7 +12,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Exercises final geometry packets, published allocation bounds and independently owned stream lifetimes.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class ArrayGraphicsGeometryTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
     #region Public API
@@ -54,7 +54,7 @@ public sealed class ArrayGraphicsGeometryTests(HeadlessGLFixture fixture) : Rend
             Assert.True(buffer.IsValid);
             commands.EndRenderPass();
         });
-        Assert.InRange(target[0].ReadPixels()[0], .1999f, .2001f);
+        Assert.InRange(target[0].ReadTexel()[0], .1999f, .2001f);
     }
 
     /// <summary>Procedural and divisor-based instance fetches enforce declared bounds through the actual draw executor.</summary>
@@ -121,7 +121,7 @@ public sealed class ArrayGraphicsGeometryTests(HeadlessGLFixture fixture) : Rend
 #endif
             commands.EndRenderPass();
         });
-        Assert.InRange(target[0].ReadPixels()[0], .1999f, .2001f);
+        Assert.InRange(target[0].ReadTexel()[0], .1999f, .2001f);
     }
     #endregion
 

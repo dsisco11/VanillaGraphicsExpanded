@@ -63,7 +63,7 @@ public sealed class ConfigPersistenceTests
         Assert.Equal(32, document["MaterialAtlas/TerrainSubdivision/MaximumLevel"]!.Value<int>());
         Assert.Equal(defaults["MaterialAtlas"]!["TerrainSubdivision"]!["MaximumLevel"], document["MaterialAtlas"]!["TerrainSubdivision"]!["MaximumLevel"]);
         Assert.NotNull(document["Atmosphere"]!["SkyLutQuality"]);
-        var definition = JObject.Parse(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "assets/config/configlib-patches.json")));
+        var definition = JObject.Parse(TestAssetSnapshot.ReadBuiltText(Path.Combine(AppContext.BaseDirectory, "assets/config/configlib-patches.json")));
         foreach (var category in ((JObject)definition["settings"]!).Properties())
         foreach (var setting in ((JObject)category.Value).Properties())
         {
@@ -237,7 +237,7 @@ public sealed class ConfigPersistenceTests
     [InlineData("TERRAIN_SURFACE_DETAIL_MODE", 0, 2, 1)]
     public void ControlsDeclareNumericBounds(string key, int minimum, int maximum, int defaultValue)
     {
-        var definition = JObject.Parse(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "assets/config/configlib-patches.json")));
+        var definition = JObject.Parse(TestAssetSnapshot.ReadBuiltText(Path.Combine(AppContext.BaseDirectory, "assets/config/configlib-patches.json")));
         var setting = definition["settings"]!["integer"]![key]!;
         Assert.Null(setting["mapping"]);
         Assert.Equal(defaultValue, setting["default"]!.Value<int>());
@@ -251,7 +251,7 @@ public sealed class ConfigPersistenceTests
     [Fact]
     public void AllRenderingSettingsAreClientOwned()
     {
-        var definition = JObject.Parse(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "assets/config/configlib-patches.json")));
+        var definition = JObject.Parse(TestAssetSnapshot.ReadBuiltText(Path.Combine(AppContext.BaseDirectory, "assets/config/configlib-patches.json")));
         foreach (var category in ((JObject)definition["settings"]!).Properties())
         foreach (var setting in ((JObject)category.Value).Properties())
             Assert.True(setting.Value["clientSide"]?.Value<bool>() == true, setting.Name);

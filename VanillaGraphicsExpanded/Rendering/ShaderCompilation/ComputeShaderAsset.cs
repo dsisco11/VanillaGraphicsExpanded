@@ -96,12 +96,14 @@ internal sealed partial class ComputeShaderAsset : IDisposable
     /// <summary>Loads an explicitly selected precompiled asset with its sibling digest manifest before any native allocation.</summary>
     internal static bool TryLoadFromSpirv(string spirvBinaryPath, ShaderSettings settings,
         out ComputeShaderAsset? pipeline, out string infoLog, string? debugName = null,
-        GpuProgramLayout? layout = null, Action<string>? warn = null)
+        GpuProgramLayout? layout = null, Action<string>? warn = null, Cache.Disk.IDiskCacheFileSystem? fileSystem = null)
     {
         pipeline = null;
         try
         {
-            byte[] bytes = File.ReadAllBytes(spirvBinaryPath);
+            ArgumentException.ThrowIfNullOrWhiteSpace(spirvBinaryPath);
+            var storage = fileSystem ?? new Cache.Disk.RealDiskCacheFileSystem();
+            byte[] bytes = storage.ReadAllBytes(spirvBinaryPath);
             var plan = new ShaderLoadPlan(settings);
             if (bytes.Length == 0) throw new InvalidOperationException($"Empty SPIR-V binary for '{plan.Stages[0].Stage.Identity}'.");
             string selected = plan.Stages[0].BinaryPath.Replace('/', Path.DirectorySeparatorChar);
@@ -109,7 +111,7 @@ internal sealed partial class ComputeShaderAsset : IDisposable
             string root = fullPath.EndsWith(selected, OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal)
                 ? fullPath[..^selected.Length] : Path.GetDirectoryName(fullPath)!;
             ReadOnlySpan<byte> Read(string _) => bytes;
-            pipeline = Load(settings, Read, () => ProgramBinaries.ShaderDigestIndexCache.ForFile(Path.Combine(root, ShaderBinaryDigest.FileName)),
+            pipeline = Load(settings, Read, () => ProgramBinaries.ShaderDigestIndexCache.ForFile(Path.Combine(root, ShaderBinaryDigest.FileName), fileSystem),
                 null, string.Empty, layout, debugName);
             infoLog = string.Empty;
             return true;

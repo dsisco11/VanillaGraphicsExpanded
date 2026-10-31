@@ -9,7 +9,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Checks borrowed native bindings and engine shader ownership across the composed boundary.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class EngineBoundaryBindingTests(HeadlessGLFixture fixture)
 {
     #region Public API

@@ -16,7 +16,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Verifies native grading and configured camera exposure through complete owned GPU submissions.</summary>
 [Collection("GPU")]
-[Trait("Category","GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class CameraExposureDisplayTests(HeadlessGLFixture fixture):LumOnShaderFunctionalTestBase(fixture)
 {
     #region Public API

@@ -11,7 +11,7 @@ using Native = OpenTK.Graphics.OpenGL4;
 namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Qualifies core named framebuffer routing, repeated restoration and independent cleanup.</summary>
-[Collection("GPU")][Trait("Category","GPU")]
+[Collection("GPU")][Trait("Category", "GpuIntegration")]
 public sealed class FramebufferRoutingDsaTests(HeadlessGLFixture fixture,ITestOutputHelper output):RenderTestBase(fixture)
 {
     #region Public API

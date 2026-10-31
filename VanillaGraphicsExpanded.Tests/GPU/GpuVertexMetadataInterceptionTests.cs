@@ -10,7 +10,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Checks vertex configuration revision publication without treating attribute values as resource metadata.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class GpuVertexMetadataInterceptionTests(HeadlessGLFixture fixture)
 {
     #region Public API

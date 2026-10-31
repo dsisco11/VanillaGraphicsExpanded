@@ -11,7 +11,7 @@ using Vintagestory.API.Client;
 namespace VanillaGraphicsExpanded.Tests.GPU;
 /// <summary>Verifies pre-overlay capture preserves engine draw ownership and actual GL state.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class WaterRefractionCaptureStateTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
     #region Public API
@@ -136,9 +136,9 @@ public sealed class WaterRefractionCaptureStateTests(HeadlessGLFixture fixture) 
             int[] viewport = new int[4];
             GL.GetInteger(GetPName.Viewport, viewport);
             Assert.Equal(new[] { 1, 1, 1, 1 }, viewport);
-            Assert.Equal(.75f, composite.PreOverlayScene.Depth!.ReadPixels()[0]);
+            Assert.Equal(.75f, composite.PreOverlayScene.Depth!.ReadTexel()[0]);
             Assert.Equal(1f, composite.PreOverlayScene.Color!.ReadPixels()[3]);
-            Assert.Equal(.75f, terrain.Depth.ReadPixels()[0]);
+            Assert.Equal(.75f, terrain.Depth.ReadTexel()[0]);
             Assert.Equal(new float[] { .5f, .5f, .5f, 1f }, terrain.Color.ReadPixels());
             // Simulate the first-person write after clean capture, then run the actual
             // final owner. Reduction must consume restored world depth, never the hand proxy.
@@ -154,13 +154,13 @@ public sealed class WaterRefractionCaptureStateTests(HeadlessGLFixture fixture) 
             Assert.Equal(0, GL.GetInteger(GetPName.CurrentProgram));
             Assert.Equal(backgroundScale, composite.RefractionScene.BackgroundScale);
             Assert.Equal(backgroundScale == 2 ? 6 : 5, draws);
-            Assert.Equal(.75f, composite.RefractionScene.SourceDepth!.ReadPixels()[0]);
-            Assert.Equal(.75f, composite.RefractionScene.Depth!.ReadPixels()[0]);
+            Assert.Equal(.75f, composite.RefractionScene.SourceDepth!.ReadTexel()[0]);
+            Assert.Equal(.75f, composite.RefractionScene.Depth!.ReadTexel()[0]);
             Assert.Equal(composite.PreOverlayScene.Color!.ReadPixels(), composite.RefractionScene.SourceColor!.ReadPixels());
             Assert.Equal(composite.RefractionScene.SourceColor.ReadPixels(), composite.RefractionScene.Color!.ReadPixels());
             if (backgroundScale == 2)
                 Assert.Equal(new float[] { .75f, .5f, .5f, 1 }, composite.RefractionScene.Depth.ReadPixels());
-            Assert.Equal(.01f, terrain.Depth.ReadPixels()[0]);
+            Assert.Equal(.01f, terrain.Depth.ReadTexel()[0]);
 
             var ordinary = GpuShaderProgramLibraries.Get<PBRCompositeShaderProgram>(api, "pbr_composite")!;
             var preOverlay = GpuShaderProgramLibraries.Get<PBRCompositeShaderProgram>(api, PBRCompositeShaderProgram.PreOverlayPassName)!;
@@ -408,7 +408,7 @@ public sealed class WaterRefractionCaptureStateTests(HeadlessGLFixture fixture) 
                 HarmonyLib.AccessTools.Method(typeof(VanillaGraphicsExpanded.PBR.Liquids.WaterRefractionCapture), "Capture").Invoke(capture, null);
                 Assert.True(composite.PreOverlayScene!.Published);
                 Assert.Equal(sentinel, ordinaryColor.ReadPixels());
-                Assert.Equal(depth, composite.PreOverlayScene.Depth!.ReadPixels()[0]);
+                Assert.Equal(depth, composite.PreOverlayScene.Depth!.ReadTexel()[0]);
                 Assert.Equal(ErrorCode.NoError, GL.GetError());
                 float[] worldColor = composite.PreOverlayScene.Color!.ReadPixels();
                 // Independently registered callbacks must produce the same world lighting as
@@ -429,7 +429,7 @@ public sealed class WaterRefractionCaptureStateTests(HeadlessGLFixture fixture) 
                 composite.OnRenderFrame(.016f, EnumRenderStage.Opaque);
                 Assert.True(composite.RefractionScene.Published);
                 Assert.Null(Vintagestory.Client.NoObf.ShaderProgramBase.CurrentShaderProgram);
-                Assert.Equal(depth, composite.RefractionScene.SourceDepth!.ReadPixels()[0]);
+                Assert.Equal(depth, composite.RefractionScene.SourceDepth!.ReadTexel()[0]);
                 Assert.Equal(worldColor, composite.RefractionScene.SourceColor!.ReadPixels());
                 Assert.NotEqual(sentinel, ordinaryColor.ReadPixels());
             }

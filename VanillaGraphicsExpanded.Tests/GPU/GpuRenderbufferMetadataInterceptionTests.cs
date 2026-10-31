@@ -12,7 +12,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Checks external renderbuffer allocation and manager-owned image dependency publication.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed unsafe class GpuRenderbufferMetadataInterceptionTests(HeadlessGLFixture fixture)
 {
     private static int[]? capturedAdvancedArguments;

@@ -15,7 +15,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Exercises installed engine publication and deletion ordering with real OpenGL textures.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class EngineFramebufferRebuildTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
     private static List<FrameBufferRef>? replacement;

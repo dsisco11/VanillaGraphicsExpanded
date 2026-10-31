@@ -12,7 +12,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Compiles complete installed engine mesh shaders through the production patch sequence.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class PbrSurfaceInstalledShaderTests : RenderTestBase
 {
     /// <summary>Uses the shared headless driver context.</summary>
@@ -194,7 +194,7 @@ public sealed class PbrSurfaceInstalledShaderTests : RenderTestBase
     internal static string Build(string name, int shadow, int oit, int ssao, int ssbo, int depth, Action<ShaderCapability>? declare = null)
     {
         string game = Environment.GetEnvironmentVariable("VINTAGE_STORY")!;
-        string original = File.ReadAllText(Path.Combine(game, "assets/game/shaders", name));
+        string original = TestAssetSnapshot.ReadSourceText(Path.Combine(game, "assets/game/shaders", name));
         // Representative alternate variants deliberately rename an incidental engine local.
         if (ssao > 0 && !name.StartsWith("chunkopaque", StringComparison.Ordinal) && !name.StartsWith("chunktopsoil", StringComparison.Ordinal))
             original = original.Replace("murkiness", "renamedWaterDensity");
@@ -209,7 +209,7 @@ public sealed class PbrSurfaceInstalledShaderTests : RenderTestBase
                 ? Path.Combine(game, "assets/game/shaderincludes", match.Groups[1].Value.Trim())
                 : Path.Combine(directory, match.Groups[2].Value);
             path = Path.GetFullPath(path);
-            return included.Add(path) ? Expand(File.ReadAllText(path), Path.GetDirectoryName(path)!) : "";
+            return included.Add(path) ? Expand(TestAssetSnapshot.ReadSourceText(path), Path.GetDirectoryName(path)!) : "";
         });
         tree = SyntaxTree.Parse(Expand(tree.ToText(), Path.Combine(AppContext.BaseDirectory, "assets/shaders")), GlslSchema.Instance);
         if (name is "sky.vsh" or "sky.fsh")

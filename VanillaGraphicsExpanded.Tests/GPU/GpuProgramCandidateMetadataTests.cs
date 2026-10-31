@@ -12,7 +12,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Verifies deferred executable publication retains one manager-owned allocation and supplied interface snapshot.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class GpuProgramCandidateMetadataTests(HeadlessGLFixture fixture)
 {
     #region Public API

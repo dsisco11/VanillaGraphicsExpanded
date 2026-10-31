@@ -8,7 +8,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Checks meaningful attachment publication independently of native command count or routing.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class GpuFramebufferPublicationTests(HeadlessGLFixture fixture)
 {
     #region Public API

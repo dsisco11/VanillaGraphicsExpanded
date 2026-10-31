@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Tests.TestSupport;
 using VanillaGraphicsExpanded.Rendering.ProgramBinaries;
 using VanillaGraphicsExpanded.Rendering.Contracts;
 using VanillaGraphicsExpanded.Rendering.Spirv;
@@ -8,6 +9,8 @@ namespace VanillaGraphicsExpanded.Tests.Unit.Rendering;
 /// <summary>Checks that the optional disk cache remains bounded and recovers from damaged entries.</summary>
 public sealed class ProgramBinaryStoreTests : IDisposable
 {
+    private readonly CountingDiskCacheFileSystem storage = new();
+
     private readonly string directory = Path.Combine(Path.GetTempPath(), "VGE.ProgramBinaryTests", Guid.NewGuid().ToString("N"));
     private static readonly string First = new('a', 64), Second = new('b', 64);
 
@@ -16,10 +19,10 @@ public sealed class ProgramBinaryStoreTests : IDisposable
     [Fact]
     public void RoundTripSurvivesNewOwnerAndRemoval()
     {
-        var store = new ProgramBinaryStore(directory);
+        var store = new ProgramBinaryStore(directory, fileSystem: storage);
         Assert.False(store.TryRead(First, out _, out _));
         store.Write(First, 17, [1, 3, 7, 9]);
-        var reopened = new ProgramBinaryStore(directory);
+        var reopened = new ProgramBinaryStore(directory, fileSystem: storage);
         Assert.True(reopened.TryRead(First, out int format, out byte[] data));
         Assert.Equal(17, format);
         Assert.Equal(new byte[] { 1, 3, 7, 9 }, data);
@@ -31,11 +34,11 @@ public sealed class ProgramBinaryStoreTests : IDisposable
     [Fact]
     public void CorruptIndexFallsBackAndCanBeRepopulated()
     {
-        var store = new ProgramBinaryStore(directory);
+        var store = new ProgramBinaryStore(directory, fileSystem: storage);
         store.Write(First, 1, [1, 2, 3]);
-        string index = Assert.Single(Directory.GetFiles(directory, "*.json"));
-        File.WriteAllText(index, "not json");
-        var reopened = new ProgramBinaryStore(directory);
+        string index = Assert.Single(storage.EnumerateFiles(directory, "*.json"));
+        storage.WriteAllText(index, "not json");
+        var reopened = new ProgramBinaryStore(directory, fileSystem: storage);
         Assert.False(reopened.TryRead(First, out _, out _));
         reopened.Write(Second, 2, [4, 5]);
         Assert.True(reopened.TryRead(Second, out int format, out byte[] data));
@@ -47,7 +50,7 @@ public sealed class ProgramBinaryStoreTests : IDisposable
     [Fact]
     public void EntryBudgetIsEnforced()
     {
-        var store = new ProgramBinaryStore(directory, maxEntries: 1);
+        var store = new ProgramBinaryStore(directory, maxEntries: 1, fileSystem: storage);
         store.Write(First, 1, [1, 2]);
         store.Write(Second, 2, [3, 4]);
         Assert.False(store.TryRead(First, out _, out _));
@@ -58,7 +61,7 @@ public sealed class ProgramBinaryStoreTests : IDisposable
     [Fact]
     public void KeyTracksExactInputsAndBypassHasNoKey()
     {
-        var store = new ProgramBinaryStore(directory);
+        var store = new ProgramBinaryStore(directory, fileSystem: storage);
         var stage = new ShaderStageContract("test.csh", "test.csh", ShaderStageKind.Compute,
             new GpuBindingContract(), specializations: [new ShaderSpecialization(1, LumOnShaderOptions.DirectVisibility)]);
         var settings = new ShaderSettings(new GpuShaderContract("test", [stage], 1, [LumOnShaderOptions.DirectVisibility]));
@@ -110,7 +113,7 @@ public sealed class ProgramBinaryStoreTests : IDisposable
             if (failure == "missing") throw new FileNotFoundException(path);
             return metadata;
         }
-        Action prepare = () => new PreparedProgramBinary(plan, Read, new ProgramBinaryStore(directory), "driver", () => ShaderBinaryDigest.Parse(Read(ShaderBinaryDigest.FileName)));
+        Action prepare = () => new PreparedProgramBinary(plan, Read, new ProgramBinaryStore(directory, fileSystem: storage), "driver", () => ShaderBinaryDigest.Parse(Read(ShaderBinaryDigest.FileName)));
         if (failure == "missing") Assert.Throws<FileNotFoundException>(prepare);
         else Assert.Throws<InvalidDataException>(prepare);
     }
@@ -150,10 +153,10 @@ public sealed class ProgramBinaryStoreTests : IDisposable
             return metadata;
         }
         if (omitFragment)
-            Assert.Throws<InvalidDataException>(() => new PreparedProgramBinary(plan, Read, new ProgramBinaryStore(directory), "driver", () => ShaderBinaryDigest.Parse(Read(ShaderBinaryDigest.FileName))));
+            Assert.Throws<InvalidDataException>(() => new PreparedProgramBinary(plan, Read, new ProgramBinaryStore(directory, fileSystem: storage), "driver", () => ShaderBinaryDigest.Parse(Read(ShaderBinaryDigest.FileName))));
         else
         {
-            var prepared = new PreparedProgramBinary(plan, Read, new ProgramBinaryStore(directory), "driver", () => ShaderBinaryDigest.Parse(Read(ShaderBinaryDigest.FileName)));
+            var prepared = new PreparedProgramBinary(plan, Read, new ProgramBinaryStore(directory, fileSystem: storage), "driver", () => ShaderBinaryDigest.Parse(Read(ShaderBinaryDigest.FileName)));
             Assert.NotNull(prepared.Key);
             Assert.All(plan.Stages, stage => Assert.Equal(binary, prepared.Read(stage.BinaryPath).ToArray()));
         }
@@ -164,15 +167,15 @@ public sealed class ProgramBinaryStoreTests : IDisposable
     [Fact]
     public void PayloadIntegrityAndByteBudgetAreEnforced()
     {
-        var store = new ProgramBinaryStore(directory, maxBytes: 4);
+        var store = new ProgramBinaryStore(directory, maxBytes: 4, fileSystem: storage);
         store.Write(First, 1, [1, 2, 3, 4, 5]);
         Assert.False(store.TryRead(First, out _, out _));
         store.Write(First, 1, [1, 2, 3, 4]);
-        string file = Assert.Single(Directory.GetFiles(directory, "*.bin"));
-        File.WriteAllBytes(file, [1, 2, 3, 5]);
+        string file = Assert.Single(storage.EnumerateFiles(directory, "*.bin"));
+        storage.WriteAllBytes(file, [1, 2, 3, 5]);
         Assert.False(store.TryRead(First, out _, out _));
         store.Write(First, 1, [1, 2, 3, 4]);
-        File.Delete(file);
+        storage.DeleteFile(file);
         Assert.False(store.TryRead(First, out _, out _));
     }
 
@@ -180,10 +183,10 @@ public sealed class ProgramBinaryStoreTests : IDisposable
     [Fact]
     public void FileInsteadOfDirectoryIsHarmless()
     {
-        Directory.CreateDirectory(directory);
+        storage.CreateDirectory(directory);
         string path = Path.Combine(directory, "blocked");
-        File.WriteAllText(path, "file");
-        var store = new ProgramBinaryStore(path);
+        storage.WriteAllText(path, "file");
+        var store = new ProgramBinaryStore(path, fileSystem: storage);
         store.Write(First, 1, [1]);
         Assert.False(store.TryRead(First, out _, out _));
         store.Remove(First);
@@ -193,9 +196,9 @@ public sealed class ProgramBinaryStoreTests : IDisposable
     [Fact]
     public void ContendedLeaseSkipsStorageAndRecovers()
     {
-        Directory.CreateDirectory(directory);
-        var store = new ProgramBinaryStore(directory);
-        using (var lease = new FileStream(Path.Combine(directory, "index.lock"), FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None))
+        storage.CreateDirectory(directory);
+        var store = new ProgramBinaryStore(directory, fileSystem: storage);
+        using (var lease = storage.AcquireExclusive(Path.Combine(directory, "index.lock")))
         {
             store.Write(First, 1, [1, 2]);
             Assert.False(store.TryRead(First, out _, out _));
@@ -205,10 +208,49 @@ public sealed class ProgramBinaryStoreTests : IDisposable
         Assert.True(store.TryRead(First, out _, out _));
     }
 
+    /// <summary>Repeated retirement of an old lease cannot release a later owner's exclusion.</summary>
+    [Fact]
+    public void RetiredLeaseCannotReleaseItsReplacement()
+    {
+        string path = Path.Combine(directory, "index.lock");
+        using var first = storage.AcquireExclusive(path);
+        first.Dispose();
+        using var replacement = storage.AcquireExclusive(path);
+        first.Dispose();
+        var store = new ProgramBinaryStore(directory, fileSystem: storage);
+        store.Write(First, 1, [1, 2]);
+        Assert.False(store.TryRead(First, out _, out _));
+        Assert.Throws<IOException>(() => storage.AcquireExclusive(path));
+        replacement.Dispose();
+        store.Write(First, 1, [1, 2]);
+        Assert.True(store.TryRead(First, out _, out _));
+    }
+
+    /// <summary>Competing mocked owners observe a single held lease until its owner retires.</summary>
+    [Fact]
+    public void ConcurrentLeaseRequestsHaveOneOwner()
+    {
+        string path = Path.Combine(directory, "index.lock");
+        var acquired = new System.Collections.Concurrent.ConcurrentBag<Stream>();
+        try
+        {
+            // Keep the winning lease alive across the whole round; a sequential succession
+            // would not establish exclusion between competing owners.
+            Parallel.For(0, 16, _ =>
+            {
+                try { acquired.Add(storage.AcquireExclusive(path)); }
+                catch (IOException) { }
+            });
+            Assert.Single(acquired);
+        }
+        finally { foreach (var lease in acquired) lease.Dispose(); }
+        using var next = storage.AcquireExclusive(path);
+    }
+
     /// <summary>Cache deletion is confined to the temporary directory created by this test.</summary>
     public void Dispose()
     {
-        if (Directory.Exists(directory)) Directory.Delete(directory, recursive: true);
+        if (storage.DirectoryExists(directory)) storage.DeleteDirectory(directory, recursive: true);
     }
     #endregion
 

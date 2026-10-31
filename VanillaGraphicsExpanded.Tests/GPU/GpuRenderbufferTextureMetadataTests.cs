@@ -10,7 +10,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Checks EXT renderbuffer texture associations and their canonical backing dependencies.</summary>
 [Collection("GPU")]
-[Trait("Category","GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class GpuRenderbufferTextureMetadataTests(HeadlessGLFixture fixture,ITestOutputHelper output)
 {
     private const TextureTarget Target=(TextureTarget)All.TextureRenderbufferNv;

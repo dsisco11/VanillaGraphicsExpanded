@@ -11,7 +11,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Qualifies maintained raw buffer lifetimes, provenance and saved-original RHI handoff.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class GpuBufferLifecycleTests(HeadlessGLFixture fixture)
 {
     #region Public API

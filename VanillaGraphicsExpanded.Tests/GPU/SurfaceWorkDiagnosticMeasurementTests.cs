@@ -12,6 +12,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 /// <summary>Opt-in matched instrumentation cost measurements with explicit attempted and completed work.</summary>
 [Collection("NearFieldMaterialCapture")]
 [Trait("Category","Measurement")]
+[Trait("Category", "GpuIntegration")]
 public sealed class SurfaceWorkDiagnosticMeasurementTests(HeadlessGLFixture fixture):RenderTestBase(fixture)
 {
     #region Matched measurement

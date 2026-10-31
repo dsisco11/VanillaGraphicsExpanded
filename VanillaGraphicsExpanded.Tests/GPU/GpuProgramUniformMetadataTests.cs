@@ -8,7 +8,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Checks explicit and bound uniform assignment against native values and canonical program metadata.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class GpuProgramUniformMetadataTests(HeadlessGLFixture fixture)
 {
     #region Public API

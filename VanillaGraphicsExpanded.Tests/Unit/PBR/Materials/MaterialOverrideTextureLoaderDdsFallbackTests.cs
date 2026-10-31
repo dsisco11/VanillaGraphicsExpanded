@@ -13,10 +13,7 @@ public sealed class MaterialOverrideTextureLoaderDdsFallbackTests
     [Fact]
     public void DecodeDdsBytes_FallsBackToRgba16UnormDx10_WhenBcDecodeFails()
     {
-        string dir = Path.Combine(Path.GetTempPath(), "VGE", "DdsTests");
-        Directory.CreateDirectory(dir);
-
-        string path = Path.Combine(dir, "rgba16unorm-fallback.dds");
+        using var stream = new MemoryStream();
 
         const int width = 4;
         const int height = 4;
@@ -31,9 +28,9 @@ public sealed class MaterialOverrideTextureLoaderDdsFallbackTests
         srcU16[0] = 0;
         srcU16[1] = 65535;
 
-        DdsRgba16UnormCodec.WriteRgba16Unorm(path, width, height, srcU16);
+        DdsRgba16UnormCodec.WriteRgba16Unorm(stream, width, height, srcU16);
 
-        byte[] bytes = File.ReadAllBytes(path);
+        byte[] bytes = stream.ToArray();
 
         Assert.True(MaterialOverrideTextureLoader.TryDecodeDdsBytes(bytes, out var img, out string? reason, width, height), reason);
         Assert.False(img.IsEmpty);

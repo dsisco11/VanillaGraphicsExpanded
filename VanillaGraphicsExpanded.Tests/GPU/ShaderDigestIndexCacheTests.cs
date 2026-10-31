@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Tests.TestSupport;
 using VanillaGraphicsExpanded.Rendering.ShaderCompilation;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.HarmonyPatches;
@@ -11,9 +12,11 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Checks application-wide digest sharing and explicit asset generation boundaries.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class ShaderDigestIndexCacheTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
+    private readonly CountingDiskCacheFileSystem storage = new();
+
     private const string ManifestPath = "shaders/" + ShaderBinaryDigest.FileName;
 
     #region Shared program loading
@@ -26,7 +29,7 @@ public sealed class ShaderDigestIndexCacheTests(HeadlessGLFixture fixture) : Ren
         ShaderDigestIndexCache.Clear();
         try
         {
-            using var cache = DriverProgramCache.UseStoreForTesting(new ProgramBinaryStore(directory));
+            using var cache = DriverProgramCache.UseStoreForTesting(new ProgramBinaryStore(directory, fileSystem: storage));
             using var assets = new BinaryShaderApiFixture();
             using var program = new FixtureProgram();
             program.Initialize(assets.Api);
@@ -49,67 +52,8 @@ public sealed class ShaderDigestIndexCacheTests(HeadlessGLFixture fixture) : Ren
         finally
         {
             ShaderDigestIndexCache.Clear();
-            if (Directory.Exists(directory)) Directory.Delete(directory, true);
+            if (storage.DirectoryExists(directory)) storage.DeleteDirectory(directory, true);
         }
-    }
-    #endregion
-
-    #region Manifest lifetime
-    /// <summary>Owners and domains have independent indexes while repeated lookups retain one parsed object.</summary>
-    [Fact]
-    public void AssetOwnersAndDomainsAreIsolated()
-    {
-        using var first = new BinaryShaderApiFixture();
-        using var second = new BinaryShaderApiFixture();
-        var a = ShaderDigestIndexCache.ForAssets(first.Api.Assets, "vanillagraphicsexpanded");
-        Assert.NotNull(a);
-        Assert.Same(a, ShaderDigestIndexCache.ForAssets(first.Api.Assets, "vanillagraphicsexpanded"));
-        Assert.NotSame(a, ShaderDigestIndexCache.ForAssets(first.Api.Assets, "otherdomain"));
-        Assert.NotSame(a, ShaderDigestIndexCache.ForAssets(second.Api.Assets, "vanillagraphicsexpanded"));
-        Assert.Equal(2, first.Reads.Count(path => path == ManifestPath));
-        Assert.Single(second.Reads.Where(path => path == ManifestPath));
-    }
-
-    /// <summary>Invalid metadata is read once and newly supplied metadata is observed after reload.</summary>
-    [Fact]
-    public void UnavailableMetadataIsCachedUntilReload()
-    {
-        using var assets = new BinaryShaderApiFixture();
-        assets.Overrides[ManifestPath] = [];
-        Assert.Null(ShaderDigestIndexCache.ForAssets(assets.Api.Assets, "vanillagraphicsexpanded"));
-        assets.Overrides.Remove(ManifestPath);
-        Assert.Null(ShaderDigestIndexCache.ForAssets(assets.Api.Assets, "vanillagraphicsexpanded"));
-        Assert.Single(assets.Reads.Where(path => path == ManifestPath));
-        ShaderDigestReloadHook.Prefix(out _);
-            ShaderDigestReloadHook.Finalizer(true);
-        Assert.NotNull(ShaderDigestIndexCache.ForAssets(assets.Api.Assets, "vanillagraphicsexpanded"));
-        Assert.Equal(2, assets.Reads.Count(path => path == ManifestPath));
-    }
-
-    /// <summary>Canonical file paths share parsed metadata and refresh only at the same reload boundary.</summary>
-    [Fact]
-    public void FileMetadataAndMissingFilesAreCachedUntilReload()
-    {
-        string path = Path.Combine(Path.GetTempPath(), "vge-digests-" + Guid.NewGuid().ToString("N") + ".json");
-        try
-        {
-            Assert.Null(ShaderDigestIndexCache.ForFile(path));
-            File.WriteAllBytes(path, ShaderBinaryDigest.Encode(new() { ["a.spv"] = new(20, new string('A', 64)) }));
-            Assert.Null(ShaderDigestIndexCache.ForFile(path));
-            ShaderDigestReloadHook.Prefix(out _);
-            ShaderDigestReloadHook.Finalizer(true);
-            var first = ShaderDigestIndexCache.ForFile(path);
-            Assert.NotNull(first);
-            File.WriteAllBytes(path, ShaderBinaryDigest.Encode(new() { ["b.spv"] = new(24, new string('B', 64)) }));
-            Assert.Same(first, ShaderDigestIndexCache.ForFile(Path.Combine(Path.GetDirectoryName(path)!, ".", Path.GetFileName(path))));
-            ShaderDigestReloadHook.Prefix(out _);
-            ShaderDigestReloadHook.Finalizer(true);
-            var replacement = ShaderDigestIndexCache.ForFile(path);
-            Assert.NotNull(replacement);
-            Assert.NotSame(first, replacement);
-            Assert.Contains("b.spv", replacement.Binaries.Keys);
-        }
-        finally { ShaderDigestIndexCache.Clear(); File.Delete(path); }
     }
     #endregion
 

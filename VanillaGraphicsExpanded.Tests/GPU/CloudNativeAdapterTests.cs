@@ -17,7 +17,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Qualifies real GL storage/link/error boundaries using tiny synthetic native owners, without a game.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class CloudNativeAdapterTests(HeadlessGLFixture fixture)
 {
     #region Public API

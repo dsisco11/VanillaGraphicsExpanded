@@ -5,7 +5,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Preserves wait-boundary correctness checks and diagnostic context without duplicate predicate evaluation.</summary>
 [Collection("NearFieldMaterialCapture")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
+[Trait("Scenario", "HeadlessRuntime")]
 public sealed class RuntimeWaitObservationTests : RenderTestBase
 {
     /// <summary>Uses the material-isolated graphics context.</summary>

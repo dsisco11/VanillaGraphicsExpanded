@@ -8,7 +8,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Exercises exact native parameter/getter ABIs that initialize generated sampler names.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed unsafe class GpuSamplerRealizationTests(HeadlessGLFixture fixture)
 {
     #region Public API

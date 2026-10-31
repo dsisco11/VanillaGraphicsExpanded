@@ -12,7 +12,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Exercises retained geometric hits and cache-only completion through packaged production shaders.</summary>
 [Collection("NearFieldMaterialCapture")]
-[Trait("Category","GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class SurfaceHitRetryGpuTests(HeadlessGLFixture fixture):RenderTestBase(fixture)
 {
     private const int HeaderBytes=544,RecordBytes=4176,Capacity=16;

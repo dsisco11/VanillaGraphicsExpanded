@@ -13,7 +13,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 /// Tests actual OpenGL buffer creation, binding, and resource management.
 /// </summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public class GpuVboIntegrationTests
 {
     private readonly HeadlessGLFixture _fixture;

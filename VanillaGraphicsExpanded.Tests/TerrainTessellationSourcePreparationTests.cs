@@ -7,7 +7,7 @@ using Vintagestory.Client.NoObf;
 namespace VanillaGraphicsExpanded.Tests;
 
 /// <summary>Checks typed interface generation and engine-owned prefix lifecycle.</summary>
-[Collection("GPU")]
+[Collection("CPU state")]
 public sealed class TerrainTessellationSourcePreparationTests
 {
     #region Runtime asset reload
@@ -20,7 +20,7 @@ public sealed class TerrainTessellationSourcePreparationTests
         Assert.Contains("VgeHeight", initial.Evaluation);
         Assert.DoesNotContain("@import", initial.Evaluation);
         const string path = "shaders/includes/tessellation/terrain.tesh";
-        string original = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "assets", path));
+        string original = TestAssetSnapshot.ReadBuiltText(Path.Combine(AppContext.BaseDirectory, "assets", path));
         fixture.Overrides[path] = System.Text.Encoding.UTF8.GetBytes(original + "\n// reload-marker\n");
         var reloaded = TerrainTessellationAssets.Load(fixture.Api.Assets);
         Assert.DoesNotContain("reload-marker", initial.Evaluation);

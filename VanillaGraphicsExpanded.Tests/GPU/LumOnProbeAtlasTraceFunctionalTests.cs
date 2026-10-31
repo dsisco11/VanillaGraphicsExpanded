@@ -48,7 +48,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 /// </code>
 /// </remarks>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public class LumOnProbeAtlasTraceFunctionalTests : LumOnShaderFunctionalTestBase
 {
     // Ray tracing defaults

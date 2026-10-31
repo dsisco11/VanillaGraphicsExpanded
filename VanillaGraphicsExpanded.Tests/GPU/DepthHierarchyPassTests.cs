@@ -8,7 +8,7 @@ using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 namespace VanillaGraphicsExpanded.Tests.GPU;
 /// <summary>Checks production conservative mip generation, feedback-safe access and resource retirement.</summary>
 [Collection("GPU")]
-[Trait("Category","GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class DepthHierarchyPassTests(HeadlessGLFixture fixture) : LumOnShaderFunctionalTestBase(fixture)
 {
     #region Public API
@@ -46,7 +46,8 @@ public sealed class DepthHierarchyPassTests(HeadlessGLFixture fixture) : LumOnSh
             // interval intersection rather than the shader's integer footprint implementation.
             for(int y=0;y<nextH;y++)for(int x=0;x<nextW;x++) {
                 float minimum=1;
-                for(int sy=0;sy<h;sy++)for(int sx=0;sx<w;sx++)
+                for(int sy=Math.Max(0,(int)((long)y*h/nextH));sy<Math.Min(h,(int)(((long)(y+1)*h+nextH-1)/nextH));sy++)
+                for(int sx=Math.Max(0,(int)((long)x*w/nextW));sx<Math.Min(w,(int)(((long)(x+1)*w+nextW-1)/nextW));sx++)
                     if((long)sx*nextW<(long)(x+1)*w && (long)(sx+1)*nextW>(long)x*w &&
                        (long)sy*nextH<(long)(y+1)*h && (long)(sy+1)*nextH>(long)y*h)
                         minimum=Math.Min(minimum,values[sy*w+sx]);

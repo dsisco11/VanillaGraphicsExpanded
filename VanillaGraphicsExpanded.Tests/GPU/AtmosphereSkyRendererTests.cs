@@ -9,7 +9,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Checks the sky's procedural geometry ownership without engine mesh allocation.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class AtmosphereSkyRendererTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
     #region Public API

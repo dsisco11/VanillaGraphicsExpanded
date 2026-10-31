@@ -11,7 +11,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Qualifies immutable framebuffer configuration, construction proof and repeated-pass fast paths.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class StaticGpuFramebufferTests(HeadlessGLFixture fixture, ITestOutputHelper output) : RenderTestBase(fixture)
 {
     #region Public API
@@ -227,7 +227,7 @@ public sealed class StaticGpuFramebufferTests(HeadlessGLFixture fixture, ITestOu
             output.WriteLine("STATIC_FRAMEBUFFER_WORK=" + System.Text.Json.JsonSerializer.Serialize(new { standalone, work.DynamicApplications, work.Captures,  work.CompletenessChecks }));
         }
         Assert.Equal(incoming.FboId, GL.GetInteger(GetPName.DrawFramebufferBinding));
-        Assert.Equal(.25f, texture.ReadPixels()[0]);
+        Assert.Equal(.25f, texture.ReadTexel()[0]);
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
     #endregion

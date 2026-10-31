@@ -12,7 +12,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Executes native vertex face storage simultaneously with frozen lighting and material-energy storage.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class NativeFrameLightingBindingTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
     #region Public API
@@ -22,17 +22,17 @@ public sealed class NativeFrameLightingBindingTests(HeadlessGLFixture fixture) :
     {
         EnsureContextValid();
         string root = Environment.GetEnvironmentVariable("VINTAGE_STORY") ?? "G:/Vintagestory";
-        string flags = File.ReadAllText(Path.Combine(root, "assets/game/shaderincludes/vertexflagbits.ash"));
+        string flags = TestAssetSnapshot.ReadSourceText(Path.Combine(root, "assets/game/shaderincludes/vertexflagbits.ash"));
         int first = flags.IndexOf("struct FaceData {", StringComparison.Ordinal);
         string faceType = flags[first..(flags.IndexOf("};", first, StringComparison.Ordinal) + 2)];
-        string native = File.ReadAllText(Path.Combine(root, "assets/game/shaders/decals.vsh"));
+        string native = TestAssetSnapshot.ReadSourceText(Path.Combine(root, "assets/game/shaders/decals.vsh"));
         string faceBlock = native.Split('\n').Single(line => line.Contains("readonly buffer faceDataBuf", StringComparison.Ordinal));
         Assert.Contains("binding = 3", faceBlock);
         using var shaders = new TerrainShaderTestFixture();
         int vertex = shaders.Compile(ShaderType.VertexShader, "#version 430 core\n" + faceType + "\n" + faceBlock +
             "\nlayout(location=0)in vec2 position;flat out vec3 physical;void main(){physical=faces[0].xyz;gl_Position=vec4(position,0,1);}");
-        string helper = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "assets/shaders/includes/pbr_frame_lighting.glsl"));
-        string energy = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "assets/shaders/includes/pbr_microfacet_energy.glsl"));
+        string helper = TestAssetSnapshot.ReadBuiltText(Path.Combine(AppContext.BaseDirectory, "assets/shaders/includes/pbr_frame_lighting.glsl"));
+        string energy = TestAssetSnapshot.ReadBuiltText(Path.Combine(AppContext.BaseDirectory, "assets/shaders/includes/pbr_microfacet_energy.glsl"));
         int fragment = shaders.Compile(ShaderType.FragmentShader, "#version 430 core\n" + energy + helper +
             "\nflat in vec3 physical;layout(location=0)out vec4 outColor;void main(){vec2 e=VgeDirectionalAlbedo(.5,1);outColor=vec4(VgeStoreFrameLight(physical)*vec3(e,1),VgeFrameLightingValid(42u,7u)?1:0);}");
         using var program = GpuProgramObject.Adopt(TerrainShaderTestFixture.Link(vertex, fragment));

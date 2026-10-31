@@ -34,7 +34,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 /// </code>
 /// </remarks>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public class LumOnUpsampleFunctionalTests : LumOnShaderFunctionalTestBase
 {
     // Default bilateral filter parameters

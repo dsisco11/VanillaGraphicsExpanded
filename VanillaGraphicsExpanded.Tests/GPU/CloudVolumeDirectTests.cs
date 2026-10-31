@@ -11,7 +11,7 @@ using VolumeStorage=VanillaGraphicsExpanded.PBR.Clouds.Volume.CloudVolumeStorage
 namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Verifies stored-density transport arithmetic and retained source/publication behavior on the actual GPU path.</summary>
-[Collection("GPU")][Trait("Category","GPU")]
+[Collection("GPU")][Trait("Category", "GpuIntegration")]
 public sealed class CloudVolumeDirectTests(HeadlessGLFixture fixture):LumOnShaderFunctionalTestBase(fixture)
 {
     #region Public API

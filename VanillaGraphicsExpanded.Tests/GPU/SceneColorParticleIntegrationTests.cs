@@ -12,7 +12,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Checks installed particle hook compatibility and real redirect boundary restoration.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class SceneColorParticleIntegrationTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
     #region Public API
@@ -111,9 +111,9 @@ public sealed class SceneColorParticleIntegrationTests(HeadlessGLFixture fixture
             bool[] metadataMask = new bool[4];
             GL.GetBoolean(GetIndexedPName.ColorWritemask, 2, metadataMask);
             Assert.Equal(new[] { false, true, false, true }, metadataMask);
-            Assert.Equal(new[] { 4f, 2f, 1f, .5f }, capture.DrawTarget[0].ReadPixels()[..4]);
-            Assert.Equal(new[] { .125f, .25f, .5f, 1f }, primary[0].ReadPixels()[..4]);
-            Assert.Equal(new[] { .2f, .3f, .4f, .5f }, primary[1].ReadPixels()[..4]);
+            Assert.Equal(new[] { 4f, 2f, 1f, .5f }, capture.DrawTarget[0].ReadTexel()[..4]);
+            Assert.Equal(new[] { .125f, .25f, .5f, 1f }, primary[0].ReadTexel()[..4]);
+            Assert.Equal(new[] { .2f, .3f, .4f, .5f }, primary[1].ReadTexel()[..4]);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
         finally

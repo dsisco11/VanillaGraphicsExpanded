@@ -9,7 +9,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Qualifies remaining empty-schema lifetimes and query-free authored geometry through native interception.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class GpuGeometryLifecycleTests(HeadlessGLFixture fixture)
 {
     #region Public API

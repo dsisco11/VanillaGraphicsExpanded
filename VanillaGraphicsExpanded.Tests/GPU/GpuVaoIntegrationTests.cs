@@ -12,7 +12,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 /// Tests the backend-owned vertex array lifetime; rendering behavior is covered through RHI geometry submission.
 /// </summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public class GpuVaoIntegrationTests
 {
     private readonly HeadlessGLFixture _fixture;

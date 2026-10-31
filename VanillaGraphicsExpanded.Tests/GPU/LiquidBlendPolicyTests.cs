@@ -15,7 +15,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Checks liquid output equations against installed engine accumulation, revealage and glow policy.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class LiquidBlendPolicyTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
     #region Public API

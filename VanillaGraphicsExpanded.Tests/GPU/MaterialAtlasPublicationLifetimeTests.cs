@@ -9,7 +9,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Checks actual page-bound publication and queued transfer ownership across retirement.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class MaterialAtlasPublicationLifetimeTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
     #region Public API

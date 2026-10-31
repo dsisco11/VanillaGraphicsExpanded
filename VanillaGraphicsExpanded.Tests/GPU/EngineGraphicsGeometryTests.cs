@@ -16,7 +16,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Checks the installed ordinary engine draw helper through the owned fullscreen geometry adapter.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class EngineGraphicsGeometryTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
     #region Public API
@@ -135,7 +135,7 @@ public sealed class EngineGraphicsGeometryTests(HeadlessGLFixture fixture) : Ren
         Assert.Equal(0, native.Draws);
         Assert.Equal(priorVao, GL.GetInteger(GetPName.VertexArrayBinding));
         Assert.Equal(priorElements, GL.GetInteger(GetPName.ElementArrayBufferBinding));
-        Assert.InRange(target[0].ReadPixels()[0], .1999f, .2001f);
+        Assert.InRange(target[0].ReadTexel()[0], .1999f, .2001f);
         var failure = new ArithmeticException("Fixture operation failure.");
         Assert.Same(failure, Assert.Throws<ArithmeticException>(() =>
         {

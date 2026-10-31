@@ -50,7 +50,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 /// </code>
 /// </remarks>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestBase
 {
     // Default temporal parameters

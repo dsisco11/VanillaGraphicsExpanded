@@ -10,7 +10,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Qualifies the installed bucket and resolve arithmetic separately from per-fragment storage containment.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class OitStorageArithmeticTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
     #region Public API
@@ -21,8 +21,8 @@ public sealed class OitStorageArithmeticTests(HeadlessGLFixture fixture) : Rende
         EnsureContextValid();
         using var shaders = new TerrainShaderTestFixture();
         string includes = Path.Combine(AppContext.BaseDirectory, "assets/shaders/includes");
-        string owned = File.ReadAllText(Path.Combine(includes, "oit.glsl"))
-            .Replace("@import \"./pbr_oit_safety.glsl\"", File.ReadAllText(Path.Combine(includes, "pbr_oit_safety.glsl")));
+        string owned = TestAssetSnapshot.ReadSourceText(Path.Combine(includes, "oit.glsl"))
+            .Replace("@import \"./pbr_oit_safety.glsl\"", TestAssetSnapshot.ReadSourceText(Path.Combine(includes, "pbr_oit_safety.glsl")));
         using var program = Link(shaders, "#version 330 core\n" + owned + "\nuniform vec4 testColor;uniform float testGlow;void main(){writeOit(testColor,testGlow);}");
         using var framework = new ShaderTestFramework();
         using var output = CreateMRTRenderTarget(1, 1, Enumerable.Repeat(TextureFormat.Rgba32f, 6).ToArray());
@@ -187,7 +187,7 @@ public sealed class OitStorageArithmeticTests(HeadlessGLFixture fixture) : Rende
         EnsureContextValid();
         using var shaders = new TerrainShaderTestFixture();
         string root = Environment.GetEnvironmentVariable("VINTAGE_STORY") ?? "G:/Vintagestory";
-        var tree = SyntaxTree.Parse(File.ReadAllText(Path.Combine(root, "assets/game/shaders/transparentcompose.fsh")), GlslSchema.Instance);
+        var tree = SyntaxTree.Parse(TestAssetSnapshot.ReadSourceText(Path.Combine(root, "assets/game/shaders/transparentcompose.fsh")), GlslSchema.Instance);
         var main = tree.Select(Query.Syntax<GlFunctionNode>().Named("main")).Single();
         tree.CreateEditor().Replace(main, """
             void main(){
@@ -223,7 +223,7 @@ public sealed class OitStorageArithmeticTests(HeadlessGLFixture fixture) : Rende
         EnsureContextValid();
         using var shaders = new TerrainShaderTestFixture();
         string root = Environment.GetEnvironmentVariable("VINTAGE_STORY") ?? "G:/Vintagestory";
-        string bucket = File.ReadAllText(Path.Combine(root, "assets/game/shaderincludes/oit.fsh"));
+        string bucket = TestAssetSnapshot.ReadSourceText(Path.Combine(root, "assets/game/shaderincludes/oit.fsh"));
         string fragment = "#version 430 core\n#define USEOIT 1\n" + bucket + "\n" + """
             void main(){
                 vec4 sums[3]=vec4[3](vec4(0),vec4(0),vec4(0));

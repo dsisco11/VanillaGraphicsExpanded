@@ -110,6 +110,6 @@ public sealed class WaterRefractionConfigTests
 
     #region Private
     /// <summary>Reads the shipped ConfigLib definition copied by the normal test build.</summary>
-    private static JObject Definition() => JObject.Parse(File.ReadAllText(Path.Combine(AppContext.BaseDirectory,"assets/config/configlib-patches.json")));
+    private static JObject Definition() => JObject.Parse(TestAssetSnapshot.ReadBuiltText(Path.Combine(AppContext.BaseDirectory,"assets/config/configlib-patches.json")));
     #endregion
 }

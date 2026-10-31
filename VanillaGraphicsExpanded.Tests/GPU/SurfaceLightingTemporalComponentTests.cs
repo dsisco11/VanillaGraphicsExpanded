@@ -4,7 +4,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Checks exact temporal shader retention, confidence and blending with a deterministic component schedule.</summary>
 [Collection("NearFieldMaterialCapture")]
-[Trait("Category","GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class SurfaceLightingTemporalComponentTests : SurfaceLightingTemporalTestBase
 {
     /// <summary>Uses the material-isolated GPU context.</summary>

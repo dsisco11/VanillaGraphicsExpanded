@@ -10,7 +10,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Exercises exact draw/read routing forwarding independently of framebuffer resource descriptors.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class GpuFramebufferRoutingInterceptionTests(HeadlessGLFixture fixture)
 {
     #region Public API

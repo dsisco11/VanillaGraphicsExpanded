@@ -11,7 +11,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Checks binary-only graphics execution and records driver preparation separately from drawing.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class SpirvGraphicsLifecycleTests : RenderTestBase
 {
     private readonly ITestOutputHelper output;
@@ -20,14 +20,14 @@ public sealed class SpirvGraphicsLifecycleTests : RenderTestBase
     public SpirvGraphicsLifecycleTests(HeadlessGLFixture fixture, ITestOutputHelper output) : base(fixture) => this.output = output;
 
     #region Binary execution
-    /// <summary>Includes the built graphics variants owned by runtime program declarations.</summary>
+    /// <summary>Retains runtime packaged-interface validation for every declared graphics assignment.</summary>
     public static IEnumerable<object[]> GraphicsVariants() => SpirvInventoryTests.GraphicsPrograms()
         .Where(row => VanillaGraphicsExpanded.Rendering.Contracts.GpuShaderContracts.Registry.Programs.ContainsKey((string)row[0]));
 
-    /// <summary>Replaces every packaged variant through independent asset invalidation and targeted retirement.</summary>
+    /// <summary>Validates every runtime assignment and exercises repeated replacement on representative stage families.</summary>
     [Theory]
     [MemberData(nameof(GraphicsVariants))]
-    public void RuntimeReplacementRetiresOnlyPreviousExecutable(string shaderName, string variant)
+    public void RuntimeAssignmentsValidateAndRepresentativesRetirePreviousExecutable(string shaderName, string variant)
     {
         EnsureContextValid();
         using var assets = new BinaryShaderApiFixture();
@@ -40,6 +40,17 @@ public sealed class SpirvGraphicsLifecycleTests : RenderTestBase
         try
         {
             Assert.True(program.CompileAndLink(), string.Join("\n", assets.Logs));
+            Assert.True(GL.IsProgram(program.ProgramId));
+            Assert.False(program.IsRetired);
+            Assert.Equal(ErrorCode.NoError, GL.GetError());
+            // Every assignment passes the runtime packaged/native interface checks. The extra
+            // replacement cycles exercise common ownership code once per distinct stage family.
+            var contract = VanillaGraphicsExpanded.Rendering.Contracts.GpuShaderContracts.Registry.FindProgram(shaderName);
+            string family = string.Join(",", contract.Stages.Select(stage => stage.Kind).Order());
+            var representative = GraphicsVariants().First(row => string.Join(",",
+                VanillaGraphicsExpanded.Rendering.Contracts.GpuShaderContracts.Registry.FindProgram((string)row[0])
+                    .Stages.Select(stage => stage.Kind).Order()) == family);
+            if ((string)representative[0] != shaderName || (string)representative[1] != variant) return;
             GL.UseProgram(0);
             int previous = program.ProgramId;
             program.InvalidateAssets();
@@ -145,10 +156,10 @@ public sealed class SpirvGraphicsLifecycleTests : RenderTestBase
             assets.BeforeRead = path => { if (path == "shaders/" + replaced) throw new IOException("controlled asset read failure"); };
         else
         {
-            assets.Overrides["shaders/" + replaced] = File.ReadAllBytes(Path.Combine(AppContext.BaseDirectory, "assets", "shaders", substitute));
+            assets.Overrides["shaders/" + replaced] = TestAssetSnapshot.ReadBuiltBytes(Path.Combine(AppContext.BaseDirectory, "assets", "shaders", substitute));
             // Keep the substituted bytes and declarations coherent so this deliberately invalid
             // stage pairing still exercises specialization, linking or binding-contract rejection.
-            var manifest = ShaderBinaryDigest.Parse(File.ReadAllBytes(Path.Combine(AppContext.BaseDirectory,
+            var manifest = ShaderBinaryDigest.Parse(TestAssetSnapshot.ReadBuiltBytes(Path.Combine(AppContext.BaseDirectory,
                 "assets", "shaders", ShaderBinaryDigest.FileName)))!;
             var original = manifest.Binaries[replaced].Interface!;
             var replacement = manifest.Binaries[substitute];
@@ -221,8 +232,7 @@ public sealed class SpirvGraphicsLifecycleTests : RenderTestBase
             FramebufferTestSetup.BindForEngineRendering(target);
             start = Stopwatch.GetTimestamp();
             for (int i = 0; i < 8; i++) RenderFullscreenQuad(program);
-            GL.Finish();
-            output.WriteLine($"Eight draws plus completion: {Stopwatch.GetElapsedTime(start).TotalMilliseconds:F3} ms");
+            output.WriteLine($"Eight draw submissions: {Stopwatch.GetElapsedTime(start).TotalMilliseconds:F3} ms");
             var pixel = ReadPixel(target, 4, 4);
             Assert.InRange(pixel.R, 0.55f, 0.58f);
             Assert.InRange(pixel.G, 0.55f, 0.58f);

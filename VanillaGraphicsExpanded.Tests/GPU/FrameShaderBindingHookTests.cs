@@ -17,7 +17,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Checks native shader binding boundaries against actual shared snapshots and retained driver ranges.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class FrameShaderBindingHookTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
     #region Public API
@@ -49,11 +49,11 @@ public sealed class FrameShaderBindingHookTests(HeadlessGLFixture fixture) : Ren
         render.ShaderUniforms.PointLightColors3[0] = .25f;
         using var shaders = new TerrainShaderTestFixture();
         string directory = Path.Combine(AppContext.BaseDirectory,"assets","shaders","includes");
-        string schema = File.ReadAllText(Path.Combine(directory,"vge_frame_ubo.glsl"))
-            .Replace("@import \"./vge_ubo_bindings.glsl\"",File.ReadAllText(Path.Combine(directory,"vge_ubo_bindings.glsl")));
+        string schema = TestAssetSnapshot.ReadSourceText(Path.Combine(directory,"vge_frame_ubo.glsl"))
+            .Replace("@import \"./vge_ubo_bindings.glsl\"",TestAssetSnapshot.ReadSourceText(Path.Combine(directory,"vge_ubo_bindings.glsl")));
         int vertex = shaders.Compile(ShaderType.VertexShader,"#version 430 core\n" + schema + "\nlayout(location=0) in vec2 position; uniform int vge_pbrRoute; void main(){vec4 clip=vec4(position,0,1); gl_Position=vge_pbrRoute==0 ? clip : vgeFrame.currViewProjMatrix*clip;}");
-        string lightSchema = File.ReadAllText(Path.Combine(directory,"vge_lights_ubo.glsl"))
-            .Replace("@import \"./vge_ubo_bindings.glsl\"",File.ReadAllText(Path.Combine(directory,"vge_ubo_bindings.glsl")));
+        string lightSchema = TestAssetSnapshot.ReadSourceText(Path.Combine(directory,"vge_lights_ubo.glsl"))
+            .Replace("@import \"./vge_ubo_bindings.glsl\"",TestAssetSnapshot.ReadSourceText(Path.Combine(directory,"vge_ubo_bindings.glsl")));
         int fragment = shaders.Compile(ShaderType.FragmentShader,"#version 430 core\n" + lightSchema + "\nuniform int vge_pbrRoute; out vec4 color; void main(){color=vge_pbrRoute==0 ? vec4(1) : vec4(vgeLights.colors[0].rgb,float(vgeLights.lightCount));}");
         using var program = GpuProgramObject.Adopt(TerrainShaderTestFixture.Link(vertex,fragment));
         var engine = new FrameConsumerProgram(program.ProgramId);
@@ -159,7 +159,7 @@ public sealed class FrameShaderBindingHookTests(HeadlessGLFixture fixture) : Ren
         EnsureContextValid();
         using var platform=new EngineShaderPlatformScope();
         using var shaders=new TerrainShaderTestFixture();
-        string helper=File.ReadAllText(Path.Combine(AppContext.BaseDirectory,"assets/shaders/includes/pbr_microfacet_energy.glsl"));
+        string helper=TestAssetSnapshot.ReadBuiltText(Path.Combine(AppContext.BaseDirectory,"assets/shaders/includes/pbr_microfacet_energy.glsl"));
         int vertex=shaders.Compile(ShaderType.VertexShader,"#version 330 core\nlayout(location=0)in vec2 position;void main(){gl_Position=vec4(position,0,1);}");
         int fragment=shaders.Compile(ShaderType.FragmentShader,"#version 330 core\n"+helper+
             "\nlayout(location=0)out vec4 result;void main(){result=vec4(VgeDirectionalAlbedo(.37,.003),0,1);}");

@@ -4,7 +4,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Observes clip-space identity before subdivision rasterization introduces interpolation rounding.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class TerrainDisplacementDepthBiasTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
     #region Neutral depth identity

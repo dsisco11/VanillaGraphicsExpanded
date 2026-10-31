@@ -9,7 +9,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Checks publication generations and resource ownership across optional background reduction.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class WaterRefractionResolutionTests(HeadlessGLFixture fixture) : LumOnShaderFunctionalTestBase(fixture)
 {
     #region Public API
@@ -46,7 +46,7 @@ public sealed class WaterRefractionResolutionTests(HeadlessGLFixture fixture) : 
         scene.Publish(Reduce);
         Assert.True(scene.Published);
         Assert.Equal(1, reductions);
-        Assert.Equal(8, scene.Color.ReadPixels()[0]);
+        Assert.Equal(8, scene.Color.ReadTexel()[0]);
         Assert.Same(halfTarget, scene.BeginFrame(true, composite, 2));
         Assert.Same(halfColor, scene.Color);
         Assert.Same(halfDepth, scene.Depth);
@@ -68,7 +68,7 @@ public sealed class WaterRefractionResolutionTests(HeadlessGLFixture fixture) : 
         scene.Publish(Reduce);
         Assert.True(scene.Published);
         Assert.Same(halfColor, scene.Color); Assert.Same(halfDepth, scene.Depth);
-        Assert.Equal(8, scene.Color!.ReadPixels()[0]);
+        Assert.Equal(8, scene.Color!.ReadTexel()[0]);
         var context = RHICommandContext.Current;
         using (var boundary = context.EnterBoundary(new("Tests.Water.ReductionSource", true,
             operations: BoundaryOperations.RenderPasses)))

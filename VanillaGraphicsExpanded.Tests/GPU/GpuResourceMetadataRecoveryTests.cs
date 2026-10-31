@@ -9,7 +9,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Checks metadata refresh failure, retired transfer, and interrupted storage publication contracts.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class GpuResourceMetadataRecoveryTests(HeadlessGLFixture fixture)
 {
     #region Public API

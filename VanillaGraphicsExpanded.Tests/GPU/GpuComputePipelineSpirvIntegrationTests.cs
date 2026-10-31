@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Tests.TestSupport;
 using VanillaGraphicsExpanded.Tests.GPU.Helpers;
 using VanillaGraphicsExpanded.Rendering.ShaderCompilation;
 using VanillaGraphicsExpanded.Rendering.Contracts;
@@ -14,7 +15,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Exercises explicit compute contracts with independently named SPIR-V files.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class GpuComputePipelineSpirvIntegrationTests : RenderTestBase
 {
     #region Public API
@@ -36,26 +37,25 @@ public sealed class GpuComputePipelineSpirvIntegrationTests : RenderTestBase
             "shaders",
             "lumonscene_feedback_mark_pages.csh.spv");
 
-        Assert.True(File.Exists(spvPath), $"SPIR-V test asset missing: {spvPath}");
+        var storage = new CountingDiskCacheFileSystem();
 
-        byte[] bytes = File.ReadAllBytes(spvPath);
+        byte[] bytes = TestAssetSnapshot.ReadBuiltBytes(spvPath);
         Assert.True(bytes.Length > 0, "SPIR-V asset bytes should be non-empty.");
 
         string directory = Path.Combine(Path.GetTempPath(), $"vge-compute-interface-{Guid.NewGuid():N}");
-        Directory.CreateDirectory(directory);
+        storage.CreateDirectory(directory);
         string renamed = Path.Combine(directory, "unrelated.bin");
-        File.WriteAllBytes(renamed, bytes);
+        storage.WriteAllBytes(renamed, bytes);
         try
         {
             // Relocation changes neither the contract identity nor the required binary/metadata pairing.
-            File.Copy(Path.Combine(Path.GetDirectoryName(spvPath)!, ShaderBinaryDigest.FileName),
-                Path.Combine(directory, ShaderBinaryDigest.FileName));
+            storage.WriteAllBytes(Path.Combine(directory, ShaderBinaryDigest.FileName), TestAssetSnapshot.Built.Copy("shaders/" + ShaderBinaryDigest.FileName));
             bool ok = ComputeShaderAsset.TryLoadFromSpirv(
                 spirvBinaryPath: renamed,
                 settings: new ShaderSettings(GpuShaderContracts.Registry.FindProgram("lumonscene_feedback_mark_pages")),
                 pipeline: out var pipeline,
                 infoLog: out string infoLog,
-                debugName: "Tests.GpuComputePipelineSpirvIntegration");
+                debugName: "Tests.GpuComputePipelineSpirvIntegration", fileSystem: storage);
 
             Assert.True(ok, $"Expected SPIR-V pipeline creation to succeed. InfoLog:\n{infoLog}");
             Assert.NotNull(pipeline);
@@ -68,9 +68,9 @@ public sealed class GpuComputePipelineSpirvIntegrationTests : RenderTestBase
         finally
         {
             ShaderDigestIndexCache.Clear();
-            File.Delete(renamed);
-            File.Delete(Path.Combine(directory, ShaderBinaryDigest.FileName));
-            Directory.Delete(directory);
+            storage.DeleteFile(renamed);
+            storage.DeleteFile(Path.Combine(directory, ShaderBinaryDigest.FileName));
+            storage.DeleteDirectory(directory, false);
         }
 
         // Newly introduced driver errors are failures; the shared fixture owns test isolation.

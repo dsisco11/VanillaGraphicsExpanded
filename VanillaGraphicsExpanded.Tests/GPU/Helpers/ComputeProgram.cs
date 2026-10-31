@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Tests.Helpers;
 using VanillaGraphicsExpanded.Tests.GPU.Helpers;
 using VanillaGraphicsExpanded.Rendering.ShaderCompilation;
 using VanillaGraphicsExpanded.Rendering.Contracts;
@@ -54,14 +55,13 @@ public sealed class ComputeProgram : IDisposable
         string spvPath = Path.Combine(AppContext.BaseDirectory, "assets", "shaders", selected.BinaryPath);
 
         Assert.True(GpuSupport.Graphics.SupportsArbGlSpirv, "GPU compute tests require SPIR-V support; GLSL fallback is not permitted.");
-        Assert.True(File.Exists(spvPath), $"SPIR-V test asset missing: {spvPath}. Build the test project before running tests.");
 
         bool ok = ComputeShaderAsset.TryLoadFromSpirv(
             spirvBinaryPath: spvPath,
             settings: settings,
             pipeline: out var pipeline,
             infoLog: out string infoLog,
-            debugName: debugName, layout: layout, warn: layoutWarn);
+            debugName: debugName, layout: layout, warn: layoutWarn, fileSystem: ShaderAssetFileSystem.Built);
 
         Assert.True(ok, $"SPIR-V compute program creation failed. InfoLog:\n{infoLog}");
         Assert.NotNull(pipeline);

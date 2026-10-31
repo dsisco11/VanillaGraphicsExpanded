@@ -22,8 +22,6 @@ namespace VanillaGraphicsExpanded.Tests.GPU.Helpers;
 /// </summary>
 public sealed class ShaderTestHelper : IDisposable
 {
-    private readonly string _shaderBasePath;
-    private readonly string _includeBasePath;
     private readonly List<int> _allocatedShaders = [];
     private readonly List<int> _allocatedPrograms = [];
     
@@ -32,68 +30,8 @@ public sealed class ShaderTestHelper : IDisposable
 
     private ShaderSyntaxTreePreprocessor? _preprocessor;
 
-    /// <summary>
-    /// Creates a new ShaderTestHelper with explicit paths.
-    /// </summary>
-    /// <param name="shaderBasePath">Base path for shader files (.vsh, .fsh).</param>
-    /// <param name="includeBasePath">Base path for include files (typically assets/shaders/includes).</param>
-    public ShaderTestHelper(string shaderBasePath, string includeBasePath)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(shaderBasePath);
-        ArgumentException.ThrowIfNullOrWhiteSpace(includeBasePath);
-
-        // AST source diagnostics prefer repository inputs; executable binaries always use the normal build output.
-        if (TryGetRepoShaderPaths(out string repoShaderPath, out string repoIncludePath))
-        {
-            _shaderBasePath = repoShaderPath;
-            _includeBasePath = repoIncludePath;
-        }
-        else
-        {
-            _shaderBasePath = shaderBasePath;
-            _includeBasePath = includeBasePath;
-        }
-
-        if (!Directory.Exists(_shaderBasePath))
-            throw new DirectoryNotFoundException($"Shader base path not found: {_shaderBasePath}");
-
-        if (!Directory.Exists(_includeBasePath))
-            throw new DirectoryNotFoundException($"Include base path not found: {_includeBasePath}");
-    }
-
-    private static bool TryGetRepoShaderPaths(out string shaderPath, out string includePath)
-    {
-        shaderPath = string.Empty;
-        includePath = string.Empty;
-
-        var dir = new DirectoryInfo(AppContext.BaseDirectory);
-        for (int i = 0; i < 8 && dir != null; i++)
-        {
-            string sln = Path.Combine(dir.FullName, "VanillaGraphicsExpanded.sln");
-            if (File.Exists(sln))
-            {
-                string candidateShader = Path.Combine(
-                    dir.FullName,
-                    "VanillaGraphicsExpanded",
-                    "assets",
-                    "vanillagraphicsexpanded",
-                    "shaders");
-
-                string candidateInclude = Path.Combine(candidateShader, "includes");
-
-                if (Directory.Exists(candidateShader) && Directory.Exists(candidateInclude))
-                {
-                    shaderPath = candidateShader;
-                    includePath = candidateInclude;
-                    return true;
-                }
-            }
-
-            dir = dir.Parent;
-        }
-
-        return false;
-    }
+    /// <summary>Uses the immutable build-output snapshot for executable and source assertions.</summary>
+    public ShaderTestHelper() { }
 
     /// <summary>
     /// Gets or builds the imports cache from include files.
@@ -110,24 +48,9 @@ public sealed class ShaderTestHelper : IDisposable
     {
         var cache = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         
-        // Scan for all shader include files (.fsh, .vsh, .glsl)
-        var patterns = new[] { "*.fsh", "*.vsh", "*.glsl" };
-        foreach (var pattern in patterns)
-        {
-            foreach (var filePath in Directory.EnumerateFiles(_includeBasePath, pattern, SearchOption.TopDirectoryOnly))
-            {
-                var fileName = Path.GetFileName(filePath);
-                // Production shaders use @import "./includes/..." resolved relative to "shaders/<file>"
-                // so the preprocessor ultimately looks up "shaders/includes/<name>".
-                string key = $"shaders/includes/{fileName}";
-
-                if (!cache.ContainsKey(key))
-                {
-                    cache[key] = File.ReadAllText(filePath);
-                }
-            }
-        }
-        
+        // Sources are build inputs captured once, not runtime file probes per program.
+        foreach (var path in TestAssetSnapshot.Built.Paths.Where(path => path.StartsWith("shaders/includes/", StringComparison.Ordinal)))
+            cache[path] = TestAssetSnapshot.Built.Text(path);
         return cache;
     }
 
@@ -165,7 +88,7 @@ public sealed class ShaderTestHelper : IDisposable
             if (!PrecompiledStageFixture.Matches(stage.Kind, type)) throw new ArgumentException("Stage kind mismatch: " + identity);
             var owner = GpuShaderContracts.Registry.Programs.Values.OrderBy(p => p.Identity, StringComparer.Ordinal).First(p => p.Stages.Any(s => s.Identity == identity));
             var selected = new ShaderLoadPlan(new ShaderSettings(owner, defines)).Stages.Single(s => s.Stage.Identity == identity);
-            using var loaded = PrecompiledStageFixture.Load(selected, path => File.ReadAllBytes(Path.Combine(binaryRoot, path)));
+            using var loaded = PrecompiledStageFixture.Load(selected, path => TestAssetSnapshot.Built.Read("shaders/" + path));
             TestShaderInterfaces.TrackShader(loaded.ShaderId, selected.Stage.Bindings);
             int shaderId = (int)loaded.Detach();
             _allocatedShaders.Add(shaderId);
@@ -188,7 +111,7 @@ public sealed class ShaderTestHelper : IDisposable
             var handles = new Dictionary<ShaderStageKind, int>();
             foreach (var selected in plan.Stages)
             {
-                using var loaded = PrecompiledStageFixture.Load(selected, path => File.ReadAllBytes(Path.Combine(root, path)));
+                using var loaded = PrecompiledStageFixture.Load(selected, path => TestAssetSnapshot.Built.Read("shaders/" + path));
                 _allocatedShaders.Add(loaded.ShaderId);
                 int ownedShader = loaded.ShaderId;
                 TestShaderInterfaces.OnShaderRelease(ownedShader, () => _allocatedShaders.Remove(ownedShader));
@@ -283,13 +206,8 @@ public sealed class ShaderTestHelper : IDisposable
     /// </summary>
     public string? GetProcessedSource(string filename, IReadOnlyDictionary<string, string?>? defines)
     {
-        var filePath = Path.Combine(_shaderBasePath, filename);
-        if (!File.Exists(filePath))
-        {
-            return null;
-        }
-
-        var source = File.ReadAllText(filePath);
+        var source = TestAssetSnapshot.Built.TryText("shaders/" + filename);
+        if (source is null) return null;
         return BuildProcessedSource(source, defines);
     }
 

@@ -8,7 +8,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Verifies every resource kind's owning disposal removes its native name and canonical registration.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class GpuResourceKindLifecycleTests(HeadlessGLFixture fixture, ITestOutputHelper output)
 {
     #region Public API

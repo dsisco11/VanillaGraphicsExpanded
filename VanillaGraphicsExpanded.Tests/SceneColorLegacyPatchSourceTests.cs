@@ -14,7 +14,7 @@ public sealed class SceneColorLegacyPatchSourceTests
     public void InstalledColorGradeRemainsNative()
     {
         string root = Environment.GetEnvironmentVariable("VINTAGE_STORY") ?? "G:/Vintagestory";
-        var tree = SyntaxTree.Parse(File.ReadAllText(Path.Combine(root, "assets/game/shaders/colorgrade.fsh")), GlslSchema.Instance);
+        var tree = SyntaxTree.Parse(TestAssetSnapshot.ReadSourceText(Path.Combine(root, "assets/game/shaders/colorgrade.fsh")), GlslSchema.Instance);
         string original = tree.ToText();
         ShaderCapability declared = ShaderCapability.None;
 
@@ -27,7 +27,7 @@ public sealed class SceneColorLegacyPatchSourceTests
     public void InstalledWoitDiagnosticDecodesBeforeAlphaWeighting()
     {
         string root = Environment.GetEnvironmentVariable("VINTAGE_STORY") ?? "G:/Vintagestory";
-        var tree = SyntaxTree.Parse(File.ReadAllText(Path.Combine(root, "assets/game/shaders/woittest.fsh")), GlslSchema.Instance);
+        var tree = SyntaxTree.Parse(TestAssetSnapshot.ReadSourceText(Path.Combine(root, "assets/game/shaders/woittest.fsh")), GlslSchema.Instance);
         string originalBody = tree.Select(Query.Syntax<GlFunctionNode>().Named("drawPixel"))
             .OfType<GlFunctionNode>().Single().Body.ToText();
         ShaderCapability declared = ShaderCapability.None;
@@ -61,8 +61,8 @@ public sealed class SceneColorLegacyPatchSourceTests
     {
         string root = Environment.GetEnvironmentVariable("VINTAGE_STORY") ?? "G:/Vintagestory";
         string shaders = Path.Combine(root, "assets/game/shaders");
-        string source = File.ReadAllText(Path.Combine(shaders, name));
-        source = source.Replace("#include oit.fsh", File.ReadAllText(Path.Combine(root, "assets/game/shaderincludes/oit.fsh")));
+        string source = TestAssetSnapshot.ReadSourceText(Path.Combine(shaders, name));
+        source = source.Replace("#include oit.fsh", TestAssetSnapshot.ReadSourceText(Path.Combine(root, "assets/game/shaderincludes/oit.fsh")));
         var tree = SyntaxTree.Parse(source, GlslSchema.Instance);
         ShaderCapability declared = ShaderCapability.None;
         Assert.True(VanillaShaderPatches.TryApplyPatches(null, tree, name, feature => declared |= feature));
@@ -89,7 +89,7 @@ public sealed class SceneColorLegacyPatchSourceTests
     public void RetainedCloudMapProducerIsUnmodified()
     {
         string root = Environment.GetEnvironmentVariable("VINTAGE_STORY") ?? "G:/Vintagestory";
-        var tree = SyntaxTree.Parse(File.ReadAllText(Path.Combine(root, "assets/game/shaders/cloudmap.fsh")), GlslSchema.Instance);
+        var tree = SyntaxTree.Parse(TestAssetSnapshot.ReadSourceText(Path.Combine(root, "assets/game/shaders/cloudmap.fsh")), GlslSchema.Instance);
         string original = tree.ToText();
         Assert.False(VanillaShaderPatches.TryApplyPatches(null, tree, "cloudmap.fsh", _ => Assert.Fail("Unexpected producer capability")));
         Assert.Equal(original, tree.ToText());

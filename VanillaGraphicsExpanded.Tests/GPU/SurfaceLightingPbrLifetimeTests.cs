@@ -5,7 +5,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Checks numerical final composition across source edits, history resets and neighboring rooms.</summary>
 [Collection("NearFieldMaterialCapture")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class SurfaceLightingPbrLifetimeTests : RenderTestBase
 {
     /// <summary>Uses the material-isolated graphics context.</summary>

@@ -11,7 +11,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Runs adaptive production TCS/TES against controlled terrain receivers.</summary>
 [Collection("GPU")]
-[Trait("Category","GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class TerrainDisplacementRasterTests : RenderTestBase
 {
     /// <summary>Uses the shared headless context.</summary>

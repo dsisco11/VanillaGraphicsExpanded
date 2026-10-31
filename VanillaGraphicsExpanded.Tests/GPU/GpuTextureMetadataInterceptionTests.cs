@@ -11,7 +11,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Exercises image-definition redirection through real native objects, aliases and image consumers.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class GpuTextureMetadataInterceptionTests(HeadlessGLFixture fixture)
 {
     #region Public API

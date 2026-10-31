@@ -18,7 +18,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Checks physical radiance and unscaled distance written by the production point resolve.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class LumOnWorldProbeRadianceTileResolveFunctionalTests : LumOnShaderFunctionalTestBase
 {
     /// <summary>Uses the collection's real OpenGL context.</summary>

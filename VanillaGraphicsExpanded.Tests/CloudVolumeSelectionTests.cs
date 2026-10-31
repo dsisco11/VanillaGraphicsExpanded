@@ -59,7 +59,7 @@ public sealed class CloudVolumeSelectionTests
     [Fact]
     public void ProductionControlsAndCatalogExcludeRetiredPaths()
     {
-        var document=JObject.Parse(File.ReadAllText(Path.Combine(AppContext.BaseDirectory,"assets/config/configlib-patches.json")));
+        var document=JObject.Parse(TestAssetSnapshot.ReadBuiltText(Path.Combine(AppContext.BaseDirectory,"assets/config/configlib-patches.json")));
         var controls=document["settings"]!.Children<JProperty>().SelectMany(p=>p.Value.Children<JProperty>()).Select(p=>p.Value)
             .Where(p=>((string?)p["code"])?.StartsWith("Clouds.")==true).ToArray();
         string[] expected=["Detail","SelfShadowing","Diffuse","Quality","TraceResolution","FullResolutionReference","LightingRaysPerUpdate"];

@@ -10,7 +10,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Executes installed sphere fog convex mixing before the production authored-color conversion.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class NativeFogColorEnvelopeTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
     #region Public API
@@ -20,10 +20,10 @@ public sealed class NativeFogColorEnvelopeTests(HeadlessGLFixture fixture) : Ren
     {
         EnsureContextValid();
         string root = Environment.GetEnvironmentVariable("VINTAGE_STORY") ?? "G:/Vintagestory";
-        string source = File.ReadAllText(Path.Combine(root, "assets/game/shaderincludes/fogspheres.ash"));
+        string source = TestAssetSnapshot.ReadSourceText(Path.Combine(root, "assets/game/shaderincludes/fogspheres.ash"));
         int start = source.IndexOf("vec4 applySpheresFog(", StringComparison.Ordinal);
         string function = source[start..];
-        string helper = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "assets/shaders/includes/pbr_color.glsl"));
+        string helper = TestAssetSnapshot.ReadBuiltText(Path.Combine(AppContext.BaseDirectory, "assets/shaders/includes/pbr_color.glsl"));
         using var shaders = new TerrainShaderTestFixture();
         int vertex = shaders.Compile(ShaderType.VertexShader, "#version 330 core\nlayout(location=0)in vec2 position;void main(){gl_Position=vec4(position,0,1);}");
         int fragment = shaders.Compile(ShaderType.FragmentShader, "#version 330 core\nuniform int fogSphereQuantity;uniform float fogSpheres[24];uniform float standardFog;uniform int decode;layout(location=0)out vec4 outColor;\n" +

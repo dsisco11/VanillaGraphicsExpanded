@@ -13,7 +13,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Exercises direct prepared slots using packaged SPIR-V and owned resource abstractions.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class PreparedSubmissionTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
     #region Public API
@@ -231,7 +231,7 @@ public sealed class PreparedSubmissionTests(HeadlessGLFixture fixture) : RenderT
     private static ComputeShaderAsset Load()
     {
         string path = Path.Combine(AppContext.BaseDirectory, "assets", "shaders", "tests", "prepared_binding.csh.spv");
-        Assert.True(ComputeShaderAsset.TryLoadFromSpirv(path, new ShaderSettings(PreparedBindingComputeShader.Contract), out var pipeline, out string log), log);
+        Assert.True(ComputeShaderAsset.TryLoadFromSpirv(path, new ShaderSettings(PreparedBindingComputeShader.Contract), out var pipeline, out string log, fileSystem: ShaderAssetFileSystem.Built), log);
         return pipeline!;
     }
     #endregion

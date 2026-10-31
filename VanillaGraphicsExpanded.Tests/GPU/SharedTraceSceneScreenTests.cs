@@ -8,7 +8,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Exercises the actual screen-trace shader against production shared geometry publication.</summary>
 [Collection("NearFieldMaterialCapture")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class SharedTraceSceneScreenTests : NearFieldShaderTestBase
 {
     /// <summary>Uses the exclusive material fixture's shared GPU context.</summary>

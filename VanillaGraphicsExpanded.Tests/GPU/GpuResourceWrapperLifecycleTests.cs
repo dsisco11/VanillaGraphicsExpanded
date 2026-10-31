@@ -14,7 +14,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Exercises shared wrapper ownership, alias guards and original-registration deletion safety.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class GpuResourceWrapperLifecycleTests(HeadlessGLFixture fixture)
 {
     #region Public API

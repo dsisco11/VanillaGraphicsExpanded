@@ -19,7 +19,7 @@ using Vintagestory.Client.NoObf;
 namespace VanillaGraphicsExpanded.Tests.GPU;
 /// <summary>Executes patched engine traversal for visible and depth pool inputs, including original finally writes.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class LiquidPoolTraversalTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
     [ThreadStatic] private static Action? observe;

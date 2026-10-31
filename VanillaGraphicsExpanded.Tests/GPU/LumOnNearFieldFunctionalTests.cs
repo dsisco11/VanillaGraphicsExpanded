@@ -12,7 +12,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Exercises production near-field geometry, lighting and cache handoff through actual screen-probe rays.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed partial class LumOnNearFieldFunctionalTests : NearFieldShaderTestBase
 {
     /// <summary>Shares the headless GPU context.</summary>

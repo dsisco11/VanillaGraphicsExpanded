@@ -9,7 +9,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Guards actual GPU storage and lifetime at the production owners shared with lighting fixtures.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class LightingResourceOwnershipTests : RenderTestBase
 {
     /// <summary>Uses the mandatory shared OpenGL context.</summary>

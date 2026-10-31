@@ -6,7 +6,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Verifies bounded queue storage and ownership across real GPU completion and mapped decoding.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class GpuQueueTests(HeadlessGLFixture fixture)
 {
     #region Completion and ownership

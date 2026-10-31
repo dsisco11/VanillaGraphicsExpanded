@@ -10,7 +10,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Verifies depth and stencil readback from their matching framebuffer attachments.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class DepthStencilTextureTests : RenderTestBase
 {
     #region Public API

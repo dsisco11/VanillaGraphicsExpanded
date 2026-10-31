@@ -17,7 +17,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 /// - SH9 gather using projected coefficients matches atlas gather in a simple constant case
 /// </summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public partial class LumOnProbeAtlasProjectSh9FunctionalTests : LumOnShaderFunctionalTestBase
 {
     private const float SH9_C0 = 0.282095f;

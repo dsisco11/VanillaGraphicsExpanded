@@ -35,7 +35,7 @@ public sealed class RHIShaderStageDescriptionTests
 
     #region Private
     /// <summary>Reads the canonical precompiled vertex fixture used by executable lifecycle tests.</summary>
-    private static byte[] VertexBinary() => File.ReadAllBytes(Path.Combine(AppContext.BaseDirectory,
+    private static byte[] VertexBinary() => TestAssetSnapshot.ReadBuiltBytes(Path.Combine(AppContext.BaseDirectory,
         "assets", "shaders", "tests", "render_infrastructure.vsh.spv"));
     #endregion
 }

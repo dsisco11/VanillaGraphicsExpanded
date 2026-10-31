@@ -10,7 +10,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Qualifies native factory aliases and combined compiler outputs through both generated binding roots.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed unsafe class GpuExecutableFactoryTests(HeadlessGLFixture fixture)
 {
     #region Public API

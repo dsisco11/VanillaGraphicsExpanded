@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Tests.TestSupport;
 using System;
 using System.IO;
 
@@ -7,13 +8,15 @@ namespace VanillaGraphicsExpanded.Tests.Unit.Cache;
 
 public sealed class DiskJsonDictionaryCacheStoreTests
 {
+    private readonly CountingDiskCacheFileSystem storage = new();
+
     [Fact]
     public void RoundTrip_Writes_And_Reads_JsonBytes()
     {
         string root = CreateTempDir();
         try
         {
-            using var store = new DiskJsonDictionaryCacheStore(root);
+            using var store = new DiskJsonDictionaryCacheStore(root, "meta.json", storage);
 
             Assert.True(store.TryWriteAtomic("k1", "\"hello\""u8));
 
@@ -32,13 +35,13 @@ public sealed class DiskJsonDictionaryCacheStoreTests
         string root = CreateTempDir();
         try
         {
-            using var store = new DiskJsonDictionaryCacheStore(root);
+            using var store = new DiskJsonDictionaryCacheStore(root, "meta.json", storage);
             Assert.True(store.TryWriteAtomic("k1", "{\"a\":1}"u8));
 
             // Corrupt the backing JSON file.
-            File.WriteAllText(Path.Combine(root, "meta.json"), "not-json");
+            storage.WriteAllText(Path.Combine(root, "meta.json"), "not-json");
 
-            using var reloaded = new DiskJsonDictionaryCacheStore(root);
+            using var reloaded = new DiskJsonDictionaryCacheStore(root, "meta.json", storage);
             Assert.False(reloaded.TryRead("k1", out _));
             Assert.Empty(reloaded.EnumerateEntryIds());
         }
@@ -48,20 +51,20 @@ public sealed class DiskJsonDictionaryCacheStoreTests
         }
     }
 
-    private static string CreateTempDir()
+    private string CreateTempDir()
     {
         string path = Path.Combine(Path.GetTempPath(), "vge-cachetests", Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(path);
+        storage.CreateDirectory(path);
         return path;
     }
 
-    private static void TryDeleteDir(string path)
+    private void TryDeleteDir(string path)
     {
         try
         {
-            if (Directory.Exists(path))
+            if (storage.DirectoryExists(path))
             {
-                Directory.Delete(path, recursive: true);
+                storage.DeleteDirectory(path, recursive: true);
             }
         }
         catch

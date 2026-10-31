@@ -12,7 +12,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Exercises native GPU companion uploads and ring retirement through coordinator authorization.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class TraceGeometryPublicationTests : RenderTestBase
 {
     /// <summary>Uses the existing headless GL owner.</summary>

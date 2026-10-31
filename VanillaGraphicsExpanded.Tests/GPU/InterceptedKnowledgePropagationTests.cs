@@ -9,7 +9,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Checks that observed mutations and routine lifecycle events preserve authoritative executed knowledge.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class InterceptedKnowledgePropagationTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
     #region Public API

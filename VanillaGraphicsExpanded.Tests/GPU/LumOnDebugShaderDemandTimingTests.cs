@@ -12,7 +12,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Measures demand loading separately from the first validated draw, without timing thresholds.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class LumOnDebugShaderDemandTimingTests(HeadlessGLFixture fixture, ITestOutputHelper output)
     : LumOnShaderFunctionalTestBase(fixture)
 {

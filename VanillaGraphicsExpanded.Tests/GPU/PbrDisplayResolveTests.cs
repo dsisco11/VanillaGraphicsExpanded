@@ -8,7 +8,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Tests the explicit scene-linear to display boundary independently from lighting composition.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class PbrDisplayResolveTests : LumOnShaderFunctionalTestBase
 {
     /// <summary>Uses the shared graphics context.</summary>

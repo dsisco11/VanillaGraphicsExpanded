@@ -14,7 +14,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Exercises actual rendering composition callbacks and shutdown owners through the engine service boundary.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class ClientRenderingCompositionTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
     #region Public API

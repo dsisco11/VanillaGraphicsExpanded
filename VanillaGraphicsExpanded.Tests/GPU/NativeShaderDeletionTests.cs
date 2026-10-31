@@ -8,7 +8,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Checks shared ARB shader/program deletion against original canonical resource kinds.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class NativeShaderDeletionTests(HeadlessGLFixture fixture)
 {
     #region Public API

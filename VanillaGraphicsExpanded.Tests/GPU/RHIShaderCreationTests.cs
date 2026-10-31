@@ -12,7 +12,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Checks executable candidate ownership, frozen inputs and fixed generation invalidation.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class RHIShaderCreationTests(HeadlessGLFixture fixture)
 {
     #region Public API

@@ -9,7 +9,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Checks empty-schema creation, native realization, and ownership handoff for remaining resource families.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class GpuRemainingCreationTests(HeadlessGLFixture fixture, Xunit.ITestOutputHelper output)
 {
     private static int queries;

@@ -7,7 +7,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Checks capture dependency caching against real publication and coverage changes.</summary>
 [Collection("NearFieldMaterialCapture")]
-[Trait("Category","GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class SurfaceCaptureAdmissionTests(HeadlessGLFixture fixture):RenderTestBase(fixture)
 {
     #region Admission dependencies

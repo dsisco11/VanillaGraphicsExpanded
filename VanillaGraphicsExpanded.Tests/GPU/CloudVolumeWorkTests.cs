@@ -11,7 +11,7 @@ using VolumeStorage=VanillaGraphicsExpanded.PBR.Clouds.Volume.CloudVolumeStorage
 namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Checks bounded fair queues, retained demand and successful-only lighting completion through real GPU programs.</summary>
-[Collection("GPU")][Trait("Category","GPU")]
+[Collection("GPU")][Trait("Category", "GpuIntegration")]
 public sealed class CloudVolumeWorkTests(HeadlessGLFixture fixture):LumOnShaderFunctionalTestBase(fixture)
 {
     #region Public API

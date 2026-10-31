@@ -11,7 +11,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Checks bounded samples of every production angular and path integration budget.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class AtmosphereGpuScatteringTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
     #region Source transport

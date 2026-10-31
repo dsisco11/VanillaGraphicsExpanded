@@ -17,7 +17,7 @@ using Xunit;
 namespace VanillaGraphicsExpanded.Tests.GPU;
 
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class PbrNormalDepthBakeShaderPipelineTests : RenderTestBase
 {
     private readonly HeadlessGLFixture fixture;
@@ -37,12 +37,12 @@ public sealed class PbrNormalDepthBakeShaderPipelineTests : RenderTestBase
         string shaderPath = Path.Combine(AppContext.BaseDirectory, "assets", "shaders");
         string includePath = Path.Combine(AppContext.BaseDirectory, "assets", "shaders", "includes");
 
-        if (!Directory.Exists(shaderPath) || !Directory.Exists(includePath))
+        if (!TestAssetSnapshot.HasDirectory(shaderPath) || !TestAssetSnapshot.HasDirectory(includePath))
         {
             Assert.SkipWhen(true, "Test shader assets not found in output directory.");
         }
 
-        using var helper = new ShaderTestHelper(shaderPath, includePath);
+        using var helper = new ShaderTestHelper();
         var programResult = helper.CompileAndLink(
             vertexFilename: "pbr_heightbake_fullscreen.vsh",
             fragmentFilename: "pbr_heightbake_pack_to_atlas.fsh");
@@ -139,12 +139,12 @@ public sealed class PbrNormalDepthBakeShaderPipelineTests : RenderTestBase
         string shaderPath = Path.Combine(AppContext.BaseDirectory, "assets", "shaders");
         string includePath = Path.Combine(AppContext.BaseDirectory, "assets", "shaders", "includes");
 
-        if (!Directory.Exists(shaderPath) || !Directory.Exists(includePath))
+        if (!TestAssetSnapshot.HasDirectory(shaderPath) || !TestAssetSnapshot.HasDirectory(includePath))
         {
             Assert.SkipWhen(true, "Test shader assets not found in output directory.");
         }
 
-        using var helper = new ShaderTestHelper(shaderPath, includePath);
+        using var helper = new ShaderTestHelper();
         var programResult = helper.CompileAndLink(
             vertexFilename: "pbr_heightbake_fullscreen.vsh",
             fragmentFilename: "pbr_heightbake_pack_to_atlas.fsh");
@@ -189,12 +189,12 @@ public sealed class PbrNormalDepthBakeShaderPipelineTests : RenderTestBase
         string shaderPath = Path.Combine(AppContext.BaseDirectory, "assets", "shaders");
         string includePath = Path.Combine(AppContext.BaseDirectory, "assets", "shaders", "includes");
 
-        if (!Directory.Exists(shaderPath) || !Directory.Exists(includePath))
+        if (!TestAssetSnapshot.HasDirectory(shaderPath) || !TestAssetSnapshot.HasDirectory(includePath))
         {
             Assert.SkipWhen(true, "Test shader assets not found in output directory.");
         }
 
-        using var helper = new ShaderTestHelper(shaderPath, includePath);
+        using var helper = new ShaderTestHelper();
         var programResult = helper.CompileAndLink(
             vertexFilename: "pbr_heightbake_fullscreen.vsh",
             fragmentFilename: "pbr_heightbake_pack_to_atlas.fsh");
@@ -344,12 +344,12 @@ public sealed class PbrNormalDepthBakeShaderPipelineTests : RenderTestBase
         string shaderPath = Path.Combine(AppContext.BaseDirectory, "assets", "shaders");
         string includePath = Path.Combine(AppContext.BaseDirectory, "assets", "shaders", "includes");
 
-        if (!Directory.Exists(shaderPath) || !Directory.Exists(includePath))
+        if (!TestAssetSnapshot.HasDirectory(shaderPath) || !TestAssetSnapshot.HasDirectory(includePath))
         {
             Assert.SkipWhen(true, "Test shader assets not found in output directory.");
         }
 
-        using var helper = new ShaderTestHelper(shaderPath, includePath);
+        using var helper = new ShaderTestHelper();
 
         var normalizeProgram = helper.CompileAndLink(
             vertexFilename: "pbr_heightbake_fullscreen.vsh",
@@ -478,12 +478,12 @@ public sealed class PbrNormalDepthBakeShaderPipelineTests : RenderTestBase
         string shaderPath = Path.Combine(AppContext.BaseDirectory, "assets", "shaders");
         string includePath = Path.Combine(AppContext.BaseDirectory, "assets", "shaders", "includes");
 
-        if (!Directory.Exists(shaderPath) || !Directory.Exists(includePath))
+        if (!TestAssetSnapshot.HasDirectory(shaderPath) || !TestAssetSnapshot.HasDirectory(includePath))
         {
             Assert.SkipWhen(true, "Test shader assets not found in output directory.");
         }
 
-        using var helper = new ShaderTestHelper(shaderPath, includePath);
+        using var helper = new ShaderTestHelper();
         var programResult = helper.CompileAndLink(
             vertexFilename: "pbr_heightbake_fullscreen.vsh",
             fragmentFilename: "pbr_heightbake_pack_to_atlas.fsh");

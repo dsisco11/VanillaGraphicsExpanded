@@ -13,7 +13,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Isolates camera orientation from fixed-world liquid direct sunlight.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class LiquidSunHighlightTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
     #region Public API

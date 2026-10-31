@@ -14,7 +14,7 @@ using Vintagestory.Client;
 namespace VanillaGraphicsExpanded.Tests;
 
 /// <summary>Verifies shared world-camera publication timing, history alignment and lifetime withdrawal.</summary>
-[Collection("GPU")]
+[Collection("CPU state")]
 public sealed class VgeFrameRendererTests
 {
     #region Public API

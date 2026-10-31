@@ -8,7 +8,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Checks sampler and image feedback using published view-relative and shared-storage ranges.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class RHIPassFeedbackTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
     #region Public API

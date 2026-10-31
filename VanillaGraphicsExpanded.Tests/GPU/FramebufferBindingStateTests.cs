@@ -8,7 +8,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Checks combined framebuffer queries against the driver-defined draw binding alias.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class FramebufferBindingStateTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
     #region Binding aliases

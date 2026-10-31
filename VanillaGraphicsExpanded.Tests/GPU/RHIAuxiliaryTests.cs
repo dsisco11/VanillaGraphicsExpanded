@@ -10,7 +10,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Exercises capture effects, completion failure and optional resource rejection.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class RHIAuxiliaryTests(HeadlessGLFixture fixture, Xunit.ITestOutputHelper outputLog)
 {
     private static WaitSyncStatus injectedWait;

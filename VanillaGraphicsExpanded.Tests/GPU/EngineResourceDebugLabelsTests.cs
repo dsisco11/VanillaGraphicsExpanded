@@ -14,7 +14,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Reads driver labels on borrowed engine resource handles without transferring their ownership.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class EngineResourceDebugLabelsTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
     #region Public API

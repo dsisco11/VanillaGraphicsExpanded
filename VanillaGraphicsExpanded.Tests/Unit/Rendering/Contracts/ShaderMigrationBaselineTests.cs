@@ -10,11 +10,8 @@ public sealed class ShaderMigrationBaselineTests
     [Fact]
     public void GeneratedDeclarationsMatchCatalogSnapshot()
     {
-        var directory = new DirectoryInfo(AppContext.BaseDirectory);
-        while (directory != null && !File.Exists(Path.Combine(directory.FullName, "VanillaGraphicsExpanded.sln"))) directory = directory.Parent;
-        Assert.NotNull(directory);
-        string path = Path.Combine(directory.FullName, "VanillaGraphicsExpanded.Tests", "Unit", "Rendering", "Contracts", "Fixtures", "ShaderMigrationBaseline.txt");
-        Assert.Equal(File.ReadAllLines(path).Order(StringComparer.Ordinal), Snapshot(GpuShaderContracts.Registry).Order(StringComparer.Ordinal));
+
+        Assert.Equal(TestAssetSnapshot.Built.Lines("test-inputs/baselines/ShaderMigrationBaseline.txt").Order(StringComparer.Ordinal), Snapshot(GpuShaderContracts.Registry).Order(StringComparer.Ordinal));
     }
 
     /// <summary>Produces stable semantic rows rather than depending on declaration order or generated C# formatting.</summary>

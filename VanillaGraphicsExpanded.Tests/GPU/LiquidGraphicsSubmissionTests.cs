@@ -19,7 +19,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Exercises pool-hook publication, shader input staging and engine layout-selector restoration.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class LiquidGraphicsSubmissionTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
     #region Public API
@@ -54,7 +54,7 @@ public sealed class LiquidGraphicsSubmissionTests(HeadlessGLFixture fixture) : R
             Assert.False(LiquidPoolSubmissionHook.Prefix(storage.Pool));
         }));
         Assert.True(LiquidMeshSource.UseSsbo(render));
-        Assert.InRange(target[0].ReadPixels()[0], .6999f, .7001f);
+        Assert.InRange(target[0].ReadTexel()[0], .6999f, .7001f);
         var retainedTargets = AccessTools.Field(typeof(LiquidGraphicsSubmission), "targets").GetValue(submission);
         var retainedPipeline = AccessTools.Field(typeof(LiquidGraphicsSubmission), "pipeline").GetValue(submission);
         // An equivalent freshly authored pass must reuse preparation, independently of pass object identity.
@@ -78,7 +78,7 @@ public sealed class LiquidGraphicsSubmissionTests(HeadlessGLFixture fixture) : R
             new(DepthLoad: AttachmentLoad.Clear, ClearDepth: 1)),
             LiquidPipelineStates.Depth, LiquidPipelineStates.DepthBlending,
             () => Assert.False(LiquidPoolSubmissionHook.Prefix(storage.Pool))));
-        Assert.InRange(depth.ReadPixels()[0], .4999f, .5001f);
+        Assert.InRange(depth.ReadTexel()[0], .4999f, .5001f);
         var beforeContext = AccessTools.Field(typeof(LiquidGraphicsSubmission), "pipeline").GetValue(submission);
         // Supply an obsolete preparation identity; the real current context must replace that preparation.
         AccessTools.Field(typeof(LiquidGraphicsSubmission), "preparedContext").SetValue(submission,

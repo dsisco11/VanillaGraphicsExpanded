@@ -13,7 +13,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Protects engine draws from sampler overrides left by explicit VGE contracts.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class GpuProgramSamplerRetirementTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
     #region Engine handoff

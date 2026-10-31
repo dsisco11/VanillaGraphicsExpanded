@@ -12,7 +12,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Qualifies external-memory identity delivery independently of optional hardware payload support.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed unsafe class GpuMemoryObjectLifecycleTests(HeadlessGLFixture fixture)
 {
     #region Public API

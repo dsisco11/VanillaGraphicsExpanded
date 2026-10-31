@@ -7,7 +7,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Exercises partial publication and bounded retries through registered CPU, GPU-query and atlas owners.</summary>
 [Collection("NearFieldMaterialCapture")]
-[Trait("Category","GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class SurfaceLightingPartialWorldProbeTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
     #region Partial runtime publication

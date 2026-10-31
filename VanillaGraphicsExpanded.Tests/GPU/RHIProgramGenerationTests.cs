@@ -10,7 +10,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Checks coherent graphics asset publication while RHI references retain exact executable and pipeline generations.</summary>
 [Collection("GPU")]
-[Trait("Category","GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class RHIProgramGenerationTests(HeadlessGLFixture fixture)
 {
     #region Public API

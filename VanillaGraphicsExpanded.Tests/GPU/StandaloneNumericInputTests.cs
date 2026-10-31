@@ -8,7 +8,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Rejects a numeric input that bypasses the owned program's uniform-block contract.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class StandaloneNumericInputTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
     #region Public API

@@ -12,7 +12,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 /// Integration tests for <see cref="GpuSemaphore"/> and <see cref="GpuMemoryObject"/>.
 /// </summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public class GpuSemaphoreMemoryObjectIntegrationTests
 {
     private readonly HeadlessGLFixture fixture;

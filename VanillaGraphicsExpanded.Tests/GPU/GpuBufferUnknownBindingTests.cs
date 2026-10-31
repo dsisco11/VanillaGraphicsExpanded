@@ -7,7 +7,7 @@ using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 namespace VanillaGraphicsExpanded.Tests.GPU;
 /// <summary>Verifies helper scopes recover unknown native bindings before temporary buffer operations.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class GpuBufferUnknownBindingTests(HeadlessGLFixture fixture)
 {
     #region Public API

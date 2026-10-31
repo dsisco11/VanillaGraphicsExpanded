@@ -15,7 +15,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Exercises packed HDR composition alongside full-precision receiver metadata and final display sampling.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class PackedCompositeColorTests(HeadlessGLFixture fixture) : LumOnShaderFunctionalTestBase(fixture)
 {
     #region Public API
@@ -76,7 +76,7 @@ public sealed class PackedCompositeColorTests(HeadlessGLFixture fixture) : LumOn
         float[] receiver=target[1].ReadPixels();
         for(int channel=0;channel<3;channel++) Assert.InRange(receiver[channel],expected[channel]-.005f,expected[channel]+.005f);
         Assert.Equal(1f,receiver[3]);
-        Assert.Equal(.75f,target[2].ReadPixels()[0]);
+        Assert.Equal(.75f,target[2].ReadTexel()[0]);
 
         // The immediate scene-linear handoff samples missing RGB alpha as one.
         var resolve=Programs.Create<PBRDisplayResolveShaderProgram>();

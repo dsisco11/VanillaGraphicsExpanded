@@ -11,7 +11,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Checks sparse native mutation authority, capture reuse and exact restoration on a real context.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class SparseStateCoverageTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
     #region Public API

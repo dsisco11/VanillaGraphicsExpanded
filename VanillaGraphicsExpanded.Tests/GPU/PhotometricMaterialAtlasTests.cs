@@ -7,7 +7,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Checks source-bound admission against the actual owned binary16 material texture.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class PhotometricMaterialAtlasTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
     #region Public API

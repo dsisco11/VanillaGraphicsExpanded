@@ -11,7 +11,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Verifies context rejection precedes every cleanup and native snapshot mutation.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class EngineBoundaryContextTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
     #region Public API

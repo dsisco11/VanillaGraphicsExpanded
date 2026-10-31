@@ -9,7 +9,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Checks repair of invalid attachments and managed view metadata availability.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class GpuTextureAttachmentRepairTests(HeadlessGLFixture fixture)
 {
     #region Public API

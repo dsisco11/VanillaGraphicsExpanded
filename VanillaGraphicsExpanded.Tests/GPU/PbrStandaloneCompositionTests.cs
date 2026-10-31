@@ -9,7 +9,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Checks standalone environment response independently from LumOn indirect lighting.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class PbrStandaloneCompositionTests : LumOnShaderFunctionalTestBase
 {
     /// <summary>Uses the shared shader and render-target test owners.</summary>
@@ -68,7 +68,7 @@ public sealed class PbrStandaloneCompositionTests : LumOnShaderFunctionalTestBas
         float f0 = metallic == 1 ? .5f : .04f;
         float reflected=(float)MicrofacetEnergyReference.NormalResponse(roughness,f0).Reflection;
         float response = lumon ? .75f * .5f : availability * ((1 - reflected) * (1 - metallic) * .5f + reflected);
-        foreach (float actual in output[0].ReadPixels().Take(3)) Assert.InRange(actual, .25f + response - .001f, .25f + response + .001f);
+        foreach (float actual in output[0].ReadTexel().Take(3)) Assert.InRange(actual, .25f + response - .001f, .25f + response + .001f);
     }
     #endregion
 }

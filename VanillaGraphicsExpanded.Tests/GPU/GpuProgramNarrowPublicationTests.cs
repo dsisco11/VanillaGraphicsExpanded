@@ -14,7 +14,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Checks established executable edits publish only their affected facts without full reflection.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class GpuProgramNarrowPublicationTests(HeadlessGLFixture fixture)
 {
 
@@ -394,7 +394,7 @@ public sealed class GpuProgramNarrowPublicationTests(HeadlessGLFixture fixture)
 
 /// <summary>Checks deferred executable completion against an independently retired context generation.</summary>
 [Collection("OperationContext")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class GpuProgramDeferredContextTests(HeadlessGLFixture fixture)
 {
     #region Public API

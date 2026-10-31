@@ -10,7 +10,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Verifies debug placement is published independently of surface-cache lighting readiness.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
+[Trait("Scenario", "HeadlessRuntime")]
 public sealed class LumOnWorldProbeRuntimeLayoutTests : LumOnShaderFunctionalTestBase
 {
     #region Construction

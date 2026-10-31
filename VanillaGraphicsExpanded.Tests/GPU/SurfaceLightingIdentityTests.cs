@@ -9,7 +9,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Distinguishes retained stale lighting from invalid or temporarily unavailable captured surface identities.</summary>
 [Collection("NearFieldMaterialCapture")]
-[Trait("Category","GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class SurfaceLightingIdentityTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
     #region Source freshness

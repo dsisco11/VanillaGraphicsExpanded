@@ -9,7 +9,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Verifies maintained import composition and supplied local owner-image delivery.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class ResourceAcquisitionBoundaryTests(HeadlessGLFixture fixture)
 {
     private static Action? duringProjection;

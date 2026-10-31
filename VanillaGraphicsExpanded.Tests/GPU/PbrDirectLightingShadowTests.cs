@@ -11,7 +11,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Checks direct sunlight visibility using depth comparisons and production sampler bindings.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class PbrDirectLightingShadowTests : LumOnShaderFunctionalTestBase
 {
     #region Scenario resources

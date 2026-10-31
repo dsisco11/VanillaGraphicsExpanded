@@ -10,7 +10,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Verifies the single engine-facing sky owner composes passes without exposing independent engine callbacks.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class SkyRendererTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
     #region Public API

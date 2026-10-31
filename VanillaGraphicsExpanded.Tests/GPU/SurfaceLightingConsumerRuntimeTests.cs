@@ -6,7 +6,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Exercises registered production consumers, asynchronous trace work and coherent cache lifetime end to end.</summary>
 [Collection("NearFieldMaterialCapture")]
-[Trait("Category","GPU")]
+[Trait("Category", "GpuIntegration")]
+[Trait("Scenario", "HeadlessRuntime")]
 public sealed class SurfaceLightingConsumerRuntimeTests : RenderTestBase
 {
     /// <summary>Uses the shared material-isolated graphics context.</summary>

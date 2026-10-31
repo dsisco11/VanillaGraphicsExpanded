@@ -16,7 +16,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Exercises closed engine uniform-buffer specializations through actual native uploads.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class EngineGenericStateTests(HeadlessGLFixture fixture)
 {
     private static byte[]? capturedPayload;

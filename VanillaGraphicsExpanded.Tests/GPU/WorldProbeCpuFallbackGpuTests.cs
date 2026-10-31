@@ -13,7 +13,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Exercises real GPU traversal followed by selective CPU collision and cache resolution.</summary>
 [Collection("NearFieldMaterialCapture")]
-[Trait("Category","GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class WorldProbeCpuFallbackGpuTests(HeadlessGLFixture fixture):RenderTestBase(fixture)
 {
     #region Geometry continuation

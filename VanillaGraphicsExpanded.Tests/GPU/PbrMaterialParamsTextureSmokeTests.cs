@@ -11,7 +11,7 @@ using VanillaGraphicsExpanded.Tests.GPU.Helpers;
 namespace VanillaGraphicsExpanded.Tests.GPU;
 
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class PbrMaterialParamsTextureSmokeTests
 {
     private readonly HeadlessGLFixture fixture;

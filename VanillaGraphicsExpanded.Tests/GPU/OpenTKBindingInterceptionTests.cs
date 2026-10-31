@@ -14,7 +14,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Exercises the real OpenTK dispatch boundary independently of caller rewriting.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class OpenTKBindingInterceptionTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
     #region Public API

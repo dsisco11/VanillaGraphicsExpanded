@@ -9,7 +9,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Exercises framebuffer and shader ownership across failed isolated rendering work.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class GpuRenderBoundaryTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
     #region Public API

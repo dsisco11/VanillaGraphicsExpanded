@@ -11,7 +11,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Checks real importance-mask pixels from deterministic radiance, confidence and typed specialization inputs.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class LumOnPisMaskFunctionalTests : LumOnShaderFunctionalTestBase
 {
     /// <summary>Uses the shared headless rendering context.</summary>
@@ -76,7 +76,7 @@ public sealed class LumOnPisMaskFunctionalTests : LumOnShaderFunctionalTestBase
             TestFramework.RenderQuadTo(program, output);
             var mask = output[0].ReadPixels();
             uint low = BitConverter.SingleToUInt32Bits(mask[0]), high = BitConverter.SingleToUInt32Bits(mask[1]);
-            float energy = output[1].ReadPixels()[0];
+            float energy = output[1].ReadTexel()[0];
             Assert.Equal(ErrorCode.NoError, GL.GetError());
             return (low | ((ulong)high << 32), energy);
         }

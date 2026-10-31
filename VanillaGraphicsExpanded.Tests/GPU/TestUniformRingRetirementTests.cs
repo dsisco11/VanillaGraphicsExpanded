@@ -11,7 +11,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Checks fixture-owned retirement before mapped uniform bytes are reused or released.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class TestUniformRingRetirementTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
     #region Submission lifetime

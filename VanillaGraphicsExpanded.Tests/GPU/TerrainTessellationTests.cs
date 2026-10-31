@@ -13,7 +13,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Validates identity tessellation against installed terrain interfaces and ordinary rasterization.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class TerrainTessellationTests : RenderTestBase
 {
     private readonly ProvokingVertexMode previousProvokingVertex;

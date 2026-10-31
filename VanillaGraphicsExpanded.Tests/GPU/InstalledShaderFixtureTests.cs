@@ -5,7 +5,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Checks that original installed stages link with their reflected GLSL interface on the real driver.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class InstalledShaderFixtureTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
     #region Public API

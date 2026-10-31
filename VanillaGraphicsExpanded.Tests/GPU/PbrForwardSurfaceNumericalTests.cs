@@ -17,7 +17,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Checks shared forward lighting at shadow, emission and view-space point-light boundaries.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class PbrForwardSurfaceNumericalTests : RenderTestBase
 {
     /// <summary>Uses the shared headless context.</summary>
@@ -49,8 +49,8 @@ public sealed class PbrForwardSurfaceNumericalTests : RenderTestBase
     {
         EnsureContextValid();
         string directory = Path.Combine(AppContext.BaseDirectory, "assets/shaders/includes");
-        string common = File.ReadAllText(Path.Combine(directory, "pbr_common.glsl"))
-            .Replace("@import \"./common_constants.glsl\"", File.ReadAllText(Path.Combine(directory, "common_constants.glsl")));
+        string common = TestAssetSnapshot.ReadSourceText(Path.Combine(directory, "pbr_common.glsl"))
+            .Replace("@import \"./common_constants.glsl\"", TestAssetSnapshot.ReadSourceText(Path.Combine(directory, "common_constants.glsl")));
         string header = """
             #version 330 core
             #extension GL_ARB_shading_language_420pack : require
@@ -82,10 +82,10 @@ public sealed class PbrForwardSurfaceNumericalTests : RenderTestBase
         if (scenario >= 16) header = header.Replace("vec3 vge_atmosphereSolar = vec3(0.3,0.5,0.7)", "vec3 vge_atmosphereSolar = vec3(0.0)");
         if (scenario == 13) header = header.Replace("float vge_skyVisibility = 1.0", "float vge_skyVisibility = 0.0");
         header += $"\n#define VGE_PBR_FORWARD_LUMON {(scenario is >= 6 and <= 9 ? 0 : 1)}\n";
-        string aerial = File.ReadAllText(Path.Combine(directory, "atmosphere_aerial.glsl"))
-            .Replace("@import \"./atmosphere_sky_mapping.glsl\"", File.ReadAllText(Path.Combine(directory, "atmosphere_sky_mapping.glsl")))
-            .Replace("@import \"./atmosphere_aerial_mapping.glsl\"", File.ReadAllText(Path.Combine(directory, "atmosphere_aerial_mapping.glsl")));
-        string source = header + "\n" + aerial + "\n" + File.ReadAllText(Path.Combine(directory, "pbr_color.glsl")) + "\n" + common + "\n"
+        string aerial = TestAssetSnapshot.ReadSourceText(Path.Combine(directory, "atmosphere_aerial.glsl"))
+            .Replace("@import \"./atmosphere_sky_mapping.glsl\"", TestAssetSnapshot.ReadSourceText(Path.Combine(directory, "atmosphere_sky_mapping.glsl")))
+            .Replace("@import \"./atmosphere_aerial_mapping.glsl\"", TestAssetSnapshot.ReadSourceText(Path.Combine(directory, "atmosphere_aerial_mapping.glsl")));
+        string source = header + "\n" + aerial + "\n" + TestAssetSnapshot.ReadSourceText(Path.Combine(directory, "pbr_color.glsl")) + "\n" + common + "\n"
             + Expand(Path.Combine(directory, "pbr_photometric.glsl")) + "\n"
             + Expand(Path.Combine(directory, "pbr_direct_brdf.glsl")) + "\n"
             + Expand(Path.Combine(directory, "pbr_environment.glsl")) + "\n"
@@ -183,7 +183,7 @@ public sealed class PbrForwardSurfaceNumericalTests : RenderTestBase
 
     #region Driver compilation
     /// <summary>Expands guarded production imports without changing their lighting equations.</summary>
-    private static string Expand(string path) => Regex.Replace(File.ReadAllText(path), "@import \"([^\"]+)\"",
+    private static string Expand(string path) => Regex.Replace(TestAssetSnapshot.ReadSourceText(path), "@import \"([^\"]+)\"",
         match => Expand(Path.GetFullPath(Path.Combine(Path.GetDirectoryName(path)!, match.Groups[1].Value))));
     /// <summary>Compiles production helper text at the engine runtime GLSL boundary.</summary>
     private static int Compile(ShaderType type, string source)

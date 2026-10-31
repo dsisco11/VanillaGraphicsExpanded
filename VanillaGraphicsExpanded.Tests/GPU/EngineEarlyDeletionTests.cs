@@ -9,7 +9,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Checks native deletion outcomes independently of managed wrapper selection and saved-original dispatch.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class EngineEarlyDeletionTests(HeadlessGLFixture fixture)
 {
     #region Public API

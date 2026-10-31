@@ -19,7 +19,7 @@ using Xunit;
 namespace VanillaGraphicsExpanded.Tests.GPU;
 
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class PbrHeightBakeFullChainTests : RenderTestBase
 {
     private readonly HeadlessGLFixture fixture;
@@ -654,12 +654,12 @@ public sealed class PbrHeightBakeFullChainTests : RenderTestBase
         string shaderPath = Path.Combine(AppContext.BaseDirectory, "assets", "shaders");
         string includePath = Path.Combine(AppContext.BaseDirectory, "assets", "shaders", "includes");
 
-        if (!Directory.Exists(shaderPath) || !Directory.Exists(includePath))
+        if (!TestAssetSnapshot.HasDirectory(shaderPath) || !TestAssetSnapshot.HasDirectory(includePath))
         {
             return (null!, "Test shader assets not found in output directory.");
         }
 
-        return (new ShaderTestHelper(shaderPath, includePath), string.Empty);
+        return (new ShaderTestHelper(), string.Empty);
     }
 
     private static int Compile(ShaderTestHelper helper, string vsh, string fsh)

@@ -10,7 +10,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Runs authored relief through the production shader include with physical surface derivatives.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class TerrainReliefNumericalTests : RenderTestBase
 {
     /// <summary>Uses the shared headless context.</summary>

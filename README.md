@@ -152,34 +152,36 @@ launch the graphics debugger; they do not attach a managed C# debugger to the ga
 
 ## Testing
 
-This project includes both unit tests and GPU-based shader tests. The test suite uses **xUnit v3** with support for conditional test skipping when GPU resources are unavailable.
+This project includes CPU unit tests and GPU integration tests. The test suite uses **xUnit v3** with support for conditional test skipping when GPU resources are unavailable.
 
 ### Running Tests
 
-**Run all tests locally (requires GPU):**
+By default the VGE project uses `UnitTests.runsettings`, which excludes real GPU integration tests. CPU tests that touch engine globals use a serialized collection without creating a GL context. Headless renderer scenarios are integration tests; in-game visual/runtime acceptance remains separate.
+
+**Run all VGE tests locally (requires GPU):**
 
 ```bash
-dotnet test
+dotnet test VanillaGraphicsExpanded.Tests --settings VanillaGraphicsExpanded.Tests/AllTests.runsettings
 ```
 
 **Run only non-GPU tests (CI environments without GPU):**
 
 ```bash
-dotnet test --filter "Category!=GPU"
+dotnet test --filter "Category!=GpuIntegration"
 ```
 
 **Run only GPU tests:**
 
 ```bash
-dotnet test --filter "Category=GPU"
+dotnet test VanillaGraphicsExpanded.Tests --settings VanillaGraphicsExpanded.Tests/AllTests.runsettings --filter "Category=GpuIntegration"
 ```
 
 ### GPU Test Categories
 
-Tests are organized using the `[Trait("Category", "GPU")]` attribute:
+Tests are organized using the `[Trait("Category", "GpuIntegration")]` attribute:
 
-- **GPU tests** - Require an OpenGL 4.3+ compatible GPU and driver
-  - Shader compilation tests
+- **GPU integration tests** - Require OpenGL 4.5+ and `GL_ARB_gl_spirv` (core in OpenGL 4.6)
+  - Precompiled shader specialization and linking tests
   - Uniform validation tests
   - Render output tests
 - **Non-GPU tests** - Run anywhere without graphics hardware
@@ -194,7 +196,7 @@ For CI runners without GPU access, exclude GPU tests:
 
 ```yaml
 - name: Run Tests
-  run: dotnet test --filter "Category!=GPU"
+  run: dotnet test --filter "Category!=GpuIntegration"
 ```
 
 #### Linux CI with Software Rendering (Mesa llvmpipe)
@@ -203,10 +205,12 @@ To run GPU tests on Linux CI without hardware acceleration, use Mesa's software 
 
 ```bash
 export LIBGL_ALWAYS_SOFTWARE=1
-dotnet test
+dotnet test VanillaGraphicsExpanded.Tests --settings VanillaGraphicsExpanded.Tests/AllTests.runsettings
 ```
 
 This enables **llvmpipe**, Mesa's software OpenGL implementation, which supports OpenGL 4.5 and runs entirely on CPU. Note that software rendering is significantly slower than hardware rendering.
+The selected Mesa build must also expose `GL_ARB_gl_spirv`. Linux CI is a separate environment;
+Windows headless receipts do not qualify it.
 
 **Requirements for Mesa llvmpipe:**
 
@@ -217,9 +221,16 @@ This enables **llvmpipe**, Mesa's software OpenGL implementation, which supports
 
 The GPU test infrastructure includes:
 
-- **HeadlessGLFixture** - Creates a hidden GLFW window with OpenGL 4.3 context; throws `SkipException` if context creation fails
-- **ShaderTestHelper** - Compiles shaders with `@import` directive resolution and extracts compilation errors
+- **HeadlessGLFixture** - Creates a hidden GLFW window with OpenGL 4.5 context; throws `SkipException` if context creation fails
+- **ShaderTestHelper** - Loads and links built SPIR-V; separately processes imports for CPU source assertions
 - **RenderTestBase** - Abstract base class for render tests with FBO setup and pixel readback utilities
+
+Immutable shader, engine-source, schema and baseline inputs are captured from the build's
+`fixture-inputs.txt` manifest once per test process. Removed files left in incremental output are
+excluded. Fixture overrides, missing/corrupt assets and logical read notifications remain independent.
+Cache and explicit file-loader tests use in-memory filesystem providers; these verify storage policy
+and failure contracts, not the physical filesystem. `Scenario=HeadlessRuntime` identifies tagged
+renderer scenarios; live appearance and runtime acceptance remain user-run checks.
 
 ## Normal/Height Sidecar Bake
 

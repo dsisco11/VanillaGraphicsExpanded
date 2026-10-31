@@ -8,7 +8,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Qualifies observed executable lifetimes and supplied assignment publication through real native hooks.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class GpuExecutableLifecycleTests(HeadlessGLFixture fixture)
 {
     #region Public API

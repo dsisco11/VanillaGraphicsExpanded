@@ -3,7 +3,7 @@ using VanillaGraphicsExpanded.HarmonyPatches;
 namespace VanillaGraphicsExpanded.Tests;
 
 /// <summary>Verifies installation of the retained native-window ownership integration.</summary>
-[Collection("GPU")]
+[Collection("CPU state")]
 public sealed class EngineStateSwitchingTests
 {
     #region Public API

@@ -10,7 +10,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Verifies direct-light target identity and lifetime through storage resizing.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class DirectLightingBufferOwnershipTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
     private static Texture3D? partialTexture;

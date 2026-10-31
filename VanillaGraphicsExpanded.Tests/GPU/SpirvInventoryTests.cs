@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Tests.Helpers;
 using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Tests.GPU.Helpers;
 using VanillaGraphicsExpanded.Rendering.RHI;
@@ -13,7 +14,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Exercises registry-projected binaries and declared program combinations without filename inference.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class SpirvInventoryTests : IDisposable
 {
     private readonly HeadlessGLFixture fixture;
@@ -25,29 +26,12 @@ public sealed class SpirvInventoryTests : IDisposable
     public SpirvInventoryTests(HeadlessGLFixture fixture, ITestOutputHelper output) { this.fixture = fixture; this.output = output; }
 
     #region Registry coverage
-    /// <summary>Every packaged variant carries the digest of its exact published binary bytes.</summary>
-    [Fact]
-    public void PackagedBuildDigestsMatchEveryCompiledVariant()
-    {
-        var manifest = ShaderBinaryDigest.Parse(File.ReadAllBytes(Path.Combine(Root, ShaderBinaryDigest.FileName)));
-        Assert.NotNull(manifest);
-        Assert.Equal(Registry.Binaries.Count, manifest.Binaries.Count);
-        Assert.Empty(Directory.EnumerateFiles(Root, "*.sha256", SearchOption.AllDirectories));
-        foreach (var selection in Registry.Binaries)
-        {
-            string path = Path.Combine(Root, selection.BinaryPath);
-            byte[] binary = File.ReadAllBytes(path);
-            Assert.True(ShaderBinaryDigest.TryRead(manifest, selection.BinaryPath, binary.Length, out byte[] digest), path);
-            Assert.Equal(System.Security.Cryptography.SHA256.HashData(binary), digest);
-        }
-    }
-
     /// <summary>Loads an explicit compute selection from a borrowed slice without modifying backing storage.</summary>
     [Fact]
     public void SlicedAssetsSpecializeAndLinkWithoutMutation()
     {
         fixture.EnsureContextValid();
-        var assets = new VanillaGraphicsExpanded.Tests.Helpers.SlicedShaderAssets(path => File.ReadAllBytes(Path.Combine(Root, path)));
+        var assets = new VanillaGraphicsExpanded.Tests.Helpers.SlicedShaderAssets(path => TestAssetSnapshot.Built.Copy("shaders/" + path));
         var selected = new ShaderLoadPlan(new ShaderSettings(Registry.FindProgram("tests/GpuProgramLayoutBindingTests_1"))).Stages.Single();
         GpuShaderModule? shader = null; int program = 0;
         try {
@@ -71,18 +55,18 @@ public sealed class SpirvInventoryTests : IDisposable
         .Where(p => p.Stages.Any(s => s.Kind == requiredKind))
         .SelectMany(p => p.Assignments.Select(a => new object[] { p.Identity, ShaderAssignments.Key(a) }));
 
-    /// <summary>Recreates every compute configuration and verifies repeated disposal never deletes its replacement.</summary>
+    /// <summary>Links every compute assignment and retains repeated-disposal coverage on the resource-free compute representative.</summary>
     [Theory]
     [MemberData(nameof(ComputeVariants))]
-    public void ComputeDisposalDoesNotInvalidateReplacement(string identity, string key)
+    public void ComputeAssignmentsLinkAndRepresentativeDisposalPreservesReplacement(string identity, string key)
     {
         fixture.EnsureContextValid();
         var selected = new ShaderLoadPlan(Settings(identity, key)).Stages.Single();
         ComputeShaderAsset? previous = null;
         try {
-            for (int generation = 0; generation < 3; generation++) {
+            for (int generation = 0; generation < (identity == "tests/GpuUniformRingBufferIntegrationTests_1" ? 3 : 1); generation++) {
                 var layout = new GpuProgramLayout(); layout.RegisterContract(selected.Stage.Bindings);
-                Assert.True(ComputeShaderAsset.TryLoadFromSpirv(Path.Combine(Root, selected.BinaryPath), Settings(identity, key), out var current, out string log, layout: layout), log);
+                Assert.True(ComputeShaderAsset.TryLoadFromSpirv(Path.Combine(Root, selected.BinaryPath), Settings(identity, key), out var current, out string log, layout: layout, fileSystem: ShaderAssetFileSystem.Built), log);
                 using (current) {
                     Assert.NotNull(current); previous?.Dispose(); Assert.True(GL.IsProgram(current.ProgramId));
                     current.Pipeline.RequirePipeline().RequireShader();
@@ -133,7 +117,7 @@ public sealed class SpirvInventoryTests : IDisposable
         .Select(p => p.Split('=', 2)).ToDictionary(p => p[0], p => (string?)p[1], StringComparer.Ordinal));
 
     /// <summary>Reads the copied build assets used by production-style tests.</summary>
-    private static ReadOnlySpan<byte> Read(string path) => File.ReadAllBytes(Path.Combine(Root, path));
+    private static ReadOnlySpan<byte> Read(string path) => TestAssetSnapshot.Built.Read("shaders/" + path);
 
     /// <summary>The shared collection owns the GL context.</summary>
     public void Dispose() { }

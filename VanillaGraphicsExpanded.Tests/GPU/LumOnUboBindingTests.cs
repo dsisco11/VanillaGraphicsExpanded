@@ -16,7 +16,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 /// Phase 23: Validates that migrated LumOn shader programs expose the expected UBO blocks.
 /// </summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class LumOnUboBindingTests : IDisposable
 {
     private const int FrameBinding = 17;
@@ -36,9 +36,9 @@ public sealed class LumOnUboBindingTests : IDisposable
             var shaderPath = Path.Combine(AppContext.BaseDirectory, "assets", "shaders");
             var includePath = Path.Combine(AppContext.BaseDirectory, "assets", "shaders", "includes");
 
-            if (Directory.Exists(shaderPath) && Directory.Exists(includePath))
+            if (TestAssetSnapshot.HasDirectory(shaderPath) && TestAssetSnapshot.HasDirectory(includePath))
             {
-                helper = new ShaderTestHelper(shaderPath, includePath);
+                helper = new ShaderTestHelper();
             }
         }
     }

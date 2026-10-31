@@ -27,9 +27,6 @@ public sealed class MaterialParamsZeroPreservationTests
                 if (loaded[pixel * 3 + 1] != 0 || loaded[pixel * 3 + 2] != 0)
                     errors.Add($"roughness={roughness}/255 pixel={pixel} metalness={loaded[pixel * 3 + 1]:R} emission={loaded[pixel * 3 + 2]:R}");
         }
-        var artifact = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../../artifacts/MaterialEmission"));
-        Directory.CreateDirectory(artifact);
-        File.WriteAllLines(Path.Combine(artifact, "zero-channel-roundtrip.txt"), errors);
         Assert.True(errors.Count == 0, $"Cache created nonzero material channels in {errors.Count} texels. First: {errors.FirstOrDefault()}");
     }
 

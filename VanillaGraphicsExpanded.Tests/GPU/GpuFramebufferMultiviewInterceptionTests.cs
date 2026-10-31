@@ -7,7 +7,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Qualifies native multiview descriptors, selected image projection and proven replay mode.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class GpuFramebufferMultiviewInterceptionTests(HeadlessGLFixture fixture)
 {
     #region Public API

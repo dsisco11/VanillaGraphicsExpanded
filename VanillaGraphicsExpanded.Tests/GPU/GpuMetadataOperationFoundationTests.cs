@@ -9,7 +9,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Checks explicitly composed operations, original identity and canonical delivery.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class GpuMetadataOperationFoundationTests(HeadlessGLFixture fixture)
 {
     #region Public API

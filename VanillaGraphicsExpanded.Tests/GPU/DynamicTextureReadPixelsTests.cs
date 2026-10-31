@@ -11,7 +11,7 @@ using Xunit;
 namespace VanillaGraphicsExpanded.Tests.GPU;
 
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class DynamicTextureReadPixelsTests : RenderTestBase
 {
     public DynamicTextureReadPixelsTests(HeadlessGLFixture fixture) : base(fixture) { }

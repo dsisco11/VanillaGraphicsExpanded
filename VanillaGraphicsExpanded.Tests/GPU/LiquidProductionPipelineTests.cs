@@ -14,7 +14,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Prepares the production liquid executables against their actual native image formats and pooled vertex layout.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class LiquidProductionPipelineTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
     #region Public API

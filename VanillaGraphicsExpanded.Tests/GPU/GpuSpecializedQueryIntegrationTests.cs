@@ -14,7 +14,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 /// Integration tests for specialized query wrappers built on <see cref="GpuQuery"/>.
 /// </summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public class GpuSpecializedQueryIntegrationTests
 {
     private readonly HeadlessGLFixture fixture;

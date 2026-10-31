@@ -11,7 +11,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Compares bounded production selection with a dense independent visible-geometry reference.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class WaterRefractionBudgetTests(HeadlessGLFixture fixture, ITestOutputHelper output)
     : LumOnShaderFunctionalTestBase(fixture)
 {
@@ -84,7 +84,7 @@ public sealed class WaterRefractionBudgetTests(HeadlessGLFixture fixture, ITestO
             float[] selected=target[0].ReadPixels(), receiver=target[4].ReadPixels(), radiance=target[5].ReadPixels();
             inputs.SelectReceiver=2;
             TestFramework.RenderQuadTo(program,target);
-            Assert.Equal(selected[0],target[0].ReadPixels()[0]);
+            Assert.Equal(selected[0],target[0].ReadTexel()[0]);
             Assert.Equal(receiver,target[4].ReadPixels());
             Assert.Equal(radiance,target[5].ReadPixels());
         }
@@ -256,8 +256,8 @@ public sealed class WaterRefractionBudgetTests(HeadlessGLFixture fixture, ITestO
         Assert.Equal(irregular ? 2 : 1,decision[2]);
         if (!irregular)
         {
-            Assert.Equal(1,decision[0]); Assert.Equal(1,target[3].ReadPixels()[0]);
-            Assert.InRange(MathF.Abs(target[5].ReadPixels()[0] - (4 + 16 * hitUv.X)),0,.0001f);
+            Assert.Equal(1,decision[0]); Assert.Equal(1,target[3].ReadTexel()[0]);
+            Assert.InRange(MathF.Abs(target[5].ReadTexel()[0] - (4 + 16 * hitUv.X)),0,.0001f);
         }
     }
 

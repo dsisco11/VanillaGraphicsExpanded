@@ -7,7 +7,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Exercises spatial correspondence and resident lighting under real camera and streaming transitions.</summary>
 [Collection("NearFieldMaterialCapture")]
-[Trait("Category","GPU")]
+[Trait("Category", "GpuIntegration")]
+[Trait("Scenario", "HeadlessRuntime")]
 public sealed class SurfaceLightingSpatialRuntimeTests : RenderTestBase
 {
     /// <summary>Uses the material-isolated graphics context.</summary>

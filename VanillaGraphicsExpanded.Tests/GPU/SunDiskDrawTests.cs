@@ -18,7 +18,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Executes the owned solar program against radiometry, metadata and camera-relative ownership contracts.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class SunDiskDrawTests(HeadlessGLFixture fixture) : LumOnShaderFunctionalTestBase(fixture)
 {
     #region Public API

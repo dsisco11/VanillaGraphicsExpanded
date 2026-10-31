@@ -13,7 +13,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Proves the fullscreen consumer's state footprint with deterministic real MRT drawing.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class CompleteGraphicsDrawTests(HeadlessGLFixture fixture) : IDisposable
 {
     private readonly GraphicsStateShaders stateShaders = new();

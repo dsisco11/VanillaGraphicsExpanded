@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Tests.TestSupport;
 using System;
 using System.IO;
 
@@ -8,13 +9,15 @@ namespace VanillaGraphicsExpanded.Tests.Unit.Cache;
 
 public sealed class DataCacheSystemTests
 {
+    private readonly CountingDiskCacheFileSystem storage = new();
+
     [Fact]
     public void Store_Then_TryGet_RoundTrips_Through_Codec_And_Store()
     {
         string root = CreateTempDir();
         try
         {
-            var store = new DiskJsonDictionaryCacheStore(root);
+            var store = new DiskJsonDictionaryCacheStore(root, "meta.json", storage);
             var codec = new TestStringUtf8JsonCodec();
 
             var cache = new DataCacheSystem<int, string>(
@@ -50,7 +53,7 @@ public sealed class DataCacheSystemTests
         string root = CreateTempDir();
         try
         {
-            var store = new DiskJsonDictionaryCacheStore(root);
+            var store = new DiskJsonDictionaryCacheStore(root, "meta.json", storage);
             var codec = new FailingDecodeCodec();
 
             var cache = new DataCacheSystem<int, string>(
@@ -94,20 +97,20 @@ public sealed class DataCacheSystemTests
         }
     }
 
-    private static string CreateTempDir()
+    private string CreateTempDir()
     {
         string path = Path.Combine(Path.GetTempPath(), "vge-cachetests", Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(path);
+        storage.CreateDirectory(path);
         return path;
     }
 
-    private static void TryDeleteDir(string path)
+    private void TryDeleteDir(string path)
     {
         try
         {
-            if (Directory.Exists(path))
+            if (storage.DirectoryExists(path))
             {
-                Directory.Delete(path, recursive: true);
+                storage.DeleteDirectory(path, recursive: true);
             }
         }
         catch

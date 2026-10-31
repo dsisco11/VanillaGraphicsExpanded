@@ -18,7 +18,7 @@ using Xunit;
 namespace VanillaGraphicsExpanded.Tests.GPU;
 
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class LumonScenePatchIdFeedbackLimitsTests : RenderTestBase
 {
     public LumonScenePatchIdFeedbackLimitsTests(HeadlessGLFixture fixture) : base(fixture) { }

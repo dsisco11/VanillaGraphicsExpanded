@@ -9,7 +9,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Checks the streaming queue's typed immediate and staged RHI uploads against actual image contents.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class RHIStreamingUploadTests(HeadlessGLFixture fixture)
 {
     #region Public API

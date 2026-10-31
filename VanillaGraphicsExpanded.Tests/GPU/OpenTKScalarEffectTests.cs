@@ -8,7 +8,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Checks scalar classification against native errors, resulting state and managed suppression.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class OpenTKScalarEffectTests(HeadlessGLFixture fixture)
 {
     #region Public API

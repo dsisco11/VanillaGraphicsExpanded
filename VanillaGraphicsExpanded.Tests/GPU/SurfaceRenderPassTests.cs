@@ -14,7 +14,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Exercises the actual window surface without manufacturing image attachments or format metadata.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class SurfaceRenderPassTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
     #region Public API

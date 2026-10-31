@@ -12,7 +12,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Qualifies a small current-frame local exposure candidate without installing runtime policy.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class LocalExposurePrototypeTests(HeadlessGLFixture fixture, ITestOutputHelper output)
     : LumOnShaderFunctionalTestBase(fixture)
 {
@@ -295,7 +295,7 @@ public sealed class LocalExposurePrototypeTests(HeadlessGLFixture fixture, ITest
     #endregion
     #region Shader preparation
     /// <summary>Expands source-authored guarded imports for the diagnostic compiler.</summary>
-    private static string Expand(string path) => Regex.Replace(File.ReadAllText(path), "@import \"([^\"]+)\"",
+    private static string Expand(string path) => Regex.Replace(TestAssetSnapshot.ReadSourceText(path), "@import \"([^\"]+)\"",
         match => Expand(Path.GetFullPath(Path.Combine(Path.GetDirectoryName(path)!, match.Groups[1].Value))));
 
     /// <summary>Checks compilation at the draw baseline rather than silently enabling newer language features.</summary>

@@ -8,7 +8,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Verifies owner lifecycle events preserve executed routing and unrelated selector knowledge.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class FramebufferOwnerKnowledgeTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
     #region Public API

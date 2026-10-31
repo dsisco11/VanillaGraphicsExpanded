@@ -13,7 +13,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Checks background disposal and original-context retirement through the active RHI manager.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class RHIResourceManagerDeletionQueueIntegrationTests
 {
     private readonly HeadlessGLFixture fixture;

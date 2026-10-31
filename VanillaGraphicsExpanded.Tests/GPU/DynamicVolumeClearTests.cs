@@ -8,7 +8,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Checks scalar and multichannel half-float volume clears through independent exact readback.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class DynamicVolumeClearTests(HeadlessGLFixture fixture)
 {
     #region Public API

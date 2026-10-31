@@ -14,7 +14,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Verifies visibility without false rejection on a fully illuminated planar wall using the production debug shader.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class LumOnWorldProbeWallVisibilityFunctionalTests : DirectWorldProbeVisibilityTestBase
 {
     private const int GridSize = 128;

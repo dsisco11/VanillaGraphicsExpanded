@@ -11,14 +11,10 @@ using Xunit;
 namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>
-/// Functional tests for Phase 12 Option B: probe-atlas → SH projection.
-///
-/// Verifies that:
-/// - constant atlas projects to DC-only SH (directional terms ~ 0)
-/// - SH gather using projected coefficients matches atlas gather in a simple constant case
+/// Checks probe-atlas projection, including constant-radiance DC coefficients and vanishing directional terms.
 /// </summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public class LumOnProbeAtlasProjectSHFunctionalTests : LumOnShaderFunctionalTestBase
 {
     private const float SH_C0 = 0.282095f;
@@ -210,87 +206,5 @@ public class LumOnProbeAtlasProjectSHFunctionalTests : LumOnShaderFunctionalTest
         Assert.True(System.Math.Abs(a1) < 0.05f);
     }
 
-    [Fact(Skip = "Option B now uses SH9 projection/gather; this L1 gather comparison is obsolete.")]
-    public void Gather_SHFromProjected_StableVsIntegration()
-    {
-        EnsureShaderTestAvailable();
 
-        const uint HitFlag = 1u;
-
-        var identity = LumOnTestInputFactory.CreateIdentityMatrix();
-
-        var anchors = CreateProbeAnchors(worldZ: -1.0f, validity: 1.0f);
-        var normals = CreateProbeNormalsEncoded(0, 1, 0);
-
-        var atlas = CreateUniformAtlas(0.8f, 0.8f, 0.8f, hitDist: 10f);
-        var meta = CreateUniformMetaAtlas(confidence: 1.0f, flags: HitFlag);
-
-        var depth = CreateUniformDepthData(ScreenWidth, ScreenHeight, 0.5f);
-        var gbufNormal = CreateUniformNormalData(ScreenWidth, ScreenHeight, 0, 1, 0);
-
-        using var anchorPosTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, TextureFormat.Rgba16f, anchors);
-        using var anchorNormTex = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, TextureFormat.Rgba16f, normals);
-
-        using var atlasTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, TextureFormat.Rgba16f, atlas);
-        using var metaTex = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, TextureFormat.Rg32f, meta);
-
-        using var depthTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.R32f, depth);
-        using var gbufNormTex = TestFramework.CreateTexture(ScreenWidth, ScreenHeight, TextureFormat.Rgba16f, gbufNormal);
-
-        // 1) Project atlas → SH
-        using var outSh = TestFramework.CreateTestGBuffer(
-            ProbeGridWidth, ProbeGridHeight,
-            TextureFormat.Rgba16f,
-            TextureFormat.Rgba16f);
-
-        var projectId = CompileProjectShader();
-        SetupProjectUniforms(projectId, identity);
-
-        projectId.ScreenProbeAtlas = atlasTex;
-        projectId.ScreenProbeAtlasMeta = metaTex;
-        using var anchorInputs102 = LayeredTestTexture.Create(anchorPosTex, null);
-        projectId.ProbeAnchors = anchorInputs102;
-        TestFramework.RenderQuadTo(projectId, outSh);
-
-        // 2) SH gather using projected coefficients
-        using var outIndirectSh = TestFramework.CreateTestGBuffer(HalfResWidth, HalfResHeight, TextureFormat.Rgba16f);
-
-        int shGatherId = CompileShGatherShader();
-        SetupShGatherUniforms(shGatherId, identity, identity);
-
-        VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(0, outSh[0], Dimension: ((GpuTextureRef)outSh[0]).Target)]);
-        VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(1, outSh[1], Dimension: ((GpuTextureRef)outSh[1]).Target)]);
-        VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(2, anchorPosTex, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)anchorPosTex).Target)))]);
-        VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(3, anchorNormTex, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)anchorNormTex).Target)))]);
-        VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(4, depthTex, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)depthTex).Target)))]);
-        VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.BindSampledTextures([new(5, gbufNormTex, Dimension: VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(OpenGLImageValues.Target(((GpuTextureRef)gbufNormTex).Target)))]);
-
-        TestFramework.RenderQuadTo(shGatherId, outIndirectSh);
-        var shOut = outIndirectSh[0].ReadPixels();
-
-        // 3) Atlas gather integration
-        using var outIndirectAtlas = TestFramework.CreateTestGBuffer(HalfResWidth, HalfResHeight, TextureFormat.Rgba16f);
-
-        var atlasGatherId = CompileAtlasGatherShader();
-        SetupAtlasGatherUniforms(atlasGatherId, identity, identity);
-
-        atlasGatherId.ScreenProbeAtlas = atlasTex;
-        using var anchorInputs1 = LayeredTestTexture.Create(anchorPosTex, anchorNormTex);
-        atlasGatherId.ProbeAnchors = anchorInputs1;
-        atlasGatherId.PrimaryDepth = depthTex;
-        using var surfaceInput1 = LayeredTestTexture.Create(gbufNormTex, null, null);
-        atlasGatherId.GBufferSurface = surfaceInput1;
-
-        TestFramework.RenderQuadTo(atlasGatherId, outIndirectAtlas);
-        var atlasOut = outIndirectAtlas[0].ReadPixels();
-
-        // Compare one representative half-res pixel.
-        var (sr, sg, sb, _) = ReadHalfResTexel(shOut, 0, 0);
-        var (ar, ag, ab, _) = ReadHalfResTexel(atlasOut, 0, 0);
-
-        Assert.True(System.Math.Abs(sr - ar) < 0.1f);
-        Assert.True(System.Math.Abs(sg - ag) < 0.1f);
-        Assert.True(System.Math.Abs(sb - ab) < 0.1f);
-        global::VanillaGraphicsExpanded.Tests.GPU.Helpers.TestShaderInterfaces.DeleteProgram(shGatherId);
-    }
 }

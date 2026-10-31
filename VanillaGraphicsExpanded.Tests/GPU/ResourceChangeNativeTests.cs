@@ -7,7 +7,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Checks native operation completion and originating-thread retirement delivery.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class ResourceChangeNativeTests(HeadlessGLFixture fixture)
 {
     #region Public API

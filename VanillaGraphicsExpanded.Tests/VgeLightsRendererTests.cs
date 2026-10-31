@@ -7,7 +7,7 @@ using Xunit;
 namespace VanillaGraphicsExpanded.Tests;
 
 /// <summary>Checks publication ordering and lifetime independently of LumOn and graphics context availability.</summary>
-[Collection("GPU")]
+[Collection("CPU state")]
 public sealed class VgeLightsRendererTests
 {
     #region Public API

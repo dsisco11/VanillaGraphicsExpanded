@@ -6,7 +6,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Checks reuse, independent scene identity and borrowed-resource lifetime in shader fixtures.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class ShaderSceneInputsTests : RenderTestBase
 {
     /// <summary>Uses the shared GPU context.</summary>

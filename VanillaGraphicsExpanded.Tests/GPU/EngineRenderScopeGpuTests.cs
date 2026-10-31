@@ -10,7 +10,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Verifies actual driver group nesting and exception retirement without compiling any shaders.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class EngineRenderScopeGpuTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
     #region Scope lifetime

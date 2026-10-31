@@ -11,7 +11,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Verifies pipeline target ownership and context-bound deferred cleanup.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class PbrLumOnPipelineTargetsLifetimeTests : IDisposable
 {
     private readonly HeadlessGLFixture fixture;

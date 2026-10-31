@@ -10,7 +10,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Exercises the production temporal debug reprojection helper with a perspective history matrix.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class LumOnTemporalDebugShaderTests : RenderTestBase
 {
     /// <summary>Uses the shared graphics context for the imported GLSL helper.</summary>

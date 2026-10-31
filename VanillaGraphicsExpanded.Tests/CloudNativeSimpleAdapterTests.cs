@@ -14,6 +14,7 @@ namespace VanillaGraphicsExpanded.Tests;
 
 /// <summary>Checks immediate post-tick mesh submission and native placement without persistent borrow tracking.</summary>
 [Collection("GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class CloudNativeSimpleAdapterTests(HeadlessGLFixture fixture)
 {
     private static Action<CloudRenderer, float>? tick;

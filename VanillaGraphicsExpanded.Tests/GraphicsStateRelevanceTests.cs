@@ -11,7 +11,7 @@ namespace VanillaGraphicsExpanded.Tests;
 
 /// <summary>Checks immutable potential native write groups independently of active state application.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class GraphicsStateRelevanceTests : IDisposable
 {
     private readonly GraphicsStateShaders stateShaders = new();

@@ -17,7 +17,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Exercises the raw engine framebuffer boundary against VGE's cached primary blend policy.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class GBufferExternalFramebufferTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
     #region External state ownership

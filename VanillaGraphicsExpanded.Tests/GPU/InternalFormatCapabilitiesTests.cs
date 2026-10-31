@@ -8,7 +8,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Verifies native format support and demand-driven capability cache behavior.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class InternalFormatCapabilitiesTests(HeadlessGLFixture fixture)
 {
     #region Public API

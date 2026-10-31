@@ -9,7 +9,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Checks texture snapshot publication and source allocation dependencies.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class GpuTextureMetadataPublicationTests(HeadlessGLFixture fixture)
 {
     #region Public API

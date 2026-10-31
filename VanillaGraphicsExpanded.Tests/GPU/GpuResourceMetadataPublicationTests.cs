@@ -8,7 +8,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Checks native metadata publication independently from requested creation policy and content uploads.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class GpuResourceMetadataPublicationTests(HeadlessGLFixture fixture)
 {
     #region Public API

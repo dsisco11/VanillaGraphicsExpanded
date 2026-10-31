@@ -14,7 +14,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Exercises the exact frame publication policy with real texture uploads and deferred completed sources.</summary>
 [Collection("GPU")]
-[Trait("Category","GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class CelestialPublicationAtomicityTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
     #region Public API

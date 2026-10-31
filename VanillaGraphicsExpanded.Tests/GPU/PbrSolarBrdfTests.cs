@@ -12,7 +12,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Checks finite-source solar limits and cone selection against independent geometry.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class PbrSolarBrdfTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
     #region Public API
@@ -117,7 +117,7 @@ public sealed class PbrSolarBrdfTests(HeadlessGLFixture fixture) : RenderTestBas
     [Fact]
     public void SolarAngularRadiusMatchesTheAtmosphereEmitter()
     {
-        string source = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "assets/shaders/includes/pbr_finite_disk_brdf.glsl"));
+        string source = TestAssetSnapshot.ReadBuiltText(Path.Combine(AppContext.BaseDirectory, "assets/shaders/includes/pbr_finite_disk_brdf.glsl"));
         var match = Regex.Match(source, @"VGE_SOLAR_ANGULAR_RADIUS\s*=\s*([0-9.]+)");
         Assert.True(match.Success);
         Assert.Equal(AtmosphereSolarDisk.AngularRadius, float.Parse(match.Groups[1].Value, CultureInfo.InvariantCulture));
@@ -217,7 +217,7 @@ public sealed class PbrSolarBrdfTests(HeadlessGLFixture fixture) : RenderTestBas
     /// <summary>Expands only local production imports while retaining their normal include guards.</summary>
     private static string Expand(string path)
     {
-        string source = File.ReadAllText(path);
+        string source = TestAssetSnapshot.ReadSourceText(path);
         return Regex.Replace(source, "@import \\\"([^\\\"]+)\\\"", match => Expand(Path.GetFullPath(Path.Combine(Path.GetDirectoryName(path)!, match.Groups[1].Value))));
     }
 

@@ -14,7 +14,7 @@ using Vintagestory.API.MathTools;
 namespace VanillaGraphicsExpanded.Tests.GPU;
 /// <summary>Exercises explicitly enabled shared-depth publication using real registered renderer callbacks.</summary>
 [Collection("GPU")]
-[Trait("Category","GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class DepthHierarchyRendererTests(HeadlessGLFixture fixture) : LumOnShaderFunctionalTestBase(fixture)
 {
     private static GpuTexture? suppliedReceiver;

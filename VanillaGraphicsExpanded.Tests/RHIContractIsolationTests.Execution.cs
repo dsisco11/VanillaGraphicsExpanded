@@ -13,6 +13,7 @@ namespace VanillaGraphicsExpanded.Tests;
 /// <summary>Checks concrete execution selection and opaque native payloads at their intentional boundaries.</summary>
 public sealed partial class RHIContractIsolationTests
 {
+    private static readonly Lazy<byte[]> runtimePe = new(() => File.ReadAllBytes(typeof(GpuResource).Assembly.Location));
     #region Public API
     /// <summary>Only the context's thin composition members may select concrete backend/cache implementations.</summary>
     [Fact]
@@ -95,7 +96,8 @@ public sealed partial class RHIContractIsolationTests
     /// <summary>Finds exact local getter references without asking the runtime to load unrelated engine/UI signatures.</summary>
     private static IEnumerable<(string Namespace, string Name)> FindGetterReaders(MethodInfo getter)
     {
-        using var stream = File.OpenRead(getter.Module.Assembly.Location);
+        Assert.Same(typeof(GpuResource).Assembly, getter.Module.Assembly);
+        using var stream = new MemoryStream(runtimePe.Value, writable: false);
         using var pe = new PEReader(stream);
         var metadata = pe.GetMetadataReader();
         foreach (var handle in metadata.MethodDefinitions)

@@ -10,7 +10,7 @@ namespace VanillaGraphicsExpanded.Tests;
 
 /// <summary>Verifies configurable raster policy independent of executable interface validation without native state.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class ConfigurableRasterizerDescriptionTests : IDisposable
 {
     private readonly ComponentShaderPrograms programs;

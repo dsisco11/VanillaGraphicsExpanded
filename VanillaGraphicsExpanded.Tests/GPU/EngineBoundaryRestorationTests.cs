@@ -10,7 +10,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Exercises real native restoration and failure guarantees independently of production consumer migration.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class EngineBoundaryRestorationTests(HeadlessGLFixture fixture)
 {
     #region Public API

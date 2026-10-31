@@ -9,7 +9,7 @@ using Vintagestory.Client.NoObf;
 namespace VanillaGraphicsExpanded.Tests;
 
 /// <summary>Exercises installed engine pool allocation and constructor publication without starting a client.</summary>
-[Collection("GPU")]
+[Collection("CPU state")]
 public sealed class LiquidMeshSourceTests
 {
     #region Engine lifecycle

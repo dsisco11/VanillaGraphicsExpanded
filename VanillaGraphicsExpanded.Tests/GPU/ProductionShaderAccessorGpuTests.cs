@@ -8,7 +8,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Checks one real generated production accessor through binary loading and replacement ownership.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class ProductionShaderAccessorGpuTests : RenderTestBase
 {
     /// <summary>Uses the existing shared headless context and production asset fixture.</summary>

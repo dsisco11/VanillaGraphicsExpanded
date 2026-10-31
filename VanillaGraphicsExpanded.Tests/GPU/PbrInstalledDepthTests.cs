@@ -10,7 +10,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Checks coverage and depth using the complete installed standard shader pair.</summary>
 [Collection("GPU")]
-[Trait("Category", "GPU")]
+[Trait("Category", "GpuIntegration")]
 public sealed class PbrInstalledDepthTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
     #region Installed terrain-independent meshes
