@@ -56,17 +56,12 @@ public abstract class RenderTestBase : IDisposable
 
     /// <summary>
     /// Ensures the GL context is valid; throws skip exception if not.
-    /// Also drains any leftover GL errors from previous operations.
+    /// Nested helpers retain intercepted state and pending uniform allocations.
     /// </summary>
     /// <param name="beginUniformFrame">False for nested helpers that must preserve pending draw allocations.</param>
     protected void EnsureContextValid(bool beginUniformFrame = true)
     {
         _fixture.EnsureContextValid();
-
-        // Context switches and raw test operations can leave stale native bindings in the thread-local cache.
-        // Clear them before ring allocation: another context can reuse the same buffer name.
-        OpenGlStateCache.Current.InvalidateAll();
-        while (GL.GetError() != ErrorCode.NoError) { }
 
         // Option B: UBO binding uses the per-thread ring allocator.
         // In production this is installed by a renderer; in tests we activate it manually.

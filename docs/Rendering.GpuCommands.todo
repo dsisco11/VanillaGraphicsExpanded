@@ -1784,9 +1784,9 @@ Phase 10: Streamline GPU integration tests and eliminate unnecessary test work
   Scope: VanillaGraphicsExpanded.Tests and its required fixtures/callers. Other test projects, including
     shader-build-tool tests, are excluded. Necessary shared declarations or production filesystem seams
     must be identified and justified individually; this is not authorization for unrelated redesign.
-  The existing-work boundary in 10.1, approved analysis in 10.2 and classification/I/O isolation in 10.3
-    are complete. Shared setup, compact assertions, family migration and combined qualification remain
-    in 10.4–10.6; existing edits do not complete those later obligations.
+  The existing-work boundary in 10.1, approved analysis in 10.2, classification/I/O isolation in 10.3 and
+    shared setup/compact assertion qualification in 10.4 are complete. Family-wide assertion migration
+    and combined qualification remain in 10.5–10.6; existing edits do not complete those obligations.
 
 Phase 10.1: Establish the commit boundary for existing test-cleanup work
   Status: complete by user acceptance as the existing-work commit boundary.
@@ -2196,34 +2196,80 @@ Phase 10.4: Consolidate shared GPU setup and establish compact assertions
   Outcome: shared fixture behavior preserves context/lifetime/state contracts without redundant purges,
     CPU image round trips or unqualified native caches; compact checks are ready for consuming families.
 
-  ☐ Migrate RenderTestBase, HeadlessGLFixture, ShaderTestFramework and LumOnShaderFunctionalTestBase
+  ☑ Migrate RenderTestBase, HeadlessGLFixture, ShaderTestFramework and LumOnShaderFunctionalTestBase
     coherently: remove routine nested blanket invalidation/error draining, preserve real initialization,
     context retirement and deliberate bypass/fault boundaries, and report original failures. Retain
     TestUniformRing's completion fence and mapping/query/ticket retirement protocols. Remove a wait,
     Finish or Flush only when the remaining operation supplies the entire required completion contract.
-  ☐ Replace LayeredTestTexture's CPU round trip with compatible GPU copies, explicit conversion/resampling
+  ☑ Replace LayeredTestTexture's CPU round trip with compatible GPU copies, explicit conversion/resampling
     or authored constant data as mapped in 10.2. Preserve zero-filled channels, precision, layer identity
     and nearest sampling. Share immutable assets/catalogs/expected CPU data; keep GPU resources under
     explicit original-context owners and mutable subjects isolated. Use component preparation for
     component subjects; retain real full registration in startup/lifecycle subjects.
-  ☐ Implement only the generic GPU assertion operations required by the family mapping: independently
+  ☑ Implement only the generic GPU assertion operations required by the family mapping: independently
     expected-value/tolerance comparisons, finite/range/extrema/counter checks, rank occurrence/slice
     differences and retained-history comparison. Preserve selected mips/regions/channels and existing
     domains across 2D/array/3D/cube/integer/depth subjects. Return bounded results and useful failure
     locations; retain CPU oracles and existing local tuple reads. Do not mirror production algorithms.
-  ☐ Give checker resources explicit context ownership, completion and exception-safe cleanup. Verify
+  ☑ Give checker resources explicit context ownership, completion and exception-safe cleanup. Verify
     result/sentinel validity, partial construction, original-context retirement/context switches,
     pack/program/generic/indexed binding restoration and base-versus-range SSBO restoration. Qualify
     exact and tolerant float behavior, including signed zero, NaN/infinity and subnormals. Reconsider
     the archived experiment as described in 10.2; do not copy its raw-name cache or silent-success paths.
-  ☐ Integrate representative real consuming assertions with the checker in this same unit; retain known
+  ☑ Integrate representative real consuming assertions with the checker in this same unit; retain known
     pass and deliberate mismatch/nonfinite cases and meaningful diagnostics. Keep native capture
     once-only forwarding, callback exception containment, slot restoration and deliberate negative
     controls. Replace reflection only with equivalent observable seams, without new production backdoors.
     No dormant scaffold, forwarding compatibility path or permanently duplicated old assertion route.
-  ☐ Delegate focused infrastructure/caller verification, complete a second review and independent audit.
+  ☑ Delegate focused infrastructure/caller verification, complete a second review and independent audit.
     Completion: representative callers exercise qualified compact results; setup/copy/state changes
     preserve their original contracts. The remaining family migrations belong to 10.5.
+
+  Qualification and traceability:
+    - 10.4 -> 10.2's shared-setup/readback/instrumentation mapping; Rendering.GpuCommands.Contracts.md,
+      Submission and failure/resource completion; Rendering.GpuResources.md, ownership;
+      Rendering.ShaderBindingState.md, Verification boundary; Rendering.GpuCommands.Proposal.md,
+      Representative outcomes and verification -> preserve owner intervals, original context, native
+      state/completion and independent numerical expectations. README.md describes the current fixture APIs.
+    - RenderTestBase nested setup no longer invalidates all state or drains errors. Its callers in
+      ShaderTestFramework/LumOnShaderFunctionalTestBase inherit that correction and already use isolated
+      component preparation. Headless binding-load initialization reports its original error; the distinct
+      optional debug-output initialization boundary remains. No wait/Finish/Flush, TestUniformRing fence,
+      mapping/query/ticket protocol or native capture/negative-control machinery was removed.
+    - LayeredTestTexture.Create uses RHI compatible copies, explicit GPU nearest conversion with zero
+      expansion (including alpha), or GPU zero clears. CPU pixel download/resample/upload is removed.
+      Existing immutable asset/catalog sharing and original-context resource owners remain singular.
+    - GPU/Assertions owns per-fixture programs, GPU image snapshots and generic comparisons/reductions.
+      Independent expected bits, absolute tolerance, finite/range/extrema/positive counts, retained history,
+      rank occurrence and slice differences cover selected mips/regions/channels and full 2D/array/volume/
+      cube/depth/integer domains. Copy-compatible linear snapshots preserve sRGB readback expectations.
+      Results remain sixteen words; source-component and histogram rank/slice failures are distinguished.
+      Both main and histogram dispatches have independent markers and exact completion counts. Synchronous
+      result transfer supplies completion without Finish. SSBO base/range bindings are untouched; pixel-pack,
+      program, texture/sampler and image selectors restore on success and failed dispatch.
+    - Qualification covers signed zero, NaN/infinity, subnormals, signed/unsigned 32-bit values, packed depth,
+      sRGB, all faces/layers and selected mips/regions; intentional mismatch/nonfinite/rank negatives;
+      absent/partial first and histogram dispatch; partial compilation and callback failure; foreign live
+      context rejection and dead-context retirement. Context-switchable construction requires a captured
+      existing disposal service before allocation, deferring interrupted cleanup through the original
+      manager. Callback-free context-local construction does not install a manager implicitly.
+    - Representative callers migrated in the same unit: DepthHierarchyPassTests.
+      EveryMipMatchesIndependentConservativeReduction retains every original dimension/mip and its CPU
+      interval-intersection oracle; CloudBlueNoiseTextureTests retains all 8x32x32 ranks and each slice's
+      difference from the first. Their superseded CPU image scans are removed. Other family readbacks,
+      including LayeredTestTexture.Read and depth repeated-frame output assertions, remain explicitly in
+      10.5; no family-wide completion or reduced dimensions/matrix is claimed here.
+    - Delegated Debug build passed with zero errors and 214 compiler/analyzer/offline-audit warnings.
+      Final core checks: 37/37; retained shared caller/native checks: 79/79; 116 passing GPU integration
+      cases, zero outstanding failures/skips. Receipts: TestResults/GpuTests104/build-debug.log,
+      focused-core.trx/log and focused-shared-callers.trx/log. Commands retain the full shader producer,
+      UseSharedCompilation=false, AllTests.runsettings and Category=GpuIntegration&Purpose!=Diagnostic.
+      Early localization failures were corrected (explicit unsigned OpenTK uniform overload and cube
+      allocation inputs); the final core receipt supersedes those cases. Audit fixes received focused
+      requalification; unchanged shared receipts were retained without another broad run.
+    - Second review, independent completion audit and git diff --check passed. No full-suite, Release,
+      diagnostic workload, timing improvement or live-game acceptance claim; 10.5–10.6 retain those
+      separate obligations. No archived implementation was adopted, and nothing was staged or committed.
 
 Phase 10.5: Migrate image assertions and runtime observations across all families
   Depends on 10.4. Governing coverage map: every ordered family row and non-GPU-directory exception in

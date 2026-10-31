@@ -1,6 +1,7 @@
 using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
+using VanillaGraphicsExpanded.Tests.GPU.Assertions;
 
 namespace VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 
@@ -11,29 +12,31 @@ internal static class LayeredTestTexture
     /// <summary>Copies matching fixture images into separate array layers without changing their float precision.</summary>
     internal static Texture3D Create(params GpuTexture?[] images)
     {
+        if (images.Length == 0) throw new ArgumentException("At least one fixture layer is required.", nameof(images));
         int width = images.Max(image => image?.Width ?? 1), height = images.Max(image => image?.Height ?? 1);
         var texture = RHICommandContext.Current.CreateTexture3D(new RHITextureDescription { Dimension = TextureDimension.TwoArray, Format = TextureFormat.Rgba32f, Width = System.Math.Max(1, width), Height = System.Math.Max(1, height), Depth = System.Math.Max(1, images.Length), MipLevels = 1, Storage = ResourceStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         try
         {
-            for (int layer = 0; layer < images.Length; layer++)
+            GpuLayerCopy? conversion = null;
+            try
             {
-                var image = images[layer];
-                if (image is null)
+                for (int layer = 0; layer < images.Length; layer++)
                 {
-                    texture.UploadDataImmediate(new float[width * height * 4], 0, 0, layer, width, height, 1);
-                    continue;
+                    var image = images[layer];
+                    if (image is null)
+                    {
+                        RHICommandContext.Current.ClearTexture(texture, new(new(0, layer), 0, 0, 0, width, height, 1),
+                            new(PixelChannelLayout.Rgba, PixelComponentType.Float), new byte[16]);
+                        continue;
+                    }
+                    if (image.InternalFormat == TextureFormat.Rgba32f && image.Width == width && image.Height == height && image.Depth == 1)
+                        RHICommandContext.Current.CopyTexture(image, new(new(0, 0), 0, 0, 0, width, height, 1),
+                            texture, new(new(0, layer), 0, 0, 0, width, height, 1));
+                    else
+                        (conversion ??= new GpuLayerCopy()).Copy(image, texture, layer);
                 }
-                float[] source = image.ReadPixels();
-                int channels = source.Length / (image.Width * image.Height);
-                float[] data = new float[width * height * 4];
-                // Constant fixtures can be broadcast to the dimensions of a spatial test input.
-                for (int y = 0; y < height; y++) for (int x = 0; x < width; x++)
-                {
-                    int src = ((y * image.Height / height) * image.Width + x * image.Width / width) * channels;
-                    for (int c = 0; c < channels; c++) data[(y * width + x) * 4 + c] = source[src + c];
                 }
-                texture.UploadDataImmediate(data, 0, 0, layer, width, height, 1);
-            }
+            finally { conversion?.Dispose(); }
             return texture;
         }
         catch { texture.Dispose(); throw; }

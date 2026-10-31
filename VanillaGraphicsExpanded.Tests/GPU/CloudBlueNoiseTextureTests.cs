@@ -3,6 +3,7 @@ using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.PBR.Clouds;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
+using VanillaGraphicsExpanded.Tests.GPU.Assertions;
 
 namespace VanillaGraphicsExpanded.Tests.GPU;
 
@@ -20,14 +21,8 @@ public sealed class CloudBlueNoiseTextureTests(HeadlessGLFixture fixture) : Rend
         int id = texture.TextureId, side = CloudBlueNoiseTexture.Side, pixels = side * side;
         Assert.Equal(TextureFormat.R32f, texture.InternalFormat);
         Assert.Equal(side, texture.Width); Assert.Equal(side * 8, texture.Height);
-        float[] values = texture.ReadPixels();
-        for (int frame = 0; frame < 8; frame++)
-        {
-            float[] slice = values.AsSpan(frame * pixels, pixels).ToArray();
-            Assert.Equal(Enumerable.Range(0, pixels).Select(rank => (rank + .5f) / pixels), slice.Order());
-            if (frame > 0) Assert.NotEqual(values.AsSpan(0, pixels).ToArray(), slice);
-
-        }
+        using var assertions = new GpuImageAssertions();
+        assertions.CheckRanks(texture, side, 8).AssertRanks(8);
         texture.EnsureCreated(); Assert.Equal(id, texture.TextureId);
         texture.Dispose(); Assert.True(texture.IsDisposed); Assert.False(texture.IsValid);
         Assert.Throws<ObjectDisposedException>(texture.EnsureCreated);

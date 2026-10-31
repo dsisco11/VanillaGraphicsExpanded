@@ -195,6 +195,27 @@ fail validation. Diagnostic reports and BMP/raw exports use memory sinks, not fi
 paths. Text reports and binary payload identities are emitted through test output. Required assembly loading and build/test-runner receipts retain their normal bootstrap I/O. These tests
 verify serialization and replacement protocols, not operating-system filesystem atomicity.
 
+### Compact GPU assertions
+
+`GPU/Assertions/GpuImageAssertions` compares complete selected image domains against independent CPU
+expectations or a retained `GpuImageSnapshot`. It also provides finite/range/extrema/positive counters and
+rank-permutation/slice checks. Selections retain their original extent, mip, region, channels and layers or
+cube faces. The checker returns sixteen words plus failure coordinates/rank identities; it does not download
+image pixels. Keep existing local tuple reads and tests of readback APIs independent from this checker.
+
+Checker executables and snapshots belong to their original registered physical context; callers dispose them within
+that lifetime. There is no global native-name cache. Integer image outputs leave SSBO base/range bindings
+untouched, preserve program/texture/sampler/image selectors and restore pixel-pack state. A completion
+marker and exact processed-texel count reject absent or partial dispatch; histogram validation has its own marker and count. Synchronous result transfer supplies
+completion without a blanket `Finish`. Exact float comparisons equate signed zero and NaNs deliberately;
+opposite infinities differ and subnormals retain their value. Tolerance is absolute and evaluated from the
+represented values in double precision. Finite/range checks remain explicit independent predicates.
+
+`LayeredTestTexture.Create` uses compatible GPU copies or GPU nearest conversion with zero channel
+expansion, including alpha. Immutable authored inputs/catalogs may be shared; mutable test subjects and
+native resources retain explicit fixture ownership. Fault-injection construction callbacks require an existing disposal service so interrupted allocations can retire on the original context, without installing a manager implicitly. Routine nested helpers preserve intercepted state and
+native errors; initialization, retirement and deliberate fault-injection boundaries retain their own contracts.
+
 ### GPU Test Categories
 
 Tests are organized using the `[Trait("Category", "GpuIntegration")]` attribute:

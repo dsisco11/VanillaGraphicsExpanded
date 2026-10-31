@@ -96,9 +96,8 @@ public sealed class HeadlessGLFixture : IAsyncLifetime
             OpenTK.Graphics.OpenGL4.GL.LoadBindings(new GLFWBindingsContext());
             _bindingsLoadedThreadId = threadId;
 
-            // Some loader/driver combinations can leave a benign error queued during setup.
-            // Drain so tests start from a known-clean state.
-            while (GL.GetError() != OpenTK.Graphics.OpenGL.ErrorCode.NoError) { }
+            // Loading bindings is an initialization boundary, not permission to erase an earlier failure.
+            Assert.Equal(OpenTK.Graphics.OpenGL.ErrorCode.NoError, GL.GetError());
         }
         // Capability discovery is fixture initialization, never part of an intercepted native operation.
         GpuSupport.EnsureCurrentContext();

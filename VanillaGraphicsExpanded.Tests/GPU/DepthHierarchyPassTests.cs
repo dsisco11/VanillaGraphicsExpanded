@@ -5,6 +5,7 @@ using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Pipeline;
 using VanillaGraphicsExpanded.PBR.Postprocessing;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
+using VanillaGraphicsExpanded.Tests.GPU.Assertions;
 namespace VanillaGraphicsExpanded.Tests.GPU;
 /// <summary>Checks production conservative mip generation, feedback-safe access and resource retirement.</summary>
 [Collection("GPU")]
@@ -37,8 +38,9 @@ public sealed class DepthHierarchyPassTests(HeadlessGLFixture fixture) : LumOnSh
             hostile.AssertRestored();
         }
         var texture=owner.Texture!;long bytes=0;int w=width,h=height;
+        using var assertions = new GpuImageAssertions();
         for(int level=0;level<texture.MipLevels;level++) {
-            Assert.Equal(values,texture.ReadPixels(level));bytes+=4L*w*h;
+            assertions.Compare(texture, values, selection: new(new(level,0),0,0,0,w,h,1)).AssertEqual();bytes+=4L*w*h;
             if(level+1==texture.MipLevels)break;
             int nextW=Math.Max(1,w/2),nextH=Math.Max(1,h/2);
             float[] expected=new float[nextW*nextH];
@@ -59,7 +61,7 @@ public sealed class DepthHierarchyPassTests(HeadlessGLFixture fixture) : LumOnSh
 #if DEBUG
         Assert.Equal(bytes,owner.StorageBytes);
 #endif
-        // Restored mip accessibility is observable through readback of the complete chain above.
+        // GPU comparisons cover every texel of the original mip chain without downloading its images.
         Assert.Same(texture,owner.Texture);
         owner.Prepare(width,height,compute);Assert.Same(texture,owner.Texture);
         owner.Prepare(width+2,height+2,compute);Assert.False(texture.IsValid);
