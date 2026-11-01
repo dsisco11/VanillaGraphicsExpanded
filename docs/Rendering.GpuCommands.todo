@@ -2808,7 +2808,8 @@ Phase 10.8: Reconcile qualification corrections and residual test cleanup
 
 Phase 10.9: Attribute remaining test costs and agree on the runtime-reduction design
   Status: complete as the original analysis/design boundary. Checkpoint 10.9.1 is complete by user
-    acceptance; implementation subphases 10.9.2–10.9.7 remain open and await selection. Batching is
+    acceptance; 10.9.2 design and coverage mapping is complete by user approval. Implementation subphases
+    10.9.3–10.9.7 remain open and await selection. Batching is
     deferred and Phase 10 remains open.
   Depends on 10.8. Governing constraints: Phase 10/10.2's coverage and isolation map, 10.7's cache policy,
     Rendering.ShaderBindingState.md (Verification boundary) and Rendering.GpuCommands.Contracts.md
@@ -3315,24 +3316,152 @@ Phase 10.9.1: Reconcile the existing production-checker migration checkpoint
 Phase 10.9.2: Agree on focused observation boundaries and the coverage consolidation map
   Depends on the approved read-only audit and the accepted 10.9.1 checkpoint.
   Outcome: an agreed smaller architecture and explicit per-family keep/consolidate/simplify dispositions.
+  Status: complete by explicit user approval on 2026-11-01. The design and coverage map below are agreed.
+    This is a planning-only boundary. No runtime/helper changes, test deletion, build or test run is required.
 
-  ☐ Complete the test-value map before deleting coverage: identify each affected method/parameter group's
+  Approved observation architecture (not implemented):
+    - HeadlessGLFixture explicitly owns comparison, reduction/statistics and selection/projection services.
+      RenderTestBase and consuming fixtures receive these dependencies directly; no thread-static Current
+      lookup, global registry, new scheduler, universal request dispatcher or new cache. Services own only
+      observation machinery. Test cases continue to own fresh programs/resources when those are subjects.
+    - Comparison operations accept separate typed requests for constant/region expectations, independent
+      reference data, sparse coordinate/value records and retained-history equality. A shared image-domain
+      value uses existing RHI subresource/region/aspect types plus numeric interpretation and channel mask;
+      it does not duplicate resource metadata or own the source. Each request contains only its operation's
+      inputs. Results expose completion, visited/compared counts, mismatch count and earliest failure with
+      source coordinates/component and expected/actual values where meaningful. No overloaded counter slots
+      or uncomputed fields presented as zeros. Witness predicates additionally require their witness count.
+    - Reduction operations have separate count/range/extremum, double-moment/weighted-moment and ordered-float
+      contracts. Requested facts determine work and typed results. Double multiplication versus float-square-
+      then-double accumulation remains explicit. Ordered-float evaluation preserves expression grouping,
+      traversal order and each float rounding; it produces one scalar rather than a full image of zeros.
+      Workgroup aggregation applies only where it preserves the authored numerical contract. The existing
+      statistics precision failure must be explained and fixed in 10.9.4, not accepted by widening tolerance.
+    - Selection returns deterministic coordinates/value (first original linear index on ties). Preserve
+      existing full-domain finite checks: any selected NaN/infinity rejects rather than being skipped;
+      an empty/invalid domain cannot yield a valid candidate. Brightest retains its luminance expression and reads
+      only the selected original tuple. Projection creates a genuinely required output/history image;
+      scalar reductions do not masquerade as projections. Generic mechanics stay shared, while authored
+      numerical predicates/projections live in their owning cloud/water/surface/etc. shader asset families.
+      Group related policies by domain responsibility; avoid one infrastructure class/program per test or
+      per expected value. Independent oracles cannot call the production algorithm they verify.
+    - All checker executables remain declared, precompiled production assets loaded through the existing
+      default in-memory test binary cache and production shader owners. Each service prepares only its
+      required programs explicitly during ordinary test setup, before hostile selectors, active passes or
+      native observation callbacks. First use inside those boundaries must not trigger compilation/loading.
+      Retain owners through their original context/manager lifetime and retire them before those services;
+      manager retirement invalidates old preparations. Preserve cache opt-outs and original thread/context
+      rules. Failed preparation cleans partial owners and reports failure; no source-compiler fallback.
+    - Immediate observation borrows an unchanged, completed source only until synchronous return. It issues
+      no automatic source copy. The caller supplies correct producer synchronization/access transitions;
+      the helper does not infer hazards. Retained-history capture explicitly owns an independent copy before
+      later mutation/resize/retirement. An active attachment/native callback uses an explicit native copy at
+      that observation boundary, then observes the copy outside the production pass. Do not widen the pass.
+      Existing snapshots remain necessary where borrowing cannot preserve the original interpretation.
+    - Every route retains exact mip, selected region, array/cube face or 3D Z range and represented channels.
+      Compare stored sRGB bytes without accidental sampling decode. Packed stencil observation must not
+      change the subject's depth/stencil mode; use an owned copy when needed. Integer/bitwise reads preserve
+      all bits; normalized-byte reconstruction, NaN/infinity, signed-zero and subnormal policies follow each
+      original oracle. Unsupported direct interpretations take an explicit copy/conversion route, never
+      silent resampling. Multisample observation keeps its authored sample/resolve semantics.
+    - Scratch belongs to its explicit service/context and is reused only after the preceding immediate
+      operation completes. Reset result sentinels, counters, histogram/partials and logical inputs before
+      every use, including after failure. Allocate only required capacity/resources; no dummy image or
+      histogram for operations that do not use them. Release scratch before manager/context destruction.
+      Native observation scopes preserve only selectors actually touched, including exact UBO base/range,
+      pack and aspect state where relevant, on both success and exception. Do not repair production state
+      or drain unrelated errors. RHI tests use independent native reads/captures for the behavior under test;
+      production-backed checking is not proof of the same RHI transfer/binding operation it exercises.
+
+  Approved route and cost decisions:
+    | Authored observation | Selected route and preserved proof | Avoidable work / remaining cost |
+    | --- | --- | --- |
+    | One scalar/tuple or a few named texels, including current water MRT outputs | Direct bounded native read and CPU assertion; exact coordinate/layer/format and independent expected tuple. | No checker dispatch/full-image snapshot/upload. Each immediate read may still synchronize; batching is deferred. |
+    | Sparse nominated points in a large image | Typed integer coordinate/value or predicate records, dispatch only those points; retain duplicates/order if authored, every mask and exact compared count. | O(selected points) expectation/dispatch work, no dense expansion or enclosing source copy; retain small CPU reads when simpler. |
+    | Substantial domain with uniform/regular expectations | GPU whole-domain comparison against constants, row/region tables or domain-owned independent predicates. | No repeated CPU expected pixels; requested comparison facts only, bounded result read, one immediate completion. |
+    | Substantial domain with irreducible CPU numerical reference | Keep independently computed arrays/quadrature/double bounds and exact tolerance; explicit reference owner can reuse unchanged uploads. | Upload remains real work; avoid padding/duplicate bands but do not replace an independent oracle with the tested algorithm. |
+    | History/temporal equality or mapped old/new domains | One explicitly owned pre-mutation capture; compare current borrowed domain to retained original with exact region mapping. | Required capture stays; remove nested captures of either unchanged image. No implicit cross-check snapshot cache. |
+    | Counts, extrema, ranks, moments, ordered scalar | Dedicated requested-fact reduction, rank occurrence/slice checks or ordered scalar operation. Completion per required stage plus full selected-domain counts. | Workgroup count reduction avoids global per-component contention; no unused moments/extrema or full scalar intermediate. Preserve histogram and double/ordered arithmetic when required. |
+    Costs to record separately during implementation: preparation and allocation, copied bytes, CPU reference
+    construction/upload bytes, visited elements, dispatches/atomics, touched selector scopes and immediate
+    completion waits. Reuse 10.9's bounded helper evidence with its stated limits. No speedup follows from
+    bounded result size alone; no numerical acceptance threshold or new full baseline run is introduced.
+
+  Coverage consolidation map (method/parameter groups; all unlisted cases KEEP under 10.2's family map):
+    Rows identify proposed execution changes, not proof that a test can already be deleted. Before any
+    removal, 10.9.3 must record the current exact input/stage/specialization -> named retained method/row
+    correspondence and verify it. Historical counts/times below are leads, not current discovery totals.
+
+    | Source group | Unique guarantee / oracle / boundary and failure inputs | Disposition, cost and receiving unit |
+    | --- | --- | --- |
+    | SpirvInventoryTests.DeclaredGraphicsCombinationLinks(identity,key) and SpirvGraphicsLifecycleTests.RuntimeAssignmentsValidateAndRepresentativesRetirePreviousExecutable(shaderName,variant) | Native successful specialization/link for every complete stage selection; runtime row additionally validates packaged interface, binary-only reads and exact production ownership. | CONSOLIDATE only identical complete selections into the runtime positive matrix (historical 480 overlap); keep all unmatched native selections (historically 26). Both disable cache for the subject. Verify binary path/digest, entry point, typed specialization, stage pairing and assignment, not just identity/key. Eliminate only duplicate positive stage creation/link/cleanup; 10.9.3. |
+    | SpirvInventoryTests.BuiltVariantSpecializes(identity,key) | Every declared binary's stage/specialization loads as a native shader, including stages not reachable through retained complete programs. | KEEP until exact selected-stage coverage proves duplicates. Historical 842 rows/2.811s is low priority; uncovered defaults, numeric selections, loader semantics and stage families remain; 10.9.3. |
+    | SpirvInventoryTests.SlicedAssetsSpecializeAndLinkWithoutMutation; ComputeAssignmentsLinkAndRepresentativeDisposalPreservesReplacement | Borrowed byte-slice immutability; every explicit compute assignment; repeated disposal leaves replacement valid on designated representative. | KEEP native/slice/compute subjects and representatives. Graphics overlap supplies none of these; 10.9.3 only reviews exact coverage. |
+    | SpirvGraphicsLifecycleTests.BinaryOnlyReloadPreservesContractUniformDictionary; RuntimeReloadPreservesWorkingProgramOnInvalidBinary; RuntimeFailurePreservesInstalledGeneration(replaced,substitute,failure); representative stage-family branches of runtime matrix | Active/optimized-out locations, successful repeated replacement, malformed payload/read/specialization/link/binding failures preserve exact installed settings/layout/table/native program. | KEEP all distinct failures and representative retirement cycles; no shared subject executable. Positive matrix consolidation must retain these branches; 10.9.3. |
+    | SceneColorParticleSsaoTests.RestoreSelectsExpectedMetadataForUploadedSamples(pixel,scenario), four rows | Same uploaded four-pixel scene; each coordinate proves partial-alpha, zero-alpha depth write, later foreground receiver or untouched receiver normal/position selection after restore. Independent tuples and material-depth array. | CONSOLIDATE four scene/setup/draw executions into one with all four named expected tuples and coordinate diagnostics; retain every assertion; 10.9.3. |
+    | Other SceneColorParticleSsaoTests methods | Before/after resolve receiver immutability, next-capture owned-only clear, disposal preserves borrowed images after queue drain. | KEEP separate mutation/lifetime milestones; snapshots needed across writes. Shared fixture is not duplication; 10.9.7 may remove nested observation copies. |
+    | CloudStoredVolumeViewTests.RefreshSchedulesCoverOddTilesWithoutStarvation | 64 frames spanning two periods and unsigned wrap; independent depth ramp, exact selected count, replay mask, four-frame freshness over every odd-tail tile. | KEEP all frames/domains and schedule state. Simplify repeated observations/projection scratch only; 10.9.5–10.9.7. Historical 1.114s does not justify schedule pruning. |
+    | CloudStoredVolumeViewTests.TemporalCarriesOnlyRealObservationsAndReportsEffectiveWeight; TemporalMotionCarriesMappedClassificationAndCurrentFrameDistance | Actual observations versus carried history, effective weights, mapped motion classification and current-frame distances, with independently authored predicates and witnesses. | KEEP both distinct temporal contracts and all mutation observations; domain-owned oracles and borrowed immediate sources; 10.9.4–10.9.7. Historical temporal 12.037s is not evidence of duplicate schedule coverage. |
+    | CloudStoredVolumeViewTests.BorrowedInputsMatchOwnedOutput; StoredViewUsesVoxelTransportAndNativeProducts; StoredSolutionInitializesRefinesDrawsAndRetires | Borrowed/owned agreement; independent transport/native-product controls, odd/large target coverage and preparation reuse; real initialization/refinement/reconfiguration/retirement. | KEEP separate native, numerical and lifecycle guarantees. Quality/profile timing methods remain Diagnostic. Simplify helper work without shrinking output domains; 10.9.4–10.9.7. |
+    | WaterShallowContinuityTests.ShallowWallMotionPreservesContinuousRadiance(quality,half,shoreline,curved), 24 rows x 201 samples | Adjacent-motion HDR continuity <= .01, association error <= .0001, method switching, geometry/submergence and quality-zero read/traversal budgets; separate direct-filter continuity and failing-pair replay. | KEEP all rows/samples and independent geometry/radiance oracles. Tiny MRT outputs use direct tuple reads. Reuse immutable setup only where legal; combining result reads or encoding motion as a draw domain needs a later batching/workload design decision; 10.9.7. |
+    | SurfaceLightingSpatialRuntimeTests.ProbeRingPreservesOverlapWithinStableGeometryCoverage(sh9), both SH modes | All 27 independently selected supported centers become ready; ring shift preserves exact old metadata/tile lighting; new edge slots stay unavailable/cleared while uploads paused. | KEEP both modes, readiness milestones, all selected cells and full tile comparisons. Direct scalar readiness reads can replace snapshot+general inspection; retain pre-shift history. Gathering observations into one wait is deferred batching; 10.9.5/10.9.7. |
+    | Other SurfaceLightingSpatialRuntimeTests; SurfaceLightingConsumerRuntimeFixture.Frame/Energy/WaitObservations and SurfaceCacheRuntimeFixture.LightingObservations consumers | World anchors, reused unavailable slots, dark neighbors, replacement policy, real worker completion/publication and full requested directional regions. | KEEP each distinct lifecycle/lighting scenario under 10.2. Reuse unchanged explicit reference data; no fewer frame/mutation milestones without equivalence evidence. Domain checks and copy removal do not imply permission to batch; 10.9.4–10.9.7. |
+    | Unit/Rendering/GpuResourceAssociationStressTests.RepeatedLifetimesPruneAliasesAndRejectRetiredEntries, 12 lifetimes x 32 cycles x 16 aliases | Actual collection removes weak aliases; explicit release, stale-entry rejection/name reuse and context retirement. CPU manager and deterministic reader isolate native work, but forced GC/finalizers are the collection subject. | KEEP until agreed split: deterministic policy sequences can be separated from a focused real collection integration/stress case. Do not mock away collection or assume one cycle proves repeated bounded retention. Repeated forced GC/finalizer waits (up to five attempts per cycle) are a cost candidate; historical case time does not isolate their contribution. Discuss concrete counts/guarantees in 10.9.7 before changing them. |
+    | Root AtmosphereComputationTests and AtmosphereLookupTests orchestration methods; GPU AtmosphereGpuScatteringTests versus AtmosphereEngineBindingTests.StandardCompileAndUseAssignsAerialSamplers(ssao) | Admission/latest input/cancellation/disposal and completed-only publication; independent scalar quadrature/scattering math; actual engine sampler assignment for both SSAO settings. | KEEP numerical versus integration subjects distinct. Evaluate a controllable producer seam for orchestration only; retain real producer/publication integration and all numerical quality/albedo cases. No expensive real producer may be replaced until exact guarantee mapping and discussion; 10.9.7. |
+    | All remaining 10.2 family rows and the 101 caller paths in 10.9.1's manifest | Existing independent domain oracles, parameter boundaries, failures, interception/native effects and lifecycle milestones. | KEEP coverage. Only observation plumbing/representations change in 10.9.4–10.9.7; no additional redundancy/removal claim. Any newly suspected duplicate first needs an explicit map amendment and replacement proof. |
+
+  Helper self-test disposition (GpuImageAssertionTests; retain negative evidence as operations move):
+    | Method/parameter group | Guarantee and replacement responsibility |
+    | --- | --- |
+    | ExactAndTolerantFloatContractsRemainIndependent; IntegerValuesPreserveAllBits(signed); NormalizedByteDomainPreservesAllValuesAndFinalComponent | KEEP independent tolerance/bit/nonfinite/rounding contracts and final-component corruption. Comparison service; compact expectations cannot weaken them. |
+    | SparsePredicatesRetainEveryNominatedPoint; LocalFloatTuplePreservesLayerAndPayload; LocalRgba8TuplePreservesOriginalBytes | KEEP every nominated point/layer and original bytes. Direct local/sparse routes, including last point and invalid coordinate/domain checks. |
+    | StatisticsAndCoveredChannelsPreserveTheirAuthoredPredicates; OrderedFloatReductionRetainsOriginalArithmetic | KEEP current exact double/weighted/coverage and sequential-float oracles. Known precision failure remains a blocker for 10.9.4 qualification. |
+    | RankAndSliceNegativesAreObservable(mutation); RankValidationRequiresItsOwnCompleteDispatch(partial); StatisticsRequireBothCompleteReductionStages(suppressed,partial); SuppressedNativeDispatchFailsTheCompletionSentinel(partial) | KEEP missing/duplicate ranks, equal slices, suppressed/tail dispatch and every required reduction-stage completion failure. Reduction/comparison results cannot pass on initialized zero scratch. |
+    | AuthoredPredicatesRetainCorrespondingImagesAndWitnesses; HistoryProjectionsRetainCompleteIndependentImages; SelectionsAndHistoryRetainTheCompleteDomain(dimension); LocalMaximumSelectionRetainsEveryLayer(dimension) | KEEP corresponding/mapped sources, witnesses, original layer/mip domains, snapshot independence and deterministic selection ties. Split across domain assets and selection/projection service; no global predicate switch retained for these tests. |
+    | DepthAndChannelSelectionsPreserveTheirAspects; PackedStencilDomainDetectsFinalTexelAndPreservesDepthAspect; LayerCopiesAndConversionsPreserveOriginalContracts | KEEP exact depth/stencil/channel/region interpretation and subject state, final-texel negatives, channel expansion/resampling contracts. Copy only when required by interpretation or history. |
+    | ProductionCheckerPreservesUniformSelectors(range); ProductionOwnerSurvivesConsumersAndPublishesFreshInputs; HostileSelectorsRemainUnchanged(failedDispatch) | KEEP UBO base/range, owner reuse with fresh bindings/results and success/exception restoration. Explicit setup prepares only selected programs before hostile state; every reused scratch route must reset. |
+    | MalformedKernelRetiresPartialConstruction; ForeignContextCannotAccessOrRetireAnOwner; InterruptedConstructionRetiresOnReturnToOrigin; RetiredContextDropsNativeNamesWithoutForeignDeletion | KEEP fresh malformed native subject, original-context cleanup and retirement/failure contracts. Services never share fault-injection subjects or introduce a scheduler. |
+
+  Decision boundary and traceability:
+    - Non-batching work: matrix/scene consolidation after proof, explicit services, production preparation,
+      compact expectations, sparse dispatch, safe borrowed observations, requested-fact/workgroup reductions,
+      direct ordered scalar retrieval and elimination of nested copies. All remain possible independently.
+    - Deferred: queued observations, combined waits/results across checks, water motion-domain restructuring
+      and cross-cell readiness gathering. No observation queue or delayed return is implied by scratch reuse.
+      A declined batching design leaves the above work actionable and its costs truthfully reported.
+    - Tasks 1/5 -> 10.2's exhaustive family/IO/isolation map and 10.9's audit/measurement limits -> preserve
+      unique inputs/oracles, mapped removal only, no unsupported savings -> source groups above; 10.9.3
+      supplies exact current replacement receipts, 10.9.7 seeks decisions on remaining expensive patterns.
+    - Tasks 2/3 -> Rendering.GpuResources.md#shader-executable-ownership and
+      Rendering.ShaderBindingState.md#shader-ownership-and-publication -> production executable owners,
+      fixed context/manager lifetime, owner-selected aspect, fresh subject resources -> explicit service,
+      preparation, scratch and source-lifetime design above; implementation evidence belongs to 10.9.4.
+    - Tasks 3/4 -> Rendering.GpuCommands.Contracts.md#executable-and-pipeline-contracts and
+      #submission-and-failure-rules; Rendering.ShaderBindingState.md#verification-boundary -> no ownership
+      transfer, illegal context execution, widened active boundary, validation readback or headless speedup
+      inference -> immediate/history/native routes and numerical/completion map above; 10.9.4–10.9.7 checks.
+    - Second source/document review and independent completion audit passed, including finite-selection
+      semantics and qualified GC cost attribution. User explicitly approved and requested closure on
+      2026-11-01. No build/test run was needed for this planning-only boundary; no runtime improvement is
+      claimed. Later implementation units remain unchecked and batching remains deferred.
+
+  ☑ Complete the test-value map before deleting coverage: identify each affected method/parameter group's
     unique production guarantee, oracle, boundary inputs, failure behavior, setup and observation costs.
     Include expensive families outside GPU/ and helper self-tests. Mark suspected overlaps as unconfirmed
     until their replacement proves equivalent coverage; do not equate shared setup with pointless tests.
-  ☐ Design separate comparison, reduction/statistics and selection/projection responsibilities with typed
+  ☑ Design separate comparison, reduction/statistics and selection/projection responsibilities with typed
     inputs/results and explicit services owned by the fixture. Keep production shader loading/caching;
     place scenario-specific independent shader oracles with their test domains instead of a universal
     185-case dispatcher. Avoid one bespoke infrastructure class per case, a new generator or parallel cache.
-  ☐ Define immediate borrowed-source observation versus retained-history snapshots, exact aspect/mip/layer
+  ☑ Define immediate borrowed-source observation versus retained-history snapshots, exact aspect/mip/layer
     interpretation, native observation boundaries for RHI subjects, scratch ownership/reset, requested-fact
     selection and on-demand preparation outside hostile-state/active-pass observation boundaries.
     Explicitly retain fresh subject resources and production owner/context rules without a new scheduler.
-  ☐ Define scalar, sparse and substantial-domain routes according to their actual work. Preserve ordered
+  ☑ Define scalar, sparse and substantial-domain routes according to their actual work. Preserve ordered
     float and double numerical contracts, independent references, completion proof and useful diagnostics.
     Account for scratch allocation, copies, expectation uploads, atomics, selector work and synchronization;
     fewer readback bytes alone are not acceptance evidence. Do not assume every assertion belongs on GPU.
-  ☐ Present the coverage map and concrete architecture for user agreement before implementing 10.9.3–10.9.7.
+  ☑ Present the coverage map and concrete architecture for user agreement before implementing 10.9.3–10.9.7.
     Identify which costly patterns can change without batching and which require a later decision. Keep
     batching deferred; a declined batching proposal must not silently block unrelated approved work.
 
